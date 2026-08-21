@@ -6,9 +6,11 @@ import {
   createRouterClient,
   os,
   type AnyRouter,
+  type AnyContractRouter,
   type MergedErrorMap,
   type ORPCErrorConstructorMap,
   type Procedure,
+  type Router,
 } from '@orpc/server'
 import type {AnyToolBuilder} from './define-extension.js'
 import {
@@ -27,7 +29,7 @@ import type {CtxOf, ToolRequest, UnionToIntersection} from './types.js'
 
 export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding; approval?: 'ask'}
 
-export type RegistryCallContext = {request?: ToolRequest}
+export type RegistryCallContext = {request: ToolRequest}
 
 type RegisteredExtensionTools<Entry> = Entry extends {tools: infer Tools} ? Tools : Record<never, never>
 
@@ -113,11 +115,7 @@ const PAGE_FAILURE_TO_TRANSPORT: Record<PageErrorCode, string> = {
 
 export type ForwardedPageTool = {name: string; mutating: boolean}
 
-export type RegistryPageCaller = (
-  tool: ForwardedPageTool,
-  input: unknown,
-  request: ToolRequest | undefined,
-) => Promise<unknown>
+export type RegistryPageCaller = (tool: ForwardedPageTool, input: unknown, request: ToolRequest) => Promise<unknown>
 
 export type ToolCatalogEntry = {
   name: string
@@ -157,7 +155,7 @@ export type ToolRegistry = {
   router: ExtensionToolRouter
   register: <Tool extends AnyToolBuilder>(tool: Tool, ...registration: ToolRegistration<CtxOf<Tool>>) => void
   has: (name: string) => boolean
-  call: (name: string, input: unknown, options?: {request?: ToolRequest}) => Promise<unknown>
+  call: (name: string, input: unknown, options: {request: ToolRequest}) => Promise<unknown>
   catalog: {list: () => ToolCatalogEntry[]; get: (name: string) => ToolSignature}
   sandboxTools: () => SandboxTool[]
 }
@@ -176,8 +174,8 @@ export function createToolRegistry(
     register: (tool: AnyToolBuilder, registration: {owner: string; context?: unknown}) =>
       registerTool(router, tool, pageCaller, registration, owners),
     has,
-    call: (name, input, options = {}) =>
-      has(name) ? callTool(router, name, input, options.request) : Promise.reject(new Error(`unknown tool "${name}"`)),
+    call: (name, input, call) =>
+      has(name) ? callTool(router, name, input, call.request) : Promise.reject(new Error(`unknown tool "${name}"`)),
     catalog: {
       list: () => catalogEntries(walked(), pageConnected()),
       get: (name) => toolSignature(walked(), name, pageConnected()),
@@ -208,13 +206,9 @@ function toolMember(node: unknown, segment: string): unknown {
   return Reflect.get(node, segment)
 }
 
-function callTool(
-  router: ExtensionToolRouter,
-  name: string,
-  input: unknown,
-  request: ToolRequest | undefined,
-): Promise<unknown> {
-  const client = createRouterClient(router, {context: {request}})
+function callTool(router: ExtensionToolRouter, name: string, input: unknown, request: ToolRequest): Promise<unknown> {
+  const dispatch: Router<AnyContractRouter, RegistryCallContext> = router
+  const client = createRouterClient(dispatch, {context: {request}})
   const target = name.split('.').reduce<unknown>(toolMember, client)
   if (typeof target !== 'function') return Promise.reject(new Error(`unknown tool "${name}"`))
   const result: unknown = target(input)
@@ -339,7 +333,7 @@ async function runServerTool(
   tool: RegistryTool,
   input: unknown,
   context: unknown,
-  request: ToolRequest | undefined,
+  request: ToolRequest,
   declaredErrors: ToolErrors,
   errors: ToolErrorConstructors,
 ): Promise<unknown> {
@@ -358,7 +352,7 @@ async function forwardToolToPage(
   declaredErrors: ToolErrors,
   errors: ToolErrorConstructors,
   pageCaller: RegistryPageCaller | undefined,
-  request: ToolRequest | undefined,
+  request: ToolRequest,
 ): Promise<unknown> {
   if (pageCaller === undefined) throw transportError(errors, 'NO_PAGE_CLIENT', `${tool.name}: no widget connected`)
   try {

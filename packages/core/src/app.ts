@@ -22,29 +22,31 @@ import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
-import {concivSandboxTools, type ConcivToolContext} from '@conciv/tools'
-import type {ChatTool} from '@conciv/protocol/chat-types'
+import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
+import type {ChatTool, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {
   ensureAgentRow,
   ensureRow,
+  mintExternalRow,
   nativeIdFor,
   recordNativeId,
-  rowByNativeId,
   sweepEmptyRows,
+  type RowScope,
 } from './chat/session-rows.js'
 import {makeRunControl, type ChatDeps} from './chat/runtime.js'
-import {askUi, createAskRegistry} from './chat/ask.js'
+import {askUi} from './chat/ask.js'
 import {makeAskGate, requiresApproval} from './chat/gate.js'
 import {makeConcivSandbox} from './chat/sandbox.js'
 import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
-import {createSessionStreams} from './chat/subscribe.js'
 import {recoverInterruptedRuns} from './chat/transcript.js'
-import {createLiveRuns} from './chat/live-runs.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
 import {modelOf, openDb, writeToolCapture} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
-import {askPage, makePageBus, type PageEnv} from './page-bus.js'
+import {makeSessionPrimitives} from './runtime/primitives.js'
+import {makeCoreRuntime} from './runtime/core-runtime.js'
+import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
+import {runWithSession, session} from './runtime/session-context.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
@@ -56,8 +58,6 @@ import {
   rpcWebsocketRoute,
 } from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
-import {makeJournal} from './page-bus.js'
-import {makeBuiltinRegistry} from './tool-registry.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {logError} from './lib/debug.js'
@@ -77,7 +77,7 @@ export type MakeAppOpts = {
   extensions?: AnyExtension[]
 
   extensionConfig?: Record<string, unknown>
-  harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
+  harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
 
   claudeHome?: string
 
@@ -180,7 +180,7 @@ function approvalGatedNames(registry: ToolRegistry): Set<string> {
   )
 }
 
-function registryBackedTool(tool: AnyToolBuilder, registry: ToolRegistry): ExtensionServerTool {
+function registryBackedTool(tool: AnyToolBuilder, call: ScopedToolCall): ExtensionServerTool {
   return {
     name: tool.name,
     description: toolDescription(tool),
@@ -188,7 +188,7 @@ function registryBackedTool(tool: AnyToolBuilder, registry: ToolRegistry): Exten
     approval: tool.approval,
     mutating: requiresApproval(tool) || (tool.meta?.mutating ?? false),
     errors: declaredToolErrors(tool),
-    execute: (input: unknown, request: ToolRequest) => registry.call(tool.name, input, {request}),
+    execute: (input: unknown, request: ToolRequest) => call(tool.name, input, request),
   }
 }
 
@@ -253,7 +253,7 @@ export type MadeApp = {
   app: AppType
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
-  registry: ToolRegistry
+  runtime: CoreRuntime
 }
 
 const RUN_DRAIN_TIMEOUT_MS = 5_000
@@ -270,6 +270,33 @@ async function drainWithDeadline(drain: Promise<void>, timeoutMs: number): Promi
   return outcome === 'drained'
 }
 
+function makeServerHarness(harness: HarnessAdapter, cwd: string, claudeHome?: string): ServerHarness {
+  const history = harness.history
+  const transcriptPath = history?.transcriptPath
+  const transcriptExists = (token: HarnessSessionId): boolean => {
+    if (transcriptPath === undefined) return false
+    if (history?.withinProject && !history.withinProject(cwd, token, claudeHome)) return false
+    return existsSync(transcriptPath(cwd, token, claudeHome))
+  }
+  return {
+    id: harness.id,
+    ttyCommand: harness.tty?.command,
+    transcriptExists: transcriptPath ? transcriptExists : undefined,
+    transcriptMessages: history ? (token) => history.messages(cwd, token, claudeHome) : undefined,
+    connectPlan: harness.connect?.plan,
+  }
+}
+
+async function mcpSessionId(
+  rows: RowScope,
+  header: SessionId | null,
+  nativeId: HarnessSessionId | null,
+): Promise<SessionId> {
+  if (header !== null) return header
+  if (nativeId !== null) return (await ensureAgentRow(rows, nativeId)).id
+  return mintExternalRow(rows)
+}
+
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const extensions = [pageServerExtension, ...(opts.extensions ?? [])]
 
@@ -279,27 +306,20 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
-  const asks = createAskRegistry()
   const {claimStartedAt, durability, runControl, runs} = makeRunControl(opts.firstChunkTimeoutMs)
-  const liveRuns = createLiveRuns()
-  const stream = createSessionStreams()
 
-  const runStartListeners: ((sessionId: string) => void)[] = []
+  const runStartListeners: ((sessionId: SessionId) => void)[] = []
 
-  const pageBus = makePageBus()
-
-  const pageEnv: PageEnv = {
-    journal: makeJournal(),
+  const primitives = makeSessionPrimitives({
     root: opts.cwd,
-    bus: pageBus,
     storeCapture: (params) => writeToolCapture(db, params),
-  }
-
-  const registry = makeBuiltinRegistry({
-    page: pageEnv,
     bundler: () => opts.bridge,
     openInEditor: opts.openInEditor,
   })
+  const {asks, liveRuns, registry, stream} = primitives
+  const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
+  const scopedToolCall: ScopedToolCall = (name, input, request) =>
+    runtime.forSession(request.sessionId).tools.call(name, input, {toolCallId: request.toolCallId})
 
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
@@ -311,20 +331,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
-  const history = harness.history
-  const transcriptPath = history?.transcriptPath
-  const serverHarness: ServerHarness = {
-    id: harness.id,
-    ttyCommand: harness.tty?.command,
-    transcriptExists: transcriptPath
-      ? (token) => {
-          if (history?.withinProject && !history.withinProject(opts.cwd, token, opts.claudeHome)) return false
-          return existsSync(transcriptPath(opts.cwd, token, opts.claudeHome))
-        }
-      : undefined,
-    transcriptMessages: history ? (token) => history.messages(opts.cwd, token, opts.claudeHome) : undefined,
-    connectPlan: harness.connect?.plan,
-  }
+  const serverHarness = makeServerHarness(harness, opts.cwd, opts.claudeHome)
   const nativeUrl = opts.nativeUrl ?? ((): string | undefined => undefined)
 
   function assembleMounted(extension: AnyExtension, result: ServerResult<unknown> | undefined) {
@@ -337,7 +344,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       registryTools,
       tools: registryTools
         .filter((tool) => tool.binding === 'server')
-        .map((tool) => registryBackedTool(tool, registry)),
+        .map((tool) => registryBackedTool(tool, scopedToolCall)),
       attachmentExpanders: buildAttachmentExpanders(extension, context),
       context,
       dispose: result?.dispose,
@@ -354,8 +361,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         basePath: opts.basePath ?? '',
         sessions: serverSessions,
         harness: serverHarness,
-        page: {call: (name, input) => askPage(pageBus, name, input)},
-        tools: {call: (name, input) => registry.call(name, input)},
+        page: {call: (name, input) => session().page.ask(name, input)},
+        tools: {call: (name, input) => session().tools.call(name, input)},
         symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
         bundler: opts.bridge,
         nativeUrl,
@@ -377,14 +384,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
-  const onRunEnd = async (sessionId: string): Promise<void> => {
-    const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
-    settled.forEach((outcome) => {
-      if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
+  const onRunEnd = (sessionId: SessionId): Promise<void> =>
+    runWithSession(runtime.forSession(sessionId), async () => {
+      const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
+      settled.forEach((outcome) => {
+        if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
+      })
     })
-  }
-  const sessionModel = (sessionId: string): string | null => modelOf(db, sessionId)
-  const makeToolCtx = (sessionId: string): ConcivToolContext => ({askUi: () => askUi(asks, sessionId)})
+  const sessionModel = (sessionId: SessionId): string | null => modelOf(db, sessionId)
+  const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({askUi: () => askUi(asks, sessionId)})
 
   const askFreeCommandAllows = (): string[] =>
     registry.catalog
@@ -405,7 +413,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   assertUniqueCapabilityNames([
     ['a built-in registry tool', registry.sandboxTools().map((tool) => tool.name)],
-    ['a conciv assist tool', concivSandboxTools(makeToolCtx('')).map((tool) => tool.name)],
+    ['a conciv assist tool', concivSandboxToolNames()],
     ...mounted.map((entry): [string, string[]] => [
       `extension "${entry.extensionName}"`,
       entry.tools.map((tool) => tool.name),
@@ -416,8 +424,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const risky = approvalGatedNames(registry)
 
-  const codeModeCapabilities = (sessionId: string): CodeCapability[] => [
-    ...registryCapabilities(registry),
+  const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] => [
+    ...registryCapabilities(registry, scopedToolCall),
     ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
   ]
 
@@ -450,13 +458,17 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     toolNames: new Set(toolList.map((tool) => tool.name)),
     codeModeCapabilities,
     attachmentExpanders,
-    onRunStart: (sessionId) => runStartListeners.forEach((listener) => listener(sessionId)),
+    onRunStart: (sessionId) =>
+      runWithSession(runtime.forSession(sessionId), () => runStartListeners.forEach((listener) => listener(sessionId))),
     onRunEnd,
     firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
   }
 
-  if (opts.cfg.sessionId) {
-    void ensureAgentRow({db, harnessKind: harness.id, cwd: opts.cwd}, opts.cfg.sessionId).catch(() => {})
+  if (opts.cfg.harnessSessionId !== undefined) {
+    void ensureAgentRow(rows, opts.cfg.harnessSessionId).catch(() => {})
+  }
+  if (opts.cfg.sessionId !== undefined) {
+    void ensureRow(db, opts.cfg.sessionId, harness.id, opts.cwd).catch(() => {})
   }
   void sweepEmptyRows(db).catch(() => {})
 
@@ -464,14 +476,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const send = makeSend(chatDeps)
 
+  const runtime = makeCoreRuntime({primitives, chat: chatDeps, send, compactor, model: sessionModel, staleness})
+
   const rpc = makeRpcRouter({
     chat: chatDeps,
     tools: toolList,
     compactor,
     send,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
-    page: pageEnv,
-    registry,
+    runtime,
+    rows,
     staleness,
     ...(opts.askTimeoutMs === undefined ? {} : {askTimeoutMs: opts.askTimeoutMs}),
   })
@@ -497,10 +511,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
             ...(opts.askTimeoutMs === undefined ? {} : {timeoutMs: opts.askTimeoutMs}),
           }),
         listening: (sessionId) => stream.listening(sessionId),
-        publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
-        sessionModel,
-        sessionForNativeId: async (nativeId) => (await rowByNativeId(db, nativeId))?.id ?? null,
-        noteToolCall: (sessionId, toolCallId, toolName) => asks.noteToolCall(sessionId, toolCallId, toolName),
+        resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
         staleness,
       },
     },
@@ -521,5 +532,5 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     db.$client.close()
   }
 
-  return {app, dispose, extensionContexts, registry}
+  return {app, dispose, extensionContexts, runtime}
 }

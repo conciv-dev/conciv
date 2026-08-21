@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import type {ToolRequest} from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
+import type {ScopedToolCall} from '../runtime/scope-types.js'
 import type {ConcivServerTool} from '@conciv/tools'
 import {resolveSchemaRefs} from './resolve-schema-refs.js'
 
@@ -31,7 +32,7 @@ function firstSentence(text: string): string {
   return (cut === -1 ? lead : lead.slice(0, cut)).trim()
 }
 
-export function registryCapabilities(registry: ToolRegistry): CodeCapability[] {
+export function registryCapabilities(registry: ToolRegistry, call: ScopedToolCall): CodeCapability[] {
   return registry.sandboxTools().map((tool) => {
     const errors = tool.errors.map(({code, message}) => ({code, message}))
     return {
@@ -44,7 +45,7 @@ export function registryCapabilities(registry: ToolRegistry): CodeCapability[] {
       reachable: tool.reachable,
       errors,
       inputSchema: tool.schema,
-      execute: tool.run,
+      execute: (input, request) => call(tool.name, input, request),
       signature: () => ({
         input: resolveSchemaRefs(tool.inputSchema),
         output: resolveSchemaRefs(tool.outputSchema),

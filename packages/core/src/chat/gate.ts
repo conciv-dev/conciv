@@ -13,6 +13,7 @@ import {
 import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
 import {ASK_TIMEOUT_MS, type AskRegistry} from './ask.js'
 import {makeToolNameNormalizer} from './tool-names.js'
+import type {SessionId} from '@conciv/protocol/chat-types'
 
 const READ_ONLY_COMMANDS = [
   'ls',
@@ -78,16 +79,16 @@ export function approvalRefusal(toolName: string, decision: PermissionDecision):
   return `Tool "${toolName}" received no approval decision (the ask timed out)`
 }
 
-export function noListenerRefusal(toolName: string, sessionId: string): string {
+export function noListenerRefusal(toolName: string, sessionId: SessionId): string {
   return `Tool "${toolName}" requires approval but nothing is attached to session "${sessionId}" to answer; open the widget on that session and retry`
 }
 
 export type PermissionGate = {
-  decide(toolName: string, toolInput: unknown, sessionId: string, toolUseId: string): Promise<PermissionDecision>
+  decide(toolName: string, toolInput: unknown, sessionId: SessionId, toolUseId: string): Promise<PermissionDecision>
 }
 
 export type AskGateDeps = {
-  sessionId: string
+  sessionId: SessionId
   asks: AskRegistry
   emit: (chunk: StreamChunk) => void
   timeoutMs?: number
@@ -135,7 +136,7 @@ function requestFields(request: {tool_name?: string; input?: unknown}): {
   }
 }
 
-function gatedTools(tools: AnyTool[], gate: PermissionGate, sessionId: string): AnyTool[] {
+function gatedTools(tools: AnyTool[], gate: PermissionGate, sessionId: SessionId): AnyTool[] {
   return tools.map((tool) => {
     const execute = tool.execute
     if (!execute) return tool
@@ -151,7 +152,7 @@ function gatedTools(tools: AnyTool[], gate: PermissionGate, sessionId: string): 
   })
 }
 
-export function gateProvisioner(gate: PermissionGate, sessionId: string): ToolBridgeProvisioner {
+export function gateProvisioner(gate: PermissionGate, sessionId: SessionId): ToolBridgeProvisioner {
   return {
     provision: (tools, options) =>
       nodeHttpBridgeProvisioner.provision(gatedTools(tools, gate, sessionId), {
@@ -172,7 +173,7 @@ export function gateProvisioner(gate: PermissionGate, sessionId: string): ToolBr
   }
 }
 
-export function withConcivGate(gate: PermissionGate, sessionId: string) {
+export function withConcivGate(gate: PermissionGate, sessionId: SessionId) {
   return defineChatMiddleware({
     name: 'conciv-gate',
     provides: [ToolBridgeProvisionerCapability],

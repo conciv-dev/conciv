@@ -1,19 +1,20 @@
 export type LiveRun = {runId: string; abort: AbortController; done: Promise<void>}
+import type {SessionId} from '@conciv/protocol/chat-types'
 
 export type LiveRuns = {
-  start: (sessionId: string, run: LiveRun) => void
-  settle: (sessionId: string, runId: string) => void
-  of: (sessionId: string) => LiveRun[]
-  running: (sessionId: string) => boolean
-  onStart: (sessionId: string, listener: (runId: string) => void) => () => void
-  serialize: <T>(sessionId: string, section: () => Promise<T>) => Promise<T>
+  start: (sessionId: SessionId, run: LiveRun) => void
+  settle: (sessionId: SessionId, runId: string) => void
+  of: (sessionId: SessionId) => LiveRun[]
+  running: (sessionId: SessionId) => boolean
+  onStart: (sessionId: SessionId, listener: (runId: string) => void) => () => void
+  serialize: <T>(sessionId: SessionId, section: () => Promise<T>) => Promise<T>
 }
 
 export function createLiveRuns(): LiveRuns {
   const bySession = new Map<string, Set<LiveRun>>()
   const listeners = new Map<string, Set<(runId: string) => void>>()
   const tails = new Map<string, Promise<void>>()
-  const remove = (sessionId: string, run: LiveRun): void => {
+  const remove = (sessionId: SessionId, run: LiveRun): void => {
     const runs = bySession.get(sessionId)
     if (!runs) return
     runs.delete(run)

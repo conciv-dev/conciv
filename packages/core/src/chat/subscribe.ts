@@ -3,11 +3,12 @@ import {AsyncQueue} from '@tanstack/ai-acp'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import type {ChatDeps} from './runtime.js'
 import {sessionSnapshot} from './transcript.js'
+import type {SessionId} from '@conciv/protocol/chat-types'
 
 export type SessionStreams = {
-  publish: (sessionId: string, chunk: StreamChunk) => void
-  listen: (sessionId: string, onChunk: (chunk: StreamChunk) => void) => () => void
-  listening: (sessionId: string) => boolean
+  publish: (sessionId: SessionId, chunk: StreamChunk) => void
+  listen: (sessionId: SessionId, onChunk: (chunk: StreamChunk) => void) => () => void
+  listening: (sessionId: SessionId) => boolean
 }
 
 export function createSessionStreams(): SessionStreams {
@@ -31,7 +32,7 @@ export function createSessionStreams(): SessionStreams {
 
 export async function* subscribeSession(
   deps: ChatDeps,
-  sessionId: string,
+  sessionId: SessionId,
   signal: AbortSignal,
 ): AsyncGenerator<StreamChunk> {
   const queue = new AsyncQueue<StreamChunk>()

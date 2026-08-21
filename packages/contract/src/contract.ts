@@ -9,6 +9,7 @@ import {
   NativeSessionRefSchema,
   NavigationWriteSchema,
   PermissionDecisionSchema,
+  SessionId,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
 import {
@@ -26,7 +27,7 @@ import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'object' && value !== null)
 
-const SessionIdInput = z.object({sessionId: z.string()})
+const SessionIdInput = z.object({sessionId: SessionId})
 export const ChatSendInput = SessionIdInput.extend({
   runId: z.string().min(1),
   text: z.string().min(1).optional(),
@@ -183,7 +184,7 @@ export const contract = {
   },
   meta: {
     models: oc.output(ChatModelsSchema),
-    commands: oc.input(z.object({sessionId: z.string().optional()})).output(ChatCommandsSchema),
+    commands: oc.input(SessionIdInput).output(ChatCommandsSchema),
     tools: oc.output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
   },

@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {resolveHarnessModels} from '@conciv/harness'
 import {clearRunState, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
 import type {ChatDeps} from '../../chat/runtime.js'
@@ -54,7 +55,7 @@ export function sessionsRouter(deps: RpcDeps) {
   return {
     list: os.sessions.list.handler(({input}) => rpcSessionList(chat, input?.includeHidden ?? false)),
     create: os.sessions.create.handler(async () => {
-      const sessionId = `conciv_${randomUUID()}`
+      const sessionId = SessionId.parse(`conciv_${randomUUID()}`)
       await createRow(db, {
         id: sessionId,
         harnessSessionId: null,
@@ -97,7 +98,7 @@ export function sessionsRouter(deps: RpcDeps) {
       return {model: input.model}
     }),
     compact: os.sessions.compact.handler(async ({input}) => {
-      await deps.compactor.run(input.sessionId)
+      await deps.runtime.forSession(input.sessionId).run.compact()
       return {ok: true as const}
     }),
   }
