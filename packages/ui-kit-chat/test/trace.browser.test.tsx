@@ -16,7 +16,6 @@ const settledItems: TraceItem[] = [
     render: (branch) => (
       <TraceToolRow
         projection={{mark: 'pass', label: 'read', target: 'src/app.tsx', meta: '120 lines'}}
-        last={branch.last}
         ring={branch.ring}
       />
     ),
@@ -26,7 +25,6 @@ const settledItems: TraceItem[] = [
     render: (branch) => (
       <TraceToolRow
         projection={{mark: 'warn', label: 'edit', target: 'src/store/turn.ts', meta: '+9 −4'}}
-        last={branch.last}
         ring={branch.ring}
       />
     ),
@@ -36,7 +34,6 @@ const settledItems: TraceItem[] = [
     render: (branch) => (
       <TraceToolRow
         projection={{mark: 'fail', label: 'bash', target: 'pnpm test', meta: 'exit 1'}}
-        last={branch.last}
         ring={branch.ring}
       />
     ),
@@ -48,22 +45,14 @@ const liveItems: TraceItem[] = [
     key: 'first-live',
     live: true,
     render: (branch) => (
-      <TraceToolRow
-        projection={{mark: 'run', label: 'run', target: 'installing dependencies'}}
-        last={branch.last}
-        ring={branch.ring}
-      />
+      <TraceToolRow projection={{mark: 'run', label: 'run', target: 'installing dependencies'}} ring={branch.ring} />
     ),
   },
   {
     key: 'second-live',
     live: true,
     render: (branch) => (
-      <TraceToolRow
-        projection={{mark: 'run', label: 'tail', target: 'streaming the build log'}}
-        last={branch.last}
-        ring={branch.ring}
-      />
+      <TraceToolRow projection={{mark: 'run', label: 'tail', target: 'streaming the build log'}} ring={branch.ring} />
     ),
   },
 ]
@@ -126,12 +115,11 @@ it('runs the action an action row offers and shows its hint and explainer', asyn
   const items: TraceItem[] = [
     {
       key: 'action',
-      render: (branch) => (
+      render: () => (
         <TraceActionRow
           label="Review the diff"
           hint="⌘⏎"
           explainer="18 lines across 2 files"
-          last={branch.last}
           onAction={() => runs.push('reviewed')}
         />
       ),

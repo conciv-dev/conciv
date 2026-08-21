@@ -31,7 +31,6 @@ it('falls back to a generic projection for a tool that supplies no row', async (
       result={undefined}
       ctx={noCtx}
       tools={() => []}
-      last
     />
   ))
 
@@ -51,7 +50,6 @@ it('mounts the generic tool body under the row as a JSON tree plus shiki result,
       result={forecastResult()}
       ctx={noCtx}
       tools={() => []}
-      last
     />
   ))
 
@@ -68,7 +66,6 @@ it('folds a mounted body away and back from the row control', async () => {
       result={forecastResult()}
       ctx={noCtx}
       tools={() => []}
-      last
     />
   ))
 
@@ -110,7 +107,7 @@ function revealControl(container: HTMLElement): HTMLElement {
 
 it('clamps a long body and reveals the rest from the frame footer', async () => {
   const container = mountView(() => (
-    <ToolTraceRow part={bashCall()} result={undefined} ctx={noCtx} tools={() => [longOutputTool]} last />
+    <ToolTraceRow part={bashCall()} result={undefined} ctx={noCtx} tools={() => [longOutputTool]} />
   ))
 
   await expect.element(page.getByText('src/file-0.ts:0: a matching line'), {timeout: 3000}).toBeVisible()
@@ -133,7 +130,7 @@ it('clamps a long body and reveals the rest from the frame footer', async () => 
 
 it('leaves a body that already fits without any clamp footer', async () => {
   const container = mountView(() => (
-    <ToolTraceRow part={bashCall()} result={undefined} ctx={noCtx} tools={() => [shortOutputTool]} last />
+    <ToolTraceRow part={bashCall()} result={undefined} ctx={noCtx} tools={() => [shortOutputTool]} />
   ))
 
   await expect.element(page.getByText('one'), {timeout: 3000}).toBeVisible()
@@ -143,7 +140,7 @@ it('leaves a body that already fits without any clamp footer', async () => {
 })
 
 it('leaves a row with nothing to show inert rather than offering an empty fold', async () => {
-  mountView(() => <ToolTraceRow part={call('ping', {})} result={undefined} ctx={noCtx} tools={() => []} last />)
+  mountView(() => <ToolTraceRow part={call('ping', {})} result={undefined} ctx={noCtx} tools={() => []} />)
 
   await expect.element(page.getByText('ping').first()).toBeVisible()
   expect(document.querySelectorAll('button')).toHaveLength(0)
@@ -155,7 +152,7 @@ it('routes a call waiting on approval to the permission block', async () => {
     ...call('Bash', {command: 'rm -rf dist'}, 'approval-requested'),
     approval: {id: 'ap-1', needsApproval: true},
   }
-  mountView(() => <ToolTraceRow part={asking} result={undefined} ctx={ctxRecording(decisions)} tools={() => []} last />)
+  mountView(() => <ToolTraceRow part={asking} result={undefined} ctx={ctxRecording(decisions)} tools={() => []} />)
 
   await expect.element(page.getByRole('group', {name: 'Permission request'})).toBeVisible()
 

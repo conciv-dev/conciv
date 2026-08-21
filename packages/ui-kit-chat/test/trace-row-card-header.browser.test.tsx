@@ -48,7 +48,6 @@ it('projects the embedded card header onto the trace row, marking an in-band fai
       result={failedResult()}
       ctx={ctx}
       tools={() => [headerTool]}
-      last
     />
   ))
 
@@ -74,7 +73,6 @@ it('carries the card title on the row line while the subtitle stays in the body'
       result={failedResult()}
       ctx={ctx}
       tools={() => [subtitleTool]}
-      last
     />
   ))
 
@@ -110,7 +108,6 @@ it('tracks header changes as the card result streams in', async () => {
       result={result()}
       ctx={ctx}
       tools={() => [streamingTool]}
-      last
     />
   ))
 
@@ -139,7 +136,6 @@ it('keeps a named tool argument as the target and takes only the badge from the 
       result={failedResult()}
       ctx={ctx}
       tools={() => [commandTool]}
-      last
     />
   ))
 
@@ -163,7 +159,6 @@ it('shows a declared tool summary once, on the row, when the generic card body w
       result={failedResult()}
       ctx={declaredCtx}
       tools={() => []}
-      last
     />
   ))
 
@@ -183,7 +178,6 @@ it('falls back to the generic projection for a card that publishes no header', a
       result={failedResult()}
       ctx={ctx}
       tools={() => [headerlessTool]}
-      last
     />
   ))
 

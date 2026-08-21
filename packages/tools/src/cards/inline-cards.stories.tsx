@@ -32,14 +32,7 @@ function row(
   return {
     key,
     render: (branch) => (
-      <ToolTraceRow
-        part={part}
-        result={toolResult}
-        ctx={ctx}
-        tools={() => concivToolCards}
-        last={branch.last}
-        ring={branch.ring}
-      />
+      <ToolTraceRow part={part} result={toolResult} ctx={ctx} tools={() => concivToolCards} ring={branch.ring} />
     ),
   }
 }

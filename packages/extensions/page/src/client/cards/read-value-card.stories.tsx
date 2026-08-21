@@ -29,9 +29,7 @@ function traceRow(
 ): TraceItem {
   return {
     key: part.id,
-    render: (branch) => (
-      <ToolTraceRow part={part} result={result} ctx={ctx} tools={() => [entry]} last={branch.last} ring={branch.ring} />
-    ),
+    render: (branch) => <ToolTraceRow part={part} result={result} ctx={ctx} tools={() => [entry]} ring={branch.ring} />,
   }
 }
 

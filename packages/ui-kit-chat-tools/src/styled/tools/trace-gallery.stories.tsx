@@ -38,14 +38,7 @@ function row(part: ToolCallPart, toolResult: ToolResultPart | undefined, ctx: To
   return {
     key: part.name,
     render: (branch) => (
-      <ToolTraceRow
-        part={part}
-        result={toolResult}
-        ctx={ctx}
-        tools={() => builtinToolCards}
-        last={branch.last}
-        ring={branch.ring}
-      />
+      <ToolTraceRow part={part} result={toolResult} ctx={ctx} tools={() => builtinToolCards} ring={branch.ring} />
     ),
   }
 }
@@ -331,7 +324,6 @@ export const PermissionBlockLast: Story = {
             result={undefined}
             ctx={askingCtx()}
             tools={() => builtinToolCards}
-            last={branch.last}
             ring={branch.ring}
           />
         ),

@@ -33,7 +33,7 @@ function toolItem(key: string, projection: ToolRowProjection, live?: boolean): T
   return {
     key,
     ...(live === undefined ? {} : {live}),
-    render: (branch) => <TraceToolRow projection={projection} last={branch.last} ring={branch.ring} />,
+    render: (branch) => <TraceToolRow projection={projection} ring={branch.ring} />,
   }
 }
 
@@ -54,13 +54,8 @@ const allRowKinds: TraceItem[] = [
   }),
   {
     key: 'action',
-    render: (branch) => (
-      <TraceActionRow
-        label="Rerun the suite"
-        hint="⌘⏎"
-        explainer="1 failing test in turn-rollup.test.ts"
-        last={branch.last}
-      />
+    render: () => (
+      <TraceActionRow label="Rerun the suite" hint="⌘⏎" explainer="1 failing test in turn-rollup.test.ts" />
     ),
   },
 ]
@@ -87,6 +82,22 @@ export const OneRingInvariant: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getAllByLabelText('running')).toHaveLength(1)
     await expect(canvas.getAllByLabelText('pending')).toHaveLength(2)
+  },
+}
+
+const midProgressSteps: TraceItem[] = [
+  toolItem('read', {mark: 'pass', label: 'read', target: 'src/store/turn-rollup.ts', meta: '96 lines'}),
+  toolItem('building', {mark: 'run', label: 'run', target: 'building the embed bundle'}, true),
+  toolItem('publish', {mark: 'run', label: 'run', target: 'publishing the release notes'}),
+]
+
+export const LiveAccentMidProgress: Story = {
+  render: () =>
+    frame(<Trace summary="running the release" compactLine="3 steps" items={midProgressSteps} defaultOpen />),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('running')).toBeVisible()
+    await expect(canvas.getByText('publishing the release notes')).toBeVisible()
   },
 }
 

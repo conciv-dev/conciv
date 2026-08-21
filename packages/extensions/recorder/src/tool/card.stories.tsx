@@ -98,7 +98,6 @@ function embeddedGallery(
                 result={result}
                 ctx={storyCtx({})}
                 tools={() => recorderTools}
-                last={branch.last}
                 ring={branch.ring}
               />
             ),
