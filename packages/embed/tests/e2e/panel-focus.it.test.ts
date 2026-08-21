@@ -170,11 +170,11 @@ test.describe('Escape dismisses the topmost open layer only', () => {
     await openPanel(page)
 
     await sessionOptionsButton(page).click()
-    await expect(page.getByRole('menu')).toBeVisible({timeout: 10_000})
+    await expect(page.getByRole('dialog', {name: 'Session options'})).toBeVisible({timeout: 10_000})
 
     await page.keyboard.press('Escape')
 
-    await expect(page.getByRole('menu')).toBeHidden({timeout: 10_000})
+    await expect(page.getByRole('dialog', {name: 'Session options'})).toBeHidden({timeout: 10_000})
     await expect(composer(page)).toBeVisible({timeout: 10_000})
     await expect(sessionOptionsButton(page)).toBeFocused({timeout: 10_000})
   })
