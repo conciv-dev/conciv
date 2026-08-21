@@ -6,11 +6,9 @@ import {
   createRouterClient,
   os,
   type AnyRouter,
-  type AnyContractRouter,
   type MergedErrorMap,
   type ORPCErrorConstructorMap,
   type Procedure,
-  type Router,
 } from '@orpc/server'
 import type {AnyToolBuilder} from './define-extension.js'
 import {
@@ -207,7 +205,7 @@ function toolMember(node: unknown, segment: string): unknown {
 }
 
 function callTool(router: ExtensionToolRouter, name: string, input: unknown, request: ToolRequest): Promise<unknown> {
-  const dispatch: Router<AnyContractRouter, RegistryCallContext> = router
+  const dispatch: AnyRouter = router
   const client = createRouterClient(dispatch, {context: {request}})
   const target = name.split('.').reduce<unknown>(toolMember, client)
   if (typeof target !== 'function') return Promise.reject(new Error(`unknown tool "${name}"`))
