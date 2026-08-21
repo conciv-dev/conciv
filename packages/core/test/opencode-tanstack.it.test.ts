@@ -4,6 +4,7 @@ import {join} from 'node:path'
 import {describe, it} from 'vitest'
 import {opencode} from '@conciv/harness/opencode'
 import {harnessAvailable} from '@conciv/harness-testkit'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {assertTurnAndResume} from './helpers/harness-turn.js'
 
 const optIn = process.env.CONCIV_OPENCODE_IT === '1'
@@ -18,7 +19,7 @@ describe('opencode through opencodeText + conciv sandbox/gate (opt-in: CONCIV_OP
       assertTurnAndResume({
         harness: opencode,
         dir,
-        sessionId: 'it-opencode-1',
+        sessionId: SessionId.parse('conciv_it-opencode-1'),
         sessionEvent: 'opencode.session-id',
         ...(process.env.CONCIV_OPENCODE_IT_MODEL ? {model: process.env.CONCIV_OPENCODE_IT_MODEL} : {}),
       }),

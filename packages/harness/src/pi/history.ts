@@ -3,6 +3,7 @@ import {readdir, readFile, stat} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join, resolve} from 'node:path'
 import {z} from 'zod'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
 import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle} from '@conciv/protocol/harness-types'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
@@ -212,10 +213,10 @@ function headerOf(raw: string): z.infer<typeof HeaderSchema> | null {
   return parsed.success ? parsed.data : null
 }
 
-export function sessionIdFromFile(fileName: string): string {
+export function sessionIdFromFile(fileName: string): HarnessSessionId {
   const stem = fileName.replace(/\.jsonl$/, '')
   const separator = stem.indexOf('_')
-  return separator === -1 ? stem : stem.slice(separator + 1)
+  return HarnessSessionId.parse(separator === -1 ? stem : stem.slice(separator + 1))
 }
 
 function namesIn(dir: string): string[] {

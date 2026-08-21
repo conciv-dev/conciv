@@ -1,5 +1,6 @@
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolRegistry} from '@conciv/extension/registry'
+import type {ConcivDb} from '@conciv/db'
 import {createAskRegistry, type AskRegistry} from '../chat/ask.js'
 import {createLiveRuns, type LiveRuns} from '../chat/live-runs.js'
 import {createSessionStreams, type SessionStreams} from '../chat/subscribe.js'
@@ -15,6 +16,7 @@ export type SessionPrimitives = {
 }
 
 export type SessionPrimitivesDeps = {
+  db: ConcivDb
   root: string
   storeCapture: CaptureSink
   bundler: () => BundlerBridge | undefined
@@ -23,7 +25,7 @@ export type SessionPrimitivesDeps = {
 
 export function makeSessionPrimitives(deps: SessionPrimitivesDeps): SessionPrimitives {
   const page: PageEnv = {
-    journal: makeJournal(),
+    journal: makeJournal(deps.db),
     root: deps.root,
     bus: makePageBus(),
     storeCapture: deps.storeCapture,

@@ -1,20 +1,24 @@
 import {describe, it, expect} from 'vitest'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {testDb} from '../helpers/memory-store.js'
 import {createRow, resolveRow, rowById} from '../../src/chat/session-rows.js'
 
-const deps = (db = testDb()) => ({db, harnessKind: 'claude', cwd: '/app', mintId: () => 'conciv_new'})
+const SESSION_NEW = SessionId.parse('conciv_new')
+const SESSION_A = SessionId.parse('conciv_a')
+
+const deps = (db = testDb()) => ({db, harnessKind: 'claude', cwd: '/app', mintId: () => SESSION_NEW})
 
 describe('resolveRow', () => {
   it('no id → mints a fresh id WITHOUT persisting (lazy birth on first turn)', async () => {
     const d = deps()
     const {sessionId} = await resolveRow(d, {})
     expect(sessionId).toBe('conciv_new')
-    expect(await rowById(d.db, 'conciv_new')).toBeNull()
+    expect(await rowById(d.db, SESSION_NEW)).toBeNull()
   })
   it('our id → returns it unchanged', async () => {
     const db = testDb()
     await createRow(db, {
-      id: 'conciv_a',
+      id: SESSION_A,
       harnessSessionId: null,
       harnessKind: 'claude',
       origin: 'chat',

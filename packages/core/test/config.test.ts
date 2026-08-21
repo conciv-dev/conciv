@@ -24,11 +24,11 @@ describe('resolveConfig (generalized)', () => {
   it('options win over env; new env vars resolve', () => {
     process.env.CONCIV_HARNESS = 'codex'
     process.env.CONCIV_HARNESS_BIN = 'codex-bin'
-    process.env.CONCIV_SESSION_ID = 'env-sess'
+    process.env.CONCIV_SESSION_ID = 'conciv_env-sess'
     const cfg = resolveConfig({harness: 'claude'}, '/root')
     expect(cfg.harness).toBe('claude')
     expect(cfg.harnessBin).toBe('codex-bin')
-    expect(cfg.sessionId).toBe('env-sess')
+    expect(cfg.sessionId).toBe('conciv_env-sess')
   })
 
   it('honours deprecated CONCIV_CLAUDE_* + claudeSessionId aliases for one cycle', () => {
@@ -36,6 +36,6 @@ describe('resolveConfig (generalized)', () => {
     process.env.CONCIV_CLAUDE_SESSION_ID = 'old-sess'
     const cfg = resolveConfig({}, '/root')
     expect(cfg.harnessBin).toBe('old-claude')
-    expect(cfg.sessionId).toBe('old-sess')
+    expect(cfg.harnessSessionId).toBe('old-sess')
   })
 })

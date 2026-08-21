@@ -26,8 +26,8 @@ export type SessionPage = {
   queries: (signal: AbortSignal) => AsyncGenerator<{requestId: string; query: unknown}>
   reply: (requestId: string, outcome: PageOutcome) => boolean
   connected: () => boolean
-  changes: () => ChangeEntry[]
-  clearChanges: () => void
+  changes: () => Promise<ChangeEntry[]>
+  clearChanges: () => Promise<void>
 }
 
 export type SessionStream = {

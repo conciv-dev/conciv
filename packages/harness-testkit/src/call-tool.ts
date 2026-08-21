@@ -111,18 +111,20 @@ async function pumpApprovals(
 }
 
 export async function withAutoApproval<Result>(
-  rpc: ReturnType<typeof makeRpcClient>,
+  apiBase: string,
   session: string,
   run: () => Promise<Result>,
   onApproved?: (approvalId: string) => void,
 ): Promise<Result> {
+  const rpc = makeRpcClient(apiBase)
+  const sessionRpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
   const abort = new AbortController()
   const stream = await rpc.chat.subscribe({sessionId: session}, {signal: abort.signal})
   const decided = new Set<string>()
   const decide = async (approvalId: string): Promise<void> => {
     if (decided.has(approvalId)) return
     decided.add(approvalId)
-    await rpc.chat.permissionDecision({approvalId, approved: true}, {signal: abort.signal})
+    await sessionRpc.chat.permissionDecision({approvalId, approved: true}, {signal: abort.signal})
     onApproved?.(approvalId)
   }
   const pump = pumpApprovals(stream, abort.signal, decide)
@@ -136,18 +138,16 @@ export async function withAutoApproval<Result>(
 }
 
 export function makeApprovingCallTool(apiBase: string, session: string, options: McpCallOptions = {}): CallTool {
-  const rpc = makeRpcClient(apiBase)
   const call = makeCallTool(apiBase, session, options)
-  return (name, input) => withAutoApproval(rpc, session, () => call(name, input))
+  return (name, input) => withAutoApproval(apiBase, session, () => call(name, input))
 }
 
 const RegistryInputSchema = z.record(z.string(), z.unknown())
 
 export function makeApprovingRegistryCall(apiBase: string, session: string): CallTool {
-  const rpc = makeRpcClient(apiBase)
   const sessionRpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
   return (name, input) =>
-    withAutoApproval(rpc, session, () =>
+    withAutoApproval(apiBase, session, () =>
       sessionRpc.registry.call({name, input: RegistryInputSchema.parse(input ?? {})}),
     )
 }

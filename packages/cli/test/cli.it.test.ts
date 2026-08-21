@@ -70,9 +70,13 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
     await bootCli(cleanups)
     const code = await runCli(main, ['tools', 'page', 'snapshot'])
     expect(code).toBe(1)
-    expect(onlyDocument(written)).toEqual({
+    expect(onlyDocument(written)).toMatchObject({
       ok: false,
-      error: {kind: 'user', code: 'NO_PAGE_CLIENT', message: 'page.snapshot: no widget connected'},
+      error: {
+        kind: 'user',
+        code: 'NO_PAGE_CLIENT',
+        message: expect.stringContaining('page.snapshot: no widget connected to session'),
+      },
     })
   })
 

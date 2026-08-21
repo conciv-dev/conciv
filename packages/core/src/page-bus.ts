@@ -1,6 +1,7 @@
 import {pageFailure, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageCaptureBundle} from '@conciv/protocol/element-capture-types'
+import {appendPageChange, clearPageChanges, pageChangesFor, type ConcivDb} from '@conciv/db'
 
 export type ChangeEntry = {
   seq: number
@@ -12,45 +13,17 @@ export type ChangeEntry = {
 }
 
 export type Journal = {
-  append: (sessionId: SessionId, entry: Omit<ChangeEntry, 'seq' | 'ts'>, ts: number) => ChangeEntry
-  list: (sessionId: SessionId) => ChangeEntry[]
-  clear: (sessionId: SessionId) => void
+  append: (sessionId: SessionId, entry: Omit<ChangeEntry, 'seq' | 'ts'>, ts: number) => Promise<ChangeEntry>
+  list: (sessionId: SessionId) => Promise<ChangeEntry[]>
+  clear: (sessionId: SessionId) => Promise<void>
 }
 
-type SessionJournal = {entries: ChangeEntry[]; seq: number}
-
-export function makeJournal(): Journal {
-  const bySession = new Map<SessionId, SessionJournal>()
-
-  const journalOf = (sessionId: SessionId): SessionJournal => {
-    const existing = bySession.get(sessionId)
-    if (existing) return existing
-    const created: SessionJournal = {entries: [], seq: 0}
-    bySession.set(sessionId, created)
-    return created
+export function makeJournal(db: ConcivDb): Journal {
+  return {
+    append: (sessionId, entry, ts) => appendPageChange(db, sessionId, entry, ts),
+    list: (sessionId) => pageChangesFor(db, sessionId),
+    clear: (sessionId) => clearPageChanges(db, sessionId),
   }
-
-  function append(sessionId: SessionId, entry: Omit<ChangeEntry, 'seq' | 'ts'>, ts: number): ChangeEntry {
-    const journal = journalOf(sessionId)
-    journal.seq += 1
-    const appended: ChangeEntry = {
-      seq: journal.seq,
-      ts,
-      verb: entry.verb,
-      ref: entry.ref,
-      selector: entry.selector,
-      args: entry.args,
-    }
-    journal.entries.push(appended)
-    return appended
-  }
-  function list(sessionId: SessionId): ChangeEntry[] {
-    return (bySession.get(sessionId)?.entries ?? []).map((entry) => ({...entry}))
-  }
-  function clear(sessionId: SessionId): void {
-    bySession.delete(sessionId)
-  }
-  return {append, list, clear}
 }
 
 type Pending<T> = {

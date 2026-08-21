@@ -4,6 +4,7 @@ import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {z} from 'zod'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
 import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle} from '@conciv/protocol/harness-types'
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
@@ -35,7 +36,7 @@ function queryRows(dbPath: string, sql: string, params: string[]): unknown[] {
 
 const ThreadRowSchema = z
   .object({
-    id: z.string(),
+    id: HarnessSessionId,
     rollout_path: z.string(),
     title: z.string().nullish(),
     first_user_message: z.string().nullish(),

@@ -3,12 +3,15 @@ import {z} from 'zod'
 import type {AnyTool, StreamChunk} from '@tanstack/ai'
 import {approvalIds} from '@conciv/harness-testkit'
 import {toolError, type ToolRequest} from '@conciv/extension'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {createAskRegistry, type AskRegistry} from '../../src/chat/ask.js'
 import {makeAskGate, type PermissionGate} from '../../src/chat/gate.js'
 import {gatedToolRun, makeCodeMode, withBindingNames, type CodeMode} from '../../src/chat/code-mode.js'
 import type {CodeCapability} from '../../src/chat/capabilities.js'
 
-const request: ToolRequest = {sessionId: 'conciv_x', model: null}
+const SESSION = SessionId.parse('conciv_x')
+
+const request: ToolRequest = {sessionId: SESSION, model: null}
 
 const allowGate = {decide: async () => 'allow' as const}
 
@@ -74,7 +77,7 @@ async function codeModeOf(
 }
 
 function expiringGate(): PermissionGate {
-  return makeAskGate({sessionId: 'conciv_x', asks: createAskRegistry(), emit: () => {}, timeoutMs: 30})
+  return makeAskGate({sessionId: SESSION, asks: createAskRegistry(), emit: () => {}, timeoutMs: 30})
 }
 
 function replyingGate(timeoutMs: number): {
@@ -84,7 +87,7 @@ function replyingGate(timeoutMs: number): {
 } {
   const asks = createAskRegistry()
   const emitted: StreamChunk[] = []
-  const gate = makeAskGate({sessionId: 'conciv_x', asks, emit: (chunk) => emitted.push(chunk), timeoutMs})
+  const gate = makeAskGate({sessionId: SESSION, asks, emit: (chunk) => emitted.push(chunk), timeoutMs})
   return {gate, asks, approvalId: () => emitted.flatMap(approvalIds)[0]}
 }
 
@@ -411,7 +414,7 @@ describe('gatedToolRun', () => {
     await sleep(60)
     const id = approvalId()
     if (id === undefined) throw new Error('no approval id')
-    asks.reply('conciv_x', id, false)
+    asks.reply(SESSION, id, false)
     await expect(pending).rejects.toThrow('was denied by the user')
     expect(ran.value).toBe(false)
   })
@@ -432,7 +435,7 @@ describe('gatedToolRun', () => {
     await sleep(60)
     const id = approvalId()
     if (id === undefined) throw new Error('no approval id')
-    asks.reply('conciv_x', id, true)
+    asks.reply(SESSION, id, true)
     await expect(pending).resolves.toBe('deleted')
     expect(ran.value).toBe(true)
   })

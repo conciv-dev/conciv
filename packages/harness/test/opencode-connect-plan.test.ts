@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
+import {CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {opencode} from '../src/opencode/index.js'
 
@@ -26,8 +26,12 @@ function plan(over: Partial<HarnessConnectContext> = {}) {
 
 describe('opencode connect.plan', () => {
   it('continues an existing session only when resuming', () => {
-    expect(plan({resume: true, harnessSessionId: 'ses_1'}).argv).toEqual(['opencode', '--session', 'ses_1'])
-    expect(plan({harnessSessionId: 'ses_1'}).argv).toEqual(['opencode'])
+    expect(plan({resume: true, harnessSessionId: HarnessSessionId.parse('ses_1')}).argv).toEqual([
+      'opencode',
+      '--session',
+      'ses_1',
+    ])
+    expect(plan({harnessSessionId: HarnessSessionId.parse('ses_1')}).argv).toEqual(['opencode'])
   })
 
   it('passes the conciv mcp server through the config content env var', () => {

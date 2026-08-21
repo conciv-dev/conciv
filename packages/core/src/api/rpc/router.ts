@@ -132,8 +132,8 @@ export function makeRpcRouter(deps: RpcDeps) {
     page: {
       symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),
       changes: sessionOs.page.changes.handler(({context}) => context.session.page.changes()),
-      clearChanges: sessionOs.page.clearChanges.handler(({context}) => {
-        context.session.page.clearChanges()
+      clearChanges: sessionOs.page.clearChanges.handler(async ({context}) => {
+        await context.session.page.clearChanges()
         return {ok: true as const}
       }),
       queries: sessionOs.page.queries.handler(({context, signal}) =>

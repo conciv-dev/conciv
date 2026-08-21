@@ -1,5 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {pi} from '../src/pi/index.js'
 
 describe.each([['pi', pi]])('%s stub', (id, adapter) => {
@@ -10,7 +11,7 @@ describe.each([['pi', pi]])('%s stub', (id, adapter) => {
   it('chatConfig yields a RUN_ERROR naming the missing binary', async () => {
     const config = adapter.chatConfig({
       cwd: '/r',
-      sessionId: 's',
+      sessionId: SessionId.parse('conciv_s'),
       resumeSessionId: null,
       env: {},
       kind: 'chat',

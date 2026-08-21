@@ -3,13 +3,14 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {beforeAll, describe, expect, it} from 'vitest'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {opencode} from '../src/opencode/index.js'
 import {storagePath} from '../src/opencode/history.js'
 
 const PROJECT = '/workspace/demo'
 const OTHER = '/workspace/other'
-const SESSION = 'ses_05567821affeyuqQ2PYBLsfUj8'
-const STRAY = 'ses_0556942b8ffeMdQJ7mgrX6NYLi'
+const SESSION = HarnessSessionId.parse('ses_05567821affeyuqQ2PYBLsfUj8')
+const STRAY = HarnessSessionId.parse('ses_0556942b8ffeMdQJ7mgrX6NYLi')
 
 const MESSAGES = [
   {id: 'msg_1', data: {role: 'user', time: {created: 1785273548288}, agent: 'build'}},

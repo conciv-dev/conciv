@@ -3,6 +3,7 @@ import {homedir} from 'node:os'
 import {join, resolve, sep} from 'node:path'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {
   HarnessHistory,
   HarnessSessionMeta,
@@ -336,7 +337,7 @@ export function nameFromTranscript(jsonl: string): string | null {
 
 function metaFromFold(id: string, state: ClaudeFold, mtime: number): HarnessSessionMeta {
   return {
-    id,
+    id: HarnessSessionId.parse(id),
     derivedTitle: state.title ?? '',
     updatedAt: Math.round(mtime),
     messageCount: state.messages.length,

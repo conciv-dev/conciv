@@ -1,5 +1,6 @@
 import {getHarness} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessSessionId} from '@conciv/protocol/chat-types'
 
 export function requireClaude(): HarnessAdapter {
   const adapter = getHarness('claude')
@@ -9,7 +10,7 @@ export function requireClaude(): HarnessAdapter {
 
 export function requireTranscriptPath(
   adapter: HarnessAdapter,
-): (cwd: string, sessionId: string, home?: string) => string {
+): (cwd: string, sessionId: HarnessSessionId, home?: string) => string {
   const path = adapter.history?.transcriptPath
   if (!path) throw new Error(`${adapter.id} adapter exposes no transcript path`)
   return path

@@ -311,6 +311,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
 
   const primitives = makeSessionPrimitives({
+    db,
     root: opts.cwd,
     storeCapture: (params) => writeToolCapture(db, params),
     bundler: () => opts.bridge,
