@@ -379,35 +379,39 @@ function ThreadRoot(props: ThreadRootProps): JSX.Element {
 }
 
 const LATEST_STRIP =
-  'grid shrink-0 [grid-template-rows:0fr] data-[shown]:[grid-template-rows:1fr] [background:var(--chat-panel)] [transition:grid-template-rows_160ms_var(--chat-ease)] motion-reduce:[transition:none]'
+  'absolute inset-inline-0 bottom-[6px] flex justify-center pointer-events-none opacity-0 translate-y-1 [transition:opacity_160ms_var(--chat-ease),transform_160ms_var(--chat-ease)] motion-reduce:[transition:none] data-[shown]:opacity-100 data-[shown]:translate-y-0'
 
-const LATEST_CHIP = `[font-family:var(--chat-mono)] text-[10.5px] uppercase tracking-[0.08em] px-2 rounded-[var(--chat-radius-chip)] inline-flex gap-1 min-h-5.5 cursor-pointer [background:var(--chat-rail-bg)] [border:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-2)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] items-center hover:[border-color:var(--chat-line)] hover:[color:var(--chat-text-hi)] ${FOCUS}`
+const LATEST_CHIP = `pointer-events-auto [font-family:var(--chat-mono)] text-[10.5px] uppercase tracking-[0.08em] px-2 rounded-[var(--chat-radius-chip)] inline-flex gap-1 min-h-5.5 cursor-pointer [background:var(--chat-rail-bg)] [border:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-2)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] items-center hover:[border-color:var(--chat-line)] hover:[color:var(--chat-text-hi)] ${FOCUS}`
 
 function LatestStrip(): JSX.Element {
   const viewport = useThreadViewport()
   return (
-    <div class={LATEST_STRIP} data-shown={viewport.isAtBottom() ? undefined : ''}>
-      <div class="flex justify-center overflow-hidden pt-[6px]">
-        <ThreadPrimitive.ScrollToBottom class={`${LATEST_CHIP} mb-[6px]`}>
-          <ArrowDown size={11} aria-hidden="true" />
-          Latest
-        </ThreadPrimitive.ScrollToBottom>
-      </div>
+    <div
+      class={LATEST_STRIP}
+      data-shown={viewport.isAtBottom() ? undefined : ''}
+      inert={viewport.isAtBottom() ? true : undefined}
+    >
+      <ThreadPrimitive.ScrollToBottom class={LATEST_CHIP}>
+        <ArrowDown size={11} aria-hidden="true" />
+        Latest
+      </ThreadPrimitive.ScrollToBottom>
     </div>
   )
 }
 
 function ThreadViewport(props: ParentProps<{ref?: (element: HTMLElement) => void}>): JSX.Element {
   return (
-    <ThreadPrimitive.Viewport
-      ref={props.ref}
-      class="px-5 pt-[13px] pb-4 flex flex-1 flex-col min-h-0 relative overflow-y-auto"
-      role="log"
-      aria-live="off"
-      footer={<LatestStrip />}
-    >
-      {props.children}
-    </ThreadPrimitive.Viewport>
+    <div class="relative flex flex-1 flex-col min-h-0">
+      <ThreadPrimitive.Viewport
+        ref={props.ref}
+        class="px-5 pt-[13px] pb-4 flex flex-1 flex-col min-h-0 relative overflow-y-auto"
+        role="log"
+        aria-live="off"
+        footer={<LatestStrip />}
+      >
+        {props.children}
+      </ThreadPrimitive.Viewport>
+    </div>
   )
 }
 

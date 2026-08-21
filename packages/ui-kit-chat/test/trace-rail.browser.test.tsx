@@ -39,40 +39,28 @@ function traceRoot(container: HTMLElement): HTMLElement {
   return root
 }
 
-function railEl(container: HTMLElement): HTMLElement {
-  const rail = traceRoot(container).querySelector(':scope > div[aria-hidden="true"]')
-  if (!(rail instanceof HTMLElement)) throw new Error('expected the rail element')
-  return rail
+function railSvg(container: HTMLElement): SVGSVGElement {
+  const svg = traceRoot(container).querySelectorAll(':scope > svg')[0]
+  if (!(svg instanceof SVGSVGElement)) throw new Error('expected the rail svg')
+  return svg
 }
 
-function thumbEl(container: HTMLElement): HTMLElement {
-  const thumb = railEl(container).children[1]
-  if (!(thumb instanceof HTMLElement)) throw new Error('expected the rail thumb')
-  return thumb
-}
-
-function maskMarkup(container: HTMLElement): string {
-  const mask = railEl(container).style.getPropertyValue('mask-image')
-  const encoded = /url\("data:image\/svg\+xml,(.+)"\)/.exec(mask)?.[1]
-  if (!encoded) throw new Error('expected the rail mask data uri')
-  return decodeURIComponent(encoded)
-}
-
-function maskPath(container: HTMLElement, index: number): SVGPathElement {
-  const parsed = new DOMParser().parseFromString(maskMarkup(container), 'image/svg+xml')
-  const d = parsed.querySelectorAll('path')[index]?.getAttribute('d')
-  if (d === null || d === undefined) throw new Error(`expected mask path ${index}`)
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-  path.setAttribute('d', d)
-  return path
+function liveRailSvg(container: HTMLElement): SVGSVGElement {
+  const svg = traceRoot(container).querySelectorAll(':scope > svg')[1]
+  if (!(svg instanceof SVGSVGElement)) throw new Error('expected the live rail svg')
+  return svg
 }
 
 function spinePath(container: HTMLElement): SVGPathElement {
-  return maskPath(container, 0)
+  const path = railSvg(container).querySelectorAll('path')[0]
+  if (!(path instanceof SVGPathElement)) throw new Error('expected the rail spine path')
+  return path
 }
 
 function armsPath(container: HTMLElement): SVGPathElement {
-  return maskPath(container, 1)
+  const path = railSvg(container).querySelectorAll('path')[1]
+  if (!(path instanceof SVGPathElement)) throw new Error('expected the rail arms path')
+  return path
 }
 
 type Arm = {startX: number; y: number; endX: number}
@@ -118,12 +106,12 @@ function lastRowAnchor(container: HTMLElement): number {
   return rowAnchor(container, rowsList(container).querySelectorAll(':scope > li').length - 1)
 }
 
-function thumbTop(container: HTMLElement): number {
-  return Number.parseFloat(getComputedStyle(thumbEl(container)).getPropertyValue('--rail-top'))
+function segmentTop(container: HTMLElement): number {
+  return Number.parseFloat(getComputedStyle(liveRailSvg(container)).getPropertyValue('--rail-top'))
 }
 
-function thumbHeight(container: HTMLElement): number {
-  return Number.parseFloat(getComputedStyle(thumbEl(container)).getPropertyValue('--rail-height'))
+function segmentBottom(container: HTMLElement): number {
+  return Number.parseFloat(getComputedStyle(liveRailSvg(container)).getPropertyValue('--rail-bottom'))
 }
 
 function waitForTransitionEnd(element: Element, property: string): Promise<void> {
@@ -240,12 +228,12 @@ it('lights the span just traversed into a live row that follows an expanded row 
   const container = mountTrace(expandedBodyTrace())
   await expect.element(page.getByText('file-after.ts')).toBeVisible()
 
-  expect(getComputedStyle(thumbEl(container)).opacity).toBe('1')
-  expect(Math.abs(thumbTop(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
-  expect(Math.abs(thumbTop(container) + thumbHeight(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
+  expect(getComputedStyle(liveRailSvg(container)).opacity).toBe('1')
+  expect(Math.abs(segmentTop(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(segmentBottom(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
 })
 
-it('draws the whole rail as one masked element with no svg nodes and no fragment spans', async () => {
+it('draws the whole rail from the svg layers with no fragment spans', async () => {
   const container = mountTrace(twoRowTrace())
   await expect.element(page.getByText('bash')).toBeVisible()
 
@@ -254,8 +242,6 @@ it('draws the whole rail as one masked element with no svg nodes and no fragment
   const root = traceRoot(container)
 
   expect(start.x).toBe(Math.round(gutter / 2) + 0.5)
-  expect(railEl(container).style.getPropertyValue('mask-image')).toContain('data:image/svg+xml')
-  expect(root.querySelectorAll(':scope > svg')).toHaveLength(0)
   expect(root.querySelectorAll('span[class*="background:var(--chat-glyph)"]')).toHaveLength(0)
   expect(root.querySelectorAll('span[class*="solid_var(--chat-glyph)"]')).toHaveLength(0)
 })
@@ -294,19 +280,19 @@ it('draws the header corner alone while the trace is collapsed', async () => {
   expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
 })
 
-it('reflows the rail mask when a row before the last one changes height', async () => {
+it('reflows the spine when a row before the last one changes height', async () => {
   const container = mountTrace(twoRowTrace())
   await expect.element(page.getByText('bash')).toBeVisible()
 
-  const rail = railEl(container)
-  const initialMask = rail.style.getPropertyValue('mask-image')
+  const path = spinePath(container)
+  const initialD = path.getAttribute('d')
 
   const fold = page.getByRole('button', {name: /pnpm test/})
   await expect.element(fold).toHaveAttribute('aria-expanded', 'true')
   await fold.click()
   await expect.element(fold).toHaveAttribute('aria-expanded', 'false')
 
-  await expect.poll(() => rail.style.getPropertyValue('mask-image')).not.toBe(initialMask)
+  await expect.element(page.elementLocator(path)).not.toHaveAttribute('d', initialD ?? '')
 })
 
 it('ticks an arm from the spine to the gutter edge on the header and every row but the last', async () => {
@@ -338,16 +324,16 @@ it('ticks only the header arm for a single-row trace where the corner already se
 it('lights only the span just traversed into the live row and shows it', async () => {
   const container = await mountedThreeRow(() => 1)
 
-  expect(getComputedStyle(thumbEl(container)).opacity).toBe('1')
-  expect(Math.abs(thumbTop(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
-  expect(Math.abs(thumbTop(container) + thumbHeight(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
+  expect(getComputedStyle(liveRailSvg(container)).opacity).toBe('1')
+  expect(Math.abs(segmentTop(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(segmentBottom(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
 })
 
 it('lights the span from the header down into a live first row', async () => {
   const container = await mountedThreeRow(() => 0)
 
-  expect(Math.abs(thumbTop(container) - headerAnchor(container))).toBeLessThanOrEqual(0.5)
-  expect(Math.abs(thumbTop(container) + thumbHeight(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(segmentTop(container) - headerAnchor(container))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(segmentBottom(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
 })
 
 it('fades the live segment out where it stands once nothing is live', async () => {
@@ -357,22 +343,22 @@ it('fades the live segment out where it stands once nothing is live', async () =
   ))
   await expect.element(page.getByText('file-2.ts')).toBeVisible()
 
-  const thumb = thumbEl(container)
-  const litTop = thumbTop(container)
-  const litHeight = thumbHeight(container)
-  const settled = waitForTransitionEnd(thumb, 'opacity')
+  const liveSvg = liveRailSvg(container)
+  const litTop = segmentTop(container)
+  const litBottom = segmentBottom(container)
+  const settled = waitForTransitionEnd(liveSvg, 'opacity')
   setLiveIndex(-1)
   await settled
 
-  expect(getComputedStyle(thumb).opacity).toBe('0')
-  expect(thumbTop(container)).toBe(litTop)
-  expect(thumbHeight(container)).toBe(litHeight)
+  expect(getComputedStyle(liveSvg).opacity).toBe('0')
+  expect(segmentTop(container)).toBe(litTop)
+  expect(segmentBottom(container)).toBe(litBottom)
 })
 
 it('starts the live segment hidden with no flash when nothing is live at mount', () => {
   const container = mountThreeRow(() => -1)
 
-  expect(getComputedStyle(thumbEl(container)).opacity).toBe('0')
+  expect(getComputedStyle(liveRailSvg(container)).opacity).toBe('0')
 })
 
 it('mirrors the rail onto the inline-start edge under rtl', async () => {
@@ -381,20 +367,23 @@ it('mirrors the rail onto the inline-start edge under rtl', async () => {
   const root = traceRoot(container)
   root.setAttribute('dir', 'rtl')
 
-  const railRect = railEl(container).getBoundingClientRect()
+  const railRect = railSvg(container).getBoundingClientRect()
   const rootRect = root.getBoundingClientRect()
-  const scale = getComputedStyle(railEl(container)).scale
+  const scale = getComputedStyle(railSvg(container)).scale
 
   expect(Math.abs(railRect.right - rootRect.right)).toBeLessThanOrEqual(0.51)
   expect(scale.split(' ')[0]).toBe('-1')
 })
 
 it('pulses the running ring dot while a run row is live and keeps the rail free of animations', async () => {
-  const container = mountView(() => <Trace summary="1 tool ran" compactLine="1 tool" items={liveRunTrace()} defaultOpen />)
+  const container = mountView(() => (
+    <Trace summary="1 tool ran" compactLine="1 tool" items={liveRunTrace()} defaultOpen />
+  ))
   await expect.element(page.getByText('pnpm build')).toBeVisible()
 
   expect(runningRingDot(container).getAnimations()).toHaveLength(1)
-  expect(railEl(container).getAnimations({subtree: true})).toEqual([])
+  expect(railSvg(container).getAnimations({subtree: true})).toEqual([])
+  expect(liveRailSvg(container).getAnimations({subtree: true})).toEqual([])
 })
 
 it('leaves no running animation in the rail once the live row settles away', async () => {
@@ -404,23 +393,23 @@ it('leaves no running animation in the rail once the live row settles away', asy
   ))
   await expect.element(page.getByText('file-2.ts')).toBeVisible()
 
-  const thumb = thumbEl(container)
-  const settled = waitForTransitionEnd(thumb, 'opacity')
+  const liveSvg = liveRailSvg(container)
+  const settled = waitForTransitionEnd(liveSvg, 'opacity')
   setLiveIndex(-1)
   await settled
 
-  expect(getComputedStyle(thumb).opacity).toBe('0')
+  expect(getComputedStyle(liveSvg).opacity).toBe('0')
   expect(traceRoot(container).getAnimations({subtree: true})).toEqual([])
 })
 
 it('drops the live segment and the rail to the header corner when a live trace is collapsed by click', async () => {
   const container = await mountedThreeRow(() => 1)
-  const thumb = thumbEl(container)
-  await expect.element(page.elementLocator(thumb), {timeout: 2000}).toHaveStyle({opacity: '1'})
+  const liveSvg = liveRailSvg(container)
+  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '1'})
 
   await page.getByText('Hide trace').click()
   await expect.element(page.getByText('Show trace'), {timeout: 2000}).toBeVisible()
-  await expect.element(page.elementLocator(thumb), {timeout: 2000}).toHaveStyle({opacity: '0'})
+  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '0'})
 
   const path = spinePath(container)
   const end = path.getPointAtLength(path.getTotalLength())
@@ -432,21 +421,21 @@ it('drops the live segment and the rail to the header corner when a live trace i
 
 it('restores the full rail and re-anchors the live segment when the trace is reopened by click', async () => {
   const container = await mountedThreeRow(() => 1)
-  const thumb = thumbEl(container)
+  const liveSvg = liveRailSvg(container)
 
   await page.getByText('Hide trace').click()
-  await expect.element(page.elementLocator(thumb), {timeout: 2000}).toHaveStyle({opacity: '0'})
-  const collapsedMask = railEl(container).style.getPropertyValue('mask-image')
+  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '0'})
+  const collapsedD = spinePath(container).getAttribute('d') ?? ''
 
   await page.getByText('Show trace').click()
   await expect.element(page.getByText('file-2.ts'), {timeout: 2000}).toBeVisible()
-  await expect.poll(() => railEl(container).style.getPropertyValue('mask-image')).not.toBe(collapsedMask)
-  await expect.element(page.elementLocator(thumb), {timeout: 2000}).toHaveStyle({opacity: '1'})
+  await expect.element(page.elementLocator(spinePath(container)), {timeout: 2000}).not.toHaveAttribute('d', collapsedD)
+  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '1'})
 
   const path = spinePath(container)
   const end = path.getPointAtLength(path.getTotalLength())
 
   expect(armSegments(armsPath(container))).toHaveLength(3)
   expect(Math.abs(end.y - lastRowAnchor(container))).toBeLessThanOrEqual(0.5)
-  expect(Math.abs(thumbTop(container) + thumbHeight(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(segmentBottom(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
 })

@@ -61,18 +61,11 @@ function TracedThread(): JSX.Element {
   )
 }
 
-function traceRailEl(): HTMLElement {
+function traceArmsPath(): SVGPathElement {
   const trigger = page.getByRole('button', {name: /trace/i}).element()
-  const rail = trigger.closest('[data-part="root"]')?.querySelector(':scope > div[aria-hidden="true"]')
-  if (!(rail instanceof HTMLElement)) throw new Error('expected the trace rail element')
-  return rail
-}
-
-function armsD(rail: HTMLElement): string {
-  const encoded = /url\("data:image\/svg\+xml,(.+)"\)/.exec(rail.style.getPropertyValue('mask-image'))?.[1]
-  if (!encoded) return ''
-  const parsed = new DOMParser().parseFromString(decodeURIComponent(encoded), 'image/svg+xml')
-  return parsed.querySelectorAll('path')[1]?.getAttribute('d') ?? ''
+  const path = trigger.closest('[data-part="root"]')?.querySelectorAll(':scope > svg > path')[1]
+  if (!(path instanceof SVGPathElement)) throw new Error('expected the trace rail arms path')
+  return path
 }
 
 it('ticks a rail arm onto the expanded rows of a thread trace', async () => {
@@ -82,5 +75,5 @@ it('ticks a rail arm onto the expanded rows of a thread trace', async () => {
   await page.getByRole('button', {name: /trace/i}).click()
   await expect.element(page.getByText('checking the event listeners first'), {timeout: 3000}).toBeVisible()
 
-  await expect.poll(() => armsD(traceRailEl()), {timeout: 3000}).not.toBe('')
+  await expect.element(page.elementLocator(traceArmsPath()), {timeout: 3000}).not.toHaveAttribute('d', '')
 })
