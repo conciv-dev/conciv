@@ -3,6 +3,7 @@ import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {DatabaseSync, type StatementSync} from 'node:sqlite'
 import {z} from 'zod'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
 import type {
   HarnessHistory,
@@ -37,7 +38,7 @@ function withDatabase<T>(home: string, fallback: T, run: (db: DatabaseSync) => T
 
 const SessionRowSchema = z
   .object({
-    id: z.string(),
+    id: HarnessSessionId,
     directory: z.string(),
     title: z.string().nullish(),
     time_created: z.number().nullish(),

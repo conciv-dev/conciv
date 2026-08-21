@@ -1,6 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {createRow, listSessionMetas, rowByNativeId, sweepEmptyRows} from '../../src/chat/session-rows.js'
 import {sessions} from '@conciv/db'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {testDb} from '../helpers/memory-store.js'
 
 const rec = (over: {
@@ -37,7 +38,7 @@ const listOf = (
   })
 
 describe('listSessionMetas', () => {
-  it('unions our records with unwrapped harness transcripts (no writes)', async () => {
+  it('unions our records with harness transcripts materialized into honest conciv session ids', async () => {
     const db = testDb()
     await createRow(db, {
       id: 'conciv_a',
@@ -51,15 +52,16 @@ describe('listSessionMetas', () => {
       deletedAt: null,
     })
     const harnessList = [
-      {id: 'tok-a', derivedTitle: 'ignored', updatedAt: 10, messageCount: 3},
-      {id: 'tok-ext', derivedTitle: 'External', updatedAt: 20, messageCount: 1},
+      {id: HarnessSessionId.parse('tok-a'), derivedTitle: 'ignored', updatedAt: 10, messageCount: 3},
+      {id: HarnessSessionId.parse('tok-ext'), derivedTitle: 'External', updatedAt: 20, messageCount: 1},
     ]
     const rows = await listOf(db, harnessList, '/app')
     const mine = rows.find((r) => r.id === 'conciv_a')!
-    const ext = rows.find((r) => r.id === 'tok-ext')!
+    const ext = rows.find((r) => r.native?.nativeId === 'tok-ext')!
     expect(mine.title).toBe('Mine')
     expect(ext.origin).toBe('external')
-    expect(await rowByNativeId(db, 'tok-ext')).toBeNull()
+    expect(ext.id).not.toBe('tok-ext')
+    expect(await rowByNativeId(db, HarnessSessionId.parse('tok-ext'))).not.toBeNull()
   })
 
   it('scopes records to the current cwd (trailing-slash tolerant)', async () => {

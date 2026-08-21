@@ -8,6 +8,7 @@ import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {countType, runTurn} from '../helpers/turns.js'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 
 const claude = requireClaude()
 
@@ -107,7 +108,7 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     const kit = await setup({argvFile}, claudeHome)
     const id = await kit.session()
     await runTurn(kit, 'hi', id)
-    const transcript = requireTranscriptPath(claude)(kit.stateRoot, 'sess-fake', claudeHome)
+    const transcript = requireTranscriptPath(claude)(kit.stateRoot, HarnessSessionId.parse('sess-fake'), claudeHome)
     mkdirSync(dirname(transcript), {recursive: true})
     writeFileSync(transcript, '')
     await runTurn(kit, 'more', id)
@@ -121,7 +122,7 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     const kit = await setup({}, claudeHome)
     const id = await kit.session()
     await runTurn(kit, 'hi', id)
-    const transcript = requireTranscriptPath(claude)(kit.stateRoot, 'sess-fake', claudeHome)
+    const transcript = requireTranscriptPath(claude)(kit.stateRoot, HarnessSessionId.parse('sess-fake'), claudeHome)
     mkdirSync(dirname(transcript), {recursive: true})
     const rec = (usage: Record<string, number>) =>
       JSON.stringify({type: 'assistant', message: {role: 'assistant', content: [{type: 'text', text: 'ok'}], usage}})
@@ -177,8 +178,8 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
 
   it('keeps per-session state independent under distinct ids', async () => {
     const kit = await setup()
-    const a = await kit.session()
-    const b = await kit.session()
+    const a = (await kit.rpc.sessions.create(undefined)).sessionId
+    const b = (await kit.rpc.sessions.create(undefined)).sessionId
     await runTurn(kit, 'hi', a)
     const metaA = await metaFor(kit, a)
     const metaB = await metaFor(kit, b)
@@ -213,8 +214,8 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
   it('persists usage onto each session record, not a shared pointer', async () => {
     const usageBySession: Record<string, number> = {}
     const kit = await setup({usageBySession})
-    const a = await kit.session()
-    const b = await kit.session()
+    const a = (await kit.rpc.sessions.create(undefined)).sessionId
+    const b = (await kit.rpc.sessions.create(undefined)).sessionId
     usageBySession[a] = 111
     usageBySession[b] = 222
     await runTurn(kit, 'hi', a)

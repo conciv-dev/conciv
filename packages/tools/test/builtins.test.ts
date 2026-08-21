@@ -2,7 +2,10 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {createToolRegistry} from '@conciv/extension/registry'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS, builtinToolNames} from '../src/builtins.js'
+
+const testRequest = {sessionId: SessionId.parse('conciv_test'), model: null}
 
 function errorCode(error: unknown): string {
   if (typeof error !== 'object' || error === null || !('code' in error)) throw new Error('not a coded error')
@@ -58,12 +61,14 @@ describe('built-in tool declarations', () => {
   it('runs a server tool and the open tool end to end through the registry', async () => {
     const opened: string[] = []
     const registry = registryWith(fakeBundler(), opened)
-    await expect(registry.call('server.urls', {})).resolves.toEqual({
+    await expect(registry.call('server.urls', {}, {request: testRequest})).resolves.toEqual({
       local: ['http://localhost:5173/'],
       network: [],
     })
-    await expect(registry.call('server.resolve', {spec: 'x'})).resolves.toEqual({id: '/app/src/x.ts'})
-    await expect(registry.call('open', {file: 'src/app.ts', line: 4})).resolves.toEqual({
+    await expect(registry.call('server.resolve', {spec: 'x'}, {request: testRequest})).resolves.toEqual({
+      id: '/app/src/x.ts',
+    })
+    await expect(registry.call('open', {file: 'src/app.ts', line: 4}, {request: testRequest})).resolves.toEqual({
       ok: true,
       file: 'src/app.ts',
       line: 4,
@@ -73,7 +78,7 @@ describe('built-in tool declarations', () => {
 
   it('raises its declared NO_BUNDLER error when no dev server is attached', async () => {
     const registry = registryWith(undefined)
-    const failure = await registry.call('server.config', {}).then(
+    const failure = await registry.call('server.config', {}, {request: testRequest}).then(
       () => null,
       (error: unknown) => error,
     )

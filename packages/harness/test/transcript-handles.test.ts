@@ -15,6 +15,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {beforeAll, describe, expect, it} from 'vitest'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {
   TranscriptChunk,
   TranscriptFailure,
@@ -92,7 +93,8 @@ describe('claude transcript handle', () => {
     return path
   }
 
-  const observe = (id: string): TranscriptHandle => claudeHistory.observe(CLAUDE_CWD, id, state.home)
+  const observe = (id: string): TranscriptHandle =>
+    claudeHistory.observe(CLAUDE_CWD, HarnessSessionId.parse(id), state.home)
 
   it('reads only the bytes appended since the previous read', async () => {
     const first = userLine('aaa')
@@ -228,7 +230,7 @@ describe('claude transcript handle', () => {
   it('summarises a transcript with one read: meta plus a message tail', async () => {
     const raw = fixture('claude-transcript.jsonl')
     seed('summary', raw)
-    const summary = await claudeHistory.summary?.(CLAUDE_CWD, 'summary', state.home)
+    const summary = await claudeHistory.summary?.(CLAUDE_CWD, HarnessSessionId.parse('summary'), state.home)
     if (!summary) throw new Error('expected a summary')
     const expected = golden('claude-golden.json')
     expect(summary.meta).toMatchObject({
@@ -238,7 +240,7 @@ describe('claude transcript handle', () => {
       model: 'claude-opus-4-8',
     })
     expect(summary.tail).toEqual(expected.messages.slice(-12))
-    expect(await claudeHistory.summary?.(CLAUDE_CWD, 'absent', state.home)).toBeNull()
+    expect(await claudeHistory.summary?.(CLAUDE_CWD, HarnessSessionId.parse('absent'), state.home)).toBeNull()
   })
 })
 
@@ -270,7 +272,8 @@ describe('codex transcript handle', () => {
     await mkdir(sessionsRoot(state.home), {recursive: true})
   })
 
-  const observe = (id: string): TranscriptHandle => codexHistory.observe(CODEX_CWD, id, state.home)
+  const observe = (id: string): TranscriptHandle =>
+    codexHistory.observe(CODEX_CWD, HarnessSessionId.parse(id), state.home)
 
   it('folds line by line to exactly what the whole-file parser produces', async () => {
     const expected = golden('codex-golden.json')
@@ -278,7 +281,9 @@ describe('codex transcript handle', () => {
     const whole = join(state.outside, 'whole-file.jsonl')
     writeFileSync(whole, raw)
     seedThread('whole-file', whole)
-    expect(await codexHistory.messages(CODEX_CWD, 'whole-file', state.home)).toEqual(expected.messages)
+    expect(await codexHistory.messages(CODEX_CWD, HarnessSessionId.parse('whole-file'), state.home)).toEqual(
+      expected.messages,
+    )
 
     const path = join(state.outside, 'equivalence.jsonl')
     writeFileSync(path, '')
@@ -344,13 +349,15 @@ describe('pi transcript handle', () => {
   })
 
   const pathFor = (name: string): string => join(sessionsDir(PI_CWD, state.home), name)
-  const observe = (id: string): TranscriptHandle => piHistory.observe(PI_CWD, id, state.home)
+  const observe = (id: string): TranscriptHandle => piHistory.observe(PI_CWD, HarnessSessionId.parse(id), state.home)
 
   it('folds line by line to exactly what the whole-file parser produces', async () => {
     const expected = golden('pi-golden.json')
     const raw = fixture('pi-session.jsonl')
     writeFileSync(pathFor('2026-07-30T08-00-00-000Z_whole-file.jsonl'), raw)
-    expect(await piHistory.messages(PI_CWD, 'whole-file', state.home)).toEqual(expected.messages)
+    expect(await piHistory.messages(PI_CWD, HarnessSessionId.parse('whole-file'), state.home)).toEqual(
+      expected.messages,
+    )
 
     const path = pathFor('2026-07-30T09-45-14-653Z_equivalence.jsonl')
     writeFileSync(path, '')
@@ -418,7 +425,8 @@ describe('opencode transcript handle', () => {
     db.close()
   })
 
-  const observe = (id: string, home = state.home): TranscriptHandle => opencodeHistory.observe(OPENCODE_CWD, id, home)
+  const observe = (id: string, home = state.home): TranscriptHandle =>
+    opencodeHistory.observe(OPENCODE_CWD, HarnessSessionId.parse(id), home)
 
   it('reports the newest write and the part count as its revision', async () => {
     const handle = observe(OPENCODE_SESSION)

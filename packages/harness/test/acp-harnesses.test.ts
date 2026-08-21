@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {acpPermissionHandler} from '../src/_shared/acp.js'
 import {geminiCli} from '../src/gemini-cli/index.js'
 
@@ -52,7 +53,7 @@ describe('acpPermissionHandler', () => {
 
 const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
   cwd: '/tmp/acp-test',
-  sessionId: 's-1',
+  sessionId: SessionId.parse('conciv_s-1'),
   resumeSessionId: null,
   env: {},
   kind: 'chat',
@@ -68,6 +69,8 @@ describe('gemini-cli chatConfig', () => {
 
   it('threads the resume session id through modelOptions', () => {
     expect(geminiCli.chatConfig(deps()).modelOptions).toEqual({})
-    expect(geminiCli.chatConfig(deps({resumeSessionId: 'acp-9'})).modelOptions).toEqual({sessionId: 'acp-9'})
+    expect(geminiCli.chatConfig(deps({resumeSessionId: HarnessSessionId.parse('acp-9')})).modelOptions).toEqual({
+      sessionId: 'acp-9',
+    })
   })
 })

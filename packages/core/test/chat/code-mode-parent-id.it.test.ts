@@ -3,11 +3,12 @@ import {z} from 'zod'
 import {chat, EventType, StreamProcessor, type StreamChunk, type TextOptions} from '@tanstack/ai'
 import {makeTextAdapter} from '@conciv/harness'
 import type {ToolRequest} from '@conciv/extension'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {makeCodeMode} from '../../src/chat/code-mode.js'
 import {codeModeToolChunks} from '../../src/chat/code-mode-parts.js'
 import type {CodeCapability} from '../../src/chat/capabilities.js'
 
-const request: ToolRequest = {sessionId: 'conciv_x', model: null}
+const request: ToolRequest = {sessionId: SessionId.parse('conciv_x'), model: null}
 const allowGate = {decide: async () => 'allow' as const}
 
 const canvas: CodeCapability = {

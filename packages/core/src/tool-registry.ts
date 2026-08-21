@@ -56,7 +56,7 @@ async function runClientTool(
     const data = answer.result
     if (tool.mutating) {
       const {ref: _ref, selector: _selector, ...args} = record
-      env.journal.append(
+      await env.journal.append(
         request.sessionId,
         {verb: tool.name, ref: stringField(record, 'ref'), selector: stringField(record, 'selector'), args},
         Date.now(),

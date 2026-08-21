@@ -1,5 +1,9 @@
 import {describe, expect, it} from 'vitest'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {createLiveRuns} from '../../src/chat/live-runs.js'
+
+const SESSION_A = SessionId.parse('conciv_a')
+const SESSION_B = SessionId.parse('conciv_b')
 
 describe('live run serialization', () => {
   it('runs one section at a time per session and lets other sessions through', async () => {
@@ -10,15 +14,15 @@ describe('live run serialization', () => {
       held.release = resolve
     })
 
-    const first = live.serialize('a', async () => {
+    const first = live.serialize(SESSION_A, async () => {
       order.push('a1 enter')
       await blocked
       order.push('a1 leave')
     })
-    const second = live.serialize('a', async () => {
+    const second = live.serialize(SESSION_A, async () => {
       order.push('a2 enter')
     })
-    const other = live.serialize('b', async () => {
+    const other = live.serialize(SESSION_B, async () => {
       order.push('b1 enter')
     })
 
@@ -32,8 +36,8 @@ describe('live run serialization', () => {
 
   it('a section that throws still releases the session so the next one runs', async () => {
     const live = createLiveRuns()
-    const failing = live.serialize('a', () => Promise.reject(new Error('section failed')))
+    const failing = live.serialize(SESSION_A, () => Promise.reject(new Error('section failed')))
     await expect(failing).rejects.toThrow('section failed')
-    await expect(live.serialize('a', () => Promise.resolve('next'))).resolves.toBe('next')
+    await expect(live.serialize(SESSION_A, () => Promise.resolve('next'))).resolves.toBe('next')
   })
 })

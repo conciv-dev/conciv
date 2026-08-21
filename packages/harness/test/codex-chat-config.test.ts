@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps, HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {codex} from '../src/codex/index.js'
 
@@ -18,7 +18,7 @@ const connectContext = (over: Partial<HarnessConnectContext> = {}): HarnessConne
 
 const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
   cwd: '/tmp/codex-test',
-  sessionId: 's-1',
+  sessionId: SessionId.parse('conciv_s-1'),
   resumeSessionId: null,
   env: {PATH: '/usr/bin'},
   kind: 'chat',
@@ -39,7 +39,9 @@ describe('codex chatConfig', () => {
 
   it('threads the resume session id through modelOptions and leaves the workdir to the sandbox', () => {
     expect(codex.chatConfig(deps()).modelOptions).toEqual({})
-    expect(codex.chatConfig(deps({resumeSessionId: 'thread-9'})).modelOptions).toEqual({sessionId: 'thread-9'})
+    expect(codex.chatConfig(deps({resumeSessionId: HarnessSessionId.parse('thread-9')})).modelOptions).toEqual({
+      sessionId: 'thread-9',
+    })
   })
 
   it('auto-approves the bridged MCP server only when tools ride the run', () => {
@@ -50,13 +52,15 @@ describe('codex chatConfig', () => {
   })
 
   it('plans a resume invocation for an existing harness session', () => {
-    expect(codex.connect?.plan(connectContext({resume: true, harnessSessionId: 'thread-9', model: 'gpt-5.1'}))).toEqual(
-      {
-        argv: ['codex', 'resume', 'thread-9', '-m', 'gpt-5.1'],
-        env: {},
-        files: [],
-      },
-    )
+    expect(
+      codex.connect?.plan(
+        connectContext({resume: true, harnessSessionId: HarnessSessionId.parse('thread-9'), model: 'gpt-5.1'}),
+      ),
+    ).toEqual({
+      argv: ['codex', 'resume', 'thread-9', '-m', 'gpt-5.1'],
+      env: {},
+      files: [],
+    })
   })
 
   it('plans a bare invocation when there is no harness session and no model', () => {
@@ -64,7 +68,9 @@ describe('codex chatConfig', () => {
   })
 
   it('leaves the session to codex when a known session is not being resumed', () => {
-    expect(codex.connect?.plan(connectContext({harnessSessionId: 'thread-9'})).argv).toEqual(['codex'])
+    expect(codex.connect?.plan(connectContext({harnessSessionId: HarnessSessionId.parse('thread-9')})).argv).toEqual([
+      'codex',
+    ])
   })
 
   it('passes the conciv mcp server as a whole-table toml override', () => {

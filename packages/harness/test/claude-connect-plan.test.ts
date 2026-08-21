@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
+import {CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {claude} from '../src/claude/index.js'
 import {CONCIV_PLUGIN_DIR} from '../src/claude/plugin-dir.js'
@@ -10,7 +10,7 @@ const context = (over: Partial<HarnessConnectContext> = {}): HarnessConnectConte
   cwd: '/workspace',
   stateDir: '/state/.conciv',
   concivSessionId: CONCIV_SESSION,
-  harnessSessionId: 'tok-1',
+  harnessSessionId: HarnessSessionId.parse('tok-1'),
   resume: false,
   owned: true,
   model: null,

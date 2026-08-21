@@ -7,7 +7,7 @@ import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {createTestHarness, makeRpcClient, withAutoApproval, type Kit, type TestHarness} from '@conciv/harness-testkit'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_SESSION_HEADER, HarnessSessionId} from '@conciv/protocol/chat-types'
 import {openSource} from '@conciv/extension/client'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
@@ -146,7 +146,11 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const first = await kit.attach(sessionId)
     await kit.rpc.chat.send({runId: 'wire-7', sessionId, text: 'first question'})
     await first.done({hangGuardMs: 10_000})
-    const transcript = requireTranscriptPath(noResume)(kit.stateRoot, `fake-${sessionId}`, claudeHome)
+    const transcript = requireTranscriptPath(noResume)(
+      kit.stateRoot,
+      HarnessSessionId.parse(`fake-${sessionId}`),
+      claudeHome,
+    )
     mkdirSync(dirname(transcript), {recursive: true})
     writeFileSync(
       transcript,
@@ -414,7 +418,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(await kit.rpc.server.urls(undefined)).toEqual({local: ['http://localhost:3000'], network: []})
     const {sessionId} = await kit.rpc.sessions.create(undefined)
     const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-    await withAutoApproval(kit.rpc, sessionId, async () => {
+    await withAutoApproval(kit.base, sessionId, async () => {
       expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
       expect(await sessionRpc.server.restart({force: true})).toEqual({ok: true})
     })

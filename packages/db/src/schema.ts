@@ -70,3 +70,17 @@ export const markers = sqliteTable('markers', {
   afterTurn: integer('after_turn').notNull(),
   kind: text('kind', {enum: ['new', 'compact']}).notNull(),
 })
+
+export const pageChanges = sqliteTable(
+  'page_changes',
+  {
+    id: integer('id').primaryKey({autoIncrement: true}),
+    sessionId: text('session_id').notNull(),
+    verb: text('verb').notNull(),
+    ref: text('ref'),
+    selector: text('selector'),
+    args: text('args', {mode: 'json'}).$type<Record<string, unknown>>().notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [index('page_changes_session_id_idx').on(table.sessionId)],
+)

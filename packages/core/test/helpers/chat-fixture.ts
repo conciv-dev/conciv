@@ -4,6 +4,7 @@ import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
 import {createTestHarness, type TestHarness} from '@conciv/harness-testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {makeConcivSandbox} from '../../src/chat/sandbox.js'
 import {createAskRegistry} from '../../src/chat/ask.js'
 import {createSessionStreams} from '../../src/chat/subscribe.js'
@@ -15,7 +16,7 @@ export type ChatFixture = {
   chat: ChatDeps
   db: ConcivDb
   harness: TestHarness
-  sessionId: string
+  sessionId: SessionId
   stateRoot: string
 }
 
@@ -47,7 +48,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     codeModeCapabilities: () => [],
     attachmentExpanders: {},
   }
-  const sessionId = 'conciv_fixture'
+  const sessionId = SessionId.parse('conciv_fixture')
   if (opts.seedSession !== false) await ensureRow(db, sessionId, harness.id, stateRoot)
   return {chat, db, harness, sessionId, stateRoot}
 }

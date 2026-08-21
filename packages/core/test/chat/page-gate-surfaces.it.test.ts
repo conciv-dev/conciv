@@ -176,9 +176,10 @@ describe('approval-declared tools gate at the RPC boundary (server.restart)', ()
 
   it('a sessionless call is refused before the tool runs', async () => {
     const kit = await bootGated()
-    await expect(kit.rpc.server.restart({})).rejects.toMatchObject({
+    const bareRpc = makeRpcClient(kit.base)
+    await expect(bareRpc.server.restart({})).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
-      message: expect.stringContaining('no session is attached'),
+      message: expect.stringContaining('nothing is attached'),
     })
   }, 40_000)
 
@@ -186,7 +187,7 @@ describe('approval-declared tools gate at the RPC boundary (server.restart)', ()
     const kit = await bootGated()
     const rpc = sessionRpcOf(kit, 'not-a-session-id')
     await expect(rpc.server.restart({})).rejects.toMatchObject({
-      code: 'APPROVAL_DENIED',
+      code: 'BAD_REQUEST',
       message: expect.stringContaining('malformed'),
     })
   }, 40_000)
@@ -235,14 +236,14 @@ describe('approval-declared tools gate at the RPC boundary (server.restart)', ()
   }
 
   it('the ask reaches the named session and an approval releases the call', async () => {
-    const {kit, pending, approvalId} = await askedRestart()
-    await kit.rpc.chat.permissionDecision({approvalId, approved: true})
+    const {kit, sessionId, pending, approvalId} = await askedRestart()
+    await sessionRpcOf(kit, sessionId).chat.permissionDecision({approvalId, approved: true})
     await expect(pending).resolves.toEqual({ok: true})
   }, 40_000)
 
   it('a denial rejects with the denial wording', async () => {
-    const {kit, pending, approvalId} = await askedRestart()
-    await kit.rpc.chat.permissionDecision({approvalId, approved: false})
+    const {kit, sessionId, pending, approvalId} = await askedRestart()
+    await sessionRpcOf(kit, sessionId).chat.permissionDecision({approvalId, approved: false})
     await expect(pending).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
       message: expect.stringContaining('denied by the user'),
