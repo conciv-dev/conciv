@@ -82,6 +82,54 @@ it('a conciv_ui question resolves to the packaged card and hands the picked choi
   expect(answers).toEqual([{toolCallId: 'd1', value: 'ship'}])
 })
 
+it('a multiSelect choices ask collects several answers behind Submit', async () => {
+  const answers: {toolCallId: string; value: UiAnswerValue}[] = []
+
+  mount(() => (
+    <ToolCallCard
+      part={askingPart({
+        kind: 'choices',
+        question: 'Which effects need live tuning knobs?',
+        options: ['Ferrofluid', 'Shader glow', 'Grain'],
+        multiSelect: true,
+      })}
+      result={undefined}
+      ctx={{...INERT_TOOL_CTX, addResult: (toolCallId, value) => answers.push({toolCallId, value})}}
+      tools={allTools}
+    />
+  ))
+
+  await expect.element(browserPage.getByRole('button', {name: 'Submit'})).toBeDisabled()
+  await browserPage.getByRole('button', {name: 'Ferrofluid'}).click()
+  await browserPage.getByRole('button', {name: 'Shader glow'}).click()
+  await browserPage.getByRole('button', {name: 'Submit'}).click()
+
+  expect(answers).toEqual([{toolCallId: 'd1', value: ['Ferrofluid', 'Shader glow']}])
+})
+
+it('an allowOther choices ask answers with what the user typed instead of an option', async () => {
+  const answers: {toolCallId: string; value: UiAnswerValue}[] = []
+
+  mount(() => (
+    <ToolCallCard
+      part={askingPart({
+        kind: 'choices',
+        question: 'Which auth method?',
+        options: ['OAuth', 'JWT'],
+        allowOther: true,
+      })}
+      result={undefined}
+      ctx={{...INERT_TOOL_CTX, addResult: (toolCallId, value) => answers.push({toolCallId, value})}}
+      tools={allTools}
+    />
+  ))
+
+  await browserPage.getByRole('textbox', {name: 'Other'}).fill('mTLS')
+  await browserPage.getByRole('button', {name: 'Submit'}).click()
+
+  expect(answers).toEqual([{toolCallId: 'd1', value: 'mTLS'}])
+})
+
 it('a conciv_ui question that already carries its result renders answered, with no controls left to press', async () => {
   mount(() => (
     <ToolCallCard

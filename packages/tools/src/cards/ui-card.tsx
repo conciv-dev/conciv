@@ -67,17 +67,24 @@ function uiAnswer(part: ToolCallPart, result: ToolResultPart | undefined): UiAns
   return parsed.success ? parsed.data : null
 }
 
+function answeredValue(answer: UiAnswer | null): UiAnswerValue | null {
+  return answer?.answered === true ? answer.value : null
+}
+
+function pickedFrom(value: UiAnswerValue | null): string[] {
+  if (typeof value === 'string') return [value]
+  return Array.isArray(value) ? value : []
+}
+
+function filledFrom(value: UiAnswerValue | null): [string, string][] {
+  if (value === null || typeof value === 'string' || Array.isArray(value)) return []
+  return Object.entries(value)
+}
+
 function Answered(props: {answer: UiAnswer | null}): JSX.Element {
-  const chosen = (): string | null => {
-    const answer = props.answer
-    if (answer?.answered !== true) return null
-    return typeof answer.value === 'string' ? answer.value : null
-  }
-  const filled = (): [string, string][] => {
-    const answer = props.answer
-    if (answer?.answered !== true || typeof answer.value === 'string') return []
-    return Object.entries(answer.value)
-  }
+  const settled = (): UiAnswerValue | null => answeredValue(props.answer)
+  const chosen = (): string[] => pickedFrom(settled())
+  const filled = (): [string, string][] => filledFrom(settled())
   const note = (): string => {
     const answer = props.answer
     if (answer === null) return 'This question is closed.'
@@ -85,13 +92,13 @@ function Answered(props: {answer: UiAnswer | null}): JSX.Element {
   }
   return (
     <div role="status" class="flex flex-col gap-1.5">
-      <Show when={chosen()}>
+      <For each={chosen()}>
         {(value) => (
           <NoteRow icon={<Check size={12} aria-hidden="true" />} tone="accent">
-            {value()}
+            {value}
           </NoteRow>
         )}
-      </Show>
+      </For>
       <Show when={filled().length > 0}>
         <ChipRow>
           <For each={filled()}>{([name, value]) => <Chip name={name} value={value} />}</For>
@@ -109,16 +116,78 @@ function Answered(props: {answer: UiAnswer | null}): JSX.Element {
 }
 
 function Choices(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiAnswerValue) => void}): JSX.Element {
+  const options = (): string[] => props.spec.options ?? []
+  const multi = (): boolean => props.spec.multiSelect === true
+  const composed = (): boolean => multi() || props.spec.allowOther === true
+  const [picked, setPicked] = createSignal<string[]>([])
+  const [other, setOther] = createSignal('')
+  const toggle = (option: string) => {
+    setPicked((current) => {
+      if (!multi()) return [option]
+      return current.includes(option) ? current.filter((value) => value !== option) : [...current, option]
+    })
+  }
+  const chosen = (): string[] => {
+    const typed = other().trim()
+    return typed === '' ? picked() : [...picked(), typed]
+  }
+  const submit = (event: Event) => {
+    event.preventDefault()
+    const values = chosen()
+    props.onAnswer(multi() ? values : (values[0] ?? ''))
+  }
   return (
-    <ActionRow>
-      <For each={props.spec.options ?? []}>
-        {(option) => (
-          <Button variant="accent-soft" class={CHOICE} disabled={props.disabled} onClick={() => props.onAnswer(option)}>
-            {option}
+    <Show
+      when={composed()}
+      fallback={
+        <ActionRow>
+          <For each={options()}>
+            {(option) => (
+              <Button
+                variant="accent-soft"
+                class={CHOICE}
+                disabled={props.disabled}
+                onClick={() => props.onAnswer(option)}
+              >
+                {option}
+              </Button>
+            )}
+          </For>
+        </ActionRow>
+      }
+    >
+      <form class="flex flex-col gap-2.5" onSubmit={submit}>
+        <ActionRow>
+          <For each={options()}>
+            {(option) => (
+              <Button
+                type="button"
+                variant={picked().includes(option) ? 'solid' : 'accent-soft'}
+                aria-pressed={picked().includes(option)}
+                class={CHOICE}
+                disabled={props.disabled}
+                onClick={() => toggle(option)}
+              >
+                {option}
+              </Button>
+            )}
+          </For>
+        </ActionRow>
+        <Show when={props.spec.allowOther === true}>
+          <TextField
+            label="Other"
+            disabled={props.disabled}
+            value={other()}
+            onInput={(event) => setOther(event.currentTarget.value)}
+          />
+        </Show>
+        <ActionRow>
+          <Button type="submit" class={ACTION} disabled={props.disabled || chosen().length === 0}>
+            Submit
           </Button>
-        )}
-      </For>
-    </ActionRow>
+        </ActionRow>
+      </form>
+    </Show>
   )
 }
 

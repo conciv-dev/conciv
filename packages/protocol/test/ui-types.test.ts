@@ -20,11 +20,26 @@ describe('blocking conciv_ui schemas', () => {
     expect(UiInputSchema.safeParse({kind: 'vitest'}).success).toBe(false)
   })
 
-  it('UiAnswerValueSchema is a string or a string record, nothing else', () => {
+  it('a choices ask carries multiSelect and allowOther, the shape that replaces the native AskUserQuestion', () => {
+    const parsed = UiInputSchema.parse({
+      kind: 'choices',
+      question: 'Which effects need live tuning knobs?',
+      options: ['Ferrofluid', 'Shader glow'],
+      multiSelect: true,
+      allowOther: true,
+    })
+    expect(parsed.multiSelect).toBe(true)
+    expect(parsed.allowOther).toBe(true)
+    expect(UiInputSchema.parse({kind: 'choices', options: ['a']}).multiSelect).toBeUndefined()
+  })
+
+  it('UiAnswerValueSchema is a string, a string list or a string record, nothing else', () => {
     expect(UiAnswerValueSchema.parse('yes')).toBe('yes')
+    expect(UiAnswerValueSchema.parse(['ship', 'hold'])).toEqual(['ship', 'hold'])
     expect(UiAnswerValueSchema.parse({path: '/docs'})).toEqual({path: '/docs'})
     expect(UiAnswerValueSchema.safeParse(42).success).toBe(false)
     expect(UiAnswerValueSchema.safeParse({n: 42}).success).toBe(false)
+    expect(UiAnswerValueSchema.safeParse([42]).success).toBe(false)
   })
 
   it('UiAnswerSchema is the answered/unanswered union', () => {
