@@ -2,21 +2,22 @@ import {eq} from 'drizzle-orm'
 import {eventIterator, os} from '@orpc/server'
 import {z} from 'zod'
 import {subscriptionIterator} from '@conciv/extension'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {commentRow, cursorEvent, elementRow, pendingRow, pinRow, readRow, replyRow} from '../shared/rows.js'
 import {canvasPending, canvasReplies, comments, pins, reads} from './db/schema.js'
 import type {Store, WhiteboardEvent} from './db/store.js'
 
 const wbOs = os.$context<{request: Request}>()
 
-const roomInput = z.object({room: z.string().min(1)})
+const roomInput = z.object({room: SessionId})
 const scopeInput = z.object({scope: z.enum(['live', 'draft'])})
 const notFound = {NOT_FOUND: {message: 'row not found'}}
 
 type TableOps<Row extends object> = {
-  list: (room: string) => Promise<Row[]>
+  list: (room: SessionId) => Promise<Row[]>
   insert: (row: Row) => Promise<Row>
-  update: (id: string, patch: Partial<Row>) => Promise<Row | undefined>
-  remove: (id: string) => Promise<boolean>
+  update: (id: string, room: SessionId, patch: Partial<Row>) => Promise<Row | undefined>
+  remove: (id: string, room: SessionId) => Promise<boolean>
 }
 
 function tableRouter<RowInput, PatchInput, Row extends RowInput & {id: string}>(
@@ -35,17 +36,17 @@ function tableRouter<RowInput, PatchInput, Row extends RowInput & {id: string}>(
       .handler(({input}) => ops.insert(input)),
     update: wbOs
       .errors(notFound)
-      .input(z.object({id: z.string(), patch: patchSchema}))
+      .input(roomInput.extend({id: z.string(), patch: patchSchema}))
       .output(schema)
       .handler(async ({input, errors}) => {
-        const row = await ops.update(input.id, input.patch)
+        const row = await ops.update(input.id, input.room, input.patch)
         if (!row) throw errors.NOT_FOUND()
         return row
       }),
     remove: wbOs
-      .input(z.object({id: z.string()}))
+      .input(roomInput.extend({id: z.string()}))
       .output(z.object({deleted: z.boolean()}))
-      .handler(async ({input}) => ({deleted: await ops.remove(input.id)})),
+      .handler(async ({input}) => ({deleted: await ops.remove(input.id, input.room)})),
   }
 }
 
@@ -55,32 +56,32 @@ export function makeWhiteboardRouter(store: Store) {
     comments: tableRouter(commentRow, commentRow.partial(), {
       list: (room) => db.select().from(comments).where(eq(comments.sessionId, room)),
       insert: (row) => store.insertComment(row),
-      update: (id, patch) => store.updateComment(id, patch),
-      remove: (id) => store.deleteComment(id),
+      update: (id, room, patch) => store.updateComment(id, room, patch),
+      remove: (id, room) => store.deleteComment(id, room),
     }),
     pins: tableRouter(pinRow, pinRow.partial(), {
       list: (room) => db.select().from(pins).where(eq(pins.room, room)),
       insert: (row) => store.insertPin(row),
-      update: (id, patch) => store.updatePin(id, patch),
-      remove: (id) => store.deletePin(id),
+      update: (id, room, patch) => store.updatePin(id, room, patch),
+      remove: (id, room) => store.deletePin(id, room),
     }),
     reads: tableRouter(readRow, readRow.partial(), {
       list: (room) => db.select().from(reads).where(eq(reads.sessionId, room)),
       insert: (row) => store.insertRead(row),
-      update: (id, patch) => store.updateRead(id, patch),
-      remove: (id) => store.deleteRead(id),
+      update: (id, room, patch) => store.updateRead(id, room, patch),
+      remove: (id, room) => store.deleteRead(id, room),
     }),
     canvasPending: tableRouter(pendingRow, pendingRow.partial(), {
       list: (room) => db.select().from(canvasPending).where(eq(canvasPending.room, room)),
       insert: (row) => store.insertPending(row),
-      update: (id, patch) => store.updatePending(id, patch),
-      remove: (id) => store.deletePending(id),
+      update: (id, room, patch) => store.updatePending(id, room, patch),
+      remove: (id, room) => store.deletePending(id, room),
     }),
     canvasReplies: tableRouter(replyRow, replyRow.partial(), {
       list: (room) => db.select().from(canvasReplies).where(eq(canvasReplies.room, room)),
       insert: (row) => store.insertReply(row),
-      update: (id, patch) => store.updateReply(id, patch),
-      remove: (id) => store.deleteReply(id),
+      update: (id, room, patch) => store.updateReply(id, room, patch),
+      remove: (id, room) => store.deleteReply(id, room),
     }),
     elements: {
       list: wbOs
@@ -101,7 +102,7 @@ export function makeWhiteboardRouter(store: Store) {
         .output(z.object({rows: z.array(elementRow)}))
         .handler(async ({input}) => ({rows: await store.upsertElements(input.scope, input.rows)})),
       bulkDelete: wbOs
-        .input(scopeInput.extend({room: z.string(), elementIds: z.array(z.string())}))
+        .input(scopeInput.extend(roomInput.shape).extend({elementIds: z.array(z.string())}))
         .output(z.object({deleted: z.number()}))
         .handler(async ({input}) => ({
           deleted: await store.deleteElements(input.scope, input.room, input.elementIds),

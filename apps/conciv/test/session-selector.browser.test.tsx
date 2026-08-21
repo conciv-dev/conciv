@@ -1,12 +1,13 @@
 import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import type {RpcClient} from '@conciv/contract'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc} from './helpers/core-session.js'
 import {mountPane, type PaneMount} from './helpers/pane-harness.js'
 
-const EXTERNAL_ID = 'external-mid-run'
+const EXTERNAL_ID = HarnessSessionId.parse('external-mid-run')
 
 const core = {base: ''}
 const mounted: {pane: PaneMount | null} = {pane: null}

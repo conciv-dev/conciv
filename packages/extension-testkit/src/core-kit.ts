@@ -1,11 +1,12 @@
 import {createFakeHarness, createTestkit, type FakeHarness, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 import type {AnyExtension} from '@conciv/extension'
-import type {ToolRegistry} from '@conciv/extension/registry'
+import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
+import type {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessConnect, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import type {EngineStaleness} from '@conciv/contract'
 
-export type CoreKit = Kit & {harness: FakeHarness; registry: ToolRegistry}
+export type CoreKit = Kit & {harness: FakeHarness; forSession: (id: SessionId) => SessionScope}
 
 export async function bootCoreKit(opts: {
   id: string
@@ -31,16 +32,17 @@ export async function bootCoreKit(opts: {
     commands: opts.commands,
     history: opts.history,
   })
-  const captured: {registry?: ToolRegistry} = {}
+  const captured: {runtime?: CoreRuntime} = {}
   const kit = await createTestkit(harness, async (env) => {
-    const {app, dispose, registry} = await makeApp({
+    const {app, dispose, runtime} = await makeApp({
       cfg: {
         enabled: true,
         widgetUrl: undefined,
         stateRoot: env.stateRoot,
         harness: env.harness.id,
         harnessBin: undefined,
-        sessionId: '',
+        sessionId: undefined,
+        harnessSessionId: undefined,
         systemPrompt: '',
         extensions: undefined,
       },
@@ -52,10 +54,10 @@ export async function bootCoreKit(opts: {
       staleness: opts.staleness,
       nativePageDir: opts.nativePageDir,
     })
-    captured.registry = registry
+    captured.runtime = runtime
     return {fetch: app.fetch, dispose}
   }).setup()
-  const registry = captured.registry
-  if (!registry) throw new Error('the core kit booted without capturing the tool registry')
-  return {...kit, harness, registry}
+  const runtime = captured.runtime
+  if (!runtime) throw new Error('the core kit booted without capturing the core runtime')
+  return {...kit, harness, forSession: runtime.forSession}
 }

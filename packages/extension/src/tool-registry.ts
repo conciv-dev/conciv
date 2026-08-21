@@ -23,7 +23,9 @@ import {
 } from './define-tool.js'
 import {isPageVerbError} from './page-errors.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
-import type {CtxOf, ToolRequest, UnionToIntersection} from './types.js'
+import type {CtxOf, ServerToolRegistryAccess, ServerToolPageAccess, ToolRequest, UnionToIntersection} from './types.js'
+
+export type {ServerToolRegistryAccess, ServerToolPageAccess} from './types.js'
 
 export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding; approval?: 'ask'}
 
@@ -167,13 +169,14 @@ export function createToolRegistry(
   const pageConnected = options.isPageConnected ?? (() => pageCaller !== undefined)
   const walked = (): RegistryWalkEntry[] => namedConsistently(walkRegistryProcedures(router))
   const has = (name: string): boolean => walked().some((entry) => entry.path.join('.') === name)
+  const call: ToolRegistry['call'] = (name, input, callCtx) =>
+    has(name) ? callTool(router, name, input, callCtx.request) : Promise.reject(new Error(`unknown tool "${name}"`))
   return {
     router,
     register: (tool: AnyToolBuilder, registration: {owner: string; context?: unknown}) =>
-      registerTool(router, tool, pageCaller, registration, owners),
+      registerTool(router, tool, pageCaller, call, registration, owners),
     has,
-    call: (name, input, call) =>
-      has(name) ? callTool(router, name, input, call.request) : Promise.reject(new Error(`unknown tool "${name}"`)),
+    call,
     catalog: {
       list: () => catalogEntries(walked(), pageConnected()),
       get: (name) => toolSignature(walked(), name, pageConnected()),
@@ -254,6 +257,7 @@ function registerTool(
   router: Record<string, AnyRouter>,
   tool: AnyToolBuilder,
   pageCaller: RegistryPageCaller | undefined,
+  selfCall: ToolRegistry['call'],
   registration: {owner: string; context?: unknown},
   owners: Map<string, string>,
 ): void {
@@ -266,7 +270,7 @@ function registerTool(
   if (holder !== undefined) {
     throw new Error(`tool "${tool.name}" is declared by both ${holder} and ${registration.owner}`)
   }
-  insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, registration.context))
+  insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, selfCall, registration.context))
   owners.set(tool.name, registration.owner)
 }
 
@@ -307,7 +311,12 @@ const registryBase = os
 
 type ToolErrorConstructors = ORPCErrorConstructorMap<ToolErrors>
 
-function compileTool(tool: RegistryTool, pageCaller: RegistryPageCaller | undefined, context: unknown): AnyRouter {
+function compileTool(
+  tool: RegistryTool,
+  pageCaller: RegistryPageCaller | undefined,
+  selfCall: ToolRegistry['call'],
+  context: unknown,
+): AnyRouter {
   const meta: RegistryToolMeta = {
     ...tool.meta,
     name: tool.name,
@@ -319,12 +328,25 @@ function compileTool(tool: RegistryTool, pageCaller: RegistryPageCaller | undefi
   const procedure = registryBase.meta(meta).errors(declaredErrors).input(tool.inputSchema).output(tool.outputSchema)
   if (tool.binding === 'server') {
     return procedure.handler(({input, errors, context: call}) =>
-      runServerTool(tool, input, context, call.request, declaredErrors, errors),
+      runServerTool(tool, input, context, call.request, declaredErrors, errors, pageCaller, selfCall),
     )
   }
   return procedure.handler(({input, errors, context: call}) =>
     forwardToolToPage(tool, input, declaredErrors, errors, pageCaller, call.request),
   )
+}
+
+function pageAccess(pageCaller: RegistryPageCaller | undefined, request: ToolRequest): ServerToolPageAccess {
+  return {
+    call: (name, input) =>
+      pageCaller === undefined
+        ? Promise.reject(new Error(`${name}: no widget connected`))
+        : pageCaller({name, mutating: false}, input, request),
+  }
+}
+
+function toolsAccess(selfCall: ToolRegistry['call'], request: ToolRequest): ServerToolRegistryAccess {
+  return {call: (name, input) => selfCall(name, input, {request})}
 }
 
 async function runServerTool(
@@ -334,11 +356,13 @@ async function runServerTool(
   request: ToolRequest,
   declaredErrors: ToolErrors,
   errors: ToolErrorConstructors,
+  pageCaller: RegistryPageCaller | undefined,
+  selfCall: ToolRegistry['call'],
 ): Promise<unknown> {
   const run = tool.__serverRun
   if (run === undefined) throw new Error(`tool "${tool.name}" has no server handler`)
   try {
-    return await run(input, context, request)
+    return await run(input, context, request, pageAccess(pageCaller, request), toolsAccess(selfCall, request))
   } catch (error) {
     throw declaredError(tool, declaredErrors, error, errors) ?? error
   }

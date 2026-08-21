@@ -4,7 +4,7 @@ import {upgradeWebSocket} from '@hono/node-server'
 import {os} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, type ServerApi} from '@conciv/extension'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext, HarnessConnectPlan, TerminalOpener} from '@conciv/protocol/harness-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
@@ -50,7 +50,7 @@ function applyControl(session: TtySession, control: TtyClientControl | null, tex
   return false
 }
 
-function resumable({server}: TerminalRuntime, harnessSessionId: string | null): boolean {
+function resumable({server}: TerminalRuntime, harnessSessionId: HarnessSessionId | null): boolean {
   if (!harnessSessionId) return false
   return server.harness.transcriptExists?.(harnessSessionId) ?? true
 }
@@ -62,7 +62,7 @@ function apiBase(runtime: TerminalRuntime, context: RpcContext): string {
 async function connectContext(
   runtime: TerminalRuntime,
   sessionId: SessionId,
-  harnessSessionId: string | null,
+  harnessSessionId: HarnessSessionId | null,
   model: string | null,
   base: string,
 ): Promise<HarnessConnectContext> {
@@ -80,10 +80,10 @@ async function connectContext(
   }
 }
 
-async function mintHarnessSession(runtime: TerminalRuntime, sessionId: SessionId): Promise<string> {
+async function mintHarnessSession(runtime: TerminalRuntime, sessionId: SessionId): Promise<HarnessSessionId> {
   const existing = await runtime.server.sessions.resumeToken(sessionId)
   if (existing) return existing
-  const minted = randomUUID()
+  const minted = HarnessSessionId.parse(randomUUID())
   await runtime.server.sessions.recordToken(sessionId, minted)
   return minted
 }
@@ -191,10 +191,18 @@ export type TerminalRouter = ReturnType<typeof makeTerminalRouter>
 
 const app = new Hono<TerminalEnv>().get(
   '/tty',
+  async (c, next) => {
+    const parsed = SessionId.safeParse(c.req.query('session'))
+    if (!parsed.success) return c.text('invalid or missing session', 400)
+    await next()
+  },
   upgradeWebSocket((c) => {
     const {tty} = c.var.terminal
     const url = new URL(c.req.url)
-    const sessionOf = () => tty.get(url.searchParams.get('session') ?? '')
+    const sessionOf = () => {
+      const parsed = SessionId.safeParse(url.searchParams.get('session'))
+      return parsed.success ? tty.get(parsed.data) : undefined
+    }
     let detach: (() => void) | null = null
     return {
       onOpen(_event, ws) {

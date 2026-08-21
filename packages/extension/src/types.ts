@@ -42,6 +42,10 @@ export type ExtensionCommand = {
 
 export type ToolRenderer = Component<ToolCardProps>
 
+export type ServerToolPageAccess = {call: (name: string, input: Record<string, unknown>) => Promise<unknown>}
+
+export type ServerToolRegistryAccess = {call: (name: string, input: unknown) => Promise<unknown>}
+
 export type ExtensionTool = {
   name: string
   description: string
@@ -52,7 +56,13 @@ export type ExtensionTool = {
   display?: 'standalone'
   approval?: 'ask'
   __execute?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
-  __serverRun?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
+  __serverRun?: (
+    input: unknown,
+    ctx?: unknown,
+    request?: ToolRequest,
+    page?: ServerToolPageAccess,
+    tools?: ServerToolRegistryAccess,
+  ) => Promise<unknown>
   __render?: ToolRenderer
 }
 
@@ -86,14 +96,6 @@ export type ServerHarness = {
   transcriptMessages?: (token: HarnessSessionId) => Promise<UIMessage[]>
 }
 
-export type ServerPageCaller = {
-  call: (name: string, input: Record<string, unknown>) => Promise<Record<string, unknown>>
-}
-
-export type ServerToolCaller = {
-  call: (name: string, input: unknown) => Promise<unknown>
-}
-
 export type ServerApi<Config> = {
   config: Config
   cwd: string
@@ -101,8 +103,6 @@ export type ServerApi<Config> = {
   stateDir: string
   sessions: ServerSessions
   harness: ServerHarness
-  page: ServerPageCaller
-  tools: ServerToolCaller
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   bundler?: BundlerBridge
   nativeUrl: () => string | undefined

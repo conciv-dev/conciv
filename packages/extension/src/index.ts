@@ -55,8 +55,6 @@ export type {
   RequiredContext,
   ServerApi,
   ServerHarness,
-  ServerPageCaller,
-  ServerToolCaller,
   ServerSessions,
   ServerResult,
   SystemPromptFactory,

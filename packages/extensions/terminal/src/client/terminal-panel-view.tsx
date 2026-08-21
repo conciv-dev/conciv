@@ -25,10 +25,8 @@ function readTerminalTheme(element: Element): TerminalTheme {
 }
 
 function wsUrl(apiBase: string, sessionId: string | null, cols: number, rows: number): string {
-  const url = new URL(
-    terminalUrl(apiBase, `tty?session=${sessionId ?? ''}&cols=${cols}&rows=${rows}`),
-    window.location.href,
-  )
+  if (!sessionId) throw new Error('the terminal panel opened a websocket url before its session was resolved')
+  const url = new URL(terminalUrl(apiBase, `tty?session=${sessionId}&cols=${cols}&rows=${rows}`), window.location.href)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   return url.toString()
 }

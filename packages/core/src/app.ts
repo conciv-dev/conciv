@@ -46,7 +46,7 @@ import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
-import {runWithSession, session} from './runtime/session-context.js'
+import {runWithSession} from './runtime/session-context.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
@@ -362,8 +362,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         basePath: opts.basePath ?? '',
         sessions: serverSessions,
         harness: serverHarness,
-        page: {call: (name, input) => session().page.ask(name, input)},
-        tools: {call: (name, input) => session().tools.call(name, input)},
         symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
         bundler: opts.bridge,
         nativeUrl,
