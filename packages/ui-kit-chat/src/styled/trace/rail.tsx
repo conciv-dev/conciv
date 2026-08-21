@@ -3,13 +3,14 @@ import {createResizeObserver} from '@solid-primitives/resize-observer'
 
 const CORNER_RADIUS = 3
 const CURVE_LEAD = 4
+const DEPTH_DROP = 8
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
 const DISTANCE_STEPS = 24
 
 const SVG_CLASS =
   'absolute [inset-block-start:0] [inset-inline-start:0] w-[var(--chat-trace-gutter)] pointer-events-none rtl:-scale-x-100 origin-center'
 const PATH_CLASS = '[stroke:var(--chat-glyph)] stroke-1 fill-none'
-const LIVE_SVG_CLASS = `${SVG_CLASS} [clip-path:polygon(0_0,100%_0,100%_var(--rail-bottom,0px),0_var(--rail-bottom,0px))] [transition:clip-path_var(--rail-travel,320ms)_var(--chat-ease),opacity_260ms_var(--chat-ease)] motion-reduce:[transition:none]`
+const LIVE_SVG_CLASS = `${SVG_CLASS} [clip-path:polygon(0_var(--rail-top,0px),100%_var(--rail-top,0px),100%_var(--rail-bottom,0px),0_var(--rail-bottom,0px))] [transition:clip-path_var(--rail-travel,320ms)_var(--chat-ease),opacity_260ms_var(--chat-ease)] motion-reduce:[transition:none]`
 const LIVE_PATH_CLASS = '[stroke:var(--chat-accent)] stroke-1 fill-none'
 
 const DOT_LAYER_CLASS =
@@ -34,29 +35,61 @@ function headerX(gutter: number): number {
   return crisp(spineX(gutter) - (gutter / 2 - 1))
 }
 
-type RailGeometry = {gutter: number; top: number; headerAnchor: number; rowAnchors: number[]}
+function depthX(gutter: number): number {
+  return gutter - 0.5
+}
+
+function sCurve(fromX: number, fromY: number, toX: number, toY: number): string {
+  return `C ${fromX} ${toY - CURVE_LEAD} ${toX} ${fromY + CURVE_LEAD} ${toX} ${toY}`
+}
+
+type RailRow = {anchor: number; bodyBottom?: number}
+
+type RailGeometry = {gutter: number; top: number; headerAnchor: number; rows: RailRow[]}
 
 type RailPaths = {spine: string; arms: string; track: string}
 
+function bodyDetour(baseX: number, deepX: number, row: RailRow, nextAnchor: number): string {
+  const bodyBottom = row.bodyBottom
+  if (bodyBottom === undefined) return ''
+  const outEnd = row.anchor + DEPTH_DROP
+  const backEnd = Math.min(bodyBottom + DEPTH_DROP, nextAnchor - CORNER_RADIUS)
+  if (bodyBottom < outEnd) return ''
+  if (backEnd - bodyBottom < CURVE_LEAD) return ''
+  return ` L ${baseX} ${row.anchor} ${sCurve(baseX, row.anchor, deepX, outEnd)} L ${deepX} ${bodyBottom} ${sCurve(deepX, bodyBottom, baseX, backEnd)}`
+}
+
+function bodyDetours(baseX: number, deepX: number, rows: RailRow[]): string {
+  return rows
+    .map((row, index) => {
+      const next = rows[index + 1]
+      if (!next) return ''
+      return bodyDetour(baseX, deepX, row, next.anchor)
+    })
+    .join('')
+}
+
 function jointsRail(geometry: RailGeometry): RailPaths {
-  const {gutter, top, headerAnchor, rowAnchors} = geometry
-  const anchors = [headerAnchor, ...rowAnchors]
+  const {gutter, top, headerAnchor, rows} = geometry
+  const anchors = [headerAnchor, ...rows.map((row) => row.anchor)]
   const lastAnchor = anchors[anchors.length - 1] ?? headerAnchor
   const x = spineX(gutter)
+  const descent = `M ${x} ${top}${bodyDetours(x, depthX(gutter), rows)}`
   return {
-    spine: `M ${x} ${top} L ${x} ${lastAnchor - CORNER_RADIUS} A ${CORNER_RADIUS} ${CORNER_RADIUS} 0 0 0 ${x + CORNER_RADIUS} ${lastAnchor} L ${gutter} ${lastAnchor}`,
+    spine: `${descent} L ${x} ${lastAnchor - CORNER_RADIUS} A ${CORNER_RADIUS} ${CORNER_RADIUS} 0 0 0 ${x + CORNER_RADIUS} ${lastAnchor} L ${gutter} ${lastAnchor}`,
     arms: anchors
       .slice(0, -1)
       .map((y) => `M ${x} ${y} L ${gutter} ${y}`)
       .join(' '),
-    track: `M ${x} ${top} L ${x} ${lastAnchor}`,
+    track: `${descent} L ${x} ${lastAnchor}`,
   }
 }
 
 function clerkRail(geometry: RailGeometry): RailPaths {
-  const {gutter, top, headerAnchor, rowAnchors} = geometry
+  const {gutter, top, headerAnchor, rows} = geometry
   const headX = headerX(gutter)
   const rowX = spineX(gutter)
+  const rowAnchors = rows.map((row) => row.anchor)
   const firstRow = rowAnchors[0]
   if (firstRow === undefined) {
     const stub = `M ${headX} ${top} L ${headX} ${headerAnchor}`
@@ -92,12 +125,15 @@ function railStops(track: string, anchors: number[]): RailStop[] {
   return anchors.map((y) => ({y, distance: distanceAtY(path, total, y)}))
 }
 
-function rowAnchors(list: HTMLUListElement | undefined, rootTop: number, gutter: number): number[] {
+function railRows(list: HTMLUListElement | undefined, rootTop: number, gutter: number): RailRow[] {
   if (!list) return []
   if (list.getBoundingClientRect().height === 0) return []
-  return Array.from(list.querySelectorAll(':scope > li')).map(
-    (row) => row.getBoundingClientRect().top - rootTop + gutter / 2,
-  )
+  return Array.from(list.querySelectorAll(':scope > li')).map((row) => {
+    const rect = row.getBoundingClientRect()
+    const anchor = rect.top - rootTop + gutter / 2
+    if (rect.height <= gutter + 2) return {anchor}
+    return {anchor, bodyBottom: rect.bottom - rootTop}
+  })
 }
 
 function liveRowIndex(list: HTMLUListElement | undefined): number {
@@ -158,10 +194,10 @@ export function TraceRail(props: {
       gutter,
       top,
       headerAnchor: top + gutter / 2,
-      rowAnchors: rowAnchors(visibleRows(), rootRect.top, gutter),
+      rows: railRows(visibleRows(), rootRect.top, gutter),
     }
     const paths = RAILS[props.rail()](geometry)
-    stops = railStops(paths.track, [geometry.headerAnchor, ...geometry.rowAnchors])
+    stops = railStops(paths.track, [geometry.headerAnchor, ...geometry.rows.map((row) => row.anchor)])
     refs.svg.setAttribute('width', `${gutter}`)
     refs.svg.setAttribute('height', `${rootRect.height}`)
     refs.spine.setAttribute('d', paths.spine)
@@ -177,7 +213,9 @@ export function TraceRail(props: {
     if (!refs) return
     const index = liveRowIndex(visibleRows())
     const live = index < 0 ? undefined : stops[index + 1]
-    if (live) {
+    const entered = index < 0 ? undefined : stops[index]
+    if (live && entered) {
+      refs.liveSvg.style.setProperty('--rail-top', `${entered.y}px`)
       refs.liveSvg.style.setProperty('--rail-bottom', `${live.y}px`)
       refs.liveSvg.style.opacity = '1'
       refs.dot.style.setProperty('--rail-dot-distance', `${live.distance}px`)
@@ -185,10 +223,7 @@ export function TraceRail(props: {
       return
     }
     const settled = stops[stops.length - 1]
-    if (settled) {
-      refs.liveSvg.style.setProperty('--rail-bottom', `${settled.y}px`)
-      refs.dot.style.setProperty('--rail-dot-distance', `${settled.distance}px`)
-    }
+    if (settled) refs.dot.style.setProperty('--rail-dot-distance', `${settled.distance}px`)
     refs.liveSvg.style.opacity = '0'
     refs.dot.style.setProperty('--rail-dot-o', '0')
   }

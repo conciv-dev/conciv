@@ -113,6 +113,33 @@ export const RailClerk: Story = {
   },
 }
 
+const expandedBodySteps: TraceItem[] = [
+  toolItem('read', {mark: 'pass', label: 'read', target: 'src/store/turn-rollup.ts', meta: '96 lines'}),
+  toolItem('bash', {
+    mark: 'fail',
+    label: 'bash',
+    target: 'pnpm vitest run turn-rollup',
+    meta: 'exit 1',
+    block: () => (
+      <TraceOutputBlock tone="error" text={TEST_OUTPUT}>
+        {TEST_OUTPUT}
+      </TraceOutputBlock>
+    ),
+  }),
+  toolItem('building', {mark: 'run', label: 'run', target: 'rerunning the failing suite'}, true),
+  toolItem('publish', {mark: 'run', label: 'run', target: 'publishing the release notes'}),
+]
+
+export const RailJointsBodyWiggle: Story = {
+  render: () =>
+    frame(<Trace summary="rerunning after a failure" compactLine="4 steps" items={expandedBodySteps} defaultOpen />),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('failed')).toBeVisible()
+    await expect(canvas.getByText('publishing the release notes')).toBeVisible()
+  },
+}
+
 export const CollapsedRecord: Story = {
   render: () => frame(<Trace summary={SUMMARY} compactLine={COMPACT} items={allRowKinds} />),
   play: async ({canvasElement}) => {

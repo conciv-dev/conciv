@@ -192,7 +192,7 @@ function AssistantTurn(props: {
     const line = () => summaryLine(segmentRollup())
     return (
       <Show when={segmentRollup().toolCalls > 0}>
-        <Trace summary={line()} compactLine={line()} items={items()} rail="clerk" streaming={segmentActive()} />
+        <Trace summary={line()} compactLine={line()} items={items()} streaming={segmentActive()} />
       </Show>
     )
   }

@@ -126,6 +126,10 @@ function railBottomOf(svg: SVGSVGElement): number {
   return Number.parseFloat(getComputedStyle(svg).getPropertyValue('--rail-bottom'))
 }
 
+function railTopOf(svg: SVGSVGElement): number {
+  return Number.parseFloat(getComputedStyle(svg).getPropertyValue('--rail-top'))
+}
+
 function waitForTransitionEnd(element: Element, property: string): Promise<void> {
   return new Promise((resolve) => {
     const handler = (event: Event): void => {
@@ -196,6 +200,80 @@ function rowColumnX(container: HTMLElement): number {
   const path = spinePath(container)
   return path.getPointAtLength(path.getTotalLength()).x
 }
+
+const SAMPLE_COUNT = 1000
+const CORNER_RADIUS = 3
+
+function samplePoints(path: SVGPathElement): DOMPoint[] {
+  const total = path.getTotalLength()
+  return Array.from({length: SAMPLE_COUNT + 1}, (_, step) => path.getPointAtLength((total * step) / SAMPLE_COUNT))
+}
+
+function deepestXBetween(path: SVGPathElement, fromY: number, toY: number): number {
+  const inside = samplePoints(path).filter((point) => point.y >= fromY && point.y <= toY)
+  return Math.max(...inside.map((point) => point.x))
+}
+
+function xNearestY(path: SVGPathElement, y: number): number {
+  return samplePoints(path).reduce((best, point) => (Math.abs(point.y - y) < Math.abs(best.y - y) ? point : best)).x
+}
+
+function expandedBodyTrace(): TraceItem[] {
+  return [
+    toolItem('failing', {mark: 'fail', label: 'bash', target: 'pnpm test', meta: 'exit 1'}, () => (
+      <TraceOutputBlock text={LONG_OUTPUT}>{LONG_OUTPUT}</TraceOutputBlock>
+    )),
+    liveToolItem('live', 'file-live.ts', () => true),
+    liveToolItem('after', 'file-after.ts', () => false),
+  ]
+}
+
+it('curves the joints spine out alongside an expanded row body and back before the next anchor', async () => {
+  const container = mountTrace(twoRowTrace())
+  await expect.element(page.getByText('bash')).toBeVisible()
+
+  const gutter = gutterOf(container)
+  const path = spinePath(container)
+  const bodyTop = rowAnchor(container, 0)
+  const beforeTheCorner = rowAnchor(container, 1) - CORNER_RADIUS
+
+  expect(path.getAttribute('d')).toMatch(/C/)
+  expect(Math.abs(deepestXBetween(path, bodyTop, beforeTheCorner) - (gutter - 0.5))).toBeLessThanOrEqual(0.05)
+  expect(Math.abs(xNearestY(path, beforeTheCorner) - (Math.round(gutter / 2) + 0.5))).toBeLessThanOrEqual(0.5)
+})
+
+it('keeps every tick arm and the terminal corner while a row body is expanded', async () => {
+  const container = mountTrace(twoRowTrace())
+  await expect.element(page.getByText('bash')).toBeVisible()
+
+  const gutter = gutterOf(container)
+  const arms = armSegments(armsPath(container))
+  const end = spinePath(container).getPointAtLength(spinePath(container).getTotalLength())
+  const expected = [headerAnchor(container), rowAnchor(container, 0)]
+
+  expect(arms).toHaveLength(2)
+  expect(arms.map((arm, index) => Math.abs(arm.y - (expected[index] ?? Number.NaN)) <= 0.5)).toEqual([true, true])
+  expect(Math.abs(end.x - gutter)).toBeLessThanOrEqual(0.01)
+  expect(Math.abs(end.y - lastRowAnchor(container))).toBeLessThanOrEqual(0.5)
+})
+
+it('leaves the joints spine free of depth curves when no row body is expanded', async () => {
+  const container = await mountedThreeRow(() => -1)
+
+  expect(spinePath(container).getAttribute('d')).not.toMatch(/C/)
+})
+
+it('lands the travelling dot on a live row that follows an expanded row body', async () => {
+  const container = mountTrace(expandedBodyTrace())
+  await expect.element(page.getByText('file-after.ts')).toBeVisible()
+
+  const liveSvg = liveRailSvg(container)
+
+  expect(getComputedStyle(railDot(container)).opacity).toBe('1')
+  expect(Math.abs(dotCenterY(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(1)
+  expect(Math.abs(railTopOf(liveSvg) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(railBottomOf(liveSvg) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
+})
 
 it('draws the whole rail as one svg with no leftover connector fragments', async () => {
   const container = mountTrace(twoRowTrace())
@@ -284,16 +362,26 @@ it('ticks only the header arm for a single-row trace where the corner already se
   expect(Math.abs((arms[0]?.y ?? Number.NaN) - headerAnchor(container))).toBeLessThanOrEqual(0.5)
 })
 
-it('anchors the live accent under a live row that is not last and shows it', async () => {
+it('lights only the span just traversed into the live row and shows it', async () => {
   const container = await mountedThreeRow(() => 1)
 
   const liveSvg = liveRailSvg(container)
 
   expect(getComputedStyle(liveSvg).opacity).toBe('1')
+  expect(Math.abs(railTopOf(liveSvg) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
   expect(Math.abs(railBottomOf(liveSvg) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
 })
 
-it('fades the live accent out and settles it at the last row once nothing is live', async () => {
+it('lights the span from the header down into a live first row', async () => {
+  const container = await mountedThreeRow(() => 0)
+
+  const liveSvg = liveRailSvg(container)
+
+  expect(Math.abs(railTopOf(liveSvg) - headerAnchor(container))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(railBottomOf(liveSvg) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
+})
+
+it('fades the live segment out where it stands once nothing is live', async () => {
   const [liveIndex, setLiveIndex] = createSignal(1)
   const container = mountView(() => (
     <Trace summary="3 tools ran" compactLine="3 tools" items={threeRowLiveTrace(liveIndex)} defaultOpen />
@@ -301,12 +389,15 @@ it('fades the live accent out and settles it at the last row once nothing is liv
   await expect.element(page.getByText('file-2.ts')).toBeVisible()
 
   const liveSvg = liveRailSvg(container)
+  const litTop = railTopOf(liveSvg)
+  const litBottom = railBottomOf(liveSvg)
   const settled = waitForTransitionEnd(liveSvg, 'opacity')
   setLiveIndex(-1)
   await settled
 
   expect(getComputedStyle(liveSvg).opacity).toBe('0')
-  expect(Math.abs(railBottomOf(liveSvg) - rowAnchor(container, 2))).toBeLessThanOrEqual(0.5)
+  expect(railTopOf(liveSvg)).toBe(litTop)
+  expect(railBottomOf(liveSvg)).toBe(litBottom)
 })
 
 it('starts the live accent hidden with no flash when nothing is live at mount', () => {
