@@ -31,14 +31,15 @@ export type RichTextFieldHandle = {
 
 const VIEWPORT = 'w-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 const EDITABLE =
-  'px-2 py-1.5 leading-5 whitespace-pre-wrap break-words [outline:none] [&_[data-chip]]:text-pw-accent-hi [&_[data-chip]]:bg-pw-accent-08 [&_[data-chip]]:rounded-pw-sm [&_[data-chip]]:px-0.5'
-const PLACEHOLDER = 'pointer-events-none absolute left-2 top-1.5 leading-5 text-[0.8125rem] text-pw-text-3 select-none'
+  '[font-family:var(--chat-font)] leading-[1.45] whitespace-pre-wrap break-words [outline:none] [&_[data-chip]]:text-pw-accent-hi [&_[data-chip]]:bg-pw-accent-08 [&_[data-chip]]:rounded-pw-sm [&_[data-chip]]:px-0.5'
+const PLACEHOLDER =
+  '[font-family:var(--chat-font)] pointer-events-none absolute top-0 [inset-inline:0] leading-[1.45] text-[0.8125rem] text-pw-text-3 select-none whitespace-nowrap overflow-hidden text-ellipsis'
 
 function plainTextSlice(schema: Schema, text: string): Slice {
   return new Slice(paragraphFragment(schema, text), 1, 1)
 }
 
-const rowHeight = (rows: number): string => `calc(${rows} * 1.25rem + 0.75rem)`
+const rowHeight = (rows: number): string => `calc(${rows} * 1.1875rem)`
 
 function historyKey(event: KeyboardEvent): 'undo' | 'redo' | null {
   const key = event.key.toLowerCase()

@@ -49,11 +49,15 @@ export function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
           <For each={traces()}>
             {(trace) => (
               <CardRow>
-                <span class="min-w-0 truncate [color:var(--chat-text-2)]">{trace.name}</span>
+                <span
+                  aria-hidden="true"
+                  class={`rounded-full shrink-0 h-1.5 w-1.5 ${trace.status === 'error' ? 'bg-chat-danger' : 'bg-chat-success'}`}
+                />
+                <span class="text-chat-text-2 min-w-0 truncate">{trace.name}</span>
                 <Show when={trace.file}>
-                  {(file) => <span class="min-w-0 truncate [color:var(--chat-text-3)]">{file()}</span>}
+                  {(file) => <span class="text-chat-text-3 min-w-0 truncate">{file()}</span>}
                 </Show>
-                <span class="ml-auto shrink-0 [color:var(--chat-text-3)]">{trace.durationMs}ms</span>
+                <span class="text-chat-text-3 ml-auto shrink-0 tabular-nums">{trace.durationMs}ms</span>
                 <Chip kind="pill" value={trace.status} tone={trace.status === 'error' ? 'danger' : undefined} />
               </CardRow>
             )}

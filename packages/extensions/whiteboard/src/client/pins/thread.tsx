@@ -13,14 +13,17 @@ import {
   TooltipIconButton,
 } from '@conciv/ui-kit-system'
 import {MentionField, type MentionFieldApi} from '@conciv/ui-kit-tap'
+import {codeTheme} from '@conciv/ui-kit-chat/theme/code-theme'
 import {useComments, type Comment} from '../model/comments.js'
 import {Avatar, Menu, MenuItem, Tooltip} from '../ui.js'
 
-const CODE_OPTIONS: FileOptions<undefined> = {
-  theme: {light: 'github-light', dark: 'github-dark'},
-  themeType: 'system',
-  disableFileHeader: true,
-  disableLineNumbers: true,
+function codeOptions(): FileOptions<undefined> {
+  return {
+    theme: codeTheme(),
+    themeType: 'system',
+    disableFileHeader: true,
+    disableLineNumbers: true,
+  }
 }
 
 const HEADER_BTN =
@@ -68,7 +71,7 @@ function renderPart(part: unknown, key: string, ctx: ToolViewCtx): JSX.Element {
   return (
     <SolidCodeBlock
       class="text-[0.6875rem] rounded-pw-sm block overflow-auto"
-      options={CODE_OPTIONS}
+      options={codeOptions()}
       file={{name: 'part.txt', lang: 'text', contents: JSON.stringify(part)}}
     />
   )

@@ -2,7 +2,8 @@ import {createEffect, createMemo, For, Match, on, Show, splitProps, Switch, type
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {Button} from '@conciv/ui-kit-system'
 import RotateCw from 'lucide-solid/icons/rotate-cw'
-import {ModelSelector, useModelSelectorContext, type ModelOption} from '@conciv/ui-kit-chat'
+import Check from 'lucide-solid/icons/check'
+import {ComposerActions as Action, ModelSelector, useModelSelectorContext, type ModelOption} from '@conciv/ui-kit-chat'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useRpc} from '../app/context.js'
 
@@ -123,13 +124,32 @@ export function SessionModelSelector(props: {sessionId: string}): JSX.Element {
   )
 
   return (
-    <ModelSelectorView
-      models={models()}
-      value={value()}
-      failed={meta.isError}
-      retrying={meta.isFetching}
-      onRetry={() => void meta.refetch()}
-      onSelect={(model) => setModel.mutate(model)}
-    />
+    <Action.Action priority={5} disabled={() => meta.isPending}>
+      <Show
+        when={!(meta.isError && models().length === 0)}
+        fallback={
+          <Action.ActionMenuItem label={`${MODELS_UNAVAILABLE}: ${RETRY_LABEL}`} onSelect={() => void meta.refetch()}>
+            <RotateCw class="size-4 block" aria-hidden="true" />
+          </Action.ActionMenuItem>
+        }
+      >
+        <For each={models()}>
+          {(model) => (
+            <Action.ActionMenuItem
+              label={model.disabled ? `Model: ${model.name} (unavailable)` : `Model: ${model.name}`}
+              disabled={model.disabled}
+              onSelect={() => {
+                if (model.disabled) return
+                setModel.mutate(model.id)
+              }}
+            >
+              <Show when={model.id === value()} fallback={<span class="size-4 block" aria-hidden="true" />}>
+                <Check class="size-4 block" aria-hidden="true" />
+              </Show>
+            </Action.ActionMenuItem>
+          )}
+        </For>
+      </Show>
+    </Action.Action>
   )
 }

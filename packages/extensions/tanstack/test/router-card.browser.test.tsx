@@ -54,7 +54,7 @@ const ROUTER_STATE = JSON.stringify({
   location: {pathname: '/about', search: '', hash: ''},
   matches: [
     {routeId: '__root__', path: ''},
-    {routeId: '/about', path: '/about'},
+    {routeId: '/about', path: '/about', status: 'success'},
   ],
 })
 
@@ -71,6 +71,10 @@ const LOADER_DATA = JSON.stringify({
   server: {greeting: 'hello'},
   local: {n: 42},
   deep: {__conciv: 'object', size: 1, preview: '{…}'},
+})
+
+const LOADER_DATA_WITH_ORDINARY_PREVIEW_FIELD = JSON.stringify({
+  article: {title: 'Ship the trace redesign', preview: 'short excerpt', author: 'Omri'},
 })
 
 function escapeRegExp(text: string): string {
@@ -117,6 +121,7 @@ describe('RouterStateCard (real browser)', () => {
     await expect.element(page.getByText('/about · 2 matches')).toBeVisible()
     await page.getByRole('button', {name: doneTitleOf('tanstack_router_state')}).click()
     await expect.element(page.getByText('__root__')).toBeVisible()
+    await expect.element(page.getByText('success')).toBeVisible()
   })
 
   it('renders the error message when the verb fails', async () => {
@@ -173,6 +178,7 @@ describe('QueryCacheCard (real browser)', () => {
     await expect.element(page.getByText('fresh')).toBeVisible()
     await expect.element(page.getByText('stale')).toBeVisible()
     await expect.element(page.getByText(/5m ago/)).toBeVisible()
+    await expect.element(page.getByText('fetched', {exact: true})).toBeVisible()
   })
 
   it('renders the error message when the verb fails', async () => {
@@ -193,10 +199,21 @@ describe('LoaderDataCard (real browser)', () => {
     await expect.element(page.getByText('server')).toBeVisible()
     await expect.element(page.getByText('deep')).toBeVisible()
     await expect.element(page.getByText('{…}')).toBeVisible()
+    await expect.element(page.getByText('n', {exact: true})).toBeVisible()
   })
 
   it('renders the error message when the verb fails', async () => {
     await expectErrorCard(LoaderDataCard, 'tanstack_loader_data', 'TanStack router not found on page')
+  })
+
+  it('does not suppress JSON details for a loader value whose own preview field is not the truncation marker', async () => {
+    mountToolCard(LoaderDataCard, {
+      name: 'tanstack_loader_data',
+      content: LOADER_DATA_WITH_ORDINARY_PREVIEW_FIELD,
+      ctx: catalogCtx,
+    })
+    await page.getByRole('button', {name: doneTitleOf('tanstack_loader_data')}).click()
+    await expect.element(page.getByText('author', {exact: true})).toBeVisible()
   })
 })
 

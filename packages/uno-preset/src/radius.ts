@@ -5,4 +5,5 @@ export const radius = {
   'pw-md': 'var(--pw-r-md)',
   'pw-lg': 'var(--pw-r-lg)',
   'pw-pill': 'var(--pw-r-pill)',
+  'chat-chip': 'var(--chat-radius-chip)',
 } satisfies Theme['radius']

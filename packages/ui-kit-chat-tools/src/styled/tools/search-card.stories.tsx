@@ -29,7 +29,7 @@ async function codeText(root: HTMLElement): Promise<string> {
 export const Matches: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <SearchCard
         part={part('Grep', {pattern: 'useChat'})}
         result={result('src/a.ts:1:useChat()\nsrc/b.ts:9:useChat(opts)')}
@@ -39,7 +39,8 @@ export const Matches: Story = {
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('Searched useChat')).toBeVisible()
+    await expect(c.getByText('Searched')).toBeVisible()
+    await expect(c.getByText('“useChat”')).toBeVisible()
     await expect(c.getByText('2 matches')).toBeVisible()
     await userEvent.click(c.getByRole('button'))
     await waitFor(async () => expect(await codeText(canvasElement)).toContain('src/a.ts'))
@@ -49,7 +50,7 @@ export const Matches: Story = {
 export const NoMatches: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <SearchCard
         part={part('Grep', {pattern: 'nope'})}
         result={result('')}
@@ -66,7 +67,7 @@ export const NoMatches: Story = {
 export const Globbed: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <SearchCard
         part={part('Glob', {glob: '**/*.tsx'})}
         result={result('src/a.tsx\nsrc/b.tsx')}
@@ -74,12 +75,17 @@ export const Globbed: Story = {
         addResult={INERT_ADD_RESULT}
       />,
     ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByText('Globbed')).toBeVisible()
+    await expect(c.getByText('“**/*.tsx”')).toBeVisible()
+  },
 }
 
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <SearchCard
         part={part('Grep', {pattern: 'slow'}, 'input-complete')}
         result={undefined}
@@ -87,4 +93,28 @@ export const Running: Story = {
         addResult={INERT_ADD_RESULT}
       />,
     ),
+}
+
+function failedResult(text: string): ToolResultPart {
+  return {type: 'tool-result', toolCallId: 's1', content: text, state: 'error'}
+}
+
+export const Failed: Story = {
+  render: () =>
+    frame(
+      'chat-theme-terminal',
+      <SearchCard
+        part={part('Grep', {pattern: '('})}
+        result={failedResult('regex parse error: unclosed group')}
+        ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
+      />,
+    ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByText('failed')).toBeVisible()
+    await expect(c.getByLabelText('error')).toBeInTheDocument()
+    await userEvent.click(c.getByRole('button'))
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('regex parse error: unclosed group'))
+  },
 }

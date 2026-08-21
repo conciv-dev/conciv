@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {RelativeTime} from '@conciv/ui-kit-system'
-import {CardNote, CardRow, CardRows, InspectionCard} from './card-shared.js'
+import {CardNote, CardRow, CardRows, InspectionCard, JsonValue} from './card-shared.js'
 
 const EntrySchema = z
   .object({
@@ -12,6 +12,7 @@ const EntrySchema = z
     status: z.string().nullable().default(null),
     observers: z.number().nullable().default(null),
     updatedAt: z.number().nullable().default(null),
+    value: z.unknown(),
   })
   .loose()
 
@@ -29,16 +30,21 @@ function parseCache(result: ToolCardProps['result']): {queries: Entry[]; mutatio
 
 function EntryRow(props: {entry: Entry}): JSX.Element {
   return (
-    <CardRow>
-      <span class="min-w-0 truncate [color:var(--chat-text-2)]">{props.entry.key}</span>
-      <Chip kind="pill" value={props.entry.state} />
-      <Show when={props.entry.observers !== null}>
-        <span class="shrink-0 [color:var(--chat-text-3)]">{props.entry.observers} obs</span>
+    <div class="flex flex-col gap-1">
+      <CardRow>
+        <span class="text-chat-text-2 min-w-0 truncate">{props.entry.key}</span>
+        <Chip kind="pill" value={props.entry.state} tone={props.entry.state === 'error' ? 'danger' : undefined} />
+        <Show when={props.entry.observers !== null}>
+          <span class="text-chat-text-3 shrink-0">{props.entry.observers} obs</span>
+        </Show>
+        <Show when={props.entry.updatedAt !== null && props.entry.updatedAt}>
+          {(updatedAt) => <RelativeTime value={new Date(updatedAt())} class="text-chat-text-3 ml-auto shrink-0" />}
+        </Show>
+      </CardRow>
+      <Show when={props.entry.value !== undefined && props.entry.value !== null}>
+        <JsonValue value={props.entry.value} name={`${props.entry.key}.json`} />
       </Show>
-      <Show when={props.entry.updatedAt !== null && props.entry.updatedAt}>
-        {(updatedAt) => <RelativeTime value={new Date(updatedAt())} class="shrink-0 [color:var(--chat-text-3)]" />}
-      </Show>
-    </CardRow>
+    </div>
   )
 }
 

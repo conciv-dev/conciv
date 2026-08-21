@@ -15,8 +15,9 @@ const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute:
 
 const LIST =
   'm-0 p-0 list-none block w-full max-h-[13.75rem] overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
-const LEVEL =
-  'text-[length:var(--chat-text-xs)] flex-none w-10 uppercase [color:var(--chat-text-3)] [font-family:var(--chat-mono)]'
+const LEVEL = 'text-[length:var(--chat-text-xs)] flex-none w-10 uppercase [font-family:var(--chat-mono)]'
+const LEVEL_QUIET = `${LEVEL} [color:var(--chat-text-3)]`
+const LEVEL_DANGER = `${LEVEL} text-chat-danger`
 const TIME =
   'text-[length:var(--chat-text-xs)] flex-none [color:var(--chat-text-3)] [font-family:var(--chat-mono)] tabular-nums'
 const TEXT =
@@ -34,8 +35,16 @@ function lineLabel(count: number): string {
   return `${LINE_FORMAT.format(count)} ${LINE_PLURAL.select(count) === 'one' ? 'line' : 'lines'}`
 }
 
+function isErrorLevel(level: string): boolean {
+  return level === 'error'
+}
+
 function textClassOf(level: string): string {
-  return level === 'error' ? TEXT_DANGER : TEXT
+  return isErrorLevel(level) ? TEXT_DANGER : TEXT
+}
+
+function levelClassOf(level: string): string {
+  return isErrorLevel(level) ? LEVEL_DANGER : LEVEL_QUIET
 }
 
 export function ConsoleCard(props: ToolCardProps): JSX.Element {
@@ -43,8 +52,16 @@ export function ConsoleCard(props: ToolCardProps): JSX.Element {
   const payload = () => cardPayload(props.result)
   const lines = () => linesOf(payload())
   const errorMessage = () => cardErrorMessage(props.result)
+  const failed = () => errorMessage() !== undefined || (lines() ?? []).some((entry) => isErrorLevel(entry.level))
   return (
-    <CardShell meta={meta()} title={title()} part={props.part} result={props.result} durationMs={props.durationMs}>
+    <CardShell
+      meta={meta()}
+      title={title()}
+      part={props.part}
+      result={props.result}
+      durationMs={props.durationMs}
+      status={failed() ? 'error' : undefined}
+    >
       <div class="flex flex-col gap-1.5">
         <Switch>
           <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
@@ -62,7 +79,7 @@ export function ConsoleCard(props: ToolCardProps): JSX.Element {
                     {(entry) => (
                       <li class={LIST_ROW_CLASS}>
                         <span class={TIME}>{TIME_FORMAT.format(entry.ts)}</span>
-                        <span class={LEVEL}>{entry.level}</span>
+                        <span class={levelClassOf(entry.level)}>{entry.level}</span>
                         <span class={textClassOf(entry.level)}>{entry.text}</span>
                       </li>
                     )}

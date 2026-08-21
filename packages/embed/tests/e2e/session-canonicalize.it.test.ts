@@ -2,7 +2,7 @@ import {expect, test} from '@playwright/test'
 import {currentHref} from '@conciv/extension-testkit/navigation-state'
 import {until} from '@conciv/harness-testkit/until'
 import {setupWidgetSuite} from './helpers/suite.js'
-import {openPanel} from './helpers/panel.js'
+import {openPanel, switchToSessionByTitle} from './helpers/panel.js'
 
 const RAW_HARNESS_ID = '43548fd1-0000-4220-acf0-014b10b5815f'
 const EXTERNAL_TITLE = 'a session started outside conciv'
@@ -42,12 +42,8 @@ test.describe('switching to a harness session conciv has never adopted', () => {
     expect(afterWarmResolve).not.toContain(NEWER_HARNESS_ID)
     expect(afterWarmResolve).toContain(RAW_HARNESS_ID)
 
-    await page.getByRole('button', {name: /^Session: /}).click()
-    const option = page.getByRole('option', {name: new RegExp(EXTERNAL_TITLE)})
-    await expect(option).toBeVisible({timeout: 30_000})
-    await option.click()
+    await switchToSessionByTitle(page, EXTERNAL_TITLE)
 
-    await expect(page.getByRole('button', {name: `Session: ${EXTERNAL_TITLE}`})).toBeVisible({timeout: 30_000})
     await until(
       async () => {
         const canonicalId = await adoptedExternalId()

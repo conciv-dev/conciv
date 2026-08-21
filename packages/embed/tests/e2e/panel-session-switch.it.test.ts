@@ -29,9 +29,15 @@ test.describe('composer drafts after a session switch', () => {
     await input.pressSequentially(FIRST_DRAFT)
     await untilPanelDraft(suite.kit(), opened.sessionId, (draft) => draft.text === FIRST_DRAFT)
 
+    const sessionOptions = page.getByRole('button', {name: 'Session options'})
+    await sessionOptions.click()
     await page.getByRole('button', {name: /^Session: /}).click()
     await page.getByRole('option', {name: new RegExp(OLDER_TITLE)}).click()
-    await expect(page.getByRole('button', {name: `Session: ${OLDER_TITLE}`})).toBeVisible({timeout: 30_000})
+    const pill = page.getByRole('button', {name: `Session: ${OLDER_TITLE}`})
+    if (!(await pill.isVisible())) await sessionOptions.click()
+    await expect(pill).toBeVisible({timeout: 30_000})
+    await page.keyboard.press('Escape')
+    await expect(pill).toBeHidden({timeout: 30_000})
 
     const switched = await suite.kit().rpc.sessions.resolve({id: OLDER_ID})
     expect(switched.sessionId).not.toBe(opened.sessionId)

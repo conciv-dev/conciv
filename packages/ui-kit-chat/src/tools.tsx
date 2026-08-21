@@ -31,7 +31,28 @@ export {
   type CardPhase,
 } from './tools/primitives/tool-presentation.js'
 export {MetaToolCard} from './tools/styled/meta-tool-card.js'
-export {ToolCallCard, type ToolCallCardProps} from './tools/styled/tool-call-card.js'
+export {
+  ToolCallCard,
+  ToolTraceRow,
+  type ToolCallCardProps,
+  type ToolTraceRowProps,
+} from './tools/styled/tool-call-card.js'
+export {
+  countLabel,
+  genericRowProjection,
+  primaryArgument,
+  rowMarkOf,
+  shortToolLabel,
+  type ToolRowProps,
+  type ToolRowProjection,
+  type ToolRowMark,
+} from './tools/primitives/tool-row.js'
+export {TraceMark, TraceRing, TraceRunRow, TraceToolRow} from './styled/trace/trace-row.js'
+export {TraceBodyFrame, TraceOutputBlock, type TraceOutputTone} from './styled/trace/output-block.js'
+export {CardChromeProvider, useCardChrome, useEmbeddedCard, type CardChrome} from './tools/styled/card-chrome.js'
+export {TraceActionRow} from './styled/trace/action-row.js'
+export {TracePermissionBlock} from './styled/trace/permission-block.js'
+export {Trace, type TraceBranch, type TraceItem} from './styled/trace/trace.js'
 export {ElementPreview} from './tools/styled/element-preview.js'
 export {Chip, ChipRow, ChipGroup, CHIP} from './tools/styled/chip.js'
 export {CodeBlock, DiffBlock, diffBlockClass} from './tools/styled/code-block.js'

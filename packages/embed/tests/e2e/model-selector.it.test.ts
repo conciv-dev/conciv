@@ -19,12 +19,16 @@ test.describe('model selector error path', () => {
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
 
-    const retry = page.getByRole('button', {name: 'Retry loading models'})
+    const moreActions = page.getByRole('button', {name: 'More composer actions'})
+    await moreActions.click()
+    const retry = page.getByRole('menuitem', {name: /Retry loading models/})
     await expect(retry).toBeVisible({timeout: 30_000})
     await expect(page.getByText('Couldn’t load models').first()).toBeVisible({timeout: 30_000})
 
     models.repair()
     await retry.click()
-    await expect(page.getByRole('button', {name: 'Select model'})).toBeVisible({timeout: 30_000})
+    await moreActions.click()
+    await expect(page.getByRole('menuitem', {name: /^Model: Claude Sonnet 4\.5/})).toBeVisible({timeout: 30_000})
+    await page.keyboard.press('Escape')
   })
 })

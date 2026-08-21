@@ -7,6 +7,7 @@ export type ActionMenuEntry = {
   label: () => JSX.Element
   icon: () => JSX.Element
   onSelect: () => void
+  disabled?: () => boolean
 }
 
 export type ActionSource = {

@@ -49,6 +49,8 @@ export const CopyAndExport: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
 
+    await waitFor(() => expect(c.getByText('Add the missing await on line 12.')).toBeVisible())
+    await userEvent.hover(c.getByText('Add the missing await on line 12.'))
     const copy = await waitFor(() => c.getByRole('button', {name: 'Copy'}))
     await waitFor(() => expect(copy).toBeVisible())
     await expect(copy).not.toHaveAttribute('data-copied')

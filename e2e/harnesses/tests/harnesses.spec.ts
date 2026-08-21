@@ -12,6 +12,8 @@ const expected: Record<HarnessApp, {model: string; group: string} | null> = {
 
 const isHarnessName = (name: string): name is HarnessApp => Object.hasOwn(expected, name)
 
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 const outcomePattern: Record<HarnessApp, RegExp> = {
   claude: /^Agent process exited with code 1$/m,
   codex:
@@ -30,15 +32,23 @@ test('full app boots with the configured harness and exposes its real model cata
   await page.goto('/', {waitUntil: 'domcontentloaded'})
   await expectWidgetBoots(page, failures)
 
-  const modelSelector = page.getByRole('button', {name: 'Select model'})
+  const moreActions = page.getByRole('button', {name: 'More composer actions'})
+  const modelMenuItems = page.getByRole('menuitem', {name: /^Model: /})
+  const composerTextbox = page.getByRole('textbox', {name: 'Message the conciv agent'})
   if (harness) {
-    await expect(modelSelector).toContainText(harness.model)
-    await modelSelector.click()
-    await expect(page.getByText(harness.group, {exact: true})).toBeVisible()
-    await expect(page.getByText(harness.model, {exact: true}).first()).toBeVisible()
+    await moreActions.click()
+    const selectedModelMenuItem = page.getByRole('menuitem', {
+      name: new RegExp(`^Model: ${escapeRegex(harness.model)}`),
+    })
+    await expect(selectedModelMenuItem).toBeVisible()
+    await expect(modelMenuItems.first()).toBeVisible()
     await page.keyboard.press('Escape')
+    await expect(composerTextbox).toBeVisible()
   } else {
-    await expect(modelSelector).toHaveCount(0)
+    await moreActions.click()
+    await expect(modelMenuItems).toHaveCount(0)
+    await page.keyboard.press('Escape')
+    await expect(composerTextbox).toBeVisible()
   }
   expect(failures.pageErrors).toEqual([])
   expect(failures.consoleErrors).toEqual([])

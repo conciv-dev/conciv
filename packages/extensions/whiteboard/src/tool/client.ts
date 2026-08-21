@@ -1,5 +1,4 @@
 import {defineTool} from '@conciv/extension'
-import {inlineTool} from '@conciv/ui-kit-chat-tools'
 import {
   canvasClearDef,
   canvasCommitDef,
@@ -28,9 +27,8 @@ import {elementReferenceDef} from './element/def.js'
 import {anchorResolveDef} from './anchor/def.js'
 import {CanvasOpCard} from './canvas/card.js'
 import {CommentOpCard} from './comment/card.js'
-
-const ElementReferenceInline = inlineTool(['component'])
-const AnchorResolveInline = inlineTool(['cid'])
+import {ElementReferenceCard} from './element/card.js'
+import {AnchorResolveCard} from './anchor/card.js'
 
 export const whiteboardToolClients = [
   defineTool(canvasReadDef).render(CanvasOpCard),
@@ -53,6 +51,6 @@ export const whiteboardToolClients = [
   defineTool(commentDeleteDef).render(CommentOpCard),
   defineTool(commentMoveDef).render(CommentOpCard),
   defineTool(pinSetStateDef).render(CommentOpCard),
-  defineTool(elementReferenceDef).render(ElementReferenceInline),
-  defineTool(anchorResolveDef).render(AnchorResolveInline),
+  defineTool(elementReferenceDef).render(ElementReferenceCard),
+  defineTool(anchorResolveDef).render(AnchorResolveCard),
 ]

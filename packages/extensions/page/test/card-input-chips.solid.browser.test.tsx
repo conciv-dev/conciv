@@ -72,6 +72,21 @@ it('read-value card leads its input row with the element chip and drops the raw 
   expect(chipNames()).not.toContain('selector')
 })
 
+it('read-value card renders a root array result as a structured JSON tree, not a flat chip row', async () => {
+  render(() => (
+    <ReadValueCard
+      part={storyPart('page.text', {selector: '.item'})}
+      result={storyResult(['first-item-marker', 'second-item-marker'])}
+      ctx={storyCtx({'page.text': READ_VALUE_META})}
+      addResult={storyAddResult}
+    />
+  ))
+
+  await expandCard()
+  await expect.element(page.getByRole('treeitem', {name: /Array\(2\)/})).toBeVisible()
+  await expect.element(page.getByText(/first-item-marker.*second-item-marker/).first()).toBeVisible()
+})
+
 it('read-bulk card leads its input row with the element chip and keeps the declared detail chip', async () => {
   render(() => (
     <ReadBulkCard

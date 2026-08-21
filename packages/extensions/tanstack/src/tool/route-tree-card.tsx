@@ -40,8 +40,13 @@ export function RouteTreeCard(props: ToolCardProps): JSX.Element {
           <CardRows>
             <For each={list()}>
               {(node) => (
-                <CardRow style={{'padding-left': `${node.depth * 12}px`}}>
-                  <span class="min-w-0 truncate [color:var(--chat-text-2)]">{node.id}</span>
+                <CardRow style={{'padding-left': `${Math.max(0, node.depth - 1) * 12}px`}}>
+                  <Show when={node.depth > 0}>
+                    <span aria-hidden="true" class="text-chat-faint shrink-0">
+                      └
+                    </span>
+                  </Show>
+                  <span class="text-chat-text-2 min-w-0 truncate">{node.id}</span>
                   <Show when={node.hasLoader}>
                     <Chip kind="pill" value="loader" />
                   </Show>

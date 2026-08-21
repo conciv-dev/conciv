@@ -18,7 +18,7 @@ function Body(): JSX.Element {
       result={edit.result()}
       meta={edit.meta()}
     >
-      <Show when={edit.diff()} fallback={<span class="text-[color:var(--chat-text-3)]">no diff</span>}>
+      <Show when={edit.diff()} fallback={<span class="text-chat-text-3">no diff</span>}>
         {(diff) => (
           <DiffBlock size="sm" file={{name: edit.path() ?? 'file', before: diff().oldText, after: diff().newText}} />
         )}
@@ -35,4 +35,7 @@ export function FileEditCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const fileEditTool: ToolCardEntry = {names: ['Edit', 'MultiEdit', 'Write'], render: FileEditCard}
+export const fileEditTool: ToolCardEntry = {
+  names: ['Edit', 'MultiEdit', 'Write'],
+  render: FileEditCard,
+}

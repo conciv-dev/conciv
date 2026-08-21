@@ -130,24 +130,27 @@ function billingTokens(usage: UsageSnapshot): number {
   )
 }
 
+function deriveContext(usage: UsageSnapshot | null) {
+  const used = usage ? contextUsedTokens(usage) : undefined
+  const maxTokens = usage?.contextWindow
+  const percent = used !== undefined && maxTokens ? used / maxTokens : undefined
+  const hasData = used !== undefined || (usage ? billingTokens(usage) > 0 : false)
+  return {used, maxTokens, percent, hasData}
+}
+
 export function ContextTracker(props: {usage: UsageSnapshot | null}): JSX.Element {
-  const used = () => (props.usage ? contextUsedTokens(props.usage) : undefined)
-  const maxTokens = () => props.usage?.contextWindow
-  const percent = () => {
-    const u = used()
-    const m = maxTokens()
-    return u !== undefined && m ? u / m : undefined
-  }
-  const hasData = () => used() !== undefined || (props.usage ? billingTokens(props.usage) > 0 : false)
+  const derived = () => deriveContext(props.usage)
 
   return (
-    <Show when={props.usage && hasData()}>
+    <Show when={props.usage && derived().hasData}>
       <HoverCard
         label="Model context usage"
         triggerClass="text-pw-text-2 px-1.5 py-0.5 rounded-pw-sm inline-flex gap-1.5 cursor-pointer items-center hover:text-pw-text-hi hover:bg-pw-fill-soft"
-        trigger={<TrackerBadge percent={percent()} fallbackTokens={props.usage ? billingTokens(props.usage) : 0} />}
+        trigger={
+          <TrackerBadge percent={derived().percent} fallbackTokens={props.usage ? billingTokens(props.usage) : 0} />
+        }
       >
-        <ContextMeter percent={percent()} used={used() ?? 0} max={maxTokens() ?? 0} />
+        <ContextMeter percent={derived().percent} used={derived().used ?? 0} max={derived().maxTokens ?? 0} />
         <div class="p-3 flex flex-col gap-1.5">
           <UsageRow label="Input" tokens={props.usage?.inputTokens} />
           <UsageRow label="Output" tokens={props.usage?.outputTokens} />
@@ -157,6 +160,70 @@ export function ContextTracker(props: {usage: UsageSnapshot | null}): JSX.Elemen
         </div>
         <CostFooter totalCostUsd={props.usage?.totalCostUsd} numTurns={props.usage?.numTurns} />
       </HoverCard>
+    </Show>
+  )
+}
+
+const SUMMARY_ROOT = 'flex flex-col gap-2 px-1 py-1'
+const SUMMARY_HEADLINE =
+  '[font-family:var(--chat-mono)] text-[11px] [color:var(--chat-text-2)] flex items-baseline gap-1.5 [font-variant-numeric:tabular-nums]'
+const SUMMARY_BAR_TRACK = 'h-1 rounded-[var(--chat-radius-pill)] overflow-hidden [background:var(--chat-fill)]'
+const SUMMARY_BAR_FILL = 'h-full [background:var(--chat-accent)]'
+const SUMMARY_SEPARATOR = 'h-px [background:var(--chat-line-soft)]'
+const SUMMARY_ROW = 'flex justify-between items-baseline gap-2 text-[11px]'
+const SUMMARY_LABEL =
+  '[font-family:var(--chat-mono)] text-[9.5px] uppercase tracking-[0.1em] [color:var(--chat-microlabel)]'
+const SUMMARY_VALUE = '[color:var(--chat-text-2)] [font-variant-numeric:tabular-nums]'
+const SUMMARY_COST_VALUE = '[color:var(--chat-text-hi)] font-semibold [font-variant-numeric:tabular-nums]'
+
+function SummaryRow(props: {label: string; tokens?: number}): JSX.Element {
+  return (
+    <Show when={props.tokens}>
+      <div class={SUMMARY_ROW}>
+        <span class={SUMMARY_LABEL}>{props.label}</span>
+        <span class={SUMMARY_VALUE}>{compact.format(props.tokens ?? 0)}</span>
+      </div>
+    </Show>
+  )
+}
+
+export function ContextSummary(props: {usage: UsageSnapshot | null}): JSX.Element {
+  const derived = () => deriveContext(props.usage)
+
+  return (
+    <Show when={props.usage && derived().hasData}>
+      <div class={SUMMARY_ROOT}>
+        <Show when={derived().percent !== undefined}>
+          <div class={SUMMARY_HEADLINE}>
+            <span>{pct.format(derived().percent ?? 0)}</span>
+            <span class="[color:var(--chat-separator)]">·</span>
+            <span>
+              {compact.format(derived().used ?? 0)} / {compact.format(derived().maxTokens ?? 0)}
+            </span>
+          </div>
+          <div
+            class={SUMMARY_BAR_TRACK}
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round((derived().percent ?? 0) * 100)}
+            aria-label="Model context usage"
+          >
+            <div class={SUMMARY_BAR_FILL} style={{width: `${Math.min(100, (derived().percent ?? 0) * 100)}%`}} />
+          </div>
+        </Show>
+        <SummaryRow label="Input" tokens={props.usage?.inputTokens} />
+        <SummaryRow label="Output" tokens={props.usage?.outputTokens} />
+        <SummaryRow label="Cache read" tokens={props.usage?.cacheReadTokens} />
+        <SummaryRow label="Cache write" tokens={props.usage?.cacheWriteTokens} />
+        <Show when={props.usage?.totalCostUsd !== undefined}>
+          <div class={SUMMARY_SEPARATOR} />
+          <div class={SUMMARY_ROW}>
+            <span class={SUMMARY_LABEL}>Total cost</span>
+            <span class={SUMMARY_COST_VALUE}>{usd.format(props.usage?.totalCostUsd ?? 0)}</span>
+          </div>
+        </Show>
+      </div>
     </Show>
   )
 }

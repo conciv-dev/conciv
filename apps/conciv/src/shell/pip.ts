@@ -1,6 +1,8 @@
 import {delegateEvents} from 'solid-js/web'
+import {terminalTheme} from '@conciv/ui-kit-chat/theme/themes/terminal'
 import styles from '../styles.css?inline'
-import {registerFonts, registerWind4Properties} from '../lib/shadow.js'
+import {registerWind4Properties} from '../lib/shadow.js'
+import {applyChatTheme} from '../lib/theme.js'
 
 const DELEGATED = [
   'focusin',
@@ -28,7 +30,6 @@ export function openPipWindow(opts: {title?: string; width?: number; height?: nu
   win.document.body.style.margin = '0'
 
   registerWind4Properties(win.document)
-  registerFonts(win.document)
 
   const host = win.document.createElement('div')
   host.setAttribute('data-pw-pip-host', '')
@@ -38,7 +39,8 @@ export function openPipWindow(opts: {title?: string; width?: number; height?: nu
   style.textContent = styles
   root.appendChild(style)
   const wrap = win.document.createElement('div')
-  wrap.className = `${PIP_WRAP} chat-theme-conciv`
+  wrap.className = PIP_WRAP
+  applyChatTheme(wrap, terminalTheme, win.document)
   root.appendChild(wrap)
 
   delegateEvents(DELEGATED, win.document)

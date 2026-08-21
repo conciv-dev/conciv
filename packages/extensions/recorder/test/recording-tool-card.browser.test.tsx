@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
+import {render} from '@solidjs/testing-library'
 import {mountToolCard} from '@conciv/extension-testkit/card-harness'
+import {CardChromeProvider, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
 import {RecordingToolCard} from '../src/tool/card.js'
 
 const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
@@ -39,5 +41,30 @@ describe('RecordingToolCard (real browser)', () => {
     })
     await page.getByRole('button', {name: /recording_stop/}).click()
     await expect.element(page.getByText('no active capture cap_9')).toBeVisible()
+  })
+
+  it('shows the duration and frame summary in the body when embedded in the trace', async () => {
+    const content = JSON.stringify([
+      {type: 'image', source: {type: 'data', value: PNG_1PX, mimeType: 'image/png'}},
+      {type: 'text', content: LOG},
+    ])
+    render(() => (
+      <CardChromeProvider value="embedded">
+        <RecordingToolCard
+          part={{
+            type: 'tool-call',
+            id: 't1',
+            name: 'recording_pull',
+            arguments: JSON.stringify({secondsBack: 30, keyframes: 3}),
+            state: 'input-complete',
+          }}
+          result={{type: 'tool-result', toolCallId: 't1', content, state: 'complete'}}
+          ctx={INERT_TOOL_CTX}
+          addResult={() => {}}
+        />
+      </CardChromeProvider>
+    ))
+
+    await expect.element(page.getByText('last 30s · 3 actions · 1 keyframe', {exact: true})).toBeVisible()
   })
 })

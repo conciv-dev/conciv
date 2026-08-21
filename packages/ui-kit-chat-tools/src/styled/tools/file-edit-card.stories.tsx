@@ -27,7 +27,7 @@ async function diffText(root: HTMLElement): Promise<string> {
 export const Edited: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <FileEditCard
         part={part('Edit', {file_path: 'src/math/sum.ts', old_string: 'return a - b', new_string: 'return a + b'})}
         result={doneResult}
@@ -46,7 +46,7 @@ export const Edited: Story = {
 export const Wrote: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <FileEditCard
         part={part('Write', {file_path: 'src/new.ts', content: 'export const zero = 0'})}
         result={doneResult}
@@ -63,7 +63,7 @@ export const Wrote: Story = {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <FileEditCard
         part={part('Edit', {file_path: 'src/slow.ts'}, 'input-complete')}
         result={undefined}

@@ -17,6 +17,7 @@ import {parseInput} from '../primitives/tool-util.js'
 import {schemaFields} from '../primitives/schema-params.js'
 import {toolIconRender} from './tool-icon.js'
 import {ToolCard} from './tool-card.js'
+import {useEmbeddedCard} from './card-chrome.js'
 import {Chip, ChipRow} from './chip.js'
 
 const InputRecord = z.record(z.string(), z.unknown())
@@ -101,6 +102,7 @@ export function CardShell(props: {
   class?: string
   children?: JSX.Element
 }): JSX.Element {
+  const embedded = useEmbeddedCard()
   return (
     <ToolCard
       Icon={() => cardIcon(props.meta?.icon, props.iconClass)}
@@ -118,8 +120,10 @@ export function CardShell(props: {
       flushHeader={props.flushHeader}
       class={props.class}
     >
-      <div class="flex flex-col gap-1.5">
-        <InputChipsRow meta={props.meta} part={props.part} chipSkip={props.chipSkip} leadChip={props.leadChip} />
+      <div class={embedded() ? 'contents' : 'flex flex-col gap-1.5'}>
+        <Show when={!embedded()}>
+          <InputChipsRow meta={props.meta} part={props.part} chipSkip={props.chipSkip} leadChip={props.leadChip} />
+        </Show>
         {props.children}
       </div>
     </ToolCard>

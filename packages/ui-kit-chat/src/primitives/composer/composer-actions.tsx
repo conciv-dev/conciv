@@ -31,8 +31,8 @@ type ActionPairing = {
 }
 
 const TRIGGER_TOOLTIP = 'More composer actions'
-const TRIGGER_CLASS = 'size-8.5'
-const ACTION_CLASS = 'size-8.5'
+const TRIGGER_CLASS = 'size-8'
+const ACTION_CLASS = 'size-8'
 const REGION_CLASS = 'empty:hidden flex gap-1 items-center'
 
 const NO_MENU_CONTENT: ActionMenuEntry[] = []
@@ -79,7 +79,7 @@ export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Elemen
           rowElement = element
           observe(element)
         }}
-        class="pt-0.5 flex gap-1 items-center"
+        class="flex gap-1 items-center"
       >
         <div
           ref={(element) => {
@@ -129,7 +129,7 @@ export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Elemen
             trailingElement = element
             observe(element)
           }}
-          class={`ml-auto ${REGION_CLASS}`}
+          class={`ml-auto ps-2 [border-inline-start:1px_solid_var(--chat-line-soft)] ${REGION_CLASS}`}
         >
           {coordinator.slotRender('trailing')?.()}
         </div>
@@ -152,7 +152,11 @@ function OverflowGroup(props: {action: RegisteredAction}): JSX.Element {
   return (
     <For each={local.action.menuContent()}>
       {(entry) => (
-        <Menu.Item value={entry.key} disabled={local.action.disabled()} onSelect={() => entry.onSelect()}>
+        <Menu.Item
+          value={entry.key}
+          disabled={local.action.disabled() || (entry.disabled?.() ?? false)}
+          onSelect={() => entry.onSelect()}
+        >
           {entry.icon()}
           {entry.label()}
         </Menu.Item>
@@ -258,18 +262,20 @@ function ActionButton(props: ComposerActionsActionButtonProps): JSX.Element {
 export type ComposerActionsActionMenuItemProps = {
   label: string
   onSelect: () => void
+  disabled?: boolean
   children?: JSX.Element
 }
 
 function ActionMenuItem(props: ComposerActionsActionMenuItemProps): JSX.Element {
   const pairing = useContext(PairingContext)
   if (pairing === undefined) return null
-  const [local] = splitProps(props, ['label', 'onSelect', 'children'])
+  const [local] = splitProps(props, ['label', 'onSelect', 'disabled', 'children'])
   pairing.registerMenuEntry({
     key: createUniqueId(),
     label: () => local.label,
     icon: () => local.children,
     onSelect: () => local.onSelect(),
+    disabled: () => local.disabled ?? false,
   })
   return null
 }

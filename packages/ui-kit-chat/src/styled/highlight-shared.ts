@@ -1,6 +1,5 @@
 import type {HighlighterCore} from 'shiki/core'
-
-export const THEMES = {light: 'github-light', dark: 'github-dark'} as const
+import {CODE_THEME_NAME} from '../theme/code-theme-tokens.js'
 
 export const WARMUP_SNIPPETS: Record<string, string> = {
   typescript: [
@@ -135,7 +134,7 @@ export function warmupLanguages(highlighter: HighlighterCore): void {
     if (language === undefined) return
     try {
       const snippet = WARMUP_SNIPPETS[language] ?? 'const value = 1'
-      highlighter.codeToHtml(snippet, {lang: language, themes: THEMES, defaultColor: 'light'})
+      highlighter.codeToHtml(snippet, {lang: language, theme: CODE_THEME_NAME})
     } catch {}
     scheduleIdle(() => warmAt(index + 1))
   }

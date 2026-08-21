@@ -9,11 +9,11 @@ import type {Accessor} from 'solid-js'
 import type {MessagePart} from '@tanstack/ai-client'
 import {defaultGrouper, groupParts, type GroupNode, type Grouping, type Turn} from '../store/grouping.js'
 import type {TurnEstimate, TurnEstimator} from '../primitives/thread/turn-estimate.js'
-import {ASSISTANT_ROOT_SETTLED_CLASS, USER_BUBBLE_CLASS} from './turn-classes.js'
+import {ASSISTANT_ROOT_CLASS, PROMPT_TEXT_CLASS} from './turn-classes.js'
 
-const USER_WIDTH_FRACTION = 0.8
+const PROMPT_WIDTH_FRACTION = 0.94
 const MARKDOWN_SYNTAX = /[*_~`#>[\]|]|\n\s*\n|(^|\n)\s*([-+]\s|\d+[.)]\s|-{3,})/
-const COLLAPSED_CARD_APPROX_PX = 64
+const COLLAPSED_CARD_APPROX_PX = 30
 const SEGMENT_GAP_PX = 6
 
 type RowStyle = {
@@ -72,14 +72,14 @@ function resolveMetrics(viewport: HTMLElement): Metrics {
   const probe = document.createElement('div')
   probe.style.cssText = 'position:absolute;top:0;left:0;right:0;visibility:hidden;pointer-events:none;'
 
-  const userBubble = document.createElement('div')
-  userBubble.className = USER_BUBBLE_CLASS
+  const userBubble = document.createElement('span')
+  userBubble.className = PROMPT_TEXT_CLASS
   const userText = document.createElement('span')
   userText.textContent = 'Probe'
   userBubble.appendChild(userText)
 
   const assistantRoot = document.createElement('div')
-  assistantRoot.className = ASSISTANT_ROOT_SETTLED_CLASS
+  assistantRoot.className = ASSISTANT_ROOT_CLASS
   const prose = document.createElement('div')
   prose.className = 'prose-pw'
   const paragraph = document.createElement('p')
@@ -152,7 +152,8 @@ export function createTurnEstimator(
     if (!style) return undefined
     if (!turn.parts.every((part) => part.type === 'text')) return undefined
     const bubbles = turn.parts.map(
-      (part) => textHeight(textOf(part) ?? '', style, containerWidth, USER_WIDTH_FRACTION) + style.padY + style.borderY,
+      (part) =>
+        textHeight(textOf(part) ?? '', style, containerWidth, PROMPT_WIDTH_FRACTION) + style.padY + style.borderY,
     )
     if (bubbles.length === 0) return undefined
     const height = bubbles.reduce((sum, bubble) => sum + bubble, 0) + SEGMENT_GAP_PX * (bubbles.length - 1)

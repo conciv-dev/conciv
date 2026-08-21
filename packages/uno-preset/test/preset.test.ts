@@ -42,6 +42,7 @@ const LOOPING = [
   'anim-compact',
   'anim-fab-ring',
   'anim-pulse',
+  'anim-run-ring',
   'anim-skel',
   'anim-tool-spin',
   'anim-think-shimmer',

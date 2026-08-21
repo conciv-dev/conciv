@@ -24,7 +24,8 @@ import {
   NoteRow,
   parseInput,
   parseResultPayload,
-  ToolCard,
+  StatusVisual,
+  toolStatus,
 } from '@conciv/ui-kit-chat/tools'
 const LABEL: Record<UiInput['kind'], string> = {
   choices: 'choices',
@@ -33,14 +34,20 @@ const LABEL: Record<UiInput['kind'], string> = {
   form: 'a form',
 }
 
-const BODY = 'flex flex-col gap-2.5 py-1'
+const CONTAINER =
+  'w-full min-w-0 overflow-hidden rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-frame-line)] [background:var(--chat-frame-bg)]'
+const HEADER = 'flex items-center gap-2 px-3 py-2 [border-bottom:1px_solid_var(--chat-frame-line)]'
+const MICROLABEL =
+  'uppercase text-[length:var(--chat-text-micro)] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] flex-none text-chat-microlabel'
+const HEADER_TITLE = 'min-w-0 flex-1 truncate text-[length:var(--chat-text-md)] text-chat-frame-text font-medium'
+const BODY = 'flex flex-col gap-2.5 px-3 py-2.5'
 const QUESTION = 'text-[length:var(--chat-text-md)] [color:var(--chat-text)] font-semibold m-0'
 const SENT = 'text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] m-0'
 const CHOICE = 'min-h-11 flex-auto'
 const ACTION = 'min-h-11 flex-1'
 
 function Icon(): JSX.Element {
-  return <LayoutTemplate size={14} />
+  return <LayoutTemplate size={14} aria-hidden="true" />
 }
 
 function title(kind: UiInput['kind'] | undefined): string {
@@ -272,7 +279,15 @@ export function UiCard(props: ToolCardProps): JSX.Element {
     props.addResult(value)
   }
   return (
-    <ToolCard Icon={Icon} title={title(input()?.kind)} part={props.part} result={props.result} defaultOpen>
+    <div class={CONTAINER}>
+      <div class={HEADER}>
+        <span class="text-chat-frame-text inline-flex shrink-0 items-center" aria-hidden="true">
+          <Icon />
+        </span>
+        <span class={MICROLABEL}>UI</span>
+        <span class={HEADER_TITLE}>{title(input()?.kind)}</span>
+        <StatusVisual status={toolStatus(props.part, props.result)} form="dot" />
+      </div>
       <div class={BODY}>
         <Show when={question()}>{(text) => <p class={QUESTION}>{text()}</p>}</Show>
         <Show when={!settled()} fallback={<Answered answer={answer()} />}>
@@ -286,6 +301,6 @@ export function UiCard(props: ToolCardProps): JSX.Element {
           </Show>
         </Show>
       </div>
-    </ToolCard>
+    </div>
   )
 }

@@ -1,10 +1,15 @@
+import type {JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {
   ELEMENT_CAPTURE_FIXTURE_CSS,
   ELEMENT_CAPTURE_FIXTURE_EDIT_AFTER,
   ELEMENT_CAPTURE_FIXTURE_EDIT_BEFORE,
+  Trace as ChatTrace,
+  ToolTraceRow,
+  type TraceItem,
 } from '@conciv/ui-kit-chat/tools'
 import {EditLiveCard} from './edit-live-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
@@ -12,6 +17,31 @@ import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} fro
 const meta: Meta = {title: 'Extensions/Page/tool/EditLiveCard'}
 export default meta
 type Story = StoryObj
+
+const TRACE_FRAME_CLASS =
+  'chat-theme-terminal p-4 w-[28rem] [background:var(--chat-panel)] [font-family:var(--chat-font)]'
+
+function traceRow(
+  entry: ToolCardEntry,
+  part: ToolCallPart,
+  result: ToolResultPart | undefined,
+  ctx: ToolViewCtx = storyCtx({}),
+): TraceItem {
+  return {
+    key: part.id,
+    render: (branch) => (
+      <ToolTraceRow part={part} result={result} ctx={ctx} tools={() => [entry]} last={branch.last} ring={branch.ring} />
+    ),
+  }
+}
+
+function traceGallery(summary: string, items: TraceItem[]): JSX.Element {
+  return (
+    <div class={TRACE_FRAME_CLASS}>
+      <ChatTrace summary={summary} compactLine={summary} items={items} defaultOpen />
+    </div>
+  )
+}
 
 const settextMeta: ToolViewMeta = {
   summary: 'replace the text content of an element',
@@ -100,5 +130,32 @@ export const EvalCodeBlock: Story = {
       ).toContain('document.title'),
     )
     await expect(canvas.queryByText('return document.title')).toBeNull()
+  },
+}
+
+const editLiveTool: ToolCardEntry = {
+  names: ['page.setattr', 'page.eval'],
+  render: EditLiveCard,
+}
+
+export const Trace: Story = {
+  render: () =>
+    traceGallery('2 edits', [
+      traceRow(
+        editLiveTool,
+        storyPart('page.setattr', {selector: '#cta', attribute: 'disabled', value: 'true'}, 'complete', 'e1'),
+        storyResult({ok: true}, 'complete', 'e1'),
+      ),
+      traceRow(
+        editLiveTool,
+        storyPart('page.eval', {code: 'return document.title'}, 'complete', 'e2'),
+        storyResult({result: 'Storefront'}, 'complete', 'e2'),
+      ),
+    ]),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('setattr')).toBeVisible()
+    await expect(canvas.getAllByText('#cta').length).toBeGreaterThan(0)
+    await expect(canvas.getByText('exec')).toBeVisible()
   },
 }

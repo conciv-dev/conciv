@@ -76,6 +76,7 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@orpc/server": "catalog:",
+    "es-toolkit": "^1.50.0",
     "lucide-solid": "^1.18.0",
     "zod": "^4.4.3"
   },

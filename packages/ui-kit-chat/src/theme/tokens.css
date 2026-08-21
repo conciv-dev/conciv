@@ -1,6 +1,6 @@
 /* Neutral, themeable chat tokens. The styled set references ONLY these --chat-* vars (never --pw-*).
-   Light is the default; add the `chat-theme-dark` class for the dark neutral set. The conciv look
-   is a separate theme layer (theme/conciv.css) that maps --chat-* onto the widget's --pw-* tokens. */
+   Light is the default here; a theme (theme/themes/*.css) maps --chat-* onto its own palette and is
+   applied on the chat root via a `chat-theme-<id>` class (see apps/conciv/src/lib/theme.ts). */
 
 :root,
 :host {
@@ -15,6 +15,11 @@
   --chat-text-hi: #0b0d10;
   --chat-text-2: #565b63;
   --chat-text-3: #6b717a;
+
+  --chat-prompt: var(--chat-text);
+  --chat-body-settled: var(--chat-text-2);
+  --chat-action: var(--chat-text-2);
+  --chat-mono-lift: var(--chat-text-3);
   --chat-accent: #2563eb;
   --chat-accent-hi: #1d4ed8;
   --chat-accent-link: #2563eb;
@@ -24,6 +29,40 @@
   --chat-success: #16a34a;
   --chat-line: rgba(15, 18, 24, 0.12);
   --chat-line-soft: rgba(15, 18, 24, 0.06);
+  --chat-trace-gutter: 18px;
+  --chat-trace-clamp: 13rem;
+  --chat-trace-clamp-tall: 20rem;
+
+  --shiki-foreground: #26303f;
+  --shiki-background: #f7f8fa;
+  --shiki-ansi-black: #3f4650;
+  --shiki-ansi-green: #15803d;
+  --shiki-ansi-red: #b91c1c;
+  --shiki-ansi-blue: #1d4ed8;
+  --shiki-ansi-yellow: #a16207;
+  --shiki-ansi-magenta: #9b3d6b;
+  --shiki-ansi-cyan: #0e7490;
+  --shiki-ansi-white: #26303f;
+  --shiki-ansi-bright-black: #5b6675;
+  --shiki-ansi-bright-green: #16a34a;
+  --shiki-ansi-bright-red: #dc2626;
+  --shiki-ansi-bright-blue: #2563eb;
+  --shiki-ansi-bright-yellow: #ca8a04;
+  --shiki-ansi-bright-magenta: #b4457c;
+  --shiki-ansi-bright-cyan: #0891b2;
+  --shiki-ansi-bright-white: #0b0d10;
+  --shiki-token-keyword: #9b3d6b;
+  --shiki-token-function: #7a4a1f;
+  --shiki-token-string: #1f6b45;
+  --shiki-token-string-expression: #1f6b45;
+  --shiki-token-constant: #7a4a1f;
+  --shiki-token-parameter: #26303f;
+  --shiki-token-comment: #5b6675;
+  --shiki-token-punctuation: #5b6675;
+  --shiki-token-link: #1d4ed8;
+  --shiki-token-inserted: #15803d;
+  --shiki-token-deleted: #b91c1c;
+  --shiki-token-changed: #a16207;
   --chat-radius-sm: 8px;
   --chat-radius-md: 12px;
   --chat-radius-lg: 18px;
@@ -32,47 +71,76 @@
   --chat-shadow-lg: 0 16px 44px rgba(15, 18, 24, 0.18);
   --chat-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --chat-font: system-ui, -apple-system, sans-serif;
+  --chat-font-display: var(--chat-font);
   --chat-mono: ui-monospace, monospace;
   --chat-text-xs: 0.6875rem;
   --chat-text-sm: 0.75rem;
   --chat-text-md: 0.8125rem;
   --chat-text-lg: 1rem;
+  --chat-text-micro: 0.59375rem;
   --chat-focus: 0.125rem solid var(--chat-accent);
+
+  --chat-status-running: var(--chat-accent);
+  --chat-status-waiting: #ca8a04;
+  --chat-status-failed: var(--chat-danger);
+  --chat-status-done: var(--chat-success);
+  --chat-on-status: #ffffff;
+
+  --chat-glyph: rgba(15, 18, 24, 0.28);
+  --chat-target: var(--chat-text-2);
+  --chat-code: var(--chat-text-2);
+  --chat-summary: var(--chat-text-2);
+  --chat-dim: var(--chat-text-3);
+  --chat-microlabel: var(--chat-text-3);
+  --chat-faint: var(--chat-text-3);
+  --chat-hint: var(--chat-text-3);
+  --chat-separator: var(--chat-glyph);
+  --chat-affordance: var(--chat-text-2);
+  --chat-queue-bg: var(--chat-sunken);
+
+  --chat-frame-bg: var(--chat-sunken);
+  --chat-frame-line: var(--chat-line);
+  --chat-frame-line-error: var(--chat-danger-line);
+  --chat-frame-text: var(--chat-text-2);
+  --chat-frame-text-error: var(--chat-danger);
+
+  --chat-perm-bg: rgba(202, 138, 4, 0.08);
+  --chat-perm-line: rgba(202, 138, 4, 0.35);
+  --chat-perm-chip-bg: rgba(202, 138, 4, 0.14);
+  --chat-perm-label: #92620a;
+  --chat-perm-path: var(--chat-text);
+
+  --chat-rail-bg: var(--chat-panel);
+  --chat-statusbar-bg: var(--chat-panel);
+  --chat-ground: var(--chat-bg);
+
+  --chat-radius-chip: 6px;
+
+  --chat-warn: #ca8a04;
+  --chat-selection-bg: rgba(37, 99, 235, 0.25);
+  --chat-perforation: var(--chat-line);
 }
 
-.chat-theme-dark {
-  color-scheme: dark;
-  --chat-bg: #0f1115;
-  --chat-panel: #1a1d23;
-  --chat-glass: rgba(26, 29, 35, 0.97);
-  --chat-fill: rgba(255, 255, 255, 0.05);
-  --chat-fill-strong: rgba(255, 255, 255, 0.1);
-  --chat-sunken: rgba(0, 0, 0, 0.35);
-  --chat-text: #e6e8ec;
-  --chat-text-hi: #f6f8fb;
-  --chat-text-2: #a9aeb7;
-  --chat-text-3: #7c828c;
-  --chat-accent: #4f8cff;
-  --chat-accent-hi: #6ba0ff;
-  --chat-accent-link: #8db6ff;
-  --chat-on-accent: #0b0d10;
-  --chat-danger: #f1707a;
-  --chat-danger-line: rgba(241, 112, 122, 0.42);
-  --chat-success: #57d9a3;
-  --chat-line: rgba(255, 255, 255, 0.1);
-  --chat-line-soft: rgba(255, 255, 255, 0.06);
-  --chat-shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.45);
-  --chat-shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.55);
+/* Chat prose ramp: the typography preset colors headings and bold `inherit`, which flattens them onto
+   the body color. Markdown output is generated markup, so its descendants are styled here rather than
+   through utility variants on the prose-pw shortcut. */
+.prose-pw :is(h1, h2, h3, h4, h5, h6),
+.prose-pw strong {
+  color: var(--chat-text-hi);
 }
 
-/* Shiki dual-theme (markdown code fences): renders github-light by default; under a dark chat theme,
-   swap each token to the dark colors shiki stored in --shiki-dark / --shiki-dark-bg. */
-.chat-theme-dark .shiki,
-.chat-theme-dark .shiki span,
-.chat-theme-conciv .shiki,
-.chat-theme-conciv .shiki span {
-  color: var(--shiki-dark) !important;
-  background-color: var(--shiki-dark-bg) !important;
+.prose-pw :not(pre) > code {
+  background: transparent;
+  color: var(--chat-code);
+  padding: 0;
+  font-size: 12px;
+}
+
+/* Markdown code fences: shiki renders the shared css-variables theme, so token colors resolve from
+   the --shiki-* set above and follow whichever chat theme is applied. The fence surface stays flat so
+   it reads as part of the message, not as a pasted block. */
+.shiki {
+  background: transparent !important;
 }
 
 /* @pierre/diffs (tool-card code blocks) resolves its dual theme via CSS `color-scheme`, but sets
@@ -81,7 +149,37 @@
 diffs-container {
   color-scheme: light;
 }
-.chat-theme-dark diffs-container,
-.chat-theme-conciv diffs-container {
+.chat-theme-terminal diffs-container {
   color-scheme: dark;
+}
+
+/* Streaming answer caret: overrides solid-streamdown's glyph caret (--sd-caret) with a solid
+   block that blinks on a hard step curve, appended after the last streamed block via ::after. */
+.chat-caret-live.sd-root > *:last-child::after {
+  content: '';
+  display: inline-block;
+  inline-size: 7px;
+  block-size: 13px;
+  margin-inline-start: 1px;
+  vertical-align: text-bottom;
+  background: var(--chat-accent);
+  animation: chat-caret-blink 1.05s steps(2, jump-none) infinite;
+}
+
+@keyframes chat-caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-caret-live.sd-root > *:last-child::after {
+    animation: none;
+    opacity: 1;
+  }
 }

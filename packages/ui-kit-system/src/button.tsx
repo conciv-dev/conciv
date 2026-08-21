@@ -14,7 +14,7 @@ export type ButtonVariant =
 export type ButtonSize = 'sm' | 'md' | 'icon' | 'bare' | 'none'
 
 const button = cva(
-  'inline-flex items-center justify-center gap-1.5 font-pw cursor-pointer trans-btn focus-ring [border-width:1px] [border-style:solid] disabled:opacity-50 disabled:cursor-not-allowed active:not-disabled:[transform:scale(0.97)]',
+  'inline-flex items-center justify-center gap-1.5 cursor-pointer trans-btn [border-width:1px] [border-style:solid] disabled:opacity-50 disabled:cursor-not-allowed active:not-disabled:[transform:scale(0.97)]',
   {
     variants: {
       variant: {
@@ -30,10 +30,10 @@ const button = cva(
         plain: 'border-transparent bg-transparent',
       },
       size: {
-        sm: 'text-[0.6875rem] rounded-pw-sm py-0.5 px-2',
-        md: 'text-[0.8125rem] rounded-pw-md py-2 px-3',
-        icon: 'rounded-pw-md size-9.5',
-        bare: 'text-[0.75rem] p-0',
+        sm: 'font-pw focus-ring text-[0.6875rem] rounded-pw-sm py-0.5 px-2',
+        md: 'font-pw focus-ring text-[0.8125rem] rounded-pw-md py-2 px-3',
+        icon: 'font-pw focus-ring rounded-pw-md size-9.5',
+        bare: 'font-pw focus-ring text-[0.75rem] p-0',
         none: '',
       },
     },

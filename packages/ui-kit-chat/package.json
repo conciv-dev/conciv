@@ -21,7 +21,7 @@
   "files": [
     "dist",
     "src/theme/tokens.css",
-    "src/theme/conciv.css"
+    "src/theme/themes/terminal.css"
   ],
   "type": "module",
   "exports": {
@@ -34,7 +34,19 @@
       "import": "./dist/tools.js"
     },
     "./theme/tokens.css": "./src/theme/tokens.css",
-    "./theme/conciv.css": "./src/theme/conciv.css"
+    "./theme/themes/terminal.css": "./src/theme/themes/terminal.css",
+    "./theme/theme-descriptor": {
+      "types": "./dist/theme/theme-descriptor.d.ts",
+      "import": "./dist/theme/theme-descriptor.js"
+    },
+    "./theme/code-theme": {
+      "types": "./dist/theme/code-theme.d.ts",
+      "import": "./dist/theme/code-theme.js"
+    },
+    "./theme/themes/terminal": {
+      "types": "./dist/theme/themes/terminal.d.ts",
+      "import": "./dist/theme/themes/terminal.js"
+    }
   },
   "publishConfig": {
     "access": "public"
@@ -45,7 +57,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only --exclude-entrypoints theme/tokens.css theme/conciv.css"
+    "attw": "attw --pack . --profile esm-only --exclude-entrypoints theme/tokens.css theme/themes/terminal.css"
   },
   "dependencies": {
     "@ark-ui/solid": "^5.37.1",
@@ -56,6 +68,9 @@
     "@conciv/solid-streamdown": "workspace:^",
     "@conciv/storage-history": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "@fontsource/archivo": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/source-sans-3": "^5.2.9",
     "@shikijs/langs-precompiled": "4.2.0",
     "@solid-primitives/event-listener": "^2.4.6",
     "@solid-primitives/resize-observer": "^2.2.0",

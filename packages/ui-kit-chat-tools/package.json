@@ -43,6 +43,7 @@
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "es-toolkit": "^1.50.0",
     "lucide-solid": "^1.18.0",
     "zod": "^4.4.3"
   },

@@ -87,7 +87,7 @@ it('renders one injected page-session card with the reply and no chain for a set
   await expect.element(page.getByText('session acts 2')).toBeVisible()
   await expect.element(page.getByText('first result paired')).toBeVisible()
   expect(page.getByText('session settled').elements()).toHaveLength(1)
-  await expect.element(page.getByText('Chain of Thought')).not.toBeInTheDocument()
+  await expect.element(page.getByRole('button', {name: /trace/i})).not.toBeInTheDocument()
 })
 
 it('marks the trailing page-session streaming while the run is live and settles it on stop', async () => {
@@ -113,7 +113,9 @@ it('keeps the flat chain rendering when no page-session config is passed', async
   await page.getByRole('button', {name: 'ask'}).click()
 
   await expect.element(page.getByText('Filled the form.'), {timeout: 3000}).toBeVisible()
-  await expect.element(page.getByText('Chain of Thought')).toBeVisible()
+  await expect
+    .element(page.getByRole('button', {name: /trace/i}), {timeout: 3000})
+    .toHaveAttribute('data-state', 'closed')
   await expect.element(page.getByText('session settled')).not.toBeInTheDocument()
 })
 

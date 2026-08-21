@@ -1,4 +1,12 @@
 import type {ThemeTokens} from '@conciv/ui-kit-system'
+import {setActiveChatTheme, type ChatTheme} from '@conciv/ui-kit-chat/theme/theme-descriptor'
+import {registerFonts} from './shadow.js'
+
+export function applyChatTheme(root: Element, theme: ChatTheme, doc: Document = document): void {
+  root.classList.add(`chat-theme-${theme.id}`)
+  registerFonts(theme.fonts, doc)
+  setActiveChatTheme(theme)
+}
 
 export function makeThemeApplier(root: ShadowRoot | Document): (overrides: ThemeTokens) => void {
   const merged: ThemeTokens = {}

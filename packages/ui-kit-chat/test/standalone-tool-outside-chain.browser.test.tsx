@@ -32,6 +32,7 @@ function StandaloneThread(): JSX.Element {
     connection: storyConnection({
       chunks: [
         ...createReasoningChunks('deciding what to confirm'),
+        ...createToolCallChunks('Bash', {command: 'ls'}, {result: 'ok'}),
         ...createToolCallChunks('confirm_ui', {question: 'proceed?'}, {result: 'confirmed'}),
       ],
       chunkDelay: 30,
@@ -54,17 +55,16 @@ function StandaloneThread(): JSX.Element {
   )
 }
 
-it('renders a standalone tool card outside the chain even once the chain collapses on settle', async () => {
+it('renders a standalone tool card outside the trace, whose trace collapses once the session settles', async () => {
   mountView(() => <StandaloneThread />)
 
   await startRun()
   await waitForRunSettled()
 
-  await expect
-    .element(page.getByRole('button', {name: 'Chain of Thought'}), {timeout: 3000})
-    .toHaveAttribute('aria-expanded', 'false')
+  const trigger = page.getByRole('button', {name: /trace/i})
+  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'closed')
 
   await expect.element(page.getByText('Confirm this action for confirm_ui'), {timeout: 3000}).toBeVisible()
 
-  expect(page.getByRole('button', {name: 'Chain of Thought'}).all()).toHaveLength(1)
+  expect(trigger.all()).toHaveLength(1)
 })

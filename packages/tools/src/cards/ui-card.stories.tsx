@@ -20,13 +20,13 @@ function unanswered(note: string): ToolResultPart {
   return {type: 'tool-result', toolCallId: 'u1', content: JSON.stringify({answered: false, note}), state: 'complete'}
 }
 function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+  return <div class={`${theme} p-4 w-[28rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
 }
 
 export const Choices: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <UiCard
         part={part({kind: 'choices', question: 'Ship it or hold?', options: ['ship', 'hold']})}
         result={undefined}
@@ -38,13 +38,15 @@ export const Choices: Story = {
     const c = within(canvasElement)
     await expect(c.getByText('Ship it or hold?')).toBeVisible()
     await expect(c.getByRole('button', {name: 'ship'})).toBeEnabled()
+    await expect(c.getByText('UI')).toBeVisible()
+    await expect(c.getByText('Rendered choices')).toBeVisible()
   },
 }
 
 export const Confirm: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <UiCard
         part={part({kind: 'confirm', question: 'Delete the staging database?', detail: 'DROP DATABASE staging;'})}
         result={undefined}
@@ -63,7 +65,7 @@ export const Confirm: Story = {
 export const Diff: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <UiCard
         part={part({
           kind: 'diff',
@@ -88,7 +90,7 @@ export const Diff: Story = {
 export const Form: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <UiCard
         part={part({
           kind: 'form',
@@ -114,7 +116,7 @@ export const Form: Story = {
 export const Answered: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <UiCard
         part={part({kind: 'choices', question: 'Ship it or hold?', options: ['ship', 'hold']})}
         result={answered('ship')}
@@ -132,7 +134,7 @@ export const Answered: Story = {
 export const Unanswered: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <UiCard
         part={part({kind: 'confirm', question: 'Delete the staging database?'})}
         result={unanswered('nobody answered in time')}
@@ -151,7 +153,7 @@ export const AnswersAChoice: Story = {
   render: () => {
     const [recorded, setRecorded] = createSignal<UiAnswerValue[]>([])
     return frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <>
         <UiCard
           part={part({kind: 'choices', question: 'Ship it or hold?', options: ['ship', 'hold']})}
@@ -175,7 +177,7 @@ export const AnswersAChoice: Story = {
 export const AwaitingSpec: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <UiCard
         part={{type: 'tool-call', id: 'u1', name: 'conciv_ui', arguments: '{"kind":', state: 'input-streaming'}}
         result={undefined}

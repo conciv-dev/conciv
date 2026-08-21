@@ -9,6 +9,7 @@ import {
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
+import {terminalTheme} from '@conciv/ui-kit-chat/theme/themes/terminal'
 import {HostApiProvider} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
@@ -40,7 +41,7 @@ import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
-import {makeThemeApplier} from '../lib/theme.js'
+import {applyChatTheme, makeThemeApplier} from '../lib/theme.js'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {hostFocusTarget} from '../lib/host-focus.js'
@@ -49,6 +50,8 @@ import {setShutter} from '../lib/shutter.js'
 import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import '../styles.css'
+
+const OPEN_DISMISSABLE_LAYER_SELECTOR = '[data-scope][data-part="content"][data-state="open"]'
 
 export const Route = createRootRouteWithContext<ConcivRouterContext>()({
   validateSearch: (search: Record<string, unknown>): {open?: true} => (search.open === true ? {open: true} : {}),
@@ -299,9 +302,23 @@ function RootChrome(props: {
     })
   })
 
+  let dismissableLayerOpenAtEscapeCapture = false
+  makeEventListener(
+    window,
+    'keydown',
+    (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      dismissableLayerOpenAtEscapeCapture =
+        layers.anyOpen() || Boolean(rootEl?.querySelector(OPEN_DISMISSABLE_LAYER_SELECTOR))
+    },
+    {capture: true},
+  )
+
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return
-    if (layers.anyOpen()) return
+    const dismissableLayerWasOpen = dismissableLayerOpenAtEscapeCapture
+    dismissableLayerOpenAtEscapeCapture = false
+    if (dismissableLayerWasOpen) return
     if (escapeInTerminal(rootEl)) return
     if (panelMatch()) {
       if (!shutterOpen()) return
@@ -325,8 +342,8 @@ function RootChrome(props: {
 
   return (
     <div
-      class="chat-theme-conciv"
       ref={(el) => {
+        applyChatTheme(el, terminalTheme)
         rootEl = el
       }}
       onKeyDown={onKeyDown}

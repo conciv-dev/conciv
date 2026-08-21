@@ -22,16 +22,10 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
   return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
 }
 
-async function codeText(root: HTMLElement): Promise<string> {
-  return Array.from(root.querySelectorAll('diffs-container'))
-    .map((host) => host.shadowRoot?.textContent ?? '')
-    .join('\n')
-}
-
 export const Complete: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <ToolFallback
         part={part({city: 'Berlin'})}
         result={result('{"tempC": 18}')}
@@ -45,15 +39,15 @@ export const Complete: Story = {
     await expect(c.getByText('mcp__weather__forecast')).toBeVisible()
     await expect(c.getByText('4.2s')).toBeVisible()
     await userEvent.click(c.getByRole('button'))
-    await waitFor(async () => expect(await codeText(canvasElement)).toContain('tempC'), {timeout: 5000})
-    await waitFor(() => expect(c.getByText('Result:')).toBeVisible())
+    await waitFor(() => expect(c.getAllByText(/tempC/)[0]).toBeVisible(), {timeout: 5000})
+    await waitFor(() => expect(c.getByText('Result')).toBeVisible())
   },
 }
 
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <ToolFallback
         part={part({city: 'Berlin'}, 'input-complete')}
         result={undefined}
@@ -66,7 +60,7 @@ export const Running: Story = {
 export const Errored: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <ToolFallback
         part={part({city: 'Atlantis'})}
         result={result('no such city', 'error')}
@@ -77,7 +71,7 @@ export const Errored: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
-    await waitFor(() => expect(c.getByText('Error:')).toBeVisible())
+    await waitFor(() => expect(c.getByText('Error')).toBeVisible())
     await waitFor(() => expect(c.getAllByText('no such city')[0]).toBeVisible())
   },
 }
@@ -89,7 +83,7 @@ export const Approval: Story = {
       approval: {id: 'ap1', needsApproval: true},
     }
     return frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <ToolFallback part={approvalPart} result={undefined} ctx={ctx} addResult={INERT_ADD_RESULT} />,
     )
   },

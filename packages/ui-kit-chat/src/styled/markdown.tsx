@@ -153,7 +153,7 @@ export function Markdown(props: MarkdownProps): JSX.Element {
     codeBlock(code, lang, props.streaming === true)
   return (
     <Streamdown
-      class="prose-pw"
+      class={props.streaming ? 'prose-pw chat-caret-live' : 'prose-pw'}
       isAnimating={props.streaming === true}
       caret={props.streaming ? 'block' : false}
       highlightCode={highlightCode}

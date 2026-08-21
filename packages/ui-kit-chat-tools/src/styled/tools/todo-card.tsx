@@ -16,15 +16,15 @@ const STATUS_ICON: Record<TodoItemStatus, LucideIcon> = {
 
 const ROW = 'flex items-start gap-1.75 py-0.5'
 const ROW_STATUS: Record<TodoItemStatus, string> = {
-  pending: 'text-[color:var(--chat-text-2)]',
-  in_progress: 'text-[color:var(--chat-text-hi)]',
-  completed: 'text-[color:var(--chat-text-3)] line-through',
+  pending: 'text-chat-text-2',
+  in_progress: 'text-chat-text-hi',
+  completed: 'text-chat-text-3 line-through',
 }
 const DOT = 'flex-none inline-flex items-center h-4.5'
 const DOT_STATUS: Record<TodoItemStatus, string> = {
   pending: '',
-  in_progress: 'text-[color:var(--chat-accent)]',
-  completed: 'text-[color:var(--chat-success)]',
+  in_progress: 'text-chat-accent',
+  completed: 'text-chat-success',
 }
 
 function Icon(): JSX.Element {

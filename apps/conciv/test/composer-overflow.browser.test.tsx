@@ -8,6 +8,8 @@ import {coreRpc, createSession} from './helpers/core-session.js'
 import {mountPane, type PaneMount} from './helpers/pane-harness.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 
+const menuitem = (name: string | RegExp) => page.getByRole('menuitem', {name})
+
 const COMPACT_PATH = ['sessions', 'compact']
 const NARROW_PX = 160
 const WIDE_PX = 460
@@ -64,20 +66,33 @@ async function mountComposer(width?: number): Promise<PaneMount> {
   return mount
 }
 
-test('a wide composer keeps only the pinned grab action inline and runs the rest from the overflow menu', async () => {
+test('a wide composer keeps no actions inline and runs everything from the overflow menu', async () => {
   await mountComposer(WIDE_PX)
 
-  await expect.element(grabButton()).toBeVisible()
+  await expect.element(grabButton()).not.toBeInTheDocument()
   await expect.element(trigger()).toHaveAttribute('aria-haspopup', 'menu')
   await expect.element(newSessionButton()).not.toBeInTheDocument()
   await expect.element(compactButton()).not.toBeInTheDocument()
 
   await userEvent.click(trigger())
   await expect.element(compactItem()).toBeVisible()
+  await expect.element(menuitem('Select an element from the page')).toBeVisible()
   await userEvent.click(newSessionItem())
 
   await expect.element(page.getByText('the pane requested a new session')).toBeVisible()
   await expect.element(newSessionItem()).not.toBeInTheDocument()
+})
+
+test('the model pill is reachable from the overflow menu instead of sitting inline', async () => {
+  const sessionId = await createSession(coreRpc(core.base))
+  const models = await coreRpc(core.base).meta.models()
+  const firstModel = models.models[0]
+  const mount = mountPane({base: core.base, sessionId, width: WIDE_PX}, () => <ChatPane sessionId={sessionId} />)
+  active.pane = mount
+  await expect.element(input()).toBeVisible()
+
+  await userEvent.click(trigger())
+  if (firstModel) await expect.element(menuitem(new RegExp(`Model: ${firstModel.name}`))).toBeVisible()
 })
 
 test('the attachment button carries the same tooltip-backed name as the rest of the row', async () => {
@@ -90,23 +105,21 @@ test('the attachment button carries the same tooltip-backed name as the rest of 
   await expect.element(page.getByRole('tooltip')).toHaveTextContent('Add an attachment')
 })
 
-test('the send button carries the same tooltip-backed name as the rest of the row', async () => {
+test('the send button carries a discoverable name of its own, as a labeled control rather than a tooltip-only icon', async () => {
   await mountComposer(WIDE_PX)
 
   await expect.element(sendButton()).toBeVisible()
-
-  await userEvent.hover(sendButton())
-
-  await expect.element(page.getByRole('tooltip')).toHaveTextContent('Send message')
+  await expect.element(sendButton()).toHaveTextContent('Send')
 })
 
-test('a narrow composer still keeps the pinned grab action inline beside the overflow trigger', async () => {
+test('a narrow composer keeps only the attach button and the overflow trigger inline', async () => {
   const mount = await mountComposer()
 
   mount.setWidth(NARROW_PX)
 
-  await expect.element(grabButton()).toBeVisible()
+  await expect.element(attachButton()).toBeVisible()
   await expect.element(trigger()).toBeVisible()
+  await expect.element(grabButton()).not.toBeInTheDocument()
   await expect.element(newSessionButton()).not.toBeInTheDocument()
 })
 
@@ -121,8 +134,7 @@ test('a session that is already compacting cannot be compacted again from the ov
   await userEvent.click(trigger())
   await expect.element(compactItem()).toHaveAttribute('aria-disabled', 'true')
 
-  await userEvent.keyboard('{ArrowDown}')
-  await userEvent.keyboard('{Enter}')
+  await userEvent.click(newSessionItem())
 
   await expect.element(page.getByText('the pane requested a new session')).toBeVisible()
   await expect.element(compactItem()).not.toBeInTheDocument()

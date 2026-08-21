@@ -108,13 +108,13 @@ function stepGlyph(status: ToolStatus): JSX.Element {
         <Loader size={12} class={SPIN} aria-hidden="true" />
       </Match>
       <Match when={status === 'error'}>
-        <X size={12} class="text-[color:var(--chat-danger)] shrink-0" aria-hidden="true" />
+        <X size={12} class="text-chat-danger shrink-0" aria-hidden="true" />
       </Match>
       <Match when={status === 'approval'}>
-        <ShieldQuestion size={12} class="text-[color:var(--chat-accent)] shrink-0" aria-hidden="true" />
+        <ShieldQuestion size={12} class="text-chat-accent shrink-0" aria-hidden="true" />
       </Match>
       <Match when={status === 'complete'}>
-        <Check size={12} class="text-[color:var(--chat-success)] shrink-0" aria-hidden="true" />
+        <Check size={12} class="text-chat-success shrink-0" aria-hidden="true" />
       </Match>
     </Switch>
   )

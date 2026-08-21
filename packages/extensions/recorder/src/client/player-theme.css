@@ -59,7 +59,7 @@
   height: 12px;
   top: 3px;
   background: var(--pw-accent);
-  box-shadow: 0 1px 4px oklch(0 0 0 / 0.5);
+  box-shadow: var(--pw-shadow-sm);
   transition: transform 150ms var(--pw-ease);
 }
 

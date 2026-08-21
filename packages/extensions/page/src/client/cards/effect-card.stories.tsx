@@ -1,12 +1,40 @@
+import type {JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import {Trace as ChatTrace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
 import {EffectCard} from './effect-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
 const meta: Meta = {title: 'Extensions/Page/tool/EffectCard'}
 export default meta
 type Story = StoryObj
+
+const TRACE_FRAME_CLASS =
+  'chat-theme-terminal p-4 w-[28rem] [background:var(--chat-panel)] [font-family:var(--chat-font)]'
+
+function traceRow(
+  entry: ToolCardEntry,
+  part: ToolCallPart,
+  result: ToolResultPart | undefined,
+  ctx: ToolViewCtx = storyCtx({}),
+): TraceItem {
+  return {
+    key: part.id,
+    render: (branch) => (
+      <ToolTraceRow part={part} result={result} ctx={ctx} tools={() => [entry]} last={branch.last} ring={branch.ring} />
+    ),
+  }
+}
+
+function traceGallery(summary: string, items: TraceItem[]): JSX.Element {
+  return (
+    <div class={TRACE_FRAME_CLASS}>
+      <ChatTrace summary={summary} compactLine={summary} items={items} defaultOpen />
+    </div>
+  )
+}
 
 const effectMeta: ToolViewMeta = {
   summary: 'enable, disable, toggle, report or list the visual effects the host page registered',
@@ -85,5 +113,24 @@ export const NoEffects: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button'))
     await waitFor(() => expect(canvas.getByText('the page registered no effects')).toBeVisible())
+  },
+}
+
+const effectTool: ToolCardEntry = {names: ['page.effect'], render: EffectCard}
+
+export const Trace: Story = {
+  render: () =>
+    traceGallery('1 effect', [
+      traceRow(
+        effectTool,
+        storyPart('page.effect', {action: 'enable', effect: 'grid-overlay'}),
+        storyResult({effect: 'grid-overlay', enabled: true}),
+      ),
+    ]),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('effect')).toBeVisible()
+    await expect(canvas.getAllByText('grid-overlay').length).toBeGreaterThan(0)
+    await expect(canvas.getAllByText('on').length).toBeGreaterThan(0)
   },
 }

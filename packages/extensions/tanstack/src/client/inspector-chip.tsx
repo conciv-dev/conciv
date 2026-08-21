@@ -12,9 +12,10 @@ export function InspectorChip(): JSX.Element {
             {...triggerProps()}
             role="status"
             aria-label={CONCIV_TANSTACK_CLIENT_LABEL}
-            class="text-pw-text-2 inline-flex shrink-0 size-8.5 items-center justify-center"
+            class="inline-flex items-center gap-[5px] whitespace-nowrap"
           >
-            <TanStackLogo class="size-5 block" aria-hidden="true" />
+            <TanStackLogo class="size-3.5 block shrink-0" aria-hidden="true" />
+            {CONCIV_TANSTACK_CLIENT_LABEL}
           </span>
         )}
       />

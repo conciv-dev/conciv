@@ -10,10 +10,11 @@ import {useAppData} from '../app/context.js'
 import {useNotices} from '../shell/notice-context.js'
 import type {Notify} from '../shell/notices.js'
 import {LaunchMenu} from './launch-menu.js'
+import {SessionModelSelector} from './model-selector.js'
 import {terminalRpc} from './terminal-rpc.js'
 
 const ACT =
-  'size-8.5 rounded-pw-pill [border:none] bg-transparent text-pw-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-pw-text-hi hover:bg-pw-fill-strong'
+  'size-8 rounded-pw-pill [border:none] bg-transparent text-pw-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-pw-text-hi hover:bg-pw-fill-strong'
 
 function busyClass(busy: boolean): string {
   return busy ? `${ACT} opacity-60 cursor-progress` : ACT
@@ -98,7 +99,6 @@ export function ComposerActions(props: {
     <>
       <Action.ActionButton
         priority={40}
-        visible="always"
         disabled={grabDisabled}
         tooltip={grabDisabled() ? 'Nothing on this screen to select' : 'Select an element from the page'}
         busy={picking()}
@@ -130,6 +130,7 @@ export function ComposerActions(props: {
           onRetry={() => void meta.refetch()}
         />
       </Show>
+      <SessionModelSelector sessionId={props.sessionId} />
     </>
   )
 }

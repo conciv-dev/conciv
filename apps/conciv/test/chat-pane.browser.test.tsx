@@ -1,12 +1,15 @@
 import './helpers/utilities.css'
 import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
+import {createMemo} from 'solid-js'
 import type {DraftRow, RpcClient} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
 import pageExtension from '@conciv/extension-page/client'
 import {GRAB_FILE_NAME, GRAB_MIME} from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
+import {ChatProvider} from '@conciv/ui-kit-chat'
 import {ChatPane} from '../src/pane/chat-pane.js'
+import {QueueStrip} from '../src/pane/queue-strip.js'
 import {RefreshButton} from '../src/shell/refresh-button.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, openTranscriptStream, runTurn, seedDraft, sendTurn} from './helpers/core-session.js'
@@ -61,27 +64,39 @@ function mountChatPane(
   sessionId: string,
   options: Pick<PaneMountOptions, 'grabProvider' | 'extensions'> = {},
 ): PaneMount {
-  const mount = mountPane({base: core.base, sessionId, ...options}, () => (
-    <>
-      <ChatPane sessionId={sessionId} />
-      <RefreshButton />
-    </>
-  ))
+  const mount = mountPane({base: core.base, sessionId, ...options}, (pane) => {
+    const queue = createMemo(() => pane.chat().queue())
+    return (
+      <>
+        <ChatProvider chat={pane.chat()}>
+          <QueueStrip queue={queue()} />
+        </ChatProvider>
+        <ChatPane sessionId={sessionId} />
+        <RefreshButton />
+      </>
+    )
+  })
   active.pane = mount
   return mount
 }
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
-const grabButton = () => page.getByRole('button', {name: 'Select an element from the page'})
+const overflowTrigger = () => page.getByRole('button', {name: 'More composer actions'})
+const grabItem = () => page.getByRole('menuitem', {name: 'Select an element from the page'})
 const snapshot = () => page.getByTitle('Grabbed element snapshot')
 const notifications = () => page.getByRole('region', {name: /Notifications/})
 const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
 const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
 
+async function pickGrabFromOverflow(): Promise<void> {
+  await userEvent.click(overflowTrigger())
+  await userEvent.click(grabItem())
+}
+
 async function stageGrabThroughComposer(): Promise<void> {
   await expect.element(input()).toBeVisible()
-  await userEvent.click(grabButton())
+  await pickGrabFromOverflow()
   await expect.element(snapshot()).toBeVisible()
   await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
 }
@@ -182,7 +197,7 @@ test('a queued second send cannot cross-restore the grabs of the turn that faile
   await userEvent.keyboard('{Enter}')
   await expect.element(stopButton()).toBeVisible()
 
-  await userEvent.click(grabButton())
+  await pickGrabFromOverflow()
   await expect.element(page.getByText(PRICING_LABEL)).toBeVisible()
   await input().fill('turn B')
   await userEvent.keyboard('{Enter}')

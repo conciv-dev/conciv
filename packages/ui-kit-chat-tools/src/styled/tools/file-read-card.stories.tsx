@@ -25,7 +25,7 @@ const SOURCE = '1\texport function add(a, b) {\n2\t  return a + b\n3\t}\n'
 export const Read: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <FileReadCard
         part={part('Read', {file_path: 'src/math.ts'})}
         result={result(SOURCE)}
@@ -51,7 +51,7 @@ export const Read: Story = {
 export const WithRange: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <FileReadCard
         part={part('Read', {file_path: 'src/big.ts', offset: 40, limit: 20})}
         result={result(SOURCE)}
@@ -68,7 +68,7 @@ export const WithRange: Story = {
 export const Opened: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <FileReadCard
         part={part('open', {file: 'src/app.tsx', line: 12})}
         result={undefined}
@@ -85,7 +85,7 @@ export const Opened: Story = {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <FileReadCard
         part={part('Read', {file_path: 'src/slow.ts'}, 'input-complete')}
         result={undefined}

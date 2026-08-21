@@ -83,9 +83,9 @@ const HEAD_BADGE =
   'hidden @[20rem]:inline flex-none whitespace-nowrap [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]'
 
 const RAIL =
-  'm-0 p-0 list-none flex flex-col w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-hidden'
+  'm-0 p-0 list-none grid grid-cols-[max-content_max-content_1fr_max-content] w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-hidden'
 const ROW =
-  'group px-2.5 py-1.5 flex gap-2.5 items-center min-w-0 [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill)]'
+  'group px-2.5 py-1.5 grid grid-cols-subgrid col-span-4 gap-2.5 items-center min-w-0 [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill)]'
 const ROW_ENTRANCE = '[[data-state=open]_&]:anim-msg animate-fill-backwards'
 const ROW_DELAYS = [
   'animate-delay-[0ms]',
@@ -103,11 +103,11 @@ const ROW_GLYPH_DONE = `${ROW_GLYPH} [border:1px_solid_var(--chat-success)]`
 const ROW_GLYPH_ERROR = `${ROW_GLYPH} [border:1px_solid_var(--chat-danger-line)]`
 const ROW_GLYPH_ACTIVE = `${ROW_GLYPH} [border:1px_solid_color-mix(in_srgb,var(--chat-accent)_50%,transparent)]`
 const ROW_VERB =
-  'flex-none w-6 @[22rem]:w-16 inline-flex items-center gap-1 overflow-hidden [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [transition:color_140ms_var(--chat-ease)]'
+  'inline-flex items-center gap-1 [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [transition:color_140ms_var(--chat-ease)]'
 const ROW_VERB_NEUTRAL = `${ROW_VERB} [color:var(--chat-text-3)] group-hover:[color:var(--chat-text-2)]`
 const ROW_VERB_DONE = `${ROW_VERB} [color:var(--chat-success)]`
 const ROW_VERB_ERROR = `${ROW_VERB} [color:var(--chat-danger)]`
-const ROW_VERB_LABEL = 'sr-only @[22rem]:not-sr-only @[22rem]:truncate'
+const ROW_VERB_LABEL = 'sr-only @[22rem]:not-sr-only whitespace-nowrap'
 const ROW_TARGET = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] [color:var(--chat-text)]'
 const ROW_TARGET_ERROR = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] [color:var(--chat-danger)]'
 const ROW_TARGET_ABORTED = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] [color:var(--chat-text-3)]'
@@ -254,9 +254,9 @@ function SessionHeader(props: {
   return (
     <span class={HEAD}>
       <span class={HEAD_DOTS} aria-hidden="true">
-        <span class={`${HEAD_DOT} bg-pw-danger`} />
-        <span class={`${HEAD_DOT} bg-pw-warn`} />
-        <span class={`${HEAD_DOT} bg-pw-success`} />
+        <span class={`${HEAD_DOT} [background:var(--chat-danger)]`} />
+        <span class={`${HEAD_DOT} [background:var(--chat-warn)]`} />
+        <span class={`${HEAD_DOT} [background:var(--chat-success)]`} />
       </span>
       <span class={HEAD_TITLE}>{props.title}</span>
       <span class={HEAD_COUNT}>{props.count}</span>

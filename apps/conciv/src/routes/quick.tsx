@@ -20,7 +20,7 @@ import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../lib/quick-search.js'
 
 const CLOSE =
-  'bg-transparent [border:none] text-pw-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-[0.5625rem] trans-color-bg hover:text-pw-text hover:bg-pw-fill-strong'
+  'bg-transparent [border:none] text-pw-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-pw-sm trans-color-bg hover:text-pw-text hover:bg-pw-fill-strong'
 
 const PANE_ACTION = 'text-pw-text-3 leading-none size-6'
 

@@ -32,7 +32,7 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
 export const Complete: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <ApplyPatchDiff part={part('complete')} result={doneResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
   play: async ({canvasElement}) => {
@@ -47,7 +47,7 @@ export const Complete: Story = {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <ApplyPatchDiff
         part={part('input-streaming')}
         result={undefined}

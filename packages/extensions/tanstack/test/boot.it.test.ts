@@ -19,7 +19,7 @@ test('real TanStack host app and the conciv widget both boot in a real browser',
   await waitForAboutQuery(api.page)
 })
 
-test('the tanstack client surface mounts a pinned composer chip that is always visible in the row', async () => {
+test('the tanstack client surface mounts an inspector status chip that stays visible in the panel', async () => {
   const {api} = get()
 
   await waitForWidget(api.page)

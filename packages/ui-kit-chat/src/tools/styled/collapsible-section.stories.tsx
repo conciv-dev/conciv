@@ -9,7 +9,7 @@ type Story = StoryObj
 
 function frame(child: JSX.Element): JSX.Element {
   return (
-    <div class="chat-theme-dark p-4 rounded-[var(--chat-radius-md)] w-[30rem] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [font-family:var(--chat-font)]">
+    <div class="chat-theme-terminal p-4 rounded-[var(--chat-radius-md)] w-[30rem] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [font-family:var(--chat-font)]">
       {child}
     </div>
   )
@@ -19,7 +19,7 @@ export const NestedInsideCardBody: Story = {
   render: () =>
     frame(
       <>
-        <p class="text-[color:var(--chat-text)] text-[length:var(--chat-text-md)] m-0 mb-2">tool-card body content</p>
+        <p class="text-chat-text text-[length:var(--chat-text-md)] m-0 mb-2">tool-card body content</p>
         <CollapsibleSection header={<span>src/utils/format.ts</span>}>
           <span>3 assertions failed</span>
         </CollapsibleSection>

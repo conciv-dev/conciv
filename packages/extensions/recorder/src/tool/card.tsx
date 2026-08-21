@@ -80,10 +80,10 @@ export function RecordingToolCard(props: ToolCardProps): JSX.Element {
         <div class="flex flex-col gap-0.5">
           <For each={recording().actions}>
             {(action) => (
-              <div class="text-[length:var(--chat-text-xs)] flex gap-2 [font-family:var(--chat-mono)] items-baseline">
-                <span class="shrink-0 [color:var(--chat-text-3)] tabular-nums">{action.at}</span>
+              <div class="text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)] flex gap-2 min-w-0 [font-family:var(--chat-mono)] items-center">
+                <span class="flex-none [color:var(--chat-text-3)] tabular-nums">{action.at}</span>
                 <Chip kind="pill" value={action.kind} />
-                <span class="min-w-0 truncate [color:var(--chat-text-2)]">{action.detail}</span>
+                <span class="flex-1 min-w-0 truncate [color:var(--chat-text-2)]">{action.detail}</span>
               </div>
             )}
           </For>

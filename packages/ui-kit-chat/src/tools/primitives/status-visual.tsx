@@ -33,10 +33,10 @@ const ICON: Record<ToolStatus, LucideIcon> = {
 const icon = cva('shrink-0', {
   variants: {
     status: {
-      running: 'text-[color:var(--chat-text-3)] anim-tool-spin',
-      complete: 'text-[color:var(--chat-success)]',
-      error: 'text-[color:var(--chat-danger)]',
-      approval: 'text-[color:var(--chat-accent)]',
+      running: 'text-chat-text-3 anim-tool-spin',
+      complete: 'text-chat-success',
+      error: 'text-chat-danger',
+      approval: 'text-chat-accent',
     },
   },
 })

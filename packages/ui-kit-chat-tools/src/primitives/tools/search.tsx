@@ -29,13 +29,22 @@ export function useSearch(): SearchContextValue {
   return context
 }
 
+function searchMetaLabel(result: ToolResultPart | undefined, status: ToolStatus, count: number): string | undefined {
+  if (status === 'error') return 'failed'
+  if (!result) return undefined
+  return `${count} ${count === 1 ? 'match' : 'matches'}`
+}
+
 function Root(props: {part: ToolCallPart; result: ToolResultPart | undefined; children: JSX.Element}): JSX.Element {
-  const pattern = () => parseInput(SearchInput, props.part)?.pattern ?? ''
+  const pattern = () => {
+    const input = parseInput(SearchInput, props.part)
+    return input?.pattern ?? input?.glob ?? ''
+  }
   const verb = () => (props.part.name === 'Glob' ? 'Globbed' : 'Searched')
-  const count = createMemo(() => matchCount(props.result))
-  const meta = () => (props.result ? `${count()} ${count() === 1 ? 'match' : 'matches'}` : undefined)
-  const text = () => resultText(props.result)
   const status = createMemo(() => toolStatus(props.part, props.result))
+  const count = createMemo(() => (status() === 'error' ? 0 : matchCount(props.result)))
+  const meta = () => searchMetaLabel(props.result, status(), count())
+  const text = () => resultText(props.result)
   return (
     <SearchContext.Provider
       value={{part: () => props.part, result: () => props.result, pattern, verb, count, meta, text, status}}

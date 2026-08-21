@@ -1,17 +1,18 @@
 import {splitProps, type JSX} from 'solid-js'
 import {cva} from 'class-variance-authority'
 import {Button} from '@conciv/ui-kit-system'
+import {FOCUS} from '../../styled/classes.js'
 
 const actionButton = cva(
-  'flex-none inline-flex items-center gap-1 rounded-[var(--chat-radius-sm)] py-1 px-2.5 font-semibold text-[length:var(--chat-text-sm)] leading-none',
+  `flex-none inline-flex items-center gap-1 rounded-[var(--chat-radius-sm)] py-1 px-2.5 font-semibold text-[length:var(--chat-text-sm)] leading-none ${FOCUS}`,
   {
     variants: {
       intent: {
         neutral:
-          '[background:var(--chat-fill)] [border-color:var(--chat-line)] text-[color:var(--chat-text-2)] hover:[background:var(--chat-fill-strong)]',
-        deny: '[background:var(--chat-fill)] [border-color:var(--chat-line)] text-[color:var(--chat-text-2)] hover:[background:var(--chat-fill-strong)] hover:text-[color:var(--chat-danger)]',
+          '[background:var(--chat-fill)] [border-color:var(--chat-line)] text-chat-text-2 hover:[background:var(--chat-fill-strong)]',
+        deny: '[background:var(--chat-fill)] [border-color:var(--chat-line)] text-chat-text-2 hover:[background:var(--chat-fill-strong)] hover:text-chat-danger',
         allow:
-          '[background:var(--chat-accent)] [border-color:var(--chat-accent)] text-[color:var(--chat-on-accent)] hover:[background:var(--chat-accent-hi)]',
+          '[background:var(--chat-accent)] [border-color:var(--chat-accent)] text-chat-on-accent hover:[background:var(--chat-accent-hi)]',
       },
     },
     defaultVariants: {intent: 'neutral'},

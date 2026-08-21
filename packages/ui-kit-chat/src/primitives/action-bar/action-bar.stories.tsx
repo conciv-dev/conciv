@@ -95,9 +95,16 @@ export const GatedActionsLightUpWithHandlers: Story = {
   },
 }
 
+const FLOAT_VISIBILITY = 'opacity-0 data-[active=true]:opacity-100'
+
 function FloatBar(): JSX.Element {
   return (
-    <ActionBar.Root role="toolbar" autohide="not-last" autohideFloat="single-branch" class="flex gap-1">
+    <ActionBar.Root
+      role="toolbar"
+      autohide="not-last"
+      autohideFloat="single-branch"
+      class={`flex gap-1 ${FLOAT_VISIBILITY}`}
+    >
       <ActionBar.Copy class="text-[0.6875rem] text-pw-text-2 px-1.5 py-0.5 border border-pw-line rounded-pw-sm">
         Copy
       </ActionBar.Copy>
@@ -142,12 +149,12 @@ export const AutohideFloatOnHover: Story = {
     const c = within(canvasElement)
 
     await waitFor(() => expect(c.getByText('Add the missing await on line 12.')).toBeVisible())
-    await expect(c.queryByRole('toolbar')).toBeNull()
+    const bar = c.getByRole('toolbar')
+    await expect(bar).not.toBeVisible()
     await userEvent.hover(c.getByText('Add the missing await on line 12.'))
-    const bar = await waitFor(() => c.getByRole('toolbar'))
-    await expect(bar).toBeVisible()
+    await waitFor(() => expect(bar).toBeVisible())
     await expect(bar).toHaveAttribute('data-floating', 'true')
     await userEvent.unhover(c.getByText('Add the missing await on line 12.'))
-    await waitFor(() => expect(c.queryByRole('toolbar')).toBeNull())
+    await waitFor(() => expect(bar).not.toBeVisible())
   },
 }

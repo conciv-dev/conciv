@@ -1,6 +1,5 @@
 import {Show, type JSX} from 'solid-js'
 import {defineExtension, getExtensionApi} from '@conciv/extension'
-import {ComposerActions} from '@conciv/ui-kit-chat'
 import {InspectorChip} from './client/inspector-chip.js'
 import {tanstackVerbTools} from './client/verbs.js'
 import {installRuntimeErrorListeners} from './client/error-ring.js'
@@ -26,10 +25,8 @@ const TANSTACK_NAME = 'tanstack'
 function Component(): JSX.Element {
   const slot = getExtensionApi(TANSTACK_NAME).useSlot()
   return (
-    <Show when={slot === 'composer'}>
-      <ComposerActions.Inline priority={10} visible="always">
-        <InspectorChip />
-      </ComposerActions.Inline>
+    <Show when={slot === 'status'}>
+      <InspectorChip />
     </Show>
   )
 }

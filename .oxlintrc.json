@@ -83,7 +83,13 @@
     "solid/reactivity": [
       "error",
       {
-        "customReactiveFunctions": ["makeEventListener", "makeEventListenerStack", "makeTimer", "registerLayer"]
+        "customReactiveFunctions": [
+          "makeEventListener",
+          "makeEventListenerStack",
+          "makeTimer",
+          "publishCardHeader",
+          "registerLayer"
+        ]
       }
     ],
     "solid/event-handlers": "error",

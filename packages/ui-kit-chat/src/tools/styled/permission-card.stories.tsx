@@ -28,7 +28,7 @@ export const Pending: Story = {
     const [decided, setDecided] = createSignal<boolean | null>(null)
     const ctx: ToolViewCtx = {...INERT_TOOL_CTX, respondApproval: (_id, approved) => setDecided(approved)}
     return frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <>
         <PermissionCard part={pendingPart} ctx={ctx} label="Run this command?" />
         <div data-decided>{decided() === null ? 'undecided' : decided() ? 'approved' : 'rejected'}</div>
@@ -49,7 +49,7 @@ export const Pending: Story = {
 export const Settled: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <PermissionCard
         part={{...pendingPart, state: 'complete'}}
         ctx={{...INERT_TOOL_CTX, respondApproval: () => {}}}

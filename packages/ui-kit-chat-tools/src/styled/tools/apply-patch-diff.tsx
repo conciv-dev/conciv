@@ -1,14 +1,19 @@
 import {type JSX} from 'solid-js'
 import FileDiff from 'lucide-solid/icons/file-diff'
 import {type FileDiffOptions} from '@conciv/solid-diffs'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {ApplyPatch, useApplyPatch, type ApplyPatchInfo} from '../../primitives/tools/apply-patch.js'
 import {diffBlockClass, ToolCard} from '@conciv/ui-kit-chat/tools'
-const DIFF_OPTIONS: FileDiffOptions<undefined> = {
-  theme: {light: 'github-light', dark: 'github-dark'},
-  themeType: 'system',
-  diffStyle: 'unified',
-  overflow: 'wrap',
+import {codeTheme} from '@conciv/ui-kit-chat/theme/code-theme'
+
+function diffOptions(disableFileHeader = false): FileDiffOptions<undefined> {
+  return {
+    theme: codeTheme(),
+    themeType: 'system',
+    diffStyle: 'unified',
+    overflow: 'wrap',
+    disableFileHeader,
+  }
 }
 
 function Icon(): JSX.Element {
@@ -30,9 +35,10 @@ function counts(info: ApplyPatchInfo): string | undefined {
 }
 
 function Body(): JSX.Element {
+  const patch = useApplyPatch()
   return (
     <div class="flex flex-col gap-1.5">
-      <ApplyPatch.Diffs class={diffBlockClass('sm')} options={DIFF_OPTIONS} />
+      <ApplyPatch.Diffs class={diffBlockClass('sm')} options={diffOptions(patch.blocks().length === 1)} />
     </div>
   )
 }
@@ -58,4 +64,9 @@ export function ApplyPatchDiff(props: ToolCardProps): JSX.Element {
       <CardBody {...props} />
     </ApplyPatch.Root>
   )
+}
+
+export const applyPatchTool: ToolCardEntry = {
+  names: ['apply_patch'],
+  render: ApplyPatchDiff,
 }

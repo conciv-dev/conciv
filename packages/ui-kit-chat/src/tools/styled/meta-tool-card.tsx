@@ -7,6 +7,7 @@ import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {parseInput, parseResultPayload, resultText} from '../primitives/tool-util.js'
 import {MUTATING_BADGE, clip, displayValue} from '../primitives/tool-presentation.js'
 import {CardShell, cardHeader} from './card-shell.js'
+import {useEmbeddedRowLine} from './card-chrome.js'
 import {CHIP} from './chip.js'
 import {JsonTree} from './json-tree.js'
 import {ElementPreview} from './element-preview.js'
@@ -14,16 +15,16 @@ import {MirrorRow, NoteRow} from './note-row.js'
 import {CodeBlock} from './code-block.js'
 import {ErrorBlock} from './error-block.js'
 
-const SUMMARY = 'text-[color:var(--chat-text-2)] text-[length:var(--chat-text-sm)] m-0'
-const HINT = 'text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] m-0'
+const SUMMARY = 'text-chat-text-2 text-[length:var(--chat-text-sm)] m-0'
+const HINT = 'text-chat-text-3 text-[length:var(--chat-text-xs)] m-0'
 
 const CATEGORY_ACCENT: Record<string, string> = {
-  read: 'inline-flex text-[color:var(--chat-accent-link)]',
-  act: 'inline-flex text-[color:var(--chat-accent)]',
-  'edit-live': 'inline-flex text-[color:var(--chat-success)]',
-  react: 'inline-flex text-[color:var(--chat-text-hi)]',
+  read: 'inline-flex text-chat-accent-link',
+  act: 'inline-flex text-chat-accent',
+  'edit-live': 'inline-flex text-chat-success',
+  react: 'inline-flex text-chat-text-hi',
 }
-const NEUTRAL_ACCENT = 'inline-flex text-[color:var(--chat-text-3)]'
+const NEUTRAL_ACCENT = 'inline-flex text-chat-text-3'
 
 const InputRecord = z.record(z.string(), z.unknown())
 
@@ -128,6 +129,12 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
     }
   }
   const accent = () => CATEGORY_ACCENT[meta()?.category ?? ''] ?? NEUTRAL_ACCENT
+  const rowLine = useEmbeddedRowLine()
+  const bodySummary = () => {
+    const summary = meta()?.summary
+    if (summary === undefined || summary.length === 0) return undefined
+    return rowLine().includes(summary) ? undefined : summary
+  }
   return (
     <CardShell
       meta={meta()}
@@ -146,7 +153,7 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
           </ElementPreview.Root>
         )}
       </Show>
-      <Show when={meta()?.summary}>{(summary) => <p class={SUMMARY}>{summary()}</p>}</Show>
+      <Show when={bodySummary()}>{(summary) => <p class={SUMMARY}>{summary()}</p>}</Show>
       <Show when={meta()?.hint}>{(hint) => <p class={HINT}>{hint()}</p>}</Show>
       <Show when={meta()?.approval === 'ask'}>
         <NoteRow icon={<ShieldAlert size={12} aria-hidden="true" />} tone="accent">

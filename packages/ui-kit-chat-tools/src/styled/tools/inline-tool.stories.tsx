@@ -27,7 +27,7 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
 export const Rows: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <>
         <ReadInline
           part={part('read', {file_path: 'packages/ui-kit-chat/src/styled/thread.tsx'})}

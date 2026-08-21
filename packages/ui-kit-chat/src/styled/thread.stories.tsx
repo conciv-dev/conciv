@@ -20,7 +20,7 @@ type Story = StoryObj
 const WIDE_ARGS = {command: `grep -rn "${'x'.repeat(160)}" packages/`}
 
 function Welcome(): JSX.Element {
-  return <div class="text-[color:var(--chat-text-3)] text-[0.8125rem] m-auto">Ask anything to begin.</div>
+  return <div class="text-chat-text-3 text-[0.8125rem] m-auto">Ask anything to begin.</div>
 }
 
 function ThreadApp(props: {theme?: string; expose: (chat: UseChatReturn) => void}): JSX.Element {
@@ -83,11 +83,12 @@ function play(theme?: string): Story {
 
       const before = reply.getBoundingClientRect()
 
-      await userEvent.click(c.getByText('Chain of Thought'))
+      await userEvent.click(c.getByText('1 shell'))
       await waitFor(() => expect(c.getByText('shell')).toBeVisible())
-      await userEvent.click(c.getByText('shell'))
+      const shellRow = c.getByText('shell').closest('button')
+      if (!shellRow) throw new Error('shell trace row trigger not found')
 
-      await waitFor(() => expect(c.getByRole('button', {name: /shell/})).toHaveAttribute('data-state', 'open'))
+      await waitFor(() => expect(shellRow).toHaveAttribute('data-state', 'open'))
       const after = reply.getBoundingClientRect()
 
       expect(after.left).toBeCloseTo(before.left, 0)
@@ -97,12 +98,12 @@ function play(theme?: string): Story {
 }
 
 export const Neutral: Story = play()
-export const Dark: Story = play('chat-theme-dark')
-export const Conciv: Story = play('chat-theme-conciv')
+export const Dark: Story = play('chat-theme-terminal')
+export const Terminal: Story = play('chat-theme-terminal')
 
 function Divider(): JSX.Element {
   return (
-    <div class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] self-center" role="separator">
+    <div class="text-chat-text-3 text-[length:var(--chat-text-xs)] self-center" role="separator">
       New session
     </div>
   )
@@ -118,7 +119,7 @@ function SlotsApp(): JSX.Element {
     }),
   })
   return (
-    <div class="chat-theme-dark rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
+    <div class="chat-theme-terminal rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
       <ChatProvider chat={chat}>
         <Thread>
           <Thread.Viewport>
@@ -126,9 +127,7 @@ function SlotsApp(): JSX.Element {
             <NowLine title="Running pnpm test" onStop={() => chat.stop()} />
           </Thread.Viewport>
           <Thread.Composer>
-            <Composer
-              busy={<span class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)]">Compacting…</span>}
-            />
+            <Composer busy={<span class="text-chat-text-3 text-[length:var(--chat-text-xs)]">Compacting…</span>} />
           </Thread.Composer>
         </Thread>
       </ChatProvider>
@@ -146,7 +145,7 @@ function ShiftApp(): JSX.Element {
     ]),
   )
   return (
-    <div class="chat-theme-dark rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
+    <div class="chat-theme-terminal rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
       <ChatProvider chat={chat}>
         <Thread>
           <Thread.Viewport>
@@ -161,23 +160,32 @@ function ShiftApp(): JSX.Element {
   )
 }
 
+function assistantMessageOf(node: HTMLElement): HTMLElement {
+  const container = node.closest<HTMLElement>('[data-role="assistant"]')
+  if (!container) throw new Error('assistant message container not found')
+  return container
+}
+
 export const PreviousTurnActionsRevealOnHover: Story = {
   render: () => <ShiftApp />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     const older = await waitFor(() => c.getByText('First reply, older.'))
-    await waitFor(() => c.getByText('Second reply, latest.'))
-
-    await waitFor(async () => {
-      await userEvent.unhover(older)
-      expect(c.getAllByRole('button', {name: 'Copy'})).toHaveLength(1)
-    })
-
-    await userEvent.hover(older)
-    await waitFor(() => expect(c.getAllByRole('button', {name: 'Copy'})).toHaveLength(2))
+    const latest = await waitFor(() => c.getByText('Second reply, latest.'))
+    const olderCopy = within(assistantMessageOf(older)).getByRole('button', {name: 'Copy'})
+    const latestCopy = within(assistantMessageOf(latest)).getByRole('button', {name: 'Copy'})
 
     await userEvent.unhover(older)
-    await waitFor(() => expect(c.getAllByRole('button', {name: 'Copy'})).toHaveLength(1))
+    await waitFor(() => expect(olderCopy).not.toBeVisible())
+    await expect(latestCopy).toBeVisible()
+
+    await userEvent.hover(older)
+    await waitFor(() => expect(olderCopy).toBeVisible())
+    await expect(latestCopy).toBeVisible()
+
+    await userEvent.unhover(older)
+    await waitFor(() => expect(olderCopy).not.toBeVisible())
+    await expect(latestCopy).toBeVisible()
   },
 }
 

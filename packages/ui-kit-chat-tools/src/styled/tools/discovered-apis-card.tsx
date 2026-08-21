@@ -101,4 +101,7 @@ export function DiscoveredApisCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const discoveredApisTool: ToolCardEntry = {names: ['catalog'], render: DiscoveredApisCard}
+export const discoveredApisTool: ToolCardEntry = {
+  names: ['catalog'],
+  render: DiscoveredApisCard,
+}

@@ -2,10 +2,16 @@ import {Show, type JSX} from 'solid-js'
 import FileText from 'lucide-solid/icons/file-text'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {FileRead, useFileRead} from '../../primitives/tools/file-read.js'
-import {Chip, CodeBlock, QUIET_TEXT_CLASS, ToolCard} from '@conciv/ui-kit-chat/tools'
+import {Chip, CodeBlock, countLabel, QUIET_TEXT_CLASS, ToolCard} from '@conciv/ui-kit-chat/tools'
 
 function Icon(): JSX.Element {
   return <FileText size={14} aria-hidden="true" />
+}
+
+function lineCountMeta(contents: string): string | undefined {
+  if (!contents) return undefined
+  const trimmed = contents.endsWith('\n') ? contents.slice(0, -1) : contents
+  return countLabel(trimmed.split('\n').length, 'line', 'lines')
 }
 
 function Body(): JSX.Element {
@@ -30,7 +36,7 @@ function CardBody(props: ToolCardProps): JSX.Element {
     <ToolCard
       Icon={Icon}
       title={view.path() ? `${view.verb()} ${view.path()}` : `${view.verb()} a file`}
-      meta={view.range()}
+      meta={view.range() ?? lineCountMeta(view.contents())}
       part={props.part}
       result={props.result}
     >
