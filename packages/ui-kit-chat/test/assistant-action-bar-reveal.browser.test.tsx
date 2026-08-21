@@ -33,6 +33,7 @@ async function mountWithAssistantReply(): Promise<void> {
   mountView(() => <ComposedThread />)
   await page.getByRole('button', {name: 'ask'}).click()
   await expect.element(page.getByText('On it.'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Copy'})).toBeVisible()
 }
 
 it('keeps the assistant action bar reachable by Tab without hovering the turn first', async () => {
