@@ -1,7 +1,9 @@
 import {createEffect, onCleanup, onMount, type Accessor, type JSX} from 'solid-js'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
+import {useViewportInternal} from '../../primitives/thread/viewport-internal.js'
 
 const CORNER_RADIUS = 3
+const READING_BAND = '-32% 0px -67% 0px'
 
 const SVG_CLASS =
   'absolute [inset-block-start:0] [inset-inline-start:0] w-[var(--chat-trace-gutter)] pointer-events-none rtl:-scale-x-100 origin-center'
@@ -52,6 +54,7 @@ export function TraceRail(props: {
   liveKey: Accessor<string | undefined>
   open: Accessor<boolean>
 }): JSX.Element {
+  const internal = useViewportInternal()
   let svg: SVGSVGElement | undefined
   let spine: SVGPathElement | undefined
   let arms: SVGPathElement | undefined
@@ -60,8 +63,37 @@ export function TraceRail(props: {
   let pendingMeasureFrame: number | undefined
   let pendingPaintFrame: number | undefined
   let anchors: number[] = []
+  let bandObserver: IntersectionObserver | undefined
+  let observedCount = 0
+  let inBand: boolean[] = []
 
   const visibleRows = (): HTMLUListElement | undefined => (props.open() ? props.list() : undefined)
+
+  const focusRowIndex = (): number => inBand.indexOf(true)
+
+  const observeRows = (): void => {
+    const rows = Array.from(visibleRows()?.querySelectorAll(':scope > li') ?? [])
+    if (rows.length === observedCount && bandObserver) return
+    bandObserver?.disconnect()
+    observedCount = rows.length
+    inBand = rows.map(() => false)
+    if (rows.length === 0) {
+      bandObserver = undefined
+      return
+    }
+    bandObserver = new IntersectionObserver(
+      (entries) => {
+        const current = Array.from(visibleRows()?.querySelectorAll(':scope > li') ?? [])
+        for (const entry of entries) {
+          const index = current.indexOf(entry.target)
+          if (index >= 0) inBand[index] = entry.isIntersecting
+        }
+        schedulePaint()
+      },
+      {root: internal?.element() ?? document, rootMargin: READING_BAND},
+    )
+    for (const row of rows) bandObserver.observe(row)
+  }
 
   const readGeometry = (): RailGeometry | undefined => {
     const root = props.root()
@@ -94,16 +126,18 @@ export function TraceRail(props: {
     liveSvg.setAttribute('width', `${geometry.gutter}`)
     liveSvg.setAttribute('height', `${geometry.height}`)
     liveSpine.setAttribute('d', paths.spine)
+    observeRows()
   }
 
   const paint = (): void => {
     if (!liveSvg) return
-    const index = liveRowIndex(visibleRows())
+    const live = liveRowIndex(visibleRows())
+    const index = live >= 0 ? live : focusRowIndex()
     const enteredAnchor = index < 0 ? undefined : anchors[index]
-    const liveAnchor = index < 0 ? undefined : anchors[index + 1]
-    if (enteredAnchor !== undefined && liveAnchor !== undefined) {
+    const activeAnchor = index < 0 ? undefined : anchors[index + 1]
+    if (enteredAnchor !== undefined && activeAnchor !== undefined) {
       liveSvg.style.setProperty('--rail-top', `${enteredAnchor}px`)
-      liveSvg.style.setProperty('--rail-bottom', `${liveAnchor}px`)
+      liveSvg.style.setProperty('--rail-bottom', `${activeAnchor}px`)
       liveSvg.style.opacity = '1'
       return
     }
@@ -134,6 +168,7 @@ export function TraceRail(props: {
   onCleanup(() => {
     if (pendingMeasureFrame !== undefined) cancelAnimationFrame(pendingMeasureFrame)
     if (pendingPaintFrame !== undefined) cancelAnimationFrame(pendingPaintFrame)
+    bandObserver?.disconnect()
   })
 
   onMount(() => {

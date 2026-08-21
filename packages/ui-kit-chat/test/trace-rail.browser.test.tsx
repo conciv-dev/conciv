@@ -419,6 +419,51 @@ it('drops the live segment and the rail to the header corner when a live trace i
   expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
 })
 
+async function scrollRowToReadingBand(container: HTMLElement, index: number): Promise<void> {
+  const li = rowsList(container).querySelectorAll(':scope > li')[index]
+  if (!(li instanceof HTMLElement)) throw new Error(`expected row ${index}`)
+  const rect = li.getBoundingClientRect()
+  const target = rect.top + rect.height / 2 + window.scrollY - window.innerHeight * 0.325
+  window.scrollTo(0, target)
+  await new Promise(requestAnimationFrame)
+}
+
+function tallThreeRowTrace(liveIndex: () => number): JSX.Element {
+  return (
+    <>
+      <div style={{height: '120vh'}} />
+      <Trace summary="3 tools ran" compactLine="3 tools" items={threeRowLiveTrace(liveIndex)} defaultOpen />
+      <div style={{height: '120vh'}} />
+    </>
+  )
+}
+
+it('lights the row under the reading line while scrolling a settled trace', async () => {
+  const container = mountView(() => tallThreeRowTrace(() => -1))
+  await expect.element(page.getByText('file-2.ts')).toBeVisible()
+
+  await scrollRowToReadingBand(container, 1)
+
+  await expect.poll(() => getComputedStyle(liveRailSvg(container)).opacity).toBe('1')
+  expect(Math.abs(segmentTop(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(segmentBottom(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
+
+  window.scrollTo(0, 0)
+})
+
+it('keeps the live row segment even when scroll focuses another row', async () => {
+  const container = mountView(() => tallThreeRowTrace(() => 2))
+  await expect.element(page.getByText('file-2.ts')).toBeVisible()
+
+  await scrollRowToReadingBand(container, 0)
+
+  await expect.poll(() => getComputedStyle(liveRailSvg(container)).opacity).toBe('1')
+  expect(Math.abs(segmentTop(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(segmentBottom(container) - rowAnchor(container, 2))).toBeLessThanOrEqual(0.5)
+
+  window.scrollTo(0, 0)
+})
+
 it('restores the full rail and re-anchors the live segment when the trace is reopened by click', async () => {
   const container = await mountedThreeRow(() => 1)
   const liveSvg = liveRailSvg(container)
