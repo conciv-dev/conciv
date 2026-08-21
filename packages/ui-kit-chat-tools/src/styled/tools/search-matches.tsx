@@ -36,7 +36,7 @@ export function groupSearchMatches(matches: readonly SearchMatch[]): SearchFileG
 }
 
 const HEADER_UNITS = 1
-const MATCH_UNITS = 2
+const MATCH_UNITS = 1
 
 export function searchLineCount(groups: readonly SearchFileGroup[]): number {
   return groups.reduce((total, group) => total + HEADER_UNITS + group.matches.length * MATCH_UNITS, 0)

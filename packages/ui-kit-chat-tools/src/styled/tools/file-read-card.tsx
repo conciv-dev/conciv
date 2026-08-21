@@ -10,7 +10,8 @@ function Icon(): JSX.Element {
 
 function lineCountMeta(contents: string): string | undefined {
   if (!contents) return undefined
-  return countLabel(contents.split('\n').length, 'line', 'lines')
+  const trimmed = contents.endsWith('\n') ? contents.slice(0, -1) : contents
+  return countLabel(trimmed.split('\n').length, 'line', 'lines')
 }
 
 function Body(): JSX.Element {

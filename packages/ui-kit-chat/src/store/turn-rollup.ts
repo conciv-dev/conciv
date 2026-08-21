@@ -20,7 +20,13 @@ export type TurnRollup = {
 }
 
 type FileEditInfo = {files: string[]; added: number; removed: number}
-type BashOutput = {stdout?: string; stderr?: string; exitCode?: number}
+const BashOutputSchema = z.object({
+  stdout: z.string().optional(),
+  stderr: z.string().optional(),
+  exitCode: z.number().optional(),
+})
+
+type BashOutput = z.infer<typeof BashOutputSchema>
 
 function patchTextOf(part: ToolCallPart): string {
   try {
@@ -78,8 +84,8 @@ function fileEditInfo(part: ToolCallPart): FileEditInfo {
 function bashOutputOf(result: ToolResultPart | undefined): BashOutput {
   if (!result || typeof result.content !== 'string') return {}
   try {
-    const parsed = JSON.parse(result.content)
-    return parsed && typeof parsed === 'object' ? (parsed as BashOutput) : {}
+    const parsed = BashOutputSchema.safeParse(JSON.parse(result.content))
+    return parsed.success ? parsed.data : {}
   } catch {
     return {}
   }

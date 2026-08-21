@@ -73,8 +73,8 @@ export const ElementAndValue: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Read the text')).toBeVisible()
     await userEvent.click(canvas.getByRole('button'))
-    await waitFor(() => expect(canvas.getByText('#headline')).toBeVisible())
-    await waitFor(() => expect(canvas.getByText('Ship it on Friday')).toBeVisible())
+    await waitFor(() => expect(canvas.getByRole('tree')).toBeVisible())
+    await expect(canvas.getAllByText(/Ship it on Friday/)[0]).toBeVisible()
   },
 }
 
@@ -112,7 +112,8 @@ export const RouteObject: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button'))
-    await waitFor(() => expect(canvas.getByText('/checkout')).toBeVisible())
+    await waitFor(() => expect(canvas.getByRole('tree')).toBeVisible())
+    await expect(canvas.getAllByText(/\/checkout/)[0]).toBeVisible()
   },
 }
 
@@ -138,6 +139,6 @@ export const Trace: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await expect(canvas.getAllByText('text').length).toBeGreaterThan(0)
-    await expect(canvas.getAllByText('Ship it on Friday').length).toBeGreaterThan(0)
+    await expect(canvas.getAllByText(/Ship it on Friday/).length).toBeGreaterThan(0)
   },
 }

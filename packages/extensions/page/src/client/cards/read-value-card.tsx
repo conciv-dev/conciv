@@ -3,16 +3,14 @@ import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {ChipRow, ELEMENT_TARGET_KEYS, cardErrorMessage, cardPayload, elementChip, resultChips} from './shared.js'
 
-function payloadHasNestedValue(payload: unknown): boolean {
-  if (Array.isArray(payload)) return payload.length > 0
-  if (typeof payload !== 'object' || payload === null) return false
-  return Object.values(payload as Record<string, unknown>).some((value) => typeof value === 'object' && value !== null)
+function payloadIsStructured(payload: unknown): boolean {
+  return typeof payload === 'object' && payload !== null
 }
 
 export function ReadValueCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
   const payload = () => cardPayload(props.result)
-  const nested = () => payloadHasNestedValue(payload())
+  const nested = () => payloadIsStructured(payload())
   const values = () => resultChips(props.result)
   const errorMessage = () => cardErrorMessage(props.result)
   return (

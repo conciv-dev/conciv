@@ -137,6 +137,7 @@ export function SessionModelSelector(props: {sessionId: string}): JSX.Element {
           {(model) => (
             <Action.ActionMenuItem
               label={model.disabled ? `Model: ${model.name} (unavailable)` : `Model: ${model.name}`}
+              disabled={model.disabled}
               onSelect={() => {
                 if (model.disabled) return
                 setModel.mutate(model.id)

@@ -14,18 +14,19 @@ export function foldTurnClock(
 ): TurnClockState {
   const latest = turns.at(-1)
   if (!latest || latest.parts.length === 0) return {elapsedMs: null, frozen: false}
-  const frozen = frozenElapsed.get(latest.key)
+  const opener = turns.findLast((turn) => turn.role === 'user') ?? latest
+  const frozen = frozenElapsed.get(opener.key)
   if (frozen !== undefined) return {elapsedMs: frozen, frozen: true}
   const live = turnRollup(latest).live || isStreaming
-  if (!startedAt.has(latest.key)) {
+  if (!startedAt.has(opener.key)) {
     if (!live) return {elapsedMs: null, frozen: false}
-    startedAt.set(latest.key, now())
+    startedAt.set(opener.key, now())
   }
-  const begun = startedAt.get(latest.key)
+  const begun = startedAt.get(opener.key)
   if (begun === undefined) return {elapsedMs: null, frozen: false}
   const elapsed = now() - begun
   if (!live) {
-    frozenElapsed.set(latest.key, elapsed)
+    frozenElapsed.set(opener.key, elapsed)
     return {elapsedMs: elapsed, frozen: true}
   }
   return {elapsedMs: elapsed, frozen: false}

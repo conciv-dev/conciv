@@ -1,6 +1,6 @@
 import {Outlet, createFileRoute, redirect, useBlocker, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
-import {Menu, TooltipIconButton, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
+import {Popover, TooltipIconButton, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {
   ChatProvider,
   chatBusy,
@@ -58,6 +58,7 @@ const RAIL_MENU_CONTENT_STYLE = {
 }
 const RAIL_MENU_LABEL =
   '[font-family:var(--chat-mono)] text-[9.5px] uppercase tracking-[0.1em] [color:var(--chat-microlabel)] px-1 pt-1'
+const RAIL_MENU_SEPARATOR = 'w-full border-0 [border-block-start:1px_solid_var(--chat-line-soft)] my-0.5'
 const RAIL_MENU_ROW =
   'flex items-center gap-2 px-1 py-1.5 rounded-[var(--chat-radius-sm)] text-[12.5px] [color:var(--chat-text-2)] bg-transparent [border:none] cursor-pointer w-full text-start [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[color:var(--chat-text-hi)] disabled:opacity-40 disabled:cursor-default'
 
@@ -191,10 +192,10 @@ function PanelSession(): JSX.Element {
           </span>
           <span class={RAIL_TITLE}>{taskTitle()}</span>
         </div>
-        <Menu.Root>
+        <Popover.Root positioning={{placement: 'bottom-end'}}>
           <TooltipIconButtonSlot tooltip="Session options">
             {(buttonProps) => (
-              <Menu.Trigger
+              <Popover.Trigger
                 asChild={(triggerProps) => (
                   <button {...buttonProps()} {...triggerProps()} class={GHOST}>
                     <Ellipsis class="size-4 block" aria-hidden="true" />
@@ -203,8 +204,8 @@ function PanelSession(): JSX.Element {
               />
             )}
           </TooltipIconButtonSlot>
-          <Menu.Positioner>
-            <Menu.Content class={RAIL_MENU_CONTENT} style={RAIL_MENU_CONTENT_STYLE}>
+          <Popover.Positioner>
+            <Popover.Content aria-label="Session options" class={RAIL_MENU_CONTENT} style={RAIL_MENU_CONTENT_STYLE}>
               <span class={RAIL_MENU_LABEL}>Session</span>
               <Suspense fallback={<SessionPillPending variant="bar" />}>
                 <SessionSelector
@@ -214,12 +215,12 @@ function PanelSession(): JSX.Element {
                   onNewSession={() => void newSession()}
                 />
               </Suspense>
-              <Menu.Separator />
+              <hr class={RAIL_MENU_SEPARATOR} />
               <span class={RAIL_MENU_LABEL}>Context</span>
               <Suspense fallback={<UsagePending />}>
                 <ContextSummary usage={usage()} />
               </Suspense>
-              <Menu.Separator />
+              <hr class={RAIL_MENU_SEPARATOR} />
               <Show when={activeView() === 'chat'}>
                 <button
                   type="button"
@@ -245,9 +246,9 @@ function PanelSession(): JSX.Element {
                   Disconnect this machine
                 </button>
               </Show>
-            </Menu.Content>
-          </Menu.Positioner>
-        </Menu.Root>
+            </Popover.Content>
+          </Popover.Positioner>
+        </Popover.Root>
         <TooltipIconButton tooltip="Close chat" class={GHOST} onClick={() => panelChrome.close()}>
           <X class="size-3.5 block" strokeWidth={1.75} aria-hidden="true" />
         </TooltipIconButton>

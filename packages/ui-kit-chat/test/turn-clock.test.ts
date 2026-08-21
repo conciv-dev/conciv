@@ -7,6 +7,10 @@ function turn(key: string, parts: MessagePart[]): Turn {
   return {key, role: 'assistant', parts, start: 0, end: 0}
 }
 
+function userTurn(key: string, content: string): Turn {
+  return {key, role: 'user', parts: [{type: 'text', content}], start: 0, end: 0}
+}
+
 function liveCall(id: string): MessagePart {
   return {type: 'tool-call', id, name: 'Bash', arguments: '{}', state: 'input-streaming'}
 }
@@ -87,5 +91,29 @@ describe('foldTurnClock', () => {
     expect(stillStreaming).toEqual({elapsedMs: 5_000, frozen: false})
     const done = foldTurnClock(settledToolTurns, startedAt, frozenElapsed, () => 18_000, false)
     expect(done).toEqual({elapsedMs: 8_000, frozen: true})
+  })
+
+  it('keeps the clock anchored to the user turn when the first assistant turn arrives', () => {
+    const startedAt = new Map<string, number>()
+    const frozenElapsed = new Map<string, number>()
+    const submitted = [userTurn('u1', 'do the thing')]
+    foldTurnClock(submitted, startedAt, frozenElapsed, () => 10_000, true)
+    const answering = [userTurn('u1', 'do the thing'), turn('a1', [liveCall('c1')])]
+    const continued = foldTurnClock(answering, startedAt, frozenElapsed, () => 16_000, true)
+    expect(continued).toEqual({elapsedMs: 6_000, frozen: false})
+    const settledTurns = [userTurn('u1', 'do the thing'), turn('a1', [settledCall('c1')])]
+    const settled = foldTurnClock(settledTurns, startedAt, frozenElapsed, () => 19_000, false)
+    expect(settled).toEqual({elapsedMs: 9_000, frozen: true})
+  })
+
+  it('restarts the clock when a new user turn opens the next exchange', () => {
+    const startedAt = new Map<string, number>()
+    const frozenElapsed = new Map<string, number>()
+    const first = [userTurn('u1', 'first'), turn('a1', [settledCall('c1')])]
+    foldTurnClock(first, startedAt, frozenElapsed, () => 10_000, true)
+    foldTurnClock(first, startedAt, frozenElapsed, () => 12_000, false)
+    const next = [...first, userTurn('u2', 'second')]
+    const fresh = foldTurnClock(next, startedAt, frozenElapsed, () => 30_000, true)
+    expect(fresh).toEqual({elapsedMs: 0, frozen: false})
   })
 })
