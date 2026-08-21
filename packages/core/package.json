@@ -38,6 +38,10 @@
       "types": "./dist/config.d.ts",
       "import": "./dist/config.js"
     },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js"
+    },
     "./cards": {
       "browser": {
         "types": "./dist/cards.d.ts",

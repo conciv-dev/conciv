@@ -27,11 +27,21 @@ function seedTree(root: string): void {
   }
 }
 
+function fakeRpcResponse(request: Request): unknown {
+  const path = new URL(request.url).pathname
+  if (path.endsWith('/sessions/resolve')) return {sessionId: 'conciv_cleanup_fixture'}
+  if (path.endsWith('/sessions/list')) return []
+  return {ok: true}
+}
+
 function lateWritingBoot(state: {writer: ChildProcess | null}): BootApp {
   return async (env) => {
     seedTree(env.stateRoot)
     return {
-      fetch: () => new Response('ok'),
+      fetch: (request) =>
+        new Response(JSON.stringify({json: fakeRpcResponse(request)}), {
+          headers: {'content-type': 'application/json'},
+        }),
       dispose: async () => {
         const writer = spawn(process.execPath, ['-e', lateWriterSource, env.stateRoot], {
           stdio: ['ignore', 'pipe', 'ignore'],

@@ -1,5 +1,6 @@
 import {join} from 'node:path'
 import {defineExtension, type ToolRequest} from '@conciv/extension'
+import type {SessionId} from '@conciv/protocol/chat-types'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
 import {createStore} from './server/db/store.js'
 import {makeWhiteboardRouter} from './server/router.js'
@@ -17,10 +18,7 @@ export default defineExtension({
 }).server(async (server) => {
   const store = await createStore(join(server.stateDir, 'whiteboard'))
   const stopEnrichment = startCommentEnrichment(store, server.cwd)
-  const sessionId = (request: ToolRequest): string => {
-    if (!request.sessionId) throw new Error('whiteboard tools require an active session')
-    return request.sessionId
-  }
+  const sessionId = (request: ToolRequest): SessionId => request.sessionId
   return {
     context: {cwd: server.cwd, store, sessionId, room: sessionId, model: (request) => request.model},
     router: makeWhiteboardRouter(store),

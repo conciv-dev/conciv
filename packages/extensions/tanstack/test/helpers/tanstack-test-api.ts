@@ -5,6 +5,7 @@ import {expect as expectLocator} from 'playwright/test'
 import {getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
+import type {ServerToolRegistryAccess} from '@conciv/extension/registry'
 import tanstackExtension from '../../src/server.js'
 
 const hostDist = fileURLToPath(new URL('../../dist/test-host', import.meta.url))
@@ -32,10 +33,11 @@ export function useTanstackTestApi(): () => TanstackTestApi {
 
 export function tanstackAdapter(api: ExtensionTestApi): FrameworkAdapter {
   const context = api.serverContext
-  if (typeof context !== 'object' || context === null || !('adapter' in context)) {
-    throw new Error('tanstack adapter missing from server context')
+  if (typeof context !== 'object' || context === null || !('makeAdapter' in context)) {
+    throw new Error('tanstack adapter factory missing from server context')
   }
-  return context.adapter as FrameworkAdapter
+  const makeAdapter = context.makeAdapter as (tools: ServerToolRegistryAccess) => FrameworkAdapter
+  return makeAdapter({call: (name, input) => api.callTool(name, input)})
 }
 
 export async function waitForWidget(page: Page): Promise<void> {

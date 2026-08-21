@@ -1,10 +1,11 @@
 import {expect, test} from '@playwright/test'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
 import {untilPanelDraft} from './helpers/drafts.js'
 
-const RECENT_ID = '43548fd1-0000-4220-acf0-014b10b5815f'
-const OLDER_ID = '43548fd1-0000-4220-acf0-014b10b5815e'
+const RECENT_ID = HarnessSessionId.parse('43548fd1-0000-4220-acf0-014b10b5815f')
+const OLDER_ID = HarnessSessionId.parse('43548fd1-0000-4220-acf0-014b10b5815e')
 const RECENT_TITLE = 'the session opened at boot'
 const OLDER_TITLE = 'the session switched to'
 const FIRST_DRAFT = 'draft of the session opened first'

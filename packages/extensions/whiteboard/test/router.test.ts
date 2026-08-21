@@ -6,9 +6,19 @@ import type {RouterClient} from '@orpc/server'
 import {makeExtRpcClient} from '@conciv/extension'
 import {serveExtensionRpc, type ServedRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {createStore, type Store} from '../src/server/db/store.js'
 import {makeWhiteboardRouter, type WhiteboardRouter} from '../src/server/router.js'
+
+const ROOM_R1 = SessionId.parse('conciv_r1')
+const ROOM_SESS_A = SessionId.parse('conciv_sess_a')
+const ROOM_SESS_B = SessionId.parse('conciv_sess_b')
+const ROOM_SSE = SessionId.parse('conciv_sse_room')
+const ROOM_OTHER = SessionId.parse('conciv_other_room')
+const ROOM_WS = SessionId.parse('conciv_ws_room')
+const ROOM_WS_STREAM = SessionId.parse('conciv_ws_stream')
+const ROOM_CUR = SessionId.parse('conciv_cur_room')
 
 let store: Store
 let served: ServedRpcRouter
@@ -28,7 +38,7 @@ describe('whiteboard router', () => {
   it('round-trips a pin through insert/list/update/remove', async () => {
     const pin = {
       id: crypto.randomUUID(),
-      room: 'r1',
+      room: ROOM_R1,
       cid: 'c1',
       x: 1,
       y: 2,
@@ -38,16 +48,16 @@ describe('whiteboard router', () => {
       anchorY: null,
     }
     expect(await client.pins.insert(pin)).toEqual(pin)
-    expect(await client.pins.list({room: 'r1'})).toEqual([pin])
-    const moved = await client.pins.update({id: pin.id, patch: {x: 9}})
+    expect(await client.pins.list({room: ROOM_R1})).toEqual([pin])
+    const moved = await client.pins.update({room: ROOM_R1, id: pin.id, patch: {x: 9}})
     expect(moved.x).toBe(9)
-    expect(await client.pins.remove({id: pin.id})).toEqual({deleted: true})
+    expect(await client.pins.remove({room: ROOM_R1, id: pin.id})).toEqual({deleted: true})
   })
 
   it('scopes comments by sessionId via the room input', async () => {
     const comment = {
       id: crypto.randomUUID(),
-      sessionId: 'sess-a',
+      sessionId: ROOM_SESS_A,
       cid: 'cc1',
       threadId: 'cc1',
       parentId: null,
@@ -68,17 +78,17 @@ describe('whiteboard router', () => {
       resolvedAt: null,
     }
     await client.comments.insert(comment)
-    expect(await client.comments.list({room: 'sess-a'})).toHaveLength(1)
-    expect(await client.comments.list({room: 'sess-b'})).toHaveLength(0)
+    expect(await client.comments.list({room: ROOM_SESS_A})).toHaveLength(1)
+    expect(await client.comments.list({room: ROOM_SESS_B})).toHaveLength(0)
   })
 
   it('element upsert reports a typed CONFLICT carrying the winner on stale version', async () => {
-    const row = {room: 'r1', elementId: 'e1', data: {type: 'rectangle'}, version: 2}
+    const row = {room: ROOM_R1, elementId: 'e1', data: {type: 'rectangle'}, version: 2}
     expect(await client.elements.upsert({scope: 'live', row})).toEqual(row)
     const {error, isDefined} = await safe(client.elements.upsert({scope: 'live', row: {...row, version: 1}}))
     if (!isDefined || error.code !== 'CONFLICT') throw new Error('expected a typed CONFLICT')
     expect(error.data.current.version).toBe(2)
-    expect(await client.elements.list({scope: 'live', room: 'r1'})).toHaveLength(1)
+    expect(await client.elements.list({scope: 'live', room: ROOM_R1})).toHaveLength(1)
   })
 
   it('bulk upsert echoes the authoritative row per input, winner on conflict', async () => {
@@ -108,10 +118,10 @@ describe('whiteboard router', () => {
 
   it('streams typed change events for writes in the room only', async () => {
     const abort = new AbortController()
-    const changes = await client.changes({room: 'sse-room'}, {signal: abort.signal})
+    const changes = await client.changes({room: ROOM_SSE}, {signal: abort.signal})
     await new Promise((resolve) => setTimeout(resolve, 50))
-    await store.insertPin({id: crypto.randomUUID(), room: 'other-room', cid: 'cx', x: 0, y: 0})
-    await store.insertPin({id: crypto.randomUUID(), room: 'sse-room', cid: 'c2', x: 5, y: 6})
+    await store.insertPin({id: crypto.randomUUID(), room: ROOM_OTHER, cid: 'cx', x: 0, y: 0})
+    await store.insertPin({id: crypto.randomUUID(), room: ROOM_SSE, cid: 'c2', x: 5, y: 6})
     const first = await changes.next()
     abort.abort()
     if (first.done) throw new Error('changes ended before an event arrived')
@@ -125,7 +135,7 @@ describe('whiteboard router', () => {
     const wsClient = rpcOverWebsocket<RouterClient<WhiteboardRouter>>(socket, {path: ['ext', 'whiteboard']})
     const pin = {
       id: crypto.randomUUID(),
-      room: 'ws-room',
+      room: ROOM_WS,
       cid: 'cws',
       x: 3,
       y: 4,
@@ -135,7 +145,7 @@ describe('whiteboard router', () => {
       anchorY: null,
     } satisfies Parameters<typeof client.pins.insert>[0]
     expect(await wsClient.pins.insert(pin)).toEqual(pin)
-    expect(await client.pins.list({room: 'ws-room'})).toEqual([pin])
+    expect(await client.pins.list({room: ROOM_WS})).toEqual([pin])
     socket.close()
   })
 
@@ -143,9 +153,9 @@ describe('whiteboard router', () => {
     const socket = new WebSocket(served.wsUrl)
     const wsClient = rpcOverWebsocket<RouterClient<WhiteboardRouter>>(socket, {path: ['ext', 'whiteboard']})
     const abort = new AbortController()
-    const changes = await wsClient.changes({room: 'ws-stream'}, {signal: abort.signal})
+    const changes = await wsClient.changes({room: ROOM_WS_STREAM}, {signal: abort.signal})
     await new Promise((resolve) => setTimeout(resolve, 50))
-    await store.insertPin({id: crypto.randomUUID(), room: 'ws-stream', cid: 'cws2', x: 1, y: 1})
+    await store.insertPin({id: crypto.randomUUID(), room: ROOM_WS_STREAM, cid: 'cws2', x: 1, y: 1})
     const first = await changes.next()
     abort.abort()
     if (first.done) throw new Error('changes ended before an event arrived')
@@ -157,10 +167,10 @@ describe('whiteboard router', () => {
 
   it('streams cursor events', async () => {
     const abort = new AbortController()
-    const changes = await client.changes({room: 'cur-room'}, {signal: abort.signal})
+    const changes = await client.changes({room: ROOM_CUR}, {signal: abort.signal})
     await new Promise((resolve) => setTimeout(resolve, 50))
     await client.cursor({
-      room: 'cur-room',
+      room: ROOM_CUR,
       peerId: 'p1',
       kind: 'human',
       x: 0,

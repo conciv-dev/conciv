@@ -34,9 +34,9 @@ describe('whiteboard store', () => {
     expect(saved.parentId).toBeNull()
     const listed = await store.db.select().from(comments).where(eq(comments.sessionId, 's1'))
     expect(listed).toHaveLength(1)
-    const updated = await store.updateComment(saved.id, {status: 'resolved', resolvedAt: 2000})
+    const updated = await store.updateComment(saved.id, 's1', {status: 'resolved', resolvedAt: 2000})
     expect(updated?.status).toBe('resolved')
-    expect(await store.deleteComment(saved.id)).toBe(true)
+    expect(await store.deleteComment(saved.id, 's1')).toBe(true)
     expect(events.map((event) => event.table)).toEqual(['comments', 'comments', 'comments'])
     expect(events.map((event) => (event.table === 'cursor' ? 'cursor' : event.type))).toEqual([
       'upsert',

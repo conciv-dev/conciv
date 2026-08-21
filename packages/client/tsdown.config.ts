@@ -4,6 +4,6 @@ export default defineConfig({
   entry: ['src/index.ts'],
   format: 'esm',
   fixedExtension: false,
-  dts: true,
+  dts: {resolver: 'tsc'},
   noExternal: [/^@tanstack\/ai(\/|$)/, /^@tanstack\/ai-solid(\/|$)/],
 })

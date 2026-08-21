@@ -3,6 +3,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import WebSocket from 'ws'
 import type {RouterClient} from '@orpc/server'
 import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {TerminalRouter} from '../src/server.js'
 import {recordingHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
 
@@ -162,7 +163,7 @@ describe('terminal extension routes', () => {
     const {harness} = recordingHarness()
     const dedicated = await startTerminalServer({...harness, transcriptExists: () => true})
     try {
-      dedicated.sessions.tokens.set(sessionId, randomUUID())
+      dedicated.sessions.tokens.set(sessionId, HarnessSessionId.parse(randomUUID()))
       expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})
       const resumed = Promise.withResolvers<string>()
       const client = await connect(dedicated.wsBase, sessionId, '', (text) => {
