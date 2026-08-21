@@ -2,7 +2,7 @@ import {splitProps, type ComponentProps} from 'solid-js'
 import {Avatar as Ark} from '@ark-ui/solid/avatar'
 
 const ROOT =
-  'inline-flex items-center justify-center size-7 rounded-pw-pill overflow-hidden bg-pw-fill-strong text-pw-text-2 text-[0.6875rem] font-pw select-none shrink-0'
+  'inline-flex items-center justify-center size-7 rounded-chat-pill overflow-hidden bg-chat-fill-strong text-chat-text-2 text-[0.6875rem] font-chat select-none shrink-0'
 const IMAGE = 'size-full object-cover'
 const FALLBACK = 'inline-flex items-center justify-center size-full uppercase'
 

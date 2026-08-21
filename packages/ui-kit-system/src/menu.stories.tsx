@@ -13,7 +13,7 @@ export const Default: Story = {
     return (
       <div>
         <Menu.Root onSelect={(details) => setPicked(details.value)}>
-          <Menu.Trigger class="text-pw-text underline cursor-pointer">Actions</Menu.Trigger>
+          <Menu.Trigger class="text-chat-text underline cursor-pointer">Actions</Menu.Trigger>
           <Menu.Positioner>
             <Menu.Content>
               <Menu.Item value="rename">Rename</Menu.Item>

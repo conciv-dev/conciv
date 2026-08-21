@@ -51,7 +51,7 @@ export const TitleOnly: Story = {
 
 export const OnAccent: Story = {
   render: () => (
-    <div class="text-pw-on-accent rounded-pw-lg bg-pw-accent">
+    <div class="text-chat-on-accent rounded-chat-surface-lg bg-chat-accent">
       <Loader.Root translations={{value: () => 'Loading conciv'}}>
         <Loader.Indicator />
         <Loader.Text>
@@ -67,7 +67,7 @@ export const SwappedIndicator: Story = {
   render: () => (
     <Loader.Root translations={{value: () => 'Loading conciv'}}>
       <Loader.Indicator class="grid place-items-center">
-        <span class="border-2 border-pw-line border-t-pw-accent rounded-pw-pill size-6 anim-compact" />
+        <span class="border-2 border-chat-line border-t-chat-accent rounded-chat-pill size-6 anim-compact" />
       </Loader.Indicator>
       <Loader.Text>
         <Loader.Label>Loading conciv…</Loader.Label>

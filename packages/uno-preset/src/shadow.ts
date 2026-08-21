@@ -1,8 +1,8 @@
 import type {StaticShortcutMap} from 'unocss'
 
 export const shadows = {
-  'shadow-pw': '[box-shadow:var(--pw-shadow)]',
-  'shadow-pw-sm': '[box-shadow:var(--pw-shadow-sm)]',
-  'shadow-pw-lg': '[box-shadow:var(--pw-shadow-lg)]',
-  'shadow-pw-hover': '[box-shadow:var(--pw-shadow-hover)]',
+  'shadow-chat': '[box-shadow:var(--chat-shadow)]',
+  'shadow-chat-sm': '[box-shadow:var(--chat-shadow-sm)]',
+  'shadow-chat-lg': '[box-shadow:var(--chat-shadow-lg)]',
+  'shadow-chat-hover': '[box-shadow:var(--chat-shadow-hover)]',
 } satisfies StaticShortcutMap

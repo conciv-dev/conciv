@@ -26,7 +26,7 @@ function App(): JSX.Element {
           ref={(node) => {
             source = node
           }}
-          class="text-[0.8125rem] text-pw-text"
+          class="text-[0.8125rem] text-chat-text"
         >
           the missing await on line twelve
         </p>
@@ -43,7 +43,7 @@ function App(): JSX.Element {
           select
         </button>
         <SelectionToolbar.Root class="flex gap-1">
-          <SelectionToolbar.Quote class="text-[0.75rem] text-pw-accent-link">Quote</SelectionToolbar.Quote>
+          <SelectionToolbar.Quote class="text-[0.75rem] text-chat-accent-link">Quote</SelectionToolbar.Quote>
         </SelectionToolbar.Root>
         <DraftEcho />
       </Composer.Root>

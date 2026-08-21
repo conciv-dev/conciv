@@ -165,11 +165,11 @@ function RecorderPanel(): JSX.Element {
                         fallback={
                           <Button
                             variant="outline"
-                            class="px-2.5 rounded-pw-pill h-6.5 select-none"
+                            class="px-2.5 rounded-chat-pill h-6.5 select-none"
                             onClick={() => playerHandle?.goLive()}
                           >
-                            <span class="rounded-full bg-pw-text-3 size-1.5" aria-hidden="true" />
-                            <span class="text-[0.6875rem] text-pw-text-2 tracking-[0.1em] font-pw font-semibold">
+                            <span class="rounded-full bg-chat-text-3 size-1.5" aria-hidden="true" />
+                            <span class="text-[0.6875rem] text-chat-text-2 tracking-[0.1em] font-chat font-semibold">
                               GO LIVE
                             </span>
                           </Button>
@@ -191,12 +191,12 @@ function RecorderPanel(): JSX.Element {
 
 function LiveBadge(): JSX.Element {
   return (
-    <div class="px-2.5 border border-pw-line rounded-pw-pill bg-pw-fill flex gap-1.5 h-6.5 select-none items-center">
+    <div class="px-2.5 border border-chat-line rounded-chat-pill bg-chat-fill flex gap-1.5 h-6.5 select-none items-center">
       <span class="size-1.5 relative">
-        <span class="rounded-full bg-pw-danger inset-0 absolute anim-fab-ring" />
-        <span class="rounded-full bg-pw-danger inset-0 absolute" />
+        <span class="rounded-full bg-chat-danger inset-0 absolute anim-fab-ring" />
+        <span class="rounded-full bg-chat-danger inset-0 absolute" />
       </span>
-      <span class="text-[0.6875rem] text-pw-text tracking-[0.1em] font-pw font-semibold">LIVE</span>
+      <span class="text-[0.6875rem] text-chat-text tracking-[0.1em] font-chat font-semibold">LIVE</span>
     </div>
   )
 }

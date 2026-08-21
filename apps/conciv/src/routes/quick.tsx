@@ -20,9 +20,9 @@ import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../lib/quick-search.js'
 
 const CLOSE =
-  'bg-transparent [border:none] text-pw-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-pw-sm trans-color-bg hover:text-pw-text hover:bg-pw-fill-strong'
+  'bg-transparent [border:none] text-chat-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-chat-surface-sm trans-color-bg hover:text-chat-text hover:bg-chat-fill-strong'
 
-const PANE_ACTION = 'text-pw-text-3 leading-none size-6'
+const PANE_ACTION = 'text-chat-text-3 leading-none size-6'
 
 const ADD_PANE_FAILED_MESSAGE = 'conciv could not start a pane. Check the engine connection and retry.'
 
@@ -35,7 +35,7 @@ export const Route = createFileRoute('/quick')({
 })
 
 function qtShellClass(): string {
-  return "text-sm text-pw-text leading-[1.45] font-normal font-pw border-b border-b-pw-line rounded-b-pw-lg bg-pw-glass flex flex-col pointer-events-auto transition-transform duration-300 ease-pw-expo shadow-pw-lg left-0 right-0 top-0 fixed backdrop-blur-[20px] backdrop-saturate-[1.4] after:accent-sweep after:opacity-55 after:h-px after:content-[''] after:inset-x-0 after:absolute after:-bottom-px translate-y-0 starting:-translate-y-full"
+  return "text-sm text-chat-text leading-[1.45] font-normal font-chat border-b border-b-chat-line rounded-b-chat-surface-lg bg-chat-glass flex flex-col pointer-events-auto transition-transform duration-300 ease-chat-expo shadow-chat-lg left-0 right-0 top-0 fixed backdrop-blur-[20px] backdrop-saturate-[1.4] after:accent-sweep after:opacity-55 after:h-px after:content-[''] after:inset-x-0 after:absolute after:-bottom-px translate-y-0 starting:-translate-y-full"
 }
 
 function resetPaneFlex(row: HTMLDivElement | undefined): void {
@@ -68,14 +68,14 @@ function onGutterDown(e: PointerEvent) {
 
 export function QuickTerminalHeader(props: {onPip: () => void; onSplit: () => void; onClose: () => void}): JSX.Element {
   return (
-    <header class="px-4.5 py-3 border-b border-b-pw-line-soft flex shrink-0 gap-3 items-center">
+    <header class="px-4.5 py-3 border-b border-b-chat-line-soft flex shrink-0 gap-3 items-center">
       <span class="tracking-[-0.01em] font-semibold flex gap-2 items-center">
-        <span class="text-base text-pw-accent" aria-hidden="true">
+        <span class="text-base text-chat-accent" aria-hidden="true">
           ✦
         </span>
         conciv
       </span>
-      <span class="text-[0.6875rem] text-pw-text-3 leading-none tracking-[0.08em] font-medium font-pw-mono px-2.25 py-1 border border-pw-line-2 rounded-pw-pill uppercase">
+      <span class="text-[0.6875rem] text-chat-text-3 leading-none tracking-[0.08em] font-medium font-chat-mono px-2.25 py-1 border border-chat-line-2 rounded-chat-pill uppercase">
         quick terminal
       </span>
       <span class="flex-1" />
@@ -207,7 +207,7 @@ function QuickLayer(): JSX.Element {
             when={paneIds().length > 0}
             fallback={
               <div
-                class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-pw-text-2 text-[0.8125rem]"
+                class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-chat-text-2 text-[0.8125rem]"
                 role="status"
               >
                 <p>{addPane.isError ? ADD_PANE_FAILED_MESSAGE : 'Starting a pane…'}</p>
@@ -224,7 +224,7 @@ function QuickLayer(): JSX.Element {
                 <>
                   <Show when={index() > 0}>
                     <div
-                      class="flex-[0_0_0.4375rem] cursor-col-resize relative before:bg-pw-line before:content-[''] before:transition-[background-color] before:duration-[120ms] before:ease-pw before:inset-x-[0.1875rem] before:inset-y-0 before:absolute hover:before:bg-pw-accent-line"
+                      class="flex-[0_0_0.4375rem] cursor-col-resize relative before:bg-chat-line before:content-[''] before:transition-[background-color] before:duration-[120ms] before:ease-chat before:inset-x-[0.1875rem] before:inset-y-0 before:absolute hover:before:bg-chat-accent-line"
                       aria-hidden="true"
                       onPointerDown={onGutterDown}
                     />
@@ -232,13 +232,13 @@ function QuickLayer(): JSX.Element {
                   <PaneProvider sessionId={id} onNewSession={triggerAddPane}>
                     <div
                       data-pw-qt-pane
-                      class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-pw relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-pw-accent before:opacity-90" : 'opacity-[0.62]'}`}
+                      class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-chat relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-chat-accent before:opacity-90" : 'opacity-[0.62]'}`}
                       onPointerDown={() => focusPane(index())}
                       onFocusIn={() => {
                         if (focusedIndex() !== index()) focusPane(index())
                       }}
                     >
-                      <div class="text-xs text-pw-text-3 leading-none font-pw-mono px-3 py-2 border-b border-b-pw-line-soft flex shrink-0 gap-2 items-center">
+                      <div class="text-xs text-chat-text-3 leading-none font-chat-mono px-3 py-2 border-b border-b-chat-line-soft flex shrink-0 gap-2 items-center">
                         <Suspense fallback={<SessionPillPending variant="bar" />}>
                           <SessionSelector
                             variant="bar"
@@ -274,7 +274,7 @@ function QuickLayer(): JSX.Element {
           </Show>
         </div>
         <div
-          class="rounded-full bg-pw-line-2 h-2 w-11.5 cursor-ns-resize bottom-[0.3125rem] left-1/2 absolute z-[2] focus-visible:outline-none focus-visible:bg-pw-accent hover:bg-pw-text-3 -translate-x-1/2"
+          class="rounded-full bg-chat-line-2 h-2 w-11.5 cursor-ns-resize bottom-[0.3125rem] left-1/2 absolute z-[2] focus-visible:outline-none focus-visible:bg-chat-accent hover:bg-chat-text-3 -translate-x-1/2"
           role="separator"
           aria-orientation="horizontal"
           aria-label="Resize quick terminal height"

@@ -11,7 +11,7 @@ import {openPipWindow, type PipWindow} from '../shell/pip.js'
 import {NoticeContextProvider, NoticeSurface} from '../shell/notice-context.js'
 import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
 
-const PIP_ACTION = 'text-pw-text-2 leading-none size-8 hover:text-pw-text hover:bg-pw-fill-strong'
+const PIP_ACTION = 'text-chat-text-2 leading-none size-8 hover:text-chat-text hover:bg-chat-fill-strong'
 
 export const Route = createFileRoute('/pip/$sessionId')({component: PipSession})
 
@@ -48,7 +48,7 @@ function PipSession(): JSX.Element {
               <Show when={paneKey()} keyed>
                 {(key) => (
                   <PaneProvider sessionId={key.sessionId}>
-                    <div class="flex flex-col h-full min-h-0 bg-pw-panel text-pw-text font-pw text-[0.875rem] leading-[1.45]">
+                    <div class="flex flex-col h-full min-h-0 bg-chat-panel text-chat-text font-chat text-[0.875rem] leading-[1.45]">
                       <NoticeSurface />
                       <EngineStaleNotice />
                       <EngineUnreachableNotice />

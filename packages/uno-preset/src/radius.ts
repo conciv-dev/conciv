@@ -1,9 +1,9 @@
 import type {Theme} from '@unocss/preset-wind4'
 
 export const radius = {
-  'pw-sm': 'var(--pw-r-sm)',
-  'pw-md': 'var(--pw-r-md)',
-  'pw-lg': 'var(--pw-r-lg)',
-  'pw-pill': 'var(--pw-r-pill)',
+  'chat-surface-sm': 'var(--chat-radius-surface-sm)',
+  'chat-surface-md': 'var(--chat-radius-surface-md)',
+  'chat-surface-lg': 'var(--chat-radius-surface-lg)',
+  'chat-pill': 'var(--chat-radius-pill)',
   'chat-chip': 'var(--chat-radius-chip)',
 } satisfies Theme['radius']

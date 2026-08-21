@@ -8,7 +8,7 @@ type Story = StoryObj
 
 export const InertSingleBranch: Story = {
   render: () => (
-    <BranchPicker.Root class="text-[0.75rem] text-pw-text-2 flex gap-1 items-center">
+    <BranchPicker.Root class="text-[0.75rem] text-chat-text-2 flex gap-1 items-center">
       <BranchPicker.Previous class="px-1 disabled:opacity-40">‹</BranchPicker.Previous>
       <span>
         <BranchPicker.Number /> / <BranchPicker.Count />

@@ -5,7 +5,7 @@ import {Button} from '@conciv/ui-kit-system'
 import {RichTextField, type RichTextFieldHandle, type RichTextFieldSelection} from './rich-text-field.js'
 
 const FIELD_SKIN =
-  'bg-pw-sunken text-[0.8125rem] text-pw-text rounded-pw-md [border:1px_solid_var(--pw-line)] focus-within:[border-color:var(--pw-accent-line)] [&[data-disabled]]:opacity-60'
+  'bg-chat-sunken text-[0.8125rem] text-chat-text rounded-chat-surface-md [border:1px_solid_var(--chat-line)] focus-within:[border-color:var(--chat-accent-line)] [&[data-disabled]]:opacity-60'
 
 function Harness(props: {initialValue?: string; placeholder?: string; disabled?: boolean; consumeFilePaste?: boolean}) {
   const [value, setValue] = createSignal(props.initialValue ?? '')

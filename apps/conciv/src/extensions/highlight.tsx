@@ -17,13 +17,13 @@ const isEditing = (): boolean => {
 }
 
 const SRC_SELECTOR = '[data-conciv-source],[data-tsd-source]'
-const GLIDE = 'transition-transform duration-[80ms] ease-pw'
+const GLIDE = 'transition-transform duration-[80ms] ease-chat'
 const BOX =
-  'fixed left-0 top-0 pointer-events-none rounded-pw-sm bg-pw-accent-08 [outline:2px_solid_var(--pw-accent)] shadow-[0_0_0_1px_var(--pw-accent-line),0_0_16px_var(--pw-accent-20)]'
+  'fixed left-0 top-0 pointer-events-none rounded-chat-surface-sm bg-chat-accent-08 [outline:2px_solid_var(--chat-accent)] shadow-[0_0_0_1px_var(--chat-accent-line),0_0_16px_var(--chat-accent-20)]'
 const LABEL =
-  'fixed left-0 top-0 pointer-events-none inline-flex items-baseline gap-1.5 max-w-[80vw] whitespace-nowrap -mt-1 px-2.5 py-1 rounded-pw-md bg-pw-panel border border-pw-line shadow-pw-lg'
+  'fixed left-0 top-0 pointer-events-none inline-flex items-baseline gap-1.5 max-w-[80vw] whitespace-nowrap -mt-1 px-2.5 py-1 rounded-chat-surface-md bg-chat-panel border border-chat-line shadow-chat-lg'
 const HINT =
-  'fixed top-3 left-1/2 -translate-x-1/2 pointer-events-none inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pw-pill bg-pw-panel text-pw-text-2 border border-pw-line shadow-pw-lg text-xs'
+  'fixed top-3 left-1/2 -translate-x-1/2 pointer-events-none inline-flex items-center gap-1.5 px-2.5 py-1 rounded-chat-pill bg-chat-panel text-chat-text-2 border border-chat-line shadow-chat-lg text-xs'
 
 const OPEN_RESULT: Record<OpenSourceResult, {tone: 'success' | 'error'; label: (target: string) => string}> = {
   opened: {tone: 'success', label: (t) => `Opened ${t}`},
@@ -88,7 +88,7 @@ function HighlightInspector(props: {onExit: () => void}): JSX.Element {
       <div data-conciv-capture class="cursor-crosshair inset-0 fixed" />
       <div class={HINT}>
         Inspecting · click to open source ·{' '}
-        <kbd class="text-[0.6875rem] text-pw-text-hi px-1 py-px border border-pw-line-2 rounded-pw-sm [font-family:inherit]">
+        <kbd class="text-[0.6875rem] text-chat-text-hi px-1 py-px border border-chat-line-2 rounded-chat-surface-sm [font-family:inherit]">
           Esc
         </kbd>{' '}
         to exit
@@ -108,9 +108,9 @@ function HighlightInspector(props: {onExit: () => void}): JSX.Element {
               class={`${LABEL}  ${glide}`}
               style={{transform: `translate(${h().rect.left}px, ${h().rect.top}px) translateY(-100%)`}}
             >
-              <span class="text-[0.6875rem] text-pw-accent font-pw-mono font-semibold">{`<${h().tag}>`}</span>
+              <span class="text-[0.6875rem] text-chat-accent font-chat-mono font-semibold">{`<${h().tag}>`}</span>
               <Show when={h().file}>
-                <span class="text-[0.6875rem] text-pw-text-2 font-pw-mono text-ellipsis overflow-hidden">
+                <span class="text-[0.6875rem] text-chat-text-2 font-chat-mono text-ellipsis overflow-hidden">
                   {h().file}
                 </span>
               </Show>

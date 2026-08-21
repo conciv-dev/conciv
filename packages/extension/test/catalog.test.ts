@@ -8,7 +8,7 @@ describe('extension catalog (new contract projection)', () => {
     const cat = buildCatalog()
     const names = cat.tokens.map((t) => t.name)
     for (const name of Object.keys(TOKENS)) expect(names).toContain(name)
-    expect(cat.tokens.find((t) => t.name === 'pw-accent')?.overridable).toBe(true)
+    expect(cat.tokens.find((t) => t.name === 'chat-accent')?.overridable).toBe(true)
   })
 
   it('lists the six extension slots', () => {
@@ -71,15 +71,15 @@ describe('extension catalog (new contract projection)', () => {
 
   it('validate flags an unknown theme token name', () => {
     const bad = `import {defineExtension} from '@conciv/extension'
-export default defineExtension({name: 'x', theme: {'pw-not-real': 'red'}})`
+export default defineExtension({name: 'x', theme: {'chat-not-real': 'red'}})`
     const res = validateSource(bad)
     expect(res.ok).toBe(false)
-    expect(res.issues.some((i) => i.message.includes('pw-not-real'))).toBe(true)
+    expect(res.issues.some((i) => i.message.includes('chat-not-real'))).toBe(true)
   })
 
   it('validate passes a well-formed theme extension', () => {
     const good = `import {defineExtension} from '@conciv/extension'
-export default defineExtension({name: 'x', theme: {'pw-accent': 'blue'}})`
+export default defineExtension({name: 'x', theme: {'chat-accent': 'blue'}})`
     expect(validateSource(good).ok).toBe(true)
   })
 
@@ -90,10 +90,10 @@ export default defineExtension({name: 'x', theme: {'pw-accent': 'blue'}})`
   })
 
   it('validate warns (but stays ok) on a known non-overridable token', () => {
-    const src = `export default defineExtension({name: 'x', theme: {'pw-panel': '#000'}})`
+    const src = `export default defineExtension({name: 'x', theme: {'chat-panel': '#000'}})`
     const res = validateSource(src)
     expect(res.ok).toBe(true)
-    expect(res.issues.some((i) => i.level === 'warn' && i.message.includes('pw-panel'))).toBe(true)
+    expect(res.issues.some((i) => i.level === 'warn' && i.message.includes('chat-panel'))).toBe(true)
   })
 
   it('validate warns on a top-level node import with no .server() half', () => {

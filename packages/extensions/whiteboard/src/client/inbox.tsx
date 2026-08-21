@@ -7,13 +7,13 @@ import {useComments, type Comment} from './model/comments.js'
 import {Avatar, Menu, MenuCheckboxItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Tabs} from './ui.js'
 
 const PANEL =
-  'fixed right-0 top-0 bottom-0 m-3 w-[clamp(20rem,28vw,25rem)] max-sm:left-0 max-sm:top-auto max-sm:w-auto max-sm:h-[65vh] max-sm:m-2 pointer-events-auto flex flex-col bg-pw-panel text-pw-text border border-pw-line rounded-pw-lg shadow-pw-lg overflow-hidden anim-presence-in'
-const TOGGLE = 'fixed right-4 top-4 pointer-events-auto h-9 px-3 rounded-pw-pill shadow-pw-lg text-[0.8125rem]'
-const MARK_ALL = 'h-7 px-2 rounded-pw-sm'
+  'fixed right-0 top-0 bottom-0 m-3 w-[clamp(20rem,28vw,25rem)] max-sm:left-0 max-sm:top-auto max-sm:w-auto max-sm:h-[65vh] max-sm:m-2 pointer-events-auto flex flex-col bg-chat-panel text-chat-text border border-chat-line rounded-chat-surface-lg shadow-chat-lg overflow-hidden anim-presence-in'
+const TOGGLE = 'fixed right-4 top-4 pointer-events-auto h-9 px-3 rounded-chat-pill shadow-chat-lg text-[0.8125rem]'
+const MARK_ALL = 'h-7 px-2 rounded-chat-surface-sm'
 const ICON_BTN =
-  'inline-flex size-7 items-center justify-center rounded-pw-sm text-pw-text-2 [outline:none] trans-bg hover:bg-pw-fill focus-ring'
+  'inline-flex size-7 items-center justify-center rounded-chat-surface-sm text-chat-text-2 [outline:none] trans-bg hover:bg-chat-fill focus-ring'
 const FEED_ITEM =
-  'w-full flex gap-2 px-3 py-2.5 text-left border-t border-pw-line-soft first:border-t-0 [outline:none] trans-bg hover:bg-pw-fill-soft focus-ring'
+  'w-full flex gap-2 px-3 py-2.5 text-left border-t border-chat-line-soft first:border-t-0 [outline:none] trans-bg hover:bg-chat-fill-soft focus-ring'
 
 const partText = (part: unknown): string => {
   const text = z.object({text: z.string()}).safeParse(part)
@@ -25,9 +25,9 @@ const textOf = (comment: Comment): string =>
   (Array.isArray(comment.parts) ? comment.parts : []).map(partText).join(' ').trim()
 
 const stripeClass = (unread: boolean): string =>
-  `rounded-pw-pill w-0.5 self-stretch ${unread ? 'bg-pw-accent' : 'bg-transparent'}`
+  `rounded-chat-pill w-0.5 self-stretch ${unread ? 'bg-chat-accent' : 'bg-transparent'}`
 const nameClass = (unread: boolean): string =>
-  `text-[0.8125rem] truncate ${unread ? 'font-semibold text-pw-text' : 'text-pw-text-2'}`
+  `text-[0.8125rem] truncate ${unread ? 'font-semibold text-chat-text' : 'text-chat-text-2'}`
 const avatarClass = (index: number): string => (index > 0 ? 'size-5 -ml-1.5' : 'size-5')
 
 function FeedItem(props: {root: Comment}): JSX.Element {
@@ -55,11 +55,11 @@ function FeedItem(props: {root: Comment}): JSX.Element {
             </For>
           </span>
           <span class={nameClass(unread())}>{model.displayName(props.root)}</span>
-          <RelativeTime value={new Date(activity())} class="text-[0.75rem] text-pw-text-3 ml-auto shrink-0" />
+          <RelativeTime value={new Date(activity())} class="text-[0.75rem] text-chat-text-3 ml-auto shrink-0" />
         </div>
-        <p class="text-[0.8125rem] text-pw-text-2 truncate">{textOf(props.root)}</p>
+        <p class="text-[0.8125rem] text-chat-text-2 truncate">{textOf(props.root)}</p>
         <Show when={replies() > 0}>
-          <span class="text-[0.75rem] text-pw-text-3">
+          <span class="text-[0.75rem] text-chat-text-3">
             {replies()} {replies() === 1 ? 'reply' : 'replies'}
           </span>
         </Show>
@@ -77,7 +77,7 @@ export function InboxToggle(): JSX.Element {
         <InboxIcon size={16} aria-hidden="true" />
         Comments
         <Show when={unread() > 0}>
-          <span class="text-[0.6875rem] text-pw-on-accent px-1 rounded-pw-pill bg-pw-accent inline-flex h-4 min-w-4 items-center justify-center">
+          <span class="text-[0.6875rem] text-chat-on-accent px-1 rounded-chat-pill bg-chat-accent inline-flex h-4 min-w-4 items-center justify-center">
             {unread()}
           </span>
         </Show>
@@ -104,7 +104,7 @@ export function Inbox(): JSX.Element {
   return (
     <Show when={model.inboxOpen()}>
       <aside class={PANEL} aria-label="Comments inbox">
-        <header class="px-3 py-2 border-b border-pw-line-soft flex items-center justify-between">
+        <header class="px-3 py-2 border-b border-chat-line-soft flex items-center justify-between">
           <Tabs value="comments" tabs={[{value: 'comments', label: 'Comments', trigger: <InboxIcon size={16} />}]} />
           <TooltipIconButton tooltip="Close inbox" class={ICON_BTN} onClick={() => model.closeInbox()}>
             ✕
@@ -118,9 +118,9 @@ export function Inbox(): JSX.Element {
             value={search()}
             onInput={(event) => setSearch(event.currentTarget.value)}
           />
-          <kbd class="text-[0.75rem] text-pw-accent-hi shrink-0">⌘3</kbd>
+          <kbd class="text-[0.75rem] text-chat-accent-hi shrink-0">⌘3</kbd>
         </div>
-        <div class="px-3 py-1.5 border-b border-pw-line-soft flex items-center justify-between">
+        <div class="px-3 py-1.5 border-b border-chat-line-soft flex items-center justify-between">
           <Menu
             label="Filter comments"
             trigger={
@@ -156,15 +156,15 @@ export function Inbox(): JSX.Element {
                 when={model.orderedThreads().length > 0}
                 fallback={
                   <div class="px-4 py-10 text-center flex flex-col gap-1">
-                    <strong class="text-[0.8125rem] text-pw-text">No comments yet</strong>
-                    <p class="text-[0.75rem] text-pw-text-3">Click an element or the canvas to leave one.</p>
+                    <strong class="text-[0.8125rem] text-chat-text">No comments yet</strong>
+                    <p class="text-[0.75rem] text-chat-text-3">Click an element or the canvas to leave one.</p>
                   </div>
                 }
               >
                 <Show
                   when={feed().length > 0}
                   fallback={
-                    <p class="text-[0.8125rem] text-pw-text-3 px-4 py-10 text-center">
+                    <p class="text-[0.8125rem] text-chat-text-3 px-4 py-10 text-center">
                       No comments match “{search()}”.
                     </p>
                   }

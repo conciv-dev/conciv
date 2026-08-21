@@ -3,7 +3,7 @@ import {Popover as Ark} from '@ark-ui/solid/popover'
 import {LIST_PANEL} from './list-panel.js'
 
 const CONTENT =
-  'hidden data-[state=open]:block data-[state=open]:anim-pop z-[2147483647] rounded-pw-lg bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg focus-visible:outline-none'
+  'hidden data-[state=open]:block data-[state=open]:anim-pop z-[2147483647] rounded-chat-surface-lg bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg focus-visible:outline-none'
 const LIST_CONTENT = `hidden data-[state=open]:block data-[state=open]:anim-combo ${LIST_PANEL}`
 
 function Root(props: ComponentProps<typeof Ark.Root>) {

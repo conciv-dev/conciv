@@ -46,10 +46,10 @@ function Queue(props: {onSteer: () => Promise<void>}): JSX.Element {
         <div class="flex flex-col gap-1">
           <Composer.Queue>
             {() => (
-              <div class="text-[0.75rem] text-pw-text-2 flex gap-2 items-center">
+              <div class="text-[0.75rem] text-chat-text-2 flex gap-2 items-center">
                 <QueueItem.Text class="flex-1" />
-                <QueueItem.Steer class="text-pw-text-3">Steer</QueueItem.Steer>
-                <QueueItem.Remove class="text-pw-text-3">×</QueueItem.Remove>
+                <QueueItem.Steer class="text-chat-text-3">Steer</QueueItem.Steer>
+                <QueueItem.Remove class="text-chat-text-3">×</QueueItem.Remove>
               </div>
             )}
           </Composer.Queue>

@@ -2,7 +2,7 @@ import type {JSX} from 'solid-js'
 import {HoverCard as Ark} from '@ark-ui/solid/hover-card'
 
 const CONTENT =
-  'hidden data-[state=open]:block data-[state=open]:anim-combo z-[2147483647] w-60 rounded-pw-md overflow-hidden bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg text-[0.75rem] focus-visible:outline-none'
+  'hidden data-[state=open]:block data-[state=open]:anim-combo z-[2147483647] w-60 rounded-chat-surface-md overflow-hidden bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg text-[0.75rem] focus-visible:outline-none'
 
 export function HoverCard(props: {
   trigger: JSX.Element

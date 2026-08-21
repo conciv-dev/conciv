@@ -22,14 +22,14 @@ const STANDING_LIMIT = 3
 const TOAST_TYPE: Record<NoticeTone, string> = {info: 'info', success: 'success', warn: 'warning', danger: 'error'}
 
 const NOTICE =
-  'w-full flex items-center gap-2 text-[0.75rem] leading-[1.4] font-medium font-pw px-2.5 py-2 border rounded-pw-md shadow-pw-lg [word-break:break-word] anim-msg'
+  'w-full flex items-center gap-2 text-[0.75rem] leading-[1.4] font-medium font-chat px-2.5 py-2 border rounded-chat-surface-md shadow-chat-lg [word-break:break-word] anim-msg'
 const ACTION = 'shrink-0 font-semibold'
-const DISMISS = 'shrink-0 size-5 rounded-pw-pill'
+const DISMISS = 'shrink-0 size-5 rounded-chat-pill'
 
-const TONE_INFO = 'border-pw-line bg-pw-fill text-pw-text-2'
-const TONE_SUCCESS = 'border-pw-success-18 bg-pw-fill text-pw-text-2'
-const TONE_WARN = 'border-pw-warn-20 bg-pw-fill text-pw-warn'
-const TONE_DANGER = 'border-pw-danger-line bg-pw-danger-10 text-pw-danger'
+const TONE_INFO = 'border-chat-line bg-chat-fill text-chat-text-2'
+const TONE_SUCCESS = 'border-chat-success-18 bg-chat-fill text-chat-text-2'
+const TONE_WARN = 'border-chat-warn-20 bg-chat-fill text-chat-warn'
+const TONE_DANGER = 'border-chat-danger-line bg-chat-danger-10 text-chat-danger'
 
 function toneClass(type: string | undefined): string {
   if (type === 'success') return TONE_SUCCESS

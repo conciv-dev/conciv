@@ -16,7 +16,7 @@ const blue = defineExtension({
   name: BLUE_NAME,
   Component: BlueSurface,
   systemPrompt: 'This app is themed blue. Greet users with the acme_hello tool.',
-  theme: BLUE_ACCENT_ENABLED ? {'pw-accent': 'rgb(37, 99, 235)'} : {},
+  theme: BLUE_ACCENT_ENABLED ? {'chat-accent': 'rgb(37, 99, 235)'} : {},
   tools: [hello],
 })
 export default blue

@@ -14,9 +14,9 @@ const FAB_POS: Record<TriggerPosition, string> = {
 }
 
 const FAB_BASE =
-  'fixed size-13 rounded-pw-pill border border-pw-line bg-pw-panel text-pw-accent text-[1.375rem] cursor-pointer pointer-events-auto shadow-pw-lg inline-flex items-center justify-center trans-lift anim-fab focus-ring [@media(hover:hover)_and_(pointer:fine)]:hover:[transform:translateY(-0.125rem)] [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-pw-hover active:[transform:translateY(0)_scale(0.94)]'
-const FAB_BUSY = 'pw-fab-busy absolute -inset-[0.1875rem] rounded-pw-pill pointer-events-none'
-const FAB_ATTN = 'border-2 border-pw-accent anim-fab-ring'
+  'fixed size-13 rounded-chat-pill border border-chat-line bg-chat-panel text-chat-accent text-[1.375rem] cursor-pointer pointer-events-auto shadow-chat-lg inline-flex items-center justify-center trans-lift anim-fab focus-ring [@media(hover:hover)_and_(pointer:fine)]:hover:[transform:translateY(-0.125rem)] [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-chat-hover active:[transform:translateY(0)_scale(0.94)]'
+const FAB_BUSY = 'pw-fab-busy absolute -inset-[0.1875rem] rounded-chat-pill pointer-events-none'
+const FAB_ATTN = 'border-2 border-chat-accent anim-fab-ring'
 const FAB_DRAGGING = 'transition-none z-[2147483647] cursor-grabbing'
 
 function fabClass(position: TriggerPosition, dragging: boolean): string {

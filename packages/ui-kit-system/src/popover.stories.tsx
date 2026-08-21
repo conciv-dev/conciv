@@ -9,11 +9,11 @@ type Story = StoryObj
 export const Default: Story = {
   render: () => (
     <Popover.Root>
-      <Popover.Trigger class="text-pw-text underline cursor-pointer">Open assistant</Popover.Trigger>
+      <Popover.Trigger class="text-chat-text underline cursor-pointer">Open assistant</Popover.Trigger>
       <Popover.Positioner>
         <Popover.Content class="p-4 w-60">
-          <Popover.Title class="text-[0.8125rem] text-pw-text-hi font-pw">Assistant</Popover.Title>
-          <Popover.Description class="text-[0.75rem] text-pw-text-2 mt-1">
+          <Popover.Title class="text-[0.8125rem] text-chat-text-hi font-chat">Assistant</Popover.Title>
+          <Popover.Description class="text-[0.75rem] text-chat-text-2 mt-1">
             Ask anything about the running app.
           </Popover.Description>
         </Popover.Content>

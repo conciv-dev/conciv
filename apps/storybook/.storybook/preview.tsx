@@ -14,9 +14,9 @@ const preview: Preview = {
     (Story) => (
       <div
         style={{
-          background: 'var(--pw-panel)',
-          color: 'var(--pw-text)',
-          'font-family': 'var(--pw-font)',
+          background: 'var(--chat-panel)',
+          color: 'var(--chat-text)',
+          'font-family': 'var(--chat-font)',
           padding: '24px',
           'max-width': '560px',
         }}

@@ -23,7 +23,7 @@ const SATELLITE_DOT_LEFT_PX = -2
 
 const SATELLITE_DOT_TOP_PX = -19
 
-const SATELLITE_DOT_COLOR = 'var(--pw-accent, #e0218a)'
+const SATELLITE_DOT_COLOR = 'var(--chat-accent, #e0218a)'
 
 function createRing(factor: number): HTMLElement {
   const ring = document.createElement('span')

@@ -16,7 +16,7 @@ type MenuGroup = {id: string; label?: string; rows: MenuRow[]}
 
 type TriggerMenuItemContent = (item: RichTextFieldTriggerItem) => JSX.Element
 
-const BACK = 'w-full gap-1.5 min-h-11 px-2.5 text-[0.8125rem] text-pw-text-2'
+const BACK = 'w-full gap-1.5 min-h-11 px-2.5 text-[0.8125rem] text-chat-text-2'
 const BACK_LABEL = 'flex-1 text-start truncate'
 
 export type TriggerMenuController = {

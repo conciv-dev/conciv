@@ -11,16 +11,16 @@ import {terminalClient, terminalUrl} from './rpc.js'
 const ESCAPE_KEY = String.fromCharCode(27)
 
 const ERROR_BANNER =
-  'flex items-center justify-between gap-2 m-2.5 py-2.5 px-3 rounded-pw-md text-[0.75rem] bg-pw-fill border border-pw-danger-line text-pw-text'
+  'flex items-center justify-between gap-2 m-2.5 py-2.5 px-3 rounded-chat-surface-md text-[0.75rem] bg-chat-fill border border-chat-danger-line text-chat-text'
 
 function readTerminalTheme(element: Element): TerminalTheme {
   const tokens = getComputedStyle(element)
   const token = (name: string, fallback: string): string => tokens.getPropertyValue(name).trim() || fallback
   return {
-    background: token('--pw-panel', '#101014'),
-    foreground: token('--pw-text-hi', '#d6d6de'),
-    cursor: token('--pw-text-hi', '#d6d6de'),
-    selectionBackground: token('--pw-fill-strong', '#3a3a44'),
+    background: token('--chat-panel', '#101014'),
+    foreground: token('--chat-text-hi', '#d6d6de'),
+    cursor: token('--chat-text-hi', '#d6d6de'),
+    selectionBackground: token('--chat-fill-strong', '#3a3a44'),
   }
 }
 

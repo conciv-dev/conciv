@@ -20,9 +20,9 @@ const PANEL_POS: Record<TriggerPosition, string> = {
   'bottom-right': 'bottom-21 right-5 [transform-origin:bottom_right]',
 }
 const PANEL_BASE =
-  'fixed flex flex-col text-pw-text font-normal text-[0.875rem] leading-[1.45] font-pw overflow-hidden [container-type:size]'
+  'fixed flex flex-col text-chat-text font-normal text-[0.875rem] leading-[1.45] font-chat overflow-hidden [container-type:size]'
 const PANEL_CARD =
-  '[background:var(--chat-bg)] w-125 max-w-[calc(100vw-2.5rem)] h-[min(750px,90vh)] max-h-[calc(100vh-7.5rem)] [border:1px_solid_var(--chat-line)] [border-radius:var(--chat-radius-lg)] shadow-pw-lg'
+  '[background:var(--chat-bg)] w-125 max-w-[calc(100vw-2.5rem)] h-[min(750px,90vh)] max-h-[calc(100vh-7.5rem)] [border:1px_solid_var(--chat-line)] [border-radius:var(--chat-radius-lg)] shadow-chat-lg'
 const PANEL_SHEET = '[background:var(--chat-bg)] inset-0 w-full h-full rounded-none pad-safe'
 const PANEL_TICK_TOP =
   'absolute inset-inline-0 top-0 h-1.25 pointer-events-none [background-image:repeating-linear-gradient(90deg,var(--chat-perforation)_0_1px,transparent_1px_12px)]'
@@ -39,7 +39,8 @@ function rootFontSizePx(): number {
   return Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
 }
 
-const RESIZE = 'absolute z-[3] focus-visible:outline-none focus-visible:bg-pw-accent-20 focus-visible:ring-inset-accent'
+const RESIZE =
+  'absolute z-[3] focus-visible:outline-none focus-visible:bg-chat-accent-20 focus-visible:ring-inset-accent'
 const RESIZE_Y = 'left-0 right-0 h-2 cursor-ns-resize'
 const RESIZE_X = 'top-0 bottom-0 w-2 cursor-ew-resize'
 

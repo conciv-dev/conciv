@@ -21,8 +21,8 @@ export type MentionFieldApi = {focus: () => void; clear: () => void; submit: () 
 type JsonNode = {type?: string; text?: string; attrs?: Record<string, unknown>; content?: JsonNode[]}
 
 const EDITOR =
-  'min-h-7 max-h-32 overflow-auto bg-pw-sunken text-[0.8125rem] text-pw-text rounded-pw-md [border:1px_solid_var(--pw-line)] px-2 py-1.5 [outline:none] focus-within:[border-color:var(--pw-accent-line)] [&_.tiptap]:[outline:none] [&_[data-mention]]:text-pw-accent-hi [&_[data-mention]]:bg-pw-accent-08 [&_[data-mention]]:rounded-pw-sm [&_[data-mention]]:px-0.5'
-const PLACEHOLDER = 'pointer-events-none absolute left-2 top-1.5 text-[0.8125rem] text-pw-text-3 select-none'
+  'min-h-7 max-h-32 overflow-auto bg-chat-sunken text-[0.8125rem] text-chat-text rounded-chat-surface-md [border:1px_solid_var(--chat-line)] px-2 py-1.5 [outline:none] focus-within:[border-color:var(--chat-accent-line)] [&_.tiptap]:[outline:none] [&_[data-mention]]:text-chat-accent-hi [&_[data-mention]]:bg-chat-accent-08 [&_[data-mention]]:rounded-chat-surface-sm [&_[data-mention]]:px-0.5'
+const PLACEHOLDER = 'pointer-events-none absolute left-2 top-1.5 text-[0.8125rem] text-chat-text-3 select-none'
 const OPTION_ROW = 'flex items-center gap-2 min-w-0'
 
 const avatarInitial = (label: string): string => label.trim().charAt(0).toUpperCase() || '?'

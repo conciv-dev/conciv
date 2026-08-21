@@ -84,7 +84,7 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
     saveFileToDisk(video)
   }
   return (
-    <div class="py-2 pe-2 ps-3 border border-pw-line rounded-pw-md bg-pw-fill flex gap-2 min-w-55 items-center overflow-hidden">
+    <div class="py-2 pe-2 ps-3 border border-chat-line rounded-chat-surface-md bg-chat-fill flex gap-2 min-w-55 items-center overflow-hidden">
       <RecorderNotice text={poster()} />
       <Button size="sm" disabled={!ref()} onClick={() => setOpen(true)}>
         Play

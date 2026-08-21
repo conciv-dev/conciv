@@ -7,10 +7,10 @@ import {Progress} from '@conciv/ui-kit-system'
 import {createMediaQuery} from '../lib/media-query.js'
 
 const DIVIDER =
-  "self-stretch flex items-center gap-2.5 my-1.5 mx-0.5 anim-msg before:content-[''] before:flex-1 before:h-px before:bg-pw-line-soft after:content-[''] after:flex-1 after:h-px after:bg-pw-line-soft"
+  "self-stretch flex items-center gap-2.5 my-1.5 mx-0.5 anim-msg before:content-[''] before:flex-1 before:h-px before:bg-chat-line-soft after:content-[''] after:flex-1 after:h-px after:bg-chat-line-soft"
 const DIVIDER_LABEL =
   'inline-flex items-center gap-1.25 text-[0.6875rem] font-medium tracking-[0.06em] [text-transform:uppercase]'
-const DOT = 'w-1.5 h-1.5 rounded-pw-pill bg-pw-text-2'
+const DOT = 'w-1.5 h-1.5 rounded-chat-pill bg-chat-text-2'
 
 export function Divider(props: {kind: 'new' | 'compact'; pending?: boolean}): JSX.Element {
   const icon = () => (props.kind === 'new' ? SquarePen : FoldVertical)
@@ -18,7 +18,7 @@ export function Divider(props: {kind: 'new' | 'compact'; pending?: boolean}): JS
   return (
     <div
       class={DIVIDER}
-      classList={{'text-pw-accent-link': props.pending, 'text-pw-text-3': !props.pending}}
+      classList={{'text-chat-accent-link': props.pending, 'text-chat-text-3': !props.pending}}
       role="separator"
       aria-label={label()}
     >
@@ -43,15 +43,15 @@ export function CompactSpinner(): JSX.Element {
     >
       <Progress.Root value={25} class="block [--size:1.375rem] [--thickness:0.15625rem]" aria-hidden="true">
         <Progress.Circle class="[transform-origin:center] anim-compact">
-          <Progress.CircleTrack class="stroke-pw-line-2" />
-          <Progress.CircleRange class="[stroke-linecap:round] stroke-pw-accent" />
+          <Progress.CircleTrack class="stroke-chat-line-2" />
+          <Progress.CircleRange class="[stroke-linecap:round] stroke-chat-accent" />
         </Progress.Circle>
       </Progress.Root>
     </div>
   )
 }
 
-const SKELETON_BUBBLE = 'rounded-pw-md bg-pw-fill-strong anim-switching h-9'
+const SKELETON_BUBBLE = 'rounded-chat-surface-md bg-chat-fill-strong anim-switching h-9'
 
 export function ConversationSkeleton(): JSX.Element {
   return (
@@ -69,7 +69,10 @@ export function ConversationSkeleton(): JSX.Element {
 
 export function ThinkingBubble(): JSX.Element {
   return (
-    <div class="p-2.75 rounded-pw-md bg-pw-fill inline-flex gap-1 items-center self-start anim-msg" aria-hidden="true">
+    <div
+      class="p-2.75 rounded-chat-surface-md bg-chat-fill inline-flex gap-1 items-center self-start anim-msg"
+      aria-hidden="true"
+    >
       <span class={`${DOT} anim-dot1`} />
       <span class={`${DOT} anim-dot2`} />
       <span class={`${DOT} anim-dot3`} />

@@ -54,8 +54,8 @@ function gallery(summary: string, items: TraceItem[]): JSX.Element {
 const CATALOG_RESULT = {
   conventions: {location: 'conciv/extensions/*.{ts,tsx}', entry: 'export default defineExtension({name})'},
   tokens: [
-    {name: 'pw-accent', cssVar: '--pw-accent', default: '#2563eb', description: 'accent color', overridable: true},
-    {name: 'pw-radius', cssVar: '--pw-radius', default: '10px', description: 'corner radius', overridable: true},
+    {name: 'chat-accent', cssVar: '--chat-accent', default: '#2563eb', description: 'accent color', overridable: true},
+    {name: 'chat-radius', cssVar: '--chat-radius', default: '10px', description: 'corner radius', overridable: true},
   ],
   slots: [
     {name: 'header', description: 'Above the message list (panel header region).'},
@@ -108,7 +108,7 @@ export const ExtensionsCatalog: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('extensions')).toBeVisible()
-    await expect(c.getByText('pw-accent')).toBeVisible()
+    await expect(c.getByText('chat-accent')).toBeVisible()
     await expect(c.getByText('composer')).toBeVisible()
   },
 }

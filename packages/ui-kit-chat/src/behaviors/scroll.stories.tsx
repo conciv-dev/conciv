@@ -22,7 +22,7 @@ function AtBottomEcho(): JSX.Element {
 
 function UserMessage(): JSX.Element {
   return (
-    <Message.Root class="text-pw-on-accent px-3 py-1.5 rounded-pw-md bg-pw-accent self-end">
+    <Message.Root class="text-chat-on-accent px-3 py-1.5 rounded-chat-surface-md bg-chat-accent self-end">
       <Message.Parts />
     </Message.Root>
   )
@@ -30,7 +30,7 @@ function UserMessage(): JSX.Element {
 
 function AssistantMessage(): JSX.Element {
   return (
-    <Message.Root class="text-pw-text self-start">
+    <Message.Root class="text-chat-text self-start">
       <Message.Parts />
     </Message.Root>
   )
@@ -44,9 +44,9 @@ function StreamingThread(props: {expose: (chat: UseChatReturn) => void}): JSX.El
   return (
     <ChatProvider chat={chat}>
       <Thread.Root class="flex flex-col">
-        <Thread.Viewport class="p-2 border border-pw-line rounded-pw-sm flex flex-col gap-1 h-32 overflow-y-auto">
+        <Thread.Viewport class="p-2 border border-chat-line rounded-chat-surface-sm flex flex-col gap-1 h-32 overflow-y-auto">
           <Thread.Empty>
-            <div class="text-[0.75rem] text-pw-text-3">Ask to begin.</div>
+            <div class="text-[0.75rem] text-chat-text-3">Ask to begin.</div>
           </Thread.Empty>
           <Thread.Messages components={{UserMessage, AssistantMessage}} />
           <AtBottomEcho />
@@ -80,7 +80,7 @@ function CollapsePinHarness(): JSX.Element {
         settle
       </button>
       <div>atBottom: {String(isAtBottom())}</div>
-      <div ref={setViewport} data-thread-viewport class="p-2 border border-pw-line h-32 overflow-y-auto">
+      <div ref={setViewport} data-thread-viewport class="p-2 border border-chat-line h-32 overflow-y-auto">
         <Trace
           summary="6 tool steps"
           compactLine="6 tool steps"
@@ -114,7 +114,7 @@ function ExpandAtBottomHarness(): JSX.Element {
           data-thread-viewport
           data-at-bottom={scroll.isAtBottom() ? '' : undefined}
           data-escaped={scroll.escapedFromLock() ? '' : undefined}
-          class="p-2 border border-pw-line h-32 overflow-y-auto"
+          class="p-2 border border-chat-line h-32 overflow-y-auto"
         >
           <Index each={Array.from({length: 20}, (_, index) => index)}>
             {(line) => <div>history line {line()}</div>}
@@ -147,7 +147,7 @@ function ExpandEscapedHarness(): JSX.Element {
           data-thread-viewport
           data-at-bottom={scroll.isAtBottom() ? '' : undefined}
           data-escaped={scroll.escapedFromLock() ? '' : undefined}
-          class="p-2 border border-pw-line h-32 overflow-y-auto"
+          class="p-2 border border-chat-line h-32 overflow-y-auto"
         >
           <Index each={Array.from({length: 20}, (_, index) => index)}>
             {(line) => <div>history line {line()}</div>}
@@ -178,7 +178,7 @@ function TallCardNearBottomHarness(): JSX.Element {
           data-thread-viewport
           data-at-bottom={scroll.isAtBottom() ? '' : undefined}
           data-escaped={scroll.escapedFromLock() ? '' : undefined}
-          class="p-2 border border-pw-line h-72 overflow-y-auto"
+          class="p-2 border border-chat-line h-72 overflow-y-auto"
         >
           <Index each={Array.from({length: 20}, (_, index) => index)}>
             {(line) => <div>history line {line()}</div>}

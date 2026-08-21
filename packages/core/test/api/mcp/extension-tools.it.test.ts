@@ -59,7 +59,7 @@ describe('/api/mcp extension tools through the sandbox', () => {
     try {
       const result = await execute(kit.base, "return await external_conciv_extensions({verb: 'catalog'})")
       const json = JSON.stringify(result)
-      expect(json).toContain('pw-accent')
+      expect(json).toContain('chat-accent')
       expect(json).toContain('clientSurfaces')
     } finally {
       await kit.cleanup()

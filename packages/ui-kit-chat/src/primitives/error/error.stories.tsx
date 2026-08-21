@@ -17,7 +17,7 @@ function ErrorApp(props: {expose: (chat: UseChatReturn) => void}): JSX.Element {
   onMount(() => props.expose(chat))
   return (
     <ChatProvider chat={chat}>
-      <Error.Root class="text-[0.75rem] text-pw-danger flex gap-2 items-center">
+      <Error.Root class="text-[0.75rem] text-chat-danger flex gap-2 items-center">
         <Error.Message />
       </Error.Root>
     </ChatProvider>

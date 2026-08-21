@@ -7,7 +7,7 @@ const PENDING_PANE_LABEL = 'Loading conciv'
 
 export function PendingPane(): JSX.Element {
   return (
-    <Loader.Root class="h-full w-full text-pw-text" translations={{value: () => PENDING_PANE_LABEL}}>
+    <Loader.Root class="h-full w-full text-chat-text" translations={{value: () => PENDING_PANE_LABEL}}>
       <Loader.Indicator />
       <Loader.Text>
         <Loader.Label>{`${PENDING_PANE_LABEL}…`}</Loader.Label>
@@ -21,7 +21,7 @@ export function SessionPillPending(props: {variant: 'pill' | 'bar'}): JSX.Elemen
   return (
     <div class="inline-flex min-w-0 items-center" role="status">
       <div
-        class={`${SKEL} h-7 ${props.variant === 'pill' ? 'w-32 rounded-pw-pill' : 'w-24 rounded-pw-sm'}`}
+        class={`${SKEL} h-7 ${props.variant === 'pill' ? 'w-32 rounded-chat-pill' : 'w-24 rounded-chat-surface-sm'}`}
         aria-hidden="true"
       />
       <span class="sr-only">Loading sessions…</span>
@@ -32,7 +32,7 @@ export function SessionPillPending(props: {variant: 'pill' | 'bar'}): JSX.Elemen
 export function UsagePending(): JSX.Element {
   return (
     <div class="inline-flex items-center px-1.5 py-0.5" role="status">
-      <div class={`${SKEL} h-4 w-10 rounded-pw-sm`} aria-hidden="true" />
+      <div class={`${SKEL} h-4 w-10 rounded-chat-surface-sm`} aria-hidden="true" />
       <span class="sr-only">Loading context usage…</span>
     </div>
   )
@@ -41,8 +41,8 @@ export function UsagePending(): JSX.Element {
 export function ViewTabsPending(): JSX.Element {
   return (
     <div class="px-2.5 flex gap-2 items-center" role="status">
-      <div class={`${SKEL} h-8 w-16 rounded-pw-sm`} aria-hidden="true" />
-      <div class={`${SKEL} h-8 w-20 rounded-pw-sm`} aria-hidden="true" />
+      <div class={`${SKEL} h-8 w-16 rounded-chat-surface-sm`} aria-hidden="true" />
+      <div class={`${SKEL} h-8 w-20 rounded-chat-surface-sm`} aria-hidden="true" />
       <span class="sr-only">Loading views…</span>
     </div>
   )
@@ -51,9 +51,9 @@ export function ViewTabsPending(): JSX.Element {
 export function ComposerActionsPending(): JSX.Element {
   return (
     <div class="flex gap-1 items-center" role="status">
-      <div class={`${SKEL} size-8.5 rounded-pw-pill`} aria-hidden="true" />
-      <div class={`${SKEL} size-8.5 rounded-pw-pill`} aria-hidden="true" />
-      <div class={`${SKEL} size-8.5 rounded-pw-pill`} aria-hidden="true" />
+      <div class={`${SKEL} size-8.5 rounded-chat-pill`} aria-hidden="true" />
+      <div class={`${SKEL} size-8.5 rounded-chat-pill`} aria-hidden="true" />
+      <div class={`${SKEL} size-8.5 rounded-chat-pill`} aria-hidden="true" />
       <span class="sr-only">Loading composer actions…</span>
     </div>
   )

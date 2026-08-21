@@ -15,12 +15,12 @@ function session(id: string, title: string): ChatSessionMeta {
 
 function Row(): JSX.Element {
   return (
-    <ThreadListItem.Root class="px-2 py-1 rounded-pw-sm flex gap-2 items-center data-[active]:bg-pw-fill-strong">
-      <ThreadListItem.Trigger class="text-[0.8125rem] text-pw-text-2 text-left flex-1">
+    <ThreadListItem.Root class="px-2 py-1 rounded-chat-surface-sm flex gap-2 items-center data-[active]:bg-chat-fill-strong">
+      <ThreadListItem.Trigger class="text-[0.8125rem] text-chat-text-2 text-left flex-1">
         <ThreadListItem.Title />
       </ThreadListItem.Trigger>
-      <ThreadListItem.Archive class="text-[0.6875rem] text-pw-text-3">Archive</ThreadListItem.Archive>
-      <ThreadListItem.Delete class="text-[0.6875rem] text-pw-text-3">Delete</ThreadListItem.Delete>
+      <ThreadListItem.Archive class="text-[0.6875rem] text-chat-text-3">Archive</ThreadListItem.Archive>
+      <ThreadListItem.Delete class="text-[0.6875rem] text-chat-text-3">Delete</ThreadListItem.Delete>
     </ThreadListItem.Root>
   )
 }
@@ -41,7 +41,7 @@ export const SelectAndCreate: Story = {
         }}
       >
         <ThreadList.Root class="flex flex-col gap-1 w-60">
-          <ThreadList.New class="text-[0.75rem] text-pw-accent-link px-2 text-left">+ New chat</ThreadList.New>
+          <ThreadList.New class="text-[0.75rem] text-chat-accent-link px-2 text-left">+ New chat</ThreadList.New>
           <ThreadList.Items components={{ThreadListItem: Row}} />
           <div>Active: {activeId()}</div>
           <div>Log: {log()}</div>

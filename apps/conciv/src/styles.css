@@ -20,7 +20,7 @@
    native alongside react-grab. All colors/radii/motion flow from the tokens below:
    change a token, not a literal.
 
-   Palette philosophy: a single brand hue (--pw-hue, the react-grab magenta) tints
+   Palette philosophy: a single brand hue (--chat-hue, the react-grab magenta) tints
    every neutral, surface and shadow toward it, so the whole overlay feels cut from
    one material rather than "neutral gray + a neon accent". Colors are OKLCH so the
    text ramp is perceptually even; accent states are mixed off the one literal brand
@@ -29,7 +29,7 @@
    arbitrary, often light, preview pages and must read as a distinct tool layer next
    to react-grab), so depth comes from hue-tinted shadow, not from glow. */
 
-/* Reset only: every --pw-* token comes from @conciv/ui-kit-system/tokens.css (imported above),
+/* Reset only: every --chat-* token comes from @conciv/ui-kit-system/tokens.css (imported above),
    the single source of truth shared with the tool cards and their Storybook. */
 :host {
   all: initial;
@@ -46,8 +46,8 @@
 :where(button, [role='button']):focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 2px var(--pw-panel),
-    0 0 0 4px var(--pw-accent);
+    0 0 0 2px var(--chat-panel),
+    0 0 0 4px var(--chat-accent);
 }
 
 /* ── Vibe chat agent: bottom-right FAB → corner popover (assistant-modal). Matches the
@@ -66,15 +66,15 @@
 }
 /* Working: a magenta glow pulse on the eyes, keyed off the busy ring rendered just before the stage. */
 .pw-fab-busy ~ .pw-fab-rig .pw-rig-eyes {
-  animation: pw-rig-glow 1.3s ease-in-out infinite;
+  animation: chat-rig-glow 1.3s ease-in-out infinite;
 }
-@keyframes pw-rig-glow {
+@keyframes chat-rig-glow {
   0%,
   100% {
-    filter: drop-shadow(0 0 1px var(--pw-accent));
+    filter: drop-shadow(0 0 1px var(--chat-accent));
   }
   50% {
-    filter: drop-shadow(0 0 5px var(--pw-accent));
+    filter: drop-shadow(0 0 5px var(--chat-accent));
   }
 }
 /* While the element picker is active OR an extension holds a foreground overlay, the open surface
@@ -85,7 +85,7 @@
 [data-pw-qt][data-pw-suppressed] {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 140ms var(--pw-ease);
+  transition: opacity 140ms var(--chat-ease);
 }
 /* The only widget chrome during a pick: a compact mode indicator. */
 
@@ -127,5 +127,5 @@
 }
 
 /* @unocss/postcss expands this into the generated utilities (scanned from .tsx per uno.config.ts).
-   Last in source order so a utility wins specificity ties over the hand-written .pw-* rules above. */
+   Last in source order so a utility wins specificity ties over the hand-written .pw-* marker rules above. */
 @unocss all;

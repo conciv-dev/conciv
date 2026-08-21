@@ -4,7 +4,7 @@ import {Swap as Ark} from '@ark-ui/solid/swap'
 const ROOT = 'inline-grid place-items-center'
 
 const INDICATOR =
-  '[grid-area:1/1] inline-flex [transition:opacity_150ms_var(--pw-ease),scale_150ms_var(--pw-ease)] [&[hidden]]:opacity-0 [&[hidden]]:[scale:0.92] [&[hidden]]:[display:inline-flex]'
+  '[grid-area:1/1] inline-flex [transition:opacity_150ms_var(--chat-ease),scale_150ms_var(--chat-ease)] [&[hidden]]:opacity-0 [&[hidden]]:[scale:0.92] [&[hidden]]:[display:inline-flex]'
 
 function Root(props: ComponentProps<typeof Ark.Root>) {
   const [local, rest] = splitProps(props, ['class'])

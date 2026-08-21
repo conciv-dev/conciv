@@ -1,6 +1,7 @@
-/* Neutral, themeable chat tokens. The styled set references ONLY these --chat-* vars (never --pw-*).
-   Light is the default here; a theme (theme/themes/*.css) maps --chat-* onto its own palette and is
-   applied on the chat root via a `chat-theme-<id>` class (see apps/conciv/src/lib/theme.ts). */
+/* Neutral, themeable chat tokens. --chat-* is the one custom-property namespace the whole widget
+   speaks: this sheet layers the thread surface over the ui-kit-system defaults (tokens.css) and a
+   theme (theme/themes/*.css) maps the merged set onto its own palette, applied on the chat root via
+   a `chat-theme-<id>` class (see apps/conciv/src/lib/theme.ts). Light is the default here. */
 
 :root,
 :host {
@@ -9,8 +10,10 @@
   --chat-panel: #f6f7f9;
   --chat-glass: rgba(246, 247, 249, 0.97);
   --chat-fill: rgba(15, 18, 24, 0.04);
+  --chat-fill-soft: rgba(15, 18, 24, 0.03);
   --chat-fill-strong: rgba(15, 18, 24, 0.08);
   --chat-sunken: rgba(15, 18, 24, 0.05);
+  --chat-panel-sunk: var(--chat-panel);
   --chat-text: #1d2127;
   --chat-text-hi: #0b0d10;
   --chat-text-2: #565b63;
@@ -25,9 +28,10 @@
   --chat-accent-link: #2563eb;
   --chat-on-accent: #ffffff;
   --chat-danger: #dc2626;
-  --chat-danger-line: rgba(220, 38, 38, 0.42);
+  --chat-danger-line: color-mix(in oklch, var(--chat-danger) 42%, transparent);
   --chat-success: #16a34a;
   --chat-line: rgba(15, 18, 24, 0.12);
+  --chat-line-2: rgba(15, 18, 24, 0.18);
   --chat-line-soft: rgba(15, 18, 24, 0.06);
   --chat-trace-gutter: 18px;
   --chat-trace-clamp: 13rem;
@@ -67,8 +71,13 @@
   --chat-radius-md: 12px;
   --chat-radius-lg: 18px;
   --chat-radius-pill: 999px;
+  --chat-radius-surface-sm: var(--chat-radius-sm);
+  --chat-radius-surface-md: var(--chat-radius-md);
+  --chat-radius-surface-lg: var(--chat-radius-lg);
   --chat-shadow-sm: 0 2px 8px rgba(15, 18, 24, 0.14);
   --chat-shadow-lg: 0 16px 44px rgba(15, 18, 24, 0.18);
+  --chat-shadow: var(--chat-shadow-sm);
+  --chat-shadow-hover: var(--chat-shadow-lg);
   --chat-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --chat-font: system-ui, -apple-system, sans-serif;
   --chat-font-display: var(--chat-font);
@@ -123,13 +132,13 @@
 
 /* Chat prose ramp: the typography preset colors headings and bold `inherit`, which flattens them onto
    the body color. Markdown output is generated markup, so its descendants are styled here rather than
-   through utility variants on the prose-pw shortcut. */
-.prose-pw :is(h1, h2, h3, h4, h5, h6),
-.prose-pw strong {
+   through utility variants on the prose-chat shortcut. */
+.prose-chat :is(h1, h2, h3, h4, h5, h6),
+.prose-chat strong {
   color: var(--chat-text-hi);
 }
 
-.prose-pw :not(pre) > code {
+.prose-chat :not(pre) > code {
   background: transparent;
   color: var(--chat-code);
   padding: 0;

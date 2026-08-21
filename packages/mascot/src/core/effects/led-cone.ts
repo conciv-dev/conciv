@@ -5,7 +5,7 @@ import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
 
 const LED_CONE_PULSE_DURATION_S = 0.5
 
-const LED_CONE_COLOR = 'var(--pw-accent, #e0218a)'
+const LED_CONE_COLOR = 'var(--chat-accent, #e0218a)'
 
 const LED_CONE_HALF_WIDTH_PX = 12
 

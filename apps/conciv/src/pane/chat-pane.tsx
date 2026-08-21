@@ -62,9 +62,9 @@ const PAGE_SESSION: PageSessionConfig = {
 
 const ABOVE_COMPOSER =
   'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto empty:hidden pt-[9px] pe-5 pb-[10px] ps-5 [background:var(--chat-queue-bg)] [border-block-start:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-[11px] leading-[1.4] [&>*+*]:before:content-["·"] [&>*+*]:before:px-[5px] [&>*+*]:before:[color:var(--chat-separator)]'
-const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
+const ERROR = 'flex gap-2 items-center text-chat-danger text-[0.75rem] anim-msg'
 const RETRY =
-  'py-1.5 px-2.5 min-h-8 rounded-pw-sm border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
+  'py-1.5 px-2.5 min-h-8 rounded-chat-surface-sm border border-chat-danger-line bg-transparent text-chat-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-chat shrink-0 trans-bg hover:bg-chat-danger-14'
 
 function resetSlideOnSelf(reset: () => void) {
   return (event: AnimationEvent) => {

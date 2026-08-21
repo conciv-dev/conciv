@@ -27,7 +27,7 @@ export type AnchoredListboxHandle = {
 }
 
 const CONTENT = 'flex flex-col max-h-64 max-w-80 overflow-y-auto overscroll-contain outline-none'
-const ITEM = `${LIST_PANEL_ITEM} flex-col items-stretch gap-0.5 min-h-11 data-[active]:bg-pw-fill-strong data-[active]:text-pw-text`
+const ITEM = `${LIST_PANEL_ITEM} flex-col items-stretch gap-0.5 min-h-11 data-[active]:bg-chat-fill-strong data-[active]:text-chat-text`
 const HIDDEN_INPUT = 'sr-only'
 
 function Root(props: {

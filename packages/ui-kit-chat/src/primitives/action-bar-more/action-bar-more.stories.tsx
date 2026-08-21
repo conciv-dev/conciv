@@ -13,7 +13,7 @@ export const OverflowMenu: Story = {
     return (
       <div>
         <ActionBarMore.Root>
-          <ActionBarMore.Trigger class="text-pw-text px-2 py-1 border border-pw-line rounded-pw-sm">
+          <ActionBarMore.Trigger class="text-chat-text px-2 py-1 border border-chat-line rounded-chat-surface-sm">
             ⋯
           </ActionBarMore.Trigger>
           <ActionBarMore.Content>

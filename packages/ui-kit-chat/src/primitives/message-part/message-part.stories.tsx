@@ -15,7 +15,7 @@ export default meta
 type Story = StoryObj
 
 function ImageView(): JSX.Element {
-  return <MessagePart.Image alt="attached" class="rounded-pw-sm size-12" />
+  return <MessagePart.Image alt="attached" class="rounded-chat-surface-sm size-12" />
 }
 
 function UserMessage(): JSX.Element {
@@ -117,7 +117,7 @@ function AccessorProbes(): JSX.Element {
 
 function ProbeAssistant(): JSX.Element {
   return (
-    <Message.Root class="text-pw-text flex flex-col gap-1 self-start">
+    <Message.Root class="text-chat-text flex flex-col gap-1 self-start">
       <Message.Parts>{() => <AccessorProbes />}</Message.Parts>
     </Message.Root>
   )

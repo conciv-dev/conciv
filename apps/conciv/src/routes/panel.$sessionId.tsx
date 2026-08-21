@@ -49,7 +49,7 @@ const RAIL_SEPARATOR = 'chat-rail-context-full [color:var(--chat-separator)] px-
 const RAIL_TITLE =
   'min-w-0 truncate [font-family:var(--chat-font-display)] text-[14.5px] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
 const GHOST =
-  'bg-transparent border border-transparent text-pw-text-2 cursor-pointer inline-flex items-center justify-center size-7 rounded-[var(--chat-radius-sm)] [transition:background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-line-soft)] hover:text-pw-text'
+  'bg-transparent border border-transparent text-chat-text-2 cursor-pointer inline-flex items-center justify-center size-7 rounded-[var(--chat-radius-sm)] [transition:background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-line-soft)] hover:text-chat-text'
 const RAIL_MENU_CONTENT = 'p-2 flex flex-col gap-1 w-72'
 const RAIL_MENU_CONTENT_STYLE = {
   background: 'var(--chat-bg)',

@@ -14,7 +14,7 @@ import {SessionModelSelector} from './model-selector.js'
 import {terminalRpc} from './terminal-rpc.js'
 
 const ACT =
-  'size-8 rounded-pw-pill [border:none] bg-transparent text-pw-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-pw-text-hi hover:bg-pw-fill-strong'
+  'size-8 rounded-chat-pill [border:none] bg-transparent text-chat-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-chat-text-hi hover:bg-chat-fill-strong'
 
 function busyClass(busy: boolean): string {
   return busy ? `${ACT} opacity-60 cursor-progress` : ACT

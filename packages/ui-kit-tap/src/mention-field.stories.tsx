@@ -17,7 +17,7 @@ function Harness(props: {placeholder?: string}) {
   return (
     <div class="flex flex-col gap-3">
       <MentionField items={filter} onSubmit={setSent} placeholder={props.placeholder} ariaLabel="Comment" />
-      <output aria-label="Sent" class="text-[0.6875rem] text-pw-text-3">
+      <output aria-label="Sent" class="text-[0.6875rem] text-chat-text-3">
         {JSON.stringify(sent())}
       </output>
     </div>

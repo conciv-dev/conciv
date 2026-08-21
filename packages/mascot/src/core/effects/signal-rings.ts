@@ -3,7 +3,7 @@ import {antennaTipAnchor} from '../tip-anchor.js'
 import {antennaScaleFactor, createTimelineEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
 import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
 
-const SIGNAL_RINGS_COLOR = 'var(--pw-accent, #e0218a)'
+const SIGNAL_RINGS_COLOR = 'var(--chat-accent, #e0218a)'
 
 const RING_COUNT = 3
 

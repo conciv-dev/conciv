@@ -27,7 +27,7 @@ function codeOptions(): FileOptions<undefined> {
 }
 
 const HEADER_BTN =
-  'inline-flex size-7 items-center justify-center rounded-pw-sm text-pw-text-2 [outline:none] hover:bg-pw-fill focus-ring'
+  'inline-flex size-7 items-center justify-center rounded-chat-surface-sm text-chat-text-2 [outline:none] hover:bg-chat-fill focus-ring'
 const HEADER_BTN_OFF = `${HEADER_BTN} opacity-30`
 
 const TextPart = z.object({type: z.literal('text'), text: z.string()})
@@ -58,11 +58,11 @@ function renderToolPart(tool: z.output<typeof ToolPart>, key: string, ctx: ToolV
 function renderPart(part: unknown, key: string, ctx: ToolViewCtx): JSX.Element {
   const text = TextPart.safeParse(part)
   if (text.success)
-    return <p class="text-[0.8125rem] text-pw-text leading-snug whitespace-pre-wrap">{text.data.text}</p>
+    return <p class="text-[0.8125rem] text-chat-text leading-snug whitespace-pre-wrap">{text.data.text}</p>
   const mention = MentionPart.safeParse(part)
   if (mention.success)
     return (
-      <span class="text-[0.8125rem] text-pw-accent-hi px-1 rounded-pw-sm bg-pw-accent-08 inline-flex items-center">
+      <span class="text-[0.8125rem] text-chat-accent-hi px-1 rounded-chat-surface-sm bg-chat-accent-08 inline-flex items-center">
         @{mention.data.label}
       </span>
     )
@@ -70,7 +70,7 @@ function renderPart(part: unknown, key: string, ctx: ToolViewCtx): JSX.Element {
   if (tool.success) return renderToolPart(tool.data, key, ctx)
   return (
     <SolidCodeBlock
-      class="text-[0.6875rem] rounded-pw-sm block overflow-auto"
+      class="text-[0.6875rem] rounded-chat-surface-sm block overflow-auto"
       options={codeOptions()}
       file={{name: 'part.txt', lang: 'text', contents: JSON.stringify(part)}}
     />
@@ -83,17 +83,17 @@ function CommentRow(props: {comment: Comment}): JSX.Element {
   const keyedParts = (): {part: unknown; key: string}[] =>
     parts().map((part, index) => ({part, key: `${props.comment.cid}-${index}`}))
   return (
-    <article class="px-3 py-2 border-t border-pw-line-soft flex flex-col gap-1 first:border-t-0">
+    <article class="px-3 py-2 border-t border-chat-line-soft flex flex-col gap-1 first:border-t-0">
       <div class="flex gap-2 items-center">
         <Avatar name={model.displayName(props.comment)} src={props.comment.authorAvatar ?? undefined} class="size-6" />
-        <span class="text-[0.8125rem] text-pw-text font-medium truncate">{model.displayName(props.comment)}</span>
-        <RelativeTime value={new Date(props.comment.createdAt)} class="text-[0.75rem] text-pw-text-3 shrink-0" />
+        <span class="text-[0.8125rem] text-chat-text font-medium truncate">{model.displayName(props.comment)}</span>
+        <RelativeTime value={new Date(props.comment.createdAt)} class="text-[0.75rem] text-chat-text-3 shrink-0" />
         <Show when={model.ownedBySelf(props.comment)}>
           <span class="ml-auto">
             <Menu
               label="Comment actions"
               trigger={
-                <span class="text-pw-text-3 rounded-pw-sm inline-flex size-6 [outline:none] focus-ring items-center justify-center data-[state=open]:bg-pw-fill">
+                <span class="text-chat-text-3 rounded-chat-surface-sm inline-flex size-6 [outline:none] focus-ring items-center justify-center data-[state=open]:bg-chat-fill">
                   ⋯
                 </span>
               }
@@ -116,7 +116,7 @@ function CommentRow(props: {comment: Comment}): JSX.Element {
 function ThreadHeader(props: {onRequestDelete: () => void}): JSX.Element {
   const model = useComments()
   return (
-    <header class="px-2 py-1.5 border-b border-pw-line-soft flex gap-0.5 items-center">
+    <header class="px-2 py-1.5 border-b border-chat-line-soft flex gap-0.5 items-center">
       <Tooltip
         label="Previous thread"
         placement="bottom"
@@ -140,7 +140,7 @@ function ThreadHeader(props: {onRequestDelete: () => void}): JSX.Element {
       <Tooltip
         label="Delete thread"
         placement="bottom"
-        triggerClass={`${HEADER_BTN} hover:text-pw-danger`}
+        triggerClass={`${HEADER_BTN} hover:text-chat-danger`}
         onClick={() => props.onRequestDelete()}
       >
         🗑
@@ -157,7 +157,7 @@ function ThreadComposer(props: {onReady: (api: MentionFieldApi) => void}): JSX.E
   const [api, setApi] = createSignal<MentionFieldApi>()
   const [empty, setEmpty] = createSignal(true)
   return (
-    <div class="p-2 border-t border-pw-line-soft flex gap-2 items-end">
+    <div class="p-2 border-t border-chat-line-soft flex gap-2 items-end">
       <Avatar name="You" class="shrink-0 size-6" />
       <Show when={model.openCid()} keyed>
         {(cid) => (
@@ -180,7 +180,7 @@ function ThreadComposer(props: {onReady: (api: MentionFieldApi) => void}): JSX.E
         variant="solid"
         tooltip="Send reply"
         disabled={empty()}
-        class="rounded-pw-pill shrink-0 size-7"
+        class="rounded-chat-pill shrink-0 size-7"
         onClick={() => api()?.submit()}
       >
         ↑
@@ -218,7 +218,7 @@ export function ThreadPopover(): JSX.Element {
             title="Delete this thread?"
           >
             <div class="flex flex-col gap-3">
-              <p class="text-[0.8125rem] text-pw-text-2">This removes the comment, all its replies, and its pin.</p>
+              <p class="text-[0.8125rem] text-chat-text-2">This removes the comment, all its replies, and its pin.</p>
               <div class="flex gap-2 justify-end">
                 <Button variant="ghost" size="md" aria-label="Cancel" onClick={() => setConfirmDelete(false)}>
                   Cancel

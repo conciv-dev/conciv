@@ -27,8 +27,8 @@ const WITH_ATTACHMENTS: UIMessage = {
 
 function Chip(): JSX.Element {
   return (
-    <Attachment.Root class="px-2 py-1 border border-pw-line rounded-pw-sm">
-      <Attachment.Name class="text-[0.75rem] text-pw-text-2" />
+    <Attachment.Root class="px-2 py-1 border border-chat-line rounded-chat-surface-sm">
+      <Attachment.Name class="text-[0.75rem] text-chat-text-2" />
     </Attachment.Root>
   )
 }
@@ -96,8 +96,8 @@ const CHAIN_THEN_REPLY: UIMessage = {
 
 function GroupBox(props: ParentProps<{indices: readonly number[]; groupKey: GroupKey}>): JSX.Element {
   return (
-    <div data-kind={props.groupKey} class="p-1 border border-pw-line rounded-pw-sm">
-      <span class="text-[0.625rem] text-pw-text-3">{props.groupKey}</span>
+    <div data-kind={props.groupKey} class="p-1 border border-chat-line rounded-chat-surface-sm">
+      <span class="text-[0.625rem] text-chat-text-3">{props.groupKey}</span>
       {props.children}
     </div>
   )
@@ -105,7 +105,7 @@ function GroupBox(props: ParentProps<{indices: readonly number[]; groupKey: Grou
 
 function GroupedAssistant(): JSX.Element {
   return (
-    <Message.Root class="text-pw-text flex flex-col gap-1 self-start">
+    <Message.Root class="text-chat-text flex flex-col gap-1 self-start">
       <Message.Unstable_PartsGrouped components={{Group: GroupBox}} />
     </Message.Root>
   )
@@ -154,8 +154,8 @@ const GROUPED_WITH_STANDALONE: UIMessage = {
 
 function CountingGroupBox(props: ParentProps<{indices: readonly number[]; groupKey: GroupKey}>): JSX.Element {
   return (
-    <div class="p-1 border border-pw-line rounded-pw-sm">
-      <span class="text-[0.625rem] text-pw-text-3">{`${props.groupKey} holds ${props.indices.length}`}</span>
+    <div class="p-1 border border-chat-line rounded-chat-surface-sm">
+      <span class="text-[0.625rem] text-chat-text-3">{`${props.groupKey} holds ${props.indices.length}`}</span>
       {props.children}
     </div>
   )
@@ -163,7 +163,7 @@ function CountingGroupBox(props: ParentProps<{indices: readonly number[]; groupK
 
 function GroupedWithGrouping(): JSX.Element {
   return (
-    <Message.Root class="text-pw-text flex flex-col gap-1 self-start">
+    <Message.Root class="text-chat-text flex flex-col gap-1 self-start">
       <Message.Unstable_PartsGrouped
         components={{Group: CountingGroupBox, tools: {entries: [CONFIRM_ENTRY]}}}
         grouping={{grouper: defaultGrouper, context: {toolEntries: [CONFIRM_ENTRY]}}}
