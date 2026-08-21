@@ -25,7 +25,8 @@ const FOLD = `${FOLD_SLOT} text-chat-affordance opacity-0 group-hover/row:opacit
 
 const RING =
   'relative flex-none inline-flex items-center justify-center size-[9px] rounded-full [border:1.5px_solid_var(--chat-accent)]'
-const RING_DOT = 'size-[3px] rounded-full [background:var(--chat-accent)] [box-shadow:0_0_4px_var(--chat-accent)]'
+const RING_DOT =
+  'size-[3px] rounded-full [background:var(--chat-accent)] [box-shadow:0_0_4px_var(--chat-accent)] anim-run-ring'
 const NOTE_GLYPH = `${MARK} text-chat-dim`
 
 type MarkFace = {glyph: string; label: string; tone: string}

@@ -39,34 +39,40 @@ function traceRoot(container: HTMLElement): HTMLElement {
   return root
 }
 
-function railSvg(container: HTMLElement): SVGSVGElement {
-  const svg = traceRoot(container).querySelectorAll(':scope > svg')[0]
-  if (!(svg instanceof SVGSVGElement)) throw new Error('expected the rail svg')
-  return svg
+function railEl(container: HTMLElement): HTMLElement {
+  const rail = traceRoot(container).querySelector(':scope > div[aria-hidden="true"]')
+  if (!(rail instanceof HTMLElement)) throw new Error('expected the rail element')
+  return rail
 }
 
-function liveRailSvg(container: HTMLElement): SVGSVGElement {
-  const svg = traceRoot(container).querySelectorAll(':scope > svg')[1]
-  if (!(svg instanceof SVGSVGElement)) throw new Error('expected the live rail svg')
-  return svg
+function thumbEl(container: HTMLElement): HTMLElement {
+  const thumb = railEl(container).children[1]
+  if (!(thumb instanceof HTMLElement)) throw new Error('expected the rail thumb')
+  return thumb
 }
 
-function railDot(container: HTMLElement): HTMLElement {
-  const dot = traceRoot(container).querySelector(':scope > span > span')
-  if (!(dot instanceof HTMLElement)) throw new Error('expected the rail dot')
-  return dot
+function maskMarkup(container: HTMLElement): string {
+  const mask = railEl(container).style.getPropertyValue('mask-image')
+  const encoded = /url\("data:image\/svg\+xml,(.+)"\)/.exec(mask)?.[1]
+  if (!encoded) throw new Error('expected the rail mask data uri')
+  return decodeURIComponent(encoded)
+}
+
+function maskPath(container: HTMLElement, index: number): SVGPathElement {
+  const parsed = new DOMParser().parseFromString(maskMarkup(container), 'image/svg+xml')
+  const d = parsed.querySelectorAll('path')[index]?.getAttribute('d')
+  if (d === null || d === undefined) throw new Error(`expected mask path ${index}`)
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+  path.setAttribute('d', d)
+  return path
 }
 
 function spinePath(container: HTMLElement): SVGPathElement {
-  const path = railSvg(container).querySelectorAll('path')[0]
-  if (!(path instanceof SVGPathElement)) throw new Error('expected the rail spine path')
-  return path
+  return maskPath(container, 0)
 }
 
 function armsPath(container: HTMLElement): SVGPathElement {
-  const path = railSvg(container).querySelectorAll('path')[1]
-  if (!(path instanceof SVGPathElement)) throw new Error('expected the rail arms path')
-  return path
+  return maskPath(container, 1)
 }
 
 type Arm = {startX: number; y: number; endX: number}
@@ -112,22 +118,12 @@ function lastRowAnchor(container: HTMLElement): number {
   return rowAnchor(container, rowsList(container).querySelectorAll(':scope > li').length - 1)
 }
 
-function dotCenterY(container: HTMLElement): number {
-  const rect = railDot(container).getBoundingClientRect()
-  return rect.top + rect.height / 2 - traceRoot(container).getBoundingClientRect().top
+function thumbTop(container: HTMLElement): number {
+  return Number.parseFloat(getComputedStyle(thumbEl(container)).getPropertyValue('--rail-top'))
 }
 
-function dotCenterX(container: HTMLElement): number {
-  const rect = railDot(container).getBoundingClientRect()
-  return rect.left + rect.width / 2
-}
-
-function railBottomOf(svg: SVGSVGElement): number {
-  return Number.parseFloat(getComputedStyle(svg).getPropertyValue('--rail-bottom'))
-}
-
-function railTopOf(svg: SVGSVGElement): number {
-  return Number.parseFloat(getComputedStyle(svg).getPropertyValue('--rail-top'))
+function thumbHeight(container: HTMLElement): number {
+  return Number.parseFloat(getComputedStyle(thumbEl(container)).getPropertyValue('--rail-height'))
 }
 
 function waitForTransitionEnd(element: Element, property: string): Promise<void> {
@@ -230,7 +226,8 @@ it('keeps every tick arm and the terminal corner while a row body is expanded', 
 
   const gutter = gutterOf(container)
   const arms = armSegments(armsPath(container))
-  const end = spinePath(container).getPointAtLength(spinePath(container).getTotalLength())
+  const spine = spinePath(container)
+  const end = spine.getPointAtLength(spine.getTotalLength())
   const expected = [headerAnchor(container), rowAnchor(container, 0)]
 
   expect(arms).toHaveLength(2)
@@ -239,28 +236,28 @@ it('keeps every tick arm and the terminal corner while a row body is expanded', 
   expect(Math.abs(end.y - lastRowAnchor(container))).toBeLessThanOrEqual(0.5)
 })
 
-it('lands the travelling dot on a live row that follows an expanded row body', async () => {
+it('lights the span just traversed into a live row that follows an expanded row body', async () => {
   const container = mountTrace(expandedBodyTrace())
   await expect.element(page.getByText('file-after.ts')).toBeVisible()
 
-  const liveSvg = liveRailSvg(container)
-
-  expect(getComputedStyle(railDot(container)).opacity).toBe('1')
-  expect(Math.abs(dotCenterY(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(1)
-  expect(Math.abs(railTopOf(liveSvg) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
-  expect(Math.abs(railBottomOf(liveSvg) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
+  expect(getComputedStyle(thumbEl(container)).opacity).toBe('1')
+  expect(Math.abs(thumbTop(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(thumbTop(container) + thumbHeight(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
 })
 
-it('draws the whole rail as one svg with no leftover connector fragments', async () => {
+it('draws the whole rail as one masked element with no svg nodes and no fragment spans', async () => {
   const container = mountTrace(twoRowTrace())
   await expect.element(page.getByText('bash')).toBeVisible()
 
   const gutter = gutterOf(container)
   const start = spinePath(container).getPointAtLength(0)
+  const root = traceRoot(container)
 
   expect(start.x).toBe(Math.round(gutter / 2) + 0.5)
-  expect(traceRoot(container).querySelectorAll('span[class*="background:var(--chat-glyph)"]')).toHaveLength(0)
-  expect(traceRoot(container).querySelectorAll('span[class*="solid_var(--chat-glyph)"]')).toHaveLength(0)
+  expect(railEl(container).style.getPropertyValue('mask-image')).toContain('data:image/svg+xml')
+  expect(root.querySelectorAll(':scope > svg')).toHaveLength(0)
+  expect(root.querySelectorAll('span[class*="background:var(--chat-glyph)"]')).toHaveLength(0)
+  expect(root.querySelectorAll('span[class*="solid_var(--chat-glyph)"]')).toHaveLength(0)
 })
 
 it('ends the spine at the gutter edge, aligned to the last row anchor', async () => {
@@ -297,19 +294,19 @@ it('draws the header corner alone while the trace is collapsed', async () => {
   expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
 })
 
-it('reflows the spine end when a row before the last one changes height', async () => {
+it('reflows the rail mask when a row before the last one changes height', async () => {
   const container = mountTrace(twoRowTrace())
   await expect.element(page.getByText('bash')).toBeVisible()
 
-  const path = spinePath(container)
-  const initialD = path.getAttribute('d')
+  const rail = railEl(container)
+  const initialMask = rail.style.getPropertyValue('mask-image')
 
   const fold = page.getByRole('button', {name: /pnpm test/})
   await expect.element(fold).toHaveAttribute('aria-expanded', 'true')
   await fold.click()
   await expect.element(fold).toHaveAttribute('aria-expanded', 'false')
 
-  await expect.element(page.elementLocator(path)).not.toHaveAttribute('d', initialD ?? '')
+  await expect.poll(() => rail.style.getPropertyValue('mask-image')).not.toBe(initialMask)
 })
 
 it('ticks an arm from the spine to the gutter edge on the header and every row but the last', async () => {
@@ -341,20 +338,16 @@ it('ticks only the header arm for a single-row trace where the corner already se
 it('lights only the span just traversed into the live row and shows it', async () => {
   const container = await mountedThreeRow(() => 1)
 
-  const liveSvg = liveRailSvg(container)
-
-  expect(getComputedStyle(liveSvg).opacity).toBe('1')
-  expect(Math.abs(railTopOf(liveSvg) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
-  expect(Math.abs(railBottomOf(liveSvg) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
+  expect(getComputedStyle(thumbEl(container)).opacity).toBe('1')
+  expect(Math.abs(thumbTop(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(thumbTop(container) + thumbHeight(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
 })
 
 it('lights the span from the header down into a live first row', async () => {
   const container = await mountedThreeRow(() => 0)
 
-  const liveSvg = liveRailSvg(container)
-
-  expect(Math.abs(railTopOf(liveSvg) - headerAnchor(container))).toBeLessThanOrEqual(0.5)
-  expect(Math.abs(railBottomOf(liveSvg) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(thumbTop(container) - headerAnchor(container))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(thumbTop(container) + thumbHeight(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
 })
 
 it('fades the live segment out where it stands once nothing is live', async () => {
@@ -364,61 +357,44 @@ it('fades the live segment out where it stands once nothing is live', async () =
   ))
   await expect.element(page.getByText('file-2.ts')).toBeVisible()
 
-  const liveSvg = liveRailSvg(container)
-  const litTop = railTopOf(liveSvg)
-  const litBottom = railBottomOf(liveSvg)
-  const settled = waitForTransitionEnd(liveSvg, 'opacity')
+  const thumb = thumbEl(container)
+  const litTop = thumbTop(container)
+  const litHeight = thumbHeight(container)
+  const settled = waitForTransitionEnd(thumb, 'opacity')
   setLiveIndex(-1)
   await settled
 
-  expect(getComputedStyle(liveSvg).opacity).toBe('0')
-  expect(railTopOf(liveSvg)).toBe(litTop)
-  expect(railBottomOf(liveSvg)).toBe(litBottom)
+  expect(getComputedStyle(thumb).opacity).toBe('0')
+  expect(thumbTop(container)).toBe(litTop)
+  expect(thumbHeight(container)).toBe(litHeight)
 })
 
-it('starts the live accent hidden with no flash when nothing is live at mount', () => {
+it('starts the live segment hidden with no flash when nothing is live at mount', () => {
   const container = mountThreeRow(() => -1)
 
-  expect(getComputedStyle(liveRailSvg(container)).opacity).toBe('0')
+  expect(getComputedStyle(thumbEl(container)).opacity).toBe('0')
 })
 
-it('rides the travelling dot on the live row anchor and shows it', async () => {
-  const container = await mountedThreeRow(() => 1)
-
-  const dot = railDot(container)
-
-  expect(getComputedStyle(dot).opacity).toBe('1')
-  expect(Math.abs(dotCenterY(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(1)
-})
-
-it('keeps the travelling dot hidden when nothing is live', () => {
-  const container = mountThreeRow(() => -1)
-
-  expect(getComputedStyle(railDot(container)).opacity).toBe('0')
-})
-
-it('mirrors the travelling dot onto the mirrored spine under rtl', async () => {
+it('mirrors the rail onto the inline-start edge under rtl', async () => {
   const container = await mountedThreeRow(() => 1)
 
   const root = traceRoot(container)
   root.setAttribute('dir', 'rtl')
 
-  const svgRect = railSvg(container).getBoundingClientRect()
+  const railRect = railEl(container).getBoundingClientRect()
   const rootRect = root.getBoundingClientRect()
-  const mirroredSpineX = svgRect.left + (svgRect.width - spinePath(container).getPointAtLength(0).x)
+  const scale = getComputedStyle(railEl(container)).scale
 
-  expect(Math.abs(svgRect.right - rootRect.right)).toBeLessThanOrEqual(0.51)
-  expect(Math.abs(dotCenterX(container) - mirroredSpineX)).toBeLessThanOrEqual(0.51)
+  expect(Math.abs(railRect.right - rootRect.right)).toBeLessThanOrEqual(0.51)
+  expect(scale.split(' ')[0]).toBe('-1')
 })
 
-it('pulses the rail dot rather than the row ring while a run row is live', async () => {
-  const container = mountView(() => (
-    <Trace summary="1 tool ran" compactLine="1 tool" items={liveRunTrace()} defaultOpen />
-  ))
+it('pulses the running ring dot while a run row is live and keeps the rail free of animations', async () => {
+  const container = mountView(() => <Trace summary="1 tool ran" compactLine="1 tool" items={liveRunTrace()} defaultOpen />)
   await expect.element(page.getByText('pnpm build')).toBeVisible()
 
-  expect(railDot(container).getAnimations({subtree: true})).toHaveLength(1)
-  expect(runningRingDot(container).getAnimations()).toEqual([])
+  expect(runningRingDot(container).getAnimations()).toHaveLength(1)
+  expect(railEl(container).getAnimations({subtree: true})).toEqual([])
 })
 
 it('leaves no running animation in the rail once the live row settles away', async () => {
@@ -428,25 +404,23 @@ it('leaves no running animation in the rail once the live row settles away', asy
   ))
   await expect.element(page.getByText('file-2.ts')).toBeVisible()
 
-  const dot = railDot(container)
-  const root = traceRoot(container)
-  const settled = Promise.all([waitForTransitionEnd(dot, 'opacity'), waitForTransitionEnd(dot, 'offset-distance')])
+  const thumb = thumbEl(container)
+  const settled = waitForTransitionEnd(thumb, 'opacity')
   setLiveIndex(-1)
   await settled
 
-  expect(getComputedStyle(dot).opacity).toBe('0')
-  expect(root.getAnimations({subtree: true})).toEqual([])
+  expect(getComputedStyle(thumb).opacity).toBe('0')
+  expect(traceRoot(container).getAnimations({subtree: true})).toEqual([])
 })
 
-it('drops the live accent and the rail to the header corner when a live trace is collapsed by click', async () => {
+it('drops the live segment and the rail to the header corner when a live trace is collapsed by click', async () => {
   const container = await mountedThreeRow(() => 1)
-  const liveSvg = liveRailSvg(container)
-  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '1'})
+  const thumb = thumbEl(container)
+  await expect.element(page.elementLocator(thumb), {timeout: 2000}).toHaveStyle({opacity: '1'})
 
   await page.getByText('Hide trace').click()
   await expect.element(page.getByText('Show trace'), {timeout: 2000}).toBeVisible()
-  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '0'})
-  await expect.element(page.elementLocator(railDot(container)), {timeout: 2000}).toHaveStyle({opacity: '0'})
+  await expect.element(page.elementLocator(thumb), {timeout: 2000}).toHaveStyle({opacity: '0'})
 
   const path = spinePath(container)
   const end = path.getPointAtLength(path.getTotalLength())
@@ -456,23 +430,23 @@ it('drops the live accent and the rail to the header corner when a live trace is
   expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
 })
 
-it('restores the full rail and re-anchors the live accent when the trace is reopened by click', async () => {
+it('restores the full rail and re-anchors the live segment when the trace is reopened by click', async () => {
   const container = await mountedThreeRow(() => 1)
-  const liveSvg = liveRailSvg(container)
+  const thumb = thumbEl(container)
 
   await page.getByText('Hide trace').click()
-  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '0'})
-  const collapsedD = spinePath(container).getAttribute('d') ?? ''
+  await expect.element(page.elementLocator(thumb), {timeout: 2000}).toHaveStyle({opacity: '0'})
+  const collapsedMask = railEl(container).style.getPropertyValue('mask-image')
 
   await page.getByText('Show trace').click()
   await expect.element(page.getByText('file-2.ts'), {timeout: 2000}).toBeVisible()
-  await expect.element(page.elementLocator(spinePath(container)), {timeout: 2000}).not.toHaveAttribute('d', collapsedD)
-  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '1'})
+  await expect.poll(() => railEl(container).style.getPropertyValue('mask-image')).not.toBe(collapsedMask)
+  await expect.element(page.elementLocator(thumb), {timeout: 2000}).toHaveStyle({opacity: '1'})
 
   const path = spinePath(container)
   const end = path.getPointAtLength(path.getTotalLength())
 
   expect(armSegments(armsPath(container))).toHaveLength(3)
   expect(Math.abs(end.y - lastRowAnchor(container))).toBeLessThanOrEqual(0.5)
-  expect(Math.abs(railBottomOf(liveSvg) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(thumbTop(container) + thumbHeight(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
 })

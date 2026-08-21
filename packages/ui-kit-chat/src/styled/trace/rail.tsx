@@ -2,22 +2,12 @@ import {createEffect, onCleanup, onMount, type Accessor, type JSX} from 'solid-j
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 
 const CORNER_RADIUS = 3
-const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
-const DISTANCE_STEPS = 24
 
-const SVG_CLASS =
-  'absolute [inset-block-start:0] [inset-inline-start:0] w-[var(--chat-trace-gutter)] pointer-events-none rtl:-scale-x-100 origin-center'
-const PATH_CLASS = '[stroke:var(--chat-glyph)] stroke-1 fill-none'
-const LIVE_SVG_CLASS = `${SVG_CLASS} [clip-path:polygon(0_var(--rail-top,0px),100%_var(--rail-top,0px),100%_var(--rail-bottom,0px),0_var(--rail-bottom,0px))] [transition:clip-path_var(--rail-travel,320ms)_var(--chat-ease),opacity_260ms_var(--chat-ease)] motion-reduce:[transition:none]`
-const LIVE_PATH_CLASS = '[stroke:var(--chat-accent)] stroke-1 fill-none'
-
-const DOT_LAYER_CLASS =
+const RAIL_CLASS =
   'absolute [inset-block:0] [inset-inline-start:0] w-[var(--chat-trace-gutter)] pointer-events-none rtl:-scale-x-100 origin-center'
-const DOT_CLASS =
-  'absolute [top:0] [left:0] size-[3px] [offset-distance:var(--rail-dot-distance,0px)] [opacity:var(--rail-dot-o,0)] [transition:offset-distance_var(--rail-travel,320ms)_var(--chat-ease),opacity_260ms_var(--chat-ease)] motion-reduce:[transition:none]'
-const DOT_CORE_CLASS =
-  'block size-full rounded-full [background:var(--chat-accent)] [box-shadow:0_0_4px_var(--chat-accent)]'
-const DOT_PULSE_CLASS = 'anim-run-ring'
+const BASE_CLASS = 'absolute inset-0 [background:var(--chat-glyph)]'
+const THUMB_CLASS =
+  'absolute [inset-inline:0] [top:var(--rail-top,0px)] [height:var(--rail-height,0px)] [opacity:var(--rail-o,0)] [background:var(--chat-accent)] [transition:top_var(--rail-travel,320ms)_var(--chat-ease),height_var(--rail-travel,320ms)_var(--chat-ease),opacity_260ms_var(--chat-ease)] motion-reduce:[transition:none]'
 
 function spineX(gutter: number): number {
   return Math.round(gutter / 2) + 0.5
@@ -25,7 +15,7 @@ function spineX(gutter: number): number {
 
 type RailGeometry = {gutter: number; top: number; headerAnchor: number; rowAnchors: number[]}
 
-type RailPaths = {spine: string; arms: string; track: string}
+type RailPaths = {spine: string; arms: string}
 
 function jointsRail(geometry: RailGeometry): RailPaths {
   const {gutter, top, headerAnchor, rowAnchors} = geometry
@@ -38,28 +28,12 @@ function jointsRail(geometry: RailGeometry): RailPaths {
       .slice(0, -1)
       .map((y) => `M ${x} ${y} L ${gutter} ${y}`)
       .join(' '),
-    track: `M ${x} ${top} L ${x} ${lastAnchor}`,
   }
 }
 
-type RailStop = {y: number; distance: number}
-
-function distanceAtY(path: SVGPathElement, total: number, y: number): number {
-  let low = 0
-  let high = total
-  for (let step = 0; step < DISTANCE_STEPS; step += 1) {
-    const middle = (low + high) / 2
-    if (path.getPointAtLength(middle).y < y) low = middle
-    else high = middle
-  }
-  return high
-}
-
-function railStops(track: string, anchors: number[]): RailStop[] {
-  const path = document.createElementNS(SVG_NAMESPACE, 'path')
-  path.setAttribute('d', track)
-  const total = path.getTotalLength()
-  return anchors.map((y) => ({y, distance: distanceAtY(path, total, y)}))
+export function railMask(paths: RailPaths, width: number, height: number): string {
+  const markup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"><path d="${paths.spine}" stroke="black" stroke-width="1" fill="none"/><path d="${paths.arms}" stroke="black" stroke-width="1" fill="none"/></svg>`
+  return `url("data:image/svg+xml,${encodeURIComponent(markup)}")`
 }
 
 function readRowAnchors(list: HTMLUListElement | undefined, rootTop: number, gutter: number): number[] {
@@ -76,23 +50,6 @@ function liveRowIndex(list: HTMLUListElement | undefined): number {
   return Array.from(list.querySelectorAll(':scope > li')).findIndex((row) => row.hasAttribute('data-trace-live'))
 }
 
-type RailRefs = {
-  root: HTMLElement
-  header: HTMLElement
-  svg: SVGSVGElement
-  spine: SVGPathElement
-  arms: SVGPathElement
-  liveSvg: SVGSVGElement
-  liveSpine: SVGPathElement
-  dot: HTMLSpanElement
-}
-
-function readyRefs(parts: Partial<RailRefs>): RailRefs | undefined {
-  const {root, header, svg, spine, arms, liveSvg, liveSpine, dot} = parts
-  if (!root || !header || !svg || !spine || !arms || !liveSvg || !liveSpine || !dot) return undefined
-  return {root, header, svg, spine, arms, liveSvg, liveSpine, dot}
-}
-
 export function TraceRail(props: {
   root: Accessor<HTMLElement | undefined>
   header: Accessor<HTMLElement | undefined>
@@ -100,78 +57,60 @@ export function TraceRail(props: {
   liveKey: Accessor<string | undefined>
   open: Accessor<boolean>
 }): JSX.Element {
-  let svg: SVGSVGElement | undefined
-  let spine: SVGPathElement | undefined
-  let arms: SVGPathElement | undefined
-  let liveSvg: SVGSVGElement | undefined
-  let liveSpine: SVGPathElement | undefined
-  let dot: HTMLSpanElement | undefined
+  let rail: HTMLDivElement | undefined
+  let thumb: HTMLDivElement | undefined
   let pendingMeasureFrame: number | undefined
   let pendingPaintFrame: number | undefined
-  let stops: RailStop[] = []
-
-  const refsNow = (): RailRefs | undefined =>
-    readyRefs({root: props.root(), header: props.header(), svg, spine, arms, liveSvg, liveSpine, dot})
+  let anchors: number[] = []
+  let maskCache = ''
 
   const visibleRows = (): HTMLUListElement | undefined => (props.open() ? props.list() : undefined)
 
   const measure = (): void => {
-    const refs = refsNow()
-    if (!refs) return
-    const gutter = Number.parseFloat(getComputedStyle(refs.root).getPropertyValue('--chat-trace-gutter'))
+    const root = props.root()
+    const header = props.header()
+    if (!root || !header || !rail) return
+    const gutter = Number.parseFloat(getComputedStyle(root).getPropertyValue('--chat-trace-gutter'))
     if (!(gutter > 0)) return
-    const rootRect = refs.root.getBoundingClientRect()
+    const rootRect = root.getBoundingClientRect()
     if (rootRect.height === 0) return
-    const top = refs.header.getBoundingClientRect().top - rootRect.top
+    const top = header.getBoundingClientRect().top - rootRect.top
     const geometry = {
       gutter,
       top,
       headerAnchor: top + gutter / 2,
       rowAnchors: readRowAnchors(visibleRows(), rootRect.top, gutter),
     }
-    const paths = jointsRail(geometry)
-    stops = railStops(paths.track, [geometry.headerAnchor, ...geometry.rowAnchors])
-    refs.svg.setAttribute('width', `${gutter}`)
-    refs.svg.setAttribute('height', `${rootRect.height}`)
-    refs.spine.setAttribute('d', paths.spine)
-    refs.arms.setAttribute('d', paths.arms)
-    refs.liveSvg.setAttribute('width', `${gutter}`)
-    refs.liveSvg.setAttribute('height', `${rootRect.height}`)
-    refs.liveSpine.setAttribute('d', paths.spine)
-    refs.dot.style.setProperty('offset-path', `path("${paths.track}")`)
+    anchors = [geometry.headerAnchor, ...geometry.rowAnchors]
+    const mask = railMask(jointsRail(geometry), gutter, rootRect.height)
+    if (mask === maskCache) return
+    maskCache = mask
+    rail.style.setProperty('mask-image', mask)
   }
 
   const paint = (): void => {
-    const refs = refsNow()
-    if (!refs) return
+    if (!thumb) return
     const index = liveRowIndex(visibleRows())
-    const live = index < 0 ? undefined : stops[index + 1]
-    const entered = index < 0 ? undefined : stops[index]
-    if (live && entered) {
-      refs.liveSvg.style.setProperty('--rail-top', `${entered.y}px`)
-      refs.liveSvg.style.setProperty('--rail-bottom', `${live.y}px`)
-      refs.liveSvg.style.opacity = '1'
-      refs.dot.style.setProperty('--rail-dot-distance', `${live.distance}px`)
-      refs.dot.style.setProperty('--rail-dot-o', '1')
+    const enteredAnchor = index < 0 ? undefined : anchors[index]
+    const liveAnchor = index < 0 ? undefined : anchors[index + 1]
+    if (enteredAnchor !== undefined && liveAnchor !== undefined) {
+      thumb.style.setProperty('--rail-top', `${enteredAnchor}px`)
+      thumb.style.setProperty('--rail-height', `${liveAnchor - enteredAnchor}px`)
+      thumb.style.setProperty('--rail-o', '1')
       return
     }
-    const settled = stops[stops.length - 1]
-    if (settled) refs.dot.style.setProperty('--rail-dot-distance', `${settled.distance}px`)
-    refs.liveSvg.style.opacity = '0'
-    refs.dot.style.setProperty('--rail-dot-o', '0')
+    thumb.style.setProperty('--rail-o', '0')
   }
 
   const scheduleMeasure = (): void => {
     if (pendingMeasureFrame !== undefined) return
     pendingMeasureFrame = requestAnimationFrame(() => {
       pendingMeasureFrame = undefined
-      liveSvg?.style.setProperty('--rail-travel', '0ms')
-      dot?.style.setProperty('--rail-travel', '0ms')
+      thumb?.style.setProperty('--rail-travel', '0ms')
       measure()
       paint()
       requestAnimationFrame(() => {
-        liveSvg?.style.removeProperty('--rail-travel')
-        dot?.style.removeProperty('--rail-travel')
+        thumb?.style.removeProperty('--rail-travel')
       })
     })
   }
@@ -190,14 +129,12 @@ export function TraceRail(props: {
   })
 
   onMount(() => {
-    liveSvg?.style.setProperty('transition', 'none')
-    dot?.style.setProperty('transition', 'none')
+    thumb?.style.setProperty('transition', 'none')
     measure()
     paint()
-    liveSvg?.getBoundingClientRect()
+    thumb?.getBoundingClientRect()
     requestAnimationFrame(() => {
-      liveSvg?.style.removeProperty('transition')
-      dot?.style.removeProperty('transition')
+      thumb?.style.removeProperty('transition')
     })
     createResizeObserver(() => props.root(), scheduleMeasure)
     createResizeObserver(() => props.list(), scheduleMeasure)
@@ -214,22 +151,10 @@ export function TraceRail(props: {
     schedulePaint()
   })
 
-  const dotCoreClass = (): string => (props.liveKey() ? `${DOT_CORE_CLASS}  ${DOT_PULSE_CLASS}` : DOT_CORE_CLASS)
-
   return (
-    <>
-      <svg ref={(element) => (svg = element)} aria-hidden="true" class={SVG_CLASS}>
-        <path ref={(element) => (spine = element)} d="" class={PATH_CLASS} />
-        <path ref={(element) => (arms = element)} d="" class={PATH_CLASS} />
-      </svg>
-      <svg ref={(element) => (liveSvg = element)} aria-hidden="true" class={LIVE_SVG_CLASS} style={{opacity: 0}}>
-        <path ref={(element) => (liveSpine = element)} d="" class={LIVE_PATH_CLASS} />
-      </svg>
-      <span aria-hidden="true" class={DOT_LAYER_CLASS}>
-        <span ref={(element) => (dot = element)} class={DOT_CLASS}>
-          <span class={dotCoreClass()} />
-        </span>
-      </span>
-    </>
+    <div ref={(element) => (rail = element)} aria-hidden="true" class={RAIL_CLASS}>
+      <div class={BASE_CLASS} />
+      <div ref={(element) => (thumb = element)} class={THUMB_CLASS} />
+    </div>
   )
 }
