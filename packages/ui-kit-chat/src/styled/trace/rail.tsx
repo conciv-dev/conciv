@@ -2,8 +2,6 @@ import {createEffect, onCleanup, onMount, type Accessor, type JSX} from 'solid-j
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 
 const CORNER_RADIUS = 3
-const CURVE_LEAD = 4
-const DEPTH_DROP = 8
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
 const DISTANCE_STEPS = 24
 
@@ -21,89 +19,28 @@ const DOT_CORE_CLASS =
   'block size-full rounded-full [background:var(--chat-accent)] [box-shadow:0_0_4px_var(--chat-accent)]'
 const DOT_PULSE_CLASS = 'anim-run-ring'
 
-export type RailVariant = 'joints' | 'clerk'
-
 function spineX(gutter: number): number {
   return Math.round(gutter / 2) + 0.5
 }
 
-function crisp(value: number): number {
-  return Math.round(value - 0.5) + 0.5
-}
-
-function headerX(gutter: number): number {
-  return crisp(spineX(gutter) - (gutter / 2 - 1))
-}
-
-function depthX(gutter: number): number {
-  return gutter - 0.5
-}
-
-function sCurve(fromX: number, fromY: number, toX: number, toY: number): string {
-  return `C ${fromX} ${toY - CURVE_LEAD} ${toX} ${fromY + CURVE_LEAD} ${toX} ${toY}`
-}
-
-type RailRow = {anchor: number; bodyBottom?: number}
-
-type RailGeometry = {gutter: number; top: number; headerAnchor: number; rows: RailRow[]}
+type RailGeometry = {gutter: number; top: number; headerAnchor: number; rowAnchors: number[]}
 
 type RailPaths = {spine: string; arms: string; track: string}
 
-function bodyDetour(baseX: number, deepX: number, row: RailRow, nextAnchor: number): string {
-  const bodyBottom = row.bodyBottom
-  if (bodyBottom === undefined) return ''
-  const outEnd = row.anchor + DEPTH_DROP
-  const backEnd = Math.min(bodyBottom + DEPTH_DROP, nextAnchor - CORNER_RADIUS)
-  if (bodyBottom < outEnd) return ''
-  if (backEnd - bodyBottom < CURVE_LEAD) return ''
-  return ` L ${baseX} ${row.anchor} ${sCurve(baseX, row.anchor, deepX, outEnd)} L ${deepX} ${bodyBottom} ${sCurve(deepX, bodyBottom, baseX, backEnd)}`
-}
-
-function bodyDetours(baseX: number, deepX: number, rows: RailRow[]): string {
-  return rows
-    .map((row, index) => {
-      const next = rows[index + 1]
-      if (!next) return ''
-      return bodyDetour(baseX, deepX, row, next.anchor)
-    })
-    .join('')
-}
-
 function jointsRail(geometry: RailGeometry): RailPaths {
-  const {gutter, top, headerAnchor, rows} = geometry
-  const anchors = [headerAnchor, ...rows.map((row) => row.anchor)]
+  const {gutter, top, headerAnchor, rowAnchors} = geometry
+  const anchors = [headerAnchor, ...rowAnchors]
   const lastAnchor = anchors[anchors.length - 1] ?? headerAnchor
   const x = spineX(gutter)
-  const descent = `M ${x} ${top}${bodyDetours(x, depthX(gutter), rows)}`
   return {
-    spine: `${descent} L ${x} ${lastAnchor - CORNER_RADIUS} A ${CORNER_RADIUS} ${CORNER_RADIUS} 0 0 0 ${x + CORNER_RADIUS} ${lastAnchor} L ${gutter} ${lastAnchor}`,
+    spine: `M ${x} ${top} L ${x} ${lastAnchor - CORNER_RADIUS} A ${CORNER_RADIUS} ${CORNER_RADIUS} 0 0 0 ${x + CORNER_RADIUS} ${lastAnchor} L ${gutter} ${lastAnchor}`,
     arms: anchors
       .slice(0, -1)
       .map((y) => `M ${x} ${y} L ${gutter} ${y}`)
       .join(' '),
-    track: `${descent} L ${x} ${lastAnchor}`,
+    track: `M ${x} ${top} L ${x} ${lastAnchor}`,
   }
 }
-
-function clerkRail(geometry: RailGeometry): RailPaths {
-  const {gutter, top, headerAnchor, rows} = geometry
-  const headX = headerX(gutter)
-  const rowX = spineX(gutter)
-  const rowAnchors = rows.map((row) => row.anchor)
-  const firstRow = rowAnchors[0]
-  if (firstRow === undefined) {
-    const stub = `M ${headX} ${top} L ${headX} ${headerAnchor}`
-    return {spine: stub, arms: '', track: stub}
-  }
-  const descent = rowAnchors
-    .slice(1)
-    .map((y) => ` L ${rowX} ${y}`)
-    .join('')
-  const spine = `M ${headX} ${headerAnchor} C ${headX} ${firstRow - CURVE_LEAD} ${rowX} ${headerAnchor + CURVE_LEAD} ${rowX} ${firstRow}${descent}`
-  return {spine, arms: '', track: spine}
-}
-
-const RAILS: Record<RailVariant, (geometry: RailGeometry) => RailPaths> = {joints: jointsRail, clerk: clerkRail}
 
 type RailStop = {y: number; distance: number}
 
@@ -125,15 +62,12 @@ function railStops(track: string, anchors: number[]): RailStop[] {
   return anchors.map((y) => ({y, distance: distanceAtY(path, total, y)}))
 }
 
-function railRows(list: HTMLUListElement | undefined, rootTop: number, gutter: number): RailRow[] {
+function readRowAnchors(list: HTMLUListElement | undefined, rootTop: number, gutter: number): number[] {
   if (!list) return []
   if (list.getBoundingClientRect().height === 0) return []
-  return Array.from(list.querySelectorAll(':scope > li')).map((row) => {
-    const rect = row.getBoundingClientRect()
-    const anchor = rect.top - rootTop + gutter / 2
-    if (rect.height <= gutter + 2) return {anchor}
-    return {anchor, bodyBottom: rect.bottom - rootTop}
-  })
+  return Array.from(list.querySelectorAll(':scope > li')).map(
+    (row) => row.getBoundingClientRect().top - rootTop + gutter / 2,
+  )
 }
 
 function liveRowIndex(list: HTMLUListElement | undefined): number {
@@ -164,7 +98,6 @@ export function TraceRail(props: {
   header: Accessor<HTMLElement | undefined>
   list: Accessor<HTMLUListElement | undefined>
   liveKey: Accessor<string | undefined>
-  rail: Accessor<RailVariant>
   open: Accessor<boolean>
 }): JSX.Element {
   let svg: SVGSVGElement | undefined
@@ -194,10 +127,10 @@ export function TraceRail(props: {
       gutter,
       top,
       headerAnchor: top + gutter / 2,
-      rows: railRows(visibleRows(), rootRect.top, gutter),
+      rowAnchors: readRowAnchors(visibleRows(), rootRect.top, gutter),
     }
-    const paths = RAILS[props.rail()](geometry)
-    stops = railStops(paths.track, [geometry.headerAnchor, ...geometry.rows.map((row) => row.anchor)])
+    const paths = jointsRail(geometry)
+    stops = railStops(paths.track, [geometry.headerAnchor, ...geometry.rowAnchors])
     refs.svg.setAttribute('width', `${gutter}`)
     refs.svg.setAttribute('height', `${rootRect.height}`)
     refs.spine.setAttribute('d', paths.spine)
@@ -271,7 +204,6 @@ export function TraceRail(props: {
   })
 
   createEffect(() => {
-    props.rail()
     props.open()
     measure()
     paint()

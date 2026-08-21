@@ -68,7 +68,7 @@ function traceArmsPath(): SVGPathElement {
   return path
 }
 
-it('draws the thread trace on the joints rail, ticking an arm on the expanded rows', async () => {
+it('ticks a rail arm onto the expanded rows of a thread trace', async () => {
   mountView(() => <TracedThread />)
 
   await expect.element(page.getByText('Found it in watcher.ts.'), {timeout: 3000}).toBeVisible()

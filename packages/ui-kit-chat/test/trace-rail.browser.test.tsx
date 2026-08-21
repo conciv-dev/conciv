@@ -188,19 +188,6 @@ async function mountedThreeRow(liveIndex: () => number): Promise<HTMLElement> {
   return container
 }
 
-async function mountedClerk(liveIndex: () => number): Promise<HTMLElement> {
-  const container = mountView(() => (
-    <Trace summary="3 tools ran" compactLine="3 tools" items={threeRowLiveTrace(liveIndex)} rail="clerk" defaultOpen />
-  ))
-  await expect.element(page.getByText('file-2.ts')).toBeVisible()
-  return container
-}
-
-function rowColumnX(container: HTMLElement): number {
-  const path = spinePath(container)
-  return path.getPointAtLength(path.getTotalLength()).x
-}
-
 const SAMPLE_COUNT = 1000
 const CORNER_RADIUS = 3
 
@@ -214,10 +201,6 @@ function deepestXBetween(path: SVGPathElement, fromY: number, toY: number): numb
   return Math.max(...inside.map((point) => point.x))
 }
 
-function xNearestY(path: SVGPathElement, y: number): number {
-  return samplePoints(path).reduce((best, point) => (Math.abs(point.y - y) < Math.abs(best.y - y) ? point : best)).x
-}
-
 function expandedBodyTrace(): TraceItem[] {
   return [
     toolItem('failing', {mark: 'fail', label: 'bash', target: 'pnpm test', meta: 'exit 1'}, () => (
@@ -228,18 +211,17 @@ function expandedBodyTrace(): TraceItem[] {
   ]
 }
 
-it('curves the joints spine out alongside an expanded row body and back before the next anchor', async () => {
+it('holds the spine straight in its column alongside an expanded row body', async () => {
   const container = mountTrace(twoRowTrace())
   await expect.element(page.getByText('bash')).toBeVisible()
 
-  const gutter = gutterOf(container)
+  const column = Math.round(gutterOf(container) / 2) + 0.5
   const path = spinePath(container)
   const bodyTop = rowAnchor(container, 0)
   const beforeTheCorner = rowAnchor(container, 1) - CORNER_RADIUS
 
-  expect(path.getAttribute('d')).toMatch(/C/)
-  expect(Math.abs(deepestXBetween(path, bodyTop, beforeTheCorner) - (gutter - 0.5))).toBeLessThanOrEqual(0.05)
-  expect(Math.abs(xNearestY(path, beforeTheCorner) - (Math.round(gutter / 2) + 0.5))).toBeLessThanOrEqual(0.5)
+  expect(path.getAttribute('d')).not.toMatch(/C/)
+  expect(Math.abs(deepestXBetween(path, bodyTop, beforeTheCorner) - column)).toBeLessThanOrEqual(0.05)
 })
 
 it('keeps every tick arm and the terminal corner while a row body is expanded', async () => {
@@ -255,12 +237,6 @@ it('keeps every tick arm and the terminal corner while a row body is expanded', 
   expect(arms.map((arm, index) => Math.abs(arm.y - (expected[index] ?? Number.NaN)) <= 0.5)).toEqual([true, true])
   expect(Math.abs(end.x - gutter)).toBeLessThanOrEqual(0.01)
   expect(Math.abs(end.y - lastRowAnchor(container))).toBeLessThanOrEqual(0.5)
-})
-
-it('leaves the joints spine free of depth curves when no row body is expanded', async () => {
-  const container = await mountedThreeRow(() => -1)
-
-  expect(spinePath(container).getAttribute('d')).not.toMatch(/C/)
 })
 
 it('lands the travelling dot on a live row that follows an expanded row body', async () => {
@@ -462,35 +438,6 @@ it('leaves no running animation in the rail once the live row settles away', asy
   expect(root.getAnimations({subtree: true})).toEqual([])
 })
 
-it('draws the clerk rail as one curving line with no arms', async () => {
-  const container = await mountedClerk(() => -1)
-
-  const path = spinePath(container)
-  const start = path.getPointAtLength(0)
-  const end = path.getPointAtLength(path.getTotalLength())
-
-  expect(armsPath(container).getAttribute('d')).toBe('')
-  expect(path.getAttribute('d')).toMatch(/[CQ]/)
-  expect(Math.abs(start.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
-  expect(Math.abs(end.y - lastRowAnchor(container))).toBeLessThanOrEqual(0.5)
-  expect(Math.abs(end.x - start.x - (gutterOf(container) / 2 - 1))).toBeLessThanOrEqual(0.01)
-})
-
-it('keeps the clerk rail to a header stub while the trace is collapsed', async () => {
-  const container = mountView(() => (
-    <Trace summary="3 tools ran" compactLine="3 tools" items={threeRowLiveTrace(() => -1)} rail="clerk" />
-  ))
-  await expect.element(page.getByText('Show trace')).toBeVisible()
-
-  const path = spinePath(container)
-  const start = path.getPointAtLength(0)
-  const end = path.getPointAtLength(path.getTotalLength())
-
-  expect(armsPath(container).getAttribute('d')).toBe('')
-  expect(Math.abs(end.x - start.x)).toBeLessThanOrEqual(0.01)
-  expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
-})
-
 it('drops the live accent and the rail to the header corner when a live trace is collapsed by click', async () => {
   const container = await mountedThreeRow(() => 1)
   const liveSvg = liveRailSvg(container)
@@ -506,23 +453,6 @@ it('drops the live accent and the rail to the header corner when a live trace is
 
   expect(armsPath(container).getAttribute('d')).toBe('')
   expect(Math.abs(end.x - gutterOf(container))).toBeLessThanOrEqual(0.01)
-  expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
-})
-
-it('drops the clerk rail to its header stub when a live trace is collapsed by click', async () => {
-  const container = await mountedClerk(() => 1)
-  const liveSvg = liveRailSvg(container)
-  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '1'})
-
-  await page.getByText('Hide trace').click()
-  await expect.element(page.getByText('Show trace'), {timeout: 2000}).toBeVisible()
-  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '0'})
-
-  const path = spinePath(container)
-  const start = path.getPointAtLength(0)
-  const end = path.getPointAtLength(path.getTotalLength())
-
-  expect(Math.abs(end.x - start.x)).toBeLessThanOrEqual(0.01)
   expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
 })
 
@@ -545,24 +475,4 @@ it('restores the full rail and re-anchors the live accent when the trace is reop
   expect(armSegments(armsPath(container))).toHaveLength(3)
   expect(Math.abs(end.y - lastRowAnchor(container))).toBeLessThanOrEqual(0.5)
   expect(Math.abs(railBottomOf(liveSvg) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
-})
-
-it('lands the clerk travelling dot on the live row anchor', async () => {
-  const container = await mountedClerk(() => 1)
-
-  expect(getComputedStyle(railDot(container)).opacity).toBe('1')
-  expect(Math.abs(dotCenterY(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(1)
-})
-
-it('mirrors the clerk travelling dot onto the mirrored rail under rtl', async () => {
-  const container = await mountedClerk(() => 1)
-
-  const root = traceRoot(container)
-  root.setAttribute('dir', 'rtl')
-
-  const svgRect = railSvg(container).getBoundingClientRect()
-  const mirroredRowX = svgRect.left + (svgRect.width - rowColumnX(container))
-
-  expect(Math.abs(dotCenterX(container) - mirroredRowX)).toBeLessThanOrEqual(0.51)
-  expect(Math.abs(dotCenterY(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(1)
 })
