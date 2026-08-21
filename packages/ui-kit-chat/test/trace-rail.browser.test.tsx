@@ -444,7 +444,7 @@ it('lights the row under the reading line while scrolling a settled trace', asyn
 
   await scrollRowToReadingBand(container, 1)
 
-  await expect.poll(() => getComputedStyle(liveRailSvg(container)).opacity).toBe('1')
+  await expect.element(page.elementLocator(liveRailSvg(container))).toHaveStyle({opacity: '1'})
   expect(Math.abs(segmentTop(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
   expect(Math.abs(segmentBottom(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
 
@@ -457,7 +457,7 @@ it('keeps the live row segment even when scroll focuses another row', async () =
 
   await scrollRowToReadingBand(container, 0)
 
-  await expect.poll(() => getComputedStyle(liveRailSvg(container)).opacity).toBe('1')
+  await expect.element(page.elementLocator(liveRailSvg(container))).toHaveStyle({opacity: '1'})
   expect(Math.abs(segmentTop(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
   expect(Math.abs(segmentBottom(container) - rowAnchor(container, 2))).toBeLessThanOrEqual(0.5)
 
