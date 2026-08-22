@@ -17,8 +17,10 @@ import Ellipsis from 'lucide-solid/icons/ellipsis'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import Unplug from 'lucide-solid/icons/unplug'
+import SlidersHorizontal from 'lucide-solid/icons/sliders-horizontal'
 import {Show, Suspense, createMemo, createSignal, type JSX} from 'solid-js'
 import {isSessionId} from '@conciv/protocol/chat-types'
+import {SETTINGS_CHANGED_EVENT} from '@conciv/protocol/settings-types'
 import {useChatSession} from '@conciv/client'
 import {
   useAnnounce,
@@ -137,7 +139,13 @@ function PanelSession(): JSX.Element {
   })
 
   const chatKey = createMemo(() => ({sessionId: params().sessionId, generation: generation()}))
-  const chat = createMemo(() => useChatSession({rpc, sessionId: chatKey().sessionId}))
+  const chat = createMemo(() =>
+    useChatSession({
+      rpc,
+      sessionId: chatKey().sessionId,
+      connection: {onCustom: (name) => (name === SETTINGS_CHANGED_EVENT ? appData.invalidateSettings() : undefined)},
+    }),
+  )
 
   const turns = createMemo(() => coalesceTurns(chat().messages()))
   const latestRollup = createMemo<TurnRollup | undefined>(() => {
@@ -241,6 +249,10 @@ function PanelSession(): JSX.Element {
               >
                 <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
                 Pop out to a window
+              </button>
+              <button type="button" class={RAIL_MENU_ROW} onClick={() => void router.navigate({to: '/panel/settings'})}>
+                <SlidersHorizontal class="size-4 block shrink-0" aria-hidden="true" />
+                Settings
               </button>
               <Show when={connectMode && disconnect}>
                 <button type="button" class={RAIL_MENU_ROW} onClick={() => disconnect?.()}>

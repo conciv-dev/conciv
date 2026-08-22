@@ -41,5 +41,11 @@ export function makeAppContextValue(options: AppContextValueOptions): AppContext
     apiBase: () => options.base,
     notifyInteractive: () => {},
     colorScheme: () => 'dark',
+    widgetSettings: {
+      scheme: () => ({value: 'auto', source: 'default'}),
+      isLoading: () => false,
+      isError: () => false,
+      retry: () => {},
+    },
   }
 }

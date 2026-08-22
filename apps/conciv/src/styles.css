@@ -120,6 +120,193 @@
   }
 }
 
+/* Settings view. Every property a container query below re-decides lives here and never as a utility
+   class in the markup: `@unocss all` is emitted last, so a utility would outrank these at equal
+   specificity and the narrow layout would never take. The panel shell already declares
+   `container-type: size`, so these query the panel's own box, not the viewport. */
+.chat-settings-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: row;
+}
+.chat-settings-nav {
+  position: relative;
+  flex: none;
+  inline-size: clamp(8rem, 30cqi, 11.5rem);
+  padding-block: 0.75rem;
+  padding-inline: 0.75rem;
+  border-inline-end: 1px solid var(--chat-line-soft);
+  border-block-end: none;
+  --rail-axis: vertical;
+}
+.chat-settings-nav-label {
+  display: block;
+  padding-inline-start: var(--chat-trace-gutter);
+  font-family: var(--chat-mono);
+  font-size: 9.5px;
+  line-height: var(--chat-trace-gutter);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chat-microlabel);
+}
+.chat-settings-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chat-settings-nav-row {
+  display: flex;
+  min-height: var(--chat-trace-gutter);
+  align-items: center;
+  padding-inline-start: var(--chat-trace-gutter);
+}
+.chat-settings-nav-link {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-height: 2.75rem;
+  padding-inline: 0.5rem;
+  border-radius: var(--chat-radius-sm);
+  font-size: 12.5px;
+  color: var(--chat-text-3);
+  text-decoration: none;
+  transition:
+    color 120ms var(--chat-ease),
+    background-color 120ms var(--chat-ease);
+}
+.chat-settings-nav-link:hover {
+  color: var(--chat-text-2);
+  background: var(--chat-fill);
+}
+.chat-settings-nav-link[data-active] {
+  color: var(--chat-text-hi);
+}
+.chat-settings-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem 1.125rem;
+}
+.chat-settings-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-inline-size: 30rem;
+}
+.chat-scheme-preview {
+  display: flex;
+  pointer-events: none;
+  overflow: hidden;
+  inline-size: clamp(2.75rem, 13cqi, 4.25rem);
+  block-size: 2.5rem;
+  border-radius: var(--chat-radius-chip);
+  border: 1px solid var(--chat-line-soft);
+}
+/* Each preview half paints in its OWN scheme, not the widget's, so a reader sees what light and dark
+   actually look like. The half carries the same `.light` / `.dark` class the widget root uses: the
+   build lowers every `light-dark()` token to a `--lightningcss-light` / `--lightningcss-dark` pair
+   that those two classes switch. A custom property is substituted at the computed-value time of the
+   element that DECLARES it, so the inherited --chat-* tokens arrive already resolved for the widget's
+   own scheme and no class on the tile can flip them; the four tokens the preview reads are re-declared
+   here, on the same element the scheme class sits on, from the same pairs the token sheets declare
+   (@conciv/ui-kit-system/tokens.css, @conciv/ui-kit-chat/theme/tokens.css). An inline `color-scheme`
+   would not work at all: it never sets the helper properties the lowered tokens read. */
+.chat-scheme-half {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding-inline: 5px;
+  --chat-ground: light-dark(#ffffff, #0a0a0b);
+  --chat-fill-strong: light-dark(rgba(15, 18, 24, 0.08), rgba(255, 255, 255, 0.1));
+  --chat-fill: light-dark(rgba(15, 18, 24, 0.04), rgba(255, 255, 255, 0.05));
+  --chat-accent: light-dark(#2563eb, #c9857f);
+  background: var(--chat-ground);
+}
+.chat-scheme-bar-strong,
+.chat-scheme-bar,
+.chat-scheme-chip {
+  display: block;
+  block-size: 3px;
+  border-radius: 999px;
+}
+.chat-scheme-bar-strong {
+  inline-size: 100%;
+  background: var(--chat-fill-strong);
+}
+.chat-scheme-bar {
+  inline-size: 70%;
+  background: var(--chat-fill);
+}
+.chat-scheme-chip {
+  inline-size: 40%;
+  background: var(--chat-accent);
+}
+/* The badge is a small chip by design; the pseudo-element restores a 44px-tall pointer target. */
+.chat-scope-badge::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block: -0.625rem;
+}
+.chat-saved-flash {
+  animation: chat-saved-flash 1400ms var(--chat-ease) forwards;
+}
+@keyframes chat-saved-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@container (max-width: 26rem) {
+  .chat-settings-body {
+    flex-direction: column;
+  }
+  .chat-settings-nav {
+    inline-size: auto;
+    padding-block: 0;
+    padding-inline: 0.5rem;
+    border-inline-end: none;
+    border-block-end: 1px solid var(--chat-line-soft);
+    --rail-axis: horizontal;
+  }
+  .chat-settings-nav-label {
+    display: none;
+  }
+  .chat-settings-nav-list {
+    flex-direction: row;
+  }
+  .chat-settings-nav-row {
+    padding-inline-start: 0;
+  }
+  .chat-settings-content {
+    padding-inline: 0.875rem;
+  }
+  .chat-settings-column {
+    max-inline-size: none;
+  }
+  .chat-scheme-preview {
+    inline-size: clamp(3rem, 18cqi, 4.25rem);
+    block-size: 2.125rem;
+  }
+}
+
 /* @unocss/postcss expands this into the generated utilities (scanned from .tsx per uno.config.ts).
    Last in source order so a utility wins specificity ties over the hand-written .pw-* marker rules above. */
 @unocss all;

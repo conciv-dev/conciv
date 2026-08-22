@@ -1,4 +1,4 @@
-import type {ModelMessage, StreamChunk, UIMessage} from '@tanstack/ai'
+import {EventType, type ModelMessage, type StreamChunk, type UIMessage} from '@tanstack/ai'
 import type {SubscribeConnectionAdapter} from '@tanstack/ai-solid'
 import {AsyncRetryer} from '@tanstack/pacer'
 import {ORPCError} from '@orpc/client'
@@ -10,6 +10,7 @@ export type ChatConnectionOptions = {
   offlineRetryDelayMs?: number
   isOnline?: () => boolean
   onRetry?: (error: unknown) => void
+  onCustom?: (name: string, value: unknown) => void
 }
 
 const DEFAULT_RETRY_DELAY_MS = 500
@@ -111,6 +112,20 @@ async function openStream(
   }
 }
 
+function reportCustom(options: ChatConnectionOptions, chunk: StreamChunk): void {
+  if (!options.onCustom) return
+  if (chunk.type !== EventType.CUSTOM) return
+  if (!('name' in chunk) || typeof chunk.name !== 'string') return
+  options.onCustom(chunk.name, 'value' in chunk ? chunk.value : undefined)
+}
+
+async function* tapped(stream: SessionStream, options: ChatConnectionOptions): AsyncGenerator<StreamChunk> {
+  for await (const chunk of stream) {
+    reportCustom(options, chunk)
+    yield chunk
+  }
+}
+
 type StreamControl = {attempt: AbortController | null}
 
 function stillListening(consumerSignal: AbortSignal | undefined): boolean {
@@ -135,7 +150,7 @@ async function* subscribeStream(
     const stream = await openStream(rpc, sessionId, options, scopedSignal(consumerSignal, attempt))
     if (!stream) return
     try {
-      yield* stream
+      yield* tapped(stream, options)
       if (!attempt.signal.aborted) return
     } catch (error) {
       if (!stillListening(consumerSignal)) return

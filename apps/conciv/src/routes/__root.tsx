@@ -52,6 +52,7 @@ import {setShutter} from '../lib/shutter.js'
 import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {applySchemeClass, createHostColorScheme} from '../lib/color-scheme.js'
+import {createWidgetSettings} from '../data/widget-settings.js'
 import '../styles.css'
 
 const OPEN_DISMISSABLE_LAYER_SELECTOR = '[data-scope][data-part="content"][data-state="open"]'
@@ -112,7 +113,12 @@ function RootComponent() {
   })
 
   const liveSessions = makeLiveSessions()
-  const colorScheme = createHostColorScheme()
+  const hostScheme = createHostColorScheme()
+  const widgetSettings = createWidgetSettings(app.data, app.queryClient)
+  const colorScheme = createMemo(() => {
+    const preference = widgetSettings.scheme().value
+    return preference === 'auto' ? hostScheme() : preference
+  })
 
   const value: AppContextValue = {
     rpc: app.rpc,
@@ -137,6 +143,7 @@ function RootComponent() {
     apiBase: app.apiBase,
     notifyInteractive: app.notifyInteractive,
     colorScheme,
+    widgetSettings,
   }
 
   createEffect(() => {

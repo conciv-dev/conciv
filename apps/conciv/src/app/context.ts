@@ -11,6 +11,7 @@ import type {ExtensionInstance} from '../extension/extension-slots.js'
 import type {LiveSessions} from './live-sessions.js'
 import type {WarmSession} from './warm-session.js'
 import type {ColorScheme} from '../lib/color-scheme.js'
+import type {WidgetSettings} from '../data/widget-settings.js'
 
 export type AppContextValue = {
   rpc: RpcClient
@@ -35,6 +36,7 @@ export type AppContextValue = {
   apiBase: () => string
   notifyInteractive: () => void
   colorScheme: Accessor<ColorScheme>
+  widgetSettings: WidgetSettings
 }
 
 export const AppContext = createContext<AppContextValue>()
@@ -127,4 +129,8 @@ export function useNotifyInteractive(): () => void {
 
 export function useColorScheme(): Accessor<ColorScheme> {
   return useAppScope('useColorScheme', (app) => app.colorScheme)
+}
+
+export function useWidgetSettings(): WidgetSettings {
+  return useAppScope('useWidgetSettings', (app) => app.widgetSettings)
 }

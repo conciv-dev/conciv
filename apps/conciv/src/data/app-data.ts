@@ -5,6 +5,7 @@ import type {RpcClient} from '@conciv/contract'
 export type AppData = {
   utils: QueryUtils
   invalidateSessions: () => void
+  invalidateSettings: () => void
 }
 
 export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
@@ -12,5 +13,6 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
   return {
     utils,
     invalidateSessions: () => void queryClient.invalidateQueries({queryKey: utils.sessions.list.key()}),
+    invalidateSettings: () => void queryClient.invalidateQueries({queryKey: utils.settings.get.key()}),
   }
 }
