@@ -71,6 +71,26 @@ describe('listSessionMetas', () => {
     const rows = await listOf(db, [], '/app/')
     expect(rows.map((r) => r.id)).toEqual(['conciv_here'])
   })
+
+  it('skips a row with a legacy harness_session_id that fails the stricter schema instead of throwing', async () => {
+    const db = testDb()
+    await createRow(db, rec({id: 'conciv_healthy', title: 'Healthy'}))
+    await db.insert(sessions).values({
+      id: 'conciv_poisoned',
+      harnessSessionId: 'has.dot/and space',
+      harnessKind: 'claude',
+      origin: 'chat',
+      title: 'Poisoned',
+      model: null,
+      usage: null,
+      cwd: '/app',
+      deletedAt: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    })
+    const rows = await listOf(db, [], '/app')
+    expect(rows.map((r) => r.id)).toEqual(['conciv_healthy'])
+  })
 })
 
 describe('sweepEmptyRows', () => {

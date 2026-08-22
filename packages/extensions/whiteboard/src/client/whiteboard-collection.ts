@@ -7,7 +7,7 @@ import type {
 } from '@tanstack/solid-db'
 import {safe} from '@orpc/client'
 import type {RouterClient} from '@orpc/server'
-import type {ElementRow} from '../shared/rows.js'
+import {elementRowInsert, type ElementRow} from '../shared/rows.js'
 import type {WhiteboardRouter} from '../server/router.js'
 import type {ChangeFeed, ChangeMessage} from './change-feed.js'
 
@@ -68,21 +68,22 @@ const buildSync = <Row extends object>(deps: {
   }
 }
 
-type TableClient<Row extends object> = {
+type TableClient<Row extends object, Insert extends object> = {
   list: () => Promise<Row[]>
-  insert: (input: Row) => Promise<Row>
+  insert: (input: Insert) => Promise<Row>
   update: (input: {id: string; patch: Record<string, unknown>}) => Promise<Row>
   remove: (input: {id: string}) => Promise<{deleted: boolean}>
 }
 
-export function whiteboardCollectionOptions<Row extends {id: string}>(deps: {
+export function whiteboardCollectionOptions<Row extends {id: string}, Insert extends object>(deps: {
   feed: ChangeFeed
   room: string
   table: string
-  ops: TableClient<Row>
+  ops: TableClient<Row, Insert>
   parseRow: (row: unknown) => Row
+  toInsert: (row: Row) => Insert
 }) {
-  const {feed, room, table, ops, parseRow} = deps
+  const {feed, room, table, ops, parseRow, toInsert} = deps
   let ctx: SyncParams<Row> | undefined
 
   const confirm = (row: Row): void => {
@@ -111,7 +112,7 @@ export function whiteboardCollectionOptions<Row extends {id: string}>(deps: {
     }),
     onInsert: async ({transaction}: InsertMutationFnParams<Row, string>) => {
       for (const mutation of transaction.mutations) {
-        confirm(await ops.insert(mutation.modified))
+        confirm(await ops.insert(toInsert(mutation.modified)))
       }
       return {refetch: false}
     },
@@ -149,7 +150,7 @@ export function whiteboardElementOptions(deps: {
     ctx.commit()
   }
   const putElement = async (row: ElementRow): Promise<void> => {
-    const {data, error, isDefined} = await safe(client.elements.upsert({scope, row}))
+    const {data, error, isDefined} = await safe(client.elements.upsert({scope, row: elementRowInsert.parse(row)}))
     if (data) return confirm(data)
     if (isDefined && error.code === 'CONFLICT') return confirm(error.data.current)
     throw error
@@ -171,7 +172,7 @@ export function whiteboardElementOptions(deps: {
       const modified = transaction.mutations.map((mutation) => mutation.modified)
       const [first] = modified
       if (modified.length === 1 && first) return void (await putElement(first))
-      const {rows} = await client.elements.bulkUpsert({scope, rows: modified})
+      const {rows} = await client.elements.bulkUpsert({scope, rows: modified.map((row) => elementRowInsert.parse(row))})
       rows.forEach((row) => confirm(row))
     },
   })

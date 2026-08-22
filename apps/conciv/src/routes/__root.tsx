@@ -163,7 +163,11 @@ function RootComponent() {
               rpc={app.rpc}
               apiBase={app.apiBase}
               toast={showToast}
-              openEditor={(file, line) => void app.rpc.editor.open({file, line}).catch(() => {})}
+              openEditor={(file, line) =>
+                void app.rpc.editor
+                  .open({file, line})
+                  .catch(() => showToast(`could not open ${file} in the editor`, 'error'))
+              }
               registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
               dialog={layers.track(Dialog)}
               popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}

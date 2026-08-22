@@ -50,6 +50,16 @@ const pinIn = (room: SessionId, cid: string) => ({
   anchorY: null,
 })
 
+const withoutRoom = <T extends {room: unknown}>({room, ...rest}: T): Omit<T, 'room'> => {
+  void room
+  return rest
+}
+
+const withoutSessionId = <T extends {sessionId: unknown}>({sessionId, ...rest}: T): Omit<T, 'sessionId'> => {
+  void sessionId
+  return rest
+}
+
 beforeAll(async () => {
   store = await createStore(realpathSync(mkdtempSync(join(tmpdir(), 'wb-router-'))))
   served = await serveExtensionRpc({slug: 'whiteboard', router: makeWhiteboardRouter(store)})
@@ -64,7 +74,7 @@ afterAll(async () => {
 describe('whiteboard router', () => {
   it('round-trips a pin through insert/list/update/remove', async () => {
     const pin = pinIn(ROOM_R1, 'c1')
-    expect(await client.pins.insert(pin)).toEqual(pin)
+    expect(await client.pins.insert(withoutRoom(pin))).toEqual(pin)
     expect(await client.pins.list()).toEqual([pin])
     const moved = await client.pins.update({id: pin.id, patch: {x: 9}})
     expect(moved.x).toBe(9)
@@ -94,15 +104,15 @@ describe('whiteboard router', () => {
       updatedAt: 1000,
       resolvedAt: null,
     }
-    await clientFor(ROOM_SESS_A).comments.insert(comment)
+    await clientFor(ROOM_SESS_A).comments.insert(withoutSessionId(comment))
     expect(await clientFor(ROOM_SESS_A).comments.list()).toHaveLength(1)
     expect(await clientFor(ROOM_SESS_B).comments.list()).toHaveLength(0)
   })
 
   it('element upsert reports a typed CONFLICT carrying the winner on stale version', async () => {
-    const row = {room: ROOM_R1, elementId: 'e1', data: {type: 'rectangle'}, version: 2}
-    expect(await client.elements.upsert({scope: 'live', row})).toEqual(row)
-    const {error, isDefined} = await safe(client.elements.upsert({scope: 'live', row: {...row, version: 1}}))
+    const rowIn = {elementId: 'e1', data: {type: 'rectangle'}, version: 2}
+    expect(await client.elements.upsert({scope: 'live', row: rowIn})).toEqual({...rowIn, room: ROOM_R1})
+    const {error, isDefined} = await safe(client.elements.upsert({scope: 'live', row: {...rowIn, version: 1}}))
     if (!isDefined || error.code !== 'CONFLICT') throw new Error('expected a typed CONFLICT')
     expect(error.data.current.version).toBe(2)
     expect(await client.elements.list({scope: 'live'})).toHaveLength(1)
@@ -110,12 +120,12 @@ describe('whiteboard router', () => {
 
   it('bulk upsert echoes the authoritative row per input, winner on conflict', async () => {
     const bulk = clientFor(ROOM_BULK)
-    await bulk.elements.upsert({scope: 'live', row: {room: ROOM_BULK, elementId: 'b1', data: {v: 1}, version: 5}})
+    await bulk.elements.upsert({scope: 'live', row: {elementId: 'b1', data: {v: 1}, version: 5}})
     const {rows} = await bulk.elements.bulkUpsert({
       scope: 'live',
       rows: [
-        {room: ROOM_BULK, elementId: 'b1', data: {v: 2}, version: 3},
-        {room: ROOM_BULK, elementId: 'b2', data: {v: 9}, version: 1},
+        {elementId: 'b1', data: {v: 2}, version: 3},
+        {elementId: 'b2', data: {v: 9}, version: 1},
       ],
     })
     expect(rows).toHaveLength(2)
@@ -130,7 +140,7 @@ describe('whiteboard router', () => {
         headers: {'content-type': 'application/json', [CONCIV_SESSION_HEADER]: ROOM_R1},
         body: JSON.stringify({json: body}),
       })
-    expect((await post('elements/upsert', {scope: 'live', row: {room: 'r1'}})).ok).toBe(false)
+    expect((await post('elements/upsert', {scope: 'live', row: {elementId: 'e1'}})).ok).toBe(false)
     expect((await post('pins/insert', {id: 'x'})).ok).toBe(false)
   })
 
@@ -144,40 +154,41 @@ describe('whiteboard router', () => {
   it('never lets another session update a row it does not own', async () => {
     const pin = pinIn(ROOM_VICTIM, 'victim-pin')
     const victim = clientFor(ROOM_VICTIM)
-    await victim.pins.insert(pin)
+    await victim.pins.insert(withoutRoom(pin))
     const {error} = await safe(attacker.pins.update({id: pin.id, patch: {x: 999}}))
     expect(error).toBeInstanceOf(Error)
     expect(await victim.pins.list()).toEqual([pin])
     expect(await attacker.pins.list()).toEqual([])
   })
 
-  it('never lets another session insert a row labelled with a foreign room', async () => {
-    const stolen = pinIn(ROOM_VICTIM, 'planted-pin')
-    const {error} = await safe(attacker.pins.insert(stolen))
-    expect(error).toBeInstanceOf(Error)
+  it('an insert always lands in the caller own room, even if the caller tries to smuggle in a foreign one', async () => {
+    const post = (body: unknown): Promise<Response> =>
+      fetch(`${served.base}/rpc/ext/whiteboard/pins/insert`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json', [CONCIV_SESSION_HEADER]: ROOM_ATTACKER},
+        body: JSON.stringify({json: body}),
+      })
+    const smuggled = {...pinIn(ROOM_VICTIM, 'planted-pin'), room: ROOM_VICTIM}
+    const response = await post(smuggled)
+    expect(response.ok).toBe(true)
     expect((await clientFor(ROOM_VICTIM).pins.list()).map((row) => row.cid)).not.toContain('planted-pin')
+    expect((await attacker.pins.list()).map((row) => row.cid)).toContain('planted-pin')
   })
 
-  it('never lets an element upsert from another session land in the target room', async () => {
+  it('an element upsert from another session never lands in the target room', async () => {
     const victim = clientFor(ROOM_VICTIM)
-    const mine = {room: ROOM_VICTIM, elementId: 'shared', data: {v: 'mine'}, version: 1}
+    const mine = {elementId: 'shared', data: {v: 'mine'}, version: 1}
     await victim.elements.upsert({scope: 'live', row: mine})
-    const {error} = await safe(
-      attacker.elements.upsert({
-        scope: 'live',
-        row: {room: ROOM_VICTIM, elementId: 'shared', data: {v: 'theirs'}, version: 9},
-      }),
-    )
-    expect(error).toBeInstanceOf(Error)
-    const bulk = await safe(
-      attacker.elements.bulkUpsert({
-        scope: 'live',
-        rows: [{room: ROOM_VICTIM, elementId: 'planted', data: {v: 'theirs'}, version: 1}],
-      }),
-    )
-    expect(bulk.error).toBeInstanceOf(Error)
-    expect(await victim.elements.list({scope: 'live'})).toEqual([mine])
-    expect(await attacker.elements.list({scope: 'live'})).toEqual([])
+    await attacker.elements.upsert({scope: 'live', row: {elementId: 'shared', data: {v: 'theirs'}, version: 9}})
+    await attacker.elements.bulkUpsert({
+      scope: 'live',
+      rows: [{elementId: 'planted', data: {v: 'theirs'}, version: 1}],
+    })
+    expect(await victim.elements.list({scope: 'live'})).toEqual([{...mine, room: ROOM_VICTIM}])
+    expect((await attacker.elements.list({scope: 'live'})).map((row) => row.elementId).toSorted()).toEqual([
+      'planted',
+      'shared',
+    ])
   })
 
   it('streams typed change events for writes in the room only', async () => {
@@ -202,7 +213,7 @@ describe('whiteboard router', () => {
       session: ROOM_WS,
     })
     const pin = pinIn(ROOM_WS, 'cws')
-    expect(await wsClient.pins.insert(pin)).toEqual(pin)
+    expect(await wsClient.pins.insert(withoutRoom(pin))).toEqual(pin)
     expect(await clientFor(ROOM_WS).pins.list()).toEqual([pin])
     socket.close()
   })
@@ -232,7 +243,6 @@ describe('whiteboard router', () => {
     const changes = await cursorClient.changes(undefined, {signal: abort.signal})
     await new Promise((resolve) => setTimeout(resolve, 50))
     await cursorClient.cursor({
-      room: ROOM_CUR,
       peerId: 'p1',
       kind: 'human',
       x: 0,

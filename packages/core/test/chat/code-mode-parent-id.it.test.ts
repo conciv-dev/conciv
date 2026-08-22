@@ -80,7 +80,7 @@ function foldedMessages(chunks: StreamChunk[]): ReturnType<StreamProcessor['getM
 
 describe('code-mode nested-call parent id from real execution (IT, real chat + real isolate + real fold)', () => {
   it('threads the execute_typescript call id onto emitted gated-tool events without hand-injection', async () => {
-    const codeMode = await makeCodeMode(() => [canvas], request, allowGate, {listening: () => true})
+    const codeMode = await makeCodeMode(() => [canvas], request.sessionId, request, allowGate, {listening: () => true})
     if (!codeMode) throw new Error('code mode unavailable: isolated-vm probe reported incompatible')
 
     const chunks: StreamChunk[] = []
@@ -106,7 +106,7 @@ describe('code-mode nested-call parent id from real execution (IT, real chat + r
   })
 
   it('threads a catalog() call from inside the sandbox onto a synthetic tool part too', async () => {
-    const codeMode = await makeCodeMode(() => [canvas], request, allowGate, {listening: () => true})
+    const codeMode = await makeCodeMode(() => [canvas], request.sessionId, request, allowGate, {listening: () => true})
     if (!codeMode) throw new Error('code mode unavailable: isolated-vm probe reported incompatible')
 
     const chunks: StreamChunk[] = []

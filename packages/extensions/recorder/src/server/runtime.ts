@@ -31,7 +31,7 @@ export async function pullWindow(
   toTs: number,
   keyframeCount: number,
 ): Promise<unknown> {
-  const clientId = runtime.rings.latestClientId()
+  const clientId = runtime.rings.clients().at(-1)?.id ?? null
   const events = clientId ? runtime.rings.window({fromTs, toTs}, clientId) : []
   const log = distill(events).filter((entry) => entry.ts >= fromTs)
   const frames = await renderFrames(runtime, events, log, keyframeCount)

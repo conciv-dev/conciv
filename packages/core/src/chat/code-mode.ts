@@ -124,6 +124,7 @@ async function emittingToolCall(
 
 export function gatedToolRun(
   capability: CodeCapability,
+  sessionId: SessionId,
   request: ToolRequest,
   gate: PermissionGate,
   listening: SessionListening,
@@ -131,7 +132,7 @@ export function gatedToolRun(
   return (args, context) =>
     emittingToolCall(capability.name, args, context, async (callId) => {
       if (requiresApproval(capability)) {
-        if (!listening(request.sessionId)) throw new Error(noListenerRefusal(capability.name, request.sessionId))
+        if (!listening(sessionId)) throw new Error(noListenerRefusal(capability.name, sessionId))
         const decision = await gate.decide(capability.name, args, callId)
         const refusal = approvalRefusal(capability.name, decision)
         if (refusal !== null) throw new Error(refusal)
@@ -155,6 +156,7 @@ type BoundCapability = NamedCapability & {binding: ToolBinding}
 
 function bindCapabilities(
   capabilities: CodeCapability[],
+  sessionId: SessionId,
   request: ToolRequest,
   gate: PermissionGate,
   listening: SessionListening,
@@ -168,7 +170,7 @@ function bindCapabilities(
           description: entry.capability.description,
           inputSchema: entry.capability.inputSchema,
         },
-        gatedToolRun(entry.capability, request, gate, listening),
+        gatedToolRun(entry.capability, sessionId, request, gate, listening),
         {lazy: true},
       ),
     ),
@@ -298,6 +300,7 @@ export type CodeMode = {
 
 export async function makeCodeMode(
   capabilities: () => CodeCapability[],
+  sessionId: SessionId,
   request: ToolRequest,
   gate: PermissionGate,
   options: {listening: SessionListening; timeoutMs?: number},
@@ -309,11 +312,11 @@ export async function makeCodeMode(
   const listening = options.listening
   const codeMode = createCodeMode({
     driver,
-    tools: [catalogTool(() => bindCapabilities(capabilities(), request, gate, listening))],
+    tools: [catalogTool(() => bindCapabilities(capabilities(), sessionId, request, gate, listening))],
     timeout: options.timeoutMs ?? CODE_MODE_TIMEOUT_MS,
     onSecretParameter: 'throw',
     getSkillBindings: async () => {
-      const bound = bindCapabilities(capabilities(), request, gate, listening)
+      const bound = bindCapabilities(capabilities(), sessionId, request, gate, listening)
       return Object.fromEntries(bound.map((entry) => [entry.binding.name, entry.binding]))
     },
   })
