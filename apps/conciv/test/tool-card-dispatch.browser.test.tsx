@@ -130,6 +130,30 @@ it('an allowOther choices ask answers with what the user typed instead of an opt
   expect(answers).toEqual([{toolCallId: 'd1', value: 'mTLS'}])
 })
 
+it('a single-select allowOther ask answers with the typed text, never the option picked before it', async () => {
+  const answers: {toolCallId: string; value: UiAnswerValue}[] = []
+
+  mount(() => (
+    <ToolCallCard
+      part={askingPart({
+        kind: 'choices',
+        question: 'Which auth method?',
+        options: ['OAuth', 'JWT'],
+        allowOther: true,
+      })}
+      result={undefined}
+      ctx={{...INERT_TOOL_CTX, addResult: (toolCallId, value) => answers.push({toolCallId, value})}}
+      tools={allTools}
+    />
+  ))
+
+  await browserPage.getByRole('button', {name: 'OAuth'}).click()
+  await browserPage.getByRole('textbox', {name: 'Other'}).fill('mTLS')
+  await browserPage.getByRole('button', {name: 'Submit'}).click()
+
+  expect(answers).toEqual([{toolCallId: 'd1', value: 'mTLS'}])
+})
+
 it('a conciv_ui question that already carries its result renders answered, with no controls left to press', async () => {
   mount(() => (
     <ToolCallCard

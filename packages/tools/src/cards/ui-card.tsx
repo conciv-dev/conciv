@@ -122,10 +122,15 @@ function Choices(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiA
   const [picked, setPicked] = createSignal<string[]>([])
   const [other, setOther] = createSignal('')
   const toggle = (option: string) => {
+    if (!multi()) setOther('')
     setPicked((current) => {
       if (!multi()) return [option]
       return current.includes(option) ? current.filter((value) => value !== option) : [...current, option]
     })
+  }
+  const typeOther = (value: string) => {
+    setOther(value)
+    if (!multi() && value.trim() !== '') setPicked([])
   }
   const chosen = (): string[] => {
     const typed = other().trim()
@@ -178,7 +183,7 @@ function Choices(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiA
             label="Other"
             disabled={props.disabled}
             value={other()}
-            onInput={(event) => setOther(event.currentTarget.value)}
+            onInput={(event) => typeOther(event.currentTarget.value)}
           />
         </Show>
         <ActionRow>
