@@ -2,10 +2,7 @@ import {createFileRoute} from '@tanstack/solid-router'
 import type {JSX} from 'solid-js'
 import {useAnnounce, useAppData, useAppQueryClient, useRpc, useWidgetSettings} from '../app/context.js'
 import {SchemeField} from '../settings/scheme-field.js'
-import {createSchemeWrites} from '../settings/scheme-writes.js'
-
-const COLUMN = 'chat-settings-column anim-msg'
-const FOOTER = 'text-[11px] [color:var(--chat-microlabel)] pt-1'
+import {createSchemeWrites, scopeLabelFor} from '../settings/scheme-writes.js'
 
 export const Route = createFileRoute('/panel/settings/appearance')({component: AppearanceSection})
 
@@ -18,16 +15,22 @@ function AppearanceSection(): JSX.Element {
   const writes = createSchemeWrites({rpc, data, queryClient, announce})
 
   return (
-    <div class={COLUMN}>
-      <SchemeField
-        setting={settings.scheme}
-        writes={writes}
-        data={data}
-        queryClient={queryClient}
-        isError={settings.isError}
-        retry={settings.retry}
-      />
-      <p class={FOOTER}>Changes save automatically to this project.</p>
-    </div>
+    <>
+      <section class="chat-settings-card anim-msg">
+        <SchemeField
+          setting={settings.scheme}
+          writes={writes}
+          data={data}
+          queryClient={queryClient}
+          isLoading={settings.isLoading}
+          isError={settings.isError}
+          retry={settings.retry}
+        />
+      </section>
+      <p class="chat-settings-footer">
+        <span class="chat-settings-footer-label">SCOPE</span>
+        Changes save automatically to {scopeLabelFor(settings.scheme().source)}.
+      </p>
+    </>
   )
 }

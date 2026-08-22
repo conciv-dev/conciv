@@ -1,6 +1,6 @@
 import {useMutation, type QueryClient} from '@tanstack/solid-query'
 import type {RpcClient} from '@conciv/contract'
-import type {ResolvedSetting, SettingsScope} from '@conciv/protocol/settings-types'
+import type {ResolvedSetting, SettingsScope, SettingsSource} from '@conciv/protocol/settings-types'
 import type {AppData} from '../data/app-data.js'
 import type {SchemeSetting, SchemeValue} from '../data/widget-settings.js'
 
@@ -15,15 +15,24 @@ export type SchemeWrites = {
   run: (write: SchemeWrite) => void
   isPending: () => boolean
   isError: () => boolean
-  savedAt: () => number | undefined
+  retryLast: () => void
 }
 
-export function schemeWriteFor(value: SchemeValue): SchemeWrite {
+function scopeForSource(source: SettingsSource): SettingsScope {
+  return source === 'global' ? 'global' : 'project'
+}
+
+export function scopeLabelFor(source: SettingsSource): string {
+  return source === 'global' ? 'all projects' : 'this project'
+}
+
+export function schemeWriteFor(value: SchemeValue, source: SettingsSource): SchemeWrite {
+  const scope = scopeForSource(source)
   return {
-    set: {value, scope: 'project'},
+    set: {value, scope},
     clear: [],
-    announcement: `Color scheme set to ${value} for this project`,
-    expected: {value, source: 'project'},
+    announcement: `Color scheme set to ${value} for ${scopeLabelFor(source)}`,
+    expected: {value, source: scope},
   }
 }
 
@@ -33,6 +42,15 @@ export function applyGloballyWrite(value: SchemeValue): SchemeWrite {
     clear: ['project'],
     announcement: `Color scheme ${value} now applies to all projects`,
     expected: {value, source: 'global'},
+  }
+}
+
+export function forkToProjectWrite(value: SchemeValue): SchemeWrite {
+  return {
+    set: {value, scope: 'project'},
+    clear: [],
+    announcement: `Color scheme ${value} now applies to this project only`,
+    expected: {value, source: 'project'},
   }
 }
 
@@ -82,6 +100,9 @@ export function createSchemeWrites(options: {
     run: (write) => mutation.mutate(write),
     isPending: () => mutation.isPending,
     isError: () => mutation.isError,
-    savedAt: () => (mutation.isSuccess ? mutation.submittedAt : undefined),
+    retryLast: () => {
+      const last = mutation.variables
+      if (last) mutation.mutate(last)
+    },
   }
 }

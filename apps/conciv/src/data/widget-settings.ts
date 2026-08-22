@@ -33,7 +33,7 @@ export type WidgetSettings = {
 
 export function createWidgetSettings(data: AppData, queryClient: QueryClient): WidgetSettings {
   const query = useQuery(
-    () => data.utils.settings.get.queryOptions(),
+    () => data.utils.settings.get.queryOptions({retry: false}),
     () => queryClient,
   )
   const scheme = createMemo(() => (query.isSuccess ? schemeOf(query.data ?? []) : DEFAULT_SCHEME))

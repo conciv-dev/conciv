@@ -1,15 +1,31 @@
 import {Show, createMemo, createSignal, splitProps, type Accessor, type JSX} from 'solid-js'
 import {useQuery, type QueryClient} from '@tanstack/solid-query'
 import {Menu} from '@conciv/ui-kit-system'
-import Check from 'lucide-solid/icons/check'
-import type {SettingsLogEntry, SettingsScope} from '@conciv/protocol/settings-types'
+import type {SettingsLogEntry, SettingsScope, SettingsSource} from '@conciv/protocol/settings-types'
 import type {AppData} from '../data/app-data.js'
 import type {SchemeSetting} from '../data/widget-settings.js'
-import {applyGloballyWrite, resetWrite, useGlobalValueWrite, type SchemeWrites} from './scheme-writes.js'
+import {
+  applyGloballyWrite,
+  forkToProjectWrite,
+  resetWrite,
+  useGlobalValueWrite,
+  type SchemeWrites,
+} from './scheme-writes.js'
 
-const BADGE =
-  'chat-scope-badge relative inline-flex items-center gap-1 px-1.5 py-0.5 [font-family:var(--chat-mono)] text-[9.5px] uppercase tracking-[0.12em] [color:var(--chat-microlabel)] bg-transparent [border:1px_solid_var(--chat-line-soft)] rounded-[var(--chat-radius-chip)] cursor-pointer trans-color-bg hover:[color:var(--chat-text-2)] hover:[background:var(--chat-fill)] disabled:opacity-50 disabled:cursor-default'
-const FLASH = 'chat-saved-flash inline-flex items-center [color:var(--chat-success)]'
+const BADGE_TONE: Record<SettingsSource, string> = {
+  project: 'chat-scope-badge-project',
+  global: 'chat-scope-badge-global',
+  default: 'chat-scope-badge-default',
+}
+
+const MENU_CONTENT = 'p-2 flex flex-col gap-1 w-64'
+const MENU_CONTENT_STYLE = {
+  background: 'var(--chat-bg)',
+  'border-color': 'var(--chat-line)',
+  'border-radius': 'var(--chat-radius-md)',
+}
+const MENU_ROW =
+  'flex items-center gap-2 px-1 py-1.5 rounded-[var(--chat-radius-sm)] text-[12.5px] [color:var(--chat-text-2)] bg-transparent [border:none] cursor-pointer w-full text-start trans-color-bg hover:[background:var(--chat-fill)] hover:[color:var(--chat-text-hi)]'
 
 function newestGlobalRow(rows: SettingsLogEntry[]): SettingsLogEntry | undefined {
   return rows
@@ -42,37 +58,51 @@ export function ScopeBadge(props: {
   }
 
   return (
-    <Menu.Root open={open()} onOpenChange={(details) => setOpen(details.open)} positioning={{placement: 'bottom-end'}}>
+    <Menu.Root
+      open={open()}
+      onOpenChange={(details) => setOpen(details.open)}
+      positioning={{placement: 'bottom-start'}}
+    >
       <Menu.Trigger
         asChild={(triggerProps) => (
           <button
             {...triggerProps()}
             type="button"
-            class={BADGE}
+            class={`chat-scope-badge  ${BADGE_TONE[source()]}`}
             disabled={local.writes.isPending()}
             aria-label={`Color scheme source: ${label()}. Change where it applies.`}
           >
             {label()}
-            <Show when={local.writes.savedAt()} keyed>
-              <span class={FLASH} aria-hidden="true">
-                <Check class="size-3 block" strokeWidth={2.25} />
-              </span>
-            </Show>
           </button>
         )}
       />
       <Menu.Positioner>
-        <Menu.Content aria-label="Where the color scheme applies">
-          <Menu.Item value="global" onSelect={() => local.writes.run(applyGloballyWrite(local.setting().value))}>
-            Apply to all projects
-          </Menu.Item>
+        <Menu.Content aria-label="Where the color scheme applies" class={MENU_CONTENT} style={MENU_CONTENT_STYLE}>
+          <Show when={source() !== 'global'}>
+            <Menu.Item
+              class={MENU_ROW}
+              value="global"
+              onSelect={() => local.writes.run(applyGloballyWrite(local.setting().value))}
+            >
+              Apply to all projects
+            </Menu.Item>
+          </Show>
+          <Show when={source() === 'global'}>
+            <Menu.Item
+              class={MENU_ROW}
+              value="fork"
+              onSelect={() => local.writes.run(forkToProjectWrite(local.setting().value))}
+            >
+              Set for this project only
+            </Menu.Item>
+          </Show>
           <Show when={source() === 'project' && globalIsSet()}>
-            <Menu.Item value="use-global" onSelect={() => local.writes.run(useGlobalValueWrite())}>
+            <Menu.Item class={MENU_ROW} value="use-global" onSelect={() => local.writes.run(useGlobalValueWrite())}>
               Use global value
             </Menu.Item>
           </Show>
           <Show when={source() !== 'default'}>
-            <Menu.Item value="reset" onSelect={() => local.writes.run(resetWrite(resetLayers()))}>
+            <Menu.Item class={MENU_ROW} value="reset" onSelect={() => local.writes.run(resetWrite(resetLayers()))}>
               Reset to default
             </Menu.Item>
           </Show>

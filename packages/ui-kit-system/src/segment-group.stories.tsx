@@ -116,3 +116,33 @@ export const Disabled: Story = {
     </SegmentGroup.Root>
   ),
 }
+
+export const Plain: Story = {
+  render: () => (
+    <SegmentGroup.Root
+      variant="plain"
+      defaultValue="Auto"
+      aria-label="Colour scheme"
+      class="gap-2 grid grid-cols-3 w-72"
+    >
+      <For each={['Auto', 'Light', 'Dark']}>
+        {(option) => (
+          <SegmentGroup.Item
+            variant="plain"
+            value={option}
+            class="flex flex-col gap-1.5 cursor-pointer data-[state=checked]:[--ring:var(--chat-accent-line)]"
+          >
+            <span
+              class="rounded-chat-surface-sm bg-chat-fill-soft h-14 [border:1px_solid_var(--chat-line)] data-[x]:hidden"
+              style={{'box-shadow': '0 0 0 1px var(--ring, transparent)'}}
+            />
+            <SegmentGroup.ItemText variant="plain" class="text-[11.5px] text-chat-text-2 text-center">
+              {option}
+            </SegmentGroup.ItemText>
+            <SegmentGroup.ItemHiddenInput />
+          </SegmentGroup.Item>
+        )}
+      </For>
+    </SegmentGroup.Root>
+  ),
+}

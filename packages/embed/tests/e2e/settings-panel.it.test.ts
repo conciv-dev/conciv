@@ -17,7 +17,7 @@ test.beforeEach(async () => {
   host = await serveHost(() =>
     hostPage({
       apiBase: kit.base,
-      widget: '{"quickTerminal":false}',
+      widget: '{"quickTerminal":false,"transport":"fetch"}',
       body: HOST_TOGGLE,
       htmlAttributes: 'class="light"',
     }),
@@ -46,6 +46,12 @@ function scopeBadge(page: Page) {
   return page.getByRole('button', {name: /^Color scheme source:/})
 }
 
+async function applyGlobally(page: Page): Promise<void> {
+  await scopeBadge(page).click()
+  await page.getByRole('menuitem', {name: 'Apply to all projects'}).click()
+  await expect(scopeBadge(page)).toHaveAccessibleName(/GLOBAL/)
+}
+
 async function openWidget(page: Page): Promise<void> {
   await page.goto(host.base, {waitUntil: 'domcontentloaded'})
   await openPanel(page)
@@ -61,7 +67,8 @@ test('the session rail menu opens the settings view on its appearance section', 
   await openWidget(page)
   await openSettings(page)
 
-  await expect(page.getByText('SETTINGS', {exact: true})).toBeVisible()
+  await expect(page.getByRole('banner').getByText('SETTINGS', {exact: true})).toBeVisible()
+  await expect(page.getByLabel('Settings sections').getByText('SETTINGS', {exact: true})).toBeVisible()
   await expect(page.getByRole('link', {name: 'Appearance'})).toBeVisible()
   await expect(schemeOption(page, 'Auto')).toBeChecked()
 })
@@ -111,9 +118,7 @@ test('the scope badge applies the scheme to all projects and resets it back to t
   await chooseScheme(page, 'Dark')
   await expect(scopeBadge(page)).toHaveAccessibleName(/PROJECT/)
 
-  await scopeBadge(page).click()
-  await page.getByRole('menuitem', {name: 'Apply to all projects'}).click()
-  await expect(scopeBadge(page)).toHaveAccessibleName(/GLOBAL/)
+  await applyGlobally(page)
   await expect(widgetRoot(page)).toHaveClass(/\bdark\b/)
 
   await scopeBadge(page).click()
@@ -135,4 +140,66 @@ test('a widget on another page repaints from the live settings notification', as
 
   await expect(widgetRoot(other)).toHaveClass(/\bdark\b/)
   await other.close()
+})
+
+test('an edit while the value comes from the global layer stays global', async ({page}) => {
+  await openWidget(page)
+  await openSettings(page)
+  await chooseScheme(page, 'Dark')
+  await applyGlobally(page)
+
+  await chooseScheme(page, 'Light')
+
+  await expect(scopeBadge(page)).toHaveAccessibleName(/GLOBAL/)
+  await expect(page.getByText('Changes save automatically to all projects.')).toBeVisible()
+  await expect(widgetRoot(page)).toHaveClass(/\blight\b/)
+})
+
+test('the badge forks a global value into a project-only override', async ({page}) => {
+  await openWidget(page)
+  await openSettings(page)
+  await chooseScheme(page, 'Dark')
+  await applyGlobally(page)
+
+  await scopeBadge(page).click()
+  await page.getByRole('menuitem', {name: 'Set for this project only'}).click()
+
+  await expect(scopeBadge(page)).toHaveAccessibleName(/PROJECT/)
+  await expect(page.getByText('Changes save automatically to this project.')).toBeVisible()
+  await scopeBadge(page).click()
+  await expect(page.getByRole('menuitem', {name: 'Use global value'})).toBeVisible()
+})
+
+test('an edit from the default source writes to this project', async ({page}) => {
+  await openWidget(page)
+  await openSettings(page)
+  await expect(scopeBadge(page)).toHaveAccessibleName(/DEFAULT/)
+
+  await chooseScheme(page, 'Light')
+
+  await expect(scopeBadge(page)).toHaveAccessibleName(/PROJECT/)
+  await expect(page.getByText('Changes save automatically to this project.')).toBeVisible()
+})
+
+test('the disabled sections are listed but never navigate', async ({page}) => {
+  await openWidget(page)
+  await openSettings(page)
+
+  await expect(page.getByText('Composer', {exact: true})).toBeVisible()
+  await expect(page.getByText('Connection', {exact: true})).toBeVisible()
+  await expect(page.getByRole('link', {name: 'Composer'})).toHaveCount(0)
+  await expect(page.getByRole('heading', {name: 'Appearance'})).toBeVisible()
+})
+
+test('a failed write shows an inline error and rolls the choice back', async ({page}) => {
+  await openWidget(page)
+  await openSettings(page)
+  await expect(schemeOption(page, 'Auto')).toBeChecked()
+
+  await page.route('**/settings/set**', (route) => route.abort())
+  await page.getByText('Dark', {exact: true}).click()
+
+  await expect(page.getByText('Could not save that setting.', {exact: true})).toBeVisible()
+  await expect(schemeOption(page, 'Auto')).toBeChecked()
+  await expect(widgetRoot(page)).toHaveClass(/\blight\b/)
 })
