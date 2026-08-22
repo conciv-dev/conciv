@@ -125,19 +125,21 @@ jobs:
       # Real-browser vitest tests; playwright is a root devDep. On a cache hit the
       # browser binary is already in place, so only the OS deps (not cached) install.
       # The runner boots with apt-daily/apt-daily-upgrade timers already running in
-      # the background; they can hold the dpkg/apt locks for 10+ minutes. Wait for
-      # them to finish (bounded, never fails the step by itself) and stop the timers
-      # so they can't start fresh mid-job and re-take the lock.
+      # the background; they can hold the dpkg/apt locks for 10+ minutes. Stop the
+      # timers first so nothing new can start, then wait for whatever is already
+      # running to go inactive. `After=` only orders units inside one transaction,
+      # so it does not wait for an apt job that is already holding the lock. The
+      # wait is bounded and never fails the step by itself.
       - if: matrix.chromium
         run: |
-          timeout 600 sudo systemd-run --property="After=apt-daily.service apt-daily-upgrade.service" --wait /bin/true || true
           sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer || true
-      - timeout-minutes: 15
+          timeout 600 bash -c 'while systemctl is-active --quiet apt-daily.service || systemctl is-active --quiet apt-daily-upgrade.service; do sleep 5; done' || true
+      - timeout-minutes: 17
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
-      - timeout-minutes: 15
+      - timeout-minutes: 17
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
@@ -342,18 +344,20 @@ jobs:
           firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
       # The runner boots with apt-daily/apt-daily-upgrade timers already running in
-      # the background; they can hold the dpkg/apt locks for 10+ minutes. Wait for
-      # them to finish (bounded, never fails the step by itself) and stop the timers
-      # so they can't start fresh mid-job and re-take the lock.
+      # the background; they can hold the dpkg/apt locks for 10+ minutes. Stop the
+      # timers first so nothing new can start, then wait for whatever is already
+      # running to go inactive. `After=` only orders units inside one transaction,
+      # so it does not wait for an apt job that is already holding the lock. The
+      # wait is bounded and never fails the step by itself.
       - run: |
-          timeout 600 sudo systemd-run --property="After=apt-daily.service apt-daily-upgrade.service" --wait /bin/true || true
           sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer || true
-      - timeout-minutes: 15
+          timeout 600 bash -c 'while systemctl is-active --quiet apt-daily.service || systemctl is-active --quiet apt-daily-upgrade.service; do sleep 5; done' || true
+      - timeout-minutes: 17
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
-      - timeout-minutes: 15
+      - timeout-minutes: 17
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
@@ -458,18 +462,20 @@ jobs:
       # On a cache hit the browser binary is already in place, so only the OS deps
       # (not cached) install.
       # The runner boots with apt-daily/apt-daily-upgrade timers already running in
-      # the background; they can hold the dpkg/apt locks for 10+ minutes. Wait for
-      # them to finish (bounded, never fails the step by itself) and stop the timers
-      # so they can't start fresh mid-job and re-take the lock.
+      # the background; they can hold the dpkg/apt locks for 10+ minutes. Stop the
+      # timers first so nothing new can start, then wait for whatever is already
+      # running to go inactive. `After=` only orders units inside one transaction,
+      # so it does not wait for an apt job that is already holding the lock. The
+      # wait is bounded and never fails the step by itself.
       - run: |
-          timeout 600 sudo systemd-run --property="After=apt-daily.service apt-daily-upgrade.service" --wait /bin/true || true
           sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer || true
-      - timeout-minutes: 15
+          timeout 600 bash -c 'while systemctl is-active --quiet apt-daily.service || systemctl is-active --quiet apt-daily-upgrade.service; do sleep 5; done' || true
+      - timeout-minutes: 17
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
-      - timeout-minutes: 15
+      - timeout-minutes: 17
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
