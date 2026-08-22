@@ -129,11 +129,23 @@ jobs:
       # timers first so nothing new can start, then wait for whatever is already
       # running to go inactive. `After=` only orders units inside one transaction,
       # so it does not wait for an apt job that is already holding the lock. The
-      # wait is bounded and never fails the step by itself.
+      # wait is bounded and never fails the step by itself. Poll ActiveState rather
+      # than `is-active`: apt-daily is Type=oneshot, so it reports `activating` for
+      # its whole run and `is-active` would say "not active" while it holds the lock.
       - if: matrix.chromium
+        shell: bash
         run: |
           sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer || true
-          timeout 600 bash -c 'while systemctl is-active --quiet apt-daily.service || systemctl is-active --quiet apt-daily-upgrade.service; do sleep 5; done' || true
+          deadline=$((SECONDS + 600))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            busy=""
+            for unit in apt-daily.service apt-daily-upgrade.service; do
+              state=$(systemctl show -p ActiveState --value "$unit" 2>/dev/null || echo inactive)
+              if [ "$state" != "inactive" ] && [ "$state" != "failed" ]; then busy=1; fi
+            done
+            if [ -z "$busy" ]; then break; fi
+            sleep 5
+          done
       - timeout-minutes: 17
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
@@ -348,10 +360,22 @@ jobs:
       # timers first so nothing new can start, then wait for whatever is already
       # running to go inactive. `After=` only orders units inside one transaction,
       # so it does not wait for an apt job that is already holding the lock. The
-      # wait is bounded and never fails the step by itself.
-      - run: |
+      # wait is bounded and never fails the step by itself. Poll ActiveState rather
+      # than `is-active`: apt-daily is Type=oneshot, so it reports `activating` for
+      # its whole run and `is-active` would say "not active" while it holds the lock.
+      - shell: bash
+        run: |
           sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer || true
-          timeout 600 bash -c 'while systemctl is-active --quiet apt-daily.service || systemctl is-active --quiet apt-daily-upgrade.service; do sleep 5; done' || true
+          deadline=$((SECONDS + 600))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            busy=""
+            for unit in apt-daily.service apt-daily-upgrade.service; do
+              state=$(systemctl show -p ActiveState --value "$unit" 2>/dev/null || echo inactive)
+              if [ "$state" != "inactive" ] && [ "$state" != "failed" ]; then busy=1; fi
+            done
+            if [ -z "$busy" ]; then break; fi
+            sleep 5
+          done
       - timeout-minutes: 17
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
@@ -466,10 +490,22 @@ jobs:
       # timers first so nothing new can start, then wait for whatever is already
       # running to go inactive. `After=` only orders units inside one transaction,
       # so it does not wait for an apt job that is already holding the lock. The
-      # wait is bounded and never fails the step by itself.
-      - run: |
+      # wait is bounded and never fails the step by itself. Poll ActiveState rather
+      # than `is-active`: apt-daily is Type=oneshot, so it reports `activating` for
+      # its whole run and `is-active` would say "not active" while it holds the lock.
+      - shell: bash
+        run: |
           sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer || true
-          timeout 600 bash -c 'while systemctl is-active --quiet apt-daily.service || systemctl is-active --quiet apt-daily-upgrade.service; do sleep 5; done' || true
+          deadline=$((SECONDS + 600))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            busy=""
+            for unit in apt-daily.service apt-daily-upgrade.service; do
+              state=$(systemctl show -p ActiveState --value "$unit" 2>/dev/null || echo inactive)
+              if [ "$state" != "inactive" ] && [ "$state" != "failed" ]; then busy=1; fi
+            done
+            if [ -z "$busy" ]; then break; fi
+            sleep 5
+          done
       - timeout-minutes: 17
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
