@@ -306,6 +306,20 @@ describe('page-session grouper', () => {
     ).toEqual([chain(0), leaf(1), session(2)])
   })
 
+  it('leaves an unstamped act child beside its code run instead of correlating them by proximity', () => {
+    expect(
+      group(
+        [
+          codeCall('p1', 'execute_typescript'),
+          {type: 'tool-call', id: 's1', name: 'page.fill', arguments: '{}', state: 'complete'},
+          {type: 'tool-result', toolCallId: 's1', content: 'ok', state: 'complete'},
+          {type: 'tool-result', toolCallId: 'p1', content: 'ok', state: 'complete'},
+        ],
+        pageGrouper,
+      ),
+    ).toEqual([chain(0), session(1)])
+  })
+
   it('never folds an approval-requested call into a session', () => {
     expect(
       group(
