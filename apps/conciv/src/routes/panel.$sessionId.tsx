@@ -37,7 +37,7 @@ import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextSummary} from '../pane/context-tracker.js'
 import {QueueStrip} from '../pane/queue-strip.js'
 import {StatusBar, type StatusBarView} from '../pane/status-bar.js'
-import {SessionPillPending, UsagePending, ViewTabsPending} from '../shell/pending.js'
+import {SessionPillPending, SessionTitlePending, UsagePending, ViewTabsPending} from '../shell/pending.js'
 import {collectViews} from '../extension/extension-views.js'
 
 const RAIL =
@@ -190,7 +190,9 @@ function PanelSession(): JSX.Element {
             </span>
             <span class="chat-rail-context-narrow">{sessionStatus().kind === 'done' ? 'LAST' : 'ACTIVE'}</span>
           </span>
-          <span class={RAIL_TITLE}>{taskTitle()}</span>
+          <Suspense fallback={<SessionTitlePending />}>
+            <span class={RAIL_TITLE}>{taskTitle()}</span>
+          </Suspense>
         </div>
         <Popover.Root positioning={{placement: 'bottom-end'}}>
           <TooltipIconButtonSlot tooltip="Session options">

@@ -29,6 +29,15 @@ export function SessionPillPending(props: {variant: 'pill' | 'bar'}): JSX.Elemen
   )
 }
 
+export function SessionTitlePending(): JSX.Element {
+  return (
+    <div class="flex min-w-0 items-center" role="status">
+      <div class={`${SKEL} h-5 w-40 max-w-full rounded-chat-surface-sm`} aria-hidden="true" />
+      <span class="sr-only">Loading the session title…</span>
+    </div>
+  )
+}
+
 export function UsagePending(): JSX.Element {
   return (
     <div class="inline-flex items-center px-1.5 py-0.5" role="status">
