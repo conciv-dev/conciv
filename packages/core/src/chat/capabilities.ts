@@ -16,6 +16,7 @@ export type CodeCapability = {
   description: string
   summary: string
   category: string
+  keywords: readonly string[]
   approval?: 'ask'
   mutating: boolean
   reachable: boolean
@@ -40,6 +41,7 @@ export function registryCapabilities(tools: readonly SandboxTool[], call: Scoped
       description: tool.hint === undefined ? tool.summary : `${tool.summary}. ${tool.hint}`,
       summary: tool.summary,
       category: tool.category ?? 'other',
+      keywords: tool.keywords,
       ...(tool.approval === undefined ? {} : {approval: tool.approval}),
       mutating: tool.mutating,
       reachable: tool.reachable,
@@ -61,6 +63,7 @@ export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] 
     description: tool.description,
     summary: firstSentence(tool.description),
     category: 'assist',
+    keywords: [],
     mutating: false,
     reachable: true,
     errors: [],

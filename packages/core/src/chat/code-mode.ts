@@ -201,7 +201,8 @@ function catalogList(bound: BoundCapability[], search: string | undefined): unkn
   const term = search?.toLowerCase() ?? ''
   const entries = bound.filter(({capability, bindingName}) => {
     if (term === '') return true
-    const haystack = `${capability.name} ${bindingName} ${capability.summary} ${capability.category}`.toLowerCase()
+    const haystack =
+      `${capability.name} ${bindingName} ${capability.description} ${capability.category} ${capability.keywords.join(' ')}`.toLowerCase()
     return haystack.includes(term)
   })
   return {

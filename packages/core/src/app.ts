@@ -294,8 +294,12 @@ async function mcpSessionId(
   return anonymousExternalRow(rows)
 }
 
+export function withBuiltinExtensions(extensions: readonly AnyExtension[] | undefined): AnyExtension[] {
+  return [pageServerExtension, ...(extensions ?? [])]
+}
+
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
-  const extensions = [pageServerExtension, ...(opts.extensions ?? [])]
+  const extensions = withBuiltinExtensions(opts.extensions)
 
   assertUniqueExtensionSlugs(extensions)
 

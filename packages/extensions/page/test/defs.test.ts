@@ -22,6 +22,7 @@ const MUTATING_VERBS = [
   'insert',
   'override',
   'press',
+  'reload',
   'remove',
   'removeattr',
   'removeclass',
@@ -49,8 +50,8 @@ const MIRROR_VERBS = [
 ] as const
 
 describe('page tool declarations', () => {
-  it('declares 37 verbs, every one registry-grade with meta, output, icon and label', () => {
-    expect(PAGE_TOOL_DEFS).toHaveLength(37)
+  it('declares 38 verbs, every one registry-grade with meta, output, icon and label', () => {
+    expect(PAGE_TOOL_DEFS).toHaveLength(38)
     for (const def of PAGE_TOOL_DEFS) {
       expect(def.name.startsWith('page.')).toBe(true)
       expect(def.meta?.summary).toBeTruthy()
@@ -106,6 +107,10 @@ describe('page tool declarations', () => {
     }
     expect(pageVerbGerund('hover')).toBe('Hovering')
     expect(pageVerbGerund('nothing')).toBe('nothing')
+  })
+
+  it('gates exactly one verb behind an approval declaration: the last-resort script', () => {
+    expect(PAGE_TOOL_DEFS.filter((def) => def.approval === 'ask').map((def) => def.name)).toEqual(['page.eval'])
   })
 
   it('derives the act tool-name set from mutating meta', () => {

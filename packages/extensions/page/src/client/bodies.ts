@@ -34,6 +34,7 @@ import {
   overrideDef,
   pressDef,
   queryDef,
+  reloadDef,
   removeattrDef,
   removeclassDef,
   removeDef,
@@ -274,6 +275,17 @@ const waitTool = waitDef
   )
   .render(ActCard)
 
+function afterResultFlush(action: () => void): void {
+  setTimeout(action, 0)
+}
+
+const reloadTool = reloadDef
+  .client((_input, ctx) => {
+    afterResultFlush(() => ctx.document.location.reload())
+    return ok({initiated: true})
+  })
+  .render(ActCard)
+
 const textTool = textDef
   .client((input, ctx) => ({text: (ctx.target(input).textContent ?? '').slice(0, DOM_CAP)}))
   .render(ReadValueCard)
@@ -461,6 +473,7 @@ export const PAGE_CLIENT_TOOLS: readonly AnyToolBuilder[] = [
   trackTool,
   effectTool,
   waitTool,
+  reloadTool,
   clickTool,
   fillTool,
   selectTool,
