@@ -7,7 +7,7 @@ import type {
 } from '@tanstack/solid-db'
 import {safe} from '@orpc/client'
 import type {RouterClient} from '@orpc/server'
-import {elementRowInsert, type ElementRow} from '../shared/rows.js'
+import {elementRowToInsert, type ElementRow} from '../shared/rows.js'
 import type {WhiteboardRouter} from '../server/router.js'
 import type {ChangeFeed, ChangeMessage} from './change-feed.js'
 
@@ -150,7 +150,7 @@ export function whiteboardElementOptions(deps: {
     ctx.commit()
   }
   const putElement = async (row: ElementRow): Promise<void> => {
-    const {data, error, isDefined} = await safe(client.elements.upsert({scope, row: elementRowInsert.parse(row)}))
+    const {data, error, isDefined} = await safe(client.elements.upsert({scope, row: elementRowToInsert(row)}))
     if (data) return confirm(data)
     if (isDefined && error.code === 'CONFLICT') return confirm(error.data.current)
     throw error
@@ -172,7 +172,7 @@ export function whiteboardElementOptions(deps: {
       const modified = transaction.mutations.map((mutation) => mutation.modified)
       const [first] = modified
       if (modified.length === 1 && first) return void (await putElement(first))
-      const {rows} = await client.elements.bulkUpsert({scope, rows: modified.map((row) => elementRowInsert.parse(row))})
+      const {rows} = await client.elements.bulkUpsert({scope, rows: modified.map(elementRowToInsert)})
       rows.forEach((row) => confirm(row))
     },
   })

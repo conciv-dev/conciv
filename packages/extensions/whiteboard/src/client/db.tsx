@@ -5,7 +5,7 @@ import {
   commentRow,
   commentRowInsert,
   elementRow,
-  elementRowInsert,
+  elementRowToInsert,
   pendingRow,
   pendingRowInsert,
   pinRow,
@@ -109,7 +109,7 @@ export function createWhiteboardDb(apiBase: string, room: string) {
     cursors,
     postCursor,
     bulkUpsertElements: (scope: 'live' | 'draft', rows: ElementRow[]) =>
-      client.elements.bulkUpsert({scope, rows: rows.map((row) => elementRowInsert.parse(row))}),
+      client.elements.bulkUpsert({scope, rows: rows.map(elementRowToInsert)}),
     accountId,
     room,
     dispose: () => {

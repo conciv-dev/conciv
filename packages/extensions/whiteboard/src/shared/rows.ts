@@ -112,3 +112,8 @@ export type CommentRowInsert = z.infer<typeof commentRowInsert>
 export type PinRowInsert = z.infer<typeof pinRowInsert>
 export type ReadRowInsert = z.infer<typeof readRowInsert>
 export type CursorEventInsert = z.infer<typeof cursorEventInsert>
+
+export const elementRowToInsert = (row: ElementRow): ElementRowInsert => {
+  const {room: _room, ...insert} = row
+  return insert
+}
