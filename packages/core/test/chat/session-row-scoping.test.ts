@@ -3,7 +3,14 @@ import {eq} from 'drizzle-orm'
 import {sessions} from '@conciv/db'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {testDb} from '../helpers/memory-store.js'
-import {createRow, openNativeRow, resolveRow, rowById, sweepEmptyRows} from '../../src/chat/session-rows.js'
+import {
+  createRow,
+  ensureAgentRow,
+  openNativeRow,
+  resolveRow,
+  rowById,
+  sweepEmptyRows,
+} from '../../src/chat/session-rows.js'
 
 const MINTED = SessionId.parse('conciv_minted')
 const OTHER = SessionId.parse('conciv_other')
@@ -82,6 +89,46 @@ describe('sweepEmptyRows reaps every unused mint, not only the chat ones', () =>
     await createRow(db, rowOf({origin: 'agent'}))
     await sweepEmptyRows(db)
     expect(await rowById(db, OTHER)).not.toBeNull()
+  })
+})
+
+describe('raw native-id resolution stays inside the caller cwd', () => {
+  it('resolveRow with a raw harness id resolves the row of the calling cwd, not a same-id row elsewhere', async () => {
+    const db = testDb()
+    const nativeId = HarnessSessionId.parse('shared-native-id')
+    const here = SessionId.parse('conciv_here')
+    const elsewhere = SessionId.parse('conciv_elsewhere')
+    await createRow(db, rowOf({id: elsewhere, cwd: '/elsewhere', harnessSessionId: nativeId}))
+    await createRow(db, rowOf({id: here, cwd: '/app', harnessSessionId: nativeId}))
+    const {sessionId} = await resolveRow(scopeOf(db, '/app'), {id: nativeId})
+    expect(sessionId).toBe(here)
+  })
+
+  it('ensureAgentRow with a raw harness id resolves the row of the calling cwd, not a same-id row elsewhere', async () => {
+    const db = testDb()
+    const nativeId = HarnessSessionId.parse('shared-native-id')
+    const here = SessionId.parse('conciv_here')
+    const elsewhere = SessionId.parse('conciv_elsewhere')
+    await createRow(db, rowOf({id: elsewhere, cwd: '/elsewhere', harnessSessionId: nativeId, origin: 'agent'}))
+    await createRow(db, rowOf({id: here, cwd: '/app', harnessSessionId: nativeId, origin: 'agent'}))
+    const row = await ensureAgentRow({db, harnessKind: 'claude', cwd: '/app'}, nativeId)
+    expect(row.id).toBe(here)
+  })
+})
+
+describe('latestRow query stays bounded', () => {
+  it('the query window excludes a row older than the newest bounded number of other-cwd rows', async () => {
+    const db = testDb()
+    const baseTime = 1_000_000
+    await db.insert(sessions).values({...rowOf({cwd: '/app'}), createdAt: baseTime, updatedAt: baseTime})
+    const noiseRows = Array.from({length: 60}, (_, index) => ({
+      ...rowOf({id: SessionId.parse(`conciv_noise${index}`), cwd: '/noise', title: `noise ${index}`}),
+      createdAt: baseTime + index + 1,
+      updatedAt: baseTime + index + 1,
+    }))
+    await db.insert(sessions).values(noiseRows)
+    const {sessionId} = await resolveRow(scopeOf(db, '/app'), {})
+    expect(sessionId).toBe(MINTED)
   })
 })
 

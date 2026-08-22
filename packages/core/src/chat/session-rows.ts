@@ -107,12 +107,15 @@ export async function ensureRow(db: ConcivDb, id: SessionId, harnessKind: string
   })
 }
 
+const LATEST_ROW_WINDOW = 50
+
 async function latestRow(scope: RowScope): Promise<SessionRecord | null> {
   const rows = await scope.db
     .select()
     .from(sessions)
     .where(and(isNull(sessions.deletedAt), eq(sessions.origin, 'chat')))
     .orderBy(desc(sessions.updatedAt))
+    .limit(LATEST_ROW_WINDOW)
   const mine = rows.map((row) => SessionRecordSchema.parse(row)).find((row) => sameCwd(row.cwd, scope.cwd))
   return mine ?? null
 }
@@ -126,13 +129,10 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
   }
   const nativeId = HarnessSessionIdSchema.safeParse(body.id)
   if (nativeId.success) {
-    const wrapped = await rowByNativeId(scope.db, nativeId.data)
+    const ref: NativeSessionRef = {harnessKind: scope.harnessKind, cwd: scope.cwd, nativeId: nativeId.data}
+    const wrapped = await rowByNativeRef(scope.db, ref)
     if (wrapped) return {sessionId: wrapped.id}
-    const claimed = await claimNativeRow(
-      scope,
-      {harnessKind: scope.harnessKind, cwd: scope.cwd, nativeId: nativeId.data},
-      'external',
-    )
+    const claimed = await claimNativeRow(scope, ref, 'external')
     return {sessionId: claimed.id}
   }
   const latest = await latestRow(scope)
@@ -163,9 +163,10 @@ export async function restoreRow(db: ConcivDb, id: SessionId): Promise<void> {
 }
 
 export async function ensureAgentRow(scope: RowScope, nativeId: HarnessSessionId): Promise<SessionRecord> {
-  const existing = await rowByNativeId(scope.db, nativeId)
+  const ref: NativeSessionRef = {harnessKind: scope.harnessKind, cwd: scope.cwd, nativeId}
+  const existing = await rowByNativeRef(scope.db, ref)
   if (existing) return existing
-  return claimNativeRow(scope, {harnessKind: scope.harnessKind, cwd: scope.cwd, nativeId}, 'agent')
+  return claimNativeRow(scope, ref, 'agent')
 }
 
 export async function mintExternalRow(scope: RowScope): Promise<SessionId> {
@@ -244,7 +245,8 @@ async function materializeNative(native: HarnessSessionMeta, input: SessionListI
 
 export async function listSessionMetas(input: SessionListInput): Promise<SessionMeta[]> {
   const rows = (await input.db.select().from(sessions))
-    .map((row) => SessionRecordSchema.parse(row))
+    .map((row) => SessionRecordSchema.safeParse(row))
+    .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
     .filter((row) => sameCwd(row.cwd, input.cwd))
     .filter((row) => input.includeHidden || row.deletedAt === null)
   const nativeById = new Map(input.nativeList.map((native) => [native.id, native]))

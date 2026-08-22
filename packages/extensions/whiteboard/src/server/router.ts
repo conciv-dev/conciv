@@ -4,7 +4,21 @@ import {z} from 'zod'
 import {subscriptionIterator} from '@conciv/extension'
 import {CONCIV_SESSION_HEADER, isSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
-import {commentRow, cursorEvent, elementRow, pendingRow, pinRow, readRow, replyRow} from '../shared/rows.js'
+import {
+  commentRow,
+  commentRowInsert,
+  cursorEventInsert,
+  elementRow,
+  elementRowInsert,
+  pendingRow,
+  pendingRowInsert,
+  pinRow,
+  pinRowInsert,
+  readRow,
+  readRowInsert,
+  replyRow,
+  replyRowInsert,
+} from '../shared/rows.js'
 import {canvasPending, canvasReplies, comments, pins, reads} from './db/schema.js'
 import type {Store, WhiteboardEvent} from './db/store.js'
 
@@ -24,31 +38,27 @@ const roomOs = wbOs.use(({context, next}) => next({context: {room: serverRoom(co
 
 const scopeInput = z.object({scope: z.enum(['live', 'draft'])})
 const notFound = {NOT_FOUND: {message: 'row not found'}}
-const wrongRoom = {FORBIDDEN: {message: 'the row belongs to another session'}}
 
-type TableOps<Row extends object> = {
-  roomOf: (row: Row) => string
+type TableOps<Row extends object, Insert extends object> = {
+  toRow: (input: Insert, room: SessionId) => Row
   list: (room: SessionId) => Promise<Row[]>
   insert: (row: Row) => Promise<Row>
   update: (id: string, room: SessionId, patch: Partial<Row>) => Promise<Row | undefined>
   remove: (id: string, room: SessionId) => Promise<boolean>
 }
 
-function tableRouter<RowInput, PatchInput, Row extends RowInput & {id: string}>(
+function tableRouter<RowInput, InsertInput, PatchInput, Row extends RowInput & {id: string}, Insert extends object>(
   schema: z.ZodType<Row, RowInput>,
+  insertSchema: z.ZodType<Insert, InsertInput>,
   patchSchema: z.ZodType<Partial<Row>, PatchInput>,
-  ops: TableOps<Row>,
+  ops: TableOps<Row, Insert>,
 ) {
   return {
     list: roomOs.output(z.array(schema)).handler(({context}) => ops.list(context.room)),
     insert: roomOs
-      .errors(wrongRoom)
-      .input(schema)
+      .input(insertSchema)
       .output(schema)
-      .handler(({input, context, errors}) => {
-        if (ops.roomOf(input) !== context.room) throw errors.FORBIDDEN()
-        return ops.insert(input)
-      }),
+      .handler(({input, context}) => ops.insert(ops.toRow(input, context.room))),
     update: roomOs
       .errors(notFound)
       .input(z.object({id: z.string(), patch: patchSchema}))
@@ -68,36 +78,36 @@ function tableRouter<RowInput, PatchInput, Row extends RowInput & {id: string}>(
 export function makeWhiteboardRouter(store: Store) {
   const db = store.db
   return wbOs.router({
-    comments: tableRouter(commentRow, commentRow.partial(), {
-      roomOf: (row) => row.sessionId,
+    comments: tableRouter(commentRow, commentRowInsert, commentRow.partial(), {
+      toRow: (input, room) => ({...input, sessionId: room}),
       list: (room) => db.select().from(comments).where(eq(comments.sessionId, room)),
       insert: (row) => store.insertComment(row),
       update: (id, room, patch) => store.updateComment(id, room, patch),
       remove: (id, room) => store.deleteComment(id, room),
     }),
-    pins: tableRouter(pinRow, pinRow.partial(), {
-      roomOf: (row) => row.room,
+    pins: tableRouter(pinRow, pinRowInsert, pinRow.partial(), {
+      toRow: (input, room) => ({...input, room}),
       list: (room) => db.select().from(pins).where(eq(pins.room, room)),
       insert: (row) => store.insertPin(row),
       update: (id, room, patch) => store.updatePin(id, room, patch),
       remove: (id, room) => store.deletePin(id, room),
     }),
-    reads: tableRouter(readRow, readRow.partial(), {
-      roomOf: (row) => row.sessionId,
+    reads: tableRouter(readRow, readRowInsert, readRow.partial(), {
+      toRow: (input, room) => ({...input, sessionId: room}),
       list: (room) => db.select().from(reads).where(eq(reads.sessionId, room)),
       insert: (row) => store.insertRead(row),
       update: (id, room, patch) => store.updateRead(id, room, patch),
       remove: (id, room) => store.deleteRead(id, room),
     }),
-    canvasPending: tableRouter(pendingRow, pendingRow.partial(), {
-      roomOf: (row) => row.room,
+    canvasPending: tableRouter(pendingRow, pendingRowInsert, pendingRow.partial(), {
+      toRow: (input, room) => ({...input, room}),
       list: (room) => db.select().from(canvasPending).where(eq(canvasPending.room, room)),
       insert: (row) => store.insertPending(row),
       update: (id, room, patch) => store.updatePending(id, room, patch),
       remove: (id, room) => store.deletePending(id, room),
     }),
-    canvasReplies: tableRouter(replyRow, replyRow.partial(), {
-      roomOf: (row) => row.room,
+    canvasReplies: tableRouter(replyRow, replyRowInsert, replyRow.partial(), {
+      toRow: (input, room) => ({...input, room}),
       list: (room) => db.select().from(canvasReplies).where(eq(canvasReplies.room, room)),
       insert: (row) => store.insertReply(row),
       update: (id, room, patch) => store.updateReply(id, room, patch),
@@ -109,25 +119,21 @@ export function makeWhiteboardRouter(store: Store) {
         .output(z.array(elementRow))
         .handler(({input, context}) => store.listElements(input.scope, context.room)),
       upsert: roomOs
-        .errors({
-          ...wrongRoom,
-          CONFLICT: {message: 'element version conflict', data: z.object({current: elementRow})},
-        })
-        .input(scopeInput.extend({row: elementRow}))
+        .errors({CONFLICT: {message: 'element version conflict', data: z.object({current: elementRow})}})
+        .input(scopeInput.extend({row: elementRowInsert}))
         .output(elementRow)
         .handler(async ({input, context, errors}) => {
-          if (input.row.room !== context.room) throw errors.FORBIDDEN()
-          const outcome = await store.upsertElement(input.scope, input.row)
+          const row = {...input.row, room: context.room}
+          const outcome = await store.upsertElement(input.scope, row)
           if (!outcome.ok) throw errors.CONFLICT({data: {current: outcome.current}})
           return outcome.row
         }),
       bulkUpsert: roomOs
-        .errors(wrongRoom)
-        .input(scopeInput.extend({rows: z.array(elementRow)}))
+        .input(scopeInput.extend({rows: z.array(elementRowInsert)}))
         .output(z.object({rows: z.array(elementRow)}))
-        .handler(async ({input, context, errors}) => {
-          if (input.rows.some((row) => row.room !== context.room)) throw errors.FORBIDDEN()
-          return {rows: await store.upsertElements(input.scope, input.rows)}
+        .handler(async ({input, context}) => {
+          const rows = input.rows.map((row) => ({...row, room: context.room}))
+          return {rows: await store.upsertElements(input.scope, rows)}
         }),
       bulkDelete: roomOs
         .input(scopeInput.extend({elementIds: z.array(z.string())}))
@@ -137,12 +143,10 @@ export function makeWhiteboardRouter(store: Store) {
         })),
     },
     cursor: roomOs
-      .errors(wrongRoom)
-      .input(cursorEvent)
+      .input(cursorEventInsert)
       .output(z.object({ok: z.literal(true)}))
-      .handler(({input, context, errors}) => {
-        if (input.room !== context.room) throw errors.FORBIDDEN()
-        store.cursor(input)
+      .handler(({input, context}) => {
+        store.cursor({...input, room: context.room})
         return {ok: true as const}
       }),
     changes: roomOs.output(eventIterator(z.custom<WhiteboardEvent>())).handler(async function* ({context, signal}) {

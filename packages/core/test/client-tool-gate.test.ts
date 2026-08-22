@@ -121,7 +121,7 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
     )
     expect(click.mutating).toBe(true)
     expect(click.approval).toBeUndefined()
-    await expect(gatedToolRun(click, testRequest, gate, attached)({selector: '#go'})).resolves.toMatchObject({
+    await expect(gatedToolRun(click, SESSION, testRequest, gate, attached)({selector: '#go'})).resolves.toMatchObject({
       ok: true,
     })
     expect(emitted).toEqual([])
@@ -142,7 +142,7 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
       'probe.reset',
     )
     expect(reset.approval).toBe('ask')
-    const pending = gatedToolRun(reset, testRequest, gate, attached)({})
+    const pending = gatedToolRun(reset, SESSION, testRequest, gate, attached)({})
     const chunk = ApprovalChunkSchema.parse(await chunkArrived)
     expect(asks.reply(SESSION, chunk.value.approval.id, true)).toBe(true)
     await expect(pending).resolves.toEqual({ok: true})
@@ -162,7 +162,7 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
       registryCapabilities(registry.sandboxTools(), scopedToolCallOf(runtime)),
       'probe.reset',
     )
-    const pending = gatedToolRun(reset, testRequest, gate, attached)({})
+    const pending = gatedToolRun(reset, SESSION, testRequest, gate, attached)({})
     const chunk = ApprovalChunkSchema.parse(await chunkArrived)
     expect(asks.reply(SESSION, chunk.value.approval.id, false)).toBe(true)
     await expect(pending).rejects.toThrow(/denied/)
@@ -175,7 +175,7 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
     const gate = makeAskGate({asks: asksFor(asks, SESSION), emit: () => {}, timeoutMs: 100})
     const text = capabilityNamed(registryCapabilities(registry.sandboxTools(), scopedToolCallOf(runtime)), 'page.text')
     expect(text.mutating).toBe(false)
-    const run = gatedToolRun(text, testRequest, gate, attached)
+    const run = gatedToolRun(text, SESSION, testRequest, gate, attached)
     await expect(run({selector: '#probe'})).resolves.toMatchObject({text: 'hello'})
   })
 })

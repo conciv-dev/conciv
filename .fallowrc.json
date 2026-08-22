@@ -36,7 +36,7 @@
     "zones": [
       {
         "name": "session-facade",
-        "patterns": ["packages/core/src/runtime/**"]
+        "patterns": ["packages/core/src/runtime/**", "packages/core/src/runtime.ts"]
       },
       {
         "name": "core-primitives",
@@ -47,6 +47,10 @@
           "packages/core/src/chat/subscribe.ts",
           "packages/core/src/chat/live-runs.ts"
         ]
+      },
+      {
+        "name": "core-shared-leaf",
+        "patterns": ["packages/core/src/chat/ask-constants.ts"]
       },
       {
         "name": "core-callers",
@@ -60,8 +64,12 @@
     "rules": [
       {
         "from": "core-callers",
-        "allow": ["session-facade", "extension-servers"],
+        "allow": ["session-facade", "extension-servers", "core-shared-leaf"],
         "allowTypeOnly": ["core-primitives"]
+      },
+      {
+        "from": "core-primitives",
+        "allow": ["session-facade", "core-shared-leaf"]
       }
     ],
     "calls": {

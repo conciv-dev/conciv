@@ -238,7 +238,7 @@ export type McpVars = {mcp: McpDeps}
 async function buildServer(deps: McpDeps, scope: SessionScope): Promise<McpServer> {
   const request: ToolRequest = {sessionId: scope.id, model: scope.model}
   const gate = deps.askGate(scope.id)
-  const codeMode = await makeCodeMode(() => deps.capabilities(scope.id), request, gate, {
+  const codeMode = await makeCodeMode(() => deps.capabilities(scope.id), scope.id, request, gate, {
     listening: deps.listening,
   })
   const server = new McpServer(

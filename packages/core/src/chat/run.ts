@@ -111,9 +111,13 @@ async function codeModeExtras(
   model: string | null,
   askGate: PermissionGate,
 ): Promise<{systemPrompts: string[]; tools: AnyTool[]}> {
-  const codeMode = await makeCodeMode(() => deps.codeModeCapabilities(sessionId), {sessionId, model}, askGate, {
-    listening: (id) => deps.stream.listening(id),
-  })
+  const codeMode = await makeCodeMode(
+    () => deps.codeModeCapabilities(sessionId),
+    sessionId,
+    {sessionId, model},
+    askGate,
+    {listening: (id) => deps.stream.listening(id)},
+  )
   const systemPrompts = [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text))
   return {systemPrompts, tools: [...(codeMode?.tools ?? [])]}
 }

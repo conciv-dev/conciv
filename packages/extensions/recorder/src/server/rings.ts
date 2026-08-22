@@ -5,9 +5,11 @@ const CLIENT_RING_IDLE_MS = 30 * 60 * 1000
 const MAX_CLIENT_RINGS = 8
 const MAX_TOTAL_RING_BYTES = 64 * 1024 * 1024
 
+export type ClientSummary = {id: string; lastSeen: number}
+
 export type ClientRings = {
   append(clientId: string, events: RrwebEvent[]): void
-  latestClientId(): string | null
+  clients(): ClientSummary[]
   window(range: {fromTs?: number; toTs?: number}, clientId: string): RrwebEvent[]
   since(cursor: number, clientId: string): RrwebEvent[]
   head(clientId: string): number
@@ -71,7 +73,7 @@ export function createClientRings(opts: {windowMs: number; maxBytes?: number}): 
       appended = Math.max(appended, entry.ring.head())
       sweep()
     },
-    latestClientId: () => byTouchTime().at(-1)?.[0] ?? null,
+    clients: () => byTouchTime().map(([id, entry]) => ({id, lastSeen: entry.touchedAt})),
     window: (range, clientId) => ringFor(clientId)?.window(range) ?? [],
     since: (cursor, clientId) => ringFor(clientId)?.since(cursor) ?? [],
     head: (clientId) => ringFor(clientId)?.head() ?? 0,

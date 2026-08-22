@@ -34,13 +34,15 @@ describe('per-client rings', () => {
     expect(rings.head('unknown-tab')).toBe(0)
   })
 
-  it('names the most recently written client so a reader without one can ask for it', () => {
+  it('lists connected clients ordered from least to most recently written, each with a lastSeen', () => {
     const rings = createClientRings({windowMs: 60_000})
-    expect(rings.latestClientId()).toBeNull()
+    expect(rings.clients()).toEqual([])
     rings.append('tab-a', [event(1)])
-    expect(rings.latestClientId()).toBe('tab-a')
+    const [afterA] = rings.clients()
+    expect(afterA).toMatchObject({id: 'tab-a'})
+    expect(typeof afterA?.lastSeen).toBe('number')
     rings.append('tab-b', [event(2)])
-    expect(rings.latestClientId()).toBe('tab-b')
+    expect(rings.clients().map((client) => client.id)).toEqual(['tab-a', 'tab-b'])
   })
 
   it('since follows the cursor of the client it is asked about', () => {

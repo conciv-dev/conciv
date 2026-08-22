@@ -122,7 +122,7 @@ describe('the code-mode surface (execute_typescript over /api/mcp) runs page too
 })
 
 describe('the RPC surface (registry.call) runs page tools ungated and still journals mutations', () => {
-  it('a headerless mutating page call executes without approval', async () => {
+  it('an ungated mutating page call executes without approval', async () => {
     const kit = await bootKit({cwd: tmpdir()})
     cleanups.push(() => kit.cleanup())
     const widget = await bootWidget(kit)
