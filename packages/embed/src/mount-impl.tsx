@@ -128,7 +128,15 @@ function bootNormal(config: BootNormalConfig): BootResult {
 
   const container = document.createElement('div')
   config.root.appendChild(container)
-  const disposeApp = render(() => <RouterProvider router={router} />, container)
+  const paint: {dispose: () => void; cancelled: boolean} = {dispose: () => {}, cancelled: false}
+  void storage.restored.then(() => {
+    if (paint.cancelled) return
+    paint.dispose = render(() => <RouterProvider router={router} />, container)
+  })
+  const disposeApp = (): void => {
+    paint.cancelled = true
+    paint.dispose()
+  }
   let plane = startPagePlane({
     rpc,
     document,
@@ -153,9 +161,17 @@ function bootNormal(config: BootNormalConfig): BootResult {
     setConnectionGeneration((generation) => generation + 1)
   }
 
-  restore.apply = (href) => void router.navigate({href, replace: true})
+  const boot = {href: router.state.location.href, moved: false}
+  const unsubscribeNavigation = router.subscribe('onBeforeNavigate', (event) => {
+    if (event.hrefChanged) boot.moved = true
+  })
+  restore.apply = (href) => {
+    if (boot.moved || router.state.location.href !== boot.href || router.state.status !== 'idle') return
+    void router.navigate({href, replace: true})
+  }
 
   const disposers = [
+    unsubscribeNavigation,
     storage.dispose,
     () => plane.dispose(),
     disposeApp,

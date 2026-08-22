@@ -61,14 +61,14 @@ function describeFailures(failures: PageFailures): string {
 }
 
 export async function expectWidgetBoots(page: Page, failures: PageFailures): Promise<void> {
-  const launcher = page.getByRole('button', {name: 'Open conciv chat'})
+  const launcher = page.getByRole('button', {name: /conciv chat$/})
   try {
     await expect(launcher).toBeVisible()
   } catch (error) {
     const detail = describeFailures(failures)
     throw detail === '' ? error : new Error(`widget did not boot\n${detail}`, {cause: error})
   }
-  await launcher.click()
+  if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
   await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
   const transientOptimizerReload = /Failed to fetch dynamically imported module|504 \(Outdated Optimize Dep\)/
   const detail = describeFailures(failures)
