@@ -22,6 +22,7 @@ import {
 import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
 import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
+import {ResolvedSettingSchema, SettingsLogEntrySchema, SettingsScopeSchema} from '@conciv/protocol/settings-types'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'object' && value !== null)
@@ -113,6 +114,21 @@ export const contract = {
   navigation: {
     get: oc.output(NavigationWriteSchema.nullable()),
     set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
+  },
+  settings: {
+    get: oc.output(z.array(ResolvedSettingSchema)),
+    set: oc
+      .errors({
+        UNKNOWN_KEY: {message: 'no registered setting with that key'},
+        INVALID_VALUE: {message: 'value failed the registry schema for this key'},
+      })
+      .input(z.object({key: z.string(), value: z.unknown(), scope: SettingsScopeSchema}))
+      .output(Ok),
+    clear: oc
+      .errors({UNKNOWN_KEY: {message: 'no registered setting with that key'}})
+      .input(z.object({key: z.string(), scope: SettingsScopeSchema}))
+      .output(Ok),
+    history: oc.input(z.object({key: z.string()})).output(z.array(SettingsLogEntrySchema)),
   },
   chat: {
     subscribe: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),

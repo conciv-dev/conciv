@@ -24,6 +24,7 @@ export type BootOverrides = {
   bridge?: BundlerBridge
   firstChunkTimeoutMs?: number
   askTimeoutMs?: number
+  globalStateDir?: string
 }
 
 function fakeClaudeBinDir(stateRoot: string): string {
@@ -72,6 +73,7 @@ export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
       bridge: overrides.bridge,
       firstChunkTimeoutMs: overrides.firstChunkTimeoutMs,
       askTimeoutMs: overrides.askTimeoutMs,
+      globalStateDir: overrides.globalStateDir,
     })
     return {fetch: app.fetch, dispose}
   }

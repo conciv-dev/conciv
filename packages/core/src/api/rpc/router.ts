@@ -14,6 +14,7 @@ import {makeAskGate, requiresApproval} from '../../chat/gate.js'
 import {rowById} from '../../chat/session-rows.js'
 import {pageQueryStream} from '../../page-bus.js'
 import {symbolicateFrames} from '../../editor/symbolicate.js'
+import {clearSetting, resolveAllSettings, setSetting, settingsHistory} from '../../settings/service.js'
 import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
 import {os, type RpcDeps} from './mount.js'
@@ -148,6 +149,20 @@ export function makeRpcRouter(deps: RpcDeps) {
           })
         return {ok: true as const, applied: Number(result.changes) > 0}
       }),
+    },
+    settings: {
+      get: os.settings.get.handler(() => resolveAllSettings(deps.settings)),
+      set: os.settings.set.handler(({input, errors}) => {
+        const result = setSetting(deps.settings, {...input, actor: 'user'})
+        if (result.ok) return {ok: true as const}
+        throw result.error === 'unknown-key' ? errors.UNKNOWN_KEY() : errors.INVALID_VALUE()
+      }),
+      clear: os.settings.clear.handler(({input, errors}) => {
+        const result = clearSetting(deps.settings, {...input, actor: 'user'})
+        if (result.ok) return {ok: true as const}
+        throw errors.UNKNOWN_KEY()
+      }),
+      history: os.settings.history.handler(({input}) => settingsHistory(deps.settings, input.key)),
     },
     registry: {
       catalog: os.registry.catalog.handler((): ToolCommandSignature[] =>

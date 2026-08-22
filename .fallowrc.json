@@ -26,6 +26,7 @@
     "packages/core/vite.config.ts",
     "packages/extensions/page/vite.config.ts",
     "packages/tools/vite.config.ts",
+    "packages/db/drizzle-global.config.ts",
     "**/*.stories.tsx",
     "**/*.test-d.ts",
     "**/*.fixtures.ts",
