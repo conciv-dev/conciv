@@ -37,7 +37,7 @@ import {makeRunControl, type ChatDeps} from './chat/runtime.js'
 import {asksFor, makeAskGate, requiresApproval} from './chat/gate.js'
 import {makeConcivSandbox} from './chat/sandbox.js'
 import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
-import {recoverInterruptedRuns} from './chat/transcript.js'
+import {recoverInterruptedRuns, sessionSnapshot} from './chat/transcript.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
 import {modelOf, openDb, writeToolCapture} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
@@ -453,6 +453,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     claimStartedAt,
     liveRuns,
     stream,
+    snapshot: (sessionId) => sessionSnapshot(chatDeps, sessionId),
     risky,
     commandAllows: askFreeCommandAllows,
     toolNames: new Set(toolList.map((tool) => tool.name)),

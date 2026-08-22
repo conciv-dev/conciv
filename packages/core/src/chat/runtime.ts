@@ -9,6 +9,7 @@ import {
 } from '@tanstack/ai'
 import {RunController, type SandboxDefinition} from '@tanstack/ai-sandbox'
 import {z} from 'zod'
+import type {UIMessage} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {ConcivDb} from '@conciv/db'
 import type {CodeCapability} from './capabilities.js'
@@ -36,6 +37,7 @@ export type ChatDeps = {
   claimStartedAt: () => number
   liveRuns: LiveRuns
   stream: SessionStreams
+  snapshot: (sessionId: SessionId) => Promise<UIMessage[]>
   risky: ReadonlySet<string>
   commandAllows: () => readonly string[]
   toolNames: ReadonlySet<string>

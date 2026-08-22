@@ -11,6 +11,7 @@ import {createSessionStreams} from '../../src/chat/subscribe.js'
 import {createLiveRuns} from '../../src/chat/live-runs.js'
 import {ensureRow} from '../../src/chat/session-rows.js'
 import {makeRunControl, type ChatDeps} from '../../src/chat/runtime.js'
+import {sessionSnapshot} from '../../src/chat/transcript.js'
 
 export type ChatFixture = {
   chat: ChatDeps
@@ -42,6 +43,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     claimStartedAt,
     liveRuns: createLiveRuns(),
     stream: createSessionStreams(),
+    snapshot: (sessionId) => sessionSnapshot(chat, sessionId),
     commandAllows: () => [],
     risky: new Set<string>(),
     toolNames: new Set<string>(),
