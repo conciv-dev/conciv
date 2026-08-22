@@ -23,6 +23,7 @@ import {useChatSession} from '@conciv/client'
 import {
   useAnnounce,
   useAppData,
+  useAppQueryClient,
   useConnectionGeneration,
   useDisconnect,
   useGrabProvider,
@@ -37,6 +38,7 @@ import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextSummary} from '../pane/context-tracker.js'
 import {QueueStrip} from '../pane/queue-strip.js'
 import {StatusBar, type StatusBarView} from '../pane/status-bar.js'
+import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 import {SessionPillPending, SessionTitlePending, UsagePending, ViewTabsPending} from '../shell/pending.js'
 import {collectViews} from '../extension/extension-views.js'
 
@@ -76,6 +78,7 @@ function PanelSession(): JSX.Element {
   const generation = useConnectionGeneration()
   const appData = useAppData()
   const rpc = useRpc()
+  const queryClient = useAppQueryClient()
   const announce = useAnnounce()
   const instances = useInstances()
   const {connectMode, disconnect} = useDisconnect()
@@ -138,6 +141,14 @@ function PanelSession(): JSX.Element {
 
   const chatKey = createMemo(() => ({sessionId: params().sessionId, generation: generation()}))
   const chat = createMemo(() => useChatSession({rpc, sessionId: chatKey().sessionId}))
+  const coordinator = makeRefreshCoordinator({
+    chat,
+    sessionId: () => params().sessionId,
+    appData,
+    queryClient,
+    announce,
+  })
+  const sessionMenuLabel = () => (coordinator.isRefreshing() ? 'Refreshing the conversation' : 'Session options')
 
   const turns = createMemo(() => coalesceTurns(chat().messages()))
   const latestRollup = createMemo<TurnRollup | undefined>(() => {
@@ -178,6 +189,8 @@ function PanelSession(): JSX.Element {
     attachments: makePendingAttachmentQueue(),
     newSession: () => void newSession(),
     chat,
+    refresh: coordinator.refresh,
+    isRefreshing: coordinator.isRefreshing,
   }
 
   return (
@@ -195,12 +208,17 @@ function PanelSession(): JSX.Element {
           </Suspense>
         </div>
         <Popover.Root positioning={{placement: 'bottom-end'}}>
-          <TooltipIconButtonSlot tooltip="Session options">
+          <TooltipIconButtonSlot tooltip={sessionMenuLabel()}>
             {(buttonProps) => (
               <Popover.Trigger
                 asChild={(triggerProps) => (
-                  <button {...buttonProps()} {...triggerProps()} class={GHOST}>
-                    <Ellipsis class="size-4 block" aria-hidden="true" />
+                  <button {...buttonProps()} {...triggerProps()} class={GHOST} aria-busy={coordinator.isRefreshing()}>
+                    <Show
+                      when={coordinator.isRefreshing()}
+                      fallback={<Ellipsis class="size-4 block" aria-hidden="true" />}
+                    >
+                      <RefreshCw class="size-4 block [transform-origin:center] anim-tool-spin" aria-hidden="true" />
+                    </Show>
                   </button>
                 )}
               />
@@ -224,15 +242,24 @@ function PanelSession(): JSX.Element {
               </Suspense>
               <hr class={RAIL_MENU_SEPARATOR} />
               <Show when={activeView() === 'chat'}>
-                <button
-                  type="button"
-                  class={RAIL_MENU_ROW}
-                  disabled={chatBusy(chat())}
-                  onClick={() => chat().refresh()}
-                >
-                  <RefreshCw class="size-4 block shrink-0" aria-hidden="true" />
-                  Refresh the conversation
-                </button>
+                <Popover.CloseTrigger
+                  asChild={(closeProps) => (
+                    <button
+                      {...closeProps({
+                        type: 'button',
+                        class: RAIL_MENU_ROW,
+                        'aria-label': 'Refresh the conversation',
+                        get disabled() {
+                          return chatBusy(chat()) || coordinator.isRefreshing()
+                        },
+                        onClick: () => coordinator.refresh(),
+                      })}
+                    >
+                      <RefreshCw class="size-4 block shrink-0" aria-hidden="true" />
+                      Refresh the conversation
+                    </button>
+                  )}
+                />
               </Show>
               <button
                 type="button"

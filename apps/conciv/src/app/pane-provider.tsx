@@ -2,10 +2,18 @@ import {createMemo, type JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import {useRouter} from '@tanstack/solid-router'
 import {useChatSession} from '@conciv/client'
-import {useAppData, useConnectionGeneration, useGrabProvider, useRpc} from './context.js'
+import {
+  useAnnounce,
+  useAppData,
+  useAppQueryClient,
+  useConnectionGeneration,
+  useGrabProvider,
+  useRpc,
+} from './context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from './pane-context.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
+import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 
 export function PaneProvider(props: {
   sessionId: string
@@ -14,6 +22,8 @@ export function PaneProvider(props: {
 }): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
+  const queryClient = useAppQueryClient()
+  const announce = useAnnounce()
   const router = useRouter()
   const generation = useConnectionGeneration()
   const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
@@ -29,6 +39,13 @@ export function PaneProvider(props: {
 
   const chatKey = createMemo(() => ({sessionId: props.sessionId, generation: generation()}))
   const chat = createMemo(() => useChatSession({rpc, sessionId: chatKey().sessionId}))
+  const coordinator = makeRefreshCoordinator({
+    chat,
+    sessionId: () => props.sessionId,
+    appData,
+    queryClient,
+    announce,
+  })
 
   const value: PaneContextValue = {
     sessionId: () => props.sessionId,
@@ -48,6 +65,8 @@ export function PaneProvider(props: {
       void openNewSession()
     },
     chat,
+    refresh: coordinator.refresh,
+    isRefreshing: coordinator.isRefreshing,
   }
 
   return <PaneContext.Provider value={value}>{props.children}</PaneContext.Provider>

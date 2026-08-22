@@ -9,7 +9,7 @@ export type UseChatSessionOptions = {
   onError?: (error: Error) => void
 }
 
-export type ChatSession = ReturnType<typeof useChat> & {refresh: () => void; interruptAndFlush: () => void}
+export type ChatSession = ReturnType<typeof useChat> & {refresh: () => Promise<void>; interruptAndFlush: () => void}
 
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))

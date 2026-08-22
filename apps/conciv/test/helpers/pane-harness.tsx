@@ -13,6 +13,7 @@ import {useChatSession} from '@conciv/client'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../../src/app/pane-context.js'
 import {createInstances} from '../../src/extension/create-instances.js'
 import {makeGrabStaging} from '../../src/pane/grab-staging.js'
+import {makeRefreshCoordinator} from '../../src/pane/refresh-coordinator.js'
 import {type AppData} from '../../src/data/app-data.js'
 import {NoticeContextProvider, NoticeSurface} from '../../src/shell/notice-context.js'
 
@@ -60,7 +61,14 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   const {rpc, data, queryClient} = app
   const chatRoot = createRoot((disposeChat) => {
     const chat = createMemo(() => useChatSession({rpc, sessionId: options.sessionId}))
-    return {chat, dispose: disposeChat}
+    const coordinator = makeRefreshCoordinator({
+      chat,
+      sessionId: () => options.sessionId,
+      appData: data,
+      queryClient,
+      announce: app.announce,
+    })
+    return {chat, coordinator, dispose: disposeChat}
   })
   const pane: PaneContextValue = {
     sessionId: () => options.sessionId,
@@ -74,6 +82,8 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     attachments: makePendingAttachmentQueue(),
     newSession: () => options.onNewSession?.(),
     chat: chatRoot.chat,
+    refresh: chatRoot.coordinator.refresh,
+    isRefreshing: chatRoot.coordinator.isRefreshing,
   }
   const reachabilityRoot = createRoot((disposeReachability) => ({
     reachability: makeEngineReachability(),

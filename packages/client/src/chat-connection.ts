@@ -24,7 +24,7 @@ export function isReachabilityError(error: unknown): boolean {
   return !(error instanceof ORPCError)
 }
 
-export type ChatConnection = SubscribeConnectionAdapter & {refresh: () => void}
+export type ChatConnection = SubscribeConnectionAdapter & {refresh: () => Promise<void>}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -111,7 +111,13 @@ async function openStream(
   }
 }
 
-type StreamControl = {attempt: AbortController | null}
+type StreamControl = {attempt: AbortController | null; reopened: (() => void) | null}
+
+function settleReopened(control: StreamControl): void {
+  const reopened = control.reopened
+  control.reopened = null
+  reopened?.()
+}
 
 function stillListening(consumerSignal: AbortSignal | undefined): boolean {
   return !(consumerSignal?.aborted ?? false)
@@ -122,32 +128,48 @@ function scopedSignal(consumerSignal: AbortSignal | undefined, attempt: AbortCon
   return AbortSignal.any([consumerSignal, attempt.signal])
 }
 
-async function* subscribeStream(
-  rpc: RpcClient,
-  sessionId: string,
-  options: ChatConnectionOptions,
-  control: StreamControl,
-  consumerSignal: AbortSignal | undefined,
-): AsyncGenerator<StreamChunk> {
-  while (stillListening(consumerSignal)) {
-    const attempt = new AbortController()
-    control.attempt = attempt
-    const stream = await openStream(rpc, sessionId, options, scopedSignal(consumerSignal, attempt))
-    if (!stream) return
-    try {
-      yield* stream
-      if (!attempt.signal.aborted) return
-    } catch (error) {
-      if (!stillListening(consumerSignal)) return
-      if (!attempt.signal.aborted && isReachabilityError(error)) options.onRetry?.(error)
+type StreamContext = {
+  rpc: RpcClient
+  sessionId: string
+  options: ChatConnectionOptions
+  control: StreamControl
+  consumerSignal: AbortSignal | undefined
+}
+
+async function* streamAttempt(context: StreamContext, attempt: AbortController): AsyncGenerator<StreamChunk, boolean> {
+  const signal = scopedSignal(context.consumerSignal, attempt)
+  const stream = await openStream(context.rpc, context.sessionId, context.options, signal)
+  if (!stream) return false
+  try {
+    for await (const chunk of stream) {
+      yield chunk
+      settleReopened(context.control)
     }
+    return attempt.signal.aborted
+  } catch (error) {
+    if (!stillListening(context.consumerSignal)) return false
+    if (!attempt.signal.aborted && isReachabilityError(error)) context.options.onRetry?.(error)
+    return true
+  }
+}
+
+async function* subscribeStream(context: StreamContext): AsyncGenerator<StreamChunk> {
+  try {
+    while (stillListening(context.consumerSignal)) {
+      const attempt = new AbortController()
+      context.control.attempt = attempt
+      const reattach = yield* streamAttempt(context, attempt)
+      if (!reattach) return
+    }
+  } finally {
+    settleReopened(context.control)
   }
 }
 
 export function chatConnection(rpc: RpcClient, sessionId: string, options: ChatConnectionOptions = {}): ChatConnection {
-  const control: StreamControl = {attempt: null}
+  const control: StreamControl = {attempt: null, reopened: null}
   return {
-    subscribe: (abortSignal) => subscribeStream(rpc, sessionId, options, control, abortSignal),
+    subscribe: (abortSignal) => subscribeStream({rpc, sessionId, options, control, consumerSignal: abortSignal}),
     send: async (messages, _data, abortSignal, runContext) => {
       const runId = runContext?.runId
       if (!runId) throw new Error('chat.send needs the run id the chat client minted for this turn')
@@ -155,6 +177,15 @@ export function chatConnection(rpc: RpcClient, sessionId: string, options: ChatC
       await rpc.chat.stop({sessionId}, {signal: abortSignal})
       await rpc.chat.send({sessionId, runId, content}, {signal: abortSignal})
     },
-    refresh: () => control.attempt?.abort(),
+    refresh: async () => {
+      const attempt = control.attempt
+      if (!attempt) return
+      settleReopened(control)
+      const reopened = new Promise<void>((resolve) => {
+        control.reopened = resolve
+      })
+      attempt.abort()
+      await reopened
+    },
   }
 }
