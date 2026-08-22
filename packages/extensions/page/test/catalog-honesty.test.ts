@@ -5,7 +5,7 @@ import {PAGE_TOOL_DEFS, effectDef} from '../src/shared/defs.js'
 function bootCatalog(opts: {connected: boolean}) {
   const registry = createToolRegistry({
     pageCaller: async () => ({ok: true}),
-    isPageConnected: () => opts.connected,
+    isAnyPageConnected: () => opts.connected,
   })
   for (const def of PAGE_TOOL_DEFS) registry.register(def.client(), {owner: 'the page extension'})
   return registry.catalog

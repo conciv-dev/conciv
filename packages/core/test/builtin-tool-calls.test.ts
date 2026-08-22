@@ -7,6 +7,7 @@ import {SessionId} from '@conciv/protocol/chat-types'
 import {makeBuiltinRegistry} from '../src/tool-registry.js'
 import {makeJournal, type PageBus, type PageEnv} from '../src/page-bus.js'
 import {testDb} from './helpers/memory-store.js'
+import {pageRuntime} from './helpers/page-runtime.js'
 
 const DeclaredFailure = z.object({code: z.string(), defined: z.boolean(), message: z.string()})
 
@@ -51,17 +52,13 @@ describe('a built-in tool call carries who asked and how it failed', () => {
   })
 
   it('reports a page handler failure as a declared HANDLER_ERROR that names the tool', async () => {
-    const registry = makeBuiltinRegistry({
-      page: envAsking(() => {
-        throw pageFailure('handler-error', 'kaboom')
-      }),
-      bundler: () => undefined,
-      openInEditor: () => {},
+    const env = envAsking(() => {
+      throw pageFailure('handler-error', 'kaboom')
     })
+    const registry = makeBuiltinRegistry({page: env, bundler: () => undefined, openInEditor: () => {}})
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a test registrant'})
-    const failure = DeclaredFailure.parse(
-      await failureOf(registry.call('page.eval', {code: 'boom()'}, {request: {sessionId: SESSION, model: null}})),
-    )
+    const scope = (await pageRuntime(env, registry)).forSession(SESSION)
+    const failure = DeclaredFailure.parse(await failureOf(scope.tools.call('page.eval', {code: 'boom()'})))
     expect(failure.code).toBe('HANDLER_ERROR')
     expect(failure.defined).toBe(true)
     expect(failure.message).toContain('page.eval')
@@ -72,8 +69,9 @@ describe('a built-in tool call carries who asked and how it failed', () => {
     const env = envAsking(async () => ({result: answers.shift() ?? {}}))
     const registry = makeBuiltinRegistry({page: env, bundler: () => undefined, openInEditor: () => {}})
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a test registrant'})
-    await registry.call('page.text', {selector: '#h'}, {request: {sessionId: SESSION, model: null}})
-    await registry.call('page.click', {selector: '.btn'}, {request: {sessionId: SESSION, model: null}})
+    const scope = (await pageRuntime(env, registry)).forSession(SESSION)
+    await scope.tools.call('page.text', {selector: '#h'})
+    await scope.tools.call('page.click', {selector: '.btn'})
     expect(await env.journal.list(SESSION)).toMatchObject([{verb: 'page.click', selector: '.btn'}])
   })
 })

@@ -32,7 +32,7 @@ export async function runHarnessTurn(opts: HarnessTurnOpts): Promise<StreamChunk
     adapter: config.adapter,
     messages: [{role: 'user', content: opts.prompt}],
     threadId: `${opts.sessionId}-thread`,
-    middleware: [withConcivSandbox(makeConcivSandbox(opts.dir)), withConcivGate(autoAllowGate, opts.sessionId)],
+    middleware: [withConcivSandbox(makeConcivSandbox(opts.dir)), withConcivGate(autoAllowGate)],
     modelOptions: config.modelOptions,
   })
   for await (const chunk of stream) chunks.push(chunk)

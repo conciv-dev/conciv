@@ -212,13 +212,12 @@ export type RegisteredTools<Tools extends readonly unknown[]> = [ToolTupleProble
 
 type ToolState<Binding extends ToolBinding | undefined> = {
   binding?: Binding
-  execute?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
   serverRun?: (
     input: unknown,
-    ctx?: unknown,
-    request?: ToolRequest,
-    page?: ServerToolPageAccess,
-    tools?: ServerToolRegistryAccess,
+    ctx: unknown,
+    request: ToolRequest,
+    page: ServerToolPageAccess,
+    tools: ServerToolRegistryAccess,
   ) => Promise<unknown>
   clientExecute?: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
   render?: ToolRenderer
@@ -262,7 +261,6 @@ function toolBuilder<
     display: definition.display,
     approval: definition.approval,
     binding: state.binding,
-    __execute: state.execute,
     __serverRun: state.serverRun,
     __clientExecute: state.clientExecute,
     __render: state.render,
@@ -276,26 +274,11 @@ function toolBuilder<
       ) => Promise<unknown> | unknown,
     ) {
       assertUnbound(definition.name, state.binding)
-      const noPage: ServerToolPageAccess = {
-        call: (name) => Promise.reject(new Error(`${name}: no widget connected`)),
-      }
-      const noTools: ServerToolRegistryAccess = {
-        call: (name) => Promise.reject(new Error(`${name}: no tool registry available`)),
-      }
-      const invoke = async (
-        parsed: z.infer<Schema>,
-        ctx: unknown,
-        request: ToolRequest | undefined,
-        page: ServerToolPageAccess | undefined,
-        tools: ServerToolRegistryAccess | undefined,
-      ) => execute(parsed, ctx as HandlerCtx, request as ToolRequest, page ?? noPage, tools ?? noTools)
       return toolBuilder<Name, Schema, Output, Errors, 'server', HandlerCtx>(definition, {
         ...state,
         binding: 'server',
-        execute: async (raw, ctx, request) =>
-          invoke(definition.inputSchema.parse(raw), ctx, request, undefined, undefined),
         serverRun: async (input, ctx, request, page, tools) =>
-          invoke(input as z.infer<Schema>, ctx, request, page, tools),
+          execute(input as z.infer<Schema>, ctx as HandlerCtx, request, page, tools),
       })
     },
     client(execute) {

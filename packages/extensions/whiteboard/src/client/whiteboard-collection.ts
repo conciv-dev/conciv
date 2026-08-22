@@ -69,10 +69,10 @@ const buildSync = <Row extends object>(deps: {
 }
 
 type TableClient<Row extends object> = {
-  list: (input: {room: string}) => Promise<Row[]>
+  list: () => Promise<Row[]>
   insert: (input: Row) => Promise<Row>
-  update: (input: {room: string; id: string; patch: Record<string, unknown>}) => Promise<Row>
-  remove: (input: {room: string; id: string}) => Promise<{deleted: boolean}>
+  update: (input: {id: string; patch: Record<string, unknown>}) => Promise<Row>
+  remove: (input: {id: string}) => Promise<{deleted: boolean}>
 }
 
 export function whiteboardCollectionOptions<Row extends {id: string}>(deps: {
@@ -104,7 +104,7 @@ export function whiteboardCollectionOptions<Row extends {id: string}>(deps: {
     sync: buildSync<Row>({
       feed,
       table,
-      loadRows: () => ops.list({room}),
+      loadRows: () => ops.list(),
       parseRow,
       keyOf: (row) => row.id,
       onReady: (params) => void (ctx = params),
@@ -117,13 +117,13 @@ export function whiteboardCollectionOptions<Row extends {id: string}>(deps: {
     },
     onUpdate: async ({transaction}: UpdateMutationFnParams<Row, string>) => {
       for (const mutation of transaction.mutations) {
-        confirm(await ops.update({room, id: String(mutation.key), patch: mutation.changes}))
+        confirm(await ops.update({id: String(mutation.key), patch: mutation.changes}))
       }
       return {refetch: false}
     },
     onDelete: async ({transaction}: DeleteMutationFnParams<Row, string>) => {
       for (const mutation of transaction.mutations) {
-        await ops.remove({room, id: String(mutation.key)})
+        await ops.remove({id: String(mutation.key)})
         confirmDelete(String(mutation.key))
       }
       return {refetch: false}
@@ -182,7 +182,7 @@ export function whiteboardElementOptions(deps: {
     sync: buildSync<ElementRow>({
       feed,
       table,
-      loadRows: () => client.elements.list({scope, room}),
+      loadRows: () => client.elements.list({scope}),
       parseRow,
       keyOf: (row) => row.elementId,
       onReady: (params) => void (ctx = params),
@@ -190,7 +190,6 @@ export function whiteboardElementOptions(deps: {
     onDelete: async ({transaction}: DeleteMutationFnParams<ElementRow, string>) => {
       await client.elements.bulkDelete({
         scope,
-        room,
         elementIds: transaction.mutations.map((mutation) => String(mutation.key)),
       })
       return {refetch: false}

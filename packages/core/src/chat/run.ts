@@ -29,13 +29,14 @@ import {
   setRunMessages,
   type ConcivDb,
 } from '@conciv/db'
+import {transcriptPathWithin} from '@conciv/harness'
 import {FIRST_CHUNK_TIMEOUT_MS} from './run-timing.js'
 import type {ChatDeps} from './runtime.js'
 import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {sessionSnapshot} from './transcript.js'
 import {stopSession} from './stop.js'
-import {makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
+import {asksFor, makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
 import {withConcivSandbox} from './sandbox.js'
 import {makeCodeMode} from './code-mode.js'
 import {codeModeToolChunks} from './code-mode-parts.js'
@@ -54,9 +55,9 @@ export function resumableToken(
   const history = harness.history
   if (!history) return token
   if (history.withinProject && !history.withinProject(cwd, token, home)) return null
-  const transcriptPath = history.transcriptPath
-  if (!transcriptPath) return token
-  return existsSync(transcriptPath(cwd, token, home)) ? token : null
+  if (history.transcriptPath === undefined) return token
+  const path = transcriptPathWithin(history, cwd, token, home)
+  return path !== null && existsSync(path) ? token : null
 }
 
 const COMPACT_FALLBACK_PROMPT =
@@ -149,7 +150,7 @@ async function buildRunStream(
     kind: req.kind,
     hasTools: extras.tools.length > 0,
     decide: async (toolName, input, toolUseId) =>
-      (await gate.decide(toolName, input, sessionId, toolUseId)) === 'allow' ? 'allow' : 'deny',
+      (await gate.decide(toolName, input, toolUseId)) === 'allow' ? 'allow' : 'deny',
   })
   const messages = await turnMessages(deps, sessionId, {
     resumable: resumeSessionId !== null,
@@ -165,7 +166,7 @@ async function buildRunStream(
     tools: extras.tools,
     lazyToolsConfig: {includeDescription: 'first-sentence'},
     modelOptions: config.modelOptions,
-    middleware: [withConcivSandbox(deps.sandbox), withConcivGate(gate, sessionId)],
+    middleware: [withConcivSandbox(deps.sandbox), withConcivGate(gate)],
     abortController: abort,
     debug: harnessDebug,
   })
@@ -332,8 +333,7 @@ async function* runStream(
     events: {onMessagesChange: (messages) => setRunMessages(deps.db, sessionId, messages)},
   })
   const gateDeps = {
-    sessionId,
-    asks: deps.asks,
+    asks: asksFor(deps.asks, sessionId),
     emit: (chunk: StreamChunk) => void runLog.append([chunk]).catch(() => {}),
   }
   const gate = makeRunGate({
@@ -390,8 +390,8 @@ async function contextOccupancyFor(deps: ChatDeps, sessionId: SessionId): Promis
   if (!history?.contextTokens || !history.transcriptPath) return undefined
   const nativeId = await nativeIdFor(deps.db, sessionId)
   if (!nativeId) return undefined
-  if (history.withinProject && !history.withinProject(deps.cwd, nativeId, deps.claudeHome)) return undefined
-  const path = history.transcriptPath(deps.cwd, nativeId, deps.claudeHome)
+  const path = transcriptPathWithin(history, deps.cwd, nativeId, deps.claudeHome)
+  if (path === null) return undefined
   if (!existsSync(path)) return undefined
   return history.contextTokens(readFileSync(path, 'utf8'))
 }

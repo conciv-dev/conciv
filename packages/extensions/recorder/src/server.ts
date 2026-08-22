@@ -32,6 +32,9 @@ const FlushInput = z
   .object({clientId: z.string().min(1).max(128), events: z.array(RrwebEventSchema).max(MAX_FLUSH_EVENTS)})
   .refine((input) => jsonByteLength(input.events) <= MAX_FLUSH_BYTES)
 
+const readerClientId = (runtime: RecorderRuntime, clientId?: string): string | null =>
+  clientId ?? runtime.rings.latestClientId()
+
 export function makeRecorderRouter(runtime: RecorderRuntime) {
   return recorderOs.router({
     config: recorderOs.handler(() => runtime.config),
@@ -42,14 +45,16 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
         runtime.rings.append(input.clientId, input.events)
         return {ok: true}
       }),
-    window: recorderOs.input(RangeInput).handler(({input}) => ({
-      events: runtime.rings.window(input, input.clientId),
-      cursor: runtime.rings.head(input.clientId),
-    })),
-    events: recorderOs.input(z.object({cursor: z.number(), clientId: ClientId})).handler(({input}) => ({
-      events: runtime.rings.since(input.cursor, input.clientId),
-      cursor: runtime.rings.head(input.clientId),
-    })),
+    window: recorderOs.input(RangeInput).handler(({input}) => {
+      const clientId = readerClientId(runtime, input.clientId)
+      if (!clientId) return {events: [], cursor: 0}
+      return {events: runtime.rings.window(input, clientId), cursor: runtime.rings.head(clientId)}
+    }),
+    events: recorderOs.input(z.object({cursor: z.number(), clientId: ClientId})).handler(({input}) => {
+      const clientId = readerClientId(runtime, input.clientId)
+      if (!clientId) return {events: [], cursor: 0}
+      return {events: runtime.rings.since(input.cursor, clientId), cursor: runtime.rings.head(clientId)}
+    }),
     presence: recorderOs
       .input(z.object({viewerId: z.string().min(1).max(128), live: z.boolean()}))
       .output(z.object({ok: z.literal(true)}))
@@ -65,9 +70,10 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
       await runtime.control.awaitAppendAfter(appendCursor, 1500)
       return {ok: true}
     }),
-    log: recorderOs
-      .input(RangeInput)
-      .handler(({input}) => ({entries: distill(runtime.rings.window(input, input.clientId))})),
+    log: recorderOs.input(RangeInput).handler(({input}) => {
+      const clientId = readerClientId(runtime, input.clientId)
+      return {entries: distill(clientId ? runtime.rings.window(input, clientId) : [])}
+    }),
     recordings: recorderOs.router({
       save: recorderOs
         .input(RangeInput)
@@ -75,7 +81,8 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
           z.union([z.object({recordingId: z.string()}), z.object({error: z.enum(['too-large', 'empty', 'io-error'])})]),
         )
         .handler(async ({input}) => {
-          const saved = await runtime.recordings.save(runtime.rings.window(input, input.clientId))
+          const clientId = readerClientId(runtime, input.clientId)
+          const saved = await runtime.recordings.save(clientId ? runtime.rings.window(input, clientId) : [])
           return saved.ok ? {recordingId: saved.recordingId} : {error: saved.reason}
         }),
       get: recorderOs.input(z.object({recordingId: z.string()})).handler(async ({input}) => {

@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {and, desc, eq, isNull} from 'drizzle-orm'
+import {and, desc, eq, inArray, isNull} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
 import type {
   HarnessSessionId,
@@ -57,6 +57,34 @@ export async function createRow(
   return record
 }
 
+async function claimNativeRow(
+  scope: RowScope,
+  ref: NativeSessionRef,
+  origin: 'agent' | 'external',
+): Promise<SessionRecord> {
+  const now = Date.now()
+  const record = SessionRecordSchema.parse({
+    id: mintIdOf(scope)(),
+    harnessSessionId: ref.nativeId,
+    harnessKind: ref.harnessKind,
+    origin,
+    title: null,
+    model: null,
+    usage: null,
+    cwd: ref.cwd,
+    deletedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  })
+  await scope.db
+    .insert(sessions)
+    .values(record)
+    .onConflictDoNothing({target: [sessions.harnessKind, sessions.cwd, sessions.harnessSessionId]})
+  const settled = await rowByNativeRef(scope.db, ref)
+  if (settled === null) throw new Error(`session row for native session "${ref.nativeId}" vanished while claiming it`)
+  return settled
+}
+
 export const nativeIdFor = async (db: ConcivDb, id: SessionId): Promise<HarnessSessionId | null> =>
   (await rowById(db, id))?.harnessSessionId ?? null
 
@@ -79,14 +107,14 @@ export async function ensureRow(db: ConcivDb, id: SessionId, harnessKind: string
   })
 }
 
-export async function latestRow(db: ConcivDb): Promise<SessionRecord | null> {
-  const rows = await db
+async function latestRow(scope: RowScope): Promise<SessionRecord | null> {
+  const rows = await scope.db
     .select()
     .from(sessions)
-    .where(isNull(sessions.deletedAt))
+    .where(and(isNull(sessions.deletedAt), eq(sessions.origin, 'chat')))
     .orderBy(desc(sessions.updatedAt))
-    .limit(1)
-  return rows[0] ? SessionRecordSchema.parse(rows[0]) : null
+  const mine = rows.map((row) => SessionRecordSchema.parse(row)).find((row) => sameCwd(row.cwd, scope.cwd))
+  return mine ?? null
 }
 
 export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<{sessionId: SessionId}> {
@@ -100,20 +128,14 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
   if (nativeId.success) {
     const wrapped = await rowByNativeId(scope.db, nativeId.data)
     if (wrapped) return {sessionId: wrapped.id}
-    const created = await createRow(scope.db, {
-      id: mint(),
-      harnessSessionId: nativeId.data,
-      harnessKind: scope.harnessKind,
-      origin: 'external',
-      title: null,
-      model: null,
-      usage: null,
-      cwd: scope.cwd,
-      deletedAt: null,
-    })
-    return {sessionId: created.id}
+    const claimed = await claimNativeRow(
+      scope,
+      {harnessKind: scope.harnessKind, cwd: scope.cwd, nativeId: nativeId.data},
+      'external',
+    )
+    return {sessionId: claimed.id}
   }
-  const latest = await latestRow(scope.db)
+  const latest = await latestRow(scope)
   if (latest) return {sessionId: latest.id}
   const minted = mint()
   await ensureRow(scope.db, minted, scope.harnessKind, scope.cwd)
@@ -128,18 +150,8 @@ export async function openNativeRow(scope: RowScope, ref: NativeSessionRef): Pro
     }
     return {sessionId: existing.id}
   }
-  const created = await createRow(scope.db, {
-    id: mintIdOf(scope)(),
-    harnessSessionId: ref.nativeId,
-    harnessKind: ref.harnessKind,
-    origin: 'external',
-    title: null,
-    model: null,
-    usage: null,
-    cwd: ref.cwd,
-    deletedAt: null,
-  })
-  return {sessionId: created.id}
+  const claimed = await claimNativeRow(scope, ref, 'external')
+  return {sessionId: claimed.id}
 }
 
 export async function tombstoneRow(db: ConcivDb, id: SessionId): Promise<void> {
@@ -153,17 +165,7 @@ export async function restoreRow(db: ConcivDb, id: SessionId): Promise<void> {
 export async function ensureAgentRow(scope: RowScope, nativeId: HarnessSessionId): Promise<SessionRecord> {
   const existing = await rowByNativeId(scope.db, nativeId)
   if (existing) return existing
-  return createRow(scope.db, {
-    id: mintIdOf(scope)(),
-    harnessSessionId: nativeId,
-    harnessKind: scope.harnessKind,
-    origin: 'agent',
-    title: null,
-    model: null,
-    usage: null,
-    cwd: scope.cwd,
-    deletedAt: null,
-  })
+  return claimNativeRow(scope, {harnessKind: scope.harnessKind, cwd: scope.cwd, nativeId}, 'agent')
 }
 
 export async function mintExternalRow(scope: RowScope): Promise<SessionId> {
@@ -181,15 +183,12 @@ export async function mintExternalRow(scope: RowScope): Promise<SessionId> {
   return created.id
 }
 
-export async function resolveOrMintRow(scope: RowScope, id: SessionId | null): Promise<SessionId> {
-  if (id !== null) return id
-  return mintExternalRow(scope)
-}
-
 export async function sweepEmptyRows(db: ConcivDb): Promise<void> {
   await db
     .delete(sessions)
-    .where(and(eq(sessions.origin, 'chat'), isNull(sessions.harnessSessionId), isNull(sessions.title)))
+    .where(
+      and(inArray(sessions.origin, ['chat', 'external']), isNull(sessions.harnessSessionId), isNull(sessions.title)),
+    )
 }
 
 export type SessionListInput = {

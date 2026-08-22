@@ -192,12 +192,12 @@ test('a per-call session header reaches an approval-gated procedure over both fe
   expect(wsMessage).toContain(`session "${sessionId}" does not exist`)
 }, 30_000)
 
-test('a header-less ws call mints a fresh session and is still refused: nothing is attached to answer it', async () => {
+test('a header-less ws call is refused as unidentified before any tool runs', async () => {
   const served = await boot()
   const {client, socket} = openWsRpc<RpcClient>(served.wsBase)
   await whenOpen(socket)
   const message = await messageOf(client.registry.call({name: 'ws_probe_gated', input: {}}))
-  expect(message).toContain('nothing is attached to session')
+  expect(message).toContain(CONCIV_SESSION_HEADER)
 }, 30_000)
 
 test('an extension procedure answers over ws under ext.<slug> and over the unchanged fetch url', async () => {

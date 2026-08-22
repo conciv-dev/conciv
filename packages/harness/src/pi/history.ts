@@ -7,6 +7,7 @@ import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
 import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle} from '@conciv/protocol/harness-types'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
+import {containedPath} from '../_shared/contained-path.js'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 
 const MAX_SESSIONS = 50
@@ -227,14 +228,24 @@ function namesIn(dir: string): string[] {
   }
 }
 
+function transcriptRoot(cwd: string, home: string = homedir()): string {
+  return sessionsDir(cwd, home)
+}
+
 function transcriptPath(cwd: string, sessionId: string, home: string = homedir()): string {
   const dir = sessionsDir(cwd, home)
   const suffix = `_${sessionId}.jsonl`
   return join(dir, namesIn(dir).find((name) => name.endsWith(suffix)) ?? `${sessionId}.jsonl`)
 }
 
+function containedTranscript(cwd: string, sessionId: string, home?: string): string | null {
+  return containedPath(transcriptRoot(cwd, home), transcriptPath(cwd, sessionId, home))
+}
+
 async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]> {
-  const raw = await readFile(transcriptPath(cwd, sessionId, home), 'utf8').catch(() => '')
+  const path = containedTranscript(cwd, sessionId, home)
+  if (path === null) return []
+  const raw = await readFile(path, 'utf8').catch(() => '')
   return raw ? parseHistory(raw) : []
 }
 
@@ -305,5 +316,6 @@ export const piHistory: HarnessHistory = {
   messages: transcriptMessages,
   observe: observeTranscript,
   transcriptPath,
+  transcriptRoot,
   list: listSessions,
 }

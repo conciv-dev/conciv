@@ -74,15 +74,16 @@ describe('listSessionMetas', () => {
 })
 
 describe('sweepEmptyRows', () => {
-  it('deletes empty chat ghosts; keeps titled, tokened, and external/agent', async () => {
+  it('deletes every untitled tokenless chat and external mint; keeps titled, tokened, and agent rows', async () => {
     const db = testDb()
     await createRow(db, rec({id: 'conciv_ghost'}))
     await createRow(db, rec({id: 'conciv_titled', title: 'Kept'}))
     await createRow(db, rec({id: 'conciv_run', harnessSessionId: 'tok'}))
     await createRow(db, rec({id: 'conciv_ext', origin: 'external'}))
+    await createRow(db, rec({id: 'conciv_ext_named', origin: 'external', title: 'Named by the user'}))
     await createRow(db, rec({id: 'conciv_agent', origin: 'agent'}))
     await sweepEmptyRows(db)
     const ids = (await db.select().from(sessions)).map((r) => r.id).toSorted()
-    expect(ids).toEqual(['conciv_agent', 'conciv_ext', 'conciv_run', 'conciv_titled'])
+    expect(ids).toEqual(['conciv_agent', 'conciv_ext_named', 'conciv_run', 'conciv_titled'])
   })
 })

@@ -1,6 +1,6 @@
 import {readdir, stat, readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
-import {join, resolve, sep} from 'node:path'
+import {join} from 'node:path'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
@@ -12,14 +12,19 @@ import type {
 } from '@conciv/protocol/harness-types'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
+import {containedPath} from '../_shared/contained-path.js'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
 export function encodeProjectDir(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-')
 }
 
+export function transcriptRoot(cwd: string, home: string = homedir()): string {
+  return join(home, '.claude', 'projects', encodeProjectDir(cwd))
+}
+
 export function transcriptPath(cwd: string, sessionId: string, home: string = homedir()): string {
-  return join(home, '.claude', 'projects', encodeProjectDir(cwd), `${sessionId}.jsonl`)
+  return join(transcriptRoot(cwd, home), `${sessionId}.jsonl`)
 }
 
 const INTERNAL_MARKERS = ['VIBE_PROGRESS_TICK', 'NEEDS_INFO:', '<system-reminder>']
@@ -415,8 +420,7 @@ function observeTranscript(cwd: string, sessionId: string, home?: string): Trans
 }
 
 export function withinProject(cwd: string, sessionId: string, home: string = homedir()): boolean {
-  const root = resolve(join(home, '.claude', 'projects', encodeProjectDir(cwd)))
-  return resolve(transcriptPath(cwd, sessionId, home)).startsWith(root + sep)
+  return containedPath(transcriptRoot(cwd, home), transcriptPath(cwd, sessionId, home)) !== null
 }
 
 async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]> {
@@ -429,6 +433,7 @@ export const claudeHistory: HarnessHistory = {
   messages: transcriptMessages,
   observe: observeTranscript,
   transcriptPath,
+  transcriptRoot,
   withinProject,
   nameFromTranscript,
   contextTokens: contextTokensFromTranscript,
