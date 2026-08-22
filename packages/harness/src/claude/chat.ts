@@ -69,6 +69,7 @@ export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
     claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR),
     systemPromptMode: 'append',
     emitDiff: false,
+    disallowedTools: ['AskUserQuestion'],
     env: definedEntries({MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), ENABLE_TOOL_SEARCH: 'false', ...deps.env}),
   }),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},

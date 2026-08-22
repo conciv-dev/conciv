@@ -43,6 +43,32 @@ export const Choices: Story = {
   },
 }
 
+export const MultiSelectChoices: Story = {
+  render: () =>
+    frame(
+      'chat-theme-conciv',
+      <UiCard
+        part={part({
+          kind: 'choices',
+          question: 'Which effects need live tuning knobs?',
+          options: ['Ferrofluid', 'Shader glow', 'Grain'],
+          multiSelect: true,
+          allowOther: true,
+        })}
+        result={undefined}
+        ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
+      />,
+    ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByRole('button', {name: 'Submit'})).toBeDisabled()
+    await userEvent.click(c.getByRole('button', {name: 'Ferrofluid'}))
+    await expect(c.getByRole('button', {name: 'Ferrofluid'})).toHaveAttribute('aria-pressed', 'true')
+    await expect(c.getByRole('button', {name: 'Submit'})).toBeEnabled()
+  },
+}
+
 export const Confirm: Story = {
   render: () =>
     frame(

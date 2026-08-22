@@ -52,9 +52,11 @@ export const UiInputSchema = z.object({
   after: z.string().optional(),
   title: z.string().optional(),
   fields: z.array(UiFormFieldSchema).optional(),
+  multiSelect: z.boolean().optional(),
+  allowOther: z.boolean().optional(),
 })
 
-export const UiAnswerValueSchema = z.union([z.string(), z.record(z.string(), z.string())])
+export const UiAnswerValueSchema = z.union([z.string(), z.array(z.string()), z.record(z.string(), z.string())])
 
 export const UiAnswerSchema = z.union([
   z.object({answered: z.literal(true), value: UiAnswerValueSchema}),
