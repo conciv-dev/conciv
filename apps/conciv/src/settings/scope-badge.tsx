@@ -1,6 +1,7 @@
 import {Show, createMemo, createSignal, splitProps, type Accessor, type JSX} from 'solid-js'
 import {useQuery, type QueryClient} from '@tanstack/solid-query'
 import {Menu} from '@conciv/ui-kit-system'
+import ChevronDown from 'lucide-solid/icons/chevron-down'
 import type {SettingsLogEntry, SettingsScope, SettingsSource} from '@conciv/protocol/settings-types'
 import type {AppData} from '../data/app-data.js'
 import type {SchemeSetting} from '../data/widget-settings.js'
@@ -73,6 +74,7 @@ export function ScopeBadge(props: {
             aria-label={`Color scheme source: ${label()}. Change where it applies.`}
           >
             {label()}
+            <ChevronDown class="chat-scope-badge-chevron" strokeWidth={2.5} aria-hidden="true" />
           </button>
         )}
       />

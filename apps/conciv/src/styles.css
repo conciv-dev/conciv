@@ -261,22 +261,27 @@
   font-size: 11.5px;
   color: var(--chat-text-3);
 }
-/* The provenance chip. It is the menu trigger, so the ::after restores a 44px pointer target the
-   chip itself is far too small to offer. */
+/* The provenance chip. It is the menu trigger, not a tag, so it carries a resting border, a chevron
+   and the panel's own small-pill interaction recipe (fill strengthen + border lift + text lift, and
+   the open menu holds the hover look) from the session-selector trigger. The ::after restores a 44px
+   pointer target the chip itself is far too small to offer. */
 .chat-scope-badge {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 2px 5px;
-  border: 0;
+  gap: 0.1875rem;
+  padding: 2px 4px 2px 5px;
+  border: 1px solid transparent;
   border-radius: var(--chat-radius-chip);
   font-family: var(--chat-mono);
   font-size: 9px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: background-color 120ms var(--chat-ease);
+  transition:
+    background-color 120ms var(--chat-ease),
+    border-color 120ms var(--chat-ease),
+    color 120ms var(--chat-ease);
 }
 .chat-scope-badge::after {
   content: '';
@@ -288,17 +293,56 @@
   opacity: 0.5;
   cursor: default;
 }
+.chat-scope-badge-chevron {
+  flex: none;
+  inline-size: 10px;
+  block-size: 10px;
+  opacity: 0.55;
+  transition:
+    rotate 160ms var(--chat-ease),
+    opacity 120ms var(--chat-ease);
+}
+.chat-scope-badge:hover .chat-scope-badge-chevron,
+.chat-scope-badge:focus-visible .chat-scope-badge-chevron,
+.chat-scope-badge[data-state='open'] .chat-scope-badge-chevron {
+  opacity: 0.95;
+}
+.chat-scope-badge[data-state='open'] .chat-scope-badge-chevron {
+  rotate: 180deg;
+}
 .chat-scope-badge-project {
   background: var(--chat-accent-08);
+  border-color: var(--chat-accent-line);
   color: var(--chat-accent-hi);
+}
+.chat-scope-badge-project:hover:not(:disabled),
+.chat-scope-badge-project:focus-visible,
+.chat-scope-badge-project[data-state='open'] {
+  background: var(--chat-accent-20);
+  border-color: var(--chat-accent);
 }
 .chat-scope-badge-global {
   background: var(--chat-fill-strong);
+  border-color: var(--chat-line);
   color: var(--chat-text-2);
+}
+.chat-scope-badge-global:hover:not(:disabled),
+.chat-scope-badge-global:focus-visible,
+.chat-scope-badge-global[data-state='open'] {
+  border-color: var(--chat-line-2);
+  color: var(--chat-text-hi);
 }
 .chat-scope-badge-default {
   background: var(--chat-fill);
+  border-color: var(--chat-line);
   color: var(--chat-microlabel);
+}
+.chat-scope-badge-default:hover:not(:disabled),
+.chat-scope-badge-default:focus-visible,
+.chat-scope-badge-default[data-state='open'] {
+  background: var(--chat-fill-strong);
+  border-color: var(--chat-line-2);
+  color: var(--chat-text-2);
 }
 .chat-settings-error {
   display: flex;
