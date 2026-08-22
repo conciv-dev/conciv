@@ -266,7 +266,7 @@ function AssistantTurn(props: {
     )
   }
   return (
-    <Message.Root data-pw-msg class={ASSISTANT_ROOT_CLASS}>
+    <Message.Root data-conciv-msg class={ASSISTANT_ROOT_CLASS}>
       <NodeListView nodes={nodes()} streaming={thread.isRunning && message.isLast()} />
       <Message.Error />
       <div class={ANSWER_ACTION_ROW_CLASS}>
@@ -302,7 +302,7 @@ function UserTurn(): JSX.Element {
         </div>
       </Message.If>
       <Message.If hasText>
-        <Message.Root data-pw-msg class={PROMPT_ROOT_CLASS}>
+        <Message.Root data-conciv-msg class={PROMPT_ROOT_CLASS}>
           <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
             ❯
           </span>
@@ -401,10 +401,10 @@ function LatestStrip(): JSX.Element {
 
 function ThreadViewport(props: ParentProps<{ref?: (element: HTMLElement) => void}>): JSX.Element {
   return (
-    <div class="relative flex flex-1 flex-col min-h-0">
+    <div class="flex flex-1 flex-col min-h-0 relative">
       <ThreadPrimitive.Viewport
         ref={props.ref}
-        class="px-5 pt-[13px] pb-4 flex flex-1 flex-col min-h-0 relative overflow-y-auto"
+        class="px-5 pb-4 pt-[13px] flex flex-1 flex-col min-h-0 relative overflow-y-auto"
         role="log"
         aria-live="off"
         footer={<LatestStrip />}

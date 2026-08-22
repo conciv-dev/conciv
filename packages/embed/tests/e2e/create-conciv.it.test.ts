@@ -59,7 +59,7 @@ test.describe('createConciv lifecycle', () => {
     await expect(fab(page)).toBeVisible({timeout: 30_000})
   })
 
-  test('threads the mounted api base to extension surfaces when the host page has no pw-api-base meta', async ({
+  test('threads the mounted api base to extension surfaces when the host page has no conciv-api-base meta', async ({
     page,
   }) => {
     await openPage(page)

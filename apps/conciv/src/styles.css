@@ -47,19 +47,19 @@
 /* ── Vibe chat agent: bottom-right FAB → corner popover (assistant-modal). Matches the
    react-grab palette so it reads native alongside the comment UI. The host is
    pointer-events:none, so interactive bits opt back in. */
-/* .pw-chat-fab kept as a marker only (pick-away compound below); its styling is utilities now. */
+/* .conciv-chat-fab kept as a marker only (pick-away compound below); its styling is utilities now. */
 /* ── FAB robot mascot (rigged) ─────────────────────────────────────────────────
    The robot itself is <Mascot> from @conciv/mascot/solid (apps/conciv/src/shell/fab-robot.tsx): the
    package owns the three layer images, their transform-origins, the stacking order and the GSAP
    timelines, all applied as inline styles the widget must not fight. What stays here is the stage box
    the shell reserves inside the FAB pill, and the working glow, which is a filter the package
    deliberately leaves to the host (GSAP owns transform, CSS owns filter, so the two never clash). */
-.pw-fab-rig {
+.conciv-fab-rig {
   width: 44px;
   height: 44px;
 }
 /* Working: a magenta glow pulse on the eyes, keyed off the busy ring rendered just before the stage. */
-.pw-fab-busy ~ .pw-fab-rig .pw-rig-eyes {
+.conciv-fab-busy ~ .conciv-fab-rig .conciv-rig-eyes {
   animation: chat-rig-glow 1.3s ease-in-out infinite;
 }
 @keyframes chat-rig-glow {
@@ -73,10 +73,10 @@
 }
 /* While the element picker is active OR an extension holds a foreground overlay, the open surface
    (and FAB) become invisible AND click-through, so the page / overlay underneath is fully reachable.
-   Compound selectors keep specificity at parity with .pw-chat-open and win by source order. */
-[data-pw-panel][data-pw-suppressed],
-[data-pw-fab][data-pw-suppressed],
-[data-pw-qt][data-pw-suppressed] {
+   Compound selectors keep specificity at parity with .conciv-chat-open and win by source order. */
+[data-conciv-panel][data-conciv-suppressed],
+[data-conciv-fab][data-conciv-suppressed],
+[data-conciv-qt][data-conciv-suppressed] {
   opacity: 0;
   pointer-events: none;
   transition: opacity 140ms var(--chat-ease);
@@ -97,7 +97,7 @@
 }
 
 /* Panel session-log chrome: narrow-panel behavior for the header rail and status bar. The panel
-   shell (routes/panel.tsx `data-pw-panel`) sets `container-type: size`, so this queries the panel's
+   shell (routes/panel.tsx `data-conciv-panel`) sets `container-type: size`, so this queries the panel's
    own box, not the viewport — the panel can be narrow on a wide page. Pure CSS, no resize observers. */
 .chat-rail-context-narrow {
   display: none;

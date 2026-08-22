@@ -364,7 +364,7 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
     )
   }
   return (
-    <div data-pw-msg class="flex flex-col gap-1.5 min-w-0 self-stretch anim-msg">
+    <div data-conciv-msg class="flex flex-col gap-1.5 min-w-0 self-stretch anim-msg">
       <NodeListView nodes={nodes()} streaming={activity.live() && activity.isLastTurn(props.turn)} />
     </div>
   )
@@ -375,7 +375,7 @@ function UserTurnView(props: {turn: Turn}): JSX.Element {
     <Show when={userText(props.turn)}>
       {(text) => (
         <div
-          data-pw-msg
+          data-conciv-msg
           class="text-[length:var(--chat-text-sm)] leading-[1.45] px-2.5 py-1.5 rounded-[var(--chat-radius-md)] max-w-[85%] [background:var(--chat-accent)] [color:var(--chat-on-accent)] [overflow-wrap:anywhere] self-end anim-msg"
         >
           {text()}

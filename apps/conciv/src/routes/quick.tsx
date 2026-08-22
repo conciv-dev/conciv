@@ -42,7 +42,7 @@ function qtShellClass(): string {
 }
 
 function resetPaneFlex(row: HTMLDivElement | undefined): void {
-  for (const el of row?.querySelectorAll<HTMLElement>('[data-pw-qt-pane]') ?? []) el.style.flex = ''
+  for (const el of row?.querySelectorAll<HTMLElement>('[data-conciv-qt-pane]') ?? []) el.style.flex = ''
 }
 
 function onGutterDown(e: PointerEvent) {
@@ -202,8 +202,8 @@ function QuickLayer(): JSX.Element {
     <NoticeContextProvider>
       <section
         class={qtShellClass()}
-        data-pw-qt
-        data-pw-suppressed={suppressed()}
+        data-conciv-qt
+        data-conciv-suppressed={suppressed()}
         style={{height: `${resize.size()}px`}}
         role="dialog"
         aria-label="conciv quick terminal"
@@ -253,7 +253,7 @@ function QuickLayer(): JSX.Element {
                   </Show>
                   <PaneProvider sessionId={id} onNewSession={addFreshPane}>
                     <div
-                      data-pw-qt-pane
+                      data-conciv-qt-pane
                       class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-chat relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-chat-accent before:opacity-90" : 'opacity-[0.62]'}`}
                       onPointerDown={() => focusPane(index())}
                       onFocusIn={() => {

@@ -52,7 +52,7 @@ describe('captureElement', () => {
     expect(sheet).toContain('::before')
     expect(sheet).toContain('content:"★"')
     const clone = rebuilt.querySelector('section')
-    expect([...(clone?.classList ?? [])].some((cls) => cls.startsWith('pw-grab-pseudo-'))).toBe(true)
+    expect([...(clone?.classList ?? [])].some((cls) => cls.startsWith('conciv-grab-pseudo-'))).toBe(true)
   })
 
   it('strips ids and neutralizes the root layout', async () => {

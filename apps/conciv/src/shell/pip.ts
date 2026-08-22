@@ -36,7 +36,7 @@ export function openPipWindow(
   registerWind4Properties(win.document)
 
   const host = win.document.createElement('div')
-  host.setAttribute('data-pw-pip-host', '')
+  host.setAttribute('data-conciv-pip-host', '')
   win.document.body.appendChild(host)
   const root = host.attachShadow({mode: 'open'})
   const style = win.document.createElement('style')

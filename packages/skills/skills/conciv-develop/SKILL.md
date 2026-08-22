@@ -67,7 +67,7 @@ const deployRun = defineTool({
   approval: 'ask',
 })
   .server(({env}) => ({url: `https://${env}.example.com`}))
-  .render((props) => <div data-pw-deploy-card>Deploying… ({props.part.name})</div>)
+  .render((props) => <div data-conciv-deploy-card>Deploying… ({props.part.name})</div>)
 
 const deploy = defineExtension({name: DEPLOY_NAME, Component: DeploySurface, tools: [deployRun]})
 export default deploy
