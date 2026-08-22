@@ -161,13 +161,17 @@ function bootNormal(config: BootNormalConfig): BootResult {
     setConnectionGeneration((generation) => generation + 1)
   }
 
-  const bootHref = router.state.location.href
+  const boot = {href: router.state.location.href, moved: false}
+  const unsubscribeNavigation = router.subscribe('onBeforeNavigate', (event) => {
+    if (event.hrefChanged) boot.moved = true
+  })
   restore.apply = (href) => {
-    if (router.state.location.href !== bootHref || router.state.status !== 'idle') return
+    if (boot.moved || router.state.location.href !== boot.href || router.state.status !== 'idle') return
     void router.navigate({href, replace: true})
   }
 
   const disposers = [
+    unsubscribeNavigation,
     storage.dispose,
     () => plane.dispose(),
     disposeApp,
