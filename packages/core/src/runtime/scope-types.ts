@@ -10,6 +10,7 @@ import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ToolRequest} from '@conciv/extension'
 import type {ChangeEntry} from '../page-bus.js'
 import type {UserContent} from '../chat/run.js'
+import type {UiAnswer} from '@conciv/protocol/ui-types'
 
 export type ToolCatalog = ToolRegistry['catalog']
 
@@ -34,6 +35,7 @@ export type SessionStream = {
   publish: (chunk: StreamChunk) => void
   listen: (onChunk: (chunk: StreamChunk) => void) => () => void
   listening: () => boolean
+  subscribe: (signal: AbortSignal) => AsyncGenerator<StreamChunk>
 }
 
 export type SessionAsks = {
@@ -44,6 +46,7 @@ export type SessionAsks = {
   cancel: () => void
   noteToolCall: (toolCallId: string, toolName: string) => void
   nextUiCall: (timeoutMs: number) => Promise<string | null>
+  ui: () => Promise<UiAnswer>
 }
 
 export type SessionCapturesScope = {

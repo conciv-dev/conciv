@@ -1,11 +1,6 @@
 import {UiAnswerValueSchema, type UiAnswer} from '@conciv/protocol/ui-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
-
-export const ASK_TIMEOUT_MS = 120_000
-
-export const TOOL_CALL_WAIT_MS = 5_000
-
-export const UI_TOOL_NAME = 'conciv_ui'
+import {ASK_TIMEOUT_MS, TOOL_CALL_WAIT_MS, UI_TOOL_NAME} from './ask-constants.js'
 
 const MCP_PREFIX = /^mcp__.+?__/
 
