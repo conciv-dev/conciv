@@ -107,7 +107,7 @@ it('a mutating mirroring registry tool shows its write badge, its hint and the m
     />
   ))
 
-  await expect.element(page.getByText('edits page')).toBeVisible()
+  await expect.element(page.getByText('page edit')).toBeVisible()
   await page.getByRole('button').click()
   await expect.element(page.getByText('shown on your page')).toBeVisible()
   await expect.element(page.getByText('the banner disappears on the next navigation')).toBeVisible()

@@ -121,7 +121,7 @@ it('tracks header changes as the card result streams in', async () => {
 
 function commandCard(props: ToolCardProps): JSX.Element {
   return (
-    <CardShell meta={undefined} title="Run a command" metaBadge="edits page" part={props.part} result={props.result}>
+    <CardShell meta={undefined} title="Run a command" metaBadge="page edit" part={props.part} result={props.result}>
       <p>the command output</p>
     </CardShell>
   )
@@ -141,7 +141,7 @@ it('keeps a named tool argument as the target and takes only the badge from the 
 
   await expect.element(page.getByText('the command output')).toBeVisible()
   await expect.element(page.getByText('rm -rf tmp')).toBeVisible()
-  await expect.element(page.getByText('edits page')).toBeVisible()
+  await expect.element(page.getByText('page edit')).toBeVisible()
 })
 
 const declaredCtx: ToolViewCtx = {
