@@ -36,7 +36,7 @@ import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {sessionSnapshot} from './transcript.js'
 import {stopSession} from './stop.js'
-import {asksFor, makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
+import {asksFor, commandMemoryFor, makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
 import {withConcivSandbox} from './sandbox.js'
 import {makeCodeMode} from './code-mode.js'
 import {codeModeToolChunks} from './code-mode-parts.js'
@@ -344,6 +344,7 @@ async function* runStream(
     ...gateDeps,
     risky: deps.risky,
     commandAllows: deps.commandAllows,
+    memory: commandMemoryFor(deps.commandMemory, sessionId),
   })
   const askGate = makeAskGate(gateDeps)
   const outcome: RunOutcome = {error: null, usage: null, runEnd: null}

@@ -1,6 +1,7 @@
 import {Show, type JSX} from 'solid-js'
 import Check from 'lucide-solid/icons/check'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
+import ShieldCheck from 'lucide-solid/icons/shield-check'
 import X from 'lucide-solid/icons/x'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Permission, usePermission} from '../primitives/permission.js'
@@ -11,7 +12,7 @@ function Prompt(props: {label?: string}): JSX.Element {
   return (
     <Show when={permission.pending()}>
       <div
-        class="text-chat-text text-[length:var(--chat-text-md)] mb-1.5 mt-1 px-2.5 py-2 rounded-[var(--chat-radius-md)] flex flex-wrap gap-2 [background:var(--chat-fill)] [border:1px_solid_var(--chat-accent)] items-center"
+        class="text-[length:var(--chat-text-md)] text-chat-text mb-1.5 mt-1 px-2.5 py-2 rounded-[var(--chat-radius-md)] flex flex-wrap gap-2 [background:var(--chat-fill)] [border:1px_solid_var(--chat-accent)] items-center"
         role="group"
         aria-label="Approve this action?"
       >
@@ -24,6 +25,16 @@ function Prompt(props: {label?: string}): JSX.Element {
             <X size={13} aria-hidden="true" />
             Deny
           </ActionButton>
+          <Show when={permission.rememberable()}>
+            <ActionButton
+              intent="neutral"
+              title="Allows this exact command for the rest of the session"
+              onClick={() => permission.approveForSession()}
+            >
+              <ShieldCheck size={13} aria-hidden="true" />
+              Allow for session
+            </ActionButton>
+          </Show>
           <ActionButton intent="allow" onClick={() => permission.approve()}>
             <Check size={13} aria-hidden="true" />
             Allow

@@ -1,6 +1,7 @@
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {EngineStaleness} from '@conciv/contract'
 import {createAskRegistry} from '../../src/chat/ask.js'
+import {createCommandMemory} from '../../src/chat/command-memory.js'
 import {createLiveRuns} from '../../src/chat/live-runs.js'
 import {createSessionStreams} from '../../src/chat/subscribe.js'
 import {makeCompactor, makeSend} from '../../src/chat/run.js'
@@ -16,6 +17,7 @@ export async function pageRuntime(page: PageEnv, registry: ToolRegistry): Promis
   const fixture = await makeChatFixture()
   const primitives: SessionPrimitives = {
     asks: createAskRegistry(),
+    commandMemory: createCommandMemory(),
     stream: createSessionStreams(),
     liveRuns: createLiveRuns(),
     page,

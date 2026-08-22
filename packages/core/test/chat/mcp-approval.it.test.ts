@@ -87,6 +87,30 @@ describe('/api/mcp gates risky tools', () => {
     }
   }, 30_000)
 
+  it('a session-scoped approval on a risky tool approves that call only: the next call asks again', async () => {
+    const {kit, session} = await bootWhiteboardish()
+    try {
+      const stream = await kit.attach(session)
+      const first = kit.callTool('canvas.delete', {elementId: 'e5'}, session)
+      const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 10_000})
+      const approvalId = approvalIds(asked)[0]
+      if (approvalId === undefined) throw new Error('no approval id in the snapshot')
+      await kit.rpc.chat.permissionDecision({approvalId, approved: true, scope: 'session'})
+      expect(JSON.stringify(await first)).toContain('e5')
+
+      const second = kit.callTool('canvas.delete', {elementId: 'e6'}, session)
+      const askedAgain = await stream.waitFor((chunk) => approvalIds(chunk).some((id) => id !== approvalId), {
+        hangGuardMs: 10_000,
+      })
+      const secondId = approvalIds(askedAgain).find((id) => id !== approvalId)
+      if (secondId === undefined) throw new Error('the second risky call was not asked about')
+      await kit.rpc.chat.permissionDecision({approvalId: secondId, approved: false})
+      await expect(second).rejects.toThrow()
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+
   it('refuses a risky call that carries no session to ask in', async () => {
     const kit = await bootKit({extensions: [whiteboardish]})
     try {
