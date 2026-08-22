@@ -34,7 +34,6 @@ import {
   type RowScope,
 } from './chat/session-rows.js'
 import {makeRunControl, type ChatDeps} from './chat/runtime.js'
-import {askUi} from './chat/ask.js'
 import {makeAskGate, requiresApproval} from './chat/gate.js'
 import {makeConcivSandbox} from './chat/sandbox.js'
 import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
@@ -391,7 +390,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       })
     })
   const sessionModel = (sessionId: SessionId): string | null => modelOf(db, sessionId)
-  const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({askUi: () => askUi(asks, sessionId)})
+  const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({
+    askUi: () => runtime.forSession(sessionId).asks.ui(),
+  })
 
   const askFreeCommandAllows = (): string[] =>
     registry.catalog

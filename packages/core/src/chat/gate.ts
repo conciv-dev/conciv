@@ -11,7 +11,8 @@ import {
   type ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
 import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
-import {ASK_TIMEOUT_MS, type AskRegistry} from './ask.js'
+import type {AskRegistry} from './ask.js'
+import {ASK_TIMEOUT_MS} from './ask-constants.js'
 import {makeToolNameNormalizer} from './tool-names.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 

@@ -1,12 +1,10 @@
 import {isRunIdTakenError} from '../../chat/run.js'
-import {subscribeSession} from '../../chat/subscribe.js'
 import {os, type RpcDeps, type SessionOs} from './mount.js'
 
 export function chatRouter(deps: RpcDeps, sessionOs: SessionOs) {
-  const chat = deps.chat
   return {
     subscribe: os.chat.subscribe.handler(({input, signal}) =>
-      subscribeSession(chat, input.sessionId, signal ?? new AbortController().signal),
+      deps.runtime.forSession(input.sessionId).stream.subscribe(signal ?? new AbortController().signal),
     ),
     send: os.chat.send.handler(async ({input, errors}) => {
       const runId = await deps.runtime

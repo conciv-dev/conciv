@@ -10,6 +10,8 @@ import {stopSession} from '../chat/stop.js'
 import type {ChatDeps} from '../chat/runtime.js'
 import type {Compactor, Send} from '../chat/run.js'
 import {pageQueryStream} from '../page-bus.js'
+import {askUi} from '../chat/ask.js'
+import {subscribeSession} from '../chat/subscribe.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
 import type {CoreRuntime, EngineScope, SessionScope} from './scope-types.js'
@@ -99,6 +101,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       publish: (chunk) => stream.publish(id, chunk),
       listen: (onChunk) => stream.listen(id, onChunk),
       listening: () => stream.listening(id),
+      subscribe: (signal) => subscribeSession(deps.chat, id, signal),
     },
     asks: {
       open: (key) => asks.open(id, key),
@@ -108,6 +111,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       cancel: () => asks.cancel(id),
       noteToolCall: (toolCallId, toolName) => asks.noteToolCall(id, toolCallId, toolName),
       nextUiCall: (timeoutMs) => asks.nextUiCall(id, timeoutMs),
+      ui: () => askUi(asks, id),
     },
     captures: {
       list: () => sessionCaptures(deps.chat.db, id),
