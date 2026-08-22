@@ -1,9 +1,4 @@
 export const TOKENS = {
-  'chat-hue': {
-    value: '328',
-    description: 'brand hue channel extensions can retint neutrals with',
-    overridable: true,
-  },
   'chat-accent': {value: 'light-dark(#2563eb, #c9857f)', description: 'brand accent', overridable: true},
   'chat-accent-hi': {value: 'light-dark(#1d4ed8, #dda49e)', description: 'accent hover'},
   'chat-accent-link': {

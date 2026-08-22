@@ -1,7 +1,6 @@
 :host,
 :root {
   color-scheme: light dark;
-  --chat-hue: 328;
   --chat-accent: light-dark(#2563eb, #c9857f);
   --chat-accent-hi: light-dark(#1d4ed8, #dda49e);
   --chat-accent-link: light-dark(var(--chat-accent), var(--chat-accent-hi));
