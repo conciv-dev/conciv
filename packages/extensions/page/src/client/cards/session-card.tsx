@@ -21,6 +21,8 @@ import {
 } from '@conciv/ui-kit-chat'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {
+  CARD_HEADLINE_TEXT,
+  CardHeadline,
   Chip,
   clip,
   CodeBlock,
@@ -69,10 +71,8 @@ const VERB_ICONS: Record<string, LucideIcon> = {
 const HEAD = 'flex flex-1 items-center gap-2 min-w-0 ps-4 h-9'
 const HEAD_DOTS = 'flex gap-2 flex-none'
 const HEAD_DOT = 'size-2.5 rounded-full'
-const HEAD_TITLE =
-  'shrink min-w-0 truncate whitespace-nowrap text-[length:var(--chat-text-md)] [color:var(--chat-text)]'
-const HEAD_COUNT =
-  'hidden @[22rem]:inline flex-none whitespace-nowrap [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] tabular-nums'
+const HEAD_TITLE = `shrink min-w-0 truncate whitespace-nowrap text-[length:var(--chat-text-md)] [color:var(--chat-text)] ${CARD_HEADLINE_TEXT}`
+const HEAD_COUNT = `hidden @[22rem]:inline flex-none whitespace-nowrap [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] tabular-nums ${CARD_HEADLINE_TEXT}`
 const HEAD_SPACER = 'flex-1 min-w-0 flex self-stretch my-1.5'
 const HEAD_URL =
   'hidden @[26rem]:inline-flex anim-combo items-center flex-1 min-w-0 [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] [background:var(--chat-fill)] [box-shadow:inset_0_0_0_1px_var(--chat-line-soft)] rounded-[var(--chat-radius-pill)] px-3'
@@ -258,8 +258,10 @@ function SessionHeader(props: {
         <span class={`${HEAD_DOT} [background:var(--chat-warn)]`} />
         <span class={`${HEAD_DOT} [background:var(--chat-success)]`} />
       </span>
-      <span class={HEAD_TITLE}>{props.title}</span>
-      <span class={HEAD_COUNT}>{props.count}</span>
+      <CardHeadline class="shrink">
+        <span class={HEAD_TITLE}>{props.title}</span>
+        <span class={HEAD_COUNT}>{props.count}</span>
+      </CardHeadline>
       <span class={HEAD_SPACER}>
         <Show when={props.url}>
           {(url) => (

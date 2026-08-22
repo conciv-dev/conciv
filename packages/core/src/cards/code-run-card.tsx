@@ -1,4 +1,5 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
+import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {
   Chip,
@@ -175,7 +176,14 @@ export function CodeRunCard(props: ToolCardProps): JSX.Element {
   )
 }
 
+function codeRunHasEmbeddedBody(part: ToolCallPart, result: ToolResultPart | undefined): boolean {
+  const output = parseOutput(result)
+  if (runOutputText(output).length > 0) return true
+  return output === null && toolStatus(part, result) === 'error'
+}
+
 export const codeRunTool: ToolCardEntry = {
   names: [EXECUTE_TOOL_NAME],
   render: CodeRunCard,
+  hasEmbeddedBody: codeRunHasEmbeddedBody,
 }

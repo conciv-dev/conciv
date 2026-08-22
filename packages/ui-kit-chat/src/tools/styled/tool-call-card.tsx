@@ -60,6 +60,16 @@ function hasArguments(part: ToolCallCardProps['part']): boolean {
   return text.length > 0 && text !== '{}'
 }
 
+function hasEmbeddedBody(
+  entry: ToolCardEntry | undefined,
+  part: ToolCallCardProps['part'],
+  result: ToolCallCardProps['result'],
+): boolean {
+  const declared = entry?.hasEmbeddedBody
+  if (declared) return declared(part, result)
+  return hasArguments(part) || resultText(result).length > 0
+}
+
 export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   const [local] = splitProps(props, ['part', 'result', 'ctx', 'tools', 'fallback', 'durationMs', 'ring'])
   const [cardHeader, setCardHeader] = createSignal<{read: () => EmbeddedCardHeader}>()
@@ -79,25 +89,26 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
     local.part.approval !== undefined &&
     local.ctx.respondApproval !== undefined
   const bodyTone = (): TraceOutputTone => (projection().mark === 'fail' ? 'error' : 'normal')
-  const cardBody = (): JSX.Element => (
-    <TraceBodyFrame tone={bodyTone()}>
-      <CardChromeProvider value="embedded" headerChannel={publishHeader} rowLine={rowLine}>
-        <ToolCallCard
-          part={local.part}
-          result={local.result}
-          ctx={local.ctx}
-          durationMs={local.durationMs}
-          tools={local.tools}
-          fallback={local.fallback}
-        />
-      </CardChromeProvider>
-    </TraceBodyFrame>
+  const embeddedCard = (): JSX.Element => (
+    <CardChromeProvider value="embedded" headerChannel={publishHeader} rowLine={rowLine}>
+      <ToolCallCard
+        part={local.part}
+        result={local.result}
+        ctx={local.ctx}
+        durationMs={local.durationMs}
+        tools={local.tools}
+        fallback={local.fallback}
+      />
+    </CardChromeProvider>
   )
-  const body = (): (() => JSX.Element) | undefined =>
-    hasArguments(local.part) || resultText(local.result).length > 0 ? cardBody : undefined
+  const cardBody = (): JSX.Element => <TraceBodyFrame tone={bodyTone()}>{embeddedCard()}</TraceBodyFrame>
+  const matched = () => local.tools?.().find((entry) => entry.names.includes(local.part.name))
+  const framed = () => hasEmbeddedBody(matched(), local.part, local.result)
+  const headerOnly = () => matched()?.hasEmbeddedBody !== undefined && !framed()
   return (
     <>
-      <TraceToolRow projection={projection()} ring={local.ring ?? true} body={body()} />
+      <TraceToolRow projection={projection()} ring={local.ring ?? true} body={framed() ? cardBody : undefined} />
+      <Show when={headerOnly()}>{embeddedCard()}</Show>
       <Show when={asking()}>
         <TracePermissionBlock
           part={local.part}
