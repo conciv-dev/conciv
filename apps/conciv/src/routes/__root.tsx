@@ -13,7 +13,7 @@ import {terminalTheme} from '@conciv/ui-kit-chat/theme/themes/terminal'
 import {HostApiProvider} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
-import {Show, createEffect, createSignal, onCleanup, onMount} from 'solid-js'
+import {Show, createEffect, createMemo, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {
   CONNECTION_CHANGED_EVENT,
@@ -96,13 +96,11 @@ function RootComponent() {
     return ids[Math.min(quick.focus, ids.length - 1)] ?? null
   }
   const warm = createWarmSession(app.data, app.connected, app.queryClient)
-  let lastActiveSession: string | null = null
-  const activeSession = (): string | null => {
-    const current = sessionFromRoute()
-    if (current) lastActiveSession = current
-    return lastActiveSession ?? warm.sessionId() ?? null
-  }
-  app.bindActiveSession?.(activeSession)
+  const activeSession = createMemo<string | null>(
+    (previous) => sessionFromRoute() ?? previous ?? warm.sessionId() ?? null,
+    null,
+  )
+  app.bindActiveSession?.(() => activeSession())
   const themeRoot = (): ShadowRoot | Document => {
     const node = app.environment.rootNode
     if (node instanceof ShadowRoot) return node
