@@ -10,7 +10,7 @@ import type {LayerStack} from '../shell/dialogs.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
 import type {LiveSessions} from './live-sessions.js'
 import type {WarmSession} from './warm-session.js'
-import type {ColorScheme} from '../lib/color-scheme.js'
+import type {HostTheme} from '../lib/color-scheme.js'
 
 export type AppContextValue = {
   rpc: RpcClient
@@ -34,7 +34,7 @@ export type AppContextValue = {
   connectionGeneration: () => number
   apiBase: () => string
   notifyInteractive: () => void
-  colorScheme: Accessor<ColorScheme>
+  theme: Accessor<HostTheme>
 }
 
 export const AppContext = createContext<AppContextValue>()
@@ -125,6 +125,6 @@ export function useNotifyInteractive(): () => void {
   return useAppScope('useNotifyInteractive', (app) => app.notifyInteractive)
 }
 
-export function useColorScheme(): Accessor<ColorScheme> {
-  return useAppScope('useColorScheme', (app) => app.colorScheme)
+export function useHostTheme(): Accessor<HostTheme> {
+  return useAppScope('useHostTheme', (app) => app.theme)
 }

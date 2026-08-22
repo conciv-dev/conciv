@@ -54,8 +54,8 @@ function gallery(summary: string, items: TraceItem[]): JSX.Element {
 const CATALOG_RESULT = {
   conventions: {location: 'conciv/extensions/*.{ts,tsx}', entry: 'export default defineExtension({name})'},
   tokens: [
-    {name: 'chat-accent', cssVar: '--chat-accent', default: '#2563eb', description: 'accent color', overridable: true},
-    {name: 'chat-radius', cssVar: '--chat-radius', default: '10px', description: 'corner radius', overridable: true},
+    {name: 'chat-accent', cssVar: '--chat-accent', default: '#2563eb', description: 'accent color'},
+    {name: 'chat-radius', cssVar: '--chat-radius', default: '10px', description: 'corner radius'},
   ],
   slots: [
     {name: 'header', description: 'Above the message list (panel header region).'},

@@ -1,46 +1,53 @@
 :host,
 :root {
   color-scheme: light dark;
-  --chat-accent: light-dark(#2563eb, #c9857f);
-  --chat-accent-hi: light-dark(#1d4ed8, #dda49e);
-  --chat-accent-link: light-dark(var(--chat-accent), var(--chat-accent-hi));
-  --chat-accent-08: color-mix(in oklch, var(--chat-accent) 10%, transparent);
-  --chat-accent-20: color-mix(in oklch, var(--chat-accent) 22%, transparent);
-  --chat-accent-line: color-mix(in oklch, var(--chat-accent) 42%, transparent);
-  --chat-backdrop: oklch(0 0 0 / 0.55);
   --chat-panel: light-dark(#f6f7f9, #17161a);
-  --chat-panel-sunk: var(--chat-panel);
   --chat-glass: light-dark(rgba(246, 247, 249, 0.97), rgba(23, 22, 26, 0.97));
-  --chat-fill: light-dark(rgba(15, 18, 24, 0.04), rgba(255, 255, 255, 0.05));
-  --chat-fill-soft: light-dark(rgba(15, 18, 24, 0.03), rgba(255, 255, 255, 0.03));
-  --chat-fill-strong: light-dark(rgba(15, 18, 24, 0.08), rgba(255, 255, 255, 0.1));
   --chat-sunken: light-dark(rgba(15, 18, 24, 0.05), rgba(0, 0, 0, 0.35));
+  --chat-ground: light-dark(#ffffff, #0a0a0b);
+  --chat-backdrop: light-dark(oklch(0 0 0 / 0.55), oklch(0 0 0 / 0.55));
   --chat-text: light-dark(#1d2127, #d8d2ce);
   --chat-text-hi: light-dark(#0b0d10, #f0ebe8);
   --chat-text-2: light-dark(#565b63, #a29c9c);
   --chat-text-3: light-dark(#6b717a, #7d787d);
-  --chat-on-accent: light-dark(#ffffff, #14100f);
-  --chat-agent: light-dark(color-mix(in oklch, oklch(0.79 0.13 188), var(--chat-text-hi) 45%), oklch(0.79 0.13 188));
-  --chat-danger: light-dark(#dc2626, #d98070);
-  --chat-danger-line: color-mix(in oklch, var(--chat-danger) 42%, transparent);
-  --chat-success: light-dark(#16a34a, #6fbf8b);
-  --chat-warn: light-dark(#ca8a04, #c9a86a);
-  --chat-dim: light-dark(var(--chat-text-3), #8d8887);
+  --chat-fill: light-dark(rgba(15, 18, 24, 0.04), rgba(255, 255, 255, 0.05));
+  --chat-fill-soft: light-dark(rgba(15, 18, 24, 0.03), rgba(255, 255, 255, 0.03));
+  --chat-fill-strong: light-dark(rgba(15, 18, 24, 0.08), rgba(255, 255, 255, 0.1));
   --chat-line: light-dark(rgba(15, 18, 24, 0.12), #272428);
-  --chat-line-2: light-dark(rgba(15, 18, 24, 0.18), #322e33);
   --chat-line-soft: light-dark(rgba(15, 18, 24, 0.06), #232025);
+  --chat-line-2: light-dark(rgba(15, 18, 24, 0.18), #322e33);
+  --chat-accent: light-dark(#2563eb, #c9857f);
+  --chat-on-accent: light-dark(#ffffff, #14100f);
+  --chat-danger: light-dark(#dc2626, #d98070);
+  --chat-success: light-dark(#16a34a, #6fbf8b);
+  --chat-warn: light-dark(#a16207, #c9a86a);
+  --chat-dim: light-dark(#6b717a, #8d8887);
+  --chat-shadow-sm: light-dark(0 2px 10px rgba(15, 18, 24, 0.14), 0 2px 10px rgba(0, 0, 0, 0.5));
+  --chat-shadow-lg: light-dark(0 16px 44px rgba(15, 18, 24, 0.18), 0 16px 44px rgba(0, 0, 0, 0.6));
+  --chat-font: 'Source Sans 3', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --chat-font-display: 'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --chat-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --chat-radius-sm: 4px;
+  --chat-radius-md: 4px;
+  --chat-radius-lg: 11px;
+  --chat-radius-chip: 3px;
+  --chat-radius-pill: 999px;
   --chat-radius-surface-sm: 4px;
   --chat-radius-surface-md: 8px;
   --chat-radius-surface-lg: 12px;
-  --chat-radius-pill: 999px;
-  --chat-shadow: var(--chat-shadow-sm);
-  --chat-shadow-sm: 0 2px 10px light-dark(rgba(15, 18, 24, 0.14), rgba(0, 0, 0, 0.5));
-  --chat-shadow-lg: 0 16px 44px light-dark(rgba(15, 18, 24, 0.18), rgba(0, 0, 0, 0.6));
-  --chat-shadow-hover: var(--chat-shadow-lg);
   --chat-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --chat-ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --chat-font: 'Source Sans 3', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --chat-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --chat-space: 0.25rem;
+  --chat-accent-hi: light-dark(color-mix(in oklch, var(--chat-accent), #000000 14%), color-mix(in oklch, var(--chat-accent), #ffffff 14%));
+  --chat-accent-link: light-dark(var(--chat-accent), var(--chat-accent-hi));
+  --chat-accent-08: color-mix(in oklch, var(--chat-accent) 10%, transparent);
+  --chat-accent-20: color-mix(in oklch, var(--chat-accent) 22%, transparent);
+  --chat-accent-line: color-mix(in oklch, var(--chat-accent) 42%, transparent);
+  --chat-panel-sunk: var(--chat-panel);
+  --chat-agent: light-dark(color-mix(in oklch, oklch(0.79 0.13 188), var(--chat-text-hi) 45%), oklch(0.79 0.13 188));
+  --chat-danger-line: color-mix(in oklch, var(--chat-danger) 42%, transparent);
+  --chat-shadow: var(--chat-shadow-sm);
+  --chat-shadow-hover: var(--chat-shadow-lg);
 }
 
 .light {
@@ -49,4 +56,45 @@
 
 .dark {
   color-scheme: dark;
+}
+
+:host(.chat-skin-terminal),
+.chat-skin-terminal {
+  --chat-panel: light-dark(#f4f2ec, #0e1110);
+  --chat-glass: light-dark(rgba(244, 242, 236, 0.97), rgba(14, 17, 16, 0.97));
+  --chat-sunken: light-dark(rgba(20, 24, 22, 0.06), rgba(0, 0, 0, 0.45));
+  --chat-ground: light-dark(#fbfaf6, #070908);
+  --chat-backdrop: light-dark(oklch(0 0 0 / 0.66), oklch(0 0 0 / 0.66));
+  --chat-text: light-dark(#1b201d, #cfd6d0);
+  --chat-text-hi: light-dark(#080b0a, #f2f7f2);
+  --chat-text-2: light-dark(#4c554f, #98a39b);
+  --chat-text-3: light-dark(#69736c, #6f7a73);
+  --chat-fill: light-dark(rgba(20, 24, 22, 0.05), rgba(190, 255, 214, 0.05));
+  --chat-fill-soft: light-dark(rgba(20, 24, 22, 0.03), rgba(190, 255, 214, 0.03));
+  --chat-fill-strong: light-dark(rgba(20, 24, 22, 0.1), rgba(190, 255, 214, 0.1));
+  --chat-line: light-dark(rgba(20, 24, 22, 0.16), #222b26);
+  --chat-line-soft: light-dark(rgba(20, 24, 22, 0.08), #1a221e);
+  --chat-line-2: light-dark(rgba(20, 24, 22, 0.24), #2e3a33);
+  --chat-accent: light-dark(#0f7a4a, #5fd39a);
+  --chat-on-accent: light-dark(#ffffff, #04120b);
+  --chat-danger: light-dark(#b02a1f, #e0796a);
+  --chat-success: light-dark(#0f7a4a, #5fd39a);
+  --chat-warn: light-dark(#8a6300, #d4ac52);
+  --chat-dim: light-dark(#69736c, #7c877f);
+  --chat-shadow-sm: light-dark(0 1px 2px rgba(20, 24, 22, 0.28), 0 1px 2px rgba(0, 0, 0, 0.7));
+  --chat-shadow-lg: light-dark(0 10px 30px rgba(20, 24, 22, 0.24), 0 10px 30px rgba(0, 0, 0, 0.72));
+  --chat-font: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --chat-font-display: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --chat-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --chat-radius-sm: 2px;
+  --chat-radius-md: 2px;
+  --chat-radius-lg: 3px;
+  --chat-radius-chip: 0px;
+  --chat-radius-pill: 2px;
+  --chat-radius-surface-sm: 0px;
+  --chat-radius-surface-md: 2px;
+  --chat-radius-surface-lg: 3px;
+  --chat-ease: cubic-bezier(0.2, 0, 0, 1);
+  --chat-ease-expo: cubic-bezier(0.12, 0.9, 0.1, 1);
+  --chat-space: 0.235rem;
 }

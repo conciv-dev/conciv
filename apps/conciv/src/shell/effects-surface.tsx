@@ -2,8 +2,8 @@ import {createEffect, For, Show, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {MountedSurface} from '@conciv/extension/client'
-import {useColorScheme, useConnectionGeneration} from '../app/context.js'
-import {applySchemeClass} from '../lib/color-scheme.js'
+import {useConnectionGeneration, useHostTheme} from '../app/context.js'
+import {applySchemeClass, applySkinClass, themeClasses} from '../lib/color-scheme.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
 import styles from '../styles.css?inline'
 
@@ -16,11 +16,12 @@ function decorateHost(element: HTMLDivElement): void {
 export function EffectsSurface(props: {instances: ExtensionInstance[]}): JSX.Element {
   let host: HTMLDivElement | undefined
   const generation = useConnectionGeneration()
-  const colorScheme = useColorScheme()
+  const theme = useHostTheme()
   const mountKey = () => ({instances: props.instances, generation: generation()})
   createEffect(() => {
     if (!host) return
-    applySchemeClass(host, colorScheme())
+    applySchemeClass(host, theme().scheme)
+    applySkinClass(host, theme().skin)
   })
   return (
     <Portal
@@ -32,7 +33,7 @@ export function EffectsSurface(props: {instances: ExtensionInstance[]}): JSX.Ele
       }}
     >
       <style>{styles}</style>
-      <div class={colorScheme()}>
+      <div class={themeClasses(theme())}>
         <EnvironmentProvider value={() => host?.shadowRoot ?? document}>
           <Show when={mountKey()} keyed>
             {(mount) => (

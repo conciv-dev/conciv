@@ -40,6 +40,6 @@ export function makeAppContextValue(options: AppContextValueOptions): AppContext
     connectionGeneration: () => 0,
     apiBase: () => options.base,
     notifyInteractive: () => {},
-    colorScheme: () => 'dark',
+    theme: () => ({scheme: 'dark', skin: 'conciv'}),
   }
 }

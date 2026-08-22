@@ -1,0 +1,51 @@
+import type {Skin} from './skin-contract.js'
+
+const MONO = "'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace"
+
+export const terminalSkin: Skin = {
+  name: 'terminal',
+  label: 'Terminal',
+  description:
+    'A monospace-forward look: warm paper on light, near-black on dark, phosphor-green accent, squared corners and flat elevation.',
+  pairs: {
+    'chat-panel': {light: '#f4f2ec', dark: '#0e1110'},
+    'chat-glass': {light: 'rgba(244, 242, 236, 0.97)', dark: 'rgba(14, 17, 16, 0.97)'},
+    'chat-sunken': {light: 'rgba(20, 24, 22, 0.06)', dark: 'rgba(0, 0, 0, 0.45)'},
+    'chat-ground': {light: '#fbfaf6', dark: '#070908'},
+    'chat-backdrop': {light: 'oklch(0 0 0 / 0.66)', dark: 'oklch(0 0 0 / 0.66)'},
+    'chat-text': {light: '#1b201d', dark: '#cfd6d0'},
+    'chat-text-hi': {light: '#080b0a', dark: '#f2f7f2'},
+    'chat-text-2': {light: '#4c554f', dark: '#98a39b'},
+    'chat-text-3': {light: '#69736c', dark: '#6f7a73'},
+    'chat-fill': {light: 'rgba(20, 24, 22, 0.05)', dark: 'rgba(190, 255, 214, 0.05)'},
+    'chat-fill-soft': {light: 'rgba(20, 24, 22, 0.03)', dark: 'rgba(190, 255, 214, 0.03)'},
+    'chat-fill-strong': {light: 'rgba(20, 24, 22, 0.1)', dark: 'rgba(190, 255, 214, 0.1)'},
+    'chat-line': {light: 'rgba(20, 24, 22, 0.16)', dark: '#222b26'},
+    'chat-line-soft': {light: 'rgba(20, 24, 22, 0.08)', dark: '#1a221e'},
+    'chat-line-2': {light: 'rgba(20, 24, 22, 0.24)', dark: '#2e3a33'},
+    'chat-accent': {light: '#0f7a4a', dark: '#5fd39a'},
+    'chat-on-accent': {light: '#ffffff', dark: '#04120b'},
+    'chat-danger': {light: '#b02a1f', dark: '#e0796a'},
+    'chat-success': {light: '#0f7a4a', dark: '#5fd39a'},
+    'chat-warn': {light: '#8a6300', dark: '#d4ac52'},
+    'chat-dim': {light: '#69736c', dark: '#7c877f'},
+    'chat-shadow-sm': {light: '0 1px 2px rgba(20, 24, 22, 0.28)', dark: '0 1px 2px rgba(0, 0, 0, 0.7)'},
+    'chat-shadow-lg': {light: '0 10px 30px rgba(20, 24, 22, 0.24)', dark: '0 10px 30px rgba(0, 0, 0, 0.72)'},
+  },
+  scalars: {
+    'chat-font': MONO,
+    'chat-font-display': MONO,
+    'chat-mono': MONO,
+    'chat-radius-sm': '2px',
+    'chat-radius-md': '2px',
+    'chat-radius-lg': '3px',
+    'chat-radius-chip': '0px',
+    'chat-radius-pill': '2px',
+    'chat-radius-surface-sm': '0px',
+    'chat-radius-surface-md': '2px',
+    'chat-radius-surface-lg': '3px',
+    'chat-ease': 'cubic-bezier(0.2, 0, 0, 1)',
+    'chat-ease-expo': 'cubic-bezier(0.12, 0.9, 0.1, 1)',
+    'chat-space': '0.235rem',
+  },
+}

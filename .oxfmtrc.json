@@ -12,6 +12,7 @@
     "**/*.gen.ts",
     "**/test-results",
     "packages/ui-kit-system/src/tokens.css",
+    "packages/ui-kit-system/docs/**",
     "packages/plugin/test/fixtures/diagnostics-app/**",
     "packages/extensions/tanstack/test/fixtures/build-errors-app/**",
     "packages/cli/test/fixtures/**",
