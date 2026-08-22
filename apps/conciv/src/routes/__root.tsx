@@ -7,7 +7,7 @@ import {
   useRouter,
   useSearch,
 } from '@tanstack/solid-router'
-import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
+import {QueryClientProvider} from '@tanstack/solid-query'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
 import {terminalTheme} from '@conciv/ui-kit-chat/theme/themes/terminal'
 import {HostApiProvider} from '@conciv/extension/host'
@@ -26,7 +26,6 @@ import {
 import type {ConcivRouterContext} from '../router.js'
 import {
   AppContext,
-  useAppData,
   useColorScheme,
   useConnected,
   useLayers,
@@ -34,9 +33,11 @@ import {
   useNotifyInteractive,
   useSettings,
   useSuppressed,
+  useWarmSession,
   type AppContextValue,
 } from '../app/context.js'
 import {makeLiveSessions} from '../app/live-sessions.js'
+import {createWarmSession} from '../app/warm-session.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../app/reachability.js'
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
@@ -94,12 +95,14 @@ function RootComponent() {
     const ids = quickPaneIds(quick)
     return ids[Math.min(quick.focus, ids.length - 1)] ?? null
   }
+  const warm = createWarmSession(app.data, app.connected, app.queryClient)
   let lastActiveSession: string | null = null
   const activeSession = (): string | null => {
     const current = sessionFromRoute()
     if (current) lastActiveSession = current
-    return lastActiveSession
+    return lastActiveSession ?? warm.sessionId() ?? null
   }
+  app.bindActiveSession?.(activeSession)
   const themeRoot = (): ShadowRoot | Document => {
     const node = app.environment.rootNode
     if (node instanceof ShadowRoot) return node
@@ -119,6 +122,7 @@ function RootComponent() {
     environment: app.environment,
     data: app.data,
     liveSessions,
+    warmSession: warm,
     queryClient: app.queryClient,
     announce,
     layers,
@@ -181,7 +185,6 @@ function RootChrome(props: {
   politeMessage: () => string
   assertiveMessage: () => string
 }) {
-  const data = useAppData()
   const settings = useSettings()
   const colorScheme = useColorScheme()
   const layers = useLayers()
@@ -201,18 +204,8 @@ function RootChrome(props: {
   const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
   const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
 
-  const sessions = useQuery(() => ({...data.utils.sessions.list.queryOptions(), enabled: connected()}))
-  const working = () =>
-    liveSessions.anyRunning() || (sessions.isSuccess && sessions.data.some((session) => session.running))
-  const latestSessionRow = () => {
-    if (!sessions.isSuccess) return undefined
-    if (sessions.data.length === 0) return undefined
-    return sessions.data.toSorted((a, b) => b.updatedAt - a.updatedAt)[0]
-  }
-  const warmSession = useQuery(() => ({
-    ...data.utils.sessions.resolve.queryOptions({input: {id: latestSessionRow()?.id}}),
-    enabled: connected() && Boolean(latestSessionRow()),
-  }))
+  const warm = useWarmSession()
+  const working = () => liveSessions.anyRunning() || warm.rows().some((session) => session.running)
 
   let rootEl: HTMLDivElement | undefined
   let fabEl: HTMLButtonElement | undefined
@@ -238,7 +231,7 @@ function RootChrome(props: {
       void setShutter(router, true)
       return
     }
-    const sessionId = warmSession.data?.sessionId
+    const sessionId = warm.sessionId()
     if (sessionId) {
       void router.navigate({
         to: '/panel/$sessionId',

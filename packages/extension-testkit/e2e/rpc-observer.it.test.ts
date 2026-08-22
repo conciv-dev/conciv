@@ -43,8 +43,12 @@ function callProbe(page: Page, path: string[], input: unknown): Promise<unknown>
 
 async function openProbePage(page: Page): Promise<{page: Page; observer: ReturnType<typeof observeRpc>}> {
   const observer = observeRpc(page)
+  const session = await suite.kit().session()
   await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
-  await page.evaluate((wsUrl) => window.__CONCIV_WS_PROBE__.connect(wsUrl), suite.socketUrl())
+  await page.evaluate((probe) => window.__CONCIV_WS_PROBE__.connect(probe.wsUrl, probe.session), {
+    wsUrl: suite.socketUrl(),
+    session,
+  })
   return {page, observer}
 }
 

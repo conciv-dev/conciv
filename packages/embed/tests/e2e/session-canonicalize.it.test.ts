@@ -3,7 +3,7 @@ import {currentHref} from '@conciv/extension-testkit/navigation-state'
 import {until} from '@conciv/harness-testkit/until'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {setupWidgetSuite} from './helpers/suite.js'
-import {openPanel, switchToSessionByTitle} from './helpers/panel.js'
+import {openPanel} from './helpers/panel.js'
 
 const RAW_HARNESS_ID = HarnessSessionId.parse('43548fd1-0000-4220-acf0-014b10b5815f')
 const EXTERNAL_TITLE = 'a session started outside conciv'
@@ -20,43 +20,45 @@ const suite = setupWidgetSuite({
 test.describe('switching to a harness session conciv has never adopted', () => {
   test('lands the panel on the canonical conciv session route, not the raw harness id', async ({page}) => {
     test.setTimeout(180_000)
-    const adoptedExternalId = async (): Promise<string | undefined> => {
-      const metas = await suite.kit().rpc.sessions.list()
-      return metas.find((meta) => meta.title === EXTERNAL_TITLE && meta.id.startsWith('conciv_'))?.id
-    }
 
-    const listed = (await suite.kit().rpc.sessions.list()).map((meta) => meta.id)
-    expect(listed).toContain(NEWER_HARNESS_ID)
-    expect(listed).toContain(RAW_HARNESS_ID)
+    const metas = await suite.kit().rpc.sessions.list()
+    expect(metas.map((meta) => String(meta.id)).filter((id) => !id.startsWith('conciv_'))).toEqual([])
+    const external = metas.find((meta) => meta.title === EXTERNAL_TITLE)
+    if (!external) throw new Error('the harness-native session was not listed under its derived title')
+    const newer = metas.find((meta) => meta.title === NEWER_TITLE)
+    if (!newer) throw new Error('the newest harness-native session was not listed under its derived title')
 
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
 
-    await until(
-      async () => {
-        const ids = (await suite.kit().rpc.sessions.list()).map((meta) => String(meta.id))
-        return !ids.includes(String(NEWER_HARNESS_ID)) && ids.includes(String(RAW_HARNESS_ID))
-      },
-      {hangGuardMs: 30_000, intervalMs: 100},
-    )
-    const afterWarmResolve = (await suite.kit().rpc.sessions.list()).map((meta) => meta.id)
-    expect(afterWarmResolve).not.toContain(NEWER_HARNESS_ID)
-    expect(afterWarmResolve).toContain(RAW_HARNESS_ID)
+    const sessionOptions = page.getByRole('button', {name: 'Session options'})
+    await sessionOptions.click()
+    await page.getByRole('button', {name: /^Session: /}).click()
+    const search = page.getByPlaceholder('Search sessions…')
+    await expect(search).toBeVisible({timeout: 30_000})
 
-    await switchToSessionByTitle(page, EXTERNAL_TITLE)
+    await search.fill(String(RAW_HARNESS_ID))
+    await expect(page.getByText('No sessions match')).toBeVisible({timeout: 30_000})
+    await expect(page.getByRole('option', {name: new RegExp(EXTERNAL_TITLE)})).toHaveCount(0)
 
-    await until(
-      async () => {
-        const canonicalId = await adoptedExternalId()
-        if (!canonicalId) return false
-        return (await currentHref(suite.kit())).includes(canonicalId)
-      },
-      {hangGuardMs: 30_000, intervalMs: 100},
-    )
+    await search.fill(String(external.id))
+    const canonicalOption = page.getByRole('option', {name: new RegExp(EXTERNAL_TITLE)})
+    await expect(canonicalOption).toBeVisible({timeout: 30_000})
+
+    await canonicalOption.click()
+    const pill = page.getByRole('button', {name: `Session: ${EXTERNAL_TITLE}`})
+    if (!(await pill.isVisible())) await sessionOptions.click()
+    await expect(pill).toBeVisible({timeout: 30_000})
+
+    await until(async () => (await currentHref(suite.kit())).includes(String(external.id)), {
+      hangGuardMs: 30_000,
+      intervalMs: 100,
+    })
+    const href = await currentHref(suite.kit())
+    expect(href).not.toContain(RAW_HARNESS_ID)
+    expect(href).not.toContain(newer.id)
 
     const adopted = await suite.kit().rpc.sessions.resolve({id: RAW_HARNESS_ID})
-    const href = await currentHref(suite.kit())
-    expect(href).toContain(adopted.sessionId)
-    expect(href).not.toContain(RAW_HARNESS_ID)
+    expect(adopted.sessionId).toBe(external.id)
   })
 })

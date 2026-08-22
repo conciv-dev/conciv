@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {and, eq, isNull} from 'drizzle-orm'
+import {and, desc, eq, isNull} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
 import type {
   HarnessSessionId,
@@ -79,6 +79,16 @@ export async function ensureRow(db: ConcivDb, id: SessionId, harnessKind: string
   })
 }
 
+export async function latestRow(db: ConcivDb): Promise<SessionRecord | null> {
+  const rows = await db
+    .select()
+    .from(sessions)
+    .where(isNull(sessions.deletedAt))
+    .orderBy(desc(sessions.updatedAt))
+    .limit(1)
+  return rows[0] ? SessionRecordSchema.parse(rows[0]) : null
+}
+
 export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<{sessionId: SessionId}> {
   const mint = mintIdOf(scope)
   if (body.id && isSessionId(body.id)) {
@@ -103,7 +113,11 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
     })
     return {sessionId: created.id}
   }
-  return {sessionId: mint()}
+  const latest = await latestRow(scope.db)
+  if (latest) return {sessionId: latest.id}
+  const minted = mint()
+  await ensureRow(scope.db, minted, scope.harnessKind, scope.cwd)
+  return {sessionId: minted}
 }
 
 export async function openNativeRow(scope: RowScope, ref: NativeSessionRef): Promise<{sessionId: SessionId}> {

@@ -1,7 +1,7 @@
 import {expect, test} from '@playwright/test'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {setupWidgetSuite} from './helpers/suite.js'
-import {openPanel} from './helpers/panel.js'
+import {openPanel, switchToSessionByTitle} from './helpers/panel.js'
 import {untilPanelDraft} from './helpers/drafts.js'
 
 const RECENT_ID = HarnessSessionId.parse('43548fd1-0000-4220-acf0-014b10b5815f')
@@ -23,6 +23,7 @@ test.describe('composer drafts after a session switch', () => {
     test.setTimeout(180_000)
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
+    await switchToSessionByTitle(page, RECENT_TITLE)
 
     const opened = await suite.kit().rpc.sessions.resolve({id: RECENT_ID})
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})

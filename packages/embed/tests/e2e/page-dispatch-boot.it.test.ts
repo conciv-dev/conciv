@@ -48,7 +48,7 @@ test.describe('the page-tool dispatcher serves registry page tools under bootCon
       window.concivTestHandle = window.ConcivHandle.makeConnectHandle()
       void window.concivTestHandle.mount(el)
     })
-    await completeConnectHandshake(page, kit.base)
+    await completeConnectHandshake(page, kit.base, await kit.session())
   })
 
   test.afterAll(async () => {
