@@ -65,7 +65,7 @@ test.describe('widget-native live connect on the built site', () => {
     await expectLocator(input).toBeVisible({timeout: 30_000})
 
     const sameNode = await page.evaluate(
-      (node) => node === document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('[data-pw-panel]'),
+      (node) => node === document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('[data-conciv-panel]'),
       before,
     )
     expect(sameNode).toBe(true)

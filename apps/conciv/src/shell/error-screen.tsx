@@ -12,7 +12,7 @@ export function ErrorScreen(props: ErrorScreenProps): JSX.Element {
     <div
       class="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-chat-text"
       role="alert"
-      data-pw-error-screen
+      data-conciv-error-screen
     >
       <AlertTriangle class="size-8 text-chat-danger" aria-hidden="true" />
       <p class="text-[0.875rem] leading-[1.45] text-chat-text-2 max-w-72">{props.message}</p>

@@ -11,8 +11,8 @@ async function armFrameSampler(page: Page): Promise<void> {
   await page.evaluate(() => {
     const shadowHosts = [...document.querySelectorAll('*')]
     const element =
-      document.querySelector('[data-pw-fab]') ??
-      shadowHosts.map((host) => host.shadowRoot?.querySelector('[data-pw-fab]')).find(Boolean)
+      document.querySelector('[data-conciv-fab]') ??
+      shadowHosts.map((host) => host.shadowRoot?.querySelector('[data-conciv-fab]')).find(Boolean)
     if (!(element instanceof HTMLElement)) throw new Error('launcher not found')
     globalThis.__fabFrames = new Promise((resolve) => {
       const frames: Array<{x: number; y: number; width: number; height: number}> = []
@@ -38,8 +38,8 @@ async function settledBox(page: Page): Promise<Frame> {
   return page.evaluate(() => {
     const shadowHosts = [...document.querySelectorAll('*')]
     const element =
-      document.querySelector('[data-pw-fab]') ??
-      shadowHosts.map((host) => host.shadowRoot?.querySelector('[data-pw-fab]')).find(Boolean)
+      document.querySelector('[data-conciv-fab]') ??
+      shadowHosts.map((host) => host.shadowRoot?.querySelector('[data-conciv-fab]')).find(Boolean)
     if (!(element instanceof HTMLElement)) throw new Error('launcher not found')
     return new Promise((resolve) => {
       const settle = () => {

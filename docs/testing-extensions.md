@@ -31,7 +31,7 @@ page.locator('.excalidraw')                      // class selector
 page.locator('canvas')                            // tag selector
 page.locator('[aria-label="Reply"]')              // attribute selector
 page.locator('[role="dialog"][aria-label="…"]')   // attribute selector
-page.locator('meta[name="pw-api-base"]')          // reaching for config in the DOM
+page.locator('meta[name="conciv-api-base"]')          // reaching for config in the DOM
 document.querySelector(...)                        // anywhere, incl. inside page.evaluate
 ```
 

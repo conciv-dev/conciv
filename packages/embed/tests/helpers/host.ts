@@ -28,8 +28,8 @@ export function hostPage(opts: {
 }): string {
   return `<!doctype html><html ${opts.htmlAttributes ?? ''}><head>
     <meta charset="utf-8">
-    <meta name="pw-api-base" content="${opts.apiBase}">
-    <meta name="pw-widget" content='${opts.widget ?? '{}'}'>
+    <meta name="conciv-api-base" content="${opts.apiBase}">
+    <meta name="conciv-widget" content='${opts.widget ?? '{}'}'>
     ${backdropStyle(opts.backdrop)}
   </head><body>
     ${opts.body ?? '<div id="probe">page-bus-ok</div>'}

@@ -100,12 +100,12 @@ function PanelLayout(): JSX.Element {
           >
             <section
               class={`${PANEL_BASE} ${phone() ? PANEL_SHEET : `${PANEL_CARD} ${PANEL_POS[position()]}`} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}
-              data-pw-panel
-              data-pw-suppressed={suppressed()}
+              data-conciv-panel
+              data-conciv-suppressed={suppressed()}
               style={phone() ? undefined : {height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
               role="dialog"
               aria-label="conciv chat agent"
-              id="pw-chat-panel"
+              id="conciv-chat-panel"
             >
               <NoticeSurface />
               <EngineStaleNotice />

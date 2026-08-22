@@ -6,11 +6,12 @@ const suite = setupWidgetSuite()
 
 const IMMEDIATE_MS = 2_000
 
-const stage = (page: Page) => page.locator('[data-pw-fab] .pw-fab-rig[aria-hidden="true"]')
+const stage = (page: Page) => page.locator('[data-conciv-fab] .conciv-fab-rig[aria-hidden="true"]')
 
-const glowingEyes = (page: Page) => page.locator('[data-pw-fab] .pw-fab-busy ~ .pw-fab-rig .pw-rig-eyes')
+const glowingEyes = (page: Page) =>
+  page.locator('[data-conciv-fab] .conciv-fab-busy ~ .conciv-fab-rig .conciv-rig-eyes')
 
-const restingEyes = (page: Page) => page.locator('[data-pw-fab] .pw-fab-rig .pw-rig-eyes')
+const restingEyes = (page: Page) => page.locator('[data-conciv-fab] .conciv-fab-rig .conciv-rig-eyes')
 
 const AWAKE_EYES = /^matrix\(1, 0, 0, 1\.06,/
 
@@ -19,7 +20,7 @@ const TRACKING_EYES = /^matrix\(1, 0, 0, 1, (?!0,)/
 const GAZE_TARGET = {x: 12, y: 12}
 
 const emitter = (page: Page) =>
-  page.locator('[data-pw-fab] .pw-fab-rig [data-scope="mascot"][data-part="effect"] > span')
+  page.locator('[data-conciv-fab] .conciv-fab-rig [data-scope="mascot"][data-part="effect"] > span')
 
 test.afterEach(() => {
   suite.kit().harness.script.release()

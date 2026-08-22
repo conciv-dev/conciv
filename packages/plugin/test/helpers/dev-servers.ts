@@ -51,7 +51,7 @@ export function devServers(): DevServers {
 
 export async function pageApiBase(server: ViteDevServer, url = '/'): Promise<string> {
   const html = await server.transformIndexHtml(url, '<!doctype html><html><head></head><body></body></html>')
-  const apiBase = html.match(/name="pw-api-base"[^>]*content="([^"]+)"/)?.[1]
+  const apiBase = html.match(/name="conciv-api-base"[^>]*content="([^"]+)"/)?.[1]
   if (!apiBase) throw new Error(`no api base injected, got ${html}`)
   return apiBase
 }

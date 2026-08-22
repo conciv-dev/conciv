@@ -9,9 +9,9 @@ declare global {
 }
 
 function ensureWidgetMeta(defaultOpen: boolean): void {
-  if (document.querySelector('meta[name="pw-widget"]')) return
+  if (document.querySelector('meta[name="conciv-widget"]')) return
   const meta = document.createElement('meta')
-  meta.name = 'pw-widget'
+  meta.name = 'conciv-widget'
   meta.content = JSON.stringify({defaultOpen})
   document.head.appendChild(meta)
 }
