@@ -2,7 +2,6 @@ import type {StreamChunk} from '@tanstack/ai'
 import {AsyncQueue} from '@tanstack/ai-acp'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import type {ChatDeps} from './runtime.js'
-import {sessionSnapshot} from './transcript.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 export type SessionStreams = {
@@ -48,7 +47,7 @@ export async function* subscribeSession(
   const unlistenRuns = deps.liveRuns.onStart(sessionId, tailRun)
   for (const run of deps.liveRuns.of(sessionId)) tailRun(run.runId)
   try {
-    yield aguiSnapshotFor(await sessionSnapshot(deps, sessionId))
+    yield aguiSnapshotFor(await deps.snapshot(sessionId))
     for await (const chunk of queue) {
       yield chunk
       if (signal.aborted) return

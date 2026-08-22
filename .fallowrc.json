@@ -50,7 +50,7 @@
       },
       {
         "name": "core-shared-leaf",
-        "patterns": ["packages/core/src/chat/ask-constants.ts"]
+        "patterns": ["packages/core/src/chat/ask-constants.ts", "packages/core/src/lib/debug.ts"]
       },
       {
         "name": "core-callers",
@@ -69,7 +69,8 @@
       },
       {
         "from": "core-primitives",
-        "allow": ["session-facade", "core-shared-leaf"]
+        "allow": ["session-facade", "core-shared-leaf"],
+        "allowTypeOnly": ["core-callers"]
       }
     ],
     "calls": {
