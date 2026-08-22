@@ -25,9 +25,9 @@ import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {
+  anonymousExternalRow,
   ensureAgentRow,
   ensureRow,
-  mintExternalRow,
   nativeIdFor,
   recordNativeId,
   sweepEmptyRows,
@@ -291,7 +291,7 @@ async function mcpSessionId(
 ): Promise<SessionId> {
   if (header !== null) return header
   if (nativeId !== null) return (await ensureAgentRow(rows, nativeId)).id
-  return mintExternalRow(rows)
+  return anonymousExternalRow(rows)
 }
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
@@ -465,12 +465,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
 
   if (opts.cfg.harnessSessionId !== undefined) {
-    void ensureAgentRow(rows, opts.cfg.harnessSessionId).catch(() => {})
+    void ensureAgentRow(rows, opts.cfg.harnessSessionId).catch((error: unknown) =>
+      logError(`[core] the configured harness session row could not be ensured: ${String(error)}`),
+    )
   }
   if (opts.cfg.sessionId !== undefined) {
-    void ensureRow(db, opts.cfg.sessionId, harness.id, opts.cwd).catch(() => {})
+    void ensureRow(db, opts.cfg.sessionId, harness.id, opts.cwd).catch((error: unknown) =>
+      logError(`[core] the configured session row could not be ensured: ${String(error)}`),
+    )
   }
-  void sweepEmptyRows(db).catch(() => {})
+  void sweepEmptyRows(db).catch((error: unknown) =>
+    logError(`[core] the empty session row sweep failed: ${String(error)}`),
+  )
 
   const compactor = makeCompactor(chatDeps)
 
@@ -481,11 +487,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const rpc = makeRpcRouter({
     chat: chatDeps,
     tools: toolList,
-    compactor,
-    send,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     runtime,
-    rows,
     staleness,
     ...(opts.askTimeoutMs === undefined ? {} : {askTimeoutMs: opts.askTimeoutMs}),
   })

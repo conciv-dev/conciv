@@ -1,4 +1,4 @@
-import {mkdir, mkdtemp, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, symlink, writeFile} from 'node:fs/promises'
 import {homedir, tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {beforeAll, describe, expect, it} from 'vitest'
@@ -174,6 +174,31 @@ describe('pi history sidecar', () => {
     const handle = history().observe(PROJECT, MISSING, state.home)
     expect(await handle.revision()).toMatchObject({ok: false, reason: 'missing'})
     handle.close()
+  })
+})
+
+describe('pi transcript discovery survives a hostile sessions directory', () => {
+  it('lists the well-formed transcripts of a directory that also holds an unparseable file name', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'pi-hostile-'))
+    const dir = sessionsDir(PROJECT, home)
+    await mkdir(dir, {recursive: true})
+    await writeFile(join(dir, FILE), jsonl(LINES), 'utf8')
+    await writeFile(join(dir, 'notes about the run.jsonl'), jsonl(LINES), 'utf8')
+    expect((await history().list(PROJECT, home)).map((entry) => entry.id)).toEqual([SESSION])
+  })
+
+  it('refuses to observe a transcript whose name links out of the session directory', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'pi-symlink-'))
+    const dir = sessionsDir(PROJECT, home)
+    await mkdir(dir, {recursive: true})
+    const outside = join(home, 'outside.jsonl')
+    await writeFile(outside, jsonl(LINES), 'utf8')
+    const escapee = HarnessSessionId.parse('escapee')
+    await symlink(outside, join(dir, `2026-01-01T00-00-00-000Z_${escapee}.jsonl`))
+    const handle = history().observe(PROJECT, escapee, home)
+    expect(await handle.revision()).toMatchObject({ok: false})
+    handle.close()
+    expect(await history().messages(PROJECT, escapee, home)).toEqual([])
   })
 })
 

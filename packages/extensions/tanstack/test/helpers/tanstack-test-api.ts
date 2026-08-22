@@ -31,13 +31,23 @@ export function useTanstackTestApi(): () => TanstackTestApi {
   }
 }
 
+function hasAdapterFactory(
+  context: unknown,
+): context is {makeAdapter: (tools: ServerToolRegistryAccess) => FrameworkAdapter} {
+  return (
+    typeof context === 'object' &&
+    context !== null &&
+    'makeAdapter' in context &&
+    typeof context.makeAdapter === 'function'
+  )
+}
+
 export function tanstackAdapter(api: ExtensionTestApi): FrameworkAdapter {
   const context = api.serverContext
-  if (typeof context !== 'object' || context === null || !('makeAdapter' in context)) {
+  if (!hasAdapterFactory(context)) {
     throw new Error('tanstack adapter factory missing from server context')
   }
-  const makeAdapter = context.makeAdapter as (tools: ServerToolRegistryAccess) => FrameworkAdapter
-  return makeAdapter({call: (name, input) => api.callTool(name, input)})
+  return context.makeAdapter({call: (name, input) => api.callTool(name, input)})
 }
 
 export async function waitForWidget(page: Page): Promise<void> {

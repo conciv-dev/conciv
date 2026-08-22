@@ -31,6 +31,12 @@ describe('resolveConfig (generalized)', () => {
     expect(cfg.sessionId).toBe('conciv_env-sess')
   })
 
+  it('a harness session id outside the allowed charset is rejected for what it actually is, not as empty', () => {
+    process.env.CONCIV_CLAUDE_SESSION_ID = 'has spaces/and-slashes'
+    expect(() => resolveConfig({}, '/root')).toThrowError(/charset|characters|too long|128/i)
+    expect(() => resolveConfig({}, '/root')).not.toThrowError(/is empty/)
+  })
+
   it('honours deprecated CONCIV_CLAUDE_* + claudeSessionId aliases for one cycle', () => {
     process.env.CONCIV_CLAUDE_PATH = 'old-claude'
     process.env.CONCIV_CLAUDE_SESSION_ID = 'old-sess'

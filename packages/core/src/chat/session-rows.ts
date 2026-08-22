@@ -16,7 +16,8 @@ import {
 } from '@conciv/protocol/chat-types'
 import type {HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {sessions, type ConcivDb} from '@conciv/db'
-import {sameCwd} from '@conciv/harness/cwd'
+import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
+import {logError} from '../lib/debug.js'
 
 export type RowScope = {db: ConcivDb; harnessKind: string; cwd: string; mintId?: () => SessionId}
 
@@ -109,11 +110,13 @@ export async function ensureRow(db: ConcivDb, id: SessionId, harnessKind: string
 
 const LATEST_ROW_WINDOW = 50
 
+const cwdSpellings = (cwd: string): string[] => [...new Set([cwd, realpathOrSelf(cwd)])]
+
 async function latestRow(scope: RowScope): Promise<SessionRecord | null> {
   const rows = await scope.db
     .select()
     .from(sessions)
-    .where(and(isNull(sessions.deletedAt), eq(sessions.origin, 'chat')))
+    .where(and(isNull(sessions.deletedAt), eq(sessions.origin, 'chat'), inArray(sessions.cwd, cwdSpellings(scope.cwd))))
     .orderBy(desc(sessions.updatedAt))
     .limit(LATEST_ROW_WINDOW)
   const mine = rows.map((row) => SessionRecordSchema.parse(row)).find((row) => sameCwd(row.cwd, scope.cwd))
@@ -125,6 +128,7 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
   if (body.id && isSessionId(body.id)) {
     const existing = await rowById(scope.db, body.id)
     if (existing) return {sessionId: existing.id}
+    await ensureRow(scope.db, body.id, scope.harnessKind, scope.cwd)
     return {sessionId: body.id}
   }
   const nativeId = HarnessSessionIdSchema.safeParse(body.id)
@@ -182,6 +186,26 @@ export async function mintExternalRow(scope: RowScope): Promise<SessionId> {
     deletedAt: null,
   })
   return created.id
+}
+
+export async function anonymousExternalRow(scope: RowScope): Promise<SessionId> {
+  const rows = await scope.db
+    .select()
+    .from(sessions)
+    .where(
+      and(
+        eq(sessions.origin, 'external'),
+        eq(sessions.harnessKind, scope.harnessKind),
+        isNull(sessions.harnessSessionId),
+        isNull(sessions.deletedAt),
+        inArray(sessions.cwd, cwdSpellings(scope.cwd)),
+      ),
+    )
+    .orderBy(desc(sessions.createdAt))
+    .limit(1)
+  const existing = rows[0]
+  if (existing) return SessionRecordSchema.parse(existing).id
+  return mintExternalRow(scope)
 }
 
 export async function sweepEmptyRows(db: ConcivDb): Promise<void> {
@@ -246,7 +270,13 @@ async function materializeNative(native: HarnessSessionMeta, input: SessionListI
 export async function listSessionMetas(input: SessionListInput): Promise<SessionMeta[]> {
   const rows = (await input.db.select().from(sessions))
     .map((row) => SessionRecordSchema.safeParse(row))
-    .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
+    .flatMap((parsed) => {
+      if (parsed.success) return [parsed.data]
+      logError(
+        `[core] a session row failed the session record schema and is left out of the listing: ${parsed.error.message}`,
+      )
+      return []
+    })
     .filter((row) => sameCwd(row.cwd, input.cwd))
     .filter((row) => input.includeHidden || row.deletedAt === null)
   const nativeById = new Map(input.nativeList.map((native) => [native.id, native]))

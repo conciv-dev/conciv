@@ -294,7 +294,8 @@ function scanForRollout(sessionId: string, home: string): string | null {
 
 export function rolloutPath(sessionId: string, home: string = homedir()): string | null {
   const row = threadRows(stateDbPath(home), THREAD_BY_ID, [sessionId]).at(0)
-  if (row) return row.rollout_path
+  const persisted = row ? containedPath(join(home, '.codex'), row.rollout_path) : null
+  if (persisted) return persisted
   return scanForRollout(sessionId, home)
 }
 

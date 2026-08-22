@@ -29,6 +29,7 @@ export function makeJournal(db: ConcivDb): Journal {
 type Pending<T> = {
   await(id: string, timeoutMs: number): Promise<T>
   resolve(id: string, value: T): boolean
+  idle(): boolean
 }
 
 function makePending<T>(): Pending<T> {
@@ -55,7 +56,7 @@ function makePending<T>(): Pending<T> {
     return true
   }
 
-  return {await: awaitReply, resolve}
+  return {await: awaitReply, resolve, idle: () => waiters.size === 0}
 }
 
 export type PageAnswer = {result: Record<string, unknown>; capture?: PageCaptureBundle}
@@ -90,12 +91,17 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     return created
   }
 
+  const dropIfIdle = (sessionId: SessionId, page: SessionPage): void => {
+    if (page.subscribers.size > 0 || !page.pending.idle()) return
+    if (bySession.get(sessionId) === page) bySession.delete(sessionId)
+  }
+
   function subscribe(sessionId: SessionId, emit: (frame: unknown) => void): () => void {
     const page = pageOf(sessionId)
     page.subscribers.add(emit)
     return () => {
       page.subscribers.delete(emit)
-      if (page.subscribers.size === 0 && bySession.get(sessionId) === page) bySession.delete(sessionId)
+      dropIfIdle(sessionId, page)
     }
   }
 
@@ -109,9 +115,12 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     const declared = query.input['timeout']
     const ms = typeof declared === 'number' ? declared + 1000 : timeoutMs
     for (const emit of page.subscribers) emit({requestId, ...query})
-    const outcome = await page.pending.await(requestId, ms).catch(() => {
-      throw pageFailure('timeout', 'page did not reply (no widget connected?)')
-    })
+    const outcome = await page.pending
+      .await(requestId, ms)
+      .catch(() => {
+        throw pageFailure('timeout', 'page did not reply (no widget connected?)')
+      })
+      .finally(() => dropIfIdle(sessionId, page))
     if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)
     if (outcome.capture === undefined) return {result: outcome.result}
     return {result: outcome.result, capture: outcome.capture}

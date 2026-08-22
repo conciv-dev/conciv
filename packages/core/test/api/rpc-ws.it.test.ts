@@ -6,7 +6,7 @@ import {afterEach, expect, test} from 'vitest'
 import {Hono} from 'hono'
 import WebSocket from 'ws'
 import {z} from 'zod'
-import {createORPCClient, type NestedClient} from '@orpc/client'
+import {createORPCClient, ORPCError, safe, type NestedClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/websocket'
 import {os, type RouterClient} from '@orpc/server'
 import {serveHono} from '@conciv/serve'
@@ -196,8 +196,10 @@ test('a header-less ws call is refused as unidentified before any tool runs', as
   const served = await boot()
   const {client, socket} = openWsRpc<RpcClient>(served.wsBase)
   await whenOpen(socket)
-  const message = await messageOf(client.registry.call({name: 'ws_probe_gated', input: {}}))
-  expect(message).toContain(CONCIV_SESSION_HEADER)
+  const {error} = await safe(client.registry.call({name: 'ws_probe_gated', input: {}}))
+  if (!(error instanceof ORPCError)) throw new Error('the header-less call did not fail with an rpc error')
+  expect(error.code).toBe('UNAUTHORIZED')
+  expect(error.message).toContain(CONCIV_SESSION_HEADER)
 }, 30_000)
 
 test('an extension procedure answers over ws under ext.<slug> and over the unchanged fetch url', async () => {

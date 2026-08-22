@@ -52,7 +52,8 @@ test.describe('recording attachment end to end in the real widget', () => {
     await until(
       async () => {
         const {clients} = await recorderRpc.clients()
-        client.id = clients.at(-1)?.id
+        if (clients.length > 1) throw new Error(`expected one recorder client for this page, saw ${clients.length}`)
+        client.id = clients[0]?.id
         return client.id !== undefined
       },
       {hangGuardMs: 30_000, intervalMs: 100},

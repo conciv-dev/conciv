@@ -58,7 +58,11 @@
       },
       {
         "name": "extension-servers",
-        "patterns": ["packages/extensions/*/src/server.ts"]
+        "patterns": [
+          "packages/extensions/*/src/server.ts",
+          "packages/extensions/*/src/server/**/*.ts",
+          "packages/extensions/*/src/server/**/*.tsx"
+        ]
       }
     ],
     "rules": [

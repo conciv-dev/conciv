@@ -61,7 +61,14 @@ function tableRouter<RowInput, InsertInput, PatchInput, Row extends RowInput & {
       .handler(({input, context}) => ops.insert(ops.toRow(input, context.room))),
     update: roomOs
       .errors(notFound)
-      .input(z.object({id: z.string(), patch: patchSchema}))
+      .input(
+        z
+          .object({id: z.string(), patch: patchSchema})
+          .refine(
+            ({patch}) => Object.keys(patch).length > 0,
+            'an update patch must carry at least one mutable field; row identity and room ownership are server-derived',
+          ),
+      )
       .output(schema)
       .handler(async ({input, context, errors}) => {
         const row = await ops.update(input.id, context.room, input.patch)
@@ -78,35 +85,35 @@ function tableRouter<RowInput, InsertInput, PatchInput, Row extends RowInput & {
 export function makeWhiteboardRouter(store: Store) {
   const db = store.db
   return wbOs.router({
-    comments: tableRouter(commentRow, commentRowInsert, commentRow.partial(), {
+    comments: tableRouter(commentRow, commentRowInsert, commentRow.omit({id: true, sessionId: true}).partial(), {
       toRow: (input, room) => ({...input, sessionId: room}),
       list: (room) => db.select().from(comments).where(eq(comments.sessionId, room)),
       insert: (row) => store.insertComment(row),
       update: (id, room, patch) => store.updateComment(id, room, patch),
       remove: (id, room) => store.deleteComment(id, room),
     }),
-    pins: tableRouter(pinRow, pinRowInsert, pinRow.partial(), {
+    pins: tableRouter(pinRow, pinRowInsert, pinRow.omit({id: true, room: true}).partial(), {
       toRow: (input, room) => ({...input, room}),
       list: (room) => db.select().from(pins).where(eq(pins.room, room)),
       insert: (row) => store.insertPin(row),
       update: (id, room, patch) => store.updatePin(id, room, patch),
       remove: (id, room) => store.deletePin(id, room),
     }),
-    reads: tableRouter(readRow, readRowInsert, readRow.partial(), {
+    reads: tableRouter(readRow, readRowInsert, readRow.omit({id: true, sessionId: true}).partial(), {
       toRow: (input, room) => ({...input, sessionId: room}),
       list: (room) => db.select().from(reads).where(eq(reads.sessionId, room)),
       insert: (row) => store.insertRead(row),
       update: (id, room, patch) => store.updateRead(id, room, patch),
       remove: (id, room) => store.deleteRead(id, room),
     }),
-    canvasPending: tableRouter(pendingRow, pendingRowInsert, pendingRow.partial(), {
+    canvasPending: tableRouter(pendingRow, pendingRowInsert, pendingRow.omit({id: true, room: true}).partial(), {
       toRow: (input, room) => ({...input, room}),
       list: (room) => db.select().from(canvasPending).where(eq(canvasPending.room, room)),
       insert: (row) => store.insertPending(row),
       update: (id, room, patch) => store.updatePending(id, room, patch),
       remove: (id, room) => store.deletePending(id, room),
     }),
-    canvasReplies: tableRouter(replyRow, replyRowInsert, replyRow.partial(), {
+    canvasReplies: tableRouter(replyRow, replyRowInsert, replyRow.omit({id: true, room: true}).partial(), {
       toRow: (input, room) => ({...input, room}),
       list: (room) => db.select().from(canvasReplies).where(eq(canvasReplies.room, room)),
       insert: (row) => store.insertReply(row),

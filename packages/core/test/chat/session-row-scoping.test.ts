@@ -4,6 +4,7 @@ import {sessions} from '@conciv/db'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {testDb} from '../helpers/memory-store.js'
 import {
+  anonymousExternalRow,
   createRow,
   ensureAgentRow,
   openNativeRow,
@@ -117,7 +118,7 @@ describe('raw native-id resolution stays inside the caller cwd', () => {
 })
 
 describe('latestRow query stays bounded', () => {
-  it('the query window excludes a row older than the newest bounded number of other-cwd rows', async () => {
+  it('other-cwd rows never consume the caller cwd query window, so an existing session is still reopened', async () => {
     const db = testDb()
     const baseTime = 1_000_000
     await db.insert(sessions).values({...rowOf({cwd: '/app'}), createdAt: baseTime, updatedAt: baseTime})
@@ -128,7 +129,40 @@ describe('latestRow query stays bounded', () => {
     }))
     await db.insert(sessions).values(noiseRows)
     const {sessionId} = await resolveRow(scopeOf(db, '/app'), {})
-    expect(sessionId).toBe(MINTED)
+    expect(sessionId).toBe(OTHER)
+  })
+})
+
+describe('an unidentified external caller reuses one row instead of minting per request', () => {
+  it('repeated anonymous resolutions in one working directory settle on a single session row', async () => {
+    const db = testDb()
+    const ids = {n: 0}
+    const scope = {
+      db,
+      harnessKind: 'claude',
+      cwd: '/app',
+      mintId: () => {
+        ids.n += 1
+        return SessionId.parse(`conciv_anon${ids.n}`)
+      },
+    }
+    const first = await anonymousExternalRow(scope)
+    const second = await anonymousExternalRow(scope)
+    const third = await anonymousExternalRow(scope)
+    expect([second, third]).toEqual([first, first])
+    expect((await db.select().from(sessions)).length).toBe(1)
+  })
+
+  it('a different working directory gets its own anonymous row', async () => {
+    const db = testDb()
+    const ids = {n: 0}
+    const mintId = () => {
+      ids.n += 1
+      return SessionId.parse(`conciv_anon${ids.n}`)
+    }
+    const here = await anonymousExternalRow({db, harnessKind: 'claude', cwd: '/app', mintId})
+    const there = await anonymousExternalRow({db, harnessKind: 'claude', cwd: '/elsewhere', mintId})
+    expect(here).not.toBe(there)
   })
 })
 

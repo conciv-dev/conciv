@@ -214,10 +214,14 @@ function headerOf(raw: string): z.infer<typeof HeaderSchema> | null {
   return parsed.success ? parsed.data : null
 }
 
-export function sessionIdFromFile(fileName: string): HarnessSessionId {
+function sessionIdToken(fileName: string): string {
   const stem = fileName.replace(/\.jsonl$/, '')
   const separator = stem.indexOf('_')
-  return HarnessSessionId.parse(separator === -1 ? stem : stem.slice(separator + 1))
+  return separator === -1 ? stem : stem.slice(separator + 1)
+}
+
+export function sessionIdFromFile(fileName: string): HarnessSessionId {
+  return HarnessSessionId.parse(sessionIdToken(fileName))
 }
 
 function namesIn(dir: string): string[] {
@@ -256,7 +260,8 @@ function observeTranscript(cwd: string, sessionId: string, home?: string): Trans
       const dir = sessionsDir(cwd, home)
       const names = await readdir(dir).catch(() => [])
       const found = names.find((name) => name.endsWith(`_${sessionId}.jsonl`))
-      if (found) return join(dir, found)
+      const contained = found ? containedPath(dir, join(dir, found)) : null
+      if (contained) return contained
       return transcriptFailure('missing', `no pi transcript for ${sessionId} in ${dir}`)
     },
   })
@@ -277,11 +282,11 @@ function startedAt(timestamp: string | undefined): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed
 }
 
-function sessionMeta(fileName: string, raw: string, mtimeMs: number): HarnessSessionMeta {
+function sessionMeta(id: HarnessSessionId, raw: string, mtimeMs: number): HarnessSessionMeta {
   const header = headerOf(raw)
   const messages = parseHistory(raw)
   return {
-    id: sessionIdFromFile(fileName),
+    id,
     derivedTitle: condense(sessionName(raw) ?? firstUserText(messages), MAX_TITLE),
     updatedAt: Math.round(mtimeMs),
     messageCount: messages.length,
@@ -294,12 +299,16 @@ function sessionMeta(fileName: string, raw: string, mtimeMs: number): HarnessSes
 async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
   const dir = sessionsDir(cwd, home)
   const names = await readdir(dir).catch(() => [])
-  const files = names.filter((name) => name.endsWith('.jsonl'))
+  const identified = names.flatMap((name) => {
+    if (!name.endsWith('.jsonl')) return []
+    const parsed = HarnessSessionId.safeParse(sessionIdToken(name))
+    return parsed.success ? [{name, id: parsed.data}] : []
+  })
   const stamped = (
     await Promise.all(
-      files.map(async (name) => {
-        const info = await stat(join(dir, name)).catch(() => null)
-        return info ? {name, mtimeMs: info.mtimeMs} : null
+      identified.map(async (entry) => {
+        const info = await stat(join(dir, entry.name)).catch(() => null)
+        return info ? {...entry, mtimeMs: info.mtimeMs} : null
       }),
     )
   ).filter((entry) => entry !== null)
@@ -307,7 +316,7 @@ async function listSessions(cwd: string, home: string = homedir()): Promise<Harn
   return Promise.all(
     top.map(async (file) => {
       const raw = await readFile(join(dir, file.name), 'utf8').catch(() => '')
-      return sessionMeta(file.name, raw, file.mtimeMs)
+      return sessionMeta(file.id, raw, file.mtimeMs)
     }),
   )
 }

@@ -175,6 +175,25 @@ describe('whiteboard router', () => {
     expect((await attacker.pins.list()).map((row) => row.cid)).toContain('planted-pin')
   })
 
+  it('an update patch cannot smuggle the row into another room or rewrite its identifier', async () => {
+    const postUpdate = (body: unknown): Promise<Response> =>
+      fetch(`${served.base}/rpc/ext/whiteboard/pins/update`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json', [CONCIV_SESSION_HEADER]: ROOM_ATTACKER},
+        body: JSON.stringify({json: body}),
+      })
+    const pin = pinIn(ROOM_ATTACKER, 'ownership-pin')
+    await attacker.pins.insert(withoutRoom(pin))
+
+    await postUpdate({id: pin.id, patch: {x: 42, room: ROOM_VICTIM, id: 'rewritten-id'}})
+
+    expect((await clientFor(ROOM_VICTIM).pins.list()).map((row) => row.cid)).not.toContain('ownership-pin')
+    const mine = await attacker.pins.list()
+    expect(mine.map((row) => row.cid)).toContain('ownership-pin')
+    expect(mine.find((row) => row.cid === 'ownership-pin')).toMatchObject({id: pin.id, room: ROOM_ATTACKER, x: 42})
+    await attacker.pins.remove({id: pin.id})
+  })
+
   it('an element upsert from another session never lands in the target room', async () => {
     const victim = clientFor(ROOM_VICTIM)
     const mine = {elementId: 'shared', data: {v: 'mine'}, version: 1}

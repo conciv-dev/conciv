@@ -42,8 +42,10 @@ describe('recordings router', () => {
     expect(saved).toEqual({error: 'empty'})
   })
 
-  it('rejects a save with no clientId instead of silently saving nothing', async () => {
+  it('rejects a save that names no client instead of silently saving nothing', async () => {
     const router = makeRecorderRouter(runtimeFixture())
-    await expect(call(router.recordings.save, {}, {context: {request: new Request('http://local')}})).rejects.toThrow()
+    await expect(
+      call(router.recordings.save, {clientId: ''}, {context: {request: new Request('http://local')}}),
+    ).rejects.toThrow()
   })
 })

@@ -48,6 +48,12 @@ describe('resolveRow', () => {
     const {sessionId} = await resolveRow(deps(db), {id: 'conciv_a'})
     expect(sessionId).toBe('conciv_a')
   })
+  it('an unknown conciv id → materializes the row, so the very next session-scoped call can use it', async () => {
+    const d = deps()
+    const {sessionId} = await resolveRow(d, {id: 'conciv_a'})
+    expect(sessionId).toBe('conciv_a')
+    expect((await rowById(d.db, SESSION_A))?.cwd).toBe('/app')
+  })
   it('harness id → adopts (idempotent by harnessSessionId)', async () => {
     const d = deps()
     const first = await resolveRow(d, {id: 'tok-ext'})

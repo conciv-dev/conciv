@@ -34,7 +34,9 @@ function resolveHarnessSessionId(candidates: (string | undefined)[]): HarnessSes
   const declared = declaredValue(candidates)
   if (declared === undefined) return undefined
   if (!isHarnessSessionId(declared)) {
-    throw new Error(`the configured harness session id "${declared}" is empty`)
+    throw new Error(
+      `the configured harness session id "${declared}" is not a harness session id (up to 128 characters of A-Z, a-z, 0-9, "_" and "-")`,
+    )
   }
   return declared
 }

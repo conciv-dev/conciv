@@ -248,7 +248,7 @@ const CODEX_CWD = '/workspace/demo'
 const CODEX_SESSION = 'fixture'
 
 describe('codex transcript handle', () => {
-  const state = {home: '', outside: ''}
+  const state = {home: '', rollouts: ''}
 
   const seedThread = (id: string, path: string): void => {
     const db = new DatabaseSync(stateDbPath(state.home))
@@ -267,9 +267,9 @@ describe('codex transcript handle', () => {
 
   beforeAll(async () => {
     state.home = await mkdtemp(join(tmpdir(), 'codex-handle-'))
-    state.outside = await mkdtemp(join(tmpdir(), 'codex-rollouts-'))
     await mkdir(join(state.home, '.codex'), {recursive: true})
-    await mkdir(sessionsRoot(state.home), {recursive: true})
+    state.rollouts = join(sessionsRoot(state.home), '2026', '07', '30')
+    await mkdir(state.rollouts, {recursive: true})
   })
 
   const observe = (id: string): TranscriptHandle =>
@@ -278,14 +278,14 @@ describe('codex transcript handle', () => {
   it('folds line by line to exactly what the whole-file parser produces', async () => {
     const expected = golden('codex-golden.json')
     const raw = fixture('codex-rollout.jsonl')
-    const whole = join(state.outside, 'whole-file.jsonl')
+    const whole = join(state.rollouts, 'whole-file.jsonl')
     writeFileSync(whole, raw)
     seedThread('whole-file', whole)
     expect(await codexHistory.messages(CODEX_CWD, HarnessSessionId.parse('whole-file'), state.home)).toEqual(
       expected.messages,
     )
 
-    const path = join(state.outside, 'equivalence.jsonl')
+    const path = join(state.rollouts, 'equivalence.jsonl')
     writeFileSync(path, '')
     seedThread('equivalence', path)
     const handle = observe('equivalence')
@@ -294,7 +294,7 @@ describe('codex transcript handle', () => {
   })
 
   it('resolves the rollout path once instead of once per poll', async () => {
-    const path = join(state.outside, 'resolved-once.jsonl')
+    const path = join(state.rollouts, 'resolved-once.jsonl')
     writeFileSync(path, fixture('codex-rollout.jsonl'))
     seedThread(CODEX_SESSION, path)
     const handle = observe(CODEX_SESSION)
@@ -310,7 +310,7 @@ describe('codex transcript handle', () => {
   it('checks the cwd from the head of the rollout, not the whole file', async () => {
     const filler = `${JSON.stringify({type: 'event_msg', payload: {type: 'agent_message', message: 'x'.repeat(500)}})}\n`
     const meta = `${JSON.stringify({type: 'session_meta', payload: {session_id: 'late', cwd: CODEX_CWD}})}\n`
-    const path = join(state.outside, 'late-meta.jsonl')
+    const path = join(state.rollouts, 'late-meta.jsonl')
     writeFileSync(path, filler.repeat(2200) + meta)
     expect(readFileSync(path).byteLength).toBeGreaterThan(1_000_000)
     seedThread('late-meta', path)
@@ -320,7 +320,7 @@ describe('codex transcript handle', () => {
   })
 
   it('refuses a rollout recorded in another cwd', async () => {
-    const path = join(state.outside, 'foreign.jsonl')
+    const path = join(state.rollouts, 'foreign.jsonl')
     writeFileSync(
       path,
       `${JSON.stringify({type: 'session_meta', payload: {session_id: 'foreign', cwd: '/elsewhere'}})}\n`,

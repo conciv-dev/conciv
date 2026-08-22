@@ -1,4 +1,4 @@
-import {DynamicLink, ORPCError, type ClientLink} from '@orpc/client'
+import {DynamicLink, ORPCError, type ClientLink, type ClientOptions} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {RPCLink as WebsocketRpcLink, type LinkWebsocketClientOptions} from '@orpc/client/websocket'
 import {ClientRetryPlugin, type ClientRetryPluginContext} from '@orpc/client/plugins'
@@ -6,7 +6,7 @@ import {AsyncRetryer} from '@tanstack/pacer'
 import ReconnectingWebSocket from 'partysocket/ws'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 
-export type RpcClientContext = ClientRetryPluginContext
+export type RpcClientContext = ClientRetryPluginContext & {concivSessionId?: string}
 
 export type SessionAccessor = () => string | null
 
@@ -32,14 +32,11 @@ const SOCKET_CLOSED = 3
 export type BrowserRpcConnection = {
   link: ClientLink<RpcClientContext>
   transport: () => RpcTransport | null
-  bindSession: (accessor: SessionAccessor) => void
   close: () => void
 }
 
-type SessionHolder = {read: SessionAccessor}
-
-function sessionHeaders(holder: SessionHolder): Record<string, string> {
-  const id = holder.read()
+function sessionHeaders(options: ClientOptions<RpcClientContext>): Record<string, string> {
+  const id = options.context.concivSessionId
   if (!id) return {}
   return {[CONCIV_SESSION_HEADER]: id}
 }
@@ -129,15 +126,10 @@ function retryPlugin(alive: () => boolean, vote: ReachabilityListener): ClientRe
   })
 }
 
-function fetchLink(
-  apiBase: string,
-  alive: () => boolean,
-  vote: ReachabilityListener,
-  session: SessionHolder,
-): ClientLink<RpcClientContext> {
+function fetchLink(apiBase: string, alive: () => boolean, vote: ReachabilityListener): ClientLink<RpcClientContext> {
   return new FetchRpcLink<RpcClientContext>({
     url: `${apiBase}/rpc`,
-    headers: () => sessionHeaders(session),
+    headers: sessionHeaders,
     plugins: [retryPlugin(alive, vote)],
   })
 }
@@ -289,16 +281,15 @@ function probedConnection(key: string): BrowserRpcConnection {
   const vote = (reachable: boolean): void => voteReachability(key, connectionId, reachable)
   const state: {open: boolean; transport: RpcTransport | null} = {open: true, transport: null}
   const alive = (): boolean => state.open
-  const session: SessionHolder = {read: () => null}
   const socket = reconnectingSocket(key)
   const wiring = wireSocketReachability(socket, key, connectionId)
   const settled = openedWithin(socket, PROBE_TIMEOUT_MS).then((opened): ClientLink<RpcClientContext> => {
-    if (!state.open) return fetchLink(key, alive, vote, session)
+    if (!state.open) return fetchLink(key, alive, vote)
     if (opened) {
       state.transport = 'websocket'
       return new WebsocketRpcLink<RpcClientContext>({
         websocket: socketDelegate(socket, alive, wiring.attempting),
-        headers: () => sessionHeaders(session),
+        headers: sessionHeaders,
         plugins: [retryPlugin(alive, vote)],
       })
     }
@@ -306,14 +297,11 @@ function probedConnection(key: string): BrowserRpcConnection {
     socket.close()
     state.transport = 'fetch'
     console.warn(`[conciv] rpc websocket probe to ${key} timed out; this tab falls back to fetch/SSE`)
-    return fetchLink(key, alive, vote, session)
+    return fetchLink(key, alive, vote)
   })
   return {
     link: new DynamicLink<RpcClientContext>(() => settled),
     transport: () => state.transport,
-    bindSession: (accessor) => {
-      session.read = accessor
-    },
     close: () => {
       wiring.markDeliberate()
       disposeSocket(socket)
@@ -328,15 +316,10 @@ function pinnedConnection(key: string, transport: RpcTransport): BrowserRpcConne
   const vote = (reachable: boolean): void => voteReachability(key, connectionId, reachable)
   const state = {open: true}
   const alive = (): boolean => state.open
-  const session: SessionHolder = {read: () => null}
-  const bindSession = (accessor: SessionAccessor): void => {
-    session.read = accessor
-  }
   if (transport === 'fetch') {
     return {
-      link: fetchLink(key, alive, vote, session),
+      link: fetchLink(key, alive, vote),
       transport: () => 'fetch',
-      bindSession,
       close: () => {
         state.open = false
       },
@@ -347,11 +330,10 @@ function pinnedConnection(key: string, transport: RpcTransport): BrowserRpcConne
   return {
     link: new WebsocketRpcLink<RpcClientContext>({
       websocket: socketDelegate(socket, alive, wiring.attempting),
-      headers: () => sessionHeaders(session),
+      headers: sessionHeaders,
       plugins: [retryPlugin(alive, vote)],
     }),
     transport: () => 'websocket',
-    bindSession,
     close: () => {
       wiring.markDeliberate()
       disposeSocket(socket)
@@ -411,11 +393,13 @@ export function dynamicBrowserRpcLink(
   preference: RpcTransportPreference = 'auto',
   session?: SessionAccessor,
 ): ClientLink<RpcClientContext> {
-  return new DynamicLink<RpcClientContext>(() => {
-    const apiBase = currentApiBase()
-    if (apiBase === null) throw new Error(RPC_UNBOUND_MESSAGE)
-    const connection = browserRpcConnection(apiBase, preference)
-    if (session) connection.bindSession(session)
-    return Promise.resolve(connection.link)
-  })
+  return {
+    call: (path, input, options) => {
+      const apiBase = currentApiBase()
+      if (apiBase === null) throw new Error(RPC_UNBOUND_MESSAGE)
+      const sessionId = session?.()
+      const context = sessionId ? {...options.context, concivSessionId: sessionId} : options.context
+      return browserRpcConnection(apiBase, preference).link.call(path, input, {...options, context})
+    },
+  }
 }
