@@ -6,6 +6,7 @@ import {sessionSnapshot} from './transcript.js'
 
 export type SessionStreams = {
   publish: (sessionId: string, chunk: StreamChunk) => void
+  publishAll: (chunk: StreamChunk) => void
   listen: (sessionId: string, onChunk: (chunk: StreamChunk) => void) => () => void
   listening: (sessionId: string) => boolean
 }
@@ -15,6 +16,9 @@ export function createSessionStreams(): SessionStreams {
   return {
     publish: (sessionId, chunk) => {
       for (const listener of bySession.get(sessionId) ?? []) listener(chunk)
+    },
+    publishAll: (chunk) => {
+      for (const listeners of bySession.values()) for (const listener of listeners) listener(chunk)
     },
     listening: (sessionId) => (bySession.get(sessionId)?.size ?? 0) > 0,
     listen: (sessionId, onChunk) => {

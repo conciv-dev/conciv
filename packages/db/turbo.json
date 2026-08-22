@@ -3,8 +3,8 @@
   "extends": ["//"],
   "tasks": {
     "gen-migrations": {
-      "inputs": ["drizzle/**", "scripts/gen-migrations.ts"],
-      "outputs": ["src/migrations.gen.ts"]
+      "inputs": ["drizzle/**", "drizzle-global/**", "scripts/gen-migrations.ts"],
+      "outputs": ["src/migrations.gen.ts", "src/migrations-global.gen.ts"]
     },
     "build": {
       "dependsOn": ["^build", "gen-migrations"],

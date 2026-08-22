@@ -9,6 +9,7 @@ import type {Compactor, Send} from '../../chat/run.js'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {PageEnv} from '../../page-bus.js'
+import type {SettingsDeps} from '../../settings/service.js'
 import type {makeRpcRouter} from './router.js'
 
 export type RpcDeps = {
@@ -19,6 +20,7 @@ export type RpcDeps = {
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   page: PageEnv
   registry: ToolRegistry
+  settings: SettingsDeps
   staleness: () => EngineStaleness
   askTimeoutMs?: number
 }

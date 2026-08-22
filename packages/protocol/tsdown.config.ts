@@ -21,6 +21,7 @@ export default defineConfig({
     'src/connect-ports.ts',
     'src/state-types.ts',
     'src/event-bus.ts',
+    'src/settings-types.ts',
   ],
   format: 'esm',
   noExternal: [/^@tanstack\/ai(\/|$)/],

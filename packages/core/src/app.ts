@@ -41,7 +41,9 @@ import {createSessionStreams} from './chat/subscribe.js'
 import {recoverInterruptedRuns} from './chat/transcript.js'
 import {createLiveRuns} from './chat/live-runs.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
-import {modelOf, openDb, writeToolCapture} from '@conciv/db'
+import {modelOf, openDb, openGlobalDb, writeToolCapture} from '@conciv/db'
+import {SETTINGS_CHANGED_EVENT} from '@conciv/protocol/settings-types'
+import type {SettingsDeps} from './settings/service.js'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {askPage, makePageBus, type PageEnv} from './page-bus.js'
@@ -96,6 +98,8 @@ export type MakeAppOpts = {
   nativeUrl?: () => string | undefined
 
   staleness?: () => EngineStaleness
+
+  globalStateDir?: string
 }
 
 export function slug(name: string): string {
@@ -278,11 +282,17 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
+  const globalDb = openGlobalDb(opts.globalStateDir)
   await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
   const asks = createAskRegistry()
   const {claimStartedAt, durability, runControl, runs} = makeRunControl(opts.firstChunkTimeoutMs)
   const liveRuns = createLiveRuns()
   const stream = createSessionStreams()
+  const settingsDeps: SettingsDeps = {
+    projectDb: db,
+    globalDb,
+    notify: (key, scope) => stream.publishAll({type: 'CUSTOM', name: SETTINGS_CHANGED_EVENT, value: {key, scope}}),
+  }
 
   const runStartListeners: ((sessionId: string) => void)[] = []
 
@@ -472,6 +482,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     page: pageEnv,
     registry,
+    settings: settingsDeps,
     staleness,
     ...(opts.askTimeoutMs === undefined ? {} : {askTimeoutMs: opts.askTimeoutMs}),
   })

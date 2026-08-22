@@ -96,6 +96,10 @@
     "./event-bus": {
       "types": "./dist/event-bus.d.ts",
       "import": "./dist/event-bus.js"
+    },
+    "./settings-types": {
+      "types": "./dist/settings-types.d.ts",
+      "import": "./dist/settings-types.js"
     }
   },
   "publishConfig": {

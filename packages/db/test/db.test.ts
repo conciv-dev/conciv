@@ -6,8 +6,9 @@ import {fileURLToPath} from 'node:url'
 import {eq} from 'drizzle-orm'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
-import {openDb} from '../src/db.js'
+import {openDb, openGlobalDb} from '../src/db.js'
 import {runMessagesFor, replyFor, sessionHistoryFor, setRunMessages, writeReply} from '../src/run-queries.js'
+import {appendSettingsLog, newestSettingsLogRow} from '../src/settings-queries.js'
 import {sessions} from '../src/schema.js'
 import {runs} from '../src/run-schema.js'
 
@@ -186,6 +187,19 @@ describe('openDb', () => {
       .toSorted()
     expect(ids).toEqual(['conciv_a', 'conciv_b'])
     expect(second.select().from(sessions).where(eq(sessions.id, 'conciv_b')).all()[0]?.title).toBe('from-first')
+  })
+
+  it('openGlobalDb migrates the settings-only schema in ~/.conciv-shaped home dirs, append-only newest-row read', () => {
+    const home = mkdtempSync(join(tmpdir(), 'conciv-global-home-'))
+    const global = openGlobalDb(home)
+    expect(newestSettingsLogRow(global, 'scheme')).toBeNull()
+    appendSettingsLog(global, {key: 'scheme', value: JSON.stringify('dark'), actor: 'user'})
+    appendSettingsLog(global, {key: 'scheme', value: JSON.stringify('light'), actor: 'user'})
+    const newest = newestSettingsLogRow(global, 'scheme')
+    expect(newest?.value).toBe(JSON.stringify('light'))
+    expect(newest?.actor).toBe('user')
+    const reopened = openGlobalDb(home)
+    expect(newestSettingsLogRow(reopened, 'scheme')?.value).toBe(JSON.stringify('light'))
   })
 
   it('drizzle row type matches SessionRecord (id brand applied by zod parse)', () => {
