@@ -1,7 +1,7 @@
-import {createRoot, createSignal} from 'solid-js'
+import {createEffect, createRoot, createSignal, onCleanup} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {makeBrowserRpcClient} from '@conciv/contract'
+import {makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
 import {engineOnline, subscribeEngineOnline} from '@conciv/client'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import {
@@ -69,6 +69,54 @@ function runDisposers(disposers: Array<() => void>): void {
   }
 }
 
+type SessionPagePlaneConfig = {
+  session: () => string | null
+  rpc: RpcClient
+  driver: PageDriver
+  isOnline: () => boolean
+  restart: () => unknown
+}
+
+function startSessionPagePlane(config: SessionPagePlaneConfig): {dispose: () => void} {
+  return createRoot((dispose) => {
+    createEffect(() => {
+      config.restart()
+      const sessionId = config.session()
+      if (!sessionId) return
+      const plane = startPagePlane({
+        rpc: config.rpc,
+        document,
+        driver: config.driver,
+        isOnline: config.isOnline,
+        subscribeOnline: subscribeEngineOnline,
+      })
+      onCleanup(() => plane.dispose())
+    })
+    return {dispose}
+  })
+}
+
+type ActiveSessionBinding = {
+  read: () => string | null
+  bind: (read: () => string | null) => void
+  dispose: () => void
+}
+
+function makeActiveSessionBinding(
+  plane: (session: () => string | null) => {dispose: () => void},
+): ActiveSessionBinding {
+  const bound: {read: () => string | null; planeDispose: () => void} = {read: () => null, planeDispose: () => {}}
+  return {
+    read: () => bound.read(),
+    bind: (read) => {
+      bound.planeDispose()
+      bound.read = read
+      bound.planeDispose = plane(read).dispose
+    },
+    dispose: () => bound.planeDispose(),
+  }
+}
+
 type BootNormalConfig = {
   root: ShadowRoot
   extensions: AnyExtension[]
@@ -97,10 +145,21 @@ function bootNormal(config: BootNormalConfig): BootResult {
     close: closeConnection,
   } = makeBrowserRpcClient(config.apiBase, {
     transport: config.settings.transport,
+    session: () => activeSession.read(),
   })
 
   const [connectionGeneration, setConnectionGeneration] = createSignal(0)
   const [apiBase, setApiBase] = createSignal(config.apiBase)
+
+  const activeSession = makeActiveSessionBinding((session) =>
+    startSessionPagePlane({
+      session,
+      rpc,
+      driver,
+      isOnline: reachabilityRoot.isOnline,
+      restart: connectionGeneration,
+    }),
+  )
 
   const restore: {apply: (href: string) => void} = {apply: () => {}}
   const storage = makeNavigationStorage(rpc, (href) => restore.apply(href))
@@ -118,6 +177,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     grabProvider: config.grabProvider,
     apiBase,
     connectionGeneration,
+    bindActiveSession: activeSession.bind,
     notifyInteractive: interactive.notify,
   })
   window.__TSR_ROUTER__ = hostRouter
@@ -129,26 +189,11 @@ function bootNormal(config: BootNormalConfig): BootResult {
   const container = document.createElement('div')
   config.root.appendChild(container)
   const disposeApp = render(() => <RouterProvider router={router} />, container)
-  let plane = startPagePlane({
-    rpc,
-    document,
-    driver,
-    isOnline: reachabilityRoot.isOnline,
-    subscribeOnline: subscribeEngineOnline,
-  })
 
   const rebind = (nextApiBase: string): void => {
     rebindClient(nextApiBase)
     storage.dispose()
-    plane.dispose()
     setApiBase(nextApiBase)
-    plane = startPagePlane({
-      rpc,
-      document,
-      driver,
-      isOnline: reachabilityRoot.isOnline,
-      subscribeOnline: subscribeEngineOnline,
-    })
     router.options.context.queryClient.clear()
     setConnectionGeneration((generation) => generation + 1)
   }
@@ -157,7 +202,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
 
   const disposers = [
     storage.dispose,
-    () => plane.dispose(),
+    activeSession.dispose,
     disposeApp,
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
@@ -177,23 +222,27 @@ type BootConnectConfig = {
 }
 
 function bootConnect(config: BootConnectConfig): BootResult {
-  const deferred = makeBrowserRpcClient(() => null, {transport: config.settings.transport})
+  const deferred = makeBrowserRpcClient(() => null, {
+    transport: config.settings.transport,
+    session: () => activeSession.read(),
+  })
   const reachabilityRoot = createRoot((dispose) => ({isOnline: engineOnline(), dispose}))
 
   let boundApiBase: string | undefined
-  let planeDispose: (() => void) | undefined
   const [apiBase, setApiBase] = createSignal('')
+  const activeSession = makeActiveSessionBinding((session) =>
+    startSessionPagePlane({
+      session: () => (apiBase() === '' ? null : session()),
+      rpc: deferred.rpc,
+      driver,
+      isOnline: reachabilityRoot.isOnline,
+      restart: apiBase,
+    }),
+  )
   const bindApiBase = (nextApiBase: string) => {
     boundApiBase = nextApiBase
     deferred.bind(nextApiBase)
     setApiBase(nextApiBase)
-    planeDispose = startPagePlane({
-      rpc: deferred.rpc,
-      document,
-      driver,
-      isOnline: reachabilityRoot.isOnline,
-      subscribeOnline: subscribeEngineOnline,
-    }).dispose
   }
   const hostRouter = window.__TSR_ROUTER__
   const interactive = createInteractiveSignal()
@@ -209,6 +258,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
     disconnect: makeDisconnect(() => boundApiBase),
     grabProvider: config.grabProvider,
     apiBase,
+    bindActiveSession: activeSession.bind,
     notifyInteractive: interactive.notify,
   })
   window.__TSR_ROUTER__ = hostRouter
@@ -219,7 +269,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
   config.root.appendChild(container)
   const disposeApp = render(() => <RouterProvider router={router} />, container)
   const disposers = [
-    () => planeDispose?.(),
+    activeSession.dispose,
     disposeApp,
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),

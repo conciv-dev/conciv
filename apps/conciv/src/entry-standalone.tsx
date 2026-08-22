@@ -10,13 +10,17 @@ function start(): void {
   const settings = parseConcivSettings(params.get('settings') ?? '')
   const apiBase = params.get('core') ?? ''
   window.__CONCIV_API_BASE__ = apiBase
+  const activeSession: {read: () => string | null} = {read: () => null}
   const router = createConcivRouter({
-    rpc: makeBrowserRpcClient(apiBase, {transport: settings.transport}).rpc,
+    rpc: makeBrowserRpcClient(apiBase, {transport: settings.transport, session: () => activeSession.read()}).rpc,
     history: createBrowserHistory(),
     environment: {rootNode: document, document},
     settings,
     extensions: [pageExtension],
     apiBase: () => apiBase,
+    bindActiveSession: (read) => {
+      activeSession.read = read
+    },
   })
   const root = document.getElementById('app')
   if (root) render(() => <RouterProvider router={router} />, root)

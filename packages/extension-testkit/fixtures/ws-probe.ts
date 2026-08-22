@@ -4,7 +4,7 @@ import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
 type ProbeClient = Client<Record<never, never>, unknown, unknown, Error>
 
 type Probe = {
-  connect: (wsUrl: string) => void
+  connect: (wsUrl: string, session?: string) => void
   call: (path: string[], input: unknown) => Promise<unknown>
   subscribe: (path: string[], input: unknown) => Promise<void>
   received: () => unknown[]
@@ -16,12 +16,12 @@ declare global {
   }
 }
 
-const held: {socket: WebSocket | null} = {socket: null}
+const held: {socket: WebSocket | null; session: string} = {socket: null, session: ''}
 const received: unknown[] = []
 
 function procedure(path: string[]): ProbeClient {
   if (!held.socket) throw new Error('the ws probe was used before connect()')
-  return rpcOverWebsocket<ProbeClient>(held.socket, {path})
+  return rpcOverWebsocket<ProbeClient>(held.socket, {path, session: held.session})
 }
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
@@ -33,8 +33,9 @@ async function drain(stream: AsyncIterable<unknown>): Promise<void> {
 }
 
 window.__CONCIV_WS_PROBE__ = {
-  connect: (wsUrl) => {
+  connect: (wsUrl, session) => {
     held.socket = new WebSocket(wsUrl)
+    held.session = session ?? ''
   },
   call: (path, input) => procedure(path)(input),
   subscribe: async (path, input) => {

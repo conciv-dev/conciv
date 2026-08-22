@@ -119,7 +119,7 @@ test.describe('bootConnect: the connect handle serves the same verb groups throu
       window.concivTestHandle = window.ConcivHandle.makeConnectHandle()
       void window.concivTestHandle.mount(el)
     })
-    await completeConnectHandshake(page, kit.base)
+    await completeConnectHandshake(page, kit.base, await kit.session())
   })
 
   test.afterAll(async () => {
