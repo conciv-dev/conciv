@@ -22,5 +22,5 @@ export function createWarmSession(data: AppData, connected: () => boolean, query
     }),
     client,
   )
-  return {rows, latest, sessionId: () => resolved.data?.sessionId}
+  return {rows, latest, sessionId: () => (resolved.isSuccess ? resolved.data.sessionId : undefined)}
 }
