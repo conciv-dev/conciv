@@ -45,7 +45,6 @@ export const Choices: Story = {
 export const MultiSelectChoices: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
       <UiCard
         part={part({
           kind: 'choices',
