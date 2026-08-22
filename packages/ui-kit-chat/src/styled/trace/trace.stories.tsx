@@ -23,7 +23,7 @@ const TEST_OUTPUT = [
 
 function frame(child: JSX.Element): JSX.Element {
   return (
-    <div class="chat-theme-terminal p-4 rounded-[var(--chat-radius-md)] w-[36rem] [background:var(--chat-panel)] [border:1px_solid_var(--chat-line)] [font-family:var(--chat-font)]">
+    <div class="p-4 rounded-[var(--chat-radius-md)] w-[36rem] [background:var(--chat-panel)] [border:1px_solid_var(--chat-line)] [font-family:var(--chat-font)]">
       {child}
     </div>
   )

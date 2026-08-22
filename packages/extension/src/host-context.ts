@@ -4,6 +4,7 @@ import type {GrabApi} from '@conciv/grab'
 import type {DialogApi, PopoverApi} from '@conciv/ui-kit-system'
 import type {ExtensionSlot} from './types.js'
 
+export type ColorScheme = 'light' | 'dark'
 export type Toast = (message: string, tone?: 'info' | 'success' | 'error') => void
 export type ConnectHostApi = {origin: string; found: (apiBase: string) => void}
 export type PopoverParts = {
@@ -29,6 +30,7 @@ export type HostWiring = {
   viewLeave: () => void
   slot: ExtensionSlot
   connect: ConnectHostApi
+  colorScheme: () => ColorScheme
   value: object
 }
 

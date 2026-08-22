@@ -26,11 +26,7 @@ function result(payload: object): ToolResultPart {
 const malformedCatalogResult = result({tokens: [], slots: []})
 
 function frame(child: JSX.Element): JSX.Element {
-  return (
-    <div class="chat-theme-terminal p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">
-      {child}
-    </div>
-  )
+  return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 export const MalformedCatalog: Story = {

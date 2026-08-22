@@ -19,8 +19,14 @@ function backdropStyle(backdrop: string | null | undefined): string {
   return `<style>html,body{min-height:100%;margin:0}body{background:${stripes}}</style>`
 }
 
-export function hostPage(opts: {apiBase: string; widget?: string; body?: string; backdrop?: string | null}): string {
-  return `<!doctype html><html><head>
+export function hostPage(opts: {
+  apiBase: string
+  widget?: string
+  body?: string
+  backdrop?: string | null
+  htmlAttributes?: string
+}): string {
+  return `<!doctype html><html ${opts.htmlAttributes ?? ''}><head>
     <meta charset="utf-8">
     <meta name="pw-api-base" content="${opts.apiBase}">
     <meta name="pw-widget" content='${opts.widget ?? '{}'}'>

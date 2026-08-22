@@ -14,11 +14,9 @@ function part(name: string, args: Record<string, unknown>, state: ToolCallPart['
 }
 const done: ToolResultPart = {type: 'tool-result', toolCallId: 'x', content: 'ok', state: 'complete'}
 
-function frame(theme: string, child: JSX.Element): JSX.Element {
+function frame(child: JSX.Element): JSX.Element {
   return (
-    <div
-      class={`${theme} p-4 flex flex-col gap-1 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}
-    >
+    <div class="p-4 flex flex-col gap-1 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">
       {child}
     </div>
   )
@@ -27,7 +25,6 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
 export const Rows: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <>
         <ReadInline
           part={part('read', {file_path: 'packages/ui-kit-chat/src/styled/thread.tsx'})}
@@ -67,7 +64,6 @@ export const Rows: Story = {
 export const Neutral: Story = {
   render: () =>
     frame(
-      '',
       <ReadInline
         part={part('read', {file_path: 'a/b/c/deep/file.ts'})}
         result={done}

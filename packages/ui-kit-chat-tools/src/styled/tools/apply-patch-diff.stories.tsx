@@ -25,14 +25,13 @@ function part(state: ToolCallPart['state']): ToolCallPart {
 }
 const doneResult: ToolResultPart = {type: 'tool-result', toolCallId: 't1', content: 'Applied', state: 'complete'}
 
-function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+function frame(child: JSX.Element): JSX.Element {
+  return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 export const Complete: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <ApplyPatchDiff part={part('complete')} result={doneResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
   play: async ({canvasElement}) => {
@@ -47,7 +46,6 @@ export const Complete: Story = {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <ApplyPatchDiff
         part={part('input-streaming')}
         result={undefined}
@@ -60,7 +58,6 @@ export const Running: Story = {
 export const Neutral: Story = {
   render: () =>
     frame(
-      '',
       <ApplyPatchDiff part={part('complete')} result={doneResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
 }

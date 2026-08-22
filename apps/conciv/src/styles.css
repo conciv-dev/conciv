@@ -9,30 +9,24 @@
    copy. The ui-kit packages ship JS only, so the widget generates THEIR utilities too by scanning their
    source (see uno.config.ts), so there's no per-package CSS to @import here. */
 @import '@conciv/ui-kit-system/tokens.css';
-/* Neutral chat tokens (--chat-*) + the terminal theme layer that maps them onto its own palette.
-   @conciv/ui-kit-chat's styled set references only --chat-*; the shell applies `chat-theme-terminal`
-   on its container (apps/conciv/src/lib/theme.ts applyChatTheme) so the chat renders themed. */
+/* Thread-surface tokens (--chat-*). @conciv/ui-kit-chat's styled set references only --chat-*, and
+   every color token is one light-dark() pair, so the widget renders in whichever scheme its root
+   wrap resolves from the host page (apps/conciv/src/lib/color-scheme.ts). */
 @import '@conciv/ui-kit-chat/theme/tokens.css';
-@import '@conciv/ui-kit-chat/theme/themes/terminal.css';
 
-/* preview-widget styles, injected into the Shadow DOM root. Mirrors react-grab's
-   design language (dark panel, magenta brand accent) so the comment UI reads as
-   native alongside react-grab. All colors/radii/motion flow from the tokens below:
-   change a token, not a literal.
-
-   Palette philosophy: a single brand hue (--chat-hue, the react-grab magenta) tints
-   every neutral, surface and shadow toward it, so the whole overlay feels cut from
-   one material rather than "neutral gray + a neon accent". Colors are OKLCH so the
-   text ramp is perceptually even; accent states are mixed off the one literal brand
-   hex (kept exact so it matches react-grab). No pure #000/#fff anywhere; both are
-   tinted toward the hue. The dark surface is a hard constraint (the widget overlays
-   arbitrary, often light, preview pages and must read as a distinct tool layer next
-   to react-grab), so depth comes from hue-tinted shadow, not from glow. */
-
-/* Reset only: every --chat-* token comes from @conciv/ui-kit-system/tokens.css (imported above),
-   the single source of truth shared with the tool cards and their Storybook. */
+/* Reset only: every --chat-* token comes from the two token sheets imported above, the single
+   source of truth shared with the tool cards and their Storybook. */
 :host {
   all: initial;
+}
+/* The resolved scheme rides the shadow HOST, not just the app's root wrap, so it reaches Ark content
+   portalled straight into the shadow root (menus, popovers, dialogs) as well. `all: initial` above
+   resets color-scheme on the host, so these have to sit after it. */
+:host(.light) {
+  color-scheme: light;
+}
+:host(.dark) {
+  color-scheme: dark;
 }
 * {
   box-sizing: border-box;

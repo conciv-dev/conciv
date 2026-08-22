@@ -3,7 +3,7 @@ import {Show, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {Portal} from 'solid-js/web'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
-import {useConnectionGeneration} from '../app/context.js'
+import {useColorScheme, useConnectionGeneration} from '../app/context.js'
 import {PaneProvider} from '../app/pane-provider.js'
 import {ChatPane} from '../pane/chat-pane.js'
 import {RefreshButton} from '../shell/refresh-button.js'
@@ -19,6 +19,7 @@ function PipSession(): JSX.Element {
   const params = Route.useParams()
   const router = useRouter()
   const generation = useConnectionGeneration()
+  const colorScheme = useColorScheme()
   const [pip, setPip] = createSignal<PipWindow | null>(null)
   const paneKey = () => {
     const sessionId = params().sessionId
@@ -26,7 +27,7 @@ function PipSession(): JSX.Element {
   }
 
   onMount(() => {
-    const opened = openPipWindow({title: 'conciv'})
+    const opened = openPipWindow({title: 'conciv', scheme: colorScheme})
     if (!opened) {
       router.history.back()
       return

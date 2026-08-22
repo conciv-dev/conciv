@@ -16,14 +16,13 @@ function result(payload: object, state: ToolResultPart['state'] = 'complete'): T
   return {type: 'tool-result', toolCallId: 't1', content: JSON.stringify(payload), state}
 }
 
-function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+function frame(child: JSX.Element): JSX.Element {
+  return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 export const Complete: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <ToolLookupCard
         part={part({query: 'select:mcp__tanstack__page_click', max_results: 5})}
         result={result({tools: 1})}

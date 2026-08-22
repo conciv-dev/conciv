@@ -12,11 +12,7 @@ type Story = StoryObj
 const PART = {type: 'tool-call', id: 'm1', name: 'page.click', arguments: '{}', input: {}, state: 'complete'} as const
 
 function frame(child: JSX.Element): JSX.Element {
-  return (
-    <div class="chat-theme-terminal p-4 w-[28rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">
-      {child}
-    </div>
-  )
+  return <div class="p-4 w-[28rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 function ApprovalHarness(): JSX.Element {

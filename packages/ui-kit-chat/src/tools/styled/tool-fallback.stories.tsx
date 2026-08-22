@@ -18,14 +18,13 @@ function part(args: Record<string, unknown>, state: ToolCallPart['state'] = 'com
 function result(text: string, state: ToolResultPart['state'] = 'complete'): ToolResultPart {
   return {type: 'tool-result', toolCallId: 'x1', content: text, state}
 }
-function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+function frame(child: JSX.Element): JSX.Element {
+  return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 export const Complete: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <ToolFallback
         part={part({city: 'Berlin'})}
         result={result('{"tempC": 18}')}
@@ -47,7 +46,6 @@ export const Complete: Story = {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <ToolFallback
         part={part({city: 'Berlin'}, 'input-complete')}
         result={undefined}
@@ -60,7 +58,6 @@ export const Running: Story = {
 export const Errored: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <ToolFallback
         part={part({city: 'Atlantis'})}
         result={result('no such city', 'error')}
@@ -82,10 +79,7 @@ export const Approval: Story = {
       ...part({city: 'Berlin'}, 'approval-requested'),
       approval: {id: 'ap1', needsApproval: true},
     }
-    return frame(
-      'chat-theme-terminal',
-      <ToolFallback part={approvalPart} result={undefined} ctx={ctx} addResult={INERT_ADD_RESULT} />,
-    )
+    return frame(<ToolFallback part={approvalPart} result={undefined} ctx={ctx} addResult={INERT_ADD_RESULT} />)
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)

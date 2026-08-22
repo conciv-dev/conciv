@@ -35,7 +35,7 @@ function askingCtx(): ToolViewCtx {
 
 function frame(child: JSX.Element): JSX.Element {
   return (
-    <div class="chat-theme-terminal p-4 rounded-[var(--chat-radius-md)] w-[34rem] [background:var(--chat-panel)] [border:1px_solid_var(--chat-line)] [font-family:var(--chat-font)]">
+    <div class="p-4 rounded-[var(--chat-radius-md)] w-[34rem] [background:var(--chat-panel)] [border:1px_solid_var(--chat-line)] [font-family:var(--chat-font)]">
       <ul class="m-0 p-0 list-none flex flex-col min-w-0">{child}</ul>
     </div>
   )

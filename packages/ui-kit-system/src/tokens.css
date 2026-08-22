@@ -1,44 +1,53 @@
 :host,
 :root {
+  color-scheme: light dark;
   --chat-hue: 328;
-  --chat-accent: #ff40e0;
-  --chat-accent-hi: color-mix(in oklch, var(--chat-accent), white 14%);
-  --chat-accent-link: color-mix(in oklch, var(--chat-accent), white 34%);
+  --chat-accent: light-dark(#2563eb, #c9857f);
+  --chat-accent-hi: light-dark(#1d4ed8, #dda49e);
+  --chat-accent-link: light-dark(var(--chat-accent), var(--chat-accent-hi));
   --chat-accent-08: color-mix(in oklch, var(--chat-accent) 10%, transparent);
   --chat-accent-20: color-mix(in oklch, var(--chat-accent) 22%, transparent);
   --chat-accent-line: color-mix(in oklch, var(--chat-accent) 42%, transparent);
   --chat-backdrop: oklch(0 0 0 / 0.55);
-  --chat-panel: oklch(0 0 0);
-  --chat-panel-sunk: oklch(0 0 0);
-  --chat-glass: oklch(0 0 0 / 0.97);
-  --chat-fill: oklch(1 0 0 / 0.035);
-  --chat-fill-soft: oklch(1 0 0 / 0.03);
-  --chat-fill-strong: oklch(1 0 0 / 0.08);
-  --chat-sunken: oklch(0 0 0 / 0.5);
-  --chat-text: oklch(0.93 0.006 var(--chat-hue));
-  --chat-text-hi: oklch(0.98 0.008 var(--chat-hue));
-  --chat-text-2: oklch(0.74 0.012 var(--chat-hue));
-  --chat-text-3: oklch(0.64 0.012 var(--chat-hue));
-  --chat-on-accent: oklch(0.22 0.03 var(--chat-hue));
-  --chat-agent: oklch(0.79 0.13 188);
-  --chat-danger: oklch(0.72 0.15 25);
+  --chat-panel: light-dark(#f6f7f9, #17161a);
+  --chat-panel-sunk: var(--chat-panel);
+  --chat-glass: light-dark(rgba(246, 247, 249, 0.97), rgba(23, 22, 26, 0.97));
+  --chat-fill: light-dark(rgba(15, 18, 24, 0.04), rgba(255, 255, 255, 0.05));
+  --chat-fill-soft: light-dark(rgba(15, 18, 24, 0.03), rgba(255, 255, 255, 0.03));
+  --chat-fill-strong: light-dark(rgba(15, 18, 24, 0.08), rgba(255, 255, 255, 0.1));
+  --chat-sunken: light-dark(rgba(15, 18, 24, 0.05), rgba(0, 0, 0, 0.35));
+  --chat-text: light-dark(#1d2127, #d8d2ce);
+  --chat-text-hi: light-dark(#0b0d10, #f0ebe8);
+  --chat-text-2: light-dark(#565b63, #a29c9c);
+  --chat-text-3: light-dark(#6b717a, #7d787d);
+  --chat-on-accent: light-dark(#ffffff, #14100f);
+  --chat-agent: light-dark(color-mix(in oklch, oklch(0.79 0.13 188), var(--chat-text-hi) 45%), oklch(0.79 0.13 188));
+  --chat-danger: light-dark(#dc2626, #d98070);
   --chat-danger-line: color-mix(in oklch, var(--chat-danger) 42%, transparent);
-  --chat-success: oklch(0.82 0.16 162);
-  --chat-warn: oklch(0.81 0.12 95);
-  --chat-dim: oklch(0.5 0.02 var(--chat-hue));
-  --chat-line: oklch(1 0 0 / 0.1);
-  --chat-line-2: oklch(1 0 0 / 0.18);
-  --chat-line-soft: oklch(1 0 0 / 0.06);
-  --chat-radius-surface-sm: 8px;
-  --chat-radius-surface-md: 12px;
-  --chat-radius-surface-lg: 18px;
+  --chat-success: light-dark(#16a34a, #6fbf8b);
+  --chat-warn: light-dark(#ca8a04, #c9a86a);
+  --chat-dim: light-dark(var(--chat-text-3), #8d8887);
+  --chat-line: light-dark(rgba(15, 18, 24, 0.12), #272428);
+  --chat-line-2: light-dark(rgba(15, 18, 24, 0.18), #322e33);
+  --chat-line-soft: light-dark(rgba(15, 18, 24, 0.06), #232025);
+  --chat-radius-surface-sm: 4px;
+  --chat-radius-surface-md: 8px;
+  --chat-radius-surface-lg: 12px;
   --chat-radius-pill: 999px;
-  --chat-shadow: 0 8px 28px oklch(0.12 0.02 var(--chat-hue) / 0.45);
-  --chat-shadow-sm: 0 2px 10px oklch(0.12 0.02 var(--chat-hue) / 0.5);
-  --chat-shadow-lg: 0 16px 44px oklch(0.1 0.03 var(--chat-hue) / 0.55);
-  --chat-shadow-hover: 0 14px 34px oklch(0.1 0.03 var(--chat-hue) / 0.6);
+  --chat-shadow: var(--chat-shadow-sm);
+  --chat-shadow-sm: 0 2px 10px light-dark(rgba(15, 18, 24, 0.14), rgba(0, 0, 0, 0.5));
+  --chat-shadow-lg: 0 16px 44px light-dark(rgba(15, 18, 24, 0.18), rgba(0, 0, 0, 0.6));
+  --chat-shadow-hover: var(--chat-shadow-lg);
   --chat-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --chat-ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --chat-font: 'Wix Madefor Text', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-  --chat-mono: 'Roboto Mono', ui-monospace, monospace;
+  --chat-font: 'Source Sans 3', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --chat-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+.light {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
 }

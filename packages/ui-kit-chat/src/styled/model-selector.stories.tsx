@@ -15,11 +15,11 @@ const MODELS: ModelOption[] = [
   {id: 'gpt-5', name: 'GPT-5', description: 'Unavailable on this harness', disabled: true},
 ]
 
-function Demo(props: {theme?: string}): JSX.Element {
+function Demo(): JSX.Element {
   const [value, setValue] = createSignal('claude-opus-4-8')
   const [effort, setEffort] = createSignal('medium')
   return (
-    <div class={`${props.theme ?? ''} p-10 [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>
+    <div class="p-10 [background:var(--chat-bg)] [font-family:var(--chat-font)]">
       <ModelSelector
         models={MODELS}
         value={value()}
@@ -32,9 +32,9 @@ function Demo(props: {theme?: string}): JSX.Element {
   )
 }
 
-function build(theme?: string): Story {
+function build(): Story {
   return {
-    render: () => <Demo theme={theme} />,
+    render: () => <Demo />,
     play: async ({canvasElement}) => {
       const c = within(canvasElement)
       const trigger = c.getByRole('button', {name: 'Select model'})
@@ -61,5 +61,3 @@ function build(theme?: string): Story {
 }
 
 export const Neutral: Story = build()
-export const Dark: Story = build('chat-theme-terminal')
-export const Terminal: Story = build('chat-theme-terminal')

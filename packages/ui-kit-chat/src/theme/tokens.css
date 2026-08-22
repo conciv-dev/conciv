@@ -1,87 +1,71 @@
-/* Neutral, themeable chat tokens. --chat-* is the one custom-property namespace the whole widget
-   speaks: this sheet layers the thread surface over the ui-kit-system defaults (tokens.css) and a
-   theme (theme/themes/*.css) maps the merged set onto its own palette, applied on the chat root via
-   a `chat-theme-<id>` class (see apps/conciv/src/lib/theme.ts). Light is the default here. */
+/* Thread-surface half of the one --chat-* custom-property namespace the whole widget speaks. The
+   system half (accent, panel, ink, lines, shadows, radii, fonts) lives in ui-kit-system/tokens.css,
+   which also declares `color-scheme: light dark` plus the .light / .dark scheme classes. Every token
+   is declared exactly once, and every color token that differs between schemes is one light-dark()
+   pair, so a scheme is a single color-scheme flip on the widget's root wrap and the two halves can
+   never drift apart. Tokens that are pure skin (radii, font stacks, type scale) carry one value.
+
+   Everything sits at :host,:root so an extension's accent override tag, appended later at the same
+   specificity, still wins by source order. */
 
 :root,
 :host {
-  color-scheme: light;
-  --chat-bg: #ffffff;
-  --chat-panel: #f6f7f9;
-  --chat-glass: rgba(246, 247, 249, 0.97);
-  --chat-fill: rgba(15, 18, 24, 0.04);
-  --chat-fill-soft: rgba(15, 18, 24, 0.03);
-  --chat-fill-strong: rgba(15, 18, 24, 0.08);
-  --chat-sunken: rgba(15, 18, 24, 0.05);
-  --chat-panel-sunk: var(--chat-panel);
-  --chat-text: #1d2127;
-  --chat-text-hi: #0b0d10;
-  --chat-text-2: #565b63;
-  --chat-text-3: #6b717a;
+  --chat-bg: light-dark(#ffffff, var(--chat-panel));
 
-  --chat-prompt: var(--chat-text);
-  --chat-body-settled: var(--chat-text-2);
-  --chat-action: var(--chat-text-2);
-  --chat-mono-lift: var(--chat-text-3);
-  --chat-accent: #2563eb;
-  --chat-accent-hi: #1d4ed8;
-  --chat-accent-link: #2563eb;
-  --chat-on-accent: #ffffff;
-  --chat-danger: #dc2626;
-  --chat-danger-line: color-mix(in oklch, var(--chat-danger) 42%, transparent);
-  --chat-success: #16a34a;
-  --chat-line: rgba(15, 18, 24, 0.12);
-  --chat-line-2: rgba(15, 18, 24, 0.18);
-  --chat-line-soft: rgba(15, 18, 24, 0.06);
+  --chat-prompt: light-dark(var(--chat-text), #c9c1c2);
+  --chat-body-settled: light-dark(var(--chat-text-2), #c2bcb9);
+  --chat-action: light-dark(var(--chat-text-2), #b0a9a9);
+  --chat-mono-lift: light-dark(var(--chat-text-3), #9a9391);
+
   --chat-trace-gutter: 18px;
   --chat-trace-clamp: 13rem;
   --chat-trace-clamp-tall: 20rem;
 
-  --shiki-foreground: #26303f;
-  --shiki-background: #f7f8fa;
-  --shiki-ansi-black: #3f4650;
-  --shiki-ansi-green: #15803d;
-  --shiki-ansi-red: #b91c1c;
-  --shiki-ansi-blue: #1d4ed8;
-  --shiki-ansi-yellow: #a16207;
-  --shiki-ansi-magenta: #9b3d6b;
-  --shiki-ansi-cyan: #0e7490;
-  --shiki-ansi-white: #26303f;
-  --shiki-ansi-bright-black: #5b6675;
-  --shiki-ansi-bright-green: #16a34a;
-  --shiki-ansi-bright-red: #dc2626;
-  --shiki-ansi-bright-blue: #2563eb;
-  --shiki-ansi-bright-yellow: #ca8a04;
-  --shiki-ansi-bright-magenta: #b4457c;
-  --shiki-ansi-bright-cyan: #0891b2;
-  --shiki-ansi-bright-white: #0b0d10;
-  --shiki-token-keyword: #9b3d6b;
-  --shiki-token-function: #7a4a1f;
-  --shiki-token-string: #1f6b45;
-  --shiki-token-string-expression: #1f6b45;
-  --shiki-token-constant: #7a4a1f;
-  --shiki-token-parameter: #26303f;
-  --shiki-token-comment: #5b6675;
-  --shiki-token-punctuation: #5b6675;
-  --shiki-token-link: #1d4ed8;
-  --shiki-token-inserted: #15803d;
-  --shiki-token-deleted: #b91c1c;
-  --shiki-token-changed: #a16207;
-  --chat-radius-sm: 8px;
-  --chat-radius-md: 12px;
-  --chat-radius-lg: 18px;
-  --chat-radius-pill: 999px;
-  --chat-radius-surface-sm: var(--chat-radius-sm);
-  --chat-radius-surface-md: var(--chat-radius-md);
-  --chat-radius-surface-lg: var(--chat-radius-lg);
-  --chat-shadow-sm: 0 2px 8px rgba(15, 18, 24, 0.14);
-  --chat-shadow-lg: 0 16px 44px rgba(15, 18, 24, 0.18);
-  --chat-shadow: var(--chat-shadow-sm);
-  --chat-shadow-hover: var(--chat-shadow-lg);
-  --chat-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --chat-font: system-ui, -apple-system, sans-serif;
-  --chat-font-display: var(--chat-font);
-  --chat-mono: ui-monospace, monospace;
+  --shiki-foreground: light-dark(#26303f, #b9b2b0);
+  --shiki-background: light-dark(#f7f8fa, #121115);
+  --shiki-ansi-black: light-dark(#3f4650, #4a4548);
+  --shiki-ansi-green: light-dark(#15803d, #6fbf8b);
+  --shiki-ansi-red: light-dark(#b91c1c, #d98070);
+  --shiki-ansi-blue: light-dark(#1d4ed8, #c9a86a);
+  --shiki-ansi-yellow: light-dark(#a16207, #c9a86a);
+  --shiki-ansi-magenta: light-dark(#9b3d6b, #c9857f);
+  --shiki-ansi-cyan: light-dark(#0e7490, #8fb4b0);
+  --shiki-ansi-white: light-dark(#26303f, #ded8d4);
+  --shiki-ansi-bright-black: light-dark(#5b6675, #6b666b);
+  --shiki-ansi-bright-green: light-dark(#16a34a, #8fd6a6);
+  --shiki-ansi-bright-red: light-dark(#dc2626, #e59a8c);
+  --shiki-ansi-bright-blue: light-dark(#2563eb, #d8bd8a);
+  --shiki-ansi-bright-yellow: light-dark(#ca8a04, #d8bd8a);
+  --shiki-ansi-bright-magenta: light-dark(#b4457c, #d89d97);
+  --shiki-ansi-bright-cyan: light-dark(#0891b2, #a8ccc8);
+  --shiki-ansi-bright-white: light-dark(#0b0d10, #f0ebe8);
+  --shiki-token-keyword: light-dark(#9b3d6b, #c9857f);
+  --shiki-token-function: light-dark(#7a4a1f, #d8b48a);
+  --shiki-token-string: light-dark(#1f6b45, #8fb48c);
+  --shiki-token-string-expression: light-dark(#1f6b45, #8fb48c);
+  --shiki-token-constant: light-dark(#7a4a1f, #cbaa76);
+  --shiki-token-parameter: light-dark(#26303f, #b9b2b0);
+  --shiki-token-comment: light-dark(#5b6675, #8a8482);
+  --shiki-token-punctuation: light-dark(#5b6675, #8a8588);
+  --shiki-token-link: light-dark(#1d4ed8, #c9857f);
+  --shiki-token-inserted: light-dark(#15803d, #6fbf8b);
+  --shiki-token-deleted: light-dark(#b91c1c, #d98070);
+  --shiki-token-changed: light-dark(#a16207, #c9a86a);
+
+  --diffs-addition-color-override: var(--chat-success);
+  --diffs-deletion-color-override: var(--chat-danger);
+  --diffs-bg-addition-override: light-dark(color-mix(in oklch, var(--chat-success) 14%, var(--chat-bg)), #16241c);
+  --diffs-bg-deletion-override: light-dark(color-mix(in oklch, var(--chat-danger) 14%, var(--chat-bg)), #2a1a18);
+  --diffs-bg-addition-emphasis-override: color-mix(in oklch, var(--chat-success) 24%, transparent);
+  --diffs-bg-deletion-emphasis-override: color-mix(in oklch, var(--chat-danger) 24%, transparent);
+
+  --chat-radius-sm: 4px;
+  --chat-radius-md: 4px;
+  --chat-radius-lg: 11px;
+  --chat-radius-chip: 3px;
+
+  --chat-font-display: 'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
   --chat-text-xs: 0.6875rem;
   --chat-text-sm: 0.75rem;
   --chat-text-md: 0.8125rem;
@@ -90,44 +74,40 @@
   --chat-focus: 0.125rem solid var(--chat-accent);
 
   --chat-status-running: var(--chat-accent);
-  --chat-status-waiting: #ca8a04;
+  --chat-status-waiting: var(--chat-warn);
   --chat-status-failed: var(--chat-danger);
   --chat-status-done: var(--chat-success);
-  --chat-on-status: #ffffff;
+  --chat-on-status: var(--chat-on-accent);
 
-  --chat-glyph: rgba(15, 18, 24, 0.28);
-  --chat-target: var(--chat-text-2);
-  --chat-code: var(--chat-text-2);
-  --chat-summary: var(--chat-text-2);
-  --chat-dim: var(--chat-text-3);
-  --chat-microlabel: var(--chat-text-3);
-  --chat-faint: var(--chat-text-3);
-  --chat-hint: var(--chat-text-3);
-  --chat-separator: var(--chat-glyph);
-  --chat-affordance: var(--chat-text-2);
-  --chat-queue-bg: var(--chat-sunken);
+  --chat-glyph: light-dark(rgba(15, 18, 24, 0.28), #5f595d);
+  --chat-target: light-dark(var(--chat-text-2), #ded8d4);
+  --chat-code: light-dark(var(--chat-text-2), var(--chat-accent-hi));
+  --chat-summary: light-dark(var(--chat-text-2), #c4beba);
+  --chat-microlabel: light-dark(var(--chat-text-3), #6b666b);
+  --chat-faint: light-dark(var(--chat-text-3), #5f5a5f);
+  --chat-hint: light-dark(var(--chat-text-3), #5c575c);
+  --chat-separator: light-dark(var(--chat-glyph), #454145);
+  --chat-affordance: light-dark(var(--chat-text-2), #928c8c);
+  --chat-queue-bg: light-dark(var(--chat-sunken), #151418);
 
-  --chat-frame-bg: var(--chat-sunken);
-  --chat-frame-line: var(--chat-line);
-  --chat-frame-line-error: var(--chat-danger-line);
-  --chat-frame-text: var(--chat-text-2);
-  --chat-frame-text-error: var(--chat-danger);
+  --chat-frame-bg: light-dark(var(--chat-sunken), #121115);
+  --chat-frame-line: light-dark(var(--chat-line), #262227);
+  --chat-frame-line-error: light-dark(var(--chat-danger-line), #4a2b28);
+  --chat-frame-text: light-dark(var(--chat-text-2), #9a9294);
+  --chat-frame-text-error: light-dark(var(--chat-danger), #d9a099);
 
-  --chat-perm-bg: rgba(202, 138, 4, 0.08);
-  --chat-perm-line: rgba(202, 138, 4, 0.35);
-  --chat-perm-chip-bg: rgba(202, 138, 4, 0.14);
-  --chat-perm-label: #92620a;
-  --chat-perm-path: var(--chat-text);
+  --chat-perm-bg: light-dark(rgba(202, 138, 4, 0.08), #1a1712);
+  --chat-perm-line: light-dark(rgba(202, 138, 4, 0.35), #4a3d22);
+  --chat-perm-chip-bg: light-dark(rgba(202, 138, 4, 0.14), #2a2314);
+  --chat-perm-label: light-dark(#92620a, #c9a86a);
+  --chat-perm-path: light-dark(var(--chat-text), #d8bd8a);
 
-  --chat-rail-bg: var(--chat-panel);
-  --chat-statusbar-bg: var(--chat-panel);
-  --chat-ground: var(--chat-bg);
+  --chat-rail-bg: light-dark(var(--chat-panel), #1b191d);
+  --chat-statusbar-bg: light-dark(var(--chat-panel), #141317);
+  --chat-ground: light-dark(var(--chat-bg), #0a0a0b);
 
-  --chat-radius-chip: 6px;
-
-  --chat-warn: #ca8a04;
-  --chat-selection-bg: rgba(37, 99, 235, 0.25);
-  --chat-perforation: var(--chat-line);
+  --chat-selection-bg: light-dark(rgba(37, 99, 235, 0.25), #453739);
+  --chat-perforation: light-dark(var(--chat-line), var(--chat-line-2));
 }
 
 /* Chat prose ramp: the typography preset colors headings and bold `inherit`, which flattens them onto
@@ -146,20 +126,18 @@
 }
 
 /* Markdown code fences: shiki renders the shared css-variables theme, so token colors resolve from
-   the --shiki-* set above and follow whichever chat theme is applied. The fence surface stays flat so
-   it reads as part of the message, not as a pasted block. */
+   the --shiki-* set above and follow the resolved scheme. The fence surface stays flat so it reads as
+   part of the message, not as a pasted block. */
 .shiki {
   background: transparent !important;
 }
 
 /* @pierre/diffs (tool-card code blocks) resolves its dual theme via CSS `color-scheme`, but sets
-   `color-scheme: light dark` on its own shadow host inside `@layer base`, which would follow the OS.
-   These unlayered rules beat that layered rule, pinning the diff theme to the chat theme instead. */
+   `color-scheme: light dark` on its own shadow host inside `@layer base`, which would follow the OS
+   rather than the widget. This unlayered rule beats that layered one and hands the component the
+   scheme the widget resolved. */
 diffs-container {
-  color-scheme: light;
-}
-.chat-theme-terminal diffs-container {
-  color-scheme: dark;
+  color-scheme: inherit;
 }
 
 /* Streaming answer caret: overrides solid-streamdown's glyph caret (--sd-caret) with a solid

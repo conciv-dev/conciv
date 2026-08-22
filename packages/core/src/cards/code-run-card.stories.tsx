@@ -37,8 +37,8 @@ function transportFailResult(message: string): ToolResultPart {
 
 const garbageFailResult = transportFailResult('sandbox process crashed')
 
-function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+function frame(child: JSX.Element): JSX.Element {
+  return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 async function codeText(root: HTMLElement): Promise<string> {
@@ -50,7 +50,6 @@ async function codeText(root: HTMLElement): Promise<string> {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <CodeRunCard
         part={part('input-complete')}
         result={undefined}
@@ -71,10 +70,7 @@ export const Running: Story = {
 
 export const Success: Story = {
   render: () =>
-    frame(
-      'chat-theme-terminal',
-      <CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
-    ),
+    frame(<CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
@@ -88,10 +84,7 @@ export const Success: Story = {
 
 export const Failure: Story = {
   render: () =>
-    frame(
-      'chat-theme-terminal',
-      <CodeRunCard part={part()} result={failResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
-    ),
+    frame(<CodeRunCard part={part()} result={failResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
@@ -105,10 +98,7 @@ export const Failure: Story = {
 
 export const TransportFailure: Story = {
   render: () =>
-    frame(
-      'chat-theme-terminal',
-      <CodeRunCard part={part()} result={garbageFailResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
-    ),
+    frame(<CodeRunCard part={part()} result={garbageFailResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
@@ -120,15 +110,12 @@ export const TransportFailure: Story = {
 
 export const Themed: Story = {
   render: () =>
-    frame(
-      'chat-theme-terminal',
-      <CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
-    ),
+    frame(<CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />),
 }
 
 function traceGallery(summary: string, callPart: ToolCallPart, callResult: ToolResultPart | undefined): JSX.Element {
   return (
-    <div class="chat-theme-terminal p-4 w-[28rem] [background:var(--chat-panel)] [font-family:var(--chat-font)]">
+    <div class="p-4 w-[28rem] [background:var(--chat-panel)] [font-family:var(--chat-font)]">
       <Trace
         summary={summary}
         compactLine={summary}

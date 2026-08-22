@@ -10,8 +10,8 @@ const meta: Meta = {title: 'ui-kit-chat/styled/tools/PermissionCard'}
 export default meta
 type Story = StoryObj
 
-function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[30rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+function frame(child: JSX.Element): JSX.Element {
+  return <div class="p-4 w-[30rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 const pendingPart: ToolCallPart = {
@@ -28,7 +28,6 @@ export const Pending: Story = {
     const [decided, setDecided] = createSignal<boolean | null>(null)
     const ctx: ToolViewCtx = {...INERT_TOOL_CTX, respondApproval: (_id, approved) => setDecided(approved)}
     return frame(
-      'chat-theme-terminal',
       <>
         <PermissionCard part={pendingPart} ctx={ctx} label="Run this command?" />
         <div data-decided>{decided() === null ? 'undecided' : decided() ? 'approved' : 'rejected'}</div>
@@ -49,7 +48,6 @@ export const Pending: Story = {
 export const Settled: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <PermissionCard
         part={{...pendingPart, state: 'complete'}}
         ctx={{...INERT_TOOL_CTX, respondApproval: () => {}}}

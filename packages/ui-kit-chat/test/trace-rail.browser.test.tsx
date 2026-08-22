@@ -1,4 +1,5 @@
 import 'virtual:uno.css'
+import '@conciv/ui-kit-system/tokens.css'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {expect, it} from 'vitest'
 import {page} from 'vitest/browser'

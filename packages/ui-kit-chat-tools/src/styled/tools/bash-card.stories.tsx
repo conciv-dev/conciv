@@ -16,8 +16,8 @@ function result(payload: object, state: ToolResultPart['state'] = 'complete'): T
   return {type: 'tool-result', toolCallId: 'b1', content: JSON.stringify(payload), state}
 }
 
-function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+function frame(child: JSX.Element): JSX.Element {
+  return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 async function codeText(root: HTMLElement): Promise<string> {
@@ -29,7 +29,6 @@ async function codeText(root: HTMLElement): Promise<string> {
 export const Complete: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <BashCard
         part={part({command: 'pnpm test', description: 'Run the unit tests'})}
         result={result({stdout: '✓ 42 passed\n✓ all green', exitCode: 0})}
@@ -50,7 +49,6 @@ export const Complete: Story = {
 export const Error: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <BashCard
         part={part({command: 'pnpm build'})}
         result={result({stdout: '', stderr: 'error TS2345: type mismatch', exitCode: 1})}
@@ -63,7 +61,6 @@ export const Error: Story = {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <BashCard
         part={part({command: 'sleep 5'}, 'input-complete')}
         result={undefined}
@@ -78,7 +75,6 @@ const ANSI_STDOUT = '\x1b[32m✓ passed\x1b[0m\n\x1b[31m✗ failed\x1b[0m\n\x1b[
 export const AnsiOutput: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <BashCard
         part={part({command: 'pnpm test'})}
         result={result({stdout: ANSI_STDOUT, exitCode: 0})}

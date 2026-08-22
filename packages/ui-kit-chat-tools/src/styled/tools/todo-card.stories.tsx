@@ -19,16 +19,12 @@ function part(state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {type: 'tool-call', id: 't1', name: 'TodoWrite', arguments: JSON.stringify({todos: TODOS}), state}
 }
 
-function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+function frame(child: JSX.Element): JSX.Element {
+  return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 export const Complete: Story = {
-  render: () =>
-    frame(
-      'chat-theme-terminal',
-      <TodoCard part={part()} result={undefined} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
-    ),
+  render: () => frame(<TodoCard part={part()} result={undefined} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('Updated the to-do list')).toBeVisible()
@@ -40,9 +36,5 @@ export const Complete: Story = {
 }
 
 export const Terminal: Story = {
-  render: () =>
-    frame(
-      'chat-theme-terminal',
-      <TodoCard part={part()} result={undefined} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
-    ),
+  render: () => frame(<TodoCard part={part()} result={undefined} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />),
 }

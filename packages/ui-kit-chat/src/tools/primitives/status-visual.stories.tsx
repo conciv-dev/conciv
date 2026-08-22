@@ -18,7 +18,7 @@ const LABELS: Record<ToolStatus, string> = {
 
 function frame(child: JSX.Element): JSX.Element {
   return (
-    <div class="chat-theme-terminal p-4 flex flex-col gap-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">
+    <div class="p-4 flex flex-col gap-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">
       {child}
     </div>
   )

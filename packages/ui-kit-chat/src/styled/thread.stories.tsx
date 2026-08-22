@@ -20,10 +20,10 @@ type Story = StoryObj
 const WIDE_ARGS = {command: `grep -rn "${'x'.repeat(160)}" packages/`}
 
 function Welcome(): JSX.Element {
-  return <div class="text-chat-text-3 text-[0.8125rem] m-auto">Ask anything to begin.</div>
+  return <div class="text-[0.8125rem] text-chat-text-3 m-auto">Ask anything to begin.</div>
 }
 
-function ThreadApp(props: {theme?: string; expose: (chat: UseChatReturn) => void}): JSX.Element {
+function ThreadApp(props: {expose: (chat: UseChatReturn) => void}): JSX.Element {
   const chat = useChat({
     connection: storyConnection({
       chunks: [
@@ -36,9 +36,7 @@ function ThreadApp(props: {theme?: string; expose: (chat: UseChatReturn) => void
   })
   onMount(() => props.expose(chat))
   return (
-    <div
-      class={`${props.theme ?? ''} rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden`}
-    >
+    <div class="rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
       <ChatProvider chat={chat}>
         <Thread>
           <Thread.Viewport>
@@ -56,7 +54,7 @@ function ThreadApp(props: {theme?: string; expose: (chat: UseChatReturn) => void
   )
 }
 
-function play(theme?: string): Story {
+function play(): Story {
   return {
     render: () => {
       let chat: UseChatReturn | undefined
@@ -66,7 +64,6 @@ function play(theme?: string): Story {
             ask
           </button>
           <ThreadApp
-            theme={theme}
             expose={(value) => {
               chat = value
             }}
@@ -98,12 +95,10 @@ function play(theme?: string): Story {
 }
 
 export const Neutral: Story = play()
-export const Dark: Story = play('chat-theme-terminal')
-export const Terminal: Story = play('chat-theme-terminal')
 
 function Divider(): JSX.Element {
   return (
-    <div class="text-chat-text-3 text-[length:var(--chat-text-xs)] self-center" role="separator">
+    <div class="text-[length:var(--chat-text-xs)] text-chat-text-3 self-center" role="separator">
       New session
     </div>
   )
@@ -119,7 +114,7 @@ function SlotsApp(): JSX.Element {
     }),
   })
   return (
-    <div class="chat-theme-terminal rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
+    <div class="rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
       <ChatProvider chat={chat}>
         <Thread>
           <Thread.Viewport>
@@ -127,7 +122,7 @@ function SlotsApp(): JSX.Element {
             <NowLine title="Running pnpm test" onStop={() => chat.stop()} />
           </Thread.Viewport>
           <Thread.Composer>
-            <Composer busy={<span class="text-chat-text-3 text-[length:var(--chat-text-xs)]">Compacting…</span>} />
+            <Composer busy={<span class="text-[length:var(--chat-text-xs)] text-chat-text-3">Compacting…</span>} />
           </Thread.Composer>
         </Thread>
       </ChatProvider>
@@ -145,7 +140,7 @@ function ShiftApp(): JSX.Element {
     ]),
   )
   return (
-    <div class="chat-theme-terminal rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
+    <div class="rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
       <ChatProvider chat={chat}>
         <Thread>
           <Thread.Viewport>

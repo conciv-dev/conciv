@@ -1,8 +1,10 @@
+import {createEffect} from 'solid-js'
 import {delegateEvents} from 'solid-js/web'
 import {terminalTheme} from '@conciv/ui-kit-chat/theme/themes/terminal'
 import styles from '../styles.css?inline'
 import {registerWind4Properties} from '../lib/shadow.js'
 import {applyChatTheme} from '../lib/theme.js'
+import {applySchemeClass, type ColorScheme} from '../lib/color-scheme.js'
 
 const DELEGATED = [
   'focusin',
@@ -21,7 +23,9 @@ const PIP_WRAP =
 
 export type PipWindow = {win: Window; wrap: HTMLElement; root: ShadowRoot; close: () => void}
 
-export function openPipWindow(opts: {title?: string; width?: number; height?: number} = {}): PipWindow | null {
+export function openPipWindow(
+  opts: {title?: string; width?: number; height?: number; scheme?: () => ColorScheme} = {},
+): PipWindow | null {
   const win = window.open('', 'conciv-pip', `width=${opts.width ?? 480},height=${opts.height ?? 620},popup`)
   if (!win) return null
   win.document.head.innerHTML = ''
@@ -39,9 +43,14 @@ export function openPipWindow(opts: {title?: string; width?: number; height?: nu
   style.textContent = styles
   root.appendChild(style)
   const wrap = win.document.createElement('div')
-  wrap.className = PIP_WRAP
-  applyChatTheme(wrap, terminalTheme, win.document)
+  applyChatTheme(terminalTheme, win.document)
   root.appendChild(wrap)
+  createEffect(() => {
+    const scheme = opts.scheme?.() ?? 'dark'
+    wrap.className = `${PIP_WRAP} ${scheme}`
+    applySchemeClass(host, scheme)
+    win.document.documentElement.style.colorScheme = scheme
+  })
 
   delegateEvents(DELEGATED, win.document)
   return {win, wrap, root, close: () => win.close()}
