@@ -52,7 +52,7 @@ function UsageRow(props: {label: string; tokens?: number}): JSX.Element {
   return (
     <Show when={props.tokens}>
       <div class="text-xs flex justify-between">
-        <span class="text-pw-text-2">{props.label}</span>
+        <span class="text-chat-text-2">{props.label}</span>
         <span>{compact.format(props.tokens ?? 0)}</span>
       </div>
     </Show>
@@ -74,21 +74,21 @@ function TrackerBadge(props: {percent?: number; fallbackTokens: number}): JSX.El
 function ContextMeter(props: {percent?: number; used: number; max: number}): JSX.Element {
   return (
     <Show when={props.percent !== undefined}>
-      <div class="p-3 border-b border-b-pw-line-soft">
+      <div class="p-3 border-b border-b-chat-line-soft">
         <div class="text-xs mb-2 flex justify-between">
           <span>{pct.format(props.percent ?? 0)}</span>
-          <span class="text-pw-text-2 font-pw-mono">
+          <span class="text-chat-text-2 font-chat-mono">
             {compact.format(props.used)} / {compact.format(props.max)}
           </span>
         </div>
         <div
-          class="rounded-full bg-pw-fill-soft h-1.5 overflow-hidden"
+          class="rounded-full bg-chat-fill-soft h-1.5 overflow-hidden"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round((props.percent ?? 0) * 100)}
         >
-          <div class="bg-pw-accent h-full" style={{width: `${Math.min(100, (props.percent ?? 0) * 100)}%`}} />
+          <div class="bg-chat-accent h-full" style={{width: `${Math.min(100, (props.percent ?? 0) * 100)}%`}} />
         </div>
       </div>
     </Show>
@@ -98,7 +98,7 @@ function ContextMeter(props: {percent?: number; used: number; max: number}): JSX
 const CostRow = (props: {value?: number}): JSX.Element => (
   <Show when={props.value !== undefined}>
     <div class="text-xs flex justify-between">
-      <span class="text-pw-text-2">Total cost</span>
+      <span class="text-chat-text-2">Total cost</span>
       <span>{usd.format(props.value ?? 0)}</span>
     </div>
   </Show>
@@ -107,7 +107,7 @@ const CostRow = (props: {value?: number}): JSX.Element => (
 const TurnsRow = (props: {value?: number}): JSX.Element => (
   <Show when={props.value !== undefined}>
     <div class="text-xs flex justify-between">
-      <span class="text-pw-text-2">Turns</span>
+      <span class="text-chat-text-2">Turns</span>
       <span>{props.value}</span>
     </div>
   </Show>
@@ -116,7 +116,7 @@ const TurnsRow = (props: {value?: number}): JSX.Element => (
 function CostFooter(props: {totalCostUsd?: number; numTurns?: number}): JSX.Element {
   return (
     <Show when={props.totalCostUsd !== undefined || props.numTurns !== undefined}>
-      <div class="p-3 border-t border-t-pw-line-soft bg-pw-panel-sunk flex flex-col gap-1.5">
+      <div class="p-3 border-t border-t-chat-line-soft bg-chat-panel-sunk flex flex-col gap-1.5">
         <CostRow value={props.totalCostUsd} />
         <TurnsRow value={props.numTurns} />
       </div>
@@ -145,7 +145,7 @@ export function ContextTracker(props: {usage: UsageSnapshot | null}): JSX.Elemen
     <Show when={props.usage && derived().hasData}>
       <HoverCard
         label="Model context usage"
-        triggerClass="text-pw-text-2 px-1.5 py-0.5 rounded-pw-sm inline-flex gap-1.5 cursor-pointer items-center hover:text-pw-text-hi hover:bg-pw-fill-soft"
+        triggerClass="text-chat-text-2 px-1.5 py-0.5 rounded-chat-surface-sm inline-flex gap-1.5 cursor-pointer items-center hover:text-chat-text-hi hover:bg-chat-fill-soft"
         trigger={
           <TrackerBadge percent={derived().percent} fallbackTokens={props.usage ? billingTokens(props.usage) : 0} />
         }

@@ -9,7 +9,7 @@ type Story = StoryObj
 export const Default: Story = {
   render: () => (
     <Tooltip.Root openDelay={0} closeDelay={0}>
-      <Tooltip.Trigger class="text-pw-accent-link underline cursor-pointer">Reload</Tooltip.Trigger>
+      <Tooltip.Trigger class="text-chat-accent-link underline cursor-pointer">Reload</Tooltip.Trigger>
       <Tooltip.Positioner>
         <Tooltip.Content>Regenerate this response</Tooltip.Content>
       </Tooltip.Positioner>

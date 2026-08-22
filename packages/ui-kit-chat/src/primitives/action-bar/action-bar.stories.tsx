@@ -23,22 +23,22 @@ const REPLY: UIMessage = {
 function Bar(): JSX.Element {
   return (
     <ActionBar.Root class="flex gap-1">
-      <ActionBar.Copy class="text-[0.6875rem] text-pw-text-2 px-1.5 py-0.5 border border-pw-line rounded-pw-sm">
+      <ActionBar.Copy class="text-[0.6875rem] text-chat-text-2 px-1.5 py-0.5 border border-chat-line rounded-chat-surface-sm">
         Copy
       </ActionBar.Copy>
-      <ActionBar.Reload class="text-[0.6875rem] text-pw-text-2 px-1.5 py-0.5 border border-pw-line rounded-pw-sm">
+      <ActionBar.Reload class="text-[0.6875rem] text-chat-text-2 px-1.5 py-0.5 border border-chat-line rounded-chat-surface-sm">
         Retry
       </ActionBar.Reload>
-      <ActionBar.ExportMarkdown class="text-[0.6875rem] text-pw-text-2 px-1.5 py-0.5 border border-pw-line rounded-pw-sm">
+      <ActionBar.ExportMarkdown class="text-[0.6875rem] text-chat-text-2 px-1.5 py-0.5 border border-chat-line rounded-chat-surface-sm">
         Export
       </ActionBar.ExportMarkdown>
-      <ActionBar.Edit class="text-[0.6875rem] text-pw-text-2 px-1.5 py-0.5 border border-pw-line rounded-pw-sm">
+      <ActionBar.Edit class="text-[0.6875rem] text-chat-text-2 px-1.5 py-0.5 border border-chat-line rounded-chat-surface-sm">
         Edit
       </ActionBar.Edit>
-      <ActionBar.Speak class="text-[0.6875rem] text-pw-text-2 px-1.5 py-0.5 border border-pw-line rounded-pw-sm">
+      <ActionBar.Speak class="text-[0.6875rem] text-chat-text-2 px-1.5 py-0.5 border border-chat-line rounded-chat-surface-sm">
         Speak
       </ActionBar.Speak>
-      <ActionBar.FeedbackPositive class="text-[0.6875rem] text-pw-text-2 px-1.5 py-0.5 border border-pw-line rounded-pw-sm">
+      <ActionBar.FeedbackPositive class="text-[0.6875rem] text-chat-text-2 px-1.5 py-0.5 border border-chat-line rounded-chat-surface-sm">
         Good
       </ActionBar.FeedbackPositive>
     </ActionBar.Root>
@@ -47,7 +47,7 @@ function Bar(): JSX.Element {
 
 function AssistantMessage(): JSX.Element {
   return (
-    <Message.Root class="text-pw-text flex flex-col gap-1 self-start">
+    <Message.Root class="text-chat-text flex flex-col gap-1 self-start">
       <Message.Parts />
       <Bar />
     </Message.Root>
@@ -105,7 +105,7 @@ function FloatBar(): JSX.Element {
       autohideFloat="single-branch"
       class={`flex gap-1 ${FLOAT_VISIBILITY}`}
     >
-      <ActionBar.Copy class="text-[0.6875rem] text-pw-text-2 px-1.5 py-0.5 border border-pw-line rounded-pw-sm">
+      <ActionBar.Copy class="text-[0.6875rem] text-chat-text-2 px-1.5 py-0.5 border border-chat-line rounded-chat-surface-sm">
         Copy
       </ActionBar.Copy>
     </ActionBar.Root>
@@ -114,7 +114,7 @@ function FloatBar(): JSX.Element {
 
 function FloatAssistant(): JSX.Element {
   return (
-    <Message.Root class="text-pw-text flex flex-col gap-1 self-start">
+    <Message.Root class="text-chat-text flex flex-col gap-1 self-start">
       <Message.Parts />
       <FloatBar />
     </Message.Root>
@@ -123,7 +123,7 @@ function FloatAssistant(): JSX.Element {
 
 function FloatUser(): JSX.Element {
   return (
-    <Message.Root class="text-pw-on-accent px-2 py-1 self-end">
+    <Message.Root class="text-chat-on-accent px-2 py-1 self-end">
       <Message.Parts />
     </Message.Root>
   )

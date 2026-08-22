@@ -43,7 +43,7 @@ function StoryToggle(props: {label: string; checked: boolean; onChange: (checked
 }
 
 function SlotPlaceholder(): JSX.Element {
-  return <span aria-hidden="true" class="rounded-pw-sm bg-pw-fill shrink-0 size-8.5 block" />
+  return <span aria-hidden="true" class="rounded-chat-surface-sm bg-chat-fill shrink-0 size-8.5 block" />
 }
 
 function ActionsFrame(props: {
@@ -54,7 +54,7 @@ function ActionsFrame(props: {
 }): JSX.Element {
   return (
     <div
-      class="p-2 border border-pw-line rounded-pw-md bg-pw-panel overflow-hidden"
+      class="p-2 border border-chat-line rounded-chat-surface-md bg-chat-panel overflow-hidden"
       style={
         props.resizable === true
           ? {width: `${props.width}px`, resize: 'horizontal', 'min-inline-size': '160px', 'max-inline-size': '720px'}
@@ -79,7 +79,7 @@ function ActionsFrame(props: {
 
 function ActionLog(props: {value: string}): JSX.Element {
   return (
-    <p aria-live="polite" class="text-[0.75rem] text-pw-text-2 min-h-4">
+    <p aria-live="polite" class="text-[0.75rem] text-chat-text-2 min-h-4">
       <Show when={props.value !== ''} fallback="No action taken yet">
         {`Last action: ${props.value}`}
       </Show>
@@ -244,7 +244,7 @@ export const CappedDefault: Story = {
     const [last, setLast] = createSignal('')
     return (
       <div class="flex flex-col gap-2">
-        <p class="text-[0.75rem] text-pw-text-2">
+        <p class="text-[0.75rem] text-chat-text-2">
           The app default: a wide row still keeps every auto action in the overflow menu, pinned actions aside.
         </p>
         <ActionsFrame width={560} maxInlineAuto={0}>
@@ -409,7 +409,9 @@ export const ResizablePlayground: Story = {
     const [last, setLast] = createSignal('')
     return (
       <div class="flex flex-col gap-2">
-        <p class="text-[0.75rem] text-pw-text-2">Drag the bottom-right corner to watch actions collapse and expand.</p>
+        <p class="text-[0.75rem] text-chat-text-2">
+          Drag the bottom-right corner to watch actions collapse and expand.
+        </p>
         <ActionsFrame width={420} resizable>
           <GrabAction onAction={setLast} />
           <NewSessionAction onAction={setLast} />

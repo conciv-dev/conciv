@@ -6,7 +6,7 @@ import {useArrivedFromConnect} from '../app/context.js'
 const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
 const CONNECT_HEADLINE = 'Agent connected. It’s driving this page from your machine.'
 const DEFAULT_HEADLINE = 'How can I help you today?'
-const STARTER = 'px-3.5 py-2.5 rounded-pw-pill min-h-9.5 anim-rise'
+const STARTER = 'px-3.5 py-2.5 rounded-chat-pill min-h-9.5 anim-rise'
 
 export function EmptyStateSlot(props: {
   onStarter: (text: string) => void

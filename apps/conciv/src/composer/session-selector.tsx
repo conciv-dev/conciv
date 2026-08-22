@@ -13,11 +13,11 @@ import {useAnnounce, useAppData, useRpc} from '../app/context.js'
 let instanceSeq = 0
 
 const ACT =
-  'inline-flex items-center justify-center size-7 shrink-0 [border:0] rounded-pw-sm bg-transparent text-pw-text-2 cursor-pointer hover:bg-pw-fill-strong hover:text-pw-text-hi [&[aria-disabled=true]]:opacity-50 [&[aria-disabled=true]]:cursor-not-allowed'
+  'inline-flex items-center justify-center size-7 shrink-0 [border:0] rounded-chat-surface-sm bg-transparent text-chat-text-2 cursor-pointer hover:bg-chat-fill-strong hover:text-chat-text-hi [&[aria-disabled=true]]:opacity-50 [&[aria-disabled=true]]:cursor-not-allowed'
 
 const RUNNING_LABEL = 'running'
 
-const SKEL = 'h-8 rounded-pw-sm skel-bg [background-size:200%_100%] anim-skel'
+const SKEL = 'h-8 rounded-chat-surface-sm skel-bg [background-size:200%_100%] anim-skel'
 
 function bucketOf(updatedAt: number, now: number): 'Today' | 'Yesterday' | 'Earlier' {
   const day = 86_400_000
@@ -167,32 +167,35 @@ export function SessionSelector(props: {
     >
       <Combobox.Control class="inline-flex min-w-0">
         <Combobox.Trigger
-          class={`group text-[0.75rem] text-pw-text-2 border border-transparent rounded-pw-pill bg-transparent inline-flex gap-1.5 h-7 min-w-0 cursor-pointer trans-cbb items-center hover:text-pw-text-hi [&[aria-disabled=true]]:opacity-[0.55] [&[aria-disabled=true]]:cursor-not-allowed ${
+          class={`group text-[0.75rem] text-chat-text-2 border border-transparent rounded-chat-pill bg-transparent inline-flex gap-1.5 h-7 min-w-0 cursor-pointer trans-cbb items-center hover:text-chat-text-hi [&[aria-disabled=true]]:opacity-[0.55] [&[aria-disabled=true]]:cursor-not-allowed ${
             isPill()
-              ? 'max-w-64 py-0 pr-1.5 pl-2 hover:border-pw-line hover:bg-pw-fill-soft data-[state=open]:border-pw-line data-[state=open]:bg-pw-fill-soft data-[state=open]:text-pw-text-hi'
-              : 'p-0 font-pw-mono'
+              ? 'max-w-64 py-0 pr-1.5 pl-2 hover:border-chat-line hover:bg-chat-fill-soft data-[state=open]:border-chat-line data-[state=open]:bg-chat-fill-soft data-[state=open]:text-chat-text-hi'
+              : 'p-0 font-chat-mono'
           }`}
           data-empty={canRename() ? undefined : ''}
           aria-label={`Session: ${triggerLabel()}`}
         >
-          <Show when={canRename()} fallback={<Sparkles class="text-pw-accent shrink-0 size-3.25" aria-hidden="true" />}>
-            <span class="rounded-pw-pill bg-pw-accent shrink-0 size-1.75" aria-hidden="true" />
+          <Show
+            when={canRename()}
+            fallback={<Sparkles class="text-chat-accent shrink-0 size-3.25" aria-hidden="true" />}
+          >
+            <span class="rounded-chat-pill bg-chat-accent shrink-0 size-1.75" aria-hidden="true" />
           </Show>
-          <span class="min-w-0 truncate group-data-[empty]:text-pw-text-2">{triggerLabel()}</span>
+          <span class="min-w-0 truncate group-data-[empty]:text-chat-text-2">{triggerLabel()}</span>
           <ChevronDown
-            class="opacity-45 shrink-0 size-3.25 [transition:rotate_160ms_var(--pw-ease),opacity_120ms_var(--pw-ease)] group-data-[state=open]:opacity-90 group-hover:opacity-90 group-data-[state=open]:rotate-180"
+            class="opacity-45 shrink-0 size-3.25 [transition:rotate_160ms_var(--chat-ease),opacity_120ms_var(--chat-ease)] group-data-[state=open]:opacity-90 group-hover:opacity-90 group-data-[state=open]:rotate-180"
             aria-hidden="true"
           />
         </Combobox.Trigger>
       </Combobox.Control>
       <Combobox.Positioner>
-        <Combobox.Content class="p-1 border border-pw-line-2 rounded-pw-md bg-pw-panel flex-col max-h-90 w-70 hidden shadow-pw-lg z-10 focus-visible:outline-none data-[state=open]:flex data-[state=open]:anim-combo">
-          <div class="mb-1 border-b border-b-pw-line-soft flex gap-1 items-center">
+        <Combobox.Content class="p-1 border border-chat-line-2 rounded-chat-surface-md bg-chat-panel flex-col max-h-90 w-70 hidden shadow-chat-lg z-10 focus-visible:outline-none data-[state=open]:flex data-[state=open]:anim-combo">
+          <div class="mb-1 border-b border-b-chat-line-soft flex gap-1 items-center">
             <Show
               when={!renaming()}
               fallback={
                 <input
-                  class="text-[0.8125rem] text-pw-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] focus:outline-none"
+                  class="text-[0.8125rem] text-chat-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] focus:outline-none"
                   aria-label="Rename session"
                   aria-busy={rename.isPending}
                   value={draft()}
@@ -214,7 +217,7 @@ export function SessionSelector(props: {
               }
             >
               <Combobox.Input
-                class="text-[0.8125rem] text-pw-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] placeholder:text-pw-text-3 focus:outline-none"
+                class="text-[0.8125rem] text-chat-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] placeholder:text-chat-text-3 focus:outline-none"
                 placeholder="Search sessions…"
                 ref={(el) => (searchEl = el)}
               />
@@ -242,7 +245,7 @@ export function SessionSelector(props: {
             </Show>
             <Show when={list.isError}>
               <div
-                class="text-[0.75rem] text-pw-text-3 px-2 py-2.5 flex gap-2 items-center justify-between"
+                class="text-[0.75rem] text-chat-text-3 px-2 py-2.5 flex gap-2 items-center justify-between"
                 role="status"
               >
                 <span>Couldn't load sessions</span>
@@ -252,41 +255,41 @@ export function SessionSelector(props: {
               </div>
             </Show>
             <Show when={list.isSuccess && collection().items.length === 0}>
-              <div class="text-[0.75rem] text-pw-text-3 px-2 py-2.5" role="status">
+              <div class="text-[0.75rem] text-chat-text-3 px-2 py-2.5" role="status">
                 {query() ? 'No sessions match' : 'No other sessions yet'}
               </div>
             </Show>
             <For each={groupsOf(collection().items, now())}>
               {(group) => (
                 <Combobox.ItemGroup>
-                  <Combobox.ItemGroupLabel class="text-[0.6875rem] text-pw-text-3 tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 [text-transform:uppercase]">
+                  <Combobox.ItemGroupLabel class="text-[0.6875rem] text-chat-text-3 tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 [text-transform:uppercase]">
                     {group.name}
                   </Combobox.ItemGroupLabel>
                   <For each={group.items}>
                     {(s) => (
                       <Combobox.Item
                         item={s}
-                        class="text-pw-text px-2 py-[0.4375rem] rounded-pw-sm flex gap-2 cursor-pointer items-center data-[highlighted]:text-pw-text-hi data-[highlighted]:bg-pw-fill-strong"
+                        class="text-chat-text px-2 py-[0.4375rem] rounded-chat-surface-sm flex gap-2 cursor-pointer items-center data-[highlighted]:text-chat-text-hi data-[highlighted]:bg-chat-fill-strong"
                         aria-label={`${s.title}, ${metaLabel(s, now())}${s.running ? `, ${RUNNING_LABEL}` : ''}`}
                       >
                         <div class="flex flex-1 flex-col gap-px min-w-0">
                           <span class="truncate">
                             <Combobox.ItemText>{s.title}</Combobox.ItemText>
                           </span>
-                          <span class="text-[0.6875rem] text-pw-text-3 truncate" aria-hidden="true">
+                          <span class="text-[0.6875rem] text-chat-text-3 truncate" aria-hidden="true">
                             Edited {relativeTime(s.updatedAt, now())} · {s.messageCount} messages
                           </span>
                         </div>
                         <Show when={s.origin === 'conciv'}>
-                          <Sparkles class="text-pw-accent opacity-80 shrink-0 size-3.25" aria-hidden="true" />
+                          <Sparkles class="text-chat-accent opacity-80 shrink-0 size-3.25" aria-hidden="true" />
                         </Show>
                         <Show when={s.running}>
                           <span
-                            class="rounded-pw-pill bg-pw-success shrink-0 size-1.75 anim-pulse"
+                            class="rounded-chat-pill bg-chat-success shrink-0 size-1.75 anim-pulse"
                             aria-hidden="true"
                           />
                         </Show>
-                        <Combobox.ItemIndicator class="text-pw-accent ml-auto hidden data-[state=checked]:inline-flex">
+                        <Combobox.ItemIndicator class="text-chat-accent ml-auto hidden data-[state=checked]:inline-flex">
                           <Check class="size-5 block" aria-hidden="true" />
                         </Combobox.ItemIndicator>
                       </Combobox.Item>

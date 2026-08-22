@@ -13,7 +13,7 @@ export const Default: Story = {
     return (
       <button
         type="button"
-        class="p-2 border border-pw-line rounded-pw-md inline-flex"
+        class="p-2 border border-chat-line rounded-chat-surface-md inline-flex"
         onClick={() => setOn((v) => !v)}
       >
         <Swap.Root swap={on()}>

@@ -173,7 +173,7 @@ function TriggerHarness(props: {mode?: Mode}) {
   return (
     <div class="p-4 flex flex-col gap-3 max-w-100">
       <RichTextField
-        class="text-[0.8125rem] text-pw-text rounded-pw-md bg-pw-sunken [border:1px_solid_var(--pw-line)] [&[data-disabled]]:opacity-60 focus-within:[border-color:var(--pw-accent-line)]"
+        class="text-[0.8125rem] text-chat-text rounded-chat-surface-md bg-chat-sunken [border:1px_solid_var(--chat-line)] [&[data-disabled]]:opacity-60 focus-within:[border-color:var(--chat-accent-line)]"
         value={value()}
         onValueChange={setValue}
         onSubmit={() => {

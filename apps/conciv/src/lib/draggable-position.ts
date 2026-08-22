@@ -59,7 +59,7 @@ function reduceMotion(): boolean {
 }
 
 function settleEasing(element: HTMLElement): string {
-  const token = getComputedStyle(element).getPropertyValue('--pw-ease-expo').trim()
+  const token = getComputedStyle(element).getPropertyValue('--chat-ease-expo').trim()
   return token === '' ? FALLBACK_EASE : token
 }
 

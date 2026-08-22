@@ -39,7 +39,7 @@ function GroupedModelList(props: {models: ReadonlyArray<HarnessModelInfo>}): JSX
   return (
     <Show
       when={context.filteredModels().length > 0}
-      fallback={<div class="text-xs text-pw-text-3 px-2 py-2.5">No models match</div>}
+      fallback={<div class="text-xs text-chat-text-3 px-2 py-2.5">No models match</div>}
     >
       <For each={groupsOf(context.filteredModels(), groupById())}>
         {(group) => (

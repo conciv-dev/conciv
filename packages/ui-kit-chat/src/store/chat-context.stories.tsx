@@ -22,7 +22,7 @@ function ThreadDump(): JSX.Element {
   const thread = useThread()
   const composer = useComposer()
   return (
-    <div class="text-[0.8125rem] text-pw-text flex flex-col gap-2">
+    <div class="text-[0.8125rem] text-chat-text flex flex-col gap-2">
       <div>Turns: {thread.turns.length}</div>
       <div>Running: {String(thread.isRunning)}</div>
       <For each={thread.turns}>
@@ -34,7 +34,7 @@ function ThreadDump(): JSX.Element {
       </For>
       <button
         type="button"
-        class="text-pw-on-accent px-3 py-1.5 rounded-pw-md bg-pw-accent w-fit"
+        class="text-chat-on-accent px-3 py-1.5 rounded-chat-surface-md bg-chat-accent w-fit"
         onClick={() => {
           composer.setText('Explain the bug')
           composer.send()

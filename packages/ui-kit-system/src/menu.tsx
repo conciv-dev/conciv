@@ -3,9 +3,9 @@ import {Menu as Ark} from '@ark-ui/solid/menu'
 import {LIST_PANEL, LIST_PANEL_GROUP_LABEL, LIST_PANEL_ITEM} from './list-panel.js'
 
 const CONTENT = `hidden data-[state=open]:block data-[state=open]:anim-combo ${LIST_PANEL}`
-const ITEM = `${LIST_PANEL_ITEM} data-[highlighted]:bg-pw-fill-strong data-[highlighted]:text-pw-text data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed`
+const ITEM = `${LIST_PANEL_ITEM} data-[highlighted]:bg-chat-fill-strong data-[highlighted]:text-chat-text data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed`
 const ITEM_GROUP_LABEL = LIST_PANEL_GROUP_LABEL
-const SEPARATOR = 'h-px my-1 bg-pw-line'
+const SEPARATOR = 'h-px my-1 bg-chat-line'
 
 function Root(props: ComponentProps<typeof Ark.Root>) {
   const [local, rest] = splitProps(props, ['positioning'])

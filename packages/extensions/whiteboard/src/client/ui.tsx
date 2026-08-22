@@ -1,7 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {Avatar as AvatarBase, Menu as MenuBase, Tabs as TabsBase, Tooltip as TooltipBase} from '@conciv/ui-kit-system'
 
-const AVATAR_RING = '[box-shadow:0_0_0_2px_var(--pw-panel)]'
+const AVATAR_RING = '[box-shadow:0_0_0_2px_var(--chat-panel)]'
 const AVATAR_FALLBACK = 'text-[0.6875rem] font-semibold uppercase leading-none'
 
 const initials = (name: string): string =>
@@ -46,11 +46,11 @@ export function Tooltip(props: {
 }
 
 const MENU_LINE =
-  'flex items-center gap-2 px-2 py-1.5 rounded-pw-sm text-[0.8125rem] text-pw-text cursor-pointer outline-none data-[highlighted]:bg-pw-fill'
+  'flex items-center gap-2 px-2 py-1.5 rounded-chat-surface-sm text-[0.8125rem] text-chat-text cursor-pointer outline-none data-[highlighted]:bg-chat-fill'
 const MENU_DANGER =
-  'text-pw-danger data-[highlighted]:text-pw-danger data-[highlighted]:[background:color-mix(in_oklch,var(--pw-danger)_15%,transparent)]'
+  'text-chat-danger data-[highlighted]:text-chat-danger data-[highlighted]:[background:color-mix(in_oklch,var(--chat-danger)_15%,transparent)]'
 
-const MENU_INDICATOR = 'ml-auto text-pw-accent'
+const MENU_INDICATOR = 'ml-auto text-chat-accent'
 
 export function Menu(props: {
   trigger: JSX.Element
@@ -143,7 +143,7 @@ export function MenuSeparator(): JSX.Element {
 export type TabItem = {value: string; trigger: JSX.Element; label: string; content?: JSX.Element}
 
 const TAB_TRIGGER =
-  'inline-flex items-center justify-center size-8 rounded-pw-sm text-pw-text-3 trans-color-bg hover:text-pw-text data-[selected]:text-pw-accent data-[selected]:bg-pw-accent-08 focus-ring'
+  'inline-flex items-center justify-center size-8 rounded-chat-surface-sm text-chat-text-3 trans-color-bg hover:text-chat-text data-[selected]:text-chat-accent data-[selected]:bg-chat-accent-08 focus-ring'
 
 export function Tabs(props: {
   value: string

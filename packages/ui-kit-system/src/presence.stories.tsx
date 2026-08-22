@@ -14,12 +14,12 @@ export const Default: Story = {
       <div class="flex flex-col gap-2">
         <button
           type="button"
-          class="px-3 py-1 border border-pw-line rounded-pw-md self-start"
+          class="px-3 py-1 border border-chat-line rounded-chat-surface-md self-start"
           onClick={() => setPresent((v) => !v)}
         >
           Toggle
         </button>
-        <Presence present={present()} class="text-pw-text px-3 py-2 rounded-pw-md bg-pw-panel">
+        <Presence present={present()} class="text-chat-text px-3 py-2 rounded-chat-surface-md bg-chat-panel">
           Now you see me
         </Presence>
       </div>

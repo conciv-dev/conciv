@@ -2,7 +2,7 @@ import type {JSX} from 'solid-js'
 import {Button} from '@conciv/ui-kit-system'
 
 export function RecorderNotice(props: {text: string}): JSX.Element {
-  return <div class="text-[0.8125rem] text-pw-text-2 font-pw">{props.text}</div>
+  return <div class="text-[0.8125rem] text-chat-text-2 font-chat">{props.text}</div>
 }
 
 export function RecorderErrorNotice(props: {retry: () => void; text?: string}): JSX.Element {

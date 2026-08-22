@@ -10,9 +10,9 @@ export default meta
 type Story = StoryObj<typeof Combobox.Root>
 
 const CONTENT =
-  'p-1 border border-pw-line-2 rounded-pw-md bg-pw-panel flex flex-col w-64 shadow-pw-lg z-10 [outline:none] data-[state=open]:anim-combo'
+  'p-1 border border-chat-line-2 rounded-chat-surface-md bg-chat-panel flex flex-col w-64 shadow-chat-lg z-10 [outline:none] data-[state=open]:anim-combo'
 const ITEM =
-  'flex items-center gap-2 py-1.5 px-2 rounded-pw-sm text-pw-text cursor-pointer data-[highlighted]:bg-pw-fill-strong'
+  'flex items-center gap-2 py-1.5 px-2 rounded-chat-surface-sm text-chat-text cursor-pointer data-[highlighted]:bg-chat-fill-strong'
 
 function Demo() {
   const filterFn = useFilter({sensitivity: 'base'})
@@ -28,7 +28,7 @@ function Demo() {
     <Combobox.Root openOnClick collection={collection()} onInputValueChange={(d) => filter(d.inputValue)} class="w-64">
       <Combobox.Control class="relative">
         <Combobox.Input
-          class="text-pw-text font-pw px-3 border border-pw-line-2 rounded-pw-md bg-pw-fill h-9 w-full [outline:none]"
+          class="text-chat-text font-chat px-3 border border-chat-line-2 rounded-chat-surface-md bg-chat-fill h-9 w-full [outline:none]"
           placeholder="Pick a model"
         />
       </Combobox.Control>

@@ -8,8 +8,8 @@ const BASE =
   'inline-flex items-center justify-center cursor-pointer trans-btn focus-ring disabled:opacity-50 disabled:cursor-not-allowed active:not-disabled:[transform:scale(0.97)]'
 
 const VARIANT: Record<TooltipIconButtonVariant, string> = {
-  ghost: 'rounded-pw-md bg-transparent text-pw-text-2 hover:text-pw-text hover:bg-pw-fill-strong',
-  solid: 'rounded-pw-md bg-pw-accent text-pw-on-accent hover:bg-pw-accent-hi',
+  ghost: 'rounded-chat-surface-md bg-transparent text-chat-text-2 hover:text-chat-text hover:bg-chat-fill-strong',
+  solid: 'rounded-chat-surface-md bg-chat-accent text-chat-on-accent hover:bg-chat-accent-hi',
 }
 
 function iconButtonClass(variant: TooltipIconButtonVariant | undefined, size: string | undefined): string {
@@ -64,7 +64,7 @@ export function TooltipIconButtonSlot(props: TooltipIconButtonSlotProps): JSX.El
             asChild={(triggerProps) => (
               <span
                 {...triggerProps()}
-                class={`inline-flex  ${local.wrapperClass ?? ''}`}
+                class={`inline-flex ${local.wrapperClass ?? ''}`}
                 onFocusIn={(event) => event.target.matches(':focus-visible') && api().setOpen(true)}
                 onFocusOut={() => api().setOpen(false)}
               >

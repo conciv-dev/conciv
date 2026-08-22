@@ -81,7 +81,7 @@ function resolveMetrics(viewport: HTMLElement): Metrics {
   const assistantRoot = document.createElement('div')
   assistantRoot.className = ASSISTANT_ROOT_CLASS
   const prose = document.createElement('div')
-  prose.className = 'prose-pw'
+  prose.className = 'prose-chat'
   const paragraph = document.createElement('p')
   paragraph.textContent = 'Probe'
   prose.appendChild(paragraph)

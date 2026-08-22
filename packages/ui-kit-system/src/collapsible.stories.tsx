@@ -7,15 +7,15 @@ export default meta
 type Story = StoryObj<typeof Collapsible.Root>
 
 const TRIGGER =
-  'flex items-center justify-between gap-2 w-full bg-pw-fill border border-pw-line rounded-pw-md py-2 px-3 text-pw-text font-pw cursor-pointer'
-const BODY = 'mt-1.75 py-2 px-3 text-pw-text-2 bg-pw-sunken rounded-pw-sm'
+  'flex items-center justify-between gap-2 w-full bg-chat-fill border border-chat-line rounded-chat-surface-md py-2 px-3 text-chat-text font-chat cursor-pointer'
+const BODY = 'mt-1.75 py-2 px-3 text-chat-text-2 bg-chat-sunken rounded-chat-surface-sm'
 
 function Demo(props: {defaultOpen?: boolean}) {
   return (
     <Collapsible.Root defaultOpen={props.defaultOpen}>
       <Collapsible.Trigger class={TRIGGER}>
         Tool details
-        <Collapsible.Indicator class="text-pw-text-3 [&[data-state=open]]:[transform:rotate(180deg)]">
+        <Collapsible.Indicator class="text-chat-text-3 [&[data-state=open]]:[transform:rotate(180deg)]">
           ▾
         </Collapsible.Indicator>
       </Collapsible.Trigger>

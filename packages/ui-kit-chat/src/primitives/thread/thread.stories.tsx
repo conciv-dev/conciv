@@ -21,7 +21,7 @@ type Story = StoryObj
 
 function FallbackTool(props: ToolCardProps): JSX.Element {
   return (
-    <div class="text-[0.6875rem] text-pw-text-2 px-2 py-1 border border-pw-line rounded-pw-sm">
+    <div class="text-[0.6875rem] text-chat-text-2 px-2 py-1 border border-chat-line rounded-chat-surface-sm">
       tool {props.part.name} → {props.result?.content ? String(props.result.content) : '…'}
     </div>
   )
@@ -29,7 +29,7 @@ function FallbackTool(props: ToolCardProps): JSX.Element {
 
 function UserMessage(): JSX.Element {
   return (
-    <Message.Root class="text-pw-on-accent px-3 py-1.5 rounded-pw-md bg-pw-accent max-w-[80%] self-end">
+    <Message.Root class="text-chat-on-accent px-3 py-1.5 rounded-chat-surface-md bg-chat-accent max-w-[80%] self-end">
       <Message.Parts />
     </Message.Root>
   )
@@ -37,7 +37,7 @@ function UserMessage(): JSX.Element {
 
 function AssistantMessage(): JSX.Element {
   return (
-    <Message.Root class="text-pw-text flex flex-col gap-1 max-w-full self-start">
+    <Message.Root class="text-chat-text flex flex-col gap-1 max-w-full self-start">
       <Message.Parts components={{tools: {Fallback: FallbackTool}}} />
       <Message.Error />
     </Message.Root>
@@ -52,7 +52,7 @@ function ThreadHarness(props: {options: StoryConnectionOptions; expose: (chat: U
       <Thread.Root class="flex flex-col gap-2">
         <Thread.Viewport class="flex flex-col gap-2 max-h-80 overflow-y-auto">
           <Thread.Empty>
-            <div class="text-[0.8125rem] text-pw-text-3">Ask anything to begin.</div>
+            <div class="text-[0.8125rem] text-chat-text-3">Ask anything to begin.</div>
           </Thread.Empty>
           <Thread.Messages components={{UserMessage, AssistantMessage}} />
         </Thread.Viewport>
@@ -107,9 +107,9 @@ function StarterChip(): JSX.Element {
   return (
     <Suggestion.Trigger
       send
-      class="text-[0.75rem] text-pw-text-2 px-2 py-1 border border-pw-line rounded-pw-md flex gap-1"
+      class="text-[0.75rem] text-chat-text-2 px-2 py-1 border border-chat-line rounded-chat-surface-md flex gap-1"
     >
-      <Suggestion.Title class="text-pw-text" />
+      <Suggestion.Title class="text-chat-text" />
       <Suggestion.Description />
     </Suggestion.Trigger>
   )

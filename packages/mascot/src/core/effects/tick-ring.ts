@@ -11,7 +11,7 @@ const TICK_RING_CENTER_TOP_PX = -19
 
 const TICK_SIZE_PX = 3
 
-const TICK_COLOR = 'var(--pw-accent, #e0218a)'
+const TICK_COLOR = 'var(--chat-accent, #e0218a)'
 
 const TICK_REST_OPACITY = 0.18
 

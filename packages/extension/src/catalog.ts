@@ -29,7 +29,7 @@ const CLIENT_SURFACES = [
       'Read host state + actions (insert, notify, setBusy, newSession, harnessId, grab, client) and your own .client() value.',
   },
   {
-    method: "theme: {'pw-accent': '#2563eb'}",
+    method: "theme: {'chat-accent': '#2563eb'}",
     description: 'Declarative design-token overrides on the meta object.',
   },
   {
@@ -101,7 +101,7 @@ const TEMPLATES: Record<ScaffoldKind, (name: string) => string> = {
 
 export default defineExtension({
   name: '${name}',
-  theme: {'pw-accent': '#2563eb'},
+  theme: {'chat-accent': '#2563eb'},
 })
 `,
   'composer-action': (name) => `import {defineExtension} from '@conciv/extension'
@@ -180,7 +180,7 @@ const ${name}Do = defineTool({
   .server((input) => ({result: input.input}))
   .render((props) => <div>${name}: {props.part.name}</div>)
 
-const extension = defineExtension({name: '${name}', Component, theme: {'pw-accent': '#2563eb'}, tools: [${name}Do]})
+const extension = defineExtension({name: '${name}', Component, theme: {'chat-accent': '#2563eb'}, tools: [${name}Do]})
   .client((client) => ({value: {ready: true}}))
   .server((server) => {
     server.app.get('/status', () => ({ok: true}))

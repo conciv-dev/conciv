@@ -71,12 +71,12 @@ describe('keyframes', () => {
   const referenced = [
     ...new Set(
       Object.values(motion)
-        .flatMap((body) => body.match(/animate-pw-[\w-]+?(?=\s|$)/g) ?? [])
+        .flatMap((body) => body.match(/animate-chat-[\w-]+?(?=\s|$)/g) ?? [])
         .map((token) => token.replace('animate-', '')),
     ),
   ]
 
-  it('motion shortcuts reference at least one pw keyframe', () => {
+  it('motion shortcuts reference at least one chat keyframe', () => {
     expect(referenced.length).toBeGreaterThan(0)
   })
 
@@ -109,9 +109,9 @@ describe('theme tokens', () => {
 })
 
 describe('typography', () => {
-  it('prose-pw generates prose css', async () => {
-    const {css, matched} = await generate('prose-pw')
-    expect(matched.has('prose-pw')).toBe(true)
+  it('prose-chat generates prose css', async () => {
+    const {css, matched} = await generate('prose-chat')
+    expect(matched.has('prose-chat')).toBe(true)
     expect(css).toContain('.prose')
   })
 })

@@ -1,6 +1,6 @@
 import type {Theme} from '@unocss/preset-wind4'
 
 export const ease = {
-  pw: 'var(--pw-ease)',
-  'pw-expo': 'var(--pw-ease-expo)',
+  chat: 'var(--chat-ease)',
+  'chat-expo': 'var(--chat-ease-expo)',
 } satisfies Theme['ease']

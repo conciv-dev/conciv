@@ -94,7 +94,7 @@ a narrow panel.
 ## Theme: a declarative field
 
 ```ts
-export default defineExtension({name: 'acme', theme: {'pw-accent': '#2563eb'}})
+export default defineExtension({name: 'acme', theme: {'chat-accent': '#2563eb'}})
 ```
 
 Token names are validated by `verb: "validate"`; non-overridable tokens warn (the base theme may restyle them). Run `verb: "catalog"` for the full token list.

@@ -19,7 +19,7 @@ type Story = StoryObj
 
 function UserMessage(): JSX.Element {
   return (
-    <Message.Root class="text-pw-on-accent px-3 py-1.5 rounded-pw-md bg-pw-accent self-end">
+    <Message.Root class="text-chat-on-accent px-3 py-1.5 rounded-chat-surface-md bg-chat-accent self-end">
       <Message.Parts />
     </Message.Root>
   )
@@ -27,7 +27,7 @@ function UserMessage(): JSX.Element {
 
 function AssistantMessage(): JSX.Element {
   return (
-    <Message.Root class="text-pw-text self-start">
+    <Message.Root class="text-chat-text self-start">
       <Message.Parts />
     </Message.Root>
   )
@@ -43,10 +43,12 @@ function ComposerApp(): JSX.Element {
         </Thread.Viewport>
         <Composer.Root class="flex gap-2 items-end">
           <Composer.Input placeholder="Message…" class="flex-1" aria-label="Message" />
-          <Composer.Send class="text-pw-on-accent px-3 py-1.5 rounded-pw-md bg-pw-accent disabled:opacity-40">
+          <Composer.Send class="text-chat-on-accent px-3 py-1.5 rounded-chat-surface-md bg-chat-accent disabled:opacity-40">
             Send
           </Composer.Send>
-          <Composer.Cancel class="text-pw-text px-3 py-1.5 rounded-pw-md bg-pw-fill-strong">Stop</Composer.Cancel>
+          <Composer.Cancel class="text-chat-text px-3 py-1.5 rounded-chat-surface-md bg-chat-fill-strong">
+            Stop
+          </Composer.Cancel>
         </Composer.Root>
       </Thread.Root>
     </ChatProvider>
@@ -83,10 +85,12 @@ function CancelApp(props: {onCancel: () => void}): JSX.Element {
       <ComposerHandlersProvider value={handlers}>
         <Composer.Root class="flex gap-2 items-end">
           <Composer.Input placeholder="Message…" class="flex-1" aria-label="Message" />
-          <Composer.Send class="text-pw-on-accent px-3 py-1.5 rounded-pw-md bg-pw-accent disabled:opacity-40">
+          <Composer.Send class="text-chat-on-accent px-3 py-1.5 rounded-chat-surface-md bg-chat-accent disabled:opacity-40">
             Send
           </Composer.Send>
-          <Composer.Cancel class="text-pw-text px-3 py-1.5 rounded-pw-md bg-pw-fill-strong">Stop</Composer.Cancel>
+          <Composer.Cancel class="text-chat-text px-3 py-1.5 rounded-chat-surface-md bg-chat-fill-strong">
+            Stop
+          </Composer.Cancel>
         </Composer.Root>
       </ComposerHandlersProvider>
     </ChatProvider>
@@ -138,9 +142,9 @@ function QueueApp(): JSX.Element {
       <div class="flex flex-col gap-1">
         <Composer.Queue>
           {() => (
-            <div class="text-[0.75rem] text-pw-text-2 flex gap-2 items-center">
+            <div class="text-[0.75rem] text-chat-text-2 flex gap-2 items-center">
               <QueueItem.Text class="flex-1" />
-              <QueueItem.Remove class="text-pw-text-3">×</QueueItem.Remove>
+              <QueueItem.Remove class="text-chat-text-3">×</QueueItem.Remove>
             </div>
           )}
         </Composer.Queue>

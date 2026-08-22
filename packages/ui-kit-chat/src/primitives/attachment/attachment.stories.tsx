@@ -55,10 +55,10 @@ function Harness(): JSX.Element {
         <For each={attachments()}>
           {(draft) => (
             <AttachmentProvider value={draft}>
-              <Attachment.Root class="px-2 py-1 border border-pw-line rounded-pw-sm flex gap-1 items-center">
-                <Attachment.Thumb class="text-[0.625rem] text-pw-text-3" />
-                <Attachment.Name class="text-[0.75rem] text-pw-text-2" />
-                <Attachment.Remove class="text-pw-text-3" aria-label={`Remove ${draft.name}`}>
+              <Attachment.Root class="px-2 py-1 border border-chat-line rounded-chat-surface-sm flex gap-1 items-center">
+                <Attachment.Thumb class="text-[0.625rem] text-chat-text-3" />
+                <Attachment.Name class="text-[0.75rem] text-chat-text-2" />
+                <Attachment.Remove class="text-chat-text-3" aria-label={`Remove ${draft.name}`}>
                   ×
                 </Attachment.Remove>
               </Attachment.Root>

@@ -8,21 +8,21 @@ import {DragPrompt} from './drag-prompt.js'
 type CommentStatus = 'open' | 'resolved' | 'drifted' | 'orphaned'
 
 const STATUS_FILL: Record<CommentStatus, string> = {
-  open: 'bg-pw-accent',
-  resolved: 'bg-pw-success',
-  drifted: 'bg-pw-warn',
-  orphaned: 'bg-pw-dim',
+  open: 'bg-chat-accent',
+  resolved: 'bg-chat-success',
+  drifted: 'bg-chat-warn',
+  orphaned: 'bg-chat-dim',
 }
 
 const isStatus = (value: string | undefined): value is CommentStatus =>
   value !== undefined && Object.hasOwn(STATUS_FILL, value)
 
 const PIN =
-  'absolute size-6 rounded-[50%_50%_50%_0] border-2 border-pw-text-hi cursor-grab touch-none pointer-events-auto shadow-pw focus-ring'
+  'absolute size-6 rounded-[50%_50%_50%_0] border-2 border-chat-text-hi cursor-grab touch-none pointer-events-auto shadow-chat focus-ring'
 const UNREAD_DOT =
-  'absolute -top-1 -right-1 size-2.5 rounded-pw-pill bg-pw-accent [box-shadow:0_0_0_2px_var(--pw-panel)]'
+  'absolute -top-1 -right-1 size-2.5 rounded-chat-pill bg-chat-accent [box-shadow:0_0_0_2px_var(--chat-panel)]'
 const ANCHOR_TAG =
-  'absolute font-pw-mono text-[0.625rem] text-pw-text-2 bg-pw-panel border border-pw-line rounded-pw-sm px-1 py-px pointer-events-none whitespace-nowrap'
+  'absolute font-chat-mono text-[0.625rem] text-chat-text-2 bg-chat-panel border border-chat-line rounded-chat-surface-sm px-1 py-px pointer-events-none whitespace-nowrap'
 
 const DRAG_THRESHOLD = 4
 const AnchorLine = z.object({source: z.object({line: z.number().nullable().optional()})})
@@ -105,7 +105,7 @@ export function PinsLayer(): JSX.Element {
                           y1={anchorPos().y}
                           x2={pos().x}
                           y2={pos().y}
-                          stroke="var(--pw-line-2)"
+                          stroke="var(--chat-line-2)"
                           stroke-width="1"
                           stroke-dasharray="3 3"
                         />
@@ -117,7 +117,7 @@ export function PinsLayer(): JSX.Element {
                         ref={(element: HTMLButtonElement) => model.registerPin(pin.cid, element)}
                         aria-label={pinLabel(comment(), status(), model.isUnread(pin.cid))}
                         class={`${PIN}  ${STATUS_FILL[status()]}`}
-                        classList={{'[transition:transform_200ms_var(--pw-ease-expo)]': drag()?.cid !== pin.cid}}
+                        classList={{'[transition:transform_200ms_var(--chat-ease-expo)]': drag()?.cid !== pin.cid}}
                         style={{
                           left: 0,
                           top: 0,

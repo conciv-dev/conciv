@@ -1,76 +1,29 @@
-/* The "terminal" theme: the widget's one shipped look. Maps the neutral --chat-* vocabulary onto a
-   dark, terminal-flavored palette. Applied on the chat root via the `chat-theme-terminal` class
-   (apps/conciv/src/lib/theme.ts applyChatTheme). Styled components never reference this file's
-   colors directly, only --chat-*.
+/* The "terminal" theme: the widget's one shipped look. Maps the single --chat-* token vocabulary
+   (ui-kit-system/tokens.css defaults + ui-kit-chat/theme/tokens.css light sheet) onto a dark,
+   terminal-flavored palette. Styled components never reference this file's colors directly, only
+   --chat-*.
 
-   ui-kit-system's Ark primitives (menu, dialog, tooltip, popover, toast, select, combobox,
-   hover-card, anchored-listbox) and a handful of app surfaces style off the --pw-* vocabulary
-   directly, not --chat-*, so this theme also remaps the full pw-* surface set here. Every pw-*
-   color/shadow/font/radius that those components reference is remapped below; hue-derived tokens
-   (--pw-accent-08/20/line, --pw-danger-10/14, --pw-success-18, --pw-warn-20, --pw-panel-60,
-   --pw-accent-link, --pw-agent, --pw-read) are color-mix() formulas over the base tokens, so they
-   pick up the new palette automatically and are left alone.
+   Every declaration sits at :host,:root (not inside .chat-theme-terminal) so an extension's accent
+   override tag, appended later at the same :host/:root specificity, still wins by source order.
+   Nesting them in the class selector would raise this rule's specificity above :host/:root and
+   defeat that override. It also keeps one value per token for chrome and thread alike, instead of
+   the split the two old namespaces carried.
 
-   All of this is set at :host,:root (not inside .chat-theme-terminal) so an extension's accent
-   override tag, appended later at the same :host/:root specificity, still wins by source order
-   over this theme's defaults. Nesting them in the class selector would raise this rule's
-   specificity above :host/:root and defeat that override.
+   Hue-derived tokens (--chat-accent-08/20/line, --chat-danger-line, --chat-agent) are color-mix()
+   formulas over the base tokens, so they pick up this palette automatically and are left alone.
 
-   Radius: pw-r-sm/md/lg are shared by floating chrome (menus, dialogs, popovers, toasts) as well
-   as the wider ui-kit-system surface, not just chat bubbles, so they keep a slightly more open
-   scale than the chat-radius-* tokens (which stay 4px/4px/11px for message chrome) rather than
-   inheriting that flat scale verbatim: 4px/8px/12px, pill unchanged. */
+   Radius: --chat-radius-surface-sm/md/lg size floating chrome (menus, dialogs, popovers, toasts)
+   and keep a slightly more open scale than --chat-radius-sm/md/lg, which size message chrome. */
 
 :host,
 :root {
-  --pw-accent: #c9857f;
-  --pw-accent-hi: #dda49e;
-
-  --pw-panel: #17161a;
-  --pw-panel-sunk: #17161a;
-  --pw-glass: rgba(23, 22, 26, 0.97);
-  --pw-fill: rgba(255, 255, 255, 0.05);
-  --pw-fill-soft: rgba(255, 255, 255, 0.03);
-  --pw-fill-strong: rgba(255, 255, 255, 0.1);
-  --pw-sunken: #121115;
-
-  --pw-text: #d8d2ce;
-  --pw-text-hi: #f0ebe8;
-  --pw-text-2: #a29c9c;
-  --pw-text-3: #7d787d;
-  --pw-on-accent: #14100f;
-
-  --pw-line: #272428;
-  --pw-line-2: #322e33;
-  --pw-line-soft: #232025;
-
-  --pw-danger: #d98070;
-  --pw-success: #6fbf8b;
-  --pw-warn: #c9a86a;
-  --pw-dim: #8d8887;
-
-  --pw-r-sm: 4px;
-  --pw-r-md: 8px;
-  --pw-r-lg: 12px;
-  --pw-r-pill: 999px;
-
-  --pw-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-  --pw-shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.6);
-  --pw-shadow-hover: 0 16px 44px rgba(0, 0, 0, 0.6);
-
-  --pw-font:
-    'Source Sans 3', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --pw-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-}
-
-.chat-theme-terminal {
-  color-scheme: dark;
-
   --chat-ground: #0a0a0b;
-  --chat-bg: #17161a;
   --chat-panel: #17161a;
+  --chat-bg: var(--chat-panel);
+  --chat-panel-sunk: var(--chat-panel);
   --chat-glass: rgba(23, 22, 26, 0.97);
   --chat-fill: rgba(255, 255, 255, 0.05);
+  --chat-fill-soft: rgba(255, 255, 255, 0.03);
   --chat-fill-strong: rgba(255, 255, 255, 0.1);
   --chat-sunken: rgba(0, 0, 0, 0.35);
 
@@ -84,20 +37,20 @@
   --chat-action: #b0a9a9;
   --chat-mono-lift: #9a9391;
 
-  --chat-accent: var(--pw-accent);
-  --chat-accent-hi: var(--pw-accent-hi);
-  --chat-accent-link: var(--pw-accent-hi);
+  --chat-accent: #c9857f;
+  --chat-accent-hi: #dda49e;
+  --chat-accent-link: var(--chat-accent-hi);
   --chat-on-accent: #14100f;
 
   --chat-danger: #d98070;
-  --chat-danger-line: rgba(217, 128, 112, 0.42);
   --chat-success: #6fbf8b;
   --chat-warn: #c9a86a;
   --chat-dim: #8d8887;
 
   --chat-line: #272428;
+  --chat-line-2: #322e33;
   --chat-line-soft: #232025;
-  --chat-perforation: #322e33;
+  --chat-perforation: var(--chat-line-2);
 
   --chat-text-micro: 0.59375rem;
 
@@ -105,10 +58,14 @@
   --chat-radius-md: 4px;
   --chat-radius-lg: 11px;
   --chat-radius-chip: 3px;
-  --chat-radius-pill: 999px;
+  --chat-radius-surface-sm: 4px;
+  --chat-radius-surface-md: 8px;
+  --chat-radius-surface-lg: 12px;
 
   --chat-shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.5);
   --chat-shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.6);
+  --chat-shadow: var(--chat-shadow-sm);
+  --chat-shadow-hover: var(--chat-shadow-lg);
 
   --chat-font:
     'Source Sans 3', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -119,7 +76,7 @@
   --chat-status-waiting: var(--chat-warn);
   --chat-status-failed: var(--chat-danger);
   --chat-status-done: var(--chat-success);
-  --chat-on-status: #14100f;
+  --chat-on-status: var(--chat-on-accent);
 
   --diffs-addition-color-override: #6fbf8b;
   --diffs-deletion-color-override: #d98070;
@@ -186,4 +143,8 @@
   --chat-statusbar-bg: #141317;
 
   --chat-selection-bg: #453739;
+}
+
+.chat-theme-terminal {
+  color-scheme: dark;
 }

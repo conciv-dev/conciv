@@ -1,23 +1,23 @@
 .rr-player {
   float: none;
-  background: var(--pw-panel);
-  border: 1px solid var(--pw-line-soft);
-  border-radius: var(--pw-r-md);
+  background: var(--chat-panel);
+  border: 1px solid var(--chat-line-soft);
+  border-radius: var(--chat-radius-surface-md);
   box-shadow: none;
   overflow: hidden;
-  font-family: var(--pw-font);
+  font-family: var(--chat-font);
   container-type: inline-size;
 }
 
 .rr-player__frame {
-  background: var(--pw-panel-sunk);
+  background: var(--chat-panel-sunk);
 }
 
 .rr-controller {
-  background: var(--pw-panel);
-  border-top: 1px solid var(--pw-line-soft);
+  background: var(--chat-panel);
+  border-top: 1px solid var(--chat-line-soft);
   border-radius: 0;
-  color: var(--pw-text-2);
+  color: var(--chat-text-2);
   height: 80px;
   gap: 2px;
 }
@@ -33,8 +33,8 @@
   width: auto;
   flex: none;
   white-space: nowrap;
-  color: var(--pw-text-3);
-  font-family: var(--pw-mono);
+  color: var(--chat-text-3);
+  font-family: var(--chat-mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -42,25 +42,25 @@
 .rr-progress {
   min-width: 0;
   height: 22px;
-  background: var(--pw-fill-strong);
+  background: var(--chat-fill-strong);
   border-top: solid 8px transparent;
   border-bottom: solid 8px transparent;
   background-clip: content-box;
-  border-radius: var(--pw-r-pill);
+  border-radius: var(--chat-radius-pill);
 }
 
 .rr-progress__step {
-  background: var(--pw-accent-20);
-  border-radius: var(--pw-r-pill);
+  background: var(--chat-accent-20);
+  border-radius: var(--chat-radius-pill);
 }
 
 .rr-progress__handler {
   width: 12px;
   height: 12px;
   top: 3px;
-  background: var(--pw-accent);
-  box-shadow: var(--pw-shadow-sm);
-  transition: transform 150ms var(--pw-ease);
+  background: var(--chat-accent);
+  box-shadow: var(--chat-shadow-sm);
+  transition: transform 150ms var(--chat-ease);
 }
 
 .rr-progress:hover .rr-progress__handler {
@@ -70,38 +70,38 @@
 .rr-controller__btns {
   font-size: 12px;
   gap: 2px;
-  color: var(--pw-text-2);
+  color: var(--chat-text-2);
   max-width: 100%;
   padding: 0 8px;
   box-sizing: border-box;
 }
 
 .rr-controller__btns button {
-  color: var(--pw-text-2);
+  color: var(--chat-text-2);
   transition:
-    background-color 150ms var(--pw-ease),
-    color 150ms var(--pw-ease),
-    transform 150ms var(--pw-ease);
+    background-color 150ms var(--chat-ease),
+    color 150ms var(--chat-ease),
+    transform 150ms var(--chat-ease);
 }
 
 .rr-controller__btns button:hover {
-  background: var(--pw-fill-strong);
-  color: var(--pw-text-hi);
+  background: var(--chat-fill-strong);
+  color: var(--chat-text-hi);
 }
 
 .rr-controller__btns button:active {
-  background: var(--pw-accent-08);
+  background: var(--chat-accent-08);
   transform: scale(0.94);
 }
 
 .rr-controller__btns button:focus-visible {
-  outline: 2px solid var(--pw-accent-line);
+  outline: 2px solid var(--chat-accent-line);
   outline-offset: 2px;
 }
 
 .rr-controller__btns button.active {
-  background: var(--pw-accent);
-  color: var(--pw-on-accent);
+  background: var(--chat-accent);
+  color: var(--chat-on-accent);
 }
 
 .rr-controller__btns button svg {
