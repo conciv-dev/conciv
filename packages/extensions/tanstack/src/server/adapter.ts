@@ -1,5 +1,5 @@
 import type {z} from 'zod'
-import type {ServerToolCaller} from '@conciv/extension'
+import type {ServerToolRegistryAccess} from '@conciv/extension/registry'
 import type {BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {
   defineFrameworkAdapter,
@@ -31,7 +31,7 @@ import {
 type BundlerSubscribe = (listener: (diagnostic: BundlerDiagnostic) => void) => Unsubscribe
 
 export type TanstackAdapterDeps = {
-  tools: ServerToolCaller
+  tools: ServerToolRegistryAccess
   buildErrors: () => AppError[]
   routeManifest: () => Promise<ServerRouteInfo[]>
   serverFnTraces: (count?: number) => ServerFnTrace[]
@@ -47,7 +47,7 @@ function toFrameworkEvent(diagnostic: BundlerDiagnostic): FrameworkEvent {
   return {kind: 'requestTrace', at: diagnostic.timestamp, message: null, detail: diagnostic}
 }
 
-function makeVerbCaller(tools: ServerToolCaller) {
+function makeVerbCaller(tools: ServerToolRegistryAccess) {
   return async <Out extends z.ZodType>(
     def: {name: string; outputSchema?: Out},
     input: Record<string, unknown>,

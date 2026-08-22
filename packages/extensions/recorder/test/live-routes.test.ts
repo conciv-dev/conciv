@@ -10,9 +10,9 @@ describe('live follow routes', () => {
     const runtime = runtimeFixture()
     runtime.rings.append('c', [{type: 2, data: {node: {}}, timestamp: 1000}])
     const router = makeRecorderRouter(runtime)
-    const first = await call(router.window, {}, context)
+    const first = await call(router.window, {clientId: 'c'}, context)
     runtime.rings.append('c', [{type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2000}])
-    const delta = await call(router.events, {cursor: first.cursor}, context)
+    const delta = await call(router.events, {cursor: first.cursor, clientId: 'c'}, context)
     expect(delta.events).toEqual([{type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2000}])
   })
 
@@ -20,9 +20,9 @@ describe('live follow routes', () => {
     const runtime = runtimeFixture()
     runtime.rings.append('c', [{type: 2, data: {node: {}}, timestamp: 1000}])
     const router = makeRecorderRouter(runtime)
-    const first = await call(router.events, {cursor: 0}, context)
+    const first = await call(router.events, {cursor: 0, clientId: 'c'}, context)
     runtime.rings.append('c', [{type: 3, data: {source: 2, type: 2, id: 7}, timestamp: 1000}])
-    const delta = await call(router.events, {cursor: first.cursor}, context)
+    const delta = await call(router.events, {cursor: first.cursor, clientId: 'c'}, context)
     expect(delta.events).toEqual([{type: 3, data: {source: 2, type: 2, id: 7}, timestamp: 1000}])
   })
 

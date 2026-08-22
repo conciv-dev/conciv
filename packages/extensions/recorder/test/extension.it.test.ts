@@ -103,9 +103,9 @@ describe('recorder extension booted in the real engine (IT)', () => {
     try {
       const rpc = recorderClient(base)
       await rpc.flush({clientId: 'c1', events: fixtureStream(Date.now())})
-      const {events} = await rpc.window({})
+      const {events} = await rpc.window({clientId: 'c1'})
       expect(events.length).toBe(3)
-      const {entries} = await rpc.log({})
+      const {entries} = await rpc.log({clientId: 'c1'})
       expect(entries.map((entry) => entry.kind)).toEqual(['navigation', 'click'])
       expect(entries[1]?.detail).toContain('Buy')
     } finally {
@@ -127,7 +127,7 @@ describe('recorder extension booted in the real engine (IT)', () => {
         }
       })()
       await rpc.reset(undefined)
-      const {events} = await rpc.window({})
+      const {events} = await rpc.window({clientId: 'c1'})
       expect(events).toEqual([])
       expect(await resnapshot.promise).toEqual({snapshot: true, flush: true})
       abort.abort()

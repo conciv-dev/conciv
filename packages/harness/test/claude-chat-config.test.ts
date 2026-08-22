@@ -4,11 +4,12 @@ import {join} from 'node:path'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {describe, expect, it} from 'vitest'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {claudeChatConfig, claudeExecutable} from '../src/claude/chat.js'
 
 const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
   cwd: process.cwd(),
-  sessionId: 's1',
+  sessionId: SessionId.parse('conciv_s1'),
   resumeSessionId: null,
   env: {},
   kind: 'chat',
@@ -45,7 +46,9 @@ describe('claudeChatConfig', () => {
 
   it('threads the resume session id through modelOptions and leaves the workdir to the sandbox', () => {
     expect(claudeChatConfig(deps()).modelOptions).toEqual({})
-    expect(claudeChatConfig(deps({resumeSessionId: 'r-9'})).modelOptions).toEqual({sessionId: 'r-9'})
+    expect(claudeChatConfig(deps({resumeSessionId: HarnessSessionId.parse('r-9')})).modelOptions).toEqual({
+      sessionId: 'r-9',
+    })
   })
 
   it('caps MCP tool calls above the 120s ui-ask window so blocking conciv_ui times out gracefully first', () => {

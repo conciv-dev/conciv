@@ -6,7 +6,7 @@ import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import type {HarnessConnectContext, HarnessConnectPlan} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
-import type {UIMessage} from '@conciv/protocol/chat-types'
+import type {HarnessSessionId, SessionId, UIMessage} from '@conciv/protocol/chat-types'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
@@ -21,7 +21,7 @@ export type ExtensionView = {
   actions?: Component
 }
 
-export type ToolRequest = {sessionId: string; model: string | null; toolCallId?: string}
+export type ToolRequest = {sessionId: SessionId; model: string | null; toolCallId?: string}
 
 export type ExtensionServerTool = {
   name: string
@@ -42,6 +42,10 @@ export type ExtensionCommand = {
 
 export type ToolRenderer = Component<ToolCardProps>
 
+export type ServerToolPageAccess = {call: (name: string, input: Record<string, unknown>) => Promise<unknown>}
+
+export type ServerToolRegistryAccess = {call: (name: string, input: unknown) => Promise<unknown>}
+
 export type ExtensionTool = {
   name: string
   description: string
@@ -51,8 +55,13 @@ export type ExtensionTool = {
   streamTitle?: string
   display?: 'standalone'
   approval?: 'ask'
-  __execute?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
-  __serverRun?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
+  __serverRun?: (
+    input: unknown,
+    ctx: unknown,
+    request: ToolRequest,
+    page: ServerToolPageAccess,
+    tools: ServerToolRegistryAccess,
+  ) => Promise<unknown>
   __render?: ToolRenderer
 }
 
@@ -70,28 +79,20 @@ export type ClientFactoryResult<ClientReturnValue extends object> = {
 }
 
 export type ServerSessions = {
-  resumeToken(sessionId: string): Promise<string | null>
-  recordToken(sessionId: string, token: string): Promise<void>
-  chatBusy(sessionId: string): boolean
-  model(sessionId: string): Promise<string | null>
-  onChatTurn(listener: (sessionId: string) => void): void
+  resumeToken(sessionId: SessionId): Promise<HarnessSessionId | null>
+  recordToken(sessionId: SessionId, token: HarnessSessionId): Promise<void>
+  chatBusy(sessionId: SessionId): boolean
+  model(sessionId: SessionId): Promise<string | null>
+  onChatTurn(listener: (sessionId: SessionId) => void): void
 }
 
 export type ServerHarness = {
   id: string
   ttyCommand?: (ctx: HarnessConnectContext) => TtyCommand
   connectPlan?: (ctx: HarnessConnectContext) => HarnessConnectPlan
-  release?: (sessionId: string) => void
-  transcriptExists?: (token: string) => boolean
-  transcriptMessages?: (token: string) => Promise<UIMessage[]>
-}
-
-export type ServerPageCaller = {
-  call: (name: string, input: Record<string, unknown>) => Promise<Record<string, unknown>>
-}
-
-export type ServerToolCaller = {
-  call: (name: string, input: unknown) => Promise<unknown>
+  release?: (sessionId: SessionId) => void
+  transcriptExists?: (token: HarnessSessionId) => boolean
+  transcriptMessages?: (token: HarnessSessionId) => Promise<UIMessage[]>
 }
 
 export type ServerApi<Config> = {
@@ -101,8 +102,6 @@ export type ServerApi<Config> = {
   stateDir: string
   sessions: ServerSessions
   harness: ServerHarness
-  page: ServerPageCaller
-  tools: ServerToolCaller
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   bundler?: BundlerBridge
   nativeUrl: () => string | undefined
@@ -112,7 +111,7 @@ export type ServerResult<Context> = {
   context: Context
   router?: AnyRouter
   app?: unknown
-  turnEnd?: (sessionId: string) => void | Promise<void>
+  turnEnd?: (sessionId: SessionId) => void | Promise<void>
   dispose?: () => void | Promise<void>
 }
 

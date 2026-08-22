@@ -1,16 +1,18 @@
 import {describe, expect, it} from 'vitest'
 import type {StreamChunk} from '@tanstack/ai'
 import {approvalIds} from '@conciv/harness-testkit'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {createAskRegistry} from '../../src/chat/ask.js'
-import {makeRunGate} from '../../src/chat/gate.js'
+import {asksFor, makeRunGate} from '../../src/chat/gate.js'
+
+const SESSION = SessionId.parse('conciv_x')
 
 const fixture = (timeoutMs?: number) => {
   const asks = createAskRegistry()
   const emitted: StreamChunk[] = []
   const risky = new Set(['canvas.delete'])
   const gate = makeRunGate({
-    sessionId: 'conciv_x',
-    asks,
+    asks: asksFor(asks, SESSION),
     emit: (chunk) => emitted.push(chunk),
     risky,
     timeoutMs: timeoutMs ?? 100,
@@ -29,7 +31,7 @@ const settledApprovalId = async (approvalId: () => string | undefined): Promise<
 describe('run gate on awaitReply', () => {
   it('allows a safe tool outright (no approval part)', async () => {
     const {gate, emitted} = fixture()
-    expect(await gate.decide('Read', {path: '/x'}, 'conciv_x', 'tu1')).toBe('allow')
+    expect(await gate.decide('Read', {path: '/x'}, 'tu1')).toBe('allow')
     expect(emitted).toEqual([])
   })
 
@@ -41,35 +43,35 @@ describe('run gate on awaitReply', () => {
     'mcp__conciv__canvas_delete',
   ])('gates %s: every caller path names the same risky tool', async (name) => {
     const {gate} = fixture(30)
-    expect(await gate.decide(name, {id: 'r1'}, 'conciv_x', 'tu2')).toBe('timeout')
+    expect(await gate.decide(name, {id: 'r1'}, 'tu2')).toBe('timeout')
   })
 
   it.each(['canvas.read', 'mcp__conciv__canvas.draw', 'mcp__tanstack__canvas.read'])(
     'leaves %s alone: a non-risky tool in every mcp prefix form',
     async (name) => {
       const {gate} = fixture(30)
-      expect(await gate.decide(name, {id: 'r1'}, 'conciv_x', 'tu3')).toBe('allow')
+      expect(await gate.decide(name, {id: 'r1'}, 'tu3')).toBe('allow')
     },
   )
 
   it('fires an approval request for a bridge-visible risky tool name (does not execute silently)', async () => {
     const {gate, asks, approvalId} = fixture(5_000)
-    const pending = gate.decide('mcp__tanstack__canvas.delete', {id: 'r1'}, 'conciv_x', 'tu3b')
-    asks.reply('conciv_x', await settledApprovalId(approvalId), false)
+    const pending = gate.decide('mcp__tanstack__canvas.delete', {id: 'r1'}, 'tu3b')
+    asks.reply(SESSION, await settledApprovalId(approvalId), false)
     expect(await pending).toBe('deny')
   })
 
   it('risky tool with no folded part gets a synthetic part, annotated with the approval, and an approve reply allows', async () => {
     const {gate, asks, approvalId} = fixture(5_000)
-    const pending = gate.decide('mcp__conciv__canvas.delete', {id: 'r1'}, 'conciv_x', 'tu4')
-    asks.reply('conciv_x', await settledApprovalId(approvalId), true)
+    const pending = gate.decide('mcp__conciv__canvas.delete', {id: 'r1'}, 'tu4')
+    asks.reply(SESSION, await settledApprovalId(approvalId), true)
     expect(await pending).toBe('allow')
   })
 
   it('a deny reply denies', async () => {
     const {gate, asks, approvalId} = fixture(5_000)
-    const pending = gate.decide('Bash', {command: 'rm -rf /tmp/x'}, 'conciv_x', 'tu5')
-    asks.reply('conciv_x', await settledApprovalId(approvalId), false)
+    const pending = gate.decide('Bash', {command: 'rm -rf /tmp/x'}, 'tu5')
+    asks.reply(SESSION, await settledApprovalId(approvalId), false)
     expect(await pending).toBe('deny')
   })
 })
@@ -78,7 +80,7 @@ describe('run gate on the code-mode surface', () => {
   it('lets execute_typescript through: the sandbox gates each capability the code calls', async () => {
     const {gate, emitted} = fixture(5_000)
     const input = {typescriptCode: 'return await external_page_click({selector: ".buy"})'}
-    expect(await gate.decide('execute_typescript', input, 'conciv_x', 'tu-exec')).toBe('allow')
+    expect(await gate.decide('execute_typescript', input, 'tu-exec')).toBe('allow')
     expect(emitted).toEqual([])
   })
 })

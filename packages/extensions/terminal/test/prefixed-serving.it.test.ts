@@ -115,7 +115,10 @@ describe('prefixed serving over the real wire (start with an access token)', () 
   })
 
   it('answers chat.permissionDecision through the prefixed route', {timeout: 15_000}, async () => {
-    const result = await rpc.chat.permissionDecision({approvalId: 'none-pending', approved: false})
-    expect(result.ok).toBe(true)
+    const {sessionId} = await rpc.sessions.create(undefined)
+    const sessionRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    await expect(
+      sessionRpc.chat.permissionDecision({approvalId: 'none-pending', approved: false}),
+    ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
   })
 })

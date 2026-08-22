@@ -15,7 +15,8 @@ function cfgFor(stateRoot: string): ResolvedConcivConfig {
     stateRoot,
     harness: 'claude',
     harnessBin: undefined,
-    sessionId: '',
+    sessionId: undefined,
+    harnessSessionId: undefined,
     systemPrompt: '',
     extensions: undefined,
   }

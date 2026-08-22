@@ -9,6 +9,7 @@ import type {ConcivEnvironment} from '../router.js'
 import type {LayerStack} from '../shell/dialogs.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
 import type {LiveSessions} from './live-sessions.js'
+import type {WarmSession} from './warm-session.js'
 import type {ColorScheme} from '../lib/color-scheme.js'
 
 export type AppContextValue = {
@@ -17,6 +18,7 @@ export type AppContextValue = {
   environment: ConcivEnvironment
   data: AppData
   liveSessions: LiveSessions
+  warmSession: WarmSession
   queryClient: QueryClient
   announce: (message: string, assertive?: boolean) => void
   layers: LayerStack
@@ -61,6 +63,10 @@ export function useEnvironment(): ConcivEnvironment {
 
 export function useLiveSessions(): LiveSessions {
   return useAppScope('useLiveSessions', (app) => app.liveSessions)
+}
+
+export function useWarmSession(): WarmSession {
+  return useAppScope('useWarmSession', (app) => app.warmSession)
 }
 
 export function useAppQueryClient(): QueryClient {

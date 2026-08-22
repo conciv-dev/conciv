@@ -23,7 +23,10 @@ describe('recording card in the testkit host (real chips, real store)', () => {
     await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0})
 
     const rpc = makeExtRpcClient<RecorderRouter>(api().apiBase, RECORDER_NAME)
-    const saved = await rpc.recordings.save({})
+    const {clients} = await rpc.clients()
+    const clientId = clients.at(-1)?.id
+    if (!clientId) throw new Error('no recorder client connected')
+    const saved = await rpc.recordings.save({clientId})
     if (!('recordingId' in saved)) throw new Error(`expected recordingId, got ${JSON.stringify(saved)}`)
 
     await attachThroughForm(

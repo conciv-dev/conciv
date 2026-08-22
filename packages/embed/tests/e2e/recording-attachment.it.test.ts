@@ -41,14 +41,25 @@ test.describe('recording attachment end to end in the real widget', () => {
 
     await openPanel(page)
     const recorderRpc = makeExtRpcClient<RecorderRouter>(kit.base, 'recorder')
+    const client: {id?: string} = {}
     const clicksAppendedSince = async (cursor: number): Promise<number> => {
-      const appended = AppendedEventsSchema.parse(await recorderRpc.events({cursor}))
+      if (!client.id) throw new Error('no recorder client connected')
+      const appended = AppendedEventsSchema.parse(await recorderRpc.events({cursor, clientId: client.id}))
       return appended.events.filter((event) => ClickEventSchema.safeParse(event).success).length
     }
 
     await page.getByRole('button', {name: 'Recorder'}).click()
-    await until(async () => (await recorderRpc.window({})).cursor > 0, {hangGuardMs: 30_000, intervalMs: 100})
-    const captureBaseline = (await recorderRpc.window({})).cursor
+    await until(
+      async () => {
+        const {clients} = await recorderRpc.clients()
+        if (clients.length > 1) throw new Error(`expected one recorder client for this page, saw ${clients.length}`)
+        client.id = clients[0]?.id
+        return client.id !== undefined
+      },
+      {hangGuardMs: 30_000, intervalMs: 100},
+    )
+    if (!client.id) throw new Error('no recorder client connected')
+    const captureBaseline = (await recorderRpc.window({clientId: client.id})).cursor
 
     await page.getByRole('button', {name: 'Embed fixture'}).click()
     await page.getByRole('button', {name: 'Embed fixture'}).click()

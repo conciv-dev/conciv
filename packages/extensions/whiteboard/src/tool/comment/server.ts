@@ -166,8 +166,9 @@ export const commentListTool = defineTool(commentListDef).server(async (input, c
 export const commentResolveTool = defineTool(commentResolveDef).server(
   async (input, ctx: WhiteboardToolContext, request) => {
     const now = Date.now()
-    const comment = await commentByCid(ctx, ctx.sessionId(request), input.cid)
-    await ctx.store.updateComment(comment.id, {status: 'resolved', resolvedAt: now, updatedAt: now})
+    const sessionId = ctx.sessionId(request)
+    const comment = await commentByCid(ctx, sessionId, input.cid)
+    await ctx.store.updateComment(comment.id, sessionId, {status: 'resolved', resolvedAt: now, updatedAt: now})
     return {cid: input.cid, status: 'resolved'}
   },
 )
@@ -183,28 +184,31 @@ export const commentDeleteTool = defineTool(commentDeleteDef).server(
           .from(comments)
           .where(and(eq(comments.sessionId, sessionId), eq(comments.threadId, comment.threadId)))
       : [comment]
-    for (const row of doomed) await ctx.store.deleteComment(row.id)
+    for (const row of doomed) await ctx.store.deleteComment(row.id, sessionId)
     if (isRoot) {
+      const room = ctx.room(request)
       const doomedPins = await ctx.store.db
         .select()
         .from(pins)
-        .where(and(eq(pins.room, ctx.room(request)), eq(pins.cid, comment.cid)))
-      for (const pin of doomedPins) await ctx.store.deletePin(pin.id)
+        .where(and(eq(pins.room, room), eq(pins.cid, comment.cid)))
+      for (const pin of doomedPins) await ctx.store.deletePin(pin.id, room)
     }
     return {cid: input.cid, deleted: true}
   },
 )
 
 export const commentMoveTool = defineTool(commentMoveDef).server(async (input, ctx: WhiteboardToolContext, request) => {
-  const pin = await pinByCid(ctx, ctx.room(request), input.cid)
-  await ctx.store.updatePin(pin.id, {x: input.x, y: input.y})
+  const room = ctx.room(request)
+  const pin = await pinByCid(ctx, room, input.cid)
+  await ctx.store.updatePin(pin.id, room, {x: input.x, y: input.y})
   markPresence(ctx, request, input.x, input.y)
   return {cid: input.cid, x: input.x, y: input.y}
 })
 
 export const pinSetStateTool = defineTool(pinSetStateDef).server(async (input, ctx: WhiteboardToolContext, request) => {
-  const pin = await pinByCid(ctx, ctx.room(request), input.cid)
-  await ctx.store.updatePin(pin.id, {pinState: input.pinState})
+  const room = ctx.room(request)
+  const pin = await pinByCid(ctx, room, input.cid)
+  await ctx.store.updatePin(pin.id, room, {pinState: input.pinState})
   return {cid: input.cid, pinState: input.pinState}
 })
 

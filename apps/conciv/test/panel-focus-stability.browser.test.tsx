@@ -68,3 +68,7 @@ test('a composer that mounts while the harness metadata is still loading takes t
 test('a composer that mounts while the transcript is still loading takes the focus the panel gave it', async () => {
   await expectFocusSurvivesPendingRequest(['markers', 'list'])
 }, 30_000)
+
+test('a composer that mounts while the session list is still loading keeps the focus the panel gave it', async () => {
+  await expectFocusSurvivesPendingRequest(['sessions', 'list'])
+}, 30_000)

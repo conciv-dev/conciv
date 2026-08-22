@@ -39,3 +39,7 @@ function concivExtensionsServerTool(): ConcivServerTool {
 export function concivSandboxTools(ctx: ConcivToolContext): ConcivServerTool[] {
   return [concivUiServerTool(ctx), concivExtensionsServerTool()]
 }
+
+export function concivSandboxToolNames(): string[] {
+  return [concivUiToolDef.name, concivExtensionsToolDef.name]
+}

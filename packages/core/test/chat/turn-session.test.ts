@@ -4,16 +4,20 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {testDb} from '../helpers/memory-store.js'
 import {createRow, ensureRow, nativeIdFor, recordNativeId, rowById} from '../../src/chat/session-rows.js'
 import {requireClaude} from '../helpers/adapters.js'
 import {resumableToken} from '../../src/chat/run.js'
 
+const SESSION_A = SessionId.parse('conciv_a')
+const SESSION_B = SessionId.parse('conciv_b')
+
 describe('turn session helpers', () => {
   it('nativeIdFor returns the stored harness token (null when new)', async () => {
     const db = testDb()
     await createRow(db, {
-      id: 'conciv_a',
+      id: SESSION_A,
       harnessSessionId: null,
       harnessKind: 'claude',
       origin: 'chat',
@@ -23,16 +27,16 @@ describe('turn session helpers', () => {
       cwd: '/app',
       deletedAt: null,
     })
-    expect(await nativeIdFor(db, 'conciv_a')).toBeNull()
-    await recordNativeId(db, 'conciv_a', 'tok-1')
-    expect(await nativeIdFor(db, 'conciv_a')).toBe('tok-1')
+    expect(await nativeIdFor(db, SESSION_A)).toBeNull()
+    await recordNativeId(db, SESSION_A, HarnessSessionId.parse('tok-1'))
+    expect(await nativeIdFor(db, SESSION_A)).toBe('tok-1')
   })
 
   it('ensureRow lazily births a chat record with a null token', async () => {
     const db = testDb()
-    expect(await rowById(db, 'conciv_b')).toBeNull()
-    await ensureRow(db, 'conciv_b', 'claude', '/app')
-    const rec = await rowById(db, 'conciv_b')
+    expect(await rowById(db, SESSION_B)).toBeNull()
+    await ensureRow(db, SESSION_B, 'claude', '/app')
+    const rec = await rowById(db, SESSION_B)
     expect(rec?.origin).toBe('chat')
     expect(rec?.harnessSessionId).toBeNull()
     expect(rec?.cwd).toBe('/app')
@@ -40,10 +44,10 @@ describe('turn session helpers', () => {
 
   it('ensureRow is idempotent: never clobbers an existing record', async () => {
     const db = testDb()
-    await ensureRow(db, 'conciv_b', 'claude', '/app')
-    await recordNativeId(db, 'conciv_b', 'tok-1')
-    await ensureRow(db, 'conciv_b', 'claude', '/app')
-    expect((await rowById(db, 'conciv_b'))?.harnessSessionId).toBe('tok-1')
+    await ensureRow(db, SESSION_B, 'claude', '/app')
+    await recordNativeId(db, SESSION_B, HarnessSessionId.parse('tok-1'))
+    await ensureRow(db, SESSION_B, 'claude', '/app')
+    expect((await rowById(db, SESSION_B))?.harnessSessionId).toBe('tok-1')
   })
 
   it('resumableToken drops a token whose transcript does not exist (terminal pre-mints ids before claude writes one)', () => {
@@ -58,11 +62,13 @@ describe('turn session helpers', () => {
       commands: claude.commands,
       history: {
         ...claude.history,
+        transcriptRoot: (cwd) => cwd,
         transcriptPath: (cwd, sessionId) => join(cwd, `${sessionId}.jsonl`),
+        withinProject: undefined,
       },
     }
-    expect(resumableToken(harness, dir, 'tok-live')).toBe('tok-live')
-    expect(resumableToken(harness, dir, 'tok-ghost')).toBeNull()
+    expect(resumableToken(harness, dir, HarnessSessionId.parse('tok-live'))).toBe('tok-live')
+    expect(resumableToken(harness, dir, HarnessSessionId.parse('tok-ghost'))).toBeNull()
     expect(resumableToken(harness, dir, null)).toBeNull()
     rmSync(dir, {recursive: true, force: true})
   })
@@ -71,11 +77,11 @@ describe('turn session helpers', () => {
     const stub = getHarness('gemini-cli')
     if (!stub) throw new Error('gemini-cli harness not registered')
     expect(stub.history).toBeUndefined()
-    expect(resumableToken(stub, '/app', 'tok-1')).toBe('tok-1')
+    expect(resumableToken(stub, '/app', HarnessSessionId.parse('tok-1'))).toBe('tok-1')
   })
 })
 
-const CODEX_SESSION = '019fb331-4da4-7960-8197-c43d6205c10b'
+const CODEX_SESSION = HarnessSessionId.parse('019fb331-4da4-7960-8197-c43d6205c10b')
 
 function seedCodexRollout(home: string, cwd: string): void {
   const dir = join(home, '.codex', 'sessions', '2026', '07', '30')

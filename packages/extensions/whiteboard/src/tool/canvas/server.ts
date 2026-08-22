@@ -73,7 +73,7 @@ const canvasExportTool = defineTool(canvasExportDef).server(async (input, ctx: W
       .where(and(eq(canvasReplies.room, room), eq(canvasReplies.requestId, requestId)))
     if (reply) {
       const payload = reply.payload as unknown as {dataBase64?: string; error?: string; reason?: string}
-      await ctx.store.deleteReply(reply.id)
+      await ctx.store.deleteReply(reply.id, room)
       if (payload.error) return {error: payload.error, reason: payload.reason ?? 'unknown', scope: input.scope}
       return imageResult('image/png', payload.dataBase64 ?? '', {scope: input.scope})
     }
@@ -150,7 +150,7 @@ const canvasClearTool = defineTool(canvasClearDef).server(async (_input, ctx: Wh
     elements.map((row) => row.elementId),
   )
   for (const row of await ctx.store.db.select().from(canvasPending).where(eq(canvasPending.room, room)))
-    await ctx.store.deletePending(row.id)
+    await ctx.store.deletePending(row.id, room)
   return {cleared: elements.length}
 })
 
@@ -181,7 +181,7 @@ const canvasDiscardTool = defineTool(canvasDiscardDef).server(async (_input, ctx
       room,
       drafts.map((row) => row.elementId),
     )
-    for (const row of pendings) await ctx.store.deletePending(row.id)
+    for (const row of pendings) await ctx.store.deletePending(row.id, room)
     return {discarded: drafts.length}
   } catch (error) {
     console.error(`[whiteboard] canvas.discard failed: ${String(error)}`)

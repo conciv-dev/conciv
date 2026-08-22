@@ -1,12 +1,12 @@
 import {z} from 'zod'
-import {NativeSessionRefSchema} from '@conciv/protocol/chat-types'
+import {NativeSessionRefSchema, SessionId} from '@conciv/protocol/chat-types'
 import {UsageSnapshotSchema} from '@conciv/protocol/usage-types'
 
 export {UsageSnapshotSchema}
 export type UsageSnapshot = z.infer<typeof UsageSnapshotSchema>
 
 export const SessionMetaSchema = z.object({
-  id: z.string(),
+  id: SessionId,
   title: z.string(),
   updatedAt: z.number(),
   messageCount: z.number(),
@@ -29,7 +29,7 @@ export const PersistedAttachmentSchema = z.object({
 export type PersistedAttachment = z.infer<typeof PersistedAttachmentSchema>
 
 export const DraftRowSchema = z.object({
-  sessionId: z.string(),
+  sessionId: SessionId,
   text: z.string(),
   selectionStart: z.number().int().min(0),
   selectionEnd: z.number().int().min(0),
@@ -45,7 +45,7 @@ export type DraftRow = z.infer<typeof DraftRowSchema>
 export const MarkerKindSchema = z.enum(['new', 'compact'])
 export const MarkerRowSchema = z.object({
   id: z.string(),
-  sessionId: z.string(),
+  sessionId: SessionId,
   afterTurn: z.number().int().min(0),
   kind: MarkerKindSchema,
 })

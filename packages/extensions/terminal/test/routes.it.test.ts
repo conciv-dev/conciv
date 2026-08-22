@@ -3,6 +3,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import WebSocket from 'ws'
 import type {RouterClient} from '@orpc/server'
 import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {TerminalRouter} from '../src/server.js'
 import {recordingHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
 
@@ -121,6 +122,21 @@ describe('terminal extension routes', () => {
     expect(code).toBe(4404)
   })
 
+  it('refuses a malformed or missing session with a 400 before any upgrade', async () => {
+    const base = ctx.server?.base ?? ''
+    for (const query of ['?session=not-a-session', '?session=', '']) {
+      const response = await fetch(`${base}/api/ext/terminal/tty${query}`)
+      expect(response.status).toBe(400)
+      expect(await response.text()).toBe('invalid or missing session')
+    }
+    const ws = new WebSocket(`${wsBase()}/api/ext/terminal/tty?session=not-a-session`)
+    const status = await new Promise<number>((resolve, reject) => {
+      ws.on('unexpected-response', (_request, response) => resolve(response.statusCode ?? 0))
+      ws.on('open', () => reject(new Error('the upgrade completed for a malformed session')))
+    })
+    expect(status).toBe(400)
+  }, 5000)
+
   it('close kills the pty and later ws connects are refused', async () => {
     expect(await rpc().close({sessionId})).toEqual({alive: false})
     expect(await rpc().state({sessionId})).toEqual({alive: false, busy: false})
@@ -162,7 +178,7 @@ describe('terminal extension routes', () => {
     const {harness} = recordingHarness()
     const dedicated = await startTerminalServer({...harness, transcriptExists: () => true})
     try {
-      dedicated.sessions.tokens.set(sessionId, randomUUID())
+      dedicated.sessions.tokens.set(sessionId, HarnessSessionId.parse(randomUUID()))
       expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})
       const resumed = Promise.withResolvers<string>()
       const client = await connect(dedicated.wsBase, sessionId, '', (text) => {

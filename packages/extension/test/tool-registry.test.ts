@@ -2,11 +2,24 @@ import {expect, test} from 'vitest'
 import {z} from 'zod'
 import {createRouterClient, os, type AnyRouter} from '@orpc/server'
 import {isDefinedError, ORPCError} from '@orpc/client'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {defineTool, isToolError, toolError} from '../src/define-tool.js'
-import {createToolRegistry, TOOL_TRANSPORT_ERRORS, type RegistryToolMeta} from '../src/tool-registry.js'
+import {
+  createToolRegistry,
+  TOOL_TRANSPORT_ERRORS,
+  type RegistryToolMeta,
+  type ToolRegistry,
+} from '../src/tool-registry.js'
 import {walkRegistryProcedures} from '../src/registry-walk.js'
 import type {PageErrorCode} from '@conciv/protocol/page-types'
 import {pageVerbError} from '../src/page-errors.js'
+import type {ToolRequest} from '../src/types.js'
+
+const TEST_REQUEST: ToolRequest = {sessionId: SessionId.parse('conciv_test'), model: null}
+
+function testClient(registry: ToolRegistry, request: ToolRequest = TEST_REQUEST): unknown {
+  return createRouterClient<AnyRouter, Record<never, never>>(registry.router, {context: {request}})
+}
 
 type ToolCall = (input: unknown) => Promise<unknown>
 
@@ -175,7 +188,7 @@ test('a declared server tool error arrives defined and narrowable with its code 
     throw toolError('ELEMENT_NOT_FOUND', {data: {target: input.target}})
   })
   registry.register(locate, {owner: 'a test registrant'})
-  const client = createRouterClient(registry.router)
+  const client = testClient(registry)
   const failure = await callCaught(clientTool(client, 'page.locate'), {target: '#missing'})
   expect(isDefinedError(failure)).toBe(true)
   if (!isDefinedError(failure)) return
@@ -196,7 +209,7 @@ test('an undeclared server failure stays distinguishable from a declared one', a
     throw new Error('boom')
   })
   registry.register(explode, {owner: 'a test registrant'})
-  const client = createRouterClient(registry.router)
+  const client = testClient(registry)
   const failure = await callCaught(clientTool(client, 'server.explode'), {})
   expect(failure).toBeInstanceOf(Error)
   expect(isDefinedError(failure)).toBe(false)
@@ -204,7 +217,7 @@ test('an undeclared server failure stays distinguishable from a declared one', a
 
 test('a tool registered after the client was created is callable', async () => {
   const registry = createToolRegistry()
-  const client = createRouterClient(registry.router)
+  const client = testClient(registry)
   registry.register(statusTool(), {owner: 'a test registrant'})
   await expect(clientTool(client, 'server.status')({})).resolves.toEqual({ok: true})
 })
@@ -292,7 +305,7 @@ test('calling a client tool with no page client raises NO_PAGE_CLIENT as a defin
     fillTool().client(() => ({filled: true})),
     {owner: 'a test registrant'},
   )
-  const client = createRouterClient(registry.router)
+  const client = testClient(registry)
   const failure = await callCaught(clientTool(client, 'page.fill'), {target: '#name'})
   expect(isDefinedError(failure)).toBe(true)
   if (!isDefinedError(failure)) return
@@ -317,7 +330,7 @@ test('page failures map onto their declared transport error codes', async () => 
       fillTool().client(() => ({filled: true})),
       {owner: 'a test registrant'},
     )
-    const client = createRouterClient(registry.router)
+    const client = testClient(registry)
     const failure = await callCaught(clientTool(client, 'page.fill'), {target: '#name'})
     expect(isDefinedError(failure)).toBe(true)
     if (!isDefinedError(failure)) continue
@@ -335,7 +348,7 @@ test('an undeclared page failure stays distinguishable from the declared transpo
     fillTool().client(() => ({filled: true})),
     {owner: 'a test registrant'},
   )
-  const client = createRouterClient(registry.router)
+  const client = testClient(registry)
   const failure = await callCaught(clientTool(client, 'page.fill'), {target: '#name'})
   expect(failure).toBeInstanceOf(Error)
   expect(isDefinedError(failure)).toBe(false)
@@ -353,7 +366,7 @@ test('a successful client tool call forwards name and input over the page caller
     fillTool().client(() => ({filled: true})),
     {owner: 'a test registrant'},
   )
-  const client = createRouterClient(registry.router)
+  const client = testClient(registry)
   await expect(clientTool(client, 'page.fill')({target: '#name'})).resolves.toEqual({filled: true})
   expect(calls).toEqual([[{name: 'page.fill', mutating: true}, {target: '#name'}]])
 })
@@ -377,7 +390,7 @@ test('registering a tool over an existing branch fails instead of clobbering the
   expect(() =>
     registry.register(bareServerTool('page', 'a tool claiming a branch name'), {owner: 'a test registrant'}),
   ).toThrow(/overwrite/)
-  const client = createRouterClient(registry.router)
+  const client = testClient(registry)
   expect(typeof clientTool(client, 'page.fill')).toBe('function')
 })
 
@@ -405,7 +418,7 @@ test('throwing a declared error without its declared data fails loudly instead o
     throw toolError('ELEMENT_NOT_FOUND')
   })
   registry.register(locate, {owner: 'a test registrant'})
-  const client = createRouterClient(registry.router)
+  const client = testClient(registry)
   const failure = await callCaught(clientTool(client, 'page.locate'), {target: '#missing'})
   expect(isDefinedError(failure)).toBe(false)
   expect(failure.message).toMatch(/page\.locate/)
@@ -423,7 +436,7 @@ test('a transform input schema is validated once and the handler receives the tr
     meta: {summary: 'turn a numeric string into a number'},
   }).server((input) => ({value: input.n}))
   registry.register(parse, {owner: 'a test registrant'})
-  const client = createRouterClient(registry.router)
+  const client = testClient(registry)
   await expect(clientTool(client, 'math.parse')({n: '42'})).resolves.toEqual({value: 42})
 })
 
@@ -441,9 +454,10 @@ test('registration context and the caller request reach a server handler', async
     return {ok: true}
   })
   registry.register(probe, {owner: 'a test registrant', context: {db: 'handle'}})
-  const client = createRouterClient(registry.router, {context: {request: {sessionId: 's1', model: null}}})
+  const request: ToolRequest = {sessionId: SessionId.parse('conciv_s1'), model: null}
+  const client = testClient(registry, request)
   await clientTool(client, 'server.probe')({})
-  expect(seen).toEqual([{db: 'handle'}, {sessionId: 's1', model: null}])
+  expect(seen).toEqual([{db: 'handle'}, request])
 })
 
 test('a toolError with an undeclared code rethrows the original error instead of a defined:false ORPCError', async () => {
@@ -459,7 +473,7 @@ test('a toolError with an undeclared code rethrows the original error instead of
     throw toolError('KNOWN_TYPO', {message: 'original failure text'})
   })
   registry.register(typo, {owner: 'a test registrant'})
-  const client = createRouterClient(registry.router)
+  const client = testClient(registry)
   const failure = await callCaught(clientTool(client, 'server.typo'), {})
   expect(isDefinedError(failure)).toBe(false)
   expect(isToolError(failure)).toBe(true)
@@ -470,7 +484,7 @@ test('client tool reachability follows the liveness callback on the same registr
   const liveness = {connected: false}
   const registry = createToolRegistry({
     pageCaller: async () => ({filled: true}),
-    isPageConnected: () => liveness.connected,
+    isAnyPageConnected: () => liveness.connected,
   })
   registry.register(
     fillTool().client(() => ({filled: true})),
@@ -569,10 +583,14 @@ test('the registry answers has() only for the tools it registered, never for inh
 test('calling an inherited member of the router client is refused instead of echoing the input back', async () => {
   const registry = createToolRegistry()
   registry.register(statusTool(), {owner: 'a test registrant'})
-  await expect(registry.call('server.status', {})).resolves.toEqual({ok: true})
-  await expect(registry.call('constructor', {smuggled: true})).rejects.toThrow(/unknown tool "constructor"/)
-  await expect(registry.call('toString', {})).rejects.toThrow(/unknown tool "toString"/)
-  await expect(registry.call('server.missing', {})).rejects.toThrow(/unknown tool "server\.missing"/)
+  await expect(registry.call('server.status', {}, {request: TEST_REQUEST})).resolves.toEqual({ok: true})
+  await expect(registry.call('constructor', {smuggled: true}, {request: TEST_REQUEST})).rejects.toThrow(
+    /unknown tool "constructor"/,
+  )
+  await expect(registry.call('toString', {}, {request: TEST_REQUEST})).rejects.toThrow(/unknown tool "toString"/)
+  await expect(registry.call('server.missing', {}, {request: TEST_REQUEST})).rejects.toThrow(
+    /unknown tool "server\.missing"/,
+  )
 })
 
 test('the caller request reaches the page caller seam, so a forwarded call keeps its session identity', async () => {
@@ -584,8 +602,9 @@ test('the caller request reaches the page caller seam, so a forwarded call keeps
     },
   })
   registry.register(fillTool().client(), {owner: 'a test registrant'})
-  await registry.call('page.fill', {target: '#name'}, {request: {sessionId: 's1', model: 'sonnet'}})
-  expect(seen).toEqual([{sessionId: 's1', model: 'sonnet'}])
+  const request: ToolRequest = {sessionId: SessionId.parse('conciv_s1'), model: 'sonnet'}
+  await registry.call('page.fill', {target: '#name'}, {request})
+  expect(seen).toEqual([request])
 })
 
 test('a cosmetic icon key this version does not know still lists, so one skewed extension cannot down the catalog', () => {
@@ -650,7 +669,7 @@ test('sandboxTools carries the live zod schema, metadata and a callable run per 
   const status = tools[1]
   if (!status) throw new Error('server.status missing')
   expect(status.schema.safeParse({}).success).toBe(true)
-  await expect(status.run({}, {sessionId: 'conciv_x', model: null})).resolves.toEqual({ok: true})
+  await expect(status.run({}, {sessionId: SessionId.parse('conciv_x'), model: null})).resolves.toEqual({ok: true})
 })
 
 test('sandboxTools sees a tool registered after the registry was handed out', () => {
@@ -693,7 +712,7 @@ test('malformed input to a registered tool is a validation error, not a swallowe
     meta: {summary: 'double the given number'},
   }).server((input) => ({doubled: input.n * 2}))
   registry.register(double, {owner: 'core'})
-  await expect(registry.call('math.double', {n: 'zero'})).rejects.toThrow(/input/i)
+  await expect(registry.call('math.double', {n: 'zero'}, {request: TEST_REQUEST})).rejects.toThrow(/input/i)
 })
 
 test('a meta.positional naming a field the input schema does not declare is rejected at registration', () => {

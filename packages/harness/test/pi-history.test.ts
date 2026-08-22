@@ -1,16 +1,16 @@
-import {mkdir, mkdtemp, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, symlink, writeFile} from 'node:fs/promises'
 import {homedir, tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {beforeAll, describe, expect, it} from 'vitest'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {pi} from '../src/pi/index.js'
 import {encodeSessionDir, sessionsDir} from '../src/pi/history.js'
 
 const PROJECT = '/workspace/pi.demo'
-const SESSION = '39a461cc-ceb9-495a-891b-b11fe6a03c55'
+const SESSION = HarnessSessionId.parse('39a461cc-ceb9-495a-891b-b11fe6a03c55')
 const FILE = `2026-07-30T09-45-14-653Z_${SESSION}.jsonl`
-const CONCIV_NAMED = 'conciv-sess-1'
+const CONCIV_NAMED = HarnessSessionId.parse('conciv-sess-1')
 
 const LINES = [
   {type: 'session', version: 3, id: SESSION, timestamp: '2026-07-30T09:45:14.653Z', cwd: PROJECT},
@@ -169,16 +169,42 @@ describe('pi history sidecar', () => {
   })
 
   it('reports nothing for an unknown session', async () => {
-    expect(await history().messages(PROJECT, 'missing', state.home)).toEqual([])
-    const handle = history().observe(PROJECT, 'missing', state.home)
+    const MISSING = HarnessSessionId.parse('missing')
+    expect(await history().messages(PROJECT, MISSING, state.home)).toEqual([])
+    const handle = history().observe(PROJECT, MISSING, state.home)
     expect(await handle.revision()).toMatchObject({ok: false, reason: 'missing'})
     handle.close()
   })
 })
 
+describe('pi transcript discovery survives a hostile sessions directory', () => {
+  it('lists the well-formed transcripts of a directory that also holds an unparseable file name', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'pi-hostile-'))
+    const dir = sessionsDir(PROJECT, home)
+    await mkdir(dir, {recursive: true})
+    await writeFile(join(dir, FILE), jsonl(LINES), 'utf8')
+    await writeFile(join(dir, 'notes about the run.jsonl'), jsonl(LINES), 'utf8')
+    expect((await history().list(PROJECT, home)).map((entry) => entry.id)).toEqual([SESSION])
+  })
+
+  it('refuses to observe a transcript whose name links out of the session directory', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'pi-symlink-'))
+    const dir = sessionsDir(PROJECT, home)
+    await mkdir(dir, {recursive: true})
+    const outside = join(home, 'outside.jsonl')
+    await writeFile(outside, jsonl(LINES), 'utf8')
+    const escapee = HarnessSessionId.parse('escapee')
+    await symlink(outside, join(dir, `2026-01-01T00-00-00-000Z_${escapee}.jsonl`))
+    const handle = history().observe(PROJECT, escapee, home)
+    expect(await handle.revision()).toMatchObject({ok: false})
+    handle.close()
+    expect(await history().messages(PROJECT, escapee, home)).toEqual([])
+  })
+})
+
 describe('pi connect.plan', () => {
   it('names the session file itself so the transcript is findable again', () => {
-    expect(pi.connect?.plan(context({harnessSessionId: 'conciv-sess-1', model: 'anthropic/claude-opus-4-6'}))).toEqual({
+    expect(pi.connect?.plan(context({harnessSessionId: CONCIV_NAMED, model: 'anthropic/claude-opus-4-6'}))).toEqual({
       argv: [
         'pi',
         '--session',

@@ -32,6 +32,7 @@ export type ConcivRouterContext = {
   grabProvider?: GrabProvider
   apiBase: () => string
   connectionGeneration: () => number
+  bindActiveSession?: (read: () => string | null) => void
   disposeInstances: () => void
   notifyInteractive: () => void
 }
@@ -49,6 +50,7 @@ export type ConcivRouterConfig = {
   grabProvider?: GrabProvider
   apiBase?: () => string
   connectionGeneration?: () => number
+  bindActiveSession?: (read: () => string | null) => void
   notifyInteractive?: () => void
 }
 
@@ -124,6 +126,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       grabProvider: config.grabProvider,
       apiBase,
       connectionGeneration: config.connectionGeneration ?? (() => 0),
+      bindActiveSession: config.bindActiveSession,
       disposeInstances,
       notifyInteractive: config.notifyInteractive ?? (() => {}),
     },

@@ -2,6 +2,7 @@ import {describe, it, expect} from 'vitest'
 import {
   SessionId,
   isSessionId,
+  isHarnessSessionId,
   SessionRecordSchema,
   ResolveRequestSchema,
   ResolveResponseSchema,
@@ -122,5 +123,21 @@ describe('ResolveRequestSchema', () => {
   })
   it('echoes ResolveResponse with a branded id', () => {
     expect(ResolveResponseSchema.parse({sessionId: 'conciv_x'}).sessionId).toBe('conciv_x')
+  })
+})
+
+describe('HarnessSessionId (branded, character-class constrained)', () => {
+  it('accepts a plain harness token', () => {
+    expect(isHarnessSessionId('018f3a2b-4c5d-6e7f')).toBe(true)
+  })
+  it('rejects a token carrying path or shell characters', () => {
+    expect(isHarnessSessionId('../../etc/passwd')).toBe(false)
+    expect(isHarnessSessionId('a b')).toBe(false)
+    expect(isHarnessSessionId('a/b')).toBe(false)
+    expect(isHarnessSessionId('a.b')).toBe(false)
+  })
+  it('rejects the empty token and one longer than 128 characters', () => {
+    expect(isHarnessSessionId('')).toBe(false)
+    expect(isHarnessSessionId('a'.repeat(129))).toBe(false)
   })
 })

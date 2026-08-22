@@ -15,7 +15,8 @@ import {
 } from '@tanstack/ai'
 import type {HarnessAdapter, HarnessChatConfig} from '@conciv/protocol/harness-types'
 import type {AttachmentDocumentPart} from '@conciv/extension'
-import type {ChatContentPart} from '@conciv/protocol/chat-types'
+import {isHarnessSessionId} from '@conciv/protocol/chat-types'
+import type {ChatContentPart, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {
@@ -28,13 +29,14 @@ import {
   setRunMessages,
   type ConcivDb,
 } from '@conciv/db'
+import {transcriptPathWithin} from '@conciv/harness'
 import {FIRST_CHUNK_TIMEOUT_MS} from './run-timing.js'
 import type {ChatDeps} from './runtime.js'
 import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {sessionSnapshot} from './transcript.js'
 import {stopSession} from './stop.js'
-import {makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
+import {asksFor, makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
 import {withConcivSandbox} from './sandbox.js'
 import {makeCodeMode} from './code-mode.js'
 import {codeModeToolChunks} from './code-mode-parts.js'
@@ -46,16 +48,16 @@ export type TurnKind = 'chat' | 'compact'
 export function resumableToken(
   harness: HarnessAdapter,
   cwd: string,
-  token: string | null,
+  token: HarnessSessionId | null,
   home?: string,
-): string | null {
+): HarnessSessionId | null {
   if (!token) return null
   const history = harness.history
   if (!history) return token
   if (history.withinProject && !history.withinProject(cwd, token, home)) return null
-  const transcriptPath = history.transcriptPath
-  if (!transcriptPath) return token
-  return existsSync(transcriptPath(cwd, token, home)) ? token : null
+  if (history.transcriptPath === undefined) return token
+  const path = transcriptPathWithin(history, cwd, token, home)
+  return path !== null && existsSync(path) ? token : null
 }
 
 const COMPACT_FALLBACK_PROMPT =
@@ -105,20 +107,24 @@ function compactContent(deps: ChatDeps): UserContent {
 
 async function codeModeExtras(
   deps: ChatDeps,
-  sessionId: string,
+  sessionId: SessionId,
   model: string | null,
   askGate: PermissionGate,
 ): Promise<{systemPrompts: string[]; tools: AnyTool[]}> {
-  const codeMode = await makeCodeMode(() => deps.codeModeCapabilities(sessionId), {sessionId, model}, askGate, {
-    listening: (id) => deps.stream.listening(id),
-  })
+  const codeMode = await makeCodeMode(
+    () => deps.codeModeCapabilities(sessionId),
+    sessionId,
+    {sessionId, model},
+    askGate,
+    {listening: (id) => deps.stream.listening(id)},
+  )
   const systemPrompts = [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text))
   return {systemPrompts, tools: [...(codeMode?.tools ?? [])]}
 }
 
 async function turnMessages(
   deps: ChatDeps,
-  sessionId: string,
+  sessionId: SessionId,
   options: {resumable: boolean; content: UserContent; prepare: HarnessChatConfig['prepareMessages']},
 ): Promise<Array<UIMessage | ModelMessage>> {
   const history = options.resumable ? [] : await sessionSnapshot(deps, sessionId)
@@ -128,7 +134,7 @@ async function turnMessages(
 
 async function buildRunStream(
   deps: ChatDeps,
-  sessionId: string,
+  sessionId: SessionId,
   req: RunRequest,
   gates: {gate: PermissionGate; askGate: PermissionGate},
   abort: AbortController,
@@ -148,7 +154,7 @@ async function buildRunStream(
     kind: req.kind,
     hasTools: extras.tools.length > 0,
     decide: async (toolName, input, toolUseId) =>
-      (await gate.decide(toolName, input, sessionId, toolUseId)) === 'allow' ? 'allow' : 'deny',
+      (await gate.decide(toolName, input, toolUseId)) === 'allow' ? 'allow' : 'deny',
   })
   const messages = await turnMessages(deps, sessionId, {
     resumable: resumeSessionId !== null,
@@ -164,7 +170,7 @@ async function buildRunStream(
     tools: extras.tools,
     lazyToolsConfig: {includeDescription: 'first-sentence'},
     modelOptions: config.modelOptions,
-    middleware: [withConcivSandbox(deps.sandbox), withConcivGate(gate, sessionId)],
+    middleware: [withConcivSandbox(deps.sandbox), withConcivGate(gate)],
     abortController: abort,
     debug: harnessDebug,
   })
@@ -182,11 +188,11 @@ function stampRunId(chunk: StreamChunk, runId: string): StreamChunk {
   return {...chunk, runId}
 }
 
-export function mintedSessionId(chunk: StreamChunk): string | null {
+export function mintedSessionId(chunk: StreamChunk): HarnessSessionId | null {
   if (chunk.type !== EventType.CUSTOM || !chunk.name.endsWith('.session-id')) return null
   const value = chunk.value
   if (typeof value !== 'object' || value === null || !('sessionId' in value)) return null
-  return typeof value.sessionId === 'string' ? value.sessionId : null
+  return isHarnessSessionId(value.sessionId) ? value.sessionId : null
 }
 
 type RunOutcome = {
@@ -200,7 +206,7 @@ function isRunEndChunk(chunk: StreamChunk): boolean {
   return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
 }
 
-function noteToolCall(deps: ChatDeps, sessionId: string, chunk: StreamChunk): void {
+function noteToolCall(deps: ChatDeps, sessionId: SessionId, chunk: StreamChunk): void {
   if (chunk.type !== EventType.TOOL_CALL_START) return
   const name = chunk.toolCallName ?? chunk.toolName
   if (typeof name !== 'string') return
@@ -212,7 +218,7 @@ function noteUsage(deps: ChatDeps, model: string | null, chunk: StreamChunk, out
   outcome.usage = usageSnapshotFor(deps, model ?? deps.harness.defaultModel ?? null, chunk.usage)
 }
 
-type ChunkFold = {deps: ChatDeps; sessionId: string; model: string | null; processor: StreamProcessor}
+type ChunkFold = {deps: ChatDeps; sessionId: SessionId; model: string | null; processor: StreamProcessor}
 
 function foldChunk(fold: ChunkFold, chunk: StreamChunk, outcome: RunOutcome): 'continue' | 'stop' {
   const {deps, sessionId} = fold
@@ -231,7 +237,7 @@ function foldChunk(fold: ChunkFold, chunk: StreamChunk, outcome: RunOutcome): 'c
 
 async function* foldRunStream(
   deps: ChatDeps,
-  sessionId: string,
+  sessionId: SessionId,
   req: RunRequest,
   processor: StreamProcessor,
   stream: AsyncIterable<StreamChunk>,
@@ -282,7 +288,7 @@ async function* boundFirstChunk(
   yield* {[Symbol.asyncIterator]: () => iterator}
 }
 
-async function recordRunEnd(deps: ChatDeps, sessionId: string, usage: UsageSnapshot | null): Promise<void> {
+async function recordRunEnd(deps: ChatDeps, sessionId: SessionId, usage: UsageSnapshot | null): Promise<void> {
   if (!(await rowById(deps.db, sessionId))) return
   await deps.db
     .update(sessions)
@@ -290,7 +296,7 @@ async function recordRunEnd(deps: ChatDeps, sessionId: string, usage: UsageSnaps
     .where(eq(sessions.id, sessionId))
 }
 
-function persistRunOutcome(deps: ChatDeps, sessionId: string, kind: TurnKind): void {
+function persistRunOutcome(deps: ChatDeps, sessionId: SessionId, kind: TurnKind): void {
   if (kind !== 'chat') {
     clearSessionHistory(deps.db, sessionId)
     return
@@ -302,7 +308,7 @@ function persistRunOutcome(deps: ChatDeps, sessionId: string, kind: TurnKind): v
   foldRunMessagesIntoHistory(deps.db, sessionId)
 }
 
-function runEndChunkFor(sessionId: string, req: RunRequest, outcome: RunOutcome): StreamChunk {
+function runEndChunkFor(sessionId: SessionId, req: RunRequest, outcome: RunOutcome): StreamChunk {
   if (outcome.runEnd) return outcome.runEnd
   if (outcome.error !== null) {
     return {type: EventType.RUN_ERROR, threadId: sessionId, runId: req.runId, message: outcome.error}
@@ -310,7 +316,7 @@ function runEndChunkFor(sessionId: string, req: RunRequest, outcome: RunOutcome)
   return {type: EventType.RUN_FINISHED, threadId: sessionId, runId: req.runId, finishReason: 'stop'}
 }
 
-async function finishRun(deps: ChatDeps, sessionId: string, req: RunRequest, outcome: RunOutcome): Promise<void> {
+async function finishRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest, outcome: RunOutcome): Promise<void> {
   persistRunOutcome(deps, sessionId, req.kind)
   if (outcome.usage) outcome.usage.contextTokens = await contextOccupancyFor(deps, sessionId).catch(() => undefined)
   await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
@@ -321,7 +327,7 @@ async function finishRun(deps: ChatDeps, sessionId: string, req: RunRequest, out
 
 async function* runStream(
   deps: ChatDeps,
-  sessionId: string,
+  sessionId: SessionId,
   req: RunRequest,
   abort: AbortController,
 ): AsyncGenerator<StreamChunk> {
@@ -331,8 +337,7 @@ async function* runStream(
     events: {onMessagesChange: (messages) => setRunMessages(deps.db, sessionId, messages)},
   })
   const gateDeps = {
-    sessionId,
-    asks: deps.asks,
+    asks: asksFor(deps.asks, sessionId),
     emit: (chunk: StreamChunk) => void runLog.append([chunk]).catch(() => {}),
   }
   const gate = makeRunGate({
@@ -359,7 +364,7 @@ async function* runStream(
   yield runEndChunkFor(sessionId, req, outcome)
 }
 
-function launchRun(deps: ChatDeps, sessionId: string, req: RunRequest): LiveRun {
+function launchRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest): LiveRun {
   const abort = new AbortController()
   const handle = deps.runControl.start({
     runId: req.runId,
@@ -384,13 +389,13 @@ function contextWindowFor(harness: HarnessAdapter, modelId: string | null): numb
   return models.find((model) => model.id === modelId)?.contextWindow
 }
 
-async function contextOccupancyFor(deps: ChatDeps, sessionId: string): Promise<number | undefined> {
+async function contextOccupancyFor(deps: ChatDeps, sessionId: SessionId): Promise<number | undefined> {
   const history = deps.harness.history
   if (!history?.contextTokens || !history.transcriptPath) return undefined
   const nativeId = await nativeIdFor(deps.db, sessionId)
   if (!nativeId) return undefined
-  if (history.withinProject && !history.withinProject(deps.cwd, nativeId, deps.claudeHome)) return undefined
-  const path = history.transcriptPath(deps.cwd, nativeId, deps.claudeHome)
+  const path = transcriptPathWithin(history, deps.cwd, nativeId, deps.claudeHome)
+  if (path === null) return undefined
   if (!existsSync(path)) return undefined
   return history.contextTokens(readFileSync(path, 'utf8'))
 }
@@ -451,7 +456,7 @@ export async function expandUserParts(content: UserContent, expanders: Attachmen
   return expanded
 }
 
-export type Send = (sessionId: string, runId: string, content: UserContent) => Promise<string>
+export type Send = (sessionId: SessionId, runId: string, content: UserContent) => Promise<string>
 
 const RUN_ID_TAKEN_ERROR_NAME = 'RunIdTakenError'
 
@@ -465,13 +470,13 @@ export function isRunIdTakenError(error: unknown): error is Error {
   return error instanceof Error && error.name === RUN_ID_TAKEN_ERROR_NAME
 }
 
-async function prepareLaunchContent(deps: ChatDeps, sessionId: string, content: UserContent): Promise<UserContent> {
+async function prepareLaunchContent(deps: ChatDeps, sessionId: SessionId, content: UserContent): Promise<UserContent> {
   deps.onRunStart?.(sessionId)
   await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
   return expandUserParts(content, deps.attachmentExpanders)
 }
 
-async function settleLiveRuns(deps: ChatDeps, sessionId: string): Promise<void> {
+async function settleLiveRuns(deps: ChatDeps, sessionId: SessionId): Promise<void> {
   if (!deps.liveRuns.running(sessionId)) return
   await stopSession(deps, sessionId)
   await Promise.all(deps.liveRuns.of(sessionId).map((run) => run.done))
@@ -499,14 +504,14 @@ export function makeSend(deps: ChatDeps): Send {
     })
 }
 
-export type Compactor = {run: (sessionId: string) => Promise<void>}
+export type Compactor = {run: (sessionId: SessionId) => Promise<void>}
 
-async function addCompactMarker(db: ConcivDb, sessionId: string, afterTurn: number): Promise<void> {
+async function addCompactMarker(db: ConcivDb, sessionId: SessionId, afterTurn: number): Promise<void> {
   await db.insert(markers).values({id: randomUUID(), sessionId, afterTurn, kind: 'compact'})
 }
 
 export function makeCompactor(deps: ChatDeps): Compactor {
-  function run(sessionId: string): Promise<void> {
+  function run(sessionId: SessionId): Promise<void> {
     return deps.liveRuns.serialize(sessionId, async () => {
       deps.onRunStart?.(sessionId)
       await settleLiveRuns(deps, sessionId)

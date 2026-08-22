@@ -3,12 +3,14 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {beforeAll, describe, expect, it} from 'vitest'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {codex} from '../src/codex/index.js'
+import {rolloutPath} from '../src/codex/history.js'
 
 const PROJECT = '/workspace/demo'
 const OTHER = '/workspace/other'
-const SESSION = '019fb331-4da4-7960-8197-c43d6205c10b'
-const STRAY = '019fb328-153e-7da1-8d38-36286c97d0ab'
+const SESSION = HarnessSessionId.parse('019fb331-4da4-7960-8197-c43d6205c10b')
+const STRAY = HarnessSessionId.parse('019fb328-153e-7da1-8d38-36286c97d0ab')
 
 const ROLLOUT_LINES = [
   {
@@ -200,6 +202,31 @@ describe('codex history sidecar', () => {
     expect(revision.changedAt).toBeGreaterThan(0)
     expect(revision.rev).toMatch(/^\d+:/)
     handle.close()
+  })
+})
+
+describe('codex refuses a persisted rollout path that leaves the codex home', () => {
+  it('ignores a threads row pointing outside .codex and falls back to the contained scan', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'codex-escape-')))
+    const home = join(root, 'home')
+    await mkdir(join(home, '.codex'), {recursive: true})
+    const outside = join(root, 'planted.jsonl')
+    await writeFile(outside, rollout(ROLLOUT_LINES), 'utf8')
+    const db = new DatabaseSync(join(home, '.codex', 'state_5.sqlite'))
+    db.exec(
+      `create table threads (id text primary key, rollout_path text not null, cwd text not null, title text not null default '', first_user_message text not null default '', preview text not null default '', model text, tokens_used integer not null default 0, archived integer not null default 0, created_at integer not null, updated_at integer not null, created_at_ms integer, updated_at_ms integer)`,
+    )
+    db.prepare('insert into threads (id, rollout_path, cwd, created_at, updated_at) values (?,?,?,?,?)').run(
+      SESSION,
+      outside,
+      PROJECT,
+      1,
+      2,
+    )
+    db.close()
+
+    expect(rolloutPath(SESSION, home)).toBeNull()
+    expect(await history().messages(PROJECT, SESSION, home)).toEqual([])
   })
 })
 

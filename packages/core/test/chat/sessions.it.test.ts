@@ -54,7 +54,7 @@ describe('sessions.list + rename over rpc (IT, real temp ~/.claude)', () => {
     const sessions = await kit.rpc.sessions.list(undefined)
     expect(sessions.find((s) => s.id === id)?.origin).toBe('conciv')
     expect(sessions.find((s) => s.id === id)?.title).toBe('made in conciv')
-    expect(sessions.find((s) => s.id === 'tok-ext')?.origin).toBe('external')
+    expect(sessions.find((s) => s.native?.nativeId === 'tok-ext')?.origin).toBe('external')
   })
 
   it('rename persists into the next list (keyed by our id)', async () => {
@@ -72,7 +72,7 @@ describe('sessions.list + rename over rpc (IT, real temp ~/.claude)', () => {
   it('rejects a rename for an unknown session id', async () => {
     const kit = await setup(tmpHome())
     await expect(kit.rpc.sessions.rename({sessionId: '../etc', title: 'x'})).rejects.toMatchObject({
-      code: 'NOT_FOUND',
+      code: 'BAD_REQUEST',
     })
   })
 })

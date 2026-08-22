@@ -47,7 +47,8 @@ export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
       stateRoot: env.stateRoot,
       harness: env.harness.id,
       harnessBin: undefined,
-      sessionId: '',
+      sessionId: undefined,
+      harnessSessionId: undefined,
       systemPrompt: '',
       extensions: undefined,
     }

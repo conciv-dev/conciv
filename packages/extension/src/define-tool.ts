@@ -1,7 +1,14 @@
 import type {z} from 'zod'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
 import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
-import type {ClientEffect, ExtensionTool, ToolRenderer, ToolRequest} from './types.js'
+import type {
+  ClientEffect,
+  ExtensionTool,
+  ServerToolRegistryAccess,
+  ServerToolPageAccess,
+  ToolRenderer,
+  ToolRequest,
+} from './types.js'
 
 export type ToolMeta = {
   summary: string
@@ -90,7 +97,13 @@ export type ToolBuilder<
   __ctx?: Ctx
   __clientExecute?: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
   server: <HandlerCtx>(
-    execute: (input: z.infer<Schema>, ctx: HandlerCtx, request: ToolRequest) => Promise<unknown> | unknown,
+    execute: (
+      input: z.infer<Schema>,
+      ctx: HandlerCtx,
+      request: ToolRequest,
+      page: ServerToolPageAccess,
+      tools: ServerToolRegistryAccess,
+    ) => Promise<unknown> | unknown,
   ) => ToolBuilder<Name, Schema, Output, Errors, 'server', HandlerCtx>
   client: (
     execute?: (input: z.infer<Schema>, ctx: ClientToolCtx) => Promise<unknown> | unknown,
@@ -199,8 +212,13 @@ export type RegisteredTools<Tools extends readonly unknown[]> = [ToolTupleProble
 
 type ToolState<Binding extends ToolBinding | undefined> = {
   binding?: Binding
-  execute?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
-  serverRun?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
+  serverRun?: (
+    input: unknown,
+    ctx: unknown,
+    request: ToolRequest,
+    page: ServerToolPageAccess,
+    tools: ServerToolRegistryAccess,
+  ) => Promise<unknown>
   clientExecute?: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
   render?: ToolRenderer
 }
@@ -243,21 +261,24 @@ function toolBuilder<
     display: definition.display,
     approval: definition.approval,
     binding: state.binding,
-    __execute: state.execute,
     __serverRun: state.serverRun,
     __clientExecute: state.clientExecute,
     __render: state.render,
     server<HandlerCtx>(
-      execute: (input: z.infer<Schema>, ctx: HandlerCtx, request: ToolRequest) => Promise<unknown> | unknown,
+      execute: (
+        input: z.infer<Schema>,
+        ctx: HandlerCtx,
+        request: ToolRequest,
+        page: ServerToolPageAccess,
+        tools: ServerToolRegistryAccess,
+      ) => Promise<unknown> | unknown,
     ) {
       assertUnbound(definition.name, state.binding)
-      const invoke = async (parsed: z.infer<Schema>, ctx: unknown, request: ToolRequest | undefined) =>
-        execute(parsed, ctx as HandlerCtx, request as ToolRequest)
       return toolBuilder<Name, Schema, Output, Errors, 'server', HandlerCtx>(definition, {
         ...state,
         binding: 'server',
-        execute: async (raw, ctx, request) => invoke(definition.inputSchema.parse(raw), ctx, request),
-        serverRun: async (input, ctx, request) => invoke(input as z.infer<Schema>, ctx, request),
+        serverRun: async (input, ctx, request, page, tools) =>
+          execute(input as z.infer<Schema>, ctx as HandlerCtx, request, page, tools),
       })
     },
     client(execute) {

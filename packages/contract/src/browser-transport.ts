@@ -1,11 +1,14 @@
-import {DynamicLink, ORPCError, type ClientLink} from '@orpc/client'
+import {DynamicLink, ORPCError, type ClientLink, type ClientOptions} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {RPCLink as WebsocketRpcLink, type LinkWebsocketClientOptions} from '@orpc/client/websocket'
 import {ClientRetryPlugin, type ClientRetryPluginContext} from '@orpc/client/plugins'
 import {AsyncRetryer} from '@tanstack/pacer'
 import ReconnectingWebSocket from 'partysocket/ws'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 
-export type RpcClientContext = ClientRetryPluginContext
+export type RpcClientContext = ClientRetryPluginContext & {concivSessionId?: string}
+
+export type SessionAccessor = () => string | null
 
 export type RpcTransport = 'websocket' | 'fetch'
 
@@ -30,6 +33,12 @@ export type BrowserRpcConnection = {
   link: ClientLink<RpcClientContext>
   transport: () => RpcTransport | null
   close: () => void
+}
+
+function sessionHeaders(options: ClientOptions<RpcClientContext>): Record<string, string> {
+  const id = options.context.concivSessionId
+  if (!id) return {}
+  return {[CONCIV_SESSION_HEADER]: id}
 }
 
 export type ReachabilityListener = (reachable: boolean) => void
@@ -118,7 +127,11 @@ function retryPlugin(alive: () => boolean, vote: ReachabilityListener): ClientRe
 }
 
 function fetchLink(apiBase: string, alive: () => boolean, vote: ReachabilityListener): ClientLink<RpcClientContext> {
-  return new FetchRpcLink<RpcClientContext>({url: `${apiBase}/rpc`, plugins: [retryPlugin(alive, vote)]})
+  return new FetchRpcLink<RpcClientContext>({
+    url: `${apiBase}/rpc`,
+    headers: sessionHeaders,
+    plugins: [retryPlugin(alive, vote)],
+  })
 }
 
 type SocketDelegate = LinkWebsocketClientOptions['websocket']
@@ -276,6 +289,7 @@ function probedConnection(key: string): BrowserRpcConnection {
       state.transport = 'websocket'
       return new WebsocketRpcLink<RpcClientContext>({
         websocket: socketDelegate(socket, alive, wiring.attempting),
+        headers: sessionHeaders,
         plugins: [retryPlugin(alive, vote)],
       })
     }
@@ -316,6 +330,7 @@ function pinnedConnection(key: string, transport: RpcTransport): BrowserRpcConne
   return {
     link: new WebsocketRpcLink<RpcClientContext>({
       websocket: socketDelegate(socket, alive, wiring.attempting),
+      headers: sessionHeaders,
       plugins: [retryPlugin(alive, vote)],
     }),
     transport: () => 'websocket',
@@ -376,10 +391,15 @@ export const RPC_UNBOUND_MESSAGE = 'conciv core not connected yet'
 export function dynamicBrowserRpcLink(
   currentApiBase: () => string | null,
   preference: RpcTransportPreference = 'auto',
+  session?: SessionAccessor,
 ): ClientLink<RpcClientContext> {
-  return new DynamicLink<RpcClientContext>(() => {
-    const apiBase = currentApiBase()
-    if (apiBase === null) throw new Error(RPC_UNBOUND_MESSAGE)
-    return Promise.resolve(browserRpcConnection(apiBase, preference).link)
-  })
+  return {
+    call: (path, input, options) => {
+      const apiBase = currentApiBase()
+      if (apiBase === null) throw new Error(RPC_UNBOUND_MESSAGE)
+      const sessionId = session?.()
+      const context = sessionId ? {...options.context, concivSessionId: sessionId} : options.context
+      return browserRpcConnection(apiBase, preference).link.call(path, input, {...options, context})
+    },
+  }
 }

@@ -3,7 +3,7 @@ import type {RecorderControl} from '../shared/protocol.js'
 
 type AppendSource = {
   onAppend(listener: () => void): () => void
-  head(): number
+  appendCursor(): number
 }
 
 const CAPTURE_TTL_MS = 10 * 60 * 1000
@@ -28,7 +28,7 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
   const viewers = new Map<string, number>()
 
   const emit = (control: RecorderControl): number => {
-    const appendCursor = ring.head()
+    const appendCursor = ring.appendCursor()
     for (const listener of listeners) listener(control)
     return appendCursor
   }
@@ -66,7 +66,7 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
   sweepTimer.unref?.()
 
   const awaitAppendAfter = (appendCursor: number, timeoutMs: number): Promise<boolean> => {
-    if (ring.head() > appendCursor) return Promise.resolve(true)
+    if (ring.appendCursor() > appendCursor) return Promise.resolve(true)
     return new Promise((resolve) => {
       const finish = (appended: boolean): void => {
         off()

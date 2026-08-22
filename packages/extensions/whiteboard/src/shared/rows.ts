@@ -96,3 +96,24 @@ export type CommentRow = z.infer<typeof commentRow>
 export type PinRow = z.infer<typeof pinRow>
 export type ReadRow = z.infer<typeof readRow>
 export type CursorEvent = z.infer<typeof cursorEvent>
+
+export const elementRowInsert = elementRow.omit({room: true})
+export const pendingRowInsert = pendingRow.omit({room: true})
+export const replyRowInsert = replyRow.omit({room: true})
+export const commentRowInsert = commentRow.omit({sessionId: true})
+export const pinRowInsert = pinRow.omit({room: true})
+export const readRowInsert = readRow.omit({sessionId: true})
+export const cursorEventInsert = cursorEvent.omit({room: true})
+
+export type ElementRowInsert = z.infer<typeof elementRowInsert>
+export type PendingRowInsert = z.infer<typeof pendingRowInsert>
+export type ReplyRowInsert = z.infer<typeof replyRowInsert>
+export type CommentRowInsert = z.infer<typeof commentRowInsert>
+export type PinRowInsert = z.infer<typeof pinRowInsert>
+export type ReadRowInsert = z.infer<typeof readRowInsert>
+export type CursorEventInsert = z.infer<typeof cursorEventInsert>
+
+export const elementRowToInsert = (row: ElementRow): ElementRowInsert => {
+  const {room: _room, ...insert} = row
+  return insert
+}

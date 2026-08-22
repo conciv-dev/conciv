@@ -1,4 +1,6 @@
 import {defineExtension, toolError} from '@conciv/extension'
+import type {ServerToolRegistryAccess} from '@conciv/extension/registry'
+import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
 import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js'
 import {makeServerFnTraceRing} from './server/serverfn-trace.js'
 import {readRouteManifest} from './server/route-manifest.js'
@@ -45,19 +47,20 @@ export const tanstack = defineExtension({
     if (diagnostic.kind === 'build-error') ring.push(buildErrorToAppError(diagnostic))
     serverFnRing.observe(diagnostic)
   })
-  const adapter = makeTanstackAdapter({
-    tools: server.tools,
-    buildErrors: () => {
-      if (!bundlerAvailable) throw toolError('BUNDLER_UNAVAILABLE', {message: 'bundler bridge unavailable'})
-      return ring.list()
-    },
-    routeManifest: () => readRouteManifest(server.cwd),
-    serverFnTraces: (count) => serverFnRing.traces(count),
-    serverFns: () => serverFnRing.functions(),
-    bundlerSubscribe: (listener) => bundler?.subscribe?.(listener) ?? (() => {}),
-  })
+  const makeAdapter = (tools: ServerToolRegistryAccess): FrameworkAdapter =>
+    makeTanstackAdapter({
+      tools,
+      buildErrors: () => {
+        if (!bundlerAvailable) throw toolError('BUNDLER_UNAVAILABLE', {message: 'bundler bridge unavailable'})
+        return ring.list()
+      },
+      routeManifest: () => readRouteManifest(server.cwd),
+      serverFnTraces: (count) => serverFnRing.traces(count),
+      serverFns: () => serverFnRing.functions(),
+      bundlerSubscribe: (listener) => bundler?.subscribe?.(listener) ?? (() => {}),
+    })
   return {
-    context: {adapter},
+    context: {makeAdapter},
     dispose: () => unsubscribe?.(),
   }
 })

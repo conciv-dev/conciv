@@ -48,7 +48,7 @@ const test = browserTest.extend<{$file: {kit: CoreKit; host: ServedHost; connect
       const page = await browser.newPage()
       await page.goto(host.origin, {waitUntil: 'domcontentloaded'})
       await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
-      await completeConnectHandshake(page, kit.base)
+      await completeConnectHandshake(page, kit.base, await kit.session())
       await use(page)
       await page.close()
     },

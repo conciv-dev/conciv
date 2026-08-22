@@ -11,7 +11,7 @@ describe('recordings router', () => {
       {type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2},
     ])
     const router = makeRecorderRouter(runtime)
-    const saved = await call(router.recordings.save, {}, {context: {request: new Request('http://local')}})
+    const saved = await call(router.recordings.save, {clientId: 'c'}, {context: {request: new Request('http://local')}})
     if (!('recordingId' in saved)) throw new Error('expected recordingId')
     const fetched = await call(
       router.recordings.get,
@@ -38,7 +38,14 @@ describe('recordings router', () => {
 
   it('returns a typed error for an unsaveable window', async () => {
     const router = makeRecorderRouter(runtimeFixture())
-    const saved = await call(router.recordings.save, {}, {context: {request: new Request('http://local')}})
+    const saved = await call(router.recordings.save, {clientId: 'c'}, {context: {request: new Request('http://local')}})
     expect(saved).toEqual({error: 'empty'})
+  })
+
+  it('rejects a save that names no client instead of silently saving nothing', async () => {
+    const router = makeRecorderRouter(runtimeFixture())
+    await expect(
+      call(router.recordings.save, {clientId: ''}, {context: {request: new Request('http://local')}}),
+    ).rejects.toThrow()
   })
 })

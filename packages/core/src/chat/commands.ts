@@ -1,4 +1,4 @@
-import type {ChatCommand, ChatCommands} from '@conciv/protocol/chat-types'
+import type {ChatCommand, ChatCommands, SessionId} from '@conciv/protocol/chat-types'
 import type {ChatDeps} from './runtime.js'
 
 export function mcpUrlFor(deps: ChatDeps, origin: string): string {
@@ -11,7 +11,10 @@ function commandSource(name: string): ChatCommand['source'] {
   return 'harness'
 }
 
-export async function listCommands(deps: ChatDeps, opts: {sessionId?: string; origin: string}): Promise<ChatCommands> {
+export async function listCommands(
+  deps: ChatDeps,
+  opts: {sessionId: SessionId; origin: string},
+): Promise<ChatCommands> {
   const commands = deps.harness.commands
   if (!commands) return {commands: []}
   const mcpUrl = deps.harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.origin) : undefined

@@ -22,19 +22,20 @@ import {pullTool, startTool, stopTool} from './tool/server.js'
 
 const recorderOs = os.$context<{request: Request}>()
 
-const ClientId = z.string().min(1).max(128).optional()
+const ClientId = z.string().min(1).max(128)
 
 const RangeInput = z.object({fromTs: z.number().optional(), toTs: z.number().optional(), clientId: ClientId})
 
 const MAX_FLUSH_EVENTS = 5000
 
 const FlushInput = z
-  .object({clientId: z.string().min(1).max(128), events: z.array(RrwebEventSchema).max(MAX_FLUSH_EVENTS)})
+  .object({clientId: ClientId, events: z.array(RrwebEventSchema).max(MAX_FLUSH_EVENTS)})
   .refine((input) => jsonByteLength(input.events) <= MAX_FLUSH_BYTES)
 
 export function makeRecorderRouter(runtime: RecorderRuntime) {
   return recorderOs.router({
     config: recorderOs.handler(() => runtime.config),
+    clients: recorderOs.handler(() => ({clients: runtime.rings.clients()})),
     flush: recorderOs
       .input(FlushInput)
       .output(z.object({ok: z.literal(true)}))
