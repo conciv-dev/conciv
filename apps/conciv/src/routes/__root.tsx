@@ -27,6 +27,7 @@ import type {ConcivRouterContext} from '../router.js'
 import {
   AppContext,
   useAppData,
+  useColorScheme,
   useConnected,
   useLayers,
   useLiveSessions,
@@ -49,6 +50,7 @@ import {quickPaneIds} from '../lib/quick-search.js'
 import {setShutter} from '../lib/shutter.js'
 import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
+import {applySchemeClass, createHostColorScheme} from '../lib/color-scheme.js'
 import '../styles.css'
 
 const OPEN_DISMISSABLE_LAYER_SELECTOR = '[data-scope][data-part="content"][data-state="open"]'
@@ -109,6 +111,7 @@ function RootComponent() {
   })
 
   const liveSessions = makeLiveSessions()
+  const colorScheme = createHostColorScheme()
 
   const value: AppContextValue = {
     rpc: app.rpc,
@@ -131,7 +134,14 @@ function RootComponent() {
     connectionGeneration: app.connectionGeneration,
     apiBase: app.apiBase,
     notifyInteractive: app.notifyInteractive,
+    colorScheme,
   }
+
+  createEffect(() => {
+    const node = app.environment.rootNode
+    if (!(node instanceof ShadowRoot)) return
+    applySchemeClass(node.host, colorScheme())
+  })
 
   createEffect(() => {
     const isConnected = app.connected()
@@ -154,6 +164,7 @@ function RootComponent() {
               dialog={layers.track(Dialog)}
               popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
               sessionId={activeSession}
+              colorScheme={colorScheme}
             >
               <RootChrome fab={fab} politeMessage={politeMessage} assertiveMessage={assertiveMessage} />
               <EffectsSurface instances={app.instances} />
@@ -172,6 +183,7 @@ function RootChrome(props: {
 }) {
   const data = useAppData()
   const settings = useSettings()
+  const colorScheme = useColorScheme()
   const layers = useLayers()
   const suppressed = useSuppressed()
   const connected = useConnected()
@@ -342,8 +354,9 @@ function RootChrome(props: {
 
   return (
     <div
+      class={colorScheme()}
       ref={(el) => {
-        applyChatTheme(el, terminalTheme)
+        applyChatTheme(terminalTheme)
         rootEl = el
       }}
       onKeyDown={onKeyDown}

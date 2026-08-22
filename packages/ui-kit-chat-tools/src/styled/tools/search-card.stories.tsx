@@ -16,8 +16,8 @@ function result(text: string): ToolResultPart {
   return {type: 'tool-result', toolCallId: 's1', content: text, state: 'complete'}
 }
 
-function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+function frame(child: JSX.Element): JSX.Element {
+  return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 async function codeText(root: HTMLElement): Promise<string> {
@@ -29,7 +29,6 @@ async function codeText(root: HTMLElement): Promise<string> {
 export const Matches: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <SearchCard
         part={part('Grep', {pattern: 'useChat'})}
         result={result('src/a.ts:1:useChat()\nsrc/b.ts:9:useChat(opts)')}
@@ -50,7 +49,6 @@ export const Matches: Story = {
 export const NoMatches: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <SearchCard
         part={part('Grep', {pattern: 'nope'})}
         result={result('')}
@@ -67,7 +65,6 @@ export const NoMatches: Story = {
 export const Globbed: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <SearchCard
         part={part('Glob', {glob: '**/*.tsx'})}
         result={result('src/a.tsx\nsrc/b.tsx')}
@@ -85,7 +82,6 @@ export const Globbed: Story = {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <SearchCard
         part={part('Grep', {pattern: 'slow'}, 'input-complete')}
         result={undefined}
@@ -102,7 +98,6 @@ function failedResult(text: string): ToolResultPart {
 export const Failed: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <SearchCard
         part={part('Grep', {pattern: '('})}
         result={failedResult('regex parse error: unclosed group')}

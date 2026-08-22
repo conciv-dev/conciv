@@ -45,7 +45,7 @@ function row(part: ToolCallPart, toolResult: ToolResultPart | undefined, ctx: To
 
 function gallery(summary: string, items: TraceItem[]): JSX.Element {
   return (
-    <div class="chat-theme-terminal p-4 max-w-[34rem] w-full [background:var(--chat-panel)] [font-family:var(--chat-font)]">
+    <div class="p-4 max-w-[34rem] w-full [background:var(--chat-panel)] [font-family:var(--chat-font)]">
       <Trace summary={summary} compactLine={summary} items={items} defaultOpen />
     </div>
   )

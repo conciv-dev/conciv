@@ -53,11 +53,7 @@ const DOCUMENT_NODE_CAPTURE: ElementCapture = {
 const HOSTILE_HOST_CSS = `${ELEMENT_CAPTURE_FIXTURE_CSS}\n:host{position:fixed!important;inset:0!important;z-index:2147483647!important;width:100vw!important;height:100vh!important;background:red!important;}`
 
 function frame(child: JSX.Element): JSX.Element {
-  return (
-    <div class="chat-theme-terminal p-4 w-[20rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">
-      {child}
-    </div>
-  )
+  return <div class="p-4 w-[20rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 function ClickableSibling(): JSX.Element {

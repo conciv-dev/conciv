@@ -85,6 +85,12 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
     },
     theme: () => readTerminalTheme(props.themeHost()),
   })
+  const colorScheme = host.useColorScheme()
+  createEffect(
+    on(colorScheme, () => {
+      model.terminal.options.theme = readTerminalTheme(props.themeHost())
+    }),
+  )
   onMount(() => {
     const win = props.themeHost().ownerDocument.defaultView
     if (!win) return

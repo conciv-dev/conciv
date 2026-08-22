@@ -7,12 +7,12 @@ const meta: Meta = {title: 'ui-kit-chat/styled/NowLine'}
 export default meta
 type Story = StoryObj
 
-function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[24rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+function frame(child: JSX.Element): JSX.Element {
+  return <div class="p-4 w-[24rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 export const Running: Story = {
-  render: () => frame('chat-theme-terminal', <NowLine title="Running pnpm test" onStop={() => {}} />),
+  render: () => frame(<NowLine title="Running pnpm test" onStop={() => {}} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await waitFor(() => expect(c.getByText('Running pnpm test')).toBeVisible())
@@ -24,5 +24,5 @@ export const Running: Story = {
 }
 
 export const NoStop: Story = {
-  render: () => frame('chat-theme-terminal', <NowLine title="Reading widget-shell.tsx" />),
+  render: () => frame(<NowLine title="Reading widget-shell.tsx" />),
 }

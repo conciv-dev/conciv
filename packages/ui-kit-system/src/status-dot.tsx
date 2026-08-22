@@ -6,7 +6,7 @@ const BASE = 'size-1.75 rounded-chat-pill shrink-0 inline-block'
 
 const TONE: Record<StatusDotTone, string> = {
   idle: 'bg-chat-text-3',
-  working: 'bg-chat-success shadow-[0_0_0_0.1875rem_var(--chat-success-15)]',
+  working: 'bg-chat-success shadow-[0_0_0_0.1875rem] shadow-chat-success-18',
   accent: 'bg-chat-accent',
   success: 'bg-chat-success',
   danger: 'bg-chat-danger',

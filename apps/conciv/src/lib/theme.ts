@@ -2,8 +2,7 @@ import type {ThemeTokens} from '@conciv/ui-kit-system'
 import {setActiveChatTheme, type ChatTheme} from '@conciv/ui-kit-chat/theme/theme-descriptor'
 import {registerFonts} from './shadow.js'
 
-export function applyChatTheme(root: Element, theme: ChatTheme, doc: Document = document): void {
-  root.classList.add(`chat-theme-${theme.id}`)
+export function applyChatTheme(theme: ChatTheme, doc: Document = document): void {
   registerFonts(theme.fonts, doc)
   setActiveChatTheme(theme)
 }

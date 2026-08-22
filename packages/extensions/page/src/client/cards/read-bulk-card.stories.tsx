@@ -11,8 +11,7 @@ const meta: Meta = {title: 'Extensions/Page/tool/ReadBulkCard'}
 export default meta
 type Story = StoryObj
 
-const TRACE_FRAME_CLASS =
-  'chat-theme-terminal p-4 w-[28rem] [background:var(--chat-panel)] [font-family:var(--chat-font)]'
+const TRACE_FRAME_CLASS = 'p-4 w-[28rem] [background:var(--chat-panel)] [font-family:var(--chat-font)]'
 
 function traceRow(
   entry: ToolCardEntry,

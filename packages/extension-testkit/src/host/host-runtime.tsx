@@ -183,6 +183,7 @@ export function startHost(extension: AnyExtension): void {
   })
   const mountRoot = document.createElement('div')
   mountRoot.setAttribute('data-conciv-root', '')
+  mountRoot.className = 'dark'
   document.body.appendChild(mountRoot)
   render(
     () => (
@@ -201,6 +202,7 @@ export function startHost(extension: AnyExtension): void {
         newSession={() => {}}
         viewLock={() => {}}
         viewLeave={() => {}}
+        colorScheme={() => 'dark'}
       >
         <MountedComposerSlot extension={extension} clientValue={clientValue} />
         <MountedSurface extension={extension} clientValue={clientValue} />

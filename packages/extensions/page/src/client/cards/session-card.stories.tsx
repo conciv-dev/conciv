@@ -20,7 +20,7 @@ function sessionNode(parts: readonly ToolCallPart[]): GroupNodeGroup {
   }
 }
 
-const STAGE = 'chat-theme-terminal p-4 w-[40rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
+const STAGE = 'p-4 w-[40rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
 const RESIZE_TRIGGER =
   'flex items-center justify-center w-4 shrink-0 cursor-col-resize [background:transparent] [border:none] p-0 rounded-[var(--chat-radius-sm)] focus-visible:[outline:0.125rem_solid_var(--chat-accent)]'
 const RESIZE_INDICATOR = 'w-1 h-8 rounded-[var(--chat-radius-pill)] [background:var(--chat-line)]'

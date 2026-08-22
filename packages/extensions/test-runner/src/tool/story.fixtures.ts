@@ -3,8 +3,7 @@ import type {ToolCatalogView, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
 import type {TestRunResult} from '../shared/events.js'
 
-export const STORY_FRAME_CLASS =
-  'chat-theme-terminal p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
+export const STORY_FRAME_CLASS = 'p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
 
 export const TEST_TOOL_NAME = 'test_runner'
 

@@ -22,7 +22,7 @@ const STDERR = [
 
 function frame(child: JSX.Element): JSX.Element {
   return (
-    <div class="chat-theme-terminal p-4 rounded-[var(--chat-radius-md)] flex flex-col gap-3 w-[34rem] [background:var(--chat-panel)] [border:1px_solid_var(--chat-line)] [font-family:var(--chat-font)]">
+    <div class="p-4 rounded-[var(--chat-radius-md)] flex flex-col gap-3 w-[34rem] [background:var(--chat-panel)] [border:1px_solid_var(--chat-line)] [font-family:var(--chat-font)]">
       {child}
     </div>
   )

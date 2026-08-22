@@ -14,7 +14,7 @@ function mountToaster(): {notify: Notify; showToaster: (visible: boolean) => voi
       <store.Toaster />
     </Show>
   ))
-  mounted.container.className = 'chat-theme-terminal'
+  mounted.container.className = 'dark'
   return {notify: store.notify, showToaster: (visible) => setStanding(visible)}
 }
 

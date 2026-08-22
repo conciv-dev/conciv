@@ -59,16 +59,13 @@ const detailResult = result({
   typeStub: 'declare function external_canvas_draw(input: {elements: Skeleton[]}): Promise<{ids: string[]}>',
 })
 
-function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+function frame(child: JSX.Element): JSX.Element {
+  return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 export const List: Story = {
   render: () =>
-    frame(
-      'chat-theme-terminal',
-      <DiscoveredApisCard part={part()} result={listResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
-    ),
+    frame(<DiscoveredApisCard part={part()} result={listResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('Discovered 2 capabilities')).toBeVisible()
@@ -80,10 +77,7 @@ export const List: Story = {
 
 export const Detail: Story = {
   render: () =>
-    frame(
-      'chat-theme-terminal',
-      <DiscoveredApisCard part={part()} result={detailResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
-    ),
+    frame(<DiscoveredApisCard part={part()} result={detailResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('Inspected canvas_draw')).toBeVisible()
@@ -97,7 +91,6 @@ export const Detail: Story = {
 export const Empty: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <DiscoveredApisCard part={part()} result={emptyListResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
   play: async ({canvasElement}) => {
@@ -111,7 +104,6 @@ export const Empty: Story = {
 export const Unrecognized: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <DiscoveredApisCard
         part={part()}
         result={result({unexpected: true})}
@@ -129,8 +121,5 @@ export const Unrecognized: Story = {
 
 export const Terminal: Story = {
   render: () =>
-    frame(
-      'chat-theme-terminal',
-      <DiscoveredApisCard part={part()} result={listResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
-    ),
+    frame(<DiscoveredApisCard part={part()} result={listResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />),
 }

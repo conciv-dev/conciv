@@ -84,7 +84,7 @@ function embeddedGallery(
   result: ReturnType<typeof storyResult> | undefined,
 ): JSX.Element {
   return (
-    <div class="chat-theme-terminal p-4 w-[28rem] [background:var(--chat-panel)] [font-family:var(--chat-font)]">
+    <div class="p-4 w-[28rem] [background:var(--chat-panel)] [font-family:var(--chat-font)]">
       <Trace
         summary={summary}
         compactLine={summary}

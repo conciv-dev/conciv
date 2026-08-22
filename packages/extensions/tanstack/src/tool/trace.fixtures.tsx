@@ -7,7 +7,7 @@ type ToolCallPart = ToolCardProps['part']
 type ToolResultPart = NonNullable<ToolCardProps['result']>
 
 export const TRACE_FRAME_CLASS =
-  'chat-theme-terminal p-4 max-w-[30rem] w-full [background:var(--chat-panel)] [font-family:var(--chat-font)]'
+  'p-4 max-w-[30rem] w-full [background:var(--chat-panel)] [font-family:var(--chat-font)]'
 
 const clients = Object.values(toolClients)
 

@@ -2,8 +2,7 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCaptureView} from '@conciv/protocol/element-capture-types'
 import type {ToolCatalogView, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
-export const STORY_FRAME_CLASS =
-  'chat-theme-terminal p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
+export const STORY_FRAME_CLASS = 'p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
 
 export const storyAddResult = INERT_ADD_RESULT
 

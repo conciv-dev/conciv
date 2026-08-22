@@ -33,6 +33,7 @@ const hostApi = {
   useLeaveView: () => use('viewLeave', 'useLeaveView'),
   useSlot: () => use('slot', 'useSlot'),
   useConnect: () => use('connect', 'useConnect'),
+  useColorScheme: () => use('colorScheme', 'useColorScheme'),
   Suppress: layerComponent(true, 'Suppress'),
   YieldFocus: layerComponent(false, 'YieldFocus'),
 }

@@ -6,11 +6,10 @@ import {whiteboardToolClients} from './client.js'
 type ToolCallPartState = ToolCallPart['state']
 type ToolResultPartState = ToolResultPart['state']
 
-export const STORY_FRAME_CLASS =
-  'chat-theme-terminal p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
+export const STORY_FRAME_CLASS = 'p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
 
 export const TRACE_FRAME_CLASS =
-  'chat-theme-terminal p-4 max-w-[28rem] w-full [background:var(--chat-panel)] [font-family:var(--chat-font)]'
+  'p-4 max-w-[28rem] w-full [background:var(--chat-panel)] [font-family:var(--chat-font)]'
 
 export const storyAddResult = INERT_ADD_RESULT
 

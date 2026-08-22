@@ -16,8 +16,8 @@ function result(text: string, state: ToolResultPart['state'] = 'complete'): Tool
   return {type: 'tool-result', toolCallId: 'r1', content: text, state}
 }
 
-function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+function frame(child: JSX.Element): JSX.Element {
+  return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 const SOURCE = '1\texport function add(a, b) {\n2\t  return a + b\n3\t}\n'
@@ -25,7 +25,6 @@ const SOURCE = '1\texport function add(a, b) {\n2\t  return a + b\n3\t}\n'
 export const Read: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <FileReadCard
         part={part('Read', {file_path: 'src/math.ts'})}
         result={result(SOURCE)}
@@ -51,7 +50,6 @@ export const Read: Story = {
 export const WithRange: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <FileReadCard
         part={part('Read', {file_path: 'src/big.ts', offset: 40, limit: 20})}
         result={result(SOURCE)}
@@ -68,7 +66,6 @@ export const WithRange: Story = {
 export const Opened: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <FileReadCard
         part={part('open', {file: 'src/app.tsx', line: 12})}
         result={undefined}
@@ -85,7 +82,6 @@ export const Opened: Story = {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <FileReadCard
         part={part('Read', {file_path: 'src/slow.ts'}, 'input-complete')}
         result={undefined}

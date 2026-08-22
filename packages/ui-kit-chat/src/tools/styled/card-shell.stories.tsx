@@ -16,11 +16,7 @@ const LONG_SUBTITLE =
   '/dashboard/workspace/settings/billing/invoices/2026/august · 214 matches across 38 files in the workspace'
 
 function frame(child: JSX.Element): JSX.Element {
-  return (
-    <div class="chat-theme-terminal p-4 w-[26rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">
-      {child}
-    </div>
-  )
+  return <div class="p-4 w-[26rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 export const LongTitleNoSubtitle: Story = {

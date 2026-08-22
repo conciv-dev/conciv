@@ -9,4 +9,7 @@ easing keys, shadow shortcuts, keyframe names and the xterm computed-style reads
 rather than sibling literals.
 
 Breaking for extension authors: theme override keys are renamed, `theme: {'pw-accent': …}` becomes
-`theme: {'chat-accent': …}` and `'pw-hue'` becomes `'chat-hue'`.
+`theme: {'chat-accent': …}`.
+
+Also removes the unused `chat-hue` theme key (no code ever read `var(--chat-hue)`): breaking for any
+extension setting `theme: {'chat-hue': …}` or `'pw-hue': …`, which is now a no-op.

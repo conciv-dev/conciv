@@ -17,7 +17,7 @@ export function presetConciv(): Preset {
   return {
     name: '@conciv/uno-preset',
 
-    presets: [presetWind4({preflights: {reset: false}, variablePrefix: 'unx-'}), typography],
+    presets: [presetWind4({preflights: {reset: false}, variablePrefix: 'unx-', dark: 'class'}), typography],
     rules: [jsonTree, ...loaderRules],
     preflights: [loaderPreflight],
     separators: [':'],

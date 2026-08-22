@@ -14,8 +14,8 @@ function part(name: string, args: Record<string, unknown>, state: ToolCallPart['
 }
 const doneResult: ToolResultPart = {type: 'tool-result', toolCallId: 'e1', content: 'ok', state: 'complete'}
 
-function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+function frame(child: JSX.Element): JSX.Element {
+  return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
 
 async function diffText(root: HTMLElement): Promise<string> {
@@ -27,7 +27,6 @@ async function diffText(root: HTMLElement): Promise<string> {
 export const Edited: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <FileEditCard
         part={part('Edit', {file_path: 'src/math/sum.ts', old_string: 'return a - b', new_string: 'return a + b'})}
         result={doneResult}
@@ -46,7 +45,6 @@ export const Edited: Story = {
 export const Wrote: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <FileEditCard
         part={part('Write', {file_path: 'src/new.ts', content: 'export const zero = 0'})}
         result={doneResult}
@@ -63,7 +61,6 @@ export const Wrote: Story = {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-terminal',
       <FileEditCard
         part={part('Edit', {file_path: 'src/slow.ts'}, 'input-complete')}
         result={undefined}
