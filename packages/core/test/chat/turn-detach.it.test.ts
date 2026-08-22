@@ -86,14 +86,16 @@ describe('detached turns (IT)', () => {
     expect(events.runs()).toBe(1)
   })
 
-  it('a mid-run attach replays from RUN_STARTED and continues live', async () => {
+  it('a mid-run attach catches up in the snapshot, keeps RUN_STARTED, and continues live', async () => {
     const {kit, id, releaseFile} = await startSlowTurn('hi')
     const early = await kit.attach(id)
     await waitForSnapshot(early)
     await early.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 3000})
     await early.waitForText('first-half')
-    writeFileSync(releaseFile, '')
     const late = await kit.attach(id)
+    const catchUp = await waitForSnapshot(late)
+    expect(catchUp).toContain('first-half')
+    writeFileSync(releaseFile, '')
     const events = await late.done()
     expect(events.all.some((c) => c.type === EventType.RUN_STARTED)).toBe(true)
     expect(events.text()).toContain('first-half')

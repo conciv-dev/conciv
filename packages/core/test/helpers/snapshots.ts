@@ -36,6 +36,10 @@ export function userTexts(snapshot: SnapshotView): string[] {
   return snapshot.messages.filter((message) => message.role === 'user').map(textOf)
 }
 
+export function assistantTexts(snapshot: SnapshotView): string[] {
+  return snapshot.messages.filter((message) => message.role === 'assistant').map(textOf)
+}
+
 export function partTypes(snapshot: SnapshotView): string[] {
   return snapshot.messages.flatMap((message) => message.parts.map((part) => part.type))
 }
