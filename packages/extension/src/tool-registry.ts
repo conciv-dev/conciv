@@ -151,37 +151,52 @@ export type SandboxTool = ToolSignature & {
   run: (input: unknown, request: ToolRequest) => Promise<unknown>
 }
 
+export type ToolCatalog = {list: () => ToolCatalogEntry[]; get: (name: string) => ToolSignature}
+
+type RegistrySelf = {call: ToolRegistry['call']; mutatingOf: (name: string) => boolean}
+
 export type ToolRegistry = {
   router: ExtensionToolRouter
   register: <Tool extends AnyToolBuilder>(tool: Tool, ...registration: ToolRegistration<CtxOf<Tool>>) => void
   has: (name: string) => boolean
   call: (name: string, input: unknown, options: {request: ToolRequest}) => Promise<unknown>
-  catalog: {list: () => ToolCatalogEntry[]; get: (name: string) => ToolSignature}
+  catalog: ToolCatalog
   sandboxTools: () => SandboxTool[]
+  whenPageConnected: (connected: () => boolean) => {catalog: ToolCatalog; sandboxTools: () => SandboxTool[]}
 }
 
 export function createToolRegistry(
-  options: {pageCaller?: RegistryPageCaller; isPageConnected?: () => boolean} = {},
+  options: {pageCaller?: RegistryPageCaller; isAnyPageConnected?: () => boolean} = {},
 ): ToolRegistry {
   const router = emptyRouterNode<ExtensionToolRouter>()
   const owners = new Map<string, string>()
   const pageCaller = options.pageCaller
-  const pageConnected = options.isPageConnected ?? (() => pageCaller !== undefined)
+  const anyPageConnected = options.isAnyPageConnected ?? (() => pageCaller !== undefined)
   const walked = (): RegistryWalkEntry[] => namedConsistently(walkRegistryProcedures(router))
   const has = (name: string): boolean => walked().some((entry) => entry.path.join('.') === name)
   const call: ToolRegistry['call'] = (name, input, callCtx) =>
     has(name) ? callTool(router, name, input, callCtx.request) : Promise.reject(new Error(`unknown tool "${name}"`))
+  const viewFor = (connected: () => boolean) => ({
+    catalog: {
+      list: () => catalogEntries(walked(), connected()),
+      get: (name: string) => toolSignature(walked(), name, connected()),
+    },
+    sandboxTools: () => sandboxToolList(router, walked(), connected()),
+  })
+  const self: RegistrySelf = {
+    call,
+    mutatingOf: (name) => (has(name) ? toolSignature(walked(), name, false).mutating : false),
+  }
+  const engineView = viewFor(anyPageConnected)
   return {
     router,
     register: (tool: AnyToolBuilder, registration: {owner: string; context?: unknown}) =>
-      registerTool(router, tool, pageCaller, call, registration, owners),
+      registerTool(router, tool, pageCaller, self, registration, owners),
     has,
     call,
-    catalog: {
-      list: () => catalogEntries(walked(), pageConnected()),
-      get: (name) => toolSignature(walked(), name, pageConnected()),
-    },
-    sandboxTools: () => sandboxToolList(router, walked(), pageConnected()),
+    catalog: engineView.catalog,
+    sandboxTools: engineView.sandboxTools,
+    whenPageConnected: viewFor,
   }
 }
 
@@ -257,7 +272,7 @@ function registerTool(
   router: Record<string, AnyRouter>,
   tool: AnyToolBuilder,
   pageCaller: RegistryPageCaller | undefined,
-  selfCall: ToolRegistry['call'],
+  self: RegistrySelf,
   registration: {owner: string; context?: unknown},
   owners: Map<string, string>,
 ): void {
@@ -270,7 +285,7 @@ function registerTool(
   if (holder !== undefined) {
     throw new Error(`tool "${tool.name}" is declared by both ${holder} and ${registration.owner}`)
   }
-  insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, selfCall, registration.context))
+  insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, self, registration.context))
   owners.set(tool.name, registration.owner)
 }
 
@@ -314,7 +329,7 @@ type ToolErrorConstructors = ORPCErrorConstructorMap<ToolErrors>
 function compileTool(
   tool: RegistryTool,
   pageCaller: RegistryPageCaller | undefined,
-  selfCall: ToolRegistry['call'],
+  self: RegistrySelf,
   context: unknown,
 ): AnyRouter {
   const meta: RegistryToolMeta = {
@@ -328,7 +343,7 @@ function compileTool(
   const procedure = registryBase.meta(meta).errors(declaredErrors).input(tool.inputSchema).output(tool.outputSchema)
   if (tool.binding === 'server') {
     return procedure.handler(({input, errors, context: call}) =>
-      runServerTool(tool, input, context, call.request, declaredErrors, errors, pageCaller, selfCall),
+      runServerTool(tool, input, context, call.request, declaredErrors, errors, pageCaller, self),
     )
   }
   return procedure.handler(({input, errors, context: call}) =>
@@ -336,17 +351,21 @@ function compileTool(
   )
 }
 
-function pageAccess(pageCaller: RegistryPageCaller | undefined, request: ToolRequest): ServerToolPageAccess {
+function pageAccess(
+  pageCaller: RegistryPageCaller | undefined,
+  request: ToolRequest,
+  mutatingOf: (name: string) => boolean,
+): ServerToolPageAccess {
   return {
     call: (name, input) =>
       pageCaller === undefined
         ? Promise.reject(new Error(`${name}: no widget connected`))
-        : pageCaller({name, mutating: false}, input, request),
+        : pageCaller({name, mutating: mutatingOf(name)}, input, request),
   }
 }
 
-function toolsAccess(selfCall: ToolRegistry['call'], request: ToolRequest): ServerToolRegistryAccess {
-  return {call: (name, input) => selfCall(name, input, {request})}
+function toolsAccess(self: RegistrySelf, request: ToolRequest): ServerToolRegistryAccess {
+  return {call: (name, input) => self.call(name, input, {request})}
 }
 
 async function runServerTool(
@@ -357,12 +376,18 @@ async function runServerTool(
   declaredErrors: ToolErrors,
   errors: ToolErrorConstructors,
   pageCaller: RegistryPageCaller | undefined,
-  selfCall: ToolRegistry['call'],
+  self: RegistrySelf,
 ): Promise<unknown> {
   const run = tool.__serverRun
   if (run === undefined) throw new Error(`tool "${tool.name}" has no server handler`)
   try {
-    return await run(input, context, request, pageAccess(pageCaller, request), toolsAccess(selfCall, request))
+    return await run(
+      input,
+      context,
+      request,
+      pageAccess(pageCaller, request, self.mutatingOf),
+      toolsAccess(self, request),
+    )
   } catch (error) {
     throw declaredError(tool, declaredErrors, error, errors) ?? error
   }

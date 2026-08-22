@@ -6,8 +6,7 @@ import type {RecorderStore} from './recorder-store.js'
 
 export function bootRecorder(apiBase: string, store: RecorderStore): () => void {
   const rpc = makeExtRpcClient<RecorderRouter>(apiBase, RECORDER_NAME)
-  const clientId = crypto.randomUUID()
-  store.setClientId(clientId)
+  const clientId = store.clientId()
   const abort = new AbortController()
   let session: CaptureSession | undefined
 

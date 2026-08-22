@@ -20,21 +20,34 @@ predates their oRPC router).
 
 ## Building the router
 
-```ts title="packages/extensions/whiteboard/src/server/router.ts:9,20-30"
-import {eventIterator, os} from '@orpc/server'
-const wbOs = os.$context<{request: Request}>()
+```ts title="packages/extensions/whiteboard/src/server/router.ts"
+import {eventIterator, ORPCError, os} from '@orpc/server'
+import {CONCIV_SESSION_HEADER, isSessionId, type SessionId} from '@conciv/protocol/chat-types'
+import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
+
+function serverRoom(context: RpcContext): SessionId {
+  const raw = rpcHeader(context, CONCIV_SESSION_HEADER)?.trim()
+  if (!raw) throw new ORPCError('UNAUTHORIZED', {message: `the ${CONCIV_SESSION_HEADER} header is required`})
+  if (!isSessionId(raw)) throw new ORPCError('BAD_REQUEST', {message: 'malformed session id'})
+  return raw
+}
+
+const wbOs = os.$context<RpcContext>()
+const roomOs = wbOs.use(({context, next}) => next({context: {room: serverRoom(context)}}))
 
 export function makeWhiteboardRouter(store: Store) {
   return wbOs.router({
-    list: wbOs
-      .input(roomInput)
-      .output(z.array(schema))
-      .handler(({input}) => ops.list(input.room)),
+    list: roomOs.output(z.array(schema)).handler(({context}) => ops.list(context.room)),
     // …
   })
 }
 export type WhiteboardRouter = ReturnType<typeof makeWhiteboardRouter>
 ```
+
+An extension router's context is `RpcContext` (`{origin, headers}`), the same context the core
+mount builds — NOT `{request: Request}`. Derive the session (and anything scoped to it, like the
+whiteboard's room) from that context in one middleware, and never accept it as procedure input: an
+input the caller controls lets one session read and write another session's rows.
 
 Export the router's inferred type (`WhiteboardRouter` above) — `makeExtRpcClient<TRouter>` needs it
 as its type parameter to give the browser client full type inference.
@@ -46,19 +59,16 @@ streaming return; the handler is an async generator. `subscriptionIterator` adap
 `emit`-callback subscription (an event emitter, a store's `onEvent`) into the `AsyncGenerator` such
 a handler must `yield*`:
 
-```ts title="packages/extensions/whiteboard/src/server/router.ts:4,117-127"
+```ts title="packages/extensions/whiteboard/src/server/router.ts"
 import {eventIterator, os} from '@orpc/server'
 import {subscriptionIterator} from '@conciv/extension'
 
-changes: wbOs
-  .input(roomInput)
-  .output(eventIterator(z.custom<WhiteboardEvent>()))
-  .handler(async function* ({input, signal}) {
-    yield* subscriptionIterator<WhiteboardEvent>(
-      (emit) => store.onEvent((event) => { if (event.room === input.room) emit(event) }),
-      signal,
-    )
-  }),
+changes: roomOs.output(eventIterator(z.custom<WhiteboardEvent>())).handler(async function* ({context, signal}) {
+  yield* subscriptionIterator<WhiteboardEvent>(
+    (emit) => store.onEvent((event) => { if (event.room === context.room) emit(event) }),
+    signal,
+  )
+}),
 ```
 
 Signature: `subscriptionIterator<T>(subscribe: (emit: (value: T) => void) => (() => void), signal:

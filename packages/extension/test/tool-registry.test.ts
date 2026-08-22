@@ -484,7 +484,7 @@ test('client tool reachability follows the liveness callback on the same registr
   const liveness = {connected: false}
   const registry = createToolRegistry({
     pageCaller: async () => ({filled: true}),
-    isPageConnected: () => liveness.connected,
+    isAnyPageConnected: () => liveness.connected,
   })
   registry.register(
     fillTool().client(() => ({filled: true})),

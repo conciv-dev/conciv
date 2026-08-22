@@ -9,7 +9,6 @@ import type {ChatDeps} from '../../chat/runtime.js'
 import type {Compactor, Send} from '../../chat/run.js'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {RowScope} from '../../chat/session-rows.js'
-import {resolveOrMintRow} from '../../chat/session-rows.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
 import {runWithSession} from '../../runtime/session-context.js'
 import type {makeRpcRouter} from './router.js'
@@ -39,14 +38,19 @@ function headerSessionId(context: RpcContext): SessionId | null {
   return raw
 }
 
-export async function callerScope(deps: RpcDeps, context: RpcContext): Promise<SessionScope> {
-  const sessionId = await resolveOrMintRow(deps.rows, headerSessionId(context))
+export function callerScope(deps: RpcDeps, context: RpcContext): SessionScope {
+  const sessionId = headerSessionId(context)
+  if (sessionId === null) {
+    throw new ORPCError('UNAUTHORIZED', {
+      message: `this procedure acts on behalf of one session and the caller sent no ${CONCIV_SESSION_HEADER} header; resolve a session with sessions.resolve and send it on every call`,
+    })
+  }
   return deps.runtime.forSession(sessionId)
 }
 
 export function makeSessionOs(deps: RpcDeps) {
-  return os.use(async ({context, next}) => {
-    const scope = await callerScope(deps, context)
+  return os.use(({context, next}) => {
+    const scope = callerScope(deps, context)
     return runWithSession(scope, () => next({context: {session: scope}}))
   })
 }

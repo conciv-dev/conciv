@@ -132,7 +132,7 @@ export function gatedToolRun(
     emittingToolCall(capability.name, args, context, async (callId) => {
       if (requiresApproval(capability)) {
         if (!listening(request.sessionId)) throw new Error(noListenerRefusal(capability.name, request.sessionId))
-        const decision = await gate.decide(capability.name, args, request.sessionId, callId)
+        const decision = await gate.decide(capability.name, args, callId)
         const refusal = approvalRefusal(capability.name, decision)
         if (refusal !== null) throw new Error(refusal)
       }

@@ -8,7 +8,7 @@ import pageServer from '../src/server.js'
 const TEST_REQUEST: ToolRequest = {sessionId: SessionId.parse('conciv_output_contract'), model: null}
 
 function registryReplying(reply: Record<string, unknown>) {
-  const registry = createToolRegistry({pageCaller: async () => reply, isPageConnected: () => true})
+  const registry = createToolRegistry({pageCaller: async () => reply, isAnyPageConnected: () => true})
   return registry
 }
 

@@ -128,7 +128,10 @@ export const contract = {
       .input(ChatSendInput)
       .output(SendAccepted),
     stop: oc.input(SessionIdInput).output(Ok),
-    permissionDecision: oc.input(PermissionDecisionSchema).output(Ok),
+    permissionDecision: oc
+      .errors({UNKNOWN_REQUEST: {message: 'no pending approval'}})
+      .input(PermissionDecisionSchema)
+      .output(Ok),
     uiReply: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending ui question'}})
       .input(SessionIdInput.extend({toolCallId: z.string(), value: UiAnswerValueSchema}))

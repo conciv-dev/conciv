@@ -7,13 +7,12 @@ export type RecorderStore = {
   setStatus: (status: RecorderStatus) => void
   live: () => boolean
   setLive: (live: boolean) => void
-  clientId: () => string | null
-  setClientId: (clientId: string) => void
+  clientId: () => string
 }
 
 export function createRecorderStore(): RecorderStore {
   const [status, setStatus] = createSignal<RecorderStatus>('idle')
   const [live, setLive] = createSignal(false)
-  const [clientId, setClientId] = createSignal<string | null>(null)
-  return {status, setStatus, live, setLive, clientId, setClientId}
+  const clientId = crypto.randomUUID()
+  return {status, setStatus, live, setLive, clientId: () => clientId}
 }

@@ -174,11 +174,17 @@ export type TranscriptHandle = {
   close(): void
 }
 
-export type HarnessHistory = {
+export type HarnessTranscriptPaths =
+  | {transcriptPath?: undefined; transcriptRoot?: undefined}
+  | {
+      transcriptPath(cwd: string, sessionId: HarnessSessionId, home?: string): string
+
+      transcriptRoot(cwd: string, home?: string): string
+    }
+
+export type HarnessHistory = HarnessTranscriptPaths & {
   messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<UIMessage[]>
   observe(cwd: string, sessionId: HarnessSessionId, home?: string): TranscriptHandle
-
-  transcriptPath?(cwd: string, sessionId: HarnessSessionId, home?: string): string
 
   withinProject?(cwd: string, sessionId: HarnessSessionId, home?: string): boolean
 

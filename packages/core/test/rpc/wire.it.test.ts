@@ -268,14 +268,20 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       openInEditor: (file, line) => opened.push({file, ...(line === undefined ? {} : {line})}),
     })
     const located = {component: null, stack: [], owners: []}
-    const viaSource = await openSource(kit.base, {
-      ...located,
-      frames: [],
-      source: {file: 'src/a.ts', line: 7, column: 1},
-    })
+    const sessionId = await kit.session()
+    const session = () => sessionId
+    const viaSource = await openSource(
+      kit.base,
+      {...located, frames: [], source: {file: 'src/a.ts', line: 7, column: 1}},
+      session,
+    )
     expect(viaSource).toBe('opened')
     expect(opened).toEqual([{file: 'src/a.ts', line: 7}])
-    const viaFrames = await openSource(kit.base, {...located, frames: [{fileName: 'does-not-exist.ts', line: 1}]})
+    const viaFrames = await openSource(
+      kit.base,
+      {...located, frames: [{fileName: 'does-not-exist.ts', line: 1}]},
+      session,
+    )
     expect(viaFrames).toBe('no-source')
   })
 
@@ -286,10 +292,11 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(Array.isArray(models.models)).toBe(true)
   })
 
-  it('chat.permissionDecision is reachable and returns ok', async () => {
+  it('chat.permissionDecision reports a decision that owns no pending ask', async () => {
     const {kit} = await bootWire()
-    const result = await kit.rpc.chat.permissionDecision({approvalId: 'none-pending', approved: false})
-    expect(result.ok).toBe(true)
+    await expect(kit.rpc.chat.permissionDecision({approvalId: 'none-pending', approved: false})).rejects.toMatchObject({
+      code: 'UNKNOWN_REQUEST',
+    })
   })
 
   it('page queries stream to the rpc subscriber and reply resolves the asker', async () => {
@@ -426,6 +433,16 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(restarted).toEqual([true])
   })
 
+  it('page.reply without a session header is refused as unidentified', async () => {
+    const {kit} = await bootWire()
+    const response = await fetch(`${kit.base}/rpc/page/reply`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({json: {requestId: 'pq-nope', outcome: {ok: true, result: {}}}}),
+    })
+    expect(response.status).toBe(401)
+  })
+
   it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
     const {kit} = await bootWire()
     await expect(kit.rpc.page.reply({requestId: 'pq-nope', outcome: {ok: true, result: {}}})).rejects.toMatchObject({
@@ -437,7 +454,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const {kit} = await bootWire()
     const response = await fetch(`${kit.base}/rpc/page/reply`, {
       method: 'POST',
-      headers: {'content-type': 'application/json'},
+      headers: {'content-type': 'application/json', [CONCIV_SESSION_HEADER]: await kit.session()},
       body: JSON.stringify({
         json: {requestId: 'pq-nope', outcome: {ok: false, error: {code: 'weird-thing', message: 'boom'}}},
       }),
@@ -448,10 +465,11 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
   it('page.reply refuses a transport code only the server may produce, so the page cannot forge one', async () => {
     const {kit} = await bootWire()
     const statuses: number[] = []
+    const sessionId = await kit.session()
     for (const code of PAGE_TRANSPORT_ERROR_CODES) {
       const response = await fetch(`${kit.base}/rpc/page/reply`, {
         method: 'POST',
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json', [CONCIV_SESSION_HEADER]: sessionId},
         body: JSON.stringify({
           json: {requestId: 'pq-nope', outcome: {ok: false, error: {code, message: 'boom'}}},
         }),

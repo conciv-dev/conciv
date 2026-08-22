@@ -20,7 +20,7 @@ type SessionAsks = {
 
 export type AskRegistry = {
   open: (sessionId: SessionId, key: string) => void
-  owner: (key: string) => string | null
+  owner: (key: string) => SessionId | null
   pending: (sessionId: SessionId) => string[]
   reply: (sessionId: SessionId, key: string, value: unknown) => boolean
   waitFor: (sessionId: SessionId, key: string, timeoutMs: number) => Promise<unknown>
@@ -38,7 +38,7 @@ function makeAsk(): Ask {
 }
 
 export function createAskRegistry(): AskRegistry {
-  const bySession = new Map<string, SessionAsks>()
+  const bySession = new Map<SessionId, SessionAsks>()
 
   const stateOf = (sessionId: SessionId): SessionAsks => {
     const existing = bySession.get(sessionId)

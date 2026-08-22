@@ -72,21 +72,21 @@ function runDisposers(disposers: Array<() => void>): void {
 type SessionPagePlaneConfig = {
   session: () => string | null
   rpc: RpcClient
-  driver: PageDriver
+  driver: () => PageDriver
   isOnline: () => boolean
-  restart: () => unknown
+  redoOnChange: () => unknown
 }
 
 function startSessionPagePlane(config: SessionPagePlaneConfig): {dispose: () => void} {
   return createRoot((dispose) => {
     createEffect(() => {
-      config.restart()
+      config.redoOnChange()
       const sessionId = config.session()
       if (!sessionId) return
       const plane = startPagePlane({
         rpc: config.rpc,
         document,
-        driver: config.driver,
+        driver: config.driver(),
         isOnline: config.isOnline,
         subscribeOnline: subscribeEngineOnline,
       })
@@ -155,9 +155,9 @@ function bootNormal(config: BootNormalConfig): BootResult {
     startSessionPagePlane({
       session,
       rpc,
-      driver,
+      driver: () => driver,
       isOnline: reachabilityRoot.isOnline,
-      restart: connectionGeneration,
+      redoOnChange: connectionGeneration,
     }),
   )
 
@@ -250,9 +250,9 @@ function bootConnect(config: BootConnectConfig): BootResult {
     startSessionPagePlane({
       session: () => (apiBase() === '' ? null : session()),
       rpc: deferred.rpc,
-      driver,
+      driver: () => driver,
       isOnline: reachabilityRoot.isOnline,
-      restart: apiBase,
+      redoOnChange: apiBase,
     }),
   )
   const bindApiBase = (nextApiBase: string) => {

@@ -82,7 +82,10 @@ export function isSessionId(id: unknown): id is SessionId {
   return SessionId.safeParse(id).success
 }
 
-export const HarnessSessionId = z.string().min(1).brand<'HarnessSessionId'>()
+export const HarnessSessionId = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{1,128}$/)
+  .brand<'HarnessSessionId'>()
 export type HarnessSessionId = z.infer<typeof HarnessSessionId>
 
 export function isHarnessSessionId(id: unknown): id is HarnessSessionId {

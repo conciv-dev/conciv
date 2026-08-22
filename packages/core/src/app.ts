@@ -20,7 +20,7 @@ import {
 } from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
-import {getHarness} from '@conciv/harness'
+import {getHarness, transcriptPathWithin} from '@conciv/harness'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
@@ -34,7 +34,7 @@ import {
   type RowScope,
 } from './chat/session-rows.js'
 import {makeRunControl, type ChatDeps} from './chat/runtime.js'
-import {makeAskGate, requiresApproval} from './chat/gate.js'
+import {asksFor, makeAskGate, requiresApproval} from './chat/gate.js'
 import {makeConcivSandbox} from './chat/sandbox.js'
 import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
 import {recoverInterruptedRuns} from './chat/transcript.js'
@@ -45,7 +45,6 @@ import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
-import {runWithSession} from './runtime/session-context.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
@@ -271,16 +270,15 @@ async function drainWithDeadline(drain: Promise<void>, timeoutMs: number): Promi
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string, claudeHome?: string): ServerHarness {
   const history = harness.history
-  const transcriptPath = history?.transcriptPath
   const transcriptExists = (token: HarnessSessionId): boolean => {
-    if (transcriptPath === undefined) return false
-    if (history?.withinProject && !history.withinProject(cwd, token, claudeHome)) return false
-    return existsSync(transcriptPath(cwd, token, claudeHome))
+    if (history === undefined) return false
+    const path = transcriptPathWithin(history, cwd, token, claudeHome)
+    return path !== null && existsSync(path)
   }
   return {
     id: harness.id,
     ttyCommand: harness.tty?.command,
-    transcriptExists: transcriptPath ? transcriptExists : undefined,
+    transcriptExists: history?.transcriptPath ? transcriptExists : undefined,
     transcriptMessages: history ? (token) => history.messages(cwd, token, claudeHome) : undefined,
     connectPlan: harness.connect?.plan,
   }
@@ -382,13 +380,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
-  const onRunEnd = (sessionId: SessionId): Promise<void> =>
-    runWithSession(runtime.forSession(sessionId), async () => {
-      const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
-      settled.forEach((outcome) => {
-        if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
-      })
+  const onRunEnd = async (sessionId: SessionId): Promise<void> => {
+    const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
+    settled.forEach((outcome) => {
+      if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
+  }
   const sessionModel = (sessionId: SessionId): string | null => modelOf(db, sessionId)
   const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({
     askUi: () => runtime.forSession(sessionId).asks.ui(),
@@ -425,7 +422,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const risky = approvalGatedNames(registry)
 
   const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] => [
-    ...registryCapabilities(registry, scopedToolCall),
+    ...registryCapabilities(
+      registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
+      scopedToolCall,
+    ),
     ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
   ]
 
@@ -458,8 +458,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     toolNames: new Set(toolList.map((tool) => tool.name)),
     codeModeCapabilities,
     attachmentExpanders,
-    onRunStart: (sessionId) =>
-      runWithSession(runtime.forSession(sessionId), () => runStartListeners.forEach((listener) => listener(sessionId))),
+    onRunStart: (sessionId) => runStartListeners.forEach((listener) => listener(sessionId)),
     onRunEnd,
     firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
   }
@@ -505,8 +504,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         capabilities: codeModeCapabilities,
         askGate: (sessionId) =>
           makeAskGate({
-            sessionId,
-            asks,
+            asks: asksFor(asks, sessionId),
             emit: (chunk) => stream.publish(sessionId, chunk),
             ...(opts.askTimeoutMs === undefined ? {} : {timeoutMs: opts.askTimeoutMs}),
           }),

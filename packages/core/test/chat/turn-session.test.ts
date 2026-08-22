@@ -62,7 +62,9 @@ describe('turn session helpers', () => {
       commands: claude.commands,
       history: {
         ...claude.history,
+        transcriptRoot: (cwd) => cwd,
         transcriptPath: (cwd, sessionId) => join(cwd, `${sessionId}.jsonl`),
+        withinProject: undefined,
       },
     }
     expect(resumableToken(harness, dir, HarnessSessionId.parse('tok-live'))).toBe('tok-live')

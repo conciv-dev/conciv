@@ -30,7 +30,8 @@ describe('hostile session ids', () => {
     )
     await fixture.db.update(sessions).set({harnessSessionId: '../../secret'}).where(eq(sessions.id, fixture.sessionId))
     const deps = {...fixture.chat, claudeHome: home}
-    const history = await sessionSnapshot(deps, fixture.sessionId)
-    expect(JSON.stringify(history)).not.toContain('TOP SECRET')
+    await expect(sessionSnapshot(deps, fixture.sessionId)).rejects.toThrow(/harnessSessionId/)
+    const escaped = await sessionSnapshot(deps, fixture.sessionId).catch((error: unknown) => String(error))
+    expect(escaped).not.toContain('TOP SECRET')
   })
 })

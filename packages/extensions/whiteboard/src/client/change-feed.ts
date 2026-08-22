@@ -21,7 +21,7 @@ export async function sleep(ms: number, signal: AbortSignal): Promise<void> {
   })
 }
 
-export function createChangeFeed(apiBase: string, room: string) {
+export function createChangeFeed(apiBase: string) {
   const tableHandlers = new Map<string, Set<Handler>>()
   const reconnectHandlers = new Set<() => void>()
   const cursorHandlers = new Set<(cursor: CursorEvent) => void>()
@@ -30,18 +30,15 @@ export function createChangeFeed(apiBase: string, room: string) {
 
   const abort = new AbortController()
   async function runOnce(): Promise<void> {
-    const changes = await client.changes(
-      {room},
-      {
-        signal: abort.signal,
-        context: {
-          retry: Number.POSITIVE_INFINITY,
-          onRetry: () => (success) => {
-            if (success) reconnectHandlers.forEach((handler) => handler())
-          },
+    const changes = await client.changes(undefined, {
+      signal: abort.signal,
+      context: {
+        retry: Number.POSITIVE_INFINITY,
+        onRetry: () => (success) => {
+          if (success) reconnectHandlers.forEach((handler) => handler())
         },
       },
-    )
+    })
     for await (const event of changes) {
       if (event.table === 'cursor') {
         cursorHandlers.forEach((handler) => handler(event.cursor))

@@ -85,12 +85,23 @@ export function noListenerRefusal(toolName: string, sessionId: SessionId): strin
 }
 
 export type PermissionGate = {
-  decide(toolName: string, toolInput: unknown, sessionId: SessionId, toolUseId: string): Promise<PermissionDecision>
+  decide(toolName: string, toolInput: unknown, toolUseId: string): Promise<PermissionDecision>
+}
+
+export type BoundAsks = {
+  open: (key: string) => void
+  waitFor: (key: string, timeoutMs: number) => Promise<unknown>
+}
+
+export function asksFor(asks: AskRegistry, sessionId: SessionId): BoundAsks {
+  return {
+    open: (key) => asks.open(sessionId, key),
+    waitFor: (key, timeoutMs) => asks.waitFor(sessionId, key, timeoutMs),
+  }
 }
 
 export type AskGateDeps = {
-  sessionId: SessionId
-  asks: AskRegistry
+  asks: BoundAsks
   emit: (chunk: StreamChunk) => void
   timeoutMs?: number
 }
@@ -102,12 +113,11 @@ export type RunGateDeps = AskGateDeps & {
 
 export function makeAskGate(deps: AskGateDeps): PermissionGate {
   return {
-    decide: async (toolName, toolInput, _sessionId, toolUseId) => {
-      if (!deps.sessionId) return 'deny'
+    decide: async (toolName, toolInput, toolUseId) => {
       const approvalId = randomUUID()
-      deps.asks.open(deps.sessionId, approvalId)
+      deps.asks.open(approvalId)
       deps.emit(aguiApprovalRequestedFor({toolCallId: toolUseId, toolName, input: toolInput, approvalId}))
-      const approved = await deps.asks.waitFor(deps.sessionId, approvalId, deps.timeoutMs ?? ASK_TIMEOUT_MS)
+      const approved = await deps.asks.waitFor(approvalId, deps.timeoutMs ?? ASK_TIMEOUT_MS)
       if (approved === true) return 'allow'
       return approved === false ? 'deny' : 'timeout'
     },
@@ -117,9 +127,9 @@ export function makeAskGate(deps: AskGateDeps): PermissionGate {
 export function makeRunGate(deps: RunGateDeps): PermissionGate {
   const ask = makeAskGate(deps)
   return {
-    decide: async (toolName, toolInput, sessionId, toolUseId) => {
+    decide: async (toolName, toolInput, toolUseId) => {
       if (!needsApproval(toolName, toolInput, deps)) return 'allow'
-      return ask.decide(toolName, toolInput, sessionId, toolUseId)
+      return ask.decide(toolName, toolInput, toolUseId)
     },
   }
 }
@@ -137,14 +147,14 @@ function requestFields(request: {tool_name?: string; input?: unknown}): {
   }
 }
 
-function gatedTools(tools: AnyTool[], gate: PermissionGate, sessionId: SessionId): AnyTool[] {
+function gatedTools(tools: AnyTool[], gate: PermissionGate): AnyTool[] {
   return tools.map((tool) => {
     const execute = tool.execute
     if (!execute) return tool
     return {
       ...tool,
       execute: async (args: unknown, context: unknown) => {
-        const decision = await gate.decide(tool.name, args, sessionId, randomUUID())
+        const decision = await gate.decide(tool.name, args, randomUUID())
         const refusal = approvalRefusal(tool.name, decision)
         if (refusal !== null) throw new Error(refusal)
         return execute(args, context)
@@ -153,17 +163,17 @@ function gatedTools(tools: AnyTool[], gate: PermissionGate, sessionId: SessionId
   })
 }
 
-export function gateProvisioner(gate: PermissionGate, sessionId: SessionId): ToolBridgeProvisioner {
+export function gateProvisioner(gate: PermissionGate): ToolBridgeProvisioner {
   return {
     provision: (tools, options) =>
-      nodeHttpBridgeProvisioner.provision(gatedTools(tools, gate, sessionId), {
+      nodeHttpBridgeProvisioner.provision(gatedTools(tools, gate), {
         ...options,
         permission: options.permission
           ? {
               ...options.permission,
               resolve: async (request) => {
                 const {toolName, input, toolUseId} = requestFields(request)
-                const decision = await gate.decide(toolName, input, sessionId, toolUseId)
+                const decision = await gate.decide(toolName, input, toolUseId)
                 return decision === 'allow'
                   ? {behavior: 'allow', updatedInput: input ?? {}}
                   : {behavior: 'deny', message: 'Denied by user'}
@@ -174,12 +184,12 @@ export function gateProvisioner(gate: PermissionGate, sessionId: SessionId): Too
   }
 }
 
-export function withConcivGate(gate: PermissionGate, sessionId: SessionId) {
+export function withConcivGate(gate: PermissionGate) {
   return defineChatMiddleware({
     name: 'conciv-gate',
     provides: [ToolBridgeProvisionerCapability],
     setup(ctx) {
-      provideToolBridgeProvisioner(ctx, gateProvisioner(gate, sessionId))
+      provideToolBridgeProvisioner(ctx, gateProvisioner(gate))
     },
   })
 }

@@ -10,7 +10,7 @@ import type {RegistryCallErrorName} from '@conciv/contract'
 import {listCommands} from '../../chat/commands.js'
 import {makeAskGate, requiresApproval} from '../../chat/gate.js'
 import {rowById} from '../../chat/session-rows.js'
-import type {SessionScope} from '../../runtime/scope-types.js'
+import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
 import {makeSessionOs, os, type RpcDeps} from './mount.js'
@@ -38,31 +38,25 @@ function hasErrorCode(error: unknown, code: string): boolean {
 
 type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
 
-async function approveAskGatedCall(
-  deps: RpcDeps,
-  name: string,
-  input: unknown,
-  session: SessionScope,
-  errors: ApprovalErrors,
-): Promise<void> {
-  if (!requiresApproval(session.tools.catalog.get(name))) return
-  if ((await rowById(deps.chat.db, session.id)) === null) {
+async function approveAskGatedCall(deps: RpcDeps, name: string, input: unknown, errors: ApprovalErrors): Promise<void> {
+  const scope = session()
+  if (!requiresApproval(scope.tools.catalog.get(name))) return
+  if ((await rowById(deps.chat.db, scope.id)) === null) {
     throw errors.APPROVAL_DENIED({
-      message: `"${name}" requires approval but session "${session.id}" does not exist`,
+      message: `"${name}" requires approval but session "${scope.id}" does not exist`,
     })
   }
-  if (!session.stream.listening()) {
+  if (!scope.stream.listening()) {
     throw errors.APPROVAL_DENIED({
-      message: `"${name}" requires approval but nothing is attached to session "${session.id}" to answer; open the widget on that session and retry`,
+      message: `"${name}" requires approval but nothing is attached to session "${scope.id}" to answer; open the widget on that session and retry`,
     })
   }
   const gate = makeAskGate({
-    sessionId: session.id,
-    asks: deps.chat.asks,
-    emit: (chunk) => session.stream.publish(chunk),
+    asks: scope.asks,
+    emit: (chunk) => scope.stream.publish(chunk),
     ...(deps.askTimeoutMs === undefined ? {} : {timeoutMs: deps.askTimeoutMs}),
   })
-  const decision = await gate.decide(name, input, session.id, randomUUID())
+  const decision = await gate.decide(name, input, randomUUID())
   if (decision === 'allow') return
   if (decision === 'deny') throw errors.APPROVAL_DENIED({message: `"${name}" was denied by the user`})
   throw errors.APPROVAL_DENIED({
@@ -71,7 +65,6 @@ async function approveAskGatedCall(
 }
 
 async function callTool<Output extends z.ZodType>(
-  session: SessionScope,
   tool: {name: string; outputSchema?: Output},
   input: unknown,
   errors?: BundlerErrors,
@@ -79,7 +72,7 @@ async function callTool<Output extends z.ZodType>(
   const output = tool.outputSchema
   if (output === undefined) throw new Error(`tool "${tool.name}" declares no output schema`)
   try {
-    return output.parse(await session.tools.call(tool.name, input))
+    return output.parse(await session().tools.call(tool.name, input))
   } catch (error) {
     if (errors && hasErrorCode(error, 'NO_BUNDLER')) throw errors.NO_BUNDLER()
     throw error
@@ -118,7 +111,7 @@ export function makeRpcRouter(deps: RpcDeps) {
       catalog: os.registry.catalog.handler(() => engine.catalog()),
       call: sessionOs.registry.call.handler(async ({input, context, errors}) => {
         if (!context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
-        await approveAskGatedCall(deps, input.name, input.input, context.session, errors)
+        await approveAskGatedCall(deps, input.name, input.input, errors)
         try {
           return await context.session.tools.call(input.name, input.input)
         } catch (error) {
@@ -145,32 +138,28 @@ export function makeRpcRouter(deps: RpcDeps) {
       }),
     },
     server: {
-      config: sessionOs.server.config.handler(({context, errors}) =>
-        callTool(context.session, BUILTIN_SERVER_TOOL['server.config'], {}, errors),
+      config: sessionOs.server.config.handler(({errors}) => callTool(BUILTIN_SERVER_TOOL['server.config'], {}, errors)),
+      resolve: sessionOs.server.resolve.handler(({input, errors}) =>
+        callTool(BUILTIN_SERVER_TOOL['server.resolve'], input, errors),
       ),
-      resolve: sessionOs.server.resolve.handler(({input, context, errors}) =>
-        callTool(context.session, BUILTIN_SERVER_TOOL['server.resolve'], input, errors),
+      graph: sessionOs.server.graph.handler(({input, errors}) =>
+        callTool(BUILTIN_SERVER_TOOL['server.graph'], input, errors),
       ),
-      graph: sessionOs.server.graph.handler(({input, context, errors}) =>
-        callTool(context.session, BUILTIN_SERVER_TOOL['server.graph'], input, errors),
+      transform: sessionOs.server.transform.handler(({input, errors}) =>
+        callTool(BUILTIN_SERVER_TOOL['server.transform'], input, errors),
       ),
-      transform: sessionOs.server.transform.handler(({input, context, errors}) =>
-        callTool(context.session, BUILTIN_SERVER_TOOL['server.transform'], input, errors),
-      ),
-      urls: sessionOs.server.urls.handler(({context, errors}) =>
-        callTool(context.session, BUILTIN_SERVER_TOOL['server.urls'], {}, errors),
-      ),
-      reload: sessionOs.server.reload.handler(async ({input, context, errors}) => {
-        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.reload'].name, input, context.session, errors)
-        return callTool(context.session, BUILTIN_SERVER_TOOL['server.reload'], input, errors)
+      urls: sessionOs.server.urls.handler(({errors}) => callTool(BUILTIN_SERVER_TOOL['server.urls'], {}, errors)),
+      reload: sessionOs.server.reload.handler(async ({input, errors}) => {
+        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.reload'].name, input, errors)
+        return callTool(BUILTIN_SERVER_TOOL['server.reload'], input, errors)
       }),
-      restart: sessionOs.server.restart.handler(async ({input, context, errors}) => {
-        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.restart'].name, input, context.session, errors)
-        return callTool(context.session, BUILTIN_SERVER_TOOL['server.restart'], input, errors)
+      restart: sessionOs.server.restart.handler(async ({input, errors}) => {
+        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.restart'].name, input, errors)
+        return callTool(BUILTIN_SERVER_TOOL['server.restart'], input, errors)
       }),
     },
     editor: {
-      open: sessionOs.editor.open.handler(({input, context}) => callTool(context.session, BUILTIN_OPEN_TOOL, input)),
+      open: sessionOs.editor.open.handler(({input}) => callTool(BUILTIN_OPEN_TOOL, input)),
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },
     meta: {

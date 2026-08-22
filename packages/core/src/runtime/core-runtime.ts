@@ -14,7 +14,7 @@ import {askUi} from '../chat/ask.js'
 import {subscribeSession} from '../chat/subscribe.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
-import type {CoreRuntime, EngineScope, SessionScope} from './scope-types.js'
+import type {CoreRuntime, EngineScope, SessionScope, ToolCatalog} from './scope-types.js'
 
 const MAX_NAVIGATION_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000
 
@@ -27,9 +27,9 @@ export type CoreRuntimeDeps = {
   staleness: () => EngineStaleness
 }
 
-function catalogSignatures(primitives: SessionPrimitives): ToolCommandSignature[] {
-  return primitives.registry.catalog.list().map((entry) => {
-    const signature = primitives.registry.catalog.get(entry.name)
+function catalogSignatures(catalog: ToolCatalog): ToolCommandSignature[] {
+  return catalog.list().map((entry) => {
+    const signature = catalog.get(entry.name)
     return {
       name: entry.name,
       path: [...entry.path],
@@ -54,7 +54,7 @@ function catalogSignatures(primitives: SessionPrimitives): ToolCommandSignature[
 function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
   const db = deps.chat.db
   return {
-    catalog: () => catalogSignatures(deps.primitives),
+    catalog: () => catalogSignatures(deps.primitives.registry.catalog),
     staleness: deps.staleness,
     symbolicate: (frames: RawFrame[]) => symbolicateFrames(frames, deps.primitives.page.root),
     navigation: {
@@ -79,6 +79,7 @@ function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
 function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
   const {asks, liveRuns, page, registry, stream} = deps.primitives
   const model = deps.model(id)
+  const view = registry.whenPageConnected(() => page.bus.connected(id))
   const requestFor = (toolCallId: string | undefined): ToolRequest =>
     toolCallId === undefined ? {sessionId: id, model} : {sessionId: id, model, toolCallId}
   return {
@@ -87,7 +88,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     tools: {
       call: (name, input, options) => registry.call(name, input, {request: requestFor(options?.toolCallId)}),
       has: (name) => registry.has(name),
-      catalog: registry.catalog,
+      catalog: view.catalog,
     },
     page: {
       ask: async (name, input) => (await page.bus.ask(id, {name, input})).result,
@@ -130,21 +131,42 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
 }
 
 function established(raw: SessionScope): SessionScope {
+  const inScope = <Args extends unknown[], Result>(effect: (...args: Args) => Result): ((...args: Args) => Result) => {
+    return (...args) => runWithSession(scope, () => effect(...args))
+  }
   const scope: SessionScope = {
     ...raw,
-    tools: {
-      ...raw.tools,
-      call: (name, input, options) => runWithSession(scope, () => raw.tools.call(name, input, options)),
+    tools: {...raw.tools, call: inScope(raw.tools.call)},
+    page: {
+      ...raw.page,
+      ask: inScope(raw.page.ask),
+      queries: inScope(raw.page.queries),
+      reply: inScope(raw.page.reply),
+      changes: inScope(raw.page.changes),
+      clearChanges: inScope(raw.page.clearChanges),
     },
-    page: {...raw.page, ask: (name, input) => runWithSession(scope, () => raw.page.ask(name, input))},
-    captures: {
-      ...raw.captures,
-      store: (toolCallId, bundle) => runWithSession(scope, () => raw.captures.store(toolCallId, bundle)),
+    stream: {
+      ...raw.stream,
+      publish: inScope(raw.stream.publish),
+      listen: inScope(raw.stream.listen),
+      subscribe: inScope(raw.stream.subscribe),
     },
+    asks: {
+      ...raw.asks,
+      open: inScope(raw.asks.open),
+      reply: inScope(raw.asks.reply),
+      waitFor: inScope(raw.asks.waitFor),
+      cancel: inScope(raw.asks.cancel),
+      noteToolCall: inScope(raw.asks.noteToolCall),
+      nextUiCall: inScope(raw.asks.nextUiCall),
+      ui: inScope(raw.asks.ui),
+    },
+    captures: {list: inScope(raw.captures.list), store: inScope(raw.captures.store)},
+    history: {messages: inScope(raw.history.messages)},
     run: {
-      send: (runId, content) => runWithSession(scope, () => raw.run.send(runId, content)),
-      stop: () => runWithSession(scope, () => raw.run.stop()),
-      compact: () => runWithSession(scope, () => raw.run.compact()),
+      send: inScope(raw.run.send),
+      stop: inScope(raw.run.stop),
+      compact: inScope(raw.run.compact),
       live: raw.run.live,
     },
   }

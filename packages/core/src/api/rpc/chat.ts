@@ -19,8 +19,12 @@ export function chatRouter(deps: RpcDeps, sessionOs: SessionOs) {
       return {ok: true as const, runId}
     }),
     stop: os.chat.stop.handler(({input}) => deps.runtime.forSession(input.sessionId).run.stop()),
-    permissionDecision: sessionOs.chat.permissionDecision.handler(({input, context}) => {
-      context.session.asks.reply(input.approvalId, input.approved)
+    permissionDecision: sessionOs.chat.permissionDecision.handler(({input, errors}) => {
+      const owner = deps.chat.asks.owner(input.approvalId)
+      if (owner === null) throw errors.UNKNOWN_REQUEST()
+      if (!deps.runtime.forSession(owner).asks.reply(input.approvalId, input.approved)) {
+        throw errors.UNKNOWN_REQUEST()
+      }
       return {ok: true as const}
     }),
     uiReply: os.chat.uiReply.handler(({input, errors}) => {

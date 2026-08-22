@@ -5,7 +5,7 @@ import {approvalIds} from '@conciv/harness-testkit'
 import {toolError, type ToolRequest} from '@conciv/extension'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {createAskRegistry, type AskRegistry} from '../../src/chat/ask.js'
-import {makeAskGate, type PermissionGate} from '../../src/chat/gate.js'
+import {asksFor, makeAskGate, type PermissionGate} from '../../src/chat/gate.js'
 import {gatedToolRun, makeCodeMode, withBindingNames, type CodeMode} from '../../src/chat/code-mode.js'
 import type {CodeCapability} from '../../src/chat/capabilities.js'
 
@@ -77,7 +77,7 @@ async function codeModeOf(
 }
 
 function expiringGate(): PermissionGate {
-  return makeAskGate({sessionId: SESSION, asks: createAskRegistry(), emit: () => {}, timeoutMs: 30})
+  return makeAskGate({asks: asksFor(createAskRegistry(), SESSION), emit: () => {}, timeoutMs: 30})
 }
 
 function replyingGate(timeoutMs: number): {
@@ -87,7 +87,7 @@ function replyingGate(timeoutMs: number): {
 } {
   const asks = createAskRegistry()
   const emitted: StreamChunk[] = []
-  const gate = makeAskGate({sessionId: SESSION, asks, emit: (chunk) => emitted.push(chunk), timeoutMs})
+  const gate = makeAskGate({asks: asksFor(asks, SESSION), emit: (chunk) => emitted.push(chunk), timeoutMs})
   return {gate, asks, approvalId: () => emitted.flatMap(approvalIds)[0]}
 }
 
@@ -475,7 +475,7 @@ describe('code mode per-tool call events', () => {
       dotted,
       request,
       {
-        decide: async (_toolName, _toolInput, _sessionId, toolUseId) => {
+        decide: async (_toolName: string, _toolInput: unknown, toolUseId: string) => {
           decideIds.push(toolUseId)
           return 'allow' as const
         },

@@ -7,9 +7,11 @@ const MAX_TOTAL_RING_BYTES = 64 * 1024 * 1024
 
 export type ClientRings = {
   append(clientId: string, events: RrwebEvent[]): void
-  window(range?: {fromTs?: number; toTs?: number}, clientId?: string): RrwebEvent[]
-  since(cursor: number, clientId?: string): RrwebEvent[]
-  head(clientId?: string): number
+  latestClientId(): string | null
+  window(range: {fromTs?: number; toTs?: number}, clientId: string): RrwebEvent[]
+  since(cursor: number, clientId: string): RrwebEvent[]
+  head(clientId: string): number
+  appendCursor(): number
   clear(): void
   onAppend(listener: () => void): () => void
 }
@@ -20,15 +22,16 @@ export function createClientRings(opts: {windowMs: number; maxBytes?: number}): 
   const entries = new Map<string, Entry>()
   const listeners = new Set<() => void>()
   const sequence = createSequence()
-  let active: string | null = null
+  let appended = 0
 
   const drop = (clientId: string, entry: Entry): void => {
     entry.unsubscribe()
     entries.delete(clientId)
   }
 
-  const evictable = (): [string, Entry][] =>
-    [...entries].filter(([clientId]) => clientId !== active).toSorted(([, a], [, b]) => a.touchedAt - b.touchedAt)
+  const byTouchTime = (): [string, Entry][] => [...entries].toSorted(([, a], [, b]) => a.touchedAt - b.touchedAt)
+
+  const evictable = (): [string, Entry][] => byTouchTime().slice(0, -1)
 
   const totalBytes = (): number => [...entries.values()].reduce((sum, entry) => sum + entry.ring.bytes(), 0)
 
@@ -37,7 +40,7 @@ export function createClientRings(opts: {windowMs: number; maxBytes?: number}): 
   const sweep = (): void => {
     const cutoff = Date.now() - CLIENT_RING_IDLE_MS
     for (const [clientId, entry] of entries) {
-      if (entry.touchedAt >= cutoff || clientId === active) continue
+      if (entry.touchedAt >= cutoff) continue
       drop(clientId, entry)
     }
     for (const [clientId, entry] of evictable()) {
@@ -58,26 +61,24 @@ export function createClientRings(opts: {windowMs: number; maxBytes?: number}): 
     return created
   }
 
-  const resolve = (clientId?: string): EventRing | null => {
-    const key = clientId ?? active
-    return key ? (entries.get(key)?.ring ?? null) : null
-  }
+  const ringFor = (clientId: string): EventRing | null => entries.get(clientId)?.ring ?? null
 
   return {
     append(clientId, events) {
       const entry = entryFor(clientId)
       entry.touchedAt = Date.now()
-      active = clientId
       entry.ring.append(clientId, events)
+      appended = Math.max(appended, entry.ring.head())
       sweep()
     },
-    window: (range = {}, clientId) => resolve(clientId)?.window(range) ?? [],
-    since: (cursor, clientId) => resolve(clientId)?.since(cursor) ?? [],
-    head: (clientId) => resolve(clientId)?.head() ?? 0,
+    latestClientId: () => byTouchTime().at(-1)?.[0] ?? null,
+    window: (range, clientId) => ringFor(clientId)?.window(range) ?? [],
+    since: (cursor, clientId) => ringFor(clientId)?.since(cursor) ?? [],
+    head: (clientId) => ringFor(clientId)?.head() ?? 0,
+    appendCursor: () => appended,
     clear() {
       for (const entry of entries.values()) entry.unsubscribe()
       entries.clear()
-      active = null
     },
     onAppend(listener) {
       listeners.add(listener)

@@ -16,7 +16,6 @@ import {
   type SessionId,
 } from '@conciv/protocol/chat-types'
 import type {SessionScope} from '../runtime/scope-types.js'
-import {runWithSession} from '../runtime/session-context.js'
 import {logError} from '../lib/debug.js'
 import {cappedText, RESULT_CAP_CHARS, safeStringify, truncationEnvelope} from '../lib/result-cap.js'
 import {loopbackHostAllowlist} from '../lib/cors.js'
@@ -256,15 +255,14 @@ async function buildServer(deps: McpDeps, scope: SessionScope): Promise<McpServe
   server.registerTool(
     EXECUTE_TOOL_NAME,
     {description: executeDescription(codeMode.categories), inputSchema: ExecuteInputSchema.shape},
-    async (args) =>
-      runWithSession(scope, async () => {
-        try {
-          return await runExecute(codeMode, args.typescriptCode, publish, declaredCodes, note)
-        } catch (error) {
-          logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
-          throw error
-        }
-      }),
+    async (args) => {
+      try {
+        return await runExecute(codeMode, args.typescriptCode, publish, declaredCodes, note)
+      } catch (error) {
+        logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
+        throw error
+      }
+    },
   )
   return server
 }
