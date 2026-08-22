@@ -36,8 +36,8 @@ const capabilities = () => [
 ]
 const request = {sessionId: 'conciv_probe', model: null}
 const gate = {decide: async () => 'allow'}
-const first = await makeCodeMode(capabilities, request, gate, {listening: () => true})
-const second = await makeCodeMode(capabilities, request, gate, {listening: () => true})
+const first = await makeCodeMode(capabilities, request.sessionId, request, gate, {listening: () => true})
+const second = await makeCodeMode(capabilities, request.sessionId, request, gate, {listening: () => true})
 const executed = first === null ? null : await first.run('return 6 * 7')
 console.log(JSON.stringify({firstAvailable: first !== null, secondAvailable: second !== null, executed}))
 `

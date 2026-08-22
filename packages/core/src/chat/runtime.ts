@@ -9,6 +9,7 @@ import {
 } from '@tanstack/ai'
 import {RunController, type SandboxDefinition} from '@tanstack/ai-sandbox'
 import {z} from 'zod'
+import type {UIMessage} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {ConcivDb} from '@conciv/db'
 import type {CodeCapability} from './capabilities.js'
@@ -17,6 +18,7 @@ import type {AskRegistry} from './ask.js'
 import type {AttachmentExpanders} from './run.js'
 import type {LiveRuns} from './live-runs.js'
 import type {SessionStreams} from './subscribe.js'
+import type {SessionId} from '@conciv/protocol/chat-types'
 
 export type ChatDeps = {
   cwd: string
@@ -25,7 +27,7 @@ export type ChatDeps = {
   systemText: string
   claudeHome?: string
   harness: HarnessAdapter
-  harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
+  harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
   sandbox: SandboxDefinition
   db: ConcivDb
   asks: AskRegistry
@@ -35,13 +37,14 @@ export type ChatDeps = {
   claimStartedAt: () => number
   liveRuns: LiveRuns
   stream: SessionStreams
+  snapshot: (sessionId: SessionId) => Promise<UIMessage[]>
   risky: ReadonlySet<string>
   commandAllows: () => readonly string[]
   toolNames: ReadonlySet<string>
-  codeModeCapabilities: (sessionId: string) => CodeCapability[]
+  codeModeCapabilities: (sessionId: SessionId) => CodeCapability[]
   attachmentExpanders: AttachmentExpanders
-  onRunStart?: (sessionId: string) => void
-  onRunEnd?: (sessionId: string) => Promise<void>
+  onRunStart?: (sessionId: SessionId) => void
+  onRunEnd?: (sessionId: SessionId) => Promise<void>
   firstChunkTimeoutMs?: number
 }
 

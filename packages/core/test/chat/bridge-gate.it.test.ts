@@ -36,7 +36,7 @@ test('permission tool blocks until gate decides, then allows', async () => {
         markGateAsked()
       }),
   }
-  const bridge = await gateProvisioner(gate, 'session-1').provision([], {
+  const bridge = await gateProvisioner(gate).provision([], {
     provider: 'local-process',
     permission: {toolName: 'approval_prompt', resolve: () => ({behavior: 'deny', message: 'unused upstream resolver'})},
   })
@@ -50,7 +50,7 @@ test('permission tool blocks until gate decides, then allows', async () => {
 
 test('permission tool denies when the gate denies', async () => {
   const gate = {decide: async () => 'deny' as const}
-  const bridge = await gateProvisioner(gate, 'session-2').provision([], {
+  const bridge = await gateProvisioner(gate).provision([], {
     provider: 'local-process',
     permission: {toolName: 'approval_prompt', resolve: () => ({behavior: 'allow'})},
   })
@@ -66,7 +66,9 @@ test('a gate timeout on a bridged tool reads as no decision, not a user denial',
     description: 'never gets an answer',
     inputSchema: z.object({}),
   }).server(async () => ({}))
-  const bridge = await gateProvisioner(gate, 'session-4').provision([slow], {provider: 'local-process'})
+  const bridge = await gateProvisioner(gate).provision([slow], {
+    provider: 'local-process',
+  })
   const result = await callBridgeTool(bridge, 'slow_tool', {})
   expect(result).toContain('received no approval decision (the ask timed out)')
   expect(result).not.toContain('denied by the user')
@@ -98,7 +100,9 @@ test('bridged tool calls route through the gate before executing', async () => {
     ran += 1
     return {}
   })
-  const bridge = await gateProvisioner(gate, 'session-3').provision([echo, blocked], {provider: 'local-process'})
+  const bridge = await gateProvisioner(gate).provision([echo, blocked], {
+    provider: 'local-process',
+  })
   const ok = await callBridgeTool(bridge, 'echo_tool', {value: 'hi'})
   expect(JSON.parse(ok)).toEqual({echoed: 'hi'})
   const denied = await callBridgeTool(bridge, 'blocked_tool', {})

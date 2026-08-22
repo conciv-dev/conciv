@@ -32,6 +32,54 @@
     "**/*.fixtures.tsx",
     "packages/ui-kit-chat/src/store/story-connection.ts"
   ],
+  "boundaries": {
+    "zones": [
+      {
+        "name": "session-facade",
+        "patterns": ["packages/core/src/runtime/**", "packages/core/src/runtime.ts"]
+      },
+      {
+        "name": "core-primitives",
+        "patterns": [
+          "packages/core/src/page-bus.ts",
+          "packages/core/src/tool-registry.ts",
+          "packages/core/src/chat/ask.ts",
+          "packages/core/src/chat/subscribe.ts",
+          "packages/core/src/chat/live-runs.ts"
+        ]
+      },
+      {
+        "name": "core-shared-leaf",
+        "patterns": ["packages/core/src/chat/ask-constants.ts", "packages/core/src/lib/debug.ts"]
+      },
+      {
+        "name": "core-callers",
+        "patterns": ["packages/core/src/**"]
+      },
+      {
+        "name": "extension-servers",
+        "patterns": ["packages/extensions/*/src/server.ts"]
+      }
+    ],
+    "rules": [
+      {
+        "from": "core-callers",
+        "allow": ["session-facade", "extension-servers", "core-shared-leaf"],
+        "allowTypeOnly": ["core-primitives"]
+      },
+      {
+        "from": "core-primitives",
+        "allow": ["session-facade", "core-shared-leaf"],
+        "allowTypeOnly": ["core-callers"]
+      }
+    ],
+    "calls": {
+      "forbidden": [
+        {"from": "core-callers", "callee": "createRouterClient"},
+        {"from": "extension-servers", "callee": "createRouterClient"}
+      ]
+    }
+  },
   "duplicates": {
     "minOccurrences": 3
   },

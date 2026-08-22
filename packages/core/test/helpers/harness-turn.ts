@@ -1,6 +1,7 @@
 import {expect} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
 import type {HarnessAdapter, HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import {withConcivGate} from '../../src/chat/gate.js'
 import {makeConcivSandbox, withConcivSandbox} from '../../src/chat/sandbox.js'
 
@@ -9,9 +10,9 @@ const autoAllowGate = {decide: async () => 'allow' as const}
 export type HarnessTurnOpts = {
   harness: HarnessAdapter
   dir: string
-  sessionId: string
+  sessionId: SessionId
   prompt: string
-  resumeSessionId: string | null
+  resumeSessionId: HarnessSessionId | null
   model?: string
 }
 
@@ -31,19 +32,19 @@ export async function runHarnessTurn(opts: HarnessTurnOpts): Promise<StreamChunk
     adapter: config.adapter,
     messages: [{role: 'user', content: opts.prompt}],
     threadId: `${opts.sessionId}-thread`,
-    middleware: [withConcivSandbox(makeConcivSandbox(opts.dir)), withConcivGate(autoAllowGate, opts.sessionId)],
+    middleware: [withConcivSandbox(makeConcivSandbox(opts.dir)), withConcivGate(autoAllowGate)],
     modelOptions: config.modelOptions,
   })
   for await (const chunk of stream) chunks.push(chunk)
   return chunks
 }
 
-export function sessionIdFrom(chunks: StreamChunk[], eventName: string): string | null {
+export function sessionIdFrom(chunks: StreamChunk[], eventName: string): HarnessSessionId | null {
   for (const chunk of chunks) {
     if (chunk.type !== EventType.CUSTOM || chunk.name !== eventName) continue
     const value = chunk.value
     if (typeof value === 'object' && value !== null && 'sessionId' in value && typeof value.sessionId === 'string') {
-      return value.sessionId
+      return HarnessSessionId.parse(value.sessionId)
     }
   }
   return null
@@ -56,13 +57,13 @@ export function textOf(chunks: StreamChunk[]): string {
 export type ResumeScenarioOpts = {
   harness: HarnessAdapter
   dir: string
-  sessionId: string
+  sessionId: SessionId
   sessionEvent: string
   model?: string
 }
 
 export async function assertTurnAndResume(opts: ResumeScenarioOpts): Promise<void> {
-  const turn = (prompt: string, resumeSessionId: string | null) =>
+  const turn = (prompt: string, resumeSessionId: HarnessSessionId | null) =>
     runHarnessTurn({
       harness: opts.harness,
       dir: opts.dir,

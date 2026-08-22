@@ -2,6 +2,7 @@ import {createSignal, createEffect, Show, onCleanup, onMount, type JSX} from 'so
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {createKeyHold} from '@tanstack/solid-hotkeys'
 import {defineExtension, type RegisterExtension} from '@conciv/extension'
+import {getHostApi} from '@conciv/extension/host'
 import {openSource} from '@conciv/extension/client'
 import {addRef, describe, locate, showToast, type Refs} from '@conciv/page'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
@@ -31,7 +32,7 @@ const OPEN_RESULT: Record<OpenSourceResult, {tone: 'success' | 'error'; label: (
   failed: {tone: 'error', label: () => 'Couldn’t open'},
 }
 
-function HighlightInspector(props: {onExit: () => void}): JSX.Element {
+function HighlightInspector(props: {onExit: () => void; session: () => string | null}): JSX.Element {
   const refs: Refs = {map: new Map(), n: 0}
   const [hovered, setHovered] = createSignal<Hovered | null>(null)
   let lastX = -1
@@ -55,7 +56,7 @@ function HighlightInspector(props: {onExit: () => void}): JSX.Element {
     e.preventDefault()
     e.stopPropagation()
     const loc = await locate(h.host, (el) => addRef(el, refs))
-    const result = loc ? await openSource(resolveApiBase(), loc) : 'no-source'
+    const result = loc ? await openSource(resolveApiBase(), loc, props.session) : 'no-source'
     const out = OPEN_RESULT[result]
     showToast(out.label(h.file ?? h.tag), out.tone)
   }
@@ -124,6 +125,7 @@ function HighlightInspector(props: {onExit: () => void}): JSX.Element {
 
 function HighlightSurface(): JSX.Element {
   const context = highlight.useContext()
+  const sessionId = getHostApi().useSessionId()
   const altHeld = createKeyHold('Alt')
   const [held, setHeld] = createSignal(false)
   createEffect(() => {
@@ -137,7 +139,7 @@ function HighlightSurface(): JSX.Element {
   }
   return (
     <Show when={active()}>
-      <HighlightInspector onExit={exit} />
+      <HighlightInspector onExit={exit} session={sessionId} />
     </Show>
   )
 }

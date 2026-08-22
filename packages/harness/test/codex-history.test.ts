@@ -3,12 +3,13 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {beforeAll, describe, expect, it} from 'vitest'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {codex} from '../src/codex/index.js'
 
 const PROJECT = '/workspace/demo'
 const OTHER = '/workspace/other'
-const SESSION = '019fb331-4da4-7960-8197-c43d6205c10b'
-const STRAY = '019fb328-153e-7da1-8d38-36286c97d0ab'
+const SESSION = HarnessSessionId.parse('019fb331-4da4-7960-8197-c43d6205c10b')
+const STRAY = HarnessSessionId.parse('019fb328-153e-7da1-8d38-36286c97d0ab')
 
 const ROLLOUT_LINES = [
   {

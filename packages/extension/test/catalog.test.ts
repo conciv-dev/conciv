@@ -64,7 +64,7 @@ describe('extension catalog (new contract projection)', () => {
       const src = scaffold(kind, {name: 'demo'})
       expect(src).not.toContain('__client')
       expect(src).not.toContain('__server')
-      expect(src).not.toContain('__execute')
+      expect(src).not.toContain('__serverRun')
       expect(src).not.toContain('__render')
     }
   })

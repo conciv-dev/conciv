@@ -23,8 +23,19 @@ function recorderRpc() {
   return makeExtRpcClient<RecorderRouter>(api().apiBase, 'recorder')
 }
 
+async function connectedClientId(): Promise<string> {
+  const {clients} = await recorderRpc().clients()
+  const latest = clients.at(-1)
+  if (!latest) throw new Error('no recorder client is connected yet')
+  return latest.id
+}
+
+async function windowOf(): Promise<Awaited<ReturnType<ReturnType<typeof recorderRpc>['window']>>> {
+  return recorderRpc().window({clientId: await connectedClientId()})
+}
+
 async function windowJson(): Promise<string> {
-  return JSON.stringify((await recorderRpc().window({})).events)
+  return JSON.stringify((await windowOf()).events)
 }
 
 async function flushIntoTheRing(): Promise<void> {
@@ -62,7 +73,7 @@ describe('recorder end to end (real browser, real engine)', () => {
     await field.pressSequentially('sampling', {delay: 40})
     await field.press('Tab')
     await flushIntoTheRing()
-    const {events} = await recorderRpc().window({})
+    const {events} = await windowOf()
     expect(JSON.stringify(events)).toContain('sampling')
     const inputEvents = events.filter((event) => JSON.stringify(event).includes('"text":"s'))
     expect(inputEvents.length).toBeLessThan(4)
@@ -71,7 +82,7 @@ describe('recorder end to end (real browser, real engine)', () => {
   it('never captures conciv-marked light-DOM styles, so no multi-megabyte events', async () => {
     const label = await addMarker(api().page)
     await flushIntoTheRing()
-    const {events} = await recorderRpc().window({})
+    const {events} = await windowOf()
     expect(JSON.stringify(events)).toContain(label)
     expect(JSON.stringify(events)).not.toContain('CONCIV_FONT_FIXTURE')
     const largest = Math.max(...events.map((event) => JSON.stringify(event).length))

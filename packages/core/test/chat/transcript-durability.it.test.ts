@@ -11,6 +11,7 @@ import {partTypes, userTexts} from '../helpers/snapshots.js'
 import {freshSubscriberSnapshot, SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
 import {recoverInterruptedRuns} from '../../src/chat/transcript.js'
 import {createRow} from '../../src/chat/session-rows.js'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
@@ -97,7 +98,7 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
   function writeClaudeTranscript(root: string, nativeId: string, text: string): void {
     const history = requireClaude().history
     if (!history?.transcriptPath) throw new Error('the claude harness lost its transcript path')
-    const path = history.transcriptPath(root, nativeId, root)
+    const path = history.transcriptPath(root, HarnessSessionId.parse(nativeId), root)
     mkdirSync(dirname(path), {recursive: true})
     writeFileSync(path, `${JSON.stringify({type: 'user', message: {role: 'user', content: [{type: 'text', text}]}})}\n`)
   }

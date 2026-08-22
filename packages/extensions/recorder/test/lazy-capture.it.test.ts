@@ -28,11 +28,17 @@ describe('lazy capture lifecycle (real browser)', () => {
     expect(idlePull).not.toContain('click')
 
     const recorderRpc = makeExtRpcClient<RecorderRouter>(api().apiBase, 'recorder')
-    const captureBaseline = (await recorderRpc.window({})).cursor
+    const captureBaseline = 0
     const started = z.object({captureId: z.string()}).parse(await api().callTool('recording_start', {}))
+    const client: {id?: string} = {}
     await until(
       async () => {
-        const appended = await recorderRpc.events({cursor: captureBaseline})
+        if (client.id === undefined) {
+          const {clients} = await recorderRpc.clients()
+          client.id = clients.at(-1)?.id
+        }
+        if (client.id === undefined) return false
+        const appended = await recorderRpc.events({cursor: captureBaseline, clientId: client.id})
         return appended.events.some((event) => FullSnapshotSchema.safeParse(event).success)
       },
       {hangGuardMs: 20_000, intervalMs: 100},

@@ -1,10 +1,11 @@
 import {describe, expect, it} from 'vitest'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {opencode, opencodePermissionHandler} from '../src/opencode/index.js'
 
 const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
   cwd: '/tmp/opencode-test',
-  sessionId: 's-1',
+  sessionId: SessionId.parse('conciv_s-1'),
   resumeSessionId: null,
   env: {},
   kind: 'chat',
@@ -49,6 +50,8 @@ describe('opencode chatConfig', () => {
 
   it('threads the resume session id through modelOptions and leaves the workdir to the sandbox', () => {
     expect(opencode.chatConfig(deps()).modelOptions).toEqual({})
-    expect(opencode.chatConfig(deps({resumeSessionId: 'ses-9'})).modelOptions).toEqual({sessionId: 'ses-9'})
+    expect(opencode.chatConfig(deps({resumeSessionId: HarnessSessionId.parse('ses-9')})).modelOptions).toEqual({
+      sessionId: 'ses-9',
+    })
   })
 })

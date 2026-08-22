@@ -57,3 +57,6 @@ jobs:
           fail-on-issues: 'true'
           auto-changed-since: 'true'
           annotations: 'true'
+      # Boundary violations are a whole-graph check, not a changed-files audit finding
+      # (fallow audit does not evaluate boundaries.* config), so it needs its own step.
+      - run: pnpm exec fallow dead-code --boundary-violations

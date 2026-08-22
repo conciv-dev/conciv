@@ -46,10 +46,14 @@ describe('/api/mcp resolves the calling claude session', () => {
     }
   }, 30_000)
 
-  it('leaves the call unscoped when that claude session maps to nothing', async () => {
+  it('mints a fresh, unadopted session when that claude session maps to nothing', async () => {
     const kit = await bootKit({extensions: [acme]})
     try {
-      expect(await echoedSession(kit.base, {[CONCIV_CLAUDE_SESSION_HEADER]: randomUUID()})).toBe('')
+      const first = await echoedSession(kit.base, {[CONCIV_CLAUDE_SESSION_HEADER]: randomUUID()})
+      const second = await echoedSession(kit.base, {[CONCIV_CLAUDE_SESSION_HEADER]: randomUUID()})
+      expect(first).toMatch(/^conciv_/)
+      expect(second).toMatch(/^conciv_/)
+      expect(first).not.toBe(second)
     } finally {
       await kit.cleanup()
     }

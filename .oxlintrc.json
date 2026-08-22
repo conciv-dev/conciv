@@ -52,7 +52,6 @@
           "__client",
           "__server",
           "__render",
-          "__execute",
           "__serverRun",
           "__clientExecute",
           "__card",
@@ -84,6 +83,7 @@
       "error",
       {
         "customReactiveFunctions": [
+          "bindActiveSession",
           "makeEventListener",
           "makeEventListenerStack",
           "makeTimer",

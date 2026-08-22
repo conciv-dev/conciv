@@ -17,7 +17,8 @@ function bootCliApp(extras: BootExtras): BootApp {
       stateRoot: env.stateRoot,
       harness: env.harness.id,
       harnessBin: undefined,
-      sessionId: '',
+      sessionId: undefined,
+      harnessSessionId: undefined,
       systemPrompt: '',
       extensions: undefined,
     }
@@ -35,8 +36,12 @@ function bootCliApp(extras: BootExtras): BootApp {
 
 export async function bootCli(cleanups: (() => Promise<void>)[], extras: BootExtras = {}): Promise<Kit> {
   const kit = await createTestkit(createFakeHarness(), bootCliApp(extras)).setup()
-  cleanups.push(() => kit.cleanup())
+  cleanups.push(() => {
+    delete process.env.CONCIV_SESSION_ID
+    return kit.cleanup()
+  })
   process.env.CONCIV_PORT = new URL(kit.base).port
+  process.env.CONCIV_SESSION_ID = await kit.session()
   return kit
 }
 
@@ -49,7 +54,7 @@ export async function approvedSession(
   const approved: string[] = []
   const release = {open: (): void => {}}
   const pump = withAutoApproval(
-    kit.rpc,
+    kit.base,
     sessionId,
     () =>
       new Promise<void>((resolve) => {

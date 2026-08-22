@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {claudeTtyCommand} from '../src/claude/tty.js'
 
@@ -7,7 +7,7 @@ const context = (over: Partial<HarnessConnectContext> = {}): HarnessConnectConte
   cwd: '/tmp/p',
   stateDir: '/state/.conciv',
   concivSessionId: SessionId.parse('conciv_tty_test'),
-  harnessSessionId: 'abc-123',
+  harnessSessionId: HarnessSessionId.parse('abc-123'),
   resume: false,
   owned: true,
   model: null,
@@ -40,7 +40,9 @@ describe('claudeTtyCommand', () => {
   })
 
   it('appends conciv mcp args when mcpUrl provided', () => {
-    const cmd = claudeTtyCommand(context({harnessSessionId: 'tok-1', mcpUrl: 'http://localhost:4111/api/mcp'}))
+    const cmd = claudeTtyCommand(
+      context({harnessSessionId: HarnessSessionId.parse('tok-1'), mcpUrl: 'http://localhost:4111/api/mcp'}),
+    )
     const joined = cmd.args.join(' ')
     expect(joined).toContain('--mcp-config')
     expect(joined).toContain('--strict-mcp-config')
@@ -49,8 +51,8 @@ describe('claudeTtyCommand', () => {
   })
 
   it('omits mcp args without mcpUrl', () => {
-    expect(claudeTtyCommand(context({harnessSessionId: 'tok-1', resume: true})).args.join(' ')).not.toContain(
-      '--mcp-config',
-    )
+    expect(
+      claudeTtyCommand(context({harnessSessionId: HarnessSessionId.parse('tok-1'), resume: true})).args.join(' '),
+    ).not.toContain('--mcp-config')
   })
 })

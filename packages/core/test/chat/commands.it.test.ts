@@ -2,6 +2,7 @@ import {describe, it, expect, afterEach} from 'vitest'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import type {Kit} from '@conciv/harness-testkit'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {bootKit} from '../helpers/boot.js'
 
 const liveHarness = defineHarness({
@@ -54,7 +55,8 @@ describe('meta.commands + meta.tools over rpc (IT, real server)', () => {
   it('serves harness commands with derived sources and the mcp url', async () => {
     const server = await bootKit({}, liveHarness)
     state.server = server
-    const payload = await server.rpc.meta.commands({})
+    const sessionId = SessionId.parse(await server.session())
+    const payload = await server.rpc.meta.commands({sessionId})
     const byName = new Map(payload.commands.map((command) => [command.name, command]))
     expect(byName.get('compact')).toEqual({
       name: 'compact',
@@ -70,7 +72,8 @@ describe('meta.commands + meta.tools over rpc (IT, real server)', () => {
   it('returns an empty list for a harness without slash commands', async () => {
     const server = await bootKit({}, noneHarness)
     state.server = server
-    expect(await server.rpc.meta.commands({})).toEqual({commands: []})
+    const sessionId = SessionId.parse(await server.session())
+    expect(await server.rpc.meta.commands({sessionId})).toEqual({commands: []})
   })
 
   it('serves the registered tool list', async () => {

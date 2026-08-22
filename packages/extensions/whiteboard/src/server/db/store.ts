@@ -104,16 +104,26 @@ export const createStore = async (dataDir: string) => {
 
   const updateComment = async (
     id: string,
+    room: string,
     patch: Partial<typeof comments.$inferInsert>,
   ): Promise<CommentRow | undefined> => {
-    const saved = await db.update(comments).set(patch).where(eq(comments.id, id)).returning().get()
+    const saved = await db
+      .update(comments)
+      .set(patch)
+      .where(and(eq(comments.id, id), eq(comments.sessionId, room)))
+      .returning()
+      .get()
     if (!saved) return undefined
     emit({table: 'comments', room: saved.sessionId, type: 'upsert', row: saved})
     return saved
   }
 
-  const deleteComment = async (id: string): Promise<boolean> => {
-    const gone = await db.delete(comments).where(eq(comments.id, id)).returning().get()
+  const deleteComment = async (id: string, room: string): Promise<boolean> => {
+    const gone = await db
+      .delete(comments)
+      .where(and(eq(comments.id, id), eq(comments.sessionId, room)))
+      .returning()
+      .get()
     if (!gone) return false
     emit({table: 'comments', room: gone.sessionId, type: 'delete', key: gone.id})
     return true
@@ -125,15 +135,28 @@ export const createStore = async (dataDir: string) => {
     return saved
   }
 
-  const updatePin = async (id: string, patch: Partial<typeof pins.$inferInsert>): Promise<PinRow | undefined> => {
-    const saved = await db.update(pins).set(patch).where(eq(pins.id, id)).returning().get()
+  const updatePin = async (
+    id: string,
+    room: string,
+    patch: Partial<typeof pins.$inferInsert>,
+  ): Promise<PinRow | undefined> => {
+    const saved = await db
+      .update(pins)
+      .set(patch)
+      .where(and(eq(pins.id, id), eq(pins.room, room)))
+      .returning()
+      .get()
     if (!saved) return undefined
     emit({table: 'pins', room: saved.room, type: 'upsert', row: saved})
     return saved
   }
 
-  const deletePin = async (id: string): Promise<boolean> => {
-    const gone = await db.delete(pins).where(eq(pins.id, id)).returning().get()
+  const deletePin = async (id: string, room: string): Promise<boolean> => {
+    const gone = await db
+      .delete(pins)
+      .where(and(eq(pins.id, id), eq(pins.room, room)))
+      .returning()
+      .get()
     if (!gone) return false
     emit({table: 'pins', room: gone.room, type: 'delete', key: gone.id})
     return true
@@ -145,15 +168,28 @@ export const createStore = async (dataDir: string) => {
     return saved
   }
 
-  const updateRead = async (id: string, patch: Partial<typeof reads.$inferInsert>): Promise<ReadRow | undefined> => {
-    const saved = await db.update(reads).set(patch).where(eq(reads.id, id)).returning().get()
+  const updateRead = async (
+    id: string,
+    room: string,
+    patch: Partial<typeof reads.$inferInsert>,
+  ): Promise<ReadRow | undefined> => {
+    const saved = await db
+      .update(reads)
+      .set(patch)
+      .where(and(eq(reads.id, id), eq(reads.sessionId, room)))
+      .returning()
+      .get()
     if (!saved) return undefined
     emit({table: 'reads', room: saved.sessionId, type: 'upsert', row: saved})
     return saved
   }
 
-  const deleteRead = async (id: string): Promise<boolean> => {
-    const gone = await db.delete(reads).where(eq(reads.id, id)).returning().get()
+  const deleteRead = async (id: string, room: string): Promise<boolean> => {
+    const gone = await db
+      .delete(reads)
+      .where(and(eq(reads.id, id), eq(reads.sessionId, room)))
+      .returning()
+      .get()
     if (!gone) return false
     emit({table: 'reads', room: gone.sessionId, type: 'delete', key: gone.id})
     return true
@@ -167,16 +203,26 @@ export const createStore = async (dataDir: string) => {
 
   const updatePending = async (
     id: string,
+    room: string,
     patch: Partial<typeof canvasPending.$inferInsert>,
   ): Promise<PendingRow | undefined> => {
-    const saved = await db.update(canvasPending).set(patch).where(eq(canvasPending.id, id)).returning().get()
+    const saved = await db
+      .update(canvasPending)
+      .set(patch)
+      .where(and(eq(canvasPending.id, id), eq(canvasPending.room, room)))
+      .returning()
+      .get()
     if (!saved) return undefined
     emit({table: 'canvasPending', room: saved.room, type: 'upsert', row: saved})
     return saved
   }
 
-  const deletePending = async (id: string): Promise<boolean> => {
-    const gone = await db.delete(canvasPending).where(eq(canvasPending.id, id)).returning().get()
+  const deletePending = async (id: string, room: string): Promise<boolean> => {
+    const gone = await db
+      .delete(canvasPending)
+      .where(and(eq(canvasPending.id, id), eq(canvasPending.room, room)))
+      .returning()
+      .get()
     if (!gone) return false
     emit({table: 'canvasPending', room: gone.room, type: 'delete', key: gone.id})
     return true
@@ -190,16 +236,26 @@ export const createStore = async (dataDir: string) => {
 
   const updateReply = async (
     id: string,
+    room: string,
     patch: Partial<typeof canvasReplies.$inferInsert>,
   ): Promise<ReplyRow | undefined> => {
-    const saved = await db.update(canvasReplies).set(patch).where(eq(canvasReplies.id, id)).returning().get()
+    const saved = await db
+      .update(canvasReplies)
+      .set(patch)
+      .where(and(eq(canvasReplies.id, id), eq(canvasReplies.room, room)))
+      .returning()
+      .get()
     if (!saved) return undefined
     emit({table: 'canvasReplies', room: saved.room, type: 'upsert', row: saved})
     return saved
   }
 
-  const deleteReply = async (id: string): Promise<boolean> => {
-    const gone = await db.delete(canvasReplies).where(eq(canvasReplies.id, id)).returning().get()
+  const deleteReply = async (id: string, room: string): Promise<boolean> => {
+    const gone = await db
+      .delete(canvasReplies)
+      .where(and(eq(canvasReplies.id, id), eq(canvasReplies.room, room)))
+      .returning()
+      .get()
     if (!gone) return false
     emit({table: 'canvasReplies', room: gone.room, type: 'delete', key: gone.id})
     return true

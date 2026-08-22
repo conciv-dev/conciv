@@ -5,6 +5,7 @@ import {pageVerbError, toolError, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry, type ForwardedPageTool, type ToolRegistry} from '@conciv/extension/registry'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import type {PageAnswer, PageEnv} from './page-bus.js'
+import {session} from './runtime/session-context.js'
 import {logError} from './lib/debug.js'
 
 export type BuiltinRegistryDeps = {
@@ -16,7 +17,7 @@ export type BuiltinRegistryDeps = {
 export function makeBuiltinRegistry(deps: BuiltinRegistryDeps): ToolRegistry {
   const registry = createToolRegistry({
     pageCaller: (tool, input, request) => runClientTool(deps.page, tool, input, request),
-    isPageConnected: () => deps.page.bus.connected(),
+    isAnyPageConnected: () => deps.page.bus.anySubscriber(),
   })
   for (const tool of BUILTIN_SERVER_TOOLS) {
     registry.register(tool, {owner: 'a built-in server tool', context: {bundler: deps.bundler}})
@@ -32,12 +33,12 @@ function stringField(record: Record<string, unknown>, key: 'ref' | 'selector'): 
   return typeof value === 'string' ? value : undefined
 }
 
-async function storeCapture(env: PageEnv, request: ToolRequest | undefined, answer: PageAnswer): Promise<void> {
+async function storeCapture(env: PageEnv, request: ToolRequest, answer: PageAnswer): Promise<void> {
   const bundle = answer.capture
-  const toolCallId = request?.toolCallId
-  if (bundle === undefined || request === undefined || toolCallId === undefined) return
+  const toolCallId = request.toolCallId
+  if (bundle === undefined || toolCallId === undefined) return
   try {
-    await env.storeCapture({sessionId: request.sessionId, toolCallId, bundle})
+    await env.storeCapture({sessionId: session().id, toolCallId, bundle})
   } catch (error) {
     logError(`[core] an element capture could not be stored: ${String(error)}`)
   }
@@ -47,16 +48,18 @@ async function runClientTool(
   env: PageEnv,
   tool: ForwardedPageTool,
   input: unknown,
-  request: ToolRequest | undefined,
+  request: ToolRequest,
 ): Promise<unknown> {
   const record = PageToolInputSchema.parse(input ?? {})
+  const sessionId = session().id
   try {
-    const answer = await env.bus.ask({name: tool.name, input: record})
+    const answer = await env.bus.ask(sessionId, {name: tool.name, input: record})
     await storeCapture(env, request, answer)
     const data = answer.result
     if (tool.mutating) {
       const {ref: _ref, selector: _selector, ...args} = record
-      env.journal.append(
+      await env.journal.append(
+        sessionId,
         {verb: tool.name, ref: stringField(record, 'ref'), selector: stringField(record, 'selector'), args},
         Date.now(),
       )

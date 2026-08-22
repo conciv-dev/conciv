@@ -3,6 +3,7 @@ import {mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {homedir} from 'node:os'
 import {dirname} from 'node:path'
 import {z} from 'zod'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {
   HarnessAttach,
   HarnessAttachInstall,
@@ -34,7 +35,7 @@ const LiveSessionSchema = z.object({
   pid: z.number().int(),
   cwd: z.string().min(1),
   kind: z.string(),
-  sessionId: z.string().min(1),
+  sessionId: HarnessSessionId,
   name: z.string().optional(),
   status: z.enum(['idle', 'busy', 'shell']).optional(),
   startedAt: z.number().optional(),

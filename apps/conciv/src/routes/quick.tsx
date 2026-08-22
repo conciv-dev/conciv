@@ -1,7 +1,7 @@
 import {createFileRoute, redirect, useRouter} from '@tanstack/solid-router'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {createHotkey} from '@tanstack/solid-hotkeys'
-import {For, Show, Suspense, createEffect, onCleanup, onMount, type JSX} from 'solid-js'
+import {For, Show, Suspense, createEffect, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {Button, TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
 import ChevronUp from 'lucide-solid/icons/chevron-up'
 import Columns2 from 'lucide-solid/icons/columns-2'
@@ -25,6 +25,8 @@ const CLOSE =
 const PANE_ACTION = 'text-chat-text-3 leading-none size-6'
 
 const ADD_PANE_FAILED_MESSAGE = 'conciv could not start a pane. Check the engine connection and retry.'
+
+type StartSession = () => Promise<{sessionId: string}>
 
 export const Route = createFileRoute('/quick')({
   validateSearch: QuickSearchSchema,
@@ -112,27 +114,46 @@ function QuickLayer(): JSX.Element {
   const setSearch = (ids: string[], focus: number) =>
     void router.navigate({to: '/quick', search: quickSearchFor(ids, focus), replace: true})
 
-  const addPane = useMutation(() => ({
-    mutationFn: () => rpc.sessions.resolve({}),
-    onSuccess: ({sessionId}) => {
-      const ids = [...paneIds(), sessionId]
-      setSearch(ids, ids.length - 1)
-      appData.invalidateSessions()
-      resetPaneFlex(rowEl)
-    },
-  }))
-
-  const triggerAddPane = (): void => {
-    if (addPane.isPending) return
-    addPane.mutate()
+  const openPane = (sessionId: string): void => {
+    const ids = [...paneIds(), sessionId]
+    setSearch(ids, ids.length - 1)
+    appData.invalidateSessions()
+    resetPaneFlex(rowEl)
   }
 
-  let wasOnline = reachability.online()
-  createEffect(() => {
-    const isOnline = reachability.online()
-    if (isOnline && !wasOnline && paneIds().length === 0) triggerAddPane()
-    wasOnline = isOnline
+  const paneStartOptions = (startSession: StartSession) => ({
+    mutationFn: startSession,
+    onSuccess: ({sessionId}: {sessionId: string}) => openPane(sessionId),
   })
+
+  const resumeLatestPane = useMutation(() => paneStartOptions(() => rpc.sessions.resolve({})))
+  const createFreshPane = useMutation(() => paneStartOptions(() => rpc.sessions.create(undefined)))
+
+  const lastPaneStart = () =>
+    createFreshPane.submittedAt > resumeLatestPane.submittedAt ? createFreshPane : resumeLatestPane
+  const paneStartPending = () => resumeLatestPane.isPending || createFreshPane.isPending
+  const paneStartFailed = () => lastPaneStart().isError
+
+  const bootstrapPane = (): void => {
+    if (paneStartPending() || paneIds().length > 0) return
+    resumeLatestPane.mutate()
+  }
+
+  const addFreshPane = (): void => {
+    if (paneStartPending()) return
+    createFreshPane.mutate()
+  }
+
+  const retryPaneStart = (): void => {
+    if (paneStartPending()) return
+    lastPaneStart().mutate()
+  }
+
+  createEffect(
+    on(reachability.online, (online, wasOnline) => {
+      if (online && wasOnline === false) bootstrapPane()
+    }),
+  )
 
   const closePane = (index: number) => {
     const ids = paneIds()
@@ -167,12 +188,12 @@ function QuickLayer(): JSX.Element {
     onCollapse: () => router.history.back(),
   })
 
-  createHotkey({key: 'D', mod: true}, () => triggerAddPane())
+  createHotkey({key: 'D', mod: true}, () => addFreshPane())
 
   let restoreFocus: HTMLElement | null = null
   onMount(() => {
     restoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    if (paneIds().length === 0) triggerAddPane()
+    bootstrapPane()
   })
   onCleanup(() => restoreFocus?.focus())
 
@@ -194,7 +215,7 @@ function QuickLayer(): JSX.Element {
             const id = paneIds()[focusedIndex()]
             if (id) void router.navigate({to: '/pip/$sessionId', params: {sessionId: id}})
           }}
-          onSplit={() => triggerAddPane()}
+          onSplit={() => addFreshPane()}
           onClose={() => router.history.back()}
         />
         <div
@@ -210,9 +231,9 @@ function QuickLayer(): JSX.Element {
                 class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-chat-text-2 text-[0.8125rem]"
                 role="status"
               >
-                <p>{addPane.isError ? ADD_PANE_FAILED_MESSAGE : 'Starting a pane…'}</p>
-                <Show when={addPane.isError}>
-                  <Button variant="outline-danger" onClick={triggerAddPane} disabled={addPane.isPending}>
+                <p>{paneStartFailed() ? ADD_PANE_FAILED_MESSAGE : 'Starting a pane…'}</p>
+                <Show when={paneStartFailed()}>
+                  <Button variant="outline-danger" onClick={retryPaneStart} disabled={paneStartPending()}>
                     Retry
                   </Button>
                 </Show>
@@ -229,7 +250,7 @@ function QuickLayer(): JSX.Element {
                       onPointerDown={onGutterDown}
                     />
                   </Show>
-                  <PaneProvider sessionId={id} onNewSession={triggerAddPane}>
+                  <PaneProvider sessionId={id} onNewSession={addFreshPane}>
                     <div
                       data-pw-qt-pane
                       class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-chat relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-chat-accent before:opacity-90" : 'opacity-[0.62]'}`}
@@ -244,7 +265,7 @@ function QuickLayer(): JSX.Element {
                             variant="bar"
                             activeId={() => id}
                             onActivate={(next) => activatePane(index(), next)}
-                            onNewSession={triggerAddPane}
+                            onNewSession={addFreshPane}
                           />
                         </Suspense>
                         <Suspense fallback={<UsagePending />}>

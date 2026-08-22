@@ -1,11 +1,11 @@
 import {describe, expect, it, vi} from 'vitest'
-import {createEventRing} from '../src/server/ring.js'
+import {createClientRings} from '../src/server/rings.js'
 import {VIEWER_LEASE_MS, createCaptureControl} from '../src/server/capture-control.js'
 import type {RecorderControl} from '../src/shared/protocol.js'
 
 describe('createCaptureControl', () => {
   it('broadcasts live plus a fresh snapshot request on capture start and live=false on stop', () => {
-    const ring = createEventRing({windowMs: 60_000})
+    const ring = createClientRings({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 5000)
     const seen: RecorderControl[] = []
     control.subscribe((message) => seen.push(message))
@@ -19,13 +19,13 @@ describe('createCaptureControl', () => {
   })
 
   it('stopCapture with an unknown id returns null', () => {
-    const control = createCaptureControl(createEventRing({windowMs: 60_000}), () => 0)
+    const control = createCaptureControl(createClientRings({windowMs: 60_000}), () => 0)
     expect(control.stopCapture('nope')).toBeNull()
   })
 
   it('expires a live capture after the TTL and broadcasts live=false', () => {
     vi.useFakeTimers()
-    const control = createCaptureControl(createEventRing({windowMs: 60_000}))
+    const control = createCaptureControl(createClientRings({windowMs: 60_000}))
     const seen: RecorderControl[] = []
     control.subscribe((message) => seen.push(message))
     const {captureId} = control.startCapture()
@@ -37,7 +37,7 @@ describe('createCaptureControl', () => {
   })
 
   it('viewer presence drives live cadence without clobbering captures', () => {
-    const control = createCaptureControl(createEventRing({windowMs: 60_000}), () => 0)
+    const control = createCaptureControl(createClientRings({windowMs: 60_000}), () => 0)
     const seen: RecorderControl[] = []
     control.subscribe((message) => seen.push(message))
     control.renewViewer('viewer-1')
@@ -51,7 +51,7 @@ describe('createCaptureControl', () => {
   })
 
   it('stopping the last capture stays live while a viewer is watching', () => {
-    const control = createCaptureControl(createEventRing({windowMs: 60_000}), () => 0)
+    const control = createCaptureControl(createClientRings({windowMs: 60_000}), () => 0)
     const seen: RecorderControl[] = []
     control.subscribe((message) => seen.push(message))
     control.renewViewer('viewer-1')
@@ -62,7 +62,7 @@ describe('createCaptureControl', () => {
 
   it('an expiring capture leaves a watching viewer live', () => {
     vi.useFakeTimers()
-    const control = createCaptureControl(createEventRing({windowMs: 60_000}))
+    const control = createCaptureControl(createClientRings({windowMs: 60_000}))
     const seen: RecorderControl[] = []
     control.startCapture()
     control.subscribe((message) => seen.push(message))
@@ -77,7 +77,7 @@ describe('createCaptureControl', () => {
 
   it('a viewer whose lease is never renewed expires instead of pinning live forever', () => {
     vi.useFakeTimers()
-    const control = createCaptureControl(createEventRing({windowMs: 60_000}))
+    const control = createCaptureControl(createClientRings({windowMs: 60_000}))
     const seen: RecorderControl[] = []
     control.subscribe((message) => seen.push(message))
     control.renewViewer('viewer-1')
@@ -88,23 +88,23 @@ describe('createCaptureControl', () => {
   })
 
   it('awaitAppendAfter resolves once a fresh append lands', async () => {
-    const ring = createEventRing({windowMs: 60_000})
+    const ring = createClientRings({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 0)
-    const pending = control.awaitAppendAfter(ring.head(), 1000)
+    const pending = control.awaitAppendAfter(ring.appendCursor(), 1000)
     ring.append('a', [{type: 2, data: {}, timestamp: 2500}])
     await expect(pending).resolves.toBe(true)
     control.dispose()
   })
 
   it('awaitAppendAfter resolves false on timeout', async () => {
-    const ring = createEventRing({windowMs: 60_000})
+    const ring = createClientRings({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 0)
-    await expect(control.awaitAppendAfter(ring.head(), 30)).resolves.toBe(false)
+    await expect(control.awaitAppendAfter(ring.appendCursor(), 30)).resolves.toBe(false)
     control.dispose()
   })
 
   it('start coverage is not satisfied by events retained from before the start emit', async () => {
-    const ring = createEventRing({windowMs: 60_000})
+    const ring = createClientRings({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 1000)
     ring.append('skewed', [{type: 2, data: {}, timestamp: 5000}])
     const {captureId, appendCursor} = control.startCapture()
@@ -114,7 +114,7 @@ describe('createCaptureControl', () => {
   })
 
   it('a fresh append from a client with a lagging clock covers the start', async () => {
-    const ring = createEventRing({windowMs: 60_000})
+    const ring = createClientRings({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 1000)
     const {appendCursor} = control.startCapture()
     const pending = control.awaitAppendAfter(appendCursor, 200)
@@ -124,7 +124,7 @@ describe('createCaptureControl', () => {
   })
 
   it('an append landing between the start emit and the wait still counts', async () => {
-    const ring = createEventRing({windowMs: 60_000})
+    const ring = createClientRings({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 1000)
     const {appendCursor} = control.startCapture()
     ring.append('fresh', [{type: 2, data: {}, timestamp: 900}])
@@ -133,7 +133,7 @@ describe('createCaptureControl', () => {
   })
 
   it('two concurrent starts both resolve on the next fresh append', async () => {
-    const ring = createEventRing({windowMs: 60_000})
+    const ring = createClientRings({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 1000)
     const first = control.startCapture()
     const second = control.startCapture()
@@ -146,7 +146,7 @@ describe('createCaptureControl', () => {
   })
 
   it('stop flush answered before the wait registers still counts', async () => {
-    const ring = createEventRing({windowMs: 60_000})
+    const ring = createClientRings({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 1000)
     const {captureId} = control.startCapture()
     control.subscribe((message) => {
@@ -159,7 +159,7 @@ describe('createCaptureControl', () => {
   })
 
   it('emit returns the pre-broadcast cursor so a synchronous flush response still counts', async () => {
-    const ring = createEventRing({windowMs: 60_000})
+    const ring = createClientRings({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 1000)
     control.subscribe((message) => {
       if (message.flush) ring.append('fast', [{type: 2, data: {}, timestamp: 1200}])
@@ -170,7 +170,7 @@ describe('createCaptureControl', () => {
   })
 
   it('an append landing after the timeout fires does not flip the result', async () => {
-    const ring = createEventRing({windowMs: 60_000})
+    const ring = createClientRings({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 1000)
     const {appendCursor} = control.startCapture()
     const pending = control.awaitAppendAfter(appendCursor, 20)

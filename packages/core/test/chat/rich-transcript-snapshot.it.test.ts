@@ -6,6 +6,7 @@ import {EventType} from '@tanstack/ai'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {asSnapshot, firstSnapshot, userTexts} from '../helpers/snapshots.js'
 
 const claude = requireClaude()
@@ -45,7 +46,7 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
     await kit.rpc.chat.send({runId: 'rich-snapshot-1', sessionId, text: 'first turn before the resubscribe'})
     const firstTurn = await keeper.done({hangGuardMs: 20_000})
 
-    const transcript = requireTranscriptPath(claude)(kit.stateRoot, 'sess-fake', claudeHome)
+    const transcript = requireTranscriptPath(claude)(kit.stateRoot, HarnessSessionId.parse('sess-fake'), claudeHome)
     mkdirSync(dirname(transcript), {recursive: true})
     writeFileSync(
       transcript,
@@ -78,7 +79,7 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
     await kit.rpc.chat.send({runId: 'rich-identical-1', sessionId, text: 'say it again'})
     await keeper.done({hangGuardMs: 20_000})
 
-    const transcript = requireTranscriptPath(claude)(kit.stateRoot, 'sess-fake', claudeHome)
+    const transcript = requireTranscriptPath(claude)(kit.stateRoot, HarnessSessionId.parse('sess-fake'), claudeHome)
     mkdirSync(dirname(transcript), {recursive: true})
     writeFileSync(
       transcript,

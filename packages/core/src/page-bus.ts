@@ -1,5 +1,7 @@
 import {pageFailure, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
+import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageCaptureBundle} from '@conciv/protocol/element-capture-types'
+import {appendPageChange, clearPageChanges, pageChangesFor, type ConcivDb} from '@conciv/db'
 
 export type ChangeEntry = {
   seq: number
@@ -11,28 +13,17 @@ export type ChangeEntry = {
 }
 
 export type Journal = {
-  append: (e: Omit<ChangeEntry, 'seq' | 'ts'>, ts: number) => ChangeEntry
-  list: () => ChangeEntry[]
-  clear: () => void
+  append: (sessionId: SessionId, entry: Omit<ChangeEntry, 'seq' | 'ts'>, ts: number) => Promise<ChangeEntry>
+  list: (sessionId: SessionId) => Promise<ChangeEntry[]>
+  clear: (sessionId: SessionId) => Promise<void>
 }
 
-export function makeJournal(): Journal {
-  const entries: ChangeEntry[] = []
-  const state = {seq: 0}
-
-  function append(e: Omit<ChangeEntry, 'seq' | 'ts'>, ts: number): ChangeEntry {
-    state.seq += 1
-    const entry: ChangeEntry = {seq: state.seq, ts, verb: e.verb, ref: e.ref, selector: e.selector, args: e.args}
-    entries.push(entry)
-    return entry
+export function makeJournal(db: ConcivDb): Journal {
+  return {
+    append: (sessionId, entry, ts) => appendPageChange(db, sessionId, entry, ts),
+    list: (sessionId) => pageChangesFor(db, sessionId),
+    clear: (sessionId) => clearPageChanges(db, sessionId),
   }
-  function list(): ChangeEntry[] {
-    return entries.map((e) => ({...e}))
-  }
-  function clear(): void {
-    entries.length = 0
-  }
-  return {append, list, clear}
 }
 
 type Pending<T> = {
@@ -70,34 +61,55 @@ function makePending<T>(): Pending<T> {
 export type PageAnswer = {result: Record<string, unknown>; capture?: PageCaptureBundle}
 
 export type PageBus = {
-  ask: (query: Omit<PageQuery, 'requestId'>) => Promise<PageAnswer>
-  connected: () => boolean
-  resolve: (requestId: string, outcome: PageOutcome) => boolean
-  subscribe: (emit: (frame: unknown) => void) => () => void
+  ask: (sessionId: SessionId, query: Omit<PageQuery, 'requestId'>) => Promise<PageAnswer>
+  connected: (sessionId: SessionId) => boolean
+  anySubscriber: () => boolean
+  resolve: (sessionId: SessionId, requestId: string, outcome: PageOutcome) => boolean
+  subscribe: (sessionId: SessionId, emit: (frame: unknown) => void) => () => void
 }
 
-export type CaptureSink = (params: {sessionId: string; toolCallId: string; bundle: PageCaptureBundle}) => Promise<void>
+export type CaptureSink = (params: {
+  sessionId: SessionId
+  toolCallId: string
+  bundle: PageCaptureBundle
+}) => Promise<void>
 
 export type PageEnv = {journal: Journal; root: string; bus: PageBus; storeCapture: CaptureSink}
 
+type SessionPage = {pending: Pending<PageOutcome>; subscribers: Set<(frame: unknown) => void>}
+
 export function makePageBus(timeoutMs = 5000): PageBus {
-  const pending = makePending<PageOutcome>()
-  const subscribers = new Set<(frame: unknown) => void>()
+  const bySession = new Map<SessionId, SessionPage>()
   const idState = {n: 0}
 
-  function subscribe(emit: (frame: unknown) => void): () => void {
-    subscribers.add(emit)
-    return () => subscribers.delete(emit)
+  const pageOf = (sessionId: SessionId): SessionPage => {
+    const existing = bySession.get(sessionId)
+    if (existing) return existing
+    const created: SessionPage = {pending: makePending<PageOutcome>(), subscribers: new Set()}
+    bySession.set(sessionId, created)
+    return created
   }
 
-  async function ask(query: Omit<PageQuery, 'requestId'>): Promise<PageAnswer> {
-    if (subscribers.size === 0) throw pageFailure('no-widget', 'no widget connected')
+  function subscribe(sessionId: SessionId, emit: (frame: unknown) => void): () => void {
+    const page = pageOf(sessionId)
+    page.subscribers.add(emit)
+    return () => {
+      page.subscribers.delete(emit)
+      if (page.subscribers.size === 0 && bySession.get(sessionId) === page) bySession.delete(sessionId)
+    }
+  }
+
+  async function ask(sessionId: SessionId, query: Omit<PageQuery, 'requestId'>): Promise<PageAnswer> {
+    const page = bySession.get(sessionId)
+    if (page === undefined || page.subscribers.size === 0) {
+      throw pageFailure('no-widget', `no widget connected to session "${sessionId}"`)
+    }
     idState.n += 1
     const requestId = `pq${idState.n}`
     const declared = query.input['timeout']
     const ms = typeof declared === 'number' ? declared + 1000 : timeoutMs
-    for (const emit of subscribers) emit({requestId, ...query})
-    const outcome = await pending.await(requestId, ms).catch(() => {
+    for (const emit of page.subscribers) emit({requestId, ...query})
+    const outcome = await page.pending.await(requestId, ms).catch(() => {
       throw pageFailure('timeout', 'page did not reply (no widget connected?)')
     })
     if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)
@@ -105,7 +117,13 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     return {result: outcome.result, capture: outcome.capture}
   }
 
-  return {ask, connected: () => subscribers.size > 0, resolve: pending.resolve, subscribe}
+  return {
+    ask,
+    connected: (sessionId) => (bySession.get(sessionId)?.subscribers.size ?? 0) > 0,
+    anySubscriber: () => [...bySession.values()].some((page) => page.subscribers.size > 0),
+    resolve: (sessionId, requestId, outcome) => bySession.get(sessionId)?.pending.resolve(requestId, outcome) ?? false,
+    subscribe,
+  }
 }
 
 function frameRequestId(frame: unknown): string | null {
@@ -116,11 +134,12 @@ function frameRequestId(frame: unknown): string | null {
 
 export async function* pageQueryStream(
   bus: PageBus,
+  sessionId: SessionId,
   signal: AbortSignal,
 ): AsyncGenerator<{requestId: string; query: unknown}> {
   const queue: unknown[] = []
   const waiter = {wake: () => {}}
-  const unsubscribe = bus.subscribe((frame) => {
+  const unsubscribe = bus.subscribe(sessionId, (frame) => {
     queue.push(frame)
     waiter.wake()
   })
@@ -144,13 +163,4 @@ export async function* pageQueryStream(
     unsubscribe()
     signal.removeEventListener('abort', onAbort)
   }
-}
-
-export async function askPage(
-  bus: PageBus,
-  name: string,
-  input: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-  const answer = await bus.ask({name, input})
-  return answer.result
 }

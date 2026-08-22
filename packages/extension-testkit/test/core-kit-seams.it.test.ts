@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import type {EngineStaleness} from '@conciv/contract'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {bootCoreKit, type CoreKit} from '../src/core-kit.js'
 
 const STALENESS: EngineStaleness = {
@@ -23,7 +24,9 @@ describe('bootCoreKit seams', () => {
   it('adopts the harness transcript rows as external sessions with their message counts', async () => {
     const kit = await bootCoreKit({
       id: 'seams-history',
-      history: [{id: 'native-1', derivedTitle: 'A native session', updatedAt: 1_700, messageCount: 7}],
+      history: [
+        {id: HarnessSessionId.parse('native-1'), derivedTitle: 'A native session', updatedAt: 1_700, messageCount: 7},
+      ],
     })
     state.kit = kit
 

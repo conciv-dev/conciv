@@ -122,7 +122,7 @@ describe('the code-mode surface (execute_typescript over /api/mcp) runs page too
 })
 
 describe('the RPC surface (registry.call) runs page tools ungated and still journals mutations', () => {
-  it('a headerless mutating page call executes without approval', async () => {
+  it('an ungated mutating page call executes without approval', async () => {
     const kit = await bootKit({cwd: tmpdir()})
     cleanups.push(() => kit.cleanup())
     const widget = await bootWidget(kit)
@@ -174,19 +174,38 @@ describe('approval-declared tools gate at the RPC boundary (server.restart)', ()
     return makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
   }
 
-  it('a sessionless call is refused before the tool runs', async () => {
+  it('a sessionless call is refused as unidentified instead of minting a session nobody watches', async () => {
     const kit = await bootGated()
-    await expect(kit.rpc.server.restart({})).rejects.toMatchObject({
-      code: 'APPROVAL_DENIED',
-      message: expect.stringContaining('no session is attached'),
+    const bareRpc = makeRpcClient(kit.base)
+    const before = (await kit.rpc.sessions.list()).length
+    await expect(bareRpc.server.restart({})).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+      message: expect.stringContaining(CONCIV_SESSION_HEADER),
     })
+    expect((await kit.rpc.sessions.list()).length).toBe(before)
+  }, 40_000)
+
+  it('a permission decision settles the ask that owns it, not the one the caller names', async () => {
+    const {kit, sessionId, pending, approvalId} = await askedRestart()
+    const {sessionId: bystander} = await kit.rpc.sessions.create(undefined)
+    expect(bystander).not.toBe(sessionId)
+    await sessionRpcOf(kit, bystander).chat.permissionDecision({approvalId, approved: true})
+    await expect(pending).resolves.toEqual({ok: true})
+  }, 40_000)
+
+  it('a permission decision that owns nothing is reported, not swallowed', async () => {
+    const kit = await bootGated()
+    const sessionId = await createdSession(kit)
+    await expect(
+      sessionRpcOf(kit, sessionId).chat.permissionDecision({approvalId: 'nothing-pending', approved: true}),
+    ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
   }, 40_000)
 
   it('a malformed session header is refused as malformed, not as session-missing', async () => {
     const kit = await bootGated()
     const rpc = sessionRpcOf(kit, 'not-a-session-id')
     await expect(rpc.server.restart({})).rejects.toMatchObject({
-      code: 'APPROVAL_DENIED',
+      code: 'BAD_REQUEST',
       message: expect.stringContaining('malformed'),
     })
   }, 40_000)
@@ -235,14 +254,14 @@ describe('approval-declared tools gate at the RPC boundary (server.restart)', ()
   }
 
   it('the ask reaches the named session and an approval releases the call', async () => {
-    const {kit, pending, approvalId} = await askedRestart()
-    await kit.rpc.chat.permissionDecision({approvalId, approved: true})
+    const {kit, sessionId, pending, approvalId} = await askedRestart()
+    await sessionRpcOf(kit, sessionId).chat.permissionDecision({approvalId, approved: true})
     await expect(pending).resolves.toEqual({ok: true})
   }, 40_000)
 
   it('a denial rejects with the denial wording', async () => {
-    const {kit, pending, approvalId} = await askedRestart()
-    await kit.rpc.chat.permissionDecision({approvalId, approved: false})
+    const {kit, sessionId, pending, approvalId} = await askedRestart()
+    await sessionRpcOf(kit, sessionId).chat.permissionDecision({approvalId, approved: false})
     await expect(pending).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
       message: expect.stringContaining('denied by the user'),

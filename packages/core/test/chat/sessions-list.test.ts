@@ -1,6 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {createRow, listSessionMetas, rowByNativeId, sweepEmptyRows} from '../../src/chat/session-rows.js'
 import {sessions} from '@conciv/db'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {testDb} from '../helpers/memory-store.js'
 
 const rec = (over: {
@@ -37,7 +38,7 @@ const listOf = (
   })
 
 describe('listSessionMetas', () => {
-  it('unions our records with unwrapped harness transcripts (no writes)', async () => {
+  it('unions our records with harness transcripts materialized into honest conciv session ids', async () => {
     const db = testDb()
     await createRow(db, {
       id: 'conciv_a',
@@ -51,15 +52,16 @@ describe('listSessionMetas', () => {
       deletedAt: null,
     })
     const harnessList = [
-      {id: 'tok-a', derivedTitle: 'ignored', updatedAt: 10, messageCount: 3},
-      {id: 'tok-ext', derivedTitle: 'External', updatedAt: 20, messageCount: 1},
+      {id: HarnessSessionId.parse('tok-a'), derivedTitle: 'ignored', updatedAt: 10, messageCount: 3},
+      {id: HarnessSessionId.parse('tok-ext'), derivedTitle: 'External', updatedAt: 20, messageCount: 1},
     ]
     const rows = await listOf(db, harnessList, '/app')
     const mine = rows.find((r) => r.id === 'conciv_a')!
-    const ext = rows.find((r) => r.id === 'tok-ext')!
+    const ext = rows.find((r) => r.native?.nativeId === 'tok-ext')!
     expect(mine.title).toBe('Mine')
     expect(ext.origin).toBe('external')
-    expect(await rowByNativeId(db, 'tok-ext')).toBeNull()
+    expect(ext.id).not.toBe('tok-ext')
+    expect(await rowByNativeId(db, HarnessSessionId.parse('tok-ext'))).not.toBeNull()
   })
 
   it('scopes records to the current cwd (trailing-slash tolerant)', async () => {
@@ -69,18 +71,39 @@ describe('listSessionMetas', () => {
     const rows = await listOf(db, [], '/app/')
     expect(rows.map((r) => r.id)).toEqual(['conciv_here'])
   })
+
+  it('skips a row with a legacy harness_session_id that fails the stricter schema instead of throwing', async () => {
+    const db = testDb()
+    await createRow(db, rec({id: 'conciv_healthy', title: 'Healthy'}))
+    await db.insert(sessions).values({
+      id: 'conciv_poisoned',
+      harnessSessionId: 'has.dot/and space',
+      harnessKind: 'claude',
+      origin: 'chat',
+      title: 'Poisoned',
+      model: null,
+      usage: null,
+      cwd: '/app',
+      deletedAt: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    })
+    const rows = await listOf(db, [], '/app')
+    expect(rows.map((r) => r.id)).toEqual(['conciv_healthy'])
+  })
 })
 
 describe('sweepEmptyRows', () => {
-  it('deletes empty chat ghosts; keeps titled, tokened, and external/agent', async () => {
+  it('deletes every untitled tokenless chat and external mint; keeps titled, tokened, and agent rows', async () => {
     const db = testDb()
     await createRow(db, rec({id: 'conciv_ghost'}))
     await createRow(db, rec({id: 'conciv_titled', title: 'Kept'}))
     await createRow(db, rec({id: 'conciv_run', harnessSessionId: 'tok'}))
     await createRow(db, rec({id: 'conciv_ext', origin: 'external'}))
+    await createRow(db, rec({id: 'conciv_ext_named', origin: 'external', title: 'Named by the user'}))
     await createRow(db, rec({id: 'conciv_agent', origin: 'agent'}))
     await sweepEmptyRows(db)
     const ids = (await db.select().from(sessions)).map((r) => r.id).toSorted()
-    expect(ids).toEqual(['conciv_agent', 'conciv_ext', 'conciv_run', 'conciv_titled'])
+    expect(ids).toEqual(['conciv_agent', 'conciv_ext_named', 'conciv_run', 'conciv_titled'])
   })
 })

@@ -3,6 +3,7 @@ import {chmodSync, mkdtempSync, readdirSync, readFileSync, writeFileSync} from '
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {bashHarness, connectingHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
 
 const OPENER_BINS = ['open', 'x-terminal-emulator', 'cmd']
@@ -77,7 +78,7 @@ describe('terminal launch and connect command', () => {
     const sessionId = `conciv_${randomUUID()}`
     const {harness, captured} = connectingHarness()
     const server = await start({...harness, transcriptExists: () => true})
-    server.sessions.tokens.set(sessionId, 'native-7')
+    server.sessions.tokens.set(sessionId, HarnessSessionId.parse('native-7'))
     await server.rpc.connectCommand({sessionId})
     expect(captured[0]?.harnessSessionId).toBe('native-7')
     expect(captured[0]?.resume).toBe(true)

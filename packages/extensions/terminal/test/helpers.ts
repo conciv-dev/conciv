@@ -5,12 +5,13 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveExtensionRpc} from '@conciv/harness-testkit/rpc-mounts'
 import {makeExtRpcClient, type ServerApi, type ServerHarness, type ServerSessions} from '@conciv/extension'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
+import type {HarnessSessionId} from '@conciv/protocol/chat-types'
 import terminalExtension, {type TerminalRouter} from '../src/server.js'
 
-export type FakeSessions = ServerSessions & {tokens: Map<string, string>}
+export type FakeSessions = ServerSessions & {tokens: Map<string, HarnessSessionId>}
 
 function fakeSessions(): FakeSessions {
-  const tokens = new Map<string, string>()
+  const tokens = new Map<string, HarnessSessionId>()
   return {
     tokens,
     resumeToken: (sessionId) => Promise.resolve(tokens.get(sessionId) ?? null),
@@ -109,12 +110,6 @@ export async function startTerminalServer(
     stateDir,
     sessions,
     harness,
-    page: {
-      call: () => Promise.reject(new Error('terminal tests attach no page')),
-    },
-    tools: {
-      call: () => Promise.reject(new Error('terminal tests attach no tool registry')),
-    },
     symbolicate: async () => null,
     nativeUrl: () => undefined,
   }

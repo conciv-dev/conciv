@@ -1,10 +1,6 @@
 import {UiAnswerValueSchema, type UiAnswer} from '@conciv/protocol/ui-types'
-
-export const ASK_TIMEOUT_MS = 120_000
-
-export const TOOL_CALL_WAIT_MS = 5_000
-
-export const UI_TOOL_NAME = 'conciv_ui'
+import type {SessionId} from '@conciv/protocol/chat-types'
+import {ASK_TIMEOUT_MS, TOOL_CALL_WAIT_MS, UI_TOOL_NAME} from './ask-constants.js'
 
 const MCP_PREFIX = /^mcp__.+?__/
 
@@ -23,14 +19,14 @@ type SessionAsks = {
 }
 
 export type AskRegistry = {
-  open: (sessionId: string, key: string) => void
-  owner: (key: string) => string | null
-  pending: (sessionId: string) => string[]
-  reply: (sessionId: string, key: string, value: unknown) => boolean
-  waitFor: (sessionId: string, key: string, timeoutMs: number) => Promise<unknown>
-  cancel: (sessionId: string) => void
-  noteToolCall: (sessionId: string, toolCallId: string, toolName: string) => void
-  nextUiCall: (sessionId: string, timeoutMs: number) => Promise<string | null>
+  open: (sessionId: SessionId, key: string) => void
+  owner: (key: string) => SessionId | null
+  pending: (sessionId: SessionId) => string[]
+  reply: (sessionId: SessionId, key: string, value: unknown) => boolean
+  waitFor: (sessionId: SessionId, key: string, timeoutMs: number) => Promise<unknown>
+  cancel: (sessionId: SessionId) => void
+  noteToolCall: (sessionId: SessionId, toolCallId: string, toolName: string) => void
+  nextUiCall: (sessionId: SessionId, timeoutMs: number) => Promise<string | null>
 }
 
 function makeAsk(): Ask {
@@ -42,9 +38,9 @@ function makeAsk(): Ask {
 }
 
 export function createAskRegistry(): AskRegistry {
-  const bySession = new Map<string, SessionAsks>()
+  const bySession = new Map<SessionId, SessionAsks>()
 
-  const stateOf = (sessionId: string): SessionAsks => {
+  const stateOf = (sessionId: SessionId): SessionAsks => {
     const existing = bySession.get(sessionId)
     if (existing) return existing
     const created: SessionAsks = {asks: new Map(), uiCalls: [], uiWaiters: new Set()}
@@ -141,7 +137,7 @@ const UNANSWERED: UiAnswer = {
   note: 'The user has not answered yet. Continue without the answer; it may arrive as a later message.',
 }
 
-export async function askUi(asks: AskRegistry, sessionId: string): Promise<UiAnswer> {
+export async function askUi(asks: AskRegistry, sessionId: SessionId): Promise<UiAnswer> {
   const callId = await asks.nextUiCall(sessionId, TOOL_CALL_WAIT_MS)
   if (callId === null) return UNANSWERED
   const value = await asks.waitFor(sessionId, callId, ASK_TIMEOUT_MS)

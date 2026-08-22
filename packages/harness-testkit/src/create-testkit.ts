@@ -8,7 +8,7 @@ import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {ChatContentPartSchema, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {makeRunStream, type RunStream} from './run-stream.js'
 import {makeCallTool} from './call-tool.js'
-import {makeRpcClient, type RpcClient} from './session.js'
+import {makeRpcClient, makeSessionBoundRpcClient, type RpcClient} from './session.js'
 import type {TestHarness} from './create-test-harness.js'
 
 function isTestHarness(harness: HarnessAdapter): harness is TestHarness {
@@ -75,17 +75,23 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
       const base = served.base
       const wsBase = served.wsBase
       const aborts: AbortController[] = []
-      const rpc = makeRpcClient(base)
+      const activeSession = {id: ''}
+      const rpc = makeSessionBoundRpcClient(base, () => activeSession.id)
+      const bootstrapRpc = makeRpcClient(base)
 
       const post = (path: string, body: unknown, session?: string): Promise<Response> =>
         fetch(`${base}${path}`, {
           method: 'POST',
-          headers: {'content-type': 'application/json', ...(session ? {[CONCIV_SESSION_HEADER]: session} : {})},
+          headers: {
+            'content-type': 'application/json',
+            [CONCIV_SESSION_HEADER]: session ?? activeSession.id,
+          },
           body: JSON.stringify(body),
         })
-      const resolve = async (id?: string): Promise<string> => (await rpc.sessions.resolve(id ? {id} : {})).sessionId
-      const activeSession = {id: ''}
-      const sessionFor = async (session?: string): Promise<string> => session ?? (activeSession.id ||= await resolve())
+      const resolve = async (id?: string): Promise<string> =>
+        (await bootstrapRpc.sessions.resolve(id ? {id} : {})).sessionId
+      activeSession.id = await resolve()
+      const sessionFor = async (session?: string): Promise<string> => session ?? activeSession.id
 
       const callTool = async (name: string, input: unknown, session?: string): Promise<unknown> =>
         makeCallTool(base, await sessionFor(session))(name, input)
@@ -109,7 +115,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
         wsBase,
         stateRoot,
         rpc,
-        session: (id) => resolve(id),
+        session: (id) => (id ? resolve(id) : Promise.resolve(activeSession.id)),
         attach: async (session, opts) => {
           const abort = new AbortController()
           aborts.push(abort)
@@ -123,7 +129,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
         },
         post,
         get: async (path, session) =>
-          fetch(`${base}${path}`, {headers: session ? {[CONCIV_SESSION_HEADER]: session} : {}}),
+          fetch(`${base}${path}`, {headers: {[CONCIV_SESSION_HEADER]: session ?? activeSession.id}}),
         invokeTool: async (name, input, opts, session) => {
           const id = await sessionFor(session)
           if (isTestHarness(harness)) {

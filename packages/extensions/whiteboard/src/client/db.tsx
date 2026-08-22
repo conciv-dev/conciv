@@ -3,11 +3,17 @@ import {createCollection} from '@tanstack/solid-db'
 import {makeExtRpcClient} from '@conciv/extension'
 import {
   commentRow,
+  commentRowInsert,
   elementRow,
+  elementRowToInsert,
   pendingRow,
+  pendingRowInsert,
   pinRow,
+  pinRowInsert,
   readRow,
+  readRowInsert,
   replyRow,
+  replyRowInsert,
   type CursorEvent,
   type ElementRow,
 } from '../shared/rows.js'
@@ -25,7 +31,7 @@ const accountId = (): string => {
 }
 
 export function createWhiteboardDb(apiBase: string, room: string) {
-  const client: WhiteboardClient = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard')
+  const client: WhiteboardClient = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard', () => room)
   const feed = createChangeFeed(apiBase, room)
 
   const comments = createCollection(
@@ -35,13 +41,28 @@ export function createWhiteboardDb(apiBase: string, room: string) {
       table: 'comments',
       ops: client.comments,
       parseRow: (row) => commentRow.parse(row),
+      toInsert: (row) => commentRowInsert.parse(row),
     }),
   )
   const pins = createCollection(
-    whiteboardCollectionOptions({feed, room, table: 'pins', ops: client.pins, parseRow: (row) => pinRow.parse(row)}),
+    whiteboardCollectionOptions({
+      feed,
+      room,
+      table: 'pins',
+      ops: client.pins,
+      parseRow: (row) => pinRow.parse(row),
+      toInsert: (row) => pinRowInsert.parse(row),
+    }),
   )
   const reads = createCollection(
-    whiteboardCollectionOptions({feed, room, table: 'reads', ops: client.reads, parseRow: (row) => readRow.parse(row)}),
+    whiteboardCollectionOptions({
+      feed,
+      room,
+      table: 'reads',
+      ops: client.reads,
+      parseRow: (row) => readRow.parse(row),
+      toInsert: (row) => readRowInsert.parse(row),
+    }),
   )
   const canvasPending = createCollection(
     whiteboardCollectionOptions({
@@ -50,6 +71,7 @@ export function createWhiteboardDb(apiBase: string, room: string) {
       table: 'canvasPending',
       ops: client.canvasPending,
       parseRow: (row) => pendingRow.parse(row),
+      toInsert: (row) => pendingRowInsert.parse(row),
     }),
   )
   const canvasReplies = createCollection(
@@ -59,6 +81,7 @@ export function createWhiteboardDb(apiBase: string, room: string) {
       table: 'canvasReplies',
       ops: client.canvasReplies,
       parseRow: (row) => replyRow.parse(row),
+      toInsert: (row) => replyRowInsert.parse(row),
     }),
   )
   const parseElement = (row: unknown) => elementRow.parse(row)
@@ -73,7 +96,7 @@ export function createWhiteboardDb(apiBase: string, room: string) {
   feed.onCursor((cursor) => setCursors((previous) => new Map(previous).set(cursor.peerId, cursor)))
 
   const postCursor = (cursor: Omit<CursorEvent, 'room' | 'lastSeen'>): void =>
-    void client.cursor({...cursor, room, lastSeen: Date.now()}).catch(() => undefined)
+    void client.cursor({...cursor, lastSeen: Date.now()}).catch(() => undefined)
 
   return {
     comments,
@@ -85,7 +108,8 @@ export function createWhiteboardDb(apiBase: string, room: string) {
     canvasDraftElements,
     cursors,
     postCursor,
-    bulkUpsertElements: (scope: 'live' | 'draft', rows: ElementRow[]) => client.elements.bulkUpsert({scope, rows}),
+    bulkUpsertElements: (scope: 'live' | 'draft', rows: ElementRow[]) =>
+      client.elements.bulkUpsert({scope, rows: rows.map(elementRowToInsert)}),
     accountId,
     room,
     dispose: () => {

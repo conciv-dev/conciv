@@ -8,6 +8,7 @@ import {
   RPC_UNBOUND_MESSAGE,
   type RpcClientContext,
   type RpcTransportPreference,
+  type SessionAccessor,
 } from './browser-transport.js'
 
 export type RpcClient = ContractRouterClient<typeof contract, RpcClientContext>
@@ -22,7 +23,7 @@ export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): 
   return createORPCClient(link)
 }
 
-export type BrowserRpcClientOptions = {transport?: RpcTransportPreference}
+export type BrowserRpcClientOptions = {transport?: RpcTransportPreference; session?: SessionAccessor}
 
 export type BrowserRpcClient = {
   rpc: RpcClient
@@ -38,7 +39,7 @@ export function makeBrowserRpcClient(
 ): BrowserRpcClient {
   const state: {accessor: () => string | null} = {accessor: typeof base === 'function' ? base : () => base}
   const currentBase = (): string | null => state.accessor()
-  const link = dynamicBrowserRpcLink(currentBase, options.transport)
+  const link = dynamicBrowserRpcLink(currentBase, options.transport, options.session)
   return {
     rpc: createORPCClient(link),
     bound: () => currentBase() !== null,

@@ -46,10 +46,7 @@ function RecorderPanel(): JSX.Element {
   })
   makeTimer(() => void rpc.presence({viewerId, live: true}).catch(() => {}), VIEWER_RENEW_MS, setInterval)
   onCleanup(() => void rpc.presence({viewerId, live: false}).catch(() => {}))
-  const pinned = (): {clientId?: string} => {
-    const clientId = store.clientId()
-    return clientId ? {clientId} : {}
-  }
+  const pinned = (): {clientId: string} => ({clientId: store.clientId()})
   const hasReplay = (data: {events: RrwebEvent[]} | undefined): boolean => (data?.events?.length ?? 0) >= 2
   const recording = useQuery(() => ({
     ...utils.window.queryOptions({input: pinned()}),

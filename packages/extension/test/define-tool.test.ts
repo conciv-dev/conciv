@@ -1,6 +1,18 @@
 import {expect, test} from 'vitest'
 import {z} from 'zod'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {defineTool, type ClientToolCtx} from '../src/define-tool.js'
+import type {ServerToolPageAccess, ServerToolRegistryAccess, ToolRequest} from '../src/types.js'
+
+const request: ToolRequest = {sessionId: SessionId.parse('conciv_define_tool'), model: null}
+
+const noPage: ServerToolPageAccess = {
+  call: (name) => Promise.reject(new Error(`${name}: this test never reaches the page`)),
+}
+
+const noTools: ServerToolRegistryAccess = {
+  call: (name) => Promise.reject(new Error(`${name}: this test never reaches the registry`)),
+}
 
 const unusedCtx: ClientToolCtx = {
   get document(): Document {
@@ -22,12 +34,16 @@ test('tool execute receives input and injected context', async () => {
     description: 'd',
     inputSchema: z.object({n: z.number()}),
   }).server((input, ctx: {factor: number}) => input.n * ctx.factor)
-  expect(await tool.__execute?.({n: 3}, {factor: 2})).toBe(6)
+  expect(await tool.__serverRun?.({n: 3}, {factor: 2}, request, noPage, noTools)).toBe(6)
 })
 
-test('execute reparses raw input at the boundary', async () => {
-  const tool = defineTool({name: 't', description: 'd', inputSchema: z.object({n: z.number()})}).server((i) => i.n)
-  await expect(tool.__execute?.({n: 'x'}, undefined)).rejects.toThrow()
+test('the server handler receives the value the registry already validated, and never reparses it', async () => {
+  const tool = defineTool({
+    name: 't',
+    description: 'd',
+    inputSchema: z.object({n: z.string().transform((raw) => Number(raw))}),
+  }).server((input) => input.n + 1)
+  expect(await tool.__serverRun?.({n: 42}, undefined, request, noPage, noTools)).toBe(43)
 })
 
 test('every derivation leaves the base builder unbound and never leaks into a sibling derivation', () => {
@@ -36,14 +52,14 @@ test('every derivation leaves the base builder unbound and never leaks into a si
   const forwarded = base.client((input) => input.n)
   const rendered = base.render(() => null)
   expect(base.binding).toBeUndefined()
-  expect(base.__execute).toBeUndefined()
+  expect(base.__serverRun).toBeUndefined()
   expect(base.__clientExecute).toBeUndefined()
   expect(base.__render).toBeUndefined()
   expect(bound.binding).toBe('server')
   expect(bound.__clientExecute).toBeUndefined()
   expect(bound.__render).toBeUndefined()
   expect(forwarded.binding).toBe('client')
-  expect(forwarded.__execute).toBeUndefined()
+  expect(forwarded.__serverRun).toBeUndefined()
   expect(rendered.binding).toBeUndefined()
   expect(rendered.__render).toBeTypeOf('function')
 })

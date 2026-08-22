@@ -6,6 +6,7 @@ import {opencode} from './opencode/index.js'
 import {pi} from './pi/index.js'
 
 export {makeTextAdapter, lastUserModelText, lastUserImages, type ChatStreamFn} from './_shared/text-adapter.js'
+export {containedPath, transcriptPathWithin} from './_shared/contained-path.js'
 
 const registry = new Map<string, HarnessAdapter>()
 

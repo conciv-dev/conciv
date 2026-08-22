@@ -2,15 +2,15 @@ import {mkdir, mkdtemp, writeFile} from 'node:fs/promises'
 import {homedir, tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {beforeAll, describe, expect, it} from 'vitest'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {pi} from '../src/pi/index.js'
 import {encodeSessionDir, sessionsDir} from '../src/pi/history.js'
 
 const PROJECT = '/workspace/pi.demo'
-const SESSION = '39a461cc-ceb9-495a-891b-b11fe6a03c55'
+const SESSION = HarnessSessionId.parse('39a461cc-ceb9-495a-891b-b11fe6a03c55')
 const FILE = `2026-07-30T09-45-14-653Z_${SESSION}.jsonl`
-const CONCIV_NAMED = 'conciv-sess-1'
+const CONCIV_NAMED = HarnessSessionId.parse('conciv-sess-1')
 
 const LINES = [
   {type: 'session', version: 3, id: SESSION, timestamp: '2026-07-30T09:45:14.653Z', cwd: PROJECT},
@@ -169,8 +169,9 @@ describe('pi history sidecar', () => {
   })
 
   it('reports nothing for an unknown session', async () => {
-    expect(await history().messages(PROJECT, 'missing', state.home)).toEqual([])
-    const handle = history().observe(PROJECT, 'missing', state.home)
+    const MISSING = HarnessSessionId.parse('missing')
+    expect(await history().messages(PROJECT, MISSING, state.home)).toEqual([])
+    const handle = history().observe(PROJECT, MISSING, state.home)
     expect(await handle.revision()).toMatchObject({ok: false, reason: 'missing'})
     handle.close()
   })
@@ -178,7 +179,7 @@ describe('pi history sidecar', () => {
 
 describe('pi connect.plan', () => {
   it('names the session file itself so the transcript is findable again', () => {
-    expect(pi.connect?.plan(context({harnessSessionId: 'conciv-sess-1', model: 'anthropic/claude-opus-4-6'}))).toEqual({
+    expect(pi.connect?.plan(context({harnessSessionId: CONCIV_NAMED, model: 'anthropic/claude-opus-4-6'}))).toEqual({
       argv: [
         'pi',
         '--session',

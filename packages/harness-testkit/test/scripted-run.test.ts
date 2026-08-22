@@ -1,11 +1,12 @@
 import {describe, expect, it} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
+import {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {makeScriptedRun} from '../src/scripted-run.js'
 
 const deps = (): HarnessChatDeps => ({
   cwd: '.',
-  sessionId: 's',
+  sessionId: SessionId.parse('conciv_s'),
   resumeSessionId: null,
   env: {},
   kind: 'chat',
