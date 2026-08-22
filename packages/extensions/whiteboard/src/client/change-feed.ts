@@ -21,12 +21,12 @@ export async function sleep(ms: number, signal: AbortSignal): Promise<void> {
   })
 }
 
-export function createChangeFeed(apiBase: string) {
+export function createChangeFeed(apiBase: string, room: string) {
   const tableHandlers = new Map<string, Set<Handler>>()
   const reconnectHandlers = new Set<() => void>()
   const cursorHandlers = new Set<(cursor: CursorEvent) => void>()
 
-  const client = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard')
+  const client = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard', () => room)
 
   const abort = new AbortController()
   async function runOnce(): Promise<void> {

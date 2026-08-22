@@ -31,8 +31,8 @@ const accountId = (): string => {
 }
 
 export function createWhiteboardDb(apiBase: string, room: string) {
-  const client: WhiteboardClient = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard')
-  const feed = createChangeFeed(apiBase)
+  const client: WhiteboardClient = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard', () => room)
+  const feed = createChangeFeed(apiBase, room)
 
   const comments = createCollection(
     whiteboardCollectionOptions({
