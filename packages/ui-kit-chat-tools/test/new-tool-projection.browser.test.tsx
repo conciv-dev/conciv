@@ -9,7 +9,7 @@ import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {PAGE_TOOL_DEFS, pageToolMetaOf} from '@conciv/extension-page/defs'
 import {INERT_ADD_RESULT, GENERIC_TOOL_ICON, MetaToolCard, toolIconRender} from '@conciv/ui-kit-chat/tools'
-import {nowTitle} from '../src/primitives/tools/now-title.js'
+import {nowTitle} from '@conciv/ui-kit-chat/tools'
 import {mountView} from './mount-view.js'
 import {registryCatalogView} from './registry-catalog-view.js'
 

@@ -35,6 +35,8 @@ import {
 } from '../store/grouping.js'
 import {summaryLine, turnRollup, type TurnRollup} from '../store/turn-rollup.js'
 import {rowMarkOf} from '../tools/primitives/tool-row.js'
+import {activeCallInParts} from '../store/active-call.js'
+import {nowTitle} from '../tools/primitives/now-title.js'
 import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {useViewportInternal} from '../primitives/thread/viewport-internal.js'
 import {useThreadViewport} from '../primitives/thread/viewport-context.js'
@@ -80,6 +82,7 @@ export type ThreadMessagesProps = {
 }
 
 const PLAN_LABEL = 'plan'
+const REASONING_LABEL = 'reasoning'
 const PLAN_INLINE_LENGTH = 90
 
 const PROMPT_TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', hour12: false})
@@ -194,10 +197,17 @@ function AssistantTurn(props: {
         ),
       }),
     )
-    const line = () => summaryLine(segmentRollup())
+    const reasoned = () => segmentParts().some((part) => asThinking(part) !== null)
+    const activeCall = () =>
+      activeCallInParts(segmentParts(), (toolCallId) => message.pairing().byCallId.get(toolCallId))
+    const summary = () => summaryLine(segmentRollup()) || REASONING_LABEL
+    const compactLine = () => {
+      const call = segmentActive() ? activeCall() : null
+      return call ? nowTitle(call, ctx.catalog) : summary()
+    }
     return (
-      <Show when={segmentRollup().toolCalls > 0}>
-        <Trace summary={line()} compactLine={line()} items={items()} streaming={segmentActive()} />
+      <Show when={segmentRollup().toolCalls > 0 || reasoned()}>
+        <Trace summary={summary()} compactLine={compactLine()} items={items()} streaming={segmentActive()} />
       </Show>
     )
   }

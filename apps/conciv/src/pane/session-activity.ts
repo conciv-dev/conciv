@@ -4,7 +4,6 @@ import {useLiveSessions} from '../app/context.js'
 export type SessionActivityDeps = {
   working: () => boolean
   invalidateSessions: () => void
-  onStart: () => void
   onSettle: () => void
 }
 
@@ -16,7 +15,6 @@ export function trackSessionActivity(deps: SessionActivityDeps): void {
     const now = deps.working()
     if (now === observed) return
     observed = now
-    if (now) deps.onStart()
     if (!now) deps.onSettle()
   })
 

@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolCatalogView} from '@conciv/protocol/tool-view-types'
+import {parseInput} from './tool-util.js'
 
 const Hint = z.object({
   command: z.string().optional(),
@@ -10,8 +11,7 @@ const Hint = z.object({
 })
 
 function hint(part: ToolCallPart): z.infer<typeof Hint> {
-  const parsed = Hint.safeParse(part.input)
-  return parsed.success ? parsed.data : {}
+  return parseInput(Hint, part) ?? {}
 }
 
 function clip(value: string, max = 48): string {

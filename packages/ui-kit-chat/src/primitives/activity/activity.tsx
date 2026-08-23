@@ -1,7 +1,8 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
 import type {ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
+import {keyBy} from 'es-toolkit'
 import {coalesceTurns, type Turn} from '../../store/grouping.js'
-import {toolStatus} from '../../tools/primitives/tool-status.js'
+import {activeCallInParts} from '../../store/active-call.js'
 
 export type ActivityLabeler = (part: ToolCallPart) => string
 
@@ -22,12 +23,11 @@ export function useActivity(): ActivityState {
   return context
 }
 
-function resultsById(messages: ReadonlyArray<UIMessage>): Map<string, ToolResultPart> {
-  const map = new Map<string, ToolResultPart>()
-  for (const part of messages.flatMap((message) => message.parts)) {
-    if (part.type === 'tool-result' && part.toolCallId) map.set(part.toolCallId, part)
-  }
-  return map
+function resultsById(messages: ReadonlyArray<UIMessage>): Record<string, ToolResultPart> {
+  const results = messages
+    .flatMap((message) => message.parts)
+    .filter((part): part is ToolResultPart => part.type === 'tool-result' && part.toolCallId.length > 0)
+  return keyBy(results, (part) => part.toolCallId)
 }
 
 function lastRunningCall(
@@ -35,10 +35,7 @@ function lastRunningCall(
   resultFor: (id: string) => ToolResultPart | undefined,
 ): ToolCallPart | null {
   if (!turn || turn.role !== 'assistant') return null
-  return turn.parts.reduce<ToolCallPart | null>((active, part) => {
-    if (part.type !== 'tool-call' || !part.id) return active
-    return toolStatus(part, resultFor(part.id)) === 'running' ? part : active
-  }, null)
+  return activeCallInParts(turn.parts, resultFor)
 }
 
 type ActivityRootProps = ParentProps<{
@@ -50,7 +47,7 @@ type ActivityRootProps = ParentProps<{
 function Root(props: ActivityRootProps): JSX.Element {
   const turns = createMemo(() => coalesceTurns(props.messages))
   const results = createMemo(() => resultsById(props.messages))
-  const resultFor = (toolCallId: string) => results().get(toolCallId)
+  const resultFor = (toolCallId: string) => results()[toolCallId]
   const activeCall = createMemo(() => lastRunningCall(turns().at(-1), resultFor))
   const state: ActivityState = {
     turns,

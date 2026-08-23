@@ -26,7 +26,6 @@ function mountActivity(): ActivityProbe {
       invalidateSessions: () => {
         invalidations += 1
       },
-      onStart: () => {},
       onSettle: () => {
         settles += 1
       },

@@ -24,7 +24,9 @@ const CHIP: Record<SessionStatusKind, string> = {
   done: '[background:var(--chat-status-done)]',
 }
 const CHIP_BASE =
-  'flex-none inline-flex items-center py-[5px] px-2.5 text-[length:var(--chat-text-micro)] font-bold uppercase tracking-[0.12em] [color:var(--chat-on-status)]'
+  'flex-none inline-flex items-center gap-1.5 py-[5px] px-2.5 text-[length:var(--chat-text-micro)] font-bold uppercase tracking-[0.12em] [color:var(--chat-on-status)]'
+const CHIP_DOT =
+  'chat-statusbar-chip-dot inline-block flex-none size-1.5 rounded-[var(--chat-radius-pill)] [background:var(--chat-on-status)] anim-run-ring'
 const CELL =
   'flex-none inline-flex items-center gap-1.5 py-[5px] px-[9px] text-[10.5px] [color:var(--chat-text-2)] [border-inline-end:1px_solid_var(--chat-line-soft)]'
 const DIFF_FILES = '[color:var(--chat-text-3)]'
@@ -32,8 +34,9 @@ const DIFF_ADDS = '[color:var(--chat-success)]'
 const DIFF_DELS = '[color:var(--chat-danger)]'
 const VIEW_GROUP = 'flex-1 flex items-stretch justify-end min-w-0'
 const VIEW_BTN =
-  'flex-none inline-flex items-center gap-1.5 px-2.5 text-[length:var(--chat-text-xs)] font-medium [color:var(--chat-text-2)] bg-transparent [border-block:none] [border-inline-end:none] [border-inline-start:1px_solid_var(--chat-line-soft)] cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[color:var(--chat-text-hi)] disabled:opacity-40 disabled:cursor-default'
-const VIEW_BTN_ACTIVE = '[color:var(--chat-text-hi)]'
+  'flex-none inline-flex items-center gap-1.5 px-2.5 text-[length:var(--chat-text-xs)] font-medium [color:var(--chat-text-2)] bg-transparent [border-block:none] [border-inline-end:none] [border-inline-start:1px_solid_var(--chat-line-soft)] cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease),box-shadow_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:opacity-40 disabled:cursor-default'
+const VIEW_BTN_ACTIVE =
+  'chat-view-btn-active [color:var(--chat-text-hi)] [background:var(--chat-fill)] [box-shadow:inset_0_2px_0_0_var(--chat-accent)]'
 const VIEW_HINT =
   'chat-view-btn-hint [font-family:var(--chat-mono)] text-[9px] [color:var(--chat-hint)] ps-[9px] [border-inline-start:1px_solid_var(--chat-frame-line)]'
 const VIEW_LABEL = 'chat-view-btn-label [font-family:var(--chat-font)] truncate max-w-24'
@@ -42,6 +45,9 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
   return (
     <div class={BAR} role="toolbar" aria-label="Session status">
       <span class={`${CHIP_BASE} ${CHIP[props.status.kind]}`} role="status" title={props.status.reason}>
+        <Show when={props.status.kind === 'running'}>
+          <span class={CHIP_DOT} aria-hidden="true" />
+        </Show>
         {props.status.label}
       </span>
       <span class={CELL}>

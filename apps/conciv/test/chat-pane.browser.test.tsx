@@ -212,7 +212,7 @@ test('a queued second send cannot cross-restore the grabs of the turn that faile
   await expect.element(page.getByText(PRICING_LABEL)).not.toBeInTheDocument()
 })
 
-test('sending announces thinking and then the reply through the live region', async () => {
+test('sending announces the settled reply through the live region', async () => {
   const {sessionId} = await newSession()
   mountChatPane(sessionId)
 
@@ -220,8 +220,23 @@ test('sending announces thinking and then the reply through the live region', as
   await input().fill('rename the widget package')
   await userEvent.keyboard('{Enter}')
 
-  await expect.element(page.getByRole('log', {name: 'Announcements'})).toHaveTextContent('conciv is thinking…')
   await expect.element(page.getByRole('log', {name: 'Announcements'})).toHaveTextContent('conciv replied.')
+})
+
+test('a run in flight narrates what the agent is doing above the composer', async () => {
+  const {sessionId} = await newSession()
+  await coreControl.holdTurn()
+  mountChatPane(sessionId)
+
+  await expect.element(input()).toBeVisible()
+  await input().fill('start a long run')
+  await userEvent.keyboard('{Enter}')
+
+  await expect.element(page.getByText('Responding…', {exact: true})).toBeVisible()
+  await page.screenshot({path: '__screenshots__/chat-pane/now-line-above-composer.png'})
+
+  await coreControl.releaseTurn()
+  await expect.element(page.getByText('Responding…', {exact: true})).not.toBeInTheDocument()
 })
 
 test('the refresh affordance re-subscribes and shows the transcript the server re-leads', async () => {
@@ -344,7 +359,7 @@ test('Escape in the focused composer does what the stop button does and leaves t
 test('Escape outside the composer does not stop the run', async () => {
   await startStreamingRun()
 
-  await userEvent.click(page.getByRole('log', {name: 'Announcements'}))
+  await userEvent.click(page.getByText('first turn'))
   await userEvent.keyboard('{Escape}')
 
   await expect.element(stopButton()).toBeVisible()
