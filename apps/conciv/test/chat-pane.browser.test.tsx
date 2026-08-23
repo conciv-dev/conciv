@@ -89,6 +89,19 @@ const notifications = () => page.getByRole('region', {name: /Notifications/})
 const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
 const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
 const narration = () => page.getByText('Responding…', {exact: true})
+const FROZEN_GLYPH = '⠿'
+const frozenGlyph = () => page.getByText(FROZEN_GLYPH, {exact: true})
+const traceList = () => page.getByRole('list', {name: 'Execution trace'})
+
+function forceReducedMotion(): () => void {
+  const original = window.matchMedia
+  const reduced = original('(prefers-reduced-motion: reduce)')
+  Object.defineProperty(reduced, 'matches', {value: true})
+  window.matchMedia = (query: string) => (query === '(prefers-reduced-motion: reduce)' ? reduced : original(query))
+  return () => {
+    window.matchMedia = original
+  }
+}
 
 async function pickGrabFromOverflow(): Promise<void> {
   await userEvent.click(overflowTrigger())
@@ -238,6 +251,41 @@ test('a run in flight narrates what the agent is doing above the composer', asyn
 
   await coreControl.releaseTurn()
   await expect.element(page.getByText('Responding…', {exact: true})).not.toBeInTheDocument()
+})
+
+test('one narration line rides the whole run, outside the trace, across the tool and text boundary', async () => {
+  const restoreMotion = forceReducedMotion()
+  const {sessionId} = await newSession()
+  await coreControl.scriptTurn({
+    toolCalls: [
+      {name: 'Bash', input: {command: 'ls'}},
+      {name: 'Read', input: {filePath: 'widget-shell.tsx'}},
+    ],
+    text: 'Both steps are done.',
+    thinking: 'mapping the two steps',
+  })
+  await coreControl.holdTools()
+  await coreControl.holdTurn()
+  mountChatPane(sessionId)
+
+  await expect.element(input()).toBeVisible()
+  await input().fill('run a couple of tools then answer')
+  await userEvent.keyboard('{Enter}')
+
+  await expect.element(page.getByText('mapping the two steps')).toBeVisible()
+  await expect.element(frozenGlyph()).toBeVisible()
+  await expect.element(traceList().getByText(FROZEN_GLYPH, {exact: true})).not.toBeInTheDocument()
+  await page.screenshot({path: '__screenshots__/chat-pane/now-line-during-tools.png'})
+
+  await coreControl.releaseTools()
+  await expect.element(page.getByText('Both steps are done.')).toBeVisible()
+  await expect.element(frozenGlyph()).toBeVisible()
+  await expect.element(traceList().getByText(FROZEN_GLYPH, {exact: true})).not.toBeInTheDocument()
+  await page.screenshot({path: '__screenshots__/chat-pane/now-line-after-text.png'})
+
+  await coreControl.releaseTurn()
+  await expect.element(frozenGlyph()).not.toBeInTheDocument()
+  restoreMotion()
 })
 
 test('a pane that joins a run another client already started narrates it, and stops when it ends', async () => {

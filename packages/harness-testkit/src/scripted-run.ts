@@ -3,12 +3,14 @@ import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 
 export type ScriptedTurnToolCall = {name: string; input: unknown; result?: unknown}
 
-export type ScriptedTurn = {toolCalls: ScriptedTurnToolCall[]; text?: string}
+export type ScriptedTurn = {toolCalls: ScriptedTurnToolCall[]; text?: string; thinking?: string}
 
 export type ScriptedRun = {
   chatStream: (deps: HarnessChatDeps) => AsyncGenerator<StreamChunk>
   hold: () => void
   release: () => void
+  holdTools: () => void
+  releaseTools: () => void
   scriptToolCall: (name: string, input: unknown, opts?: {blocking?: boolean}) => string
   scriptTurn: (turn: ScriptedTurn) => string[]
   scriptCustomEvent: (name: string, value: unknown) => void
@@ -17,7 +19,7 @@ export type ScriptedRun = {
 
 type QueuedToolCall = {id: string; name: string; input: unknown; result: unknown}
 
-type QueuedTurn = {toolCalls: QueuedToolCall[]; text?: string; blocking: boolean}
+type QueuedTurn = {toolCalls: QueuedToolCall[]; text?: string; thinking?: string; blocking: boolean}
 
 const THREAD = {threadId: 'scripted', runId: 'scripted'} as const
 
@@ -43,6 +45,14 @@ function resultChunk(toolCallId: string, result: unknown): StreamChunk {
   }
 }
 
+function* thinkingChunks(text: string | undefined): Generator<StreamChunk> {
+  if (!text) return
+  const messageId = 'scripted-reasoning'
+  yield {type: EventType.REASONING_MESSAGE_START, messageId, role: 'reasoning'}
+  yield {type: EventType.REASONING_MESSAGE_CONTENT, messageId, delta: text}
+  yield {type: EventType.REASONING_MESSAGE_END, messageId}
+}
+
 function* turnChunks(turn: QueuedTurn): Generator<StreamChunk> {
   for (const call of turn.toolCalls) {
     yield* requestChunks(call)
@@ -59,23 +69,36 @@ function* customEventChunks(events: {name: string; value: unknown}[]): Generator
   for (const event of events) yield {type: EventType.CUSTOM, name: event.name, value: event.value, ...THREAD}
 }
 
+type Gate = {hold: () => void; release: () => void; wait: () => Promise<void>}
+
+function makeGate(): Gate {
+  const state = {held: false, waiting: new Set<() => void>()}
+  return {
+    hold: () => {
+      state.held = true
+    },
+    release: () => {
+      state.held = false
+      const resuming = state.waiting
+      state.waiting = new Set<() => void>()
+      for (const resume of resuming) resume()
+    },
+    wait: async () => {
+      if (!state.held) return
+      await new Promise<void>((resolve) => state.waiting.add(resolve))
+    },
+  }
+}
+
 export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const defaultText = opts.text ?? 'ok'
-  const gate = {held: false, waiting: new Set<() => void>()}
+  const gate = makeGate()
+  const toolGate = makeGate()
   const turns = {count: 0}
   const toolCalls = {count: 0}
   const queuedTurns: QueuedTurn[] = []
   const queuedCustomEvents: Array<{name: string; value: unknown}> = []
   const queuedErrors: string[] = []
-  const hold = () => {
-    gate.held = true
-  }
-  const release = () => {
-    gate.held = false
-    const resuming = gate.waiting
-    gate.waiting = new Set()
-    for (const resume of resuming) resume()
-  }
   const scriptToolCall = (name: string, input: unknown, toolOpts: {blocking?: boolean} = {}) => {
     toolCalls.count += 1
     const toolCallId = `tc-${toolCalls.count}`
@@ -88,7 +111,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
       toolCalls.count += 1
       return {id: `tc-${toolCalls.count}`, name: call.name, input: call.input, result: scriptedResult(call)}
     })
-    queuedTurns.push({toolCalls: calls, text: turn.text, blocking: false})
+    queuedTurns.push({toolCalls: calls, text: turn.text, thinking: turn.thinking, blocking: false})
     return calls.map((call) => call.id)
   }
   const scriptCustomEvent = (name: string, value: unknown) => {
@@ -103,6 +126,8 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     yield {type: EventType.RUN_STARTED, ...THREAD}
     yield sessionIdChunk(deps)
     const scriptedTurn = queuedTurns.shift()
+    if (scriptedTurn) yield* thinkingChunks(scriptedTurn.thinking)
+    await toolGate.wait()
     if (scriptedTurn) yield* turnChunks(scriptedTurn)
     if (scriptedTurn?.blocking) {
       yield {type: EventType.RUN_FINISHED, ...THREAD, finishReason: 'tool_calls'}
@@ -110,10 +135,20 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     }
     yield* customEventChunks(queuedCustomEvents.splice(0))
     yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: scriptedTurn?.text ?? defaultText}
-    if (gate.held) await new Promise<void>((resolve) => gate.waiting.add(resolve))
+    await gate.wait()
     const failure = queuedErrors.shift()
     if (failure) throw new Error(failure)
     yield {type: EventType.RUN_FINISHED, ...THREAD}
   }
-  return {chatStream, hold, release, scriptToolCall, scriptTurn, scriptCustomEvent, scriptError}
+  return {
+    chatStream,
+    hold: gate.hold,
+    release: gate.release,
+    holdTools: toolGate.hold,
+    releaseTools: toolGate.release,
+    scriptToolCall,
+    scriptTurn,
+    scriptCustomEvent,
+    scriptError,
+  }
 }

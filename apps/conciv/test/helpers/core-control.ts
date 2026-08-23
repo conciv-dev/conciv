@@ -9,6 +9,8 @@ declare module 'vitest/internal/browser' {
     closeCore: () => Promise<void>
     setStaleness: (value: EngineStaleness) => Promise<void>
     holdTurn: () => Promise<void>
+    holdTools: () => Promise<void>
+    releaseTools: () => Promise<void>
     releaseTurn: () => Promise<void>
     scriptError: (message: string) => Promise<void>
     scriptTurn: (turn: ScriptedTurn) => Promise<string[]>

@@ -32,7 +32,6 @@ import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {MarkerRow} from '@conciv/contract'
-import type {UIMessage} from '@tanstack/ai-client'
 import {collectToolRenderers} from '@conciv/extension'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
@@ -68,20 +67,12 @@ const PAGE_SESSION: PageSessionConfig = {
 const ABOVE_COMPOSER =
   'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto empty:hidden pt-[9px] pe-5 pb-[10px] ps-5 [background:var(--chat-queue-bg)] [border-block-start:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-[11px] leading-[1.4] [&>*+*]:before:content-["·"] [&>*+*]:before:px-[5px] [&>*+*]:before:[color:var(--chat-separator)]'
 const NOW_ROW = 'shrink-0 self-stretch min-w-0 pb-[6px]'
+const NOW_ROW_UNDER_TURN = 'shrink-0 self-stretch min-w-0 pb-[6px] -mt-[13px]'
 const THINKING_TITLE = 'Thinking…'
 const RESPONDING_TITLE = 'Responding…'
 const ERROR = 'flex gap-2 items-center text-chat-danger text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-chat-surface-sm border border-chat-danger-line bg-transparent text-chat-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-chat shrink-0 trans-bg hover:bg-chat-danger-14'
-
-function lastPartJoinsChain(messages: readonly UIMessage[]): boolean {
-  const message = messages.at(-1)
-  if (!message || message.role !== 'assistant') return false
-  const part = message.parts.at(-1)
-  if (!part) return false
-  if (part.type === 'tool-call') return true
-  return part.type === 'thinking' && part.content.trim().length > 0
-}
 
 function resetSlideOnSelf(reset: () => void) {
   return (event: AnimationEvent) => {
@@ -147,13 +138,13 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
     loaded: () => registryCatalog.data !== undefined,
     meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
+  const narrationFollowsTurn = () => chat.messages().at(-1)?.role === 'assistant'
   const activeCall = createMemo(() => activeToolCall(chat.messages()))
   const narrationTitle = () => {
     const call = activeCall()
     if (call) return nowTitle(call, catalog)
     return isThinking() ? THINKING_TITLE : RESPONDING_TITLE
   }
-  const chainNarrates = createMemo(() => isStreaming() && lastPartJoinsChain(chat.messages()))
 
   const captures = useSessionCaptures(sessionId)
   const [draftStorage] = createResource(() => makeDraftStorage(rpc, sessionId))
@@ -296,8 +287,8 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                         <Show when={compacting()}>
                           <Divider kind="compact" pending />
                         </Show>
-                        <Show when={narrating() && !chainNarrates()}>
-                          <div class={NOW_ROW}>
+                        <Show when={narrating()}>
+                          <div class={narrationFollowsTurn() ? NOW_ROW_UNDER_TURN : NOW_ROW}>
                             <NowLine title={narrationTitle()} />
                           </div>
                         </Show>

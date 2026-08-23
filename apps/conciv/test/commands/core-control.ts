@@ -169,6 +169,14 @@ const releaseTurn: BrowserCommand<[]> = (ctx): void => {
   kitOf(ctx).harness.script.release()
 }
 
+const holdTools: BrowserCommand<[]> = (ctx): void => {
+  kitOf(ctx).harness.script.holdTools()
+}
+
+const releaseTools: BrowserCommand<[]> = (ctx): void => {
+  kitOf(ctx).harness.script.releaseTools()
+}
+
 const scriptError: BrowserCommand<[string]> = (ctx, message): void => {
   kitOf(ctx).harness.script.scriptError(message)
 }
@@ -255,6 +263,8 @@ export const coreCommands = {
   closeCore,
   setStaleness,
   holdTurn,
+  holdTools,
+  releaseTools,
   releaseTurn,
   scriptError,
   scriptTurn,
