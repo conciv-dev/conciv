@@ -6,6 +6,7 @@ import {trackSessionActivity} from '../src/pane/session-activity.js'
 import {makeAppContextValue} from './helpers/app-context-value.js'
 
 const OFFLINE_BASE = 'http://127.0.0.1:1'
+const PANE_SESSION_ID = 'the-mounted-session'
 
 type ActivityProbe = {
   app: AppContextValue
@@ -22,6 +23,7 @@ function mountActivity(): ActivityProbe {
   let settles = 0
   const Pane = (): JSX.Element => {
     trackSessionActivity({
+      sessionId: PANE_SESSION_ID,
       working,
       invalidateSessions: () => {
         invalidations += 1
@@ -84,10 +86,12 @@ describe('trackSessionActivity', () => {
     const probe = mountActivity()
     probe.setWorking(true)
 
-    expect(probe.app.liveSessions.anyRunning()).toBe(true)
+    expect(probe.app.liveSessions.activityIn(PANE_SESSION_ID)).toBe('running')
 
     probe.unmount()
 
-    expect(probe.app.liveSessions.anyRunning(), 'an unmounted pane stops holding the launcher').toBe(false)
+    expect(probe.app.liveSessions.activityIn(PANE_SESSION_ID), 'an unmounted pane stops holding the launcher').toBe(
+      'unmounted',
+    )
   })
 })
