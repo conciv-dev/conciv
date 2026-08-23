@@ -41,13 +41,13 @@ import {SessionPillPending, SessionTitlePending, UsagePending, ViewTabsPending} 
 import {collectViews} from '../extension/extension-views.js'
 
 const RAIL =
-  'flex h-15 shrink-0 box-border items-center gap-2.5 pe-3 ps-5 [border-block-end:1px_solid_var(--chat-line-soft)]'
-const RAIL_LEFT = 'flex flex-1 flex-col min-w-0 gap-[2px]'
+  'flex h-15 shrink-0 box-border items-center gap-2.5 pe-3 ps-5 pt-[13px] pb-[13px] [border-block-end:1px_solid_var(--chat-line-soft)]'
+const RAIL_LEFT = 'flex flex-1 flex-col justify-center min-w-0 gap-[3px]'
 const RAIL_MICROLABEL =
-  '[font-family:var(--chat-mono)] text-[9.5px] uppercase tracking-[0.14em] [color:var(--chat-microlabel)] whitespace-nowrap'
+  '[font-family:var(--chat-mono)] text-[length:var(--chat-text-micro)] leading-[1.2] uppercase tracking-[0.14em] [color:var(--chat-microlabel)] whitespace-nowrap'
 const RAIL_SEPARATOR = 'chat-rail-context-full [color:var(--chat-separator)] px-[5px]'
 const RAIL_TITLE =
-  'min-w-0 truncate [font-family:var(--chat-font-display)] text-[14.5px] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
+  'min-w-0 truncate [font-family:var(--chat-font-display)] text-[14.5px] leading-[1.25] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
 const GHOST =
   'bg-transparent border border-transparent text-chat-text-2 cursor-pointer inline-flex items-center justify-center size-7 rounded-[var(--chat-radius-sm)] [transition:background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-line-soft)] hover:text-chat-text'
 const RAIL_MENU_CONTENT = 'p-2 flex flex-col gap-1 w-72'

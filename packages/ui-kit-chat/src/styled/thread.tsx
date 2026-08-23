@@ -34,6 +34,8 @@ import {
   type Turn,
 } from '../store/grouping.js'
 import {summaryLine, turnRollup, type TurnRollup} from '../store/turn-rollup.js'
+import {activeCallInParts} from '../store/active-call.js'
+import {nowTitle} from '../tools/primitives/now-title.js'
 import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {useViewportInternal} from '../primitives/thread/viewport-internal.js'
 import {useThreadViewport} from '../primitives/thread/viewport-context.js'
@@ -79,6 +81,7 @@ export type ThreadMessagesProps = {
 }
 
 const PLAN_LABEL = 'plan'
+const REASONING_LABEL = 'reasoning'
 const PLAN_INLINE_LENGTH = 90
 
 const PROMPT_TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', hour12: false})
@@ -189,10 +192,17 @@ function AssistantTurn(props: {
         ),
       }),
     )
-    const line = () => summaryLine(segmentRollup())
+    const reasoned = () => segmentParts().some((part) => asThinking(part) !== null)
+    const activeCall = () =>
+      activeCallInParts(segmentParts(), (toolCallId) => message.pairing().byCallId.get(toolCallId))
+    const summary = () => summaryLine(segmentRollup()) || REASONING_LABEL
+    const compactLine = () => {
+      const call = segmentActive() ? activeCall() : null
+      return call ? nowTitle(call, ctx.catalog) : summary()
+    }
     return (
-      <Show when={segmentRollup().toolCalls > 0}>
-        <Trace summary={line()} compactLine={line()} items={items()} streaming={segmentActive()} />
+      <Show when={segmentRollup().toolCalls > 0 || reasoned()}>
+        <Trace summary={summary()} compactLine={compactLine()} items={items()} streaming={segmentActive()} />
       </Show>
     )
   }
@@ -401,10 +411,10 @@ function LatestStrip(): JSX.Element {
 
 function ThreadViewport(props: ParentProps<{ref?: (element: HTMLElement) => void}>): JSX.Element {
   return (
-    <div class="relative flex flex-1 flex-col min-h-0">
+    <div class="flex flex-1 flex-col min-h-0 relative">
       <ThreadPrimitive.Viewport
         ref={props.ref}
-        class="px-5 pt-[13px] pb-4 flex flex-1 flex-col min-h-0 relative overflow-y-auto"
+        class="px-5 pb-4 pt-[13px] flex flex-1 flex-col min-h-0 relative overflow-y-auto"
         role="log"
         aria-live="off"
         footer={<LatestStrip />}

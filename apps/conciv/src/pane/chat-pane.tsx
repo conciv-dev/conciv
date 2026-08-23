@@ -13,15 +13,18 @@ import {
 } from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import {
+  activeToolCall,
   AttachmentByMime,
   ChatProvider,
   ComposerHandlersProvider,
+  NowLine,
   Thread,
   ToolProvider,
   useComposerContext,
   type PageSessionConfig,
   type Turn,
 } from '@conciv/ui-kit-chat'
+import {nowTitle} from '@conciv/ui-kit-chat-tools'
 import {pageSessionEntry} from '@conciv/extension-page/client'
 import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
@@ -39,7 +42,7 @@ import {usePane} from '../app/pane-context.js'
 import {foldToolDurations} from './tool-durations.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
-import {CompactSpinner, ConversationSkeleton, Divider, ThinkingSpinner} from './indicators.js'
+import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
@@ -62,6 +65,9 @@ const PAGE_SESSION: PageSessionConfig = {
 
 const ABOVE_COMPOSER =
   'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto empty:hidden pt-[9px] pe-5 pb-[10px] ps-5 [background:var(--chat-queue-bg)] [border-block-start:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-[11px] leading-[1.4] [&>*+*]:before:content-["·"] [&>*+*]:before:px-[5px] [&>*+*]:before:[color:var(--chat-separator)]'
+const NOW_PIN = 'shrink-0 pt-[9px] pe-5 pb-[10px] ps-5 anim-msg'
+const THINKING_TITLE = 'Thinking…'
+const RESPONDING_TITLE = 'Responding…'
 const ERROR = 'flex gap-2 items-center text-chat-danger text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-chat-surface-sm border border-chat-danger-line bg-transparent text-chat-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-chat shrink-0 trans-bg hover:bg-chat-danger-14'
@@ -129,6 +135,13 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     loaded: () => registryCatalog.data !== undefined,
     meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
+  const activeCall = createMemo(() => activeToolCall(chat.messages()))
+  const narrationTitle = () => {
+    const call = activeCall()
+    if (call) return nowTitle(call, catalog)
+    return isThinking() ? THINKING_TITLE : RESPONDING_TITLE
+  }
+
   const captures = useSessionCaptures(sessionId)
   const [draftStorage] = createResource(() => makeDraftStorage(rpc, sessionId))
 
@@ -168,7 +181,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   trackSessionActivity({
     working,
     invalidateSessions: appData.invalidateSessions,
-    onStart: () => announce('conciv is thinking…'),
     onSettle: () => {
       appData.invalidateSessions()
       void markers.refetch()
@@ -269,9 +281,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                         <Show when={compacting()}>
                           <Divider kind="compact" pending />
                         </Show>
-                        <Show when={isThinking()}>
-                          <ThinkingSpinner />
-                        </Show>
                         <Show when={messaging.visibleError()}>
                           {(error) => (
                             <div class={ERROR} role="alert">
@@ -286,6 +295,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                     </Suspense>
                   </Thread.Viewport>
                   <Thread.Composer>
+                    <Show when={working()}>
+                      <div class={NOW_PIN}>
+                        <NowLine title={narrationTitle()} />
+                      </div>
+                    </Show>
                     <div class={ABOVE_COMPOSER}>
                       <ExtensionSurface name="status" instances={instances} />
                       <ExtensionSurface name="footer" instances={instances} />

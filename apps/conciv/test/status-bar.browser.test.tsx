@@ -31,6 +31,30 @@ describe('StatusBar session status derivation', () => {
     expect(page.getByText('RUNNING', {exact: true}).elements()).toHaveLength(0)
   })
 
+  it('marks the active view tab with aria-pressed and the active modifier class', async () => {
+    render(() => (
+      <StatusBar
+        status={{kind: 'done', label: 'DONE'}}
+        elapsedLabel="00:12"
+        diff={{files: 0, adds: 0, dels: 0}}
+        views={[
+          {id: 'chat', label: 'Chat'},
+          {id: 'board', label: 'Board'},
+        ]}
+        activeView="board"
+        onSelectView={() => {}}
+        disabled={false}
+      />
+    ))
+
+    const board = page.getByRole('button', {name: 'Board'})
+    const chat = page.getByRole('button', {name: 'Chat'})
+    await expect.element(board).toHaveAttribute('aria-pressed', 'true')
+    await expect.element(board).toHaveClass('chat-view-btn-active')
+    await expect.element(chat).toHaveAttribute('aria-pressed', 'false')
+    await expect.element(chat).not.toHaveClass('chat-view-btn-active')
+  })
+
   it('announces the state chip through a polite live region', async () => {
     const setStatus = mountDynamic()
     await expect.element(page.getByRole('status')).toHaveTextContent('RUNNING')

@@ -8,7 +8,7 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {INERT_ADD_RESULT, MetaToolCard} from '@conciv/ui-kit-chat/tools'
-import {nowTitle} from '../src/primitives/tools/now-title.js'
+import {nowTitle} from '@conciv/ui-kit-chat/tools'
 import {mountView} from './mount-view.js'
 import {registryCatalogView} from './registry-catalog-view.js'
 

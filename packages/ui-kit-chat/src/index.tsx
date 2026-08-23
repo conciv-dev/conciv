@@ -45,6 +45,7 @@ export {
 } from './store/page-session.js'
 export {ToolProvider, useToolCtx} from './store/tool-context.js'
 export {createTurnRollup, sessionTotals, summaryLine, turnRollup, type TurnRollup} from './store/turn-rollup.js'
+export {activeCallInParts, activeToolCall} from './store/active-call.js'
 export {
   createSessionStatus,
   deriveSessionStatus,

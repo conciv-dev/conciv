@@ -192,10 +192,7 @@ function messagesWithoutTools(): UIMessage[] {
     {
       id: 'a1',
       role: 'assistant',
-      parts: [
-        {type: 'thinking', content: 'reading the exports in my head'},
-        {type: 'text', content: 'It coalesces messages into turns.'},
-      ],
+      parts: [{type: 'text', content: 'It coalesces messages into turns.'}],
     },
   ]
 }
@@ -216,7 +213,7 @@ function ToollessThread(): JSX.Element {
   )
 }
 
-it('renders no trace at all for a turn segment that ran no tools', async () => {
+it('renders no trace at all for a turn segment that neither reasoned nor ran tools', async () => {
   mountView(() => <ToollessThread />)
 
   await expect.element(page.getByText('It coalesces messages into turns.'), {timeout: 3000}).toBeVisible()
