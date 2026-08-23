@@ -10,6 +10,7 @@ import {CardShell, cardHeader} from './card-shell.js'
 import {useEmbeddedRowLine} from './card-chrome.js'
 import {CHIP} from './chip.js'
 import {JsonTree} from './json-tree.js'
+import {ShapedValue} from './shaped-content.js'
 import {ElementPreview} from './element-preview.js'
 import {MirrorRow, NoteRow} from './note-row.js'
 import {CodeBlock} from './code-block.js'
@@ -91,7 +92,7 @@ function ResultView(props: {outputSchema: unknown; payload: unknown; raw: string
   const list = () => (Array.isArray(props.payload) ? props.payload : undefined)
   const decoded = () => (typeof props.payload === 'string' ? props.payload : props.raw)
   return (
-    <Switch fallback={<ResultBlock name="result.json" contents={props.raw} />}>
+    <Switch fallback={<ShapedValue name="result" value={props.payload} />}>
       <Match when={view() === 'list' && list()}>{(items) => <JsonTree data={items()} />}</Match>
       <Match when={view() === 'code'}>
         <ResultBlock name="result.txt" contents={decoded()} />

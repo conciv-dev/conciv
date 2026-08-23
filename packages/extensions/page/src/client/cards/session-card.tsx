@@ -83,7 +83,7 @@ const HEAD_BADGE =
   'hidden @[20rem]:inline flex-none whitespace-nowrap [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]'
 
 const RAIL =
-  'm-0 p-0 list-none grid grid-cols-[max-content_max-content_1fr_max-content] w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-hidden'
+  'm-0 p-0 list-none grid grid-cols-[max-content_max-content_1fr_minmax(0,max-content)] w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-hidden'
 const ROW =
   'group px-2.5 py-1.5 grid grid-cols-subgrid col-span-4 gap-2.5 items-center min-w-0 [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill)]'
 const ROW_ENTRANCE = '[[data-state=open]_&]:anim-msg animate-fill-backwards'
@@ -112,7 +112,7 @@ const ROW_TARGET = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] [c
 const ROW_TARGET_ERROR = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] [color:var(--chat-danger)]'
 const ROW_TARGET_ABORTED = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] [color:var(--chat-text-3)]'
 const ROW_TARGET_ACTIVE = `flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] ${SHIMMER}`
-const ROW_VALUE = 'hidden @[24rem]:inline-flex anim-combo flex-none max-w-40 leading-none'
+const ROW_VALUE = 'hidden @[24rem]:inline-flex anim-combo min-w-0 leading-none'
 
 const RoutePayload = z.looseObject({href: z.string()})
 
@@ -238,7 +238,9 @@ function StepRow(props: {step: PageSessionStep; index: number; streaming: boolea
         {props.step.state === 'streaming' ? activeSentence(props.step) : props.step.target}
       </span>
       <Show when={props.step.value}>
-        {(value) => <Chip kind="pill" tone="accent" value={`“${clip(value())}”`} class={ROW_VALUE} />}
+        {(value) => (
+          <Chip kind="pill" tone="accent" maxWidth="compact" value={`“${clip(value())}”`} class={ROW_VALUE} />
+        )}
       </Show>
     </li>
   )

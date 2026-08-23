@@ -119,13 +119,9 @@ describe('pageSessionSteps', () => {
   })
 
   it('gives targetless verbs their fixed labels', () => {
-    const parts = [
-      actPart('c1', 'page.css', {text: 'body{}'}),
-      actPart('c2', 'page.eval', {code: '1'}),
-      actPart('c3', 'page.effect', {action: 'list'}),
-    ]
+    const parts = [actPart('c1', 'page.css', {text: 'body{}'}), actPart('c2', 'page.effect', {action: 'list'})]
     const built = steps(parts)
-    expect(built.map((step) => step.target)).toEqual(['stylesheet', 'script', 'effect'])
+    expect(built.map((step) => step.target)).toEqual(['stylesheet', 'effect'])
   })
 
   it('labels a targeted act with no target information as the page', () => {
@@ -193,17 +189,24 @@ describe('pageSessionSteps', () => {
     expect(built[0]?.value).toBe('ada')
   })
 
-  it('summarizes an eval step with the first meaningful code line, clipped', () => {
+  it('makes the first meaningful code line the script step target, with no second value copy', () => {
     const built = steps([actPart('c1', 'page.eval', {code: '\n\nconst title = document.title\nreturn title'})])
-    expect(built[0]?.target).toBe('script')
-    expect(built[0]?.value).toBe('const title = document.title')
+    expect(built[0]?.target).toBe('const title = document.title')
+    expect(built[0]?.namedTarget).toBe(false)
+    expect(built[0]?.value).toBeUndefined()
   })
 
-  it('clips a long eval line to the chip budget', () => {
+  it('clips a long script target line to the chip budget', () => {
     const line = `document.querySelector('${'x'.repeat(80)}')`
     const built = steps([actPart('c1', 'page.eval', {code: line})])
-    expect(built[0]?.value?.length).toBe(64)
-    expect(built[0]?.value?.endsWith('…')).toBe(true)
+    expect(built[0]?.target.length).toBe(64)
+    expect(built[0]?.target.endsWith('…')).toBe(true)
+  })
+
+  it('falls back to a script label when the script step carries no code yet', () => {
+    const built = steps([actPart('c1', 'page.eval', {})])
+    expect(built[0]?.target).toBe('script')
+    expect(built[0]?.value).toBeUndefined()
   })
 
   it('summarizes a css step with the first stylesheet rule line', () => {
