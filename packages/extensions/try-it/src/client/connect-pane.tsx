@@ -1,10 +1,8 @@
 import type {ExtensionApi} from '@conciv/extension'
-import {Collapsible, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
+import {ClipboardCopyButton, Collapsible, Tooltip} from '@conciv/ui-kit-system'
 import Check from 'lucide-solid/icons/check'
-import Copy from 'lucide-solid/icons/copy'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
-import {createEffect, createSignal, onMount, Show, type JSX} from 'solid-js'
-import {makeTimer} from '@solid-primitives/timer'
+import {createSignal, onMount, Show, type JSX} from 'solid-js'
 import {useCoreProbe} from './use-core-probe.js'
 import {stepStates, type StepState, type TryStep} from '../shared/try-steps.js'
 import {useLocalNetworkAccessPermission} from './use-lna-permission.js'
@@ -20,17 +18,6 @@ const STEP_TITLES: Record<TryStep, string> = {
 }
 
 function CopyRow(props: {label: string; text: string; onCopy: () => void}): JSX.Element {
-  const [doneAt, setDoneAt] = createSignal<number | null>(null)
-  const done = () => doneAt() !== null
-  const copy = () => {
-    void navigator.clipboard.writeText(props.text)
-    props.onCopy()
-    setDoneAt(performance.now())
-  }
-  createEffect(() => {
-    if (doneAt() === null) return
-    makeTimer(() => setDoneAt(null), COPY_FEEDBACK_MS, setTimeout)
-  })
   return (
     <div class="py-1.5 pl-3 pr-1.5 border border-chat-line rounded-chat-surface-md bg-chat-fill flex gap-2 items-center">
       <Tooltip.Root>
@@ -45,11 +32,13 @@ function CopyRow(props: {label: string; text: string; onCopy: () => void}): JSX.
           <Tooltip.Content class="font-mono [overflow-wrap:anywhere]">{props.text}</Tooltip.Content>
         </Tooltip.Positioner>
       </Tooltip.Root>
-      <TooltipIconButton tooltip={props.label} class="size-7" onClick={copy}>
-        <Show when={done()} fallback={<Copy class="size-3.5" aria-hidden="true" />}>
-          <Check class="text-chat-accent size-3.5" aria-hidden="true" />
-        </Show>
-      </TooltipIconButton>
+      <ClipboardCopyButton
+        text={props.text}
+        tooltips={{idle: props.label}}
+        resetMs={COPY_FEEDBACK_MS}
+        class="size-7"
+        onCopied={() => props.onCopy()}
+      />
     </div>
   )
 }

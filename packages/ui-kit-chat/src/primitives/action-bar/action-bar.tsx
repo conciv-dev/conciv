@@ -1,14 +1,5 @@
-import {
-  createContext,
-  createEffect,
-  createSignal,
-  Show,
-  splitProps,
-  useContext,
-  type Accessor,
-  type JSX,
-} from 'solid-js'
-import {makeTimer} from '@solid-primitives/timer'
+import {createContext, createSignal, Show, splitProps, useContext, type Accessor, type JSX} from 'solid-js'
+import {createClipboardCopy, writeClipboardText, type ClipboardCopyStatus} from '@conciv/ui-kit-system'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useThread} from '../../store/chat-context.js'
 import {useMessage} from '../message/message-context.js'
@@ -17,10 +8,10 @@ import type {Turn} from '../../store/grouping.js'
 import {useActionHandlers} from './action-handlers.js'
 import {ActionBarInteractionProvider} from './interaction-context.js'
 
-const CopiedContext = createContext<Accessor<boolean>>()
+const CopyStatusContext = createContext<Accessor<ClipboardCopyStatus>>()
 
-export function useCopied(): Accessor<boolean> {
-  return useContext(CopiedContext) ?? (() => false)
+export function useCopyStatus(): Accessor<ClipboardCopyStatus> {
+  return useContext(CopyStatusContext) ?? (() => 'idle')
 }
 
 function messageText(turn: Turn): string {
@@ -150,31 +141,30 @@ const FeedbackNegative = createActionButton('Bad response', () => {
 })
 
 type CopyProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> &
-  Slottable<JSX.ButtonHTMLAttributes<HTMLButtonElement>> & {copiedDuration?: number}
+  Slottable<JSX.ButtonHTMLAttributes<HTMLButtonElement>> & {
+    copiedDuration?: number
+    writeText?: (text: string) => Promise<void>
+  }
 
 function Copy(props: CopyProps): JSX.Element {
   const message = useMessage()
-  const [copiedAt, setCopiedAt] = createSignal<number | null>(null)
-  const copied = () => copiedAt() !== null
-  const [local, rest] = splitProps(props, ['copiedDuration'])
-  const run = () => {
-    void navigator.clipboard.writeText(messageText(message.message())).catch(() => {})
-    setCopiedAt(performance.now())
-  }
-  createEffect(() => {
-    if (copiedAt() === null) return
-    makeTimer(() => setCopiedAt(null), local.copiedDuration ?? 3000, setTimeout)
+  const [local, rest] = splitProps(props, ['copiedDuration', 'writeText'])
+  const clipboard = createClipboardCopy({
+    text: () => messageText(message.message()),
+    resetMs: () => local.copiedDuration ?? 3000,
+    writeText: (text) => (local.writeText ?? writeClipboardText)(text),
   })
   return (
-    <CopiedContext.Provider value={copied}>
+    <CopyStatusContext.Provider value={clipboard.status}>
       <Primitive.button
         type="button"
         aria-label="Copy"
-        data-copied={copied() ? '' : undefined}
-        onClick={run}
+        data-copied={clipboard.copied() ? '' : undefined}
+        data-copy-failed={clipboard.failed() ? '' : undefined}
+        onClick={clipboard.copy}
         {...rest}
       />
-    </CopiedContext.Provider>
+    </CopyStatusContext.Provider>
   )
 }
 

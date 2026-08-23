@@ -117,7 +117,7 @@ export {
   type ComposerActionsInlineProps,
   type ComposerActionsSlotProps,
 } from './primitives/composer/composer-actions.js'
-export {ActionBar as ActionBarPrimitive, useCopied} from './primitives/action-bar/action-bar.js'
+export {ActionBar as ActionBarPrimitive, useCopyStatus} from './primitives/action-bar/action-bar.js'
 export {
   ActionHandlersProvider,
   useActionHandlers,

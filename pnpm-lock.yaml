@@ -4143,9 +4143,15 @@ importers:
       '@ark-ui/solid':
         specifier: ^5.37.1
         version: 5.37.1(solid-js@1.9.14)
+      '@solid-primitives/clipboard':
+        specifier: ^1.6.6
+        version: 1.6.6(solid-js@1.9.14)
       '@solid-primitives/event-listener':
         specifier: ^2.4.6
         version: 2.4.6(solid-js@1.9.14)
+      '@solid-primitives/timer':
+        specifier: ^1.4.4
+        version: 1.4.4(solid-js@1.9.14)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -9079,6 +9085,11 @@ packages:
   '@sindresorhus/merge-streams@4.0.0':
     resolution: {integrity: sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ==}
     engines: {node: '>=18'}
+
+  '@solid-primitives/clipboard@1.6.6':
+    resolution: {integrity: sha512-dw7ela8hidoiSFiZiDsJeVfwR15Z/vuePrIj9UJclR9PS6DNYuRd06PV5ppo5blvLXvvdDF6GJj9Eo7cwJBa8w==}
+    peerDependencies:
+      solid-js: ^1.6.12
 
   '@solid-primitives/event-listener@2.4.5':
     resolution: {integrity: sha512-nwRV558mIabl4yVAhZKY8cb6G+O1F0M6Z75ttTu5hk+SxdOnKSGj+eetDIu7Oax1P138ZdUU01qnBPR8rnxaEA==}
@@ -22117,6 +22128,11 @@ snapshots:
   '@sindresorhus/is@7.2.0': {}
 
   '@sindresorhus/merge-streams@4.0.0': {}
+
+  '@solid-primitives/clipboard@1.6.6(solid-js@1.9.14)':
+    dependencies:
+      '@solid-primitives/utils': 6.4.1(solid-js@1.9.14)
+      solid-js: 1.9.14
 
   '@solid-primitives/event-listener@2.4.5(solid-js@1.9.14)':
     dependencies:
