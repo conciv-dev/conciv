@@ -3,7 +3,7 @@ import type {z} from 'zod'
 import type {ContentPart} from '@tanstack/ai'
 import type {AnyRouter} from '@orpc/server'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import type {HarnessConnectContext, HarnessConnectPlan} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {HarnessSessionId, SessionId, UIMessage} from '@conciv/protocol/chat-types'
@@ -42,6 +42,8 @@ export type ExtensionCommand = {
 
 export type ToolRenderer = Component<ToolCardProps>
 
+export type ToolCard = ToolCardView
+
 export type ServerToolPageAccess = {call: (name: string, input: Record<string, unknown>) => Promise<unknown>}
 
 export type ServerToolRegistryAccess = {call: (name: string, input: unknown) => Promise<unknown>}
@@ -62,7 +64,7 @@ export type ExtensionTool = {
     page: ServerToolPageAccess,
     tools: ServerToolRegistryAccess,
   ) => Promise<unknown>
-  __render?: ToolRenderer
+  __render?: ToolCard
 }
 
 export type ClientEffect = {

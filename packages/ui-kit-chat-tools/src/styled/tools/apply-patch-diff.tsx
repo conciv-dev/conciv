@@ -2,7 +2,13 @@ import {type JSX} from 'solid-js'
 import FileDiff from 'lucide-solid/icons/file-diff'
 import {type FileDiffOptions} from '@conciv/solid-diffs'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {ApplyPatch, useApplyPatch, type ApplyPatchInfo} from '../../primitives/tools/apply-patch.js'
+import {
+  ApplyPatch,
+  parseClaudePatchBlocks,
+  patchTextOf,
+  useApplyPatch,
+  type ApplyPatchInfo,
+} from '../../primitives/tools/apply-patch.js'
 import {diffBlockClass, ToolCard} from '@conciv/ui-kit-chat/tools'
 import {codeTheme} from '@conciv/ui-kit-chat/theme/code-theme'
 
@@ -69,4 +75,5 @@ export function ApplyPatchDiff(props: ToolCardProps): JSX.Element {
 export const applyPatchTool: ToolCardEntry = {
   names: ['apply_patch'],
   render: ApplyPatchDiff,
+  hasEmbeddedBody: (part) => parseClaudePatchBlocks(patchTextOf(part)).length > 0,
 }

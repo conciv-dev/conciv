@@ -91,6 +91,7 @@ function outputTool(text: string): ToolCardEntry {
   return {
     names: ['Bash'],
     render: () => <TraceOutputBlock text={text}>{text}</TraceOutputBlock>,
+    hasEmbeddedBody: () => true,
   }
 }
 

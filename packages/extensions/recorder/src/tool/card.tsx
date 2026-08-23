@@ -1,7 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import Clapperboard from 'lucide-solid/icons/clapperboard'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {Chip, ErrorBlock, parseInput, resultText, ToolCard} from '@conciv/ui-kit-chat/tools'
 const ImagePartSchema = z.object({type: z.literal('image')}).loose()
 const TextPartSchema = z.object({type: z.literal('text'), content: z.string()}).loose()
@@ -105,3 +105,4 @@ export function RecordingToolCard(props: ToolCardProps): JSX.Element {
     </ToolCard>
   )
 }
+export const recordingToolCard: ToolCardView = {render: RecordingToolCard, hasEmbeddedBody: () => true}

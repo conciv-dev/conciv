@@ -28,6 +28,16 @@ function isRunning(part: ToolCardProps['part'], result: ToolCardProps['result'])
   return toolStatus(part, result) === 'running'
 }
 
+export function settledCardBody(
+  part: ToolCardProps['part'],
+  result: ToolCardProps['result'],
+  hasContent: boolean,
+): boolean {
+  if (readError(part, result) !== null) return true
+  if (isRunning(part, result)) return false
+  return hasContent
+}
+
 export function CardRows(props: {children: JSX.Element}): JSX.Element {
   return <div class="flex flex-col gap-0.5">{props.children}</div>
 }

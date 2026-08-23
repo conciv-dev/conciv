@@ -11,8 +11,10 @@ import {
   ToolTraceRow,
   type TraceItem,
 } from '@conciv/ui-kit-chat/tools'
-import {EditLiveCard} from './edit-live-card.js'
+import {editLiveCard} from './edit-live-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+
+const EditLiveCard = editLiveCard.render
 
 const meta: Meta = {title: 'Extensions/Page/tool/EditLiveCard'}
 export default meta
@@ -132,7 +134,7 @@ export const EvalCodeBlock: Story = {
 
 const editLiveTool: ToolCardEntry = {
   names: ['page.setattr', 'page.eval'],
-  render: EditLiveCard,
+  ...editLiveCard,
 }
 
 export const Trace: Story = {

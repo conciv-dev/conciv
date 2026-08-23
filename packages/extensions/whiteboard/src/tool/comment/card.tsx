@@ -1,7 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import MessageSquare from 'lucide-solid/icons/message-square'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {ErrorBlock, parseInput, parseResultMedia, resultText, ToolCard} from '@conciv/ui-kit-chat/tools'
 import {clockTime, failureOf, MonoLine, OpTag, type FieldTone} from '../card-util.js'
 
@@ -171,3 +171,4 @@ export function CommentOpCard(props: ToolCardProps): JSX.Element {
     </ToolCard>
   )
 }
+export const commentOpCard: ToolCardView = {render: CommentOpCard, hasEmbeddedBody: () => true}

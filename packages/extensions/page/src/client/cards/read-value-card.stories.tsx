@@ -4,7 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {Trace as ChatTrace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
-import {ReadValueCard} from './read-value-card.js'
+import {ReadValueCard, readValueCard} from './read-value-card.js'
 import {
   STORY_FRAME_CLASS,
   storyAddResult,
@@ -116,7 +116,7 @@ export const RouteObject: Story = {
 
 const readValueTool: ToolCardEntry = {
   names: ['page.text', 'page.exists'],
-  render: ReadValueCard,
+  ...readValueCard,
 }
 
 export const Trace: Story = {

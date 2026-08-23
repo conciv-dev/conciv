@@ -39,7 +39,11 @@ function headerCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-const headerTool: ToolCardEntry = {names: ['tanstack_query_cache'], render: headerCard}
+const headerTool: ToolCardEntry = {
+  names: ['tanstack_query_cache'],
+  render: headerCard,
+  hasEmbeddedBody: () => true,
+}
 
 it('projects the embedded card header onto the trace row, marking an in-band failure as failed', async () => {
   mountView(() => (
@@ -64,7 +68,11 @@ function subtitleCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-const subtitleTool: ToolCardEntry = {names: ['tanstack_route_tree'], render: subtitleCard}
+const subtitleTool: ToolCardEntry = {
+  names: ['tanstack_route_tree'],
+  render: subtitleCard,
+  hasEmbeddedBody: () => true,
+}
 
 it('carries the card title on the row line while the subtitle stays in the body', async () => {
   mountView(() => (
@@ -98,7 +106,11 @@ function streamingCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-const streamingTool: ToolCardEntry = {names: ['test_runner_run'], render: streamingCard}
+const streamingTool: ToolCardEntry = {
+  names: ['test_runner_run'],
+  render: streamingCard,
+  hasEmbeddedBody: () => true,
+}
 
 it('tracks header changes as the card result streams in', async () => {
   const [result, setResult] = createSignal<ToolResultPart>()
@@ -127,7 +139,7 @@ function commandCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-const commandTool: ToolCardEntry = {names: ['bash'], render: commandCard}
+const commandTool: ToolCardEntry = {names: ['bash'], render: commandCard, hasEmbeddedBody: () => true}
 
 it('keeps a named tool argument as the target and takes only the badge from the header', async () => {
   mountView(() => (
@@ -169,6 +181,7 @@ it('shows a declared tool summary once, on the row, when the generic card body w
 const headerlessTool: ToolCardEntry = {
   names: ['tanstack_query_cache'],
   render: () => <p>a card without any header</p>,
+  hasEmbeddedBody: () => true,
 }
 
 it('falls back to the generic projection for a card that publishes no header', async () => {

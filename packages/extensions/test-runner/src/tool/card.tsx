@@ -17,7 +17,7 @@ import {
   resultText,
 } from '@conciv/ui-kit-chat/tools'
 import {groupBy} from 'es-toolkit'
-import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {getExtensionApi, makeExtRpcClient} from '@conciv/extension'
 import {TEST_RUNNER_NAME} from '../shared/meta.js'
 import type {TestRunnerRouter} from '../server.js'
@@ -347,3 +347,4 @@ export function TestCard(props: ToolCardProps): JSX.Element {
     </CardShell>
   )
 }
+export const testCard: ToolCardView = {render: TestCard, hasEmbeddedBody: () => true}

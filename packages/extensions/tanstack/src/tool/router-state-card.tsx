@@ -1,8 +1,8 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, InspectionCard} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
 
 const MatchSchema = z.object({routeId: z.string(), path: z.string().default(''), status: z.string().optional()}).loose()
 
@@ -68,4 +68,9 @@ export function RouterStateCard(props: ToolCardProps): JSX.Element {
       </Show>
     </InspectionCard>
   )
+}
+
+export const routerStateCard: ToolCardView = {
+  render: RouterStateCard,
+  hasEmbeddedBody: (part, result) => settledCardBody(part, result, parseState(result) !== null),
 }

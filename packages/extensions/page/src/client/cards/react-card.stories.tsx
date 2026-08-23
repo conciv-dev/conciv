@@ -4,7 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {Trace as ChatTrace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
-import {ReactCard} from './react-card.js'
+import {ReactCard, reactCard} from './react-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
 const meta: Meta = {title: 'Extensions/Page/tool/ReactCard'}
@@ -161,7 +161,7 @@ export const NoRenders: Story = {
   },
 }
 
-const reactTool: ToolCardEntry = {names: ['page.tree'], render: ReactCard}
+const reactTool: ToolCardEntry = {names: ['page.tree'], ...reactCard}
 
 export const Trace: Story = {
   render: () =>

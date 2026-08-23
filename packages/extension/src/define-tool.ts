@@ -6,7 +6,7 @@ import type {
   ExtensionTool,
   ServerToolRegistryAccess,
   ServerToolPageAccess,
-  ToolRenderer,
+  ToolCard,
   ToolRequest,
 } from './types.js'
 
@@ -108,7 +108,7 @@ export type ToolBuilder<
   client: (
     execute?: (input: z.infer<Schema>, ctx: ClientToolCtx) => Promise<unknown> | unknown,
   ) => ToolBuilder<Name, Schema, Output, Errors, 'client', Ctx>
-  render: (renderer: ToolRenderer) => ToolBuilder<Name, Schema, Output, Errors, Binding, Ctx>
+  render: (card: ToolCard) => ToolBuilder<Name, Schema, Output, Errors, Binding, Ctx>
 }
 
 type ToolNameOf<Tool> = Tool extends {name: infer Name extends string} ? (string extends Name ? never : Name) : never
@@ -220,7 +220,7 @@ type ToolState<Binding extends ToolBinding | undefined> = {
     tools: ServerToolRegistryAccess,
   ) => Promise<unknown>
   clientExecute?: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
-  render?: ToolRenderer
+  render?: ToolCard
 }
 
 function assertToolMeta(name: string, meta: ToolMeta | undefined): void {
@@ -292,8 +292,8 @@ function toolBuilder<
         clientExecute: async (raw, ctx) => execute(definition.inputSchema.parse(raw), ctx),
       })
     },
-    render(renderer) {
-      return toolBuilder<Name, Schema, Output, Errors, Binding, Ctx>(definition, {...state, render: renderer})
+    render(card) {
+      return toolBuilder<Name, Schema, Output, Errors, Binding, Ctx>(definition, {...state, render: card})
     },
   }
 }

@@ -25,7 +25,9 @@ function ConfirmCard(props: ToolCardProps): JSX.Element {
   return <p>Confirm this action for {props.part.name}</p>
 }
 
-const entries: ToolCardEntry[] = [{names: ['confirm_ui'], render: ConfirmCard, display: 'standalone'}]
+const entries: ToolCardEntry[] = [
+  {names: ['confirm_ui'], render: ConfirmCard, hasEmbeddedBody: () => true, display: 'standalone'},
+]
 
 function StandaloneThread(): JSX.Element {
   const chat = useChat({

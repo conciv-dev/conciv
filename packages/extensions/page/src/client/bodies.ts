@@ -54,13 +54,13 @@ import {
   valueDef,
   waitDef,
 } from '../shared/defs.js'
-import {ActCard} from './cards/act-card.js'
-import {ConsoleCard} from './cards/console-card.js'
-import {EditLiveCard} from './cards/edit-live-card.js'
-import {EffectCard} from './cards/effect-card.js'
-import {ReactCard} from './cards/react-card.js'
-import {ReadBulkCard} from './cards/read-bulk-card.js'
-import {ReadValueCard} from './cards/read-value-card.js'
+import {actCard} from './cards/act-card.js'
+import {consoleCard} from './cards/console-card.js'
+import {editLiveCard} from './cards/edit-live-card.js'
+import {effectCard} from './cards/effect-card.js'
+import {reactCard} from './cards/react-card.js'
+import {readBulkCard} from './cards/read-bulk-card.js'
+import {readValueCard} from './cards/read-value-card.js'
 
 function fail(message: string): never {
   throw pageFailure('handler-error', message)
@@ -137,30 +137,30 @@ const routeTool = routeDef
     search: location.search,
     href: location.href,
   }))
-  .render(ReadValueCard)
+  .render(readValueCard)
 
-const consoleTool = consoleDef.client((input, ctx) => ({entries: ctx.consoleEntries(input.since)})).render(ConsoleCard)
+const consoleTool = consoleDef.client((input, ctx) => ({entries: ctx.consoleEntries(input.since)})).render(consoleCard)
 
 const domTool = domDef
   .client((input, ctx) => {
     const root = hasLocator(input) ? ctx.target(input) : ctx.document.body
     return {html: root.outerHTML.slice(0, DOM_CAP)}
   })
-  .render(ReadBulkCard)
+  .render(readBulkCard)
 
 const queryTool = queryDef
   .client((input, ctx) => {
     const matches = input.selector ? Array.from(ctx.document.querySelectorAll(input.selector)) : []
     return {count: matches.length, elements: matches.slice(0, 20).map(describeElement)}
   })
-  .render(ReadBulkCard)
+  .render(readBulkCard)
 
 const existsTool = existsDef
   .client((input, ctx) => {
     const matches = input.selector ? ctx.document.querySelectorAll(input.selector) : []
     return {exists: matches.length > 0, count: matches.length}
   })
-  .render(ReadValueCard)
+  .render(readValueCard)
 
 const snapshotTool = snapshotDef
   .client((input, ctx) => {
@@ -169,14 +169,14 @@ const snapshotTool = snapshotDef
     ctx.resetRefs()
     return {nodes: buildSnapshot(root, ctx.addRef)}
   })
-  .render(ReadBulkCard)
+  .render(readBulkCard)
 
 const locateTool = locateDef
   .client(async (input, ctx) => {
     const result = await reactBridge.locate(ctx.target(input), ctx.addRef)
     return result ?? fail('no React fiber: element may be outside a React tree or not hydrated yet')
   })
-  .render(ReactCard)
+  .render(reactCard)
 
 const inspectTool = inspectDef
   .client(async (input, ctx) => {
@@ -196,7 +196,7 @@ const inspectTool = inspectDef
       rect: result.rect,
     }
   })
-  .render(ReactCard)
+  .render(reactCard)
 
 const overrideTool = overrideDef
   .client(async (input, ctx) => {
@@ -212,16 +212,16 @@ const overrideTool = overrideDef
     if ('error' in result) fail(result.error)
     return ok({target: input.target, path: input.path ?? '', ...(value === undefined ? {} : {value})})
   })
-  .render(ReactCard)
+  .render(reactCard)
 
 const treeTool = treeDef
   .client(async (input, ctx) => {
     const root = rootOf(ctx, input.selector)
     return root ? await reactBridge.tree(root, ctx.addRef) : badArgs('no root element')
   })
-  .render(ReactCard)
+  .render(reactCard)
 
-const findTool = findDef.client((input, ctx) => reactBridge.find(input.name, ctx.addRef)).render(ReactCard)
+const findTool = findDef.client((input, ctx) => reactBridge.find(input.name, ctx.addRef)).render(reactCard)
 
 const trackTool = trackDef
   .client((input) => {
@@ -233,7 +233,7 @@ const trackTool = trackDef
     if (action === 'stop') return stopTracking()
     return trackReport({name: input.name})
   })
-  .render(ReactCard)
+  .render(reactCard)
 
 function listEffects(effects: readonly ClientEffect[], requestedEffect: string | undefined) {
   if (requestedEffect !== undefined) badArgs('action list does not take an effect name; it reports every effect')
@@ -265,7 +265,7 @@ const effectTool = effectDef
     driveEffect(effect, action)
     return {effect: effect.name, enabled: effect.enabled()}
   })
-  .render(EffectCard)
+  .render(effectCard)
 
 const waitTool = waitDef
   .client((input) =>
@@ -273,7 +273,7 @@ const waitTool = waitDef
       ? waitFor(input.selector, input.state ?? 'visible', input.timeout ?? 5000)
       : badArgs('wait requires a selector'),
   )
-  .render(ActCard)
+  .render(actCard)
 
 function afterResultFlush(action: () => void): void {
   setTimeout(action, 0)
@@ -284,11 +284,11 @@ const reloadTool = reloadDef
     afterResultFlush(() => ctx.document.location.reload())
     return ok({initiated: true})
   })
-  .render(ActCard)
+  .render(actCard)
 
 const textTool = textDef
   .client((input, ctx) => ({text: (ctx.target(input).textContent ?? '').slice(0, DOM_CAP)}))
-  .render(ReadValueCard)
+  .render(readValueCard)
 
 const valueTool = valueDef
   .client((input, ctx) => {
@@ -296,11 +296,11 @@ const valueTool = valueDef
     if (!isField(el)) return {value: null}
     return {value: isSensitiveField(el) ? MASKED_VALUE : el.value}
   })
-  .render(ReadValueCard)
+  .render(readValueCard)
 
 const attrTool = attrDef
   .client((input, ctx) => ({value: ctx.target(input).getAttribute(input.attribute)}))
-  .render(ReadValueCard)
+  .render(readValueCard)
 
 const clickTool = clickDef
   .client((input, ctx) => {
@@ -309,7 +309,7 @@ const clickTool = clickDef
     el.click()
     return ok()
   })
-  .render(ActCard)
+  .render(actCard)
 
 const hoverTool = hoverDef
   .client((input, ctx) => {
@@ -318,14 +318,14 @@ const hoverTool = hoverDef
     el.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}))
     return ok()
   })
-  .render(ActCard)
+  .render(actCard)
 
 const scrollTool = scrollDef
   .client((input, ctx) => {
     ctx.target(input).scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'})
     return ok()
   })
-  .render(ActCard)
+  .render(actCard)
 
 const submitTool = submitDef
   .client((input, ctx) => {
@@ -335,7 +335,7 @@ const submitTool = submitDef
     form.requestSubmit()
     return ok()
   })
-  .render(ActCard)
+  .render(actCard)
 
 const fillTool = fillDef
   .client((input, ctx) => {
@@ -345,7 +345,7 @@ const fillTool = fillDef
     fireInput(el)
     return ok({value: isSensitiveField(el) ? MASKED_VALUE : el.value})
   })
-  .render(ActCard)
+  .render(actCard)
 
 const selectTool = selectDef
   .client((input, ctx) => {
@@ -355,13 +355,13 @@ const selectTool = selectDef
     fireInput(el)
     return ok({value: el.value})
   })
-  .render(ActCard)
+  .render(actCard)
 
-const checkTool = checkDef.client((input, ctx) => toggleChecked(ctx.target(input), true, 'check')).render(ActCard)
+const checkTool = checkDef.client((input, ctx) => toggleChecked(ctx.target(input), true, 'check')).render(actCard)
 
 const uncheckTool = uncheckDef
   .client((input, ctx) => toggleChecked(ctx.target(input), false, 'uncheck'))
-  .render(ActCard)
+  .render(actCard)
 
 const pressTool = pressDef
   .client((input, ctx) => {
@@ -370,35 +370,35 @@ const pressTool = pressDef
     el.dispatchEvent(new KeyboardEvent('keyup', {key: input.key, bubbles: true}))
     return ok()
   })
-  .render(ActCard)
+  .render(actCard)
 
 const setattrTool = setattrDef
   .client((input, ctx) => {
     ctx.target(input).setAttribute(input.attribute, input.value)
     return ok()
   })
-  .render(EditLiveCard)
+  .render(editLiveCard)
 
 const removeattrTool = removeattrDef
   .client((input, ctx) => {
     ctx.target(input).removeAttribute(input.attribute)
     return ok()
   })
-  .render(EditLiveCard)
+  .render(editLiveCard)
 
 const addclassTool = addclassDef
   .client((input, ctx) => {
     ctx.target(input).classList.add(input.class)
     return ok()
   })
-  .render(EditLiveCard)
+  .render(editLiveCard)
 
 const removeclassTool = removeclassDef
   .client((input, ctx) => {
     ctx.target(input).classList.remove(input.class)
     return ok()
   })
-  .render(EditLiveCard)
+  .render(editLiveCard)
 
 const setstyleTool = setstyleDef
   .client((input, ctx) => {
@@ -407,35 +407,35 @@ const setstyleTool = setstyleDef
     el.style.setProperty(input.prop, input.value)
     return ok()
   })
-  .render(EditLiveCard)
+  .render(editLiveCard)
 
 const settextTool = settextDef
   .client((input, ctx) => {
     ctx.target(input).textContent = input.text
     return ok()
   })
-  .render(EditLiveCard)
+  .render(editLiveCard)
 
 const sethtmlTool = sethtmlDef
   .client((input, ctx) => {
     ctx.target(input).innerHTML = input.html
     return ok()
   })
-  .render(EditLiveCard)
+  .render(editLiveCard)
 
 const removeTool = removeDef
   .client((input, ctx) => {
     ctx.target(input).remove()
     return ok()
   })
-  .render(EditLiveCard)
+  .render(editLiveCard)
 
 const insertTool = insertDef
   .client((input, ctx) => {
     ctx.target(input).insertAdjacentHTML(INSERT_POS[input.position ?? 'append'] ?? 'beforeend', input.html)
     return ok()
   })
-  .render(EditLiveCard)
+  .render(editLiveCard)
 
 const cssTool = cssDef
   .client((input, ctx) => {
@@ -445,7 +445,7 @@ const cssTool = cssDef
     ctx.document.head.appendChild(style)
     return ok()
   })
-  .render(EditLiveCard)
+  .render(editLiveCard)
 
 const evalTool = evalDef
   .client(async (input) => {
@@ -453,7 +453,7 @@ const evalTool = evalDef
     const result: unknown = await fn()
     return {result: serialize(result)}
   })
-  .render(EditLiveCard)
+  .render(editLiveCard)
 
 export const PAGE_CLIENT_TOOLS: readonly AnyToolBuilder[] = [
   routeTool,

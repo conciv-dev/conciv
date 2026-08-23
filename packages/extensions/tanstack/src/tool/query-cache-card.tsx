@@ -1,9 +1,9 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {RelativeTime} from '@conciv/ui-kit-system'
-import {CardNote, CardRow, CardRows, InspectionCard, JsonValue} from './card-shared.js'
+import {CardNote, CardRow, CardRows, settledCardBody, InspectionCard, JsonValue} from './card-shared.js'
 
 const EntrySchema = z
   .object({
@@ -74,4 +74,9 @@ export function QueryCacheCard(props: ToolCardProps): JSX.Element {
       </Show>
     </InspectionCard>
   )
+}
+
+export const queryCacheCard: ToolCardView = {
+  render: QueryCacheCard,
+  hasEmbeddedBody: (part, result) => settledCardBody(part, result, parseCache(result) !== null),
 }

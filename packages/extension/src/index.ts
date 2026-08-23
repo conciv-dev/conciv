@@ -59,6 +59,7 @@ export type {
   ServerResult,
   SystemPromptFactory,
   SystemPromptResolver,
+  ToolCard,
   ToolRenderer,
   ToolRequest,
 } from './types.js'

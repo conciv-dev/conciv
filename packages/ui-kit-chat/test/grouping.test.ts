@@ -37,7 +37,12 @@ function group(parts: MessagePart[], grouper: Grouper = defaultGrouper, context:
   return shape(groupParts(parts, grouper, context))
 }
 
-const CONFIRM_ENTRY: ToolCardEntry = {names: ['confirm_ui'], render: () => null, display: 'standalone'}
+const CONFIRM_ENTRY: ToolCardEntry = {
+  names: ['confirm_ui'],
+  render: () => null,
+  hasEmbeddedBody: () => false,
+  display: 'standalone',
+}
 const STANDALONE_CONTEXT: GroupByContext = {toolEntries: [CONFIRM_ENTRY]}
 
 const pageGrouper = createPageSessionGrouper({
@@ -619,7 +624,7 @@ describe('image parts', () => {
 
 describe('standaloneToolNames', () => {
   it('lets the first entry claiming a name decide, matching card resolution', () => {
-    const inlineFirst: ToolCardEntry = {names: ['confirm_ui'], render: () => null}
+    const inlineFirst: ToolCardEntry = {names: ['confirm_ui'], render: () => null, hasEmbeddedBody: () => false}
     const context: GroupByContext = {toolEntries: [inlineFirst, CONFIRM_ENTRY]}
     expect([...standaloneToolNames(context)]).toEqual([])
     expect(
@@ -632,7 +637,9 @@ describe('standaloneToolNames', () => {
   })
 
   it('marks the name standalone when the first entry claiming it is standalone', () => {
-    const context: GroupByContext = {toolEntries: [CONFIRM_ENTRY, {names: ['confirm_ui'], render: () => null}]}
+    const context: GroupByContext = {
+      toolEntries: [CONFIRM_ENTRY, {names: ['confirm_ui'], render: () => null, hasEmbeddedBody: () => false}],
+    }
     expect([...standaloneToolNames(context)]).toEqual(['confirm_ui'])
   })
 })
