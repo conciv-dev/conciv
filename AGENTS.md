@@ -18,6 +18,14 @@ README.md; this file is the non-obvious operational rules.
 ## Toolchain
 
 - pnpm (exact version pinned in root `package.json` `packageManager`), Node >= 22. Monorepo orchestrated by turbo.
+- `intent list` needs `pnpm install` to have run in the tree you invoke it from. Intent discovers skills by
+  resolving each workspace package's dependencies; in a git worktree with no `node_modules` of its own, Node
+  resolution escapes upward into the MAIN checkout's `node_modules` and finds only what is hoisted there
+  (`fallow`, `@conciv/skills`). The result is a list showing `fallow` alone and every other entry reported as
+  "declared in intent.skills but was not discovered" — and `@conciv/*` resolved from the main checkout is
+  additionally mismatched, because its `packageRoot` falls outside this root's workspace globs so it is typed
+  `npm` and the `workspace:` matcher misses it. `load` does not apply that kind check, so it keeps working and
+  masks the problem. `pnpm install` in the worktree is the whole fix; nothing in `intent.skills` needs changing.
 - Local turbo runs default to 50% concurrency (`turbo.json`) so builds don't saturate the workstation;
   CI re-uncaps with `TURBO_CONCURRENCY=100%` per workflow. Agent/background gate runs use
   `TURBO_CONCURRENCY=70%` and are not niced; test gates stay serial (`TURBO_CONCURRENCY=1 VITEST_MAX_FORKS=1`).
