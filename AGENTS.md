@@ -174,9 +174,11 @@ true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` requir
 
 - Whiteboard (TanStack DB over libSQL): never write to the db inside a collection subscription,
   effect, or render body: it triggers a re-render storm. Writes go in event handlers only.
-- The whiteboard test suite (`packages/extensions/whiteboard/test`) runs in CI only, never locally:
-  not one test, not `--filter`'d. Local gates for whiteboard changes are typecheck/build/lint;
-  behavior evidence comes from a green CI run on the PR.
+- The whiteboard test suite (`packages/extensions/whiteboard/test`) boots a real Chromium + server
+  per test. Its vitest config self-caps `maxWorkers` at 3 off-CI (`localForkCap`), which makes local
+  runs safe: build first (`pnpm turbo run build --filter=@conciv/extension-whiteboard`), then
+  `pnpm exec vitest run` from the package. Never bypass or remove that cap; uncapped runs have
+  saturated a workstation before.
 - The widget bundle must externalize every `@conciv/extension/*` subpath and shared Ark/Solid deps;
   a second bundled copy splits the Solid/Ark context and extension popovers render at 0,0. Guarded
   by the mount-externals build test; don't weaken it.
