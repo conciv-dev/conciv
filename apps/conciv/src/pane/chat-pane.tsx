@@ -32,6 +32,7 @@ import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {MarkerRow} from '@conciv/contract'
+import type {UIMessage} from '@tanstack/ai-client'
 import {collectToolRenderers} from '@conciv/extension'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
@@ -72,6 +73,15 @@ const RESPONDING_TITLE = 'Responding…'
 const ERROR = 'flex gap-2 items-center text-chat-danger text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-chat-surface-sm border border-chat-danger-line bg-transparent text-chat-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-chat shrink-0 trans-bg hover:bg-chat-danger-14'
+
+function lastPartJoinsChain(messages: readonly UIMessage[]): boolean {
+  const message = messages.at(-1)
+  if (!message || message.role !== 'assistant') return false
+  const part = message.parts.at(-1)
+  if (!part) return false
+  if (part.type === 'tool-call') return true
+  return part.type === 'thinking' && part.content.trim().length > 0
+}
 
 function resetSlideOnSelf(reset: () => void) {
   return (event: AnimationEvent) => {
@@ -143,6 +153,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
     if (call) return nowTitle(call, catalog)
     return isThinking() ? THINKING_TITLE : RESPONDING_TITLE
   }
+  const chainNarrates = createMemo(() => isStreaming() && lastPartJoinsChain(chat.messages()))
 
   const captures = useSessionCaptures(sessionId)
   const [draftStorage] = createResource(() => makeDraftStorage(rpc, sessionId))
@@ -299,7 +310,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                     </Suspense>
                   </Thread.Viewport>
                   <Thread.Composer>
-                    <Show when={narrating()}>
+                    <Show when={narrating() && !chainNarrates()}>
                       <div class={NOW_PIN}>
                         <NowLine title={narrationTitle()} />
                       </div>

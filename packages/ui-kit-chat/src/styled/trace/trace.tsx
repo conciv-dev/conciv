@@ -17,6 +17,7 @@ const COMPACT_LINE = 'flex-1 min-w-0 truncate text-[11px] leading-none [font-fam
 const TOGGLE =
   'flex-none text-[11.5px] leading-none [font-family:var(--chat-font)] text-chat-dim group-hover:text-chat-affordance [transition:color_120ms_var(--chat-ease)] motion-reduce:[transition:none]'
 const ROWS = 'relative flex flex-col min-w-0 p-0 m-0 list-none'
+const NOW_ITEM = 'relative list-none min-w-0 pb-px'
 
 export function Trace(props: {
   summary: string
@@ -26,6 +27,7 @@ export function Trace(props: {
   streaming?: boolean
   defaultOpen?: boolean
   open?: boolean
+  now?: () => JSX.Element
   onOpenChange?: (open: boolean) => void
 }): JSX.Element {
   const [local] = splitProps(props, [
@@ -36,6 +38,7 @@ export function Trace(props: {
     'streaming',
     'defaultOpen',
     'open',
+    'now',
     'onOpenChange',
   ])
   const [rootEl, setRootEl] = createSignal<HTMLElement>()
@@ -81,6 +84,7 @@ export function Trace(props: {
       <Collapsible.Content>
         <ul ref={setListEl} class={ROWS} aria-label={local.label ?? 'Execution trace'}>
           <For each={local.items}>{(item) => item.render(branchFor(item))}</For>
+          <Show when={open() ? local.now : undefined}>{(now) => <li class={NOW_ITEM}>{now()()}</li>}</Show>
         </ul>
       </Collapsible.Content>
     </Collapsible.Root>

@@ -58,6 +58,7 @@ import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 import {Markdown, warmHighlighter} from './markdown.js'
 import {toolFallbackCardView} from '../tools/styled/tool-fallback.js'
 import {ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
+import {NowLine} from './now-line.js'
 import {Trace, type TraceBranch, type TraceItem} from './trace/trace.js'
 import {TraceRunRow} from './trace/trace-row.js'
 import {TraceBodyFrame} from './trace/output-block.js'
@@ -84,6 +85,8 @@ export type ThreadMessagesProps = {
 const PLAN_LABEL = 'plan'
 const REASONING_LABEL = 'reasoning'
 const PLAN_INLINE_LENGTH = 90
+const THINKING_TITLE = 'Thinking…'
+const RESPONDING_TITLE = 'Responding…'
 
 const PROMPT_TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', hour12: false})
 
@@ -205,9 +208,21 @@ function AssistantTurn(props: {
       const call = segmentActive() ? activeCall() : null
       return call ? nowTitle(call, ctx.catalog) : summary()
     }
+    const narration = () => {
+      const call = activeCall()
+      if (call) return nowTitle(call, ctx.catalog)
+      return reasoned() ? THINKING_TITLE : RESPONDING_TITLE
+    }
+    const now = () => <NowLine title={narration()} />
     return (
       <Show when={segmentRollup().toolCalls > 0 || reasoned()}>
-        <Trace summary={summary()} compactLine={compactLine()} items={items()} streaming={segmentActive()} />
+        <Trace
+          summary={summary()}
+          compactLine={compactLine()}
+          items={items()}
+          streaming={segmentActive()}
+          now={segmentActive() ? now : undefined}
+        />
       </Show>
     )
   }

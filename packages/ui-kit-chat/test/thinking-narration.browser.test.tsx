@@ -1,4 +1,6 @@
 import 'virtual:uno.css'
+import '@conciv/ui-kit-system/tokens.css'
+import '@conciv/ui-kit-chat/theme/tokens.css'
 import {onMount, type JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
@@ -67,4 +69,17 @@ it('narrates the running tool on the collapsed trace line instead of a tally', a
   await page.screenshot({path: '__screenshots__/thinking-narration/collapsed-activity-line.png'})
 
   await haltRun()
+})
+
+it('narrates the live step as a spinner row inside the open chain group', async () => {
+  mountView(streamingThread(RUNNING_TOOL_CHUNKS, 10))
+
+  await startRun()
+  await expect.element(traceTrigger(), {timeout: TIMEOUT_MS}).toHaveAttribute('data-state', 'open')
+  await expect.element(page.getByText('Running ls', {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
+  await expect.element(page.getByText('⠋', {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
+  await page.screenshot({path: '__screenshots__/thinking-narration/in-chain-narration-row.png'})
+
+  await haltRun()
+  await expect.element(page.getByText('⠋', {exact: true})).not.toBeInTheDocument()
 })

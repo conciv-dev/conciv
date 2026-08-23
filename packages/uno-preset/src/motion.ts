@@ -20,6 +20,9 @@ export const motion = {
   'anim-fab-ring':
     'animate-chat-fab-ring animate-duration-[1.6s] animate-ease-chat animate-iteration-count-infinite motion-reduce:animate-none',
   'anim-now': 'animate-fade-in animate-duration-[220ms] animate-ease-chat motion-reduce:animate-none',
+  'anim-word-in': 'animate-chat-word-in animate-duration-[200ms] animate-ease-chat motion-reduce:animate-none',
+  'anim-word-out':
+    'animate-chat-word-out animate-duration-[180ms] animate-ease-chat animate-fill-mode-forwards motion-reduce:animate-none',
   'anim-collapse-open':
     'animate-chat-collapse-open animate-duration-[200ms] animate-ease-chat motion-reduce:animate-duration-[0.01ms]',
   'anim-collapse-closed':
