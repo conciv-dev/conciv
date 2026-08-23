@@ -1,9 +1,7 @@
-import {Show, createMemo, createSignal, splitProps, type Accessor, type JSX} from 'solid-js'
-import {useQuery, type QueryClient} from '@tanstack/solid-query'
+import {Show, splitProps, type Accessor, type JSX} from 'solid-js'
 import {Menu} from '@conciv/ui-kit-system'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
-import type {SettingsLogEntry, SettingsScope, SettingsSource} from '@conciv/protocol/settings-types'
-import type {AppData} from '../data/app-data.js'
+import type {SettingsSource} from '@conciv/protocol/settings-types'
 import type {SchemeSetting} from '../data/widget-settings.js'
 import {
   applyGloballyWrite,
@@ -28,42 +26,14 @@ const MENU_CONTENT_STYLE = {
 const MENU_ROW =
   'flex items-center gap-2 px-1 py-1.5 rounded-[var(--chat-radius-sm)] text-[12.5px] [color:var(--chat-text-2)] bg-transparent [border:none] cursor-pointer w-full text-start trans-color-bg hover:[background:var(--chat-fill)] hover:[color:var(--chat-text-hi)]'
 
-function newestGlobalRow(rows: SettingsLogEntry[]): SettingsLogEntry | undefined {
-  return rows
-    .filter((row) => row.scope === 'global')
-    .reduce<SettingsLogEntry | undefined>((newest, row) => (newest && newest.id > row.id ? newest : row), undefined)
-}
-
-export function ScopeBadge(props: {
-  setting: Accessor<SchemeSetting>
-  writes: SchemeWrites
-  data: AppData
-  queryClient: QueryClient
-}): JSX.Element {
-  const [local] = splitProps(props, ['setting', 'writes', 'data', 'queryClient'])
-  const [open, setOpen] = createSignal(false)
-  const history = useQuery(
-    () => local.data.utils.settings.history.queryOptions({input: {key: 'scheme'}, enabled: open()}),
-    () => local.queryClient,
-  )
-  const globalRow = createMemo(() => (history.isSuccess ? newestGlobalRow(history.data ?? []) : undefined))
-  const globalIsSet = createMemo(() => {
-    const row = globalRow()
-    return row !== undefined && row.value !== null
-  })
+export function ScopeBadge(props: {setting: Accessor<SchemeSetting>; writes: SchemeWrites}): JSX.Element {
+  const [local] = splitProps(props, ['setting', 'writes'])
   const source = () => local.setting().source
   const label = () => source().toUpperCase()
-  const resetLayers = (): SettingsScope[] => {
-    if (source() === 'global') return ['global']
-    return globalIsSet() ? ['project', 'global'] : ['project']
-  }
+  const globalIsSet = () => local.setting().layers.global.state === 'valid'
 
   return (
-    <Menu.Root
-      open={open()}
-      onOpenChange={(details) => setOpen(details.open)}
-      positioning={{placement: 'bottom-start'}}
-    >
+    <Menu.Root positioning={{placement: 'bottom-start'}}>
       <Menu.Trigger
         asChild={(triggerProps) => (
           <button
@@ -104,7 +74,7 @@ export function ScopeBadge(props: {
             </Menu.Item>
           </Show>
           <Show when={source() !== 'default'}>
-            <Menu.Item class={MENU_ROW} value="reset" onSelect={() => local.writes.run(resetWrite(resetLayers()))}>
+            <Menu.Item class={MENU_ROW} value="reset" onSelect={() => local.writes.run(resetWrite())}>
               Reset to default
             </Menu.Item>
           </Show>

@@ -13,7 +13,7 @@ let kit: EmbedKit
 let host: {base: string; close: () => Promise<void>}
 
 test.beforeEach(async () => {
-  kit = await bootEmbedKit({globalStateDir: mkdtempSync(join(tmpdir(), 'conciv-settings-home-'))})
+  kit = await bootEmbedKit({globalSettingsDir: mkdtempSync(join(tmpdir(), 'conciv-settings-home-'))})
   host = await serveHost(() =>
     hostPage({
       apiBase: kit.base,
@@ -142,7 +142,7 @@ test('a widget on another page repaints from the live settings notification', as
   await other.close()
 })
 
-test('an edit while the value comes from the global layer stays global', async ({page}) => {
+test('an edit while the value comes from the global layer moves the setting to this project', async ({page}) => {
   await openWidget(page)
   await openSettings(page)
   await chooseScheme(page, 'Dark')
@@ -150,9 +150,77 @@ test('an edit while the value comes from the global layer stays global', async (
 
   await chooseScheme(page, 'Light')
 
-  await expect(scopeBadge(page)).toHaveAccessibleName(/GLOBAL/)
-  await expect(page.getByText('Changes save automatically to all projects.')).toBeVisible()
+  await expect(scopeBadge(page)).toHaveAccessibleName(/PROJECT/)
+  await expect(page.getByText('Changes save automatically to this project.')).toBeVisible()
   await expect(widgetRoot(page)).toHaveClass(/\blight\b/)
+
+  await scopeBadge(page).click()
+  await expect(page.getByRole('menuitem', {name: 'Use global value'})).toBeVisible()
+})
+
+test('applying to all projects goes through one server call, not a set plus a clear', async ({page}) => {
+  const calls: string[] = []
+  await page.route('**/settings/**', async (route) => {
+    calls.push(new URL(route.request().url()).pathname)
+    await route.continue()
+  })
+
+  await openWidget(page)
+  await openSettings(page)
+  await chooseScheme(page, 'Dark')
+  await expect(scopeBadge(page)).toHaveAccessibleName(/PROJECT/)
+
+  calls.length = 0
+  await scopeBadge(page).click()
+  await page.getByRole('menuitem', {name: 'Apply to all projects'}).click()
+  await expect(scopeBadge(page)).toHaveAccessibleName(/GLOBAL/)
+
+  const writes = calls.filter((path) => !path.endsWith('/settings/get'))
+  expect(writes.filter((path) => path.endsWith('/settings/applyGlobally'))).toHaveLength(1)
+  expect(writes.filter((path) => path.endsWith('/settings/set'))).toHaveLength(0)
+  expect(writes.filter((path) => path.endsWith('/settings/clear'))).toHaveLength(0)
+})
+
+test('resetting to default goes through one server call, not a pair of clears', async ({page}) => {
+  const calls: string[] = []
+  await page.route('**/settings/**', async (route) => {
+    calls.push(new URL(route.request().url()).pathname)
+    await route.continue()
+  })
+
+  await openWidget(page)
+  await openSettings(page)
+  await chooseScheme(page, 'Dark')
+  await applyGlobally(page)
+
+  calls.length = 0
+  await scopeBadge(page).click()
+  await page.getByRole('menuitem', {name: 'Reset to default'}).click()
+  await expect(scopeBadge(page)).toHaveAccessibleName(/DEFAULT/)
+
+  const writes = calls.filter((path) => !path.endsWith('/settings/get'))
+  expect(writes.filter((path) => path.endsWith('/settings/reset'))).toHaveLength(1)
+  expect(writes.filter((path) => path.endsWith('/settings/clear'))).toHaveLength(0)
+})
+
+test('a stale revision surfaces a conflict the user can retry, and never clobbers the stored value', async ({page}) => {
+  await openWidget(page)
+  await openSettings(page)
+  await chooseScheme(page, 'Dark')
+  await expect(scopeBadge(page)).toHaveAccessibleName(/PROJECT/)
+
+  await page.route('**/settings/set**', async (route) => {
+    const body = route.request().postData() ?? ''
+    await route.continue({postData: body.replace(/"expectedRevision":"[^"]*"/, '"expectedRevision":"stale"')})
+  })
+  await page.getByText('Light', {exact: true}).click()
+
+  await expect(page.getByText('Your settings changed somewhere else.', {exact: false})).toBeVisible()
+  await expect(
+    page.getByRole('alert').filter({hasText: 'Color scheme not saved because the settings were changed elsewhere.'}),
+  ).toBeAttached()
+  await expect(schemeOption(page, 'Dark')).toBeChecked()
+  await expect(widgetRoot(page)).toHaveClass(/\bdark\b/)
 })
 
 test('the badge forks a global value into a project-only override', async ({page}) => {

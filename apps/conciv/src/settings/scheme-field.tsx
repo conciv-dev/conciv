@@ -1,7 +1,5 @@
 import {For, Match, Show, Switch, splitProps, type Accessor, type JSX} from 'solid-js'
-import type {QueryClient} from '@tanstack/solid-query'
 import {SegmentGroup} from '@conciv/ui-kit-system'
-import type {AppData} from '../data/app-data.js'
 import {SCHEME_VALUES, type SchemeSetting, type SchemeValue} from '../data/widget-settings.js'
 import {SchemeFieldPending} from '../shell/pending.js'
 import {ScopeBadge} from './scope-badge.js'
@@ -64,13 +62,11 @@ function SchemeTiles(props: {setting: Accessor<SchemeSetting>; writes: SchemeWri
 export function SchemeField(props: {
   setting: Accessor<SchemeSetting>
   writes: SchemeWrites
-  data: AppData
-  queryClient: QueryClient
   isLoading: Accessor<boolean>
   isError: Accessor<boolean>
   retry: () => void
 }): JSX.Element {
-  const [local] = splitProps(props, ['setting', 'writes', 'data', 'queryClient', 'isLoading', 'isError', 'retry'])
+  const [local] = splitProps(props, ['setting', 'writes', 'isLoading', 'isError', 'retry'])
   return (
     <Switch>
       <Match when={local.isLoading()}>
@@ -85,23 +81,20 @@ export function SchemeField(props: {
             <span class="chat-settings-field-label" id="scheme-field-label">
               Color scheme
             </span>
-            <ScopeBadge
-              setting={local.setting}
-              writes={local.writes}
-              data={local.data}
-              queryClient={local.queryClient}
-            />
+            <ScopeBadge setting={local.setting} writes={local.writes} />
           </div>
           <SchemeTiles setting={local.setting} writes={local.writes} />
           <Show
-            when={local.writes.isError()}
+            when={local.writes.error()}
             fallback={<span class="chat-settings-field-hint">Auto follows the host page.</span>}
           >
-            <SettingsError
-              message="Could not save that setting."
-              retryLabel="Try again"
-              onRetry={() => local.writes.retryLast()}
-            />
+            {(writeError) => (
+              <SettingsError
+                message={writeError().message}
+                retryLabel="Try again"
+                onRetry={writeError().retryable ? () => local.writes.retryLast() : undefined}
+              />
+            )}
           </Show>
         </div>
       </Match>

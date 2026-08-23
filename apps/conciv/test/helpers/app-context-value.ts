@@ -42,7 +42,12 @@ export function makeAppContextValue(options: AppContextValueOptions): AppContext
     notifyInteractive: () => {},
     colorScheme: () => 'dark',
     widgetSettings: {
-      scheme: () => ({value: 'auto', source: 'default'}),
+      scheme: () => ({
+        value: 'auto',
+        source: 'default',
+        layers: {project: {state: 'absent', value: undefined}, global: {state: 'absent', value: undefined}},
+      }),
+      revisions: () => ({project: '', global: ''}),
       isLoading: () => false,
       isError: () => false,
       retry: () => {},

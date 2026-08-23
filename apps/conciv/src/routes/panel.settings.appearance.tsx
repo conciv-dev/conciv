@@ -2,7 +2,7 @@ import {createFileRoute} from '@tanstack/solid-router'
 import type {JSX} from 'solid-js'
 import {useAnnounce, useAppData, useAppQueryClient, useRpc, useWidgetSettings} from '../app/context.js'
 import {SchemeField} from '../settings/scheme-field.js'
-import {createSchemeWrites, scopeLabelFor} from '../settings/scheme-writes.js'
+import {createSchemeWrites} from '../settings/scheme-writes.js'
 
 export const Route = createFileRoute('/panel/settings/appearance')({component: AppearanceSection})
 
@@ -12,7 +12,7 @@ function AppearanceSection(): JSX.Element {
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
   const settings = useWidgetSettings()
-  const writes = createSchemeWrites({rpc, data, queryClient, announce})
+  const writes = createSchemeWrites({rpc, data, queryClient, announce, revisions: settings.revisions})
 
   return (
     <>
@@ -20,8 +20,6 @@ function AppearanceSection(): JSX.Element {
         <SchemeField
           setting={settings.scheme}
           writes={writes}
-          data={data}
-          queryClient={queryClient}
           isLoading={settings.isLoading}
           isError={settings.isError}
           retry={settings.retry}
@@ -29,7 +27,7 @@ function AppearanceSection(): JSX.Element {
       </section>
       <p class="chat-settings-footer">
         <span class="chat-settings-footer-label">SCOPE</span>
-        Changes save automatically to {scopeLabelFor(settings.scheme().source)}.
+        Changes save automatically to this project.
       </p>
     </>
   )

@@ -11,7 +11,7 @@ export async function bootEmbedKit(
     models?: HarnessModel[]
     commands?: HarnessCommand[]
     history?: HarnessSessionMeta[]
-    globalStateDir?: string
+    globalSettingsDir?: string
   } = {},
 ): Promise<EmbedKit> {
   const kit = await bootCoreKit({
@@ -21,7 +21,7 @@ export async function bootEmbedKit(
     models: opts.models,
     commands: opts.commands,
     history: opts.history,
-    globalStateDir: opts.globalStateDir,
+    globalSettingsDir: opts.globalSettingsDir,
   })
   return {
     ...kit,
