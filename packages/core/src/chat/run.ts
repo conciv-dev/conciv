@@ -350,7 +350,7 @@ async function* runStream(
   try {
     const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, abort)
     processor.addUserMessage(userParts(req.content))
-    deps.stream.publish(sessionId, aguiSnapshotFor(await sessionSnapshot(deps, sessionId)))
+    await runLog.append([aguiSnapshotFor(await sessionSnapshot(deps, sessionId))]).catch(() => {})
     const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
     const bounded = boundFirstChunk(stream, timeoutMs, () => {
       outcome.error = `${deps.harness.id} produced no output within ${Math.round(timeoutMs / 1000)}s`

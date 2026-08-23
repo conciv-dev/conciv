@@ -99,13 +99,34 @@ function storedMessages(deps: ChatDeps, sessionId: SessionId): UIMessage[] {
   return ChatHistorySchema.parse(stored)
 }
 
-function settledTranscript(transcript: UIMessage[], stored: UIMessage[]): UIMessage[] {
+const storedPrompt = (message: UIMessage): string => foldedText(userTextOf(message))
+
+const transcriptPrompt = (message: UIMessage): string => foldedText(withoutFileRefs(userTextOf(message)))
+
+function promptsOf(messages: UIMessage[], read: (message: UIMessage) => string): string[] {
+  return messages.filter((message) => message.role === 'user').map(read)
+}
+
+function isPrefixOf(candidate: string[], whole: string[]): boolean {
+  return candidate.length <= whole.length && candidate.every((text, index) => text === whole[index])
+}
+
+function boundaryIndex(transcript: UIMessage[], stored: UIMessage[]): number {
   const head = stored[0]
-  if (!head || head.role !== 'user') return transcript
-  const pending = foldedText(userTextOf(head))
-  const index = transcript.findLastIndex(
-    (message) => message.role === 'user' && foldedText(withoutFileRefs(userTextOf(message))) === pending,
+  if (!head || head.role !== 'user') return -1
+  const pending = storedPrompt(head)
+  const candidates = transcript.flatMap((message, index) =>
+    message.role === 'user' && transcriptPrompt(message) === pending ? [index] : [],
   )
+  const spoken = promptsOf(stored, storedPrompt)
+  const contiguous = candidates.find((index) =>
+    isPrefixOf(promptsOf(transcript.slice(index), transcriptPrompt), spoken),
+  )
+  return contiguous ?? candidates.at(-1) ?? -1
+}
+
+function settledTranscript(transcript: UIMessage[], stored: UIMessage[]): UIMessage[] {
+  const index = boundaryIndex(transcript, stored)
   if (index === -1) return transcript
   return transcript.slice(0, index)
 }
