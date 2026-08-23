@@ -22,6 +22,7 @@ export function chatRouter(deps: RpcDeps, sessionOs: SessionOs) {
     permissionDecision: sessionOs.chat.permissionDecision.handler(({input, errors}) => {
       const owner = deps.chat.asks.owner(input.approvalId)
       if (owner === null) throw errors.UNKNOWN_REQUEST()
+      if (input.approved && input.scope === 'session') deps.chat.commandMemory.remember(owner, input.approvalId)
       if (!deps.runtime.forSession(owner).asks.reply(input.approvalId, input.approved)) {
         throw errors.UNKNOWN_REQUEST()
       }

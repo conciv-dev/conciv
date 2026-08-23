@@ -6,6 +6,7 @@ import {createTestHarness, type TestHarness} from '@conciv/harness-testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {makeConcivSandbox} from '../../src/chat/sandbox.js'
+import {createCommandMemory} from '../../src/chat/command-memory.js'
 import {createAskRegistry} from '../../src/chat/ask.js'
 import {createSessionStreams} from '../../src/chat/subscribe.js'
 import {createLiveRuns} from '../../src/chat/live-runs.js'
@@ -37,6 +38,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     sandbox: makeConcivSandbox(stateRoot),
     db,
     asks: createAskRegistry(),
+    commandMemory: createCommandMemory(),
     durability,
     runControl,
     runs,

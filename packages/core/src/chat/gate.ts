@@ -12,11 +12,14 @@ import {
 } from '@tanstack/ai-sandbox'
 import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
 import type {AskRegistry} from './ask.js'
+import type {CommandMemory} from './command-memory.js'
+import {commandSegments, runsAnotherCommand} from './command-grammar.js'
 import {ASK_TIMEOUT_MS} from './ask-constants.js'
 import {makeToolNameNormalizer} from './tool-names.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 const READ_ONLY_COMMANDS = [
+  'cd',
   'ls',
   'cat',
   'pwd',
@@ -52,7 +55,13 @@ function commandPolicy(extraAllows: readonly string[]) {
 }
 
 export function classifyCommand(command: string, extraAllows: readonly string[] = []): PolicyDecision {
-  return evaluateCommand(command, commandPolicy(extraAllows))
+  const segments = commandSegments(command)
+  if (segments === null) return 'ask'
+  const policy = commandPolicy(extraAllows)
+  const readOnly = segments.every(
+    (segment) => !runsAnotherCommand(segment) && evaluateCommand(segment, policy) === 'allow',
+  )
+  return readOnly ? 'allow' : 'ask'
 }
 
 export function riskyMatches(risky: ReadonlySet<string>, toolName: string): boolean {
@@ -61,11 +70,18 @@ export function riskyMatches(risky: ReadonlySet<string>, toolName: string): bool
 
 const BashInputSchema = z.object({command: z.string()})
 
+function bashCommand(toolName: string, toolInput: unknown): string | null {
+  if (toolName !== 'Bash') return null
+  const parsed = BashInputSchema.safeParse(toolInput)
+  return parsed.success ? parsed.data.command : ''
+}
+
 function needsApproval(toolName: string, toolInput: unknown, deps: RunGateDeps): boolean {
   if (riskyMatches(deps.risky, toolName)) return true
-  if (toolName !== 'Bash') return false
-  const parsed = BashInputSchema.safeParse(toolInput)
-  return classifyCommand(parsed.success ? parsed.data.command : '', deps.commandAllows?.() ?? []) !== 'allow'
+  const command = bashCommand(toolName, toolInput)
+  if (command === null) return false
+  if (classifyCommand(command, deps.commandAllows?.() ?? []) === 'allow') return false
+  return deps.memory?.allows(command) !== true
 }
 
 export function requiresApproval(subject: {approval?: 'ask'}): boolean {
@@ -100,15 +116,32 @@ export function asksFor(asks: AskRegistry, sessionId: SessionId): BoundAsks {
   }
 }
 
+export type BoundCommandMemory = {
+  note: (approvalId: string, command: string) => void
+  settle: (approvalId: string) => void
+  allows: (command: string) => boolean
+}
+
+export function commandMemoryFor(memory: CommandMemory, sessionId: SessionId): BoundCommandMemory {
+  return {
+    note: (approvalId, command) => memory.note(sessionId, approvalId, command),
+    settle: (approvalId) => memory.settle(sessionId, approvalId),
+    allows: (command) => memory.allows(sessionId, command),
+  }
+}
+
 export type AskGateDeps = {
   asks: BoundAsks
   emit: (chunk: StreamChunk) => void
   timeoutMs?: number
+  onAsk?: (approvalId: string) => void
+  onAskSettled?: (approvalId: string) => void
 }
 
 export type RunGateDeps = AskGateDeps & {
   risky: ReadonlySet<string>
   commandAllows?: () => readonly string[]
+  memory?: BoundCommandMemory
 }
 
 export function makeAskGate(deps: AskGateDeps): PermissionGate {
@@ -116,8 +149,10 @@ export function makeAskGate(deps: AskGateDeps): PermissionGate {
     decide: async (toolName, toolInput, toolUseId) => {
       const approvalId = randomUUID()
       deps.asks.open(approvalId)
+      deps.onAsk?.(approvalId)
       deps.emit(aguiApprovalRequestedFor({toolCallId: toolUseId, toolName, input: toolInput, approvalId}))
       const approved = await deps.asks.waitFor(approvalId, deps.timeoutMs ?? ASK_TIMEOUT_MS)
+      deps.onAskSettled?.(approvalId)
       if (approved === true) return 'allow'
       return approved === false ? 'deny' : 'timeout'
     },
@@ -125,10 +160,17 @@ export function makeAskGate(deps: AskGateDeps): PermissionGate {
 }
 
 export function makeRunGate(deps: RunGateDeps): PermissionGate {
-  const ask = makeAskGate(deps)
   return {
     decide: async (toolName, toolInput, toolUseId) => {
       if (!needsApproval(toolName, toolInput, deps)) return 'allow'
+      const command = bashCommand(toolName, toolInput)
+      const ask = makeAskGate({
+        ...deps,
+        onAsk: (approvalId) => {
+          if (command !== null) deps.memory?.note(approvalId, command)
+        },
+        onAskSettled: (approvalId) => deps.memory?.settle(approvalId),
+      })
       return ask.decide(toolName, toolInput, toolUseId)
     },
   }

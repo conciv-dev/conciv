@@ -3,6 +3,7 @@ import {expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {PermissionScope} from '@conciv/protocol/chat-types'
 import {TracePermissionBlock} from '../src/styled/trace/permission-block.js'
 import {mountView} from './mount-view.js'
 
@@ -19,19 +20,21 @@ function askingPart(): ToolCallPart {
   }
 }
 
-function ctxRecording(decisions: Array<{id: string; approved: boolean}>): ToolViewCtx {
+type Decision = {id: string; approved: boolean; scope: PermissionScope | undefined}
+
+function ctxRecording(decisions: Decision[]): ToolViewCtx {
   return {
     apiBase: '',
     harnessId: 'test',
     sendMessage: () => {},
     catalog: {loaded: () => true, meta: () => undefined},
     addResult: () => {},
-    respondApproval: (id, approved) => decisions.push({id, approved}),
+    respondApproval: (id, approved, scope) => decisions.push({id, approved, scope}),
   }
 }
 
 it('approves through the Approve button', async () => {
-  const decisions: Array<{id: string; approved: boolean}> = []
+  const decisions: Decision[] = []
   mountView(() => (
     <TracePermissionBlock
       part={askingPart()}
@@ -48,21 +51,21 @@ it('approves through the Approve button', async () => {
   await page.getByRole('button', {name: 'Approve'}).click()
 
   await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
-  expect(decisions).toEqual([{id: 'approval-1', approved: true}])
+  expect(decisions).toEqual([{id: 'approval-1', approved: true, scope: 'once'}])
 })
 
 it('denies through the Deny button', async () => {
-  const decisions: Array<{id: string; approved: boolean}> = []
+  const decisions: Decision[] = []
   mountView(() => <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />)
 
   await page.getByRole('button', {name: 'Deny'}).click()
 
   await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
-  expect(decisions).toEqual([{id: 'approval-1', approved: false}])
+  expect(decisions).toEqual([{id: 'approval-1', approved: false, scope: 'once'}])
 })
 
 it('approves only on the deliberate modifier-Enter, never on a bare Enter', async () => {
-  const decisions: Array<{id: string; approved: boolean}> = []
+  const decisions: Decision[] = []
   mountView(() => <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />)
 
   await userEvent.tab()
@@ -76,22 +79,22 @@ it('approves only on the deliberate modifier-Enter, never on a bare Enter', asyn
   await userEvent.keyboard('{Meta>}{Enter}{/Meta}')
 
   await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
-  expect(decisions).toEqual([{id: 'approval-1', approved: true}])
+  expect(decisions).toEqual([{id: 'approval-1', approved: true, scope: 'once'}])
 })
 
 it('denies when Escape is pressed on the focused block', async () => {
-  const decisions: Array<{id: string; approved: boolean}> = []
+  const decisions: Decision[] = []
   mountView(() => <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />)
 
   await userEvent.tab()
   await userEvent.keyboard('{Escape}')
 
   await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
-  expect(decisions).toEqual([{id: 'approval-1', approved: false}])
+  expect(decisions).toEqual([{id: 'approval-1', approved: false, scope: 'once'}])
 })
 
 it('announces the decision the reader just made', async () => {
-  const decisions: Array<{id: string; approved: boolean}> = []
+  const decisions: Decision[] = []
   mountView(() => <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />)
 
   await page.getByRole('button', {name: 'Deny'}).click()
@@ -100,7 +103,7 @@ it('announces the decision the reader just made', async () => {
 })
 
 it('keeps the announcement status paragraph a child of the list item, both while pending and after it settles', async () => {
-  const decisions: Array<{id: string; approved: boolean}> = []
+  const decisions: Decision[] = []
   const container = mountView(() => (
     <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />
   ))
@@ -114,8 +117,35 @@ it('keeps the announcement status paragraph a child of the list item, both while
   expect(container.querySelector('li > p[role="status"]')).not.toBeNull()
 })
 
+it('remembers the exact command for the session through the session action', async () => {
+  const decisions: Decision[] = []
+  mountView(() => <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />)
+
+  await page.getByRole('button', {name: 'Allow for session'}).click()
+
+  await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+  expect(decisions).toEqual([{id: 'approval-1', approved: true, scope: 'session'}])
+})
+
+it('offers the session action only for an approval that carries a command to remember', async () => {
+  const decisions: Decision[] = []
+  const commandless: ToolCallPart = {
+    type: 'tool-call',
+    id: 'call-2',
+    name: 'canvas.delete',
+    arguments: JSON.stringify({elementId: 'e1'}),
+    state: 'approval-requested',
+    approval: {id: 'approval-2', needsApproval: true},
+  }
+  mountView(() => <TracePermissionBlock part={commandless} ctx={ctxRecording(decisions)} target="canvas.delete" />)
+
+  await expect.element(page.getByRole('button', {name: 'Approve'})).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Deny'})).toBeVisible()
+  expect(document.querySelectorAll('button')).toHaveLength(2)
+})
+
 it('shows the expiry countdown only for a request that carries a deadline', async () => {
-  const decisions: Array<{id: string; approved: boolean}> = []
+  const decisions: Decision[] = []
   mountView(() => (
     <>
       <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />

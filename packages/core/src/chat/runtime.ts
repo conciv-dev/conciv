@@ -15,6 +15,7 @@ import type {ConcivDb} from '@conciv/db'
 import type {CodeCapability} from './capabilities.js'
 import {FIRST_CHUNK_TIMEOUT_MS, READER_FIRST_APPEND_GRACE_MS} from './run-timing.js'
 import type {AskRegistry} from './ask.js'
+import type {CommandMemory} from './command-memory.js'
 import type {AttachmentExpanders} from './run.js'
 import type {LiveRuns} from './live-runs.js'
 import type {SessionStreams} from './subscribe.js'
@@ -31,6 +32,7 @@ export type ChatDeps = {
   sandbox: SandboxDefinition
   db: ConcivDb
   asks: AskRegistry
+  commandMemory: CommandMemory
   durability: (runId: string) => StreamDurability
   runControl: RunController
   runs: RunStore

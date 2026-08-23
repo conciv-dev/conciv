@@ -125,7 +125,14 @@ export type RenameResponse = z.infer<typeof RenameResponseSchema>
 export const OkSchema = z.object({ok: z.boolean()})
 export type Ok = z.infer<typeof OkSchema>
 
-export const PermissionDecisionSchema = z.object({approvalId: z.string(), approved: z.boolean()})
+export const PermissionScopeSchema = z.enum(['once', 'session'])
+export type PermissionScope = z.infer<typeof PermissionScopeSchema>
+
+export const PermissionDecisionSchema = z.object({
+  approvalId: z.string(),
+  approved: z.boolean(),
+  scope: PermissionScopeSchema.default('once'),
+})
 export type PermissionDecision = z.infer<typeof PermissionDecisionSchema>
 
 export const NavigationEntrySchema = z.object({href: z.string(), state: z.unknown().optional()})

@@ -314,7 +314,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     bundler: () => opts.bridge,
     openInEditor: opts.openInEditor,
   })
-  const {asks, liveRuns, registry, stream} = primitives
+  const {asks, commandMemory, liveRuns, registry, stream} = primitives
   const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
     runtime.forSession(request.sessionId).tools.call(name, input, {toolCallId: request.toolCallId})
@@ -447,6 +447,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sandbox: makeConcivSandbox(opts.cwd),
     db,
     asks,
+    commandMemory,
     durability,
     runControl,
     runs,

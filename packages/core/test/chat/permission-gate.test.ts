@@ -3,22 +3,26 @@ import type {StreamChunk} from '@tanstack/ai'
 import {approvalIds} from '@conciv/harness-testkit'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {createAskRegistry} from '../../src/chat/ask.js'
-import {asksFor, makeRunGate} from '../../src/chat/gate.js'
+import {createCommandMemory} from '../../src/chat/command-memory.js'
+import {asksFor, commandMemoryFor, makeRunGate} from '../../src/chat/gate.js'
 
 const SESSION = SessionId.parse('conciv_x')
 
 const fixture = (timeoutMs?: number) => {
   const asks = createAskRegistry()
+  const memory = createCommandMemory()
   const emitted: StreamChunk[] = []
   const risky = new Set(['canvas.delete'])
   const gate = makeRunGate({
     asks: asksFor(asks, SESSION),
+    memory: commandMemoryFor(memory, SESSION),
     emit: (chunk) => emitted.push(chunk),
     risky,
     timeoutMs: timeoutMs ?? 100,
   })
   const approvalId = (): string | undefined => emitted.flatMap(approvalIds)[0]
-  return {asks, emitted, approvalId, gate}
+  const askedIds = (): string[] => emitted.flatMap(approvalIds)
+  return {asks, emitted, approvalId, askedIds, gate, memory}
 }
 
 const settledApprovalId = async (approvalId: () => string | undefined): Promise<string> => {
@@ -73,6 +77,63 @@ describe('run gate on awaitReply', () => {
     const pending = gate.decide('Bash', {command: 'rm -rf /tmp/x'}, 'tu5')
     asks.reply(SESSION, await settledApprovalId(approvalId), false)
     expect(await pending).toBe('deny')
+  })
+})
+
+describe('run gate with a session command memory', () => {
+  it('a compound read-only pipeline runs without ever asking', async () => {
+    const {gate, emitted} = fixture()
+    expect(await gate.decide('Bash', {command: 'cd packages/core && grep -rn needle src | head -20'}, 'tu-a')).toBe(
+      'allow',
+    )
+    expect(emitted).toEqual([])
+  })
+
+  it('replays the exact command the user allowed for the session, and asks again for any variant', async () => {
+    const {gate, asks, approvalId, askedIds, memory} = fixture(5_000)
+    const pending = gate.decide('Bash', {command: 'pnpm run build'}, 'tu-b')
+    const id = await settledApprovalId(approvalId)
+    memory.remember(SESSION, id)
+    asks.reply(SESSION, id, true)
+    expect(await pending).toBe('allow')
+    expect(askedIds()).toHaveLength(1)
+
+    expect(await gate.decide('Bash', {command: 'pnpm run build'}, 'tu-c')).toBe('allow')
+    expect(askedIds()).toHaveLength(1)
+
+    const variant = gate.decide('Bash', {command: 'pnpm run build --force'}, 'tu-d')
+    await settledApprovalId(approvalId)
+    expect(askedIds()).toHaveLength(2)
+    asks.reply(SESSION, askedIds()[1] ?? '', false)
+    expect(await variant).toBe('deny')
+  })
+
+  it('never remembers a command whose syntax could hide a second command', async () => {
+    const {gate, asks, approvalId, askedIds, memory} = fixture(5_000)
+    const pending = gate.decide('Bash', {command: 'grep "$(cat target)" src'}, 'tu-e')
+    const id = await settledApprovalId(approvalId)
+    memory.remember(SESSION, id)
+    asks.reply(SESSION, id, true)
+    expect(await pending).toBe('allow')
+
+    const again = gate.decide('Bash', {command: 'grep "$(cat target)" src'}, 'tu-f')
+    await settledApprovalId(approvalId)
+    expect(askedIds()).toHaveLength(2)
+    asks.reply(SESSION, askedIds()[1] ?? '', false)
+    expect(await again).toBe('deny')
+  })
+
+  it('remembers nothing when the user approves only once', async () => {
+    const {gate, asks, approvalId, askedIds} = fixture(5_000)
+    const pending = gate.decide('Bash', {command: 'pnpm run test'}, 'tu-g')
+    asks.reply(SESSION, await settledApprovalId(approvalId), true)
+    expect(await pending).toBe('allow')
+
+    const again = gate.decide('Bash', {command: 'pnpm run test'}, 'tu-h')
+    await settledApprovalId(approvalId)
+    expect(askedIds()).toHaveLength(2)
+    asks.reply(SESSION, askedIds()[1] ?? '', false)
+    expect(await again).toBe('deny')
   })
 })
 
