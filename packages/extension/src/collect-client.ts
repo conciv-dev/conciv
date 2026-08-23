@@ -1,7 +1,8 @@
 import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import type {AnyExtension} from './define-extension.js'
 import type {ClientToolCtx, ToolMeta} from './define-tool.js'
-import type {AttachmentCardEntry, ClientEffect, ToolRenderer} from './types.js'
+import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
+import type {AttachmentCardEntry, ClientEffect} from './types.js'
 
 export type ClientToolEntry = {
   name: string
@@ -53,16 +54,21 @@ export function collectClientEffects(
   return entries
 }
 
-export function collectToolRenderers(
-  builders: AnyExtension[],
-): {names: string[]; render: ToolRenderer; streamTitle?: string; display?: 'standalone'}[] {
+export function collectToolRenderers(builders: AnyExtension[]): ToolCardEntry[] {
   const seen = new Set<string>()
-  const entries: {names: string[]; render: ToolRenderer; streamTitle?: string; display?: 'standalone'}[] = []
+  const entries: ToolCardEntry[] = []
   for (const builder of builders)
     for (const tool of builder.tools ?? []) {
-      if (!tool.__render || seen.has(tool.name)) continue
+      const card = tool.__render
+      if (!card || seen.has(tool.name)) continue
       seen.add(tool.name)
-      entries.push({names: [tool.name], render: tool.__render, streamTitle: tool.streamTitle, display: tool.display})
+      entries.push({
+        names: [tool.name],
+        render: card.render,
+        hasEmbeddedBody: card.hasEmbeddedBody,
+        streamTitle: tool.streamTitle,
+        display: tool.display,
+      })
     }
   return entries
 }

@@ -1,9 +1,16 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {A11yNodeList, PageHtmlBlock, PageValueChip, type A11yNode} from '../page-result-views.js'
-import {ELEMENT_TARGET_KEYS, QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, elementChip} from './shared.js'
+import {
+  ELEMENT_TARGET_KEYS,
+  QUIET_TEXT_CLASS,
+  cardErrorMessage,
+  cardPayload,
+  elementChip,
+  hasPayloadOrError,
+} from './shared.js'
 
 const HtmlPayload = z.looseObject({html: z.string()})
 
@@ -97,4 +104,9 @@ export function ReadBulkCard(props: ToolCardProps): JSX.Element {
       </div>
     </CardShell>
   )
+}
+
+export const readBulkCard: ToolCardView = {
+  render: ReadBulkCard,
+  hasEmbeddedBody: (_part, result) => hasPayloadOrError(result),
 }

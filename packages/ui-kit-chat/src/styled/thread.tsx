@@ -15,7 +15,7 @@ import {
 import {Dynamic} from 'solid-js/web'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
-import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {useChatContext, useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
@@ -56,7 +56,7 @@ import {
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
 import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 import {Markdown, warmHighlighter} from './markdown.js'
-import {ToolFallback} from '../tools/styled/tool-fallback.js'
+import {toolFallbackCardView} from '../tools/styled/tool-fallback.js'
 import {ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
 import {Trace, type TraceBranch, type TraceItem} from './trace/trace.js'
 import {TraceRunRow} from './trace/trace-row.js'
@@ -66,7 +66,7 @@ import {FOCUS} from './classes.js'
 
 export type ThreadComponents = {
   AssistantMessage?: Component
-  ToolFallback?: ToolUIComponent
+  ToolFallback?: ToolCardView
 }
 
 export type ThreadRootProps = ParentProps<{class?: string}>
@@ -127,7 +127,7 @@ function planBody(part: () => Extract<MessagePart, {type: 'thinking'}>): (() => 
 
 function AssistantTurn(props: {
   entries: ToolCardEntry[]
-  fallback: ToolUIComponent
+  fallback: ToolCardView
   pageSession?: PageSessionConfig
   grouping?: Grouping
   groupEntries?: readonly GroupEntry[]
@@ -331,7 +331,7 @@ function UserTurn(): JSX.Element {
 
 type ThreadConfig = {
   entries: () => ToolCardEntry[]
-  fallback: () => ToolUIComponent
+  fallback: () => ToolCardView
   assistant: () => Component | undefined
   turnPrefix: () => ((turn: Turn) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
@@ -342,7 +342,7 @@ type ThreadConfig = {
 
 const ThreadConfigContext = createContext<ThreadConfig>({
   entries: () => [],
-  fallback: () => ToolFallback,
+  fallback: () => toolFallbackCardView,
   assistant: () => undefined,
   turnPrefix: () => undefined,
   attachmentCards: () => [],
@@ -447,7 +447,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
     <ThreadConfigContext.Provider
       value={{
         entries: () => props.tools ?? [],
-        fallback: () => props.components?.ToolFallback ?? ToolFallback,
+        fallback: () => props.components?.ToolFallback ?? toolFallbackCardView,
         assistant: () => props.components?.AssistantMessage,
         turnPrefix: () => props.turnPrefix,
         attachmentCards: () => props.attachmentCards ?? [],

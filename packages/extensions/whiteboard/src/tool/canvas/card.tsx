@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {groupBy} from 'es-toolkit'
 import Palette from 'lucide-solid/icons/palette'
 import Trash2 from 'lucide-solid/icons/trash-2'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {
   CodeBlock,
   ErrorBlock,
@@ -251,3 +251,4 @@ export function CanvasOpCard(props: ToolCardProps): JSX.Element {
     </ToolCard>
   )
 }
+export const canvasOpCard: ToolCardView = {render: CanvasOpCard, hasEmbeddedBody: () => true}

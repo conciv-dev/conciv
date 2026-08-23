@@ -16,7 +16,7 @@ import Loader from 'lucide-solid/icons/loader'
 import ShieldQuestion from 'lucide-solid/icons/shield-question-mark'
 import X from 'lucide-solid/icons/x'
 import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
-import type {ToolCardEntry, ToolUIComponent, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {Collapsible} from '@conciv/ui-kit-system'
 import {INERT_TOOL_CTX} from '../store/tool-context.js'
 import {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from '../primitives/activity/activity.js'
@@ -40,14 +40,14 @@ import {createAutoCollapse} from '../primitives/util/create-auto-collapse.js'
 import {useThreadAutoScroll} from '../behaviors/use-thread-auto-scroll.js'
 import {ToolCallCard} from '../tools/styled/tool-call-card.js'
 import {Group} from './group.js'
-import {ToolFallback} from '../tools/styled/tool-fallback.js'
+import {toolFallbackCardView} from '../tools/styled/tool-fallback.js'
 import {Markdown} from './markdown.js'
 import {SHIMMER} from './shimmer.js'
 import {FOCUS_INSET, SPIN} from './classes.js'
 
 type ActivityConfig = {
   tools: () => ToolCardEntry[]
-  fallback: () => ToolUIComponent
+  fallback: () => ToolCardView
   ctx: () => ToolViewCtx
   pageSession: () => PageSessionConfig | undefined
   grouping: () => Grouping | undefined
@@ -56,7 +56,7 @@ type ActivityConfig = {
 
 const ActivityConfigContext = createContext<ActivityConfig>({
   tools: () => [],
-  fallback: () => ToolFallback,
+  fallback: () => toolFallbackCardView,
   ctx: () => ({...INERT_TOOL_CTX, respondApproval: () => {}}),
   pageSession: () => undefined,
   grouping: () => undefined,
@@ -69,7 +69,7 @@ export type ActivityProps = ParentProps<{
   label?: ActivityLabeler
   tools?: ToolCardEntry[]
   ctx?: ToolViewCtx
-  fallback?: ToolUIComponent
+  fallback?: ToolCardView
   pageSession?: PageSessionConfig
   grouping?: Grouping
   groupEntries?: readonly GroupEntry[]
@@ -83,7 +83,7 @@ function Root(props: ActivityProps): JSX.Element {
       <ActivityConfigContext.Provider
         value={{
           tools: () => props.tools ?? [],
-          fallback: () => props.fallback ?? ToolFallback,
+          fallback: () => props.fallback ?? toolFallbackCardView,
           ctx: () => props.ctx ?? parent.ctx(),
           pageSession: () => props.pageSession ?? parent.pageSession(),
           grouping: () => props.grouping ?? parent.grouping(),

@@ -11,9 +11,10 @@ export const TRACE_FRAME_CLASS =
 
 const clients = Object.values(toolClients)
 
-const traceTools: ToolCardEntry[] = clients.flatMap((client) =>
-  client.__render ? [{names: [client.name], render: client.__render}] : [],
-)
+const traceTools: ToolCardEntry[] = clients.flatMap((client) => {
+  const card = client.__render
+  return card ? [{names: [client.name], render: card.render, hasEmbeddedBody: card.hasEmbeddedBody}] : []
+})
 
 function toolMeta(name: string): ToolViewMeta | undefined {
   const meta = clients.find((client) => client.name === name)?.meta

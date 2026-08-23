@@ -64,7 +64,7 @@ const pickerDef = toolDefinition({
   meta: {summary: 'let the user point at an element in the page'},
 })
 
-const pickerRenderer = defineTool(pickerDef).render(() => null)
+const pickerRenderer = defineTool(pickerDef).render({render: () => null, hasEmbeddedBody: () => true})
 
 const demo = defineExtension({
   name: 'demo',

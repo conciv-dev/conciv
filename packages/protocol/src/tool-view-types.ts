@@ -63,10 +63,16 @@ export type ToolRenderContext<TArgs = unknown> = ToolViewCtx & {
 }
 
 export type ToolUIComponent = Component<ToolCardProps>
-export type ToolCardEntry = {
-  names: string[]
+
+export type ToolBodyPredicate = (part: ToolCallPart, result: ToolResultPart | undefined, ctx: ToolViewCtx) => boolean
+
+export type ToolCardView = {
   render: ToolUIComponent
+  hasEmbeddedBody: ToolBodyPredicate
+}
+
+export type ToolCardEntry = ToolCardView & {
+  names: string[]
   streamTitle?: string
   display?: 'standalone'
-  hasEmbeddedBody?: (part: ToolCallPart, result: ToolResultPart | undefined) => boolean
 }

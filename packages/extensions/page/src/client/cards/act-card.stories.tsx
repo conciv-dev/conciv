@@ -10,7 +10,7 @@ import {
   ToolTraceRow,
   type TraceItem,
 } from '@conciv/ui-kit-chat/tools'
-import {ActCard} from './act-card.js'
+import {ActCard, actCard} from './act-card.js'
 import {
   STORY_FRAME_CLASS,
   storyAddResult,
@@ -82,7 +82,7 @@ export const FilledField: Story = {
   },
 }
 
-const actTool: ToolCardEntry = {names: ['page.fill', 'page.check', 'page.wait'], render: ActCard}
+const actTool: ToolCardEntry = {names: ['page.fill', 'page.check', 'page.wait'], ...actCard}
 
 export const Trace: Story = {
   render: () =>

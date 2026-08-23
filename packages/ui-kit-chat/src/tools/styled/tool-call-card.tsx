@@ -1,6 +1,13 @@
 import {createMemo, createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
+import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {
+  ToolCardEntry,
+  ToolCardProps,
+  ToolCardView,
+  ToolUIComponent,
+  ToolViewCtx,
+} from '@conciv/protocol/tool-view-types'
 import {ToolFallback} from './tool-fallback.js'
 import {ToolDurationProvider} from '../primitives/tool-duration.js'
 import {
@@ -9,8 +16,8 @@ import {
   type EmbeddedCardHeader,
   type ToolRowProjection,
 } from '../primitives/tool-row.js'
-import {resultText} from '../primitives/tool-util.js'
-import {MetaToolCard} from './meta-tool-card.js'
+import {MetaToolCard, metaToolHasEmbeddedBody} from './meta-tool-card.js'
+import {toolFallbackHasEmbeddedBody} from './tool-fallback.js'
 import {PermissionCard} from './permission-card.js'
 import {CardChromeProvider, useEmbeddedCard, type EmbeddedHeaderChannel} from './card-chrome.js'
 import {TraceToolRow} from '../../styled/trace/trace-row.js'
@@ -20,7 +27,23 @@ import {TracePermissionBlock} from '../../styled/trace/permission-block.js'
 export type ToolCallCardProps = Omit<ToolCardProps, 'addResult'> & {
   tools?: () => ToolCardEntry[]
 
-  fallback?: ToolUIComponent
+  fallback?: ToolCardView
+}
+
+export type CardBodyQuery = {
+  part: ToolCallPart
+  result: ToolResultPart | undefined
+  ctx: ToolViewCtx
+  tools: readonly ToolCardEntry[]
+  fallback: ToolCardView | undefined
+}
+
+export function cardRendersEmbeddedBody(query: CardBodyQuery): boolean {
+  const entry = query.tools.find((candidate) => candidate.names.includes(query.part.name))
+  if (entry) return entry.hasEmbeddedBody(query.part, query.result, query.ctx)
+  if (query.ctx.catalog.meta(query.part.name)) return metaToolHasEmbeddedBody(query.part, query.result, query.ctx)
+  const fallback = query.fallback?.hasEmbeddedBody ?? toolFallbackHasEmbeddedBody
+  return fallback(query.part, query.result, query.ctx)
 }
 
 export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
@@ -30,7 +53,7 @@ export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
     const card = matched()?.render
     if (card) return card
     if (declared()) return MetaToolCard
-    return props.fallback ?? ToolFallback
+    return props.fallback?.render ?? ToolFallback
   }
   const embedded = useEmbeddedCard()
   const ownsApproval = () => !embedded() && (matched() !== undefined || declared() !== undefined)
@@ -54,21 +77,6 @@ export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
 }
 
 export type ToolTraceRowProps = ToolCallCardProps & {ring?: boolean}
-
-function hasArguments(part: ToolCallCardProps['part']): boolean {
-  const text = (part.arguments ?? '').trim()
-  return text.length > 0 && text !== '{}'
-}
-
-function hasEmbeddedBody(
-  entry: ToolCardEntry | undefined,
-  part: ToolCallCardProps['part'],
-  result: ToolCallCardProps['result'],
-): boolean {
-  const declared = entry?.hasEmbeddedBody
-  if (declared) return declared(part, result)
-  return hasArguments(part) || resultText(result).length > 0
-}
 
 export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   const [local] = splitProps(props, ['part', 'result', 'ctx', 'tools', 'fallback', 'durationMs', 'ring'])
@@ -102,13 +110,18 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
     </CardChromeProvider>
   )
   const cardBody = (): JSX.Element => <TraceBodyFrame tone={bodyTone()}>{embeddedCard()}</TraceBodyFrame>
-  const matched = () => local.tools?.().find((entry) => entry.names.includes(local.part.name))
-  const framed = () => hasEmbeddedBody(matched(), local.part, local.result)
-  const headerOnly = () => matched()?.hasEmbeddedBody !== undefined && !framed()
+  const framed = () =>
+    cardRendersEmbeddedBody({
+      part: local.part,
+      result: local.result,
+      ctx: local.ctx,
+      tools: local.tools?.() ?? [],
+      fallback: local.fallback,
+    })
   return (
     <>
       <TraceToolRow projection={projection()} ring={local.ring ?? true} body={framed() ? cardBody : undefined} />
-      <Show when={headerOnly()}>{embeddedCard()}</Show>
+      <Show when={!framed()}>{embeddedCard()}</Show>
       <Show when={asking()}>
         <TracePermissionBlock
           part={local.part}

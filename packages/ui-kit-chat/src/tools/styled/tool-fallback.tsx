@@ -1,11 +1,12 @@
 import {createSignal, Show, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible} from '@conciv/ui-kit-system'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {ToolFallback as ToolFallbackPrimitive, useToolFallback} from '../primitives/tool-fallback.js'
+import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCardProps, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {fallbackErrorText, ToolFallback as ToolFallbackPrimitive, useToolFallback} from '../primitives/tool-fallback.js'
 import {Permission, usePermission} from '../primitives/permission.js'
 import {StatusVisual} from '../primitives/status-visual.js'
-import {formatDuration} from '../primitives/tool-util.js'
+import {formatDuration, resultText} from '../primitives/tool-util.js'
 import {QUIET_TEXT_CLASS} from '../primitives/tool-presentation.js'
 import {SHIMMER} from '../../styled/shimmer.js'
 import {FOCUS} from '../../styled/classes.js'
@@ -80,14 +81,35 @@ function Content(props: {children: JSX.Element}): JSX.Element {
   )
 }
 
+function filledArguments(part: ToolCallPart): string {
+  const text = (part.arguments ?? '').trim()
+  return text.length > 0 && text !== '{}' ? text : ''
+}
+
+export function toolFallbackHasEmbeddedBody(
+  part: ToolCallPart,
+  result: ToolResultPart | undefined,
+  ctx: ToolViewCtx,
+): boolean {
+  if (filledArguments(part).length > 0) return true
+  if (fallbackErrorText(result) !== undefined) return true
+  if (part.state === 'approval-requested' && part.approval !== undefined && ctx.respondApproval !== undefined) {
+    return true
+  }
+  return resultText(result).length > 0
+}
+
 function Args(): JSX.Element {
   const tool = useToolFallback()
-  const hasInput = () => {
-    const text = tool.argsText().trim()
-    return text.length > 0 && text !== '{}'
-  }
+  const embedded = useEmbeddedCard()
+  const hasInput = () => filledArguments(tool.part()).length > 0
+  const placeholder = (): JSX.Element => (
+    <Show when={!embedded()}>
+      <p class={QUIET_TEXT_CLASS}>no input</p>
+    </Show>
+  )
   return (
-    <Show when={hasInput()} fallback={<p class={QUIET_TEXT_CLASS}>no input</p>}>
+    <Show when={hasInput()} fallback={placeholder()}>
       <ShapedText name="args" text={tool.argsText()} />
     </Show>
   )
@@ -162,6 +184,11 @@ function ToolFallbackImpl(props: ToolCardProps): JSX.Element {
       </FallbackRoot>
     </ToolFallbackPrimitive.Root>
   )
+}
+
+export const toolFallbackCardView: ToolCardView = {
+  render: ToolFallbackImpl,
+  hasEmbeddedBody: toolFallbackHasEmbeddedBody,
 }
 
 export const ToolFallback = Object.assign(ToolFallbackImpl, {

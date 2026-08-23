@@ -1,5 +1,5 @@
 export {INERT_ADD_RESULT, INERT_TOOL_CTX} from './store/tool-context.js'
-export {ToolFallback} from './tools/styled/tool-fallback.js'
+export {ToolFallback, toolFallbackCardView, toolFallbackHasEmbeddedBody} from './tools/styled/tool-fallback.js'
 
 export {toolStatus, type ToolStatus} from './tools/primitives/tool-status.js'
 export {StatusVisual} from './tools/primitives/status-visual.js'
@@ -32,7 +32,7 @@ export {
   cardTitle,
   type CardPhase,
 } from './tools/primitives/tool-presentation.js'
-export {MetaToolCard} from './tools/styled/meta-tool-card.js'
+export {MetaToolCard, metaToolHasEmbeddedBody} from './tools/styled/meta-tool-card.js'
 export {
   ToolCallCard,
   ToolTraceRow,

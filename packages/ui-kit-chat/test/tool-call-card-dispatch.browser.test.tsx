@@ -46,8 +46,16 @@ function cardSaying(text: string): ToolUIComponent {
   return () => <p>{text}</p>
 }
 
-const extensionEntry: ToolCardEntry = {names: ['page.ship'], render: cardSaying('the extension card')}
-const builtinEntry: ToolCardEntry = {names: ['page.ship'], render: cardSaying('the builtin card')}
+const extensionEntry: ToolCardEntry = {
+  names: ['page.ship'],
+  render: cardSaying('the extension card'),
+  hasEmbeddedBody: () => true,
+}
+const builtinEntry: ToolCardEntry = {
+  names: ['page.ship'],
+  render: cardSaying('the builtin card'),
+  hasEmbeddedBody: () => true,
+}
 
 it('an extension-supplied card wins over the builtin card for the same tool', async () => {
   mountView(() => (

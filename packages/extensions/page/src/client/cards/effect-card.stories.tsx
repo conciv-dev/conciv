@@ -4,8 +4,10 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {Trace as ChatTrace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
-import {EffectCard} from './effect-card.js'
+import {effectCard} from './effect-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+
+const EffectCard = effectCard.render
 
 const meta: Meta = {title: 'Extensions/Page/tool/EffectCard'}
 export default meta
@@ -113,7 +115,7 @@ export const NoEffects: Story = {
   },
 }
 
-const effectTool: ToolCardEntry = {names: ['page.effect'], render: EffectCard}
+const effectTool: ToolCardEntry = {names: ['page.effect'], ...effectCard}
 
 export const Trace: Story = {
   render: () =>

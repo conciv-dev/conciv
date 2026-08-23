@@ -1,8 +1,8 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardNote, CardRow, CardRows, InspectionCard} from './card-shared.js'
+import {CardNote, CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
 
 type TraceRow = {name: string; file: string | null; durationMs: number; status: string}
 
@@ -66,4 +66,9 @@ export function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
       </Show>
     </InspectionCard>
   )
+}
+
+export const serverFnTraceCard: ToolCardView = {
+  render: ServerFnTraceCard,
+  hasEmbeddedBody: (part, result) => settledCardBody(part, result, true),
 }

@@ -40,7 +40,7 @@ import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../ap
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import {usePane} from '../app/pane-context.js'
 import {foldToolDurations} from './tool-durations.js'
-import {ToolFallbackCard} from './tool-fallback-card.js'
+import {toolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
 import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
@@ -277,7 +277,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                         <Thread.Messages
                           tools={tools()}
                           attachmentCards={attachments().cards}
-                          components={{ToolFallback: ToolFallbackCard}}
+                          components={{ToolFallback: toolFallbackCard}}
                           turnPrefix={renderTurnPrefix}
                           pageSession={PAGE_SESSION}
                         />

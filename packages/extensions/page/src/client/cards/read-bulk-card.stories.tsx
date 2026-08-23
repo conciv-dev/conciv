@@ -4,7 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {Trace as ChatTrace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
-import {ReadBulkCard} from './read-bulk-card.js'
+import {ReadBulkCard, readBulkCard} from './read-bulk-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
 const meta: Meta = {title: 'Extensions/Page/tool/ReadBulkCard'}
@@ -155,7 +155,7 @@ export const EmptySnapshot: Story = {
   },
 }
 
-const readBulkTool: ToolCardEntry = {names: ['page.snapshot'], render: ReadBulkCard}
+const readBulkTool: ToolCardEntry = {names: ['page.snapshot'], ...readBulkCard}
 
 export const Trace: Story = {
   render: () =>

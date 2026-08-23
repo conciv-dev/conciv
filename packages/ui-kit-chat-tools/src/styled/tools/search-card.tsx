@@ -150,4 +150,4 @@ export function SearchCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const searchTool: ToolCardEntry = {names: ['Grep', 'Glob'], render: SearchCard}
+export const searchTool: ToolCardEntry = {names: ['Grep', 'Glob'], render: SearchCard, hasEmbeddedBody: () => true}
