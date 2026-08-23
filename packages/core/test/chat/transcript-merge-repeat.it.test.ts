@@ -1,46 +1,18 @@
-import {describe, it, expect, afterEach} from 'vitest'
-import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {dirname, join} from 'node:path'
-import {EventType} from '@tanstack/ai'
-import {createTestkit, type Kit} from '@conciv/harness-testkit'
-import {HarnessSessionId} from '@conciv/protocol/chat-types'
-import {bootCoreApp} from '../helpers/boot.js'
-import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
-import {asSnapshot, userTexts} from '../helpers/snapshots.js'
-
-const claude = requireClaude()
-
-const ONE_PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+import {describe, it, expect} from 'vitest'
+import {writeFileSync} from 'node:fs'
+import {userTexts} from '../helpers/snapshots.js'
+import {freshSnapshot, ONE_PIXEL_PNG, useTranscriptFixture} from '../helpers/transcript-fixture.js'
 
 function transcriptLine(role: 'user' | 'assistant', text: string, id?: string): string {
   return JSON.stringify({type: role, message: {...(id ? {id} : {}), content: [{type: 'text', text}]}})
 }
 
 describe('merging the CLI transcript with db-owned history (IT, claude capabilities)', () => {
-  const state: {kit: Kit | undefined} = {kit: undefined}
-  const dirs: string[] = []
-
-  afterEach(async () => {
-    if (state.kit) await state.kit.cleanup()
-    state.kit = undefined
-    for (const dir of dirs.splice(0)) rmSync(dir, {recursive: true, force: true})
-  })
-
-  function tmp(): string {
-    const dir = mkdtempSync(join(tmpdir(), 'conciv-merge-repeat-'))
-    dirs.push(dir)
-    return dir
-  }
+  const fixture = useTranscriptFixture('conciv-merge-repeat')
 
   it('T11-B: a repeated opening prompt does not duplicate the turns between it', {timeout: 90_000}, async () => {
-    const claudeHome = tmp()
-    const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {env: () => ({})}, claudeHome})).setup()
-    state.kit = kit
-    const sessionId = await kit.session()
-    const keeper = await kit.attach(sessionId)
-    const transcript = requireTranscriptPath(claude)(kit.stateRoot, HarnessSessionId.parse('sess-fake'), claudeHome)
-    mkdirSync(dirname(transcript), {recursive: true})
+    const open = await fixture.open()
+    const {kit, sessionId, keeper, transcript} = open
 
     await kit.rpc.chat.send({
       runId: 'merge-repeat-1',
@@ -82,10 +54,6 @@ describe('merging the CLI transcript with db-owned history (IT, claude capabilit
       ].join('\n'),
     )
 
-    const fresh = await kit.attach(sessionId)
-    const snapshot = asSnapshot(
-      await fresh.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000}),
-    )
-    expect(userTexts(snapshot)).toEqual(['say it again', 'and something else', 'say it again'])
+    expect(userTexts(await freshSnapshot(open))).toEqual(['say it again', 'and something else', 'say it again'])
   })
 })
