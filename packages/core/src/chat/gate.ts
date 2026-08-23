@@ -13,7 +13,7 @@ import {
 import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
 import type {AskRegistry} from './ask.js'
 import type {CommandMemory} from './command-memory.js'
-import {commandSegments, runsAnotherCommand} from './command-grammar.js'
+import {commandSegments, runsAnotherCommand, writesDespiteReadOnlySubcommand} from './command-grammar.js'
 import {ASK_TIMEOUT_MS} from './ask-constants.js'
 import {makeToolNameNormalizer} from './tool-names.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
@@ -59,7 +59,10 @@ export function classifyCommand(command: string, extraAllows: readonly string[] 
   if (segments === null) return 'ask'
   const policy = commandPolicy(extraAllows)
   const readOnly = segments.every(
-    (segment) => !runsAnotherCommand(segment) && evaluateCommand(segment, policy) === 'allow',
+    (segment) =>
+      !runsAnotherCommand(segment) &&
+      !writesDespiteReadOnlySubcommand(segment) &&
+      evaluateCommand(segment, policy) === 'allow',
   )
   return readOnly ? 'allow' : 'ask'
 }

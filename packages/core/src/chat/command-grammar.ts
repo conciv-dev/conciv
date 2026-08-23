@@ -15,8 +15,32 @@ const FIND_WRITE_ACTIONS = new Set([
   '-okdir',
 ])
 
+const GIT_BRANCH_LIST_FLAGS = new Set([
+  '-a',
+  '-l',
+  '-r',
+  '-v',
+  '-vv',
+  '--list',
+  '--show-current',
+  '--merged',
+  '--no-merged',
+  '--contains',
+])
+
 function tokensOf(segment: string): string[] {
   return segment.split(' ').filter((token) => token.length > 0)
+}
+
+function listsBranchesOnly(tokens: readonly string[]): boolean {
+  return tokens.every((token) => GIT_BRANCH_LIST_FLAGS.has(token) || token.startsWith('--sort='))
+}
+
+export function writesDespiteReadOnlySubcommand(segment: string): boolean {
+  const tokens = tokensOf(segment)
+  if (tokens[0] !== 'git') return false
+  if (tokens.some((token) => token === '--output' || token.startsWith('--output='))) return true
+  return tokens[1] === 'branch' && !listsBranchesOnly(tokens.slice(2))
 }
 
 export function runsAnotherCommand(segment: string): boolean {
