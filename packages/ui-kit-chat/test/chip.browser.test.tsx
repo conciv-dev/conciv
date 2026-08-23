@@ -57,6 +57,40 @@ it('renders a field chip with a tooltip inside a ChipGroup, keeping the dl child
   expect(host.querySelector('dd')).toBeNull()
 })
 
+const LONG_VALUE = 'Frontend engineer who ships accessible interfaces and keeps the design system honest'
+
+function chipShowing(host: Element, value: string): HTMLElement {
+  for (const node of host.querySelectorAll('[data-scope="tooltip"][data-part="trigger"]')) {
+    if (node instanceof HTMLElement && node.textContent === value) return node
+  }
+  throw new Error(`no chip reading "${value}" hosts a tooltip trigger`)
+}
+
+it('reveals a clipped chip value in a tooltip without being asked for one', async () => {
+  const host = mountView(() => <Chip kind="pill" maxWidth="compact" value={LONG_VALUE} />)
+
+  await page.elementLocator(chipShowing(host, LONG_VALUE)).hover()
+
+  await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG_VALUE)
+})
+
+it('leaves a chip value that fits without a tooltip', async () => {
+  const host = mountView(() => (
+    <ChipGroup>
+      <Chip kind="pill" maxWidth="compact" value={LONG_VALUE} />
+      <Chip kind="pill" maxWidth="compact" value="idle" />
+    </ChipGroup>
+  ))
+
+  await page.elementLocator(chipShowing(host, LONG_VALUE)).hover()
+  await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG_VALUE)
+
+  await page.elementLocator(chipShowing(host, 'idle')).hover()
+
+  await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+  expect(chipShowing(host, 'idle').hasAttribute('aria-describedby')).toBe(false)
+})
+
 it('gives each tone its own accessible tooltip content, distinguishing tones without relying on class names', async () => {
   mountView(() => (
     <ChipGroup>

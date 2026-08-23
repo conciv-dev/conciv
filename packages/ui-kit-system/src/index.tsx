@@ -10,6 +10,15 @@ export {Progress} from './progress.js'
 export {Loader, type LoaderSize} from './loader.js'
 export {Tooltip} from './tooltip.js'
 export {
+  CLIP_REVEAL,
+  createClipReveal,
+  revealTriggerProps,
+  TruncatedText,
+  type ClipReveal,
+  type TruncatedTextProps,
+  type TruncatedTextSide,
+} from './truncated-text.js'
+export {
   TooltipIconButton,
   TooltipIconButtonSlot,
   type TooltipIconButtonProps,

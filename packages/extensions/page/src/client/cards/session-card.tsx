@@ -20,11 +20,11 @@ import {
   type GroupRenderProps,
 } from '@conciv/ui-kit-chat'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {
   CARD_HEADLINE_TEXT,
   CardHeadline,
   Chip,
-  clip,
   CodeBlock,
   CollapsibleSection,
   ErrorBlock,
@@ -234,13 +234,12 @@ function StepRow(props: {step: PageSessionStep; index: number; streaming: boolea
         <Dynamic component={VERB_ICONS[props.step.verb] ?? Pointer} size={12} aria-hidden="true" class="shrink-0" />
         <span class={ROW_VERB_LABEL}>{props.step.verb}</span>
       </span>
-      <span class={rowTargetClass(props.step.state)}>
-        {props.step.state === 'streaming' ? activeSentence(props.step) : props.step.target}
-      </span>
+      <TruncatedText
+        class={rowTargetClass(props.step.state)}
+        text={props.step.state === 'streaming' ? activeSentence(props.step) : props.step.target}
+      />
       <Show when={props.step.value}>
-        {(value) => (
-          <Chip kind="pill" tone="accent" maxWidth="compact" value={`“${clip(value())}”`} class={ROW_VALUE} />
-        )}
+        {(value) => <Chip kind="pill" tone="accent" maxWidth="compact" value={`“${value()}”`} class={ROW_VALUE} />}
       </Show>
     </li>
   )
@@ -261,14 +260,14 @@ function SessionHeader(props: {
         <span class={`${HEAD_DOT} [background:var(--chat-success)]`} />
       </span>
       <CardHeadline class="shrink">
-        <span class={HEAD_TITLE}>{props.title}</span>
+        <TruncatedText class={HEAD_TITLE} text={props.title} />
         <span class={HEAD_COUNT}>{props.count}</span>
       </CardHeadline>
       <span class={HEAD_SPACER}>
         <Show when={props.url}>
           {(url) => (
             <span class={HEAD_URL}>
-              <span class="truncate">{url()}</span>
+              <TruncatedText class="min-w-0" text={url()} />
             </span>
           )}
         </Show>

@@ -1,5 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardRow, CardRows, settledCardBody, InspectionCard, JsonValue} from './card-shared.js'
 
@@ -56,8 +57,8 @@ export function LoaderDataCard(props: ToolCardProps): JSX.Element {
               {(entry) => (
                 <div class="flex flex-col gap-1">
                   <CardRow>
-                    <span class="text-chat-text-2 min-w-0 truncate">{entry.key}</span>
-                    <span class="text-chat-text-3 min-w-0 truncate">{entry.preview}</span>
+                    <TruncatedText class="text-chat-text-2 min-w-0" text={entry.key} />
+                    <TruncatedText class="text-chat-text-3 min-w-0" text={entry.preview} />
                   </CardRow>
                   <Show when={!isTruncatedMarker(entry.value)}>
                     <JsonValue value={entry.value} name={`${entry.key}.json`} />

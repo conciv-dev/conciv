@@ -1,6 +1,6 @@
 import {Show, splitProps, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
-import {Collapsible} from '@conciv/ui-kit-system'
+import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolRowMark, ToolRowProjection} from '../../tools/primitives/tool-row.js'
 import {FOCUS_INSET} from '../classes.js'
 
@@ -133,8 +133,8 @@ export function TraceRunRow(props: {
         <TraceRing />
       </Show>
       <span class={RUN_LABEL}>{local.label}</span>
-      <span class={RUN_TEXT}>{local.text}</span>
-      <Show when={local.meta}>{(meta) => <span class={`${META} text-chat-dim`}>{meta()}</span>}</Show>
+      <TruncatedText class={RUN_TEXT} text={local.text} />
+      <Show when={local.meta}>{(meta) => <TruncatedText class={`${META} text-chat-dim`} text={meta()} />}</Show>
     </>
   )
   return <TraceFoldableRow line={line} ring={local.ring} body={local.body} />
@@ -152,9 +152,9 @@ export function TraceToolRow(props: {
     <>
       <TraceMark mark={local.projection.mark} />
       <span class={LABEL}>{local.projection.label}</span>
-      <span class={TARGET}>{local.projection.target}</span>
+      <TruncatedText class={TARGET} text={local.projection.target} />
       <Show when={local.projection.meta}>
-        {(meta) => <span class={`${META}  ${metaTone(local.projection.mark, meta())}`}>{meta()}</span>}
+        {(meta) => <TruncatedText class={`${META}  ${metaTone(local.projection.mark, meta())}`} text={meta()} />}
       </Show>
     </>
   )

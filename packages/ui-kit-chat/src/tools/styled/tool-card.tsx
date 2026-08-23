@@ -1,5 +1,6 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {toolStatus, type ToolStatus} from '../primitives/tool-status.js'
 import {formatDuration} from '../primitives/tool-util.js'
@@ -14,7 +15,7 @@ import type {EmbeddedCardHeader} from '../primitives/tool-row.js'
 const TITLE = `text-chat-text flex-1 min-w-0 truncate ${CARD_HEADLINE_TEXT}`
 const SUBTITLE = `text-chat-text-3 flex-none min-w-0 max-w-[45%] truncate ${CARD_HEADLINE_TEXT}`
 const METRIC = `text-chat-text-3 text-[length:var(--chat-text-xs)] flex-none min-w-0 max-w-[35%] truncate [font-family:var(--chat-mono)] tabular-nums ${CARD_HEADLINE_TEXT}`
-const EMBEDDED_SUBTITLE = 'text-chat-text-3 text-[length:var(--chat-text-xs)] m-0 min-w-0 truncate'
+const EMBEDDED_SUBTITLE = 'block text-chat-text-3 text-[length:var(--chat-text-xs)] m-0 min-w-0'
 const MICROLABEL =
   'uppercase text-[length:var(--chat-text-micro)] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] flex-none text-chat-microlabel'
 const TERMINAL_TITLE = `min-w-0 flex-1 truncate text-[length:var(--chat-text-md)] text-chat-frame-text font-medium ${CARD_HEADLINE_TEXT}`
@@ -31,9 +32,9 @@ function TerminalHeaderContent(props: {
     <>
       <span class={MICROLABEL}>{props.label}</span>
       <CardHeadline class="flex-1">
-        <span class={TERMINAL_TITLE}>{props.title}</span>
-        <Show when={props.meta}>{(meta) => <span class={TERMINAL_META}>{meta()}</span>}</Show>
-        <Show when={props.duration}>{(value) => <span class={TERMINAL_META}>{value()}</span>}</Show>
+        <TruncatedText class={TERMINAL_TITLE} text={props.title} />
+        <Show when={props.meta}>{(meta) => <TruncatedText class={TERMINAL_META} text={meta()} />}</Show>
+        <Show when={props.duration}>{(value) => <TruncatedText class={TERMINAL_META} text={value()} />}</Show>
       </CardHeadline>
       <StatusVisual status={props.status} form="dot" />
     </>
@@ -58,10 +59,10 @@ function HeaderContent(props: {
         )}
       </Show>
       <CardHeadline class="flex-1">
-        <span class={TITLE}>{props.title}</span>
-        <Show when={props.subtitle}>{(subtitle) => <span class={SUBTITLE}>{subtitle()}</span>}</Show>
-        <Show when={props.meta}>{(meta) => <span class={METRIC}>{meta()}</span>}</Show>
-        <Show when={props.duration}>{(value) => <span class={METRIC}>{value()}</span>}</Show>
+        <TruncatedText class={TITLE} text={props.title} />
+        <Show when={props.subtitle}>{(subtitle) => <TruncatedText class={SUBTITLE} text={subtitle()} />}</Show>
+        <Show when={props.meta}>{(meta) => <TruncatedText class={METRIC} text={meta()} />}</Show>
+        <Show when={props.duration}>{(value) => <TruncatedText class={METRIC} text={value()} />}</Show>
       </CardHeadline>
       <StatusVisual status={props.status} form="dot" />
     </>
@@ -127,7 +128,7 @@ export function ToolCard(props: {
   }
   const embeddedBody = (): JSX.Element => (
     <>
-      <Show when={bodySubtitle()}>{(subtitle) => <p class={EMBEDDED_SUBTITLE}>{subtitle()}</p>}</Show>
+      <Show when={bodySubtitle()}>{(subtitle) => <TruncatedText class={EMBEDDED_SUBTITLE} text={subtitle()} />}</Show>
       {props.children}
     </>
   )

@@ -1,6 +1,6 @@
 import {Show, splitProps, type JSX} from 'solid-js'
 import {cva} from 'class-variance-authority'
-import {Tooltip} from '@conciv/ui-kit-system'
+import {CLIP_REVEAL, createClipReveal, revealTriggerProps, Tooltip} from '@conciv/ui-kit-system'
 
 const chip = cva(
   'inline-flex min-w-0 items-center gap-1.25 overflow-hidden text-ellipsis whitespace-nowrap leading-none rounded-[var(--chat-radius-pill)] [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)]',
@@ -107,6 +107,27 @@ function triggerContent(kind: 'field' | 'pill', name: string | undefined, value:
   return fieldSpanContent(name, value)
 }
 
+function ClippedChip(props: {value: string; content: JSX.Element; class: string}): JSX.Element {
+  const [local] = splitProps(props, ['value', 'content', 'class'])
+  const reveal = createClipReveal()
+  return (
+    <Tooltip.Root onOpenChange={reveal.onOpenChange} lazyMount unmountOnExit>
+      <Tooltip.Trigger
+        asChild={(triggerProps) => (
+          <div {...revealTriggerProps(reveal, triggerProps())} ref={reveal.ref} class={local.class}>
+            {local.content}
+          </div>
+        )}
+      />
+      <Show when={reveal.clipped()}>
+        <Tooltip.Positioner>
+          <Tooltip.Content class={CLIP_REVEAL}>{local.value}</Tooltip.Content>
+        </Tooltip.Positioner>
+      </Show>
+    </Tooltip.Root>
+  )
+}
+
 export function Chip(props: {
   name?: string
   value: string
@@ -122,7 +143,12 @@ export function Chip(props: {
     `${chip({kind: kind(), tone: local.tone ?? 'neutral', maxWidth: local.maxWidth ?? 'full'})} ${local.class ?? ''}`
 
   return (
-    <Show when={local.tooltip} fallback={<div class={chipClass()}>{chipContent(kind(), local.name, local.value)}</div>}>
+    <Show
+      when={local.tooltip}
+      fallback={
+        <ClippedChip value={local.value} content={chipContent(kind(), local.name, local.value)} class={chipClass()} />
+      }
+    >
       {(tooltip) => (
         <div class="contents">
           <Tooltip.Root unmountOnExit lazyMount>
