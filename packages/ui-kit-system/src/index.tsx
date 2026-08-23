@@ -32,6 +32,19 @@ export {RelativeTime} from './relative-time.js'
 export {Tabs} from './tabs.js'
 export {Switch} from './switch.js'
 export {Swap} from './swap.js'
+export {
+  createClipboardCopy,
+  writeClipboardText,
+  type ClipboardCopy,
+  type ClipboardCopyLabels,
+  type ClipboardCopyOptions,
+  type ClipboardCopyStatus,
+} from './clipboard.js'
+export {
+  ClipboardCopyButton,
+  type ClipboardCopyButtonProps,
+  type ClipboardCopyTooltips,
+} from './clipboard-copy-button.js'
 export {Presence} from './presence.js'
 export {Splitter} from './splitter.js'
 export {StatusDot, type StatusDotTone} from './status-dot.js'
