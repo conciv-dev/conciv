@@ -56,19 +56,19 @@ async function decideNextApproval(
   await kit.rpc.chat.permissionDecision({approvalId, approved})
 }
 
-function evalAnswer(): PageOutcome {
-  return {ok: true, result: {result: 2}}
+function pageAnswer(): PageOutcome {
+  return {ok: true, result: {ok: true}}
 }
 
 describe('/api/mcp gate decisions come from the approval declaration, not mutating', () => {
   it('a mutating BUILT-IN with no approval declaration runs without any prompt', async () => {
     const kit = await bootKit()
-    const widget = await connectWidget(kit, evalAnswer)
+    const widget = await connectWidget(kit, pageAnswer)
     try {
       const session = await kit.session()
-      const outcome = await callViaSandbox(kit, session, 'page.eval', {code: '1 + 1'})
+      const outcome = await callViaSandbox(kit, session, 'page.css', {text: 'body{color:red}'})
       expect(outcome.ok).toBe(true)
-      expect(widget.seen()).toEqual(['page.eval'])
+      expect(widget.seen()).toEqual(['page.css'])
     } finally {
       widget.end()
       await kit.cleanup()

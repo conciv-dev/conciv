@@ -1,5 +1,5 @@
 import type {PageError} from '@conciv/protocol/page-types'
-import {collectClientTools} from '@conciv/extension'
+import {collectClientTools, type ClientToolCtx} from '@conciv/extension'
 import {installReactBridge, makeDomPageDriver, type PageDriver} from '@conciv/page'
 import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
 import {page} from 'vitest/browser'
@@ -358,4 +358,47 @@ describe('stale refs', () => {
       message: `stale ref ${ref}; re-run page snapshot`,
     })
   })
+})
+
+describe('page reload', () => {
+  const documentOnly = (): never => {
+    throw new Error('page.reload must read nothing but the document it was handed')
+  }
+
+  const ctxOver = (target: Document): ClientToolCtx => ({
+    document: target,
+    target: documentOnly,
+    resolve: documentOnly,
+    addRef: documentOnly,
+    resetRefs: documentOnly,
+    consoleEntries: documentOnly,
+    effects: [],
+  })
+
+  const nextLoad = (frame: HTMLIFrameElement): Promise<void> =>
+    new Promise((resolve) => frame.addEventListener('load', () => resolve(), {once: true}))
+
+  it('resolves on initiation and the handed-in page really navigates', async () => {
+    const reload = collectClientTools([pageExtension]).find((entry) => entry.name === 'page.reload')
+    if (!reload) throw new Error('no page.reload client tool is mounted')
+    const frame = document.createElement('iframe')
+    frame.srcdoc = '<p id="kept">kept</p>'
+    const firstLoad = nextLoad(frame)
+    document.body.appendChild(frame)
+    await firstLoad
+    const framed = frame.contentDocument
+    if (!framed) throw new Error('the fixture frame has no document')
+    framed.body.appendChild(Object.assign(framed.createElement('span'), {id: 'scribbled'}))
+    expect(framed.getElementById('scribbled')).not.toBeNull()
+
+    const reloaded = nextLoad(frame)
+    const result = await reload.execute({}, ctxOver(framed))
+    expect(declaredOutputOf('reload').parse(result)).toEqual({ok: true, initiated: true})
+
+    await reloaded
+    const after = frame.contentDocument
+    expect(after?.getElementById('kept')).not.toBeNull()
+    expect(after?.getElementById('scribbled')).toBeNull()
+    frame.remove()
+  }, 10_000)
 })

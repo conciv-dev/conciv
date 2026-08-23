@@ -34,6 +34,23 @@ describe('the page catalog reports what the system can actually do', () => {
     expect(signature.hint).toContain('action list reports every registered effect')
   })
 
+  it('describes page.snapshot by what it answers: every control with its value, checked state and ref', () => {
+    const signature = bootCatalog({connected: true}).get('page.snapshot')
+    expect(signature.summary).toBe('read every control on the page with its current value, checked state and ref')
+    expect(signature.keywords).toContain('form')
+  })
+
+  it('declares page.eval as approval-gated so the last resort costs a decision', () => {
+    expect(bootCatalog({connected: true}).get('page.eval').approval).toBe('ask')
+  })
+
+  it('declares page.reload as a mutating act whose result is only the initiation', () => {
+    const signature = bootCatalog({connected: true}).get('page.reload')
+    expect(signature.mutating).toBe(true)
+    expect(signature.approval).toBeUndefined()
+    expect(signature.hint).toContain('snapshot')
+  })
+
   it('surfaces the UNKNOWN_EFFECT declaration through the catalog signature', () => {
     const signature = bootCatalog({connected: true}).get('page.effect')
     expect(signature.errors).toContainEqual({

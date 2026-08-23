@@ -3,11 +3,13 @@ import {z} from 'zod'
 import type {AnyTool, StreamChunk} from '@tanstack/ai'
 import {approvalIds} from '@conciv/harness-testkit'
 import {toolError, type ToolRequest} from '@conciv/extension'
+import {createToolRegistry} from '@conciv/extension/registry'
+import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {createAskRegistry, type AskRegistry} from '../../src/chat/ask.js'
 import {asksFor, makeAskGate, type PermissionGate} from '../../src/chat/gate.js'
 import {gatedToolRun, makeCodeMode, withBindingNames, type CodeMode} from '../../src/chat/code-mode.js'
-import type {CodeCapability} from '../../src/chat/capabilities.js'
+import {registryCapabilities, type CodeCapability} from '../../src/chat/capabilities.js'
 
 const SESSION = SessionId.parse('conciv_x')
 
@@ -29,6 +31,7 @@ function capability(
     approval?: 'ask'
     mutating?: boolean
     category?: string
+    keywords?: readonly string[]
     inputSchema?: z.ZodObject<z.ZodRawShape>
     execute?: CodeCapability['execute']
   } = {},
@@ -39,6 +42,7 @@ function capability(
     description: `${name} does a thing. Extra prose here.`,
     summary: `${name} does a thing`,
     category: options.category ?? 'extension',
+    keywords: options.keywords ?? [],
     ...(options.approval === undefined ? {} : {approval: options.approval}),
     mutating: options.mutating ?? false,
     reachable: true,
@@ -262,6 +266,27 @@ describe('catalog binding', () => {
     const result = await runSandbox(tools, "return await external_catalog({search: 'status'})")
     const listed = z.object({tools: z.array(z.object({name: z.string()}))}).parse(result.result)
     expect(listed.tools.map((entry) => entry.name)).toEqual(['server.status'])
+  })
+
+  async function searchNames(capabilities: CodeCapability[], term: string): Promise<string[]> {
+    const tools = (await codeModeOf(capabilities, allowGate)).tools
+    const result = await runSandbox(tools, `return await external_catalog({search: ${JSON.stringify(term)}})`)
+    return z
+      .object({tools: z.array(z.object({name: z.string()}))})
+      .parse(result.result)
+      .tools.map((entry) => entry.name)
+  }
+
+  test('a hand-curated keyword nobody wrote into the name or summary still finds its capability', async () => {
+    const names = await searchNames(
+      [capability('canvas.svg'), capability('page.snapshot', {keywords: ['form', 'controls']})],
+      'form',
+    )
+    expect(names).toEqual(['page.snapshot'])
+  })
+
+  test('a term that only the description carries finds its capability', async () => {
+    expect(await searchNames([capability('canvas.svg')], 'extra prose')).toEqual(['canvas.svg'])
   })
 
   test('returns one full signature with a type stub naming the real sandbox function', async () => {
@@ -557,5 +582,26 @@ describe('code mode per-tool call events', () => {
     expect(call?.value).toMatchObject({name: 'canvas.svg'})
     const result = events.find((event) => event.name === 'conciv:tool_result')
     expect(result?.value).toMatchObject({callId: call?.value.callId, result: 'drew'})
+  })
+})
+
+describe('discovering the page capabilities the way the model does', () => {
+  function pageCapabilities(): CodeCapability[] {
+    const registry = createToolRegistry({pageCaller: async () => ({ok: true}), isAnyPageConnected: () => true})
+    for (const def of PAGE_TOOL_DEFS) registry.register(def.client(), {owner: 'the page extension'})
+    return registryCapabilities(registry.sandboxTools(), async () => undefined)
+  }
+
+  async function pageSearch(term: string): Promise<string[]> {
+    const tools = (await codeModeOf(pageCapabilities(), allowGate)).tools
+    const result = await runSandbox(tools, `return await external_catalog({search: ${JSON.stringify(term)}})`)
+    return z
+      .object({tools: z.array(z.object({name: z.string()}))})
+      .parse(result.result)
+      .tools.map((entry) => entry.name)
+  }
+
+  test.each(['form', 'value', 'state'])('searching %s surfaces page.snapshot', async (term) => {
+    expect(await pageSearch(term)).toContain('page.snapshot')
   })
 })

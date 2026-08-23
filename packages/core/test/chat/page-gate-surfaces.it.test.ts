@@ -9,6 +9,7 @@ import {
   createTestHarness,
   makeApprovingRegistryCall,
   makeRpcClient,
+  withAutoApproval,
   type Kit,
   type TestHarness,
 } from '@conciv/harness-testkit'
@@ -24,6 +25,7 @@ afterEach(async () => {
 function answerFor(name: string): PageOutcome {
   if (name === 'page.effect') return {ok: true, result: {effect: 'highlight', enabled: true}}
   if (name === 'page.fill') return {ok: true, result: {ok: true, value: 'a@b.c'}}
+  if (name === 'page.eval') return {ok: true, result: {result: 2}}
   return {ok: true, result: {text: 'page-gate-ok'}}
 }
 
@@ -47,6 +49,13 @@ async function bootScripted(): Promise<{kit: Kit; harness: TestHarness}> {
   const kit = await bootKit({cwd: tmpdir()}, harness)
   cleanups.push(() => kit.cleanup())
   return {kit, harness}
+}
+
+async function bootConnected(): Promise<{kit: Kit; widget: FakeWidget; sessionId: string}> {
+  const kit = await bootKit({cwd: tmpdir()})
+  cleanups.push(() => kit.cleanup())
+  const widget = await bootWidget(kit)
+  return {kit, widget, sessionId: await kit.session()}
 }
 
 function pumpApprovals(kit: Kit, sessionId: string): {ids: () => string[]} {
@@ -95,10 +104,7 @@ describe('the chat surface runs page tools without ever consulting a gate', () =
 
 describe('the code-mode surface (execute_typescript over /api/mcp) runs page tools ungated', () => {
   it('page.effect enable resolves without ever emitting an approval ask', async () => {
-    const kit = await bootKit({cwd: tmpdir()})
-    cleanups.push(() => kit.cleanup())
-    const widget = await bootWidget(kit)
-    const sessionId = await kit.session()
+    const {kit, widget, sessionId} = await bootConnected()
     const approvals = pumpApprovals(kit, sessionId)
     await expect(
       kit.callTool('page.effect', {action: 'enable', effect: 'highlight'}, sessionId),
@@ -108,10 +114,7 @@ describe('the code-mode surface (execute_typescript over /api/mcp) runs page too
   }, 40_000)
 
   it('page.text resolves without ever emitting an approval ask', async () => {
-    const kit = await bootKit({cwd: tmpdir()})
-    cleanups.push(() => kit.cleanup())
-    const widget = await bootWidget(kit)
-    const sessionId = await kit.session()
+    const {kit, widget, sessionId} = await bootConnected()
     const approvals = pumpApprovals(kit, sessionId)
     await expect(kit.callTool('page.text', {selector: '#probe'}, sessionId)).resolves.toMatchObject({
       text: 'page-gate-ok',
@@ -123,9 +126,7 @@ describe('the code-mode surface (execute_typescript over /api/mcp) runs page too
 
 describe('the RPC surface (registry.call) runs page tools ungated and still journals mutations', () => {
   it('an ungated mutating page call executes without approval', async () => {
-    const kit = await bootKit({cwd: tmpdir()})
-    cleanups.push(() => kit.cleanup())
-    const widget = await bootWidget(kit)
+    const {kit, widget} = await bootConnected()
     await expect(
       kit.rpc.registry.call({name: 'page.effect', input: {action: 'enable', effect: 'highlight'}}),
     ).resolves.toMatchObject({effect: 'highlight', enabled: true})
@@ -133,15 +134,76 @@ describe('the RPC surface (registry.call) runs page tools ungated and still jour
   }, 40_000)
 
   it('page.fill lands in the journal: mutating stays bookkeeping, not a gate', async () => {
-    const kit = await bootKit({cwd: tmpdir()})
-    cleanups.push(() => kit.cleanup())
-    const widget = await bootWidget(kit)
+    const {kit, widget} = await bootConnected()
     await expect(
       kit.rpc.registry.call({name: 'page.fill', input: {selector: '#email', value: 'a@b.c'}}),
     ).resolves.toMatchObject({ok: true})
     expect(widget.seen()).toEqual(['page.fill'])
     const changes = await kit.rpc.page.changes(undefined)
     expect(changes.map((entry) => entry.verb)).toEqual(['page.fill'])
+  }, 40_000)
+})
+
+describe('page.eval declares approval and therefore gates on every surface', () => {
+  it('a chat turn asks before the script reaches the page and runs it only after the answer', async () => {
+    const {kit, harness} = await bootScripted()
+    const widget = await bootWidget(kit)
+    const sessionId = await kit.session()
+    harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: callThroughCatalog('page.eval', {code: '1 + 1'}),
+    })
+    const stream = await kit.attach(sessionId)
+    await kit.rpc.chat.send({runId: 'gate-eval-1', sessionId, text: 'run it'})
+    const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 15_000})
+    const approvalId = approvalIds(asked)[0]
+    if (approvalId === undefined) throw new Error('no approval id in the stream')
+    await kit.rpc.chat.permissionDecision({approvalId, approved: true})
+    await stream.done({hangGuardMs: 15_000})
+    expect(widget.seen()).toEqual(['page.eval'])
+  }, 40_000)
+
+  it('the /api/mcp surface asks too, and the answered ask releases the call', async () => {
+    const {kit, widget, sessionId} = await bootConnected()
+    const approved: string[] = []
+    await expect(
+      withAutoApproval(
+        kit.base,
+        sessionId,
+        () => kit.callTool('page.eval', {code: '1 + 1'}, sessionId),
+        (approvalId) => approved.push(approvalId),
+      ),
+    ).resolves.toMatchObject({result: 2})
+    expect(approved).toHaveLength(1)
+    expect(widget.seen()).toEqual(['page.eval'])
+  }, 40_000)
+
+  it('registry.call runs page.eval once the ask is answered', async () => {
+    const {kit, widget, sessionId} = await bootConnected()
+    const rpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    const approved: string[] = []
+    await expect(
+      withAutoApproval(
+        kit.base,
+        sessionId,
+        () => rpc.registry.call({name: 'page.eval', input: {code: '1 + 1'}}),
+        (approvalId) => approved.push(approvalId),
+      ),
+    ).resolves.toMatchObject({result: 2})
+    expect(approved).toHaveLength(1)
+    expect(widget.seen()).toEqual(['page.eval'])
+  }, 40_000)
+
+  it('a denied ask refuses the script and the page never sees it', async () => {
+    const {kit, widget, sessionId} = await bootConnected()
+    const stream = await kit.attach(sessionId)
+    const rpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    const pending = rpc.registry.call({name: 'page.eval', input: {code: '1 + 1'}})
+    const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 15_000})
+    const approvalId = approvalIds(asked)[0]
+    if (approvalId === undefined) throw new Error('no approval id in the stream')
+    await rpc.chat.permissionDecision({approvalId, approved: false})
+    await expect(pending).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+    expect(widget.seen()).toEqual([])
   }, 40_000)
 })
 

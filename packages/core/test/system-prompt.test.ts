@@ -2,6 +2,7 @@ import {expect, test} from 'vitest'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {composeSystemPrompt} from '../src/start.js'
+import {withBuiltinExtensions} from '../src/app.js'
 
 const demoTool = defineTool({
   name: 'demo_tool',
@@ -86,6 +87,13 @@ test('a prompt factory receives the parsed config, not the raw options', () => {
     extensions: {ios: {projectRoot: '/app/'}},
   })
   expect(prompt).toBe('simulator iPhone 17 Pro in /app')
+})
+
+test('the built-in page extension steers the standing prompt toward the typed verbs', () => {
+  const prompt = composeSystemPrompt('base prompt', withBuiltinExtensions(undefined), {cwd: '/repo'})
+  expect(prompt).toContain('page.snapshot')
+  expect(prompt).toContain('last resort')
+  expect(prompt).toContain('approval on every call')
 })
 
 test('a prompt factory never runs for an unconfigured extension', () => {

@@ -16,6 +16,7 @@ const canvas: CodeCapability = {
   description: 'canvas.svg draws a shape. Extra prose here.',
   summary: 'canvas.svg draws a shape',
   category: 'extension',
+  keywords: [],
   mutating: false,
   reachable: true,
   errors: [],
