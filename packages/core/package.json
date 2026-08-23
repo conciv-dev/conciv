@@ -87,9 +87,13 @@
     "@tanstack/ai-isolate-quickjs": "catalog:",
     "@tanstack/ai-sandbox": "0.3.0",
     "@tanstack/ai-sandbox-local-process": "^0.2.1",
+    "c12": "~3.3.4",
     "drizzle-orm": "1.0.0-rc.4",
     "hono": "^4.12.0",
+    "jsonc-parser": "^3.3.1",
     "lucide-solid": "^1.18.0",
+    "proper-lockfile": "^4.1.2",
+    "write-file-atomic": "^8.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -102,6 +106,8 @@
     "@tanstack/ai-mcp": "catalog:",
     "@tanstack/ai-sandbox-local-process": "^0.2.1",
     "@types/node": "^22.19.21",
+    "@types/proper-lockfile": "^4.1.4",
+    "@types/write-file-atomic": "^4.0.3",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.8",
     "get-port": "^7.1.0",

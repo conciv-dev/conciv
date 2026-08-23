@@ -89,6 +89,10 @@
       "types": "./dist/connect-ports.d.ts",
       "import": "./dist/connect-ports.js"
     },
+    "./settings-types": {
+      "types": "./dist/settings-types.d.ts",
+      "import": "./dist/settings-types.js"
+    },
     "./state-types": {
       "types": "./dist/state-types.d.ts",
       "import": "./dist/state-types.js"

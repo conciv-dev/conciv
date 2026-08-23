@@ -11,6 +11,8 @@ import {listCommands} from '../../chat/commands.js'
 import {makeAskGate, requiresApproval} from '../../chat/gate.js'
 import {rowById} from '../../chat/session-rows.js'
 import {session} from '../../runtime/session-context.js'
+import type {SettingsWriteOutcome} from '../../settings/service.js'
+import type {SettingsScope} from '@conciv/protocol/settings-types'
 import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
 import {makeSessionOs, os, type RpcDeps} from './mount.js'
@@ -34,6 +36,30 @@ function registryCallError(error: unknown, errors: RegistryErrors): Error {
 
 function hasErrorCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === code
+}
+
+const SETTINGS_RPC_ACTOR = 'user'
+
+type SettingsErrors = {
+  UNKNOWN_KEY: () => Error
+  INVALID_VALUE: () => Error
+  REVISION_CONFLICT: (options: {data: {scope: SettingsScope; revision: string}}) => Error
+  LAYER_UNPARSEABLE: (options: {message: string}) => Error
+  LOCK_TIMEOUT: () => Error
+}
+
+function settled(outcome: SettingsWriteOutcome, errors: SettingsErrors): {ok: true; opId: string} {
+  if (outcome.ok) return {ok: true, opId: outcome.opId}
+  const failure = outcome.failure
+  if (failure.kind === 'unknown-key') throw errors.UNKNOWN_KEY()
+  if (failure.kind === 'invalid-value') throw errors.INVALID_VALUE()
+  if (failure.kind === 'lock-timeout') throw errors.LOCK_TIMEOUT()
+  if (failure.kind === 'revision-conflict') {
+    throw errors.REVISION_CONFLICT({data: {scope: failure.scope, revision: failure.revision}})
+  }
+  throw errors.LAYER_UNPARSEABLE({
+    message: `the ${failure.scope} settings file does not parse; fix it before writing`,
+  })
 }
 
 type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
@@ -106,6 +132,22 @@ export function makeRpcRouter(deps: RpcDeps) {
     navigation: {
       get: os.navigation.get.handler(() => engine.navigation.get()),
       set: os.navigation.set.handler(({input}) => engine.navigation.set(input)),
+    },
+    settings: {
+      get: os.settings.get.handler(() => deps.settings.read()),
+      set: os.settings.set.handler(async ({input, errors}) =>
+        settled(await deps.settings.set({...input, actor: SETTINGS_RPC_ACTOR}), errors),
+      ),
+      clear: os.settings.clear.handler(async ({input, errors}) =>
+        settled(await deps.settings.clear({...input, actor: SETTINGS_RPC_ACTOR}), errors),
+      ),
+      applyGlobally: os.settings.applyGlobally.handler(async ({input, errors}) =>
+        settled(await deps.settings.applyGlobally({...input, actor: SETTINGS_RPC_ACTOR}), errors),
+      ),
+      reset: os.settings.reset.handler(async ({input, errors}) =>
+        settled(await deps.settings.reset({...input, actor: SETTINGS_RPC_ACTOR}), errors),
+      ),
+      history: os.settings.history.handler(({input}) => deps.settings.history(input.key)),
     },
     registry: {
       catalog: os.registry.catalog.handler(() => engine.catalog()),

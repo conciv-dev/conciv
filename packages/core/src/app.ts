@@ -59,6 +59,10 @@ import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {logError} from './lib/debug.js'
+import {concivHomeDir} from './lib/conciv-home.js'
+import {makeSettingsService} from './settings/service.js'
+import {SETTINGS_CHANGED_EVENT, settingsRegistry} from '@conciv/protocol/settings-types'
+import {EventType} from '@tanstack/ai'
 import {engineStaleness} from './lib/engine-stamp.js'
 import type {OpenInEditor} from './editor/open.js'
 
@@ -94,6 +98,8 @@ export type MakeAppOpts = {
   nativeUrl?: () => string | undefined
 
   staleness?: () => EngineStaleness
+
+  globalSettingsDir?: string
 }
 
 export function slug(name: string): string {
@@ -315,6 +321,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     openInEditor: opts.openInEditor,
   })
   const {asks, liveRuns, registry, stream} = primitives
+  const settings = makeSettingsService({
+    projectStateDir: concivStateDir(opts.cfg.stateRoot),
+    globalStateDir: opts.globalSettingsDir ?? concivHomeDir(),
+    registry: settingsRegistry,
+    notify: (payload) =>
+      stream.publishAll({type: EventType.CUSTOM, name: SETTINGS_CHANGED_EVENT, value: payload, timestamp: Date.now()}),
+  })
   const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
     runtime.forSession(request.sessionId).tools.call(name, input, {toolCallId: request.toolCallId})
@@ -489,6 +502,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     tools: toolList,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     runtime,
+    settings,
     staleness,
     ...(opts.askTimeoutMs === undefined ? {} : {askTimeoutMs: opts.askTimeoutMs}),
   })
@@ -531,6 +545,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     const drained = await drainWithDeadline(runControl.drain(), RUN_DRAIN_TIMEOUT_MS)
     if (!drained) logError('[core] disposed with run(s) still in flight')
     for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
+    settings.dispose()
     db.$client.close()
   }
 

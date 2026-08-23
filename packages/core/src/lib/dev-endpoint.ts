@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync} from 'node:fs'
-import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
+import {concivHomeDir} from './conciv-home.js'
 
 const FILE_NAME = 'dev-endpoint.json'
 const FILE_MODE = 0o600
@@ -16,7 +16,7 @@ export const DevEndpointSchema = z.object({
 export type DevEndpoint = z.infer<typeof DevEndpointSchema>
 
 export function defaultDevEndpointDir(): string {
-  return join(homedir(), '.conciv')
+  return concivHomeDir()
 }
 
 function endpointPath(dir: string): string {
