@@ -68,4 +68,5 @@ export type ToolCardEntry = {
   render: ToolUIComponent
   streamTitle?: string
   display?: 'standalone'
+  hasEmbeddedBody?: (part: ToolCallPart, result: ToolResultPart | undefined) => boolean
 }

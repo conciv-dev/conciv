@@ -146,7 +146,21 @@ export const EmbeddedSuccess: Story = {
     await expect(c.getByText('exec')).toBeVisible()
     await expect(c.getByText('ok')).toBeVisible()
     await expect(c.getByText('const drawn = await external_canvas_draw({elements})')).toBeVisible()
+    await expect(c.getByRole('button', {name: /external_canvas_draw/})).toBeVisible()
     await waitFor(async () => expect(await codeText(canvasElement)).toContain('committed'))
+  },
+}
+
+const voidResult = result({success: true, logs: []})
+
+export const EmbeddedVoidResult: Story = {
+  render: () => traceGallery('1 exec', part(), voidResult),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByText('exec')).toBeVisible()
+    await expect(c.getByText('ok')).toBeVisible()
+    await expect(c.queryByRole('button', {name: /external_canvas_draw/})).toBeNull()
+    await expect(c.queryByRole('group', {name: 'Output'})).toBeNull()
   },
 }
 
