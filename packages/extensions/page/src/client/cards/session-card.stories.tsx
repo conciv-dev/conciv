@@ -301,3 +301,20 @@ export const Narrow: Story = {
     await expect(canvas.getByText('Full name')).toBeVisible()
   },
 }
+
+export const HeaderSummary: Story = {
+  render: () =>
+    sessionFrame(
+      sessionParts(storyPart('page.check', {selector: '#terms'}, 'complete', 'c5')),
+      settledResults(storyResult({ok: true}, 'complete', 'c5')),
+      SESSION_CAPTURES,
+      false,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.hover(canvas.getByText('Edited the page'))
+    await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent('the AI drove the live page'), {
+      timeout: 2000,
+    })
+  },
+}

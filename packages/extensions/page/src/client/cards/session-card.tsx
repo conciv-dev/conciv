@@ -260,14 +260,14 @@ function SessionHeader(props: {
         <span class={`${HEAD_DOT} [background:var(--chat-success)]`} />
       </span>
       <CardHeadline class="shrink">
-        <TruncatedText class={HEAD_TITLE} text={props.title} />
+        <span class={HEAD_TITLE}>{props.title}</span>
         <span class={HEAD_COUNT}>{props.count}</span>
       </CardHeadline>
       <span class={HEAD_SPACER}>
         <Show when={props.url}>
           {(url) => (
             <span class={HEAD_URL}>
-              <TruncatedText class="min-w-0" text={url()} />
+              <span class="min-w-0 truncate">{url()}</span>
             </span>
           )}
         </Show>

@@ -21,20 +21,33 @@ const MICROLABEL =
 const TERMINAL_TITLE = `min-w-0 flex-1 truncate text-[length:var(--chat-text-md)] text-chat-frame-text font-medium ${CARD_HEADLINE_TEXT}`
 const TERMINAL_META = `flex-none min-w-0 max-w-[45%] truncate text-[length:var(--chat-text-xs)] text-chat-text-3 [font-family:var(--chat-mono)] tabular-nums ${CARD_HEADLINE_TEXT}`
 
+function HeadlineText(props: {reveal: boolean; class: string; text: string}): JSX.Element {
+  return (
+    <Show when={props.reveal} fallback={<span class={props.class}>{props.text}</span>}>
+      <TruncatedText class={props.class} text={props.text} />
+    </Show>
+  )
+}
+
 function TerminalHeaderContent(props: {
   label: string
   title: string
   meta: string | undefined
   duration: string | undefined
   status: ToolStatus
+  reveal: boolean
 }): JSX.Element {
   return (
     <>
       <span class={MICROLABEL}>{props.label}</span>
       <CardHeadline class="flex-1">
-        <TruncatedText class={TERMINAL_TITLE} text={props.title} />
-        <Show when={props.meta}>{(meta) => <TruncatedText class={TERMINAL_META} text={meta()} />}</Show>
-        <Show when={props.duration}>{(value) => <TruncatedText class={TERMINAL_META} text={value()} />}</Show>
+        <HeadlineText reveal={props.reveal} class={TERMINAL_TITLE} text={props.title} />
+        <Show when={props.meta}>
+          {(meta) => <HeadlineText reveal={props.reveal} class={TERMINAL_META} text={meta()} />}
+        </Show>
+        <Show when={props.duration}>
+          {(value) => <HeadlineText reveal={props.reveal} class={TERMINAL_META} text={value()} />}
+        </Show>
       </CardHeadline>
       <StatusVisual status={props.status} form="dot" />
     </>
@@ -48,6 +61,7 @@ function HeaderContent(props: {
   meta: string | undefined
   duration: string | undefined
   status: ToolStatus
+  reveal: boolean
 }): JSX.Element {
   return (
     <>
@@ -59,10 +73,14 @@ function HeaderContent(props: {
         )}
       </Show>
       <CardHeadline class="flex-1">
-        <TruncatedText class={TITLE} text={props.title} />
-        <Show when={props.subtitle}>{(subtitle) => <TruncatedText class={SUBTITLE} text={subtitle()} />}</Show>
-        <Show when={props.meta}>{(meta) => <TruncatedText class={METRIC} text={meta()} />}</Show>
-        <Show when={props.duration}>{(value) => <TruncatedText class={METRIC} text={value()} />}</Show>
+        <HeadlineText reveal={props.reveal} class={TITLE} text={props.title} />
+        <Show when={props.subtitle}>
+          {(subtitle) => <HeadlineText reveal={props.reveal} class={SUBTITLE} text={subtitle()} />}
+        </Show>
+        <Show when={props.meta}>{(meta) => <HeadlineText reveal={props.reveal} class={METRIC} text={meta()} />}</Show>
+        <Show when={props.duration}>
+          {(value) => <HeadlineText reveal={props.reveal} class={METRIC} text={value()} />}
+        </Show>
       </CardHeadline>
       <StatusVisual status={props.status} form="dot" />
     </>
@@ -103,6 +121,7 @@ export function ToolCard(props: {
     if (subtitle === undefined || subtitle.length === 0) return undefined
     return rowLine().includes(subtitle) ? undefined : subtitle
   }
+  const reveal = () => props.titleTooltip === undefined
   const defaultHeader = (): JSX.Element => {
     if (props.variant === 'terminal') {
       return (
@@ -112,6 +131,7 @@ export function ToolCard(props: {
           meta={props.meta}
           duration={duration()}
           status={status()}
+          reveal={reveal()}
         />
       )
     }
@@ -123,6 +143,7 @@ export function ToolCard(props: {
         meta={props.meta}
         duration={duration()}
         status={status()}
+        reveal={reveal()}
       />
     )
   }
