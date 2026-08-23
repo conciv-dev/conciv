@@ -33,13 +33,32 @@ const notes = () => page.getByText(NOTES_BODY)
 const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
 const chatTab = () => page.getByRole('tab', {name: 'Chat', exact: true})
 const notesTab = () => page.getByRole('tab', {name: 'Notes', exact: true})
+const panel = () => page.getByRole('tabpanel')
 
-test('the panel keeps its chat stream alive across a view tab round trip', async () => {
+function elementById(node: Node, id: string): Element | null {
+  const root = node.getRootNode()
+  if (root instanceof ShadowRoot) return root.getElementById(id)
+  if (root instanceof Document) return root.getElementById(id)
+  return null
+}
+
+async function mountSeededPanel(): Promise<void> {
   const rpc = coreRpc(coreBase())
   const sessionId = await createSession(rpc)
   await coreControl.scriptTurn({toolCalls: [], text: REPLY_TEXT})
   await runTurn(rpc, sessionId, 'seed the transcript')
   harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+}
+
+function expectTabOwnsPanel(tab: Element, panelElement: Element): void {
+  const controls = tab.getAttribute('aria-controls')
+  expect(controls, 'the selected tab names the panel it controls').toBe(panelElement.id)
+  expect(panelElement.getAttribute('aria-labelledby'), 'the panel names the tab that labels it').toBe(tab.id)
+  expect(controls === null ? null : elementById(tab, controls), 'the idref resolves to that panel').toBe(panelElement)
+}
+
+test('the panel keeps its chat stream alive across a view tab round trip', async () => {
+  await mountSeededPanel()
 
   await expect.element(reply(), {timeout: 8000}).toBeVisible()
 
@@ -53,4 +72,17 @@ test('the panel keeps its chat stream alive across a view tab round trip', async
   await expect.element(skeleton()).not.toBeInTheDocument()
 
   await coreControl.releaseFault(gate)
+}, 30_000)
+
+test('each view tab points at the panel that renders it', async () => {
+  await mountSeededPanel()
+
+  await expect.element(reply(), {timeout: 8000}).toBeVisible()
+  await expect.element(panel(), {timeout: 8000}).toBeVisible()
+  expectTabOwnsPanel(chatTab().element(), panel().element())
+
+  await notesTab().click()
+  await expect.element(notes(), {timeout: 8000}).toBeVisible()
+  await expect.element(panel(), {timeout: 8000}).toBeVisible()
+  expectTabOwnsPanel(notesTab().element(), panel().element())
 }, 30_000)

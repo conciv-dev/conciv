@@ -7,6 +7,7 @@ import {usePane} from '../app/pane-context.js'
 import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {appendDraft} from '../pane/draft-storage.js'
+import {viewTabPanelAttributes} from '../pane/view-tab-ids.js'
 
 export const Route = createFileRoute('/panel/$sessionId/$view')({
   beforeLoad: ({context, params}) => {
@@ -59,6 +60,7 @@ function PanelView(): JSX.Element {
           }
         >
           <div
+            {...viewTabPanelAttributes(mount.view.id)}
             onAnimationEnd={(event) => {
               if (event.target === event.currentTarget) pane.resetSlide()
             }}

@@ -56,6 +56,7 @@ import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
 import {trackSessionActivity} from './session-activity.js'
+import {viewTabPanelAttributes} from './view-tab-ids.js'
 
 const PAGE_SESSION: PageSessionConfig = {
   entry: pageSessionEntry,
@@ -101,7 +102,7 @@ function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Eleme
   return <></>
 }
 
-export function ChatPane(props: {sessionId: string}): JSX.Element {
+export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Element {
   const rpc = useRpc()
   const appData = useAppData()
   const announce = useAnnounce()
@@ -255,6 +256,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
               <ExtensionSurface name="header" instances={instances} />
               <ExtensionSurface name="widget" instances={instances} />
               <div
+                {...viewTabPanelAttributes(props.viewTab)}
                 onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
                 class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
               >

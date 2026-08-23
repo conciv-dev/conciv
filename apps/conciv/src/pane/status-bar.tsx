@@ -2,6 +2,7 @@ import {For, Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {TabsPrimitive as Tabs} from '@conciv/ui-kit-system'
 import type {SessionStatus, SessionStatusKind} from '@conciv/ui-kit-chat'
+import {viewTabId, viewTabPanelId} from './view-tab-ids.js'
 
 export type StatusBarView = {id: string; label: string; icon?: Component<{class?: string}>}
 
@@ -69,6 +70,7 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
         value={props.activeView}
         onValueChange={(details) => props.onSelectView(details.value)}
         activationMode="manual"
+        ids={{trigger: viewTabId, content: viewTabPanelId}}
       >
         <Tabs.List class={VIEW_LIST}>
           <For each={props.views}>

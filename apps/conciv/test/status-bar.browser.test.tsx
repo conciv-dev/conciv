@@ -5,6 +5,7 @@ import {describe, expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import type {SessionStatus} from '@conciv/ui-kit-chat'
 import {StatusBar} from '../src/pane/status-bar.jsx'
+import {viewTabId, viewTabPanelId} from '../src/pane/view-tab-ids.js'
 
 function mountDynamic(): (status: SessionStatus) => void {
   const [status, setStatus] = createSignal<SessionStatus>({kind: 'running', label: 'RUNNING'})
@@ -54,6 +55,14 @@ describe('StatusBar session status derivation', () => {
     await expect.element(page.getByRole('tablist')).toBeVisible()
     await expect.element(page.getByRole('tab', {name: 'Board'})).toHaveAttribute('aria-selected', 'true')
     await expect.element(page.getByRole('tab', {name: 'Chat'})).toHaveAttribute('aria-selected', 'false')
+  })
+
+  it('names the panel each tab controls with a stable id the view can carry', async () => {
+    mountViews('board')
+
+    const board = page.getByRole('tab', {name: 'Board'})
+    await expect.element(board).toHaveAttribute('id', viewTabId('board'))
+    await expect.element(board).toHaveAttribute('aria-controls', viewTabPanelId('board'))
   })
 
   it('reports the picked view when another tab is chosen', async () => {
