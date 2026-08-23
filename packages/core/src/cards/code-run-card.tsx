@@ -190,7 +190,8 @@ export function CodeRunCard(props: ToolCardProps): JSX.Element {
 
 function codeRunHasEmbeddedBody(part: ToolCallPart, result: ToolResultPart | undefined): boolean {
   const output = parseOutput(result)
-  if (runOutputText(output).length > 0) return true
+  if (runLogText(output).length > 0) return true
+  if (hasResult(output)) return true
   return output === null && toolStatus(part, result) === 'error'
 }
 
