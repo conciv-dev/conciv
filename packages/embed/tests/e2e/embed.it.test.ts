@@ -62,8 +62,8 @@ test.describe('embed boots the conciv app against a real core', () => {
     test.setTimeout(240_000)
     await openPage(page)
     await openPanel(page)
-    await page.getByRole('button', {name: 'Terminal'}).click()
-    await expect(page.getByRole('button', {name: 'Terminal'})).toHaveAttribute('aria-pressed', 'true', {
+    await page.getByRole('tab', {name: 'Terminal'}).click()
+    await expect(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
       timeout: 30_000,
     })
     await until(
@@ -77,7 +77,7 @@ test.describe('embed boots the conciv app against a real core', () => {
     await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
     await until(async () => !(await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000, intervalMs: 100})
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
-    await expect(page.getByRole('button', {name: 'Terminal'})).toHaveAttribute('aria-pressed', 'true', {
+    await expect(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
       timeout: 30_000,
     })
     await until(async () => (await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000, intervalMs: 100})
@@ -89,13 +89,13 @@ test.describe('embed boots the conciv app against a real core', () => {
     test.setTimeout(180_000)
     const first = await openPage(page)
     await openPanel(first)
-    await first.getByRole('button', {name: 'Terminal'}).click()
+    await first.getByRole('tab', {name: 'Terminal'}).click()
     await until(async () => (await currentHref(kit)).includes('/terminal'), {hangGuardMs: 30_000, intervalMs: 100})
     expect(await currentHref(kit)).toMatch(/\/terminal\?.*open=true/)
     await first.close()
     const second = await openPage(await context.newPage())
     await expect(second.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
-    await expect(second.getByRole('button', {name: 'Terminal'})).toHaveAttribute('aria-pressed', 'true', {
+    await expect(second.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
       timeout: 30_000,
     })
   })

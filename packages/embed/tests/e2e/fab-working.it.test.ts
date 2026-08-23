@@ -43,5 +43,9 @@ test('switching to a new session mid-run hands the busy state over to the sessio
   await page.getByRole('menuitem', {name: 'Start a new session'}).click()
 
   await expect(stopButton(page)).toHaveCount(0, {timeout: IMMEDIATE_MS})
-  await expect(panelLauncher(page)).toHaveAttribute('aria-busy', 'true')
+  await expect(panelLauncher(page)).toHaveAttribute('aria-busy', 'false')
+
+  await page.getByRole('button', {name: 'Session options'}).click()
+  await page.getByRole('button', {name: /^Session: /}).click()
+  await expect(page.getByRole('option', {name: /running/})).toBeVisible({timeout: 30_000})
 })
