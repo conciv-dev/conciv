@@ -29,7 +29,7 @@ export {Popover, type PopoverApi} from './popover.js'
 export {Toast, ToastGroup, createToaster, type ToasterInstance} from './toast.js'
 export {Avatar} from './avatar.js'
 export {RelativeTime} from './relative-time.js'
-export {Tabs} from './tabs.js'
+export {Tabs, TabsPrimitive} from './tabs.js'
 export {Switch} from './switch.js'
 export {Swap} from './swap.js'
 export {

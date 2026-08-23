@@ -31,8 +31,8 @@ afterEach(harness.dispose)
 const reply = () => page.getByText(REPLY_TEXT)
 const notes = () => page.getByText(NOTES_BODY)
 const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
-const chatTab = () => page.getByRole('button', {name: 'Chat', exact: true})
-const notesTab = () => page.getByRole('button', {name: 'Notes', exact: true})
+const chatTab = () => page.getByRole('tab', {name: 'Chat', exact: true})
+const notesTab = () => page.getByRole('tab', {name: 'Notes', exact: true})
 
 test('the panel keeps its chat stream alive across a view tab round trip', async () => {
   const rpc = coreRpc(coreBase())

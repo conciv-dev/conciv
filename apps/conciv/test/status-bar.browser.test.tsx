@@ -2,7 +2,7 @@ import './helpers/utilities.css'
 import {render} from '@solidjs/testing-library'
 import {createSignal} from 'solid-js'
 import {describe, expect, it} from 'vitest'
-import {page} from 'vitest/browser'
+import {page, userEvent} from 'vitest/browser'
 import type {SessionStatus} from '@conciv/ui-kit-chat'
 import {StatusBar} from '../src/pane/status-bar.jsx'
 
@@ -31,7 +31,7 @@ describe('StatusBar session status derivation', () => {
     expect(page.getByText('RUNNING', {exact: true}).elements()).toHaveLength(0)
   })
 
-  it('marks the active view tab with aria-pressed and the active modifier class', async () => {
+  function mountViews(activeView: string, onSelectView: (id: string) => void = () => {}, disabled = false) {
     render(() => (
       <StatusBar
         status={{kind: 'done', label: 'DONE'}}
@@ -41,18 +41,37 @@ describe('StatusBar session status derivation', () => {
           {id: 'chat', label: 'Chat'},
           {id: 'board', label: 'Board'},
         ]}
-        activeView="board"
-        onSelectView={() => {}}
-        disabled={false}
+        activeView={activeView}
+        onSelectView={onSelectView}
+        disabled={disabled}
       />
     ))
+  }
 
-    const board = page.getByRole('button', {name: 'Board'})
-    const chat = page.getByRole('button', {name: 'Chat'})
-    await expect.element(board).toHaveAttribute('aria-pressed', 'true')
-    await expect.element(board).toHaveClass('chat-view-btn-active')
-    await expect.element(chat).toHaveAttribute('aria-pressed', 'false')
-    await expect.element(chat).not.toHaveClass('chat-view-btn-active')
+  it('exposes the view switcher as a tablist with the active view selected', async () => {
+    mountViews('board')
+
+    await expect.element(page.getByRole('tablist')).toBeVisible()
+    await expect.element(page.getByRole('tab', {name: 'Board'})).toHaveAttribute('aria-selected', 'true')
+    await expect.element(page.getByRole('tab', {name: 'Chat'})).toHaveAttribute('aria-selected', 'false')
+  })
+
+  it('reports the picked view when another tab is chosen', async () => {
+    const picked: string[] = []
+    mountViews('chat', (id) => picked.push(id))
+
+    await userEvent.click(page.getByRole('tab', {name: 'Board'}))
+
+    await expect.element(page.getByRole('tab', {name: 'Board'})).toBeVisible()
+    expect(picked).toEqual(['board'])
+    await page.screenshot({path: '__screenshots__/status-bar/view-tab-indicator.png'})
+  })
+
+  it('locks the tabs the leave guard blocks while keeping the active one reachable', async () => {
+    mountViews('chat', () => {}, true)
+
+    await expect.element(page.getByRole('tab', {name: 'Board'})).toBeDisabled()
+    await expect.element(page.getByRole('tab', {name: 'Chat'})).not.toBeDisabled()
   })
 
   it('announces the state chip through a polite live region', async () => {
