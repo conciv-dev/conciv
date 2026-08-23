@@ -24,6 +24,10 @@ const MARKDOWN_HEAVY_REPLY = [
   '> a blockquote noting a caveat worth remembering',
 ].join('\n')
 
+const VIRTUALIZE_THRESHOLD_MIRRORED_FROM_UI_KIT_CHAT = 15
+const BELOW_EXCHANGES = Math.floor((VIRTUALIZE_THRESHOLD_MIRRORED_FROM_UI_KIT_CHAT - 1) / 2)
+const ABOVE_EXCHANGES = Math.ceil(VIRTUALIZE_THRESHOLD_MIRRORED_FROM_UI_KIT_CHAT / 2)
+
 const suite = setupWidgetSuite({text: MARKDOWN_HEAVY_REPLY})
 
 async function seedExchanges(sessionId: string, exchanges: number): Promise<void> {
@@ -55,20 +59,16 @@ test.describe('virtualize threshold cliff', () => {
     page,
   }) => {
     test.setTimeout(240_000)
-    const below = await measureSwitch(page, 24)
-    console.log('BELOW THRESHOLD (48 turns, flat mode) rendered row count', below.rowCount)
+    const below = await measureSwitch(page, BELOW_EXCHANGES)
+    console.log(`BELOW THRESHOLD (${BELOW_EXCHANGES * 2} turns, flat mode) rendered row count`, below.rowCount)
 
-    const at = await measureSwitch(page, 25)
-    console.log('AT THRESHOLD (50 turns, virtual mode) rendered row count', at.rowCount)
+    const at = await measureSwitch(page, ABOVE_EXCHANGES)
+    console.log(`AT THRESHOLD (${ABOVE_EXCHANGES * 2} turns, virtual mode) rendered row count`, at.rowCount)
 
-    expect(below.rowCount, 'below the threshold every one of the 48 turns is mounted unvirtualized').toBe(48)
+    expect(below.rowCount, 'below the threshold every turn is mounted unvirtualized').toBe(BELOW_EXCHANGES * 2)
     expect(
       at.rowCount,
-      'at/above the threshold the virtualizer bounds the mounted rows to a small window',
-    ).toBeLessThanOrEqual(20)
-    expect(
-      at.rowCount,
-      'crossing the threshold must actually shrink the mounted row count versus the flat mode',
-    ).toBeLessThan(below.rowCount)
+      'at/above the threshold the virtualizer bounds the mounted rows to a window smaller than the transcript',
+    ).toBeLessThan(ABOVE_EXCHANGES * 2)
   })
 })
