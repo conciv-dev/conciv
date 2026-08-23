@@ -4,12 +4,14 @@ import {AsyncRetryer} from '@tanstack/pacer'
 import {ORPCError} from '@orpc/client'
 import type {RpcClient} from '@conciv/contract'
 import type {ChatContentPart} from '@conciv/protocol/chat-types'
+import {runLifecycleOf, type RunLifecycle} from '@conciv/protocol/run-types'
 
 export type ChatConnectionOptions = {
   retryDelayMs?: number
   offlineRetryDelayMs?: number
   isOnline?: () => boolean
   onRetry?: (error: unknown) => void
+  onLifecycle?: (lifecycle: RunLifecycle) => void
 }
 
 const DEFAULT_RETRY_DELAY_MS = 500
@@ -122,6 +124,17 @@ function scopedSignal(consumerSignal: AbortSignal | undefined, attempt: AbortCon
   return AbortSignal.any([consumerSignal, attempt.signal])
 }
 
+async function* tappedForLifecycle(
+  stream: SessionStream,
+  onLifecycle: ((lifecycle: RunLifecycle) => void) | undefined,
+): AsyncGenerator<StreamChunk> {
+  for await (const chunk of stream) {
+    const lifecycle = onLifecycle ? runLifecycleOf(chunk) : null
+    if (lifecycle) onLifecycle?.(lifecycle)
+    yield chunk
+  }
+}
+
 async function* subscribeStream(
   rpc: RpcClient,
   sessionId: string,
@@ -135,7 +148,7 @@ async function* subscribeStream(
     const stream = await openStream(rpc, sessionId, options, scopedSignal(consumerSignal, attempt))
     if (!stream) return
     try {
-      yield* stream
+      yield* tappedForLifecycle(stream, options.onLifecycle)
       if (!attempt.signal.aborted) return
     } catch (error) {
       if (!stillListening(consumerSignal)) return
@@ -152,7 +165,6 @@ export function chatConnection(rpc: RpcClient, sessionId: string, options: ChatC
       const runId = runContext?.runId
       if (!runId) throw new Error('chat.send needs the run id the chat client minted for this turn')
       const content = turnContent(messages)
-      await rpc.chat.stop({sessionId}, {signal: abortSignal})
       await rpc.chat.send({sessionId, runId, content}, {signal: abortSignal})
     },
     refresh: () => control.attempt?.abort(),

@@ -29,6 +29,10 @@
       "types": "./dist/ui-types.d.ts",
       "import": "./dist/ui-types.js"
     },
+    "./run-types": {
+      "types": "./dist/run-types.d.ts",
+      "import": "./dist/run-types.js"
+    },
     "./editor-types": {
       "types": "./dist/editor-types.d.ts",
       "import": "./dist/editor-types.js"

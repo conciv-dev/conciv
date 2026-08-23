@@ -5,8 +5,8 @@ import {
   ChatProvider,
   chatBusy,
   coalesceTurns,
+  createRunClock,
   createSessionStatus,
-  createTurnClock,
   formatElapsed,
   sessionTotals,
   turnRollup,
@@ -150,11 +150,12 @@ function PanelSession(): JSX.Element {
     latestRollup: latestRollup(),
     isStreaming: isStreaming(),
     queueLength: queue().length,
+    stopping: chat().stopping(),
+    runError: chat().runError(),
   }))
   // oxlint-disable-next-line solid/reactivity
   const diff = sessionTotals(() => turns())
-  // oxlint-disable-next-line solid/reactivity
-  const clock = createTurnClock(() => turns(), isStreaming)
+  const clock = createRunClock(() => chat().runSource())
   const elapsedLabel = () => {
     const state = clock()
     return state.elapsedMs === null ? '--' : formatElapsed(state.elapsedMs)

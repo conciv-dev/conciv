@@ -25,7 +25,13 @@ export type ViewState = {
   }
 }
 
-export type ChatContextValue = UseChatReturn & {view: ViewState; setView: SetStoreFunction<ViewState>}
+export type StoppableChat = UseChatReturn & {stopping?: Accessor<boolean>}
+
+export type ChatContextValue = UseChatReturn & {
+  view: ViewState
+  setView: SetStoreFunction<ViewState>
+  stopping: Accessor<boolean>
+}
 
 const ChatContext = createContext<ChatContextValue>()
 
@@ -33,7 +39,7 @@ function pickKeys(record: Record<string, boolean>, live: Set<string>): Record<st
   return Object.fromEntries(Object.entries(record).filter(([key]) => live.has(key)))
 }
 
-export function ChatProvider(props: ParentProps<{chat: UseChatReturn}>): JSX.Element {
+export function ChatProvider(props: ParentProps<{chat: StoppableChat}>): JSX.Element {
   const [view, setView] = createStore<ViewState>({
     draft: '',
     collapsed: {},
@@ -53,7 +59,9 @@ export function ChatProvider(props: ParentProps<{chat: UseChatReturn}>): JSX.Ele
     setView('pinned', (prev) => pickKeys(prev, liveMessages))
   })
 
-  const value: ChatContextValue = untrack(() => Object.assign({}, props.chat, {view, setView}))
+  const value: ChatContextValue = untrack(() =>
+    Object.assign({}, props.chat, {view, setView, stopping: props.chat.stopping ?? ((): boolean => false)}),
+  )
   return <ChatContext.Provider value={value}>{props.children}</ChatContext.Provider>
 }
 
@@ -105,6 +113,7 @@ export function useComposer(): {
   isEmpty: Accessor<boolean>
   canSend: Accessor<boolean>
   canCancel: Accessor<boolean>
+  isStopping: Accessor<boolean>
   send: () => void
   cancel: () => void
 } {
@@ -114,6 +123,7 @@ export function useComposer(): {
   const isEmpty = () => chat.view.draft.trim().length === 0
   const canSend = () => !isEmpty()
   const canCancel = () => isRunning()
+  const isStopping = createMemo(() => chat.stopping())
   const send = () => {
     if (!canSend()) return
     const content = chat.view.draft.trim()
@@ -121,5 +131,5 @@ export function useComposer(): {
     void chat.sendMessage(content)
   }
   const cancel = () => chat.stop()
-  return {text, setText: (value) => chat.setView('draft', value), isEmpty, canSend, canCancel, send, cancel}
+  return {text, setText: (value) => chat.setView('draft', value), isEmpty, canSend, canCancel, isStopping, send, cancel}
 }
