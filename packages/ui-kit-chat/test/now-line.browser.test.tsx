@@ -48,15 +48,51 @@ it('freezes the spinner glyph visible under prefers-reduced-motion instead of hi
   restore()
 })
 
-it('swaps the narration label for the next activity without moving the spinner', async () => {
-  const [title, setTitle] = createSignal('Thinking…')
+const FIRST_ACTIVITY = 'Thinking…'
+const NEXT_ACTIVITY = 'Running ls'
+
+it('swaps the narration label and unmounts the outgoing one once its exit finishes', async () => {
+  const [title, setTitle] = createSignal(FIRST_ACTIVITY)
   mountView(() => framed(<NowLine title={title()} />))
 
-  await expect.element(page.getByText('Thinking…', {exact: true})).toBeVisible()
-  setTitle('Running ls')
-  await expect.element(page.getByText('Running ls', {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
+  await expect.element(page.getByText(FIRST_ACTIVITY, {exact: true})).toBeVisible()
+  setTitle(NEXT_ACTIVITY)
+  await expect.element(page.getByText(NEXT_ACTIVITY, {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
   await page.screenshot({path: '__screenshots__/now-line/label-swap.png'})
-  await expect.element(page.getByText('Thinking…', {exact: true}), {timeout: TIMEOUT_MS}).not.toBeVisible()
+  await expect.element(page.getByText(FIRST_ACTIVITY, {exact: true}), {timeout: TIMEOUT_MS}).not.toBeInTheDocument()
+})
+
+it('swaps with a single label and no exit animation under prefers-reduced-motion', async () => {
+  const restore = withReducedMotion()
+  const [title, setTitle] = createSignal(FIRST_ACTIVITY)
+  mountView(() => framed(<NowLine title={title()} />))
+
+  await expect.element(page.getByText(FIRST_ACTIVITY, {exact: true})).toBeVisible()
+  setTitle(NEXT_ACTIVITY)
+  await expect.element(page.getByText(NEXT_ACTIVITY, {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
+  await expect.element(page.getByText(FIRST_ACTIVITY, {exact: true})).not.toBeInTheDocument()
+  restore()
+})
+
+const CHURN_START = 'Thinking…'
+const CHURN_STEPS = ['Reading app.tsx', 'Running tsc', 'Reading now-line.tsx', 'Running oxlint', 'Responding…']
+const CHURN_SETTLED = 'Responding…'
+
+it('cuts to the latest narration under rapid churn and settles on exactly one label', async () => {
+  const [title, setTitle] = createSignal(CHURN_START)
+  mountView(() => framed(<NowLine title={title()} />))
+
+  await expect.element(page.getByText(CHURN_START, {exact: true})).toBeVisible()
+  for (const step of CHURN_STEPS) {
+    setTitle(step)
+    await expect.element(page.getByText(step, {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
+  }
+
+  await expect.element(page.getByText(CHURN_SETTLED, {exact: true})).toBeVisible()
+  await page.screenshot({path: '__screenshots__/now-line/churn-settled.png'})
+  for (const stale of [CHURN_START, ...CHURN_STEPS.slice(0, -1)]) {
+    await expect.element(page.getByText(stale, {exact: true}), {timeout: TIMEOUT_MS}).not.toBeInTheDocument()
+  }
 })
 
 const LONG_TITLE = 'Running pnpm turbo run test --filter=@conciv/ui-kit-chat --filter=@conciv/app --concurrency=1'
