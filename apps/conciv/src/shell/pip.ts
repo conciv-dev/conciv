@@ -1,10 +1,9 @@
 import {createEffect} from 'solid-js'
 import {delegateEvents} from 'solid-js/web'
-import {terminalTheme} from '@conciv/ui-kit-chat/theme/themes/terminal'
+import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import styles from '../styles.css?inline'
-import {registerWind4Properties} from '../lib/shadow.js'
-import {applyChatTheme} from '../lib/theme.js'
-import {applySchemeClass, type ColorScheme} from '../lib/color-scheme.js'
+import {registerFonts, registerWind4Properties} from '../lib/shadow.js'
+import {applySchemeClass, applySkinClass, themeClasses, type HostTheme} from '../lib/color-scheme.js'
 
 const DELEGATED = [
   'focusin',
@@ -21,10 +20,12 @@ const DELEGATED = [
 const PIP_WRAP =
   'fixed inset-0 flex [&>*]:!static [&>*]:!inset-auto [&>*]:!w-full [&>*]:!h-full [&>*]:!max-h-none [&>*]:!transform-none [&>*]:!opacity-100 [&>*]:!visible [&>*]:!pointer-events-auto [&>*]:!border-none [&>*]:!rounded-none [&>*]:!shadow-none [&_[role=separator]]:hidden'
 
+const FALLBACK_THEME: HostTheme = {scheme: 'dark', skin: 'conciv'}
+
 export type PipWindow = {win: Window; wrap: HTMLElement; root: ShadowRoot; close: () => void}
 
 export function openPipWindow(
-  opts: {title?: string; width?: number; height?: number; scheme?: () => ColorScheme} = {},
+  opts: {title?: string; width?: number; height?: number; theme?: () => HostTheme} = {},
 ): PipWindow | null {
   const win = window.open('', 'conciv-pip', `width=${opts.width ?? 480},height=${opts.height ?? 620},popup`)
   if (!win) return null
@@ -34,6 +35,7 @@ export function openPipWindow(
   win.document.body.style.margin = '0'
 
   registerWind4Properties(win.document)
+  registerFonts(CHAT_FONTS, win.document)
 
   const host = win.document.createElement('div')
   host.setAttribute('data-conciv-pip-host', '')
@@ -43,13 +45,15 @@ export function openPipWindow(
   style.textContent = styles
   root.appendChild(style)
   const wrap = win.document.createElement('div')
-  applyChatTheme(terminalTheme, win.document)
   root.appendChild(wrap)
   createEffect(() => {
-    const scheme = opts.scheme?.() ?? 'dark'
-    wrap.className = `${PIP_WRAP} ${scheme}`
-    applySchemeClass(host, scheme)
-    win.document.documentElement.style.colorScheme = scheme
+    const theme = opts.theme?.() ?? FALLBACK_THEME
+    wrap.className = `${PIP_WRAP} ${themeClasses(theme)}`
+    applySchemeClass(host, theme.scheme)
+    applySkinClass(host, theme.skin)
+    applySchemeClass(win.document.documentElement, theme.scheme)
+    applySkinClass(win.document.documentElement, theme.skin)
+    win.document.documentElement.style.colorScheme = theme.scheme
   })
 
   delegateEvents(DELEGATED, win.document)

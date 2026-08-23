@@ -1,6 +1,6 @@
 ---
 name: conciv-extensions
-description: Author conciv widget/agent extensions: theme tokens, panel surfaces (header/footer/composer/empty/status/widget), tool-call renderers, agent tools, and system-prompt text. Use when asked to customize or extend the conciv chat widget or its embedded agent.
+description: Author conciv widget/agent extensions: panel surfaces (header/footer/composer/empty/status/widget), tool-call renderers, agent tools, and system-prompt text. Use when asked to customize or extend the conciv chat widget or its embedded agent.
 ---
 
 # Authoring conciv extensions
@@ -9,9 +9,9 @@ Extensions are TypeScript files in `conciv/extensions/*.{ts,tsx}`, committed to 
 
 ## The loop
 
-1. `await external_conciv_extensions({verb: 'catalog'})` inside `execute_typescript` shows the surface (theme tokens, the six slots, client/server surfaces). Read it before writing.
+1. `await external_conciv_extensions({verb: 'catalog'})` inside `execute_typescript` shows the surface (readable design tokens, the six slots, client/server surfaces). Read it before writing.
 2. `await external_conciv_extensions({verb: 'scaffold', kind, name})` returns a typed skeleton.
-3. Write it to `conciv/extensions/<name>.tsx` (or `.ts` for the no-JSX kinds: `theme`, `tool`). `.client()` and `Component` changes hot-reload into the live widget (screenshot to confirm); new or changed `.server()` tools and prompt text need a dev-server restart.
+3. Write it to `conciv/extensions/<name>.tsx` (or `.ts` for the no-JSX kind `tool`). `.client()` and `Component` changes hot-reload into the live widget (screenshot to confirm); new or changed `.server()` tools and prompt text need a dev-server restart.
 4. `await external_conciv_extensions({verb: 'validate', source})` lints draft source against the catalog before you rely on it.
 
 ## Shape
@@ -26,7 +26,7 @@ export default defineExtension({name: 'acme'})
   .server(() => ({tools: [], systemPrompt: 'node-only guidance'}))
 ```
 
-`defineExtension({name, Component?, systemPrompt?, theme?, tools?})`. Both `.client()` and `.server()` are optional; chain only the halves you need. The transform collapses the wrong half per build, so node code never reaches the browser and vice versa.
+`defineExtension({name, Component?, systemPrompt?, tools?})`. Both `.client()` and `.server()` are optional; chain only the halves you need. The transform collapses the wrong half per build, so node code never reaches the browser and vice versa.
 
 ## Panel surfaces: one `Component`, branch on the slot
 
@@ -91,13 +91,20 @@ children?})` — the divergent case, when the inline and collapsed representatio
 A raw `<button>` in the composer slot is a bug: it never collapses, so it pushes the send button off
 a narrow panel.
 
-## Theme: a declarative field
+## Styling: the token contract, not a theme field
 
-```ts
-export default defineExtension({name: 'acme', theme: {'chat-accent': '#2563eb'}})
+There is no per-extension theme override. An extension is a component inside the widget surface, so it
+styles exclusively through the `--chat-*` tokens and the shared utilities, and follows every skin and
+colour scheme for free. For a bespoke visual, derive your own local vars from public tokens:
+
+```tsx
+<div class="rounded-chat-surface-md border border-chat-line bg-chat-panel text-chat-text p-3">
+  <span style={{background: 'color-mix(in oklch, var(--chat-accent) 12%, transparent)'}}>badge</span>
+</div>
 ```
 
-Token names are validated by `verb: "validate"`; non-overridable tokens warn (the base theme may restyle them). Run `verb: "catalog"` for the full token list.
+Run `verb: "catalog"` for the readable token list. Never key off a skin class: skins are applied
+internally and are not a selector surface.
 
 ## Tools: renderer co-located with the definition
 

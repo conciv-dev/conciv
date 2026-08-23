@@ -106,9 +106,10 @@ Restart your dev server (`.server(...)` code and top-level `systemPrompt` load a
 and `.render(...)` hot-reload). Ask the widget to "deploy this to staging" and the agent calls
 `deploy_run`, your `.server` runs in node, and your `.render` card draws the result.
 
-The sibling example, `apps/examples/tanstack-start/conciv/extensions/blue.tsx`, shows a `theme`
-field and a status-slot-only `Component` — read it for the smallest possible extension that still
-does something visible.
+Extensions never override the widget's look. They style through the `--chat-*` tokens and the
+shared utilities, which follow whichever skin and colour scheme the host page selected. Derive a
+bespoke visual locally with `color-mix` over a public token; the full readable surface is generated
+into `packages/ui-kit-system/docs/extension-tokens.md`.
 
 ## `defineExtension` fields
 
@@ -123,7 +124,6 @@ defineExtension({
   Component, // Solid component mounted once per widget slot (header/footer/composer/empty/status/widget/surface/connect)
   Surface, // Solid component for the dedicated 'surface' slot — mount via MountedSurface, not branching on useSlot
   systemPrompt, // string, or (config, {cwd}) => string, appended to the agent's system prompt
-  theme, // ThemeTokens — CSS custom-property overrides
   connectGate, // {preflight: () => Promise<string | null>} — gate the widget's connect flow
 })
 ```
@@ -389,7 +389,6 @@ block and the Next.js-specific JSX constraint on local, non-installed extensions
 - `packages/extension-testkit/src/fixture-host.ts`
 - `packages/protocol/src/tool-view-types.ts`
 - `apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx`
-- `apps/examples/tanstack-start/conciv/extensions/blue.tsx`
 - `packages/extensions/whiteboard/src/client.tsx`
 - `packages/extensions/whiteboard/src/tool/comment/def.ts`
 - `packages/extensions/terminal/src/client.tsx`

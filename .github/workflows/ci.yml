@@ -268,6 +268,11 @@ jobs:
       - run: pnpm exec conciv-publish check-changesets
       # Build the site too so bundle-size can measure the Cloudflare worker and gate it below.
       - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*' --filter=site
+      # Token codegen drift: the base token sheet, every class-scoped skin block and both
+      # generated contract docs come from the typed skin definitions and are committed.
+      # Regenerate them in memory and fail if the committed files disagree.
+      - name: Token codegen drift
+        run: pnpm --filter @conciv/ui-kit-system run gen:check
       # Bundle size: measure published dists, diff against the baseline saved by the
       # latest main run. PRs read the baseline; pushes to main publish a fresh one.
       # Pinned to a main-push run for the same artifact-poisoning reason as the

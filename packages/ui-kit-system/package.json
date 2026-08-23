@@ -19,6 +19,7 @@
   },
   "files": [
     "dist",
+    "docs",
     "src/tokens.css"
   ],
   "type": "module",
@@ -38,8 +39,9 @@
   },
   "scripts": {
     "gen:tokens": "node scripts/gen-tokens.ts",
+    "gen:check": "node scripts/check-tokens.ts",
     "build": "pnpm gen:tokens && vite build && tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests",
     "publint": "publint",

@@ -244,7 +244,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
               <ExtensionSurface name="widget" instances={instances} />
               <div
                 onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
-                class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
+                class={`chat-density flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
               >
                 <Thread>
                   <Thread.Viewport>

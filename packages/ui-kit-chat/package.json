@@ -33,17 +33,13 @@
       "import": "./dist/tools.js"
     },
     "./theme/tokens.css": "./src/theme/tokens.css",
-    "./theme/theme-descriptor": {
-      "types": "./dist/theme/theme-descriptor.d.ts",
-      "import": "./dist/theme/theme-descriptor.js"
+    "./theme/fonts": {
+      "types": "./dist/theme/fonts.d.ts",
+      "import": "./dist/theme/fonts.js"
     },
     "./theme/code-theme": {
       "types": "./dist/theme/code-theme.d.ts",
       "import": "./dist/theme/code-theme.js"
-    },
-    "./theme/themes/terminal": {
-      "types": "./dist/theme/themes/terminal.d.ts",
-      "import": "./dist/theme/themes/terminal.js"
     }
   },
   "publishConfig": {

@@ -1,6 +1,5 @@
 import {makeEventListener} from '@solid-primitives/event-listener'
-import type {ThemeFontFace} from '@conciv/ui-kit-chat/theme/theme-descriptor'
-import {terminalTheme} from '@conciv/ui-kit-chat/theme/themes/terminal'
+import {CHAT_FONTS, type ChatFontFace} from '@conciv/ui-kit-chat/theme/fonts'
 import styles from '../styles.css?inline'
 
 const PROPERTY_RULE = /@property\s+--[\w-]+\s*\{[^}]*\}/g
@@ -8,7 +7,7 @@ const PROPERTY_RULE = /@property\s+--[\w-]+\s*\{[^}]*\}/g
 const LATIN_RANGE =
   'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD'
 
-export function registerFonts(fonts: ThemeFontFace[], doc: Document = document): void {
+export function registerFonts(fonts: ChatFontFace[], doc: Document = document): void {
   if (doc.querySelector('style[data-conciv-fonts]')) return
   const style = doc.createElement('style')
   style.setAttribute('data-conciv-fonts', '')
@@ -54,7 +53,7 @@ function keepEditableKeysOffTheHostPage(root: ShadowRoot): () => void {
 
 export function createShadowRoot(host: HTMLElement): {host: HTMLElement; root: ShadowRoot; dispose: () => void} {
   registerWind4Properties()
-  registerFonts(terminalTheme.fonts)
+  registerFonts(CHAT_FONTS)
   host.style.position = 'fixed'
   host.style.inset = '0'
   host.style.pointerEvents = 'none'

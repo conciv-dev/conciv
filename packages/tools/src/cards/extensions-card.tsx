@@ -72,7 +72,7 @@ function validatePayload(result: ToolCardProps['result']): CardValidateResult | 
 }
 
 function scaffoldLanguage(kind: string | undefined): string {
-  return kind === 'theme' || kind === 'tool' ? 'ts' : 'tsx'
+  return kind === 'tool' ? 'ts' : 'tsx'
 }
 
 function EntryRow(props: {name: string; detail: string}): JSX.Element {

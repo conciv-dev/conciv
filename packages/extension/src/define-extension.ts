@@ -1,6 +1,5 @@
 import type {Component} from 'solid-js'
 import type {z} from 'zod'
-import type {ThemeTokens} from '@conciv/ui-kit-system'
 import type {RegisteredTools, ToolBinding, ToolBuilder, ToolErrors} from './define-tool.js'
 import type {AnyAttachmentBuilder} from './define-attachment.js'
 import type {
@@ -41,7 +40,6 @@ export type ExtensionMeta<
   Component?: Component
   Surface?: Component
   systemPrompt?: string | SystemPromptFactory<Exclude<ConfigOf<Schema>, undefined>>
-  theme?: ThemeTokens
   connectGate?: ConnectGate
 }
 
@@ -57,7 +55,6 @@ export type ExtensionBuilder<
   Component?: Component
   Surface?: Component
   systemPrompt?: SystemPromptResolver
-  theme?: ThemeTokens
   connectGate?: ConnectGate
   tools?: Tools
   attachments?: Attachments
@@ -151,7 +148,6 @@ export function defineExtension<
     Component: meta.Component,
     Surface: meta.Surface,
     systemPrompt: makeSystemPrompt(meta),
-    theme: meta.theme,
     connectGate: meta.connectGate,
     tools: meta.tools,
     attachments: meta.attachments,

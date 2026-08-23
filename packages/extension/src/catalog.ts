@@ -29,10 +29,6 @@ const CLIENT_SURFACES = [
       'Read host state + actions (insert, notify, setBusy, newSession, harnessId, grab, client) and your own .client() value.',
   },
   {
-    method: "theme: {'chat-accent': '#2563eb'}",
-    description: 'Declarative design-token overrides on the meta object.',
-  },
-  {
     method: '.client((client) => ({value, dispose?}))',
     description:
       'Browser-only setup; client = {apiBase, client, requestMeta}. value merges into useContext, dispose runs on unmount.',
@@ -64,7 +60,7 @@ const SERVER_SURFACES = [
   },
 ] as const
 
-export type CatalogToken = {name: string; cssVar: string; default: string; description: string; overridable: boolean}
+export type CatalogToken = {name: string; cssVar: string; default: string; description: string}
 export type CatalogSlot = {name: string; description: string}
 export type Catalog = {
   conventions: {location: string; entry: string}
@@ -86,7 +82,6 @@ export function buildCatalog(): Catalog {
       cssVar: `--${name}`,
       default: def.value,
       description: def.description,
-      overridable: 'overridable' in def ? def.overridable : false,
     })),
     slots: [...SLOTS],
     clientSurfaces: [...CLIENT_SURFACES],
@@ -94,16 +89,9 @@ export function buildCatalog(): Catalog {
   }
 }
 
-export type ScaffoldKind = 'theme' | 'composer-action' | 'tool' | 'tool-renderer' | 'component' | 'full'
+export type ScaffoldKind = 'composer-action' | 'tool' | 'tool-renderer' | 'component' | 'full'
 
 const TEMPLATES: Record<ScaffoldKind, (name: string) => string> = {
-  theme: (name) => `import {defineExtension} from '@conciv/extension'
-
-export default defineExtension({
-  name: '${name}',
-  theme: {'chat-accent': '#2563eb'},
-})
-`,
   'composer-action': (name) => `import {defineExtension} from '@conciv/extension'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 
@@ -180,7 +168,7 @@ const ${name}Do = defineTool({
   .server((input) => ({result: input.input}))
   .render((props) => <div>${name}: {props.part.name}</div>)
 
-const extension = defineExtension({name: '${name}', Component, theme: {'chat-accent': '#2563eb'}, tools: [${name}Do]})
+const extension = defineExtension({name: '${name}', Component, tools: [${name}Do]})
   .client((client) => ({value: {ready: true}}))
   .server((server) => {
     server.app.get('/status', () => ({ok: true}))
@@ -219,32 +207,10 @@ export function scaffold(kind: ScaffoldKind, opts: {name: string}): string {
 
 export type Issue = {level: 'error' | 'warn'; message: string}
 
-const TOKEN_NAMES = new Set(Object.keys(TOKENS))
-const OVERRIDABLE_TOKEN_NAMES = new Set(
-  Object.entries(TOKENS)
-    .filter(([, def]) => 'overridable' in def && def.overridable)
-    .map(([name]) => name),
-)
-
 export function validateSource(source: string): {ok: boolean; issues: Issue[]} {
   const issues: Issue[] = []
   if (!/export\s+default\s+defineExtension\s*\(/.test(source))
     issues.push({level: 'error', message: 'No `export default defineExtension({name})` found.'})
-  const themeBlock = source.match(/theme\s*:\s*\{([^}]*)\}/)
-  const themeKeys = themeBlock?.[1] ? [...themeBlock[1].matchAll(/['"]([\w-]+)['"]\s*:/g)].map((m) => m[1]) : []
-  for (const name of themeKeys) {
-    if (!name) continue
-    if (!TOKEN_NAMES.has(name))
-      issues.push({
-        level: 'error',
-        message: `Unknown theme token '${name}'. Call external_conciv_extensions({verb: 'catalog'}) for the token list.`,
-      })
-    if (TOKEN_NAMES.has(name) && !OVERRIDABLE_TOKEN_NAMES.has(name))
-      issues.push({
-        level: 'warn',
-        message: `Token '${name}' is not marked overridable; it may be restyled by the base theme.`,
-      })
-  }
   if (/import[^\n]*['"]node:/.test(source) && !/\.server\s*\(/.test(source))
     issues.push({
       level: 'warn',
