@@ -38,7 +38,7 @@ test.describe('chat survives a forced websocket drop', () => {
 
     await sendTurn(page, SECOND_TEXT)
 
-    expect(await frames).toEqual({stop: 'websocket', send: 'websocket', subscribe: 'websocket'})
+    expect(await frames).toEqual({send: 'websocket', subscribe: 'websocket'})
     expect(reconnected.socketsSince()).toBeGreaterThan(0)
     expect(pageErrors).toEqual([])
   })

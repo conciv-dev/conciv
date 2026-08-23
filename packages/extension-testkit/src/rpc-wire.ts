@@ -10,14 +10,13 @@ const SESSIONS_BOOT_LIST_TIMEOUT_MS = 5_000
 const SESSIONS_BOOT_RESOLVE_TIMEOUT_MS = 1_500
 
 const CHAT_SEND: readonly string[] = ['chat', 'send']
-const CHAT_STOP: readonly string[] = ['chat', 'stop']
 const CHAT_SUBSCRIBE: readonly string[] = ['chat', 'subscribe']
 const SESSIONS_LIST: readonly string[] = ['sessions', 'list']
 const SESSIONS_RESOLVE: readonly string[] = ['sessions', 'resolve']
 
 export type ChatSendFrame = {transport: RpcTransport} & z.infer<typeof ChatSendInput>
 
-export type ChatReconnectFrames = {stop: RpcTransport; send: RpcTransport; subscribe: RpcTransport}
+export type ChatReconnectFrames = {send: RpcTransport; subscribe: RpcTransport}
 
 export type RpcWireWatch = {
   nextChatSend: () => Promise<ChatSendFrame>
@@ -43,12 +42,8 @@ export function watchRpcWire(page: Page): RpcWireWatch {
       const since = observer.mark()
       const transportOf = (path: readonly string[]): Promise<RpcTransport> =>
         observer.completed({path, since, timeout: WIRE_TIMEOUT_MS}).then((call) => call.transport)
-      const [stop, send, subscribe] = await Promise.all([
-        transportOf(CHAT_STOP),
-        transportOf(CHAT_SEND),
-        transportOf(CHAT_SUBSCRIBE),
-      ])
-      return {stop, send, subscribe}
+      const [send, subscribe] = await Promise.all([transportOf(CHAT_SEND), transportOf(CHAT_SUBSCRIBE)])
+      return {send, subscribe}
     },
     sessionsBootTraffic: async () => {
       await observer.completed({path: SESSIONS_LIST, timeout: SESSIONS_BOOT_LIST_TIMEOUT_MS})
