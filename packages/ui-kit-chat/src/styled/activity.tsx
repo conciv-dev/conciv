@@ -42,7 +42,6 @@ import {ToolCallCard} from '../tools/styled/tool-call-card.js'
 import {Group} from './group.js'
 import {ToolFallback} from '../tools/styled/tool-fallback.js'
 import {Markdown} from './markdown.js'
-import {NowLine} from './now-line.js'
 import {SHIMMER} from './shimmer.js'
 import {FOCUS_INSET, SPIN} from './classes.js'
 
@@ -410,21 +409,4 @@ function Timeline(props: {id?: string; 'aria-label'?: string; class?: string; ch
   )
 }
 
-function Now(props: {onStop?: () => void; class?: string}): JSX.Element {
-  const activity = useActivity()
-  const title = () => {
-    const call = activity.activeCall()
-    return activity.live() && call ? activity.label(call) : null
-  }
-  return (
-    <Show when={title()}>
-      {(text) => (
-        <div class={`px-2.5 pb-2.5 shrink-0 ${props.class ?? ''}`}>
-          <NowLine title={text()} onStop={props.onStop} />
-        </div>
-      )}
-    </Show>
-  )
-}
-
-export const Activity = Object.assign(Root, {Root, Timeline, Now})
+export const Activity = Object.assign(Root, {Root, Timeline})

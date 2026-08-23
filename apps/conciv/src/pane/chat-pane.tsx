@@ -115,6 +115,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
   const working = () => isThinking() || isStreaming()
+  const narrating = () => working() || chat.sessionRunning()
   const disconnected = () => chat.connectionStatus() !== 'connected'
   const hydrated = createMemo<boolean>((prev) => prev || !disconnected(), false)
 
@@ -295,7 +296,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                     </Suspense>
                   </Thread.Viewport>
                   <Thread.Composer>
-                    <Show when={working()}>
+                    <Show when={narrating()}>
                       <div class={NOW_PIN}>
                         <NowLine title={narrationTitle()} />
                       </div>

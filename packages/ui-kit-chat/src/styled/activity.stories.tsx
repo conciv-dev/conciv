@@ -77,14 +77,12 @@ export const LiveTurn: Story = {
     frame(
       <Activity.Root messages={liveMessages} live label={label}>
         <Activity.Timeline />
-        <Activity.Now />
       </Activity.Root>,
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await waitFor(() => expect(c.getByRole('button', {name: 'canvas svg'})).toBeVisible())
-    const now = await waitFor(() => c.getByRole('status'))
-    await expect(within(now).getByText('canvas preview')).toBeVisible()
+    await waitFor(() => expect(c.getAllByRole('button', {name: 'canvas preview'})).toHaveLength(2))
   },
 }
 

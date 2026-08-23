@@ -88,6 +88,7 @@ const snapshot = () => page.getByTitle('Grabbed element snapshot')
 const notifications = () => page.getByRole('region', {name: /Notifications/})
 const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
 const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
+const narration = () => page.getByText('Responding…', {exact: true})
 
 async function pickGrabFromOverflow(): Promise<void> {
   await userEvent.click(overflowTrigger())
@@ -237,6 +238,22 @@ test('a run in flight narrates what the agent is doing above the composer', asyn
 
   await coreControl.releaseTurn()
   await expect.element(page.getByText('Responding…', {exact: true})).not.toBeInTheDocument()
+})
+
+test('a pane that joins a run another client already started narrates it, and stops when it ends', async () => {
+  const {rpc, sessionId} = await newSession()
+  await coreControl.holdTurn()
+  await sendTurn(rpc, sessionId, 'a turn driven from another client')
+
+  mountChatPane(sessionId)
+
+  await expect.element(input()).toBeVisible()
+  await expect.element(narration()).toBeVisible()
+  await page.screenshot({path: '__screenshots__/chat-pane/now-line-joins-remote-run.png'})
+
+  await coreControl.releaseTurn()
+
+  await expect.element(narration()).not.toBeInTheDocument()
 })
 
 test('the refresh affordance re-subscribes and shows the transcript the server re-leads', async () => {
