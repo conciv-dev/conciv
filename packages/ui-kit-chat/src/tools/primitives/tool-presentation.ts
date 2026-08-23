@@ -4,7 +4,7 @@ import type {ToolStatus} from './tool-status.js'
 
 export type CardPhase = 'running' | 'done'
 
-export const MUTATING_BADGE = 'edits page'
+export const MUTATING_BADGE = 'page edit'
 
 export const QUIET_TEXT_CLASS = 'text-[length:var(--chat-text-xs)] m-0 [color:var(--chat-text-3)]'
 
