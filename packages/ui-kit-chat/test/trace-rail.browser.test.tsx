@@ -4,10 +4,13 @@ import '@conciv/ui-kit-chat/theme/tokens.css'
 import {expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {createSignal, type JSX} from 'solid-js'
+import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {ToolRowProjection} from '../src/tools/primitives/tool-row.js'
 import {Trace, type TraceItem} from '../src/styled/trace/trace.js'
 import {TraceToolRow} from '../src/styled/trace/trace-row.js'
 import {TraceOutputBlock} from '../src/styled/trace/output-block.js'
+import {TracePermissionBlock} from '../src/styled/trace/permission-block.js'
 import {mountView} from './mount-view.js'
 
 function toolItem(key: string, projection: ToolRowProjection, body?: () => JSX.Element): TraceItem {
@@ -46,7 +49,7 @@ function railSvg(container: HTMLElement): SVGSVGElement {
   return svg
 }
 
-function liveRailSvg(container: HTMLElement): SVGSVGElement {
+function runRailSvg(container: HTMLElement): SVGSVGElement {
   const svg = traceRoot(container).querySelectorAll(':scope > svg')[1]
   if (!(svg instanceof SVGSVGElement)) throw new Error('expected the live rail svg')
   return svg
@@ -103,16 +106,25 @@ function rowAnchor(container: HTMLElement, index: number): number {
   return li.getBoundingClientRect().top - rootTop + gutterOf(container) / 2
 }
 
+function renderedRowAnchors(container: HTMLElement): number[] {
+  const rootTop = traceRoot(container).getBoundingClientRect().top
+  const gutter = gutterOf(container)
+  return Array.from(rowsList(container).querySelectorAll(':scope > li'))
+    .map((row) => row.getBoundingClientRect())
+    .filter((rect) => rect.height > 0)
+    .map((rect) => rect.top - rootTop + gutter / 2)
+}
+
 function lastRowAnchor(container: HTMLElement): number {
   return rowAnchor(container, rowsList(container).querySelectorAll(':scope > li').length - 1)
 }
 
 function segmentTop(container: HTMLElement): number {
-  return Number.parseFloat(getComputedStyle(liveRailSvg(container)).getPropertyValue('--rail-top'))
+  return Number.parseFloat(getComputedStyle(runRailSvg(container)).getPropertyValue('--rail-top'))
 }
 
 function segmentBottom(container: HTMLElement): number {
-  return Number.parseFloat(getComputedStyle(liveRailSvg(container)).getPropertyValue('--rail-bottom'))
+  return Number.parseFloat(getComputedStyle(runRailSvg(container)).getPropertyValue('--rail-bottom'))
 }
 
 function waitForTransitionEnd(element: Element, property: string): Promise<void> {
@@ -229,7 +241,7 @@ it('lights the span just traversed into a live row that follows an expanded row 
   const container = mountTrace(expandedBodyTrace())
   await expect.element(page.getByText('file-after.ts')).toBeVisible()
 
-  expect(getComputedStyle(liveRailSvg(container)).opacity).toBe('1')
+  expect(getComputedStyle(runRailSvg(container)).opacity).toBe('1')
   expect(Math.abs(segmentTop(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
   expect(Math.abs(segmentBottom(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
 })
@@ -269,16 +281,71 @@ it('starts the spine at the top of the header row, above the rows list', async (
   expect(Math.abs(start.y - expected)).toBeLessThanOrEqual(0.01)
 })
 
-it('draws the header corner alone while the trace is collapsed', async () => {
+const ASKING_TARGET = 'rm -rf node_modules/.cache'
+
+function askingPart(): ToolCallPart {
+  return {
+    type: 'tool-call',
+    id: 'call-ask',
+    name: 'Bash',
+    arguments: JSON.stringify({command: ASKING_TARGET}),
+    state: 'approval-requested',
+    approval: {id: 'approval-1', needsApproval: true},
+  }
+}
+
+function askingCtx(): ToolViewCtx {
+  return {
+    apiBase: '',
+    harnessId: 'test',
+    sendMessage: () => {},
+    catalog: {loaded: () => true, meta: () => undefined},
+    addResult: () => {},
+    respondApproval: () => {},
+  }
+}
+
+function permissionTrace(): TraceItem[] {
+  return [
+    toolItem('settled', ONE_ROW_PROJECTION),
+    {
+      key: 'asking',
+      render: (branch) => (
+        <>
+          <TraceToolRow projection={{mark: 'run', label: 'bash', target: ASKING_TARGET}} ring={branch.ring} />
+          <TracePermissionBlock part={askingPart()} ctx={askingCtx()} target={ASKING_TARGET} />
+        </>
+      ),
+    },
+  ]
+}
+
+it('ticks one arm per rendered row once a permission request resolves', async () => {
+  const container = mountView(() => (
+    <Trace summary="2 tools ran" compactLine="2 tools" items={permissionTrace()} defaultOpen />
+  ))
+  await expect.element(page.getByRole('group', {name: 'Permission request'})).toBeVisible()
+  const asking = armsPath(container).getAttribute('d') ?? ''
+
+  await page.getByRole('button', {name: 'Deny'}).click()
+  await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+  await expect.element(page.elementLocator(armsPath(container))).not.toHaveAttribute('d', asking)
+
+  const arms = armSegments(armsPath(container))
+  const expected = [headerAnchor(container), ...renderedRowAnchors(container).slice(0, -1)]
+
+  expect(arms).toHaveLength(expected.length)
+  expect(arms.map((arm, index) => Math.abs(arm.y - (expected[index] ?? Number.NaN)) <= 0.5)).toEqual(
+    expected.map(() => true),
+  )
+})
+
+it('draws nothing at all while the trace is collapsed', async () => {
   const container = mountView(() => <Trace summary="2 tools ran" compactLine="2 tools" items={twoRowTrace()} />)
   await expect.element(page.getByText('Show trace')).toBeVisible()
 
-  const path = spinePath(container)
-  const end = path.getPointAtLength(path.getTotalLength())
-
+  expect(spinePath(container).getAttribute('d')).toBe('')
   expect(armsPath(container).getAttribute('d')).toBe('')
-  expect(Math.abs(end.x - gutterOf(container))).toBeLessThanOrEqual(0.01)
-  expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
 })
 
 it('reflows the spine when a row before the last one changes height', async () => {
@@ -325,7 +392,7 @@ it('ticks only the header arm for a single-row trace where the corner already se
 it('lights only the span just traversed into the live row and shows it', async () => {
   const container = await mountedThreeRow(() => 1)
 
-  expect(getComputedStyle(liveRailSvg(container)).opacity).toBe('1')
+  expect(getComputedStyle(runRailSvg(container)).opacity).toBe('1')
   expect(Math.abs(segmentTop(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
   expect(Math.abs(segmentBottom(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
 })
@@ -344,7 +411,7 @@ it('fades the live segment out where it stands once nothing is live', async () =
   ))
   await expect.element(page.getByText('file-2.ts')).toBeVisible()
 
-  const liveSvg = liveRailSvg(container)
+  const liveSvg = runRailSvg(container)
   const litTop = segmentTop(container)
   const litBottom = segmentBottom(container)
   const settled = waitForTransitionEnd(liveSvg, 'opacity')
@@ -359,7 +426,7 @@ it('fades the live segment out where it stands once nothing is live', async () =
 it('starts the live segment hidden with no flash when nothing is live at mount', () => {
   const container = mountThreeRow(() => -1)
 
-  expect(getComputedStyle(liveRailSvg(container)).opacity).toBe('0')
+  expect(getComputedStyle(runRailSvg(container)).opacity).toBe('0')
 })
 
 it('mirrors the rail onto the inline-start edge under rtl', async () => {
@@ -384,7 +451,7 @@ it('pulses the running ring dot while a run row is live and keeps the rail free 
 
   expect(runningRingDot(container).getAnimations()).toHaveLength(1)
   expect(railSvg(container).getAnimations({subtree: true})).toEqual([])
-  expect(liveRailSvg(container).getAnimations({subtree: true})).toEqual([])
+  expect(runRailSvg(container).getAnimations({subtree: true})).toEqual([])
 })
 
 it('leaves no running animation in the rail once the live row settles away', async () => {
@@ -394,7 +461,7 @@ it('leaves no running animation in the rail once the live row settles away', asy
   ))
   await expect.element(page.getByText('file-2.ts')).toBeVisible()
 
-  const liveSvg = liveRailSvg(container)
+  const liveSvg = runRailSvg(container)
   const settled = waitForTransitionEnd(liveSvg, 'opacity')
   setLiveIndex(-1)
   await settled
@@ -403,21 +470,17 @@ it('leaves no running animation in the rail once the live row settles away', asy
   expect(traceRoot(container).getAnimations({subtree: true})).toEqual([])
 })
 
-it('drops the live segment and the rail to the header corner when a live trace is collapsed by click', async () => {
+it('erases the rail and the run segment when a running trace is collapsed by click', async () => {
   const container = await mountedThreeRow(() => 1)
-  const liveSvg = liveRailSvg(container)
-  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '1'})
+  const runSvg = runRailSvg(container)
+  await expect.element(page.elementLocator(runSvg), {timeout: 2000}).toHaveStyle({opacity: '1'})
 
   await page.getByText('Hide trace').click()
   await expect.element(page.getByText('Show trace'), {timeout: 2000}).toBeVisible()
-  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '0'})
+  await expect.element(page.elementLocator(runSvg), {timeout: 2000}).toHaveStyle({opacity: '0'})
 
-  const path = spinePath(container)
-  const end = path.getPointAtLength(path.getTotalLength())
-
+  expect(spinePath(container).getAttribute('d')).toBe('')
   expect(armsPath(container).getAttribute('d')).toBe('')
-  expect(Math.abs(end.x - gutterOf(container))).toBeLessThanOrEqual(0.01)
-  expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
 })
 
 async function scrollRowToReadingBand(container: HTMLElement, index: number): Promise<void> {
@@ -439,26 +502,26 @@ function tallThreeRowTrace(liveIndex: () => number): JSX.Element {
   )
 }
 
-it('lights the row under the reading line while scrolling a settled trace', async () => {
+it('never lights the accent from scroll position alone on a settled trace', async () => {
   const container = mountView(() => tallThreeRowTrace(() => -1))
   await expect.element(page.getByText('file-2.ts')).toBeVisible()
 
   await scrollRowToReadingBand(container, 1)
 
-  await expect.element(page.elementLocator(liveRailSvg(container))).toHaveStyle({opacity: '1'})
-  expect(Math.abs(segmentTop(container) - rowAnchor(container, 0))).toBeLessThanOrEqual(0.5)
-  expect(Math.abs(segmentBottom(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
+  await expect.element(page.elementLocator(runRailSvg(container))).toHaveStyle({opacity: '0'})
+  expect(getComputedStyle(runRailSvg(container)).getPropertyValue('--rail-top')).toBe('')
+  expect(getComputedStyle(runRailSvg(container)).getPropertyValue('--rail-bottom')).toBe('')
 
   window.scrollTo(0, 0)
 })
 
-it('keeps the live row segment even when scroll focuses another row', async () => {
+it('keeps the accent on the running row even when scroll reaches another row', async () => {
   const container = mountView(() => tallThreeRowTrace(() => 2))
   await expect.element(page.getByText('file-2.ts')).toBeVisible()
 
   await scrollRowToReadingBand(container, 0)
 
-  await expect.element(page.elementLocator(liveRailSvg(container))).toHaveStyle({opacity: '1'})
+  await expect.element(page.elementLocator(runRailSvg(container))).toHaveStyle({opacity: '1'})
   expect(Math.abs(segmentTop(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
   expect(Math.abs(segmentBottom(container) - rowAnchor(container, 2))).toBeLessThanOrEqual(0.5)
 
@@ -467,7 +530,7 @@ it('keeps the live row segment even when scroll focuses another row', async () =
 
 it('restores the full rail and re-anchors the live segment when the trace is reopened by click', async () => {
   const container = await mountedThreeRow(() => 1)
-  const liveSvg = liveRailSvg(container)
+  const liveSvg = runRailSvg(container)
 
   await page.getByText('Hide trace').click()
   await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '0'})

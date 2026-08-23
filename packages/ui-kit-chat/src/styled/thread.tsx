@@ -34,6 +34,7 @@ import {
   type Turn,
 } from '../store/grouping.js'
 import {summaryLine, turnRollup, type TurnRollup} from '../store/turn-rollup.js'
+import {rowMarkOf} from '../tools/primitives/tool-row.js'
 import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {useViewportInternal} from '../primitives/thread/viewport-internal.js'
 import {useThreadViewport} from '../primitives/thread/viewport-context.js'
@@ -141,7 +142,11 @@ function AssistantTurn(props: {
   )
   const streamingAt = (index: number) => thread.isRunning && message.isLast() && index === lastTextIndex()
   const lastPartIndex = createMemo(() => parts().length - 1)
-  const livePart = (index: number) => thread.isRunning && message.isLast() && index === lastPartIndex()
+  const streamingPart = (index: number) => thread.isRunning && message.isLast() && index === lastPartIndex()
+  const runningPart = (index: number): boolean => {
+    const call = asToolCall(parts()[index])
+    return call !== null && rowMarkOf(call, message.pairing().byCallId.get(call.id)) === 'run'
+  }
   const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => {
     const segmentParts = createMemo<MessagePart[]>(() =>
       groupProps.node.indices.flatMap((partIndex) => {
@@ -151,13 +156,13 @@ function AssistantTurn(props: {
     )
     const segmentRollup = createMemo(() => rollupOfParts(segmentParts()))
     const segmentActive = () =>
-      groupProps.node.indices.some((partIndex) => livePart(partIndex)) || segmentRollup().awaitingApproval
+      groupProps.node.indices.some((partIndex) => streamingPart(partIndex)) || segmentRollup().awaitingApproval
     const items = indexArray(
       () => groupProps.node.indices,
       (partIndex, position): TraceItem => ({
         key: `p${position}`,
         get live() {
-          return livePart(partIndex())
+          return runningPart(partIndex())
         },
         render: (branch: TraceBranch): JSX.Element => (
           <Switch>
@@ -166,7 +171,7 @@ function AssistantTurn(props: {
                 <TraceRunRow
                   label={PLAN_LABEL}
                   text={firstLine(thinkingPart().content)}
-                  live={livePart(partIndex())}
+                  live={streamingPart(partIndex())}
                   ring={branch.ring}
                   body={planBody(thinkingPart)}
                 />
@@ -401,10 +406,10 @@ function LatestStrip(): JSX.Element {
 
 function ThreadViewport(props: ParentProps<{ref?: (element: HTMLElement) => void}>): JSX.Element {
   return (
-    <div class="relative flex flex-1 flex-col min-h-0">
+    <div class="flex flex-1 flex-col min-h-0 relative">
       <ThreadPrimitive.Viewport
         ref={props.ref}
-        class="px-5 pt-[13px] pb-4 flex flex-1 flex-col min-h-0 relative overflow-y-auto"
+        class="px-5 pb-4 pt-[13px] flex flex-1 flex-col min-h-0 relative overflow-y-auto"
         role="log"
         aria-live="off"
         footer={<LatestStrip />}
