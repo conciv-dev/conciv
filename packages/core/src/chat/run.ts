@@ -31,7 +31,7 @@ import {
 } from '@conciv/db'
 import {transcriptPathWithin} from '@conciv/harness'
 import {FIRST_CHUNK_TIMEOUT_MS} from './run-timing.js'
-import type {ChatDeps} from './runtime.js'
+import type {ChatDeps, ToolRunContext} from './runtime.js'
 import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {sessionSnapshot, transcriptTailId} from './transcript.js'
@@ -107,11 +107,42 @@ function compactContent(deps: ChatDeps): UserContent {
   return deps.harness.capabilities.compaction ? '/compact' : COMPACT_FALLBACK_PROMPT
 }
 
+type RunIngest = (chunks: StreamChunk[]) => void
+
+function runLogEmitter(
+  context: ToolRunContext | undefined,
+  ingest: RunIngest,
+): (eventName: string, value: Record<string, unknown>) => void {
+  return (eventName, value) => {
+    const parentId = context?.toolCallId
+    const stamped = parentId === undefined ? value : {...value, toolCallId: parentId}
+    const chunks = codeModeToolChunks({type: EventType.CUSTOM, name: eventName, value: stamped, timestamp: Date.now()})
+    if (chunks === null) {
+      context?.emitCustomEvent?.(eventName, value)
+      return
+    }
+    ingest(chunks)
+  }
+}
+
+function toolsIngestingIntoRunLog(tools: AnyTool[], ingest: RunIngest): AnyTool[] {
+  return tools.map((tool) => {
+    const execute = tool.execute
+    if (!execute) return tool
+    return {
+      ...tool,
+      execute: async (args: unknown, context?: ToolRunContext) =>
+        execute(args, {...context, emitCustomEvent: runLogEmitter(context, ingest)}),
+    }
+  })
+}
+
 async function codeModeExtras(
   deps: ChatDeps,
   sessionId: SessionId,
   model: string | null,
   askGate: PermissionGate,
+  ingest: RunIngest,
 ): Promise<{systemPrompts: string[]; tools: AnyTool[]}> {
   const codeMode = await makeCodeMode(
     () => deps.codeModeCapabilities(sessionId),
@@ -121,7 +152,7 @@ async function codeModeExtras(
     {listening: (id) => deps.stream.listening(id)},
   )
   const systemPrompts = [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text))
-  return {systemPrompts, tools: [...(codeMode?.tools ?? [])]}
+  return {systemPrompts, tools: toolsIngestingIntoRunLog([...(codeMode?.tools ?? [])], ingest)}
 }
 
 async function turnMessages(
@@ -139,6 +170,7 @@ async function buildRunStream(
   sessionId: SessionId,
   req: RunRequest,
   gates: {gate: PermissionGate; askGate: PermissionGate},
+  ingest: RunIngest,
   abort: AbortController,
 ): Promise<AsyncIterable<StreamChunk>> {
   const gate = gates.gate
@@ -146,7 +178,7 @@ async function buildRunStream(
   const resumeSessionId = deps.harness.capabilities.resume
     ? resumableToken(deps.harness, deps.cwd, await nativeIdFor(deps.db, sessionId), deps.claudeHome)
     : null
-  const extras = await codeModeExtras(deps, sessionId, model, gates.askGate)
+  const extras = await codeModeExtras(deps, sessionId, model, gates.askGate, ingest)
   const config = deps.harness.chatConfig({
     cwd: deps.cwd,
     sessionId,
@@ -238,23 +270,17 @@ function foldChunk(fold: ChunkFold, chunk: StreamChunk, outcome: RunOutcome): 'c
 }
 
 async function* foldRunStream(
-  deps: ChatDeps,
-  sessionId: SessionId,
+  fold: ChunkFold,
+  normalize: (name: string) => string,
   req: RunRequest,
-  processor: StreamProcessor,
   stream: AsyncIterable<StreamChunk>,
   outcome: RunOutcome,
 ): AsyncGenerator<StreamChunk> {
-  const model = (await rowById(deps.db, sessionId))?.model ?? null
-  const normalize = makeToolNameNormalizer(deps.toolNames)
-  const fold: ChunkFold = {deps, sessionId, model, processor}
   for await (const raw of stream) {
-    for (const chunk of codeModeToolChunks(raw) ?? [raw]) {
-      const stamped = normalizeChunkToolName(stampRunId(chunk, req.runId), normalize)
-      const step = foldChunk(fold, stamped, outcome)
-      if (!isRunEndChunk(stamped)) yield stamped
-      if (step === 'stop') return
-    }
+    const stamped = normalizeChunkToolName(stampRunId(raw, req.runId), normalize)
+    const step = foldChunk(fold, stamped, outcome)
+    if (!isRunEndChunk(stamped)) yield stamped
+    if (step === 'stop') return
   }
 }
 
@@ -357,8 +383,16 @@ async function* runStream(
   const askGate = makeAskGate(gateDeps)
   const outcome: RunOutcome = {error: null, usage: null, runEnd: null}
   const anchorNativeId = await transcriptTailId(deps, sessionId).catch(() => null)
+  const model = (await rowById(deps.db, sessionId))?.model ?? null
+  const normalize = makeToolNameNormalizer(deps.toolNames)
+  const fold: ChunkFold = {deps, sessionId, model, processor}
+  const ingest: RunIngest = (chunks) => {
+    const named = chunks.map((chunk) => normalizeChunkToolName(chunk, normalize))
+    for (const chunk of named) foldChunk(fold, chunk, outcome)
+    void runLog.append(named).catch(() => {})
+  }
   try {
-    const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, abort)
+    const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, ingest, abort)
     processor.addUserMessage(userParts(req.content))
     await runLog.append([aguiSnapshotFor(await sessionSnapshot(deps, sessionId))]).catch(() => {})
     const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
@@ -366,7 +400,7 @@ async function* runStream(
       outcome.error = `${deps.harness.id} produced no output within ${Math.round(timeoutMs / 1000)}s`
       abort.abort()
     })
-    yield* foldRunStream(deps, sessionId, req, processor, bounded, outcome)
+    yield* foldRunStream(fold, normalize, req, bounded, outcome)
   } catch (error) {
     if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
   }
