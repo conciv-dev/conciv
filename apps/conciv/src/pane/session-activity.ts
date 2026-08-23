@@ -2,13 +2,14 @@ import {createEffect, onCleanup} from 'solid-js'
 import {useLiveSessions} from '../app/context.js'
 
 export type SessionActivityDeps = {
+  sessionId: string
   working: () => boolean
   invalidateSessions: () => void
   onSettle: () => void
 }
 
 export function trackSessionActivity(deps: SessionActivityDeps): void {
-  onCleanup(useLiveSessions().register(deps.working))
+  onCleanup(useLiveSessions().register(deps.sessionId, deps.working))
 
   let observed = false
   createEffect(() => {

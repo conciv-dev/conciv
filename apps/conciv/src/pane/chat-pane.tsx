@@ -180,6 +180,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   ]
 
   trackSessionActivity({
+    sessionId,
     working,
     invalidateSessions: appData.invalidateSessions,
     onSettle: () => {
