@@ -45,6 +45,8 @@ export type Kit = {
 }
 export type Testkit = {setup: () => Promise<Kit>}
 
+export type TestkitOptions = {stateRoot?: string}
+
 function isTextPart(part: unknown): part is {type: 'text'; content: string} {
   return (
     typeof part === 'object' &&
@@ -66,10 +68,11 @@ function textOf(input: string | ChatMessage): string {
     .join('\n')
 }
 
-export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
+export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: TestkitOptions = {}): Testkit {
+  const ownsStateRoot = options.stateRoot === undefined
   return {
     setup: async () => {
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
+      const stateRoot = options.stateRoot ?? mkdtempSync(join(tmpdir(), 'conciv-kit-'))
       const app = await boot({stateRoot, cwd: stateRoot, harness})
       let served = await serveApp(app.fetch)
       const base = served.base
@@ -156,7 +159,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
           await pTimeout(stopLiveSessions(), {milliseconds: 3_000, fallback: () => undefined})
           await app.dispose()
           await served.close()
-          rmSync(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
+          if (ownsStateRoot) rmSync(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
         },
       }
     },

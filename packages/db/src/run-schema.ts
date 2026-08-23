@@ -1,16 +1,21 @@
-import {integer, primaryKey, sqliteTable, text} from 'drizzle-orm/sqlite-core'
+import {index, integer, primaryKey, sqliteTable, text} from 'drizzle-orm/sqlite-core'
+import type {RunPhase} from '@conciv/protocol/run-types'
 
-export const RUN_STATUSES = ['idle', 'running', 'compacting', 'stopping'] as const
-export type RunStatus = (typeof RUN_STATUSES)[number]
+export const RUN_PHASES: readonly [RunPhase, ...RunPhase[]] = ['running', 'stopping', 'completed', 'failed', 'aborted']
 
-export const runs = sqliteTable('runs', {
-  sessionId: text('session_id').primaryKey(),
-  status: text('status', {enum: RUN_STATUSES}).notNull().default('idle'),
-  runEpoch: integer('run_epoch').notNull().default(0),
-  lastError: text('last_error'),
-  lastErrorEpoch: integer('last_error_epoch'),
-  updatedAt: integer('updated_at').notNull(),
-})
+export const runs = sqliteTable(
+  'runs',
+  {
+    runId: text('run_id').primaryKey(),
+    sessionId: text('session_id').notNull(),
+    phase: text('phase', {enum: RUN_PHASES}).notNull(),
+    startedAt: integer('started_at').notNull(),
+    finishedAt: integer('finished_at'),
+    error: text('error'),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [index('runs_session_id_idx').on(table.sessionId)],
+)
 
 export const runMessages = sqliteTable('run_messages', {
   sessionId: text('session_id').primaryKey(),
@@ -21,6 +26,7 @@ export const runMessages = sqliteTable('run_messages', {
 export const sessionHistory = sqliteTable('image_history', {
   sessionId: text('session_id').primaryKey(),
   messages: text('messages', {mode: 'json'}).$type<unknown[]>().notNull(),
+  anchorNativeId: text('anchor_native_id'),
   updatedAt: integer('updated_at').notNull(),
 })
 

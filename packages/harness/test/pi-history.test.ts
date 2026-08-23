@@ -115,9 +115,9 @@ describe('pi session directory encoding', () => {
 describe('pi transcript parsing', () => {
   it('walks the newest leaf back to the root and drops the abandoned branch', async () => {
     expect(await history().messages(PROJECT, SESSION, state.home)).toEqual([
-      {id: 'h1', role: 'user', parts: [{type: 'text', content: 'count the files'}]},
+      {id: '357f05eb', role: 'user', parts: [{type: 'text', content: 'count the files'}]},
       {
-        id: 'h2',
+        id: '493b7644',
         role: 'assistant',
         parts: [
           {type: 'thinking', content: 'need to run ls'},
@@ -131,7 +131,7 @@ describe('pi transcript parsing', () => {
           {type: 'tool-result', toolCallId: 'call_1', content: 'README.md', state: 'complete'},
         ],
       },
-      {id: 'h3', role: 'assistant', parts: [{type: 'text', content: 'One file.'}]},
+      {id: 'kept1', role: 'assistant', parts: [{type: 'text', content: 'One file.'}]},
     ])
   })
 })

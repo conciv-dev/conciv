@@ -34,7 +34,7 @@ import {FIRST_CHUNK_TIMEOUT_MS} from './run-timing.js'
 import type {ChatDeps} from './runtime.js'
 import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
-import {sessionSnapshot} from './transcript.js'
+import {sessionSnapshot, transcriptTailId} from './transcript.js'
 import {settleContextOccupancy} from './occupancy.js'
 import {publishRunLifecycle, publishRunRecord} from './run-lifecycle.js'
 import {stopSession} from './stop.js'
@@ -298,16 +298,16 @@ async function recordRunEnd(deps: ChatDeps, sessionId: SessionId, usage: UsageSn
     .where(eq(sessions.id, sessionId))
 }
 
-function persistRunOutcome(deps: ChatDeps, sessionId: SessionId, kind: TurnKind): void {
+function persistRunOutcome(deps: ChatDeps, sessionId: SessionId, kind: TurnKind, anchorNativeId: string | null): void {
   if (kind !== 'chat') {
     clearSessionHistory(deps.db, sessionId)
     return
   }
   if (deps.harness.capabilities.transcriptHistory) {
-    foldRichRunMessagesIntoHistory(deps.db, sessionId)
+    foldRichRunMessagesIntoHistory(deps.db, sessionId, anchorNativeId)
     return
   }
-  foldRunMessagesIntoHistory(deps.db, sessionId)
+  foldRunMessagesIntoHistory(deps.db, sessionId, anchorNativeId)
 }
 
 function runEndChunkFor(sessionId: SessionId, req: RunRequest, outcome: RunOutcome): StreamChunk {
@@ -318,8 +318,14 @@ function runEndChunkFor(sessionId: SessionId, req: RunRequest, outcome: RunOutco
   return {type: EventType.RUN_FINISHED, threadId: sessionId, runId: req.runId, finishReason: 'stop'}
 }
 
-async function finishRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest, outcome: RunOutcome): Promise<void> {
-  persistRunOutcome(deps, sessionId, req.kind)
+async function finishRun(
+  deps: ChatDeps,
+  sessionId: SessionId,
+  req: RunRequest,
+  outcome: RunOutcome,
+  anchorNativeId: string | null,
+): Promise<void> {
+  persistRunOutcome(deps, sessionId, req.kind, anchorNativeId)
   await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
   deps.liveRuns.settle(sessionId, req.runId)
   deps.asks.cancel(sessionId)
@@ -350,6 +356,7 @@ async function* runStream(
   })
   const askGate = makeAskGate(gateDeps)
   const outcome: RunOutcome = {error: null, usage: null, runEnd: null}
+  const anchorNativeId = await transcriptTailId(deps, sessionId).catch(() => null)
   try {
     const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, abort)
     processor.addUserMessage(userParts(req.content))
@@ -363,7 +370,7 @@ async function* runStream(
   } catch (error) {
     if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
   }
-  await finishRun(deps, sessionId, req, outcome)
+  await finishRun(deps, sessionId, req, outcome, anchorNativeId)
   yield runEndChunkFor(sessionId, req, outcome)
 }
 

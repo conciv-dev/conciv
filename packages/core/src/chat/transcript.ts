@@ -8,10 +8,12 @@ import {
   deleteRunMessages,
   foldRichRunMessagesIntoHistory,
   foldRunMessagesIntoHistory,
+  historyAnchorFor,
   runMessagesFor,
   runSessions,
   sessionHistoryFor,
   type ConcivDb,
+  type HistoryAnchor,
 } from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
 import {rowById} from './session-rows.js'
@@ -125,15 +127,23 @@ function boundaryIndex(transcript: UIMessage[], stored: UIMessage[]): number {
   return contiguous ?? candidates.at(-1) ?? -1
 }
 
-function settledTranscript(transcript: UIMessage[], stored: UIMessage[]): UIMessage[] {
+function anchoredTranscript(transcript: UIMessage[], anchor: HistoryAnchor): UIMessage[] | null {
+  if (anchor.nativeId === null) return []
+  const index = transcript.findIndex((message) => message.id === anchor.nativeId)
+  return index === -1 ? null : transcript.slice(0, index + 1)
+}
+
+function settledTranscript(transcript: UIMessage[], stored: UIMessage[], anchor: HistoryAnchor | null): UIMessage[] {
+  const anchored = anchor ? anchoredTranscript(transcript, anchor) : null
+  if (anchored) return anchored
   const index = boundaryIndex(transcript, stored)
   if (index === -1) return transcript
   return transcript.slice(0, index)
 }
 
-function mergedMessages(transcript: UIMessage[], stored: UIMessage[]): UIMessage[] {
+function mergedMessages(transcript: UIMessage[], stored: UIMessage[], anchor: HistoryAnchor | null): UIMessage[] {
   if (stored.length === 0) return transcript
-  return [...settledTranscript(transcript, stored), ...stored]
+  return [...settledTranscript(transcript, stored, anchor), ...stored]
 }
 
 export async function sessionSnapshot(deps: ChatDeps, sessionId: SessionId): Promise<UIMessage[]> {
@@ -143,6 +153,15 @@ export async function sessionSnapshot(deps: ChatDeps, sessionId: SessionId): Pro
     return normalizeHistoryToolNames(storedMessages(deps, sessionId), deps.toolNames)
   }
   const transcript = await readTranscript(deps.harness, deps.cwd, nativeId, deps.claudeHome)
-  const messages = mergedMessages(transcript, storedMessages(deps, sessionId))
+  const anchor = historyAnchorFor(deps.db, sessionId)
+  const messages = mergedMessages(transcript, storedMessages(deps, sessionId), anchor)
   return normalizeHistoryToolNames(messages, deps.toolNames)
+}
+
+export async function transcriptTailId(deps: ChatDeps, sessionId: SessionId): Promise<string | null> {
+  const row = await rowById(deps.db, sessionId)
+  const nativeId = row?.harnessSessionId ?? null
+  if (!nativeId || !deps.harness.capabilities.transcriptHistory) return null
+  const transcript = await readTranscript(deps.harness, deps.cwd, nativeId, deps.claudeHome)
+  return transcript.at(-1)?.id ?? null
 }

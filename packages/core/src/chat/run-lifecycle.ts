@@ -1,6 +1,7 @@
 import type {RunRecord, RunStatus} from '@tanstack/ai'
 import {aguiRunLifecycleFor, type RunLifecycle, type RunPhase} from '@conciv/protocol/run-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
+import {latestRunLifecycleFor, recordRunLifecycle} from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
 
 const PHASE_BY_STATUS: Record<RunStatus, RunPhase> = {
@@ -28,7 +29,9 @@ export function runLifecycleOfRecord(record: RunRecord, now: number): RunLifecyc
 }
 
 export function publishRunLifecycle(deps: ChatDeps, sessionId: SessionId, record: RunRecord): void {
-  deps.stream.publish(sessionId, aguiRunLifecycleFor(runLifecycleOfRecord(record, Date.now())))
+  const lifecycle = runLifecycleOfRecord(record, Date.now())
+  recordRunLifecycle(deps.db, sessionId, lifecycle)
+  deps.stream.publish(sessionId, aguiRunLifecycleFor(lifecycle))
 }
 
 export async function publishRunRecord(deps: ChatDeps, sessionId: SessionId, runId: string): Promise<void> {
@@ -45,5 +48,6 @@ async function latestRunRecord(deps: ChatDeps, sessionId: SessionId): Promise<Ru
 
 export async function latestRunLifecycle(deps: ChatDeps, sessionId: SessionId): Promise<RunLifecycle | null> {
   const record = await latestRunRecord(deps, sessionId)
-  return record ? runLifecycleOfRecord(record, Date.now()) : null
+  if (record) return runLifecycleOfRecord(record, Date.now())
+  return latestRunLifecycleFor(deps.db, sessionId)
 }
