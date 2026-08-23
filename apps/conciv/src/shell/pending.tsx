@@ -57,6 +57,23 @@ export function ViewTabsPending(): JSX.Element {
   )
 }
 
+export function SchemeFieldPending(): JSX.Element {
+  return (
+    <div class="chat-settings-field" role="status">
+      <div class="chat-settings-field-head">
+        <div class={`${SKEL} h-5 w-24 rounded-chat-surface-sm`} aria-hidden="true" />
+        <div class={`${SKEL} h-4 w-14 rounded-[var(--chat-radius-chip)]`} aria-hidden="true" />
+      </div>
+      <div class="chat-scheme-tiles">
+        <div class={`${SKEL} h-14 rounded-chat-surface-sm`} aria-hidden="true" />
+        <div class={`${SKEL} h-14 rounded-chat-surface-sm`} aria-hidden="true" />
+        <div class={`${SKEL} h-14 rounded-chat-surface-sm`} aria-hidden="true" />
+      </div>
+      <span class="sr-only">Loading your settings…</span>
+    </div>
+  )
+}
+
 export function ComposerActionsPending(): JSX.Element {
   return (
     <div class="flex gap-1 items-center" role="status">

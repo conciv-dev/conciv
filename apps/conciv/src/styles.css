@@ -120,6 +120,375 @@
   }
 }
 
+/* Settings view. Every property the container query at the end re-decides lives here and never as a
+   utility class in the markup: `@unocss all` is emitted last, so a utility would outrank these at
+   equal specificity and the narrow layout would never take. The panel shell (routes/panel.tsx) is the
+   only `container-type: size` element around this tree, so these query the panel's own box. The
+   breakpoint sits ABOVE the panel's 448px drag minimum (routes/panel.tsx `resizeX`) so narrowing the
+   panel by hand actually crosses it; below it the phone sheet is narrower still. */
+.chat-settings-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: row;
+  align-items: stretch;
+}
+.chat-settings-nav {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  inline-size: 9.75rem;
+  box-sizing: border-box;
+  padding: 0.875rem 0.5rem 0.625rem 0.5rem;
+  border-inline-end: 1px solid var(--chat-line-soft);
+  border-block-end: none;
+  --rail-axis: vertical;
+}
+.chat-settings-nav-label {
+  display: block;
+  margin-inline-start: var(--chat-trace-gutter);
+  padding: 0 0.5rem 0.375rem 0.5rem;
+  font-family: var(--chat-mono);
+  font-size: 9.5px;
+  line-height: 1rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chat-microlabel);
+}
+.chat-settings-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  margin-inline-start: var(--chat-trace-gutter);
+  padding: 0;
+  list-style: none;
+}
+.chat-settings-nav-row {
+  display: flex;
+}
+.chat-settings-nav-link {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  block-size: 1.875rem;
+  padding-inline: 0.5rem;
+  border-radius: var(--chat-radius-sm);
+  font-size: 12.5px;
+  color: var(--chat-text-2);
+  text-decoration: none;
+  transition:
+    color 120ms var(--chat-ease),
+    background-color 120ms var(--chat-ease);
+}
+.chat-settings-nav-link:hover:not([aria-disabled]) {
+  background: var(--chat-fill);
+  color: var(--chat-text-hi);
+}
+.chat-settings-nav-link[data-active] {
+  color: var(--chat-text-hi);
+  font-weight: 500;
+}
+.chat-settings-nav-link[aria-disabled] {
+  color: var(--chat-text-3);
+  cursor: default;
+}
+.chat-settings-nav-icon {
+  flex: none;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+/* The content pane is the sunken frame the mockup paints; the card floats on it at the top and the
+   scope line pins to the pane's bottom edge, so the empty run sits BETWEEN them, not after both. */
+.chat-settings-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 1rem;
+  background: var(--chat-frame-bg);
+}
+.chat-settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  box-sizing: border-box;
+  padding: 1rem;
+  background: var(--chat-bg);
+  border: 1px solid var(--chat-line);
+  border-radius: var(--chat-radius-surface-md);
+  box-shadow: var(--chat-shadow-sm);
+}
+.chat-settings-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  margin-block-start: auto;
+  padding-block-start: 0.75rem;
+  font-size: 11px;
+  color: var(--chat-text-3);
+}
+.chat-settings-footer-label {
+  font-family: var(--chat-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--chat-microlabel);
+}
+.chat-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.chat-settings-field-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+}
+.chat-settings-field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--chat-text);
+}
+.chat-settings-field-hint {
+  font-size: 11.5px;
+  color: var(--chat-text-3);
+}
+/* The provenance chip. It is the menu trigger, not a tag, so it carries a resting border, a chevron
+   and the panel's own small-pill interaction recipe (fill strengthen + border lift + text lift, and
+   the open menu holds the hover look) from the session-selector trigger. The ::after restores a 44px
+   pointer target the chip itself is far too small to offer. */
+.chat-scope-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1875rem;
+  padding: 2px 4px 2px 5px;
+  border: 1px solid transparent;
+  border-radius: var(--chat-radius-chip);
+  font-family: var(--chat-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background-color 120ms var(--chat-ease),
+    border-color 120ms var(--chat-ease),
+    color 120ms var(--chat-ease);
+}
+.chat-scope-badge::after {
+  content: '';
+  position: absolute;
+  inset-inline: -0.375rem;
+  inset-block: -1.0625rem;
+}
+.chat-scope-badge:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.chat-scope-badge-chevron {
+  flex: none;
+  inline-size: 10px;
+  block-size: 10px;
+  opacity: 0.55;
+  transition:
+    rotate 160ms var(--chat-ease),
+    opacity 120ms var(--chat-ease);
+}
+.chat-scope-badge:hover .chat-scope-badge-chevron,
+.chat-scope-badge:focus-visible .chat-scope-badge-chevron,
+.chat-scope-badge[data-state='open'] .chat-scope-badge-chevron {
+  opacity: 0.95;
+}
+.chat-scope-badge[data-state='open'] .chat-scope-badge-chevron {
+  rotate: 180deg;
+}
+.chat-scope-badge-project {
+  background: var(--chat-accent-08);
+  border-color: var(--chat-accent-line);
+  color: var(--chat-accent-hi);
+}
+.chat-scope-badge-project:hover:not(:disabled),
+.chat-scope-badge-project:focus-visible,
+.chat-scope-badge-project[data-state='open'] {
+  background: var(--chat-accent-20);
+  border-color: var(--chat-accent);
+}
+.chat-scope-badge-global {
+  background: var(--chat-fill-strong);
+  border-color: var(--chat-line);
+  color: var(--chat-text-2);
+}
+.chat-scope-badge-global:hover:not(:disabled),
+.chat-scope-badge-global:focus-visible,
+.chat-scope-badge-global[data-state='open'] {
+  border-color: var(--chat-line-2);
+  color: var(--chat-text-hi);
+}
+.chat-scope-badge-default {
+  background: var(--chat-fill);
+  border-color: var(--chat-line);
+  color: var(--chat-microlabel);
+}
+.chat-scope-badge-default:hover:not(:disabled),
+.chat-scope-badge-default:focus-visible,
+.chat-scope-badge-default[data-state='open'] {
+  background: var(--chat-fill-strong);
+  border-color: var(--chat-line-2);
+  color: var(--chat-text-2);
+}
+.chat-settings-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--chat-radius-sm);
+  background: color-mix(in oklch, var(--chat-danger) 10%, transparent);
+  border: 1px solid var(--chat-danger-line);
+  color: var(--chat-frame-text-error);
+  font-size: 11.5px;
+}
+.chat-settings-error-text {
+  flex: 1;
+  min-inline-size: 8rem;
+}
+.chat-settings-error-retry {
+  min-block-size: 2.75rem;
+}
+/* Three equal tiles in a plain grid: no segmented-control wrapper, no hover fill, and selection reads
+   as the accent ring on the preview alone. */
+.chat-scheme-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.chat-scheme-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  cursor: pointer;
+}
+.chat-scheme-tile[data-disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+.chat-scheme-tile-label {
+  font-size: 11.5px;
+  color: var(--chat-text-2);
+  text-align: center;
+}
+.chat-scheme-tile[data-state='checked'] .chat-scheme-tile-label {
+  color: var(--chat-text-hi);
+  font-weight: 500;
+}
+.chat-scheme-preview {
+  display: flex;
+  pointer-events: none;
+  overflow: hidden;
+  block-size: 3.5rem;
+  border-radius: var(--chat-radius-sm);
+  border: 1px solid var(--chat-line);
+  transition:
+    border-color 120ms var(--chat-ease),
+    box-shadow 120ms var(--chat-ease);
+}
+.chat-scheme-tile[data-state='checked'] .chat-scheme-preview {
+  border-color: var(--chat-accent-line);
+  box-shadow: 0 0 0 1px var(--chat-accent-line);
+}
+.chat-scheme-tile[data-focus-visible] .chat-scheme-preview {
+  outline: var(--chat-focus);
+  outline-offset: 0.125rem;
+}
+/* Each preview half paints in its OWN scheme, not the widget's, so a reader sees what light and dark
+   actually look like. The half carries the same `.light` / `.dark` class the widget root uses: the
+   build lowers every `light-dark()` token to a `--lightningcss-light` / `--lightningcss-dark` pair
+   that those two classes switch. A custom property is substituted at the computed-value time of the
+   element that DECLARES it, so the inherited --chat-* tokens arrive already resolved for the widget's
+   own scheme and no class on the tile can flip them; the four tokens the preview reads are re-declared
+   here, on the same element the scheme class sits on, from the same pairs the token sheets declare
+   (@conciv/ui-kit-system/tokens.css, @conciv/ui-kit-chat/theme/tokens.css). An inline `color-scheme`
+   would not work at all: it never sets the helper properties the lowered tokens read. */
+.chat-scheme-half {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+  padding: 8px;
+  --chat-ground: light-dark(#f2f3f5, #0a0a0b);
+  --chat-fill-strong: light-dark(rgba(15, 18, 24, 0.08), rgba(255, 255, 255, 0.1));
+  --chat-fill: light-dark(rgba(15, 18, 24, 0.04), rgba(255, 255, 255, 0.05));
+  --chat-accent: light-dark(#2563eb, #c9857f);
+  background: var(--chat-ground);
+}
+.chat-scheme-half.light:not(:only-child) {
+  padding-inline-end: 0;
+}
+.chat-scheme-half.dark:not(:only-child) {
+  padding-inline-start: 4px;
+}
+.chat-scheme-bar-strong,
+.chat-scheme-bar,
+.chat-scheme-chip {
+  display: block;
+  block-size: 4px;
+  border-radius: 2px;
+}
+.chat-scheme-bar-strong {
+  inline-size: 55%;
+  background: var(--chat-fill-strong);
+}
+.chat-scheme-bar {
+  inline-size: 80%;
+  background: var(--chat-fill);
+}
+.chat-scheme-chip {
+  inline-size: 12px;
+  margin-block-start: auto;
+  background: var(--chat-accent);
+}
+.chat-scheme-half:not(:only-child) .chat-scheme-bar-strong {
+  inline-size: 70%;
+}
+.chat-scheme-half:not(:only-child) .chat-scheme-bar {
+  inline-size: 90%;
+}
+@container (max-width: 30rem) {
+  .chat-settings-body {
+    flex-direction: column;
+  }
+  .chat-settings-nav {
+    inline-size: auto;
+    padding: 0 0.5rem;
+    border-inline-end: none;
+    border-block-end: 1px solid var(--chat-line-soft);
+    --rail-axis: horizontal;
+  }
+  .chat-settings-nav-label {
+    display: none;
+  }
+  .chat-settings-nav-list {
+    flex-direction: row;
+    margin-inline-start: 0;
+  }
+  .chat-settings-content {
+    padding: 0.75rem;
+  }
+  .chat-scheme-preview {
+    block-size: 3rem;
+  }
+}
 /* @unocss/postcss expands this into the generated utilities (scanned from .tsx per uno.config.ts).
    Last in source order so a utility wins specificity ties over the hand-written .pw-* marker rules above. */
 @unocss all;

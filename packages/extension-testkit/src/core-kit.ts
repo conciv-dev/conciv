@@ -21,6 +21,7 @@ export async function bootCoreKit(opts: {
   allowedOrigins?: string[]
   staleness?: () => EngineStaleness
   nativePageDir?: string
+  globalSettingsDir?: string
 }): Promise<CoreKit> {
   const harness = createFakeHarness({
     id: opts.id,
@@ -53,6 +54,7 @@ export async function bootCoreKit(opts: {
       allowedOrigins: opts.allowedOrigins,
       staleness: opts.staleness,
       nativePageDir: opts.nativePageDir,
+      globalSettingsDir: opts.globalSettingsDir,
     })
     captured.runtime = runtime
     return {fetch: app.fetch, dispose}

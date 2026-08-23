@@ -30,6 +30,7 @@ export {Toast, ToastGroup, createToaster, type ToasterInstance} from './toast.js
 export {Avatar} from './avatar.js'
 export {RelativeTime} from './relative-time.js'
 export {Tabs} from './tabs.js'
+export {SegmentGroup, type SegmentGroupVariant} from './segment-group.js'
 export {Switch} from './switch.js'
 export {Swap} from './swap.js'
 export {Presence} from './presence.js'
