@@ -2,7 +2,7 @@ import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import type {PageOutcome} from '@conciv/protocol/page-types'
-import {createTestHarness, type Kit, type RunStream, type TestHarness} from '@conciv/harness-testkit'
+import {createTestHarness, withAutoApproval, type Kit, type RunStream, type TestHarness} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
 import {connectWidget, type FakeWidget} from '../helpers/fake-widget.js'
@@ -112,11 +112,13 @@ describe('the page-session parent id is the outer execution id on the chat produ
       typescriptCode: callThroughCatalog('page.eval', {code: '1 + 1'}),
     })
     const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'parent-id-chat-1', sessionId, text: 'evaluate it'})
-
-    const executionId = await outerExecutionId(stream)
-    expect(await evalParentId(stream)).toBe(executionId)
-    await stream.done({hangGuardMs: 15_000})
+    const executionId = await withAutoApproval(kit.base, sessionId, async () => {
+      await kit.rpc.chat.send({runId: 'parent-id-chat-1', sessionId, text: 'evaluate it'})
+      const outer = await outerExecutionId(stream)
+      expect(await evalParentId(stream)).toBe(outer)
+      await stream.done({hangGuardMs: 15_000})
+      return outer
+    })
 
     const parts = await snapshotParts(kit, sessionId)
     const outer = parts.find((part) => part.name === 'execute_typescript')
@@ -133,10 +135,12 @@ describe('the page-session parent id is the outer execution id on the chat produ
       typescriptCode: callTwiceThroughCatalog('page.eval', [{code: '1 + 1'}, {code: '2 + 2'}]),
     })
     const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'parent-id-chat-2', sessionId, text: 'evaluate both'})
-
-    const executionId = await outerExecutionId(stream)
-    await stream.done({hangGuardMs: 20_000})
+    const executionId = await withAutoApproval(kit.base, sessionId, async () => {
+      await kit.rpc.chat.send({runId: 'parent-id-chat-2', sessionId, text: 'evaluate both'})
+      const outer = await outerExecutionId(stream)
+      await stream.done({hangGuardMs: 20_000})
+      return outer
+    })
 
     const parts = await snapshotParts(kit, sessionId)
     const evals = parts.filter((part) => part.name === 'page.eval')
@@ -153,7 +157,9 @@ describe('the page-session parent id is the outer execution id on the /api/mcp p
     const sessionId = await kit.session()
     const stream = await kit.attach(sessionId)
 
-    await expect(kit.callTool('page.eval', {code: '1 + 1'}, sessionId)).resolves.toMatchObject({result: 2})
+    await expect(
+      withAutoApproval(kit.base, sessionId, () => kit.callTool('page.eval', {code: '1 + 1'}, sessionId)),
+    ).resolves.toMatchObject({result: 2})
 
     const executionId = await outerExecutionId(stream)
     expect(await evalParentId(stream)).toBe(executionId)
