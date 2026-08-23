@@ -17,6 +17,7 @@ export default defineConfig({
     projects: [
       {
         test: {
+          ...localForkCap(),
           name: 'whiteboard',
           environment: 'node',
           include: ['test/**/*.test.ts', 'test/**/*.it.test.ts'],
