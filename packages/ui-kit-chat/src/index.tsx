@@ -52,7 +52,7 @@ export {
   type SessionStatusInput,
   type SessionStatusKind,
 } from './store/session-status.js'
-export {createTurnClock, foldTurnClock, formatElapsed, type TurnClockState} from './store/turn-clock.js'
+export {createRunClock, formatElapsed, runClock, type RunClockSource, type RunClockState} from './store/run-clock.js'
 export {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from './primitives/activity/activity.js'
 export {Activity, type ActivityProps} from './styled/activity.js'
 export {chatBusy} from './store/chat-busy.js'

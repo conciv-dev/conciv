@@ -18,6 +18,7 @@ const BAR =
   'flex items-stretch min-h-8 [background:var(--chat-statusbar-bg)] [border-top:1px_solid_var(--chat-line-soft)] [font-family:var(--chat-mono)]'
 const CHIP: Record<SessionStatusKind, string> = {
   running: '[background:var(--chat-status-running)]',
+  stopping: '[background:var(--chat-status-waiting)]',
   waiting: '[background:var(--chat-status-waiting)]',
   failed: '[background:var(--chat-status-failed)]',
   done: '[background:var(--chat-status-done)]',
@@ -40,7 +41,7 @@ const VIEW_LABEL = 'chat-view-btn-label [font-family:var(--chat-font)] truncate 
 export function StatusBar(props: StatusBarProps): JSX.Element {
   return (
     <div class={BAR} role="toolbar" aria-label="Session status">
-      <span class={`${CHIP_BASE} ${CHIP[props.status.kind]}`} role="status">
+      <span class={`${CHIP_BASE} ${CHIP[props.status.kind]}`} role="status" title={props.status.reason}>
         {props.status.label}
       </span>
       <span class={CELL}>

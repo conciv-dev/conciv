@@ -35,6 +35,8 @@ import type {ChatDeps} from './runtime.js'
 import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {sessionSnapshot} from './transcript.js'
+import {settleContextOccupancy} from './occupancy.js'
+import {publishRunLifecycle, publishRunRecord} from './run-lifecycle.js'
 import {stopSession} from './stop.js'
 import {asksFor, makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
 import {withConcivSandbox} from './sandbox.js'
@@ -318,11 +320,11 @@ function runEndChunkFor(sessionId: SessionId, req: RunRequest, outcome: RunOutco
 
 async function finishRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest, outcome: RunOutcome): Promise<void> {
   persistRunOutcome(deps, sessionId, req.kind)
-  if (outcome.usage) outcome.usage.contextTokens = await contextOccupancyFor(deps, sessionId).catch(() => undefined)
   await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
   deps.liveRuns.settle(sessionId, req.runId)
   deps.asks.cancel(sessionId)
   if (deps.onRunEnd) await deps.onRunEnd(sessionId).catch(() => {})
+  if (outcome.usage) void settleContextOccupancy(deps, sessionId).catch(() => {})
 }
 
 async function* runStream(
@@ -371,14 +373,11 @@ function launchRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest): LiveR
     threadId: sessionId,
     stream: runStream(deps, sessionId, req, abort),
   })
-  const run: LiveRun = {
-    runId: req.runId,
-    abort,
-    done: handle.done.then(
-      () => undefined,
-      () => undefined,
-    ),
-  }
+  const settled = handle.done.then(
+    () => publishRunRecord(deps, sessionId, req.runId),
+    () => publishRunRecord(deps, sessionId, req.runId),
+  )
+  const run: LiveRun = {runId: req.runId, abort, done: settled.catch(() => undefined)}
   deps.liveRuns.start(sessionId, run)
   return run
 }
@@ -387,17 +386,6 @@ function contextWindowFor(harness: HarnessAdapter, modelId: string | null): numb
   const models = harness.models
   if (!Array.isArray(models) || !modelId) return undefined
   return models.find((model) => model.id === modelId)?.contextWindow
-}
-
-async function contextOccupancyFor(deps: ChatDeps, sessionId: SessionId): Promise<number | undefined> {
-  const history = deps.harness.history
-  if (!history?.contextTokens || !history.transcriptPath) return undefined
-  const nativeId = await nativeIdFor(deps.db, sessionId)
-  if (!nativeId) return undefined
-  const path = transcriptPathWithin(history, deps.cwd, nativeId, deps.claudeHome)
-  if (path === null) return undefined
-  if (!existsSync(path)) return undefined
-  return history.contextTokens(readFileSync(path, 'utf8'))
 }
 
 function usageSnapshotFor(deps: ChatDeps, modelId: string | null, usage: TokenUsage): UsageSnapshot {
@@ -499,6 +487,7 @@ export function makeSend(deps: ChatDeps): Send {
       )
       await settleLiveRuns(deps, sessionId)
       launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
+      publishRunLifecycle(deps, sessionId, record)
       await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
       return runId
     })

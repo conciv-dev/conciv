@@ -5,17 +5,9 @@ import {describe, expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {useChat} from '@tanstack/ai-solid'
 import {ChatProvider, ComposerHandlersProvider, createTextChunks, storyConnection} from '@conciv/ui-kit-chat'
-import type {WebStorage} from '@conciv/storage-history'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
-
-function memoryStorage(): WebStorage {
-  const map = new Map<string, string>()
-  return {
-    getItem: (key) => map.get(key) ?? null,
-    setItem: (key, value) => void map.set(key, value),
-  }
-}
+import {memoryStorage} from './helpers/memory-storage.js'
 
 function Harness(): JSX.Element {
   const chat = useChat({
