@@ -2,7 +2,7 @@ import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {RelativeTime} from '@conciv/ui-kit-system'
+import {RelativeTime, TruncatedText} from '@conciv/ui-kit-system'
 import {CardNote, CardRow, CardRows, settledCardBody, InspectionCard, JsonValue} from './card-shared.js'
 
 const EntrySchema = z
@@ -32,7 +32,7 @@ function EntryRow(props: {entry: Entry}): JSX.Element {
   return (
     <div class="flex flex-col gap-1">
       <CardRow>
-        <span class="text-chat-text-2 min-w-0 truncate">{props.entry.key}</span>
+        <TruncatedText class="text-chat-text-2 min-w-0" text={props.entry.key} />
         <Chip kind="pill" value={props.entry.state} tone={props.entry.state === 'error' ? 'danger' : undefined} />
         <Show when={props.entry.observers !== null}>
           <span class="text-chat-text-3 shrink-0">{props.entry.observers} obs</span>

@@ -1,5 +1,5 @@
 import type {ExtensionApi} from '@conciv/extension'
-import {ClipboardCopyButton, Collapsible, Tooltip} from '@conciv/ui-kit-system'
+import {ClipboardCopyButton, Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import Check from 'lucide-solid/icons/check'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import {createSignal, onMount, Show, type JSX} from 'solid-js'
@@ -20,18 +20,7 @@ const STEP_TITLES: Record<TryStep, string> = {
 function CopyRow(props: {label: string; text: string; onCopy: () => void}): JSX.Element {
   return (
     <div class="py-1.5 pl-3 pr-1.5 border border-chat-line rounded-chat-surface-md bg-chat-fill flex gap-2 items-center">
-      <Tooltip.Root>
-        <Tooltip.Trigger
-          asChild={(triggerProps) => (
-            <span {...triggerProps()} class="text-[12px] text-chat-text-2 font-mono text-start flex-1 min-w-0 truncate">
-              {props.text}
-            </span>
-          )}
-        />
-        <Tooltip.Positioner>
-          <Tooltip.Content class="font-mono [overflow-wrap:anywhere]">{props.text}</Tooltip.Content>
-        </Tooltip.Positioner>
-      </Tooltip.Root>
+      <TruncatedText class="text-[12px] text-chat-text-2 font-mono text-start flex-1 min-w-0" text={props.text} />
       <ClipboardCopyButton
         text={props.text}
         tooltips={{idle: props.label}}

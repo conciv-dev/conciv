@@ -1,6 +1,6 @@
 import {Outlet, createFileRoute, redirect, useBlocker, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
-import {Popover, TooltipIconButton, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
+import {Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
   ChatProvider,
   chatBusy,
@@ -205,7 +205,7 @@ function PanelSession(): JSX.Element {
             <span class="chat-rail-context-narrow">{sessionStatus().kind === 'done' ? 'LAST' : 'ACTIVE'}</span>
           </span>
           <Suspense fallback={<SessionTitlePending />}>
-            <span class={RAIL_TITLE}>{taskTitle()}</span>
+            <TruncatedText class={RAIL_TITLE} text={taskTitle()} side="bottom" />
           </Suspense>
         </div>
         <Popover.Root positioning={{placement: 'bottom-end'}}>

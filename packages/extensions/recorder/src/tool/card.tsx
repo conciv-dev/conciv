@@ -2,6 +2,7 @@ import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import Clapperboard from 'lucide-solid/icons/clapperboard'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {Chip, ErrorBlock, parseInput, resultText, ToolCard} from '@conciv/ui-kit-chat/tools'
 const ImagePartSchema = z.object({type: z.literal('image')}).loose()
 const TextPartSchema = z.object({type: z.literal('text'), content: z.string()}).loose()
@@ -83,7 +84,7 @@ export function RecordingToolCard(props: ToolCardProps): JSX.Element {
               <div class="text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)] flex gap-2 min-w-0 [font-family:var(--chat-mono)] items-center">
                 <span class="flex-none [color:var(--chat-text-3)] tabular-nums">{action.at}</span>
                 <Chip kind="pill" value={action.kind} />
-                <span class="flex-1 min-w-0 truncate [color:var(--chat-text-2)]">{action.detail}</span>
+                <TruncatedText class="flex-1 min-w-0 [color:var(--chat-text-2)]" text={action.detail} />
               </div>
             )}
           </For>

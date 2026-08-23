@@ -1,6 +1,6 @@
 import {createEffect, createMemo, For, onCleanup, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import {StatusDot, type StatusDotTone} from '@conciv/ui-kit-system'
+import {StatusDot, TruncatedText, type StatusDotTone} from '@conciv/ui-kit-system'
 import ExternalLink from 'lucide-solid/icons/external-link'
 import Sparkles from 'lucide-solid/icons/sparkles'
 import {
@@ -145,7 +145,7 @@ function TestRow(props: {state: RowState; name: string; durationMs: number}): JS
     <>
       <StatusDot tone={ROW_TONE[props.state]} pulse={props.state === 'running'} />
       <span class="sr-only">{stateLabel(props.state)}: </span>
-      <span class={ROW_NAME}>{props.name}</span>
+      <TruncatedText class={ROW_NAME} text={props.name} />
       <Show when={duration()}>{(value) => <span class={ROW_DURATION}>{value()}</span>}</Show>
     </>
   )
@@ -203,7 +203,9 @@ function FileHeader(props: {group: FileGroup}): JSX.Element {
   const failures = () => failureCount(props.group)
   return (
     <>
-      <span class={FILE_NAME}>{relName(props.group.file)}</span>
+      <TruncatedText class={FILE_NAME} text={props.group.file}>
+        {relName(props.group.file)}
+      </TruncatedText>
       <Show when={failures() > 0}>
         <Chip kind="pill" tone="danger" value={failureCountLabel(failures())} />
       </Show>

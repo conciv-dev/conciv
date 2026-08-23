@@ -17,7 +17,7 @@ import ShieldQuestion from 'lucide-solid/icons/shield-question-mark'
 import X from 'lucide-solid/icons/x'
 import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {Collapsible} from '@conciv/ui-kit-system'
+import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import {INERT_TOOL_CTX} from '../store/tool-context.js'
 import {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from '../primitives/activity/activity.js'
 import {
@@ -139,7 +139,7 @@ function StepShell(
     <Collapsible.Root open={collapse.open()} onOpenChange={(details) => collapse.setOpen(details.open)}>
       <Collapsible.Trigger class={STEP_TRIGGER}>
         {props.glyph}
-        <span class={`text-left flex-1 min-w-0 truncate ${props.titleClass ?? ''}`}>{props.title}</span>
+        <TruncatedText class={`text-left flex-1 min-w-0 ${props.titleClass ?? ''}`} text={props.title} />
         <ChevronDown size={12} class={STEP_CHEVRON} aria-hidden="true" />
       </Collapsible.Trigger>
       <Collapsible.Content>
@@ -246,9 +246,10 @@ function StepGroup(props: {turn: Turn; node: GroupNodeGroup; liveSegment: boolea
         <Show when={props.liveSegment} fallback={<span class="shrink-0 size-3" aria-hidden="true" />}>
           <Loader size={12} class={SPIN} aria-hidden="true" />
         </Show>
-        <span class={`font-medium text-left flex-1 min-w-0 truncate ${props.liveSegment ? SHIMMER : ''}`}>
-          {title()}
-        </span>
+        <TruncatedText
+          class={`font-medium text-left flex-1 min-w-0 ${props.liveSegment ? SHIMMER : ''}`}
+          text={title()}
+        />
         <ChevronDown size={12} class={GROUP_CHEVRON} aria-hidden="true" />
       </Collapsible.Trigger>
       <Collapsible.Content>

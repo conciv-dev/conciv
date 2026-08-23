@@ -1,5 +1,5 @@
 import {createSignal, For, Show, splitProps, type JSX} from 'solid-js'
-import {Collapsible} from '@conciv/ui-kit-system'
+import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import {createAutoCollapse} from '../../primitives/util/create-auto-collapse.js'
 import {FOCUS_INSET} from '../classes.js'
 import {TRACE_HOVER_INDENT, TRACE_LINE, TRACE_MICROLABEL} from './trace-row.js'
@@ -67,13 +67,13 @@ export function Trace(props: {
             when={open()}
             fallback={
               <>
-                <span class={COMPACT_LINE}>{local.compactLine}</span>
+                <TruncatedText class={COMPACT_LINE} text={local.compactLine} />
                 <span class={TOGGLE}>Show trace</span>
               </>
             }
           >
             <span class={HEADER_LABEL}>Trace</span>
-            <span class={SUMMARY}>{local.summary}</span>
+            <TruncatedText class={SUMMARY} text={local.summary} />
             <span class={TOGGLE}>Hide trace</span>
           </Show>
         </Collapsible.Trigger>

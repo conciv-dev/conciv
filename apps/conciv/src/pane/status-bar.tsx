@@ -1,6 +1,6 @@
 import {For, Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import {TabsPrimitive as Tabs} from '@conciv/ui-kit-system'
+import {TabsPrimitive as Tabs, TruncatedText} from '@conciv/ui-kit-system'
 import type {SessionStatus, SessionStatusKind} from '@conciv/ui-kit-chat'
 import {viewTabId, viewTabPanelId} from './view-tab-ids.js'
 
@@ -84,7 +84,7 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
                 <Show when={view.icon}>
                   {(icon) => <Dynamic component={icon()} class="size-3" aria-hidden="true" />}
                 </Show>
-                <span class={VIEW_LABEL}>{view.label}</span>
+                <TruncatedText class={VIEW_LABEL} text={view.label} />
                 <span class={VIEW_HINT} aria-hidden="true">
                   {index() + 1}
                 </span>
