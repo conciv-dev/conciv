@@ -67,7 +67,7 @@ const PAGE_SESSION: PageSessionConfig = {
 
 const ABOVE_COMPOSER =
   'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto empty:hidden pt-[9px] pe-5 pb-[10px] ps-5 [background:var(--chat-queue-bg)] [border-block-start:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-[11px] leading-[1.4] [&>*+*]:before:content-["·"] [&>*+*]:before:px-[5px] [&>*+*]:before:[color:var(--chat-separator)]'
-const NOW_PIN = 'shrink-0 pt-[9px] pe-5 pb-[10px] ps-5 anim-msg'
+const NOW_ROW = 'shrink-0 self-stretch min-w-0 pb-[6px]'
 const THINKING_TITLE = 'Thinking…'
 const RESPONDING_TITLE = 'Responding…'
 const ERROR = 'flex gap-2 items-center text-chat-danger text-[0.75rem] anim-msg'
@@ -296,6 +296,11 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                         <Show when={compacting()}>
                           <Divider kind="compact" pending />
                         </Show>
+                        <Show when={narrating() && !chainNarrates()}>
+                          <div class={NOW_ROW}>
+                            <NowLine title={narrationTitle()} />
+                          </div>
+                        </Show>
                         <Show when={messaging.visibleError()}>
                           {(error) => (
                             <div class={ERROR} role="alert">
@@ -310,11 +315,6 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                     </Suspense>
                   </Thread.Viewport>
                   <Thread.Composer>
-                    <Show when={narrating() && !chainNarrates()}>
-                      <div class={NOW_PIN}>
-                        <NowLine title={narrationTitle()} />
-                      </div>
-                    </Show>
                     <div class={ABOVE_COMPOSER}>
                       <ExtensionSurface name="status" instances={instances} />
                       <ExtensionSurface name="footer" instances={instances} />
