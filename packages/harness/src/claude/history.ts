@@ -42,6 +42,7 @@ const OriginSchema = z.object({kind: z.string()}).loose()
 const TranscriptRecordSchema = z
   .object({
     type: z.string(),
+    uuid: z.string().optional(),
     isSidechain: z.boolean().optional(),
     isMeta: z.boolean().optional(),
     isCompactSummary: z.boolean().optional(),
@@ -218,28 +219,43 @@ function foldPreview(state: ClaudeFold, spoken: MessagePart[] | null, fromUser: 
   state.lastText = condense(text, MAX_PREVIEW)
 }
 
-function pushMessage(state: ClaudeFold, role: 'user' | 'assistant', parts: MessagePart[]): void {
+function pushMessage(
+  state: ClaudeFold,
+  role: 'user' | 'assistant',
+  parts: MessagePart[],
+  nativeId: string | undefined,
+): void {
   state.count += 1
-  state.messages.push({id: `h${state.count}`, role, parts})
+  state.messages.push({id: nativeId ?? `h${state.count}`, role, parts})
 }
 
-function foldUserTurn(state: ClaudeFold, parts: MessagePart[], human: MessagePart[] | null): void {
+function foldUserTurn(
+  state: ClaudeFold,
+  parts: MessagePart[],
+  human: MessagePart[] | null,
+  nativeId: string | undefined,
+): void {
   const results = parts.filter((p) => p.type === 'tool-result')
   const lastAssistant = state.messages.findLast((m) => m.role === 'assistant')
   if (lastAssistant) lastAssistant.parts.push(...results)
   if (!human) return
   state.openAssistantId = null
-  pushMessage(state, 'user', human)
+  pushMessage(state, 'user', human, nativeId)
 }
 
-function foldAssistantTurn(state: ClaudeFold, claudeId: string | undefined, parts: MessagePart[]): void {
+function foldAssistantTurn(
+  state: ClaudeFold,
+  claudeId: string | undefined,
+  parts: MessagePart[],
+  nativeId: string | undefined,
+): void {
   const open = state.messages.at(-1)
   if (claudeId && claudeId === state.openAssistantId && open?.role === 'assistant') {
     open.parts.push(...parts)
     return
   }
   state.openAssistantId = claudeId ?? null
-  pushMessage(state, 'assistant', parts)
+  pushMessage(state, 'assistant', parts, nativeId)
 }
 
 function foldUserRecord(state: ClaudeFold, record: TranscriptRecord): void {
@@ -247,14 +263,14 @@ function foldUserRecord(state: ClaudeFold, record: TranscriptRecord): void {
   const human = humanMessageParts(record, parts)
   foldPreview(state, human, true)
   if (parts.length === 0 || isInternal(parts)) return
-  foldUserTurn(state, parts, human)
+  foldUserTurn(state, parts, human, record.uuid)
 }
 
 function foldAssistantRecord(state: ClaudeFold, record: TranscriptRecord): void {
   const parts = partsFrom(record.message?.content)
   foldPreview(state, parts, false)
   if (parts.length === 0 || isInternal(parts)) return
-  foldAssistantTurn(state, record.message?.id, parts)
+  foldAssistantTurn(state, record.message?.id, parts, record.uuid)
 }
 
 function foldRecord(state: ClaudeFold, record: TranscriptRecord): void {

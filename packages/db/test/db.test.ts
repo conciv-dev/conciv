@@ -7,7 +7,14 @@ import {eq} from 'drizzle-orm'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb} from '../src/db.js'
-import {runMessagesFor, replyFor, sessionHistoryFor, setRunMessages, writeReply} from '../src/run-queries.js'
+import {
+  recordRunLifecycle,
+  runMessagesFor,
+  replyFor,
+  sessionHistoryFor,
+  setRunMessages,
+  writeReply,
+} from '../src/run-queries.js'
 import {sessions} from '../src/schema.js'
 import {runs} from '../src/run-schema.js'
 
@@ -138,19 +145,26 @@ describe('openDb', () => {
     expect(db.select().from(sessions).all()[0]?.title).toBe('named')
   })
 
-  it('boot sweep resets stuck runs and clears replies, leaving run rows for capability-aware recovery', () => {
+  it('boot sweep abandons stuck runs and clears replies, leaving run rows for capability-aware recovery', () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-sweep-'))
     const first = openDb(stateRoot)
     first
       .insert(sessions)
       .values({...record('conciv_z'), title: 'keep'})
       .run()
-    first.insert(runs).values({sessionId: 'conciv_z', status: 'running', updatedAt: Date.now()}).run()
+    recordRunLifecycle(first, 'conciv_z', {
+      runId: 'run-stuck',
+      phase: 'running',
+      startedAt: Date.now(),
+      finishedAt: null,
+      serverNow: Date.now(),
+      error: null,
+    })
     setRunMessages(first, 'conciv_z', [{id: 'm1'}])
     writeReply(first, 'conciv_z', 'k', true)
     const second = openDb(stateRoot)
     expect(second.select().from(sessions).all()[0]?.title).toBe('keep')
-    expect(second.select().from(runs).where(eq(runs.sessionId, 'conciv_z')).all()[0]?.status).toBe('idle')
+    expect(second.select().from(runs).where(eq(runs.sessionId, 'conciv_z')).all()[0]?.phase).toBe('aborted')
     expect(runMessagesFor(second, 'conciv_z')?.messages).toEqual([{id: 'm1'}])
     expect(replyFor(second, 'conciv_z', 'k')).toBeNull()
   })
