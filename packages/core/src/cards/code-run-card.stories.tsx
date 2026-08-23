@@ -75,7 +75,8 @@ export const Success: Story = {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
     await waitFor(async () => expect(await codeText(canvasElement)).toContain('committed ["el_9f2"]'), {timeout: 5000})
-    await waitFor(() => expect(c.getByText('["el_9f2"]')).toBeVisible())
+    await waitFor(() => expect(c.getByText('result')).toBeVisible())
+    await waitFor(() => expect(c.getAllByText(/el_9f2/).length).toBeGreaterThan(0))
     await expect(c.queryByText(/SyntaxError/)).toBeNull()
     await expect(c.queryByLabelText('error')).toBeNull()
     await expect(c.getByLabelText('complete')).toBeInTheDocument()
@@ -90,7 +91,7 @@ export const Failure: Story = {
     await userEvent.click(c.getByRole('button'))
     await waitFor(() => expect(c.getByText(/SyntaxError/)).toBeVisible())
     await expect(c.getByText(/line 2/)).toBeVisible()
-    await expect(c.queryByText('["el_9f2"]')).toBeNull()
+    await expect(c.queryByText('result')).toBeNull()
     await expect(c.queryByText('console')).toBeNull()
     await expect(c.getByLabelText('error')).toBeInTheDocument()
   },
@@ -103,8 +104,40 @@ export const TransportFailure: Story = {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
     await waitFor(() => expect(c.getByText('sandbox process crashed')).toBeVisible())
-    await expect(c.queryByText('["el_9f2"]')).toBeNull()
+    await expect(c.queryByText('result')).toBeNull()
     await expect(c.getByLabelText('error')).toBeInTheDocument()
+  },
+}
+
+const objectResult = result({
+  success: true,
+  logs: ['audited 3 lanes'],
+  result: {status: 'ok', lanes: [{id: 'el_9f2', title: 'Widget shell', open: 2}], checkedAt: '2026-08-23T09:12:00Z'},
+})
+
+const stringResult = result({success: true, result: 'the "quoted" bay is clear, all 3 lanes reported in'})
+
+export const ObjectResult: Story = {
+  render: () =>
+    frame(<CodeRunCard part={part()} result={objectResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await userEvent.click(c.getByRole('button'))
+    await waitFor(() => expect(c.getAllByText('status').length).toBeGreaterThan(0))
+    await expect(c.getAllByText('lanes').length).toBeGreaterThan(0)
+    await expect(canvasElement.textContent).not.toContain('{"status":"ok"')
+  },
+}
+
+export const StringResult: Story = {
+  render: () =>
+    frame(<CodeRunCard part={part()} result={stringResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await userEvent.click(c.getByRole('button'))
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('the "quoted" bay is clear'))
+    await expect(canvasElement.textContent).not.toContain('\\"quoted\\"')
+    await expect(c.queryByText('console')).toBeNull()
   },
 }
 

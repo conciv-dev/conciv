@@ -1,4 +1,4 @@
-import {createSignal, Show, Switch, Match, type JSX} from 'solid-js'
+import {createSignal, Show, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible} from '@conciv/ui-kit-system'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
@@ -11,8 +11,7 @@ import {SHIMMER} from '../../styled/shimmer.js'
 import {FOCUS} from '../../styled/classes.js'
 import {TRACE_MICROLABEL} from '../../styled/trace/trace-row.js'
 import {ActionRow, ActionButton} from './action-row.js'
-import {CodeBlock} from './code-block.js'
-import {JsonTree} from './json-tree.js'
+import {ShapedText} from './shaped-content.js'
 import {useEmbeddedCard} from './card-chrome.js'
 
 function FallbackRoot(props: {children: JSX.Element}): JSX.Element {
@@ -81,54 +80,27 @@ function Content(props: {children: JSX.Element}): JSX.Element {
   )
 }
 
-type ContentShape = {kind: 'tree'; data: object} | {kind: 'code'; lang: string; contents: string}
-
-function contentShape(text: string): ContentShape {
-  try {
-    const parsed: unknown = JSON.parse(text)
-    if (typeof parsed === 'object' && parsed !== null) return {kind: 'tree', data: parsed}
-    return {kind: 'code', lang: 'json', contents: JSON.stringify(parsed, null, 2)}
-  } catch {
-    return {kind: 'code', lang: 'text', contents: text}
-  }
-}
-
-function ShapedContent(props: {name: string; shape: ContentShape}): JSX.Element {
-  return (
-    <Switch>
-      <Match when={props.shape.kind === 'tree' && props.shape}>{(shape) => <JsonTree data={shape().data} />}</Match>
-      <Match when={props.shape.kind === 'code' && props.shape}>
-        {(shape) => (
-          <CodeBlock file={{name: `${props.name}.${shape().lang}`, lang: shape().lang, contents: shape().contents}} />
-        )}
-      </Match>
-    </Switch>
-  )
-}
-
 function Args(): JSX.Element {
   const tool = useToolFallback()
   const hasInput = () => {
     const text = tool.argsText().trim()
     return text.length > 0 && text !== '{}'
   }
-  const shape = () => contentShape(tool.argsText())
   return (
     <Show when={hasInput()} fallback={<p class={QUIET_TEXT_CLASS}>no input</p>}>
-      <ShapedContent name="args" shape={shape()} />
+      <ShapedText name="args" text={tool.argsText()} />
     </Show>
   )
 }
 
 function Result(): JSX.Element {
   const tool = useToolFallback()
-  const shape = () => contentShape(tool.resultText())
   return (
     <Show when={tool.resultText()}>
       <div class={SECTION}>
         <p class={SECTION_LABEL}>Result</p>
         <div class={RESULT_BODY}>
-          <ShapedContent name="result" shape={shape()} />
+          <ShapedText name="result" text={tool.resultText()} />
         </div>
       </div>
     </Show>

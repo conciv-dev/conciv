@@ -62,6 +62,7 @@ export {ResultImage} from './tools/styled/result-image.js'
 export {ActionRow, ActionButton} from './tools/styled/action-row.js'
 export {CollapsibleSection} from './tools/styled/collapsible-section.js'
 export {JsonTree} from './tools/styled/json-tree.js'
+export {ShapedValue} from './tools/styled/shaped-content.js'
 export {MirrorRow, NoteRow, type NoteRowTone} from './tools/styled/note-row.js'
 export {SHIMMER} from './styled/shimmer.js'
 export {

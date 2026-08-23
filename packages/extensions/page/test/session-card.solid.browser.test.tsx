@@ -46,6 +46,17 @@ function lookup(results: Record<string, ToolResultPart>): (id: string) => ToolRe
   return (id) => results[id]
 }
 
+async function openSettled(
+  parts: readonly MessagePart[],
+  results: Record<string, ToolResultPart>,
+  title: RegExp,
+): Promise<void> {
+  mount(() => (
+    <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={lookup(results)} streaming={false} />
+  ))
+  await page.getByRole('button', {name: title}).click()
+}
+
 test('streamed act appends and token growth keep the existing step-rail rows mounted', async () => {
   const [parts, setParts] = createSignal<ToolCallPart[]>([fillCall('f1', '#name', 'Ada')])
   const results = {f1: okResult('f1')}
@@ -88,11 +99,8 @@ test('a settled session shows its folded reasoning and script in a collapsed fla
     codeRun('p1'),
     toolCall('f1', 'page.fill', {selector: '#prose', value: 'better prose'}, 'complete'),
   ]
-  mount(() => (
-    <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={lookup(results)} streaming={false} />
-  ))
+  await openSettled(parts, results, /Edited the page/)
 
-  await page.getByRole('button', {name: /Edited the page/}).click()
   const section = page.getByRole('button', {name: 'Reasoning · script'})
   await expect.element(section).toBeVisible()
   await expect.element(page.getByText('choose the field wisely')).not.toBeInTheDocument()
@@ -104,11 +112,9 @@ test('a settled session shows its folded reasoning and script in a collapsed fla
 test('an expanded session shows its step rail without a tool-input row of its own', async () => {
   const results = {f1: okResult('f1')}
   const parts: ToolCallPart[] = [toolCall('f1', 'page.fill', {selector: '#name', value: 'Ada'}, 'complete')]
-  mount(() => (
-    <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={lookup(results)} streaming={false} />
-  ))
 
-  await page.getByRole('button', {name: /Edited the page/}).click()
+  await openSettled(parts, results, /Edited the page/)
+
   await expect.element(page.getByText('#name')).toBeVisible()
   await expect.element(page.getByText('no input')).not.toBeInTheDocument()
 })
@@ -137,6 +143,19 @@ test('a settled session without a folded route result shows no location pill', a
 
   await expect.element(page.getByText('Edited the page')).toBeVisible()
   expect(document.body.textContent).not.toContain(location.host)
+})
+
+const SCRIPT_LINE = "const rows = document.querySelectorAll('tr')"
+
+test('a script step reads its own first code line, with no duplicate value pill beside it', async () => {
+  const results = {s1: okResult('s1')}
+  const parts: ToolCallPart[] = [toolCall('s1', 'page.eval', {code: `${SCRIPT_LINE}\nreturn rows.length`}, 'complete')]
+
+  await openSettled(parts, results, /Ran script on the page/)
+
+  await expect.element(page.getByRole('listitem')).toHaveTextContent(SCRIPT_LINE)
+  expect(page.getByText('script', {exact: true}).query()).toBeNull()
+  expect(document.body.textContent).not.toContain(`“${SCRIPT_LINE}”`)
 })
 
 test('a streaming session without a route result shows the current location honestly', async () => {

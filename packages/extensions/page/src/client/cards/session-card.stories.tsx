@@ -239,6 +239,45 @@ export const WithError: Story = {
   },
 }
 
+const SCRIPT_STEPS: ToolCallPart[] = [
+  storyPart('page.eval', {code: "const rows = document.querySelectorAll('tr')\nreturn rows.length"}, 'complete', 's1'),
+  storyPart(
+    'page.css',
+    {text: '.cta, .cta-secondary, .cta-ghost { color: var(--brand); border-radius: 10px }'},
+    'complete',
+    's2',
+  ),
+  storyPart('page.eval', {code: 'window.scrollTo({top: 0, behavior: "smooth"})'}, 'complete', 's3'),
+]
+
+const SCRIPT_RESULTS: Record<string, ToolResultPart> = {
+  s1: storyResult({result: 42}, 'complete', 's1'),
+  s2: storyResult({ok: true}, 'complete', 's2'),
+  s3: storyResult({result: null}, 'complete', 's3'),
+}
+
+export const Scripted: Story = {
+  render: () => sessionFrame(SCRIPT_STEPS, SCRIPT_RESULTS, {}, false),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', {name: /Ran script on the page/}))
+    await waitFor(() => expect(canvas.getByText("const rows = document.querySelectorAll('tr')")).toBeVisible())
+    await expect(canvas.getByText(/\.cta, \.cta-secondary/)).toBeVisible()
+    await expect(canvas.queryByText('script')).toBeNull()
+  },
+}
+
+export const ScriptedNarrow: Story = {
+  parameters: {cardSplit: [68, 32]},
+  render: () => sessionFrame(SCRIPT_STEPS, SCRIPT_RESULTS, {}, false),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', {name: /Ran script on the page/}))
+    await waitFor(() => expect(canvas.getByText("const rows = document.querySelectorAll('tr')")).toBeVisible())
+    await expect(canvas.queryByText('script')).toBeNull()
+  },
+}
+
 export const Narrow: Story = {
   parameters: {cardSplit: [46, 54]},
   render: () =>
