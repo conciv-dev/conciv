@@ -13,7 +13,7 @@ export type UseChatSessionOptions = {
 }
 
 export type ChatSession = ReturnType<typeof useChat> & {
-  refresh: () => void
+  refresh: () => Promise<void>
   interruptAndFlush: () => void
   stopping: Accessor<boolean>
   runSource: Accessor<RunClockSource | null>

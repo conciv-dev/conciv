@@ -20,6 +20,8 @@ export type PaneContextValue = {
   attachments: PendingAttachmentQueue
   newSession: () => void
   chat: Accessor<ChatSession>
+  refresh: () => void
+  isRefreshing: Accessor<boolean>
 }
 
 export function makePendingAttachmentQueue(): PendingAttachmentQueue {
