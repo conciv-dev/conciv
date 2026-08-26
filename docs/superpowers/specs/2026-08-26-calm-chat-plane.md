@@ -84,7 +84,7 @@ Their WS connection adapter primary, their SSE adapter fallback, selection mirro
 
 New process-restart tests: browser reload + core restart mid-run; pending approval recovered after restart; late-join after restart. Existing same-process ITs (snapshot-resubscribe, approval-replay, late-join narration) must pass unmodified — weakening any of them is a stop-the-line signal.
 
-Code-mode caveat: `code_mode:*` events carry no toolCallId and are replay-skippable — ingest records the bracketing association itself, with a test.
+Code-mode attribution (corrected after source read at main, `tool-calls.ts:873` + `processor.ts:2105`): the engine stamps `toolCallId` into every tool-emitted custom event's value, the client surfaces it via `onCustomEvent` context, and because it lives in the CUSTOM chunk's `value` it survives wire normalization, run-log persistence, and replay — no positional bracketing needed. Residual caveat: resume-alignment may skip (not mis-attribute) custom events on takeover mismatch; the exec card must tolerate a gap, covered by a test. The docs' CodeExecutionPanel shape (one panel per toolCallId, append-only event timeline, per-call `isRunning`) matches Phase 3's surface design.
 
 **Exit per workstream:** full gates + the workstream's named tests + oRPC surface diff showing only chat.subscribe removed (2.c) + embed transport-selection e2e green with connection-count parity (2.c).
 
