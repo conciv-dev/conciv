@@ -183,6 +183,13 @@ const scriptError: BrowserCommand<[string]> = (ctx, message): void => {
 
 const scriptTurn: BrowserCommand<[ScriptedTurn]> = (ctx, turn): string[] => kitOf(ctx).harness.script.scriptTurn(turn)
 
+const scriptToolCall: BrowserCommand<[string, unknown]> = (ctx, name, input): string =>
+  kitOf(ctx).harness.script.scriptToolCall(name, input)
+
+const scriptCustomEvent: BrowserCommand<[string, unknown]> = (ctx, name, value): void => {
+  kitOf(ctx).harness.script.scriptCustomEvent(name, value)
+}
+
 const setTerminalLaunch: BrowserCommand<[boolean]> = (ctx, succeeds): void => {
   stateOf(ctx).terminal.succeeds = succeeds
 }
@@ -268,6 +275,8 @@ export const coreCommands = {
   releaseTurn,
   scriptError,
   scriptTurn,
+  scriptToolCall,
+  scriptCustomEvent,
   setTerminalLaunch,
   terminalLaunches,
   rpcCallCount,

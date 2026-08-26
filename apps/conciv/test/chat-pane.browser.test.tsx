@@ -22,6 +22,7 @@ import {
   PRICING_LABEL,
 } from './helpers/grab-fixtures.js'
 import {mountPane, type PaneMount, type PaneMountOptions} from './helpers/pane-harness.js'
+import {forceReducedMotion} from './helpers/reduced-motion.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 
 const SEND_PATH = ['chat', 'send']
@@ -92,16 +93,6 @@ const narration = () => page.getByText('Responding…', {exact: true})
 const FROZEN_GLYPH = '⠿'
 const frozenGlyph = () => page.getByText(FROZEN_GLYPH, {exact: true})
 const traceList = () => page.getByRole('list', {name: 'Execution trace'})
-
-function forceReducedMotion(): () => void {
-  const original = window.matchMedia
-  const reduced = original('(prefers-reduced-motion: reduce)')
-  Object.defineProperty(reduced, 'matches', {value: true})
-  window.matchMedia = (query: string) => (query === '(prefers-reduced-motion: reduce)' ? reduced : original(query))
-  return () => {
-    window.matchMedia = original
-  }
-}
 
 async function pickGrabFromOverflow(): Promise<void> {
   await userEvent.click(overflowTrigger())
