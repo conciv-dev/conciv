@@ -6,13 +6,13 @@ import {ChatPane} from '../src/pane/chat-pane.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, openTranscriptStream, sendTurn} from './helpers/core-session.js'
 import {mountPane, type PaneMount} from './helpers/pane-harness.js'
-import {virtualizeThreshold} from '@conciv/ui-kit-chat'
+import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
 import {createCalmWatch, pinViewportToBottom, type CalmWatch} from './helpers/calm-assertions.js'
 import {forceReducedMotion} from './helpers/reduced-motion.js'
 
 const SHOTS = '__screenshots__/calm-contract'
-const SEEDED_EXCHANGES = Math.floor((virtualizeThreshold.value - 4) / 2)
-const BOUNDARY_EXCHANGES = Math.floor(virtualizeThreshold.value / 2)
+const SEEDED_EXCHANGES = Math.floor((VIRTUALIZE_THRESHOLD - 4) / 2)
+const BOUNDARY_EXCHANGES = Math.floor(VIRTUALIZE_THRESHOLD / 2)
 const VIEWPORT_HEIGHT_PX = 600
 
 const core = {base: ''}

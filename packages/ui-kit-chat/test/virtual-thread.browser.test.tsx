@@ -4,17 +4,20 @@ import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import type {UIMessage} from '@tanstack/ai-client'
-import {beforeEach} from 'vitest'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection} from '../src/store/story-connection.js'
 import {Thread} from '../src/primitives/thread/thread.js'
 import {Message} from '../src/primitives/message/message.js'
-import {virtualizeThreshold} from '../src/primitives/thread/virtualize-threshold.js'
+import {VIRTUALIZE_THRESHOLD} from '../src/primitives/thread/virtualize-threshold.js'
 import {mountView} from './mount-view.js'
 
-beforeEach(() => {
-  virtualizeThreshold.value = 50
-})
+const ABOVE_THRESHOLD = VIRTUALIZE_THRESHOLD * 4
+const JUST_BELOW_THRESHOLD = VIRTUALIZE_THRESHOLD - 1
+const WELL_BELOW_THRESHOLD = VIRTUALIZE_THRESHOLD - 5
+
+function lastAnswer(count: number): string {
+  return `answer ${count % 2 === 0 ? count - 1 : count - 2}`
+}
 
 const windowErrors: string[] = []
 window.addEventListener('error', (event) => {
@@ -95,33 +98,33 @@ function wheelUpTo(viewport: HTMLElement, scrollTop: number): void {
 }
 
 it('virtualizes above the threshold: early turns unmount, pinned to the latest turn', async () => {
-  const thread = mountThread(seedMessages(60))
+  const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
 
-  await expect.element(page.getByText('answer 59')).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
   await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('question 0')).not.toBeInTheDocument()
 })
 
 it('virtualizing above the threshold never trips a ResizeObserver notification loop', async () => {
   windowErrors.length = 0
-  mountThread(seedMessages(60))
+  mountThread(seedMessages(ABOVE_THRESHOLD))
 
-  await expect.element(page.getByText('answer 59')).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
 
   const loopErrors = windowErrors.filter((message) => message.includes('ResizeObserver loop'))
   expect(loopErrors).toEqual([])
 })
 
 it('stays flat below the threshold: every turn stays mounted', async () => {
-  mountThread(seedMessages(20))
+  mountThread(seedMessages(WELL_BELOW_THRESHOLD))
 
-  await expect.element(page.getByText('answer 19')).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(WELL_BELOW_THRESHOLD))).toBeVisible()
   await expect.element(page.getByText('question 0')).toBeInTheDocument()
 })
 
 it('escapes on wheel up and re-pins via the scroll-to-bottom button', async () => {
-  const thread = mountThread(seedMessages(60))
-  await expect.element(page.getByText('answer 59')).toBeVisible()
+  const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
   const latest = page.getByRole('button', {name: 'Scroll to bottom'})
 
   wheelUpTo(thread.viewport(), 0)
@@ -131,23 +134,23 @@ it('escapes on wheel up and re-pins via the scroll-to-bottom button', async () =
 
   await latest.click()
   await expect.element(latest).toBeDisabled()
-  await expect.element(page.getByText('answer 59')).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
 })
 
 it('crossing the threshold while following keeps the bottom pinned', async () => {
-  const thread = mountThread(seedMessages(49))
-  await expect.element(page.getByText('answer 47')).toBeVisible()
+  const thread = mountThread(seedMessages(JUST_BELOW_THRESHOLD))
+  await expect.element(page.getByText(lastAnswer(JUST_BELOW_THRESHOLD))).toBeVisible()
   await expect.element(page.getByText('question 0')).toBeInTheDocument()
 
-  thread.chat().setMessages(seedMessages(60))
-  await expect.element(page.getByText('answer 59')).toBeVisible()
+  thread.chat().setMessages(seedMessages(ABOVE_THRESHOLD))
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
   await expect.element(page.getByText('question 0')).not.toBeInTheDocument()
   await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom')
 })
 
 it('history prepend keeps the reading position while scrolled up', async () => {
-  const thread = mountThread(seedMessages(60))
-  await expect.element(page.getByText('answer 59')).toBeVisible()
+  const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
 
   wheelUpTo(thread.viewport(), 0)
   await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-escaped')
@@ -158,7 +161,7 @@ it('history prepend keeps the reading position while scrolled up', async () => {
     role: index % 2 === 0 ? 'user' : 'assistant',
     parts: [{type: 'text', content: `older ${index}`}],
   }))
-  thread.chat().setMessages([...older, ...seedMessages(60)])
+  thread.chat().setMessages([...older, ...seedMessages(ABOVE_THRESHOLD)])
 
   await expect.element(page.getByText('question 0')).toBeVisible()
   await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')

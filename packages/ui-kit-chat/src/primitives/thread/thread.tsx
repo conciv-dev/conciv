@@ -30,7 +30,7 @@ import {
 import {useThreadScroll} from '../../behaviors/use-thread-scroll.js'
 import {createThreadVirtualizer} from '../../behaviors/create-thread-virtualizer.js'
 import {useTurnEstimator, type TurnEstimate} from './turn-estimate.js'
-import {virtualizeThreshold} from './virtualize-threshold.js'
+import {VIRTUALIZE_THRESHOLD} from './virtualize-threshold.js'
 
 const ROW_ESTIMATE_PX = 72
 
@@ -312,7 +312,7 @@ function Messages(props: MessagesProps): JSX.Element {
   const thread = useThread()
   const internal = useViewportInternal()
   const eligible = () =>
-    internal !== undefined && internal.turnAnchor() === 'bottom' && thread.turns.length >= virtualizeThreshold.value
+    internal !== undefined && internal.turnAnchor() === 'bottom' && thread.turns.length >= VIRTUALIZE_THRESHOLD
   const mode = createMemo(() => (eligible() ? 'virtual' : 'flat'))
   const swapAnchor: ModeSwapAnchor = {}
   return (
