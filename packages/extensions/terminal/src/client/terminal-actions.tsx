@@ -13,7 +13,7 @@ import {TERMINAL_NAME} from '../shared/protocol.js'
 import {useTerminalContext} from './terminal-context.js'
 import {terminalClient} from './rpc.js'
 
-const MODEL_KEY = 'pw-conciv-model'
+const MODEL_KEY = 'conciv-model'
 
 function readStoredModel(): string | null {
   try {

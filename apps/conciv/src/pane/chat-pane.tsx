@@ -262,7 +262,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
               <div
                 {...viewTabPanelAttributes(props.viewTab)}
                 onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
-                class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
+                class={`chat-density flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
               >
                 <Thread>
                   <Thread.Viewport>

@@ -281,7 +281,7 @@ function AssistantTurn(props: {
     )
   }
   return (
-    <Message.Root data-pw-msg class={ASSISTANT_ROOT_CLASS}>
+    <Message.Root data-conciv-msg class={ASSISTANT_ROOT_CLASS}>
       <NodeListView nodes={nodes()} streaming={thread.isRunning && message.isLast()} />
       <Message.Error />
       <div class={ANSWER_ACTION_ROW_CLASS}>
@@ -317,7 +317,7 @@ function UserTurn(): JSX.Element {
         </div>
       </Message.If>
       <Message.If hasText>
-        <Message.Root data-pw-msg class={PROMPT_ROOT_CLASS}>
+        <Message.Root data-conciv-msg class={PROMPT_ROOT_CLASS}>
           <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
             ❯
           </span>

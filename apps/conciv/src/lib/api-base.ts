@@ -21,5 +21,5 @@ function queryCore(): string {
 }
 
 export function resolveApiBase(): string {
-  return window.__CONCIV_API_BASE__ ?? (metaContent('pw-api-base') || queryCore()) ?? ''
+  return window.__CONCIV_API_BASE__ ?? (metaContent('conciv-api-base') || queryCore()) ?? ''
 }

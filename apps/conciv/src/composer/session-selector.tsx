@@ -64,7 +64,7 @@ export function SessionSelector(props: {
   const appData = useAppData()
   const rpc = useRpc()
   const announce = useAnnounce()
-  const idPrefix = `pw-session-${++instanceSeq}`
+  const idPrefix = `conciv-session-${++instanceSeq}`
 
   const list = useQuery(() => appData.utils.sessions.list.queryOptions())
   const rows = (): SessionMeta[] => list.data ?? []

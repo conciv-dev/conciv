@@ -8,11 +8,15 @@ import {useChat} from '@tanstack/ai-solid'
 import type {UIMessage} from '@tanstack/ai-client'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection} from '../src/store/story-connection.js'
+import {virtualizeThreshold} from '../src/primitives/thread/virtualize-threshold.js'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 
+const exchangeCount = virtualizeThreshold.value
+const lastExchange = exchangeCount - 1
+
 function longThread(): UIMessage[] {
-  return Array.from({length: 12}, (_, index): UIMessage[] => [
+  return Array.from({length: exchangeCount}, (_, index): UIMessage[] => [
     {id: `u${index}`, role: 'user', parts: [{type: 'text', content: `question number ${index}`}]},
     {id: `a${index}`, role: 'assistant', parts: [{type: 'text', content: `answer number ${index}\n`.repeat(6)}]},
   ]).flat()
@@ -23,7 +27,7 @@ function TallThread(): JSX.Element {
   onMount(() => chat.setMessages(longThread()))
   return (
     <ChatProvider chat={chat}>
-      <div style={{height: '360px', display: 'flex'}}>
+      <div style={{height: '360px', width: '520px'}}>
         <Thread>
           <Thread.Viewport>
             <Thread.Messages />
@@ -46,25 +50,23 @@ function chipWrapper(container: HTMLElement): HTMLElement {
   return wrapper
 }
 
-it('shows the Latest chip as an overlay without changing the viewport size or scroll height', async () => {
+it('shows the Latest chip as an overlay outside the scroll content of a virtualized thread', async () => {
   const container = mountView(() => <TallThread />)
-  await expect.element(page.getByText('answer number 11').first()).toBeVisible()
+  await expect.element(page.getByText(`answer number ${lastExchange}`).first()).toBeVisible()
+  await expect.element(page.getByText('question number 0')).not.toBeInTheDocument()
 
   const viewport = viewportEl(container)
   await expect.element(page.elementLocator(viewport)).toHaveAttribute('data-at-bottom', '')
-  const atBottomClient = viewport.clientHeight
-  const atBottomScroll = viewport.scrollHeight
   expect(chipWrapper(container).inert).toBe(true)
 
   await userEvent.wheel(viewport, {delta: {y: -600}})
   await expect.element(page.elementLocator(viewport)).not.toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('Latest')).toBeVisible()
-
   expect(chipWrapper(container).inert).toBe(false)
-  expect(viewport.clientHeight).toBe(atBottomClient)
-  expect(viewport.scrollHeight).toBe(atBottomScroll)
+  expect(viewport.contains(chipWrapper(container))).toBe(false)
 
   await page.getByText('Latest').click()
   await expect.element(page.elementLocator(viewport)).toHaveAttribute('data-at-bottom', '')
+  await expect.element(page.getByText(`answer number ${lastExchange}`).first()).toBeVisible()
   expect(chipWrapper(container).inert).toBe(true)
 })

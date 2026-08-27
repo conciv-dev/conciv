@@ -29,7 +29,7 @@ const deployRun = defineTool({
 })
   .server(({env}) => ({url: `https://${env}.example.com`}))
   .render({
-    render: (props) => <div data-pw-deploy-card>Deploying… ({props.part.name})</div>,
+    render: (props) => <div data-conciv-deploy-card>Deploying… ({props.part.name})</div>,
     hasEmbeddedBody: () => true,
   })
 

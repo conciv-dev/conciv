@@ -15,7 +15,7 @@ const FAB_POS: Record<TriggerPosition, string> = {
 
 const FAB_BASE =
   'fixed size-13 rounded-chat-pill border border-chat-line bg-chat-panel text-chat-accent text-[1.375rem] cursor-pointer pointer-events-auto shadow-chat-lg inline-flex items-center justify-center trans-lift anim-fab focus-ring [@media(hover:hover)_and_(pointer:fine)]:hover:[transform:translateY(-0.125rem)] [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-chat-hover active:[transform:translateY(0)_scale(0.94)]'
-const FAB_BUSY = 'pw-fab-busy absolute -inset-[0.1875rem] rounded-chat-pill pointer-events-none'
+const FAB_BUSY = 'conciv-fab-busy absolute -inset-[0.1875rem] rounded-chat-pill pointer-events-none'
 const FAB_ATTN = 'border-2 border-chat-accent anim-fab-ring'
 const FAB_DRAGGING = 'transition-none z-[2147483647] cursor-grabbing'
 
@@ -45,13 +45,13 @@ export function ShellFab(props: {
         type="button"
         ref={props.ref}
         class={fabClass(props.fab.position(), props.fab.dragging())}
-        data-pw-fab
-        data-pw-suppressed={props.suppressed()}
+        data-conciv-fab
+        data-conciv-suppressed={props.suppressed()}
         style={props.fab.dragStyle()}
         aria-label={fabLabel(props.open())}
         aria-busy={props.working()}
         aria-expanded={props.open()}
-        aria-controls="pw-chat-panel"
+        aria-controls="conciv-chat-panel"
         onPointerDown={(event) => props.fab.onPointerDown(event)}
         onClick={() => {
           if (!props.fab.consumeClick()) props.onToggle()

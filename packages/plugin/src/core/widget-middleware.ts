@@ -14,22 +14,22 @@ export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; inj
 
 export function htmlTags(corePort: number, opts: {widget?: WidgetConfig | false}): HtmlTag[] {
   const base: HtmlTag[] = [
-    {tag: 'meta', attrs: {name: 'pw-api-base', content: `http://127.0.0.1:${corePort}`}, injectTo: 'head'},
+    {tag: 'meta', attrs: {name: 'conciv-api-base', content: `http://127.0.0.1:${corePort}`}, injectTo: 'head'},
   ]
   if (opts.widget === false) return base
   return [
     ...base,
-    {tag: 'meta', attrs: {name: 'pw-widget', content: JSON.stringify(opts.widget ?? {})}, injectTo: 'head'},
+    {tag: 'meta', attrs: {name: 'conciv-widget', content: JSON.stringify(opts.widget ?? {})}, injectTo: 'head'},
     {tag: 'script', attrs: {type: 'module', src: EXTENSIONS_ROUTE}, injectTo: 'head'},
   ]
 }
 
 export function widgetTags(apiBase: string, widgetConfig?: WidgetConfig | false): string {
-  const base = `<meta name="pw-api-base" content="${escapeAttr(apiBase)}">`
+  const base = `<meta name="conciv-api-base" content="${escapeAttr(apiBase)}">`
   if (widgetConfig === false) return base
   return (
     base +
-    `<meta name="pw-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">` +
+    `<meta name="conciv-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">` +
     `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`
   )
 }

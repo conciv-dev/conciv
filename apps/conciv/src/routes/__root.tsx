@@ -9,7 +9,6 @@ import {
 } from '@tanstack/solid-router'
 import {QueryClientProvider} from '@tanstack/solid-query'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
-import {terminalTheme} from '@conciv/ui-kit-chat/theme/themes/terminal'
 import {HostApiProvider} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
@@ -26,10 +25,10 @@ import {
 import type {ConcivRouterContext} from '../router.js'
 import {
   AppContext,
-  useColorScheme,
   useConnected,
   useLayers,
   useLiveSessions,
+  useHostTheme,
   useNotifyInteractive,
   useSettings,
   useSuppressed,
@@ -43,7 +42,6 @@ import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
-import {applyChatTheme, makeThemeApplier} from '../lib/theme.js'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {hostFocusTarget} from '../lib/host-focus.js'
@@ -51,7 +49,7 @@ import {quickPaneIds} from '../lib/quick-search.js'
 import {setShutter} from '../lib/shutter.js'
 import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
-import {applySchemeClass, createHostColorScheme} from '../lib/color-scheme.js'
+import {applySchemeClass, applySkinClass, createHostTheme, themeClasses} from '../lib/color-scheme.js'
 import '../styles.css'
 
 const OPEN_DISMISSABLE_LAYER_SELECTOR = '[data-scope][data-part="content"][data-state="open"]'
@@ -101,18 +99,9 @@ function RootComponent() {
     null,
   )
   app.bindActiveSession?.(() => activeSession())
-  const themeRoot = (): ShadowRoot | Document => {
-    const node = app.environment.rootNode
-    if (node instanceof ShadowRoot) return node
-    return node instanceof Document ? node : document
-  }
-  onMount(() => {
-    const applyTheme = makeThemeApplier(themeRoot())
-    for (const extension of app.extensions) if (extension.theme) applyTheme(extension.theme)
-  })
-
   const liveSessions = makeLiveSessions()
-  const colorScheme = createHostColorScheme()
+  const theme = createHostTheme()
+  const colorScheme = () => theme().scheme
 
   const value: AppContextValue = {
     rpc: app.rpc,
@@ -136,13 +125,14 @@ function RootComponent() {
     connectionGeneration: app.connectionGeneration,
     apiBase: app.apiBase,
     notifyInteractive: app.notifyInteractive,
-    colorScheme,
+    theme,
   }
 
   createEffect(() => {
     const node = app.environment.rootNode
     if (!(node instanceof ShadowRoot)) return
-    applySchemeClass(node.host, colorScheme())
+    applySchemeClass(node.host, theme().scheme)
+    applySkinClass(node.host, theme().skin)
   })
 
   createEffect(() => {
@@ -194,7 +184,7 @@ function RootChrome(props: {
   assertiveMessage: () => string
 }) {
   const settings = useSettings()
-  const colorScheme = useColorScheme()
+  const theme = useHostTheme()
   const layers = useLayers()
   const suppressed = useSuppressed()
   const connected = useConnected()
@@ -359,14 +349,7 @@ function RootChrome(props: {
   }
 
   return (
-    <div
-      class={colorScheme()}
-      ref={(el) => {
-        applyChatTheme(terminalTheme)
-        rootEl = el
-      }}
-      onKeyDown={onKeyDown}
-    >
+    <div class={themeClasses(theme())} ref={(el) => (rootEl = el)} onKeyDown={onKeyDown}>
       <PanelChromeContext.Provider value={{close: closePanel}}>
         <Outlet />
       </PanelChromeContext.Provider>

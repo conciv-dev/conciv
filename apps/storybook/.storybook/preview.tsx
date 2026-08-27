@@ -16,6 +16,11 @@ const preview: Preview = {
       themes: {light: 'light', dark: 'dark', system: ''},
       defaultTheme: 'dark',
     }),
+    withThemeByClassName({
+      themes: {conciv: '', terminal: 'chat-skin-terminal'},
+      defaultTheme: 'conciv',
+      attributeName: 'skin',
+    }),
     (Story) => (
       <div
         style={{

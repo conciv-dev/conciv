@@ -36,7 +36,7 @@ describe('widget inject middleware (IT, real http)', () => {
     state.server = server
     const html = await (await fetch(base)).text()
     expect(html).toContain(ENTRY)
-    expect(html).toContain(`<meta name="pw-api-base" content="${API_BASE}">`)
+    expect(html).toContain(`<meta name="conciv-api-base" content="${API_BASE}">`)
     expect(html.indexOf(EXTENSIONS_ROUTE)).toBeLessThan(html.indexOf('</head>'))
     expect(html).toContain('<h1>hi</h1>')
   })
@@ -55,7 +55,7 @@ describe('widget inject middleware (IT, real http)', () => {
     expect(html.indexOf(EXTENSIONS_ROUTE)).toBeLessThan(html.indexOf('</head>'))
   })
 
-  it('injects the pw-widget config meta into the SSR html response (the path the site uses)', async () => {
+  it('injects the conciv-widget config meta into the SSR html response (the path the site uses)', async () => {
     const widgetConfig = {quickTerminal: {hotkey: ['Alt+k']}}
     const {server, base} = await startServer(makeWidgetInject(API_BASE, widgetConfig), (res) => {
       res.setHeader('content-type', 'text/html')
@@ -63,9 +63,9 @@ describe('widget inject middleware (IT, real http)', () => {
     })
     state.server = server
     const html = await (await fetch(base)).text()
-    expect(html).toContain('name="pw-widget"')
+    expect(html).toContain('name="conciv-widget"')
     expect(html).toContain('Alt+k')
-    expect(html.indexOf('pw-widget')).toBeLessThan(html.indexOf('</head>'))
+    expect(html.indexOf('conciv-widget')).toBeLessThan(html.indexOf('</head>'))
   })
 
   it('passes non-html responses through untouched', async () => {

@@ -300,7 +300,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
 async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
   const supplied = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
   const extensions = [pageExtension, ...supplied]
-  const settings = parseConcivSettings(init.settings ? JSON.stringify(init.settings) : metaContent('pw-widget'))
+  const settings = parseConcivSettings(init.settings ? JSON.stringify(init.settings) : metaContent('conciv-widget'))
   const grabProvider = init.grabProvider
   const apiBase = init.apiBase ?? resolveApiBase()
   if (apiBase) return bootNormal({root, extensions, settings, apiBase, grabProvider})

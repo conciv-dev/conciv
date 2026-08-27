@@ -8,7 +8,7 @@ describe('extension catalog (new contract projection)', () => {
     const cat = buildCatalog()
     const names = cat.tokens.map((t) => t.name)
     for (const name of Object.keys(TOKENS)) expect(names).toContain(name)
-    expect(cat.tokens.find((t) => t.name === 'chat-accent')?.overridable).toBe(true)
+    expect(cat.tokens.find((t) => t.name === 'chat-accent')?.cssVar).toBe('--chat-accent')
   })
 
   it('lists the six extension slots', () => {
@@ -21,13 +21,6 @@ describe('extension catalog (new contract projection)', () => {
     expect(entry).toContain('defineExtension({name')
     expect(entry).toContain('.client(')
     expect(entry).toContain('.server(')
-  })
-
-  it('scaffolds a theme extension that names defineExtension, name and the theme field', () => {
-    const src = scaffold('theme', {name: 'mybrand'})
-    expect(src).toContain('defineExtension')
-    expect(src).toContain("name: 'mybrand'")
-    expect(src).toContain('theme')
   })
 
   it('scaffolds a full extension on the new contract surfaces', () => {
@@ -60,7 +53,7 @@ describe('extension catalog (new contract projection)', () => {
   })
 
   it('never emits the internal __ properties in a scaffold', () => {
-    for (const kind of ['theme', 'composer-action', 'tool', 'tool-renderer', 'component', 'full'] as ScaffoldKind[]) {
+    for (const kind of ['composer-action', 'tool', 'tool-renderer', 'component', 'full'] as ScaffoldKind[]) {
       const src = scaffold(kind, {name: 'demo'})
       expect(src).not.toContain('__client')
       expect(src).not.toContain('__server')
@@ -69,31 +62,18 @@ describe('extension catalog (new contract projection)', () => {
     }
   })
 
-  it('validate flags an unknown theme token name', () => {
-    const bad = `import {defineExtension} from '@conciv/extension'
-export default defineExtension({name: 'x', theme: {'chat-not-real': 'red'}})`
-    const res = validateSource(bad)
-    expect(res.ok).toBe(false)
-    expect(res.issues.some((i) => i.message.includes('chat-not-real'))).toBe(true)
-  })
-
-  it('validate passes a well-formed theme extension', () => {
-    const good = `import {defineExtension} from '@conciv/extension'
-export default defineExtension({name: 'x', theme: {'chat-accent': 'blue'}})`
-    expect(validateSource(good).ok).toBe(true)
-  })
-
   it('validate errors when the defineExtension default export is missing', () => {
     const res = validateSource('export const notAnExtension = 1')
     expect(res.ok).toBe(false)
     expect(res.issues.some((i) => i.level === 'error' && i.message.includes('defineExtension'))).toBe(true)
   })
 
-  it('validate warns (but stays ok) on a known non-overridable token', () => {
-    const src = `export default defineExtension({name: 'x', theme: {'chat-panel': '#000'}})`
+  it('no longer treats a theme field as a customization surface', () => {
+    const src = `import {defineExtension} from '@conciv/extension'
+export default defineExtension({name: 'x', theme: {'chat-panel': '#000'}})`
     const res = validateSource(src)
     expect(res.ok).toBe(true)
-    expect(res.issues.some((i) => i.level === 'warn' && i.message.includes('chat-panel'))).toBe(true)
+    expect(res.issues).toHaveLength(0)
   })
 
   it('validate warns on a top-level node import with no .server() half', () => {
@@ -104,7 +84,7 @@ export default defineExtension({name: 'x'})`
   })
 
   it('every scaffold kind emits source that parses as TS/TSX', () => {
-    const kinds: ScaffoldKind[] = ['theme', 'composer-action', 'tool', 'tool-renderer', 'component', 'full']
+    const kinds: ScaffoldKind[] = ['composer-action', 'tool', 'tool-renderer', 'component', 'full']
     for (const kind of kinds) {
       const out = ts.transpileModule(scaffold(kind, {name: 'demo'}), {
         fileName: `${kind}.tsx`,
