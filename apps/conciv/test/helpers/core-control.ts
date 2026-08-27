@@ -11,9 +11,13 @@ declare module 'vitest/internal/browser' {
     holdTurn: () => Promise<void>
     holdTools: () => Promise<void>
     releaseTools: () => Promise<void>
+    holdResults: () => Promise<void>
+    releaseResults: () => Promise<void>
     releaseTurn: () => Promise<void>
     scriptError: (message: string) => Promise<void>
     scriptTurn: (turn: ScriptedTurn) => Promise<string[]>
+    scriptToolCall: (name: string, input: unknown) => Promise<string>
+    scriptCustomEvent: (name: string, value: unknown) => Promise<void>
     setTerminalLaunch: (succeeds: boolean) => Promise<void>
     terminalLaunches: () => Promise<number>
     rpcCallCount: (path: string[]) => Promise<number>
