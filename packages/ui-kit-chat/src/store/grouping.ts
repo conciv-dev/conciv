@@ -258,8 +258,45 @@ export function groupParts(
   return buildGroupTree(grouper(parts, context), parts.map(partIdOf))
 }
 
+type StickyMemo = {
+  parts: ReadonlyArray<MessagePart>
+  context: GroupByContext
+  paths: ReadonlyArray<GroupPath | null>
+}
+
+function sameGroupContext(left: GroupByContext, right: GroupByContext): boolean {
+  return left.toolEntries === right.toolEntries && left.live === right.live
+}
+
+function sharedPrefixLength(previous: ReadonlyArray<MessagePart>, next: ReadonlyArray<MessagePart>): number {
+  const limit = Math.min(previous.length, next.length)
+  let shared = 0
+  while (shared < limit && previous[shared] === next[shared]) shared += 1
+  return shared
+}
+
+function reusableLength(
+  memo: StickyMemo | undefined,
+  parts: ReadonlyArray<MessagePart>,
+  context: GroupByContext,
+): number {
+  if (!memo || !sameGroupContext(memo.context, context)) return 0
+  return sharedPrefixLength(memo.parts, parts)
+}
+
 export function stickyGrouper(grouper: Grouper): Grouper {
-  return (parts, context) => parts.map((_, index) => grouper(parts.slice(0, index + 1), context)[index] ?? null)
+  let memo: StickyMemo | undefined
+  return (parts, context) => {
+    const reused = reusableLength(memo, parts, context)
+    const arrivals = Array.from({length: parts.length - reused}, (_, offset) => {
+      const index = reused + offset
+      const arrival = index === parts.length - 1 ? parts : parts.slice(0, index + 1)
+      return grouper(arrival, context)[index] ?? null
+    })
+    const paths = [...(memo?.paths.slice(0, reused) ?? []), ...arrivals]
+    memo = {parts, context, paths}
+    return paths
+  }
 }
 
 export function lastGroupedIndex(nodes: readonly GroupNode[]): number {

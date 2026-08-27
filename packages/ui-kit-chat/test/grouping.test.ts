@@ -9,6 +9,7 @@ import {
   pairResults,
   parentToolCallIdOf,
   standaloneToolNames,
+  stickyGrouper,
   type GroupByContext,
   type GroupNode,
   type Grouper,
@@ -377,6 +378,47 @@ describe('page-session grouper', () => {
         {type: 'text', content: 'done'},
       ]),
     ).toEqual([chain(0), leaf(2)])
+  })
+})
+
+describe('sticky grouper', () => {
+  const livePart = (index: number): MessagePart =>
+    index % 2 === 0
+      ? {type: 'thinking', content: `step ${index}`}
+      : {type: 'tool-call', id: `t${index}`, name: 'read', arguments: '{}', state: 'complete'}
+
+  const stickyConfig = {actNames: new Set(['page.fill']), toolPrefix: 'page.'}
+
+  it('classifies each appended part once instead of rerunning every prefix', () => {
+    const parts = Array.from({length: 200}, (_, index) => livePart(index))
+    let calls = 0
+    const counting: Grouper = (prefix, context) => {
+      calls += 1
+      return defaultGrouper(prefix, context)
+    }
+    const sticky = stickyGrouper(counting)
+    const frames = parts.map((_, index) => sticky(parts.slice(0, index + 1), {live: true}))
+
+    expect(frames.at(-1)).toEqual(defaultGrouper(parts, {live: true}))
+    expect(calls).toBeLessThanOrEqual(parts.length + 4)
+  })
+
+  it('reclassifies from the first part whose identity changed', () => {
+    const reused = createPageSessionGrouper(stickyConfig)
+    const fresh = createPageSessionGrouper(stickyConfig)
+    const head: MessagePart = {
+      type: 'tool-call',
+      id: 'p1',
+      name: 'execute_typescript',
+      arguments: '{}',
+      state: 'complete',
+    }
+    const act: MessagePart = {type: 'tool-call', id: 'f1', name: 'page.fill', arguments: '{}', state: 'complete'}
+    const replaced: MessagePart = {type: 'text', content: 'a fresh opening line'}
+
+    reused([head], {live: true})
+
+    expect(reused([replaced, act], {live: true})).toEqual(fresh([replaced, act], {live: true}))
   })
 })
 
