@@ -138,9 +138,9 @@ function AssistantTurn(props: {
   const ctx = useToolCtx()
   const parts = () => message.message().parts
   const grouping = createMemo(() => props.grouping ?? createGrouping(props.pageSession, props.entries))
-  const nodes = createMemo(() => groupParts(parts(), grouping().grouper, grouping().context))
   const lastPartIndex = createMemo(() => parts().length - 1)
   const runActive = () => thread.isRunning && message.isLast()
+  const nodes = createMemo(() => groupParts(parts(), grouping().grouper, {...grouping().context, live: runActive()}))
   const runningPart = (index: number): boolean => {
     const call = asToolCall(parts()[index])
     return call !== null && rowMarkOf(call, message.pairing().byCallId.get(call.id)) === 'run'

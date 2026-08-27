@@ -255,6 +255,13 @@ describe('page-session grouper', () => {
     ).toEqual([chain(0, 1), session(3)])
   })
 
+  it('leaves a live code run where it was born and only folds it into the session once settled', () => {
+    const parts: MessagePart[] = [codeCall('p1', 'execute_typescript'), subAct('s1', 'p1')]
+
+    expect(group(parts, pageGrouper, {live: true})).toEqual([chain(0), session(1)])
+    expect(group(parts, pageGrouper)).toEqual([session(0, 1)])
+  })
+
   it('still closes a code-mode session on reply text', () => {
     expect(
       group(

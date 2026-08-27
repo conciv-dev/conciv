@@ -81,7 +81,7 @@ export function diffTurns(
 export type GroupKey = `group-${string}`
 export type GroupPath = readonly GroupKey[]
 
-export type GroupByContext = {toolEntries?: ReadonlyArray<ToolCardEntry>}
+export type GroupByContext = {toolEntries?: ReadonlyArray<ToolCardEntry>; live?: boolean}
 
 export type Grouper = (parts: ReadonlyArray<MessagePart>, context: GroupByContext) => ReadonlyArray<GroupPath | null>
 
@@ -256,6 +256,10 @@ export function groupParts(
   context: GroupByContext,
 ): readonly GroupNode[] {
   return buildGroupTree(grouper(parts, context), parts.map(partIdOf))
+}
+
+export function stickyGrouper(grouper: Grouper): Grouper {
+  return (parts, context) => parts.map((_, index) => grouper(parts.slice(0, index + 1), context)[index] ?? null)
 }
 
 export function lastGroupedIndex(nodes: readonly GroupNode[]): number {

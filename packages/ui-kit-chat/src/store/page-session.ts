@@ -7,6 +7,7 @@ import {
   parentToolCallIdOf,
   PAGE_SESSION_GROUP_KEY,
   PAGE_SESSION_PATH,
+  stickyGrouper,
   type GroupEntry,
   type GroupPath,
   type Grouper,
@@ -152,13 +153,15 @@ function dropActlessSessions(
 }
 
 export function createPageSessionGrouper(config: PageSessionGrouperConfig): Grouper {
-  return (parts, context) => {
+  const classify: Grouper = (parts, context) => {
     const basePaths = defaultGrouper(parts, context)
     const actParentIds = foldableParentIds(parts, config.actNames)
     const state: SessionState = {openCallIds: new Set(), open: false}
     const paths = parts.map((part, index) => sessionPath(state, config, actParentIds, basePaths[index] ?? null, part))
     return dropActlessSessions(parts, paths, basePaths, config.actNames)
   }
+  const sticky = stickyGrouper(classify)
+  return (parts, context) => (context.live === true ? sticky(parts, context) : classify(parts, context))
 }
 
 export function createGrouping(
