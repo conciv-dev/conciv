@@ -25,6 +25,11 @@ describe('claudeExecutable', () => {
   it('adds an unquoted --plugin-dir when a plugin dir exists (the adapter argv-splits on plain spaces, not a shell)', () => {
     expect(claudeExecutable('/x/plugins')).toBe('claude --strict-mcp-config --plugin-dir /x/plugins')
   })
+
+  it('throws when the plugin dir contains whitespace, since the adapter splits its executable string on spaces', () => {
+    expect(() => claudeExecutable('/x/plug ins')).toThrow(/\/x\/plug ins/)
+    expect(() => claudeExecutable('/x/plug ins')).toThrow(/whitespace/)
+  })
 })
 
 describe('claudeChatConfig', () => {
