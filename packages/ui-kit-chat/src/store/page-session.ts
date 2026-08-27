@@ -1,4 +1,4 @@
-import {uniqBy} from 'es-toolkit'
+import {range, uniqBy} from 'es-toolkit'
 import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {
@@ -26,8 +26,18 @@ export type PageSessionGrouperConfig = {actNames: ReadonlySet<string>; toolPrefi
 
 type SessionState = {openCallIds: Set<string>; open: boolean}
 
+function replyPrefixCounts(parts: ReadonlyArray<MessagePart>): number[] {
+  return parts.reduce<number[]>(
+    (counts, part) => {
+      counts.push((counts.at(-1) ?? 0) + (isReplyText(part) ? 1 : 0))
+      return counts
+    },
+    [0],
+  )
+}
+
 function foldableParentIds(parts: ReadonlyArray<MessagePart>, actNames: ReadonlySet<string>): ReadonlySet<string> {
-  const replyIndices = parts.flatMap((part, index) => (isReplyText(part) ? [index] : []))
+  const repliesBefore = replyPrefixCounts(parts)
   const calls = parts.flatMap((part, index) => (part.type === 'tool-call' ? [{call: part, index}] : []))
   const firstIndexByCallId = new Map(
     uniqBy(
@@ -42,7 +52,7 @@ function foldableParentIds(parts: ReadonlyArray<MessagePart>, actNames: Readonly
   const unsplit = uniqBy(actChildren, ({parent}) => parent).filter(({parent, index: childIndex}) => {
     const parentIndex = firstIndexByCallId.get(parent)
     if (parentIndex === undefined) return false
-    return !replyIndices.some((replyIndex) => replyIndex > parentIndex && replyIndex < childIndex)
+    return (repliesBefore[childIndex] ?? 0) - (repliesBefore[parentIndex + 1] ?? 0) === 0
   })
   return new Set(unsplit.map(({parent}) => parent))
 }
@@ -115,7 +125,7 @@ function isSessionPath(path: GroupPath | null | undefined): boolean {
 
 type SessionRun = {start: number; end: number; hasAct: boolean}
 
-type SessionRunFold = {runs: readonly SessionRun[]; open: boolean}
+type SessionRunFold = {runs: SessionRun[]; open: boolean}
 
 function sessionRuns(
   parts: ReadonlyArray<MessagePart>,
@@ -129,11 +139,13 @@ function sessionRuns(
       const part = parts[index]
       const isAct = part?.type === 'tool-call' && actNames.has(part.name)
       const current = state.open ? state.runs.at(-1) : undefined
-      if (!current) return {runs: [...state.runs, {start: index, end: index, hasAct: isAct}], open: true}
-      return {
-        runs: [...state.runs.slice(0, -1), {start: current.start, end: index, hasAct: current.hasAct || isAct}],
-        open: true,
+      if (!current) {
+        state.runs.push({start: index, end: index, hasAct: isAct})
+        return {runs: state.runs, open: true}
       }
+      current.end = index
+      current.hasAct = current.hasAct || isAct
+      return {runs: state.runs, open: true}
     },
     {runs: [], open: false},
   ).runs
@@ -147,9 +159,8 @@ function dropActlessSessions(
 ): ReadonlyArray<GroupPath | null> {
   const actless = sessionRuns(parts, paths, actNames).filter((run) => !run.hasAct)
   if (actless.length === 0) return paths
-  return paths.map((path, index) =>
-    actless.some((run) => run.start <= index && index <= run.end) ? (basePaths[index] ?? null) : path,
-  )
+  const demoted = new Set(actless.flatMap((run) => range(run.start, run.end + 1)))
+  return paths.map((path, index) => (demoted.has(index) ? (basePaths[index] ?? null) : path))
 }
 
 export function createPageSessionGrouper(config: PageSessionGrouperConfig): Grouper {
