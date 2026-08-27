@@ -21,6 +21,20 @@ function drainInBackground(scripted: ScriptedRun): {chunks: StreamChunk[]; drain
   return {chunks, drained: drain()}
 }
 
+function drainResultTimes(scripted: ScriptedRun): {times: number[]; drained: Promise<void>} {
+  const times: number[] = []
+  const drain = async (): Promise<void> => {
+    for await (const chunk of scripted.chatStream(deps())) {
+      if (chunk.type === EventType.TOOL_CALL_RESULT) times.push(performance.now())
+    }
+  }
+  return {times, drained: drain()}
+}
+
+const PACED_STEPS = 4
+const PACE_MS = 40
+const PACE_TOLERANCE = 0.8
+
 describe('makeScriptedRun', () => {
   it('emits a full lifecycle with a session-id custom event', async () => {
     const {chatStream} = makeScriptedRun({text: 'hello from fake'})
@@ -133,6 +147,23 @@ describe('makeScriptedRun', () => {
     const results = chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_RESULT ? [chunk.toolCallId] : []))
     expect(results).toEqual(ids)
     expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+  })
+
+  it('releases held tool results one every everyMs instead of all at once', async () => {
+    const scripted = makeScriptedRun()
+    const ids = scripted.scriptTurn({
+      toolCalls: Array.from({length: PACED_STEPS}, (_, index) => ({name: 'paced_tool', input: {step: index}})),
+      text: 'done',
+    })
+    scripted.holdResults()
+    const {times, drained} = drainResultTimes(scripted)
+    await new Promise((r) => setTimeout(r, 20))
+    expect(times.length).toBe(0)
+    scripted.releaseResults({everyMs: PACE_MS})
+    await drained
+    expect(times.length).toBe(ids.length)
+    const span = (times.at(-1) ?? 0) - (times.at(0) ?? 0)
+    expect(span).toBeGreaterThanOrEqual(PACE_MS * (PACED_STEPS - 1) * PACE_TOLERANCE)
   })
 
   it('emits a queued custom event while the tool call it names is still unresolved', async () => {

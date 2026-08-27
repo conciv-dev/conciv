@@ -2,7 +2,7 @@ import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import type {EngineStaleness} from '@conciv/contract'
 import type {HarnessSessionMeta} from '@conciv/protocol/harness-types'
-import type {ScriptedTurn} from '@conciv/harness-testkit'
+import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 import type {RpcWireWatch} from '@conciv/extension-testkit/rpc-wire'
@@ -181,8 +181,8 @@ const holdResults: BrowserCommand<[]> = (ctx): void => {
   kitOf(ctx).harness.script.holdResults()
 }
 
-const releaseResults: BrowserCommand<[]> = (ctx): void => {
-  kitOf(ctx).harness.script.releaseResults()
+const releaseResults: BrowserCommand<[PacedRelease?]> = (ctx, paced): void => {
+  kitOf(ctx).harness.script.releaseResults(paced)
 }
 
 const scriptError: BrowserCommand<[string]> = (ctx, message): void => {

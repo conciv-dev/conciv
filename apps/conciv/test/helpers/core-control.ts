@@ -1,6 +1,6 @@
 import {commands} from 'vitest/browser'
 import type {EngineStaleness} from '@conciv/contract'
-import type {ScriptedTurn} from '@conciv/harness-testkit'
+import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {BootCoreInput, BootCoreResult, FaultSpec} from '../commands/core-control.js'
 
 declare module 'vitest/internal/browser' {
@@ -12,7 +12,7 @@ declare module 'vitest/internal/browser' {
     holdTools: () => Promise<void>
     releaseTools: () => Promise<void>
     holdResults: () => Promise<void>
-    releaseResults: () => Promise<void>
+    releaseResults: (paced?: PacedRelease) => Promise<void>
     releaseTurn: () => Promise<void>
     scriptError: (message: string) => Promise<void>
     scriptTurn: (turn: ScriptedTurn) => Promise<string[]>

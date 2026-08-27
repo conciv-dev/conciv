@@ -5,6 +5,8 @@ export type ScriptedTurnToolCall = {name: string; input: unknown; result?: unkno
 
 export type ScriptedTurn = {toolCalls: ScriptedTurnToolCall[]; text?: string; thinking?: string}
 
+export type PacedRelease = {everyMs: number}
+
 export type ScriptedRun = {
   chatStream: (deps: HarnessChatDeps) => AsyncGenerator<StreamChunk>
   hold: () => void
@@ -12,7 +14,7 @@ export type ScriptedRun = {
   holdTools: () => void
   releaseTools: () => void
   holdResults: () => void
-  releaseResults: () => void
+  releaseResults: (paced?: PacedRelease) => void
   scriptToolCall: (name: string, input: unknown, opts?: {blocking?: boolean}) => string
   scriptTurn: (turn: ScriptedTurn) => string[]
   scriptCustomEvent: (name: string, value: unknown) => void
@@ -78,23 +80,48 @@ function* customEventChunks(events: {name: string; value: unknown}[]): Generator
   for (const event of events) yield {type: EventType.CUSTOM, name: event.name, value: event.value, ...THREAD}
 }
 
-type Gate = {hold: () => void; release: () => void; wait: () => Promise<void>}
+type Gate = {hold: () => void; release: (paced?: PacedRelease) => void; wait: () => Promise<void>}
 
 function makeGate(): Gate {
-  const state = {held: false, waiting: new Set<() => void>()}
+  const state = {
+    held: false,
+    everyMs: 0,
+    waiting: new Set<() => void>(),
+    timers: new Set<ReturnType<typeof setTimeout>>(),
+  }
+  const schedule = (resume: () => void): void => {
+    const timer = setTimeout(() => {
+      state.timers.delete(timer)
+      state.waiting.delete(resume)
+      resume()
+    }, state.everyMs)
+    state.timers.add(timer)
+  }
   return {
     hold: () => {
       state.held = true
+      state.everyMs = 0
     },
-    release: () => {
+    release: (paced?: PacedRelease) => {
+      if (paced && paced.everyMs > 0) {
+        state.everyMs = paced.everyMs
+        for (const resume of state.waiting) schedule(resume)
+        return
+      }
       state.held = false
+      state.everyMs = 0
+      for (const timer of state.timers) clearTimeout(timer)
+      state.timers.clear()
       const resuming = state.waiting
       state.waiting = new Set<() => void>()
       for (const resume of resuming) resume()
     },
     wait: async () => {
       if (!state.held) return
-      await new Promise<void>((resolve) => state.waiting.add(resolve))
+      await new Promise<void>((resolve) => {
+        state.waiting.add(resolve)
+        if (state.everyMs > 0) schedule(resolve)
+      })
     },
   }
 }
