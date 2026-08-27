@@ -16,6 +16,7 @@ export type ThreadVirtualizerConfig = {
   keyAt: (index: number) => string
   estimateSizeAt: (index: number) => number
   gap: Accessor<number>
+  overscan: Accessor<number>
   ownsViewport: Accessor<boolean>
 }
 
@@ -24,7 +25,6 @@ export type ThreadVirtualizer = {
   totalSize: Accessor<number>
   measureRow: (element: Element) => void
   scrollToLast: () => void
-  scrollToAnchor: (index: number, offsetInViewport: number) => void
   remeasure: () => void
 }
 
@@ -38,7 +38,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     estimateSize: config.estimateSizeAt,
     getItemKey: config.keyAt,
     gap: config.gap(),
-    overscan: 8,
+    overscan: config.overscan(),
     anchorTo: 'end',
     followOnAppend: false,
     scrollEndThreshold: -1,
@@ -88,10 +88,6 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     scrollToLast: () => {
       const count = config.count()
       if (count > 0) instance.scrollToIndex(count - 1, {align: 'end'})
-    },
-    scrollToAnchor: (index, offsetInViewport) => {
-      const start = instance.measurementsCache[index]?.start ?? index * config.estimateSizeAt(index)
-      instance.scrollToOffset(start - offsetInViewport)
     },
     remeasure: () => {
       instance.measure()

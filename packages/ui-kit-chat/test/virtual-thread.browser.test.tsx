@@ -13,6 +13,7 @@ import {mountView} from './mount-view.js'
 
 const ABOVE_THRESHOLD = VIRTUALIZE_THRESHOLD * 4
 const JUST_BELOW_THRESHOLD = VIRTUALIZE_THRESHOLD - 1
+const JUST_ABOVE_THRESHOLD = VIRTUALIZE_THRESHOLD + 2
 const WELL_BELOW_THRESHOLD = VIRTUALIZE_THRESHOLD - 5
 
 function lastAnswer(count: number): string {
@@ -115,7 +116,7 @@ it('virtualizing above the threshold never trips a ResizeObserver notification l
   expect(loopErrors).toEqual([])
 })
 
-it('stays flat below the threshold: every turn stays mounted', async () => {
+it('windows nothing below the threshold: every turn stays mounted', async () => {
   mountThread(seedMessages(WELL_BELOW_THRESHOLD))
 
   await expect.element(page.getByText(lastAnswer(WELL_BELOW_THRESHOLD))).toBeVisible()
@@ -146,6 +147,29 @@ it('crossing the threshold while following keeps the bottom pinned', async () =>
   await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
   await expect.element(page.getByText('question 0')).not.toBeInTheDocument()
   await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom')
+})
+
+it('crossing the threshold keeps every mounted turn root, and only then evicts turns far above the viewport', async () => {
+  const thread = mountThread(seedMessages(JUST_BELOW_THRESHOLD))
+  await expect.element(page.getByText(lastAnswer(JUST_BELOW_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText('question 0')).toBeInTheDocument()
+
+  const rootsBeforeCrossing = Array.from(thread.viewport().querySelectorAll('[data-message-id]'))
+  const idsBeforeCrossing = rootsBeforeCrossing.map((root) => root.getAttribute('data-message-id'))
+  expect(idsBeforeCrossing).toContain('m0')
+  expect(idsBeforeCrossing).toContain(`m${JUST_BELOW_THRESHOLD - 1}`)
+
+  thread.chat().setMessages(seedMessages(JUST_ABOVE_THRESHOLD))
+  await expect.element(page.getByText(lastAnswer(JUST_ABOVE_THRESHOLD))).toBeVisible()
+
+  const remounted = rootsBeforeCrossing
+    .filter((root) => !root.isConnected)
+    .map((root) => root.getAttribute('data-message-id'))
+  expect(remounted).toEqual([])
+
+  thread.chat().setMessages(seedMessages(ABOVE_THRESHOLD))
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText('question 0')).not.toBeInTheDocument()
 })
 
 it('history prepend keeps the reading position while scrolled up', async () => {
