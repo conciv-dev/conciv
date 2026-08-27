@@ -28,7 +28,7 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['test/**/*.it.test.ts'],
+          include: ['test/**/*.it.test.ts', 'test/**/*.node.test.ts'],
           testTimeout: ciTest().testTimeout,
           hookTimeout: ciTest().hookTimeout,
         },

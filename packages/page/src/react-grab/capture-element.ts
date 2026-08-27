@@ -64,7 +64,7 @@ function capturePseudo(src: Element, dst: StyledElement, rules: string[]): void 
     const pcs = getComputedStyle(src, pseudo)
     const content = pcs.content
     if (!content || content === 'none' || content === 'normal') continue
-    const cls = `pw-grab-pseudo-${pseudoSeq++}`
+    const cls = `conciv-grab-pseudo-${pseudoSeq++}`
     dst.classList.add(cls)
     let t = ''
     for (const prop of pcs) t += `${prop}:${pcs.getPropertyValue(prop)};`

@@ -1,1 +1,1 @@
-export const virtualizeThreshold = {value: 50}
+export const virtualizeThreshold = {value: 15}

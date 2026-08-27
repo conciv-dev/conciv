@@ -10,11 +10,11 @@ Add `conciv()` to your bundler config. The plugin boots the dev agent engine and
 mounts the in-page **widget**. It reaches the page two ways, so it works whether or
 not the host lets a plugin edit the served HTML:
 
-| Setup                       | How the widget loads                                                     |
-| --------------------------- | ------------------------------------------------------------------------ |
-| Vite (classic `index.html`) | `transformIndexHtml` injects the loader `<script>` + `pw-api-base` meta. |
-| TanStack Start (± nitro)    | The extensions module is imported from the client entry (module graph).  |
-| Next.js                     | `plugin/nextjs/widget` client entry + fixed `port`.                      |
+| Setup                       | How the widget loads                                                         |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| Vite (classic `index.html`) | `transformIndexHtml` injects the loader `<script>` + `conciv-api-base` meta. |
+| TanStack Start (± nitro)    | The extensions module is imported from the client entry (module graph).      |
+| Next.js                     | `plugin/nextjs/widget` client entry + fixed `port`.                          |
 
 For SSR hosts like TanStack Start (with or without the nitro server layer), the
 rendered document never passes through vite's HTML seam; no static `index.html`

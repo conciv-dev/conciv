@@ -327,7 +327,7 @@ it('renders text, trace, then text in stream order for a turn with parts interle
   await expect.element(triggerLocator, {timeout: 3000}).toBeVisible()
   await expect.element(answerLocator, {timeout: 3000}).toBeVisible()
 
-  const contentRows = [...container.querySelectorAll('[data-pw-msg] > *:not(.absolute)')]
+  const contentRows = [...container.querySelectorAll('[data-conciv-msg] > *:not(.absolute)')]
   const firstTextRow = firstTextLocator.element()
   const triggerRow = triggerLocator.element()
   const answerRow = answerLocator.element()
