@@ -128,6 +128,7 @@ export function createStickToBottom(
   let pointerIsDown = false
   let previousHeight: number | undefined
   let disposeScrollSettle: (() => void) | undefined
+  let declaredScrollBehavior = 'auto'
 
   const afterSettle = (task: () => void) =>
     createRoot((dispose) => {
@@ -160,11 +161,11 @@ export function createStickToBottom(
   const setScrollTop = (value: number) => {
     const element = scrollElement()
     if (!element) return
-    const {scrollBehavior} = getComputedStyle(element)
-    if (scrollBehavior !== 'auto') element.style.scrollBehavior = 'auto'
+    const overridden = declaredScrollBehavior !== 'auto'
+    if (overridden) element.style.scrollBehavior = 'auto'
     element.scrollTop = value
     motion.ignoreScrollToTop = element.scrollTop
-    if (scrollBehavior !== 'auto') element.style.scrollBehavior = scrollBehavior
+    if (overridden) element.style.scrollBehavior = declaredScrollBehavior
   }
 
   const targetScrollTop = () => {
@@ -172,6 +173,9 @@ export function createStickToBottom(
     if (!element) return 0
     return element.scrollHeight - 1 - element.clientHeight
   }
+
+  const isNearBottomAt = (currentScrollTop: number, target: number) =>
+    target - Math.min(currentScrollTop, target) <= STICK_TO_BOTTOM_OFFSET_PX
 
   const stuckToBottom = () => untrack(() => state.isAtBottom)
   const escaped = () => untrack(() => state.escapedFromLock)
@@ -196,14 +200,18 @@ export function createStickToBottom(
   }
 
   const advance = (behavior: ResolvedAnimation, startedAtScrollTop: number, tickDelta: number) => {
+    const element = scrollElement()
+    if (!element) return
+    const target = element.scrollHeight - 1 - element.clientHeight
     if (behavior === 'instant') {
-      setScrollTop(targetScrollTop())
+      setScrollTop(target)
       return
     }
-    motion.velocity = (behavior.damping * motion.velocity + behavior.stiffness * scrollDifference()) / behavior.mass
+    const current = element.scrollTop
+    motion.velocity = (behavior.damping * motion.velocity + behavior.stiffness * (target - current)) / behavior.mass
     motion.accumulated += motion.velocity * tickDelta
-    setScrollTop(scrollTop() + motion.accumulated)
-    if (scrollTop() !== startedAtScrollTop) motion.accumulated = 0
+    setScrollTop(current + motion.accumulated)
+    if (motion.ignoreScrollToTop !== startedAtScrollTop) motion.accumulated = 0
   }
 
   const scrollToBottom = (scrollOptions: ScrollToBottomOptions = {}): Promise<boolean> => {
@@ -323,11 +331,14 @@ export function createStickToBottom(
     if (!element) return
 
     const height = element.scrollHeight
+    const target = height - 1 - element.clientHeight
+    const currentScrollTop = element.scrollTop
     const difference = height - (previousHeight ?? height)
+    const settledNearBottom = isNearBottomAt(currentScrollTop, target)
     motion.resizeDifference = difference
 
-    if (scrollTop() > targetScrollTop()) setScrollTop(targetScrollTop())
-    setState('isNearBottom', nearBottom())
+    if (currentScrollTop > target) setScrollTop(target)
+    setState('isNearBottom', settledNearBottom)
 
     if (difference >= 0) {
       const animation = mergeAnimations(previousHeight === undefined ? options.initial : options.resize)
@@ -339,7 +350,7 @@ export function createStickToBottom(
           duration: animation === 'instant' ? undefined : RETAIN_ANIMATION_DURATION_MS,
         })
       }
-    } else if (nearBottom()) {
+    } else if (settledNearBottom) {
       setState({escapedFromLock: false, isAtBottom: true})
     }
 
@@ -368,6 +379,7 @@ export function createStickToBottom(
     const element = scrollElement()
     if (!element) return
     previousHeight = undefined
+    declaredScrollBehavior = getComputedStyle(element).scrollBehavior
     makeEventListener(element, 'scroll', handleScroll, {passive: true})
     makeEventListener(element, 'wheel', handleWheel, {passive: true})
     onCleanup(observeContent(element, handleContentResize))
