@@ -189,9 +189,11 @@ test('a run parked on an unresolved tool call settles in place when the next run
   const watch = watchCalm()
   await watch.checkpoint()
   await page.screenshot({path: `${SHOTS}/parked-on-tool-call.png`})
+  expectCalm(watch)
 
   await coreControl.scriptTurn({toolCalls: [], text: 'Picked up where the parked call stopped.'})
   await promptWith('carry on without it')
+  await watch.checkpoint({rebaseline: true})
   await expect.element(page.getByText('Picked up where the parked call stopped.')).toBeVisible()
   await watch.checkpoint()
   await page.screenshot({path: `${SHOTS}/parked-resumed.png`})
@@ -207,7 +209,7 @@ test('an error mid-run replaces nothing above the live region [mechanism B: wron
   await coreControl.holdTurn()
   await promptWith('run a tool then fail')
   await expect.element(stopButton()).toBeVisible()
-  await watch.checkpoint()
+  await watch.checkpoint({rebaseline: true})
 
   await coreControl.scriptError('the scripted run failed')
   await coreControl.releaseTurn()
@@ -263,7 +265,7 @@ test('a pane remounted mid-run rejoins without churning its surfaces [mechanism 
   expectCalm(watch)
 })
 
-test.fails('toggling the trace mid-run keeps the surrounding surfaces still [harness gap: a user-initiated fold animation reflows in-flow content and Chromium does not stamp hadRecentInput on it under the vitest-browser click; the allow-list covers removals only]', async () => {
+test('toggling the trace mid-run keeps the surrounding surfaces still [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
   const {sessionId} = await newSession()
   await coreControl.scriptTurn({
     toolCalls: [
@@ -279,16 +281,17 @@ test.fails('toggling the trace mid-run keeps the surrounding surfaces still [har
   await coreControl.holdTurn()
   await promptWith('run two tools while I fold the trace')
   await expect.element(stopButton()).toBeVisible()
-  await watch.checkpoint()
+  await watch.checkpoint({rebaseline: true})
 
   await coreControl.releaseTools()
   await expect.element(traceToggle()).toBeVisible()
   await watch.checkpoint()
   await traceToggle().click()
   await expect.element(traceToggle()).toBeVisible()
+  await watch.checkpoint({rebaseline: true})
   await traceToggle().click()
   await expect.element(traceToggle()).toBeVisible()
-  await watch.checkpoint()
+  await watch.checkpoint({rebaseline: true})
   await page.screenshot({path: `${SHOTS}/trace-toggled.png`})
   expectCalm(watch)
 

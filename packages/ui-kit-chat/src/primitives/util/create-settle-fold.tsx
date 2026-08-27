@@ -1,4 +1,4 @@
-import {createSignal, untrack, type Accessor} from 'solid-js'
+import {createSignal, type Accessor} from 'solid-js'
 
 export type SettleFold = {
   open: Accessor<boolean>
@@ -11,8 +11,7 @@ export function createSettleFold(props: {
   folded?: Accessor<boolean>
   defaultOpen?: boolean
 }): SettleFold {
-  const bornFolded = untrack(() => props.folded?.() ?? false)
   const [userOpen, setUserOpen] = createSignal<boolean | undefined>(props.defaultOpen)
-  const open = () => userOpen() ?? (props.revealed() && !bornFolded)
+  const open = () => userOpen() ?? (props.revealed() && !(props.folded?.() ?? false))
   return {open, setOpen: setUserOpen, toggle: () => setUserOpen(!open())}
 }

@@ -10,6 +10,7 @@ const SURFACE_SELECTOR = [
 const STAMP_ATTRIBUTE = 'data-calm-surface'
 const TOLERANCE_PX = 1
 const DESCRIPTION_LENGTH = 44
+const SETTLE_PASSES = 3
 
 export type CalmAllowance = 'narration' | 'virtualization' | 'error-replacement' | 'user-collapsed-trace'
 
@@ -17,8 +18,10 @@ type CalmSurface = {stamp: string; description: string}
 
 type CalmDrift = CalmSurface & {deltaBlock: number; deltaInline: number}
 
+export type CalmCheckpoint = {rebaseline?: boolean}
+
 export type CalmWatch = {
-  checkpoint: () => Promise<void>
+  checkpoint: (options?: CalmCheckpoint) => Promise<void>
   removed: () => string[]
   drifted: () => string[]
   shiftedAboveLiveRegion: () => string[]
@@ -108,9 +111,17 @@ function hasFiniteIterations(animation: Animation): boolean {
   return animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY
 }
 
+function nextFrames(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+}
+
 async function settleMotion(viewport: HTMLElement): Promise<void> {
-  const running = viewport.getAnimations({subtree: true}).filter(hasFiniteIterations)
-  await Promise.allSettled(running.map((animation) => animation.finished))
+  for (let pass = 0; pass < SETTLE_PASSES; pass += 1) {
+    await nextFrames()
+    const running = viewport.getAnimations({subtree: true}).filter(hasFiniteIterations)
+    if (running.length === 0) return
+    await Promise.allSettled(running.map((animation) => animation.finished))
+  }
 }
 
 function driftOf(entry: Tracked): CalmDrift {
@@ -147,19 +158,20 @@ export function createCalmWatch(options: {allow?: ReadonlyArray<CalmAllowance>} 
   const tracked = new Map<string, Tracked>()
   const stamps = {count: 0}
   const shifted = new Set<string>()
-  const observer = new PerformanceObserver((list) => {
+  const collect = (entries: PerformanceEntryList) => {
     const viewport = document.querySelector<HTMLElement>(VIEWPORT_SELECTOR)
     if (!viewport) return
     const region = liveRegionOf(viewport)
     const isAboveSource = (node: Node | null | undefined): node is Element =>
       node instanceof Element && viewport.contains(node) && isAboveLiveRegion(node, region)
-    for (const entry of list.getEntries()) {
+    for (const entry of entries) {
       if (!isLayoutShiftEntry(entry)) continue
       if (entry.hadRecentInput) continue
       const above = entry.sources.map((source) => source.node).filter(isAboveSource)
       for (const node of above) shifted.add(describeSurface(node))
     }
-  })
+  }
+  const observer = new PerformanceObserver((list) => collect(list.getEntries()))
   observer.observe({type: 'layout-shift', buffered: true})
   const resample = (viewport: HTMLElement) => {
     for (const entry of tracked.values()) {
@@ -192,12 +204,24 @@ export function createCalmWatch(options: {allow?: ReadonlyArray<CalmAllowance>} 
       })
     }
   }
+  const drainShifts = async (): Promise<void> => {
+    await nextFrames()
+    collect(observer.takeRecords())
+  }
   return {
-    checkpoint: async () => {
+    checkpoint: async (options: CalmCheckpoint = {}) => {
       const viewport = threadViewport()
       await settleMotion(viewport)
       resample(viewport)
       adopt(viewport, liveRegionOf(viewport))
+      if (options.rebaseline !== true) return
+      await drainShifts()
+      resample(viewport)
+      for (const [stamp, entry] of tracked) {
+        if (entry.gone) tracked.delete(stamp)
+        entry.origin = entry.latest
+      }
+      shifted.clear()
     },
     removed: () =>
       [...tracked.values()]
