@@ -70,11 +70,15 @@ async function promptWith(text: string): Promise<void> {
   await expect.element(page.getByText(text)).toBeVisible()
 }
 
-function multiToolSteps(): Array<{name: string; input: Record<string, string>}> {
-  return Array.from({length: MULTI_TOOL_STEPS}, (_, index) =>
-    index % 2 === 0
-      ? {name: 'Bash', input: {command: `probe step ${index}`}}
-      : {name: 'Read', input: {filePath: `step-${index}.tsx`}},
+type ScriptedToolStep = {name: string; input: Record<string, string>}
+
+function multiToolSteps(): ScriptedToolStep[] {
+  return Array.from(
+    {length: MULTI_TOOL_STEPS},
+    (_, index): ScriptedToolStep =>
+      index % 2 === 0
+        ? {name: 'Bash', input: {command: `probe step ${index}`}}
+        : {name: 'Read', input: {filePath: `step-${index}.tsx`}},
   )
 }
 
