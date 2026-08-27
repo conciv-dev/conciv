@@ -1,6 +1,6 @@
 import {createSignal, For, Show, splitProps, type JSX} from 'solid-js'
 import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
-import {createAutoCollapse} from '../../primitives/util/create-auto-collapse.js'
+import {createSettleFold} from '../../primitives/util/create-settle-fold.js'
 import {FOCUS_INSET} from '../classes.js'
 import {TRACE_HOVER_INDENT, TRACE_LINE, TRACE_MICROLABEL} from './trace-row.js'
 import {TraceRail} from './rail.js'
@@ -23,7 +23,7 @@ export function Trace(props: {
   compactLine: string
   items: TraceItem[]
   label?: string
-  streaming?: boolean
+  folded?: boolean
   defaultOpen?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -33,7 +33,7 @@ export function Trace(props: {
     'compactLine',
     'items',
     'label',
-    'streaming',
+    'folded',
     'defaultOpen',
     'open',
     'onOpenChange',
@@ -41,10 +41,14 @@ export function Trace(props: {
   const [rootEl, setRootEl] = createSignal<HTMLElement>()
   const [headerEl, setHeaderEl] = createSignal<HTMLElement>()
   const [listEl, setListEl] = createSignal<HTMLUListElement>()
-  const auto = createAutoCollapse({streaming: () => local.streaming ?? false, defaultOpen: local.defaultOpen})
-  const open = () => local.open ?? auto.open()
+  const fold = createSettleFold({
+    revealed: () => true,
+    folded: () => local.folded ?? false,
+    defaultOpen: local.defaultOpen,
+  })
+  const open = () => local.open ?? fold.open()
   const change = (next: boolean) => {
-    auto.setOpen(next)
+    fold.setOpen(next)
     local.onOpenChange?.(next)
   }
   const lastLiveKey = () => local.items.findLast((entry) => entry.live)?.key

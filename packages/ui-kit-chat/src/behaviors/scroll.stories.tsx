@@ -84,7 +84,7 @@ function CollapsePinHarness(): JSX.Element {
         <Trace
           summary="6 tool steps"
           compactLine="6 tool steps"
-          streaming={streaming()}
+          folded={!streaming()}
           items={Array.from(
             {length: 6},
             (_, index): TraceItem => ({

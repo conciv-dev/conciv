@@ -2,7 +2,7 @@ import {createContext, Show, useContext, type Accessor, type JSX, type ParentPro
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Loader from 'lucide-solid/icons/loader'
 import {Collapsible} from '@conciv/ui-kit-system'
-import {createAutoCollapse} from '../primitives/util/create-auto-collapse.js'
+import {createSettleFold} from '../primitives/util/create-settle-fold.js'
 import {useScrollLock} from '../behaviors/use-scroll-lock.js'
 import {usePauseFollowOnToggle} from '../behaviors/use-follow-pause.js'
 import {useOptionalThreadViewport} from '../primitives/thread/viewport-context.js'
@@ -31,6 +31,7 @@ const GroupContentRef = createContext<(element: HTMLDivElement) => void>(() => {
 export type GroupRootProps = ParentProps<{
   streaming?: boolean
   autoOpen?: boolean
+  folded?: boolean
   defaultOpen?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -48,11 +49,12 @@ export type GroupTriggerProps = {
 export type GroupContentProps = ParentProps<{class?: string}>
 
 function Root(props: GroupRootProps): JSX.Element {
-  const collapse = createAutoCollapse({
-    streaming: () => props.autoOpen === true,
+  const fold = createSettleFold({
+    revealed: () => props.autoOpen === true,
+    folded: () => props.folded ?? false,
     defaultOpen: props.defaultOpen,
   })
-  const open = () => props.open ?? collapse.open()
+  const open = () => props.open ?? fold.open()
   let rootElement: HTMLDivElement | undefined
   let contentElement: HTMLDivElement | undefined
   const lockScroll = useScrollLock(() => rootElement, ANIMATION_DURATION_MS)
@@ -61,7 +63,7 @@ function Root(props: GroupRootProps): JSX.Element {
   const handleOpenChange = (next: boolean) => {
     lockScroll()
     settleFollow()
-    collapse.setOpen(next)
+    fold.setOpen(next)
     props.onOpenChange?.(next)
   }
   return (

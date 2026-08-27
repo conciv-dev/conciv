@@ -57,14 +57,14 @@ function StandaloneThread(): JSX.Element {
   )
 }
 
-it('renders a standalone tool card outside the trace, whose trace collapses once the session settles', async () => {
+it('renders a standalone tool card outside the trace, whose trace stays open once the session settles', async () => {
   mountView(() => <StandaloneThread />)
 
   await startRun()
   await waitForRunSettled()
 
   const trigger = page.getByRole('button', {name: /trace/i})
-  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'closed')
+  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
 
   await expect.element(page.getByText('Confirm this action for confirm_ui'), {timeout: 3000}).toBeVisible()
 

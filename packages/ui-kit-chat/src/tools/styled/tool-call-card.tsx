@@ -92,10 +92,7 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
     return published ? headerRowProjection(published.read(), rowProps) : genericRowProjection(rowProps)
   })
   const rowLine = () => `${projection().target} ${projection().meta ?? ''}`
-  const asking = () =>
-    local.part.state === 'approval-requested' &&
-    local.part.approval !== undefined &&
-    local.ctx.respondApproval !== undefined
+  const asked = () => local.part.approval !== undefined && local.ctx.respondApproval !== undefined
   const bodyTone = (): TraceOutputTone => (projection().mark === 'fail' ? 'error' : 'normal')
   const embeddedCard = (): JSX.Element => (
     <CardChromeProvider value="embedded" headerChannel={publishHeader} rowLine={rowLine}>
@@ -109,7 +106,6 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
       />
     </CardChromeProvider>
   )
-  const cardBody = (): JSX.Element => <TraceBodyFrame tone={bodyTone()}>{embeddedCard()}</TraceBodyFrame>
   const framed = () =>
     cardRendersEmbeddedBody({
       part: local.part,
@@ -118,11 +114,15 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
       tools: local.tools?.() ?? [],
       fallback: local.fallback,
     })
+  const cardBody = (): JSX.Element => (
+    <TraceBodyFrame tone={bodyTone()} chrome={framed()}>
+      {embeddedCard()}
+    </TraceBodyFrame>
+  )
   return (
     <>
-      <TraceToolRow projection={projection()} ring={local.ring ?? true} body={framed() ? cardBody : undefined} />
-      <Show when={!framed()}>{embeddedCard()}</Show>
-      <Show when={asking()}>
+      <TraceToolRow projection={projection()} ring={local.ring ?? true} body={cardBody} foldable={framed()} />
+      <Show when={asked()}>
         <TracePermissionBlock
           part={local.part}
           ctx={local.ctx}

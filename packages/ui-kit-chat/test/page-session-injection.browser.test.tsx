@@ -115,7 +115,7 @@ it('keeps the flat chain rendering when no page-session config is passed', async
   await expect.element(page.getByText('Filled the form.'), {timeout: 3000}).toBeVisible()
   await expect
     .element(page.getByRole('button', {name: /trace/i}), {timeout: 3000})
-    .toHaveAttribute('data-state', 'closed')
+    .toHaveAttribute('data-state', 'open')
   await expect.element(page.getByText('session settled')).not.toBeInTheDocument()
 })
 

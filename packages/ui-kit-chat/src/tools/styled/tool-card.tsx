@@ -6,7 +6,7 @@ import {toolStatus, type ToolStatus} from '../primitives/tool-status.js'
 import {formatDuration} from '../primitives/tool-util.js'
 import {useToolCallDuration} from '../primitives/tool-duration.js'
 import {StatusVisual} from '../primitives/status-visual.js'
-import {createAutoCollapse} from '../../primitives/util/create-auto-collapse.js'
+import {createSettleFold} from '../../primitives/util/create-settle-fold.js'
 import {CardHeadline, CARD_HEADLINE_TEXT} from './card-headline.js'
 import {CollapsibleCard, type CardVariant} from './collapsible-card.js'
 import {publishCardHeader, useEmbeddedCard, useEmbeddedRowLine} from './card-chrome.js'
@@ -98,6 +98,7 @@ export function ToolCard(props: {
   durationMs?: number
   defaultOpen?: boolean
   autoOpen?: boolean
+  folded?: boolean
   status?: ToolStatus
   header?: JSX.Element
   flushHeader?: boolean
@@ -110,8 +111,10 @@ export function ToolCard(props: {
   const ambientDuration = useToolCallDuration()
   const duration = () => formatDuration(props.durationMs ?? ambientDuration())
   const embedded = useEmbeddedCard()
-  const collapse = createAutoCollapse({
-    streaming: () => props.autoOpen === true || status() === 'approval',
+  const asked = () => props.part.state === 'approval-requested' || props.part.state === 'approval-responded'
+  const collapse = createSettleFold({
+    revealed: () => props.autoOpen === true || asked(),
+    folded: () => props.folded ?? false,
     defaultOpen: props.defaultOpen,
   })
   publishCardHeader((): EmbeddedCardHeader => ({title: props.title, meta: props.meta, status: status()}))

@@ -107,7 +107,7 @@ async function startHeldToolRun(config: {
   return watch
 }
 
-test.fails('surface immortality and stillness across a multi-tool run [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
+test('surface immortality and stillness across a multi-tool run [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
   const {sessionId} = await newSession()
   await coreControl.scriptTurn({
     toolCalls: [
@@ -130,7 +130,7 @@ test.fails('surface immortality and stillness across a multi-tool run [mechanism
   expectCalm(watch)
 })
 
-test.fails('a second run leaves the first run untouched [mechanism B: wrong streaming bit, thread.tsx:275-279]', async () => {
+test('a second run leaves the first run untouched [mechanism B: wrong streaming bit, thread.tsx:275-279]', async () => {
   const {sessionId} = await newSession()
   await coreControl.scriptTurn({toolCalls: [{name: 'Bash', input: {command: 'ls'}}], text: 'First answer.'})
   mountChatPane(sessionId)
@@ -148,7 +148,7 @@ test.fails('a second run leaves the first run untouched [mechanism B: wrong stre
   expectCalm(watch)
 })
 
-test.fails('an approval pause and resume keeps every surface in place [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
+test('an approval pause and resume keeps every surface in place [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
   const {sessionId} = await newSession()
   const ids = await coreControl.scriptTurn({
     toolCalls: [{name: 'Bash', input: {command: 'rm -rf build'}}],
@@ -179,7 +179,7 @@ test.fails('an approval pause and resume keeps every surface in place [mechanism
   expectCalm(watch)
 })
 
-test.fails('a run parked on an unresolved tool call settles in place when the next run starts [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
+test('a run parked on an unresolved tool call settles in place when the next run starts [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
   const {sessionId} = await newSession()
   await coreControl.scriptToolCall('Bash', {command: 'sleep forever'})
   mountChatPane(sessionId)
@@ -198,7 +198,7 @@ test.fails('a run parked on an unresolved tool call settles in place when the ne
   expectCalm(watch)
 })
 
-test.fails('an error mid-run replaces nothing above the live region [mechanism B: wrong streaming bit, thread.tsx:275-279]', async () => {
+test('an error mid-run replaces nothing above the live region [mechanism B: wrong streaming bit, thread.tsx:275-279]', async () => {
   const {sessionId} = await newSession()
   await coreControl.scriptTurn({toolCalls: [{name: 'Bash', input: {command: 'ls'}}], text: 'never delivered'})
   mountChatPane(sessionId)
@@ -217,7 +217,7 @@ test.fails('an error mid-run replaces nothing above the live region [mechanism B
   expectCalm(watch)
 })
 
-test.fails('cancelling a run settles every surface in place [mechanism B: wrong streaming bit, thread.tsx:275-279]', async () => {
+test('cancelling a run settles every surface in place [mechanism B: wrong streaming bit, thread.tsx:275-279]', async () => {
   const {sessionId} = await newSession()
   await coreControl.scriptTurn({toolCalls: [{name: 'Bash', input: {command: 'ls'}}], text: 'partial answer'})
   mountChatPane(sessionId)
@@ -234,7 +234,7 @@ test.fails('cancelling a run settles every surface in place [mechanism B: wrong 
   expectCalm(watch)
 })
 
-test.fails('a pane remounted mid-run rejoins without churning its surfaces [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
+test('a pane remounted mid-run rejoins without churning its surfaces [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
   const {rpc, sessionId} = await newSession()
   await coreControl.scriptTurn({
     toolCalls: [{name: 'Bash', input: {command: 'rejoin probe'}}],
@@ -263,7 +263,7 @@ test.fails('a pane remounted mid-run rejoins without churning its surfaces [mech
   expectCalm(watch)
 })
 
-test.fails('toggling the trace mid-run keeps the surrounding surfaces still [mechanism B: wrong streaming bit, thread.tsx:275-279]', async () => {
+test.fails('toggling the trace mid-run keeps the surrounding surfaces still [harness gap: a user-initiated fold animation reflows in-flow content and Chromium does not stamp hadRecentInput on it under the vitest-browser click; the allow-list covers removals only]', async () => {
   const {sessionId} = await newSession()
   await coreControl.scriptTurn({
     toolCalls: [
@@ -298,7 +298,7 @@ test.fails('toggling the trace mid-run keeps the surrounding surfaces still [mec
   expectCalm(watch)
 })
 
-test.fails('a run under reduced motion stays as still as one with motion [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
+test('a run under reduced motion stays as still as one with motion [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
   const restoreMotion = forceReducedMotion()
   try {
     const {sessionId} = await newSession()
@@ -324,7 +324,7 @@ test.fails('a run under reduced motion stays as still as one with motion [mechan
   }
 })
 
-test.fails('a long thread at the virtualization boundary stays still while a run streams [mechanism C: retroactive regrouping, page-session.ts:141-151]', async () => {
+test('a long thread at the virtualization boundary stays still while a run streams [mechanism C: retroactive regrouping, page-session.ts:141-151]', async () => {
   const {rpc, sessionId} = await newSession()
   await seedThread(rpc, sessionId, SEEDED_EXCHANGES)
   await coreControl.scriptTurn({
@@ -353,7 +353,7 @@ test.fails('a long thread at the virtualization boundary stays still while a run
   expectCalm(watch)
 }, 120_000)
 
-test.fails('a thread crossing the virtualization threshold mid-run keeps its visible surfaces [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
+test('a thread crossing the virtualization threshold mid-run keeps its visible surfaces [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
   const {rpc, sessionId} = await newSession()
   await seedThread(rpc, sessionId, BOUNDARY_EXCHANGES)
   await coreControl.scriptTurn({

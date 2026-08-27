@@ -55,9 +55,9 @@ function sourceUnchanged(
     .every((message, offset) => prevMessages[bound.start + offset] === message)
 }
 
-function buildTurn(messages: ReadonlyArray<UIMessage>, bound: TurnBounds): Turn {
+function buildTurn(messages: ReadonlyArray<UIMessage>, bound: TurnBounds, stableKey?: string): Turn {
   return {
-    key: bound.first.id,
+    key: stableKey ?? bound.first.id,
     role: bound.first.role,
     parts: messages.slice(bound.start, bound.end + 1).flatMap((message) => message.parts),
     start: bound.start,
@@ -74,7 +74,7 @@ export function diffTurns(
     const prev = prevTurns[index]
     if (prev && prev.start === bound.start && prev.end === bound.end && sourceUnchanged(bound, prevMessages, messages))
       return prev
-    return buildTurn(messages, bound)
+    return buildTurn(messages, bound, prev?.role === bound.first.role ? prev.key : undefined)
   })
 }
 
@@ -110,6 +110,7 @@ export type GroupRenderProps = {
   parts: () => readonly MessagePart[]
   resultFor: (toolCallId: string) => ToolResultPart | undefined
   streaming: boolean
+  folded?: boolean
   children?: JSX.Element
 }
 

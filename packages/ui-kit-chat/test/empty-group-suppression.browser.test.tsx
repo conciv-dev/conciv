@@ -93,10 +93,10 @@ it('keeps a chain group for a thinking part once the segment also ran a tool', a
   )
 
   const trigger = page.getByRole('button', {name: /trace/i})
-  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'closed')
-  await userEvent.click(trigger)
-  await expect.element(trigger).toHaveAttribute('data-state', 'open')
+  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
   await expect.element(page.getByText('weighing it'), {timeout: 3000}).toBeVisible()
+  await userEvent.click(trigger)
+  await expect.element(trigger).toHaveAttribute('data-state', 'closed')
 })
 
 const BLANK_THINKING_CHUNKS = [

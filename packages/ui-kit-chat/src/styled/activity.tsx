@@ -36,7 +36,7 @@ import {
 import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {Dynamic} from 'solid-js/web'
 import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
-import {createAutoCollapse} from '../primitives/util/create-auto-collapse.js'
+import {createSettleFold} from '../primitives/util/create-settle-fold.js'
 import {useThreadAutoScroll} from '../behaviors/use-thread-auto-scroll.js'
 import {ToolCallCard} from '../tools/styled/tool-call-card.js'
 import {Group} from './group.js'
@@ -134,7 +134,7 @@ function asToolCall(part: MessagePart | undefined): ToolCallPart | null {
 function StepShell(
   props: ParentProps<{glyph: JSX.Element; title: string; titleClass?: string; autoOpen?: boolean}>,
 ): JSX.Element {
-  const collapse = createAutoCollapse({streaming: () => props.autoOpen === true})
+  const collapse = createSettleFold({revealed: () => props.autoOpen === true})
   return (
     <Collapsible.Root open={collapse.open()} onOpenChange={(details) => collapse.setOpen(details.open)}>
       <Collapsible.Trigger class={STEP_TRIGGER}>
@@ -159,7 +159,7 @@ function ToolStep(props: {part: ToolCallPart; subCalls?: ToolCallPart[]}): JSX.E
       glyph={stepGlyph(status())}
       title={activity.label(props.part)}
       titleClass={status() === 'running' ? SHIMMER : ''}
-      autoOpen={status() === 'approval'}
+      autoOpen={props.part.state === 'approval-requested' || props.part.state === 'approval-responded'}
     >
       <ToolCallCard
         part={props.part}

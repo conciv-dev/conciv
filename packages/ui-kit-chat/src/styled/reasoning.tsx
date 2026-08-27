@@ -1,6 +1,6 @@
-import {createSignal, type JSX} from 'solid-js'
+import {createSignal, untrack, type JSX} from 'solid-js'
 import {CollapsibleCard} from '../tools/styled/collapsible-card.js'
-import {createAutoCollapse} from '../primitives/util/create-auto-collapse.js'
+import {createSettleFold} from '../primitives/util/create-settle-fold.js'
 import {createStickToBottom} from '@conciv/solid-stick-to-bottom'
 import {SHIMMER} from './shimmer.js'
 
@@ -19,7 +19,11 @@ export function ReasoningText(props: {text: string}): JSX.Element {
 }
 
 export function Reasoning(props: ReasoningProps): JSX.Element {
-  const collapse = createAutoCollapse({streaming: () => Boolean(props.streaming), defaultOpen: props.defaultOpen})
+  const bornStreaming = untrack(() => Boolean(props.streaming))
+  const collapse = createSettleFold({
+    revealed: () => bornStreaming || Boolean(props.streaming),
+    defaultOpen: props.defaultOpen,
+  })
   const [scroller, setScroller] = createSignal<HTMLDivElement>()
   const capped = () => !props.grow
   createStickToBottom(scroller, {

@@ -341,7 +341,7 @@ it('ticks one arm per rendered row once a permission request resolves', async ()
 })
 
 it('draws nothing at all while the trace is collapsed', async () => {
-  const container = mountView(() => <Trace summary="2 tools ran" compactLine="2 tools" items={twoRowTrace()} />)
+  const container = mountView(() => <Trace summary="2 tools ran" compactLine="2 tools" items={twoRowTrace()} folded />)
   await expect.element(page.getByText('Show trace')).toBeVisible()
 
   expect(spinePath(container).getAttribute('d')).toBe('')
