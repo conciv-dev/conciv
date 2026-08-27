@@ -8,10 +8,13 @@ import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, runTurn} from './helpers/core-session.js'
 import {createShellHarness} from './helpers/shell-harness.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
+import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
 
 const SUBSCRIBE_PATH = ['chat', 'subscribe']
 const NOTES_BODY = 'the notes view body'
 const REPLY_TEXT = 'the transcript that outlives a tab switch'
+const LONG_REPLY_TEXT = 'the last turn of a virtualized transcript'
+const SEEDED_EXCHANGES = Math.ceil((VIRTUALIZE_THRESHOLD + 1) / 2)
 
 function NotesView(): JSX.Element {
   return <p>{NOTES_BODY}</p>
@@ -29,6 +32,7 @@ const faults = trackedFaults()
 afterEach(harness.dispose)
 
 const reply = () => page.getByText(REPLY_TEXT)
+const longReply = () => page.getByText(LONG_REPLY_TEXT)
 const notes = () => page.getByText(NOTES_BODY)
 const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
 const chatTab = () => page.getByRole('tab', {name: 'Chat', exact: true})
@@ -73,6 +77,26 @@ test('the panel keeps its chat stream alive across a view tab round trip', async
 
   await coreControl.releaseFault(gate)
 }, 30_000)
+
+test('a virtualized transcript survives a view tab round trip', async () => {
+  const rpc = coreRpc(coreBase())
+  const sessionId = await createSession(rpc)
+  for (let index = 0; index < SEEDED_EXCHANGES - 1; index += 1) {
+    await coreControl.scriptTurn({toolCalls: [], text: `seeded answer ${index}`})
+    await runTurn(rpc, sessionId, `seeded question ${index}`)
+  }
+  await coreControl.scriptTurn({toolCalls: [], text: LONG_REPLY_TEXT})
+  await runTurn(rpc, sessionId, 'the last question')
+  harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+
+  await expect.element(longReply(), {timeout: 8000}).toBeVisible()
+
+  await notesTab().click()
+  await expect.element(notes(), {timeout: 8000}).toBeVisible()
+
+  await chatTab().click()
+  await expect.element(longReply(), {timeout: 8000}).toBeVisible()
+}, 60_000)
 
 test('each view tab points at the panel that renders it', async () => {
   await mountSeededPanel()

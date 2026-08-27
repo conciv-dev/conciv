@@ -1,5 +1,6 @@
-import {createComputed, createSignal, onCleanup, onMount, type Accessor} from 'solid-js'
+import {createComputed, createEffect, createSignal, onCleanup, onMount, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
+import {createResizeObserver} from '@solid-primitives/resize-observer'
 import {
   Virtualizer,
   elementScroll,
@@ -30,7 +31,10 @@ export type ThreadVirtualizer = {
 export function createThreadVirtualizer(config: ThreadVirtualizerConfig): ThreadVirtualizer {
   const resolveOptions = (): VirtualizerOptions<HTMLElement, Element> => ({
     count: config.count(),
-    getScrollElement: () => config.scrollElement() ?? null,
+    getScrollElement: () => {
+      const element = config.scrollElement()
+      return element?.isConnected ? element : null
+    },
     estimateSize: config.estimateSizeAt,
     getItemKey: config.keyAt,
     gap: config.gap(),
@@ -57,18 +61,24 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     setTotalSize(instance.getTotalSize())
   }
 
+  const bindScrollElement = () => {
+    instance._willUpdate()
+    sync()
+  }
+
   createComputed(() => {
     config.scrollElement()
     instance.setOptions(resolveOptions())
-    instance._willUpdate()
     sync()
   })
 
+  createEffect(() => {
+    createResizeObserver(config.scrollElement(), bindScrollElement)
+    bindScrollElement()
+  })
+
   onMount(() => {
-    const cleanup = instance._didMount()
-    instance._willUpdate()
-    sync()
-    onCleanup(cleanup)
+    onCleanup(instance._didMount())
   })
 
   return {
