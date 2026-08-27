@@ -90,7 +90,8 @@ function turnContent(messages: Array<UIMessage> | Array<ModelMessage>): string |
 function turnMessageId(messages: Array<UIMessage> | Array<ModelMessage>): string | undefined {
   const last = messages[messages.length - 1]
   if (!last || last.role !== 'user' || !('id' in last)) return undefined
-  return last.id.length > 0 ? last.id : undefined
+  const id = last.id
+  return typeof id === 'string' && id.length > 0 ? id : undefined
 }
 
 type SessionStream = AsyncIterable<StreamChunk>

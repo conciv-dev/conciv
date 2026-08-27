@@ -47,7 +47,7 @@ async function rowFramesBody(
   ))
   const row = browserPage.elementLocator(container)
   await expect.element(row.getByRole('img', {name: 'succeeded'})).toBeVisible()
-  return container.querySelector('button') !== null
+  return container.querySelector('button:not(:disabled)') !== null
 }
 
 it.each(cardCases)('frames the $name card under a trace row exactly when it renders a body', async ({name, entry}) => {
