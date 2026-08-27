@@ -14,7 +14,22 @@ const SHOTS = '__screenshots__/calm-contract'
 const MULTI_TOOL_STEPS = 20
 const FRAME_P95_BUDGET_MS = 20
 const FRAME_JANK_BUDGET = 2
-const MIN_SAMPLED_FRAMES = 10
+const MIN_SAMPLED_FRAMES = 40
+const MULTI_TOOL_PACE_MS = 50
+const BOUNDARY_PACE_MS = 400
+const EDIT_STEP_INTERVAL = 5
+const DIFF_BEFORE = [
+  'export function total(items: Item[]): number {',
+  '  let sum = 0',
+  '  for (const item of items) sum += item.price',
+  '  return sum',
+  '}',
+].join('\n')
+const DIFF_AFTER = [
+  'export function total(items: readonly Item[]): number {',
+  '  return items.reduce((sum, item) => sum + item.price * item.quantity, 0)',
+  '}',
+].join('\n')
 const SEEDED_EXCHANGES = Math.floor((VIRTUALIZE_THRESHOLD - 4) / 2)
 const BOUNDARY_EXCHANGES = Math.floor(VIRTUALIZE_THRESHOLD / 2)
 const VIEWPORT_HEIGHT_PX = 600
@@ -72,14 +87,18 @@ async function promptWith(text: string): Promise<void> {
 
 type ScriptedToolStep = {name: string; input: Record<string, string>}
 
+function editStep(index: number): ScriptedToolStep {
+  return {name: 'Edit', input: {file_path: `step-${index}.tsx`, old_string: DIFF_BEFORE, new_string: DIFF_AFTER}}
+}
+
+function multiToolStep(index: number): ScriptedToolStep {
+  if (index > 0 && index % EDIT_STEP_INTERVAL === 0) return editStep(index)
+  if (index % 2 === 0) return {name: 'Bash', input: {command: `probe step ${index}`}}
+  return {name: 'Read', input: {filePath: `step-${index}.tsx`}}
+}
+
 function multiToolSteps(): ScriptedToolStep[] {
-  return Array.from(
-    {length: MULTI_TOOL_STEPS},
-    (_, index): ScriptedToolStep =>
-      index % 2 === 0
-        ? {name: 'Bash', input: {command: `probe step ${index}`}}
-        : {name: 'Read', input: {filePath: `step-${index}.tsx`}},
-  )
+  return Array.from({length: MULTI_TOOL_STEPS}, (_, index): ScriptedToolStep => multiToolStep(index))
 }
 
 function expectSmooth(watch: CalmWatch): void {
@@ -112,6 +131,7 @@ async function startHeldToolRun(config: {
   prompt: string
   pending: string
   settled: string
+  paceMs?: number
   allow?: Parameters<typeof createCalmWatch>[0]
 }): Promise<CalmWatch> {
   await coreControl.holdTools()
@@ -124,7 +144,7 @@ async function startHeldToolRun(config: {
   await coreControl.releaseTools()
   await expect.element(page.getByText(config.pending, {exact: true})).toBeVisible()
   await watch.checkpoint()
-  await coreControl.releaseResults()
+  await coreControl.releaseResults(config.paceMs ? {everyMs: config.paceMs} : undefined)
   await expect.element(page.getByText(config.settled, {exact: true})).toBeVisible()
   await watch.checkpoint()
   return watch
@@ -139,6 +159,7 @@ test('surface immortality and stillness across a multi-tool run [mechanism A: ca
     prompt: 'run twenty tools then answer',
     pending: 'probe step 0',
     settled: `step-${MULTI_TOOL_STEPS - 1}.tsx`,
+    paceMs: MULTI_TOOL_PACE_MS,
   })
   expectSmooth(watch)
   await page.screenshot({path: `${SHOTS}/multi-tool-mid-stream.png`})
@@ -366,6 +387,7 @@ test('a long thread at the virtualization boundary stays still while a run strea
     prompt: 'fill and save the form',
     pending: '1 action',
     settled: '2 actions',
+    paceMs: BOUNDARY_PACE_MS,
     allow: {allow: ['virtualization']},
   })
   expectSmooth(watch)
