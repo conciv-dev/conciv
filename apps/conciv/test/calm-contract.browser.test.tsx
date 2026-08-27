@@ -6,11 +6,13 @@ import {ChatPane} from '../src/pane/chat-pane.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, openTranscriptStream, sendTurn} from './helpers/core-session.js'
 import {mountPane, type PaneMount} from './helpers/pane-harness.js'
-import {createCalmWatch, type CalmWatch} from './helpers/calm-assertions.js'
+import {createCalmWatch, pinViewportToBottom, type CalmWatch} from './helpers/calm-assertions.js'
 import {forceReducedMotion} from './helpers/reduced-motion.js'
 
 const SHOTS = '__screenshots__/calm-contract'
 const SEEDED_EXCHANGES = 22
+const BOUNDARY_EXCHANGES = 24
+const VIEWPORT_HEIGHT_PX = 600
 
 const core = {base: ''}
 const active: {pane: PaneMount | null; watch: CalmWatch | null} = {pane: null, watch: null}
@@ -348,4 +350,32 @@ test.fails('a long thread at the virtualization boundary stays still while a run
   await watch.checkpoint()
   await page.screenshot({path: `${SHOTS}/virtualization-boundary.png`})
   expectCalm(watch)
+}, 120_000)
+
+test.fails('a thread crossing the virtualization threshold mid-run keeps its visible surfaces [mechanism D: flat/virtual mode swap, thread.tsx:315]', async () => {
+  const {rpc, sessionId} = await newSession()
+  await seedThread(rpc, sessionId, BOUNDARY_EXCHANGES)
+  await coreControl.scriptTurn({
+    toolCalls: [{name: 'Bash', input: {command: 'cross the boundary'}}],
+    text: 'Crossed the boundary.',
+  })
+  mountChatPane(sessionId)
+  await expect.element(page.getByText(`seeded exchange ${BOUNDARY_EXCHANGES - 1}`, {exact: true})).toBeVisible()
+  const restoreViewport = pinViewportToBottom(VIEWPORT_HEIGHT_PX)
+  try {
+    const watch = await startHeldToolRun({
+      prompt: 'push the thread past the boundary',
+      pending: 'cross the boundary',
+      settled: 'Crossed the boundary.',
+      allow: {allow: ['virtualization']},
+    })
+    await page.screenshot({path: `${SHOTS}/threshold-crossing.png`})
+    expectCalm(watch)
+
+    await coreControl.releaseTurn()
+    await watch.checkpoint()
+    expectCalm(watch)
+  } finally {
+    restoreViewport()
+  }
 }, 120_000)

@@ -56,6 +56,19 @@ function threadViewport(): HTMLElement {
   return viewport
 }
 
+export function pinViewportToBottom(pixels: number): () => void {
+  const viewport = threadViewport()
+  const height = viewport.style.height
+  const flex = viewport.style.flex
+  viewport.style.height = `${pixels}px`
+  viewport.style.flex = 'none'
+  viewport.scrollTop = viewport.scrollHeight
+  return () => {
+    viewport.style.height = height
+    viewport.style.flex = flex
+  }
+}
+
 function narrationLines(viewport: HTMLElement): Element[] {
   return [...viewport.querySelectorAll('[role="status"]')].filter((node) => node.closest('[data-pw-msg]') === null)
 }

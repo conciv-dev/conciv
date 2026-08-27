@@ -117,9 +117,10 @@ describe('makeScriptedRun', () => {
     const ids = scripted.scriptTurn({toolCalls: [{name: 'held_tool', input: {a: 1}}], text: 'done'})
     scripted.holdResults()
     const chunks: StreamChunk[] = []
-    const drained = (async () => {
+    const drain = async (): Promise<void> => {
       for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
-    })()
+    }
+    const drained = drain()
     await new Promise((r) => setTimeout(r, 30))
     expect(chunks.some((c) => c.type === EventType.TOOL_CALL_START && c.toolCallId === ids[0])).toBe(true)
     expect(chunks.some((c) => c.type === EventType.TOOL_CALL_RESULT)).toBe(false)
@@ -141,9 +142,10 @@ describe('makeScriptedRun', () => {
     })
     scripted.holdResults()
     const chunks: StreamChunk[] = []
-    const drained = (async () => {
+    const drain = async (): Promise<void> => {
       for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
-    })()
+    }
+    const drained = drain()
     await new Promise((r) => setTimeout(r, 30))
     expect(chunks.some((c) => c.type === EventType.CUSTOM && c.name === 'approval-requested')).toBe(true)
     expect(chunks.some((c) => c.type === EventType.TOOL_CALL_RESULT)).toBe(false)
