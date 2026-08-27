@@ -32,17 +32,33 @@ function seedTranscript(turns: number): UIMessage[] {
   )
 }
 
-function ReloadedThread(props: {initial: UIMessage[]}): JSX.Element {
+function ReloadedThread(props: {initial: UIMessage[]; ref?: (element: HTMLElement) => void}): JSX.Element {
   const chat = useChat({connection: storyConnection({chunks: []}), initialMessages: props.initial})
   return (
     <ChatProvider chat={chat}>
       <Thread class="h-150 w-100">
-        <Thread.Viewport>
+        <Thread.Viewport ref={props.ref}>
           <Thread.Messages turnPrefix={() => null} />
         </Thread.Viewport>
       </Thread>
     </ChatProvider>
   )
+}
+
+function mountReloadedThread(initial: UIMessage[]): () => HTMLElement {
+  let viewport: HTMLElement | undefined
+  mountView(() => (
+    <ReloadedThread
+      initial={initial}
+      ref={(element) => {
+        viewport = element
+      }}
+    />
+  ))
+  return () => {
+    if (!viewport) throw new Error('viewport not mounted')
+    return viewport
+  }
 }
 
 type TurnBox = {index: number; top: number; bottom: number}
@@ -76,9 +92,16 @@ function overlappingTurns(): string[] {
 }
 
 it('a fresh mount over a long transcript lays every turn out without overlap', async () => {
-  mountView(() => <ReloadedThread initial={seedTranscript(TURNS)} />)
+  mountReloadedThread(seedTranscript(TURNS))
 
   await expect.element(page.getByText(answerFor(TURNS - 1), {exact: false})).toBeVisible()
 
   expect(overlappingTurns()).toEqual([])
+})
+
+it('a fresh mount over a long transcript settles pinned to the latest turn', async () => {
+  const viewport = mountReloadedThread(seedTranscript(TURNS))
+
+  await expect.element(page.getByText(answerFor(TURNS - 1), {exact: false})).toBeVisible()
+  await expect.element(page.elementLocator(viewport())).toHaveAttribute('data-at-bottom')
 })
