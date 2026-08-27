@@ -37,8 +37,8 @@ export function imageRefs(images: HarnessImage[], cwd: string): string {
 }
 
 export function claudeExecutable(pluginDir: string | null): string {
-  const flags = ['exec', 'claude', '--strict-mcp-config']
-  if (pluginDir) flags.push('--plugin-dir', `'${pluginDir.replaceAll("'", `'\\''`)}'`)
+  const flags = ['claude', '--strict-mcp-config']
+  if (pluginDir) flags.push('--plugin-dir', pluginDir)
   return flags.join(' ')
 }
 

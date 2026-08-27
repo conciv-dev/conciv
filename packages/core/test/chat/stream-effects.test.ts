@@ -13,8 +13,6 @@ test('captures session-id custom events from any adapter', () => {
       name: adapter.name,
       value: {sessionId: adapter.token},
       timestamp: 1,
-      threadId: 't',
-      runId: 'r',
     }),
   )
   expect(named).toEqual(adapters.map((adapter) => adapter.token))
@@ -32,8 +30,6 @@ test('captures session-id custom events from any adapter', () => {
     name: 'file.changed',
     value: {sessionId: 'nope'},
     timestamp: 1,
-    threadId: 't',
-    runId: 'r',
   })
   expect(unrelated).toBeNull()
 })

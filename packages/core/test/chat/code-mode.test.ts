@@ -225,6 +225,19 @@ describe('code mode sandbox execution', () => {
   })
 })
 
+describe('snippet bindings', () => {
+  test('the dynamic getSnippetBindings hook is wired, not silently dropped by an option-name typo', async () => {
+    const zoomed = capability('canvas.zoom', {execute: async () => 'zoomed'})
+    const result = await runSandbox(
+      (await codeModeOf([zoomed], allowGate)).tools,
+      'return await external_canvas_zoom({})',
+    )
+    expect(result.error?.message).toBeUndefined()
+    expect(result.success).toBe(true)
+    expect(result.result).toBe('zoomed')
+  })
+})
+
 describe('catalog binding', () => {
   test('lists every capability with its callable sandbox name', async () => {
     const tools = await codeModeOf(
