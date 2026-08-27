@@ -3,7 +3,7 @@ const TRACE_LIST_SELECTOR = '[aria-label="Execution trace"]'
 const SURFACE_SELECTOR = [
   TRACE_LIST_SELECTOR,
   `${TRACE_LIST_SELECTOR} > li`,
-  '[data-pw-msg]',
+  '[data-conciv-msg]',
   '[role="group"]',
   '[role="alert"]',
 ].join(', ')
@@ -70,7 +70,7 @@ export function pinViewportToBottom(pixels: number): () => void {
 }
 
 function narrationLines(viewport: HTMLElement): Element[] {
-  return [...viewport.querySelectorAll('[role="status"]')].filter((node) => node.closest('[data-pw-msg]') === null)
+  return [...viewport.querySelectorAll('[role="status"]')].filter((node) => node.closest('[data-conciv-msg]') === null)
 }
 
 function liveRegionOf(viewport: HTMLElement): Element | undefined {

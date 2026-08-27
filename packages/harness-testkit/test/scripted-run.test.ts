@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
-import {makeScriptedRun} from '../src/scripted-run.js'
+import {makeScriptedRun, type ScriptedRun} from '../src/scripted-run.js'
 
 const deps = (): HarnessChatDeps => ({
   cwd: '.',
@@ -12,6 +12,14 @@ const deps = (): HarnessChatDeps => ({
   kind: 'chat',
   decide: async (): Promise<'allow' | 'deny'> => 'allow',
 })
+
+function drainInBackground(scripted: ScriptedRun): {chunks: StreamChunk[]; drained: Promise<void>} {
+  const chunks: StreamChunk[] = []
+  const drain = async (): Promise<void> => {
+    for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+  }
+  return {chunks, drained: drain()}
+}
 
 describe('makeScriptedRun', () => {
   it('emits a full lifecycle with a session-id custom event', async () => {
@@ -116,11 +124,7 @@ describe('makeScriptedRun', () => {
     const scripted = makeScriptedRun()
     const ids = scripted.scriptTurn({toolCalls: [{name: 'held_tool', input: {a: 1}}], text: 'done'})
     scripted.holdResults()
-    const chunks: StreamChunk[] = []
-    const drain = async (): Promise<void> => {
-      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
-    }
-    const drained = drain()
+    const {chunks, drained} = drainInBackground(scripted)
     await new Promise((r) => setTimeout(r, 30))
     expect(chunks.some((c) => c.type === EventType.TOOL_CALL_START && c.toolCallId === ids[0])).toBe(true)
     expect(chunks.some((c) => c.type === EventType.TOOL_CALL_RESULT)).toBe(false)
@@ -141,11 +145,7 @@ describe('makeScriptedRun', () => {
       approval: {id: 'ask-1', needsApproval: true},
     })
     scripted.holdResults()
-    const chunks: StreamChunk[] = []
-    const drain = async (): Promise<void> => {
-      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
-    }
-    const drained = drain()
+    const {chunks, drained} = drainInBackground(scripted)
     await new Promise((r) => setTimeout(r, 30))
     expect(chunks.some((c) => c.type === EventType.CUSTOM && c.name === 'approval-requested')).toBe(true)
     expect(chunks.some((c) => c.type === EventType.TOOL_CALL_RESULT)).toBe(false)
@@ -161,11 +161,7 @@ describe('makeScriptedRun', () => {
   it('holds the turn open until release()', async () => {
     const scripted = makeScriptedRun()
     scripted.hold()
-    const chunks: StreamChunk[] = []
-    const drain = async (): Promise<void> => {
-      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
-    }
-    const drained = drain()
+    const {chunks, drained} = drainInBackground(scripted)
     await new Promise((r) => setTimeout(r, 30))
     expect(chunks.some((c) => c.type === EventType.RUN_FINISHED)).toBe(false)
     scripted.release()
