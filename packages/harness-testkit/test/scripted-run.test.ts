@@ -112,6 +112,50 @@ describe('makeScriptedRun', () => {
     expect(startsIn(second)).toEqual(['second_tool'])
   })
 
+  it('holds every tool result until releaseResults(), leaving the tool call started and unresolved', async () => {
+    const scripted = makeScriptedRun()
+    const ids = scripted.scriptTurn({toolCalls: [{name: 'held_tool', input: {a: 1}}], text: 'done'})
+    scripted.holdResults()
+    const chunks: StreamChunk[] = []
+    const drained = (async () => {
+      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+    })()
+    await new Promise((r) => setTimeout(r, 30))
+    expect(chunks.some((c) => c.type === EventType.TOOL_CALL_START && c.toolCallId === ids[0])).toBe(true)
+    expect(chunks.some((c) => c.type === EventType.TOOL_CALL_RESULT)).toBe(false)
+    scripted.releaseResults()
+    await drained
+    const results = chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_RESULT ? [chunk.toolCallId] : []))
+    expect(results).toEqual(ids)
+    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+  })
+
+  it('emits a queued custom event while the tool call it names is still unresolved', async () => {
+    const scripted = makeScriptedRun()
+    const ids = scripted.scriptTurn({toolCalls: [{name: 'risky_tool', input: {command: 'rm -rf build'}}]})
+    scripted.scriptCustomEvent('approval-requested', {
+      toolCallId: ids[0],
+      toolName: 'risky_tool',
+      input: {command: 'rm -rf build'},
+      approval: {id: 'ask-1', needsApproval: true},
+    })
+    scripted.holdResults()
+    const chunks: StreamChunk[] = []
+    const drained = (async () => {
+      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+    })()
+    await new Promise((r) => setTimeout(r, 30))
+    expect(chunks.some((c) => c.type === EventType.CUSTOM && c.name === 'approval-requested')).toBe(true)
+    expect(chunks.some((c) => c.type === EventType.TOOL_CALL_RESULT)).toBe(false)
+    scripted.releaseResults()
+    await drained
+    const order = chunks.flatMap((chunk) => {
+      if (chunk.type === EventType.CUSTOM && chunk.name === 'approval-requested') return ['ask']
+      return chunk.type === EventType.TOOL_CALL_RESULT ? ['result'] : []
+    })
+    expect(order).toEqual(['ask', 'result'])
+  })
+
   it('holds the turn open until release()', async () => {
     const scripted = makeScriptedRun()
     scripted.hold()

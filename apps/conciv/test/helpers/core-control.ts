@@ -11,6 +11,8 @@ declare module 'vitest/internal/browser' {
     holdTurn: () => Promise<void>
     holdTools: () => Promise<void>
     releaseTools: () => Promise<void>
+    holdResults: () => Promise<void>
+    releaseResults: () => Promise<void>
     releaseTurn: () => Promise<void>
     scriptError: (message: string) => Promise<void>
     scriptTurn: (turn: ScriptedTurn) => Promise<string[]>

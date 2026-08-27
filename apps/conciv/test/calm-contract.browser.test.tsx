@@ -10,7 +10,7 @@ import {createCalmWatch, type CalmWatch} from './helpers/calm-assertions.js'
 import {forceReducedMotion} from './helpers/reduced-motion.js'
 
 const SHOTS = '__screenshots__/calm-contract'
-const SEEDED_EXCHANGES = 24
+const SEEDED_EXCHANGES = 22
 
 const core = {base: ''}
 const active: {pane: PaneMount | null; watch: CalmWatch | null} = {pane: null, watch: null}
@@ -28,6 +28,7 @@ afterEach(async () => {
   active.watch?.stop()
   active.watch = null
   await coreControl.releaseTools()
+  await coreControl.releaseResults()
   await coreControl.releaseTurn()
   active.pane?.dispose()
   active.pane = null
@@ -53,6 +54,7 @@ function watchCalm(allow: Parameters<typeof createCalmWatch>[0] = {}): CalmWatch
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
 const traceToggle = () => page.getByText(/^(Show|Hide) trace$/)
+const permissionRequest = () => page.getByRole('group', {name: 'Permission request'})
 
 async function promptWith(text: string): Promise<void> {
   await expect.element(input()).toBeVisible()
@@ -80,15 +82,24 @@ async function seedThread(rpc: RpcClient, sessionId: string, exchanges: number):
   }
 }
 
-async function startHeldToolRun(prompt: string, text: string): Promise<CalmWatch> {
+async function startHeldToolRun(config: {
+  prompt: string
+  pending: string
+  settled: string
+  allow?: Parameters<typeof createCalmWatch>[0]
+}): Promise<CalmWatch> {
   await coreControl.holdTools()
+  await coreControl.holdResults()
   await coreControl.holdTurn()
-  await promptWith(prompt)
+  await promptWith(config.prompt)
   await expect.element(stopButton()).toBeVisible()
-  const watch = watchCalm()
+  const watch = watchCalm(config.allow)
   await watch.checkpoint()
   await coreControl.releaseTools()
-  await expect.element(page.getByText(text)).toBeVisible()
+  await expect.element(page.getByText(config.pending, {exact: true})).toBeVisible()
+  await watch.checkpoint()
+  await coreControl.releaseResults()
+  await expect.element(page.getByText(config.settled, {exact: true})).toBeVisible()
   await watch.checkpoint()
   return watch
 }
@@ -105,7 +116,7 @@ test.fails('surface immortality and stillness across a multi-tool run [mechanism
   })
   mountChatPane(sessionId)
 
-  const watch = await startHeldToolRun('run three tools then answer', 'pwd')
+  const watch = await startHeldToolRun({prompt: 'run three tools then answer', pending: 'ls packages', settled: 'pwd'})
   await page.screenshot({path: `${SHOTS}/multi-tool-mid-stream.png`})
   expectCalm(watch)
 
@@ -124,24 +135,54 @@ test.fails('a second run leaves the first run untouched [mechanism B: wrong stre
   await promptWith('first question')
   await expect.element(page.getByText('First answer.')).toBeVisible()
 
-  await coreControl.scriptTurn({toolCalls: [{name: 'Read', input: {filePath: 'a.ts'}}], text: 'Second answer.'})
-  const watch = await startHeldToolRun('second question', 'a.ts')
+  await coreControl.scriptTurn({toolCalls: [{name: 'Read', input: {filePath: 'second.ts'}}], text: 'Second answer.'})
+  const watch = await startHeldToolRun({prompt: 'second question', pending: 'second.ts', settled: 'Second answer.'})
   await page.screenshot({path: `${SHOTS}/interleave-mid-stream.png`})
   expectCalm(watch)
 
   await coreControl.releaseTurn()
-  await expect.element(page.getByText('Second answer.')).toBeVisible()
   await watch.checkpoint()
+  expectCalm(watch)
+})
+
+test.fails('an approval pause and resume keeps every surface in place [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
+  const {sessionId} = await newSession()
+  const ids = await coreControl.scriptTurn({
+    toolCalls: [{name: 'Bash', input: {command: 'rm -rf build'}}],
+    text: 'Approved and finished.',
+  })
+  await coreControl.scriptCustomEvent('approval-requested', {
+    toolCallId: ids[0],
+    toolName: 'Bash',
+    input: {command: 'rm -rf build'},
+    approval: {id: 'calm-ask-1', needsApproval: true},
+  })
+  await coreControl.holdResults()
+  await coreControl.holdTurn()
+  mountChatPane(sessionId)
+
+  await promptWith('delete the build directory')
+  await expect.element(permissionRequest()).toBeVisible()
+  const watch = watchCalm()
+  await watch.checkpoint()
+  await page.screenshot({path: `${SHOTS}/approval-paused.png`})
+
+  await page.getByRole('button', {name: 'Approve'}).click()
+  await coreControl.releaseResults()
+  await coreControl.releaseTurn()
+  await expect.element(page.getByText('Approved and finished.')).toBeVisible()
+  await watch.checkpoint()
+  await page.screenshot({path: `${SHOTS}/approval-resumed.png`})
   expectCalm(watch)
 })
 
 test.fails('a run parked on an unresolved tool call settles in place when the next run starts [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
   const {sessionId} = await newSession()
-  await coreControl.scriptToolCall('Bash', {command: 'rm -rf build'})
+  await coreControl.scriptToolCall('Bash', {command: 'sleep forever'})
   mountChatPane(sessionId)
 
-  await promptWith('delete the build directory')
-  await expect.element(page.getByText('rm -rf build')).toBeVisible()
+  await promptWith('start something that never finishes')
+  await expect.element(page.getByText('sleep forever', {exact: true})).toBeVisible()
   const watch = watchCalm()
   await watch.checkpoint()
   await page.screenshot({path: `${SHOTS}/parked-on-tool-call.png`})
@@ -178,7 +219,11 @@ test.fails('cancelling a run settles every surface in place [mechanism B: wrong 
   await coreControl.scriptTurn({toolCalls: [{name: 'Bash', input: {command: 'ls'}}], text: 'partial answer'})
   mountChatPane(sessionId)
 
-  const watch = await startHeldToolRun('start something cancellable', 'partial answer')
+  const watch = await startHeldToolRun({
+    prompt: 'start something cancellable',
+    pending: 'ls',
+    settled: 'partial answer',
+  })
   await stopButton().click()
   await expect.element(page.getByRole('button', {name: 'Send message'})).toBeVisible()
   await watch.checkpoint()
@@ -188,8 +233,12 @@ test.fails('cancelling a run settles every surface in place [mechanism B: wrong 
 
 test.fails('a pane remounted mid-run rejoins without churning its surfaces [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
   const {rpc, sessionId} = await newSession()
-  await coreControl.scriptTurn({toolCalls: [{name: 'Bash', input: {command: 'ls'}}], text: 'Finished after reload.'})
+  await coreControl.scriptTurn({
+    toolCalls: [{name: 'Bash', input: {command: 'rejoin probe'}}],
+    text: 'Finished after reload.',
+  })
   await coreControl.holdTools()
+  await coreControl.holdResults()
   await coreControl.holdTurn()
   await sendTurn(rpc, sessionId, 'a turn started before the reload')
 
@@ -200,6 +249,10 @@ test.fails('a pane remounted mid-run rejoins without churning its surfaces [mech
   await watch.checkpoint()
 
   await coreControl.releaseTools()
+  await expect.element(page.getByText('rejoin probe', {exact: true})).toBeVisible()
+  await watch.checkpoint()
+
+  await coreControl.releaseResults()
   await coreControl.releaseTurn()
   await expect.element(page.getByText('Finished after reload.')).toBeVisible()
   await watch.checkpoint()
@@ -248,14 +301,14 @@ test.fails('a run under reduced motion stays as still as one with motion [mechan
     const {sessionId} = await newSession()
     await coreControl.scriptTurn({
       toolCalls: [
-        {name: 'Bash', input: {command: 'ls'}},
+        {name: 'Bash', input: {command: 'quiet probe'}},
         {name: 'Read', input: {filePath: 'calm.ts'}},
       ],
       text: 'Both steps are done.',
     })
     mountChatPane(sessionId)
 
-    const watch = await startHeldToolRun('run two tools quietly', 'calm.ts')
+    const watch = await startHeldToolRun({prompt: 'run two tools quietly', pending: 'quiet probe', settled: 'calm.ts'})
     expectCalm(watch)
 
     await coreControl.releaseTurn()
@@ -279,17 +332,17 @@ test.fails('a long thread at the virtualization boundary stays still while a run
     text: 'The long thread is done.',
   })
   mountChatPane(sessionId)
-  await expect.element(page.getByText(`seeded exchange ${SEEDED_EXCHANGES - 1}`)).toBeVisible()
-  await expect.element(page.getByText('seeded exchange 0')).toBeInTheDocument()
+  await expect.element(page.getByText(`seeded exchange ${SEEDED_EXCHANGES - 1}`, {exact: true})).toBeVisible()
+  await expect.element(page.getByText('seeded exchange 0', {exact: true})).toBeInTheDocument()
 
-  const watch = watchCalm({allow: ['virtualization']})
-  await coreControl.holdTools()
-  await coreControl.holdTurn()
-  await promptWith('fill and save the form')
-  await expect.element(stopButton()).toBeVisible()
-  await watch.checkpoint()
+  const watch = await startHeldToolRun({
+    prompt: 'fill and save the form',
+    pending: '1 action',
+    settled: '2 actions',
+    allow: {allow: ['virtualization']},
+  })
+  expectCalm(watch)
 
-  await coreControl.releaseTools()
   await coreControl.releaseTurn()
   await expect.element(page.getByText('The long thread is done.')).toBeVisible()
   await watch.checkpoint()

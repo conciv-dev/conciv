@@ -11,6 +11,8 @@ export type ScriptedRun = {
   release: () => void
   holdTools: () => void
   releaseTools: () => void
+  holdResults: () => void
+  releaseResults: () => void
   scriptToolCall: (name: string, input: unknown, opts?: {blocking?: boolean}) => string
   scriptTurn: (turn: ScriptedTurn) => string[]
   scriptCustomEvent: (name: string, value: unknown) => void
@@ -53,10 +55,17 @@ function* thinkingChunks(text: string | undefined): Generator<StreamChunk> {
   yield {type: EventType.REASONING_MESSAGE_END, messageId}
 }
 
-function* turnChunks(turn: QueuedTurn): Generator<StreamChunk> {
+async function* turnChunks(
+  turn: QueuedTurn,
+  results: Gate,
+  drainCustomEvents: () => Generator<StreamChunk>,
+): AsyncGenerator<StreamChunk> {
   for (const call of turn.toolCalls) {
     yield* requestChunks(call)
-    if (!turn.blocking) yield resultChunk(call.id, call.result)
+    yield* drainCustomEvents()
+    if (turn.blocking) continue
+    await results.wait()
+    yield resultChunk(call.id, call.result)
   }
 }
 
@@ -94,6 +103,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const defaultText = opts.text ?? 'ok'
   const gate = makeGate()
   const toolGate = makeGate()
+  const resultGate = makeGate()
   const turns = {count: 0}
   const toolCalls = {count: 0}
   const queuedTurns: QueuedTurn[] = []
@@ -120,6 +130,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const scriptError = (message: string) => {
     queuedErrors.push(message)
   }
+  const drainCustomEvents = () => customEventChunks(queuedCustomEvents.splice(0))
   const chatStream = async function* (deps: HarnessChatDeps): AsyncGenerator<StreamChunk> {
     turns.count += 1
     const messageId = `scripted-${turns.count}`
@@ -128,12 +139,12 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     const scriptedTurn = queuedTurns.shift()
     if (scriptedTurn) yield* thinkingChunks(scriptedTurn.thinking)
     await toolGate.wait()
-    if (scriptedTurn) yield* turnChunks(scriptedTurn)
+    if (scriptedTurn) yield* turnChunks(scriptedTurn, resultGate, drainCustomEvents)
     if (scriptedTurn?.blocking) {
       yield {type: EventType.RUN_FINISHED, ...THREAD, finishReason: 'tool_calls'}
       return
     }
-    yield* customEventChunks(queuedCustomEvents.splice(0))
+    yield* drainCustomEvents()
     yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: scriptedTurn?.text ?? defaultText}
     await gate.wait()
     const failure = queuedErrors.shift()
@@ -146,6 +157,8 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     release: gate.release,
     holdTools: toolGate.hold,
     releaseTools: toolGate.release,
+    holdResults: resultGate.hold,
+    releaseResults: resultGate.release,
     scriptToolCall,
     scriptTurn,
     scriptCustomEvent,
