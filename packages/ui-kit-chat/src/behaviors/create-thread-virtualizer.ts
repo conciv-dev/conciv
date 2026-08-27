@@ -90,6 +90,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
       if (count > 0) instance.scrollToIndex(count - 1, {align: 'end'})
     },
     remeasure: () => {
+      instance.measureElement(null)
       instance.measure()
       for (const element of instance.elementsCache.values()) {
         const index = instance.indexFromElement(element)
