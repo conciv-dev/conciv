@@ -11,9 +11,11 @@ export type SolidCodeBlockProps = {
 export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
   let instance: File<undefined> | null = null
   let primed = false
+  let renderedOptions: FileOptions<undefined> | undefined
 
   const setRef = (node: HTMLElement) => {
-    instance = new File(props.options, undefined, true)
+    renderedOptions = props.options
+    instance = new File(renderedOptions, undefined, true)
     void instance.hydrate({file: props.file, fileContainer: node})
     onCleanup(() => {
       instance?.cleanUp()
@@ -29,8 +31,10 @@ export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
       primed = true
       return
     }
+    const optionsChanged = options !== renderedOptions
+    renderedOptions = options
     if (options) instance.setOptions(options)
-    void instance.render({file, forceRender: true})
+    void instance.render({file, forceRender: optionsChanged})
   })
 
   return <diffs-container ref={(node) => setRef(node)} class={props.class} style={props.style} />

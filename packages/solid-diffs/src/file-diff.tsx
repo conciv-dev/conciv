@@ -12,9 +12,11 @@ export type SolidFileDiffProps = {
 export function SolidFileDiff(props: SolidFileDiffProps): JSX.Element {
   let instance: FileDiff<undefined> | null = null
   let primed = false
+  let renderedOptions: FileDiffOptions<undefined> | undefined
 
   const setRef = (node: HTMLElement) => {
-    instance = new FileDiff(props.options, undefined, true)
+    renderedOptions = props.options
+    instance = new FileDiff(renderedOptions, undefined, true)
     void instance.hydrate({oldFile: props.oldFile, newFile: props.newFile, fileContainer: node})
     onCleanup(() => {
       instance?.cleanUp()
@@ -31,8 +33,10 @@ export function SolidFileDiff(props: SolidFileDiffProps): JSX.Element {
       primed = true
       return
     }
+    const optionsChanged = options !== renderedOptions
+    renderedOptions = options
     if (options) instance.setOptions(options)
-    void instance.render({oldFile, newFile, forceRender: true})
+    void instance.render({oldFile, newFile, forceRender: optionsChanged})
   })
 
   return <diffs-container ref={(node) => setRef(node)} class={props.class} style={props.style} />

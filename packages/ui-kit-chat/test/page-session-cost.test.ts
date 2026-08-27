@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import type {MessagePart} from '@tanstack/ai-client'
-import {PAGE_SESSION_GROUP_KEY} from '../src/store/grouping.js'
+import {PAGE_SESSION_GROUP_KEY, type ToolCallPartWithParent} from '../src/store/grouping.js'
 import {createPageSessionGrouper} from '../src/store/page-session.js'
 
 const SMALL_UNITS = 200
@@ -11,18 +11,22 @@ const SAMPLES = 7
 
 const config = {actNames: new Set(['page.fill']), toolPrefix: 'page.'}
 
+function actChildOf(index: number): ToolCallPartWithParent {
+  return {
+    type: 'tool-call',
+    id: `c${index}`,
+    name: 'page.fill',
+    arguments: '{}',
+    state: 'complete',
+    metadata: {parentToolCallId: `p${index}`},
+  }
+}
+
 function unitParts(index: number): MessagePart[] {
   return [
     {type: 'tool-call', id: `p${index}`, name: 'execute_typescript', arguments: '{}', state: 'complete'},
     {type: 'tool-call', id: `b${index}`, name: 'grep', arguments: '{}', state: 'complete'},
-    {
-      type: 'tool-call',
-      id: `c${index}`,
-      name: 'page.fill',
-      arguments: '{}',
-      state: 'complete',
-      metadata: {parentToolCallId: `p${index}`},
-    },
+    actChildOf(index),
     {type: 'text', content: `reply ${index}`},
     {type: 'tool-call', id: `d${index}`, name: 'grep', arguments: '{}', state: 'complete'},
   ]
