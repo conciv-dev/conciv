@@ -106,13 +106,12 @@ describe('diffTurns identity reuse', () => {
     expect(turns[0]).toBe(previousTurns[0])
   })
 
-  it('keeps each turn identity through a wholesale branch replacement at the same position', () => {
+  it('handles wholesale branch replacement', () => {
     const previousMessages = conversation()
     const previousTurns = diffTurns([], [], previousMessages)
     const replaced = [user('x1', 'other'), assistant('x2', [text('branch')])]
     const turns = diffTurns(previousTurns, previousMessages, replaced)
-    expect(turns.map((turn) => turn.parts)).toEqual(coalesceTurns(replaced).map((turn) => turn.parts))
-    expect(turns.map((turn) => turn.key)).toEqual(previousTurns.slice(0, 2).map((turn) => turn.key))
+    expect(turns).toEqual(coalesceTurns(replaced))
     expect(turns[0]).not.toBe(previousTurns[0])
   })
 

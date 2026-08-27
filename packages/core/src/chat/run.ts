@@ -90,6 +90,7 @@ type RunRequest = {
   runId: string
   kind: TurnKind
   content: UserContent
+  messageId?: string
 }
 
 function userParts(content: UserContent): ContentPart[] {
@@ -401,7 +402,7 @@ async function* runStream(
   }
   try {
     const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, ingest, abort)
-    processor.addUserMessage(userParts(req.content))
+    processor.addUserMessage(userParts(req.content), req.messageId)
     await runLog.append([aguiSnapshotFor(await sessionSnapshot(deps, sessionId))]).catch(() => {})
     const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
     const bounded = boundFirstChunk(stream, timeoutMs, () => {
@@ -494,7 +495,7 @@ export async function expandUserParts(content: UserContent, expanders: Attachmen
   return expanded
 }
 
-export type Send = (sessionId: SessionId, runId: string, content: UserContent) => Promise<string>
+export type Send = (sessionId: SessionId, runId: string, content: UserContent, messageId?: string) => Promise<string>
 
 const RUN_ID_TAKEN_ERROR_NAME = 'RunIdTakenError'
 
@@ -527,7 +528,7 @@ async function failClaimedRun(deps: ChatDeps, runId: string, error: unknown): Pr
 }
 
 export function makeSend(deps: ChatDeps): Send {
-  return (sessionId, runId, content) =>
+  return (sessionId, runId, content, messageId) =>
     deps.liveRuns.serialize(sessionId, async () => {
       const startedAt = deps.claimStartedAt()
       const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
@@ -536,7 +537,7 @@ export function makeSend(deps: ChatDeps): Send {
         failClaimedRun(deps, runId, error),
       )
       await settleLiveRuns(deps, sessionId)
-      launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
+      launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded, messageId})
       publishRunLifecycle(deps, sessionId, record)
       await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
       return runId

@@ -9,7 +9,7 @@ export function chatRouter(deps: RpcDeps, sessionOs: SessionOs) {
     send: os.chat.send.handler(async ({input, errors}) => {
       const runId = await deps.runtime
         .forSession(input.sessionId)
-        .run.send(input.runId, input.content ?? input.text ?? '')
+        .run.send(input.runId, input.content ?? input.text ?? '', input.messageId)
         .catch((error: unknown) => {
           if (isRunIdTakenError(error)) {
             throw errors.RUN_ID_TAKEN({message: error.message, data: {runId: input.runId}})

@@ -122,7 +122,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       messages: () => sessionSnapshot(deps.chat, id),
     },
     run: {
-      send: (runId, content) => deps.send(id, runId, content),
+      send: (runId, content, messageId) => deps.send(id, runId, content, messageId),
       stop: () => stopSession(deps.chat, id),
       compact: () => deps.compactor.run(id),
       live: () => liveRuns.running(id),

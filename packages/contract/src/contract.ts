@@ -30,6 +30,7 @@ const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'obj
 const SessionIdInput = z.object({sessionId: SessionId})
 export const ChatSendInput = SessionIdInput.extend({
   runId: z.string().min(1),
+  messageId: z.string().min(1).optional(),
   text: z.string().min(1).optional(),
   content: z.union([z.string().min(1), z.array(ChatContentPartSchema).min(1).max(16)]).optional(),
 }).refine((input) => input.text !== undefined || input.content !== undefined)
