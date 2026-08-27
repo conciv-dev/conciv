@@ -11,7 +11,7 @@ export const TRACE_INDENT = 'ps-[var(--chat-trace-gutter)]'
 export const TRACE_HOVER_INDENT = '-mx-2 px-2 ps-[calc(var(--chat-trace-gutter)+0.5rem)]'
 
 const ROW = `${TRACE_LINE} ${TRACE_HOVER_INDENT}`
-const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-[var(--chat-radius-sm)] [background:transparent] [transition:background-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] ${FOCUS_INSET}`
+const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-[var(--chat-radius-sm)] [background:transparent] [transition:background-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:cursor-default disabled:hover:[background:transparent] ${FOCUS_INSET}`
 const MARK = 'select-none flex-none w-[9px] text-center text-[11px] leading-none [font-family:var(--chat-mono)]'
 const LABEL = `${TRACE_MICROLABEL} min-w-[38px] text-chat-microlabel`
 const RUN_LABEL = `${TRACE_MICROLABEL} min-w-[38px] text-chat-accent`
@@ -89,7 +89,7 @@ export function TraceFoldableRow(props: {
   return (
     <li class={ROW_ITEM} data-trace-live={local.ring ? '' : undefined}>
       <Collapsible.Root defaultOpen disabled={!foldable()} class="min-w-0 w-full">
-        <Collapsible.Trigger class={`${ROW}  ${FOLD_ROW}`}>
+        <Collapsible.Trigger disabled={!foldable()} class={`${ROW}  ${FOLD_ROW}`}>
           {local.line()}
           <Show when={foldable()} fallback={<span aria-hidden="true" class={FOLD_SLOT} />}>
             <FoldIndicator />

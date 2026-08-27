@@ -258,6 +258,12 @@ export function groupParts(
   return buildGroupTree(grouper(parts, context), parts.map(partIdOf))
 }
 
+export function lastGroupedIndex(nodes: readonly GroupNode[]): number {
+  const last = nodes.at(-1)
+  if (!last) return -1
+  return last.type === 'part' ? last.index : (last.indices.at(-1) ?? -1)
+}
+
 export function groupEntryFor(entries: ReadonlyArray<GroupEntry>, key: GroupKey): GroupEntry | undefined {
   return entries.find((entry) => entry.key === key)
 }

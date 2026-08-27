@@ -24,6 +24,7 @@ import {useMessage} from '../primitives/message/message-context.js'
 import {
   CHAIN_GROUP_KEY,
   groupParts,
+  lastGroupedIndex,
   type GroupEntry,
   type GroupKey,
   type GroupNode,
@@ -150,8 +151,12 @@ function AssistantTurn(props: {
     if (part.type === 'tool-call') return runningPart(index)
     return index === lastPartIndex()
   }
+  const lastGroupedPartIndex = createMemo(() => lastGroupedIndex(nodes()))
+  const groupStillOpen = (node: GroupNodeGroup): boolean => (node.indices.at(-1) ?? -1) === lastGroupedPartIndex()
   const nodeLive = (node: GroupNode): boolean =>
-    node.type === 'part' ? partLive(node.index) : node.indices.some(partLive)
+    node.type === 'part'
+      ? partLive(node.index)
+      : node.indices.some(partLive) || (runActive() && groupStillOpen(node))
   const folded = () => !message.isLast()
   const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => {
     const segmentParts = createMemo<MessagePart[]>(() =>
