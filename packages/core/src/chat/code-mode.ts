@@ -316,7 +316,7 @@ export async function makeCodeMode(
     tools: [catalogTool(() => bindCapabilities(capabilities(), sessionId, request, gate, listening))],
     timeout: options.timeoutMs ?? CODE_MODE_TIMEOUT_MS,
     onSecretParameter: 'throw',
-    getSkillBindings: async () => {
+    getSnippetBindings: async () => {
       const bound = bindCapabilities(capabilities(), sessionId, request, gate, listening)
       return Object.fromEntries(bound.map((entry) => [entry.binding.name, entry.binding]))
     },

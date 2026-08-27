@@ -4,11 +4,13 @@ import {eq} from 'drizzle-orm'
 import {
   chat,
   EventType,
+  fromSpecTokenUsage,
   RUN_ACCEPTED_EVENT,
   StreamProcessor,
   type AnyTool,
   type ContentPart,
   type ModelMessage,
+  type SpecTokenUsage,
   type StreamChunk,
   type TokenUsage,
   type UIMessage,
@@ -247,9 +249,15 @@ function noteToolCall(deps: ChatDeps, sessionId: SessionId, chunk: StreamChunk):
   deps.asks.noteToolCall(sessionId, chunk.toolCallId, name)
 }
 
+function tokenUsageOf(usage: TokenUsage | SpecTokenUsage[] | undefined): TokenUsage | undefined {
+  return Array.isArray(usage) ? fromSpecTokenUsage(usage) : usage
+}
+
 function noteUsage(deps: ChatDeps, model: string | null, chunk: StreamChunk, outcome: RunOutcome): void {
-  if (chunk.type !== EventType.RUN_FINISHED || chunk.finishReason === 'tool_calls' || !chunk.usage) return
-  outcome.usage = usageSnapshotFor(deps, model ?? deps.harness.defaultModel ?? null, chunk.usage)
+  if (chunk.type !== EventType.RUN_FINISHED || chunk.finishReason === 'tool_calls') return
+  const usage = tokenUsageOf(chunk.usage)
+  if (!usage) return
+  outcome.usage = usageSnapshotFor(deps, model ?? deps.harness.defaultModel ?? null, usage)
 }
 
 type ChunkFold = {deps: ChatDeps; sessionId: SessionId; model: string | null; processor: StreamProcessor}
