@@ -11,6 +11,10 @@ import {createCalmWatch, pinViewportToBottom, type CalmWatch} from './helpers/ca
 import {forceReducedMotion} from './helpers/reduced-motion.js'
 
 const SHOTS = '__screenshots__/calm-contract'
+const MULTI_TOOL_STEPS = 20
+const FRAME_P95_BUDGET_MS = 20
+const FRAME_JANK_BUDGET = 2
+const MIN_SAMPLED_FRAMES = 10
 const SEEDED_EXCHANGES = Math.floor((VIRTUALIZE_THRESHOLD - 4) / 2)
 const BOUNDARY_EXCHANGES = Math.floor(VIRTUALIZE_THRESHOLD / 2)
 const VIEWPORT_HEIGHT_PX = 600
@@ -66,6 +70,21 @@ async function promptWith(text: string): Promise<void> {
   await expect.element(page.getByText(text)).toBeVisible()
 }
 
+function multiToolSteps(): Array<{name: string; input: Record<string, string>}> {
+  return Array.from({length: MULTI_TOOL_STEPS}, (_, index) =>
+    index % 2 === 0
+      ? {name: 'Bash', input: {command: `probe step ${index}`}}
+      : {name: 'Read', input: {filePath: `step-${index}.tsx`}},
+  )
+}
+
+function expectSmooth(watch: CalmWatch): void {
+  const gaps = watch.frameGaps()
+  expect(gaps.frames).toBeGreaterThanOrEqual(MIN_SAMPLED_FRAMES)
+  expect(gaps.p95).toBeLessThanOrEqual(FRAME_P95_BUDGET_MS)
+  expect(gaps.over33).toBeLessThanOrEqual(FRAME_JANK_BUDGET)
+}
+
 function expectCalm(watch: CalmWatch): void {
   expect(watch.removed()).toEqual([])
   expect(watch.drifted()).toEqual([])
@@ -109,22 +128,20 @@ async function startHeldToolRun(config: {
 
 test('surface immortality and stillness across a multi-tool run [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
   const {sessionId} = await newSession()
-  await coreControl.scriptTurn({
-    toolCalls: [
-      {name: 'Bash', input: {command: 'ls packages'}},
-      {name: 'Read', input: {filePath: 'thread.tsx'}},
-      {name: 'Bash', input: {command: 'pwd'}},
-    ],
-    text: 'All three steps are done.',
-  })
+  await coreControl.scriptTurn({toolCalls: multiToolSteps(), text: 'All twenty steps are done.'})
   mountChatPane(sessionId)
 
-  const watch = await startHeldToolRun({prompt: 'run three tools then answer', pending: 'ls packages', settled: 'pwd'})
+  const watch = await startHeldToolRun({
+    prompt: 'run twenty tools then answer',
+    pending: 'probe step 0',
+    settled: `step-${MULTI_TOOL_STEPS - 1}.tsx`,
+  })
+  expectSmooth(watch)
   await page.screenshot({path: `${SHOTS}/multi-tool-mid-stream.png`})
   expectCalm(watch)
 
   await coreControl.releaseTurn()
-  await expect.element(page.getByText('All three steps are done.')).toBeVisible()
+  await expect.element(page.getByText('All twenty steps are done.')).toBeVisible()
   await watch.checkpoint()
   await page.screenshot({path: `${SHOTS}/multi-tool-settled.png`})
   expectCalm(watch)
@@ -347,6 +364,7 @@ test('a long thread at the virtualization boundary stays still while a run strea
     settled: '2 actions',
     allow: {allow: ['virtualization']},
   })
+  expectSmooth(watch)
   expectCalm(watch)
 
   await coreControl.releaseTurn()

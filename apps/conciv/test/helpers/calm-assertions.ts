@@ -11,6 +11,7 @@ const STAMP_ATTRIBUTE = 'data-calm-surface'
 const TOLERANCE_PX = 1
 const DESCRIPTION_LENGTH = 44
 const SETTLE_PASSES = 3
+const JANK_FRAME_MS = 33
 
 export type CalmAllowance = 'narration' | 'virtualization' | 'error-replacement' | 'user-collapsed-trace'
 
@@ -20,14 +21,19 @@ type CalmDrift = CalmSurface & {deltaBlock: number; deltaInline: number}
 
 export type CalmCheckpoint = {rebaseline?: boolean}
 
+export type FrameGaps = {frames: number; p50: number; p95: number; max: number; over33: number}
+
 export type CalmWatch = {
   checkpoint: (options?: CalmCheckpoint) => Promise<void>
   removed: () => string[]
   drifted: () => string[]
   shiftedAboveLiveRegion: () => string[]
   narrationGlyphs: () => number
+  frameGaps: () => FrameGaps
   stop: () => void
 }
+
+type FrameGapSampler = {gaps: () => FrameGaps; pause: () => void; resume: () => void}
 
 type Anchor = {block: number; inline: number}
 
@@ -153,6 +159,43 @@ function isPermitted(entry: Tracked, allowed: ReadonlySet<CalmAllowance>): boole
   return false
 }
 
+function percentileOf(sorted: ReadonlyArray<number>, fraction: number): number {
+  if (sorted.length === 0) return 0
+  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))] ?? 0
+}
+
+function tenths(value: number): number {
+  return Math.round(value * 10) / 10
+}
+
+function summariseGaps(gaps: ReadonlyArray<number>): FrameGaps {
+  const sorted = gaps.toSorted((left, right) => left - right)
+  return {
+    frames: gaps.length,
+    p50: tenths(percentileOf(sorted, 0.5)),
+    p95: tenths(percentileOf(sorted, 0.95)),
+    max: tenths(sorted.at(-1) ?? 0),
+    over33: gaps.filter((gap) => gap > JANK_FRAME_MS).length,
+  }
+}
+
+function startFrameGapSampler(): FrameGapSampler {
+  const gaps: number[] = []
+  let previous = performance.now()
+  let handle = 0
+  const tick = (now: number): void => {
+    gaps.push(now - previous)
+    previous = now
+    handle = requestAnimationFrame(tick)
+  }
+  const resume = (): void => {
+    previous = performance.now()
+    handle = requestAnimationFrame(tick)
+  }
+  resume()
+  return {gaps: () => summariseGaps(gaps), pause: () => cancelAnimationFrame(handle), resume}
+}
+
 export function createCalmWatch(options: {allow?: ReadonlyArray<CalmAllowance>} = {}): CalmWatch {
   const allowed = new Set<CalmAllowance>(options.allow ?? [])
   const tracked = new Map<string, Tracked>()
@@ -173,6 +216,7 @@ export function createCalmWatch(options: {allow?: ReadonlyArray<CalmAllowance>} 
   }
   const observer = new PerformanceObserver((list) => collect(list.getEntries()))
   observer.observe({type: 'layout-shift', buffered: true})
+  const sampler = startFrameGapSampler()
   const resample = (viewport: HTMLElement) => {
     for (const entry of tracked.values()) {
       if (entry.gone) continue
@@ -210,18 +254,23 @@ export function createCalmWatch(options: {allow?: ReadonlyArray<CalmAllowance>} 
   }
   return {
     checkpoint: async (options: CalmCheckpoint = {}) => {
-      const viewport = threadViewport()
-      await settleMotion(viewport)
-      resample(viewport)
-      adopt(viewport, liveRegionOf(viewport))
-      if (options.rebaseline !== true) return
-      await drainShifts()
-      resample(viewport)
-      for (const [stamp, entry] of tracked) {
-        if (entry.gone) tracked.delete(stamp)
-        entry.origin = entry.latest
+      sampler.pause()
+      try {
+        const viewport = threadViewport()
+        await settleMotion(viewport)
+        resample(viewport)
+        adopt(viewport, liveRegionOf(viewport))
+        if (options.rebaseline !== true) return
+        await drainShifts()
+        resample(viewport)
+        for (const [stamp, entry] of tracked) {
+          if (entry.gone) tracked.delete(stamp)
+          entry.origin = entry.latest
+        }
+        shifted.clear()
+      } finally {
+        sampler.resume()
       }
-      shifted.clear()
     },
     removed: () =>
       [...tracked.values()]
@@ -235,6 +284,10 @@ export function createCalmWatch(options: {allow?: ReadonlyArray<CalmAllowance>} 
         .map(driftLine),
     shiftedAboveLiveRegion: () => [...shifted].toSorted(),
     narrationGlyphs: () => narrationLines(threadViewport()).length,
-    stop: () => observer.disconnect(),
+    frameGaps: sampler.gaps,
+    stop: () => {
+      sampler.pause()
+      observer.disconnect()
+    },
   }
 }
