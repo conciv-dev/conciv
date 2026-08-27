@@ -31,9 +31,25 @@ function drainResultTimes(scripted: ScriptedRun): {times: number[]; drained: Pro
   return {times, drained: drain()}
 }
 
+function drainTextDeltas(scripted: ScriptedRun): {deltas: string[]; times: number[]; drained: Promise<void>} {
+  const deltas: string[] = []
+  const times: number[] = []
+  const drain = async (): Promise<void> => {
+    for await (const chunk of scripted.chatStream(deps())) {
+      if (chunk.type !== EventType.TEXT_MESSAGE_CONTENT) continue
+      deltas.push(chunk.delta)
+      times.push(performance.now())
+    }
+  }
+  return {deltas, times, drained: drain()}
+}
+
 const PACED_STEPS = 4
 const PACE_MS = 40
 const PACE_TOLERANCE = 0.8
+const TEXT_CHUNK_SIZE = 8
+const PACED_TEXT = 'abcdefghijklmnopqrstuvwxyz0123456789'
+const PACED_TEXT_SLICES = Math.ceil(PACED_TEXT.length / TEXT_CHUNK_SIZE)
 
 describe('makeScriptedRun', () => {
   it('emits a full lifecycle with a session-id custom event', async () => {
@@ -164,6 +180,29 @@ describe('makeScriptedRun', () => {
     expect(times.length).toBe(ids.length)
     const span = (times.at(-1) ?? 0) - (times.at(0) ?? 0)
     expect(span).toBeGreaterThanOrEqual(PACE_MS * (PACED_STEPS - 1) * PACE_TOLERANCE)
+  })
+
+  it('streams a paced turn text as several deltas spaced by everyMs instead of one delta', async () => {
+    const scripted = makeScriptedRun()
+    scripted.scriptTurn({
+      toolCalls: [],
+      text: PACED_TEXT,
+      textPace: {chunk: TEXT_CHUNK_SIZE, everyMs: PACE_MS},
+    })
+    const {deltas, times, drained} = drainTextDeltas(scripted)
+    await drained
+    expect(deltas.length).toBe(PACED_TEXT_SLICES)
+    expect(deltas.join('')).toBe(PACED_TEXT)
+    const span = (times.at(-1) ?? 0) - (times.at(0) ?? 0)
+    expect(span).toBeGreaterThanOrEqual(PACE_MS * (PACED_TEXT_SLICES - 1) * PACE_TOLERANCE)
+  })
+
+  it('streams an unpaced turn text as one delta', async () => {
+    const scripted = makeScriptedRun()
+    scripted.scriptTurn({toolCalls: [], text: PACED_TEXT})
+    const {deltas, drained} = drainTextDeltas(scripted)
+    await drained
+    expect(deltas).toEqual([PACED_TEXT])
   })
 
   it('emits a queued custom event while the tool call it names is still unresolved', async () => {

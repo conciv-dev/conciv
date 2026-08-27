@@ -3,7 +3,14 @@ import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 
 export type ScriptedTurnToolCall = {name: string; input: unknown; result?: unknown}
 
-export type ScriptedTurn = {toolCalls: ScriptedTurnToolCall[]; text?: string; thinking?: string}
+export type PacedText = {chunk: number; everyMs: number}
+
+export type ScriptedTurn = {
+  toolCalls: ScriptedTurnToolCall[]
+  text?: string
+  thinking?: string
+  textPace?: PacedText
+}
 
 export type PacedRelease = {everyMs: number}
 
@@ -23,7 +30,13 @@ export type ScriptedRun = {
 
 type QueuedToolCall = {id: string; name: string; input: unknown; result: unknown}
 
-type QueuedTurn = {toolCalls: QueuedToolCall[]; text?: string; thinking?: string; blocking: boolean}
+type QueuedTurn = {
+  toolCalls: QueuedToolCall[]
+  text?: string
+  thinking?: string
+  textPace?: PacedText
+  blocking: boolean
+}
 
 const THREAD = {threadId: 'scripted', runId: 'scripted'} as const
 
@@ -55,6 +68,26 @@ function* thinkingChunks(text: string | undefined): Generator<StreamChunk> {
   yield {type: EventType.REASONING_MESSAGE_START, messageId, role: 'reasoning'}
   yield {type: EventType.REASONING_MESSAGE_CONTENT, messageId, delta: text}
   yield {type: EventType.REASONING_MESSAGE_END, messageId}
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds)
+  })
+}
+
+function textSlices(text: string, pace: PacedText | undefined): string[] {
+  if (!pace || pace.chunk <= 0 || text.length <= pace.chunk) return [text]
+  const count = Math.ceil(text.length / pace.chunk)
+  return Array.from({length: count}, (_, index) => text.slice(index * pace.chunk, (index + 1) * pace.chunk))
+}
+
+async function* textChunks(text: string, pace: PacedText | undefined, messageId: string): AsyncGenerator<StreamChunk> {
+  const slices = textSlices(text, pace)
+  for (const [index, delta] of slices.entries()) {
+    if (index > 0 && pace) await delay(pace.everyMs)
+    yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta}
+  }
 }
 
 async function* turnChunks(
@@ -148,7 +181,13 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
       toolCalls.count += 1
       return {id: `tc-${toolCalls.count}`, name: call.name, input: call.input, result: scriptedResult(call)}
     })
-    queuedTurns.push({toolCalls: calls, text: turn.text, thinking: turn.thinking, blocking: false})
+    queuedTurns.push({
+      toolCalls: calls,
+      text: turn.text,
+      thinking: turn.thinking,
+      textPace: turn.textPace,
+      blocking: false,
+    })
     return calls.map((call) => call.id)
   }
   const scriptCustomEvent = (name: string, value: unknown) => {
@@ -172,7 +211,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
       return
     }
     yield* drainCustomEvents()
-    yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: scriptedTurn?.text ?? defaultText}
+    yield* textChunks(scriptedTurn?.text ?? defaultText, scriptedTurn?.textPace, messageId)
     await gate.wait()
     const failure = queuedErrors.shift()
     if (failure) throw new Error(failure)

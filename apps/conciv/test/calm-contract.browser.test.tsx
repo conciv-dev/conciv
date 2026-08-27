@@ -30,6 +30,10 @@ const DIFF_AFTER = [
   '  return items.reduce((sum, item) => sum + item.price * item.quantity, 0)',
   '}',
 ].join('\n')
+const STREAMED_CODE_LINES = 40
+const STREAMED_TEXT_CHUNK = 56
+const STREAMED_TEXT_PACE_MS = 30
+const STREAMED_CODE_CLOSING = 'That is the whole helper.'
 const SEEDED_EXCHANGES = Math.floor((VIRTUALIZE_THRESHOLD - 4) / 2)
 const BOUNDARY_EXCHANGES = Math.floor(VIRTUALIZE_THRESHOLD / 2)
 const VIEWPORT_HEIGHT_PX = 600
@@ -99,6 +103,25 @@ function multiToolStep(index: number): ScriptedToolStep {
 
 function multiToolSteps(): ScriptedToolStep[] {
   return Array.from({length: MULTI_TOOL_STEPS}, (_, index): ScriptedToolStep => multiToolStep(index))
+}
+
+function streamedCodeLine(index: number): string {
+  return `  const step${index} = await resolve(input.steps[${index}], {retries: ${index % 4}})`
+}
+
+function streamedCodeAnswer(): string {
+  return [
+    'Here is the helper you asked for.',
+    '',
+    '```ts',
+    'export async function resolveEveryStep(input: PipelineInput): Promise<StepResult[]> {',
+    ...Array.from({length: STREAMED_CODE_LINES}, (_, index) => streamedCodeLine(index)),
+    '  return [step0]',
+    '}',
+    '```',
+    '',
+    STREAMED_CODE_CLOSING,
+  ].join('\n')
 }
 
 function expectSmooth(watch: CalmWatch): void {
@@ -426,4 +449,27 @@ test('a thread crossing the virtualization threshold mid-run keeps its visible s
   } finally {
     restoreViewport()
   }
+}, 120_000)
+
+test('a streamed code block stays calm and cheap [mechanism D: per-chunk re-tokenisation, render-sync.ts:19-24]', async () => {
+  const {sessionId} = await newSession()
+  await coreControl.scriptTurn({
+    toolCalls: [],
+    text: streamedCodeAnswer(),
+    textPace: {chunk: STREAMED_TEXT_CHUNK, everyMs: STREAMED_TEXT_PACE_MS},
+  })
+  mountChatPane(sessionId)
+
+  await coreControl.holdTools()
+  await promptWith('write the helper that resolves every step')
+  await expect.element(stopButton()).toBeVisible()
+  const watch = watchCalm()
+  await watch.checkpoint({rebaseline: true})
+
+  await coreControl.releaseTools()
+  await expect.element(page.getByText(STREAMED_CODE_CLOSING, {exact: true})).toBeVisible()
+  await watch.checkpoint()
+  expectSmooth(watch)
+  await page.screenshot({path: `${SHOTS}/streamed-code-block.png`})
+  expectCalm(watch)
 }, 120_000)
