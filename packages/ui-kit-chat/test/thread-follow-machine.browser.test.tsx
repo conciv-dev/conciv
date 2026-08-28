@@ -77,6 +77,12 @@ function distanceFromEnd(viewport: HTMLElement): number {
   return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
 }
 
+function virtualSpacer(viewport: HTMLElement): HTMLElement {
+  const spacer = viewport.firstElementChild
+  if (!(spacer instanceof HTMLElement)) throw new Error('expected the virtual spacer')
+  return spacer
+}
+
 function turnElement(viewport: HTMLElement, id: string): HTMLElement {
   const found = viewport.querySelector(`[data-message-id="${id}"]`)
   if (!(found instanceof HTMLElement)) throw new Error(`expected the turn ${id} to be mounted`)
@@ -112,9 +118,11 @@ it('holds the reading position when turns are appended while scrolled up', async
   await expect.element(page.elementLocator(viewport)).not.toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('Latest')).toBeVisible()
 
+  const spacer = virtualSpacer(viewport)
+  const sizedBefore = spacer.getAttribute('style') ?? ''
   const before = viewport.scrollTop
   thread.chat().setMessages([...seed(TURN_COUNT), ...seed(TURN_COUNT + 3).slice(TURN_COUNT * 2)])
-  await expect.element(page.getByText(`tail marker ${TURN_COUNT + 2}`).first()).toBeInTheDocument()
+  await expect.element(page.elementLocator(spacer)).not.toHaveAttribute('style', sizedBefore)
 
   expect(Math.abs(viewport.scrollTop - before)).toBeLessThanOrEqual(1)
   await expect.element(page.getByText('Latest')).toBeVisible()

@@ -3692,9 +3692,6 @@ importers:
       '@solid-primitives/resize-observer':
         specifier: ^2.2.0
         version: 2.2.0(solid-js@1.9.14)
-      '@solid-primitives/timer':
-        specifier: ^1.4.4
-        version: 1.4.4(solid-js@1.9.14)
     devDependencies:
       '@conciv/vitest-config':
         specifier: workspace:*

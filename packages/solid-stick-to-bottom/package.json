@@ -40,8 +40,7 @@
   "dependencies": {
     "@solid-primitives/event-listener": "^2.4.6",
     "@solid-primitives/mutation-observer": "^1.2.4",
-    "@solid-primitives/resize-observer": "^2.2.0",
-    "@solid-primitives/timer": "^1.4.4"
+    "@solid-primitives/resize-observer": "^2.2.0"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
