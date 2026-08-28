@@ -1,7 +1,6 @@
-import {createSignal, untrack, type JSX} from 'solid-js'
+import {untrack, type JSX} from 'solid-js'
 import {CollapsibleCard} from '../tools/styled/collapsible-card.js'
 import {createSettleFold} from '../primitives/util/create-settle-fold.js'
-import {createStickToBottom} from '@conciv/solid-stick-to-bottom'
 import {SHIMMER} from './shimmer.js'
 
 export type ReasoningProps = {
@@ -12,7 +11,7 @@ export type ReasoningProps = {
 }
 
 const PREVIEW =
-  'max-h-64 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_1.5rem,black_calc(100%-1.5rem),transparent)]'
+  'max-h-64 overflow-y-auto flex flex-col-reverse [mask-image:linear-gradient(to_bottom,transparent,black_1.5rem,black_calc(100%-1.5rem),transparent)]'
 
 export function ReasoningText(props: {text: string}): JSX.Element {
   return <div class="text-chat-text leading-[1.45] whitespace-pre-wrap">{props.text}</div>
@@ -24,9 +23,7 @@ export function Reasoning(props: ReasoningProps): JSX.Element {
     revealed: () => bornStreaming || Boolean(props.streaming),
     defaultOpen: props.defaultOpen,
   })
-  const [scroller, setScroller] = createSignal<HTMLDivElement>()
   const capped = () => !props.grow
-  createStickToBottom(scroller, {follow: () => capped() && Boolean(props.streaming)})
   return (
     <CollapsibleCard
       open={collapse.open()}
@@ -37,7 +34,7 @@ export function Reasoning(props: ReasoningProps): JSX.Element {
         </span>
       }
     >
-      <div ref={setScroller} class={capped() ? PREVIEW : ''}>
+      <div class={capped() ? PREVIEW : ''}>
         <ReasoningText text={props.text} />
       </div>
     </CollapsibleCard>
