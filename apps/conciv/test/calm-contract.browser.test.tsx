@@ -9,6 +9,7 @@ import {mountPane, type PaneMount} from './helpers/pane-harness.js'
 import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
 import {createCalmWatch, pinViewportToBottom, type CalmWatch} from './helpers/calm-assertions.js'
 import {forceReducedMotion} from './helpers/reduced-motion.js'
+import {watchTextGrowth} from './helpers/growth-watch.js'
 
 const SHOTS = '__screenshots__/calm-contract'
 const MULTI_TOOL_STEPS = 20
@@ -34,6 +35,7 @@ const STREAMED_CODE_LINES = 40
 const STREAMED_TEXT_CHUNK = 56
 const STREAMED_TEXT_PACE_MS = 30
 const STREAMED_CODE_CLOSING = 'That is the whole helper.'
+const MIN_CODE_GROWTH_STEPS = 10
 const SEEDED_EXCHANGES = Math.floor((VIRTUALIZE_THRESHOLD - 4) / 2)
 const BOUNDARY_EXCHANGES = Math.floor(VIRTUALIZE_THRESHOLD / 2)
 const VIEWPORT_HEIGHT_PX = 600
@@ -488,4 +490,27 @@ test('a streamed code block stays calm and cheap [mechanism D: per-chunk re-toke
   expectSmooth(watch)
   await page.screenshot({path: `${SHOTS}/streamed-code-block.png`})
   expectCalm(watch)
+}, 120_000)
+
+test('a streamed code block grows on screen while it streams [mechanism D: render suppressed until settle]', async () => {
+  const {sessionId} = await newSession()
+  await coreControl.scriptTurn({
+    toolCalls: [],
+    text: streamedCodeAnswer(),
+    textPace: {chunk: STREAMED_TEXT_CHUNK, everyMs: STREAMED_TEXT_PACE_MS},
+  })
+  mountChatPane(sessionId)
+
+  await coreControl.holdTools()
+  await promptWith('write the helper that resolves every step')
+  await expect.element(stopButton()).toBeVisible()
+  const growth = watchTextGrowth(() => [...document.querySelectorAll('.prose-chat pre')].at(-1) ?? null)
+
+  await coreControl.releaseTools()
+  await expect.element(page.getByText(STREAMED_CODE_CLOSING, {exact: true})).toBeVisible()
+  growth.stop()
+
+  const lengths = growth.lengths()
+  expect(lengths.toSorted((left, right) => left - right)).toEqual(lengths)
+  expect(lengths.length).toBeGreaterThanOrEqual(MIN_CODE_GROWTH_STEPS)
 }, 120_000)
