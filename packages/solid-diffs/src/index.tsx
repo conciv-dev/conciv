@@ -1,5 +1,6 @@
 export {SolidFileDiff, type SolidFileDiffProps} from './file-diff.js'
 export {SolidCodeBlock, type SolidCodeBlockProps} from './code-block.js'
 export {SolidPatchDiff, type SolidPatchDiffProps} from './patch-diff.js'
+export {primeHighlightWorkerPool, type DiffsRenderOptions} from './worker-pool.js'
 export {registerCustomTheme} from '@pierre/diffs'
 export type {CustomThemeLoader, FileContents, FileDiffOptions, FileOptions} from '@pierre/diffs'

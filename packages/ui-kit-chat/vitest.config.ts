@@ -4,6 +4,8 @@ import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
+const DIFFS_ENTRIES = ['@pierre/diffs', '@pierre/diffs/worker']
+
 const HIGHLIGHT_WORKER_LANGUAGES = [
   '@shikijs/langs-precompiled/typescript',
   '@shikijs/langs-precompiled/tsx',
@@ -35,7 +37,7 @@ export default defineConfig({
       {
         extends: true,
         plugins: [solidPlugin(), UnoCSS({content: {filesystem: ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx}']}})],
-        optimizeDeps: browserOptimizeDeps(HIGHLIGHT_WORKER_LANGUAGES),
+        optimizeDeps: browserOptimizeDeps([...DIFFS_ENTRIES, ...HIGHLIGHT_WORKER_LANGUAGES]),
         test: {
           ...ciTestSolidBrowser(),
           name: 'ui-kit-chat-browser',

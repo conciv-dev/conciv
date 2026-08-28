@@ -1,6 +1,7 @@
 import {createMemo, onCleanup, type JSX} from 'solid-js'
 import {FileDiff, getSingularPatch, type FileDiffOptions} from '@pierre/diffs'
 import {syncRender} from './render-sync.js'
+import {highlightWorkerPool} from './worker-pool.js'
 
 export type SolidPatchDiffProps = {
   patch: string
@@ -14,7 +15,7 @@ export function SolidPatchDiff(props: SolidPatchDiffProps): JSX.Element {
   const singularPatch = createMemo(() => getSingularPatch(props.patch))
 
   const setRef = (node: HTMLElement) => {
-    instance = new FileDiff(props.options, undefined, true)
+    instance = new FileDiff(props.options, highlightWorkerPool(props.options), true)
     void instance.hydrate({fileDiff: singularPatch(), fileContainer: node})
     onCleanup(() => {
       instance?.cleanUp()

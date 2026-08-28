@@ -1,6 +1,7 @@
 import {onCleanup, type JSX} from 'solid-js'
 import {File, type FileContents, type FileOptions} from '@pierre/diffs'
 import {syncRender} from './render-sync.js'
+import {highlightWorkerPool} from './worker-pool.js'
 
 export type SolidCodeBlockProps = {
   file: FileContents
@@ -13,7 +14,7 @@ export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
   let instance: File<undefined> | null = null
 
   const setRef = (node: HTMLElement) => {
-    instance = new File(props.options, undefined, true)
+    instance = new File(props.options, highlightWorkerPool(props.options), true)
     void instance.hydrate({file: props.file, fileContainer: node})
     onCleanup(() => {
       instance?.cleanUp()
