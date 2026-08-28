@@ -1,4 +1,4 @@
-import {Show, splitProps, type JSX} from 'solid-js'
+import {createMemo, Show, splitProps, type JSX} from 'solid-js'
 import {ClipboardCopyButton, TooltipIconButton} from '@conciv/ui-kit-system'
 import Maximize2 from 'lucide-solid/icons/maximize-2'
 import {TraceClamp, type TraceClampSize} from './clamp.js'
@@ -30,7 +30,9 @@ export function TraceBodyFrame(props: {
   overflowLabel?: (hiddenLines: number) => string
 }): JSX.Element {
   const [local] = splitProps(props, ['children', 'tone', 'live', 'chrome', 'size', 'overflowLabel'])
-  const shell = () => (local.chrome === false ? BARE_FRAME : `${FRAME}  ${FRAME_TONE[local.tone ?? 'normal']}`)
+  const shell = createMemo(() =>
+    local.chrome === false ? BARE_FRAME : `${FRAME}  ${FRAME_TONE[local.tone ?? 'normal']}`,
+  )
   return (
     <div class={shell()}>
       <TraceClamp live={local.live} size={local.size} overflowLabel={local.overflowLabel}>

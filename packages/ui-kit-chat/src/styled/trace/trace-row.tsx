@@ -1,4 +1,4 @@
-import {Show, splitProps, type JSX} from 'solid-js'
+import {createMemo, Show, splitProps, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolRowMark, ToolRowProjection} from '../../tools/primitives/tool-row.js'
@@ -54,7 +54,7 @@ function metaTone(mark: ToolRowMark, meta: string): string {
 }
 
 export function TraceMark(props: {mark: ToolRowMark}): JSX.Element {
-  const face = () => markFace(props.mark)
+  const face = createMemo(() => markFace(props.mark))
   return (
     <span role="img" aria-label={face().label} class={`${MARK}  ${face().tone}`}>
       {face().glyph}
@@ -140,18 +140,18 @@ export function TraceToolRow(props: {
   foldable?: boolean
 }): JSX.Element {
   const [local] = splitProps(props, ['projection', 'ring', 'body', 'foldable'])
-  const running = () => local.projection.mark === 'run' && (local.ring ?? true)
+  const running = createMemo(() => local.projection.mark === 'run' && (local.ring ?? true))
   const body = () => local.projection.block ?? local.body
+  const labelClass = createMemo(() => (running() ? RUN_LABEL : LABEL))
+  const metaClass = createMemo(() => `${META}  ${metaTone(local.projection.mark, local.projection.meta ?? '')}`)
   const line = (): JSX.Element => (
     <>
       <Show when={running()} fallback={<TraceMark mark={local.projection.mark} />}>
         <TraceRing />
       </Show>
-      <span class={running() ? RUN_LABEL : LABEL}>{local.projection.label}</span>
+      <span class={labelClass()}>{local.projection.label}</span>
       <TruncatedText class={TARGET} text={local.projection.target} />
-      <Show when={local.projection.meta}>
-        {(meta) => <TruncatedText class={`${META}  ${metaTone(local.projection.mark, meta())}`} text={meta()} />}
-      </Show>
+      <Show when={local.projection.meta}>{(meta) => <TruncatedText class={metaClass()} text={meta()} />}</Show>
     </>
   )
   return <TraceFoldableRow line={line} ring={local.ring} body={body()} foldable={local.foldable} />

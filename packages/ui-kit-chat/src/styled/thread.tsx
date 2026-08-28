@@ -167,40 +167,47 @@ function AssistantTurn(props: {
     const segmentActive = () => groupProps.node.indices.some(partLive) || segmentRollup().awaitingApproval
     const items = indexArray(
       () => groupProps.node.indices,
-      (partIndex, position): TraceItem => ({
-        key: `p${position}`,
-        get live() {
-          return runningPart(partIndex())
-        },
-        render: (branch: TraceBranch): JSX.Element => (
-          <Switch>
-            <Match when={asThinking(groupProps.parts()[partIndex()])}>
-              {(thinkingPart) => (
-                <TraceRunRow
-                  label={PLAN_LABEL}
-                  text={firstLine(thinkingPart().content)}
-                  live={partLive(partIndex())}
-                  ring={branch.ring}
-                  body={planBody(thinkingPart)}
-                />
-              )}
-            </Match>
-            <Match when={asToolCall(groupProps.parts()[partIndex()])}>
-              {(callPart) => (
-                <ToolTraceRow
-                  part={callPart()}
-                  result={message.pairing().byCallId.get(callPart().id)}
-                  ctx={ctx}
-                  durationMs={ctx.durationFor?.(callPart().id)}
-                  tools={() => props.entries}
-                  fallback={props.fallback}
-                  ring={branch.ring}
-                />
-              )}
-            </Match>
-          </Switch>
-        ),
-      }),
+      (partIndex, position): TraceItem => {
+        const live = createMemo(() => runningPart(partIndex()))
+        return {
+          key: `p${position}`,
+          get live() {
+            return live()
+          },
+          render: (branch: TraceBranch): JSX.Element => (
+            <Switch>
+              <Match when={asThinking(groupProps.parts()[partIndex()])}>
+                {(thinkingPart) => (
+                  <TraceRunRow
+                    label={PLAN_LABEL}
+                    text={firstLine(thinkingPart().content)}
+                    live={partLive(partIndex())}
+                    ring={branch.ring}
+                    body={planBody(thinkingPart)}
+                  />
+                )}
+              </Match>
+              <Match when={asToolCall(groupProps.parts()[partIndex()])}>
+                {(callPart) => {
+                  const result = createMemo(() => message.pairing().byCallId.get(callPart().id))
+                  const durationMs = createMemo(() => ctx.durationFor?.(callPart().id))
+                  return (
+                    <ToolTraceRow
+                      part={callPart()}
+                      result={result()}
+                      ctx={ctx}
+                      durationMs={durationMs()}
+                      tools={() => props.entries}
+                      fallback={props.fallback}
+                      ring={branch.ring}
+                    />
+                  )
+                }}
+              </Match>
+            </Switch>
+          ),
+        }
+      },
     )
     const reasoned = () => segmentParts().some((part) => asThinking(part) !== null)
     const activeCall = () =>
@@ -234,16 +241,20 @@ function AssistantTurn(props: {
         )}
       </Match>
       <Match when={asToolCall(parts()[leafProps.node.index])}>
-        {(part) => (
-          <ToolCallCard
-            part={part()}
-            result={message.pairing().byCallId.get(part().id)}
-            ctx={ctx}
-            durationMs={ctx.durationFor?.(part().id)}
-            tools={() => props.entries}
-            fallback={props.fallback}
-          />
-        )}
+        {(part) => {
+          const result = createMemo(() => message.pairing().byCallId.get(part().id))
+          const durationMs = createMemo(() => ctx.durationFor?.(part().id))
+          return (
+            <ToolCallCard
+              part={part()}
+              result={result()}
+              ctx={ctx}
+              durationMs={durationMs()}
+              tools={() => props.entries}
+              fallback={props.fallback}
+            />
+          )
+        }}
       </Match>
     </Switch>
   )

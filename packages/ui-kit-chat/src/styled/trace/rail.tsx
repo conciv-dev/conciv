@@ -46,9 +46,19 @@ function inboundConnectorOfRunningRow(geometry: RailGeometry): InboundConnector 
   return from === undefined ? undefined : {from, to}
 }
 
+function writeAttribute(element: Element, name: string, value: string): void {
+  if (element.getAttribute(name) === value) return
+  element.setAttribute(name, value)
+}
+
+function writeStyleProperty(element: SVGElement, name: string, value: string): void {
+  if (element.style.getPropertyValue(name) === value) return
+  element.style.setProperty(name, value)
+}
+
 function sizeSvg(svg: SVGSVGElement, geometry: RailGeometry): void {
-  svg.setAttribute('width', `${geometry.gutter}`)
-  svg.setAttribute('height', `${geometry.height}`)
+  writeAttribute(svg, 'width', `${geometry.gutter}`)
+  writeAttribute(svg, 'height', `${geometry.height}`)
 }
 
 type MeasuredRow = {row: HTMLElement; top: number}
@@ -111,22 +121,22 @@ export function TraceRail(props: {
   const drawRail = (geometry: RailGeometry, paths: RailPaths): void => {
     if (!railSvg || !spineLine || !armTicks) return
     sizeSvg(railSvg, geometry)
-    spineLine.setAttribute('d', paths.spine)
-    armTicks.setAttribute('d', paths.arms)
+    writeAttribute(spineLine, 'd', paths.spine)
+    writeAttribute(armTicks, 'd', paths.arms)
   }
 
   const drawRunSegment = (geometry: RailGeometry, paths: RailPaths): void => {
     if (!runSvg || !runLine) return
     sizeSvg(runSvg, geometry)
-    runLine.setAttribute('d', paths.spine)
+    writeAttribute(runLine, 'd', paths.spine)
     const connector = inboundConnectorOfRunningRow(geometry)
     if (!connector) {
-      runSvg.style.opacity = '0'
+      writeStyleProperty(runSvg, 'opacity', '0')
       return
     }
-    runSvg.style.setProperty('--rail-top', `${connector.from}px`)
-    runSvg.style.setProperty('--rail-bottom', `${connector.to}px`)
-    runSvg.style.opacity = '1'
+    writeStyleProperty(runSvg, '--rail-top', `${connector.from}px`)
+    writeStyleProperty(runSvg, '--rail-bottom', `${connector.to}px`)
+    writeStyleProperty(runSvg, 'opacity', '1')
   }
 
   const draw = (): void => {
