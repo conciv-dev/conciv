@@ -7,7 +7,6 @@ const SMALL_UNITS = 200
 const LARGE_UNITS = 1600
 const GROWTH = LARGE_UNITS / SMALL_UNITS
 const LINEAR_HEADROOM = 1.5
-const SAMPLES = 7
 
 const config = {actNames: new Set(['page.fill']), toolPrefix: 'page.'}
 
@@ -36,23 +35,34 @@ function sessionShapedParts(units: number): MessagePart[] {
   return Array.from({length: units}, (_, index) => index).flatMap(unitParts)
 }
 
-function classifyCost(units: number): number {
-  const parts = sessionShapedParts(units)
+function typeVisitCountingParts(units: number): {parts: MessagePart[]; visits: () => number} {
+  const raw = sessionShapedParts(units)
+  let visits = 0
+  const parts = raw.map(
+    (part) =>
+      new Proxy(part, {
+        get(target, prop, receiver) {
+          if (prop === 'type') visits += 1
+          return Reflect.get(target, prop, receiver)
+        },
+      }),
+  )
+  return {parts, visits: () => visits}
+}
+
+function classifyVisits(units: number): number {
+  const {parts, visits} = typeVisitCountingParts(units)
   const grouper = createPageSessionGrouper(config)
-  const samples = Array.from({length: SAMPLES}, () => {
-    const start = performance.now()
-    grouper(parts, {toolEntries: [], live: false})
-    return performance.now() - start
-  })
-  return Math.min(...samples)
+  grouper(parts, {toolEntries: [], live: false})
+  return visits()
 }
 
 describe('page session classification cost', () => {
-  it('classifies a session-shaped transcript in time that grows with its length, not its square', () => {
-    const small = classifyCost(SMALL_UNITS)
-    const large = classifyCost(LARGE_UNITS)
+  it('classifies a session-shaped transcript touching each part a bounded number of times, not its square', () => {
+    const small = classifyVisits(SMALL_UNITS)
+    const large = classifyVisits(LARGE_UNITS)
 
-    expect(large / small).toBeLessThanOrEqual(GROWTH * LINEAR_HEADROOM)
+    expect(large).toBeLessThanOrEqual(small * GROWTH * LINEAR_HEADROOM)
   })
 
   it('keeps every act parent, session run and reply boundary that the shape declares', () => {
