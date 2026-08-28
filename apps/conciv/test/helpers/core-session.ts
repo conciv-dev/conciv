@@ -32,11 +32,14 @@ function isFinal(chunk: unknown): boolean {
 
 export async function openTranscriptStream(rpc: RpcClient, sessionId: string): Promise<TranscriptStream> {
   const controller = new AbortController()
-  const iterator = await rpc.chat.subscribe({sessionId}, {signal: controller.signal})
+  const subscription = await rpc.chat.subscribe({sessionId}, {signal: controller.signal})
+  const chunks = subscription[Symbol.asyncIterator]()
   return {
     awaitTurnEnd: async () => {
-      for await (const chunk of iterator) {
-        if (isFinal(chunk)) return
+      for (;;) {
+        const next = await chunks.next()
+        if (next.done === true) return
+        if (isFinal(next.value)) return
       }
     },
     close: () => controller.abort(),
