@@ -159,12 +159,12 @@ export const Settled: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Edited the page')).toBeVisible()
     await expect(canvas.getByText('4 actions')).toBeVisible()
-    expect(canvas.queryByText('Full name')).toBeNull()
-    await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))
-    await waitFor(() => expect(canvas.getByText('Full name')).toBeVisible())
-    await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))
-    await waitFor(() => expect(canvas.queryByText('Full name')).not.toBeVisible())
+    await expect(canvas.getByText('Full name')).toBeVisible()
     await expect(canvas.getByText('localhost:3000/form')).toBeVisible()
+    const header = canvas.getByRole('button', {name: /Edited the page/})
+    await expect(header).toHaveAttribute('aria-expanded', 'true')
+    await userEvent.click(header)
+    await waitFor(() => expect(header).toHaveAttribute('aria-expanded', 'false'))
     await userEvent.click(canvas.getByRole('separator', {name: 'Resize card'}))
     await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}')
     await waitFor(() => expect(canvas.queryByText('localhost:3000/form')).not.toBeVisible())
@@ -312,7 +312,8 @@ export const HeaderSummary: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.hover(canvas.getByText('Edited the page'))
+    await userEvent.tab()
+    await expect(canvas.getByRole('button', {name: /Edited the page/})).toHaveFocus()
     await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent('the AI drove the live page'), {
       timeout: 2000,
     })
