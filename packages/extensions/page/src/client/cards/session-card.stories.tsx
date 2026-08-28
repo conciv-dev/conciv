@@ -208,8 +208,8 @@ export const Aborted: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))
-    await waitFor(() => expect(canvas.getByText('#terms')).toBeVisible())
+    await expect(canvas.getByRole('button', {name: /Edited the page/})).toHaveAttribute('aria-expanded', 'true')
+    await expect(canvas.getByText('#terms')).toBeVisible()
     await expect(canvas.queryByRole('img', {name: 'running'})).not.toBeInTheDocument()
     await expect(canvas.queryByText('Checking #terms…')).not.toBeInTheDocument()
     await expect(canvas.getAllByRole('listitem')).toHaveLength(4)
@@ -232,8 +232,8 @@ export const WithError: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))
-    await waitFor(() => expect(canvas.getByText('element not found: #terms')).toBeVisible())
+    await expect(canvas.getByRole('button', {name: /Edited the page/})).toHaveAttribute('aria-expanded', 'true')
+    await expect(canvas.getByText('element not found: #terms')).toBeVisible()
     await expect(canvas.getAllByRole('img', {name: 'error'}).length).toBeGreaterThanOrEqual(1)
     await expect(canvas.getAllByRole('listitem')).toHaveLength(4)
   },
@@ -260,8 +260,8 @@ export const Scripted: Story = {
   render: () => sessionFrame(SCRIPT_STEPS, SCRIPT_RESULTS, {}, false),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', {name: /Ran script on the page/}))
-    await waitFor(() => expect(canvas.getByText("const rows = document.querySelectorAll('tr')")).toBeVisible())
+    await expect(canvas.getByRole('button', {name: /Ran script on the page/})).toHaveAttribute('aria-expanded', 'true')
+    await expect(canvas.getByText("const rows = document.querySelectorAll('tr')")).toBeVisible()
     await expect(canvas.getByText(/\.cta, \.cta-secondary/)).toBeVisible()
     await expect(canvas.queryByText('script')).toBeNull()
   },
@@ -272,8 +272,8 @@ export const ScriptedNarrow: Story = {
   render: () => sessionFrame(SCRIPT_STEPS, SCRIPT_RESULTS, {}, false),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', {name: /Ran script on the page/}))
-    await waitFor(() => expect(canvas.getByText("const rows = document.querySelectorAll('tr')")).toBeVisible())
+    await expect(canvas.getByRole('button', {name: /Ran script on the page/})).toHaveAttribute('aria-expanded', 'true')
+    await expect(canvas.getByText("const rows = document.querySelectorAll('tr')")).toBeVisible()
     await expect(canvas.queryByText('script')).toBeNull()
   },
 }
