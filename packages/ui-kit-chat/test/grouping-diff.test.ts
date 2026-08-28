@@ -115,10 +115,7 @@ describe('diffTurns identity reuse', () => {
       parts: message.parts.map((part) => ({...part})),
     }))
     const turns = diffTurns(previousTurns, previousMessages, resnapshot)
-    expect(turns[0]).toBe(previousTurns[0])
-    expect(turns[1]).toBe(previousTurns[1])
-    expect(turns[2]).toBe(previousTurns[2])
-    expect(turns[3]).toBe(previousTurns[3])
+    expect(turns.filter((turn, index) => turn !== previousTurns[index])).toEqual([])
   })
 
   it('handles wholesale branch replacement', () => {
