@@ -34,15 +34,17 @@ it('lets the card summary own the hover when the card carries one', async () => 
 })
 
 it('reveals a clipped card title when no summary claims the hover', async () => {
-  const host = mountView(() => (
-    <div class="w-70">
-      <ToolCard title={LONG_TITLE} part={part()} result={undefined}>
-        <span>step rail</span>
-      </ToolCard>
-    </div>
+  mountView(() => (
+    <ul class="m-0 p-0 list-none">
+      <li class="w-70" aria-label="clipped card title">
+        <ToolCard title={LONG_TITLE} part={part()} result={undefined}>
+          <span>step rail</span>
+        </ToolCard>
+      </li>
+    </ul>
   ))
 
-  await page.elementLocator(titleIn(host, LONG_TITLE)).hover()
+  await page.getByRole('listitem', {name: 'clipped card title'}).hover()
 
   await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG_TITLE)
 })
