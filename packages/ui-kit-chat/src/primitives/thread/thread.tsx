@@ -15,18 +15,14 @@ import {
 import {Dynamic} from 'solid-js/web'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {UIMessage} from '@tanstack/ai-client'
+import type {FollowContent} from '@conciv/solid-stick-to-bottom'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useComposer, useThread} from '../../store/chat-context.js'
 import {pairResults, type Turn} from '../../store/grouping.js'
 import {MessageProvider} from '../message/message-context.js'
 import {SuggestionProvider, type SuggestionData} from '../suggestion/suggestion.js'
 import {ViewportProvider, useThreadViewport} from './viewport-context.js'
-import {
-  ViewportInternalProvider,
-  useViewportInternal,
-  type ThreadVirtualScroll,
-  type ViewportInternalValue,
-} from './viewport-internal.js'
+import {ViewportInternalProvider, useViewportInternal, type ViewportInternalValue} from './viewport-internal.js'
 import {useThreadScroll} from '../../behaviors/use-thread-scroll.js'
 import {createThreadVirtualizer} from '../../behaviors/create-thread-virtualizer.js'
 import {useTurnEstimator, type TurnEstimate} from './turn-estimate.js'
@@ -64,8 +60,8 @@ function Viewport(props: ViewportProps): JSX.Element {
     'ref',
   ])
   const [element, setElement] = createSignal<HTMLDivElement>()
-  let virtualScroll: ThreadVirtualScroll | undefined
-  const scroll = useThreadScroll(element, local, () => virtualScroll)
+  const [content, setContent] = createSignal<FollowContent>()
+  const scroll = useThreadScroll(element, local, content)
   const assignRef = (node: HTMLDivElement) => {
     setElement(node)
     if (typeof local.ref === 'function') local.ref(node)
@@ -74,11 +70,9 @@ function Viewport(props: ViewportProps): JSX.Element {
     element,
     turnAnchor: () => local.turnAnchor ?? 'bottom',
     isAtBottom: scroll.isAtBottom,
-    ownsViewport: () => scroll.paused() || (scroll.isAtBottom() && scroll.follows()),
+    released: scroll.released,
     pinToBottom: scroll.pinToBottom,
-    setVirtualScroll: (ops) => {
-      virtualScroll = ops
-    },
+    setContent,
   }
   return (
     <ViewportProvider
@@ -87,8 +81,9 @@ function Viewport(props: ViewportProps): JSX.Element {
       <ViewportInternalProvider value={internal}>
         <Primitive.div
           data-thread-viewport
+          data-follow={scroll.phase()}
           data-at-bottom={scroll.isAtBottom() ? '' : undefined}
-          data-escaped={scroll.escapedFromLock() ? '' : undefined}
+          data-escaped={scroll.released() ? '' : undefined}
           ref={assignRef}
           {...rest}
         />
@@ -176,13 +171,14 @@ function VirtualMessages(props: {messages: MessagesProps; internal: ViewportInte
     count: () => turns().length,
     keyAt: (index) => turns()[index]?.key ?? `${index}`,
     estimateSizeAt: (index) => settledEstimate(index)?.height ?? ROW_ESTIMATE_PX,
+    exactAt: (index) => settledEstimate(index)?.exact === true,
     gap,
     overscan: () => (turns().length < VIRTUALIZE_THRESHOLD ? turns().length : EVICTING_OVERSCAN),
-    ownsViewport: () => props.internal.ownsViewport(),
+    released: () => props.internal.released(),
   })
   onMount(() => {
-    props.internal.setVirtualScroll({scrollToLast: virtualizer.scrollToLast})
-    onCleanup(() => props.internal.setVirtualScroll(undefined))
+    props.internal.setContent({totalSize: virtualizer.totalSize, measured: virtualizer.measured})
+    onCleanup(() => props.internal.setContent(undefined))
     let disposed = false
     onCleanup(() => {
       disposed = true
@@ -315,17 +311,16 @@ function Unstable_MessageById(props: MessageByIdProps): JSX.Element {
   )
 }
 
-function ScrollToBottom(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & {behavior?: ScrollBehavior}): JSX.Element {
+function ScrollToBottom(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
   const viewport = useThreadViewport()
-  const [local, rest] = splitProps(props, ['behavior'])
   return (
     <button
       type="button"
       aria-label="Scroll to bottom"
-      {...rest}
+      {...props}
       disabled={viewport.isAtBottom()}
       data-at-bottom={viewport.isAtBottom() ? '' : undefined}
-      onClick={() => viewport.scrollToBottom(local.behavior ?? 'smooth')}
+      onClick={() => viewport.scrollToBottom()}
     />
   )
 }

@@ -1,14 +1,13 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-
-export type ThreadVirtualScroll = {scrollToLast: () => void}
+import type {FollowContent} from '@conciv/solid-stick-to-bottom'
 
 export type ViewportInternalValue = {
   element: Accessor<HTMLElement | undefined>
   turnAnchor: Accessor<'top' | 'bottom'>
   isAtBottom: Accessor<boolean>
-  ownsViewport: Accessor<boolean>
+  released: Accessor<boolean>
   pinToBottom: () => void
-  setVirtualScroll: (ops: ThreadVirtualScroll | undefined) => void
+  setContent: (content: FollowContent | undefined) => void
 }
 
 const ViewportInternalContext = createContext<ViewportInternalValue>()

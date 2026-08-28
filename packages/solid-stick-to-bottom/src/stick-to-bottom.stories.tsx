@@ -91,7 +91,7 @@ function GrowthHarness(props: {
 }): JSX.Element {
   const [viewport, setViewport] = createSignal<HTMLDivElement>()
   const [rows, setRows] = createSignal<Array<number>>(Array.from({length: props.initialRows ?? 0}, (_, index) => index))
-  const stick = createStickToBottom(viewport, {initial: 'instant'})
+  const stick = createStickToBottom(viewport)
   const addRow = () => setRows((current) => [...current, current.length])
   const addRows = (n: number) =>
     setRows((current) => [...current, ...Array.from({length: n}, (_, i) => current.length + i)])
@@ -99,7 +99,7 @@ function GrowthHarness(props: {
   return (
     <div style={{padding: '0.5rem'}}>
       <div data-at-bottom>{String(stick.isAtBottom())}</div>
-      <div data-escaped>{String(stick.escapedFromLock())}</div>
+      <div data-escaped>{String(stick.released())}</div>
       <div
         ref={(node) => {
           setViewport(node)

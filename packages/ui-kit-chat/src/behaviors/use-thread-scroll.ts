@@ -1,6 +1,6 @@
 import {createEffect, createMemo, createSignal, onMount, type Accessor} from 'solid-js'
+import type {FollowContent} from '@conciv/solid-stick-to-bottom'
 import {useChatContext} from '../store/chat-context.js'
-import type {ThreadVirtualScroll} from '../primitives/thread/viewport-internal.js'
 import {useThreadAutoScroll, type ThreadAutoScroll} from './use-thread-auto-scroll.js'
 import {useTopAnchorReserve, type TopAnchorClamp} from './use-top-anchor-reserve.js'
 import {getActiveTopAnchorTurn, parseCssLength} from './top-anchor.js'
@@ -23,7 +23,7 @@ function messageElement(viewport: HTMLElement | undefined, id: string | undefine
 export function useThreadScroll(
   viewport: Accessor<HTMLElement | undefined>,
   options: ThreadScrollOptions,
-  virtualScroll?: Accessor<ThreadVirtualScroll | undefined>,
+  content?: Accessor<FollowContent | undefined>,
 ): ThreadAutoScroll & {pinToBottom: () => void} {
   const chat = useChatContext()
   const topAnchored = () => (options.turnAnchor ?? 'bottom') === 'top'
@@ -43,12 +43,9 @@ export function useThreadScroll(
 
   const autoScroll = createMemo(() => options.autoScroll ?? (!topAnchored() || activeTurn() === null || released()))
   const hasActiveTopAnchor = () => activeTurn() !== null && !released()
-  const scroll = useThreadAutoScroll(viewport, {autoScroll, hasActiveTopAnchor})
+  const scroll = useThreadAutoScroll(viewport, {autoScroll, hasActiveTopAnchor, content})
 
-  const pinToBottom = () => {
-    virtualScroll?.()?.scrollToLast()
-    scroll.scrollToBottom('auto')
-  }
+  const pinToBottom = () => scroll.scrollToBottom()
 
   const clamp = createMemo<TopAnchorClamp | null>(() => {
     const element = viewport()

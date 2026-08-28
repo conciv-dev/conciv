@@ -15,16 +15,17 @@ export type ThreadVirtualizerConfig = {
   count: Accessor<number>
   keyAt: (index: number) => string
   estimateSizeAt: (index: number) => number
+  exactAt: (index: number) => boolean
   gap: Accessor<number>
   overscan: Accessor<number>
-  ownsViewport: Accessor<boolean>
+  released: Accessor<boolean>
 }
 
 export type ThreadVirtualizer = {
   items: VirtualItem[]
   totalSize: Accessor<number>
+  measured: Accessor<boolean>
   measureRow: (element: Element) => void
-  scrollToLast: () => void
   remeasure: () => void
 }
 
@@ -44,21 +45,27 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     scrollEndThreshold: -1,
     observeElementRect,
     observeElementOffset,
-    scrollToFn: elementScroll,
+    scrollToFn: (offset, scrollOptions, virtualizer) => {
+      if (!config.released()) return
+      elementScroll(offset, scrollOptions, virtualizer)
+    },
     onChange: () => sync(),
     useAnimationFrameWithResizeObserver: true,
   })
 
   const instance = new Virtualizer(resolveOptions())
   instance.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, virtualizer) =>
-    !config.ownsViewport() && item.start < (virtualizer.scrollOffset ?? 0)
+    config.released() && item.start < (virtualizer.scrollOffset ?? 0)
 
   const [items, setItems] = createStore(instance.getVirtualItems())
   const [totalSize, setTotalSize] = createSignal(instance.getTotalSize())
+  const [measured, setMeasured] = createSignal(false)
 
   const sync = () => {
-    setItems(reconcile(instance.getVirtualItems(), {key: 'key'}))
+    const virtualItems = instance.getVirtualItems()
+    setItems(reconcile(virtualItems, {key: 'key'}))
     setTotalSize(instance.getTotalSize())
+    setMeasured(virtualItems.every((item) => instance.itemSizeCache.has(item.key) || config.exactAt(item.index)))
   }
 
   const bindScrollElement = () => {
@@ -84,11 +91,8 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   return {
     items,
     totalSize,
+    measured,
     measureRow: (element) => instance.measureElement(element),
-    scrollToLast: () => {
-      const count = config.count()
-      if (count > 0) instance.scrollToIndex(count - 1, {align: 'end'})
-    },
     remeasure: () => {
       instance.measureElement(null)
       instance.measure()

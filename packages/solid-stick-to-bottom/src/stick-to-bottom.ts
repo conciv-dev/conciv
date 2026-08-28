@@ -1,395 +1,160 @@
-import {createEffect, createRoot, getOwner, onCleanup, untrack, type Accessor} from 'solid-js'
+import {createEffect, createSignal, untrack, type Accessor} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
-import {makeTimer} from '@solid-primitives/timer'
+import {createResizeObserver} from '@solid-primitives/resize-observer'
+import {createMutationObserver} from '@solid-primitives/mutation-observer'
 
-const DEFAULT_SPRING_ANIMATION = {damping: 0.7, stiffness: 0.05, mass: 1.25}
-const STICK_TO_BOTTOM_OFFSET_PX = 70
-const SIXTY_FPS_INTERVAL_MS = 1000 / 60
-const RETAIN_ANIMATION_DURATION_MS = 350
-const SETTLE_DELAY_MS = 1
-const SCROLLABLE_OVERFLOW = new Set(['auto', 'scroll'])
+const END_THRESHOLD_PX = 32
+const LANDED_TOLERANCE_PX = 1
+const SCROLLABLE_OVERFLOW = ['auto', 'scroll']
+const RELEASING_KEYS = ['ArrowUp', 'PageUp', 'Home']
 
-export type SpringAnimation = {damping: number; stiffness: number; mass: number}
-export type Animation = 'instant' | Partial<SpringAnimation>
-type ResolvedAnimation = 'instant' | Readonly<SpringAnimation>
+export type FollowPhase = 'following' | 'settling' | 'released'
 
-export type ScrollToBottomOptions = {
-  animation?: Animation
-  wait?: boolean | number
-  ignoreEscapes?: boolean
-  preserveScrollPosition?: boolean
-  duration?: number
+export type FollowContent = {
+  totalSize: Accessor<number>
+  measured: Accessor<boolean>
 }
 
 export type StickToBottomOptions = {
-  initial?: Animation | boolean
-  resize?: Animation
   follow?: Accessor<boolean>
+  content?: Accessor<FollowContent | undefined>
 }
 
 export type StickToBottom = {
+  phase: Accessor<FollowPhase>
   isAtBottom: Accessor<boolean>
-  isNearBottom: Accessor<boolean>
-  escapedFromLock: Accessor<boolean>
-  scrollToBottom: (options?: ScrollToBottomOptions) => Promise<boolean>
-  stopScroll: () => void
+  released: Accessor<boolean>
+  scrollToBottom: () => void
+  settle: () => void
 }
 
-type RunningAnimation = {behavior: ResolvedAnimation; ignoreEscapes: boolean; promise: Promise<boolean>}
-
-type MotionState = {
-  lastScrollTop?: number
-  ignoreScrollToTop?: number
-  resizeDifference: number
-  animation?: RunningAnimation
-  lastTick?: number
-  velocity: number
-  accumulated: number
-}
-
-const animationCache = new Map<string, Readonly<SpringAnimation>>()
-
-function mergeAnimations(...animations: Array<Animation | boolean | undefined>): ResolvedAnimation {
-  const result = {...DEFAULT_SPRING_ANIMATION}
-  let instant = false
-  for (const animation of animations) {
-    if (animation === 'instant') {
-      instant = true
-      continue
-    }
-    if (typeof animation !== 'object') continue
-    instant = false
-    result.damping = animation.damping ?? result.damping
-    result.stiffness = animation.stiffness ?? result.stiffness
-    result.mass = animation.mass ?? result.mass
-  }
-  if (instant) return 'instant'
-  const key = JSON.stringify(result)
-  const cached = animationCache.get(key)
-  if (cached) return cached
-  const frozen = Object.freeze(result)
-  animationCache.set(key, frozen)
-  return frozen
-}
-
-type SelectionRoot = {getSelection: () => Selection | null}
-
-function hasGetSelection(node: Node): node is Node & SelectionRoot {
-  return 'getSelection' in node && typeof node.getSelection === 'function'
-}
-
-function selectionTouches(element: HTMLElement): boolean {
-  const root = element.getRootNode()
-  const selection = hasGetSelection(root) ? root.getSelection() : null
-  if (!selection || !selection.rangeCount) return false
-  const range = selection.getRangeAt(0)
-  return range.commonAncestorContainer.contains(element) || element.contains(range.commonAncestorContainer)
-}
+type Geometry = {scrollTop: number; scrollHeight: number; clientHeight: number}
 
 function nearestScroller(target: EventTarget | null): HTMLElement | null {
   let element = target instanceof HTMLElement ? target : null
-  while (element && !SCROLLABLE_OVERFLOW.has(getComputedStyle(element).overflowY)) element = element.parentElement
+  while (element && !SCROLLABLE_OVERFLOW.includes(getComputedStyle(element).overflowY)) element = element.parentElement
   return element
 }
 
-function observeContent(element: HTMLElement, onResize: () => void): () => void {
-  const resizeObserver = new ResizeObserver(onResize)
-  const observed = new WeakSet<Element>()
-  const observeChild = (child: Element) => {
-    if (observed.has(child)) return
-    observed.add(child)
-    resizeObserver.observe(child)
-  }
-  const observeChildren = () => {
-    for (const child of element.children) observeChild(child)
-  }
-  const mutationObserver = new MutationObserver(observeChildren)
-  mutationObserver.observe(element, {childList: true, subtree: true})
-  resizeObserver.observe(element)
-  observeChildren()
-  return () => {
-    resizeObserver.disconnect()
-    mutationObserver.disconnect()
-  }
+function readGeometry(element: HTMLElement): Geometry {
+  return {scrollTop: element.scrollTop, scrollHeight: element.scrollHeight, clientHeight: element.clientHeight}
+}
+
+function endOffsetOf(geometry: Geometry): number {
+  return Math.max(0, geometry.scrollHeight - geometry.clientHeight)
 }
 
 export function createStickToBottom(
   scrollElement: Accessor<HTMLElement | undefined>,
   options: StickToBottomOptions = {},
 ): StickToBottom {
-  const [state, setState] = createStore({
-    isAtBottom: options.initial !== false,
-    isNearBottom: false,
-    escapedFromLock: false,
-  })
-  const motion: MotionState = {resizeDifference: 0, velocity: 0, accumulated: 0}
-  const owner = getOwner()
-  let pointerIsDown = false
-  let previousHeight: number | undefined
-  let disposeScrollSettle: (() => void) | undefined
-  let declaredScrollBehavior = 'auto'
+  const [machine, setMachine] = createStore<{phase: FollowPhase}>({phase: 'settling'})
+  const [children, setChildren] = createSignal<Element[]>([])
+  let observed: Geometry = {scrollTop: 0, scrollHeight: 0, clientHeight: 0}
 
-  const afterSettle = (task: () => void) =>
-    createRoot((dispose) => {
-      makeTimer(
-        () => {
-          dispose()
-          task()
-        },
-        SETTLE_DELAY_MS,
-        setTimeout,
-      )
-      return dispose
-    }, owner ?? undefined)
-
-  const cancelScrollSettle = () => {
-    disposeScrollSettle?.()
-    disposeScrollSettle = undefined
-  }
-
-  const scheduleScrollSettle = (task: () => void) => {
-    cancelScrollSettle()
-    disposeScrollSettle = afterSettle(() => {
-      disposeScrollSettle = undefined
-      task()
-    })
-  }
-
-  const scrollTop = () => scrollElement()?.scrollTop ?? 0
-
-  const setScrollTop = (value: number) => {
-    const element = scrollElement()
-    if (!element) return
-    const overridden = declaredScrollBehavior !== 'auto'
-    if (overridden) element.style.scrollBehavior = 'auto'
-    element.scrollTop = value
-    motion.ignoreScrollToTop = element.scrollTop
-    if (overridden) element.style.scrollBehavior = declaredScrollBehavior
-  }
-
-  const targetScrollTop = () => {
-    const element = scrollElement()
-    if (!element) return 0
-    return element.scrollHeight - 1 - element.clientHeight
-  }
-
-  const isNearBottomAt = (currentScrollTop: number, target: number) =>
-    target - Math.min(currentScrollTop, target) <= STICK_TO_BOTTOM_OFFSET_PX
-
-  const stuckToBottom = () => untrack(() => state.isAtBottom)
-  const escaped = () => untrack(() => state.escapedFromLock)
-
-  const scrollDifference = () => targetScrollTop() - scrollTop()
-  const nearBottom = () => scrollDifference() <= STICK_TO_BOTTOM_OFFSET_PX
   const follows = () => options.follow?.() ?? true
+  const content = () => options.content?.()
+  const measured = () => content()?.measured() ?? true
 
-  const isSelecting = () => {
-    if (!pointerIsDown) return false
-    const element = scrollElement()
-    if (!element) return false
-    return selectionTouches(element)
+  const record = (element: HTMLElement): Geometry => {
+    observed = readGeometry(element)
+    return observed
   }
 
-  const beginTick = (running: RunningAnimation): number => {
-    const tick = performance.now()
-    const tickDelta = (tick - (motion.lastTick ?? tick)) / SIXTY_FPS_INTERVAL_MS
-    motion.animation ||= running
-    if (motion.animation.behavior === running.behavior) motion.lastTick = tick
-    return tickDelta
+  const distanceFromEnd = (element: HTMLElement): number => {
+    const geometry = readGeometry(element)
+    return endOffsetOf(geometry) - geometry.scrollTop
   }
 
-  const advance = (behavior: ResolvedAnimation, startedAtScrollTop: number, tickDelta: number) => {
+  const pin = () => {
     const element = scrollElement()
     if (!element) return
-    const target = element.scrollHeight - 1 - element.clientHeight
-    if (behavior === 'instant') {
-      setScrollTop(target)
+    element.scrollTop = endOffsetOf(readGeometry(element))
+    record(element)
+  }
+
+  const release = () => setMachine('phase', 'released')
+
+  const resume = () => setMachine('phase', untrack(measured) ? 'following' : 'settling')
+
+  const advance = () => {
+    if (machine.phase === 'released' || !follows()) return
+    const element = scrollElement()
+    if (!element) return
+    pin()
+    setMachine('phase', measured() && distanceFromEnd(element) <= LANDED_TOLERANCE_PX ? 'following' : 'settling')
+  }
+
+  const settle = () => {
+    setMachine('phase', 'settling')
+    advance()
+  }
+
+  const handleScroll = () => {
+    const element = scrollElement()
+    if (!element) return
+    const previous = observed
+    const current = record(element)
+    if (previous.scrollHeight !== current.scrollHeight || previous.clientHeight !== current.clientHeight) return
+    if (machine.phase === 'following' && current.scrollTop < previous.scrollTop) {
+      release()
       return
     }
-    const current = element.scrollTop
-    motion.velocity = (behavior.damping * motion.velocity + behavior.stiffness * (target - current)) / behavior.mass
-    motion.accumulated += motion.velocity * tickDelta
-    setScrollTop(current + motion.accumulated)
-    if (motion.ignoreScrollToTop !== startedAtScrollTop) motion.accumulated = 0
-  }
-
-  const scrollToBottom = (scrollOptions: ScrollToBottomOptions = {}): Promise<boolean> => {
-    const finish = (ignoreEscapes: boolean, durationElapsed: number): boolean | Promise<boolean> => {
-      motion.animation = undefined
-      if (scrollTop() >= targetScrollTop()) return stuckToBottom()
-      return scrollToBottom({
-        animation: mergeAnimations(options.resize),
-        ignoreEscapes,
-        duration: Math.max(0, durationElapsed - Date.now()) || undefined,
-      })
-    }
-
-    if (!scrollOptions.preserveScrollPosition) {
-      if (!stuckToBottom()) cancelScrollSettle()
-      setState('isAtBottom', true)
-    }
-
-    const waitElapsed = Date.now() + (Number(scrollOptions.wait) || 0)
-    const behavior = mergeAnimations(scrollOptions.animation)
-    const ignoreEscapes = scrollOptions.ignoreEscapes ?? false
-    const durationElapsed = waitElapsed + (scrollOptions.duration ?? 0)
-    let startTarget = targetScrollTop()
-
-    const next = (): Promise<boolean> => {
-      const promise = new Promise<number>(requestAnimationFrame).then((): boolean | Promise<boolean> => {
-        if (!stuckToBottom()) {
-          motion.animation = undefined
-          return false
-        }
-
-        const startedAtScrollTop = scrollTop()
-        const tickDelta = beginTick({behavior, ignoreEscapes, promise})
-
-        if (isSelecting()) return next()
-        if (waitElapsed > Date.now()) return next()
-
-        if (startedAtScrollTop < Math.min(startTarget, targetScrollTop())) {
-          if (motion.animation?.behavior === behavior) advance(behavior, startedAtScrollTop, tickDelta)
-          return next()
-        }
-
-        if (durationElapsed > Date.now()) {
-          startTarget = targetScrollTop()
-          return next()
-        }
-
-        return finish(ignoreEscapes, durationElapsed)
-      })
-
-      return promise.then((isAtBottom) => {
-        requestAnimationFrame(() => {
-          if (motion.animation) return
-          motion.lastTick = undefined
-          motion.velocity = 0
-        })
-        return isAtBottom
-      })
-    }
-
-    if (scrollOptions.wait !== true) motion.animation = undefined
-    if (motion.animation?.behavior === behavior) return motion.animation.promise
-    return next()
-  }
-
-  const stopScroll = () => setState({escapedFromLock: true, isAtBottom: false})
-
-  const applyScrollDirection = (currentScrollTop: number, lastScrollTop: number) => {
-    if (currentScrollTop < lastScrollTop) setState({escapedFromLock: true, isAtBottom: false})
-    if (currentScrollTop > lastScrollTop) setState('escapedFromLock', false)
-    if (!escaped() && nearBottom()) setState('isAtBottom', true)
-  }
-
-  const handleScroll = (event: Event) => {
-    const element = scrollElement()
-    if (!element || event.target !== element) return
-
-    const currentScrollTop = element.scrollTop
-    const ignoreScrollToTop = motion.ignoreScrollToTop
-    let lastScrollTop = motion.lastScrollTop ?? currentScrollTop
-
-    motion.lastScrollTop = currentScrollTop
-    motion.ignoreScrollToTop = undefined
-
-    if (ignoreScrollToTop && ignoreScrollToTop > currentScrollTop) lastScrollTop = ignoreScrollToTop
-
-    setState('isNearBottom', nearBottom())
-
-    scheduleScrollSettle(() => {
-      if (motion.resizeDifference || currentScrollTop === ignoreScrollToTop) return
-
-      if (isSelecting()) {
-        setState({escapedFromLock: true, isAtBottom: false})
-        return
-      }
-
-      if (motion.animation?.ignoreEscapes) {
-        setScrollTop(lastScrollTop)
-        return
-      }
-
-      applyScrollDirection(currentScrollTop, lastScrollTop)
-    })
+    if (machine.phase === 'released' && endOffsetOf(current) - current.scrollTop <= END_THRESHOLD_PX) resume()
   }
 
   const handleWheel = (event: WheelEvent) => {
     const element = scrollElement()
     if (!element || event.deltaY >= 0) return
-    if (nearestScroller(event.target) !== element) return
     if (element.scrollHeight <= element.clientHeight) return
-    if (motion.animation?.ignoreEscapes) return
-    setState({escapedFromLock: true, isAtBottom: false})
+    if (nearestScroller(event.target) !== element) return
+    release()
   }
 
-  const handleContentResize = () => {
+  const handleTouchMove = () => {
     const element = scrollElement()
     if (!element) return
+    if (distanceFromEnd(element) > END_THRESHOLD_PX) release()
+  }
 
-    const height = element.scrollHeight
-    const target = height - 1 - element.clientHeight
-    const currentScrollTop = element.scrollTop
-    const difference = height - (previousHeight ?? height)
-    const settledNearBottom = isNearBottomAt(currentScrollTop, target)
-    motion.resizeDifference = difference
-
-    if (currentScrollTop > target) setScrollTop(target)
-    setState('isNearBottom', settledNearBottom)
-
-    if (difference >= 0) {
-      const animation = mergeAnimations(previousHeight === undefined ? options.initial : options.resize)
-      if (follows()) {
-        void scrollToBottom({
-          animation,
-          wait: true,
-          preserveScrollPosition: true,
-          duration: animation === 'instant' ? undefined : RETAIN_ANIMATION_DURATION_MS,
-        })
-      }
-    } else if (settledNearBottom) {
-      setState({escapedFromLock: false, isAtBottom: true})
-    }
-
-    previousHeight = height
-
-    requestAnimationFrame(() => {
-      afterSettle(() => {
-        if (motion.resizeDifference === difference) motion.resizeDifference = 0
-      })
-    })
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (!RELEASING_KEYS.includes(event.key)) return
+    const element = scrollElement()
+    if (!element || element.scrollHeight <= element.clientHeight) return
+    if (nearestScroller(event.target) !== element) return
+    release()
   }
 
   createEffect(() => {
-    makeEventListener(document, 'mousedown', () => {
-      pointerIsDown = true
-    })
-    makeEventListener(document, 'mouseup', () => {
-      pointerIsDown = false
-    })
-    makeEventListener(document, 'click', () => {
-      pointerIsDown = false
-    })
+    const element = scrollElement()
+    if (!element) return
+    setChildren(Array.from(element.children))
+    record(element)
+    makeEventListener(element, 'scroll', handleScroll, {passive: true})
+    makeEventListener(element, 'wheel', handleWheel, {passive: true})
+    makeEventListener(element, 'touchmove', handleTouchMove, {passive: true})
+    makeEventListener(element, 'keydown', handleKeyDown)
+    createMutationObserver(element, {childList: true}, () => setChildren(Array.from(element.children)))
+    createResizeObserver(
+      () => [element, ...children()],
+      () => untrack(advance),
+    )
+    untrack(settle)
   })
 
   createEffect(() => {
-    const element = scrollElement()
-    if (!element) return
-    previousHeight = undefined
-    declaredScrollBehavior = getComputedStyle(element).scrollBehavior
-    makeEventListener(element, 'scroll', handleScroll, {passive: true})
-    makeEventListener(element, 'wheel', handleWheel, {passive: true})
-    onCleanup(observeContent(element, handleContentResize))
+    content()?.totalSize()
+    measured()
+    follows()
+    untrack(advance)
   })
 
   return {
-    isAtBottom: () => state.isAtBottom || state.isNearBottom,
-    isNearBottom: () => state.isNearBottom,
-    escapedFromLock: () => state.escapedFromLock,
-    scrollToBottom,
-    stopScroll,
+    phase: () => machine.phase,
+    isAtBottom: () => machine.phase !== 'released',
+    released: () => machine.phase === 'released',
+    scrollToBottom: settle,
+    settle,
   }
 }
