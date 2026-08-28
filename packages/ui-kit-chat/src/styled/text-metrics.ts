@@ -9,12 +9,19 @@ import type {Accessor} from 'solid-js'
 import type {MessagePart} from '@tanstack/ai-client'
 import {defaultGrouper, groupParts, type GroupNode, type Grouping, type Turn} from '../store/grouping.js'
 import type {TurnEstimate, TurnEstimator} from '../primitives/thread/turn-estimate.js'
-import {ASSISTANT_ROOT_CLASS, PROMPT_TEXT_CLASS} from './turn-classes.js'
+import {
+  ANSWER_CONTENT_SETTLED_CLASS,
+  ANSWER_ROW_CLASS,
+  ASSISTANT_ROOT_CLASS,
+  PROMPT_TEXT_CLASS,
+} from './turn-classes.js'
 
 const PROMPT_WIDTH_FRACTION = 0.94
 const MARKDOWN_SYNTAX = /[*_~`#>[\]|]|\n\s*\n|(^|\n)\s*([-+]\s|\d+[.)]\s|-{3,})/
-const COLLAPSED_CARD_APPROX_PX = 30
-const SEGMENT_GAP_PX = 6
+const PARAGRAPH_BREAK = /\n[^\S\n]*\n+/
+const COLLAPSED_TRACE_APPROX_PX = 23
+const COLLAPSED_CARD_APPROX_PX = 32
+const PROMPT_GAP_PX = 6
 
 type RowStyle = {
   font: string
@@ -28,10 +35,16 @@ type RowStyle = {
   padY: number
   borderX: number
   borderY: number
-  extraY: number
 }
 
-type Metrics = {user: RowStyle; assistant: RowStyle; viewportPadX: number}
+type Metrics = {
+  user: RowStyle
+  assistant: RowStyle
+  assistantRootY: number
+  assistantGapY: number
+  paragraphGapY: number
+  viewportPadX: number
+}
 
 export type TurnEstimatorOptions = {
   grouping?: Accessor<Grouping | undefined>
@@ -44,7 +57,12 @@ function num(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function readRowStyle(box: HTMLElement, textHolder: HTMLElement, extraY: number): RowStyle {
+function maxWidthOf(element: HTMLElement): number {
+  const raw = getComputedStyle(element).maxWidth
+  return raw.endsWith('px') ? num(raw) : Number.POSITIVE_INFINITY
+}
+
+function readRowStyle(box: HTMLElement, textHolder: HTMLElement): RowStyle {
   const boxStyle = getComputedStyle(box)
   const textStyle = getComputedStyle(textHolder)
   const fontStyle = textStyle.fontStyle === 'normal' ? '' : `${textStyle.fontStyle} `
@@ -58,14 +76,19 @@ function readRowStyle(box: HTMLElement, textHolder: HTMLElement, extraY: number)
     whiteSpace: textStyle.whiteSpace === 'pre-wrap' ? 'pre-wrap' : 'normal',
     wordBreak: textStyle.wordBreak === 'keep-all' ? 'keep-all' : 'normal',
     lineHeight,
-    maxWidth: boxStyle.maxWidth.endsWith('px') ? num(boxStyle.maxWidth) : Number.POSITIVE_INFINITY,
+    maxWidth: maxWidthOf(box),
     boxSizing: boxStyle.boxSizing,
     padX: num(boxStyle.paddingLeft) + num(boxStyle.paddingRight),
     padY: num(boxStyle.paddingTop) + num(boxStyle.paddingBottom),
     borderX: num(boxStyle.borderLeftWidth) + num(boxStyle.borderRightWidth),
     borderY: num(boxStyle.borderTopWidth) + num(boxStyle.borderBottomWidth),
-    extraY,
   }
+}
+
+function paragraphNode(): HTMLParagraphElement {
+  const paragraph = document.createElement('p')
+  paragraph.textContent = 'Probe'
+  return paragraph
 }
 
 function resolveMetrics(viewport: HTMLElement): Metrics {
@@ -80,22 +103,38 @@ function resolveMetrics(viewport: HTMLElement): Metrics {
 
   const assistantRoot = document.createElement('div')
   assistantRoot.className = ASSISTANT_ROOT_CLASS
+  const answerRow = document.createElement('div')
+  answerRow.className = ANSWER_ROW_CLASS
+  const answerContent = document.createElement('div')
+  answerContent.className = ANSWER_CONTENT_SETTLED_CLASS
   const prose = document.createElement('div')
   prose.className = 'prose-chat'
-  const paragraph = document.createElement('p')
-  paragraph.textContent = 'Probe'
-  prose.appendChild(paragraph)
-  assistantRoot.appendChild(prose)
+  const firstParagraph = paragraphNode()
+  const secondParagraph = paragraphNode()
+  prose.append(firstParagraph, secondParagraph)
+  answerContent.appendChild(prose)
+  answerRow.appendChild(answerContent)
+  assistantRoot.appendChild(answerRow)
 
   probe.appendChild(userBubble)
   probe.appendChild(assistantRoot)
   viewport.appendChild(probe)
 
   const viewportStyle = getComputedStyle(viewport)
-  const rootPadBottom = num(getComputedStyle(assistantRoot).paddingBottom)
+  const rootStyle = getComputedStyle(assistantRoot)
+  const rowStyle = readRowStyle(answerRow, firstParagraph)
+  const assistant: RowStyle = {...rowStyle, maxWidth: maxWidthOf(assistantRoot)}
+  const proseHeight = prose.getBoundingClientRect().height
   const metrics: Metrics = {
-    user: readRowStyle(userBubble, userText, 0),
-    assistant: readRowStyle(prose, paragraph, rootPadBottom),
+    user: readRowStyle(userBubble, userText),
+    assistant,
+    assistantRootY:
+      num(rootStyle.paddingTop) +
+      num(rootStyle.paddingBottom) +
+      num(rootStyle.borderTopWidth) +
+      num(rootStyle.borderBottomWidth),
+    assistantGapY: num(rootStyle.rowGap),
+    paragraphGapY: Math.max(0, proseHeight - 2 * assistant.lineHeight),
     viewportPadX: num(viewportStyle.paddingLeft) + num(viewportStyle.paddingRight),
   }
   probe.remove()
@@ -117,6 +156,13 @@ function stripMarkdown(content: string): string {
 
 function textOf(part: MessagePart | undefined): string | undefined {
   return part?.type === 'text' ? part.content : undefined
+}
+
+function paragraphsOf(text: string): string[] {
+  return text
+    .split(PARAGRAPH_BREAK)
+    .map((block) => block.trim())
+    .filter((block) => block.length > 0)
 }
 
 export function createTurnEstimator(
@@ -147,6 +193,13 @@ export function createTurnEstimator(
     return layout(preparedText, Math.max(1, width), style.lineHeight).height
   }
 
+  const proseHeight = (text: string, style: RowStyle, containerWidth: number, paragraphGapY: number): number => {
+    const blocks = paragraphsOf(text)
+    if (blocks.length === 0) return 0
+    const stacked = blocks.reduce((sum, block) => sum + textHeight(block, style, containerWidth), 0)
+    return stacked + paragraphGapY * (blocks.length - 1)
+  }
+
   const estimateUser = (turn: Turn, containerWidth: number): TurnEstimate | undefined => {
     const style = metrics?.user
     if (!style) return undefined
@@ -156,19 +209,19 @@ export function createTurnEstimator(
         textHeight(textOf(part) ?? '', style, containerWidth, PROMPT_WIDTH_FRACTION) + style.padY + style.borderY,
     )
     if (bubbles.length === 0) return undefined
-    const height = bubbles.reduce((sum, bubble) => sum + bubble, 0) + SEGMENT_GAP_PX * (bubbles.length - 1)
+    const height = bubbles.reduce((sum, bubble) => sum + bubble, 0) + PROMPT_GAP_PX * (bubbles.length - 1)
     return {height, exact: bubbles.length === 1}
   }
 
-  const estimateNode = (node: GroupNode, parts: MessagePart[], style: RowStyle, width: number) => {
-    if (node.type === 'part') {
-      const content = textOf(parts[node.index])
-      if (content === undefined) return {height: COLLAPSED_CARD_APPROX_PX, exact: false}
-      const plain = !MARKDOWN_SYNTAX.test(content)
-      const text = plain ? content : stripMarkdown(content)
-      return {height: textHeight(text, style, width), exact: plain}
-    }
-    return {height: COLLAPSED_CARD_APPROX_PX, exact: false}
+  const estimateNode = (node: GroupNode, parts: MessagePart[], resolved: Metrics, width: number): TurnEstimate => {
+    if (node.type !== 'part') return {height: COLLAPSED_TRACE_APPROX_PX, exact: false}
+    const content = textOf(parts[node.index])
+    if (content === undefined) return {height: COLLAPSED_CARD_APPROX_PX, exact: false}
+    const style = resolved.assistant
+    const plain = !MARKDOWN_SYNTAX.test(content)
+    const text = plain ? content : stripMarkdown(content)
+    const rowChrome = style.padY + style.borderY
+    return {height: rowChrome + proseHeight(text, style, width, resolved.paragraphGapY), exact: plain}
   }
 
   const nodesFor = (turn: Turn): readonly GroupNode[] => {
@@ -177,14 +230,14 @@ export function createTurnEstimator(
   }
 
   const estimateAssistant = (turn: Turn, containerWidth: number): TurnEstimate | undefined => {
-    const style = metrics?.assistant
-    if (!style) return undefined
+    const resolved = metrics
+    if (!resolved) return undefined
     const nodes = nodesFor(turn)
     if (nodes.length === 0) return undefined
-    const estimates = nodes.map((node) => estimateNode(node, turn.parts, style, containerWidth))
+    const estimates = nodes.map((node) => estimateNode(node, turn.parts, resolved, containerWidth))
     const content = estimates.reduce((sum, estimate) => sum + estimate.height, 0)
     return {
-      height: style.extraY + SEGMENT_GAP_PX * (nodes.length - 1) + content,
+      height: resolved.assistantRootY + resolved.assistantGapY * (nodes.length - 1) + content,
       exact: nodes.length === 1 && estimates.every((estimate) => estimate.exact),
     }
   }
