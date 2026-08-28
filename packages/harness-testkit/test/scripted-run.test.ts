@@ -122,6 +122,18 @@ describe('makeScriptedRun', () => {
     expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
   })
 
+  it('passes a scripted string tool result through raw instead of JSON-quoting it', async () => {
+    const scripted = makeScriptedRun()
+    const multilineResult = 'line one\nline two\nline three'
+    const ids = scripted.scriptTurn({toolCalls: [{name: 'read_file', input: {a: 1}, result: multilineResult}]})
+    const chunks: StreamChunk[] = []
+    for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+    const results = chunks.flatMap((chunk) =>
+      chunk.type === EventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
+    )
+    expect(results).toEqual([{id: ids[0], content: multilineResult}])
+  })
+
   it('keeps a scripted null tool result as null instead of substituting the default', async () => {
     const scripted = makeScriptedRun()
     const ids = scripted.scriptTurn({toolCalls: [{name: 'nullish_tool', input: {a: 1}, result: null}]})
