@@ -171,7 +171,7 @@ export const Settled: Story = {
   },
 }
 
-export const Expanded: Story = {
+export const BornOpen: Story = {
   render: () =>
     sessionFrame(
       sessionParts(storyPart('page.check', {selector: '#terms'}, 'complete', 'c5')),
@@ -181,8 +181,8 @@ export const Expanded: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))
-    await waitFor(() => expect(canvas.getByText('Accept the terms of service')).toBeVisible())
+    await expect(canvas.getByRole('button', {name: /Edited the page/})).toHaveAttribute('aria-expanded', 'true')
+    await expect(canvas.getByText('Accept the terms of service')).toBeVisible()
     await expect(canvas.getByText('localhost:3000/form')).toBeVisible()
     await expect(canvas.getAllByRole('listitem')).toHaveLength(4)
     await expect(canvas.getAllByText('fill')).toHaveLength(2)
