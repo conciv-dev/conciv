@@ -89,69 +89,69 @@ function turnElement(viewport: HTMLElement, id: string): HTMLElement {
   return found
 }
 
+type SettledThread = {
+  thread: MountedThread
+  viewport: HTMLElement
+}
+
+async function mountSettledThread(): Promise<SettledThread> {
+  const thread = mountThread(seed(TURN_COUNT))
+  await expect.element(page.getByText(`tail marker ${LAST_TURN}`).first()).toBeVisible()
+  await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom', '')
+  return {thread, viewport: thread.viewport()}
+}
+
 it('lands at the exact bottom of a long mixed-height thread on every mount', async () => {
   const misses: string[] = []
   for (let round = 0; round < 10; round++) {
-    const thread = mountThread(seed(TURN_COUNT))
-    await expect.element(page.getByText(`tail marker ${LAST_TURN}`).first()).toBeVisible()
-    await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom', '')
-
-    const viewport = thread.viewport()
-    const gap = distanceFromEnd(viewport)
-    const last = turnElement(viewport, `a${LAST_TURN}`).getBoundingClientRect()
-    const frame = viewport.getBoundingClientRect()
+    const settled = await mountSettledThread()
+    const gap = distanceFromEnd(settled.viewport)
+    const last = turnElement(settled.viewport, `a${LAST_TURN}`).getBoundingClientRect()
+    const frame = settled.viewport.getBoundingClientRect()
     if (gap > 2) misses.push(`round ${round}: ${gap}px from the end`)
     if (last.bottom > frame.bottom + 2) misses.push(`round ${round}: last turn ${last.bottom - frame.bottom}px below`)
     if (last.bottom <= frame.top) misses.push(`round ${round}: last turn above the viewport`)
-    thread.unmount()
+    settled.thread.unmount()
   }
   expect(misses).toEqual([])
 })
 
 it('holds the reading position when turns are appended while scrolled up', async () => {
-  const thread = mountThread(seed(TURN_COUNT))
-  await expect.element(page.getByText(`tail marker ${LAST_TURN}`).first()).toBeVisible()
-  await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom', '')
+  const settled = await mountSettledThread()
 
-  const viewport = thread.viewport()
-  await userEvent.wheel(viewport, {delta: {y: -800}})
-  await expect.element(page.elementLocator(viewport)).not.toHaveAttribute('data-at-bottom')
+  await userEvent.wheel(settled.viewport, {delta: {y: -800}})
+  await expect.element(page.elementLocator(settled.viewport)).not.toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('Latest')).toBeVisible()
 
-  const spacer = virtualSpacer(viewport)
+  const spacer = virtualSpacer(settled.viewport)
   const sizedBefore = spacer.getAttribute('style') ?? ''
-  const before = viewport.scrollTop
-  thread.chat().setMessages([...seed(TURN_COUNT), ...seed(TURN_COUNT + 3).slice(TURN_COUNT * 2)])
+  const before = settled.viewport.scrollTop
+  settled.thread.chat().setMessages([...seed(TURN_COUNT), ...seed(TURN_COUNT + 3).slice(TURN_COUNT * 2)])
   await expect.element(page.elementLocator(spacer)).not.toHaveAttribute('style', sizedBefore)
 
-  expect(Math.abs(viewport.scrollTop - before)).toBeLessThanOrEqual(1)
+  expect(Math.abs(settled.viewport.scrollTop - before)).toBeLessThanOrEqual(1)
   await expect.element(page.getByText('Latest')).toBeVisible()
 })
 
 it('returns to the bottom and re-follows when Latest is pressed', async () => {
-  const thread = mountThread(seed(TURN_COUNT))
-  await expect.element(page.getByText(`tail marker ${LAST_TURN}`).first()).toBeVisible()
+  const settled = await mountSettledThread()
 
-  const viewport = thread.viewport()
-  await userEvent.wheel(viewport, {delta: {y: -800}})
-  await expect.element(page.elementLocator(viewport)).toHaveAttribute('data-escaped', '')
+  await userEvent.wheel(settled.viewport, {delta: {y: -800}})
+  await expect.element(page.elementLocator(settled.viewport)).toHaveAttribute('data-escaped', '')
 
   await page.getByText('Latest').click()
-  await expect.element(page.elementLocator(viewport)).toHaveAttribute('data-at-bottom', '')
-  await expect.element(page.elementLocator(viewport)).not.toHaveAttribute('data-escaped')
+  await expect.element(page.elementLocator(settled.viewport)).toHaveAttribute('data-at-bottom', '')
+  await expect.element(page.elementLocator(settled.viewport)).not.toHaveAttribute('data-escaped')
   await expect.element(page.getByText(`tail marker ${LAST_TURN}`).first()).toBeVisible()
 
-  expect(distanceFromEnd(viewport)).toBeLessThanOrEqual(2)
+  expect(distanceFromEnd(settled.viewport)).toBeLessThanOrEqual(2)
 })
 
 it('stays pinned to the end when turns are appended while following', async () => {
-  const thread = mountThread(seed(TURN_COUNT))
-  await expect.element(page.getByText(`tail marker ${LAST_TURN}`).first()).toBeVisible()
-  await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom', '')
+  const settled = await mountSettledThread()
 
-  const viewport = thread.viewport()
-  thread.chat().setMessages([...seed(TURN_COUNT), ...seed(TURN_COUNT + 3).slice(TURN_COUNT * 2)])
+  settled.thread.chat().setMessages([...seed(TURN_COUNT), ...seed(TURN_COUNT + 3).slice(TURN_COUNT * 2)])
   await expect.element(page.getByText(`tail marker ${TURN_COUNT + 2}`).first()).toBeVisible()
 
-  expect(distanceFromEnd(viewport)).toBeLessThanOrEqual(2)
+  expect(distanceFromEnd(settled.viewport)).toBeLessThanOrEqual(2)
 })
