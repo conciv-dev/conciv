@@ -1,4 +1,4 @@
-import {createSignal, For, Show, splitProps, type JSX} from 'solid-js'
+import {createMemo, createSignal, For, Show, splitProps, type JSX} from 'solid-js'
 import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import {createSettleFold} from '../../primitives/util/create-settle-fold.js'
 import {FOCUS_INSET} from '../classes.js'
@@ -51,7 +51,7 @@ export function Trace(props: {
     fold.setOpen(next)
     local.onOpenChange?.(next)
   }
-  const lastLiveKey = () => local.items.findLast((entry) => entry.live)?.key
+  const lastLiveKey = createMemo(() => local.items.findLast((entry) => entry.live)?.key)
   const branchFor = (item: TraceItem): TraceBranch => ({
     get ring() {
       return item.key === lastLiveKey()

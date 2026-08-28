@@ -138,7 +138,9 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
     loaded: () => registryCatalog.data !== undefined,
     meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
-  const narrationFollowsTurn = () => chat.messages().at(-1)?.role === 'assistant'
+  const narrationRowClass = createMemo(() =>
+    chat.messages().at(-1)?.role === 'assistant' ? NOW_ROW_UNDER_TURN : NOW_ROW,
+  )
   const activeCall = createMemo(() => activeToolCall(chat.messages()))
   const narrationTitle = () => {
     const call = activeCall()
@@ -288,7 +290,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                           <Divider kind="compact" pending />
                         </Show>
                         <Show when={narrating()}>
-                          <div class={narrationFollowsTurn() ? NOW_ROW_UNDER_TURN : NOW_ROW}>
+                          <div class={narrationRowClass()}>
                             <NowLine title={narrationTitle()} />
                           </div>
                         </Show>
