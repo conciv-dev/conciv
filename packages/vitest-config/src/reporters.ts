@@ -61,10 +61,10 @@ export function ciTestSolidBrowser(): {
 
 const LATE_DISCOVERED_BROWSER_DEPS = ['lucide-solid']
 
-export function browserOptimizeDeps(): {
+export function browserOptimizeDeps(alsoInclude: string[] = []): {
   include: string[]
 } {
   return {
-    include: LATE_DISCOVERED_BROWSER_DEPS,
+    include: [...LATE_DISCOVERED_BROWSER_DEPS, ...alsoInclude],
   }
 }
