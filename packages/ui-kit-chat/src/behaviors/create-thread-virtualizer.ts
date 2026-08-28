@@ -55,6 +55,12 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   const readbackScrollOffset = (element: HTMLElement): void => publishScrollOffset?.(element.scrollTop, false)
 
+  const landOnEnd = (): void => {
+    instance.scrollToEnd()
+    const element = config.scrollElement()
+    if (element) readbackScrollOffset(element)
+  }
+
   const resolveOptions = (): VirtualizerOptions<HTMLElement, Element> => ({
     count: config.count(),
     getScrollElement: () => {
@@ -136,8 +142,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     const sameThread = landing.element === element && (landing.firstKey === firstKey || landing.lastKey === lastKey)
     setLanding({element, firstKey, lastKey})
     if (sameThread) return
-    instance.scrollToEnd()
-    readbackScrollOffset(element)
+    landOnEnd()
   })
 
   return {
@@ -145,7 +150,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     totalSize,
     measured,
     atEnd,
-    scrollToEnd: () => instance.scrollToEnd(),
+    scrollToEnd: landOnEnd,
     measureRow: (element) => instance.measureElement(element),
     remeasure: () => {
       instance.measureElement(null)
