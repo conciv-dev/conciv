@@ -42,6 +42,7 @@
     "@tanstack/solid-pacer": "0.22.0"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
     "solid-js": "^1.9.13",
     "storybook": "^10.5.0",
