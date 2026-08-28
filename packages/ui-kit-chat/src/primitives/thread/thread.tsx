@@ -15,15 +15,19 @@ import {
 import {Dynamic} from 'solid-js/web'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {UIMessage} from '@tanstack/ai-client'
-import type {FollowContent} from '@conciv/solid-stick-to-bottom'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useComposer, useThread} from '../../store/chat-context.js'
 import {pairResults, type Turn} from '../../store/grouping.js'
 import {MessageProvider} from '../message/message-context.js'
 import {SuggestionProvider, type SuggestionData} from '../suggestion/suggestion.js'
-import {ViewportProvider, useThreadViewport} from './viewport-context.js'
+import {
+  ViewportProvider,
+  useThreadViewport,
+  useOptionalThreadViewport,
+  type ThreadScroller,
+  type ViewportContextValue,
+} from './viewport-context.js'
 import {ViewportInternalProvider, useViewportInternal, type ViewportInternalValue} from './viewport-internal.js'
-import {useThreadScroll} from '../../behaviors/use-thread-scroll.js'
 import {createThreadVirtualizer} from '../../behaviors/create-thread-virtualizer.js'
 import {useTurnEstimator, type TurnEstimate} from './turn-estimate.js'
 import {VIRTUALIZE_THRESHOLD} from './virtualize-threshold.js'
@@ -34,62 +38,44 @@ const EVICTING_OVERSCAN = 8
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
 
 function Root(props: DivProps): JSX.Element {
-  return <Primitive.div {...props} />
+  const [scroller, setScroller] = createSignal<ThreadScroller>()
+  return (
+    <ViewportProvider
+      value={{
+        isAtBottom: () => scroller()?.atEnd() ?? true,
+        scrollToBottom: () => scroller()?.scrollToEnd(),
+        setScroller,
+      }}
+    >
+      <Primitive.div {...props} />
+    </ViewportProvider>
+  )
 }
 
 type ViewportProps = DivProps & {
-  autoScroll?: boolean
-  turnAnchor?: 'top' | 'bottom'
-  topAnchorMessageClamp?: {tallerThan?: string; visibleHeight?: string}
-  scrollToBottomOnRunStart?: boolean
-  scrollToBottomOnInitialize?: boolean
-  scrollToBottomOnThreadSwitch?: boolean
   footer?: JSX.Element
   ref?: HTMLDivElement | ((element: HTMLDivElement) => void)
 }
 
 function Viewport(props: ViewportProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
-    'autoScroll',
-    'turnAnchor',
-    'topAnchorMessageClamp',
-    'scrollToBottomOnRunStart',
-    'scrollToBottomOnInitialize',
-    'scrollToBottomOnThreadSwitch',
-    'footer',
-    'ref',
-  ])
+  const [local, rest] = splitProps(props, ['footer', 'ref'])
+  const viewport = useThreadViewport()
   const [element, setElement] = createSignal<HTMLDivElement>()
-  const [content, setContent] = createSignal<FollowContent>()
-  const scroll = useThreadScroll(element, local, content)
   const assignRef = (node: HTMLDivElement) => {
     setElement(node)
     if (typeof local.ref === 'function') local.ref(node)
   }
-  const internal: ViewportInternalValue = {
-    element,
-    turnAnchor: () => local.turnAnchor ?? 'bottom',
-    isAtBottom: scroll.isAtBottom,
-    released: scroll.released,
-    pinToBottom: scroll.pinToBottom,
-    setContent,
-  }
+  const internal: ViewportInternalValue = {element}
   return (
-    <ViewportProvider
-      value={{isAtBottom: scroll.isAtBottom, scrollToBottom: scroll.scrollToBottom, pauseFollow: scroll.pauseFollow}}
-    >
-      <ViewportInternalProvider value={internal}>
-        <Primitive.div
-          data-thread-viewport
-          data-follow={scroll.phase()}
-          data-at-bottom={scroll.isAtBottom() ? '' : undefined}
-          data-escaped={scroll.released() ? '' : undefined}
-          ref={assignRef}
-          {...rest}
-        />
-        {local.footer}
-      </ViewportInternalProvider>
-    </ViewportProvider>
+    <ViewportInternalProvider value={internal}>
+      <Primitive.div
+        data-thread-viewport
+        data-at-bottom={viewport.isAtBottom() ? '' : undefined}
+        ref={assignRef}
+        {...rest}
+      />
+      {local.footer}
+    </ViewportInternalProvider>
   )
 }
 
@@ -155,7 +141,11 @@ function PlainMessages(props: {messages: MessagesProps}): JSX.Element {
   )
 }
 
-function VirtualMessages(props: {messages: MessagesProps; internal: ViewportInternalValue}): JSX.Element {
+function VirtualMessages(props: {
+  messages: MessagesProps
+  internal: ViewportInternalValue
+  viewport: ViewportContextValue
+}): JSX.Element {
   const thread = useThread()
   const turns = () => thread.turns
   const estimator = useTurnEstimator()
@@ -174,11 +164,10 @@ function VirtualMessages(props: {messages: MessagesProps; internal: ViewportInte
     exactAt: (index) => settledEstimate(index)?.exact === true,
     gap,
     overscan: () => (turns().length < VIRTUALIZE_THRESHOLD ? turns().length : EVICTING_OVERSCAN),
-    released: () => props.internal.released(),
   })
   onMount(() => {
-    props.internal.setContent({totalSize: virtualizer.totalSize, measured: virtualizer.measured})
-    onCleanup(() => props.internal.setContent(undefined))
+    props.viewport.setScroller({atEnd: virtualizer.atEnd, scrollToEnd: virtualizer.scrollToEnd})
+    onCleanup(() => props.viewport.setScroller(undefined))
     let disposed = false
     onCleanup(() => {
       disposed = true
@@ -215,7 +204,6 @@ function VirtualMessages(props: {messages: MessagesProps; internal: ViewportInte
         viewport.style.overflowAnchor = previousAnchoring
       })
     }
-    props.internal.pinToBottom()
   })
   return (
     <div style={{position: 'relative', width: '100%', flex: 'none', height: `${virtualizer.totalSize()}px`}}>
@@ -253,10 +241,11 @@ function VirtualMessages(props: {messages: MessagesProps; internal: ViewportInte
 
 function Messages(props: MessagesProps): JSX.Element {
   const internal = useViewportInternal()
-  const bottomAnchoredViewport = () => (internal?.turnAnchor() === 'bottom' ? internal : undefined)
+  const viewport = useOptionalThreadViewport()
+  const virtualizable = () => (internal && viewport ? {internal, viewport} : undefined)
   return (
-    <Show when={bottomAnchoredViewport()} fallback={<PlainMessages messages={props} />}>
-      {(resolved) => <VirtualMessages messages={props} internal={resolved()} />}
+    <Show when={virtualizable()} fallback={<PlainMessages messages={props} />}>
+      {(resolved) => <VirtualMessages messages={props} internal={resolved().internal} viewport={resolved().viewport} />}
     </Show>
   )
 }

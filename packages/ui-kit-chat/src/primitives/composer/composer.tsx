@@ -31,6 +31,7 @@ import {
 import {QueueItemProvider, type QueuedMessage} from '../queue-item/queue-item.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useComposerHandlers} from './composer-handlers.js'
+import {useOptionalThreadViewport} from '../thread/viewport-context.js'
 
 type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
   attachmentAdapter?: AttachmentAdapter
@@ -190,6 +191,7 @@ function Root(props: FormProps): JSX.Element {
     sendingAttachments: false,
   })
   const [local, rest] = splitProps(props, ['onSubmit', 'attachmentAdapter', 'draftStorage', 'draftKey'])
+  const threadViewport = useOptionalThreadViewport()
   const removedIds = new Set<string>()
   const attachmentAdapter = () => local.attachmentAdapter
   const attachments = () => state.attachments
@@ -306,6 +308,7 @@ function Root(props: FormProps): JSX.Element {
     event.preventDefault()
     invokeSubmit(local.onSubmit, event)
     if (!canSubmit(composer.canSend(), state.attachments.length, state.sendingAttachments)) return
+    threadViewport?.scrollToBottom()
     const original = snapshotDraft()
     setState('sendingAttachments', true)
     const content = await completedContent(original)

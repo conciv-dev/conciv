@@ -129,7 +129,7 @@ it('escapes on wheel up and re-pins via the scroll-to-bottom button', async () =
   const latest = page.getByRole('button', {name: 'Scroll to bottom'})
 
   wheelUpTo(thread.viewport(), 0)
-  await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-escaped')
+  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
   await expect.element(latest).not.toBeDisabled()
   await expect.element(page.getByText('question 0')).toBeVisible()
 
@@ -177,7 +177,7 @@ it('history prepend keeps the reading position while scrolled up', async () => {
   await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
 
   wheelUpTo(thread.viewport(), 0)
-  await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-escaped')
+  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('question 0')).toBeVisible()
 
   const older: UIMessage[] = Array.from({length: 10}, (_, index) => ({

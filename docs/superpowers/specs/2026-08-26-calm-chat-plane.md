@@ -100,6 +100,34 @@ Code-mode attribution (corrected after source read at main, `tool-calls.ts:873` 
 
 **Exit:** Phase 0 suite green as a blocking gate across the full scenario matrix in Chromium; existing browser suites unchanged; the "Fill in the form" video scenario re-recorded, reviewed by Omri in Firefox.
 
+## DECISION 2026-08-28 — one scroll owner
+
+The chat thread's scroll position had five independent writers: the browser clamp, `@tanstack/solid-virtual` (size compensation plus a gated `scrollToFn`), `@conciv/solid-stick-to-bottom`'s phase machine pinning on every resize, the thread pins in `use-thread-scroll.ts` (run start, initialize, thread switch), and the top-anchor reserve with its own `released` signal. Each symptom fix exposed the next seam, and a user who scrolled up mid-stream still got moved.
+
+From now on the virtualizer is the only writer of the thread viewport's scroll position.
+
+**Deleted actors:** `use-thread-scroll.ts`, `use-thread-auto-scroll.ts`, `use-top-anchor-reserve.ts`, `top-anchor.ts`, `use-follow-pause.ts`, `scroll.stories.tsx`, the `turnAnchor` / `topAnchorMessageClamp` / `scrollToBottomOnRunStart` / `scrollToBottomOnInitialize` / `scrollToBottomOnThreadSwitch` / `autoScroll` props on `Thread.Viewport`, the `data-follow` and `data-escaped` attributes, and the `pauseFollow` / `released` / `pinToBottom` surfaces. `@conciv/solid-stick-to-bottom` is out of the thread's path entirely; it survives only for the two non-virtualized log scrollers (`styled/reasoning.tsx`, `styled/activity.tsx`).
+
+**The virtualizer's configuration is the machine:** `anchorTo: 'end'`, `followOnAppend: true`, `scrollEndThreshold: SCROLL_END_THRESHOLD_PX` (32), the stock `elementScroll` with no gate, and virtual-core's own `shouldAdjustScrollPositionOnItemSizeChange` default. `atEnd` is derived from `instance.isAtEnd()`; `data-at-bottom` is the only scroll attribute the viewport carries.
+
+**Permitted writes — two gestures and nothing else:**
+
+1. the scroll-to-bottom ("Latest") button, and
+2. sending a prompt, from the composer submit handler.
+
+There is no non-gesture write. `use-scroll-lock.ts` lost its `scrollTop` clamp for the same reason — it was a sixth writer fighting the compensation; it now only hides the scrollbar during a fold.
+
+**Open, measured, unresolved: initial mount does not land at the end.** `anchorTo: 'end'` only preserves an existing end anchor across option changes (`_willUpdate` requires a previous options object and a count change while already at the end). A fresh mount has nothing to anchor to, so it starts at offset 0. Measured over the first 30 frames of a 60-turn mount in a 400x400 viewport: `scrollTop` is 0 on every frame while the end offset is 3445 and the spacer is 3816px; the mounted window is rows 0..14. No measurement moves it, because nothing ever asks it to. Fixing this with a `measured()`-triggered pin would reintroduce a non-gesture writer, so it is deliberately left open for a decision.
+
+**Gates:**
+
+- (a) a released user never moves: scrolled up 600px mid-stream, `scrollTop` holds within 1px across the whole stream, the row under the viewport's top edge stays the same row, and `data-at-bottom` is absent.
+- (b) an at-bottom user follows: never falls more than three consecutive frames beyond `SCROLL_END_THRESHOLD_PX` of the virtual end (the virtualizer's compensation catches up on the next animation frame), and `data-at-bottom` is present when the stream ends.
+- (c) scroll up then send: the viewport is back at the end after the send.
+- (d) reload/mount over a long mixed-height thread lands at the end.
+- (e) collapsing and expanding a card while released leaves the row under the top edge unchanged and its offset inside the viewport within 4px — the residue of `measureElement` rounding each row to whole pixels, measured as constant over six toggles rather than accumulating.
+- The reader's position is measured as the offset of the row under the viewport's top edge, not as raw `scrollTop`: a virtualized list legitimately rewrites `scrollTop` when it corrects an above-viewport estimate, and the reader does not move when it does.
+
 ## Risks
 
 - **2.b is the hardest piece** — approval semantics were hard-won (#589); the adapter design gets its own review before implementation.

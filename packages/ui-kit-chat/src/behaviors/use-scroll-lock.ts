@@ -1,5 +1,4 @@
 import {createRoot, getOwner, type Accessor} from 'solid-js'
-import {makeEventListener} from '@solid-primitives/event-listener'
 import {makeTimer} from '@solid-primitives/timer'
 
 const SCROLLABLE_OVERFLOW = new Set(['auto', 'scroll'])
@@ -26,7 +25,6 @@ export function useScrollLock(animatedElement: Accessor<HTMLElement | undefined>
     const scrollContainer = findScrollableAncestor(element)
     if (!scrollContainer) return
 
-    const scrollPosition = scrollContainer.scrollTop
     const previousScrollbarWidth = scrollContainer.style.scrollbarWidth
     const computed = getComputedStyle(scrollContainer)
     const paddingProperty = computed.direction === 'rtl' ? 'paddingLeft' : 'paddingRight'
@@ -47,15 +45,9 @@ export function useScrollLock(animatedElement: Accessor<HTMLElement | undefined>
       scrollContainer.style[paddingProperty] = previousPadding
     }
 
-    const resetPosition = () => {
-      if (scrollContainer.scrollTop > scrollPosition) scrollContainer.scrollTop = scrollPosition
-    }
-
     createRoot((dispose) => {
-      const clearScrollListener = makeEventListener(scrollContainer, 'scroll', resetPosition)
       const clearTimer = makeTimer(
         () => {
-          clearScrollListener()
           restoreStyles()
           cleanup = null
           dispose()
@@ -66,7 +58,6 @@ export function useScrollLock(animatedElement: Accessor<HTMLElement | undefined>
 
       cleanup = () => {
         clearTimer()
-        clearScrollListener()
         restoreStyles()
         dispose()
       }

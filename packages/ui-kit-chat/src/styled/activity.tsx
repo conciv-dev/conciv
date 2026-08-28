@@ -37,7 +37,7 @@ import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {Dynamic} from 'solid-js/web'
 import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
 import {createSettleFold} from '../primitives/util/create-settle-fold.js'
-import {useThreadAutoScroll} from '../behaviors/use-thread-auto-scroll.js'
+import {createStickToBottom} from '@conciv/solid-stick-to-bottom'
 import {ToolCallCard} from '../tools/styled/tool-call-card.js'
 import {Group} from './group.js'
 import {toolFallbackCardView} from '../tools/styled/tool-fallback.js'
@@ -388,7 +388,7 @@ function UserTurnView(props: {turn: Turn}): JSX.Element {
 function Timeline(props: {id?: string; 'aria-label'?: string; class?: string; children?: JSX.Element}): JSX.Element {
   const activity = useActivity()
   const [viewport, setViewport] = createSignal<HTMLElement>()
-  useThreadAutoScroll(viewport, {autoScroll: () => true})
+  createStickToBottom(viewport)
   return (
     <div
       ref={setViewport}

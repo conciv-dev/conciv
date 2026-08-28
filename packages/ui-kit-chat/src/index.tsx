@@ -182,8 +182,6 @@ export {
 
 export {readComposerDraft, writeComposerDraft, type PersistedComposerDraft} from './behaviors/composer-draft-storage.js'
 export {useComposerDraftPersistence, type ComposerDraftPersistenceOptions} from './behaviors/use-composer-draft.js'
-export {useThreadAutoScroll} from './behaviors/use-thread-auto-scroll.js'
-export {useTopAnchorReserve} from './behaviors/use-top-anchor-reserve.js'
 export {useSizeHandle} from './behaviors/use-size-handle.js'
 
 export {Thread, type ThreadComponents, type ThreadMessagesProps, type ThreadRootProps} from './styled/thread.js'
