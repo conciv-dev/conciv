@@ -23,6 +23,12 @@ export type ThreadVirtualizerConfig = {
   overscan: Accessor<number>
 }
 
+type ThreadLanding = {
+  element: HTMLElement | undefined
+  firstKey: string | undefined
+  lastKey: string | undefined
+}
+
 export type ThreadVirtualizer = {
   items: VirtualItem[]
   totalSize: Accessor<number>
@@ -34,6 +40,19 @@ export type ThreadVirtualizer = {
 }
 
 export function createThreadVirtualizer(config: ThreadVirtualizerConfig): ThreadVirtualizer {
+  let publishScrollOffset: ((offset: number, isScrolling: boolean) => void) | undefined
+
+  const trackScrollOffset: VirtualizerOptions<HTMLElement, Element>['observeElementOffset'] = (
+    virtualizer,
+    onChange,
+  ) => {
+    publishScrollOffset = onChange
+    onChange(virtualizer.scrollElement?.scrollTop ?? 0, false)
+    return observeElementOffset(virtualizer, onChange)
+  }
+
+  const readbackScrollOffset = (element: HTMLElement): void => publishScrollOffset?.(element.scrollTop, false)
+
   const resolveOptions = (): VirtualizerOptions<HTMLElement, Element> => ({
     count: config.count(),
     getScrollElement: () => {
@@ -48,9 +67,9 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     followOnAppend: true,
     scrollEndThreshold: SCROLL_END_THRESHOLD_PX,
     observeElementRect,
-    observeElementOffset,
+    observeElementOffset: trackScrollOffset,
     scrollToFn: elementScroll,
-    onChange: () => sync(),
+    onChange: () => update(),
     useAnimationFrameWithResizeObserver: true,
   })
 
@@ -77,7 +96,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     syncAtEnd()
   }
 
-  const bindScrollElement = () => {
+  const update = () => {
     instance._willUpdate()
     sync()
   }
@@ -90,13 +109,37 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   createEffect(() => {
     const element = config.scrollElement()
-    createResizeObserver(element, bindScrollElement)
+    createResizeObserver(element, update)
     if (element) makeEventListener(element, 'scroll', syncAtEnd, {passive: true})
-    bindScrollElement()
+    update()
+  })
+
+  createEffect(() => {
+    totalSize()
+    update()
   })
 
   onMount(() => {
     onCleanup(instance._didMount())
+  })
+
+  const [landing, setLanding] = createStore<ThreadLanding>({
+    element: undefined,
+    firstKey: undefined,
+    lastKey: undefined,
+  })
+
+  createEffect(() => {
+    const element = config.scrollElement()
+    const total = config.count()
+    if (!element?.isConnected || total === 0) return
+    const firstKey = config.keyAt(0)
+    const lastKey = config.keyAt(total - 1)
+    const sameThread = landing.element === element && (landing.firstKey === firstKey || landing.lastKey === lastKey)
+    setLanding({element, firstKey, lastKey})
+    if (sameThread) return
+    instance.scrollToEnd()
+    readbackScrollOffset(element)
   })
 
   return {
