@@ -20,6 +20,8 @@ export type ThreadVirtualizerConfig = {
   estimateSizeAt: (index: number) => number
   exactAt: (index: number) => boolean
   gap: Accessor<number>
+  paddingStart: Accessor<number>
+  paddingEnd: Accessor<number>
   overscan: Accessor<number>
 }
 
@@ -62,6 +64,8 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     estimateSize: config.estimateSizeAt,
     getItemKey: config.keyAt,
     gap: config.gap(),
+    paddingStart: config.paddingStart(),
+    paddingEnd: config.paddingEnd(),
     overscan: config.overscan(),
     anchorTo: 'end',
     followOnAppend: true,
@@ -80,13 +84,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   const [measured, setMeasured] = createSignal(false)
   const [atEnd, setAtEnd] = createSignal(true)
 
-  const virtualDistanceFromEnd = (): number => {
-    const element = config.scrollElement()
-    if (!element) return 0
-    return Math.max(0, instance.getTotalSize() - element.clientHeight - (instance.scrollOffset ?? 0))
-  }
-
-  const syncAtEnd = () => setAtEnd(virtualDistanceFromEnd() <= SCROLL_END_THRESHOLD_PX)
+  const syncAtEnd = () => setAtEnd(instance.isAtEnd())
 
   const sync = () => {
     const virtualItems = instance.getVirtualItems()

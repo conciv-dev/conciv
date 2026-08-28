@@ -1,4 +1,5 @@
 import {
+  createEffect,
   createMemo,
   createSignal,
   For,
@@ -150,6 +151,8 @@ function VirtualMessages(props: {
   const turns = () => thread.turns
   const estimator = useTurnEstimator()
   const [gap, setGap] = createSignal(0)
+  const [blockPadding, setBlockPadding] = createSignal({start: 0, end: 0})
+  const hasRows = () => turns().length > 0
   const settledEstimate = (index: number): TurnEstimate | undefined => {
     if (index === turns().length - 1) return undefined
     const turn = turns()[index]
@@ -163,6 +166,8 @@ function VirtualMessages(props: {
     estimateSizeAt: (index) => settledEstimate(index)?.height ?? ROW_ESTIMATE_PX,
     exactAt: (index) => settledEstimate(index)?.exact === true,
     gap,
+    paddingStart: () => (hasRows() ? blockPadding().start : 0),
+    paddingEnd: () => (hasRows() ? blockPadding().end : 0),
     overscan: () => (turns().length < VIRTUALIZE_THRESHOLD ? turns().length : EVICTING_OVERSCAN),
   })
   onMount(() => {
@@ -191,7 +196,19 @@ function VirtualMessages(props: {
     })
     const viewport = props.internal.element()
     if (viewport) {
-      setGap(Number.parseFloat(getComputedStyle(viewport).rowGap) || 0)
+      const style = getComputedStyle(viewport)
+      setGap(Number.parseFloat(style.rowGap) || 0)
+      setBlockPadding({
+        start: Number.parseFloat(style.paddingBlockStart) || 0,
+        end: Number.parseFloat(style.paddingBlockEnd) || 0,
+      })
+      const previousPadding = viewport.style.paddingBlock
+      createEffect(() => {
+        viewport.style.paddingBlock = hasRows() ? '0px' : previousPadding
+      })
+      onCleanup(() => {
+        viewport.style.paddingBlock = previousPadding
+      })
       let lastWidth = viewport.clientWidth
       createResizeObserver(viewport, ({width}) => {
         if (width === lastWidth) return
