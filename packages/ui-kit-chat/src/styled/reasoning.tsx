@@ -26,10 +26,7 @@ export function Reasoning(props: ReasoningProps): JSX.Element {
   })
   const [scroller, setScroller] = createSignal<HTMLDivElement>()
   const capped = () => !props.grow
-  createStickToBottom(scroller, {
-    initial: 'instant',
-    follow: () => capped() && Boolean(props.streaming),
-  })
+  createStickToBottom(scroller, {follow: () => capped() && Boolean(props.streaming)})
   return (
     <CollapsibleCard
       open={collapse.open()}

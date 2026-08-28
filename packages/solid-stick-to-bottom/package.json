@@ -34,15 +34,20 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run"
   },
   "dependencies": {
     "@solid-primitives/event-listener": "^2.4.6",
-    "@solid-primitives/timer": "^1.4.4"
+    "@solid-primitives/mutation-observer": "^1.2.4",
+    "@solid-primitives/resize-observer": "^2.2.0"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
+    "@solidjs/testing-library": "^0.8.10",
     "@types/node": "^22.19.21",
     "@vitest/browser-playwright": "4.1.10",
+    "playwright": "^1.61.1",
     "solid-js": "^1.9.13",
     "storybook": "^10.5.0",
     "storybook-solidjs-vite": "^10.6.0",

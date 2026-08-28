@@ -64,7 +64,7 @@ function CollapsePinHarness(): JSX.Element {
   const [streaming, setStreaming] = createSignal(true)
   const [lines, setLines] = createSignal(3)
   onMount(() => {
-    scrollToBottom('instant')
+    scrollToBottom()
     const interval = setInterval(() => {
       if (lines() >= GROWTH_LINES) {
         clearInterval(interval)
@@ -104,7 +104,7 @@ function CollapsePinHarness(): JSX.Element {
 function ExpandAtBottomHarness(): JSX.Element {
   const [viewport, setViewport] = createSignal<HTMLDivElement>()
   const scroll = useThreadAutoScroll(viewport, {autoScroll: () => true})
-  onMount(() => scroll.scrollToBottom('instant'))
+  onMount(() => scroll.scrollToBottom())
   return (
     <ViewportProvider value={scroll}>
       <div class="w-96">
@@ -113,7 +113,7 @@ function ExpandAtBottomHarness(): JSX.Element {
           ref={setViewport}
           data-thread-viewport
           data-at-bottom={scroll.isAtBottom() ? '' : undefined}
-          data-escaped={scroll.escapedFromLock() ? '' : undefined}
+          data-escaped={scroll.released() ? '' : undefined}
           class="p-2 border border-chat-line h-32 overflow-y-auto"
         >
           <Index each={Array.from({length: 20}, (_, index) => index)}>
@@ -138,7 +138,7 @@ async function realWheel(element: Element, deltaY: number): Promise<void> {
 function ExpandEscapedHarness(): JSX.Element {
   const [viewport, setViewport] = createSignal<HTMLDivElement>()
   const scroll = useThreadAutoScroll(viewport, {autoScroll: () => true})
-  onMount(() => scroll.scrollToBottom('instant'))
+  onMount(() => scroll.scrollToBottom())
   return (
     <ViewportProvider value={scroll}>
       <div class="w-96">
@@ -146,7 +146,7 @@ function ExpandEscapedHarness(): JSX.Element {
           ref={setViewport}
           data-thread-viewport
           data-at-bottom={scroll.isAtBottom() ? '' : undefined}
-          data-escaped={scroll.escapedFromLock() ? '' : undefined}
+          data-escaped={scroll.released() ? '' : undefined}
           class="p-2 border border-chat-line h-32 overflow-y-auto"
         >
           <Index each={Array.from({length: 20}, (_, index) => index)}>
@@ -169,7 +169,7 @@ function ExpandEscapedHarness(): JSX.Element {
 function TallCardNearBottomHarness(): JSX.Element {
   const [viewport, setViewport] = createSignal<HTMLDivElement>()
   const scroll = useThreadAutoScroll(viewport, {autoScroll: () => true})
-  onMount(() => scroll.scrollToBottom('instant'))
+  onMount(() => scroll.scrollToBottom())
   return (
     <ViewportProvider value={scroll}>
       <div class="w-96">
@@ -177,7 +177,7 @@ function TallCardNearBottomHarness(): JSX.Element {
           ref={setViewport}
           data-thread-viewport
           data-at-bottom={scroll.isAtBottom() ? '' : undefined}
-          data-escaped={scroll.escapedFromLock() ? '' : undefined}
+          data-escaped={scroll.released() ? '' : undefined}
           class="p-2 border border-chat-line h-72 overflow-y-auto"
         >
           <Index each={Array.from({length: 20}, (_, index) => index)}>
