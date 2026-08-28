@@ -106,6 +106,21 @@ describe('diffTurns identity reuse', () => {
     expect(turns[0]).toBe(previousTurns[0])
   })
 
+  it('reuses settled turns when a history snapshot re-mints their message ids', () => {
+    const previousMessages = conversation()
+    const previousTurns = diffTurns([], [], previousMessages)
+    const resnapshot = previousMessages.map((message, index) => ({
+      ...message,
+      id: `server-${index}`,
+      parts: message.parts.map((part) => ({...part})),
+    }))
+    const turns = diffTurns(previousTurns, previousMessages, resnapshot)
+    expect(turns[0]).toBe(previousTurns[0])
+    expect(turns[1]).toBe(previousTurns[1])
+    expect(turns[2]).toBe(previousTurns[2])
+    expect(turns[3]).toBe(previousTurns[3])
+  })
+
   it('handles wholesale branch replacement', () => {
     const previousMessages = conversation()
     const previousTurns = diffTurns([], [], previousMessages)

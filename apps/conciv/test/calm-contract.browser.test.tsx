@@ -202,9 +202,25 @@ test('a second run leaves the first run untouched [mechanism B: wrong streaming 
 
   await promptWith('first question')
   await expect.element(page.getByText('First answer.')).toBeVisible()
+  const watch = watchCalm()
+  await watch.checkpoint()
 
   await coreControl.scriptTurn({toolCalls: [{name: 'Read', input: {filePath: 'second.ts'}}], text: 'Second answer.'})
-  const watch = await startHeldToolRun({prompt: 'second question', pending: 'second.ts', settled: 'Second answer.'})
+  await coreControl.holdTools()
+  await coreControl.holdResults()
+  await coreControl.holdTurn()
+  await promptWith('second question')
+  await expect.element(stopButton()).toBeVisible()
+  await watch.checkpoint()
+  expect(watch.removed()).toEqual([])
+  await watch.checkpoint({rebaseline: true})
+
+  await coreControl.releaseTools()
+  await expect.element(page.getByText('second.ts', {exact: true})).toBeVisible()
+  await watch.checkpoint()
+  await coreControl.releaseResults()
+  await expect.element(page.getByText('Second answer.', {exact: true})).toBeVisible()
+  await watch.checkpoint()
   await page.screenshot({path: `${SHOTS}/interleave-mid-stream.png`})
   expectCalm(watch)
 
