@@ -95,7 +95,6 @@ export function TraceRail(props: {
   let runLine: SVGPathElement | undefined
   let pendingFrame: number | undefined
   let pendingReflow = false
-  let gutter = Number.NaN
   let drawnKey: string | undefined
 
   const openList = (): HTMLUListElement | undefined => (props.open() ? props.list() : undefined)
@@ -103,7 +102,9 @@ export function TraceRail(props: {
   const readGeometry = (): RailGeometry | undefined => {
     const root = props.root()
     const header = props.header()
-    if (!root || !header || !(gutter > 0)) return undefined
+    if (!root || !header) return undefined
+    const gutter = gutterToken(root)
+    if (!(gutter > 0)) return undefined
     const rootRect = root.getBoundingClientRect()
     if (rootRect.height === 0) return undefined
     const rows = measuredRows(openList())
@@ -166,8 +167,7 @@ export function TraceRail(props: {
     })
   }
 
-  const observeResize = (rect: DOMRectReadOnly, element: Element): void => {
-    if (element === railSvg && rect.width !== gutter) gutter = rect.width
+  const observeResize = (): void => {
     schedule(true)
   }
 
@@ -176,15 +176,13 @@ export function TraceRail(props: {
   })
 
   onMount(() => {
-    const root = props.root()
-    if (root) gutter = gutterToken(root)
     runSvg?.style.setProperty('transition', 'none')
     draw()
     runSvg?.getBoundingClientRect()
     requestAnimationFrame(() => {
       runSvg?.style.removeProperty('transition')
     })
-    createResizeObserver(() => [props.root(), props.list(), railSvg], observeResize)
+    createResizeObserver(() => [props.root(), props.list()], observeResize)
   })
 
   createEffect(() => {
