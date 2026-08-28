@@ -68,26 +68,31 @@ function distanceFromEnd(element: HTMLElement): number {
   return element.scrollHeight - element.scrollTop - element.clientHeight
 }
 
-it('settles to following pinned at the end of the content', async () => {
-  const mounted = mountScroller(2000)
+async function mountFollowingScroller(initialHeight: number): Promise<Mounted> {
+  const mounted = mountScroller(initialHeight)
+  await expect.element(page.getByRole('status')).toHaveTextContent(`following at ${initialHeight}`)
+  return mounted
+}
 
-  await expect.element(page.getByRole('status')).toHaveTextContent('following at 2000')
+async function releaseByWheelingUp(mounted: Mounted): Promise<void> {
+  await userEvent.wheel(mounted.scroller(), {delta: {y: -400}})
+  await expect.element(page.getByRole('status')).toHaveTextContent('released at')
+}
+
+it('settles to following pinned at the end of the content', async () => {
+  const mounted = await mountFollowingScroller(2000)
 
   expect(distanceFromEnd(mounted.scroller())).toBeLessThanOrEqual(1)
 })
 
 it('releases when a wheel gesture scrolls up', async () => {
-  const mounted = mountScroller(2000)
-  await expect.element(page.getByRole('status')).toHaveTextContent('following at 2000')
+  const mounted = await mountFollowingScroller(2000)
 
-  await userEvent.wheel(mounted.scroller(), {delta: {y: -400}})
-
-  await expect.element(page.getByRole('status')).toHaveTextContent('released at')
+  await releaseByWheelingUp(mounted)
 })
 
 it('releases when a keyboard scroll key is pressed', async () => {
-  const mounted = mountScroller(2000)
-  await expect.element(page.getByRole('status')).toHaveTextContent('following at 2000')
+  const mounted = await mountFollowingScroller(2000)
 
   mounted.scroller().focus()
   await userEvent.keyboard('{PageUp}')
@@ -96,8 +101,7 @@ it('releases when a keyboard scroll key is pressed', async () => {
 })
 
 it('keeps following when the browser clamps the scroll position after the content shrinks', async () => {
-  const mounted = mountScroller(4000)
-  await expect.element(page.getByRole('status')).toHaveTextContent('following at 4000')
+  const mounted = await mountFollowingScroller(4000)
 
   mounted.setContentHeight(900)
 
@@ -106,8 +110,7 @@ it('keeps following when the browser clamps the scroll position after the conten
 })
 
 it('keeps following through a growth wave that follows a shrink wave', async () => {
-  const mounted = mountScroller(4000)
-  await expect.element(page.getByRole('status')).toHaveTextContent('following at 4000')
+  const mounted = await mountFollowingScroller(4000)
 
   mounted.setContentHeight(3700)
   await expect.element(page.getByRole('status')).toHaveTextContent('following at 3700')
@@ -118,8 +121,7 @@ it('keeps following through a growth wave that follows a shrink wave', async () 
 })
 
 it('releases when the viewport scrolls up with no content change to explain it', async () => {
-  const mounted = mountScroller(2000)
-  await expect.element(page.getByRole('status')).toHaveTextContent('following at 2000')
+  const mounted = await mountFollowingScroller(2000)
 
   mounted.scroller().scrollTop = 0
 
@@ -127,10 +129,8 @@ it('releases when the viewport scrolls up with no content change to explain it',
 })
 
 it('returns to following at the end when asked to scroll to the bottom', async () => {
-  const mounted = mountScroller(2000)
-  await expect.element(page.getByRole('status')).toHaveTextContent('following at 2000')
-  await userEvent.wheel(mounted.scroller(), {delta: {y: -400}})
-  await expect.element(page.getByRole('status')).toHaveTextContent('released at')
+  const mounted = await mountFollowingScroller(2000)
+  await releaseByWheelingUp(mounted)
 
   mounted.machine().scrollToBottom()
 
@@ -139,10 +139,8 @@ it('returns to following at the end when asked to scroll to the bottom', async (
 })
 
 it('returns to following when the reader scrolls back down to the end', async () => {
-  const mounted = mountScroller(2000)
-  await expect.element(page.getByRole('status')).toHaveTextContent('following at 2000')
-  await userEvent.wheel(mounted.scroller(), {delta: {y: -400}})
-  await expect.element(page.getByRole('status')).toHaveTextContent('released at')
+  const mounted = await mountFollowingScroller(2000)
+  await releaseByWheelingUp(mounted)
 
   await userEvent.wheel(mounted.scroller(), {delta: {y: 600}})
 
