@@ -1,3 +1,4 @@
+import {isEqual} from 'es-toolkit'
 import type {JSX} from 'solid-js'
 import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
@@ -45,6 +46,12 @@ function turnBounds(messages: ReadonlyArray<UIMessage>): TurnBounds[] {
   return bounds
 }
 
+function sameMessage(previous: UIMessage | undefined, message: UIMessage): boolean {
+  if (previous === message) return true
+  if (!previous || previous.role !== message.role) return false
+  return isEqual(previous.parts, message.parts)
+}
+
 function sourceUnchanged(
   bound: TurnBounds,
   prevMessages: ReadonlyArray<UIMessage>,
@@ -52,7 +59,7 @@ function sourceUnchanged(
 ): boolean {
   return messages
     .slice(bound.start, bound.end + 1)
-    .every((message, offset) => prevMessages[bound.start + offset] === message)
+    .every((message, offset) => sameMessage(prevMessages[bound.start + offset], message))
 }
 
 function buildTurn(messages: ReadonlyArray<UIMessage>, bound: TurnBounds): Turn {

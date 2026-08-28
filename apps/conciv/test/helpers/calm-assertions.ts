@@ -92,6 +92,10 @@ function isAboveLiveRegion(node: Element, region: Element | undefined): boolean 
   return (node.compareDocumentPosition(region) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
 }
 
+function isPseudoElement(node: Element): boolean {
+  return node.tagName.startsWith('::')
+}
+
 function describeSurface(node: Element): string {
   const role = node.getAttribute('role') ?? node.tagName.toLowerCase()
   const label = node.getAttribute('aria-label') ?? (node.textContent ?? '').replaceAll(/\s+/g, ' ').trim()
@@ -206,7 +210,7 @@ export function createCalmWatch(options: {allow?: ReadonlyArray<CalmAllowance>} 
     if (!viewport) return
     const region = liveRegionOf(viewport)
     const isAboveSource = (node: Node | null | undefined): node is Element =>
-      node instanceof Element && viewport.contains(node) && isAboveLiveRegion(node, region)
+      node instanceof Element && !isPseudoElement(node) && viewport.contains(node) && isAboveLiveRegion(node, region)
     for (const entry of entries) {
       if (!isLayoutShiftEntry(entry)) continue
       if (entry.hadRecentInput) continue
