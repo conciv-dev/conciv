@@ -18,7 +18,9 @@ import {toolFallbackCardView} from '../src/tools/styled/tool-fallback.js'
 import {mountView} from './mount-view.js'
 
 const TURN_COUNT = 30
-const MEDIAN_ERROR_LIMIT = 0.2
+const MEDIAN_ERROR_LIMIT = 0.02
+const P90_ERROR_LIMIT = 0.05
+const MAX_ERROR_LIMIT = 0.08
 
 const STANDALONE_ENTRIES: ToolCardEntry[] = [{...toolFallbackCardView, names: ['Read', 'Edit'], display: 'standalone'}]
 
@@ -139,11 +141,12 @@ function collectHeights(viewport: HTMLElement, into: Map<number, number>): void 
 
 async function sweepMeasured(viewport: HTMLElement): Promise<Map<number, number>> {
   const measured = new Map<number, number>()
-  viewport.scrollTop = 0
+  viewport.scrollTop = viewport.scrollHeight
+  await nextFrame()
   await nextFrame()
   collectHeights(viewport, measured)
-  while (viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - 1) {
-    viewport.scrollTop = viewport.scrollTop + viewport.clientHeight / 2
+  while (viewport.scrollTop > 1) {
+    viewport.scrollTop = Math.max(0, viewport.scrollTop - viewport.clientHeight / 2)
     await nextFrame()
     await nextFrame()
     collectHeights(viewport, measured)
@@ -165,7 +168,7 @@ function quantile(values: number[], fraction: number): number {
   return ordered[at] ?? Number.NaN
 }
 
-it('estimates settled turn heights within a fifth of their measured height', async () => {
+it('estimates settled turn heights within a fiftieth of their measured height', async () => {
   const messages = seedMessages()
   const viewport = mountThread(messages)
   await expect.element(page.getByText('question 0', {exact: false}).first()).toBeVisible()
@@ -198,6 +201,8 @@ it('estimates settled turn heights within a fifth of their measured height', asy
       ),
   ].join('\n')
 
-  expect(rows.length > 20, summary).toBe(true)
+  expect(rows.length === turns.length - 1, summary).toBe(true)
   expect(median(errors) <= MEDIAN_ERROR_LIMIT, summary).toBe(true)
+  expect(quantile(errors, 0.9) <= P90_ERROR_LIMIT, summary).toBe(true)
+  expect(Math.max(...errors) <= MAX_ERROR_LIMIT, summary).toBe(true)
 })
