@@ -3,7 +3,7 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vitest/config'
 import {storybookTest} from '@storybook/addon-vitest/vitest-plugin'
 import {playwright} from '@vitest/browser-playwright'
-import {ciTest} from '@conciv/vitest-config'
+import {browserOptimizeDeps, ciTest} from '@conciv/vitest-config'
 
 const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 
@@ -15,6 +15,7 @@ export default defineConfig({
       {
         extends: true,
         plugins: [storybookTest({configDir: path.join(dirname, '.storybook')})],
+        optimizeDeps: browserOptimizeDeps(['@testing-library/dom']),
         test: {
           name: 'storybook',
           maxWorkers: 2,
