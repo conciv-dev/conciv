@@ -1,4 +1,4 @@
-import './helpers/utilities.css'
+import '../src/styles.css'
 import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import type {RpcClient} from '@conciv/contract'
