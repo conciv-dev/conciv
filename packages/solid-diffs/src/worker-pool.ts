@@ -9,8 +9,7 @@ export type DiffsRenderOptions = Pick<
   'theme' | 'useTokenTransformer' | 'tokenizeMaxLineLength' | 'lineDiffType' | 'maxLineDiffLength'
 >
 
-export function highlightWorkerPool(options: DiffsRenderOptions | undefined): WorkerPoolManager | undefined {
-  if (typeof Worker === 'undefined') return undefined
+function poolSingleton(options: DiffsRenderOptions | undefined): WorkerPoolManager {
   return getOrCreateWorkerPoolSingleton({
     poolOptions: {
       workerFactory: () => new DiffsHighlightWorker(),
@@ -24,4 +23,14 @@ export function highlightWorkerPool(options: DiffsRenderOptions | undefined): Wo
       maxLineDiffLength: options?.maxLineDiffLength,
     },
   })
+}
+
+export function highlightWorkerPool(options: DiffsRenderOptions | undefined): WorkerPoolManager | undefined {
+  if (typeof Worker === 'undefined') return undefined
+  return poolSingleton(options)
+}
+
+export function primeHighlightWorkerPool(options: DiffsRenderOptions | undefined): void {
+  if (typeof Worker === 'undefined') return
+  poolSingleton(options)
 }
