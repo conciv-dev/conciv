@@ -4,6 +4,7 @@ import {defineConfig} from 'unocss'
 export default defineConfig({
   content: {
     filesystem: ['src/**/*.{ts,tsx}', '../ui-kit-chat/src/**/*.{ts,tsx}', '../ui-kit-system/src/**/*.{ts,tsx}'],
+    pipeline: {include: [/\.[jt]sx?($|\?)/]},
   },
   presets: [presetConciv()],
 })

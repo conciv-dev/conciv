@@ -91,7 +91,12 @@ const PREEXISTING_TERM_SITES = [
   },
   {
     term: 'pipeline',
-    paths: ['packages/extension-testkit/src/test-host-config.ts', 'packages/ui-kit-chat/uno.config.ts'],
+    paths: [
+      'packages/extension-testkit/src/test-host-config.ts',
+      'packages/ui-kit-chat/uno.config.ts',
+      'packages/ui-kit-chat-tools/uno.config.ts',
+      'packages/ui-kit-system/uno.config.ts',
+    ],
   },
   {
     term: 'attach',

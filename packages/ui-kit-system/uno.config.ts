@@ -2,7 +2,10 @@ import {presetConciv} from '@conciv/uno-preset'
 import {defineConfig} from 'unocss'
 
 export default defineConfig({
-  content: {filesystem: ['src/**/*.{ts,tsx}']},
+  content: {
+    filesystem: ['src/**/*.{ts,tsx}'],
+    pipeline: {include: [/\.[jt]sx?($|\?)/]},
+  },
 
   presets: [presetConciv()],
 })
