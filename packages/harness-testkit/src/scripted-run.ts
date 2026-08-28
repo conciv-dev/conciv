@@ -52,12 +52,17 @@ function* requestChunks(call: {id: string; name: string; input: unknown}): Gener
   yield {type: EventType.TOOL_CALL_END, toolCallId}
 }
 
+function stringifyToolResult(result: unknown): string {
+  if (typeof result === 'string') return result
+  return JSON.stringify(result)
+}
+
 function resultChunk(toolCallId: string, result: unknown): StreamChunk {
   return {
     type: EventType.TOOL_CALL_RESULT,
     messageId: `${toolCallId}-result`,
     toolCallId,
-    content: JSON.stringify(result),
+    content: stringifyToolResult(result),
     state: 'output-available',
   }
 }
