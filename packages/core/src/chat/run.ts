@@ -5,6 +5,7 @@ import {
   chat,
   EventType,
   fromSpecTokenUsage,
+  generateMessageId,
   RUN_ACCEPTED_EVENT,
   StreamProcessor,
   type AnyTool,
@@ -261,6 +262,36 @@ function noteUsage(deps: ChatDeps, model: string | null, chunk: StreamChunk, out
   outcome.usage = usageSnapshotFor(deps, model ?? deps.harness.defaultModel ?? null, usage)
 }
 
+function isTextMessageChunk(chunk: StreamChunk): chunk is Extract<
+  StreamChunk,
+  {
+    type:
+      | typeof EventType.TEXT_MESSAGE_START
+      | typeof EventType.TEXT_MESSAGE_CONTENT
+      | typeof EventType.TEXT_MESSAGE_END
+  }
+> {
+  return (
+    chunk.type === EventType.TEXT_MESSAGE_START ||
+    chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
+    chunk.type === EventType.TEXT_MESSAGE_END
+  )
+}
+
+function assistantMessageIdStamper(): (chunk: StreamChunk) => StreamChunk {
+  let mintedId: string | null = null
+  return (chunk: StreamChunk): StreamChunk => {
+    if (!isTextMessageChunk(chunk)) return chunk
+    if (chunk.messageId !== '') {
+      mintedId = chunk.type === EventType.TEXT_MESSAGE_END ? null : chunk.messageId
+      return chunk
+    }
+    const id = mintedId ?? generateMessageId()
+    mintedId = chunk.type === EventType.TEXT_MESSAGE_END ? null : id
+    return {...chunk, messageId: id}
+  }
+}
+
 type ChunkFold = {deps: ChatDeps; sessionId: SessionId; model: string | null; processor: StreamProcessor}
 
 function foldChunk(fold: ChunkFold, chunk: StreamChunk, outcome: RunOutcome): 'continue' | 'stop' {
@@ -285,8 +316,9 @@ async function* foldRunStream(
   stream: AsyncIterable<StreamChunk>,
   outcome: RunOutcome,
 ): AsyncGenerator<StreamChunk> {
+  const stampAssistantId = assistantMessageIdStamper()
   for await (const raw of stream) {
-    const stamped = normalizeChunkToolName(stampRunId(raw, req.runId), normalize)
+    const stamped = stampAssistantId(normalizeChunkToolName(stampRunId(raw, req.runId), normalize))
     const step = foldChunk(fold, stamped, outcome)
     if (!isRunEndChunk(stamped)) yield stamped
     if (step === 'stop') return
