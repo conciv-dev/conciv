@@ -1,5 +1,5 @@
 import 'virtual:uno.css'
-import type {JSX} from 'solid-js'
+import {createSignal, onMount, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
@@ -129,4 +129,83 @@ it('a fresh mount over a long transcript settles pinned to the latest turn', asy
 
   await expect.element(page.getByText(answerFor(TURNS - 1), {exact: false})).toBeVisible()
   await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom')
+})
+
+const REST_READOUT_LABEL = 'thread rest readout'
+const RESTS_AT_END = 'thread rests at the end'
+const REST_SAMPLE_FRAMES = 180
+
+function restingGap(viewport: HTMLElement): number {
+  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+}
+
+function reportRestWhenSettled(host: HTMLElement, viewport: () => HTMLElement): void {
+  const readout = document.createElement('p')
+  readout.setAttribute('role', 'status')
+  readout.setAttribute('aria-label', REST_READOUT_LABEL)
+  readout.textContent = 'thread rest sampling'
+  host.append(readout)
+  let cleanFrames = 0
+  let framesLeft = REST_SAMPLE_FRAMES
+  let widestGap = 0
+  const sample = (): void => {
+    const gap = restingGap(viewport())
+    cleanFrames = gap < 0.5 ? cleanFrames + 1 : 0
+    widestGap = Math.max(widestGap, gap)
+    if (cleanFrames >= SETTLED_FRAMES) {
+      readout.textContent = RESTS_AT_END
+      return
+    }
+    framesLeft -= 1
+    if (framesLeft <= 0) {
+      readout.textContent = `thread rests ${gap}px short of the end, widest gap ${widestGap}px`
+      return
+    }
+    requestAnimationFrame(sample)
+  }
+  requestAnimationFrame(sample)
+}
+
+function GrowingTail(): JSX.Element {
+  const [tall, setTall] = createSignal(false)
+  onMount(() => {
+    void document.fonts.ready.then(() => {
+      requestAnimationFrame(() => requestAnimationFrame(() => setTall(true)))
+    })
+  })
+  return <div style={{height: tall() ? '41px' : '0px'}} />
+}
+
+function LateTailThread(props: {initial: UIMessage[]; ref?: (element: HTMLElement) => void}): JSX.Element {
+  const chat = useChat({connection: storyConnection({chunks: []}), initialMessages: props.initial})
+  const lastKey = props.initial[props.initial.length - 1]?.id
+  return (
+    <ChatProvider chat={chat}>
+      <Thread class="h-150 w-100">
+        <Thread.Viewport ref={props.ref}>
+          <Thread.Messages turnPrefix={(turn) => (turn.key === lastKey ? <GrowingTail /> : null)} />
+        </Thread.Viewport>
+      </Thread>
+    </ChatProvider>
+  )
+}
+
+it('a fresh mount over a long transcript rests flush against the end of the thread', async () => {
+  let viewport: HTMLElement | undefined
+  const host = mountView(() => (
+    <LateTailThread
+      initial={seedTranscript(TURNS)}
+      ref={(element) => {
+        viewport = element
+      }}
+    />
+  ))
+
+  await expect.element(page.getByText(answerFor(TURNS - 1), {exact: false})).toBeVisible()
+  reportRestWhenSettled(host, () => {
+    if (!viewport) throw new Error('viewport not mounted')
+    return viewport
+  })
+
+  await expect.element(page.getByRole('status', {name: REST_READOUT_LABEL})).toHaveTextContent(RESTS_AT_END)
 })

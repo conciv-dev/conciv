@@ -43,6 +43,10 @@ export type ThreadVirtualizer = {
 export function createThreadVirtualizer(config: ThreadVirtualizerConfig): ThreadVirtualizer {
   let landedOffset: number | undefined
 
+  const writeScroll = (offset: number, behavior: ScrollBehavior | undefined): void => {
+    elementScroll(offset, {adjustments: undefined, behavior}, instance)
+  }
+
   const landOnEnd = (): void => {
     const lastIndex = config.count() - 1
     if (lastIndex < 0) return
@@ -50,14 +54,23 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     if (!element?.isConnected) return
     const target = instance.getOffsetForIndex(lastIndex, 'end')
     if (!target) return
-    elementScroll(target[0], {adjustments: undefined, behavior: 'auto'}, instance)
+    writeScroll(target[0], 'auto')
     landedOffset = element.scrollTop
     instance.scrollOffset = landedOffset
     syncAtEnd()
   }
 
   const stillOnTheLanding = (element: HTMLElement): boolean =>
-    landedOffset !== undefined && element.scrollTop === landedOffset
+    landedOffset !== undefined && Math.abs(element.scrollTop - landedOffset) < 1
+
+  const scrollToFn: VirtualizerOptions<HTMLElement, Element>['scrollToFn'] = (offset, options) => {
+    const element = config.scrollElement()
+    if (element?.isConnected && stillOnTheLanding(element)) {
+      landOnEnd()
+      return
+    }
+    writeScroll(offset + (options.adjustments ?? 0), options.behavior)
+  }
 
   const onScrolled = (): void => {
     const element = config.scrollElement()
@@ -81,7 +94,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     scrollEndThreshold: SCROLL_END_THRESHOLD_PX,
     observeElementRect,
     observeElementOffset,
-    scrollToFn: elementScroll,
+    scrollToFn,
     onChange: () => update(),
     useAnimationFrameWithResizeObserver: true,
   })
