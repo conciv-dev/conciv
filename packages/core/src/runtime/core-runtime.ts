@@ -5,7 +5,7 @@ import type {EngineStaleness, ToolCommandSignature} from '@conciv/contract'
 import type {ToolRequest} from '@conciv/extension'
 import {navigation, sessionCaptures, writeToolCapture} from '@conciv/db'
 import {symbolicateFrames} from '../editor/symbolicate.js'
-import {sessionSnapshot} from '../chat/transcript.js'
+import {syncedSnapshot} from '../chat/transcript-import.js'
 import {stopSession} from '../chat/stop.js'
 import type {ChatDeps} from '../chat/runtime.js'
 import type {Compactor, Send} from '../chat/run.js'
@@ -119,7 +119,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       store: (toolCallId, bundle) => writeToolCapture(deps.chat.db, {sessionId: id, toolCallId, bundle}),
     },
     history: {
-      messages: () => sessionSnapshot(deps.chat, id),
+      messages: () => syncedSnapshot(deps.chat, id),
     },
     run: {
       send: (runId, content, messageId) => deps.send(id, runId, content, messageId),

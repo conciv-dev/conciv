@@ -4,9 +4,11 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
-import {openDb, runMessagesFor, sessionHistoryFor, setRunMessages} from '@conciv/db'
-import {recoverInterruptedRuns} from '../../src/chat/transcript.js'
+import {openDb} from '@conciv/db'
+import {recoverInterruptedRuns} from '../../src/chat/transcript-import.js'
+import {writeRunMessages} from '../../src/chat/thread.js'
 import {createRow} from '../../src/chat/session-rows.js'
+import {threadPendingFrom, threadUserTexts} from '../helpers/thread.js'
 
 function harnessThrowingSynchronously(): HarnessAdapter {
   return defineHarness({
@@ -43,7 +45,7 @@ describe('recoverInterruptedRuns survives a synchronous throw from history.messa
     for (const root of roots.splice(0)) rmSync(root, {recursive: true, force: true})
   })
 
-  it('folds the pending run into history instead of rejecting the recovery pass', async () => {
+  it('settles the pending run in the thread instead of rejecting the recovery pass', async () => {
     const root = mkdtempSync(join(tmpdir(), 'conciv-sync-throw-'))
     roots.push(root)
     const db = openDb(root)
@@ -59,15 +61,13 @@ describe('recoverInterruptedRuns survives a synchronous throw from history.messa
       cwd: root,
       deletedAt: null,
     })
-    setRunMessages(db, sessionId, [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'turn in flight'}]}])
+    writeRunMessages(db, sessionId, [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'turn in flight'}]}])
 
     await expect(
       recoverInterruptedRuns({db, harness: harnessThrowingSynchronously(), claudeHome: root}),
     ).resolves.toBeUndefined()
 
-    expect(runMessagesFor(db, sessionId)).toBeNull()
-    expect(sessionHistoryFor(db, sessionId)?.messages).toEqual([
-      {id: 'u1', role: 'user', parts: [{type: 'text', content: 'turn in flight'}]},
-    ])
+    expect(threadPendingFrom(db, sessionId)).toBeNull()
+    expect(threadUserTexts(db, sessionId)).toEqual(['turn in flight'])
   })
 })

@@ -4,12 +4,6 @@ import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {openDb} from '../src/db.js'
 import {createRunStore} from '../src/run-store.js'
-import {
-  foldRichRunMessagesIntoHistory,
-  foldRunMessagesIntoHistory,
-  historyAnchorFor,
-  setRunMessages,
-} from '../src/run-queries.js'
 
 const fresh = () => openDb(mkdtempSync(join(tmpdir(), 'conciv-run-records-')))
 const freshStore = () => createRunStore(fresh())
@@ -70,44 +64,5 @@ describe('durable run records', () => {
       status: 'completed',
       finishedAt: 200,
     })
-  })
-})
-
-describe('the transcript merge anchor', () => {
-  it('records the native anchor when a run folds into history', () => {
-    const db = fresh()
-    setRunMessages(db, 's7', [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'hi'}]}])
-    foldRunMessagesIntoHistory(db, 's7', 'native-7')
-    expect(historyAnchorFor(db, 's7')).toEqual({nativeId: 'native-7'})
-  })
-
-  it('anchors at nothing when no transcript record preceded the first fold', () => {
-    const db = fresh()
-    setRunMessages(db, 's7b', [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'hi'}]}])
-    foldRunMessagesIntoHistory(db, 's7b', null)
-    expect(historyAnchorFor(db, 's7b')).toEqual({nativeId: null})
-  })
-
-  it('keeps the first anchor across later folds', () => {
-    const db = fresh()
-    setRunMessages(db, 's8', [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'one'}]}])
-    foldRunMessagesIntoHistory(db, 's8', 'native-first')
-    setRunMessages(db, 's8', [{id: 'u2', role: 'user', parts: [{type: 'text', content: 'two'}]}])
-    foldRunMessagesIntoHistory(db, 's8', 'native-second')
-    expect(historyAnchorFor(db, 's8')).toEqual({nativeId: 'native-first'})
-  })
-
-  it('records the anchor through the rich fold as well', () => {
-    const db = fresh()
-    setRunMessages(db, 's9', [
-      {id: 'u1', role: 'user', parts: [{type: 'image', source: {type: 'data', value: 'aGk=', mimeType: 'image/png'}}]},
-    ])
-    foldRichRunMessagesIntoHistory(db, 's9', 'native-rich')
-    expect(historyAnchorFor(db, 's9')).toEqual({nativeId: 'native-rich'})
-  })
-
-  it('has no anchor for a session that never folded', () => {
-    const db = fresh()
-    expect(historyAnchorFor(db, 's10')).toBeNull()
   })
 })

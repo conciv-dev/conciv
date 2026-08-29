@@ -6,10 +6,15 @@ import {fileURLToPath} from 'node:url'
 import {eq} from 'drizzle-orm'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
-import {openDb} from '../src/db.js'
-import {runMessagesFor, sessionHistoryFor, setRunMessages} from '../src/run-queries.js'
+import {openDb, type ConcivDb} from '../src/db.js'
+import {runMessagesFor, sessionHistoryFor} from '../src/run-queries.js'
 import {createRunStore} from '../src/run-store.js'
+import {runMessages} from '../src/run-schema.js'
 import {sessions} from '../src/schema.js'
+
+function seedRunMessages(db: ConcivDb, sessionId: string, messages: unknown[]): void {
+  db.insert(runMessages).values({sessionId, messages, updatedAt: 1}).run()
+}
 
 const record = (id: string) => ({
   id,
@@ -146,7 +151,7 @@ describe('openDb', () => {
       .values({...record('conciv_z'), title: 'keep'})
       .run()
     await createRunStore(first).createOrResume({runId: 'run-stuck', threadId: 'conciv_z', startedAt: Date.now()})
-    setRunMessages(first, 'conciv_z', [{id: 'm1'}])
+    seedRunMessages(first, 'conciv_z', [{id: 'm1'}])
     const second = openDb(stateRoot)
     expect(second.select().from(sessions).all()[0]?.title).toBe('keep')
     const reclaimable = await createRunStore(second).listReclaimable?.({now: Date.now(), ttlMs: 0})
@@ -161,8 +166,8 @@ describe('openDb', () => {
       {id: 'u1', role: 'user', parts: [{type: 'image', source: {type: 'data', value: 'aGk=', mimeType: 'image/png'}}]},
     ]
     const textTurn = [{id: 't1', role: 'user', parts: [{type: 'text', content: 'hi'}]}]
-    setRunMessages(first, 'conciv_img', imageTurn)
-    setRunMessages(first, 'conciv_txt', textTurn)
+    seedRunMessages(first, 'conciv_img', imageTurn)
+    seedRunMessages(first, 'conciv_txt', textTurn)
     const second = openDb(stateRoot)
     expect(runMessagesFor(second, 'conciv_img')?.messages).toEqual(imageTurn)
     expect(runMessagesFor(second, 'conciv_txt')?.messages).toEqual(textTurn)
