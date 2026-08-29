@@ -3,113 +3,73 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {openDb} from '../src/db.js'
+import {createRunStore} from '../src/run-store.js'
 import {
   foldRichRunMessagesIntoHistory,
   foldRunMessagesIntoHistory,
   historyAnchorFor,
-  latestRunLifecycleFor,
-  recordRunLifecycle,
   setRunMessages,
 } from '../src/run-queries.js'
 
 const fresh = () => openDb(mkdtempSync(join(tmpdir(), 'conciv-run-records-')))
+const freshStore = () => createRunStore(fresh())
 const stateRoot = () => mkdtempSync(join(tmpdir(), 'conciv-run-restart-'))
 
 describe('durable run records', () => {
-  it('round-trips a terminal run record through the migrated schema', () => {
-    const db = fresh()
-    recordRunLifecycle(db, 's1', {
-      runId: 'run-a',
-      phase: 'completed',
-      startedAt: 1000,
-      finishedAt: 2000,
-      serverNow: 2000,
-      error: null,
-    })
-    const read = latestRunLifecycleFor(db, 's1')
-    expect(read).toMatchObject({runId: 'run-a', phase: 'completed', startedAt: 1000, finishedAt: 2000, error: null})
+  it('round-trips a terminal run record through the migrated schema', async () => {
+    const store = freshStore()
+    await store.createOrResume({runId: 'run-a', threadId: 's1', startedAt: 1000})
+    await store.update('run-a', {status: 'completed', finishedAt: 2000})
+    await expect(store.listByThread?.('s1')).resolves.toEqual([
+      {runId: 'run-a', threadId: 's1', status: 'completed', startedAt: 1000, finishedAt: 2000},
+    ])
   })
 
-  it('keeps the terminal error of a failed run', () => {
-    const db = fresh()
-    recordRunLifecycle(db, 's2', {
-      runId: 'run-b',
-      phase: 'failed',
-      startedAt: 10,
+  it('keeps the terminal error of a failed run', async () => {
+    const store = freshStore()
+    await store.createOrResume({runId: 'run-b', threadId: 's2', startedAt: 10})
+    await store.update('run-b', {
+      status: 'failed',
       finishedAt: 20,
-      serverNow: 20,
-      error: 'claude produced no output within 5s',
+      error: {message: 'claude produced no output within 5s'},
     })
-    expect(latestRunLifecycleFor(db, 's2')?.error).toBe('claude produced no output within 5s')
+    await expect(store.get('run-b')).resolves.toMatchObject({
+      error: {message: 'claude produced no output within 5s'},
+    })
   })
 
-  it('advances one run record from running to its terminal phase instead of appending a second row', () => {
-    const db = fresh()
-    const started = {
-      runId: 'run-c',
-      phase: 'running',
-      startedAt: 5,
-      finishedAt: null,
-      serverNow: 5,
-      error: null,
-    } as const
-    recordRunLifecycle(db, 's3', started)
-    expect(latestRunLifecycleFor(db, 's3')).toMatchObject({phase: 'running', finishedAt: null})
-    recordRunLifecycle(db, 's3', {...started, phase: 'completed', finishedAt: 9, serverNow: 9})
-    expect(latestRunLifecycleFor(db, 's3')).toMatchObject({runId: 'run-c', phase: 'completed', finishedAt: 9})
+  it('advances one run record from running to its terminal phase instead of appending a second row', async () => {
+    const store = freshStore()
+    await store.createOrResume({runId: 'run-c', threadId: 's3', startedAt: 5})
+    const started = await store.get('run-c')
+    expect(started?.status).toBe('running')
+    expect(started?.finishedAt).toBeUndefined()
+    await store.update('run-c', {status: 'completed', finishedAt: 9})
+    await expect(store.listByThread?.('s3')).resolves.toMatchObject([
+      {runId: 'run-c', status: 'completed', finishedAt: 9},
+    ])
   })
 
-  it('returns the newest run of a session', () => {
-    const db = fresh()
-    recordRunLifecycle(db, 's4', {
-      runId: 'old',
-      phase: 'completed',
-      startedAt: 1,
-      finishedAt: 2,
-      serverNow: 2,
-      error: null,
-    })
-    recordRunLifecycle(db, 's4', {
-      runId: 'new',
-      phase: 'completed',
-      startedAt: 3,
-      finishedAt: 4,
-      serverNow: 4,
-      error: null,
-    })
-    expect(latestRunLifecycleFor(db, 's4')?.runId).toBe('new')
+  it('returns the newest run of a session last', async () => {
+    const store = freshStore()
+    await store.createOrResume({runId: 'old', threadId: 's4', startedAt: 1})
+    await store.update('old', {status: 'completed', finishedAt: 2})
+    await store.createOrResume({runId: 'new', threadId: 's4', startedAt: 3})
+    await store.update('new', {status: 'completed', finishedAt: 4})
+    const listed = await store.listByThread?.('s4')
+    expect(listed?.at(-1)?.runId).toBe('new')
   })
 
-  it('survives reopening the database over the same state root', () => {
+  it('survives reopening the database over the same state root', async () => {
     const root = stateRoot()
-    const first = openDb(root)
-    recordRunLifecycle(first, 's5', {
+    const first = createRunStore(openDb(root))
+    await first.createOrResume({runId: 'run-d', threadId: 's5', startedAt: 100})
+    await first.update('run-d', {status: 'completed', finishedAt: 200})
+    await expect(createRunStore(openDb(root)).get('run-d')).resolves.toMatchObject({
       runId: 'run-d',
-      phase: 'completed',
-      startedAt: 100,
+      status: 'completed',
       finishedAt: 200,
-      serverNow: 200,
-      error: null,
     })
-    const second = openDb(root)
-    expect(latestRunLifecycleFor(second, 's5')).toMatchObject({runId: 'run-d', phase: 'completed', finishedAt: 200})
-  })
-
-  it('marks a run left mid-flight by a dead server as aborted when the database reopens', () => {
-    const root = stateRoot()
-    const first = openDb(root)
-    recordRunLifecycle(first, 's6', {
-      runId: 'run-e',
-      phase: 'running',
-      startedAt: 100,
-      finishedAt: null,
-      serverNow: 100,
-      error: null,
-    })
-    const second = openDb(root)
-    const recovered = latestRunLifecycleFor(second, 's6')
-    expect(recovered?.phase).toBe('aborted')
-    expect(recovered?.finishedAt).not.toBeNull()
   })
 })
 

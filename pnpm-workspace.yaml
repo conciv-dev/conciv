@@ -27,6 +27,7 @@ catalog:
   # and pnpm never installs two copies of @tanstack/ai.
   '@tanstack/ai': 0.51.0
   '@tanstack/ai-client': 0.29.1
+  '@tanstack/ai-persistence': 0.5.3
   '@tanstack/ai-code-mode': 0.4.6
   '@tanstack/ai-isolate-node': 0.1.51
   '@tanstack/ai-isolate-quickjs': 0.3.1
@@ -129,6 +130,7 @@ minimumReleaseAgeExclude:
   # list: their 0.1.51/0.3.1 releases are from 2026-08-18 and already past the cooldown.
   - '@tanstack/ai'
   - '@tanstack/ai-client'
+  - '@tanstack/ai-persistence'
   - '@tanstack/ai-solid'
   - '@tanstack/ai-code-mode'
   - '@tanstack/ai-mcp'

@@ -1,9 +1,9 @@
-import {desc, eq, isNull, or} from 'drizzle-orm'
+import {eq} from 'drizzle-orm'
 import {CODE_MODE_SYNTHETIC_PART_MARKER} from '@conciv/protocol/chat-types'
-import type {RunLifecycle} from '@conciv/protocol/run-types'
 import type {ConcivDb} from './db.js'
 import {sessions} from './schema.js'
 import {runMessages, runs, sessionHistory} from './run-schema.js'
+import {deleteThreadRuns} from './run-store.js'
 
 type QueryHandle = Pick<ConcivDb, 'select' | 'insert' | 'delete'>
 
@@ -115,58 +115,6 @@ export function foldRichRunMessagesIntoHistory(db: ConcivDb, id: string, anchorN
   appendRunIntoHistory(db, id, anchorNativeId)
 }
 
-export function recordRunLifecycle(db: ConcivDb, sessionId: string, lifecycle: RunLifecycle): void {
-  const row = {
-    runId: lifecycle.runId,
-    sessionId,
-    phase: lifecycle.phase,
-    startedAt: lifecycle.startedAt,
-    finishedAt: lifecycle.finishedAt,
-    error: lifecycle.error,
-    updatedAt: Date.now(),
-  }
-  db.insert(runs)
-    .values(row)
-    .onConflictDoUpdate({
-      target: runs.runId,
-      set: {phase: row.phase, finishedAt: row.finishedAt, error: row.error, updatedAt: row.updatedAt},
-    })
-    .run()
-}
-
-export function latestRunLifecycleFor(db: QueryHandle, sessionId: string): RunLifecycle | null {
-  const rows = db
-    .select({
-      runId: runs.runId,
-      phase: runs.phase,
-      startedAt: runs.startedAt,
-      finishedAt: runs.finishedAt,
-      error: runs.error,
-    })
-    .from(runs)
-    .where(eq(runs.sessionId, sessionId))
-    .orderBy(desc(runs.startedAt))
-    .limit(1)
-    .all()
-  const row = rows[0]
-  if (!row) return null
-  return {
-    runId: row.runId,
-    phase: row.phase,
-    startedAt: row.startedAt,
-    finishedAt: row.finishedAt ?? null,
-    serverNow: Date.now(),
-    error: row.error ?? null,
-  }
-}
-
-export function abandonUnfinishedRuns(db: ConcivDb, now: number): void {
-  db.update(runs)
-    .set({phase: 'aborted', finishedAt: now, updatedAt: now})
-    .where(or(eq(runs.phase, 'running'), eq(runs.phase, 'stopping'), isNull(runs.finishedAt)))
-    .run()
-}
-
 export function runSessions(db: ConcivDb): string[] {
   return db
     .selectDistinct({sessionId: runMessages.sessionId})
@@ -177,6 +125,7 @@ export function runSessions(db: ConcivDb): string[] {
 
 export function clearRunState(db: ConcivDb, id: string): void {
   db.delete(runs).where(eq(runs.sessionId, id)).run()
+  deleteThreadRuns(db, id)
   deleteRunMessages(db, id)
   db.delete(sessionHistory).where(eq(sessionHistory.sessionId, id)).run()
 }

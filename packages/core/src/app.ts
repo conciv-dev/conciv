@@ -38,6 +38,7 @@ import {asksFor, makeAskGate, requiresApproval} from './chat/gate.js'
 import {defineSandbox, defineSandboxPolicy} from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
+import {reclaimAbandonedRuns} from './chat/reclaim.js'
 import {recoverInterruptedRuns, sessionSnapshot} from './chat/transcript.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
 import {modelOf, openDb, writeToolCapture} from '@conciv/db'
@@ -323,7 +324,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
-  const {claimStartedAt, durability, runControl, runs} = makeRunControl(opts.firstChunkTimeoutMs)
+  const {claimStartedAt, durability, runControl, runs} = makeRunControl(db, opts.firstChunkTimeoutMs)
+  await reclaimAbandonedRuns(runs, Date.now())
 
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
 

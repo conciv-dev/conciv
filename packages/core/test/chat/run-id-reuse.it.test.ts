@@ -1,12 +1,20 @@
+import {mkdtempSync, rmSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {EventType, RUN_ACCEPTED_EVENT, type StreamChunk} from '@tanstack/ai'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
-import {createTestkit} from '@conciv/harness-testkit'
+import {createTestHarness, createTestkit} from '@conciv/harness-testkit'
+import {openDb} from '@conciv/db'
+import {SessionId} from '@conciv/protocol/chat-types'
+import {ensureRow} from '../../src/chat/session-rows.js'
+import {bootMadeApp} from '../helpers/boot.js'
 import {makeSend} from '../../src/chat/run.js'
 import {makeRunControl} from '../../src/chat/runtime.js'
 import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
 import {bootCoreApp} from '../helpers/boot.js'
+import {requireClaude} from '../helpers/adapters.js'
 
 const baseCaps = {
   resume: false,
@@ -95,7 +103,7 @@ describe('runId reuse (IT)', () => {
   })
 
   it('claimStartedAt yields strictly increasing epoch values across rapid calls', () => {
-    const {claimStartedAt} = makeRunControl()
+    const {claimStartedAt} = makeRunControl(openDb(mkdtempSync(join(tmpdir(), 'conciv-claim-'))))
     const before = Date.now()
     let previous = claimStartedAt()
     expect(previous).toBeGreaterThanOrEqual(before)
@@ -119,6 +127,30 @@ describe('runId reuse (IT)', () => {
     expect(record).toMatchObject({status: 'failed', error: {message: 'pre-launch boom'}})
     expect(record?.finishedAt).toBeTypeOf('number')
     await expect(fixture.chat.runs.findActiveRun(fixture.sessionId)).resolves.toBeNull()
+  })
+
+  it('rejects a runId claimed by a run that started before the server restarted', {timeout: 30_000}, async () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-restart-claim-'))
+    const sessionId = SessionId.parse('conciv_restart_claim')
+    const runId = 'run-id-reuse-across-restart-1'
+    const harness = createTestHarness(requireClaude())
+    const first = await bootMadeApp({stateRoot, cwd: stateRoot, harness})
+    try {
+      await ensureRow(first.chat.db, sessionId, harness.id, stateRoot)
+      await makeSend(first.chat)(sessionId, runId, 'before the restart')
+      await Promise.all(first.chat.liveRuns.of(sessionId).map((run) => run.done))
+    } finally {
+      await first.dispose()
+    }
+    const second = await bootMadeApp({stateRoot, cwd: stateRoot, harness})
+    try {
+      await expect(makeSend(second.chat)(sessionId, runId, 'after the restart')).rejects.toMatchObject({
+        name: 'RunIdTakenError',
+      })
+    } finally {
+      await second.dispose()
+      rmSync(stateRoot, {recursive: true, force: true})
+    }
   })
 
   it('rpc chat.send surfaces the rejection to the client', {timeout: 15_000}, async () => {
