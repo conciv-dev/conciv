@@ -52,7 +52,8 @@ const SCROLL_DRIFT_TOLERANCE_PX = 1
 const SCROLL_END_THRESHOLD_PX = 32
 const MIN_SCROLL_SAMPLES = 20
 const SCROLL_GATE_STEPS = 24
-const SCROLL_GATE_PACE_MS = 40
+const SCROLL_GATE_PACE_MS = 100
+const SCROLL_GATE_TEXT_PACE_MS = 100
 const SCROLL_GATE_EXCHANGES = 24
 const CATCH_UP_FRAME_BUDGET = 3
 const FOLD_GATE_SCROLL_PX = 200
@@ -546,7 +547,7 @@ async function seededScrollGate(): Promise<ScrollGate> {
   await coreControl.scriptTurn({
     toolCalls: scrollGateSteps(),
     text: streamedCodeAnswer(),
-    textPace: {chunk: STREAMED_TEXT_CHUNK, everyMs: STREAMED_TEXT_PACE_MS},
+    textPace: {chunk: STREAMED_TEXT_CHUNK, everyMs: SCROLL_GATE_TEXT_PACE_MS},
   })
   mountChatPane(sessionId)
   await expect.element(page.getByText(`seeded exchange ${SCROLL_GATE_EXCHANGES - 1}`, {exact: true})).toBeVisible()
