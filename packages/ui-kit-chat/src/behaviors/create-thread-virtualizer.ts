@@ -106,7 +106,10 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   const [measured, setMeasured] = createSignal(false)
   const [atEnd, setAtEnd] = createSignal(true)
 
-  const syncAtEnd = () => setAtEnd(instance.isAtEnd())
+  const syncAtEnd = () => {
+    const element = config.scrollElement()
+    setAtEnd(!element || element.scrollHeight - element.scrollTop - element.clientHeight <= SCROLL_END_THRESHOLD_PX)
+  }
 
   const sync = () => {
     const virtualItems = instance.getVirtualItems()
