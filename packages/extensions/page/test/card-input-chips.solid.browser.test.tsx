@@ -90,9 +90,9 @@ it('read-value card renders a root array result as a structured JSON tree, not a
 it('read-bulk card leads its input row with the element chip and keeps the declared detail chip', async () => {
   render(() => (
     <ReadBulkCard
-      part={storyPart('page.html', {selector: 'form', maxChars: 2000})}
+      part={storyPart('page_html', {selector: 'form', maxChars: 2000})}
       result={storyResult({html: '<form></form>'})}
-      ctx={storyCtx({'page.html': READ_BULK_META})}
+      ctx={storyCtx({page_html: READ_BULK_META})}
       addResult={storyAddResult}
     />
   ))
@@ -108,9 +108,9 @@ it('read-bulk card leads its input row with the element chip and keeps the decla
 it('react card leads its input row with the element chip and keeps the declared detail chip', async () => {
   render(() => (
     <ReactCard
-      part={storyPart('page.react', {selector: '#checkout', action: 'source'})}
+      part={storyPart('page_react', {selector: '#checkout', action: 'source'})}
       result={storyResult({component: 'CheckoutForm'})}
-      ctx={storyCtx({'page.react': REACT_META})}
+      ctx={storyCtx({page_react: REACT_META})}
       addResult={storyAddResult}
     />
   ))
