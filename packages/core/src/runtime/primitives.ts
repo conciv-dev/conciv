@@ -3,7 +3,6 @@ import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ConcivDb} from '@conciv/db'
 import {createAskRegistry, type AskRegistry} from '../chat/ask.js'
 import {createCommandMemory, type CommandMemory} from '../chat/command-memory.js'
-import {createLiveRuns, type LiveRuns} from '../chat/live-runs.js'
 import {createSessionStreams, type SessionStreams} from '../chat/subscribe.js'
 import {makeJournal, makePageBus, type CaptureSink, type PageEnv} from '../page-bus.js'
 import {makeBuiltinRegistry} from '../tool-registry.js'
@@ -12,7 +11,6 @@ export type SessionPrimitives = {
   asks: AskRegistry
   commandMemory: CommandMemory
   stream: SessionStreams
-  liveRuns: LiveRuns
   page: PageEnv
   registry: ToolRegistry
 }
@@ -36,7 +34,6 @@ export function makeSessionPrimitives(deps: SessionPrimitivesDeps): SessionPrimi
     asks: createAskRegistry(),
     commandMemory: createCommandMemory(),
     stream: createSessionStreams(),
-    liveRuns: createLiveRuns(),
     page,
     registry: makeBuiltinRegistry({page, bundler: deps.bundler, openInEditor: deps.openInEditor}),
   }

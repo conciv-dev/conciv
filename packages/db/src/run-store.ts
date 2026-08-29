@@ -100,6 +100,14 @@ export function createRunStore(db: ConcivDb): RunStore {
   }
 }
 
+export async function runningThreadIds(db: ConcivDb): Promise<ReadonlySet<string>> {
+  const rows = await db
+    .selectDistinct({threadId: chatRuns.threadId})
+    .from(chatRuns)
+    .where(eq(chatRuns.status, 'running'))
+  return new Set(rows.map((row) => row.threadId))
+}
+
 export function markRunningRunsDetached(db: ConcivDb, now: number): void {
   db.update(chatRuns)
     .set({detachedSince: now})

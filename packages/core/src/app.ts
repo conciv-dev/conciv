@@ -324,7 +324,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
-  const {claimStartedAt, durability, runControl, runs} = makeRunControl(db, opts.firstChunkTimeoutMs)
+  const {claimStartedAt, durability, runControl, runDrivers, runs, sessionLocks} = makeRunControl(
+    db,
+    opts.firstChunkTimeoutMs,
+  )
   await reclaimAbandonedRuns(runs, Date.now())
 
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
@@ -336,7 +339,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     bundler: () => opts.bridge,
     openInEditor: opts.openInEditor,
   })
-  const {asks, commandMemory, liveRuns, registry, stream} = primitives
+  const {asks, commandMemory, registry, stream} = primitives
   const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
     runtime.forSession(request.sessionId).tools.call(name, input, {toolCallId: request.toolCallId})
@@ -347,7 +350,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       await ensureRow(db, sessionId, harness.id, opts.cwd)
       await recordNativeId(db, sessionId, token)
     },
-    chatBusy: (sessionId) => liveRuns.running(sessionId),
+    chatBusy: async (sessionId) => (await runs.findActiveRun(sessionId)) !== null,
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
@@ -480,7 +483,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     runControl,
     runs,
     claimStartedAt,
-    liveRuns,
+    runDrivers,
+    sessionLocks,
     stream,
     snapshot: (sessionId) => sessionSnapshot(chatDeps, sessionId),
     risky,

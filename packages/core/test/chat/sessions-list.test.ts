@@ -32,7 +32,7 @@ const listOf = (
     harnessKind: 'claude',
     cwd,
     nativeList,
-    running: () => false,
+    running: new Set<string>(),
     model: () => null,
     includeHidden: false,
   })

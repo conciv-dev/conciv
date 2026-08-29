@@ -13,6 +13,7 @@ import {bootMadeApp} from '../helpers/boot.js'
 import {makeSend} from '../../src/chat/run.js'
 import {makeRunControl} from '../../src/chat/runtime.js'
 import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
+import {drivingRun} from '../helpers/run-drivers.js'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 
@@ -61,7 +62,7 @@ describe('runId reuse (IT)', () => {
     const send = makeSend(fixture.chat)
     const runId = 'run-id-reuse-1'
     await send(fixture.sessionId, runId, 'first turn')
-    await Promise.all(fixture.chat.liveRuns.of(fixture.sessionId).map((run) => run.done))
+    await drivingRun(fixture.chat, runId).settled
     await expect(send(fixture.sessionId, runId, 'second turn')).rejects.toThrow(/cannot be reused/)
   })
 
@@ -76,7 +77,7 @@ describe('runId reuse (IT)', () => {
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
     const rejection = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
     expect(rejection?.reason).toMatchObject({name: 'RunIdTakenError'})
-    await Promise.all(fixture.chat.liveRuns.of(fixture.sessionId).map((run) => run.done))
+    await drivingRun(fixture.chat, runId).settled
     const chunks = await replayRunLog(fixture.chat, runId)
     const accepted = chunks.filter((chunk) => chunk.type === EventType.CUSTOM && chunk.name === RUN_ACCEPTED_EVENT)
     const finished = chunks.filter((chunk) => chunk.type === EventType.RUN_FINISHED)
@@ -95,11 +96,11 @@ describe('runId reuse (IT)', () => {
     const send = makeSend(fixture.chat)
     const runId = 'run-id-reuse-window-1'
     await send(fixture.sessionId, runId, 'first turn')
-    const runs = fixture.chat.liveRuns.of(fixture.sessionId)
+    const driver = drivingRun(fixture.chat, runId)
     await entered.promise
     await expect(send(fixture.sessionId, runId, 'reuse in window')).rejects.toMatchObject({name: 'RunIdTakenError'})
     release.resolve()
-    await Promise.all(runs.map((run) => run.done))
+    await driver.settled
   })
 
   it('claimStartedAt yields strictly increasing epoch values across rapid calls', () => {
@@ -138,7 +139,7 @@ describe('runId reuse (IT)', () => {
     try {
       await ensureRow(first.chat.db, sessionId, harness.id, stateRoot)
       await makeSend(first.chat)(sessionId, runId, 'before the restart')
-      await Promise.all(first.chat.liveRuns.of(sessionId).map((run) => run.done))
+      await drivingRun(first.chat, runId).settled
     } finally {
       await first.dispose()
     }

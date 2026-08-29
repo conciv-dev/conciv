@@ -36,7 +36,10 @@ describe('claude workspace projection (IT)', () => {
     state.made = made
     const sessionId = SessionId.parse('conciv_projection-1')
     await makeSend(made.chat)(sessionId, 'projection-1', 'hi')
-    await vi.waitFor(() => expect(made.chat.liveRuns.running(sessionId)).toBe(false), {timeout: 8000, interval: 50})
+    await vi.waitFor(async () => expect(await made.chat.runs.findActiveRun(sessionId)).toBeNull(), {
+      timeout: 8000,
+      interval: 50,
+    })
 
     const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
     expect(argv).toContain('--plugin-dir')

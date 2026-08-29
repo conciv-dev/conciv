@@ -54,7 +54,10 @@ describe('sandbox teardown (IT)', () => {
     const sessionId = SessionId.parse('conciv_teardown-finish')
     const ensureCtx = {threadId: sessionId, runId: 'teardown-finish-1'}
     await makeSend(made.chat)(sessionId, ensureCtx.runId, 'hi')
-    await vi.waitFor(() => expect(made.chat.liveRuns.running(sessionId)).toBe(false), {timeout: 8000, interval: 50})
+    await vi.waitFor(async () => expect(await made.chat.runs.findActiveRun(sessionId)).toBeNull(), {
+      timeout: 8000,
+      interval: 50,
+    })
 
     expect(await made.chat.sandbox.ensureExisting(ensureCtx)).not.toBeNull()
   }, 30_000)

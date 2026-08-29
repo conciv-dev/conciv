@@ -19,7 +19,7 @@ function fakeSessions(): FakeSessions {
       tokens.set(sessionId, token)
       return Promise.resolve()
     },
-    chatBusy: () => false,
+    chatBusy: () => Promise.resolve(false),
     model: () => Promise.resolve(null),
     onChatTurn: () => {},
   }

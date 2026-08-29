@@ -9,7 +9,8 @@ import {FIRST_CHUNK_TIMEOUT_MS, READER_FIRST_APPEND_GRACE_MS} from './run-timing
 import type {AskRegistry} from './ask.js'
 import type {CommandMemory} from './command-memory.js'
 import type {AttachmentExpanders} from './run.js'
-import type {LiveRuns} from './live-runs.js'
+import {createRunDrivers, type RunDrivers} from './run-drivers.js'
+import {createSessionLocks, type SessionLocks} from './session-locks.js'
 import type {SessionStreams} from './subscribe.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
@@ -29,7 +30,8 @@ export type ChatDeps = {
   runControl: RunController
   runs: RunStore
   claimStartedAt: () => number
-  liveRuns: LiveRuns
+  runDrivers: RunDrivers
+  sessionLocks: SessionLocks
   stream: SessionStreams
   snapshot: (sessionId: SessionId) => Promise<UIMessage[]>
   risky: ReadonlySet<string>
@@ -53,7 +55,9 @@ export function makeRunControl(
   claimStartedAt: () => number
   durability: (runId: string) => StreamDurability
   runControl: RunController
+  runDrivers: RunDrivers
   runs: RunStore
+  sessionLocks: SessionLocks
 } {
   const firstChunkDeadlineMs = (firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS) + READER_FIRST_APPEND_GRACE_MS
   const instanceKey = randomUUID()
@@ -65,7 +69,14 @@ export function makeRunControl(
     lastStartedAt = Math.max(Date.now(), lastStartedAt + CLAIM_STEP_MS)
     return lastStartedAt
   }
-  return {claimStartedAt, durability, runControl: new RunController({runs, durability}), runs}
+  return {
+    claimStartedAt,
+    durability,
+    runControl: new RunController({runs, durability}),
+    runDrivers: createRunDrivers(),
+    runs,
+    sessionLocks: createSessionLocks(),
+  }
 }
 
 export type ToolRunContext = {

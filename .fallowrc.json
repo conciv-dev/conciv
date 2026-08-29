@@ -44,8 +44,7 @@
           "packages/core/src/page-bus.ts",
           "packages/core/src/tool-registry.ts",
           "packages/core/src/chat/ask.ts",
-          "packages/core/src/chat/subscribe.ts",
-          "packages/core/src/chat/live-runs.ts"
+          "packages/core/src/chat/subscribe.ts"
         ]
       },
       {
@@ -53,7 +52,10 @@
         "patterns": [
           "packages/core/src/chat/ask-constants.ts",
           "packages/core/src/chat/run-lifecycle.ts",
-          "packages/core/src/lib/debug.ts"
+          "packages/core/src/lib/debug.ts",
+          "packages/core/src/chat/active-runs.ts",
+          "packages/core/src/chat/run-drivers.ts",
+          "packages/core/src/chat/session-locks.ts"
         ]
       },
       {

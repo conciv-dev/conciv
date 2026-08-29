@@ -36,12 +36,13 @@ import {
 import {transcriptPathWithin} from '@conciv/harness'
 import {FIRST_CHUNK_TIMEOUT_MS} from './run-timing.js'
 import type {ChatDeps, ToolRunContext} from './runtime.js'
-import type {LiveRun} from './live-runs.js'
+import type {RunDriver} from './run-drivers.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {sessionSnapshot, transcriptTailId} from './transcript.js'
 import {settleContextOccupancy} from './occupancy.js'
 import {publishRunLifecycle, publishRunRecord} from './run-lifecycle.js'
-import {stopSession} from './stop.js'
+import {stopRuns} from './stop.js'
+import {activeRunsOf} from './active-runs.js'
 import {asksFor, commandMemoryFor, makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
 import {makeCodeMode} from './code-mode.js'
 import {codeModeEventPublisher} from './code-mode-parts.js'
@@ -383,7 +384,6 @@ async function finishRun(
 ): Promise<void> {
   persistRunOutcome(deps, sessionId, req.kind, anchorNativeId)
   await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
-  deps.liveRuns.settle(sessionId, req.runId)
   deps.asks.cancel(sessionId)
   if (deps.onRunEnd) await deps.onRunEnd(sessionId).catch(() => {})
   if (outcome.usage) void settleContextOccupancy(deps, sessionId).catch(() => {})
@@ -440,7 +440,7 @@ async function* runStream(
   yield runEndChunkFor(sessionId, req, outcome)
 }
 
-function launchRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest): LiveRun {
+function launchRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest): RunDriver {
   const abort = new AbortController()
   const handle = deps.runControl.start({
     runId: req.runId,
@@ -451,9 +451,9 @@ function launchRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest): LiveR
     () => publishRunRecord(deps, sessionId, req.runId),
     () => publishRunRecord(deps, sessionId, req.runId),
   )
-  const run: LiveRun = {runId: req.runId, abort, done: settled.catch(() => undefined)}
-  deps.liveRuns.start(sessionId, run)
-  return run
+  const driver: RunDriver = {runId: req.runId, abort, settled: settled.catch(() => undefined)}
+  deps.runDrivers.drive(sessionId, driver)
+  return driver
 }
 
 function contextWindowFor(harness: HarnessAdapter, modelId: string | null): number | undefined {
@@ -538,10 +538,11 @@ async function prepareLaunchContent(deps: ChatDeps, sessionId: SessionId, conten
   return expandUserParts(content, deps.attachmentExpanders)
 }
 
-async function settleLiveRuns(deps: ChatDeps, sessionId: SessionId): Promise<void> {
-  if (!deps.liveRuns.running(sessionId)) return
-  await stopSession(deps, sessionId)
-  await Promise.all(deps.liveRuns.of(sessionId).map((run) => run.done))
+async function settleActiveRuns(deps: ChatDeps, sessionId: SessionId, claimed: string | null): Promise<void> {
+  const active = (await activeRunsOf(deps.runs, sessionId)).filter((record) => record.runId !== claimed)
+  if (active.length === 0) return
+  deps.asks.cancel(sessionId)
+  await stopRuns(deps, sessionId, active)
 }
 
 async function failClaimedRun(deps: ChatDeps, runId: string, error: unknown): Promise<never> {
@@ -552,14 +553,14 @@ async function failClaimedRun(deps: ChatDeps, runId: string, error: unknown): Pr
 
 export function makeSend(deps: ChatDeps): Send {
   return (sessionId, runId, content, messageId) =>
-    deps.liveRuns.serialize(sessionId, async () => {
+    deps.sessionLocks.serialize(sessionId, async () => {
       const startedAt = deps.claimStartedAt()
       const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
       if (record.threadId !== sessionId || record.startedAt !== startedAt) throw runIdTakenError(runId)
       const expanded = await prepareLaunchContent(deps, sessionId, content).catch((error: unknown) =>
         failClaimedRun(deps, runId, error),
       )
-      await settleLiveRuns(deps, sessionId)
+      await settleActiveRuns(deps, sessionId, runId)
       launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded, messageId})
       publishRunLifecycle(deps, sessionId, record)
       await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
@@ -575,13 +576,13 @@ async function addCompactMarker(db: ConcivDb, sessionId: SessionId, afterTurn: n
 
 export function makeCompactor(deps: ChatDeps): Compactor {
   function run(sessionId: SessionId): Promise<void> {
-    return deps.liveRuns.serialize(sessionId, async () => {
+    return deps.sessionLocks.serialize(sessionId, async () => {
       deps.onRunStart?.(sessionId)
-      await settleLiveRuns(deps, sessionId)
+      await settleActiveRuns(deps, sessionId, null)
       const history = await sessionSnapshot(deps, sessionId)
       await addCompactMarker(deps.db, sessionId, history.length)
-      const live = launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
-      await live.done
+      const driver = launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
+      await driver.settled
     })
   }
 

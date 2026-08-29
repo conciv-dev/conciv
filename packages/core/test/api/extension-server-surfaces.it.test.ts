@@ -1,6 +1,6 @@
 import {mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {dirname} from 'node:path'
-import {expect, test} from 'vitest'
+import {expect, test, vi} from 'vitest'
 import {claude} from '@conciv/harness/claude'
 import {defineExtension, type ServerApi} from '@conciv/extension'
 import {createTestHarness, createTestkit} from '@conciv/harness-testkit'
@@ -31,13 +31,16 @@ test('extension server api exposes sessions + harness surfaces backed by the rea
     await server.sessions.recordToken(fresh, HarnessSessionId.parse('tok-fresh'))
     expect(await server.sessions.resumeToken(fresh)).toBe('tok-fresh')
 
-    expect(server.sessions.chatBusy(sessionId)).toBe(false)
+    expect(await server.sessions.chatBusy(sessionId)).toBe(false)
     harness.script.hold()
     await kit.rpc.chat.send({runId: 'extension-server-surfaces-1', sessionId, text: 'busy probe'})
-    expect(server.sessions.chatBusy(sessionId)).toBe(true)
+    expect(await server.sessions.chatBusy(sessionId)).toBe(true)
     harness.script.release()
     expect(await runEnded).toBe(sessionId)
-    expect(server.sessions.chatBusy(sessionId)).toBe(false)
+    await vi.waitFor(async () => expect(await server.sessions.chatBusy(sessionId)).toBe(false), {
+      timeout: 8000,
+      interval: 25,
+    })
 
     expect(server.basePath).toBe('')
     expect(server.harness.id).toBe('claude')

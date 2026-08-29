@@ -83,7 +83,7 @@ export type ClientFactoryResult<ClientReturnValue extends object> = {
 export type ServerSessions = {
   resumeToken(sessionId: SessionId): Promise<HarnessSessionId | null>
   recordToken(sessionId: SessionId, token: HarnessSessionId): Promise<void>
-  chatBusy(sessionId: SessionId): boolean
+  chatBusy(sessionId: SessionId): Promise<boolean>
   model(sessionId: SessionId): Promise<string | null>
   onChatTurn(listener: (sessionId: SessionId) => void): void
 }

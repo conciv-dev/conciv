@@ -62,7 +62,7 @@ export type SessionRun = {
   send: (runId: string, content: UserContent, messageId?: string) => Promise<string>
   stop: () => Promise<{ok: true}>
   compact: () => Promise<void>
-  live: () => boolean
+  live: () => Promise<boolean>
 }
 
 export type SessionScope = {

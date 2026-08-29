@@ -77,7 +77,7 @@ function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
 }
 
 function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
-  const {asks, liveRuns, page, registry, stream} = deps.primitives
+  const {asks, page, registry, stream} = deps.primitives
   const model = deps.model(id)
   const view = registry.whenPageConnected(() => page.bus.connected(id))
   const requestFor = (toolCallId: string | undefined): ToolRequest =>
@@ -125,7 +125,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       send: (runId, content, messageId) => deps.send(id, runId, content, messageId),
       stop: () => stopSession(deps.chat, id),
       compact: () => deps.compactor.run(id),
-      live: () => liveRuns.running(id),
+      live: async () => (await deps.chat.runs.findActiveRun(id)) !== null,
     },
   }
 }

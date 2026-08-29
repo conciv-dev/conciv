@@ -3,6 +3,7 @@ import {AsyncQueue} from '@tanstack/ai-acp'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {aguiRunLifecycleFor} from '@conciv/protocol/run-types'
 import {latestRunLifecycle} from './run-lifecycle.js'
+import {activeRunsOf} from './active-runs.js'
 import type {ChatDeps} from './runtime.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
@@ -86,9 +87,10 @@ export async function* subscribeSession(
     void pumpRun(runId, from).catch(() => {})
   }
   const unlisten = deps.stream.listen(sessionId, (chunk) => queue.push(chunk))
-  const unlistenRuns = deps.liveRuns.onStart(sessionId, (runId) => tailRun(runId, FROM_START))
+  const unlistenRuns = deps.runDrivers.onStart(sessionId, (runId) => tailRun(runId, FROM_START))
   try {
-    const resumed = await Promise.all(deps.liveRuns.of(sessionId).map((run) => resumePoint(deps, run.runId)))
+    const active = await activeRunsOf(deps.runs, sessionId)
+    const resumed = await Promise.all(active.map((record) => resumePoint(deps, record.runId)))
     yield aguiSnapshotFor(await catchUpMessages(deps, sessionId, resumed))
     for (const chunk of resumed.flatMap((run) => run.started)) yield chunk
     const lifecycle = await latestRunLifecycle(deps, sessionId)
