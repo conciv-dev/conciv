@@ -1,5 +1,5 @@
-import {index, integer, sqliteTable, text} from 'drizzle-orm/sqlite-core'
-import type {RunStatus, TokenUsage} from '@tanstack/ai'
+import {index, integer, primaryKey, sqliteTable, text} from 'drizzle-orm/sqlite-core'
+import type {ModelMessage, RunStatus, TokenUsage} from '@tanstack/ai'
 import type {RunPhase} from '@conciv/protocol/run-types'
 
 export const RUN_PHASES: readonly [RunPhase, ...RunPhase[]] = ['running', 'stopping', 'completed', 'failed', 'aborted']
@@ -51,4 +51,20 @@ export const chatRuns = sqliteTable(
     index('chat_runs_status_detached').on(table.status, table.detachedSince),
     index('chat_runs_thread_started').on(table.threadId, table.startedAt),
   ],
+)
+
+export const chatThreads = sqliteTable('chat_threads', {
+  threadId: text('thread_id').primaryKey(),
+  messagesJson: text('messages_json', {mode: 'json'}).$type<ModelMessage[]>().notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export const chatMetadata = sqliteTable(
+  'chat_metadata',
+  {
+    namespace: text('namespace').notNull(),
+    key: text('key').notNull(),
+    valueJson: text('value_json', {mode: 'json'}).$type<unknown>().notNull(),
+  },
+  (table) => [primaryKey({columns: [table.namespace, table.key]})],
 )
