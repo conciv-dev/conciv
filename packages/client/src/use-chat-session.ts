@@ -1,10 +1,8 @@
 import {useChat, type QueuedMessage} from '@tanstack/ai-solid'
 import {createMemo, createSignal, type Accessor} from 'solid-js'
 import type {RpcClient} from '@conciv/contract'
-import {chatBusy} from '@conciv/protocol/chat-busy'
 import {isRunPhaseTerminal, type RunClockSource} from '@conciv/protocol/run-types'
 import {chatConnection, type ChatConnectionOptions} from './chat-connection.js'
-import {createStopState} from './stop-state.js'
 
 export type UseChatSessionOptions = {
   rpc: RpcClient
@@ -51,7 +49,7 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     queue: 'queue',
     onError: options.onError,
   })
-  const {stopping, requestStop} = createStopState(() => chatBusy(chat))
+  const stopping = createMemo(() => runSource()?.lifecycle.phase === 'stopping')
   const runError = createMemo(() => {
     const source = runSource()
     return source && source.lifecycle.phase === 'failed' ? source.lifecycle.error : null
@@ -61,7 +59,6 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     return source !== null && !isRunPhaseTerminal(source.lifecycle.phase)
   })
   const stop = () => {
-    requestStop()
     chat.stop()
     void options.rpc.chat.stop({sessionId: options.sessionId}).catch((error) => options.onError?.(asError(error)))
   }
