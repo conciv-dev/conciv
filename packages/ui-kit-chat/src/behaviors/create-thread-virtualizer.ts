@@ -16,12 +16,11 @@ export const SCROLL_END_THRESHOLD_PX = 32
 export type ThreadVirtualizerConfig = {
   scrollElement: Accessor<HTMLElement | undefined>
   count: Accessor<number>
-  keyAt: (index: number) => string
+  keyAt: (index: number) => string | undefined
   estimateSizeAt: (index: number) => number
   exactAt: (index: number) => boolean
   gap: Accessor<number>
-  paddingStart: Accessor<number>
-  paddingEnd: Accessor<number>
+  scrollMargin: Accessor<number>
   overscan: Accessor<number>
 }
 
@@ -42,38 +41,29 @@ export type ThreadVirtualizer = {
 }
 
 export function createThreadVirtualizer(config: ThreadVirtualizerConfig): ThreadVirtualizer {
-  let publishScrollOffset: ((offset: number, isScrolling: boolean) => void) | undefined
-
-  const trackScrollOffset: VirtualizerOptions<HTMLElement, Element>['observeElementOffset'] = (
-    virtualizer,
-    onChange,
-  ) => {
-    publishScrollOffset = onChange
-    onChange(virtualizer.scrollElement?.scrollTop ?? 0, false)
-    return observeElementOffset(virtualizer, onChange)
-  }
-
-  const readbackScrollOffset = (element: HTMLElement): void => publishScrollOffset?.(element.scrollTop, false)
-
-  let lastLandedOffset: number | undefined
+  let landedOffset: number | undefined
 
   const landOnEnd = (): void => {
-    const element = config.scrollElement()
-    if (!element) return
     const lastIndex = config.count() - 1
     if (lastIndex < 0) return
+    const element = config.scrollElement()
+    if (!element?.isConnected) return
     const target = instance.getOffsetForIndex(lastIndex, 'end')
     if (!target) return
     elementScroll(target[0], {adjustments: undefined, behavior: 'auto'}, instance)
-    lastLandedOffset = element.scrollTop
-    readbackScrollOffset(element)
+    landedOffset = element.scrollTop
+    instance.scrollOffset = landedOffset
+    syncAtEnd()
   }
 
-  const restingAtEnd = (element: HTMLElement): boolean =>
-    element.scrollHeight - element.clientHeight - element.scrollTop <= SCROLL_END_THRESHOLD_PX
+  const stillOnTheLanding = (element: HTMLElement): boolean =>
+    landedOffset !== undefined && element.scrollTop === landedOffset
 
-  const stillLandingOnEnd = (element: HTMLElement): boolean =>
-    element.scrollTop === lastLandedOffset || restingAtEnd(element)
+  const onScrolled = (): void => {
+    const element = config.scrollElement()
+    if (element && !stillOnTheLanding(element)) landedOffset = undefined
+    syncAtEnd()
+  }
 
   const resolveOptions = (): VirtualizerOptions<HTMLElement, Element> => ({
     count: config.count(),
@@ -82,16 +72,15 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
       return element?.isConnected ? element : null
     },
     estimateSize: config.estimateSizeAt,
-    getItemKey: config.keyAt,
+    getItemKey: (index) => config.keyAt(index) ?? index,
     gap: config.gap(),
-    paddingStart: config.paddingStart(),
-    paddingEnd: config.paddingEnd(),
+    scrollMargin: config.scrollMargin(),
     overscan: config.overscan(),
     anchorTo: 'end',
-    followOnAppend: true,
+    followOnAppend: false,
     scrollEndThreshold: SCROLL_END_THRESHOLD_PX,
     observeElementRect,
-    observeElementOffset: trackScrollOffset,
+    observeElementOffset,
     scrollToFn: elementScroll,
     onChange: () => update(),
     useAnimationFrameWithResizeObserver: true,
@@ -119,16 +108,21 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     sync()
   }
 
-  createComputed(() => {
-    config.scrollElement()
+  createComputed((previousCount: number) => {
+    const nextCount = config.count()
+    const followsAppend = nextCount > previousCount && instance.isAtEnd()
     instance.setOptions(resolveOptions())
     sync()
-  })
+    if (!followsAppend) return nextCount
+    update()
+    landOnEnd()
+    return nextCount
+  }, 0)
 
   createEffect(() => {
     const element = config.scrollElement()
     createResizeObserver(element, update)
-    if (element) makeEventListener(element, 'scroll', syncAtEnd, {passive: true})
+    if (element) makeEventListener(element, 'scroll', onScrolled, {passive: true})
     update()
   })
 
@@ -147,6 +141,17 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     lastKey: undefined,
   })
 
+  const isSameThread = (element: HTMLElement, firstKey: string | undefined, lastKey: string | undefined): boolean => {
+    if (landing.element !== element) return false
+    if (firstKey !== undefined && landing.firstKey === firstKey) return true
+    return lastKey !== undefined && landing.lastKey === lastKey
+  }
+
+  const needsLanding = (element: HTMLElement, sameThread: boolean): boolean => {
+    if (!sameThread) return true
+    return instance.isAtEnd() || stillOnTheLanding(element)
+  }
+
   createEffect(() => {
     const element = config.scrollElement()
     const total = config.count()
@@ -155,10 +160,9 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     if (!element?.isConnected || total === 0) return
     const firstKey = config.keyAt(0)
     const lastKey = config.keyAt(total - 1)
-    const sameThread = landing.element === element && (landing.firstKey === firstKey || landing.lastKey === lastKey)
+    const sameThread = isSameThread(element, firstKey, lastKey)
     setLanding({element, firstKey, lastKey})
-    if (sameThread && !stillLandingOnEnd(element)) return
-    landOnEnd()
+    if (needsLanding(element, sameThread)) landOnEnd()
   })
 
   return {

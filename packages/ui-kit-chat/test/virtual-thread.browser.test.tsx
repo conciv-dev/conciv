@@ -191,14 +191,21 @@ it('windows nothing below the threshold: every turn stays mounted', async () => 
   await expect.element(page.getByText('question 0')).toBeInTheDocument()
 })
 
-it('escapes on wheel up and re-pins via the scroll-to-bottom button', async () => {
+type EscapedThread = {thread: ReturnType<typeof mountThread>; latest: ReturnType<typeof page.getByRole>}
+
+async function mountAndEscapeToTheTop(): Promise<EscapedThread> {
   const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
   await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
   const latest = page.getByRole('button', {name: 'Scroll to bottom'})
 
   wheelUpTo(thread.viewport(), 0)
-  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
   await expect.element(latest).not.toBeDisabled()
+  return {thread, latest}
+}
+
+it('escapes on wheel up and re-pins via the scroll-to-bottom button', async () => {
+  const {thread, latest} = await mountAndEscapeToTheTop()
+  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('question 0')).toBeVisible()
 
   await latest.click()
@@ -219,12 +226,7 @@ it('a wheel up taken right after the mount landing is never dragged back to the 
 })
 
 it('a wheel up after the latest-turn gesture holds the reading row while turns keep arriving', async () => {
-  const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
-  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
-  const latest = page.getByRole('button', {name: 'Scroll to bottom'})
-
-  wheelUpTo(thread.viewport(), 0)
-  await expect.element(latest).not.toBeDisabled()
+  const {thread, latest} = await mountAndEscapeToTheTop()
 
   const stopAppending = appendTurnsEvery(thread.chat(), ABOVE_THRESHOLD, 60, 30)
   onTestFinished(stopAppending)
@@ -294,4 +296,53 @@ it('history prepend keeps the reading position while scrolled up', async () => {
 
   await expect.element(page.getByText('question 0')).toBeVisible()
   await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
+})
+
+const TINY_THREAD = 3
+const GROWN_THREAD = 13
+const APPENDED_AFTER_PARKING = 6
+function countScrollWrites(viewport: HTMLElement): {calls: () => number} {
+  const native = viewport.scrollTo.bind(viewport)
+  const seen = {count: 0}
+  Object.defineProperty(viewport, 'scrollTo', {
+    configurable: true,
+    value: (options?: ScrollToOptions) => {
+      seen.count += 1
+      native(options)
+    },
+  })
+  onTestFinished(() => {
+    Reflect.deleteProperty(viewport, 'scrollTo')
+  })
+  return {calls: () => seen.count}
+}
+
+it('a reader parked at the top of a grown thread is left there when more turns arrive', async () => {
+  const thread = mountThread(seedMessages(TINY_THREAD))
+  await expect.element(page.getByText(lastAnswer(TINY_THREAD))).toBeVisible()
+
+  thread.chat().setMessages(seedMessages(GROWN_THREAD))
+  await expect.element(page.getByText(lastAnswer(GROWN_THREAD))).toBeVisible()
+
+  wheelUpTo(thread.viewport(), 0)
+  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
+  await expect.element(page.getByText('question 0')).toBeVisible()
+
+  thread.chat().setMessages(seedMessages(GROWN_THREAD + APPENDED_AFTER_PARKING))
+  holdSteady(thread.host, 'parked at the top', () => String(thread.viewport().scrollTop))
+
+  await expect.element(page.getByText(heldEveryFrame('parked at the top'))).toBeInTheDocument()
+  await expect.element(page.getByText('question 0')).toBeVisible()
+  expect(thread.viewport().scrollTop).toBe(0)
+})
+
+it('the latest-turn gesture writes the scroll position at most once', async () => {
+  const {thread, latest} = await mountAndEscapeToTheTop()
+  await expect.element(page.getByText('question 0')).toBeVisible()
+
+  const writes = countScrollWrites(thread.viewport())
+  await latest.click()
+  await expect.element(latest).toBeDisabled()
+
+  expect(writes.calls()).toBeLessThanOrEqual(1)
 })

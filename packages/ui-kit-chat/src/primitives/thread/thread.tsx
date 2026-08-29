@@ -1,5 +1,4 @@
 import {
-  createEffect,
   createMemo,
   createSignal,
   For,
@@ -14,6 +13,7 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {createStore} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {UIMessage} from '@tanstack/ai-client'
 import {Primitive, type Slottable} from '../util/primitive.js'
@@ -25,6 +25,7 @@ import {
   ViewportProvider,
   useThreadViewport,
   useOptionalThreadViewport,
+  useSendFromUser,
   type ThreadScroller,
   type ViewportContextValue,
 } from './viewport-context.js'
@@ -40,11 +41,16 @@ type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttribute
 
 function Root(props: DivProps): JSX.Element {
   const [scroller, setScroller] = createSignal<ThreadScroller>()
+  const landOnEnd = () => scroller()?.landOnEnd()
   return (
     <ViewportProvider
       value={{
         isAtBottom: () => scroller()?.atEnd() ?? true,
-        scrollToBottom: () => scroller()?.landOnEnd(),
+        scrollToBottom: landOnEnd,
+        sendFromUser: (deliver) => {
+          landOnEnd()
+          return deliver()
+        },
         setScroller,
       }}
     >
@@ -150,24 +156,31 @@ function VirtualMessages(props: {
   const thread = useThread()
   const turns = () => thread.turns
   const estimator = useTurnEstimator()
-  const [gap, setGap] = createSignal(0)
-  const [blockPadding, setBlockPadding] = createSignal({start: 0, end: 0})
-  const hasRows = () => turns().length > 0
+  const [spacer, setSpacer] = createSignal<HTMLDivElement>()
+  const [metrics, setMetrics] = createStore({gap: 0, scrollMargin: 0})
   const settledEstimate = (index: number): TurnEstimate | undefined => {
     if (index === turns().length - 1) return undefined
     const turn = turns()[index]
     if (!turn) return undefined
     return estimator?.estimateTurn(turn)
   }
+  const measureViewportMetrics = (): void => {
+    const viewport = props.internal.element()
+    const node = spacer()
+    if (!viewport || !node) return
+    setMetrics({
+      gap: Number.parseFloat(getComputedStyle(viewport).rowGap) || 0,
+      scrollMargin: node.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop,
+    })
+  }
   const virtualizer = createThreadVirtualizer({
     scrollElement: () => props.internal.element(),
     count: () => turns().length,
-    keyAt: (index) => turns()[index]?.key ?? `${index}`,
+    keyAt: (index) => turns()[index]?.key,
     estimateSizeAt: (index) => settledEstimate(index)?.height ?? ROW_ESTIMATE_PX,
     exactAt: (index) => settledEstimate(index)?.exact === true,
-    gap,
-    paddingStart: () => (hasRows() ? blockPadding().start : 0),
-    paddingEnd: () => (hasRows() ? blockPadding().end : 0),
+    gap: () => metrics.gap,
+    scrollMargin: () => metrics.scrollMargin,
     overscan: () => (turns().length < VIRTUALIZE_THRESHOLD ? turns().length : EVICTING_OVERSCAN),
   })
   onMount(() => {
@@ -196,21 +209,10 @@ function VirtualMessages(props: {
     })
     const viewport = props.internal.element()
     if (viewport) {
-      const style = getComputedStyle(viewport)
-      setGap(Number.parseFloat(style.rowGap) || 0)
-      setBlockPadding({
-        start: Number.parseFloat(style.paddingBlockStart) || 0,
-        end: Number.parseFloat(style.paddingBlockEnd) || 0,
-      })
-      const previousPadding = viewport.style.paddingBlock
-      createEffect(() => {
-        viewport.style.paddingBlock = hasRows() ? '0px' : previousPadding
-      })
-      onCleanup(() => {
-        viewport.style.paddingBlock = previousPadding
-      })
+      measureViewportMetrics()
       let lastWidth = viewport.clientWidth
       createResizeObserver(viewport, ({width}) => {
+        measureViewportMetrics()
         if (width === lastWidth) return
         lastWidth = width
         scheduleEstimateRefresh()
@@ -223,7 +225,10 @@ function VirtualMessages(props: {
     }
   })
   return (
-    <div style={{position: 'relative', width: '100%', flex: 'none', height: `${virtualizer.totalSize()}px`}}>
+    <div
+      ref={setSpacer}
+      style={{position: 'relative', width: '100%', flex: 'none', height: `${virtualizer.totalSize()}px`}}
+    >
       <For each={virtualizer.items}>
         {(item) => (
           <div
@@ -240,7 +245,7 @@ function VirtualMessages(props: {
               width: '100%',
               display: 'flex',
               'flex-direction': 'column',
-              transform: `translateY(${item.start}px)`,
+              transform: `translateY(${item.start - metrics.scrollMargin}px)`,
             }}
           >
             <TurnSlot
@@ -340,11 +345,13 @@ type SuggestionProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
 function Suggestion(props: SuggestionProps): JSX.Element {
   const chat = useChatContext()
   const composer = useComposer()
+  const sendFromUser = useSendFromUser()
   const [local, rest] = splitProps(props, ['prompt', 'send', 'clearComposer'])
   const activate = () => {
     if (local.clearComposer !== false) composer.setText('')
     if (local.send) {
-      void chat.sendMessage(local.prompt)
+      const prompt = local.prompt
+      void sendFromUser(() => chat.sendMessage(prompt))
       return
     }
     composer.setText(local.prompt)
