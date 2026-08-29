@@ -2,7 +2,7 @@ import {Show, createEffect, onCleanup, onMount, type JSX} from 'solid-js'
 import {Editor, type CommandProps} from '@tiptap/core'
 import type {EditorView} from '@tiptap/pm/view'
 import {UndoRedo} from '@tiptap/extensions'
-import {Selection, TextSelection} from '@tiptap/pm/state'
+import {EditorState, Selection, TextSelection} from '@tiptap/pm/state'
 import {Slice, type Schema} from '@tiptap/pm/model'
 import {ScrollArea} from '@conciv/ui-kit-system'
 import {chipExtension, documentExtensions} from './field-schema.js'
@@ -110,6 +110,12 @@ function externalValueCommand(next: string) {
     if (current === '') tr.setSelection(Selection.atEnd(tr.doc))
     return true
   }
+}
+
+function applyExternalValue(editor: Editor, value: string): void {
+  editor.chain().command(externalValueCommand(value)).run()
+  const {doc, selection, plugins} = editor.state
+  editor.view.updateState(EditorState.create({doc, selection, plugins}))
 }
 
 function openingSelectionCommand(selection: RichTextFieldSelection | undefined) {
@@ -239,7 +245,7 @@ export function RichTextField(props: {
     createEffect(() => {
       const value = props.value
       if (value === projectDocument(editor.state.doc)) return
-      editor.chain().command(externalValueCommand(value)).run()
+      applyExternalValue(editor, value)
     })
 
     createEffect(() => {
