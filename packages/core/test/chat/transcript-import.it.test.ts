@@ -65,10 +65,11 @@ describe('the CLI transcript is imported into the thread table (IT, claude capab
     return sessionId
   }
 
-  async function bootKitOn(root: string): Promise<Kit> {
+  async function openTerminalSession(root: string): Promise<{kit: Kit; sessionId: string}> {
+    const sessionId = await seedTerminalSession(root)
     const kit = await createTestkit(requireClaude(), bootOn(root)).setup()
     kits.push(kit)
-    return kit
+    return {kit, sessionId}
   }
 
   it('a session born in the terminal opens with every one of its turns', {timeout: 60_000}, async () => {
@@ -77,8 +78,7 @@ describe('the CLI transcript is imported into the thread table (IT, claude capab
       transcriptPathIn(root),
       [...turn('terminal one', 'reply one', 1), ...turn('terminal two', 'reply two', 2)].join('\n'),
     )
-    const sessionId = await seedTerminalSession(root)
-    const kit = await bootKitOn(root)
+    const {kit, sessionId} = await openTerminalSession(root)
 
     expect(userTexts(await freshSubscriberSnapshot(kit, sessionId))).toEqual(['terminal one', 'terminal two'])
   })
@@ -87,9 +87,7 @@ describe('the CLI transcript is imported into the thread table (IT, claude capab
     const root = freshRoot()
     const transcript = transcriptPathIn(root)
     writeFileSync(transcript, turn('terminal one', 'reply one', 1).join('\n'))
-    const sessionId = await seedTerminalSession(root)
-    const kit = await bootKitOn(root)
-
+    const {kit, sessionId} = await openTerminalSession(root)
     expect(userTexts(await freshSubscriberSnapshot(kit, sessionId))).toEqual(['terminal one'])
 
     rmSync(transcript)
@@ -101,9 +99,7 @@ describe('the CLI transcript is imported into the thread table (IT, claude capab
     const root = freshRoot()
     const transcript = transcriptPathIn(root)
     writeFileSync(transcript, turn('terminal one', 'reply one', 1).join('\n'))
-    const sessionId = await seedTerminalSession(root)
-    const kit = await bootKitOn(root)
-
+    const {kit, sessionId} = await openTerminalSession(root)
     expect(userTexts(await freshSubscriberSnapshot(kit, sessionId))).toEqual(['terminal one'])
 
     appendFileSync(transcript, `\n${turn('terminal two', 'reply two', 2).join('\n')}`)

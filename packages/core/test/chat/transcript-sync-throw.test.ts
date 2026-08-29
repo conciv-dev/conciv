@@ -61,7 +61,7 @@ describe('recoverInterruptedRuns survives a synchronous throw from history.messa
       cwd: root,
       deletedAt: null,
     })
-    writeRunMessages(db, sessionId, [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'turn in flight'}]}])
+    writeRunMessages(db, sessionId, 0, [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'turn in flight'}]}])
 
     await expect(
       recoverInterruptedRuns({db, harness: harnessThrowingSynchronously(), claudeHome: root}),

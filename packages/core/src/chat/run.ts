@@ -29,7 +29,7 @@ import {FIRST_CHUNK_TIMEOUT_MS} from './run-timing.js'
 import type {ChatDeps, ToolRunContext} from './runtime.js'
 import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
-import {sessionSnapshot, settleRunMessages, writeRunMessages} from './thread.js'
+import {beginRunMessages, sessionSnapshot, settleRunMessages, writeRunMessages} from './thread.js'
 import {syncedSnapshot, syncTranscript} from './transcript-import.js'
 import {settleContextOccupancy} from './occupancy.js'
 import {publishRunLifecycle, publishRunRecord} from './run-lifecycle.js'
@@ -384,8 +384,9 @@ async function* runStream(
   yield {type: EventType.CUSTOM, name: RUN_ACCEPTED_EVENT, value: {}, timestamp: Date.now()}
   await syncTranscript(deps, sessionId).catch(() => {})
   const runLog = deps.durability(req.runId)
+  const runFrom = beginRunMessages(deps.db, sessionId)
   const processor = new StreamProcessor({
-    events: {onMessagesChange: (messages) => writeRunMessages(deps.db, sessionId, messages)},
+    events: {onMessagesChange: (messages) => writeRunMessages(deps.db, sessionId, runFrom, messages)},
   })
   const gateDeps = {
     asks: asksFor(deps.asks, sessionId),

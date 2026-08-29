@@ -3,7 +3,7 @@ import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {createFakeHarness, createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
-import {openDb} from '@conciv/db'
+import {openDb, type ConcivDb} from '@conciv/db'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 import {partTypes, userTexts} from '../helpers/snapshots.js'
@@ -92,7 +92,7 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
       cwd: root,
       deletedAt: null,
     })
-    writeRunMessages(db, sessionId, [{id: 'u1', role: 'user', parts: [{type: 'text', content: seed.text}]}])
+    writeRunMessages(db, sessionId, 0, [{id: 'u1', role: 'user', parts: [{type: 'text', content: seed.text}]}])
     return {db, sessionId}
   }
 
@@ -110,6 +110,11 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
     return root
   }
 
+  function expectSettledTurn(db: ConcivDb, sessionId: string, text: string): void {
+    expect(threadPendingFrom(db, sessionId)).toBeNull()
+    expect(threadUserTexts(db, sessionId)).toEqual([text])
+  }
+
   it('T12: an interrupted turn the CLI never ingested survives recovery on an established session', async () => {
     const root = freshRoot('conciv-durable-established-')
     const text = 'turn written to the database before the cli was invoked'
@@ -117,8 +122,7 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
 
     await recoverInterruptedRuns({db, harness: requireClaude(), claudeHome: root})
 
-    expect(threadPendingFrom(db, sessionId)).toBeNull()
-    expect(threadUserTexts(db, sessionId)).toEqual([text])
+    expectSettledTurn(db, sessionId, text)
   })
 
   it('T12b: a turn the CLI already recorded appears in the thread exactly once', async () => {
@@ -129,8 +133,7 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
 
     await recoverInterruptedRuns({db, harness: requireClaude(), claudeHome: root})
 
-    expect(threadPendingFrom(db, sessionId)).toBeNull()
-    expect(threadUserTexts(db, sessionId)).toEqual([text])
+    expectSettledTurn(db, sessionId, text)
   })
 
   it('T13: recovery judges each session by its own recorded harness, not the booted one', async () => {
@@ -141,8 +144,7 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
 
     await recoverInterruptedRuns({db, harness: requireClaude(), claudeHome: root})
 
-    expect(threadPendingFrom(db, sessionId)).toBeNull()
-    expect(threadUserTexts(db, sessionId)).toEqual([text])
+    expectSettledTurn(db, sessionId, text)
   })
 
   it('T7: an interrupted turn that never reached the CLI survives recovery on a transcriptHistory harness', async () => {
@@ -161,13 +163,12 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
       cwd: root,
       deletedAt: null,
     })
-    writeRunMessages(db, sessionId, [
+    writeRunMessages(db, sessionId, 0, [
       {id: 'u1', role: 'user', parts: [{type: 'text', content: 'turn interrupted before a native id landed'}]},
     ])
 
     await recoverInterruptedRuns({db, harness: requireClaude(), claudeHome: root})
 
-    expect(threadPendingFrom(db, sessionId)).toBeNull()
-    expect(threadUserTexts(db, sessionId)).toEqual(['turn interrupted before a native id landed'])
+    expectSettledTurn(db, sessionId, 'turn interrupted before a native id landed')
   })
 })
