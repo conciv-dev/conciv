@@ -24,6 +24,7 @@ import {useMessage} from '../primitives/message/message-context.js'
 import {
   CHAIN_GROUP_KEY,
   groupParts,
+  lastGroupedIndex,
   type GroupEntry,
   type GroupKey,
   type GroupNode,
@@ -55,7 +56,9 @@ import {
 } from './turn-classes.js'
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
 import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
+import {primeHighlightWorkerPool} from '@conciv/solid-diffs'
 import {Markdown, warmHighlighter} from './markdown.js'
+import {codeTheme} from '../theme/code-theme.js'
 import {toolFallbackCardView} from '../tools/styled/tool-fallback.js'
 import {ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
 import {Trace, type TraceBranch, type TraceItem} from './trace/trace.js'
@@ -137,19 +140,24 @@ function AssistantTurn(props: {
   const ctx = useToolCtx()
   const parts = () => message.message().parts
   const grouping = createMemo(() => props.grouping ?? createGrouping(props.pageSession, props.entries))
-  const nodes = createMemo(() => groupParts(parts(), grouping().grouper, grouping().context))
-  const lastTextIndex = createMemo(() =>
-    parts()
-      .map((part) => part.type)
-      .lastIndexOf('text'),
-  )
-  const streamingAt = (index: number) => thread.isRunning && message.isLast() && index === lastTextIndex()
   const lastPartIndex = createMemo(() => parts().length - 1)
-  const streamingPart = (index: number) => thread.isRunning && message.isLast() && index === lastPartIndex()
+  const runActive = () => thread.isRunning && message.isLast()
+  const nodes = createMemo(() => groupParts(parts(), grouping().grouper, {...grouping().context, live: runActive()}))
   const runningPart = (index: number): boolean => {
     const call = asToolCall(parts()[index])
     return call !== null && rowMarkOf(call, message.pairing().byCallId.get(call.id)) === 'run'
   }
+  const partLive = (index: number): boolean => {
+    const part = parts()[index]
+    if (part === undefined || !runActive()) return false
+    if (part.type === 'tool-call') return runningPart(index)
+    return index === lastPartIndex()
+  }
+  const lastGroupedPartIndex = createMemo(() => lastGroupedIndex(nodes()))
+  const groupStillOpen = (node: GroupNodeGroup): boolean => (node.indices.at(-1) ?? -1) === lastGroupedPartIndex()
+  const nodeLive = (node: GroupNode): boolean =>
+    node.type === 'part' ? partLive(node.index) : node.indices.some(partLive) || (runActive() && groupStillOpen(node))
+  const folded = () => !message.isLast()
   const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => {
     const segmentParts = createMemo<MessagePart[]>(() =>
       groupProps.node.indices.flatMap((partIndex) => {
@@ -158,44 +166,50 @@ function AssistantTurn(props: {
       }),
     )
     const segmentRollup = createMemo(() => rollupOfParts(segmentParts()))
-    const segmentActive = () =>
-      groupProps.node.indices.some((partIndex) => streamingPart(partIndex)) || segmentRollup().awaitingApproval
+    const segmentActive = () => groupProps.node.indices.some(partLive) || segmentRollup().awaitingApproval
     const items = indexArray(
       () => groupProps.node.indices,
-      (partIndex, position): TraceItem => ({
-        key: `p${position}`,
-        get live() {
-          return runningPart(partIndex())
-        },
-        render: (branch: TraceBranch): JSX.Element => (
-          <Switch>
-            <Match when={asThinking(groupProps.parts()[partIndex()])}>
-              {(thinkingPart) => (
-                <TraceRunRow
-                  label={PLAN_LABEL}
-                  text={firstLine(thinkingPart().content)}
-                  live={streamingPart(partIndex())}
-                  ring={branch.ring}
-                  body={planBody(thinkingPart)}
-                />
-              )}
-            </Match>
-            <Match when={asToolCall(groupProps.parts()[partIndex()])}>
-              {(callPart) => (
-                <ToolTraceRow
-                  part={callPart()}
-                  result={message.pairing().byCallId.get(callPart().id)}
-                  ctx={ctx}
-                  durationMs={ctx.durationFor?.(callPart().id)}
-                  tools={() => props.entries}
-                  fallback={props.fallback}
-                  ring={branch.ring}
-                />
-              )}
-            </Match>
-          </Switch>
-        ),
-      }),
+      (partIndex, position): TraceItem => {
+        const live = createMemo(() => runningPart(partIndex()))
+        return {
+          key: `p${position}`,
+          get live() {
+            return live()
+          },
+          render: (branch: TraceBranch): JSX.Element => (
+            <Switch>
+              <Match when={asThinking(groupProps.parts()[partIndex()])}>
+                {(thinkingPart) => (
+                  <TraceRunRow
+                    label={PLAN_LABEL}
+                    text={firstLine(thinkingPart().content)}
+                    live={partLive(partIndex())}
+                    ring={branch.ring}
+                    body={planBody(thinkingPart)}
+                  />
+                )}
+              </Match>
+              <Match when={asToolCall(groupProps.parts()[partIndex()])}>
+                {(callPart) => {
+                  const result = createMemo(() => message.pairing().byCallId.get(callPart().id))
+                  const durationMs = createMemo(() => ctx.durationFor?.(callPart().id))
+                  return (
+                    <ToolTraceRow
+                      part={callPart()}
+                      result={result()}
+                      ctx={ctx}
+                      durationMs={durationMs()}
+                      tools={() => props.entries}
+                      fallback={props.fallback}
+                      ring={branch.ring}
+                    />
+                  )
+                }}
+              </Match>
+            </Switch>
+          ),
+        }
+      },
     )
     const reasoned = () => segmentParts().some((part) => asThinking(part) !== null)
     const activeCall = () =>
@@ -207,7 +221,7 @@ function AssistantTurn(props: {
     }
     return (
       <Show when={segmentRollup().toolCalls > 0 || reasoned()}>
-        <Trace summary={summary()} compactLine={compactLine()} items={items()} streaming={segmentActive()} />
+        <Trace summary={summary()} compactLine={compactLine()} items={items()} folded={folded()} />
       </Show>
     )
   }
@@ -217,53 +231,50 @@ function AssistantTurn(props: {
     return [chain, ...(config ? [config.entry] : []), ...(props.groupEntries ?? [])]
   })
   const entryFor = (key: GroupKey) => groupEntries().find((entry) => entry.key === key)
-  const renderableNode = (node: GroupNode): boolean => {
-    if (node.type === 'part') return true
-    if (entryFor(node.key) !== undefined) return true
-    return node.children.some(renderableNode)
-  }
   const PartLeaf = (leafProps: {node: GroupNodePart}): JSX.Element => (
     <Switch>
       <Match when={asText(parts()[leafProps.node.index])}>
         {(part) => (
           <div class={ANSWER_ROW_CLASS}>
             <div class={message.isLast() ? ANSWER_CONTENT_CLASS : ANSWER_CONTENT_SETTLED_CLASS}>
-              <Markdown content={part().content} streaming={streamingAt(leafProps.node.index)} />
+              <Markdown content={part().content} streaming={partLive(leafProps.node.index)} />
             </div>
           </div>
         )}
       </Match>
       <Match when={asToolCall(parts()[leafProps.node.index])}>
-        {(part) => (
-          <ToolCallCard
-            part={part()}
-            result={message.pairing().byCallId.get(part().id)}
-            ctx={ctx}
-            durationMs={ctx.durationFor?.(part().id)}
-            tools={() => props.entries}
-            fallback={props.fallback}
-          />
-        )}
+        {(part) => {
+          const result = createMemo(() => message.pairing().byCallId.get(part().id))
+          const durationMs = createMemo(() => ctx.durationFor?.(part().id))
+          return (
+            <ToolCallCard
+              part={part()}
+              result={result()}
+              ctx={ctx}
+              durationMs={durationMs()}
+              tools={() => props.entries}
+              fallback={props.fallback}
+            />
+          )
+        }}
       </Match>
     </Switch>
   )
-  const NodeView = (nodeProps: {node: GroupNode; streaming: boolean}): JSX.Element => (
+  const NodeView = (nodeProps: {node: GroupNode}): JSX.Element => (
     <Switch>
       <Match when={asGroupNode(nodeProps.node)}>
         {(group) => (
-          <Show
-            when={entryFor(group().key)}
-            fallback={<NodeListView nodes={group().children} streaming={nodeProps.streaming} />}
-          >
+          <Show when={entryFor(group().key)} fallback={<NodeListView nodes={group().children} />}>
             {(entry) => (
               <Dynamic
                 component={entry().render}
                 node={group()}
                 parts={parts}
                 resultFor={(toolCallId: string) => message.pairing().byCallId.get(toolCallId)}
-                streaming={nodeProps.streaming}
+                streaming={nodeLive(group())}
+                folded={folded()}
               >
-                <NodeListView nodes={group().children} streaming={nodeProps.streaming} />
+                <NodeListView nodes={group().children} />
               </Dynamic>
             )}
           </Show>
@@ -272,17 +283,12 @@ function AssistantTurn(props: {
       <Match when={asPartNode(nodeProps.node)}>{(leaf) => <PartLeaf node={leaf()} />}</Match>
     </Switch>
   )
-  const NodeListView = (listProps: {nodes: readonly GroupNode[]; streaming: boolean}): JSX.Element => {
-    const lastRenderableIndex = createMemo(() => listProps.nodes.map(renderableNode).lastIndexOf(true))
-    return (
-      <Index each={listProps.nodes}>
-        {(node, index) => <NodeView node={node()} streaming={listProps.streaming && index === lastRenderableIndex()} />}
-      </Index>
-    )
-  }
+  const NodeListView = (listProps: {nodes: readonly GroupNode[]}): JSX.Element => (
+    <Index each={listProps.nodes}>{(node) => <NodeView node={node()} />}</Index>
+  )
   return (
     <Message.Root data-conciv-msg class={ASSISTANT_ROOT_CLASS}>
-      <NodeListView nodes={nodes()} streaming={thread.isRunning && message.isLast()} />
+      <NodeListView nodes={nodes()} />
       <Message.Error />
       <div class={ANSWER_ACTION_ROW_CLASS}>
         <AssistantActionBar />
@@ -382,14 +388,19 @@ function AssistantMessageView(): JSX.Element {
 
 const MESSAGES_COMPONENTS = {UserMessage: UserTurn, AssistantMessage: AssistantMessageView}
 
+function warmHighlightBackends(): void {
+  warmHighlighter()
+  primeHighlightWorkerPool({theme: codeTheme()})
+}
+
 function ThreadRoot(props: ThreadRootProps): JSX.Element {
-  onMount(() => warmHighlighter())
+  onMount(warmHighlightBackends)
   return (
-    <div
+    <ThreadPrimitive.Root
       class={`flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)] ${props.class ?? ''}`}
     >
       {props.children}
-    </div>
+    </ThreadPrimitive.Root>
   )
 }
 

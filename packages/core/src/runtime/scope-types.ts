@@ -59,7 +59,7 @@ export type SessionHistory = {
 }
 
 export type SessionRun = {
-  send: (runId: string, content: UserContent) => Promise<string>
+  send: (runId: string, content: UserContent, messageId?: string) => Promise<string>
   stop: () => Promise<{ok: true}>
   compact: () => Promise<void>
   live: () => boolean

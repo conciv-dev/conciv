@@ -3,6 +3,7 @@ import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
 
 const MessageSchema = z
   .object({
+    id: z.string().optional(),
     role: z.string(),
     parts: z.array(z.object({type: z.string(), content: z.string().optional()}).loose()).default([]),
   })
@@ -32,8 +33,18 @@ export function firstSnapshot(chunks: StreamChunk[]): SnapshotView {
   return asSnapshot(found)
 }
 
+export function lastSnapshot(chunks: StreamChunk[]): SnapshotView {
+  const found = chunks.findLast((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
+  if (!found) throw new Error('no MESSAGES_SNAPSHOT was published')
+  return asSnapshot(found)
+}
+
 export function userTexts(snapshot: SnapshotView): string[] {
   return snapshot.messages.filter((message) => message.role === 'user').map(textOf)
+}
+
+export function userMessageIds(snapshot: SnapshotView): Array<string | undefined> {
+  return snapshot.messages.filter((message) => message.role === 'user').map((message) => message.id)
 }
 
 export function assistantTexts(snapshot: SnapshotView): string[] {

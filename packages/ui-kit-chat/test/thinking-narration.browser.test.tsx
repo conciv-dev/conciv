@@ -44,12 +44,12 @@ it('keeps a readable trace for a segment that only reasoned and ran no tool', as
     ]),
   )
 
-  await expect.element(traceTrigger(), {timeout: TIMEOUT_MS}).toHaveAttribute('data-state', 'closed')
-  await expect.element(page.getByText('reasoning', {exact: true})).toBeVisible()
-  await userEvent.click(traceTrigger())
+  await expect.element(traceTrigger(), {timeout: TIMEOUT_MS}).toHaveAttribute('data-state', 'open')
   await expect
     .element(page.getByText('weighing the rename against the call sites'), {timeout: TIMEOUT_MS})
     .toBeVisible()
+  await userEvent.click(traceTrigger())
+  await expect.element(page.getByText('reasoning', {exact: true})).toBeVisible()
   await page.screenshot({path: '__screenshots__/thinking-narration/reasoning-only-trace.png'})
 })
 

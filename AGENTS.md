@@ -33,7 +33,7 @@ README.md; this file is the non-obvious operational rules.
   (oxlint). Format: `pnpm format:check` / `pnpm format` (oxfmt).
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
   So a green `test` already proves the build: don't run a separate `build` gate unless the package has
-  no `test` script (`@conciv/serve`, `@conciv/solid-diffs`, `@conciv/ui-kit-tap`, the `conciv-e2e-*` apps).
+  no `test` script (`@conciv/serve`, `@conciv/ui-kit-tap`, the `conciv-e2e-*` apps).
 - Package gates filter bare: `turbo run test --filter=<pkg>`. A TRAILING `<pkg>...` means "and all its
   DEPENDENCIES" (28 real suites here instead of 1), not "and its dependents"; `.claude/hooks/turbo-filter-gate.sh`
   blocks it for test/typecheck. The dependents selector is the LEADING form `--filter=...<pkg>`.

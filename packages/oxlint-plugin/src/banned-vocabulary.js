@@ -89,7 +89,15 @@ const PREEXISTING_TERM_SITES = [
       'packages/cli/src/init/',
     ],
   },
-  {term: 'pipeline', paths: ['packages/extension-testkit/src/test-host-config.ts']},
+  {
+    term: 'pipeline',
+    paths: [
+      'packages/extension-testkit/src/test-host-config.ts',
+      'packages/ui-kit-chat/uno.config.ts',
+      'packages/ui-kit-chat-tools/uno.config.ts',
+      'packages/ui-kit-system/uno.config.ts',
+    ],
+  },
   {
     term: 'attach',
     paths: [...HARNESS_CONNECT_ATTACH_PATHS, ...COMPOSER_ATTACHMENT_INGRESS_PATHS, ...PRE_REWRITE_ATTACH_PATHS],

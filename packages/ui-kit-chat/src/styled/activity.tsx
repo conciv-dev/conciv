@@ -36,8 +36,7 @@ import {
 import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {Dynamic} from 'solid-js/web'
 import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
-import {createAutoCollapse} from '../primitives/util/create-auto-collapse.js'
-import {useThreadAutoScroll} from '../behaviors/use-thread-auto-scroll.js'
+import {createSettleFold} from '../primitives/util/create-settle-fold.js'
 import {ToolCallCard} from '../tools/styled/tool-call-card.js'
 import {Group} from './group.js'
 import {toolFallbackCardView} from '../tools/styled/tool-fallback.js'
@@ -134,7 +133,7 @@ function asToolCall(part: MessagePart | undefined): ToolCallPart | null {
 function StepShell(
   props: ParentProps<{glyph: JSX.Element; title: string; titleClass?: string; autoOpen?: boolean}>,
 ): JSX.Element {
-  const collapse = createAutoCollapse({streaming: () => props.autoOpen === true})
+  const collapse = createSettleFold({revealed: () => props.autoOpen === true})
   return (
     <Collapsible.Root open={collapse.open()} onOpenChange={(details) => collapse.setOpen(details.open)}>
       <Collapsible.Trigger class={STEP_TRIGGER}>
@@ -159,7 +158,7 @@ function ToolStep(props: {part: ToolCallPart; subCalls?: ToolCallPart[]}): JSX.E
       glyph={stepGlyph(status())}
       title={activity.label(props.part)}
       titleClass={status() === 'running' ? SHIMMER : ''}
-      autoOpen={status() === 'approval'}
+      autoOpen={props.part.state === 'approval-requested' || props.part.state === 'approval-responded'}
     >
       <ToolCallCard
         part={props.part}
@@ -387,25 +386,24 @@ function UserTurnView(props: {turn: Turn}): JSX.Element {
 
 function Timeline(props: {id?: string; 'aria-label'?: string; class?: string; children?: JSX.Element}): JSX.Element {
   const activity = useActivity()
-  const [viewport, setViewport] = createSignal<HTMLElement>()
-  useThreadAutoScroll(viewport, {autoScroll: () => true})
   return (
     <div
-      ref={setViewport}
       id={props.id}
       aria-label={props['aria-label']}
-      class={`px-2.5 py-2.5 flex flex-1 flex-col gap-2.5 min-h-0 min-w-0 overflow-y-auto ${props.class ?? ''}`}
+      class={`px-2.5 py-2.5 flex flex-1 flex-col-reverse min-h-0 min-w-0 overflow-y-auto ${props.class ?? ''}`}
       role="log"
       aria-live="polite"
     >
-      <Index each={activity.turns()}>
-        {(turn) => (
-          <Show when={turn().role === 'user'} fallback={<AssistantTurnView turn={turn()} />}>
-            <UserTurnView turn={turn()} />
-          </Show>
-        )}
-      </Index>
-      {props.children}
+      <div class="mb-auto flex flex-col gap-2.5 min-w-0">
+        <Index each={activity.turns()}>
+          {(turn) => (
+            <Show when={turn().role === 'user'} fallback={<AssistantTurnView turn={turn()} />}>
+              <UserTurnView turn={turn()} />
+            </Show>
+          )}
+        </Index>
+        {props.children}
+      </div>
     </div>
   )
 }

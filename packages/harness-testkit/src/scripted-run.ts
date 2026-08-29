@@ -3,7 +3,16 @@ import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 
 export type ScriptedTurnToolCall = {name: string; input: unknown; result?: unknown}
 
-export type ScriptedTurn = {toolCalls: ScriptedTurnToolCall[]; text?: string; thinking?: string}
+export type PacedText = {chunk: number; everyMs: number}
+
+export type ScriptedTurn = {
+  toolCalls: ScriptedTurnToolCall[]
+  text?: string
+  thinking?: string
+  textPace?: PacedText
+}
+
+export type PacedRelease = {everyMs: number}
 
 export type ScriptedRun = {
   chatStream: (deps: HarnessChatDeps) => AsyncGenerator<StreamChunk>
@@ -12,7 +21,7 @@ export type ScriptedRun = {
   holdTools: () => void
   releaseTools: () => void
   holdResults: () => void
-  releaseResults: () => void
+  releaseResults: (paced?: PacedRelease) => void
   scriptToolCall: (name: string, input: unknown, opts?: {blocking?: boolean}) => string
   scriptTurn: (turn: ScriptedTurn) => string[]
   scriptCustomEvent: (name: string, value: unknown) => void
@@ -21,7 +30,13 @@ export type ScriptedRun = {
 
 type QueuedToolCall = {id: string; name: string; input: unknown; result: unknown}
 
-type QueuedTurn = {toolCalls: QueuedToolCall[]; text?: string; thinking?: string; blocking: boolean}
+type QueuedTurn = {
+  toolCalls: QueuedToolCall[]
+  text?: string
+  thinking?: string
+  textPace?: PacedText
+  blocking: boolean
+}
 
 const THREAD = {threadId: 'scripted', runId: 'scripted'} as const
 
@@ -37,12 +52,17 @@ function* requestChunks(call: {id: string; name: string; input: unknown}): Gener
   yield {type: EventType.TOOL_CALL_END, toolCallId}
 }
 
+function stringifyToolResult(result: unknown): string {
+  if (typeof result === 'string') return result
+  return JSON.stringify(result)
+}
+
 function resultChunk(toolCallId: string, result: unknown): StreamChunk {
   return {
     type: EventType.TOOL_CALL_RESULT,
     messageId: `${toolCallId}-result`,
     toolCallId,
-    content: JSON.stringify(result),
+    content: stringifyToolResult(result),
     state: 'output-available',
   }
 }
@@ -53,6 +73,26 @@ function* thinkingChunks(text: string | undefined): Generator<StreamChunk> {
   yield {type: EventType.REASONING_MESSAGE_START, messageId, role: 'reasoning'}
   yield {type: EventType.REASONING_MESSAGE_CONTENT, messageId, delta: text}
   yield {type: EventType.REASONING_MESSAGE_END, messageId}
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds)
+  })
+}
+
+function textSlices(text: string, pace: PacedText | undefined): string[] {
+  if (!pace || pace.chunk <= 0 || text.length <= pace.chunk) return [text]
+  const count = Math.ceil(text.length / pace.chunk)
+  return Array.from({length: count}, (_, index) => text.slice(index * pace.chunk, (index + 1) * pace.chunk))
+}
+
+async function* textChunks(text: string, pace: PacedText | undefined, messageId: string): AsyncGenerator<StreamChunk> {
+  const slices = textSlices(text, pace)
+  for (const [index, delta] of slices.entries()) {
+    if (index > 0 && pace) await delay(pace.everyMs)
+    yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta}
+  }
 }
 
 async function* turnChunks(
@@ -78,23 +118,48 @@ function* customEventChunks(events: {name: string; value: unknown}[]): Generator
   for (const event of events) yield {type: EventType.CUSTOM, name: event.name, value: event.value, ...THREAD}
 }
 
-type Gate = {hold: () => void; release: () => void; wait: () => Promise<void>}
+type Gate = {hold: () => void; release: (paced?: PacedRelease) => void; wait: () => Promise<void>}
 
 function makeGate(): Gate {
-  const state = {held: false, waiting: new Set<() => void>()}
+  const state = {
+    held: false,
+    everyMs: 0,
+    waiting: new Set<() => void>(),
+    timers: new Set<ReturnType<typeof setTimeout>>(),
+  }
+  const schedule = (resume: () => void): void => {
+    const timer = setTimeout(() => {
+      state.timers.delete(timer)
+      state.waiting.delete(resume)
+      resume()
+    }, state.everyMs)
+    state.timers.add(timer)
+  }
   return {
     hold: () => {
       state.held = true
+      state.everyMs = 0
     },
-    release: () => {
+    release: (paced?: PacedRelease) => {
+      if (paced && paced.everyMs > 0) {
+        state.everyMs = paced.everyMs
+        for (const resume of state.waiting) schedule(resume)
+        return
+      }
       state.held = false
+      state.everyMs = 0
+      for (const timer of state.timers) clearTimeout(timer)
+      state.timers.clear()
       const resuming = state.waiting
       state.waiting = new Set<() => void>()
       for (const resume of resuming) resume()
     },
     wait: async () => {
       if (!state.held) return
-      await new Promise<void>((resolve) => state.waiting.add(resolve))
+      await new Promise<void>((resolve) => {
+        state.waiting.add(resolve)
+        if (state.everyMs > 0) schedule(resolve)
+      })
     },
   }
 }
@@ -121,7 +186,13 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
       toolCalls.count += 1
       return {id: `tc-${toolCalls.count}`, name: call.name, input: call.input, result: scriptedResult(call)}
     })
-    queuedTurns.push({toolCalls: calls, text: turn.text, thinking: turn.thinking, blocking: false})
+    queuedTurns.push({
+      toolCalls: calls,
+      text: turn.text,
+      thinking: turn.thinking,
+      textPace: turn.textPace,
+      blocking: false,
+    })
     return calls.map((call) => call.id)
   }
   const scriptCustomEvent = (name: string, value: unknown) => {
@@ -145,7 +216,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
       return
     }
     yield* drainCustomEvents()
-    yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: scriptedTurn?.text ?? defaultText}
+    yield* textChunks(scriptedTurn?.text ?? defaultText, scriptedTurn?.textPace, messageId)
     await gate.wait()
     const failure = queuedErrors.shift()
     if (failure) throw new Error(failure)

@@ -1,4 +1,4 @@
-import {splitProps, type JSX} from 'solid-js'
+import {createMemo, splitProps, type JSX} from 'solid-js'
 import {cva} from 'class-variance-authority'
 import {SolidCodeBlock, SolidFileDiff, type FileDiffOptions} from '@conciv/solid-diffs'
 import {codeBlockOptions, codeBlockFileChromeOptions, codeLineOptions} from '../primitives/tool-presentation.js'
@@ -61,10 +61,10 @@ export function CodeBlock(props: {
   const cap = (): 'result' | 'log' | 'none' => (embedded() ? 'none' : (local.maxHeight ?? 'result'))
   const blockClass = (): string =>
     `${codeBlock({size: local.size ?? 'xs', maxHeight: cap(), chrome: chrome()})} ${local.class ?? ''}`
-  const options = () => {
+  const options = createMemo(() => {
     if (chrome() === 'file') return codeBlockFileChromeOptions()
     return chrome() === 'line' ? codeLineOptions() : codeBlockOptions()
-  }
+  })
   return <SolidCodeBlock class={blockClass()} options={options()} file={local.file} />
 }
 
@@ -78,6 +78,7 @@ export function DiffBlock(props: {
   class?: string
 }): JSX.Element {
   const [local] = splitProps(props, ['file', 'size', 'class'])
+  const diffOptions = createMemo(blessedDiffOptions)
   const blockClass = (): string => `${diffBlock({size: local.size ?? 'xs'})} ${local.class ?? ''}`
   const oldFile = (): {name: string; contents: string; lang?: string} => ({
     name: local.file.name,
@@ -89,5 +90,5 @@ export function DiffBlock(props: {
     contents: local.file.after,
     lang: local.file.lang,
   })
-  return <SolidFileDiff class={blockClass()} options={blessedDiffOptions()} oldFile={oldFile()} newFile={newFile()} />
+  return <SolidFileDiff class={blockClass()} options={diffOptions()} oldFile={oldFile()} newFile={newFile()} />
 }

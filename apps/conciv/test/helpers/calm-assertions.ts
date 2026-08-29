@@ -10,6 +10,9 @@ const SURFACE_SELECTOR = [
 const STAMP_ATTRIBUTE = 'data-calm-surface'
 const TOLERANCE_PX = 1
 const DESCRIPTION_LENGTH = 44
+const SETTLE_PASSES = 3
+const JANK_FRAME_MS = 33
+const TOP_EDGE_PROBE_PX = 2
 
 export type CalmAllowance = 'narration' | 'virtualization' | 'error-replacement' | 'user-collapsed-trace'
 
@@ -17,14 +20,21 @@ type CalmSurface = {stamp: string; description: string}
 
 type CalmDrift = CalmSurface & {deltaBlock: number; deltaInline: number}
 
+export type CalmCheckpoint = {rebaseline?: boolean}
+
+export type FrameGaps = {frames: number; p50: number; p95: number; max: number; over33: number}
+
 export type CalmWatch = {
-  checkpoint: () => Promise<void>
+  checkpoint: (options?: CalmCheckpoint) => Promise<void>
   removed: () => string[]
   drifted: () => string[]
   shiftedAboveLiveRegion: () => string[]
   narrationGlyphs: () => number
+  frameGaps: () => FrameGaps
   stop: () => void
 }
+
+type FrameGapSampler = {gaps: () => FrameGaps; pause: () => void; resume: () => void}
 
 type Anchor = {block: number; inline: number}
 
@@ -56,6 +66,79 @@ function threadViewport(): HTMLElement {
   return viewport
 }
 
+export function threadViewportElement(): HTMLElement {
+  return threadViewport()
+}
+
+export type ScrollWatch = {
+  stop: () => void
+  maxDrift: () => number
+  maxDistanceFromEnd: () => number
+  distanceSeries: () => number[]
+  framesBeyond: (limit: number) => number
+  samples: () => number
+  topEdgeRow: () => string | null
+}
+
+function distanceFromEnd(viewport: HTMLElement): number {
+  return Math.max(0, viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop)
+}
+
+export function topEdgeRowIndex(viewport: HTMLElement): string | null {
+  const frame = viewport.getBoundingClientRect()
+  const found = document.elementFromPoint(frame.left + frame.width / 2, frame.top + TOP_EDGE_PROBE_PX)
+  return found?.closest('[data-index]')?.getAttribute('data-index') ?? null
+}
+
+function topEdgeRowElement(viewport: HTMLElement): Element | null {
+  const frame = viewport.getBoundingClientRect()
+  const found = document.elementFromPoint(frame.left + frame.width / 2, frame.top + TOP_EDGE_PROBE_PX)
+  return found?.closest('[data-index]') ?? null
+}
+
+function offsetWithinViewport(row: Element, viewport: HTMLElement): number {
+  return row.getBoundingClientRect().top - viewport.getBoundingClientRect().top
+}
+
+export function topEdgeRowOffset(viewport: HTMLElement): number {
+  const row = topEdgeRowElement(viewport)
+  return row ? offsetWithinViewport(row, viewport) : 0
+}
+
+export function watchViewportScroll(): ScrollWatch {
+  const viewport = threadViewport()
+  const anchorRow = topEdgeRowElement(viewport)
+  const anchorOffset = anchorRow ? offsetWithinViewport(anchorRow, viewport) : 0
+  const drifts: number[] = []
+  const distances: number[] = []
+  const rows: (string | null)[] = []
+  let handle = requestAnimationFrame(function tick() {
+    if (anchorRow?.isConnected === true) drifts.push(Math.abs(offsetWithinViewport(anchorRow, viewport) - anchorOffset))
+    distances.push(distanceFromEnd(viewport))
+    rows.push(topEdgeRowIndex(viewport))
+    handle = requestAnimationFrame(tick)
+  })
+  return {
+    stop: () => cancelAnimationFrame(handle),
+    maxDrift: () => Math.max(0, ...drifts),
+    maxDistanceFromEnd: () => Math.max(0, ...distances),
+    distanceSeries: () => distances.slice(),
+    framesBeyond: (limit: number) =>
+      distances.reduce(
+        (state, distance) => {
+          const run = distance > limit ? state.run + 1 : 0
+          return {run, longest: Math.max(state.longest, run)}
+        },
+        {run: 0, longest: 0},
+      ).longest,
+    samples: () => drifts.length,
+    topEdgeRow: () => {
+      const seen = new Set(rows.filter((row): row is string => row !== null))
+      return seen.size === 1 ? ([...seen][0] ?? null) : [...seen].join(',')
+    },
+  }
+}
+
 export function pinViewportToBottom(pixels: number): () => void {
   const viewport = threadViewport()
   const height = viewport.style.height
@@ -83,6 +166,10 @@ function isAboveLiveRegion(node: Element, region: Element | undefined): boolean 
   return (node.compareDocumentPosition(region) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
 }
 
+function isPseudoElement(node: Element): boolean {
+  return node.tagName.startsWith('::')
+}
+
 function describeSurface(node: Element): string {
   const role = node.getAttribute('role') ?? node.tagName.toLowerCase()
   const label = node.getAttribute('aria-label') ?? (node.textContent ?? '').replaceAll(/\s+/g, ' ').trim()
@@ -108,9 +195,17 @@ function hasFiniteIterations(animation: Animation): boolean {
   return animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY
 }
 
+function nextFrames(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+}
+
 async function settleMotion(viewport: HTMLElement): Promise<void> {
-  const running = viewport.getAnimations({subtree: true}).filter(hasFiniteIterations)
-  await Promise.allSettled(running.map((animation) => animation.finished))
+  for (let pass = 0; pass < SETTLE_PASSES; pass += 1) {
+    await nextFrames()
+    const running = viewport.getAnimations({subtree: true}).filter(hasFiniteIterations)
+    if (running.length === 0) return
+    await Promise.allSettled(running.map((animation) => animation.finished))
+  }
 }
 
 function driftOf(entry: Tracked): CalmDrift {
@@ -142,25 +237,64 @@ function isPermitted(entry: Tracked, allowed: ReadonlySet<CalmAllowance>): boole
   return false
 }
 
+function percentileOf(sorted: ReadonlyArray<number>, fraction: number): number {
+  if (sorted.length === 0) return 0
+  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))] ?? 0
+}
+
+function tenths(value: number): number {
+  return Math.round(value * 10) / 10
+}
+
+function summariseGaps(gaps: ReadonlyArray<number>): FrameGaps {
+  const sorted = gaps.toSorted((left, right) => left - right)
+  return {
+    frames: gaps.length,
+    p50: tenths(percentileOf(sorted, 0.5)),
+    p95: tenths(percentileOf(sorted, 0.95)),
+    max: tenths(sorted.at(-1) ?? 0),
+    over33: gaps.filter((gap) => gap > JANK_FRAME_MS).length,
+  }
+}
+
+function startFrameGapSampler(): FrameGapSampler {
+  const gaps: number[] = []
+  let previous = performance.now()
+  let handle = 0
+  const tick = (now: number): void => {
+    gaps.push(now - previous)
+    previous = now
+    handle = requestAnimationFrame(tick)
+  }
+  const resume = (): void => {
+    previous = performance.now()
+    handle = requestAnimationFrame(tick)
+  }
+  resume()
+  return {gaps: () => summariseGaps(gaps), pause: () => cancelAnimationFrame(handle), resume}
+}
+
 export function createCalmWatch(options: {allow?: ReadonlyArray<CalmAllowance>} = {}): CalmWatch {
   const allowed = new Set<CalmAllowance>(options.allow ?? [])
   const tracked = new Map<string, Tracked>()
   const stamps = {count: 0}
   const shifted = new Set<string>()
-  const observer = new PerformanceObserver((list) => {
+  const collect = (entries: PerformanceEntryList) => {
     const viewport = document.querySelector<HTMLElement>(VIEWPORT_SELECTOR)
     if (!viewport) return
     const region = liveRegionOf(viewport)
     const isAboveSource = (node: Node | null | undefined): node is Element =>
-      node instanceof Element && viewport.contains(node) && isAboveLiveRegion(node, region)
-    for (const entry of list.getEntries()) {
+      node instanceof Element && !isPseudoElement(node) && viewport.contains(node) && isAboveLiveRegion(node, region)
+    for (const entry of entries) {
       if (!isLayoutShiftEntry(entry)) continue
       if (entry.hadRecentInput) continue
       const above = entry.sources.map((source) => source.node).filter(isAboveSource)
       for (const node of above) shifted.add(describeSurface(node))
     }
-  })
+  }
+  const observer = new PerformanceObserver((list) => collect(list.getEntries()))
   observer.observe({type: 'layout-shift', buffered: true})
+  const sampler = startFrameGapSampler()
   const resample = (viewport: HTMLElement) => {
     for (const entry of tracked.values()) {
       if (entry.gone) continue
@@ -192,12 +326,29 @@ export function createCalmWatch(options: {allow?: ReadonlyArray<CalmAllowance>} 
       })
     }
   }
+  const drainShifts = async (): Promise<void> => {
+    await nextFrames()
+    collect(observer.takeRecords())
+  }
   return {
-    checkpoint: async () => {
-      const viewport = threadViewport()
-      await settleMotion(viewport)
-      resample(viewport)
-      adopt(viewport, liveRegionOf(viewport))
+    checkpoint: async (options: CalmCheckpoint = {}) => {
+      sampler.pause()
+      try {
+        const viewport = threadViewport()
+        await settleMotion(viewport)
+        resample(viewport)
+        adopt(viewport, liveRegionOf(viewport))
+        if (options.rebaseline !== true) return
+        await drainShifts()
+        resample(viewport)
+        for (const [stamp, entry] of tracked) {
+          if (entry.gone) tracked.delete(stamp)
+          entry.origin = entry.latest
+        }
+        shifted.clear()
+      } finally {
+        sampler.resume()
+      }
     },
     removed: () =>
       [...tracked.values()]
@@ -211,6 +362,10 @@ export function createCalmWatch(options: {allow?: ReadonlyArray<CalmAllowance>} 
         .map(driftLine),
     shiftedAboveLiveRegion: () => [...shifted].toSorted(),
     narrationGlyphs: () => narrationLines(threadViewport()).length,
-    stop: () => observer.disconnect(),
+    frameGaps: sampler.gaps,
+    stop: () => {
+      sampler.pause()
+      observer.disconnect()
+    },
   }
 }

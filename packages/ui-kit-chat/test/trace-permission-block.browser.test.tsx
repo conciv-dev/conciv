@@ -50,7 +50,8 @@ it('approves through the Approve button', async () => {
 
   await page.getByRole('button', {name: 'Approve'}).click()
 
-  await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+  await expect.element(page.getByText('Approved', {exact: true})).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Approve'})).not.toBeInTheDocument()
   expect(decisions).toEqual([{id: 'approval-1', approved: true, scope: 'once'}])
 })
 
@@ -60,7 +61,8 @@ it('denies through the Deny button', async () => {
 
   await page.getByRole('button', {name: 'Deny'}).click()
 
-  await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+  await expect.element(page.getByText('Denied', {exact: true})).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
   expect(decisions).toEqual([{id: 'approval-1', approved: false, scope: 'once'}])
 })
 
@@ -78,7 +80,8 @@ it('approves only on the deliberate modifier-Enter, never on a bare Enter', asyn
 
   await userEvent.keyboard('{Meta>}{Enter}{/Meta}')
 
-  await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+  await expect.element(page.getByText('Approved', {exact: true})).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Approve'})).not.toBeInTheDocument()
   expect(decisions).toEqual([{id: 'approval-1', approved: true, scope: 'once'}])
 })
 
@@ -89,7 +92,8 @@ it('denies when Escape is pressed on the focused block', async () => {
   await userEvent.tab()
   await userEvent.keyboard('{Escape}')
 
-  await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+  await expect.element(page.getByText('Denied', {exact: true})).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
   expect(decisions).toEqual([{id: 'approval-1', approved: false, scope: 'once'}])
 })
 
@@ -123,7 +127,8 @@ it('remembers the exact command for the session through the session action', asy
 
   await page.getByRole('button', {name: 'Allow for session'}).click()
 
-  await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+  await expect.element(page.getByText('Approved', {exact: true})).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Approve'})).not.toBeInTheDocument()
   expect(decisions).toEqual([{id: 'approval-1', approved: true, scope: 'session'}])
 })
 

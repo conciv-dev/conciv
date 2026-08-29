@@ -159,19 +159,19 @@ export const Settled: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Edited the page')).toBeVisible()
     await expect(canvas.getByText('4 actions')).toBeVisible()
-    expect(canvas.queryByText('Full name')).toBeNull()
-    await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))
-    await waitFor(() => expect(canvas.getByText('Full name')).toBeVisible())
-    await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))
-    await waitFor(() => expect(canvas.queryByText('Full name')).not.toBeVisible())
+    await expect(canvas.getByText('Full name')).toBeVisible()
     await expect(canvas.getByText('localhost:3000/form')).toBeVisible()
+    const header = canvas.getByRole('button', {name: /Edited the page/})
+    await expect(header).toHaveAttribute('aria-expanded', 'true')
+    await userEvent.click(header)
+    await waitFor(() => expect(header).toHaveAttribute('aria-expanded', 'false'))
     await userEvent.click(canvas.getByRole('separator', {name: 'Resize card'}))
     await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}')
     await waitFor(() => expect(canvas.queryByText('localhost:3000/form')).not.toBeVisible())
   },
 }
 
-export const Expanded: Story = {
+export const BornOpen: Story = {
   render: () =>
     sessionFrame(
       sessionParts(storyPart('page.check', {selector: '#terms'}, 'complete', 'c5')),
@@ -181,8 +181,8 @@ export const Expanded: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))
-    await waitFor(() => expect(canvas.getByText('Accept the terms of service')).toBeVisible())
+    await expect(canvas.getByRole('button', {name: /Edited the page/})).toHaveAttribute('aria-expanded', 'true')
+    await expect(canvas.getByText('Accept the terms of service')).toBeVisible()
     await expect(canvas.getByText('localhost:3000/form')).toBeVisible()
     await expect(canvas.getAllByRole('listitem')).toHaveLength(4)
     await expect(canvas.getAllByText('fill')).toHaveLength(2)
@@ -208,8 +208,8 @@ export const Aborted: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))
-    await waitFor(() => expect(canvas.getByText('#terms')).toBeVisible())
+    await expect(canvas.getByRole('button', {name: /Edited the page/})).toHaveAttribute('aria-expanded', 'true')
+    await expect(canvas.getByText('#terms')).toBeVisible()
     await expect(canvas.queryByRole('img', {name: 'running'})).not.toBeInTheDocument()
     await expect(canvas.queryByText('Checking #terms…')).not.toBeInTheDocument()
     await expect(canvas.getAllByRole('listitem')).toHaveLength(4)
@@ -232,8 +232,8 @@ export const WithError: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))
-    await waitFor(() => expect(canvas.getByText('element not found: #terms')).toBeVisible())
+    await expect(canvas.getByRole('button', {name: /Edited the page/})).toHaveAttribute('aria-expanded', 'true')
+    await expect(canvas.getByText('element not found: #terms')).toBeVisible()
     await expect(canvas.getAllByRole('img', {name: 'error'}).length).toBeGreaterThanOrEqual(1)
     await expect(canvas.getAllByRole('listitem')).toHaveLength(4)
   },
@@ -260,8 +260,8 @@ export const Scripted: Story = {
   render: () => sessionFrame(SCRIPT_STEPS, SCRIPT_RESULTS, {}, false),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', {name: /Ran script on the page/}))
-    await waitFor(() => expect(canvas.getByText("const rows = document.querySelectorAll('tr')")).toBeVisible())
+    await expect(canvas.getByRole('button', {name: /Ran script on the page/})).toHaveAttribute('aria-expanded', 'true')
+    await expect(canvas.getByText("const rows = document.querySelectorAll('tr')")).toBeVisible()
     await expect(canvas.getByText(/\.cta, \.cta-secondary/)).toBeVisible()
     await expect(canvas.queryByText('script')).toBeNull()
   },
@@ -272,8 +272,8 @@ export const ScriptedNarrow: Story = {
   render: () => sessionFrame(SCRIPT_STEPS, SCRIPT_RESULTS, {}, false),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', {name: /Ran script on the page/}))
-    await waitFor(() => expect(canvas.getByText("const rows = document.querySelectorAll('tr')")).toBeVisible())
+    await expect(canvas.getByRole('button', {name: /Ran script on the page/})).toHaveAttribute('aria-expanded', 'true')
+    await expect(canvas.getByText("const rows = document.querySelectorAll('tr')")).toBeVisible()
     await expect(canvas.queryByText('script')).toBeNull()
   },
 }
@@ -312,7 +312,8 @@ export const HeaderSummary: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.hover(canvas.getByText('Edited the page'))
+    await userEvent.tab()
+    await expect(canvas.getByRole('button', {name: /Edited the page/})).toHaveFocus()
     await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent('the AI drove the live page'), {
       timeout: 2000,
     })

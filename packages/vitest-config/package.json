@@ -2,7 +2,7 @@
   "name": "@conciv/vitest-config",
   "version": "0.0.19",
   "private": true,
-  "description": "Internal vitest config helpers for the aidx monorepo: shared CI reporters plus the conciv-ci-summary job-summary generator.",
+  "description": "Internal shared config helpers for the aidx monorepo: CI reporters, the conciv-ci-summary job-summary generator, and the shared Solid library build config.",
   "homepage": "https://conciv.dev",
   "license": "MIT",
   "repository": {
@@ -17,7 +17,8 @@
   "type": "module",
   "exports": {
     ".": "./src/reporters.ts",
-    "./solid-cleanup": "./src/solid-cleanup-setup.ts"
+    "./solid-cleanup": "./src/solid-cleanup-setup.ts",
+    "./vite-lib": "./src/vite-lib.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -30,13 +31,23 @@
     "@vitest/coverage-v8": "^4.1.8",
     "solid-js": "^1.9.13",
     "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
     "vitest": "^4.1.8"
   },
   "peerDependencies": {
-    "@solidjs/testing-library": "^0.8.10"
+    "@solidjs/testing-library": "^0.8.10",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12"
   },
   "peerDependenciesMeta": {
     "@solidjs/testing-library": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    },
+    "vite-plugin-solid": {
       "optional": true
     }
   }

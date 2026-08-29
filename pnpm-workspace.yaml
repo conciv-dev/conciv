@@ -25,19 +25,19 @@ catalog:
   # resolvable line is no longer load-bearing the way it was pre-0.48 — but the whole family
   # is still single-sourced here so every manifest resolves "catalog:" to the same release
   # and pnpm never installs two copies of @tanstack/ai.
-  '@tanstack/ai': 0.48.0
-  '@tanstack/ai-client': 0.26.0
-  '@tanstack/ai-code-mode': 0.4.3
+  '@tanstack/ai': 0.51.0
+  '@tanstack/ai-client': 0.29.1
+  '@tanstack/ai-code-mode': 0.4.6
   '@tanstack/ai-isolate-node': 0.1.51
   '@tanstack/ai-isolate-quickjs': 0.3.1
-  '@tanstack/ai-mcp': 0.3.4
-  '@tanstack/ai-solid': 0.18.3
-  '@tanstack/ai-sandbox': 0.5.0
+  '@tanstack/ai-mcp': 0.3.7
+  '@tanstack/ai-solid': 0.19.3
+  '@tanstack/ai-sandbox': 0.5.3
   '@tanstack/ai-sandbox-local-process': 0.2.4
-  '@tanstack/ai-claude-code': 0.4.4
-  '@tanstack/ai-codex': 0.4.4
-  '@tanstack/ai-opencode': 0.3.4
-  '@tanstack/ai-acp': 0.3.4
+  '@tanstack/ai-claude-code': 0.6.2
+  '@tanstack/ai-codex': 0.5.2
+  '@tanstack/ai-opencode': 0.4.2
+  '@tanstack/ai-acp': 0.3.7
 
 # Force patched protobufjs (GHSA-wcpc-wj8m-hjx6 prototype pollution); pulled in transitively
 # via jazz-tools OpenTelemetry in the whiteboard extension.
@@ -124,5 +124,22 @@ minimumReleaseAgeExclude:
   - '@garden-co/jazz-napi-darwin-x64'
   - '@garden-co/jazz-napi-linux-x64-gnu'
   - '@garden-co/jazz-napi-win32-x64-msvc'
+  # 2026-08-28: 0.51-lockstep @tanstack/ai family published 2026-08-27T17:58-17:59Z (issue #1247
+  # StreamProcessor fix), younger than the 48h window. isolate-node/isolate-quickjs stay off this
+  # list: their 0.1.51/0.3.1 releases are from 2026-08-18 and already past the cooldown.
+  - '@tanstack/ai'
+  - '@tanstack/ai-client'
+  - '@tanstack/ai-solid'
+  - '@tanstack/ai-code-mode'
+  - '@tanstack/ai-mcp'
+  - '@tanstack/ai-sandbox'
+  - '@tanstack/ai-claude-code'
+  - '@tanstack/ai-codex'
+  - '@tanstack/ai-opencode'
+  - '@tanstack/ai-acp'
+  # Transitive deps pulled in at the same 0.51 lockstep: ai-event-client (peer of @tanstack/ai)
+  # and ai-skills (new dep of @tanstack/ai-sandbox as of 0.5.3), both published 2026-08-27T17:59Z.
+  - '@tanstack/ai-event-client'
+  - '@tanstack/ai-skills'
 patchedDependencies:
   '@tanstack/ai-sandbox-local-process@0.2.4': patches/@tanstack__ai-sandbox-local-process@0.2.4.patch

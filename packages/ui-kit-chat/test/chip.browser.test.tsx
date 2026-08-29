@@ -58,6 +58,8 @@ it('renders a field chip with a tooltip inside a ChipGroup, keeping the dl child
 })
 
 const LONG_VALUE = 'Frontend engineer who ships accessible interfaces and keeps the design system honest'
+const CHIP_LIST = 'm-0 p-0 list-none flex flex-row gap-1.5'
+const CHIP_SLOT = 'flex min-w-0'
 
 function chipShowing(host: Element, value: string): HTMLElement {
   for (const node of host.querySelectorAll('[data-scope="tooltip"][data-part="trigger"]')) {
@@ -67,25 +69,35 @@ function chipShowing(host: Element, value: string): HTMLElement {
 }
 
 it('reveals a clipped chip value in a tooltip without being asked for one', async () => {
-  const host = mountView(() => <Chip kind="pill" maxWidth="compact" value={LONG_VALUE} />)
+  mountView(() => (
+    <ul class={CHIP_LIST}>
+      <li class={CHIP_SLOT} aria-label="clipped chip">
+        <Chip kind="pill" maxWidth="compact" value={LONG_VALUE} />
+      </li>
+    </ul>
+  ))
 
-  await page.elementLocator(chipShowing(host, LONG_VALUE)).hover()
+  await page.getByRole('listitem', {name: 'clipped chip'}).hover()
 
   await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG_VALUE)
 })
 
 it('leaves a chip value that fits without a tooltip', async () => {
   const host = mountView(() => (
-    <ChipGroup>
-      <Chip kind="pill" maxWidth="compact" value={LONG_VALUE} />
-      <Chip kind="pill" maxWidth="compact" value="idle" />
-    </ChipGroup>
+    <ul class={CHIP_LIST}>
+      <li class={CHIP_SLOT} aria-label="clipped chip">
+        <Chip kind="pill" maxWidth="compact" value={LONG_VALUE} />
+      </li>
+      <li class={CHIP_SLOT} aria-label="fitting chip">
+        <Chip kind="pill" maxWidth="compact" value="idle" />
+      </li>
+    </ul>
   ))
 
-  await page.elementLocator(chipShowing(host, LONG_VALUE)).hover()
+  await page.getByRole('listitem', {name: 'clipped chip'}).hover()
   await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG_VALUE)
 
-  await page.elementLocator(chipShowing(host, 'idle')).hover()
+  await page.getByRole('listitem', {name: 'fitting chip'}).hover()
 
   await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
   expect(chipShowing(host, 'idle').hasAttribute('aria-describedby')).toBe(false)

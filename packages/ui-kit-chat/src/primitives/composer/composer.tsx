@@ -31,6 +31,7 @@ import {
 import {QueueItemProvider, type QueuedMessage} from '../queue-item/queue-item.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useComposerHandlers} from './composer-handlers.js'
+import {useSendFromUser} from '../thread/viewport-context.js'
 
 type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
   attachmentAdapter?: AttachmentAdapter
@@ -190,6 +191,7 @@ function Root(props: FormProps): JSX.Element {
     sendingAttachments: false,
   })
   const [local, rest] = splitProps(props, ['onSubmit', 'attachmentAdapter', 'draftStorage', 'draftKey'])
+  const sendFromUser = useSendFromUser()
   const removedIds = new Set<string>()
   const attachmentAdapter = () => local.attachmentAdapter
   const attachments = () => state.attachments
@@ -302,10 +304,7 @@ function Root(props: FormProps): JSX.Element {
     const after = chat.error()
     return after === before ? undefined : after
   }
-  const submit = async (event: SubmitEvent) => {
-    event.preventDefault()
-    invokeSubmit(local.onSubmit, event)
-    if (!canSubmit(composer.canSend(), state.attachments.length, state.sendingAttachments)) return
+  const deliverDraft = async (): Promise<void> => {
     const original = snapshotDraft()
     setState('sendingAttachments', true)
     const content = await completedContent(original)
@@ -315,6 +314,12 @@ function Root(props: FormProps): JSX.Element {
     if (!failure) return
     restoreDraft(original)
     handlers.onSendError?.(failure)
+  }
+  const submit = async (event: SubmitEvent) => {
+    event.preventDefault()
+    invokeSubmit(local.onSubmit, event)
+    if (!canSubmit(composer.canSend(), state.attachments.length, state.sendingAttachments)) return
+    await sendFromUser(deliverDraft)
   }
   return (
     <ComposerProvider

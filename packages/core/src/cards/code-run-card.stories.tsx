@@ -192,7 +192,7 @@ export const EmbeddedVoidResult: Story = {
     const c = within(canvasElement)
     await expect(c.getByText('exec')).toBeVisible()
     await expect(c.getByText('ok')).toBeVisible()
-    await expect(c.queryByRole('button', {name: /external_canvas_draw/})).toBeNull()
+    await expect(c.getByRole('button', {name: /external_canvas_draw/})).toBeDisabled()
     await expect(c.queryByRole('group', {name: 'Output'})).toBeNull()
   },
 }

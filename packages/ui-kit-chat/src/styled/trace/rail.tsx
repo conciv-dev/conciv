@@ -46,16 +46,39 @@ function inboundConnectorOfRunningRow(geometry: RailGeometry): InboundConnector 
   return from === undefined ? undefined : {from, to}
 }
 
-function sizeSvg(svg: SVGSVGElement, geometry: RailGeometry): void {
-  svg.setAttribute('width', `${geometry.gutter}`)
-  svg.setAttribute('height', `${geometry.height}`)
+function writeAttribute(element: Element, name: string, value: string): void {
+  if (element.getAttribute(name) === value) return
+  element.setAttribute(name, value)
 }
 
-function renderedRows(list: HTMLUListElement | undefined): HTMLElement[] {
+function writeStyleProperty(element: SVGElement, name: string, value: string): void {
+  if (element.style.getPropertyValue(name) === value) return
+  element.style.setProperty(name, value)
+}
+
+function sizeSvg(svg: SVGSVGElement, geometry: RailGeometry): void {
+  writeAttribute(svg, 'width', `${geometry.gutter}`)
+  writeAttribute(svg, 'height', `${geometry.height}`)
+}
+
+type MeasuredRow = {row: HTMLElement; top: number}
+
+function measuredRows(list: HTMLUListElement | undefined): MeasuredRow[] {
   if (!list) return []
-  return Array.from(list.querySelectorAll(':scope > li')).filter(
-    (row): row is HTMLElement => row instanceof HTMLElement && row.getBoundingClientRect().height > 0,
-  )
+  return Array.from(list.querySelectorAll(':scope > li'))
+    .filter((row): row is HTMLElement => row instanceof HTMLElement)
+    .map((row) => ({row, rect: row.getBoundingClientRect()}))
+    .filter(({rect}) => rect.height > 0)
+    .map(({row, rect}) => ({row, top: rect.top}))
+}
+
+function geometryKey(geometry: RailGeometry): string {
+  const {gutter, top, height, runningRowIndex, rowAnchors} = geometry
+  return `${gutter}|${top}|${height}|${runningRowIndex}|${rowAnchors.join(',')}`
+}
+
+function gutterToken(root: HTMLElement): number {
+  return Number.parseFloat(getComputedStyle(root).getPropertyValue('--chat-trace-gutter'))
 }
 
 export function TraceRail(props: {
@@ -70,8 +93,9 @@ export function TraceRail(props: {
   let armTicks: SVGPathElement | undefined
   let runSvg: SVGSVGElement | undefined
   let runLine: SVGPathElement | undefined
-  let pendingReflowFrame: number | undefined
-  let pendingPaintFrame: number | undefined
+  let pendingFrame: number | undefined
+  let pendingReflow = false
+  let drawnKey: string | undefined
 
   const openList = (): HTMLUListElement | undefined => (props.open() ? props.list() : undefined)
 
@@ -79,18 +103,18 @@ export function TraceRail(props: {
     const root = props.root()
     const header = props.header()
     if (!root || !header) return undefined
-    const gutter = Number.parseFloat(getComputedStyle(root).getPropertyValue('--chat-trace-gutter'))
+    const gutter = gutterToken(root)
     if (!(gutter > 0)) return undefined
     const rootRect = root.getBoundingClientRect()
     if (rootRect.height === 0) return undefined
-    const rows = renderedRows(openList())
+    const rows = measuredRows(openList())
     const top = header.getBoundingClientRect().top - rootRect.top
     return {
       gutter,
       top,
       headerAnchor: top + gutter / 2,
-      rowAnchors: rows.map((row) => row.getBoundingClientRect().top - rootRect.top + gutter / 2),
-      runningRowIndex: rows.findIndex((row) => row.hasAttribute('data-trace-live')),
+      rowAnchors: rows.map(({top: rowTop}) => rowTop - rootRect.top + gutter / 2),
+      runningRowIndex: rows.findIndex(({row}) => row.hasAttribute('data-trace-live')),
       height: rootRect.height,
     }
   }
@@ -98,55 +122,57 @@ export function TraceRail(props: {
   const drawRail = (geometry: RailGeometry, paths: RailPaths): void => {
     if (!railSvg || !spineLine || !armTicks) return
     sizeSvg(railSvg, geometry)
-    spineLine.setAttribute('d', paths.spine)
-    armTicks.setAttribute('d', paths.arms)
+    writeAttribute(spineLine, 'd', paths.spine)
+    writeAttribute(armTicks, 'd', paths.arms)
   }
 
   const drawRunSegment = (geometry: RailGeometry, paths: RailPaths): void => {
     if (!runSvg || !runLine) return
     sizeSvg(runSvg, geometry)
-    runLine.setAttribute('d', paths.spine)
+    writeAttribute(runLine, 'd', paths.spine)
     const connector = inboundConnectorOfRunningRow(geometry)
     if (!connector) {
-      runSvg.style.opacity = '0'
+      writeStyleProperty(runSvg, 'opacity', '0')
       return
     }
-    runSvg.style.setProperty('--rail-top', `${connector.from}px`)
-    runSvg.style.setProperty('--rail-bottom', `${connector.to}px`)
-    runSvg.style.opacity = '1'
+    writeStyleProperty(runSvg, '--rail-top', `${connector.from}px`)
+    writeStyleProperty(runSvg, '--rail-bottom', `${connector.to}px`)
+    writeStyleProperty(runSvg, 'opacity', '1')
   }
 
   const draw = (): void => {
     const geometry = readGeometry()
     if (!geometry) return
+    const key = geometryKey(geometry)
+    if (key === drawnKey) return
+    drawnKey = key
     const paths = railPaths(geometry)
     drawRail(geometry, paths)
     drawRunSegment(geometry, paths)
   }
 
-  const scheduleReflow = (): void => {
-    if (pendingReflowFrame !== undefined) return
-    pendingReflowFrame = requestAnimationFrame(() => {
-      pendingReflowFrame = undefined
-      runSvg?.style.setProperty('--rail-travel', '0ms')
+  const schedule = (reflow: boolean): void => {
+    pendingReflow = pendingReflow || reflow
+    if (pendingFrame !== undefined) return
+    pendingFrame = requestAnimationFrame(() => {
+      pendingFrame = undefined
+      const settlesInPlace = pendingReflow
+      pendingReflow = false
+      if (settlesInPlace) runSvg?.style.setProperty('--rail-travel', '0ms')
       draw()
+      if (!settlesInPlace) return
       requestAnimationFrame(() => {
         runSvg?.style.removeProperty('--rail-travel')
       })
     })
   }
 
-  const schedulePaint = (): void => {
-    if (pendingPaintFrame !== undefined) return
-    pendingPaintFrame = requestAnimationFrame(() => {
-      pendingPaintFrame = undefined
-      draw()
-    })
+  const observeResize = (): void => {
+    schedule(true)
   }
 
   onCleanup(() => {
-    if (pendingReflowFrame !== undefined) cancelAnimationFrame(pendingReflowFrame)
-    if (pendingPaintFrame !== undefined) cancelAnimationFrame(pendingPaintFrame)
+    if (pendingFrame !== undefined) cancelAnimationFrame(pendingFrame)
   })
 
   onMount(() => {
@@ -156,8 +182,7 @@ export function TraceRail(props: {
     requestAnimationFrame(() => {
       runSvg?.style.removeProperty('transition')
     })
-    createResizeObserver(() => props.root(), scheduleReflow)
-    createResizeObserver(() => props.list(), scheduleReflow)
+    createResizeObserver(() => [props.root(), props.list()], observeResize)
   })
 
   createEffect(() => {
@@ -167,7 +192,7 @@ export function TraceRail(props: {
 
   createEffect(() => {
     props.liveKey()
-    schedulePaint()
+    schedule(false)
   })
 
   return (

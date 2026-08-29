@@ -126,7 +126,7 @@ it('ticks a rail arm onto the expanded rows of a thread trace', async () => {
   mountView(() => <TracedThread messages={tracedMessages()} />)
 
   await expect.element(page.getByText('Found it in watcher.ts.'), {timeout: 3000}).toBeVisible()
-  await page.getByRole('button', {name: /trace/i}).click()
+  await expect.element(page.getByRole('button', {name: /hide trace/i}), {timeout: 3000}).toBeVisible()
   await expect.element(page.getByText('checking the event listeners first'), {timeout: 3000}).toBeVisible()
 
   await expect.element(page.elementLocator(traceArmsPath()), {timeout: 3000}).not.toHaveAttribute('d', '')
@@ -136,7 +136,7 @@ it('lights the inbound connector of the running step, not of the last part of th
   mountView(() => <TracedThread messages={runningStepMessages()} />)
 
   await expect.element(page.getByText('Running the suite.'), {timeout: 3000}).toBeVisible()
-  await page.getByRole('button', {name: /trace/i}).click()
+  await expect.element(page.getByRole('button', {name: /hide trace/i}), {timeout: 3000}).toBeVisible()
   await expect.element(page.getByText('pnpm test', {exact: true}), {timeout: 3000}).toBeVisible()
 
   await expect.element(page.elementLocator(traceRunSvg()), {timeout: 3000}).toHaveStyle({opacity: '1'})

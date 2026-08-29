@@ -2,8 +2,6 @@ import {Show, splitProps, type JSX, type Ref} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible, Tooltip} from '@conciv/ui-kit-system'
 import {useScrollLock} from '../../behaviors/use-scroll-lock.js'
-import {usePauseFollowOnToggle} from '../../behaviors/use-follow-pause.js'
-import {useOptionalThreadViewport} from '../../primitives/thread/viewport-context.js'
 
 const ANIMATION_DURATION_MS = 200
 
@@ -119,13 +117,9 @@ export function CollapsibleCard(
   const flush = () => local.flush === true
   const variant = (): CardVariant => local.variant ?? 'card'
   let cardEl: HTMLDivElement | undefined
-  let contentEl: HTMLDivElement | undefined
   const lockScroll = useScrollLock(() => cardEl, ANIMATION_DURATION_MS)
-  const viewport = useOptionalThreadViewport()
-  const settleFollow = usePauseFollowOnToggle(() => contentEl, viewport?.pauseFollow)
   const handleOpenChange = (open: boolean) => {
     lockScroll()
-    settleFollow()
     local.onOpenChange?.(open)
   }
   return (
@@ -136,7 +130,7 @@ export function CollapsibleCard(
     >
       <CardFrame variant={variant()} class={local.class} ref={(el) => (cardEl = el)}>
         <CardTrigger tooltip={local.tooltip} flush={flush()} variant={variant()} header={local.header} />
-        <Collapsible.Content ref={(el) => (contentEl = el)}>
+        <Collapsible.Content>
           <div class={BODY_BY_VARIANT[variant()]}>{local.children}</div>
         </Collapsible.Content>
       </CardFrame>

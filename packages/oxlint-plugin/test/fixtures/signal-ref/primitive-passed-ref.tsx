@@ -1,8 +1,8 @@
 import {createSignal} from 'solid-js'
-import {createStickToBottom} from '@conciv/solid-stick-to-bottom'
+import {createResizeObserver} from '@solid-primitives/resize-observer'
 
 export function Panel() {
   const [scroller, setScroller] = createSignal<HTMLDivElement>()
-  createStickToBottom(scroller, {})
+  createResizeObserver(scroller, () => {})
   return <div ref={setScroller} />
 }

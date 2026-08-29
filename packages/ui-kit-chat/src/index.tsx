@@ -77,6 +77,7 @@ export {
 export {Thread as ThreadPrimitive, type MessagesComponents} from './primitives/thread/thread.js'
 export {ViewportProvider, useThreadViewport, type ViewportContextValue} from './primitives/thread/viewport-context.js'
 export {VIRTUALIZE_THRESHOLD} from './primitives/thread/virtualize-threshold.js'
+export {SCROLL_END_THRESHOLD_PX} from './behaviors/create-thread-virtualizer.js'
 export {Message as MessagePrimitive, type PartsComponents} from './primitives/message/message.js'
 export {
   MessageProvider,
@@ -182,8 +183,6 @@ export {
 
 export {readComposerDraft, writeComposerDraft, type PersistedComposerDraft} from './behaviors/composer-draft-storage.js'
 export {useComposerDraftPersistence, type ComposerDraftPersistenceOptions} from './behaviors/use-composer-draft.js'
-export {useThreadAutoScroll} from './behaviors/use-thread-auto-scroll.js'
-export {useTopAnchorReserve} from './behaviors/use-top-anchor-reserve.js'
 export {useSizeHandle} from './behaviors/use-size-handle.js'
 
 export {Thread, type ThreadComponents, type ThreadMessagesProps, type ThreadRootProps} from './styled/thread.js'
@@ -199,4 +198,5 @@ export {AttachmentByMime, createDocumentAttachmentAdapter} from './styled/attach
 export type {AttachmentCardSlot} from './styled/attachment-dispatch.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
 export {NowLine} from './styled/now-line.js'
+export {MorphLabel} from './styled/morph-label.js'
 export {VirtualLines, type VirtualLinesProps} from './styled/virtual-lines.js'

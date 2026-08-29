@@ -325,11 +325,11 @@ it('ticks one arm per rendered row once a permission request resolves', async ()
     <Trace summary="2 tools ran" compactLine="2 tools" items={permissionTrace()} defaultOpen />
   ))
   await expect.element(page.getByRole('group', {name: 'Permission request'})).toBeVisible()
-  const asking = armsPath(container).getAttribute('d') ?? ''
 
   await page.getByRole('button', {name: 'Deny'}).click()
-  await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
-  await expect.element(page.elementLocator(armsPath(container))).not.toHaveAttribute('d', asking)
+  await expect.element(page.getByText('Denied', {exact: true})).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
+  await expect.element(page.getByRole('group', {name: 'Permission request'})).toBeVisible()
 
   const arms = armSegments(armsPath(container))
   const expected = [headerAnchor(container), ...renderedRowAnchors(container).slice(0, -1)]
@@ -341,7 +341,7 @@ it('ticks one arm per rendered row once a permission request resolves', async ()
 })
 
 it('draws nothing at all while the trace is collapsed', async () => {
-  const container = mountView(() => <Trace summary="2 tools ran" compactLine="2 tools" items={twoRowTrace()} />)
+  const container = mountView(() => <Trace summary="2 tools ran" compactLine="2 tools" items={twoRowTrace()} folded />)
   await expect.element(page.getByText('Show trace')).toBeVisible()
 
   expect(spinePath(container).getAttribute('d')).toBe('')

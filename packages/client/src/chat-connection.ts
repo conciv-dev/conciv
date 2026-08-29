@@ -87,6 +87,13 @@ function turnContent(messages: Array<UIMessage> | Array<ModelMessage>): string |
   return last ? contentOf(last) : ''
 }
 
+function turnMessageId(messages: Array<UIMessage> | Array<ModelMessage>): string | undefined {
+  const last = messages[messages.length - 1]
+  if (!last || last.role !== 'user' || !('id' in last)) return undefined
+  const id = last.id
+  return typeof id === 'string' && id.length > 0 ? id : undefined
+}
+
 type SessionStream = AsyncIterable<StreamChunk>
 
 async function openStream(
@@ -183,7 +190,8 @@ export function chatConnection(rpc: RpcClient, sessionId: string, options: ChatC
       const runId = runContext?.runId
       if (!runId) throw new Error('chat.send needs the run id the chat client minted for this turn')
       const content = turnContent(messages)
-      await rpc.chat.send({sessionId, runId, content}, {signal: abortSignal})
+      const messageId = turnMessageId(messages)
+      await rpc.chat.send({sessionId, runId, content, messageId}, {signal: abortSignal})
     },
     refresh: async () => {
       const attempt = control.attempt

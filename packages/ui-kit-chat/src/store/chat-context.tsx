@@ -19,10 +19,6 @@ export type ViewState = {
   collapsed: Record<string, boolean>
   pinned: Record<string, boolean>
   hovering: string | null
-  viewport: {
-    turnAnchor: 'top' | 'bottom'
-    topAnchorTurn: {anchorId: string; targetId: string} | null
-  }
 }
 
 export type StoppableChat = UseChatReturn & {stopping?: Accessor<boolean>}
@@ -45,7 +41,6 @@ export function ChatProvider(props: ParentProps<{chat: StoppableChat}>): JSX.Ele
     collapsed: {},
     pinned: {},
     hovering: null,
-    viewport: {turnAnchor: 'bottom', topAnchorTurn: null},
   })
 
   createEffect(() => {

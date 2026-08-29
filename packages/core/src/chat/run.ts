@@ -5,6 +5,7 @@ import {
   chat,
   EventType,
   fromSpecTokenUsage,
+  generateMessageId,
   RUN_ACCEPTED_EVENT,
   StreamProcessor,
   type AnyTool,
@@ -90,6 +91,7 @@ type RunRequest = {
   runId: string
   kind: TurnKind
   content: UserContent
+  messageId?: string
 }
 
 function userParts(content: UserContent): ContentPart[] {
@@ -260,6 +262,36 @@ function noteUsage(deps: ChatDeps, model: string | null, chunk: StreamChunk, out
   outcome.usage = usageSnapshotFor(deps, model ?? deps.harness.defaultModel ?? null, usage)
 }
 
+function isTextMessageChunk(chunk: StreamChunk): chunk is Extract<
+  StreamChunk,
+  {
+    type:
+      | typeof EventType.TEXT_MESSAGE_START
+      | typeof EventType.TEXT_MESSAGE_CONTENT
+      | typeof EventType.TEXT_MESSAGE_END
+  }
+> {
+  return (
+    chunk.type === EventType.TEXT_MESSAGE_START ||
+    chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
+    chunk.type === EventType.TEXT_MESSAGE_END
+  )
+}
+
+function assistantMessageIdStamper(): (chunk: StreamChunk) => StreamChunk {
+  let mintedId: string | null = null
+  return (chunk: StreamChunk): StreamChunk => {
+    if (!isTextMessageChunk(chunk)) return chunk
+    if (chunk.messageId !== '') {
+      mintedId = chunk.type === EventType.TEXT_MESSAGE_END ? null : chunk.messageId
+      return chunk
+    }
+    const id = mintedId ?? generateMessageId()
+    mintedId = chunk.type === EventType.TEXT_MESSAGE_END ? null : id
+    return {...chunk, messageId: id}
+  }
+}
+
 type ChunkFold = {deps: ChatDeps; sessionId: SessionId; model: string | null; processor: StreamProcessor}
 
 function foldChunk(fold: ChunkFold, chunk: StreamChunk, outcome: RunOutcome): 'continue' | 'stop' {
@@ -284,8 +316,9 @@ async function* foldRunStream(
   stream: AsyncIterable<StreamChunk>,
   outcome: RunOutcome,
 ): AsyncGenerator<StreamChunk> {
+  const stampAssistantId = assistantMessageIdStamper()
   for await (const raw of stream) {
-    const stamped = normalizeChunkToolName(stampRunId(raw, req.runId), normalize)
+    const stamped = stampAssistantId(normalizeChunkToolName(stampRunId(raw, req.runId), normalize))
     const step = foldChunk(fold, stamped, outcome)
     if (!isRunEndChunk(stamped)) yield stamped
     if (step === 'stop') return
@@ -401,7 +434,7 @@ async function* runStream(
   }
   try {
     const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, ingest, abort)
-    processor.addUserMessage(userParts(req.content))
+    processor.addUserMessage(userParts(req.content), req.messageId)
     await runLog.append([aguiSnapshotFor(await sessionSnapshot(deps, sessionId))]).catch(() => {})
     const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
     const bounded = boundFirstChunk(stream, timeoutMs, () => {
@@ -494,7 +527,7 @@ export async function expandUserParts(content: UserContent, expanders: Attachmen
   return expanded
 }
 
-export type Send = (sessionId: SessionId, runId: string, content: UserContent) => Promise<string>
+export type Send = (sessionId: SessionId, runId: string, content: UserContent, messageId?: string) => Promise<string>
 
 const RUN_ID_TAKEN_ERROR_NAME = 'RunIdTakenError'
 
@@ -527,7 +560,7 @@ async function failClaimedRun(deps: ChatDeps, runId: string, error: unknown): Pr
 }
 
 export function makeSend(deps: ChatDeps): Send {
-  return (sessionId, runId, content) =>
+  return (sessionId, runId, content, messageId) =>
     deps.liveRuns.serialize(sessionId, async () => {
       const startedAt = deps.claimStartedAt()
       const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
@@ -536,7 +569,7 @@ export function makeSend(deps: ChatDeps): Send {
         failClaimedRun(deps, runId, error),
       )
       await settleLiveRuns(deps, sessionId)
-      launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
+      launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded, messageId})
       publishRunLifecycle(deps, sessionId, record)
       await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
       return runId
