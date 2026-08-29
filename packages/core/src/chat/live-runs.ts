@@ -1,5 +1,7 @@
-export type LiveRun = {runId: string; abort: AbortController; done: Promise<void>}
+import {InMemoryLockStore} from '@tanstack/ai/locks'
 import type {SessionId} from '@conciv/protocol/chat-types'
+
+export type LiveRun = {runId: string; abort: AbortController; done: Promise<void>}
 
 export type LiveRuns = {
   start: (sessionId: SessionId, run: LiveRun) => void
@@ -13,7 +15,7 @@ export type LiveRuns = {
 export function createLiveRuns(): LiveRuns {
   const bySession = new Map<string, Set<LiveRun>>()
   const listeners = new Map<string, Set<(runId: string) => void>>()
-  const tails = new Map<string, Promise<void>>()
+  const locks = new InMemoryLockStore()
   const remove = (sessionId: SessionId, run: LiveRun): void => {
     const runs = bySession.get(sessionId)
     if (!runs) return
@@ -35,18 +37,7 @@ export function createLiveRuns(): LiveRuns {
     },
     of: (sessionId) => [...(bySession.get(sessionId) ?? [])],
     running: (sessionId) => (bySession.get(sessionId)?.size ?? 0) > 0,
-    serialize: (sessionId, section) => {
-      const entered = (tails.get(sessionId) ?? Promise.resolve()).then(section)
-      const released = entered.then(
-        () => undefined,
-        () => undefined,
-      )
-      tails.set(sessionId, released)
-      void released.then(() => {
-        if (tails.get(sessionId) === released) tails.delete(sessionId)
-      })
-      return entered
-    },
+    serialize: (sessionId, section) => locks.withLock(sessionId, section),
     onStart: (sessionId, listener) => {
       const registered = listeners.get(sessionId) ?? new Set()
       listeners.set(sessionId, registered)
