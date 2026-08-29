@@ -1,4 +1,4 @@
-import {index, integer, primaryKey, sqliteTable, text} from 'drizzle-orm/sqlite-core'
+import {index, integer, sqliteTable, text} from 'drizzle-orm/sqlite-core'
 import type {RunPhase} from '@conciv/protocol/run-types'
 
 export const RUN_PHASES: readonly [RunPhase, ...RunPhase[]] = ['running', 'stopping', 'completed', 'failed', 'aborted']
@@ -29,14 +29,3 @@ export const sessionHistory = sqliteTable('image_history', {
   anchorNativeId: text('anchor_native_id'),
   updatedAt: integer('updated_at').notNull(),
 })
-
-export const replies = sqliteTable(
-  'replies',
-  {
-    sessionId: text('session_id').notNull(),
-    key: text('key').notNull(),
-    value: text('value', {mode: 'json'}).$type<unknown>(),
-    createdAt: integer('created_at').notNull(),
-  },
-  (table) => [primaryKey({columns: [table.sessionId, table.key]})],
-)
