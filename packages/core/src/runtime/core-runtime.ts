@@ -6,6 +6,7 @@ import type {ToolRequest} from '@conciv/extension'
 import {navigation, sessionCaptures, writeToolCapture} from '@conciv/db'
 import {symbolicateFrames} from '../editor/symbolicate.js'
 import {syncedSnapshot} from '../chat/transcript-import.js'
+import {hydrateSession} from '../chat/hydrate.js'
 import {stopSession} from '../chat/stop.js'
 import type {ChatDeps} from '../chat/runtime.js'
 import type {Compactor, Send} from '../chat/run.js'
@@ -120,6 +121,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     },
     history: {
       messages: () => syncedSnapshot(deps.chat, id),
+      hydrate: () => hydrateSession(deps.chat, id),
     },
     run: {
       send: (runId, content, messageId) => deps.send(id, runId, content, messageId),
@@ -162,7 +164,7 @@ function established(raw: SessionScope): SessionScope {
       ui: inScope(raw.asks.ui),
     },
     captures: {list: inScope(raw.captures.list), store: inScope(raw.captures.store)},
-    history: {messages: inScope(raw.history.messages)},
+    history: {messages: inScope(raw.history.messages), hydrate: inScope(raw.history.hydrate)},
     run: {
       send: inScope(raw.run.send),
       stop: inScope(raw.run.stop),

@@ -6,6 +6,7 @@ export function chatRouter(deps: RpcDeps, sessionOs: SessionOs) {
     subscribe: os.chat.subscribe.handler(({input, signal}) =>
       deps.runtime.forSession(input.sessionId).stream.subscribe(signal ?? new AbortController().signal),
     ),
+    hydrate: os.chat.hydrate.handler(({input}) => deps.runtime.forSession(input.sessionId).history.hydrate()),
     send: os.chat.send.handler(async ({input, errors}) => {
       const runId = await deps.runtime
         .forSession(input.sessionId)

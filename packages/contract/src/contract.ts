@@ -4,6 +4,7 @@ import type {StreamChunk} from '@tanstack/ai'
 import {
   ChatContentPartSchema,
   ChatCommandsSchema,
+  ChatHistorySchema,
   ChatModelsSchema,
   ChatToolsSchema,
   NativeSessionRefSchema,
@@ -34,6 +35,18 @@ export const ChatSendInput = SessionIdInput.extend({
   text: z.string().min(1).optional(),
   content: z.union([z.string().min(1), z.array(ChatContentPartSchema).min(1).max(16)]).optional(),
 }).refine((input) => input.text !== undefined || input.content !== undefined)
+const ChatPendingInterruptSchema = z.object({
+  id: z.string(),
+  reason: z.string(),
+  message: z.string().optional(),
+  toolCallId: z.string().optional(),
+})
+export const ChatHydrationSchema = z.object({
+  messages: ChatHistorySchema,
+  activeRun: z.object({runId: z.string()}).nullable(),
+  interrupts: z.object({runId: z.string(), pending: z.array(ChatPendingInterruptSchema)}).nullable(),
+})
+export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
 const SendAccepted = z.object({ok: z.literal(true), runId: z.string()})
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
@@ -118,6 +131,7 @@ export const contract = {
   },
   chat: {
     subscribe: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
+    hydrate: oc.input(SessionIdInput).output(ChatHydrationSchema),
     send: oc
       .errors({
         RUN_ID_TAKEN: {

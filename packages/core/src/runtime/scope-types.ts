@@ -5,7 +5,7 @@ import type {PageCaptureBundle, SessionCaptures} from '@conciv/protocol/element-
 import type {SourceLoc} from '@conciv/protocol/page-types'
 import type {NavigationWrite} from '@conciv/protocol/chat-types'
 import type {RawFrame} from '../editor/symbolicate.js'
-import type {EngineStaleness, ToolCommandSignature} from '@conciv/contract'
+import type {ChatHydration, EngineStaleness, ToolCommandSignature} from '@conciv/contract'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ToolRequest} from '@conciv/extension'
 import type {ChangeEntry} from '../page-bus.js'
@@ -56,6 +56,7 @@ export type SessionCapturesScope = {
 
 export type SessionHistory = {
   messages: () => Promise<UIMessage[]>
+  hydrate: () => Promise<ChatHydration>
 }
 
 export type SessionRun = {
