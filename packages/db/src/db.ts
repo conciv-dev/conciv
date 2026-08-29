@@ -5,7 +5,7 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import {migrations} from './migrations.gen.js'
-import {abandonUnfinishedRuns} from './run-queries.js'
+import {importLegacyRuns, markRunningRunsDetached} from './run-store.js'
 
 export type ConcivDb = ReturnType<typeof drizzle>
 
@@ -15,6 +15,7 @@ export function openDb(stateRoot: string): ConcivDb {
   client.exec('PRAGMA journal_mode = WAL')
   const db = drizzle({client})
   migrateSync(migrations, db._.session)
-  abandonUnfinishedRuns(db, Date.now())
+  importLegacyRuns(db)
+  markRunningRunsDetached(db, Date.now())
   return db
 }

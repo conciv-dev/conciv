@@ -72,7 +72,10 @@ const PRE_REWRITE_ATTACH_PATHS = [
 
 const PREEXISTING_TERM_SITES = [
   {term: 'bridge', paths: [...DEV_BUNDLER_BRIDGE_PATHS, ...NATIVE_AND_REACT_BRIDGE_PATHS, ...PRE_REWRITE_BRIDGE_PATHS]},
-  {term: 'epoch', paths: ['packages/db/src/run-schema.ts', 'packages/db/src/run-queries.ts']},
+  {
+    term: 'epoch',
+    paths: ['packages/db/src/run-schema.ts', 'packages/db/src/run-queries.ts', 'packages/db/src/run-store.ts'],
+  },
   {
     term: 'presence',
     paths: [
