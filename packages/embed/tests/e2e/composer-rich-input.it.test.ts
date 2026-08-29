@@ -174,6 +174,8 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
     const input = composer(page)
 
     await input.pressSequentially('hello world')
+    await waitForDraftWrite(sessionId, 'hello world')
+    await expect(input).toBeFocused()
     for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowLeft')
     await input.pressSequentially('X')
     await expect(input).toHaveText('helloX world')
@@ -182,6 +184,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
     await page.reload({waitUntil: 'domcontentloaded'})
     const restored = composer(page)
     await expect(restored).toHaveText('helloX world', {timeout: 30_000})
+    await expect(restored).toBeFocused()
 
     await page.keyboard.type('Y')
     await expect(restored).toHaveText('helloXY world')
