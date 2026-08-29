@@ -3,7 +3,7 @@ import {afterEach, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {bootedCore} from './helpers/booted-core.js'
 import {coreControl} from './helpers/core-control.js'
-import {coreRpc, createSession} from './helpers/core-session.js'
+import {coreRpc, createSession, sendTurn} from './helpers/core-session.js'
 import {createShellHarness} from './helpers/shell-harness.js'
 
 const coreBase = bootedCore('launcher-activity')
@@ -28,7 +28,7 @@ test('a run in a session the launcher does not target leaves the launcher asleep
   const backgroundId = await createSession(rpc)
   await rpc.sessions.rename({sessionId: backgroundId, title: 'the session behind'})
   await coreControl.holdTurn()
-  await rpc.chat.send({sessionId: backgroundId, runId: crypto.randomUUID(), text: 'a run nobody opened'})
+  await sendTurn(coreBase(), backgroundId, 'a run nobody opened')
 
   harness.mountShell(`/panel/${activeId}?open=true`)
   await expect.element(composer(), {timeout: 8000}).toBeVisible()
@@ -49,7 +49,7 @@ test('the launcher follows the targeted session from the start of a run to its s
   await expect.element(launcher()).toHaveAttribute('aria-busy', 'false')
 
   await coreControl.holdTurn()
-  await rpc.chat.send({sessionId, runId: crypto.randomUUID(), text: 'a run this widget never sent'})
+  await sendTurn(coreBase(), sessionId, 'a run this widget never sent')
 
   await expect.element(launcher(), {timeout: 8000}).toHaveAttribute('aria-busy', 'true')
 

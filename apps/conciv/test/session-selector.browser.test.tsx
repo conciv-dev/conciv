@@ -5,7 +5,7 @@ import type {RpcClient} from '@conciv/contract'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {coreControl} from './helpers/core-control.js'
-import {coreRpc} from './helpers/core-session.js'
+import {coreRpc, sendTurn} from './helpers/core-session.js'
 import {mountPane, type PaneMount} from './helpers/pane-harness.js'
 
 const EXTERNAL_ID = HarnessSessionId.parse('external-mid-run')
@@ -47,7 +47,7 @@ async function mountSelector(): Promise<void> {
   await rpc.sessions.rename({sessionId: activeId, title: 'the active session'})
   const externalId = await adoptExternalSession(rpc)
   await coreControl.holdTurn()
-  await rpc.chat.send({sessionId: externalId, runId: crypto.randomUUID(), text: 'keep this session busy'})
+  await sendTurn(core.base, externalId, 'keep this session busy')
   mounted.pane = mountPane({base: core.base, sessionId: activeId}, () => (
     <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
   ))

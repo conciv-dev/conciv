@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, it, vi} from 'vitest'
-import {EventType} from '@tanstack/ai'
+import {EventType, type StreamChunk} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {MadeApp} from '../../src/app.js'
 import {makeSend, makeTurn} from '../../src/chat/run.js'

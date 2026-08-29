@@ -5,6 +5,7 @@ import {afterAll, describe, expect, it, vi} from 'vitest'
 import {createFakeHarness} from '@conciv/harness-testkit'
 import {defineAttachment, defineExtension} from '@conciv/extension'
 import {openDb} from '@conciv/db'
+import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import {threadUiMessages} from './helpers/thread.js'
 import {makeApp, type MadeApp} from '../src/app.js'
 
@@ -54,10 +55,16 @@ describe('attachment expand end-to-end (real send path, scripted harness)', () =
       {type: 'text', content: 'why?'},
       {type: 'document', source: {type: 'data', mimeType: FIXTURE_MIME, value: 'eyJpZCI6MX0='}},
     ]
-    const response = await made.app.request('/rpc/chat/send', {
+    const response = await made.app.request(CHAT_SSE_PATH, {
       method: 'POST',
       headers: {'content-type': 'application/json', host: '127.0.0.1'},
-      body: JSON.stringify({json: {sessionId, runId: 'expand-attachments-1', content}}),
+      body: JSON.stringify({
+        threadId: sessionId,
+        runId: 'expand-attachments-1',
+        messages: [{id: 'expand-user', role: 'user', content}],
+        tools: [],
+        context: [],
+      }),
     })
     expect(response.status).toBe(200)
 
