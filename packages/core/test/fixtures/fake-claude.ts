@@ -9,6 +9,9 @@ const argv = process.argv.slice(2)
 const argvFile = process.env.CONCIV_TEST_ARGV_FILE
 if (argvFile) writeFileSync(argvFile, JSON.stringify(argv))
 
+const pidFile = process.env.CONCIV_TEST_PID_FILE
+if (pidFile) writeFileSync(pidFile, String(process.pid))
+
 async function readStdin(): Promise<string> {
   if (process.stdin.isTTY) return ''
   let data = ''
