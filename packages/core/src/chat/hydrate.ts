@@ -9,5 +9,11 @@ export async function hydrateSession(deps: ChatDeps, sessionId: SessionId): Prom
     deps.runs.findActiveRun(sessionId),
     latestRunLifecycle(deps, sessionId),
   ])
-  return {messages, activeRun: active ? {runId: active.runId} : null, lastRun, interrupts: null}
+  return {
+    messages,
+    activeRun: active ? {runId: active.runId} : null,
+    lastRun,
+    pendingApprovals: deps.asks.pendingApprovals(sessionId),
+    interrupts: null,
+  }
 }

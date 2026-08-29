@@ -42,10 +42,19 @@ const ChatPendingInterruptSchema = z.object({
   message: z.string().optional(),
   toolCallId: z.string().optional(),
 })
+const ChatPendingApprovalSchema = z.object({
+  approvalId: z.string(),
+  toolCallId: z.string(),
+  toolName: z.string(),
+  input: z.unknown(),
+  runId: z.string().nullable(),
+})
+export type ChatPendingApproval = z.infer<typeof ChatPendingApprovalSchema>
 export const ChatHydrationSchema = z.object({
   messages: ChatHistorySchema,
   activeRun: z.object({runId: z.string()}).nullable(),
   lastRun: RunLifecycleSchema.nullable(),
+  pendingApprovals: z.array(ChatPendingApprovalSchema),
   interrupts: z.object({runId: z.string(), pending: z.array(ChatPendingInterruptSchema)}).nullable(),
 })
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>

@@ -18,7 +18,7 @@ import {
   type PolicyDecision,
   type ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
-import type {AskRegistry} from './ask.js'
+import type {AskRegistry, PendingApproval} from './ask.js'
 import type {CommandMemory} from './command-memory.js'
 import {commandSegments, escapesReadOnlyIntent} from './command-grammar.js'
 import {ASK_TIMEOUT_MS} from './ask-constants.js'
@@ -112,13 +112,13 @@ export type PermissionGate = {
 }
 
 export type BoundAsks = {
-  open: (key: string) => void
+  open: (key: string, approval?: PendingApproval) => void
   waitFor: (key: string, timeoutMs: number) => Promise<unknown>
 }
 
 export function asksFor(asks: AskRegistry, sessionId: SessionId): BoundAsks {
   return {
-    open: (key) => asks.open(sessionId, key),
+    open: (key, approval) => asks.open(sessionId, key, approval),
     waitFor: (key, timeoutMs) => asks.waitFor(sessionId, key, timeoutMs),
   }
 }
@@ -179,7 +179,13 @@ export function makeAskGate(deps: AskGateDeps): PermissionGate {
   return {
     decide: async (toolName, toolInput, toolUseId) => {
       const approvalId = randomUUID()
-      deps.asks.open(approvalId)
+      deps.asks.open(approvalId, {
+        approvalId,
+        toolCallId: toolUseId,
+        toolName,
+        input: toolInput,
+        runId: deps.runId ?? null,
+      })
       deps.onAsk?.(approvalId)
       deps.emit(
         approvalRequestedChunk({
