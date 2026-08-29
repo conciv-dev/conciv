@@ -42,6 +42,7 @@ export type ChatDeps = {
   onRunStart?: (sessionId: SessionId) => void
   onRunEnd?: (sessionId: SessionId) => Promise<void>
   firstChunkTimeoutMs?: number
+  cancelPollMs?: number
 }
 
 export type ChatEnv = {Variables: {chat: ChatDeps}}

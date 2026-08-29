@@ -7,7 +7,9 @@ import {
   fromSpecTokenUsage,
   generateMessageId,
   RUN_ACCEPTED_EVENT,
+  RUN_CANCEL_REASON,
   StreamProcessor,
+  wasCancelRequested,
   type AnyTool,
   type ContentPart,
   type ModelMessage,
@@ -16,6 +18,7 @@ import {
   type TokenUsage,
   type UIMessage,
 } from '@tanstack/ai'
+import {AsyncQueue} from '@tanstack/ai-acp'
 import {withSandbox} from '@tanstack/ai-sandbox'
 import type {HarnessAdapter, HarnessChatConfig} from '@conciv/protocol/harness-types'
 import type {AttachmentDocumentPart} from '@conciv/extension'
@@ -313,19 +316,8 @@ async function* foldRunStream(
   }
 }
 
-async function firstOrTimeout(
-  iterator: AsyncIterator<StreamChunk>,
-  timeoutMs: number,
-): Promise<IteratorResult<StreamChunk> | 'timeout'> {
-  const timer = {handle: null as ReturnType<typeof setTimeout> | null}
-  const first = await Promise.race([
-    iterator.next(),
-    new Promise<'timeout'>((resolve) => {
-      timer.handle = setTimeout(() => resolve('timeout'), timeoutMs)
-    }),
-  ])
-  if (timer.handle) clearTimeout(timer.handle)
-  return first
+function isHarnessOutput(chunk: StreamChunk): boolean {
+  return chunk.type !== EventType.RUN_STARTED && chunk.type !== EventType.CUSTOM
 }
 
 async function* boundFirstChunk(
@@ -333,15 +325,27 @@ async function* boundFirstChunk(
   timeoutMs: number,
   onTimeout: () => void,
 ): AsyncGenerator<StreamChunk> {
+  const timer = {handle: null as ReturnType<typeof setTimeout> | null}
+  const deadline = new Promise<'timeout'>((resolve) => {
+    timer.handle = setTimeout(() => resolve('timeout'), timeoutMs)
+  })
   const iterator = stream[Symbol.asyncIterator]()
-  const first = await firstOrTimeout(iterator, timeoutMs)
-  if (first === 'timeout') {
-    onTimeout()
-    void iterator.return?.(undefined)?.catch?.(() => {})
-    return
+  const waiting = {output: true}
+  while (waiting.output) {
+    const next = await Promise.race([iterator.next(), deadline])
+    if (next === 'timeout') {
+      onTimeout()
+      void iterator.return?.(undefined)?.catch?.(() => {})
+      return
+    }
+    if (next.done) {
+      if (timer.handle) clearTimeout(timer.handle)
+      return
+    }
+    yield next.value
+    waiting.output = !isHarnessOutput(next.value)
   }
-  if (first.done) return
-  yield first.value
+  if (timer.handle) clearTimeout(timer.handle)
   yield* {[Symbol.asyncIterator]: () => iterator}
 }
 
@@ -381,25 +385,33 @@ async function finishRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest, 
   if (outcome.usage) void settleContextOccupancy(deps, sessionId).catch(() => {})
 }
 
+const CANCEL_POLL_MS = 250
+
+function cancelWhenRequested(deps: ChatDeps, runId: string, abort: AbortController): () => void {
+  const poll = async (): Promise<void> => {
+    if (abort.signal.aborted) return
+    if (await wasCancelRequested(deps.runs, runId)) abort.abort(RUN_CANCEL_REASON)
+  }
+  const timer = setInterval(() => void poll().catch(() => {}), deps.cancelPollMs ?? CANCEL_POLL_MS)
+  return () => clearInterval(timer)
+}
+
 async function* runStream(
   deps: ChatDeps,
   sessionId: SessionId,
   req: RunRequest,
   abort: AbortController,
 ): AsyncGenerator<StreamChunk> {
-  yield {type: EventType.CUSTOM, name: RUN_ACCEPTED_EVENT, value: {}, timestamp: Date.now()}
+  const outbound = new AsyncQueue<StreamChunk>()
+  const emit = (chunk: StreamChunk): void => outbound.push(chunk)
+  const stopCancelWatch = cancelWhenRequested(deps, req.runId, abort)
+  emit({type: EventType.CUSTOM, name: RUN_ACCEPTED_EVENT, value: {}, timestamp: Date.now()})
   await syncTranscript(deps, sessionId).catch(() => {})
-  const runLog = deps.durability(req.runId)
   const runFrom = beginRunMessages(deps.db, sessionId)
   const processor = new StreamProcessor({
     events: {onMessagesChange: (messages) => writeRunMessages(deps.db, sessionId, runFrom, messages)},
   })
-  const gateDeps = {
-    asks: asksFor(deps.asks, sessionId),
-    emit: (chunk: StreamChunk) => void runLog.append([chunk]).catch(() => {}),
-    threadId: sessionId,
-    runId: req.runId,
-  }
+  const gateDeps = {asks: asksFor(deps.asks, sessionId), emit, threadId: sessionId, runId: req.runId}
   const gate = makeRunGate({
     ...gateDeps,
     risky: deps.risky,
@@ -414,23 +426,34 @@ async function* runStream(
   const ingest: RunIngest = (chunks) => {
     const named = chunks.map((chunk) => normalizeChunkToolName(chunk, normalize))
     for (const chunk of named) foldChunk(fold, chunk, outcome)
-    void runLog.append(named).catch(() => {})
+    for (const chunk of named) emit(chunk)
   }
+  const produce = async (): Promise<void> => {
+    try {
+      const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, ingest, abort)
+      processor.addUserMessage(userParts(req.content), req.messageId)
+      emit(aguiSnapshotFor(sessionSnapshot(deps, sessionId)))
+      const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
+      const bounded = boundFirstChunk(stream, timeoutMs, () => {
+        outcome.error = `${deps.harness.id} produced no output within ${Math.round(timeoutMs / 1000)}s`
+        abort.abort(RUN_CANCEL_REASON)
+      })
+      for await (const chunk of foldRunStream(fold, normalize, req, bounded, outcome)) emit(chunk)
+    } catch (error) {
+      if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
+    }
+    stopCancelWatch()
+    await finishRun(deps, sessionId, req, outcome)
+    emit(runEndChunkFor(sessionId, req, outcome))
+    outbound.end()
+  }
+  const pumped = produce()
   try {
-    const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, ingest, abort)
-    processor.addUserMessage(userParts(req.content), req.messageId)
-    await runLog.append([aguiSnapshotFor(sessionSnapshot(deps, sessionId))]).catch(() => {})
-    const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
-    const bounded = boundFirstChunk(stream, timeoutMs, () => {
-      outcome.error = `${deps.harness.id} produced no output within ${Math.round(timeoutMs / 1000)}s`
-      abort.abort()
-    })
-    yield* foldRunStream(fold, normalize, req, bounded, outcome)
-  } catch (error) {
-    if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
+    for await (const chunk of outbound) yield chunk
+  } finally {
+    stopCancelWatch()
+    await pumped
   }
-  await finishRun(deps, sessionId, req, outcome)
-  yield runEndChunkFor(sessionId, req, outcome)
 }
 
 function launchRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest): RunDriver {
