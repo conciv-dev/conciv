@@ -58,12 +58,14 @@ const test = browserTest.extend<{$file: {kit: CoreKit; host: ServedHost; connect
 
 test.describe('bootConnect: the tanstack client verbs answer the registry through the connect handle', () => {
   test(
-    'tanstack_router_state reads the live TanStack app the connect handle attached to',
+    'tanstack_page_router_state reads the live TanStack app the connect handle attached to',
     async ({connectedPage, kit}) => {
       await connectedPage.getByRole('link', {name: 'About'}).click()
       await expectLocator(connectedPage.getByRole('heading', {name: 'About this app'})).toBeVisible()
 
-      const state = routerStateSchema.parse(await kit.rpc.registry.call({name: 'tanstack_router_state', input: {}}))
+      const state = routerStateSchema.parse(
+        await kit.rpc.registry.call({name: 'tanstack_page_router_state', input: {}}),
+      )
 
       expect(state.result.location.pathname).toBe('/about')
       const aboutMatch = state.result.matches.find((match) => match.routeId === '/about')

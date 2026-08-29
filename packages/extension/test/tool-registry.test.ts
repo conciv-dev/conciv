@@ -162,6 +162,25 @@ test('registering the same tool name twice fails loudly', () => {
   expect(() => registry.register(statusTool(), {owner: 'a test registrant'})).toThrow(/declared by both/)
 })
 
+test('one tool name carries one tool: a client-bound and a server-bound declaration of it collide under one owner', () => {
+  const registry = createToolRegistry()
+  const shared = {
+    name: 'tanstack_router_state',
+    description: 'read the router state',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ok: z.boolean()}),
+    meta: {summary: 'read the router state of the running app', category: 'read'},
+  }
+  registry.register(
+    defineTool(shared).server(() => ({ok: true})),
+    {owner: 'extension "tanstack"'},
+  )
+
+  expect(() => registry.register(defineTool(shared).client(), {owner: 'extension "tanstack"'})).toThrow(
+    /tool "tanstack_router_state" is declared by both extension "tanstack" and extension "tanstack"/,
+  )
+})
+
 test('a tool may not claim a transport error code as its own', () => {
   const registry = createToolRegistry()
   const tool = defineTool({

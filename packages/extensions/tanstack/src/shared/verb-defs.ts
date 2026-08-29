@@ -34,16 +34,27 @@ const RouterCurrentSchema: z.ZodType<RouterCurrent> = z.object({
   matches: z.array(RouteMatchSchema),
 })
 
-const RouteNodeSchema: z.ZodType<RouteNode> = z.lazy(() =>
+const RouteKindSchema = z.enum(['static', 'dynamic', 'catch-all', 'layout', 'index', 'group'])
+
+export const RouteNodeSchema: z.ZodType<RouteNode> = z.lazy(() =>
   z.object({
     id: z.string(),
     path: z.string(),
-    kind: z.enum(['static', 'dynamic', 'catch-all', 'layout', 'index', 'group']),
+    kind: RouteKindSchema,
     hasLoader: z.boolean(),
     children: z.array(RouteNodeSchema),
     truncated: z.number().optional(),
   }),
 )
+
+const RouteNodeTransportSchema = z.object({
+  id: z.string(),
+  path: z.string(),
+  kind: RouteKindSchema,
+  hasLoader: z.boolean(),
+  children: z.array(z.unknown()),
+  truncated: z.number().optional(),
+})
 
 const CacheEntrySchema: z.ZodType<CacheEntry> = z.object({
   key: z.string(),
@@ -81,7 +92,7 @@ function verbTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   result: Out
 }) {
   return defineTool({
-    name: `tanstack_${spec.verb}`,
+    name: `tanstack_page_${spec.verb}`,
     description: spec.summary,
     inputSchema: spec.input,
     outputSchema: z.object({result: spec.result}),
@@ -107,7 +118,7 @@ export const routeTreeDef = verbTool({
   verb: 'route_tree',
   summary: 'read the live route tree off the page',
   input: noInput,
-  result: RouteNodeSchema,
+  result: RouteNodeTransportSchema,
 })
 
 export const dataEntriesDef = verbTool({

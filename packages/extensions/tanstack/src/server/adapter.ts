@@ -26,6 +26,7 @@ import {
   routeTreeDef,
   routerInvalidateDef,
   routerStateDef,
+  RouteNodeSchema,
 } from '../shared/verb-defs.js'
 
 type BundlerSubscribe = (listener: (diagnostic: BundlerDiagnostic) => void) => Unsubscribe
@@ -73,7 +74,7 @@ export function makeTanstackAdapter(deps: TanstackAdapterDeps): FrameworkAdapter
       },
       routes: {
         current: async () => (await call(routerStateDef, {})).result,
-        tree: async () => (await call(routeTreeDef, {})).result,
+        tree: async () => RouteNodeSchema.parse((await call(routeTreeDef, {})).result),
       },
       navigation: {
         navigate: async (input) => {
