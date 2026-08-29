@@ -22,7 +22,7 @@ import {loopbackHostAllowlist} from '../lib/cors.js'
 import type {CodeCapability} from '../chat/capabilities.js'
 import type {PermissionGate} from '../chat/gate.js'
 import {makeCodeMode, type CodeMode} from '../chat/code-mode.js'
-import {CODE_MODE_TOOL_CALL_EVENT, codeModeToolChunks} from '../chat/code-mode-parts.js'
+import {CODE_MODE_TOOL_CALL_EVENT, codeModeEventPublisher} from '../chat/code-mode-parts.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema} from './execute-schemas.js'
 
 export function sessionIdFromHeaders(headers: Headers): SessionId | null {
@@ -186,20 +186,14 @@ function sandboxEventContext(
 ): {
   emitCustomEvent: (eventName: string, value: Record<string, unknown>) => void
 } {
+  const emit = codeModeEventPublisher(executionId, publish)
   return {
     emitCustomEvent: (eventName, value) => {
-      const stamped = eventName === CODE_MODE_TOOL_CALL_EVENT ? {...value, toolCallId: executionId} : value
       if (eventName === CODE_MODE_TOOL_CALL_EVENT) {
         const parsed = SandboxToolCallSchema.safeParse(value)
         if (parsed.success) note(parsed.data.callId, parsed.data.name)
       }
-      const mapped = codeModeToolChunks({
-        type: EventType.CUSTOM,
-        name: eventName,
-        value: stamped,
-        timestamp: Date.now(),
-      })
-      if (mapped) publish(mapped)
+      emit(eventName, value)
     },
   }
 }

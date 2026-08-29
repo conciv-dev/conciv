@@ -44,7 +44,7 @@ import {stopSession} from './stop.js'
 import {asksFor, commandMemoryFor, makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
 import {withConcivSandbox} from './sandbox.js'
 import {makeCodeMode} from './code-mode.js'
-import {codeModeToolChunks} from './code-mode-parts.js'
+import {codeModeEventPublisher} from './code-mode-parts.js'
 import {makeToolNameNormalizer, normalizeChunkToolName} from './tool-names.js'
 import {harnessDebug, logError} from '../lib/debug.js'
 
@@ -113,22 +113,6 @@ function compactContent(deps: ChatDeps): UserContent {
 
 type RunIngest = (chunks: StreamChunk[]) => void
 
-function runLogEmitter(
-  context: ToolRunContext | undefined,
-  ingest: RunIngest,
-): (eventName: string, value: Record<string, unknown>) => void {
-  return (eventName, value) => {
-    const parentId = context?.toolCallId
-    const stamped = parentId === undefined ? value : {...value, toolCallId: parentId}
-    const chunks = codeModeToolChunks({type: EventType.CUSTOM, name: eventName, value: stamped, timestamp: Date.now()})
-    if (chunks === null) {
-      context?.emitCustomEvent?.(eventName, value)
-      return
-    }
-    ingest(chunks)
-  }
-}
-
 function toolsIngestingIntoRunLog(tools: AnyTool[], ingest: RunIngest): AnyTool[] {
   return tools.map((tool) => {
     const execute = tool.execute
@@ -136,7 +120,12 @@ function toolsIngestingIntoRunLog(tools: AnyTool[], ingest: RunIngest): AnyTool[
     return {
       ...tool,
       execute: async (args: unknown, context?: ToolRunContext) =>
-        execute(args, {...context, emitCustomEvent: runLogEmitter(context, ingest)}),
+        execute(args, {
+          ...context,
+          emitCustomEvent: codeModeEventPublisher(context?.toolCallId, ingest, (eventName, value) =>
+            context?.emitCustomEvent?.(eventName, value),
+          ),
+        }),
     }
   })
 }
