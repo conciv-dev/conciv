@@ -323,20 +323,22 @@ describe('approval-declared tools gate at the RPC boundary (server_restart)', ()
 
   it('a denial rejects with the denial wording', async () => {
     const {kit, sessionId, pending, approvalId} = await askedRestart()
-    await sessionRpcOf(kit, sessionId).chat.permissionDecision({approvalId, approved: false})
-    await expect(pending).rejects.toMatchObject({
+    const refused = expect(pending).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
       message: expect.stringContaining('denied by the user'),
     })
+    await sessionRpcOf(kit, sessionId).chat.permissionDecision({approvalId, approved: false})
+    await refused
   }, 40_000)
 
   it('a stopped session settles the ask as no-decision, not a lie about the user denying', async () => {
     const {kit, sessionId, pending} = await askedRestart()
-    await kit.rpc.chat.stop({sessionId})
-    await expect(pending).rejects.toMatchObject({
+    const refused = expect(pending).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
       message: expect.stringContaining('no approval decision'),
     })
+    await kit.rpc.chat.stop({sessionId})
+    await refused
   }, 40_000)
 
   it('registry.call gates the same declaration through the same helper', async () => {

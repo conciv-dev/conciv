@@ -5,8 +5,21 @@ import {readThread, threadMessages, updateThread, type ConcivDb} from '@conciv/d
 import type {ChatDeps} from './runtime.js'
 import {normalizeHistoryToolNames} from './tool-names.js'
 
+function rejoinSplitMessages(messages: UIMessage[]): UIMessage[] {
+  return messages.reduce<UIMessage[]>((rejoined, message) => {
+    const previous = rejoined.at(-1)
+    if (previous === undefined || previous.id !== message.id) {
+      rejoined.push(message)
+      return rejoined
+    }
+    rejoined.splice(-1, 1, {...previous, parts: [...previous.parts, ...message.parts]})
+    return rejoined
+  }, [])
+}
+
 export function sessionSnapshot(deps: ChatDeps, sessionId: SessionId): UIMessage[] {
-  return normalizeHistoryToolNames(modelMessagesToUIMessages(threadMessages(deps.db, sessionId)), deps.toolNames)
+  const stored = rejoinSplitMessages(modelMessagesToUIMessages(threadMessages(deps.db, sessionId)))
+  return normalizeHistoryToolNames(stored, deps.toolNames)
 }
 
 export function beginRunMessages(db: ConcivDb, threadId: string): number {
