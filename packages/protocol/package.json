@@ -25,6 +25,10 @@
       "types": "./dist/chat-types.d.ts",
       "import": "./dist/chat-types.js"
     },
+    "./chat-busy": {
+      "types": "./dist/chat-busy.d.ts",
+      "import": "./dist/chat-busy.js"
+    },
     "./ui-types": {
       "types": "./dist/ui-types.d.ts",
       "import": "./dist/ui-types.js"

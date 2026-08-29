@@ -2,7 +2,6 @@ import {claudeInit} from '@conciv/harness-init/claude'
 import {defineHarness, type HarnessConnectContext, type HarnessConnectPlan} from '@conciv/protocol/harness-types'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 import {claudeConnectArgs} from './args.js'
-import {claudeAttach} from './attach.js'
 import {claudeChatConfig} from './chat.js'
 import {claudeHistory} from './history.js'
 import {claudeSdkCommands} from './sdk.js'
@@ -54,6 +53,5 @@ export const claude = defineHarness({
   commands: claudeSdkCommands,
   history: claudeHistory,
   connect: {plan: claudeConnectPlan},
-  attach: claudeAttach,
   tty: {command: claudeTtyCommand},
 })

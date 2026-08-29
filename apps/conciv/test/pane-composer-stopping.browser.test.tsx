@@ -1,33 +1,44 @@
 import './helpers/utilities.css'
 import {render} from '@solidjs/testing-library'
-import {createSignal, onMount, type JSX} from 'solid-js'
+import {createMemo, createSignal, onMount, type JSX} from 'solid-js'
 import {describe, expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {useChat} from '@tanstack/ai-solid'
-import {ChatProvider, ComposerHandlersProvider, chatBusy, createTextChunks, storyConnection} from '@conciv/ui-kit-chat'
-import {createStopState} from '@conciv/client'
+import {ChatProvider, ComposerHandlersProvider, createTextChunks, storyConnection} from '@conciv/ui-kit-chat'
+import type {RunClockSource} from '@conciv/protocol/run-types'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {memoryStorage} from './helpers/memory-storage.js'
+
+function lifecycleSourceAt(phase: RunClockSource['lifecycle']['phase']): RunClockSource {
+  return {
+    lifecycle: {runId: 'run-1', phase, startedAt: 0, finishedAt: null, serverNow: 0, error: null},
+    receivedAt: Date.now(),
+  }
+}
 
 function Harness(props: {settle: (settle: () => void) => void}): JSX.Element {
   const chat = useChat({
     connection: storyConnection({chunks: createTextChunks('working on it'), runsUntilStopped: true}),
   })
   const [serverGenerating, setServerGenerating] = createSignal(true)
+  const [runSource, setRunSource] = createSignal<RunClockSource | null>(null)
   const observed = {...chat, sessionGenerating: serverGenerating}
-  const {stopping, requestStop} = createStopState(() => chatBusy(observed))
+  const stopping = createMemo(() => runSource()?.lifecycle.phase === 'stopping')
   const stoppable = {
     ...observed,
     stopping,
     stop: () => {
-      requestStop()
+      setRunSource(lifecycleSourceAt('stopping'))
       chat.stop()
     },
   }
   onMount(() => {
     void chat.sendMessage('go')
-    props.settle(() => setServerGenerating(false))
+    props.settle(() => {
+      setRunSource(lifecycleSourceAt('aborted'))
+      setServerGenerating(false)
+    })
   })
   return (
     <EngineReachabilityContext.Provider value={{online: () => true, sustainedOffline: () => false}}>

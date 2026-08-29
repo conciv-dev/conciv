@@ -257,9 +257,6 @@ Promise<HarnessModel[]>` for CLIs whose model list must be fetched
   (`packages/protocol/src/harness-types.ts:36-40`), required whenever `slashCommands !== 'none'`. Each
   `HarnessCommand` is `{name, description?, argumentHint?}`; `'live'` means query the running CLI for
   its commands, `'files'` means read them off disk.
-- **`attach?: HarnessAttach`** — `candidates()/install()/uninstall()` for discovering and hooking into
-  an already-running CLI session outside conciv (`packages/protocol/src/harness-types.ts:119-123`).
-  Optional; only implement it if your CLI supports being attached to after the fact.
 
 ## HarnessHistory: reading the CLI's own transcript
 
