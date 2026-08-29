@@ -33,7 +33,6 @@ function coreClient(): FrameworkClientCore {
       entries: async () => [],
       get: async () => undefined,
       invalidate: async () => {},
-      refetch: async () => {},
     },
     errors: {
       snapshot: async () => [],

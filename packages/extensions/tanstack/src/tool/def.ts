@@ -186,21 +186,6 @@ export const dataInvalidateDef = toolDefinition({
   },
 })
 
-export const dataRefetchDef = toolDefinition({
-  name: 'tanstack_data_refetch',
-  description: 'Refetch the loader data of one TanStack route by its route id.',
-  inputSchema: RouteIdInput,
-  outputSchema: OkOutput,
-  meta: {
-    summary: 'refetch the loader data of one route',
-    category: 'tanstack',
-    mutating: true,
-    keywords: ['loader', 'refetch'],
-    icon: 'edit',
-    label: {running: 'Refetching the loader data', done: 'Refetched the loader data'},
-  },
-})
-
 export const errorsSnapshotDef = toolDefinition({
   name: 'tanstack_errors_snapshot',
   description:
@@ -381,7 +366,6 @@ export const TANSTACK_PAGE_TOOL_DEFS = [
   dataEntriesDef,
   loaderDataDef,
   dataInvalidateDef,
-  dataRefetchDef,
   errorsSnapshotDef,
   queryCacheDef,
   queryInvalidateDef,

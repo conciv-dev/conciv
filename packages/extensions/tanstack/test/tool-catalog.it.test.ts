@@ -20,7 +20,6 @@ const PAGE_TOOLS = [
   'tanstack_back',
   'tanstack_data_entries',
   'tanstack_data_invalidate',
-  'tanstack_data_refetch',
   'tanstack_detect',
   'tanstack_errors_snapshot',
   'tanstack_loader_data',

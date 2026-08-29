@@ -15,7 +15,6 @@ import {
   backDef,
   dataEntriesDef,
   dataInvalidateDef,
-  dataRefetchDef,
   detectDef,
   errorsSnapshotDef,
   loaderDataDef,
@@ -97,9 +96,6 @@ export function makeTanstackAdapter(deps: TanstackAdapterDeps): FrameworkAdapter
         get: async (key) => (await call(loaderDataDef, {routeId: key})).data,
         invalidate: async (key) => {
           await call(dataInvalidateDef, {routeId: key})
-        },
-        refetch: async (key) => {
-          await call(dataRefetchDef, {routeId: key})
         },
       },
       errors: {

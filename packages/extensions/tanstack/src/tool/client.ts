@@ -17,7 +17,6 @@ import {
   buildErrorsDef,
   dataEntriesDef,
   dataInvalidateDef,
-  dataRefetchDef,
   detectDef,
   errorsSnapshotDef,
   loaderDataDef,
@@ -57,7 +56,6 @@ export const tanstackClientTools: readonly AnyToolBuilder[] = [
     .client((input) => readLoaderData(input.routeId))
     .render(loaderDataCard),
   defineTool(dataInvalidateDef).client((input) => invalidateRouterMatch(input.routeId)),
-  defineTool(dataRefetchDef).client((input) => invalidateRouterMatch(input.routeId)),
   defineTool(errorsSnapshotDef).client(() => readRuntimeErrors()),
   defineTool(queryCacheDef)
     .client(() => ({queries: readQueryCache(), mutations: readMutations()}))
