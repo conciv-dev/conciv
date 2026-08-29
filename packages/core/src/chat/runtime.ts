@@ -1,9 +1,9 @@
 import {randomUUID} from 'node:crypto'
-import {InMemoryRunStore, memoryStream, type RunStore, type StreamDurability} from '@tanstack/ai'
+import {memoryStream, type RunStore, type StreamDurability} from '@tanstack/ai'
 import {RunController, type SandboxDefinition} from '@tanstack/ai-sandbox'
 import type {UIMessage} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import type {ConcivDb} from '@conciv/db'
+import {createRunStore, type ConcivDb} from '@conciv/db'
 import type {CodeCapability} from './capabilities.js'
 import {FIRST_CHUNK_TIMEOUT_MS, READER_FIRST_APPEND_GRACE_MS} from './run-timing.js'
 import type {AskRegistry} from './ask.js'
@@ -46,7 +46,10 @@ export type ChatEnv = {Variables: {chat: ChatDeps}}
 
 const CLAIM_STEP_MS = 2 ** -10
 
-export function makeRunControl(firstChunkTimeoutMs?: number): {
+export function makeRunControl(
+  db: ConcivDb,
+  firstChunkTimeoutMs?: number,
+): {
   claimStartedAt: () => number
   durability: (runId: string) => StreamDurability
   runControl: RunController
@@ -56,7 +59,7 @@ export function makeRunControl(firstChunkTimeoutMs?: number): {
   const instanceKey = randomUUID()
   const durability = (runId: string): StreamDurability =>
     memoryStream({runId: `${instanceKey}:${runId}`}, {firstChunkDeadlineMs})
-  const runs = new InMemoryRunStore()
+  const runs = createRunStore(db)
   let lastStartedAt = 0
   const claimStartedAt = (): number => {
     lastStartedAt = Math.max(Date.now(), lastStartedAt + CLAIM_STEP_MS)

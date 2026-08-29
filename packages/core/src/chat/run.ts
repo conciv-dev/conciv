@@ -197,7 +197,7 @@ async function buildRunStream(
     tools: extras.tools,
     lazyToolsConfig: {includeDescription: 'first-sentence'},
     modelOptions: config.modelOptions,
-    middleware: [withSandbox(deps.sandbox), withConcivGate(gate)],
+    middleware: [withSandbox(deps.sandbox, {runs: deps.runs}), withConcivGate(gate)],
     abortController: abort,
     debug: harnessDebug,
   })

@@ -7,9 +7,9 @@ import {eq} from 'drizzle-orm'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb} from '../src/db.js'
-import {recordRunLifecycle, runMessagesFor, sessionHistoryFor, setRunMessages} from '../src/run-queries.js'
+import {runMessagesFor, sessionHistoryFor, setRunMessages} from '../src/run-queries.js'
+import {createRunStore} from '../src/run-store.js'
 import {sessions} from '../src/schema.js'
-import {runs} from '../src/run-schema.js'
 
 const record = (id: string) => ({
   id,
@@ -138,25 +138,19 @@ describe('openDb', () => {
     expect(db.select().from(sessions).all()[0]?.title).toBe('named')
   })
 
-  it('boot sweep abandons stuck runs, leaving run rows for capability-aware recovery', () => {
+  it('boot detach hands a stuck run to the reclaim sweep, leaving session and run rows alone', async () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-sweep-'))
     const first = openDb(stateRoot)
     first
       .insert(sessions)
       .values({...record('conciv_z'), title: 'keep'})
       .run()
-    recordRunLifecycle(first, 'conciv_z', {
-      runId: 'run-stuck',
-      phase: 'running',
-      startedAt: Date.now(),
-      finishedAt: null,
-      serverNow: Date.now(),
-      error: null,
-    })
+    await createRunStore(first).createOrResume({runId: 'run-stuck', threadId: 'conciv_z', startedAt: Date.now()})
     setRunMessages(first, 'conciv_z', [{id: 'm1'}])
     const second = openDb(stateRoot)
     expect(second.select().from(sessions).all()[0]?.title).toBe('keep')
-    expect(second.select().from(runs).where(eq(runs.sessionId, 'conciv_z')).all()[0]?.phase).toBe('aborted')
+    const reclaimable = await createRunStore(second).listReclaimable?.({now: Date.now(), ttlMs: 0})
+    expect(reclaimable?.map((run) => run.runId)).toEqual(['run-stuck'])
     expect(runMessagesFor(second, 'conciv_z')?.messages).toEqual([{id: 'm1'}])
   })
 
