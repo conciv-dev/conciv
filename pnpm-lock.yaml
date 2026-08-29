@@ -1823,6 +1823,9 @@ importers:
       '@tanstack/ai':
         specifier: 'catalog:'
         version: 0.51.0(@opentelemetry/api@1.9.1)(zod@4.4.3)
+      '@tanstack/ai-persistence':
+        specifier: 'catalog:'
+        version: 0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.9.1)(zod@4.4.3))(vitest@4.1.10)
       drizzle-orm:
         specifier: 1.0.0-rc.4
         version: 1.0.0-rc.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(zod@4.4.3)
@@ -1830,9 +1833,6 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
-      '@tanstack/ai-persistence':
-        specifier: 'catalog:'
-        version: 0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.9.1)(zod@4.4.3))(vitest@4.1.10)
       '@types/node':
         specifier: ^26.1.0
         version: 26.1.0
@@ -22762,7 +22762,7 @@ snapshots:
       '@tanstack/ai': 0.51.0(@opentelemetry/api@1.9.1)(zod@4.4.3)
       '@tanstack/ai-utils': 0.4.0
     optionalDependencies:
-      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
   '@tanstack/ai-sandbox-local-process@0.2.4(patch_hash=27e7e837c8b529c1fb2c861d7c635ea08e194e265c0b0a5631724b93459cbf99)(@tanstack/ai-sandbox@0.5.3(patch_hash=39192862d663a7580e91b9e43dac73c3e7a50e66529a097e926f83270ef4e893)(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.9.1)(zod@4.4.3))(vitest@4.1.10))(@tanstack/ai@0.51.0(@opentelemetry/api@1.9.1)(zod@4.4.3))(vitest@4.1.10)(zod@4.4.3))':
     dependencies:
@@ -24780,9 +24780,9 @@ snapshots:
       obug: 2.1.3
       std-env: 4.1.0
       tinyrainbow: 3.1.1
-      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
     optionalDependencies:
-      '@vitest/browser': 4.1.10(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(vitest@4.1.10)
+      '@vitest/browser': 4.1.10(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(vitest@4.1.10)
 
   '@vitest/expect@3.2.4':
     dependencies:
