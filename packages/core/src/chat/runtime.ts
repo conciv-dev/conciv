@@ -1,14 +1,6 @@
 import {randomUUID} from 'node:crypto'
-import {
-  InMemoryRunStore,
-  memoryStream,
-  toolDefinition,
-  type RunStore,
-  type ServerTool,
-  type StreamDurability,
-} from '@tanstack/ai'
+import {InMemoryRunStore, memoryStream, type RunStore, type StreamDurability} from '@tanstack/ai'
 import {RunController, type SandboxDefinition} from '@tanstack/ai-sandbox'
-import {z} from 'zod'
 import type {UIMessage} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {ConcivDb} from '@conciv/db'
@@ -73,25 +65,7 @@ export function makeRunControl(firstChunkTimeoutMs?: number): {
   return {claimStartedAt, durability, runControl: new RunController({runs, durability}), runs}
 }
 
-type Registrable = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}
-
 export type ToolRunContext = {
   toolCallId?: string
   emitCustomEvent?: (eventName: string, value: Record<string, unknown>) => void
-}
-
-type ToolRun = (args: unknown, context?: ToolRunContext) => Promise<unknown>
-
-export function toChatTool(
-  tool: Registrable,
-  run: ToolRun,
-  opts?: {lazy?: boolean},
-): ServerTool<z.ZodObject<z.ZodRawShape>, z.ZodUnknown> {
-  return toolDefinition({
-    name: tool.name,
-    description: tool.description,
-    inputSchema: tool.inputSchema,
-    outputSchema: z.unknown(),
-    lazy: opts?.lazy,
-  }).server(run)
 }

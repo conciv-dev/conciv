@@ -7,10 +7,10 @@ import {
   type IsolateDriver,
   type ToolBinding,
 } from '@tanstack/ai-code-mode'
-import type {AnyTool} from '@tanstack/ai'
+import {toolDefinition, type AnyTool, type ServerTool} from '@tanstack/ai'
 import {sanitizeIdentifier, uniqueIdentifier, type ToolRequest} from '@conciv/extension'
 import type {CodeCapability} from './capabilities.js'
-import {toChatTool, type ToolRunContext} from './runtime.js'
+import type {ToolRunContext} from './runtime.js'
 import {approvalRefusal, noListenerRefusal, requiresApproval, type PermissionGate} from './gate.js'
 import {CODE_MODE_TOOL_CALL_EVENT, CODE_MODE_TOOL_ERROR_EVENT, CODE_MODE_TOOL_RESULT_EVENT} from './code-mode-parts.js'
 import {logError} from '../lib/debug.js'
@@ -164,15 +164,13 @@ function bindCapabilities(
   const named = withBindingNames(capabilities)
   const record = toolsToBindings(
     named.map((entry) =>
-      toChatTool(
-        {
-          name: entry.bindingName,
-          description: entry.capability.description,
-          inputSchema: entry.capability.inputSchema,
-        },
-        gatedToolRun(entry.capability, sessionId, request, gate, listening),
-        {lazy: true},
-      ),
+      toolDefinition({
+        name: entry.bindingName,
+        description: entry.capability.description,
+        inputSchema: entry.capability.inputSchema,
+        outputSchema: z.unknown(),
+        lazy: true,
+      }).server(gatedToolRun(entry.capability, sessionId, request, gate, listening)),
     ),
     CAPABILITY_BINDING_PREFIX,
   )
@@ -248,21 +246,20 @@ function capabilityDetail(bound: BoundCapability[], name: string): unknown {
   }
 }
 
-function catalogTool(current: () => BoundCapability[]): ReturnType<typeof toChatTool> {
-  return toChatTool(
-    {
-      name: CATALOG_TOOL_NAME,
-      description:
-        'List and inspect every capability in this sandbox: catalog({}) or catalog({search}) lists entries with the exact function name to call, catalog({name}) returns one full typed signature.',
-      inputSchema: CatalogQuerySchema,
-    },
-    (args, context) =>
-      emittingToolCall(CATALOG_TOOL_NAME, args, context, async () => {
-        const query = CatalogQuerySchema.parse(args ?? {})
-        const bound = current()
-        if (query.name !== undefined) return capabilityDetail(bound, query.name)
-        return catalogList(bound, query.search)
-      }),
+function catalogTool(current: () => BoundCapability[]): ServerTool<typeof CatalogQuerySchema, z.ZodUnknown> {
+  return toolDefinition({
+    name: CATALOG_TOOL_NAME,
+    description:
+      'List and inspect every capability in this sandbox: catalog({}) or catalog({search}) lists entries with the exact function name to call, catalog({name}) returns one full typed signature.',
+    inputSchema: CatalogQuerySchema,
+    outputSchema: z.unknown(),
+  }).server((args, context: ToolRunContext | undefined) =>
+    emittingToolCall(CATALOG_TOOL_NAME, args, context, async () => {
+      const query = CatalogQuerySchema.parse(args ?? {})
+      const bound = current()
+      if (query.name !== undefined) return capabilityDetail(bound, query.name)
+      return catalogList(bound, query.search)
+    }),
   )
 }
 
