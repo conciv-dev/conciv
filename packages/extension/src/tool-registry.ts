@@ -279,8 +279,8 @@ function registerTool(
   assertRegistryTool(tool)
   assertToolCosmetics(tool)
   assertPositionalField(tool)
-  toJsonSchema(tool.inputSchema, `tool "${tool.name}" input`, 'input')
-  toJsonSchema(tool.outputSchema, `tool "${tool.name}" output`, 'output')
+  toInlineJsonSchema(tool.inputSchema, `tool "${tool.name}" input`, 'input')
+  toInlineJsonSchema(tool.outputSchema, `tool "${tool.name}" output`, 'output')
   const holder = owners.get(tool.name)
   if (holder !== undefined) {
     throw new Error(`tool "${tool.name}" is declared by both ${holder} and ${registration.owner}`)
@@ -508,8 +508,8 @@ function signatureOf(entry: RegistryWalkEntry, listed: ToolCatalogEntry): ToolSi
     mutating: meta.mutating ?? false,
     mirrors: meta.mirrors ?? false,
     keywords: meta.keywords ?? [],
-    inputSchema: toJsonSchema(entry.inputSchema, `tool "${listed.name}" input`, 'input'),
-    outputSchema: toJsonSchema(entry.outputSchema, `tool "${listed.name}" output`, 'output'),
+    inputSchema: toInlineJsonSchema(entry.inputSchema, `tool "${listed.name}" input`, 'input'),
+    outputSchema: toInlineJsonSchema(entry.outputSchema, `tool "${listed.name}" output`, 'output'),
     errors: declaredErrorList(entry),
   }
 }
@@ -548,10 +548,22 @@ function isZodSchema(schema: unknown): schema is z.ZodType {
   return typeof schema === 'object' && schema !== null && '_zod' in schema
 }
 
-function toJsonSchema(schema: unknown, where: string, io: 'input' | 'output'): unknown {
+function carriesDefs(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && '$defs' in value
+}
+
+export function toInlineJsonSchema(schema: unknown, where: string, io: 'input' | 'output'): unknown {
   if (!isZodSchema(schema)) throw new Error(`${where}: not a zod schema`)
+  const converted = convertOrExplain(schema, where, io)
+  if (!carriesDefs(converted)) return converted
+  throw new Error(
+    `${where}: the schema tags a sub-schema with .meta({id}), so zod serializes it as $ref plus $defs; the sandbox reads one inline schema, so drop the id`,
+  )
+}
+
+function convertOrExplain(schema: z.ZodType, where: string, io: 'input' | 'output'): unknown {
   try {
-    return z.toJSONSchema(schema, {io})
+    return z.toJSONSchema(schema, {io, cycles: 'throw'})
   } catch (error) {
     throw new Error(`${where}: ${error instanceof Error ? error.message : String(error)}`, {cause: error})
   }
