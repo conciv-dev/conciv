@@ -11,7 +11,7 @@ const flushBudget = (elapsedMs: number): number => Math.ceil(elapsedMs / ELEMENT
 
 type CanvasElement = {x: number; width: number; height: number}
 const readElements = async (api: ExtensionTestApi): Promise<CanvasElement[]> =>
-  ((await api.callTool('canvas.read', {})) as {elements: CanvasElement[]}).elements
+  ((await api.callTool('canvas_read', {})) as {elements: CanvasElement[]}).elements
 
 const readXs = async (api: ExtensionTestApi): Promise<number[]> =>
   (await readElements(api)).map((element) => element.x).sort((left, right) => left - right)

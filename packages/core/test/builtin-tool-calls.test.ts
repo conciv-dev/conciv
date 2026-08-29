@@ -44,7 +44,7 @@ describe('a built-in tool call carries who asked and how it failed', () => {
     })
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a test registrant'})
     await registry.call(
-      'page.fill',
+      'page_fill',
       {selector: '#email', value: 'a@b.c'},
       {request: {sessionId: SESSION, model: 'sonnet'}},
     )
@@ -58,10 +58,10 @@ describe('a built-in tool call carries who asked and how it failed', () => {
     const registry = makeBuiltinRegistry({page: env, bundler: () => undefined, openInEditor: () => {}})
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a test registrant'})
     const scope = (await pageRuntime(env, registry)).forSession(SESSION)
-    const failure = DeclaredFailure.parse(await failureOf(scope.tools.call('page.eval', {code: 'boom()'})))
+    const failure = DeclaredFailure.parse(await failureOf(scope.tools.call('page_eval', {code: 'boom()'})))
     expect(failure.code).toBe('HANDLER_ERROR')
     expect(failure.defined).toBe(true)
-    expect(failure.message).toContain('page.eval')
+    expect(failure.message).toContain('page_eval')
   })
 
   it('journals mutating calls from declaration meta and leaves reads out', async () => {
@@ -70,8 +70,8 @@ describe('a built-in tool call carries who asked and how it failed', () => {
     const registry = makeBuiltinRegistry({page: env, bundler: () => undefined, openInEditor: () => {}})
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a test registrant'})
     const scope = (await pageRuntime(env, registry)).forSession(SESSION)
-    await scope.tools.call('page.text', {selector: '#h'})
-    await scope.tools.call('page.click', {selector: '.btn'})
-    expect(await env.journal.list(SESSION)).toMatchObject([{verb: 'page.click', selector: '.btn'}])
+    await scope.tools.call('page_text', {selector: '#h'})
+    await scope.tools.call('page_click', {selector: '.btn'})
+    expect(await env.journal.list(SESSION)).toMatchObject([{verb: 'page_click', selector: '.btn'}])
   })
 })

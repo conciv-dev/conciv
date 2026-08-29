@@ -59,6 +59,8 @@ import {
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
+import {assertToolName} from '@conciv/extension/tool'
+import {BUILTIN_OPEN_TOOL, SERVER_TOOL_PREFIX} from '@conciv/tools/builtins'
 import {logError} from './lib/debug.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import type {OpenInEditor} from './editor/open.js'
@@ -195,6 +197,7 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
   const owners = new Map<string, string>()
   for (const [source, names] of sources) {
     for (const name of names) {
+      assertToolName(name)
       const existing = owners.get(name)
       if (existing !== undefined) {
         throw new Error(`capability name "${name}" is declared by both ${existing} and ${source}`)
@@ -202,6 +205,17 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
       owners.set(name, source)
     }
   }
+}
+
+const CLI_TOOL_GROUPS = [
+  {prefix: PAGE_TOOL_PREFIX, command: 'conciv tools page'},
+  {prefix: SERVER_TOOL_PREFIX, command: 'conciv tools server'},
+] as const
+
+function cliCommandOf(name: string): string | null {
+  if (name === BUILTIN_OPEN_TOOL.name) return 'conciv tools open'
+  const matched = CLI_TOOL_GROUPS.find(({prefix}) => name.startsWith(prefix))
+  return matched === undefined ? null : `${matched.command} ${name.slice(matched.prefix.length)}`
 }
 
 export const HealthSchema = z.object({
@@ -403,12 +417,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       .flatMap((entry) => {
         const signature = registry.catalog.get(entry.name)
         if (requiresApproval(signature)) return []
-        const [group, operation] = [entry.path.slice(0, -1).join(' '), entry.path.at(-1)]
-        if (operation === undefined) return []
-        const command = group === '' ? `conciv tools ${operation}` : `conciv tools ${group} ${operation}`
+        const command = cliCommandOf(entry.name)
+        if (command === null) return []
         const aliases = [command, `${command} *`]
         if (entry.name.startsWith(PAGE_TOOL_PREFIX) && signature.category === 'react') {
-          aliases.push(`conciv tools react ${operation}`, `conciv tools react ${operation} *`)
+          const verb = entry.name.slice(PAGE_TOOL_PREFIX.length)
+          aliases.push(`conciv tools react ${verb}`, `conciv tools react ${verb} *`)
         }
         return aliases
       })

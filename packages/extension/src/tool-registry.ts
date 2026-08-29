@@ -12,6 +12,7 @@ import {
 } from '@orpc/server'
 import type {AnyToolBuilder} from './define-extension.js'
 import {
+  assertToolName,
   FORBIDDEN_TOOL_SEGMENTS,
   isToolError,
   type ProjectedToolBinding,
@@ -276,6 +277,7 @@ function registerTool(
   registration: {owner: string; context?: unknown},
   owners: Map<string, string>,
 ): void {
+  assertToolName(tool.name)
   assertRegistryTool(tool)
   assertToolCosmetics(tool)
   assertPositionalField(tool)

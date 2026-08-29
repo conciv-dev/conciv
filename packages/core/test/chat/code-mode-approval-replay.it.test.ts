@@ -15,7 +15,7 @@ afterEach(async () => {
 })
 
 const purge = defineTool({
-  name: 'vault.purge',
+  name: 'vault_purge',
   description: 'Purge the vault.',
   inputSchema: z.object({}),
   outputSchema: z.object({purged: z.boolean()}),
@@ -66,17 +66,17 @@ describe('a subscriber attaching mid-gate rebuilds the code-mode call as approva
     cleanups.push(() => kit.cleanup())
     const sessionId = await kit.session()
     const keeper = await kit.attach(sessionId)
-    harness.script.scriptToolCall('execute_typescript', {typescriptCode: callThroughCatalog('vault.purge', {})})
+    harness.script.scriptToolCall('execute_typescript', {typescriptCode: callThroughCatalog('vault_purge', {})})
     await kit.rpc.chat.send({runId: 'code-mode-approval-replay-1', sessionId, text: 'purge the vault'})
 
     const asked = await keeper.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 20_000})
     const approvalId = approvalIds(asked)[0]
     if (approvalId === undefined) throw new Error('no approval id reached the live stream')
 
-    await keeper.waitFor((chunk) => startsCall(chunk, 'vault.purge'), {hangGuardMs: 20_000})
+    await keeper.waitFor((chunk) => startsCall(chunk, 'vault_purge'), {hangGuardMs: 20_000})
 
     const refreshed = await freshSubscriberSnapshot(kit, sessionId)
-    expect(toolCallsNamed(refreshed, 'vault.purge')).toMatchObject([
+    expect(toolCallsNamed(refreshed, 'vault_purge')).toMatchObject([
       {state: 'approval-requested', approval: {id: approvalId}},
     ])
 

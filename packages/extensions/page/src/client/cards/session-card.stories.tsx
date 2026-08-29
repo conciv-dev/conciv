@@ -87,10 +87,10 @@ const ROUTE_RESULT = {pathname: '/form', search: '', href: 'http://localhost:300
 
 function sessionParts(lastCall: ToolCallPart): ToolCallPart[] {
   return [
-    storyPart('page.fill', {selector: '#fullname', value: 'Omri Katz'}, 'complete', 'c1'),
-    storyPart('page.route', {}, 'complete', 'c2'),
-    storyPart('page.fill', {selector: '#email', value: 'omri@payzen.com'}, 'complete', 'c3'),
-    storyPart('page.select', {selector: '#role', value: 'Full Stack'}, 'complete', 'c4'),
+    storyPart('page_fill', {selector: '#fullname', value: 'Omri Katz'}, 'complete', 'c1'),
+    storyPart('page_route', {}, 'complete', 'c2'),
+    storyPart('page_fill', {selector: '#email', value: 'omri@payzen.com'}, 'complete', 'c3'),
+    storyPart('page_select', {selector: '#role', value: 'Full Stack'}, 'complete', 'c4'),
     lastCall,
   ]
 }
@@ -126,7 +126,7 @@ function sessionFrame(
 export const Streaming: Story = {
   render: () =>
     sessionFrame(
-      sessionParts(storyPart('page.check', {selector: '#terms'}, 'input-streaming', 'c5')),
+      sessionParts(storyPart('page_check', {selector: '#terms'}, 'input-streaming', 'c5')),
       {
         c1: storyResult({ok: true, value: 'Omri Katz'}, 'complete', 'c1'),
         c2: storyResult(ROUTE_RESULT, 'complete', 'c2'),
@@ -150,7 +150,7 @@ export const Streaming: Story = {
 export const Settled: Story = {
   render: () =>
     sessionFrame(
-      sessionParts(storyPart('page.check', {selector: '#terms'}, 'complete', 'c5')),
+      sessionParts(storyPart('page_check', {selector: '#terms'}, 'complete', 'c5')),
       settledResults(storyResult({ok: true}, 'complete', 'c5')),
       SESSION_CAPTURES,
       false,
@@ -174,7 +174,7 @@ export const Settled: Story = {
 export const BornOpen: Story = {
   render: () =>
     sessionFrame(
-      sessionParts(storyPart('page.check', {selector: '#terms'}, 'complete', 'c5')),
+      sessionParts(storyPart('page_check', {selector: '#terms'}, 'complete', 'c5')),
       settledResults(storyResult({ok: true}, 'complete', 'c5')),
       SESSION_CAPTURES,
       false,
@@ -196,7 +196,7 @@ export const BornOpen: Story = {
 export const Aborted: Story = {
   render: () =>
     sessionFrame(
-      sessionParts(storyPart('page.check', {selector: '#terms'}, 'complete', 'c5')),
+      sessionParts(storyPart('page_check', {selector: '#terms'}, 'complete', 'c5')),
       {
         c1: storyResult({ok: true, value: 'Omri Katz'}, 'complete', 'c1'),
         c2: storyResult(ROUTE_RESULT, 'complete', 'c2'),
@@ -219,7 +219,7 @@ export const Aborted: Story = {
 export const WithError: Story = {
   render: () =>
     sessionFrame(
-      sessionParts(storyPart('page.check', {selector: '#terms'}, 'complete', 'c5')),
+      sessionParts(storyPart('page_check', {selector: '#terms'}, 'complete', 'c5')),
       settledResults({
         type: 'tool-result',
         toolCallId: 'c5',
@@ -240,14 +240,14 @@ export const WithError: Story = {
 }
 
 const SCRIPT_STEPS: ToolCallPart[] = [
-  storyPart('page.eval', {code: "const rows = document.querySelectorAll('tr')\nreturn rows.length"}, 'complete', 's1'),
+  storyPart('page_eval', {code: "const rows = document.querySelectorAll('tr')\nreturn rows.length"}, 'complete', 's1'),
   storyPart(
-    'page.css',
+    'page_css',
     {text: '.cta, .cta-secondary, .cta-ghost { color: var(--brand); border-radius: 10px }'},
     'complete',
     's2',
   ),
-  storyPart('page.eval', {code: 'window.scrollTo({top: 0, behavior: "smooth"})'}, 'complete', 's3'),
+  storyPart('page_eval', {code: 'window.scrollTo({top: 0, behavior: "smooth"})'}, 'complete', 's3'),
 ]
 
 const SCRIPT_RESULTS: Record<string, ToolResultPart> = {
@@ -282,7 +282,7 @@ export const Narrow: Story = {
   parameters: {cardSplit: [46, 54]},
   render: () =>
     sessionFrame(
-      sessionParts(storyPart('page.check', {selector: '#terms'}, 'input-streaming', 'c5')),
+      sessionParts(storyPart('page_check', {selector: '#terms'}, 'input-streaming', 'c5')),
       {
         c1: storyResult({ok: true, value: 'Omri Katz'}, 'complete', 'c1'),
         c2: storyResult(ROUTE_RESULT, 'complete', 'c2'),
@@ -305,7 +305,7 @@ export const Narrow: Story = {
 export const HeaderSummary: Story = {
   render: () =>
     sessionFrame(
-      sessionParts(storyPart('page.check', {selector: '#terms'}, 'complete', 'c5')),
+      sessionParts(storyPart('page_check', {selector: '#terms'}, 'complete', 'c5')),
       settledResults(storyResult({ok: true}, 'complete', 'c5')),
       SESSION_CAPTURES,
       false,

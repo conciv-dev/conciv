@@ -65,9 +65,9 @@ export const FilledField: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ActCard
-        part={storyPart('page.fill', {selector: '#email', value: 'ada@example.com'})}
+        part={storyPart('page_fill', {selector: '#email', value: 'ada@example.com'})}
         result={storyResult({ok: true, value: 'ada@example.com'})}
-        ctx={storyCtx({'page.fill': fillMeta})}
+        ctx={storyCtx({page_fill: fillMeta})}
         addResult={storyAddResult}
         capture={{after: ELEMENT_CAPTURE_FIXTURE_FULL, css: ELEMENT_CAPTURE_FIXTURE_CSS}}
       />
@@ -82,24 +82,24 @@ export const FilledField: Story = {
   },
 }
 
-const actTool: ToolCardEntry = {names: ['page.fill', 'page.check', 'page.wait'], ...actCard}
+const actTool: ToolCardEntry = {names: ['page_fill', 'page_check', 'page_wait'], ...actCard}
 
 export const Trace: Story = {
   render: () =>
     traceGallery('3 actions', [
       traceRow(
         actTool,
-        storyPart('page.fill', {selector: '#email', value: 'ada@example.com'}, 'complete', 't1'),
+        storyPart('page_fill', {selector: '#email', value: 'ada@example.com'}, 'complete', 't1'),
         storyResult({ok: true, value: 'ada@example.com'}, 'complete', 't1'),
       ),
       traceRow(
         actTool,
-        storyPart('page.check', {selector: '#terms'}, 'complete', 't2'),
+        storyPart('page_check', {selector: '#terms'}, 'complete', 't2'),
         storyResult({checked: true}, 'complete', 't2'),
       ),
       traceRow(
         actTool,
-        storyPart('page.wait', {selector: '#done', state: 'visible'}, 'complete', 't3'),
+        storyPart('page_wait', {selector: '#done', state: 'visible'}, 'complete', 't3'),
         storyErrorResult('wait timed out for #done (visible)', 't3'),
       ),
     ]),

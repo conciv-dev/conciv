@@ -216,10 +216,10 @@ test.describe('the shared rpc observer correlates calls on both transports', () 
     expect(call.streaming).toBe(true)
     await suite
       .kit()
-      .rpc.registry.call({name: 'page.text', input: {selector: '#probe'}})
+      .rpc.registry.call({name: 'page_text', input: {selector: '#probe'}})
       .catch(() => {})
     const event = await firstQuery
-    expect(JSON.stringify(event.data)).toContain('page.text')
+    expect(JSON.stringify(event.data)).toContain('page_text')
     observer.dispose()
   })
 })

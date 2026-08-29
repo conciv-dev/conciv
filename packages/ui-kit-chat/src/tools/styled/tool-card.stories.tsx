@@ -12,7 +12,7 @@ type Story = StoryObj
 const BODY = 'confirm before clicking'
 
 function partIn(state: ToolCallState): ToolCallPart {
-  return {type: 'tool-call', id: 'm1', name: 'page.click', arguments: '{}', input: {}, state}
+  return {type: 'tool-call', id: 'm1', name: 'page_click', arguments: '{}', input: {}, state}
 }
 
 const CLICKED: ToolResultPart = {type: 'tool-result', toolCallId: 'm1', content: 'clicked', state: 'complete'}

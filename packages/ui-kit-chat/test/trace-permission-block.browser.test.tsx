@@ -137,12 +137,12 @@ it('offers the session action only for an approval that carries a command to rem
   const commandless: ToolCallPart = {
     type: 'tool-call',
     id: 'call-2',
-    name: 'canvas.delete',
+    name: 'canvas_delete',
     arguments: JSON.stringify({elementId: 'e1'}),
     state: 'approval-requested',
     approval: {id: 'approval-2', needsApproval: true},
   }
-  mountView(() => <TracePermissionBlock part={commandless} ctx={ctxRecording(decisions)} target="canvas.delete" />)
+  mountView(() => <TracePermissionBlock part={commandless} ctx={ctxRecording(decisions)} target="canvas_delete" />)
 
   await expect.element(page.getByRole('button', {name: 'Approve'})).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Deny'})).toBeVisible()

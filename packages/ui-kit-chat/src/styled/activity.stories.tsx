@@ -102,9 +102,9 @@ const nestedMessages: UIMessage[] = [
   user('u1', 'draw and commit via script'),
   assistant('a1', [
     call('p1', 'execute_typescript', 'complete'),
-    subCall('c1', 'canvas.svg', 'p1', 'complete'),
+    subCall('c1', 'canvas_svg', 'p1', 'complete'),
     result('c1', 'complete'),
-    subCall('c2', 'canvas.commit', 'p1', 'complete'),
+    subCall('c2', 'canvas_commit', 'p1', 'complete'),
     result('c2', 'complete'),
     result('p1', 'complete'),
     {type: 'text', content: 'Script ran.'},
@@ -123,12 +123,12 @@ export const NestedSubCalls: Story = {
     const chain = await waitFor(() => c.getByRole('button', {name: '1 step'}))
     await userEvent.click(chain)
     const parent = await waitFor(() => c.getByRole('button', {name: 'execute typescript'}))
-    await expect(c.queryByRole('button', {name: 'canvas.svg'})).toBeNull()
+    await expect(c.queryByRole('button', {name: 'canvas_svg'})).toBeNull()
     await userEvent.click(parent)
     const group = await waitFor(() => c.getByRole('button', {name: '2 tool calls'}))
     await userEvent.click(group)
-    await waitFor(() => expect(c.getByRole('button', {name: 'canvas.svg'})).toBeVisible())
-    await expect(c.getByRole('button', {name: 'canvas.commit'})).toBeVisible()
+    await waitFor(() => expect(c.getByRole('button', {name: 'canvas_svg'})).toBeVisible())
+    await expect(c.getByRole('button', {name: 'canvas_commit'})).toBeVisible()
   },
 }
 

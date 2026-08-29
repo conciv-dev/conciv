@@ -47,12 +47,12 @@ function cardSaying(text: string): ToolUIComponent {
 }
 
 const extensionEntry: ToolCardEntry = {
-  names: ['page.ship'],
+  names: ['page_ship'],
   render: cardSaying('the extension card'),
   hasEmbeddedBody: () => true,
 }
 const builtinEntry: ToolCardEntry = {
-  names: ['page.ship'],
+  names: ['page_ship'],
   render: cardSaying('the builtin card'),
   hasEmbeddedBody: () => true,
 }
@@ -60,9 +60,9 @@ const builtinEntry: ToolCardEntry = {
 it('an extension-supplied card wins over the builtin card for the same tool', async () => {
   mountView(() => (
     <ToolCallCard
-      part={part('page.ship')}
+      part={part('page_ship')}
       result={undefined}
-      ctx={ctxWith(catalogOf({'page.ship': shipMeta}))}
+      ctx={ctxWith(catalogOf({page_ship: shipMeta}))}
       tools={() => [extensionEntry, builtinEntry]}
     />
   ))
@@ -74,9 +74,9 @@ it('an extension-supplied card wins over the builtin card for the same tool', as
 it('a builtin card wins over the meta-driven default card', async () => {
   mountView(() => (
     <ToolCallCard
-      part={part('page.ship')}
+      part={part('page_ship')}
       result={undefined}
-      ctx={ctxWith(catalogOf({'page.ship': shipMeta}))}
+      ctx={ctxWith(catalogOf({page_ship: shipMeta}))}
       tools={() => [builtinEntry]}
     />
   ))
@@ -88,9 +88,9 @@ it('a builtin card wins over the meta-driven default card', async () => {
 it('the meta-driven default card wins over the raw fallback whenever the tool declares meta', async () => {
   mountView(() => (
     <ToolCallCard
-      part={part('page.ship')}
+      part={part('page_ship')}
       result={undefined}
-      ctx={ctxWith(catalogOf({'page.ship': shipMeta}))}
+      ctx={ctxWith(catalogOf({page_ship: shipMeta}))}
       tools={() => []}
     />
   ))
@@ -115,16 +115,11 @@ it('a tool the catalog knows nothing about still reaches the raw fallback', asyn
 
 it('a tool that only reaches the meta-driven default still renders its inline approval prompt', async () => {
   const approval: ToolCallPart = {
-    ...part('page.ship', 'approval-requested'),
+    ...part('page_ship', 'approval-requested'),
     approval: {id: 'ap1', needsApproval: true},
   }
   mountView(() => (
-    <ToolCallCard
-      part={approval}
-      result={undefined}
-      ctx={ctxWith(catalogOf({'page.ship': shipMeta}))}
-      tools={() => []}
-    />
+    <ToolCallCard part={approval} result={undefined} ctx={ctxWith(catalogOf({page_ship: shipMeta}))} tools={() => []} />
   ))
 
   await expect.element(page.getByText('Run this action?')).toBeVisible()

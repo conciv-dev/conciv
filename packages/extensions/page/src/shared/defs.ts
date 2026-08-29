@@ -5,7 +5,7 @@ import {defineTool, type ToolBuilder, type ToolErrors, type ToolMeta} from '@con
 
 export const PAGE_EXTENSION_NAME = 'page'
 
-export const PAGE_TOOL_PREFIX = 'page.'
+export const PAGE_TOOL_PREFIX = 'page_'
 
 export function pageVerbOfTool(name: string): string {
   if (!name.startsWith(PAGE_TOOL_PREFIX)) throw new Error(`"${name}" is not a page tool`)
@@ -63,7 +63,7 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   errors?: ToolErrors
 }): PageToolDef<Shape, Out> {
   return defineTool({
-    name: `page.${spec.verb}`,
+    name: `page_${spec.verb}`,
     description: spec.summary,
     inputSchema: spec.input,
     outputSchema: spec.output,
@@ -354,7 +354,7 @@ export const reloadDef = pageTool({
   category: 'act',
   icon: 'wait',
   label: {running: 'Reloading the page', done: 'Reloaded the page'},
-  hint: 'returns the moment the reload is initiated, never a post-reload state; read the fresh page with page.snapshot once it is up',
+  hint: 'returns the moment the reload is initiated, never a post-reload state; read the fresh page with page_snapshot once it is up',
   mutating: true,
   capture: 'none',
   keywords: ['refresh', 'navigate', 'location'],

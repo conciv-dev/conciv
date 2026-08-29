@@ -18,7 +18,7 @@ it('a reply still settles the in-flight ask after the asking widget unsubscribes
   const bus = makePageBus(2000)
   const frames: unknown[] = []
   const unsubscribe = bus.subscribe(SESSION, (frame) => frames.push(frame))
-  const answered = bus.ask(SESSION, {name: 'fixture.click', input: {}})
+  const answered = bus.ask(SESSION, {name: 'fixture_click', input: {}})
   await Promise.resolve()
 
   unsubscribe()

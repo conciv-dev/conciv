@@ -11,7 +11,7 @@ const CAT_EAR =
 const readTypes = async (api: ExtensionTestApi, scope: string): Promise<string[]> =>
   z.array(z.string()).parse(
     await api.runTypescript(`
-      const found = await external_catalog({name: 'canvas.read'})
+      const found = await external_catalog({name: 'canvas_read'})
       const reply = await globalThis[found.call]({scope: ${JSON.stringify(scope)}})
       return reply.elements.map((element) => element.type)
     `),
@@ -21,7 +21,7 @@ test('svg drawing lands in the draft, invisible until committed', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    await api.callToolApproved('canvas.svg', {svg: CAT_EAR, x: 100, y: 100, width: 300})
+    await api.callToolApproved('canvas_svg', {svg: CAT_EAR, x: 100, y: 100, width: 300})
     await until(async () => (await readTypes(api, 'draft')).length > 0, {hangGuardMs: 30_000, intervalMs: 250})
     expect(await readTypes(api, 'live')).toHaveLength(0)
     const types = await readTypes(api, 'draft')
@@ -36,7 +36,7 @@ test('rejected svg never reaches the canvas', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    await expect(api.callToolApproved('canvas.svg', {svg: '<div/>', x: 0, y: 0})).rejects.toThrow(/<svg/i)
+    await expect(api.callToolApproved('canvas_svg', {svg: '<div/>', x: 0, y: 0})).rejects.toThrow(/<svg/i)
     expect(await readTypes(api, 'draft')).toHaveLength(0)
   } finally {
     await api.dispose()
@@ -49,7 +49,7 @@ test('a pathological many-subpath svg is capped, not exploded into thousands of 
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    await api.callToolApproved('canvas.svg', {svg: DENSE_MANY_SUBPATHS, x: 0, y: 0, width: 200})
+    await api.callToolApproved('canvas_svg', {svg: DENSE_MANY_SUBPATHS, x: 0, y: 0, width: 200})
     await until(async () => (await readTypes(api, 'draft')).length > 0, {hangGuardMs: 30_000, intervalMs: 250})
     const types = await readTypes(api, 'draft')
     expect(types.length).toBeLessThanOrEqual(500)
@@ -65,7 +65,7 @@ test('one degenerate node is dropped without aborting the whole drawing', async 
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    await api.callToolApproved('canvas.svg', {svg: BAD_PATH_AND_RECT, x: 0, y: 0, width: 200})
+    await api.callToolApproved('canvas_svg', {svg: BAD_PATH_AND_RECT, x: 0, y: 0, width: 200})
     await until(async () => (await readTypes(api, 'draft')).length > 0, {hangGuardMs: 30_000, intervalMs: 250})
     expect(await readTypes(api, 'draft')).toContain('rectangle')
   } finally {

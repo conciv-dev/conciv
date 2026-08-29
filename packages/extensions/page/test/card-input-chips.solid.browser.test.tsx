@@ -57,9 +57,9 @@ function chipNames(): Array<string> {
 it('read-value card leads its input row with the element chip and drops the raw selector key', async () => {
   render(() => (
     <ReadValueCard
-      part={storyPart('page.text', {selector: '#headline', trim: true})}
+      part={storyPart('page_text', {selector: '#headline', trim: true})}
       result={storyResult({text: 'Ship it on Friday'})}
-      ctx={storyCtx({'page.text': READ_VALUE_META})}
+      ctx={storyCtx({page_text: READ_VALUE_META})}
       addResult={storyAddResult}
     />
   ))
@@ -75,9 +75,9 @@ it('read-value card leads its input row with the element chip and drops the raw 
 it('read-value card renders a root array result as a structured JSON tree, not a flat chip row', async () => {
   render(() => (
     <ReadValueCard
-      part={storyPart('page.text', {selector: '.item'})}
+      part={storyPart('page_text', {selector: '.item'})}
       result={storyResult(['first-item-marker', 'second-item-marker'])}
-      ctx={storyCtx({'page.text': READ_VALUE_META})}
+      ctx={storyCtx({page_text: READ_VALUE_META})}
       addResult={storyAddResult}
     />
   ))

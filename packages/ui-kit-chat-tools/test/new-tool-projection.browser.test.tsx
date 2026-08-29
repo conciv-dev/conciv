@@ -25,7 +25,7 @@ function part(verb: string, args: Record<string, unknown> = {}): ToolCallPart {
 }
 
 const shipTool = defineTool({
-  name: 'page.ship',
+  name: 'page_ship',
   description: 'ship the page the user is looking at',
   inputSchema: z.object({note: z.string().optional()}),
   outputSchema: z.object({ok: z.literal(true)}),
@@ -54,7 +54,7 @@ const ctx: ToolViewCtx = {
 }
 
 it('a newly declared capability reaches the widget through its own declaration', async () => {
-  const declared = registryWith(shipTool).catalog.get('page.ship')
+  const declared = registryWith(shipTool).catalog.get('page_ship')
   expect(declared.summary).toBe('ship the page the user is looking at')
   expect(declared.hint).toBe('only once the user has approved the diff')
 
@@ -73,7 +73,7 @@ it('a newly declared capability reaches the widget through its own declaration',
 
 it('the card and the running title read a built-in declaration through the default source', async () => {
   const declared = pageToolMetaOf('setattr')
-  if (!declared?.label) throw new Error('page.setattr declares no label')
+  if (!declared?.label) throw new Error('page_setattr declares no label')
 
   mountView(() => (
     <MetaToolCard
@@ -92,13 +92,13 @@ it('the card and the running title read a built-in declaration through the defau
 
 it('a declaration with no icon key falls back to the generic icon', () => {
   const plainTool = defineTool({
-    name: 'page.plain',
+    name: 'page_plain',
     description: 'do something the widget has no icon for',
     inputSchema: z.object({}),
     outputSchema: z.object({ok: z.literal(true)}),
     meta: {summary: 'do something the widget has no icon for', category: 'act'},
   }).client()
 
-  expect(registryWith(plainTool).catalog.get('page.plain').summary).toBe('do something the widget has no icon for')
+  expect(registryWith(plainTool).catalog.get('page_plain').summary).toBe('do something the widget has no icon for')
   expect(toolIconRender(plainTool.meta?.icon)).toBe(GENERIC_TOOL_ICON)
 })

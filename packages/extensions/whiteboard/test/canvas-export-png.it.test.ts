@@ -10,14 +10,14 @@ test('png export round-trips through the island with excalidraw rendering', asyn
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    await api.callToolApproved('canvas.svg', {
+    await api.callToolApproved('canvas_svg', {
       svg: "<svg viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='#f0a860'/></svg>",
       x: 100,
       y: 100,
       width: 200,
     })
     await until(async () => (await readCanvas(api, 'draft')).length === 1, {hangGuardMs: 30_000, intervalMs: 250})
-    const result = (await api.callTool('canvas.export', {format: 'png', scope: 'draft'})) as Array<{
+    const result = (await api.callTool('canvas_export', {format: 'png', scope: 'draft'})) as Array<{
       type: string
       source?: {value: string; mimeType: string}
     }>
@@ -34,7 +34,7 @@ test('json export still returns elements', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    const result = (await api.callTool('canvas.export', {})) as {elements: unknown[]}
+    const result = (await api.callTool('canvas_export', {})) as {elements: unknown[]}
     expect(Array.isArray(result.elements)).toBe(true)
   } finally {
     await api.dispose()

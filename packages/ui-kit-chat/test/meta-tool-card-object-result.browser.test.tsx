@@ -24,9 +24,9 @@ const measureMeta: ToolViewMeta = {
 it('an object-shaped result opens as a json tree instead of a raw text block', async () => {
   const container = mountView(() => (
     <MetaToolCard
-      part={part('page.measure', {selector: '#hero'})}
+      part={part('page_measure', {selector: '#hero'})}
       result={cardResult('{"width":320,"height":48}', 'complete')}
-      ctx={ctxWith(catalogOf({'page.measure': measureMeta}))}
+      ctx={ctxWith(catalogOf({page_measure: measureMeta}))}
       addResult={INERT_ADD_RESULT}
     />
   ))

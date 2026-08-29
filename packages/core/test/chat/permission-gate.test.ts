@@ -12,7 +12,7 @@ const fixture = (timeoutMs?: number) => {
   const asks = createAskRegistry()
   const memory = createCommandMemory()
   const emitted: StreamChunk[] = []
-  const risky = new Set(['canvas.delete'])
+  const risky = new Set(['canvas_delete'])
   const gate = makeRunGate({
     asks: asksFor(asks, SESSION),
     memory: commandMemoryFor(memory, SESSION),
@@ -40,17 +40,17 @@ describe('run gate on awaitReply', () => {
   })
 
   it.each([
-    'canvas.delete',
-    'mcp__conciv__canvas.delete',
-    'mcp__tanstack__canvas.delete',
-    'mcp__plugin_conciv-connect_conciv__canvas.delete',
+    'canvas_delete',
+    'mcp__conciv__canvas_delete',
+    'mcp__tanstack__canvas_delete',
+    'mcp__plugin_conciv-connect_conciv__canvas_delete',
     'mcp__conciv__canvas_delete',
   ])('gates %s: every caller path names the same risky tool', async (name) => {
     const {gate} = fixture(30)
     expect(await gate.decide(name, {id: 'r1'}, 'tu2')).toBe('timeout')
   })
 
-  it.each(['canvas.read', 'mcp__conciv__canvas.draw', 'mcp__tanstack__canvas.read'])(
+  it.each(['canvas_read', 'mcp__conciv__canvas_draw', 'mcp__tanstack__canvas_read'])(
     'leaves %s alone: a non-risky tool in every mcp prefix form',
     async (name) => {
       const {gate} = fixture(30)
@@ -60,14 +60,14 @@ describe('run gate on awaitReply', () => {
 
   it('fires an approval request for a bridge-visible risky tool name (does not execute silently)', async () => {
     const {gate, asks, approvalId} = fixture(5_000)
-    const pending = gate.decide('mcp__tanstack__canvas.delete', {id: 'r1'}, 'tu3b')
+    const pending = gate.decide('mcp__tanstack__canvas_delete', {id: 'r1'}, 'tu3b')
     asks.reply(SESSION, await settledApprovalId(approvalId), false)
     expect(await pending).toBe('deny')
   })
 
   it('risky tool with no folded part gets a synthetic part, annotated with the approval, and an approve reply allows', async () => {
     const {gate, asks, approvalId} = fixture(5_000)
-    const pending = gate.decide('mcp__conciv__canvas.delete', {id: 'r1'}, 'tu4')
+    const pending = gate.decide('mcp__conciv__canvas_delete', {id: 'r1'}, 'tu4')
     asks.reply(SESSION, await settledApprovalId(approvalId), true)
     expect(await pending).toBe('allow')
   })

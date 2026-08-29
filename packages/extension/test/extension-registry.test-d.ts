@@ -20,7 +20,7 @@ import type {ConcivConfig} from '@conciv/protocol/config-types'
 const cfgSchema = z.object({runner: z.enum(['vitest', 'jest']).default('vitest')})
 
 const doubler = defineTool({
-  name: 'demo.doubler',
+  name: 'demo_doubler',
   description: 'double a number',
   inputSchema: z.object({value: z.number()}),
   outputSchema: z.object({doubled: z.number()}),
@@ -28,7 +28,7 @@ const doubler = defineTool({
 }).client((input) => ({doubled: input.value * 2}))
 
 const treblerDef = toolDefinition({
-  name: 'demo.trebler',
+  name: 'demo_trebler',
   description: 'triple a number',
   inputSchema: z.object({value: z.number()}),
   outputSchema: z.object({tripled: z.number()}),
@@ -38,7 +38,7 @@ const treblerDef = toolDefinition({
 const trebler = defineTool(treblerDef).client((input) => ({tripled: input.value * 3}))
 
 const locator = defineTool({
-  name: 'demo.locator',
+  name: 'demo_locator',
   description: 'find an element on the page',
   inputSchema: z.object({target: z.string()}),
   outputSchema: z.object({found: z.boolean()}),
@@ -47,7 +47,7 @@ const locator = defineTool({
 }).client(() => ({found: true}))
 
 const guard = defineTool({
-  name: 'demo.guard',
+  name: 'demo_guard',
   description: 'reject a factor that is too large',
   inputSchema: z.object({factor: z.number()}),
   outputSchema: z.object({accepted: z.boolean()}),
@@ -56,7 +56,7 @@ const guard = defineTool({
 }).server(() => ({accepted: true}))
 
 const pickerDef = toolDefinition({
-  name: 'demo.picker',
+  name: 'demo_picker',
   description: 'let the user pick an element in the page',
   inputSchema: z.object({}),
   outputSchema: z.object({picked: z.string()}),
@@ -81,7 +81,7 @@ declare module '@conciv/protocol/config-types' {
 declare const client: RouterClient<ToolRegistry['router']>
 
 const scaler = defineTool({
-  name: 'demo.scaler',
+  name: 'demo_scaler',
   description: 'scale a number by the configured factor',
   inputSchema: z.object({value: z.number()}),
   outputSchema: z.object({scaled: z.number()}),
@@ -105,7 +105,7 @@ const pageFill = defineTool({
 }).client(() => ({filled: true}))
 
 const doublerTwin = defineTool({
-  name: 'demo.doubler',
+  name: 'demo_doubler',
   description: 'double a number, differently',
   inputSchema: z.object({amount: z.number()}),
   outputSchema: z.object({twice: z.number()}),
@@ -113,7 +113,7 @@ const doublerTwin = defineTool({
 }).client((input) => ({twice: input.amount * 2}))
 
 const treblerTwinDef = toolDefinition({
-  name: 'demo.trebler',
+  name: 'demo_trebler',
   description: 'triple a number, differently',
   inputSchema: z.object({amount: z.number()}),
   outputSchema: z.object({thrice: z.number()}),
@@ -171,11 +171,11 @@ type FailureOf<Procedure> =
 
 type DefinedErrorOf<Procedure> = Extract<FailureOf<Procedure>, ORPCError<string, unknown>>
 
-type DoublerError = FailureOf<typeof client.demo.doubler>
+type DoublerError = FailureOf<typeof client.demo_doubler>
 
-type LocatorError = FailureOf<typeof client.demo.locator>
+type LocatorError = FailureOf<typeof client.demo_locator>
 
-type GuardError = FailureOf<typeof client.demo.guard>
+type GuardError = FailureOf<typeof client.demo_guard>
 
 type TransportErrorCode = 'NO_PAGE_CLIENT' | 'PAGE_TIMEOUT' | 'UNKNOWN_TOOL' | 'INVALID_ARGS' | 'HANDLER_ERROR'
 
@@ -197,13 +197,13 @@ test('an extension that never declared itself is not a known id', () => {
 })
 
 test('an extension tool is reachable on the typed client, typed by its own schemas', () => {
-  expectTypeOf(client.demo.doubler).parameter(0).toEqualTypeOf<{value: number}>()
-  expectTypeOf(client.demo.doubler).returns.resolves.toEqualTypeOf<{doubled: number}>()
+  expectTypeOf(client.demo_doubler).parameter(0).toEqualTypeOf<{value: number}>()
+  expectTypeOf(client.demo_doubler).returns.resolves.toEqualTypeOf<{doubled: number}>()
 })
 
 test('a tool declared through a shared definition reaches the client under its literal name', () => {
-  expectTypeOf(client.demo.trebler).parameter(0).toEqualTypeOf<{value: number}>()
-  expectTypeOf(client.demo.trebler).returns.resolves.toEqualTypeOf<{tripled: number}>()
+  expectTypeOf(client.demo_trebler).parameter(0).toEqualTypeOf<{value: number}>()
+  expectTypeOf(client.demo_trebler).returns.resolves.toEqualTypeOf<{tripled: number}>()
 })
 
 test('a shared definition colliding with another tool resolves to a diagnostic', () => {
@@ -215,12 +215,12 @@ test('a shared definition colliding with another tool resolves to a diagnostic',
 
 test('the tool input type is enforced at the call site', () => {
   // @ts-expect-error the tool's input schema requires a number
-  expectTypeOf(client.demo.doubler).toBeCallableWith({value: 'two'})
+  expectTypeOf(client.demo_doubler).toBeCallableWith({value: 'two'})
 })
 
 test('a tool the extension never declared is absent from the client', () => {
   // @ts-expect-error demo declares no "absent" tool
-  expectTypeOf(client.demo.absent).toBeFunction()
+  expectTypeOf(client.demo_absent).toBeFunction()
 })
 
 test('a tool name that is also the prefix of another resolves to a diagnostic, never a client that drops one', () => {
@@ -272,23 +272,23 @@ test('a declared tool error narrows through isDefinedError with its code and its
 })
 
 test('a client-bound tool carries its declared error alongside the transport codes', () => {
-  expectTypeOf<DefinedErrorOf<typeof client.demo.locator>['code']>().toEqualTypeOf<
+  expectTypeOf<DefinedErrorOf<typeof client.demo_locator>['code']>().toEqualTypeOf<
     'ELEMENT_NOT_FOUND' | TransportErrorCode
   >()
 })
 
 test('a client-bound tool that declares nothing still carries the transport codes', () => {
-  expectTypeOf<DefinedErrorOf<typeof client.demo.doubler>['code']>().toEqualTypeOf<TransportErrorCode>()
+  expectTypeOf<DefinedErrorOf<typeof client.demo_doubler>['code']>().toEqualTypeOf<TransportErrorCode>()
 })
 
 test('an unbound renderer declaration still reports the transport codes its runtime twin can raise', () => {
-  expectTypeOf<DefinedErrorOf<typeof client.demo.picker>['code']>().toEqualTypeOf<
+  expectTypeOf<DefinedErrorOf<typeof client.demo_picker>['code']>().toEqualTypeOf<
     'PICK_CANCELLED' | TransportErrorCode
   >()
 })
 
 test('a server-bound tool carries its declared error and no transport code', () => {
-  expectTypeOf<DefinedErrorOf<typeof client.demo.guard>['code']>().toEqualTypeOf<'FACTOR_TOO_LARGE'>()
+  expectTypeOf<DefinedErrorOf<typeof client.demo_guard>['code']>().toEqualTypeOf<'FACTOR_TOO_LARGE'>()
 })
 
 test('an undeclared error stays outside the defined-error union', () => {

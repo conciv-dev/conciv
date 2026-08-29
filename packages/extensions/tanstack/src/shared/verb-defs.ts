@@ -81,7 +81,7 @@ function verbTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   result: Out
 }) {
   return defineTool({
-    name: `tanstack.${spec.verb}`,
+    name: `tanstack_${spec.verb}`,
     description: spec.summary,
     inputSchema: spec.input,
     outputSchema: z.object({result: spec.result}),
@@ -97,35 +97,35 @@ export const detectDef = verbTool({
 })
 
 export const routerStateDef = verbTool({
-  verb: 'routerState',
+  verb: 'router_state',
   summary: 'read the live router location and matches off the page',
   input: noInput,
   result: RouterCurrentSchema,
 })
 
 export const routeTreeDef = verbTool({
-  verb: 'routeTree',
+  verb: 'route_tree',
   summary: 'read the live route tree off the page',
   input: noInput,
   result: RouteNodeSchema,
 })
 
 export const dataEntriesDef = verbTool({
-  verb: 'dataEntries',
+  verb: 'data_entries',
   summary: 'list the loader-data entries of the matched routes',
   input: noInput,
   result: z.array(CacheEntrySchema),
 })
 
 export const dataGetDef = verbTool({
-  verb: 'dataGet',
+  verb: 'data_get',
   summary: 'read the dehydrated loader data of one route',
   input: RouteIdInput,
   result: z.unknown(),
 })
 
 export const dataInvalidateDef = verbTool({
-  verb: 'dataInvalidate',
+  verb: 'data_invalidate',
   summary: 'invalidate the loader data of one route',
   mutating: true,
   input: RouteIdInput,
@@ -133,7 +133,7 @@ export const dataInvalidateDef = verbTool({
 })
 
 export const dataRefetchDef = verbTool({
-  verb: 'dataRefetch',
+  verb: 'data_refetch',
   summary: 'refetch the loader data of one route',
   mutating: true,
   input: RouteIdInput,
@@ -141,21 +141,21 @@ export const dataRefetchDef = verbTool({
 })
 
 export const errorsSnapshotDef = verbTool({
-  verb: 'errorsSnapshot',
+  verb: 'errors_snapshot',
   summary: 'read the buffered runtime errors off the page',
   input: noInput,
   result: z.array(AppErrorSchema),
 })
 
 export const queryCacheDef = verbTool({
-  verb: 'queryCache',
+  verb: 'query_cache',
   summary: 'read the live query and mutation cache off the page',
   input: noInput,
   result: z.object({queries: z.array(CacheEntrySchema), mutations: z.array(CacheEntrySchema)}),
 })
 
 export const queryInvalidateDef = verbTool({
-  verb: 'queryInvalidate',
+  verb: 'query_invalidate',
   summary: 'invalidate one query by its serialized key in the live page',
   mutating: true,
   input: KeyInput,
@@ -163,7 +163,7 @@ export const queryInvalidateDef = verbTool({
 })
 
 export const queryRefetchDef = verbTool({
-  verb: 'queryRefetch',
+  verb: 'query_refetch',
   summary: 'refetch one query by its serialized key in the live page',
   mutating: true,
   input: KeyInput,
@@ -184,7 +184,7 @@ export const navigateDef = verbTool({
 })
 
 export const routerInvalidateDef = verbTool({
-  verb: 'routerInvalidate',
+  verb: 'router_invalidate',
   summary: 're-run the active loaders of the live router',
   mutating: true,
   input: noInput,

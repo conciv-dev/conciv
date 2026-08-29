@@ -59,7 +59,7 @@ Pinning a stable core port is optional: discovery reads the pairing file, so a c
 on any port is found. `ConcivConfig` accepts a `port`, and the ios dev loop documents
 `4599`. With a pinned port an explicit `CONCIV_URL` stays valid across restarts.
 
-`ios.run` injects the core API base into the launched app as
+`ios_run` injects the core API base into the launched app as
 `SIMCTL_CHILD_CONCIV_URL` (the app reads it as `CONCIV_URL`, which `ConcivWidget.attach()`
 picks up). The value is the core's own apiBase with no `/native` suffix: the SDK appends
 the `/native` route itself, so passing a URL that already ends in `/native` would load
@@ -115,7 +115,7 @@ shipped source).
 1. `pnpm turbo run build --filter=@conciv/embed` (fresh bundle).
 2. Start the dev core on the pinned port for a native project (or the spike demo app in
    `swiftc` mode).
-3. From the agent panel, run `ios.build` then `ios.run`; confirm no bash approval
+3. From the agent panel, run `ios_build` then `ios_run`; confirm no bash approval
    prompts, the app boots in the sim, and the transparent overlay plus FAB appear over
    the native screen.
 4. Tap a native control with the panel closed; it responds (hitTest passthrough).
@@ -123,8 +123,8 @@ shipped source).
    native view, and confirm the staged image preview, text, and class appear in the
    composer.
 6. Ask the agent about the grabbed view; it uses the subtree folded into `grab.text`
-   plus `source` and grep to locate the Swift and can act. Run `ios.screenshot` (returns
-   an `imageResult` image) to verify a change after `ios.build`/`ios.run`. There is no
+   plus `source` and grep to locate the Swift and can act. Run `ios_screenshot` (returns
+   an `imageResult` image) to verify a change after `ios_build`/`ios_run`. There is no
    `ios.viewHierarchy` tool in v1.
 7. Restart the **same** core on a new port; confirm re-handshake re-binds without
    relaunching the app, with nav and session preserved (same-core drift). Point the SDK

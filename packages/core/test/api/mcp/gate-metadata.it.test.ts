@@ -7,7 +7,7 @@ import {bootKit} from '../../helpers/boot.js'
 import {connectWidget} from '../../helpers/fake-widget.js'
 
 const wipe = defineTool({
-  name: 'acme.wipe',
+  name: 'acme_wipe',
   description: 'Erase the whole canvas.',
   inputSchema: z.object({}),
   outputSchema: z.object({wiped: z.boolean()}),
@@ -17,7 +17,7 @@ const wipe = defineTool({
 const acme = defineExtension({name: 'acme', tools: [wipe]})
 
 const purge = defineTool({
-  name: 'askme.purge',
+  name: 'askme_purge',
   description: 'Purge the archive.',
   inputSchema: z.object({}),
   outputSchema: z.object({purged: z.boolean()}),
@@ -26,7 +26,7 @@ const purge = defineTool({
 }).server(() => ({purged: true}))
 
 const shred = defineTool({
-  name: 'askme.shred',
+  name: 'askme_shred',
   description: 'Shred a document.',
   inputSchema: z.object({}),
   outputSchema: z.object({shredded: z.boolean()}),
@@ -66,9 +66,9 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
     const widget = await connectWidget(kit, pageAnswer)
     try {
       const session = await kit.session()
-      const outcome = await callViaSandbox(kit, session, 'page.css', {text: 'body{color:red}'})
+      const outcome = await callViaSandbox(kit, session, 'page_css', {text: 'body{color:red}'})
       expect(outcome.ok).toBe(true)
-      expect(widget.seen()).toEqual(['page.css'])
+      expect(widget.seen()).toEqual(['page_css'])
     } finally {
       widget.end()
       await kit.cleanup()
@@ -92,7 +92,7 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
     const kit = await bootKit({extensions: [acme]})
     try {
       const session = await kit.session()
-      const outcome = await callViaSandbox(kit, session, 'acme.wipe', {})
+      const outcome = await callViaSandbox(kit, session, 'acme_wipe', {})
       expect(outcome.ok).toBe(true)
       expect(outcome.message).toContain('wiped')
     } finally {
@@ -105,7 +105,7 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
     try {
       const session = await kit.session()
       const stream = await kit.attach(session)
-      const pending = callViaSandbox(kit, session, 'askme.purge', {})
+      const pending = callViaSandbox(kit, session, 'askme_purge', {})
       await decideNextApproval(kit, stream, true)
       const outcome = await pending
       expect(outcome.ok).toBe(true)
@@ -120,7 +120,7 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
     try {
       const session = await kit.session()
       const stream = await kit.attach(session)
-      const pending = callViaSandbox(kit, session, 'askme.shred', {})
+      const pending = callViaSandbox(kit, session, 'askme_shred', {})
       await decideNextApproval(kit, stream, false)
       const outcome = await pending
       expect(outcome.ok).toBe(false)
@@ -133,9 +133,9 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
   it('an ask-declared call with no session to ask in is refused', async () => {
     const kit = await bootKit({extensions: [askme]})
     try {
-      const outcome = await callViaSandbox(kit, '', 'askme.purge', {})
+      const outcome = await callViaSandbox(kit, '', 'askme_purge', {})
       expect(outcome.ok).toBe(false)
-      expect(outcome.message).toContain('askme.purge')
+      expect(outcome.message).toContain('askme_purge')
       expect(outcome.message).toContain('nothing is attached')
     } finally {
       await kit.cleanup()
