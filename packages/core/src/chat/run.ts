@@ -16,6 +16,7 @@ import {
   type TokenUsage,
   type UIMessage,
 } from '@tanstack/ai'
+import {withSandbox} from '@tanstack/ai-sandbox'
 import type {HarnessAdapter, HarnessChatConfig} from '@conciv/protocol/harness-types'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {isHarnessSessionId} from '@conciv/protocol/chat-types'
@@ -42,7 +43,6 @@ import {settleContextOccupancy} from './occupancy.js'
 import {publishRunLifecycle, publishRunRecord} from './run-lifecycle.js'
 import {stopSession} from './stop.js'
 import {asksFor, commandMemoryFor, makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
-import {withConcivSandbox} from './sandbox.js'
 import {makeCodeMode} from './code-mode.js'
 import {codeModeEventPublisher} from './code-mode-parts.js'
 import {makeToolNameNormalizer, normalizeChunkToolName} from './tool-names.js'
@@ -197,7 +197,7 @@ async function buildRunStream(
     tools: extras.tools,
     lazyToolsConfig: {includeDescription: 'first-sentence'},
     modelOptions: config.modelOptions,
-    middleware: [withConcivSandbox(deps.sandbox), withConcivGate(gate)],
+    middleware: [withSandbox(deps.sandbox), withConcivGate(gate)],
     abortController: abort,
     debug: harnessDebug,
   })

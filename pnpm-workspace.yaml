@@ -143,3 +143,4 @@ minimumReleaseAgeExclude:
   - '@tanstack/ai-skills'
 patchedDependencies:
   '@tanstack/ai-sandbox-local-process@0.2.4': patches/@tanstack__ai-sandbox-local-process@0.2.4.patch
+  '@tanstack/ai-sandbox@0.5.3': patches/@tanstack__ai-sandbox@0.5.3.patch
