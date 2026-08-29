@@ -2,15 +2,15 @@ export default function Footer() {
   const year = new Date().getFullYear()
 
   return (
-    <footer class="site-footer mt-16 px-4 pb-12 pt-9 text-[var(--sea-ink-soft)]">
-      <div class="page-wrap flex flex-col items-center justify-between gap-5 text-center sm:flex-row sm:text-left">
-        <div class="flex flex-col gap-1">
-          <p class="island-kicker m-0">Built with TanStack Start</p>
-          <p class="m-0 text-sm">&copy; {year} Your name here. All rights reserved.</p>
+    <footer className="site-footer mt-16 px-4 pb-12 pt-9 text-[var(--sea-ink-soft)]">
+      <div className="page-wrap flex flex-col items-center justify-between gap-5 text-center sm:flex-row sm:text-left">
+        <div className="flex flex-col gap-1">
+          <p className="island-kicker m-0">Built with TanStack Start</p>
+          <p className="m-0 text-sm">&copy; {year} Your name here. All rights reserved.</p>
         </div>
-        <div class="flex items-center gap-1">
-          <a href="https://x.com/tan_stack" target="_blank" rel="noreferrer" class="icon-link">
-            <span class="sr-only">Follow TanStack on X</span>
+        <div className="flex items-center gap-1">
+          <a href="https://x.com/tan_stack" target="_blank" rel="noreferrer" className="icon-link">
+            <span className="sr-only">Follow TanStack on X</span>
             <svg viewBox="0 0 16 16" aria-hidden="true" width="20" height="20">
               <path
                 fill="currentColor"
@@ -18,8 +18,8 @@ export default function Footer() {
               />
             </svg>
           </a>
-          <a href="https://github.com/TanStack" target="_blank" rel="noreferrer" class="icon-link">
-            <span class="sr-only">Go to TanStack GitHub</span>
+          <a href="https://github.com/TanStack" target="_blank" rel="noreferrer" className="icon-link">
+            <span className="sr-only">Go to TanStack GitHub</span>
             <svg viewBox="0 0 16 16" aria-hidden="true" width="20" height="20">
               <path
                 fill="currentColor"
