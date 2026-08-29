@@ -11,8 +11,8 @@ import {
 import {createStore, type SetStoreFunction} from 'solid-js/store'
 import type {UseChatReturn} from '@tanstack/ai-solid'
 import type {UIMessage} from '@tanstack/ai-client'
+import {chatBusy} from '@conciv/protocol/chat-busy'
 import {diffTurns, type Turn} from './grouping.js'
-import {chatBusy} from './chat-busy.js'
 
 export type ViewState = {
   draft: string
