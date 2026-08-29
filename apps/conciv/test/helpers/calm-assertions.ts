@@ -80,13 +80,8 @@ export type ScrollWatch = {
   topEdgeRow: () => string | null
 }
 
-function blockPaddingOf(viewport: HTMLElement): number {
-  const computed = getComputedStyle(viewport)
-  return (Number.parseFloat(computed.paddingBlockStart) || 0) + (Number.parseFloat(computed.paddingBlockEnd) || 0)
-}
-
-function distanceFromEnd(viewport: HTMLElement, blockPadding: number): number {
-  return Math.max(0, viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop - blockPadding)
+function distanceFromEnd(viewport: HTMLElement): number {
+  return Math.max(0, viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop)
 }
 
 export function topEdgeRowIndex(viewport: HTMLElement): string | null {
@@ -112,7 +107,6 @@ export function topEdgeRowOffset(viewport: HTMLElement): number {
 
 export function watchViewportScroll(): ScrollWatch {
   const viewport = threadViewport()
-  const blockPadding = blockPaddingOf(viewport)
   const anchorRow = topEdgeRowElement(viewport)
   const anchorOffset = anchorRow ? offsetWithinViewport(anchorRow, viewport) : 0
   const drifts: number[] = []
@@ -120,7 +114,7 @@ export function watchViewportScroll(): ScrollWatch {
   const rows: (string | null)[] = []
   let handle = requestAnimationFrame(function tick() {
     if (anchorRow?.isConnected === true) drifts.push(Math.abs(offsetWithinViewport(anchorRow, viewport) - anchorOffset))
-    distances.push(distanceFromEnd(viewport, blockPadding))
+    distances.push(distanceFromEnd(viewport))
     rows.push(topEdgeRowIndex(viewport))
     handle = requestAnimationFrame(tick)
   })

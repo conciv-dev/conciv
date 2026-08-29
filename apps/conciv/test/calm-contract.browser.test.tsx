@@ -6,7 +6,7 @@ import {ChatPane} from '../src/pane/chat-pane.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, openTranscriptStream, sendTurn} from './helpers/core-session.js'
 import {mountPane, type PaneMount} from './helpers/pane-harness.js'
-import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
+import {SCROLL_END_THRESHOLD_PX, VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
 import {
   createCalmWatch,
   pinViewportToBottom,
@@ -49,7 +49,8 @@ const BOUNDARY_EXCHANGES = Math.floor(VIRTUALIZE_THRESHOLD / 2)
 const VIEWPORT_HEIGHT_PX = 600
 const SCROLL_UP_PX = 600
 const SCROLL_DRIFT_TOLERANCE_PX = 1
-const SCROLL_END_THRESHOLD_PX = 32
+const STREAM_STEP_GROWTH_PX = 160
+const CATCH_UP_DISTANCE_BUDGET_PX = SCROLL_END_THRESHOLD_PX + STREAM_STEP_GROWTH_PX
 const MIN_SCROLL_SAMPLES = 20
 const SCROLL_GATE_STEPS = 24
 const SCROLL_GATE_PACE_MS = 100
@@ -598,15 +599,45 @@ test('a reader parked at the end follows the whole stream [gate b: at-bottom use
     watch.stop()
 
     expect(watch.samples()).toBeGreaterThanOrEqual(MIN_SCROLL_SAMPLES)
-    expect(
-      watch.framesBeyond(SCROLL_END_THRESHOLD_PX),
-      watch
-        .distanceSeries()
-        .map((value) => Math.round(value))
-        .join(' '),
-    ).toBeLessThanOrEqual(CATCH_UP_FRAME_BUDGET)
+    const series = watch
+      .distanceSeries()
+      .map((value) => Math.round(value))
+      .join(' ')
+    expect(watch.framesBeyond(SCROLL_END_THRESHOLD_PX), series).toBeLessThanOrEqual(CATCH_UP_FRAME_BUDGET)
+    expect(Math.round(watch.maxDistanceFromEnd()), series).toBeLessThanOrEqual(CATCH_UP_DISTANCE_BUDGET_PX)
     await expect.element(page.elementLocator(gate.viewport)).toHaveAttribute('data-at-bottom', '')
     await page.screenshot({path: `${SHOTS}/following-reader-pinned.png`})
+  } finally {
+    gate.restore()
+  }
+}, 120_000)
+
+test('an appended turn never drags a reader who scrolls up while it streams [gate f: follow-on-append lands once]', async () => {
+  const gate = await seededScrollGate()
+  try {
+    await coreControl.holdTools()
+    await coreControl.holdResults()
+    await promptWith('run the whole batch while I scroll back')
+    await expect.element(stopButton()).toBeVisible()
+    await coreControl.releaseTools()
+    await coreControl.releaseResults({everyMs: SCROLL_GATE_PACE_MS})
+    await expect.element(page.getByText('probe step 2', {exact: true})).toBeVisible()
+
+    await userEvent.wheel(gate.viewport, {delta: {y: -SCROLL_UP_PX}})
+    await expect.element(page.elementLocator(gate.viewport)).not.toHaveAttribute('data-at-bottom')
+    const rowBefore = topEdgeRowIndex(gate.viewport)
+    const offsetBefore = topEdgeRowOffset(gate.viewport)
+    const watch = watchViewportScroll()
+
+    await expect.element(sendButton()).toBeVisible()
+    watch.stop()
+
+    expect(watch.samples()).toBeGreaterThanOrEqual(MIN_SCROLL_SAMPLES)
+    expect(watch.topEdgeRow()).toBe(rowBefore)
+    expect(watch.maxDrift()).toBeLessThanOrEqual(SCROLL_DRIFT_TOLERANCE_PX)
+    expect(Math.abs(offsetBefore - topEdgeRowOffset(gate.viewport))).toBeLessThanOrEqual(ROW_ROUNDING_TOLERANCE_PX)
+    await expect.element(page.elementLocator(gate.viewport)).not.toHaveAttribute('data-at-bottom')
+    await page.screenshot({path: `${SHOTS}/appended-turn-holds-reader.png`})
   } finally {
     gate.restore()
   }

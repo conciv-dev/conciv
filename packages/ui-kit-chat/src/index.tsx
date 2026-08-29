@@ -77,6 +77,7 @@ export {
 export {Thread as ThreadPrimitive, type MessagesComponents} from './primitives/thread/thread.js'
 export {ViewportProvider, useThreadViewport, type ViewportContextValue} from './primitives/thread/viewport-context.js'
 export {VIRTUALIZE_THRESHOLD} from './primitives/thread/virtualize-threshold.js'
+export {SCROLL_END_THRESHOLD_PX} from './behaviors/create-thread-virtualizer.js'
 export {Message as MessagePrimitive, type PartsComponents} from './primitives/message/message.js'
 export {
   MessageProvider,
