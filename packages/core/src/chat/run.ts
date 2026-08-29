@@ -414,6 +414,8 @@ async function* runStream(
   const gateDeps = {
     asks: asksFor(deps.asks, sessionId),
     emit: (chunk: StreamChunk) => void runLog.append([chunk]).catch(() => {}),
+    threadId: sessionId,
+    runId: req.runId,
   }
   const gate = makeRunGate({
     ...gateDeps,

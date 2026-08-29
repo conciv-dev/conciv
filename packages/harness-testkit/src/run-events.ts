@@ -1,4 +1,4 @@
-import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
+import {EventType, StreamProcessor, type ApprovalRequestedEvent, type StreamChunk} from '@tanstack/ai'
 import {z} from 'zod'
 
 export type SeenToolCall = {toolCallId: string; name: string; input: unknown}
@@ -41,11 +41,20 @@ function partsOf(all: StreamChunk[], role?: string): unknown[] {
   })
 }
 
+const ApprovalRequestedValueSchema = z
+  .object({
+    toolCallId: z.string(),
+    toolName: z.string(),
+    input: z.unknown(),
+    approval: z.object({id: z.string(), needsApproval: z.literal(true)}),
+  })
+  .loose() satisfies z.ZodType<ApprovalRequestedEvent['value']>
+
 const ApprovalChunkSchema = z
   .object({
     type: z.literal(EventType.CUSTOM),
-    name: z.literal('approval-requested'),
-    value: z.object({approval: z.object({id: z.string()}).loose()}).loose(),
+    name: z.literal('approval-requested' satisfies ApprovalRequestedEvent['name']),
+    value: ApprovalRequestedValueSchema,
   })
   .loose()
 

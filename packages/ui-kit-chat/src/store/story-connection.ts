@@ -1,4 +1,4 @@
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import {EventType, type ApprovalRequestedEvent, type StreamChunk} from '@tanstack/ai'
 import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
 
 export type StoryConnectionOptions = {
@@ -110,7 +110,7 @@ export function createApprovalChunk(
   name: string,
   input: unknown,
   options?: {toolCallId?: string; approvalId?: string},
-): StreamChunk {
+): ApprovalRequestedEvent {
   const toolCallId = options?.toolCallId ?? `story-${name}`
   const approvalId = options?.approvalId ?? `story-${name}-approval`
   return {

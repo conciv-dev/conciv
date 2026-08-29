@@ -1,7 +1,15 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import {defineChatMiddleware, type AnyTool, type StreamChunk} from '@tanstack/ai'
 import {
+  defineChatMiddleware,
+  EventType,
+  withTanstackMetadata,
+  type AnyTool,
+  type ApprovalRequestedEvent,
+  type StreamChunk,
+} from '@tanstack/ai'
+import {
+  APPROVAL_REQUESTED_EVENT,
   defineSandboxPolicy,
   evaluateCommand,
   nodeHttpBridgeProvisioner,
@@ -10,7 +18,6 @@ import {
   type PolicyDecision,
   type ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
-import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
 import type {AskRegistry} from './ask.js'
 import type {CommandMemory} from './command-memory.js'
 import {commandSegments, escapesReadOnlyIntent} from './command-grammar.js'
@@ -136,6 +143,30 @@ export type AskGateDeps = {
   timeoutMs?: number
   onAsk?: (approvalId: string) => void
   onAskSettled?: (approvalId: string) => void
+  threadId?: string
+  runId?: string
+}
+
+function approvalRequestedChunk(input: {
+  toolCallId: string
+  toolName: string
+  input: unknown
+  approvalId: string
+  threadId?: string
+  runId?: string
+}): StreamChunk {
+  const event: ApprovalRequestedEvent = {
+    type: EventType.CUSTOM,
+    name: APPROVAL_REQUESTED_EVENT,
+    value: {
+      toolCallId: input.toolCallId,
+      toolName: input.toolName,
+      input: input.input,
+      approval: {id: input.approvalId, needsApproval: true},
+    },
+  }
+  if (input.threadId === undefined || input.runId === undefined) return event
+  return withTanstackMetadata(event, {threadId: input.threadId, runId: input.runId})
 }
 
 export type RunGateDeps = AskGateDeps & {
@@ -150,7 +181,16 @@ export function makeAskGate(deps: AskGateDeps): PermissionGate {
       const approvalId = randomUUID()
       deps.asks.open(approvalId)
       deps.onAsk?.(approvalId)
-      deps.emit(aguiApprovalRequestedFor({toolCallId: toolUseId, toolName, input: toolInput, approvalId}))
+      deps.emit(
+        approvalRequestedChunk({
+          toolCallId: toolUseId,
+          toolName,
+          input: toolInput,
+          approvalId,
+          threadId: deps.threadId,
+          runId: deps.runId,
+        }),
+      )
       const approved = await deps.asks.waitFor(approvalId, deps.timeoutMs ?? ASK_TIMEOUT_MS)
       deps.onAskSettled?.(approvalId)
       if (approved === true) return 'allow'

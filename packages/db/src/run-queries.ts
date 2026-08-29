@@ -1,9 +1,9 @@
-import {and, desc, eq, isNull, or} from 'drizzle-orm'
+import {desc, eq, isNull, or} from 'drizzle-orm'
 import {CODE_MODE_SYNTHETIC_PART_MARKER} from '@conciv/protocol/chat-types'
 import type {RunLifecycle} from '@conciv/protocol/run-types'
 import type {ConcivDb} from './db.js'
 import {sessions} from './schema.js'
-import {replies, runMessages, runs, sessionHistory} from './run-schema.js'
+import {runMessages, runs, sessionHistory} from './run-schema.js'
 
 type QueryHandle = Pick<ConcivDb, 'select' | 'insert' | 'delete'>
 
@@ -167,23 +167,6 @@ export function abandonUnfinishedRuns(db: ConcivDb, now: number): void {
     .run()
 }
 
-export function writeReply(db: ConcivDb, id: string, key: string, value: unknown): void {
-  const row = {sessionId: id, key, value, createdAt: Date.now()}
-  db.insert(replies)
-    .values(row)
-    .onConflictDoUpdate({target: [replies.sessionId, replies.key], set: {value: row.value, createdAt: row.createdAt}})
-    .run()
-}
-
-export function replyFor(db: ConcivDb, id: string, key: string): unknown | null {
-  const rows = db
-    .select({value: replies.value})
-    .from(replies)
-    .where(and(eq(replies.sessionId, id), eq(replies.key, key)))
-    .all()
-  return rows[0]?.value ?? null
-}
-
 export function runSessions(db: ConcivDb): string[] {
   return db
     .selectDistinct({sessionId: runMessages.sessionId})
@@ -196,5 +179,4 @@ export function clearRunState(db: ConcivDb, id: string): void {
   db.delete(runs).where(eq(runs.sessionId, id)).run()
   deleteRunMessages(db, id)
   db.delete(sessionHistory).where(eq(sessionHistory.sessionId, id)).run()
-  db.delete(replies).where(eq(replies.sessionId, id)).run()
 }

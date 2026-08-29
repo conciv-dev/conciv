@@ -11,11 +11,9 @@ import {
   foldRunMessagesIntoHistory,
   hasRichPart,
   modelOf,
-  replyFor,
   runMessagesFor,
   sessionHistoryFor,
   setRunMessages,
-  writeReply,
 } from '../src/run-queries.js'
 import {sessions} from '../src/schema.js'
 
@@ -110,7 +108,6 @@ describe('run lifecycle queries', () => {
     const db = fresh()
     expect(modelOf(db, 'missing')).toBeNull()
     expect(runMessagesFor(db, 'missing')).toBeNull()
-    expect(replyFor(db, 'missing', 'k')).toBeNull()
   })
 
   it('modelOf reads the sessions row', () => {
@@ -132,16 +129,11 @@ describe('run lifecycle queries', () => {
     expect(modelOf(db, 'conciv_m')).toBe('haiku')
   })
 
-  it('run messages and replies round-trip typed JSON and overwrite by key', () => {
+  it('run messages round-trip typed JSON and overwrite by key', () => {
     const db = fresh()
     setRunMessages(db, 's4', [{id: 'm1', role: 'assistant', parts: []}])
     setRunMessages(db, 's4', [{id: 'm1'}, {id: 'm2'}])
     expect(runMessagesFor(db, 's4')?.messages).toEqual([{id: 'm1'}, {id: 'm2'}])
-    writeReply(db, 's4', 'call_1', {answered: false})
-    writeReply(db, 's4', 'call_1', {answered: true, value: 'yes'})
-    expect(replyFor(db, 's4', 'call_1')).toEqual({answered: true, value: 'yes'})
-    expect(replyFor(db, 's4', 'other')).toBeNull()
-    expect(replyFor(db, 'other-session', 'call_1')).toBeNull()
   })
 
   it('clearRunState removes everything for the session only', () => {
@@ -149,12 +141,10 @@ describe('run lifecycle queries', () => {
     setRunMessages(db, 's5', [{id: 'm', parts: [{type: 'image'}]}])
     foldRichRunMessagesIntoHistory(db, 's5')
     setRunMessages(db, 's5', [{id: 'm'}])
-    writeReply(db, 's5', 'k', 1)
     setRunMessages(db, 'other', [{id: 'o'}])
     clearRunState(db, 's5')
     expect(runMessagesFor(db, 's5')).toBeNull()
     expect(sessionHistoryFor(db, 's5')).toBeNull()
-    expect(replyFor(db, 's5', 'k')).toBeNull()
     expect(runMessagesFor(db, 'other')?.messages).toEqual([{id: 'o'}])
   })
 })

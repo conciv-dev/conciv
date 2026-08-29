@@ -50,28 +50,6 @@ export const ChatContentPartSchema = z.discriminatedUnion('type', [
 ])
 export type ChatContentPart = z.infer<typeof ChatContentPartSchema>
 
-export const ChatMessageSchema = z
-  .object({
-    role: z.string(),
-    content: z.union([z.string(), z.array(ChatContentPartSchema)]).optional(),
-    parts: z.array(z.object({type: z.string(), content: z.string().optional()}).loose()).optional(),
-  })
-  .loose()
-
-const TurnIntent = z.enum(['chat', 'compact'])
-const MetaCarrier = z.object({model: z.string().optional(), intent: TurnIntent.optional()}).loose().optional()
-export const ChatRequestSchema = z.object({
-  messages: z.array(ChatMessageSchema),
-  model: z.string().optional(),
-
-  intent: TurnIntent.optional(),
-  forwardedProps: MetaCarrier,
-  data: MetaCarrier,
-})
-
-export type ChatMessage = z.infer<typeof ChatMessageSchema>
-export type ChatRequest = z.infer<typeof ChatRequestSchema>
-
 export const SessionId = z
   .string()
   .regex(/^conciv_[A-Za-z0-9_-]{1,128}$/)
