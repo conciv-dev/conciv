@@ -12,6 +12,7 @@ const TOLERANCE_PX = 1
 const DESCRIPTION_LENGTH = 44
 const SETTLE_PASSES = 3
 const JANK_FRAME_MS = 33
+const TOP_EDGE_PROBE_PX = 2
 
 export type CalmAllowance = 'narration' | 'virtualization' | 'error-replacement' | 'user-collapsed-trace'
 
@@ -63,6 +64,79 @@ function threadViewport(): HTMLElement {
   const viewport = document.querySelector<HTMLElement>(VIEWPORT_SELECTOR)
   if (!viewport) throw new Error('the calm harness could not find the thread viewport')
   return viewport
+}
+
+export function threadViewportElement(): HTMLElement {
+  return threadViewport()
+}
+
+export type ScrollWatch = {
+  stop: () => void
+  maxDrift: () => number
+  maxDistanceFromEnd: () => number
+  distanceSeries: () => number[]
+  framesBeyond: (limit: number) => number
+  samples: () => number
+  topEdgeRow: () => string | null
+}
+
+function distanceFromEnd(viewport: HTMLElement): number {
+  return Math.max(0, viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop)
+}
+
+export function topEdgeRowIndex(viewport: HTMLElement): string | null {
+  const frame = viewport.getBoundingClientRect()
+  const found = document.elementFromPoint(frame.left + frame.width / 2, frame.top + TOP_EDGE_PROBE_PX)
+  return found?.closest('[data-index]')?.getAttribute('data-index') ?? null
+}
+
+function topEdgeRowElement(viewport: HTMLElement): Element | null {
+  const frame = viewport.getBoundingClientRect()
+  const found = document.elementFromPoint(frame.left + frame.width / 2, frame.top + TOP_EDGE_PROBE_PX)
+  return found?.closest('[data-index]') ?? null
+}
+
+function offsetWithinViewport(row: Element, viewport: HTMLElement): number {
+  return row.getBoundingClientRect().top - viewport.getBoundingClientRect().top
+}
+
+export function topEdgeRowOffset(viewport: HTMLElement): number {
+  const row = topEdgeRowElement(viewport)
+  return row ? offsetWithinViewport(row, viewport) : 0
+}
+
+export function watchViewportScroll(): ScrollWatch {
+  const viewport = threadViewport()
+  const anchorRow = topEdgeRowElement(viewport)
+  const anchorOffset = anchorRow ? offsetWithinViewport(anchorRow, viewport) : 0
+  const drifts: number[] = []
+  const distances: number[] = []
+  const rows: (string | null)[] = []
+  let handle = requestAnimationFrame(function tick() {
+    if (anchorRow?.isConnected === true) drifts.push(Math.abs(offsetWithinViewport(anchorRow, viewport) - anchorOffset))
+    distances.push(distanceFromEnd(viewport))
+    rows.push(topEdgeRowIndex(viewport))
+    handle = requestAnimationFrame(tick)
+  })
+  return {
+    stop: () => cancelAnimationFrame(handle),
+    maxDrift: () => Math.max(0, ...drifts),
+    maxDistanceFromEnd: () => Math.max(0, ...distances),
+    distanceSeries: () => distances.slice(),
+    framesBeyond: (limit: number) =>
+      distances.reduce(
+        (state, distance) => {
+          const run = distance > limit ? state.run + 1 : 0
+          return {run, longest: Math.max(state.longest, run)}
+        },
+        {run: 0, longest: 0},
+      ).longest,
+    samples: () => drifts.length,
+    topEdgeRow: () => {
+      const seen = new Set(rows.filter((row): row is string => row !== null))
+      return seen.size === 1 ? ([...seen][0] ?? null) : [...seen].join(',')
+    },
+  }
 }
 
 export function pinViewportToBottom(pixels: number): () => void {

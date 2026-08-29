@@ -13,17 +13,23 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {createStore} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {UIMessage} from '@tanstack/ai-client'
-import type {FollowContent} from '@conciv/solid-stick-to-bottom'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useComposer, useThread} from '../../store/chat-context.js'
 import {pairResults, type Turn} from '../../store/grouping.js'
 import {MessageProvider} from '../message/message-context.js'
 import {SuggestionProvider, type SuggestionData} from '../suggestion/suggestion.js'
-import {ViewportProvider, useThreadViewport} from './viewport-context.js'
+import {
+  ViewportProvider,
+  useThreadViewport,
+  useOptionalThreadViewport,
+  useSendFromUser,
+  type ThreadScroller,
+  type ViewportContextValue,
+} from './viewport-context.js'
 import {ViewportInternalProvider, useViewportInternal, type ViewportInternalValue} from './viewport-internal.js'
-import {useThreadScroll} from '../../behaviors/use-thread-scroll.js'
 import {createThreadVirtualizer} from '../../behaviors/create-thread-virtualizer.js'
 import {useTurnEstimator, type TurnEstimate} from './turn-estimate.js'
 import {VIRTUALIZE_THRESHOLD} from './virtualize-threshold.js'
@@ -34,62 +40,49 @@ const EVICTING_OVERSCAN = 8
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
 
 function Root(props: DivProps): JSX.Element {
-  return <Primitive.div {...props} />
+  const [scroller, setScroller] = createSignal<ThreadScroller>()
+  const landOnEnd = () => scroller()?.landOnEnd()
+  return (
+    <ViewportProvider
+      value={{
+        isAtBottom: () => scroller()?.atEnd() ?? true,
+        scrollToBottom: landOnEnd,
+        sendFromUser: (deliver) => {
+          landOnEnd()
+          return deliver()
+        },
+        setScroller,
+      }}
+    >
+      <Primitive.div {...props} />
+    </ViewportProvider>
+  )
 }
 
 type ViewportProps = DivProps & {
-  autoScroll?: boolean
-  turnAnchor?: 'top' | 'bottom'
-  topAnchorMessageClamp?: {tallerThan?: string; visibleHeight?: string}
-  scrollToBottomOnRunStart?: boolean
-  scrollToBottomOnInitialize?: boolean
-  scrollToBottomOnThreadSwitch?: boolean
   footer?: JSX.Element
   ref?: HTMLDivElement | ((element: HTMLDivElement) => void)
 }
 
 function Viewport(props: ViewportProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
-    'autoScroll',
-    'turnAnchor',
-    'topAnchorMessageClamp',
-    'scrollToBottomOnRunStart',
-    'scrollToBottomOnInitialize',
-    'scrollToBottomOnThreadSwitch',
-    'footer',
-    'ref',
-  ])
+  const [local, rest] = splitProps(props, ['footer', 'ref'])
+  const viewport = useThreadViewport()
   const [element, setElement] = createSignal<HTMLDivElement>()
-  const [content, setContent] = createSignal<FollowContent>()
-  const scroll = useThreadScroll(element, local, content)
   const assignRef = (node: HTMLDivElement) => {
     setElement(node)
     if (typeof local.ref === 'function') local.ref(node)
   }
-  const internal: ViewportInternalValue = {
-    element,
-    turnAnchor: () => local.turnAnchor ?? 'bottom',
-    isAtBottom: scroll.isAtBottom,
-    released: scroll.released,
-    pinToBottom: scroll.pinToBottom,
-    setContent,
-  }
+  const internal: ViewportInternalValue = {element}
   return (
-    <ViewportProvider
-      value={{isAtBottom: scroll.isAtBottom, scrollToBottom: scroll.scrollToBottom, pauseFollow: scroll.pauseFollow}}
-    >
-      <ViewportInternalProvider value={internal}>
-        <Primitive.div
-          data-thread-viewport
-          data-follow={scroll.phase()}
-          data-at-bottom={scroll.isAtBottom() ? '' : undefined}
-          data-escaped={scroll.released() ? '' : undefined}
-          ref={assignRef}
-          {...rest}
-        />
-        {local.footer}
-      </ViewportInternalProvider>
-    </ViewportProvider>
+    <ViewportInternalProvider value={internal}>
+      <Primitive.div
+        data-thread-viewport
+        data-at-bottom={viewport.isAtBottom() ? '' : undefined}
+        ref={assignRef}
+        {...rest}
+      />
+      {local.footer}
+    </ViewportInternalProvider>
   )
 }
 
@@ -155,30 +148,44 @@ function PlainMessages(props: {messages: MessagesProps}): JSX.Element {
   )
 }
 
-function VirtualMessages(props: {messages: MessagesProps; internal: ViewportInternalValue}): JSX.Element {
+function VirtualMessages(props: {
+  messages: MessagesProps
+  internal: ViewportInternalValue
+  viewport: ViewportContextValue
+}): JSX.Element {
   const thread = useThread()
   const turns = () => thread.turns
   const estimator = useTurnEstimator()
-  const [gap, setGap] = createSignal(0)
+  const [spacer, setSpacer] = createSignal<HTMLDivElement>()
+  const [metrics, setMetrics] = createStore({gap: 0, scrollMargin: 0})
   const settledEstimate = (index: number): TurnEstimate | undefined => {
     if (index === turns().length - 1) return undefined
     const turn = turns()[index]
     if (!turn) return undefined
     return estimator?.estimateTurn(turn)
   }
+  const measureViewportMetrics = (): void => {
+    const viewport = props.internal.element()
+    const node = spacer()
+    if (!viewport || !node) return
+    setMetrics({
+      gap: Number.parseFloat(getComputedStyle(viewport).rowGap) || 0,
+      scrollMargin: node.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop,
+    })
+  }
   const virtualizer = createThreadVirtualizer({
     scrollElement: () => props.internal.element(),
     count: () => turns().length,
-    keyAt: (index) => turns()[index]?.key ?? `${index}`,
+    keyAt: (index) => turns()[index]?.key,
     estimateSizeAt: (index) => settledEstimate(index)?.height ?? ROW_ESTIMATE_PX,
     exactAt: (index) => settledEstimate(index)?.exact === true,
-    gap,
+    gap: () => metrics.gap,
+    scrollMargin: () => metrics.scrollMargin,
     overscan: () => (turns().length < VIRTUALIZE_THRESHOLD ? turns().length : EVICTING_OVERSCAN),
-    released: () => props.internal.released(),
   })
   onMount(() => {
-    props.internal.setContent({totalSize: virtualizer.totalSize, measured: virtualizer.measured})
-    onCleanup(() => props.internal.setContent(undefined))
+    props.viewport.setScroller({atEnd: virtualizer.atEnd, landOnEnd: virtualizer.landOnEnd})
+    onCleanup(() => props.viewport.setScroller(undefined))
     let disposed = false
     onCleanup(() => {
       disposed = true
@@ -196,15 +203,28 @@ function VirtualMessages(props: {messages: MessagesProps; internal: ViewportInte
         virtualizer.remeasure()
       })
     }
+    let pendingMetricsFrame: number | undefined
+    onCleanup(() => {
+      if (pendingMetricsFrame !== undefined) cancelAnimationFrame(pendingMetricsFrame)
+    })
+    const scheduleMetricsRefresh = (): void => {
+      if (pendingMetricsFrame !== undefined) return
+      pendingMetricsFrame = requestAnimationFrame(() => {
+        pendingMetricsFrame = undefined
+        if (disposed) return
+        measureViewportMetrics()
+      })
+    }
     void document.fonts.ready.then(() => {
       if (disposed) return
       scheduleEstimateRefresh()
     })
     const viewport = props.internal.element()
     if (viewport) {
-      setGap(Number.parseFloat(getComputedStyle(viewport).rowGap) || 0)
+      measureViewportMetrics()
       let lastWidth = viewport.clientWidth
       createResizeObserver(viewport, ({width}) => {
+        scheduleMetricsRefresh()
         if (width === lastWidth) return
         lastWidth = width
         scheduleEstimateRefresh()
@@ -215,10 +235,12 @@ function VirtualMessages(props: {messages: MessagesProps; internal: ViewportInte
         viewport.style.overflowAnchor = previousAnchoring
       })
     }
-    props.internal.pinToBottom()
   })
   return (
-    <div style={{position: 'relative', width: '100%', flex: 'none', height: `${virtualizer.totalSize()}px`}}>
+    <div
+      ref={setSpacer}
+      style={{position: 'relative', width: '100%', flex: 'none', height: `${virtualizer.totalSize()}px`}}
+    >
       <For each={virtualizer.items}>
         {(item) => (
           <div
@@ -235,7 +257,7 @@ function VirtualMessages(props: {messages: MessagesProps; internal: ViewportInte
               width: '100%',
               display: 'flex',
               'flex-direction': 'column',
-              transform: `translateY(${item.start}px)`,
+              transform: `translateY(${item.start - metrics.scrollMargin}px)`,
             }}
           >
             <TurnSlot
@@ -253,10 +275,11 @@ function VirtualMessages(props: {messages: MessagesProps; internal: ViewportInte
 
 function Messages(props: MessagesProps): JSX.Element {
   const internal = useViewportInternal()
-  const bottomAnchoredViewport = () => (internal?.turnAnchor() === 'bottom' ? internal : undefined)
+  const viewport = useOptionalThreadViewport()
+  const virtualizable = () => (internal && viewport ? {internal, viewport} : undefined)
   return (
-    <Show when={bottomAnchoredViewport()} fallback={<PlainMessages messages={props} />}>
-      {(resolved) => <VirtualMessages messages={props} internal={resolved()} />}
+    <Show when={virtualizable()} fallback={<PlainMessages messages={props} />}>
+      {(resolved) => <VirtualMessages messages={props} internal={resolved().internal} viewport={resolved().viewport} />}
     </Show>
   )
 }
@@ -334,11 +357,13 @@ type SuggestionProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
 function Suggestion(props: SuggestionProps): JSX.Element {
   const chat = useChatContext()
   const composer = useComposer()
+  const sendFromUser = useSendFromUser()
   const [local, rest] = splitProps(props, ['prompt', 'send', 'clearComposer'])
   const activate = () => {
     if (local.clearComposer !== false) composer.setText('')
     if (local.send) {
-      void chat.sendMessage(local.prompt)
+      const prompt = local.prompt
+      void sendFromUser(() => chat.sendMessage(prompt))
       return
     }
     composer.setText(local.prompt)

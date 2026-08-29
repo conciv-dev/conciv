@@ -137,11 +137,10 @@ it('returns to the bottom and re-follows when Latest is pressed', async () => {
   const settled = await mountSettledThread()
 
   await userEvent.wheel(settled.viewport, {delta: {y: -800}})
-  await expect.element(page.elementLocator(settled.viewport)).toHaveAttribute('data-escaped', '')
+  await expect.element(page.elementLocator(settled.viewport)).not.toHaveAttribute('data-at-bottom')
 
   await page.getByText('Latest').click()
   await expect.element(page.elementLocator(settled.viewport)).toHaveAttribute('data-at-bottom', '')
-  await expect.element(page.elementLocator(settled.viewport)).not.toHaveAttribute('data-escaped')
   await expect.element(page.getByText(`tail marker ${LAST_TURN}`).first()).toBeVisible()
 
   expect(distanceFromEnd(settled.viewport)).toBeLessThanOrEqual(2)

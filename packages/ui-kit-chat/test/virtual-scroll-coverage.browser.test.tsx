@@ -219,7 +219,7 @@ async function settledThread(): Promise<HTMLElement> {
 
 async function escapeFollow(viewport: HTMLElement): Promise<void> {
   await userEvent.wheel(viewport, {delta: {y: -200}})
-  await expect.element(page.elementLocator(viewport)).toHaveAttribute('data-escaped')
+  await expect.element(page.elementLocator(viewport)).not.toHaveAttribute('data-at-bottom')
 }
 
 function resizeLoopErrors(): string[] {

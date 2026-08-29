@@ -60,7 +60,6 @@ export const PUBLIC_PACKAGES = [
   '@conciv/extension',
   '@conciv/extension-compiler',
   '@conciv/solid-diffs',
-  '@conciv/solid-stick-to-bottom',
   '@conciv/solid-streamdown',
   '@conciv/ui-kit-system',
   '@conciv/ui-kit-chat',

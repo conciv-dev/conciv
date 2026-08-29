@@ -6,8 +6,16 @@ import {ChatPane} from '../src/pane/chat-pane.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, openTranscriptStream, sendTurn} from './helpers/core-session.js'
 import {mountPane, type PaneMount} from './helpers/pane-harness.js'
-import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
-import {createCalmWatch, pinViewportToBottom, type CalmWatch} from './helpers/calm-assertions.js'
+import {SCROLL_END_THRESHOLD_PX, VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
+import {
+  createCalmWatch,
+  pinViewportToBottom,
+  threadViewportElement,
+  topEdgeRowIndex,
+  topEdgeRowOffset,
+  watchViewportScroll,
+  type CalmWatch,
+} from './helpers/calm-assertions.js'
 import {forceReducedMotion} from './helpers/reduced-motion.js'
 import {watchTextGrowth} from './helpers/growth-watch.js'
 
@@ -39,6 +47,18 @@ const MIN_CODE_GROWTH_STEPS = 10
 const SEEDED_EXCHANGES = Math.floor((VIRTUALIZE_THRESHOLD - 4) / 2)
 const BOUNDARY_EXCHANGES = Math.floor(VIRTUALIZE_THRESHOLD / 2)
 const VIEWPORT_HEIGHT_PX = 600
+const SCROLL_UP_PX = 600
+const SCROLL_DRIFT_TOLERANCE_PX = 1
+const STREAM_STEP_GROWTH_PX = 160
+const CATCH_UP_DISTANCE_BUDGET_PX = SCROLL_END_THRESHOLD_PX + STREAM_STEP_GROWTH_PX
+const MIN_SCROLL_SAMPLES = 20
+const SCROLL_GATE_STEPS = 24
+const SCROLL_GATE_PACE_MS = 100
+const SCROLL_GATE_TEXT_PACE_MS = 100
+const SCROLL_GATE_EXCHANGES = 24
+const CATCH_UP_FRAME_BUDGET = 3
+const FOLD_GATE_SCROLL_PX = 200
+const ROW_ROUNDING_TOLERANCE_PX = 4
 
 const core = {base: ''}
 const active: {pane: PaneMount | null; watch: CalmWatch | null} = {pane: null, watch: null}
@@ -81,6 +101,7 @@ function watchCalm(allow: Parameters<typeof createCalmWatch>[0] = {}): CalmWatch
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+const sendButton = () => page.getByRole('button', {name: 'Send message'})
 const traceToggle = () => page.getByText(/^(Show|Hide) trace$/)
 const permissionRequest = () => page.getByRole('group', {name: 'Permission request'})
 
@@ -513,4 +534,163 @@ test('a streamed code block grows on screen while it streams [mechanism D: rende
   const lengths = growth.lengths()
   expect(lengths.toSorted((left, right) => left - right)).toEqual(lengths)
   expect(lengths.length).toBeGreaterThanOrEqual(MIN_CODE_GROWTH_STEPS)
+}, 120_000)
+
+function scrollGateSteps(): ScriptedToolStep[] {
+  return Array.from({length: SCROLL_GATE_STEPS}, (_, index): ScriptedToolStep => multiToolStep(index))
+}
+
+type ScrollGate = {viewport: HTMLElement; restore: () => void}
+
+async function seededScrollGate(): Promise<ScrollGate> {
+  const {rpc, sessionId} = await newSession()
+  await seedThread(rpc, sessionId, SCROLL_GATE_EXCHANGES)
+  await coreControl.scriptTurn({
+    toolCalls: scrollGateSteps(),
+    text: streamedCodeAnswer(),
+    textPace: {chunk: STREAMED_TEXT_CHUNK, everyMs: SCROLL_GATE_TEXT_PACE_MS},
+  })
+  mountChatPane(sessionId)
+  await expect.element(page.getByText(`seeded exchange ${SCROLL_GATE_EXCHANGES - 1}`, {exact: true})).toBeVisible()
+  const restore = pinViewportToBottom(VIEWPORT_HEIGHT_PX)
+  return {viewport: threadViewportElement(), restore}
+}
+
+test('a reader who scrolled up keeps their exact position for the whole stream [gate a: released user never moves]', async () => {
+  const gate = await seededScrollGate()
+  try {
+    await coreControl.holdTools()
+    await coreControl.holdResults()
+    await promptWith('run the whole batch while I read back')
+    await expect.element(stopButton()).toBeVisible()
+
+    await userEvent.wheel(gate.viewport, {delta: {y: -SCROLL_UP_PX}})
+    await expect.element(page.elementLocator(gate.viewport)).not.toHaveAttribute('data-at-bottom')
+    const rowBefore = topEdgeRowIndex(gate.viewport)
+    const watch = watchViewportScroll()
+
+    await coreControl.releaseTools()
+    await coreControl.releaseResults({everyMs: SCROLL_GATE_PACE_MS})
+    await expect.element(sendButton()).toBeVisible()
+    watch.stop()
+
+    expect(watch.samples()).toBeGreaterThanOrEqual(MIN_SCROLL_SAMPLES)
+    expect(watch.maxDrift()).toBeLessThanOrEqual(SCROLL_DRIFT_TOLERANCE_PX)
+    expect(watch.topEdgeRow()).toBe(rowBefore)
+    await expect.element(page.elementLocator(gate.viewport)).not.toHaveAttribute('data-at-bottom')
+    await page.screenshot({path: `${SHOTS}/released-reader-held.png`})
+  } finally {
+    gate.restore()
+  }
+}, 120_000)
+
+test('a reader parked at the end follows the whole stream [gate b: at-bottom user follows]', async () => {
+  const gate = await seededScrollGate()
+  try {
+    await coreControl.holdTools()
+    await coreControl.holdResults()
+    await promptWith('run the whole batch while I watch the tail')
+    await expect.element(stopButton()).toBeVisible()
+    const watch = watchViewportScroll()
+
+    await coreControl.releaseTools()
+    await coreControl.releaseResults({everyMs: SCROLL_GATE_PACE_MS})
+    await expect.element(page.getByText(STREAMED_CODE_CLOSING, {exact: true})).toBeVisible()
+    watch.stop()
+
+    expect(watch.samples()).toBeGreaterThanOrEqual(MIN_SCROLL_SAMPLES)
+    const series = watch
+      .distanceSeries()
+      .map((value) => Math.round(value))
+      .join(' ')
+    expect(watch.framesBeyond(SCROLL_END_THRESHOLD_PX), series).toBeLessThanOrEqual(CATCH_UP_FRAME_BUDGET)
+    expect(Math.round(watch.maxDistanceFromEnd()), series).toBeLessThanOrEqual(CATCH_UP_DISTANCE_BUDGET_PX)
+    await expect.element(page.elementLocator(gate.viewport)).toHaveAttribute('data-at-bottom', '')
+    await page.screenshot({path: `${SHOTS}/following-reader-pinned.png`})
+  } finally {
+    gate.restore()
+  }
+}, 120_000)
+
+test('an appended turn never drags a reader who scrolls up while it streams [gate f: follow-on-append lands once]', async () => {
+  const gate = await seededScrollGate()
+  try {
+    await coreControl.holdTools()
+    await coreControl.holdResults()
+    await promptWith('run the whole batch while I scroll back')
+    await expect.element(stopButton()).toBeVisible()
+    await coreControl.releaseTools()
+    await coreControl.releaseResults({everyMs: SCROLL_GATE_PACE_MS})
+    await expect.element(page.getByText('probe step 2', {exact: true})).toBeVisible()
+
+    await userEvent.wheel(gate.viewport, {delta: {y: -SCROLL_UP_PX}})
+    await expect.element(page.elementLocator(gate.viewport)).not.toHaveAttribute('data-at-bottom')
+    const rowBefore = topEdgeRowIndex(gate.viewport)
+    const offsetBefore = topEdgeRowOffset(gate.viewport)
+    const watch = watchViewportScroll()
+
+    await expect.element(sendButton()).toBeVisible()
+    watch.stop()
+
+    expect(watch.samples()).toBeGreaterThanOrEqual(MIN_SCROLL_SAMPLES)
+    expect(watch.topEdgeRow()).toBe(rowBefore)
+    expect(watch.maxDrift()).toBeLessThanOrEqual(SCROLL_DRIFT_TOLERANCE_PX)
+    expect(Math.abs(offsetBefore - topEdgeRowOffset(gate.viewport))).toBeLessThanOrEqual(ROW_ROUNDING_TOLERANCE_PX)
+    await expect.element(page.elementLocator(gate.viewport)).not.toHaveAttribute('data-at-bottom')
+    await page.screenshot({path: `${SHOTS}/appended-turn-holds-reader.png`})
+  } finally {
+    gate.restore()
+  }
+}, 120_000)
+
+test('sending a prompt after scrolling up returns the viewport to the end [gate c: send is a gesture]', async () => {
+  const gate = await seededScrollGate()
+  try {
+    await userEvent.wheel(gate.viewport, {delta: {y: -SCROLL_UP_PX}})
+    await expect.element(page.elementLocator(gate.viewport)).not.toHaveAttribute('data-at-bottom')
+
+    await coreControl.holdTools()
+    await promptWith('take me back to the end')
+    await expect.element(page.elementLocator(gate.viewport)).toHaveAttribute('data-at-bottom', '')
+    await page.screenshot({path: `${SHOTS}/send-returns-to-end.png`})
+  } finally {
+    gate.restore()
+  }
+}, 120_000)
+
+test('folding a card leaves a released reader exactly where they were [gate e: size compensation]', async () => {
+  const {rpc, sessionId} = await newSession()
+  await seedThread(rpc, sessionId, SCROLL_GATE_EXCHANGES)
+  await coreControl.scriptTurn({
+    toolCalls: [
+      {name: 'Bash', input: {command: 'ls'}},
+      {name: 'Read', input: {filePath: 'calm.ts'}},
+    ],
+    text: 'The fold left the reader alone.',
+  })
+  mountChatPane(sessionId)
+  await expect.element(page.getByText(`seeded exchange ${SCROLL_GATE_EXCHANGES - 1}`, {exact: true})).toBeVisible()
+  await promptWith('run two tools then answer')
+  await expect.element(page.getByText('The fold left the reader alone.')).toBeVisible()
+  await expect.element(traceToggle()).toBeVisible()
+
+  const viewport = threadViewportElement()
+  const restoreViewport = pinViewportToBottom(VIEWPORT_HEIGHT_PX)
+  try {
+    await userEvent.wheel(viewport, {delta: {y: -FOLD_GATE_SCROLL_PX}})
+    await expect.element(page.elementLocator(viewport)).not.toHaveAttribute('data-at-bottom')
+    const rowBefore = topEdgeRowIndex(viewport)
+    const offsetBefore = topEdgeRowOffset(viewport)
+
+    await traceToggle().click()
+    await expect.element(traceToggle()).toBeVisible()
+    await traceToggle().click()
+    await expect.element(traceToggle()).toBeVisible()
+
+    expect(topEdgeRowIndex(viewport)).toBe(rowBefore)
+    expect(Math.abs(offsetBefore - topEdgeRowOffset(viewport))).toBeLessThanOrEqual(ROW_ROUNDING_TOLERANCE_PX)
+    await page.screenshot({path: `${SHOTS}/fold-beside-released-reader.png`})
+  } finally {
+    restoreViewport()
+  }
 }, 120_000)

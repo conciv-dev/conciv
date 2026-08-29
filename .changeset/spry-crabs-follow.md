@@ -1,5 +1,4 @@
 ---
-'@conciv/solid-stick-to-bottom': patch
 '@conciv/ui-kit-chat': patch
 ---
 

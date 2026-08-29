@@ -171,7 +171,7 @@ function quantile(values: number[], fraction: number): number {
 it('estimates settled turn heights within a fiftieth of their measured height', async () => {
   const messages = seedMessages()
   const viewport = mountThread(messages)
-  await expect.element(page.getByText('question 0', {exact: false}).first()).toBeVisible()
+  await expect.element(page.getByText(`question ${TURN_COUNT}`, {exact: false}).first()).toBeVisible()
   const element = viewport()
   const measured = await sweepMeasured(element)
 

@@ -396,11 +396,11 @@ function warmHighlightBackends(): void {
 function ThreadRoot(props: ThreadRootProps): JSX.Element {
   onMount(warmHighlightBackends)
   return (
-    <div
+    <ThreadPrimitive.Root
       class={`flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)] ${props.class ?? ''}`}
     >
       {props.children}
-    </div>
+    </ThreadPrimitive.Root>
   )
 }
 
