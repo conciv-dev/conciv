@@ -2,7 +2,7 @@ import {createContext, useContext, type Accessor} from 'solid-js'
 
 export type ThreadScroller = {
   atEnd: Accessor<boolean>
-  scrollToEnd: () => void
+  landOnEnd: () => void
 }
 
 export type ViewportContextValue = {

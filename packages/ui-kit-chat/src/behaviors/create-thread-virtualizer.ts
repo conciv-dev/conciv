@@ -36,7 +36,7 @@ export type ThreadVirtualizer = {
   totalSize: Accessor<number>
   measured: Accessor<boolean>
   atEnd: Accessor<boolean>
-  scrollToEnd: () => void
+  landOnEnd: () => void
   measureRow: (element: Element) => void
   remeasure: () => void
 }
@@ -55,11 +55,25 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   const readbackScrollOffset = (element: HTMLElement): void => publishScrollOffset?.(element.scrollTop, false)
 
+  let lastLandedOffset: number | undefined
+
   const landOnEnd = (): void => {
-    instance.scrollToEnd()
     const element = config.scrollElement()
-    if (element) readbackScrollOffset(element)
+    if (!element) return
+    const lastIndex = config.count() - 1
+    if (lastIndex < 0) return
+    const target = instance.getOffsetForIndex(lastIndex, 'end')
+    if (!target) return
+    elementScroll(target[0], {adjustments: undefined, behavior: 'auto'}, instance)
+    lastLandedOffset = element.scrollTop
+    readbackScrollOffset(element)
   }
+
+  const restingAtEnd = (element: HTMLElement): boolean =>
+    element.scrollHeight - element.clientHeight - element.scrollTop <= SCROLL_END_THRESHOLD_PX
+
+  const stillLandingOnEnd = (element: HTMLElement): boolean =>
+    element.scrollTop === lastLandedOffset || restingAtEnd(element)
 
   const resolveOptions = (): VirtualizerOptions<HTMLElement, Element> => ({
     count: config.count(),
@@ -136,12 +150,14 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   createEffect(() => {
     const element = config.scrollElement()
     const total = config.count()
+    totalSize()
+    measured()
     if (!element?.isConnected || total === 0) return
     const firstKey = config.keyAt(0)
     const lastKey = config.keyAt(total - 1)
     const sameThread = landing.element === element && (landing.firstKey === firstKey || landing.lastKey === lastKey)
     setLanding({element, firstKey, lastKey})
-    if (sameThread) return
+    if (sameThread && !stillLandingOnEnd(element)) return
     landOnEnd()
   })
 
@@ -150,7 +166,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     totalSize,
     measured,
     atEnd,
-    scrollToEnd: landOnEnd,
+    landOnEnd,
     measureRow: (element) => instance.measureElement(element),
     remeasure: () => {
       instance.measureElement(null)

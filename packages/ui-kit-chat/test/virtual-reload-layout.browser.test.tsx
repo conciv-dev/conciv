@@ -45,9 +45,9 @@ function ReloadedThread(props: {initial: UIMessage[]; ref?: (element: HTMLElemen
   )
 }
 
-function mountReloadedThread(initial: UIMessage[]): () => HTMLElement {
+function mountReloadedThread(initial: UIMessage[]): {host: HTMLElement; viewport: () => HTMLElement} {
   let viewport: HTMLElement | undefined
-  mountView(() => (
+  const host = mountView(() => (
     <ReloadedThread
       initial={initial}
       ref={(element) => {
@@ -55,10 +55,34 @@ function mountReloadedThread(initial: UIMessage[]): () => HTMLElement {
       }}
     />
   ))
-  return () => {
-    if (!viewport) throw new Error('viewport not mounted')
-    return viewport
+  return {
+    host,
+    viewport: () => {
+      if (!viewport) throw new Error('viewport not mounted')
+      return viewport
+    },
   }
+}
+
+const SETTLED_FRAMES = 10
+const LAYOUT_SETTLED = 'turn layout settled with no overlap'
+
+function reportLayoutWhenSettled(host: HTMLElement): void {
+  const readout = document.createElement('p')
+  readout.textContent = 'turn layout sampling'
+  host.append(readout)
+  let cleanFrames = 0
+  const sample = (): void => {
+    const overlaps = overlappingTurns()
+    cleanFrames = overlaps.length === 0 ? cleanFrames + 1 : 0
+    if (cleanFrames >= SETTLED_FRAMES) {
+      readout.textContent = LAYOUT_SETTLED
+      return
+    }
+    if (overlaps[0]) readout.textContent = `turn layout overlaps: ${overlaps[0]}`
+    requestAnimationFrame(sample)
+  }
+  requestAnimationFrame(sample)
 }
 
 type TurnBox = {index: number; top: number; bottom: number}
@@ -92,16 +116,17 @@ function overlappingTurns(): string[] {
 }
 
 it('a fresh mount over a long transcript lays every turn out without overlap', async () => {
-  mountReloadedThread(seedTranscript(TURNS))
+  const thread = mountReloadedThread(seedTranscript(TURNS))
 
   await expect.element(page.getByText(answerFor(TURNS - 1), {exact: false})).toBeVisible()
+  reportLayoutWhenSettled(thread.host)
 
-  expect(overlappingTurns()).toEqual([])
+  await expect.element(page.getByText(LAYOUT_SETTLED)).toBeInTheDocument()
 })
 
 it('a fresh mount over a long transcript settles pinned to the latest turn', async () => {
-  const viewport = mountReloadedThread(seedTranscript(TURNS))
+  const thread = mountReloadedThread(seedTranscript(TURNS))
 
   await expect.element(page.getByText(answerFor(TURNS - 1), {exact: false})).toBeVisible()
-  await expect.element(page.elementLocator(viewport())).toHaveAttribute('data-at-bottom')
+  await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom')
 })

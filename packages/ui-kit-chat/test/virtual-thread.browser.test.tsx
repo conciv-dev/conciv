@@ -1,7 +1,8 @@
 import 'virtual:uno.css'
 import {onMount, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
-import {expect, it} from 'vitest'
+import {expect, it, onTestFinished} from 'vitest'
+import {keyBy, range, uniq} from 'es-toolkit'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import type {UIMessage} from '@tanstack/ai-client'
 import {ChatProvider} from '../src/store/chat-context.js'
@@ -54,7 +55,11 @@ function AssistantMessage(): JSX.Element {
   )
 }
 
-function mountThread(initial: UIMessage[]): {viewport: () => HTMLElement; chat: () => UseChatReturn} {
+function mountThread(initial: UIMessage[]): {
+  host: HTMLElement
+  viewport: () => HTMLElement
+  chat: () => UseChatReturn
+} {
   let viewport: HTMLElement | undefined
   let chat: UseChatReturn | undefined
   function VirtualThread(): JSX.Element {
@@ -64,24 +69,27 @@ function mountThread(initial: UIMessage[]): {viewport: () => HTMLElement; chat: 
     })
     return (
       <ChatProvider chat={value}>
-        <Thread.Root class="flex flex-col h-80">
+        <Thread.Root class="flex flex-col h-80 relative">
           <Thread.Viewport
             ref={(element) => {
               viewport = element
             }}
             class="p-2 flex flex-1 flex-col gap-2 min-h-0 overflow-y-auto"
+            footer={
+              <div class="flex pointer-events-none inset-inline-0 bottom-2 justify-center absolute">
+                <Thread.ScrollToBottom class="pointer-events-auto">Latest</Thread.ScrollToBottom>
+              </div>
+            }
           >
             <Thread.Messages components={{UserMessage, AssistantMessage}} />
-            <div class="h-0 self-center bottom-2 sticky">
-              <Thread.ScrollToBottom>Latest</Thread.ScrollToBottom>
-            </div>
           </Thread.Viewport>
         </Thread.Root>
       </ChatProvider>
     )
   }
-  mountView(() => <VirtualThread />)
+  const host = mountView(() => <VirtualThread />)
   return {
+    host,
     viewport: () => {
       if (!viewport) throw new Error('viewport not mounted')
       return viewport
@@ -96,6 +104,66 @@ function mountThread(initial: UIMessage[]): {viewport: () => HTMLElement; chat: 
 function wheelUpTo(viewport: HTMLElement, scrollTop: number): void {
   viewport.dispatchEvent(new WheelEvent('wheel', {deltaY: -120, bubbles: true}))
   viewport.scrollTop = scrollTop
+}
+
+const PROBE_FRAMES = 60
+
+const ON_SCREEN_SAMPLE_STEP_PX = 8
+
+function messageIdOf(root: Element): string {
+  return root.getAttribute('data-message-id') ?? ''
+}
+
+function rootsOnScreen(viewport: HTMLElement): Element[] {
+  const box = viewport.getBoundingClientRect()
+  const found = range(0, Math.floor(box.height / ON_SCREEN_SAMPLE_STEP_PX)).map((step) =>
+    document
+      .elementFromPoint(box.left + box.width / 2, box.top + 2 + step * ON_SCREEN_SAMPLE_STEP_PX)
+      ?.closest('[data-message-id]'),
+  )
+  return uniq(found.filter((root): root is Element => root !== null && root !== undefined))
+}
+
+function rowUnderTopEdge(viewport: HTMLElement): string {
+  const box = viewport.getBoundingClientRect()
+  const found = document.elementFromPoint(box.left + box.width / 2, box.top + 1)
+  return found?.closest('[data-index]')?.getAttribute('data-index') ?? 'none'
+}
+
+function heldEveryFrame(label: string): string {
+  return `${label} held ${PROBE_FRAMES} of ${PROBE_FRAMES} frames`
+}
+
+function holdSteady(host: HTMLElement, label: string, read: () => string): void {
+  const readout = document.createElement('p')
+  readout.textContent = `${label} sampling`
+  host.append(readout)
+  const anchored = read()
+  let seen = 0
+  let held = 0
+  const sample = (): void => {
+    seen += 1
+    if (read() === anchored) held += 1
+    if (seen < PROBE_FRAMES) {
+      requestAnimationFrame(sample)
+      return
+    }
+    readout.textContent = `${label} held ${held} of ${PROBE_FRAMES} frames`
+  }
+  requestAnimationFrame(sample)
+}
+
+function appendTurnsEvery(chat: UseChatReturn, from: number, added: number, everyMs: number): () => void {
+  let count = from
+  const timer = setInterval(() => {
+    if (count >= from + added) {
+      clearInterval(timer)
+      return
+    }
+    count += 2
+    chat.setMessages(seedMessages(count))
+  }, everyMs)
+  return () => clearInterval(timer)
 }
 
 it('virtualizes above the threshold: early turns unmount, pinned to the latest turn', async () => {
@@ -138,6 +206,36 @@ it('escapes on wheel up and re-pins via the scroll-to-bottom button', async () =
   await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
 })
 
+it('a wheel up taken right after the mount landing is never dragged back to the end', async () => {
+  const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+
+  wheelUpTo(thread.viewport(), 0)
+  holdSteady(thread.host, 'mount landing offset', () => String(thread.viewport().scrollTop))
+
+  await expect.element(page.getByText(heldEveryFrame('mount landing offset'))).toBeInTheDocument()
+  await expect.element(page.getByText('question 0')).toBeVisible()
+  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
+})
+
+it('a wheel up after the latest-turn gesture holds the reading row while turns keep arriving', async () => {
+  const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+  const latest = page.getByRole('button', {name: 'Scroll to bottom'})
+
+  wheelUpTo(thread.viewport(), 0)
+  await expect.element(latest).not.toBeDisabled()
+
+  const stopAppending = appendTurnsEvery(thread.chat(), ABOVE_THRESHOLD, 60, 30)
+  onTestFinished(stopAppending)
+  await latest.click()
+  wheelUpTo(thread.viewport(), 0)
+  holdSteady(thread.host, 'reading row', () => rowUnderTopEdge(thread.viewport()))
+
+  await expect.element(page.getByText(heldEveryFrame('reading row'))).toBeInTheDocument()
+  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
+})
+
 it('crossing the threshold while following keeps the bottom pinned', async () => {
   const thread = mountThread(seedMessages(JUST_BELOW_THRESHOLD))
   await expect.element(page.getByText(lastAnswer(JUST_BELOW_THRESHOLD))).toBeVisible()
@@ -149,23 +247,30 @@ it('crossing the threshold while following keeps the bottom pinned', async () =>
   await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom')
 })
 
-it('crossing the threshold keeps every mounted turn root, and only then evicts turns far above the viewport', async () => {
+it('crossing the threshold keeps every on-screen turn root, and evicts only rows above the viewport', async () => {
   const thread = mountThread(seedMessages(JUST_BELOW_THRESHOLD))
   await expect.element(page.getByText(lastAnswer(JUST_BELOW_THRESHOLD))).toBeVisible()
   await expect.element(page.getByText('question 0')).toBeInTheDocument()
 
-  const rootsBeforeCrossing = Array.from(thread.viewport().querySelectorAll('[data-message-id]'))
-  const idsBeforeCrossing = rootsBeforeCrossing.map((root) => root.getAttribute('data-message-id'))
-  expect(idsBeforeCrossing).toContain('m0')
-  expect(idsBeforeCrossing).toContain(`m${JUST_BELOW_THRESHOLD - 1}`)
+  const onScreenBeforeCrossing = rootsOnScreen(thread.viewport())
+  expect(onScreenBeforeCrossing.map(messageIdOf)).toContain(`m${JUST_BELOW_THRESHOLD - 1}`)
 
   thread.chat().setMessages(seedMessages(JUST_ABOVE_THRESHOLD))
   await expect.element(page.getByText(lastAnswer(JUST_ABOVE_THRESHOLD))).toBeVisible()
 
-  const remounted = rootsBeforeCrossing
-    .filter((root) => !root.isConnected)
-    .map((root) => root.getAttribute('data-message-id'))
-  expect(remounted).toEqual([])
+  const rootsAfterCrossing = keyBy(Array.from(thread.viewport().querySelectorAll('[data-message-id]')), messageIdOf)
+  const rebuilt = onScreenBeforeCrossing
+    .filter((root) => {
+      const after = rootsAfterCrossing[messageIdOf(root)]
+      return after !== undefined && after !== root
+    })
+    .map(messageIdOf)
+  expect(rebuilt).toEqual([])
+
+  const evictedFromView = onScreenBeforeCrossing
+    .filter((root) => rootsAfterCrossing[messageIdOf(root)] === undefined)
+    .map(messageIdOf)
+  expect(evictedFromView).toEqual([])
 
   thread.chat().setMessages(seedMessages(ABOVE_THRESHOLD))
   await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
