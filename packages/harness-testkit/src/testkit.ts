@@ -14,6 +14,7 @@ export {createFakeHarness, type FakeHarness} from './create-fake-harness.js'
 export type {PacedRelease, PacedText, ScriptedRun, ScriptedTurn, ScriptedTurnToolCall} from './scripted-run.js'
 export {harnessAvailable} from './harness-available.js'
 export {
+  autoApprove,
   makeApprovingCallTool,
   makeApprovingRegistryCall,
   makeCallTool,

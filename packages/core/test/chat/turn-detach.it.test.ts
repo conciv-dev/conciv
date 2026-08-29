@@ -163,6 +163,6 @@ describe('detached turns (IT)', () => {
   it('hydrating an idle session carries an empty transcript and no run', async () => {
     const kit = await setupSlow(join(tmp(), 'never'))
     const id = await kit.session()
-    expect(await kit.hydrate(id)).toEqual({messages: [], activeRun: null, interrupts: null})
+    expect(await kit.hydrate(id)).toEqual({messages: [], activeRun: null, lastRun: null, interrupts: null})
   })
 })

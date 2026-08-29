@@ -43,23 +43,29 @@ export function createSessionStreams(): SessionStreams {
   }
 }
 
-export async function* sessionEvents(
-  deps: ChatDeps,
-  sessionId: SessionId,
-  signal: AbortSignal,
-): AsyncGenerator<StreamChunk> {
+export function sessionEvents(deps: ChatDeps, sessionId: SessionId, signal: AbortSignal): AsyncGenerator<StreamChunk> {
   const queue = new AsyncQueue<StreamChunk>()
   const stop = (): void => queue.end()
   signal.addEventListener('abort', stop, {once: true})
   const unlisten = deps.stream.listen(sessionId, (chunk) => queue.push(chunk))
+  return drain(queue, signal, () => {
+    signal.removeEventListener('abort', stop)
+    unlisten()
+    queue.end()
+  })
+}
+
+async function* drain(
+  queue: AsyncQueue<StreamChunk>,
+  signal: AbortSignal,
+  release: () => void,
+): AsyncGenerator<StreamChunk> {
   try {
     for await (const chunk of queue) {
       yield chunk
       if (signal.aborted) return
     }
   } finally {
-    signal.removeEventListener('abort', stop)
-    unlisten()
-    queue.end()
+    release()
   }
 }

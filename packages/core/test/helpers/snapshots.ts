@@ -61,6 +61,10 @@ function rendered(chunks: StreamChunk[]): SnapshotMessage[] {
   return z.array(MessageSchema).parse(processor.getMessages())
 }
 
+export function reconstructSnapshot(chunks: StreamChunk[]): SnapshotView {
+  return {type: EventType.MESSAGES_SNAPSHOT, messages: rendered(chunks)}
+}
+
 export function reconstructTranscript(chunks: StreamChunk[]): string[] {
   return rendered(chunks).map((message) => `${message.role}: ${textOf(message)}`)
 }

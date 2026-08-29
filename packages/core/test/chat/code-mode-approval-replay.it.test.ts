@@ -6,7 +6,7 @@ import {defineExtension, defineTool} from '@conciv/extension'
 import {approvalIds, createTestHarness} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
-import {hydratedSnapshot} from '../helpers/fake-session.js'
+import {reconstructSnapshot} from '../helpers/snapshots.js'
 import type {SnapshotView} from '../helpers/snapshots.js'
 
 const cleanups: (() => Promise<void>)[] = []
@@ -59,7 +59,7 @@ function toolCallsNamed(snapshot: SnapshotView, name: string): ToolCallPart[] {
     })
 }
 
-describe('a hydrate mid-gate rebuilds the code-mode call as approval-requested', () => {
+describe('joining a run mid-gate rebuilds the code-mode call as approval-requested', () => {
   it('replays the inner tool call before the approval that belongs to it', async () => {
     const harness = createTestHarness(requireClaude())
     const kit = await bootKit({cwd: tmpdir(), extensions: [vault]}, harness)
@@ -74,8 +74,19 @@ describe('a hydrate mid-gate rebuilds the code-mode call as approval-requested',
 
     await keeper.waitFor((chunk) => startsCall(chunk, 'vault_purge'), {hangGuardMs: 20_000})
 
-    const refreshed = await hydratedSnapshot(kit, sessionId)
-    expect(toolCallsNamed(refreshed, 'vault_purge')).toMatchObject([
+    const joined = kit.join('code-mode-approval-replay-1')
+    const replayed: StreamChunk[] = []
+    const stopTapping = joined.tap((chunk) => replayed.push(chunk))
+    await joined.waitFor((chunk) => startsCall(chunk, 'vault_purge'), {hangGuardMs: 20_000})
+    await joined.waitFor((chunk) => approvalIds(chunk).includes(approvalId), {hangGuardMs: 20_000})
+    stopTapping()
+
+    const order = replayed.map((chunk) =>
+      startsCall(chunk, 'vault_purge') ? 'call' : approvalIds(chunk).length > 0 ? 'ask' : '',
+    )
+    expect(order.indexOf('call')).toBeLessThan(order.indexOf('ask'))
+
+    expect(toolCallsNamed(reconstructSnapshot(replayed), 'vault_purge')).toMatchObject([
       {state: 'approval-requested', approval: {id: approvalId}},
     ])
 

@@ -2,7 +2,14 @@ import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import type {PageOutcome} from '@conciv/protocol/page-types'
-import {createTestHarness, withAutoApproval, type Kit, type RunStream, type TestHarness} from '@conciv/harness-testkit'
+import {
+  autoApprove,
+  createTestHarness,
+  withAutoApproval,
+  type Kit,
+  type RunStream,
+  type TestHarness,
+} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
 import {connectWidget, type FakeWidget} from '../helpers/fake-widget.js'
@@ -95,12 +102,7 @@ function partsOf(messages: readonly unknown[]): z.infer<typeof PartSchema>[] {
 }
 
 async function snapshotParts(kit: Kit, sessionId: string): Promise<z.infer<typeof PartSchema>[]> {
-  const reattached = await kit.events(sessionId)
-  const snapshot = await reattached.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {
-    hangGuardMs: 10_000,
-  })
-  if (snapshot.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('expected a messages snapshot chunk')
-  return partsOf(snapshot.messages)
+  return partsOf((await kit.hydrate(sessionId)).messages)
 }
 
 describe('the page-session parent id is the outer execution id on the chat producer path', () => {
@@ -111,13 +113,12 @@ describe('the page-session parent id is the outer execution id on the chat produ
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: callThroughCatalog('page_eval', {code: '1 + 1'}),
     })
-    const executionId = await withAutoApproval(kit.base, sessionId, async () => {
-      const stream = await kit.turn('evaluate it', {session: sessionId, runId: 'parent-id-chat-1'})
-      const outer = await outerExecutionId(stream)
-      expect(await evalParentId(stream)).toBe(outer)
-      await stream.done({hangGuardMs: 15_000})
-      return outer
-    })
+    const stream = await kit.turn('evaluate it', {session: sessionId, runId: 'parent-id-chat-1'})
+    const stopApproving = autoApprove(kit.base, sessionId, stream)
+    const executionId = await outerExecutionId(stream)
+    expect(await evalParentId(stream)).toBe(executionId)
+    await stream.done({hangGuardMs: 15_000})
+    stopApproving()
 
     const parts = await snapshotParts(kit, sessionId)
     const outer = parts.find((part) => part.name === 'execute_typescript')
@@ -133,12 +134,11 @@ describe('the page-session parent id is the outer execution id on the chat produ
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: callTwiceThroughCatalog('page_eval', [{code: '1 + 1'}, {code: '2 + 2'}]),
     })
-    const executionId = await withAutoApproval(kit.base, sessionId, async () => {
-      const stream = await kit.turn('evaluate both', {session: sessionId, runId: 'parent-id-chat-2'})
-      const outer = await outerExecutionId(stream)
-      await stream.done({hangGuardMs: 20_000})
-      return outer
-    })
+    const stream = await kit.turn('evaluate both', {session: sessionId, runId: 'parent-id-chat-2'})
+    const stopApproving = autoApprove(kit.base, sessionId, stream)
+    const executionId = await outerExecutionId(stream)
+    await stream.done({hangGuardMs: 20_000})
+    stopApproving()
 
     const parts = await snapshotParts(kit, sessionId)
     const evals = parts.filter((part) => part.name === 'page_eval')

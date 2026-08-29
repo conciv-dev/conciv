@@ -33,7 +33,8 @@ test('extension server api exposes sessions + harness surfaces backed by the rea
 
     expect(await server.sessions.chatBusy(sessionId)).toBe(false)
     harness.script.hold()
-    await kit.turn('busy probe', {session: sessionId, runId: 'extension-server-surfaces-1'})
+    const probe = await kit.turn('busy probe', {session: sessionId, runId: 'extension-server-surfaces-1'})
+    await probe.waitForRunStart()
     expect(await server.sessions.chatBusy(sessionId)).toBe(true)
     harness.script.release()
     expect(await runEnded).toBe(sessionId)

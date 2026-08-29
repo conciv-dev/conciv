@@ -2,6 +2,7 @@ import {EventType, type StreamChunk} from '@tanstack/ai'
 import {collectToolCalls, makeRunEvents, type RunEvents, type SeenToolCall} from './run-events.js'
 
 export type RunStream = {
+  tap: (listener: (chunk: StreamChunk) => void) => () => void
   waitFor: (match: (e: StreamChunk) => boolean, opts?: {hangGuardMs?: number}) => Promise<StreamChunk>
   waitForRunStart: (opts?: {runId?: string}) => Promise<StreamChunk>
   waitForToolCall: (name: string, opts?: {hangGuardMs?: number}) => Promise<SeenToolCall>
@@ -133,6 +134,21 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
   }
 
   return {
+    tap: (onChunk) => {
+      const cursor = {index: 0}
+      const listener = (): void => {
+        while (cursor.index < seen.length) {
+          const chunk = seen[cursor.index]
+          cursor.index += 1
+          if (chunk) onChunk(chunk)
+        }
+      }
+      listeners.add(listener)
+      listener()
+      return () => {
+        listeners.delete(listener)
+      }
+    },
     waitFor: (match, opts) => waitFor(match, opts?.hangGuardMs ?? 90_000),
     waitForRunStart: (opts) => waitFor((chunk) => isRunStart(chunk, opts?.runId), null),
     waitForToolCall: async (name, opts) => {
