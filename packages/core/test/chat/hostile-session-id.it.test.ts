@@ -4,7 +4,8 @@ import {join} from 'node:path'
 import {eq} from 'drizzle-orm'
 import {afterEach, describe, expect, it} from 'vitest'
 import {sessions} from '@conciv/db'
-import {sessionSnapshot} from '../../src/chat/transcript.js'
+import {sessionSnapshot} from '../../src/chat/thread.js'
+import {syncTranscript} from '../../src/chat/transcript-import.js'
 import {makeChatFixture} from '../helpers/chat-fixture.js'
 
 const scratch: string[] = []
@@ -30,8 +31,7 @@ describe('hostile session ids', () => {
     )
     await fixture.db.update(sessions).set({harnessSessionId: '../../secret'}).where(eq(sessions.id, fixture.sessionId))
     const deps = {...fixture.chat, claudeHome: home}
-    await expect(sessionSnapshot(deps, fixture.sessionId)).rejects.toThrow(/harnessSessionId/)
-    const escaped = await sessionSnapshot(deps, fixture.sessionId).catch((error: unknown) => String(error))
-    expect(escaped).not.toContain('TOP SECRET')
+    await expect(syncTranscript(deps, fixture.sessionId)).rejects.toThrow(/harnessSessionId/)
+    expect(JSON.stringify(sessionSnapshot(deps, fixture.sessionId))).not.toContain('TOP SECRET')
   })
 })

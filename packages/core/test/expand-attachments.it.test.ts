@@ -4,7 +4,8 @@ import {join} from 'node:path'
 import {afterAll, describe, expect, it, vi} from 'vitest'
 import {createFakeHarness} from '@conciv/harness-testkit'
 import {defineAttachment, defineExtension} from '@conciv/extension'
-import {sessionHistoryFor, openDb} from '@conciv/db'
+import {openDb} from '@conciv/db'
+import {threadUiMessages} from './helpers/thread.js'
 import {makeApp, type MadeApp} from '../src/app.js'
 
 const FIXTURE_MIME = 'application/x-conciv-fixture'
@@ -44,9 +45,6 @@ async function bootApp(fake: ReturnType<typeof createFakeHarness>): Promise<Made
   cleanups.push(made.dispose)
   return made
 }
-
-type StoredPart = {type?: string; content?: string; metadata?: {modelOnly?: boolean}}
-type StoredMessage = {role?: string; parts?: StoredPart[]}
 
 describe('attachment expand end-to-end (real send path, scripted harness)', () => {
   it('stores rich parts while the harness receives the expanded projection', async () => {
@@ -89,18 +87,12 @@ describe('attachment expand end-to-end (real send path, scripted harness)', () =
     )
 
     const db = openDb(stateRoot)
-    const stored = sessionHistoryFor(db, sessionId)
-    if (!stored) throw new Error('expected durable rich history')
-    const messages: StoredMessage[] = stored.messages.filter(
-      (message): message is StoredMessage => typeof message === 'object' && message !== null,
-    )
-    const storedUser = messages.find((message) => message.role === 'user')
-    const parts = storedUser?.parts ?? []
+    const storedUser = threadUiMessages(db, sessionId).find((message) => message.role === 'user')
+    if (!storedUser) throw new Error('expected a durable rich thread')
+    const parts = storedUser.parts
     expect(parts.some((part) => part.type === 'document')).toBe(true)
-    expect(
-      parts.some(
-        (part) => part.type === 'text' && part.content === 'fixture-expanded' && part.metadata?.modelOnly === true,
-      ),
-    ).toBe(true)
+    const expanded = parts.filter((part) => part.type === 'text' && part.content === 'fixture-expanded')
+    expect(expanded).toHaveLength(1)
+    expect(JSON.stringify(expanded)).toContain('"modelOnly":true')
   }, 30_000)
 })

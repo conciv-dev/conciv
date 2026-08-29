@@ -39,7 +39,7 @@ import {defineSandbox, defineSandboxPolicy} from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
 import {reclaimAbandonedRuns} from './chat/reclaim.js'
-import {recoverInterruptedRuns, sessionSnapshot} from './chat/transcript.js'
+import {recoverInterruptedRuns, syncedSnapshot} from './chat/transcript-import.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
 import {modelOf, openDb, writeToolCapture} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
@@ -486,7 +486,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     runDrivers,
     sessionLocks,
     stream,
-    snapshot: (sessionId) => sessionSnapshot(chatDeps, sessionId),
+    snapshot: (sessionId) => syncedSnapshot(chatDeps, sessionId),
     risky,
     commandAllows: askFreeCommandAllows,
     toolNames: new Set(toolList.map((tool) => tool.name)),
