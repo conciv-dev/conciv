@@ -1,23 +1,5 @@
 import {defineChatMiddleware} from '@tanstack/ai'
-import {
-  defineSandbox,
-  defineSandboxPolicy,
-  provideSandbox,
-  provideSandboxPolicy,
-  SandboxCapability,
-  type SandboxDefinition,
-} from '@tanstack/ai-sandbox'
-import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
-
-export function makeConcivSandbox(cwd: string): SandboxDefinition {
-  return defineSandbox({
-    id: 'conciv',
-    provider: localProcessSandbox({dir: cwd}),
-    policy: defineSandboxPolicy({default: 'ask'}),
-    fileEvents: false,
-    lifecycle: {reuse: 'thread', destroyOnComplete: false},
-  })
-}
+import {provideSandbox, provideSandboxPolicy, SandboxCapability, type SandboxDefinition} from '@tanstack/ai-sandbox'
 
 export function withConcivSandbox(definition: SandboxDefinition) {
   return defineChatMiddleware({

@@ -35,7 +35,8 @@ import {
 } from './chat/session-rows.js'
 import {makeRunControl, type ChatDeps} from './chat/runtime.js'
 import {asksFor, makeAskGate, requiresApproval} from './chat/gate.js'
-import {makeConcivSandbox} from './chat/sandbox.js'
+import {defineSandbox, defineSandboxPolicy} from '@tanstack/ai-sandbox'
+import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
 import {recoverInterruptedRuns, sessionSnapshot} from './chat/transcript.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
@@ -249,6 +250,7 @@ export type AppType = ReturnType<typeof composeRoutes>
 
 export type MadeApp = {
   app: AppType
+  chat: ChatDeps
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
@@ -448,7 +450,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       {systemPromptFile: opts.systemPromptFile, systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt},
       harness.capabilities.systemPrompt,
     ),
-    sandbox: makeConcivSandbox(opts.cwd),
+    sandbox: defineSandbox({
+      id: 'conciv',
+      provider: localProcessSandbox({dir: opts.cwd}),
+      policy: defineSandboxPolicy({default: 'ask'}),
+      fileEvents: false,
+      lifecycle: {reuse: 'thread', destroyOnComplete: false},
+    }),
     db,
     asks,
     commandMemory,
@@ -539,5 +547,5 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     db.$client.close()
   }
 
-  return {app, dispose, extensionContexts, runtime}
+  return {app, chat: chatDeps, dispose, extensionContexts, runtime}
 }
