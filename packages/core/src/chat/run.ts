@@ -31,7 +31,6 @@ import {deleteThread, drafts, markers, sessions, type ConcivDb} from '@conciv/db
 import {transcriptPathWithin} from '@conciv/harness'
 import {FIRST_CHUNK_TIMEOUT_MS} from './run-timing.js'
 import type {ChatDeps, ToolRunContext} from './runtime.js'
-import type {RunDriver} from './run-drivers.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {beginRunMessages, sessionSnapshot, settleRunMessages, writeRunMessages} from './thread.js'
 import {syncedSnapshot, syncTranscript} from './transcript-import.js'
@@ -515,20 +514,19 @@ async function* runStream(
   }
 }
 
-function launchRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest): RunDriver {
+function launchRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest): Promise<void> {
   const abort = new AbortController()
   const handle = deps.runControl.start({
     runId: req.runId,
     threadId: sessionId,
     stream: runStream(deps, sessionId, req, abort),
   })
-  const settled = handle.done.then(
-    () => publishRunRecord(deps, sessionId, req.runId),
-    () => publishRunRecord(deps, sessionId, req.runId),
-  )
-  const driver: RunDriver = {runId: req.runId, abort, settled: settled.catch(() => undefined)}
-  deps.runDrivers.drive(sessionId, driver)
-  return driver
+  return handle.done
+    .then(
+      () => publishRunRecord(deps, sessionId, req.runId),
+      () => publishRunRecord(deps, sessionId, req.runId),
+    )
+    .catch(() => undefined)
 }
 
 function contextWindowFor(harness: HarnessAdapter, modelId: string | null): number | undefined {
@@ -654,7 +652,7 @@ export function makeSend(deps: ChatDeps): Send {
   return (sessionId, runId, content, messageId) =>
     deps.sessionLocks.serialize(sessionId, async () => {
       const claimed = await claimTurn(deps, sessionId, runId, content, messageId)
-      launchRun(deps, sessionId, claimed.req)
+      void launchRun(deps, sessionId, claimed.req)
       await settleClaim(deps, sessionId, claimed.record)
       return runId
     })
@@ -692,8 +690,7 @@ export function makeCompactor(deps: ChatDeps): Compactor {
       await settleActiveRuns(deps, sessionId, null)
       const history = await syncedSnapshot(deps, sessionId)
       await addCompactMarker(deps.db, sessionId, history.length)
-      const driver = launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
-      await driver.settled
+      await launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
     })
   }
 

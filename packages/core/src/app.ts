@@ -326,7 +326,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
-  const {claimStartedAt, durability, durabilityAt, runControl, runDrivers, runs, sessionLocks} = makeRunControl(
+  const {claimStartedAt, durability, durabilityAt, runControl, runs, sessionLocks} = makeRunControl(
     db,
     opts.firstChunkTimeoutMs,
   )
@@ -486,7 +486,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     runControl,
     runs,
     claimStartedAt,
-    runDrivers,
     sessionLocks,
     stream,
     snapshot: (sessionId) => syncedSnapshot(chatDeps, sessionId),

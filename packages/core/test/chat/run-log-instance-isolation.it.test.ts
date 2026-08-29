@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {makeSend} from '../../src/chat/run.js'
 import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
-import {drivingRun} from '../helpers/run-drivers.js'
+import {awaitRunSettled} from '../../src/chat/run-settled.js'
 
 const PROBE_EVENT = 'isolation-probe'
 
@@ -10,7 +10,7 @@ async function runToCompletion(fixture: ChatFixture, runId: string, origin: stri
   fixture.harness.script.scriptCustomEvent(PROBE_EVENT, {origin})
   const send = makeSend(fixture.chat)
   await send(fixture.sessionId, runId, `hello from ${origin}`)
-  await drivingRun(fixture.chat, runId).settled
+  await awaitRunSettled(fixture.chat.runs, runId)
 }
 
 async function replayRunLog(fixture: ChatFixture, runId: string): Promise<StreamChunk[]> {

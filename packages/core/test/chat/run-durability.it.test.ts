@@ -5,11 +5,11 @@ import {afterEach, describe, expect, it, vi} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {MadeApp} from '../../src/app.js'
-import {makeSend} from '../../src/chat/run.js'
+import {makeSend, makeTurn} from '../../src/chat/run.js'
 import {stopSession} from '../../src/chat/stop.js'
 import {bootMadeApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
-import {drivingRun} from '../helpers/run-drivers.js'
+import {awaitRunSettled} from '../../src/chat/run-settled.js'
 
 const claude = requireClaude()
 
@@ -20,6 +20,12 @@ function isAlive(pid: number): boolean {
   } catch {
     return false
   }
+}
+
+async function drain(stream: AsyncIterable<StreamChunk>): Promise<void> {
+  try {
+    for await (const chunk of stream) void chunk
+  } catch {}
 }
 
 describe('run durability is owned by withSandbox (IT)', () => {
@@ -62,18 +68,22 @@ describe('run durability is owned by withSandbox (IT)', () => {
     return found.pid
   }
 
-  it('an abort with no cancel intent detaches the run record', {timeout: 30_000}, async () => {
+  it('a viewer leaving with no cancel intent detaches the run record', {timeout: 30_000}, async () => {
     const pidFile = join(tmp('conciv-durability-pid-'), 'pid')
     const made = await boot({CONCIV_FAKE_HANG: '1', CONCIV_TEST_PID_FILE: pidFile})
     const sessionId = SessionId.parse('conciv_durability-detach')
     const runId = 'run-durability-detach-1'
-    await makeSend(made.chat)(sessionId, runId, 'keep going without me')
+    const viewer = new AbortController()
+    const stream = await makeTurn(made.chat)(sessionId, runId, 'keep going without me', {signal: viewer.signal})
+    void drain(stream)
     await waitForHarnessPid(pidFile)
 
-    drivingRun(made.chat, runId).abort.abort()
-    await drivingRun(made.chat, runId).settled
+    viewer.abort()
 
-    await expect(made.chat.runs.get(runId)).resolves.toMatchObject({detachedSince: expect.any(Number)})
+    await vi.waitFor(
+      async () => expect(await made.chat.runs.get(runId)).toMatchObject({detachedSince: expect.any(Number)}),
+      {timeout: 15_000, interval: 50},
+    )
   })
 
   it('an explicit stop cancels the run, records no detach, and kills the harness', {timeout: 30_000}, async () => {
@@ -97,7 +107,7 @@ describe('run durability is owned by withSandbox (IT)', () => {
     const sessionId = SessionId.parse('conciv_durability-once')
     const runId = 'run-durability-once-1'
     await makeSend(made.chat)(sessionId, runId, 'say it once')
-    await drivingRun(made.chat, runId).settled
+    await awaitRunSettled(made.chat.runs, runId)
 
     const chunks = await loggedChunks(made, runId)
     const text = chunks

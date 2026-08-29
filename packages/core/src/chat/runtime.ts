@@ -9,7 +9,6 @@ import {FIRST_CHUNK_TIMEOUT_MS, READER_FIRST_APPEND_GRACE_MS} from './run-timing
 import type {AskRegistry} from './ask.js'
 import type {CommandMemory} from './command-memory.js'
 import type {AttachmentExpanders} from './run.js'
-import {createRunDrivers, type RunDrivers} from './run-drivers.js'
 import {createSessionLocks, type SessionLocks} from './session-locks.js'
 import type {SessionStreams} from './session-events.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
@@ -31,7 +30,6 @@ export type ChatDeps = {
   runControl: RunController
   runs: RunStore
   claimStartedAt: () => number
-  runDrivers: RunDrivers
   sessionLocks: SessionLocks
   stream: SessionStreams
   snapshot: (sessionId: SessionId) => Promise<UIMessage[]>
@@ -58,7 +56,6 @@ export function makeRunControl(
   durability: (runId: string) => StreamDurability
   durabilityAt: (runId: string, offset: string) => StreamDurability
   runControl: RunController
-  runDrivers: RunDrivers
   runs: RunStore
   sessionLocks: SessionLocks
 } {
@@ -79,7 +76,6 @@ export function makeRunControl(
     durability,
     durabilityAt,
     runControl: new RunController({runs, durability}),
-    runDrivers: createRunDrivers(),
     runs,
     sessionLocks: createSessionLocks(),
   }

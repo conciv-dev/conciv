@@ -3,7 +3,7 @@ import type {StreamChunk, UIMessage} from '@tanstack/ai'
 import {makeSend} from '../../src/chat/run.js'
 import {sessionSnapshot} from '../../src/chat/thread.js'
 import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
-import {drivingRun} from '../helpers/run-drivers.js'
+import {awaitRunSettled} from '../../src/chat/run-settled.js'
 import {firstSnapshot, type SnapshotView} from '../helpers/snapshots.js'
 
 function storedPartTypes(message: UIMessage | undefined): string[] {
@@ -22,7 +22,7 @@ describe('the thread snapshot keeps the identity a live run streamed (IT)', () =
     try {
       fixture.harness.script.scriptTurn({toolCalls: [{name: 'Bash', input: {command: 'ls'}}], text: 'First answer.'})
       await makeSend(fixture.chat)(fixture.sessionId, 'thread-identity-1', 'first question')
-      await drivingRun(fixture.chat, 'thread-identity-1').settled
+      await awaitRunSettled(fixture.chat.runs, 'thread-identity-1')
 
       const snapshot = sessionSnapshot(fixture.chat, fixture.sessionId)
       const ids = snapshot.map((message) => message.id)
@@ -39,11 +39,11 @@ describe('the thread snapshot keeps the identity a live run streamed (IT)', () =
     try {
       fixture.harness.script.scriptTurn({toolCalls: [{name: 'Bash', input: {command: 'ls'}}], text: 'First answer.'})
       await makeSend(fixture.chat)(fixture.sessionId, 'thread-identity-2', 'first question')
-      await drivingRun(fixture.chat, 'thread-identity-2').settled
+      await awaitRunSettled(fixture.chat.runs, 'thread-identity-2')
 
       fixture.harness.script.scriptTurn({toolCalls: [{name: 'Read', input: {filePath: 'second.ts'}}], text: 'Second.'})
       await makeSend(fixture.chat)(fixture.sessionId, 'thread-identity-3', 'second question')
-      await drivingRun(fixture.chat, 'thread-identity-3').settled
+      await awaitRunSettled(fixture.chat.runs, 'thread-identity-3')
 
       const opening = await loggedSnapshot(fixture, 'thread-identity-3')
       const ids = opening.messages.map((message) => message.id)
