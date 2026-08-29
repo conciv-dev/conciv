@@ -8,6 +8,7 @@ export type ThreadScroller = {
 export type ViewportContextValue = {
   isAtBottom: Accessor<boolean>
   scrollToBottom: () => void
+  sendFromUser: <TResult>(deliver: () => TResult) => TResult
   setScroller: (scroller: ThreadScroller | undefined) => void
 }
 
@@ -23,4 +24,9 @@ export function useThreadViewport(): ViewportContextValue {
 
 export function useOptionalThreadViewport(): ViewportContextValue | undefined {
   return useContext(ViewportContext)
+}
+
+export function useSendFromUser(): <TResult>(deliver: () => TResult) => TResult {
+  const viewport = useContext(ViewportContext)
+  return (deliver) => (viewport ? viewport.sendFromUser(deliver) : deliver())
 }
