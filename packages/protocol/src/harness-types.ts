@@ -96,32 +96,6 @@ export type TerminalOpenRequest = {bin: string; args: string[]}
 
 export type TerminalOpener = (request: TerminalOpenRequest) => Promise<boolean>
 
-export type HarnessLiveSession = {
-  sessionId: HarnessSessionId
-  pid: number
-  cwd: string
-  name: string
-  status: 'idle' | 'busy' | 'shell'
-  startedAt?: number
-}
-
-export type HarnessAttachInstall = {
-  root: string
-  stateDir: string
-  mcpUrl: string
-  hookUrl: string
-}
-
-export type HarnessAttachResult = {ok: boolean; reloadCommand: string; detail?: string}
-
-export type HarnessAttachRemoval = {root: string; stateDir: string}
-
-export type HarnessAttach = {
-  candidates(cwd: string, home?: string): Promise<HarnessLiveSession[]>
-  install(opts: HarnessAttachInstall): Promise<HarnessAttachResult>
-  uninstall(opts: HarnessAttachRemoval): Promise<void>
-}
-
 export type HarnessChatDeps = {
   cwd: string
   sessionId: SessionId
@@ -206,7 +180,6 @@ type HarnessAdapterBase = {
   displayName?: string
 
   connect?: HarnessConnect
-  attach?: HarnessAttach
   chatConfig: (deps: HarnessChatDeps) => HarnessChatConfig
 
   models?: HarnessModels
