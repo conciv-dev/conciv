@@ -2,7 +2,7 @@ import {Show, createEffect, onCleanup, onMount, type JSX} from 'solid-js'
 import {Editor, type CommandProps} from '@tiptap/core'
 import type {EditorView} from '@tiptap/pm/view'
 import {UndoRedo} from '@tiptap/extensions'
-import {EditorState, Selection, TextSelection} from '@tiptap/pm/state'
+import {Selection, TextSelection} from '@tiptap/pm/state'
 import {Slice, type Schema} from '@tiptap/pm/model'
 import {ScrollArea} from '@conciv/ui-kit-system'
 import {chipExtension, documentExtensions} from './field-schema.js'
@@ -81,6 +81,33 @@ function appendCommand(text: string) {
   return ({tr, state}: CommandProps) => {
     const end = Selection.atEnd(state.doc).from
     tr.replace(end, end, plainTextSlice(state.schema, text))
+    return true
+  }
+}
+
+function commonPrefixLength(current: string, next: string): number {
+  const limit = Math.min(current.length, next.length)
+  let length = 0
+  while (length < limit && current[length] === next[length]) length += 1
+  return length
+}
+
+function commonSuffixLength(current: string, next: string, prefix: number): number {
+  const limit = Math.min(current.length, next.length) - prefix
+  let length = 0
+  while (length < limit && current[current.length - 1 - length] === next[next.length - 1 - length]) length += 1
+  return length
+}
+
+function externalValueCommand(next: string) {
+  return ({tr, state}: CommandProps) => {
+    const current = projectDocument(state.doc)
+    const prefix = commonPrefixLength(current, next)
+    const suffix = commonSuffixLength(current, next, prefix)
+    const from = offsetToPosition(state.doc, prefix)
+    const to = offsetToPosition(state.doc, current.length - suffix)
+    tr.replace(from, to, plainTextSlice(state.schema, next.slice(prefix, next.length - suffix)))
+    if (current === '') tr.setSelection(Selection.atEnd(tr.doc))
     return true
   }
 }
@@ -212,8 +239,7 @@ export function RichTextField(props: {
     createEffect(() => {
       const value = props.value
       if (value === projectDocument(editor.state.doc)) return
-      const doc = editor.schema.nodeFromJSON(buildDocument(value))
-      editor.view.updateState(EditorState.create({doc, selection: Selection.atEnd(doc), plugins: editor.state.plugins}))
+      editor.chain().command(externalValueCommand(value)).run()
     })
 
     createEffect(() => {
