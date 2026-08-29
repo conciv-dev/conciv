@@ -10,37 +10,38 @@ afterEach(async () => {
   kit = undefined
 })
 
+function userTexts(messages: readonly unknown[]): string {
+  return JSON.stringify(messages)
+}
+
 describe('chatConnection refresh', () => {
-  it('settles only once the reopened stream has delivered a fresh snapshot', async () => {
+  it('serves the transcript the server leads, including a turn this client never sent', async () => {
     kit = await bootClientKit()
     const sessionId = await kit.session()
-    const rpc = makeRpcClient(kit.base)
-    const connection = chatConnection(rpc, sessionId, {retryDelayMs: 25})
+    const connection = chatConnection(makeRpcClient(kit.base), kit.base, sessionId)
+
+    expect(userTexts((await connection.refresh()).messages)).toBe('[]')
+
+    const elsewhere = await kit.turn('led from the server', {session: sessionId, runId: 'refresh-1'})
+    await elsewhere.done({hangGuardMs: 20_000})
+
+    expect(userTexts((await connection.refresh()).messages)).toContain('led from the server')
+  }, 60_000)
+
+  it('refreshes without ever opening a stream', async () => {
+    kit = await bootClientKit()
+    const sessionId = await kit.session()
+    const connection = chatConnection(makeRpcClient(kit.base), kit.base, sessionId)
+    const seen: StreamChunk[] = []
     const abort = new AbortController()
-    const snapshots: StreamChunk[] = []
-    const firstSnapshot = Promise.withResolvers<void>()
-    const consumer = (async () => {
-      for await (const chunk of connection.subscribe(abort.signal)) {
-        if (chunk.type !== EventType.MESSAGES_SNAPSHOT) continue
-        snapshots.push(chunk)
-        if (snapshots.length === 1) firstSnapshot.resolve()
-      }
+    void (async () => {
+      for await (const chunk of connection.subscribe(abort.signal)) seen.push(chunk)
     })()
 
-    await firstSnapshot.promise
-    expect(snapshots.length).toBe(1)
+    const hydration = await connection.refresh()
 
-    await connection.refresh()
-    expect(snapshots.length).toBe(2)
-
+    expect(hydration.activeRun).toBeNull()
+    expect(seen.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)).toEqual([])
     abort.abort()
-    await consumer
-  })
-
-  it('settles immediately when no stream has been opened yet', async () => {
-    kit = await bootClientKit()
-    const sessionId = await kit.session()
-    const connection = chatConnection(makeRpcClient(kit.base), sessionId, {retryDelayMs: 25})
-    await expect(connection.refresh()).resolves.toBeUndefined()
-  })
+  }, 60_000)
 })

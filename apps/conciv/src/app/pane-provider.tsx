@@ -8,7 +8,7 @@ import {
   useAppQueryClient,
   useConnectionGeneration,
   useGrabProvider,
-  useRpc,
+  useChatDeps,
 } from './context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from './pane-context.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
@@ -21,7 +21,7 @@ export function PaneProvider(props: {
   children: JSX.Element
 }): JSX.Element {
   const appData = useAppData()
-  const rpc = useRpc()
+  const {rpc, apiBase} = useChatDeps()
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
   const router = useRouter()
@@ -38,7 +38,7 @@ export function PaneProvider(props: {
   }
 
   const chatKey = createMemo(() => ({sessionId: props.sessionId, generation: generation()}))
-  const chat = createMemo(() => useChatSession({rpc, sessionId: chatKey().sessionId}))
+  const chat = createMemo(() => useChatSession({rpc, apiBase: apiBase(), sessionId: chatKey().sessionId}))
   const coordinator = makeRefreshCoordinator({
     chat,
     sessionId: () => props.sessionId,

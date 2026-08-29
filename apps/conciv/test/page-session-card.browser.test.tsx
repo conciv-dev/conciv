@@ -37,7 +37,7 @@ test('a reloaded transcript of page acts renders one aggregated session card wit
     ],
     text: 'The profile form is filled in.',
   })
-  await runTurn(rpc, sessionId, 'fill in the profile form')
+  await runTurn(core.base, sessionId, 'fill in the profile form')
 
   mounted.pane = mountPane({base: core.base, sessionId}, () => <ChatPane sessionId={sessionId} />)
 

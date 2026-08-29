@@ -72,7 +72,7 @@ export default function ThemeToggle() {
       onClick={toggleMode}
       aria-label={label}
       title={label}
-      className="btn btn-ghost btn-round px-4 py-1.5 text-[0.8125rem]"
+      class="btn btn-ghost btn-round px-4 py-1.5 text-[0.8125rem]"
     >
       {mode === 'auto' ? 'Auto' : mode === 'dark' ? 'Dark' : 'Light'}
     </button>

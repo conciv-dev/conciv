@@ -1,12 +1,11 @@
-import {mkdtempSync, readFileSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {afterEach, describe, expect, it, vi} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {requestRunCancel} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
-import type {MadeApp} from '../../src/app.js'
 import {makeSend} from '../../src/chat/run.js'
 import {bootMadeApp} from '../helpers/boot.js'
+import {useMadeApps} from '../helpers/made-apps.js'
 import {requireClaude} from '../helpers/adapters.js'
 
 const claude = requireClaude()
@@ -21,18 +20,8 @@ function isAlive(pid: number): boolean {
 }
 
 describe('a run cancels itself off its own record (IT)', () => {
-  const state = {apps: [] as MadeApp[], dirs: [] as string[]}
-
-  afterEach(async () => {
-    for (const made of state.apps.splice(0)) await made.dispose()
-    for (const dir of state.dirs.splice(0)) rmSync(dir, {recursive: true, force: true})
-  })
-
-  function tmp(prefix: string): string {
-    const dir = mkdtempSync(join(tmpdir(), prefix))
-    state.dirs.push(dir)
-    return dir
-  }
+  const apps = useMadeApps()
+  const tmp = apps.tmp
 
   it('requestRunCancel alone ends the run and kills the harness', {timeout: 30_000}, async () => {
     const pidFile = join(tmp('conciv-self-cancel-pid-'), 'pid')
@@ -40,7 +29,7 @@ describe('a run cancels itself off its own record (IT)', () => {
       {stateRoot: tmp('conciv-self-cancel-state-'), cwd: tmp('conciv-self-cancel-cwd-'), harness: claude},
       {fakeClaude: {env: () => ({CONCIV_FAKE_HANG: '1', CONCIV_TEST_PID_FILE: pidFile})}},
     )
-    state.apps.push(made)
+    apps.keep(made)
     const sessionId = SessionId.parse('conciv_self-cancel')
     const runId = 'run-self-cancel-1'
     await makeSend(made.chat)(sessionId, runId, 'hang around')

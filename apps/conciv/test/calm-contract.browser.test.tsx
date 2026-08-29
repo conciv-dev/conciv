@@ -4,7 +4,7 @@ import {page, userEvent} from 'vitest/browser'
 import type {RpcClient} from '@conciv/contract'
 import {ChatPane} from '../src/pane/chat-pane.js'
 import {coreControl} from './helpers/core-control.js'
-import {coreRpc, createSession, openTranscriptStream, sendTurn} from './helpers/core-session.js'
+import {coreRpc, createSession, runTurn, sendTurn} from './helpers/core-session.js'
 import {mountPane, type PaneMount} from './helpers/pane-harness.js'
 import {SCROLL_END_THRESHOLD_PX, VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
 import {
@@ -161,15 +161,9 @@ function expectCalm(watch: CalmWatch): void {
   expect(watch.shiftedAboveLiveRegion()).toEqual([])
 }
 
-async function seedThread(rpc: RpcClient, sessionId: string, exchanges: number): Promise<void> {
-  const stream = await openTranscriptStream(rpc, sessionId)
-  try {
-    for (let index = 0; index < exchanges; index += 1) {
-      await sendTurn(rpc, sessionId, `seeded exchange ${index}`)
-      await stream.awaitTurnEnd()
-    }
-  } finally {
-    stream.close()
+async function seedThread(base: string, sessionId: string, exchanges: number): Promise<void> {
+  for (let index = 0; index < exchanges; index += 1) {
+    await runTurn(base, sessionId, `seeded exchange ${index}`)
   }
 }
 
@@ -341,7 +335,7 @@ test('cancelling a run settles every surface in place [mechanism B: wrong stream
 })
 
 test('a pane remounted mid-run rejoins without churning its surfaces [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
-  const {rpc, sessionId} = await newSession()
+  const {sessionId} = await newSession()
   await coreControl.scriptTurn({
     toolCalls: [{name: 'Bash', input: {command: 'rejoin probe'}}],
     text: 'Finished after reload.',
@@ -349,7 +343,7 @@ test('a pane remounted mid-run rejoins without churning its surfaces [mechanism 
   await coreControl.holdTools()
   await coreControl.holdResults()
   await coreControl.holdTurn()
-  await sendTurn(rpc, sessionId, 'a turn started before the reload')
+  await sendTurn(core.base, sessionId, 'a turn started before the reload')
 
   mountChatPane(sessionId)
   await expect.element(input()).toBeVisible()
@@ -432,8 +426,8 @@ test('a run under reduced motion stays as still as one with motion [mechanism A:
 })
 
 test('a long thread at the virtualization boundary stays still while a run streams [mechanism C: retroactive regrouping, page-session.ts:141-151]', async () => {
-  const {rpc, sessionId} = await newSession()
-  await seedThread(rpc, sessionId, SEEDED_EXCHANGES)
+  const {sessionId} = await newSession()
+  await seedThread(core.base, sessionId, SEEDED_EXCHANGES)
   await coreControl.scriptTurn({
     toolCalls: [
       {name: 'page_fill', input: {selector: '#name', value: 'Ada'}, result: {ok: true, value: 'Ada'}},
@@ -463,8 +457,8 @@ test('a long thread at the virtualization boundary stays still while a run strea
 }, 120_000)
 
 test('a thread crossing the virtualization threshold mid-run keeps its visible surfaces [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
-  const {rpc, sessionId} = await newSession()
-  await seedThread(rpc, sessionId, BOUNDARY_EXCHANGES)
+  const {sessionId} = await newSession()
+  await seedThread(core.base, sessionId, BOUNDARY_EXCHANGES)
   await coreControl.scriptTurn({
     toolCalls: [{name: 'Bash', input: {command: 'cross the boundary'}}],
     text: 'Crossed the boundary.',
@@ -543,8 +537,8 @@ function scrollGateSteps(): ScriptedToolStep[] {
 type ScrollGate = {viewport: HTMLElement; restore: () => void}
 
 async function seededScrollGate(): Promise<ScrollGate> {
-  const {rpc, sessionId} = await newSession()
-  await seedThread(rpc, sessionId, SCROLL_GATE_EXCHANGES)
+  const {sessionId} = await newSession()
+  await seedThread(core.base, sessionId, SCROLL_GATE_EXCHANGES)
   await coreControl.scriptTurn({
     toolCalls: scrollGateSteps(),
     text: streamedCodeAnswer(),
@@ -659,8 +653,8 @@ test('sending a prompt after scrolling up returns the viewport to the end [gate 
 }, 120_000)
 
 test('folding a card leaves a released reader exactly where they were [gate e: size compensation]', async () => {
-  const {rpc, sessionId} = await newSession()
-  await seedThread(rpc, sessionId, SCROLL_GATE_EXCHANGES)
+  const {sessionId} = await newSession()
+  await seedThread(core.base, sessionId, SCROLL_GATE_EXCHANGES)
   await coreControl.scriptTurn({
     toolCalls: [
       {name: 'Bash', input: {command: 'ls'}},

@@ -28,59 +28,63 @@ const STRUCTURE = [
 
 function About() {
   return (
-    <main className="page-wrap px-4 pb-10 pt-10 sm:pt-14">
-      <section className="island-shell island-raised rise-in relative overflow-hidden rounded-[1.75rem] px-6 py-9 sm:px-9 sm:py-11">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(circle,var(--accent-soft),transparent_68%)]" />
-        <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)] lg:items-center">
+    <main class="page-wrap px-4 pb-10 pt-10 sm:pt-14">
+      <section class="island-shell island-raised rise-in relative overflow-hidden rounded-[1.75rem] px-6 py-9 sm:px-9 sm:py-11">
+        <div class="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(circle,var(--accent-soft),transparent_68%)]" />
+        <div class="relative grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)] lg:items-center">
           <div>
-            <span className="eyebrow mb-4">
-              <span className="eyebrow-dot" />
+            <span class="eyebrow mb-4">
+              <span class="eyebrow-dot" />
               About
             </span>
-            <h1 className="display-title mb-4 max-w-[15ch] text-4xl font-bold text-[var(--sea-ink)] sm:text-[3.25rem]">
+            <h1 class="display-title mb-4 max-w-[15ch] text-4xl font-bold text-[var(--sea-ink)] sm:text-[3.25rem]">
               A small starter with room to grow.
             </h1>
-            <p className="lede m-0 max-w-[46ch]">
+            <p class="lede m-0 max-w-[46ch]">
               TanStack Start gives you type-safe routing, server functions, and modern SSR defaults. Use this as a clean
               foundation, then layer in your own routes, styling, and add-ons.
             </p>
           </div>
-          <div className="island-shell rounded-[1.25rem] p-4 sm:p-5">
-            <p className="island-kicker mb-3">In the box</p>
-            <ul className="m-0 flex list-none flex-col gap-2 p-0">
-              {STACK.map(([name, version]) => (
-                <li key={name} className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="font-semibold text-[var(--sea-ink)]">{name}</span>
-                  <span className="mono field-hint">{version}</span>
-                </li>
-              ))}
+          <div class="island-shell rounded-[1.25rem] p-4 sm:p-5">
+            <p class="island-kicker mb-3">In the box</p>
+            <ul class="m-0 flex list-none flex-col gap-2 p-0">
+              <For each={STACK}>
+                {([name, version]) => (
+                  <li key={name} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="font-semibold text-[var(--sea-ink)]">{name}</span>
+                    <span className="mono field-hint">{version}</span>
+                  </li>
+                )}
+              </For>
             </ul>
           </div>
         </div>
       </section>
 
-      <section className="mt-5 grid gap-4 sm:grid-cols-2">
+      <section class="mt-5 grid gap-4 sm:grid-cols-2">
         {PILLARS.map(([title, desc], index) => (
-          <article key={title} className="feature-card rise-in" style={{animationDelay: `${index * 70 + 60}ms`}}>
-            <span className="feature-mark mono mb-3">{index + 1}</span>
-            <h2 className="mb-1.5 text-[0.9375rem] font-bold text-[var(--sea-ink)]">{title}</h2>
-            <p className="m-0 text-sm leading-6 text-[var(--sea-ink-soft)]">{desc}</p>
+          <article class="feature-card rise-in" style={{'animation-delay': `${index * 70 + 60}ms`}}>
+            <span class="feature-mark mono mb-3">{index + 1}</span>
+            <h2 class="mb-1.5 text-[0.9375rem] font-bold text-[var(--sea-ink)]">{title}</h2>
+            <p class="m-0 text-sm leading-6 text-[var(--sea-ink-soft)]">{desc}</p>
           </article>
         ))}
       </section>
 
-      <section className="island-shell mt-5 rounded-[1.5rem] p-6 sm:p-7">
-        <div className="section-head mb-4">
-          <h2 className="section-title">Where things live</h2>
-          <p className="section-hint">Four folders, nothing hidden</p>
+      <section class="island-shell mt-5 rounded-[1.5rem] p-6 sm:p-7">
+        <div class="section-head mb-4">
+          <h2 class="section-title">Where things live</h2>
+          <p class="section-hint">Four folders, nothing hidden</p>
         </div>
-        <ul className="m-0 flex list-none flex-col gap-3 p-0">
-          {STRUCTURE.map(([path, desc]) => (
-            <li key={path} className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
-              <code className="mono shrink-0">{path}</code>
-              <span className="text-sm text-[var(--sea-ink-soft)]">{desc}</span>
-            </li>
-          ))}
+        <ul class="m-0 flex list-none flex-col gap-3 p-0">
+          <For each={STRUCTURE}>
+            {([path, desc]) => (
+              <li key={path} className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
+                <code className="mono shrink-0">{path}</code>
+                <span className="text-sm text-[var(--sea-ink-soft)]">{desc}</span>
+              </li>
+            )}
+          </For>
         </ul>
       </section>
     </main>

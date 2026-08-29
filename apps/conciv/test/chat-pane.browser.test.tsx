@@ -12,7 +12,7 @@ import {ChatPane} from '../src/pane/chat-pane.js'
 import {QueueStrip} from '../src/pane/queue-strip.js'
 import {RefreshButton} from '../src/shell/refresh-button.js'
 import {coreControl} from './helpers/core-control.js'
-import {coreRpc, createSession, openTranscriptStream, runTurn, seedDraft, sendTurn} from './helpers/core-session.js'
+import {coreRpc, createSession, runTurn, seedDraft, sendTurn} from './helpers/core-session.js'
 import {
   grabProviderFor,
   HERO_GRAB,
@@ -280,9 +280,9 @@ test('one narration line rides the whole run, outside the trace, across the tool
 })
 
 test('a pane that joins a run another client already started narrates it, and stops when it ends', async () => {
-  const {rpc, sessionId} = await newSession()
+  const {sessionId} = await newSession()
   await coreControl.holdTurn()
-  await sendTurn(rpc, sessionId, 'a turn driven from another client')
+  await sendTurn(core.base, sessionId, 'a turn driven from another client')
 
   mountChatPane(sessionId)
 
@@ -296,18 +296,17 @@ test('a pane that joins a run another client already started narrates it, and st
 })
 
 test('the refresh affordance re-subscribes and shows the transcript the server re-leads', async () => {
-  const {rpc, sessionId} = await newSession()
+  const {sessionId} = await newSession()
   mountChatPane(sessionId)
   await expect.element(page.getByText('How can I help you today?')).toBeVisible()
 
-  const stream = await openTranscriptStream(rpc, sessionId)
   const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
   await page.getByRole('button', {name: 'Refresh the conversation'}).click()
 
   await coreControl.scriptTurn({toolCalls: [], text: 'the refreshed transcript'})
-  await sendTurn(rpc, sessionId, 'lead the transcript from the server')
-  await stream.awaitTurnEnd()
-  stream.close()
+  const turn = await sendTurn(core.base, sessionId, 'lead the transcript from the server')
+  await turn.awaitTurnEnd()
+  turn.close()
   await coreControl.releaseFault(gate)
 
   await expect.element(page.getByText('the refreshed transcript')).toBeVisible()
@@ -422,9 +421,9 @@ test('Escape outside the composer does not stop the run', async () => {
 })
 
 test('a new-session divider does not flash before the transcript snapshot hydrates', async () => {
-  const {rpc, sessionId} = await newSession()
+  const {sessionId} = await newSession()
   await coreControl.scriptTurn({toolCalls: [], text: 'starting a fresh session'})
-  await runTurn(rpc, sessionId, 'restart with a clean slate')
+  await runTurn(core.base, sessionId, 'restart with a clean slate')
   const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
   const mount = mountChatPane(sessionId)
 

@@ -60,7 +60,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   })
   const {rpc, data, queryClient} = app
   const chatRoot = createRoot((disposeChat) => {
-    const chat = createMemo(() => useChatSession({rpc, sessionId: options.sessionId}))
+    const chat = createMemo(() => useChatSession({rpc, apiBase: options.base, sessionId: options.sessionId}))
     const coordinator = makeRefreshCoordinator({
       chat,
       sessionId: () => options.sessionId,

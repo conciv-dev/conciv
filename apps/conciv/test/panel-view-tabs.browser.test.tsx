@@ -50,7 +50,7 @@ async function mountSeededPanel(): Promise<void> {
   const rpc = coreRpc(coreBase())
   const sessionId = await createSession(rpc)
   await coreControl.scriptTurn({toolCalls: [], text: REPLY_TEXT})
-  await runTurn(rpc, sessionId, 'seed the transcript')
+  await runTurn(coreBase(), sessionId, 'seed the transcript')
   harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
 }
 
@@ -83,10 +83,10 @@ test('a virtualized transcript survives a view tab round trip', async () => {
   const sessionId = await createSession(rpc)
   for (let index = 0; index < SEEDED_EXCHANGES - 1; index += 1) {
     await coreControl.scriptTurn({toolCalls: [], text: `seeded answer ${index}`})
-    await runTurn(rpc, sessionId, `seeded question ${index}`)
+    await runTurn(coreBase(), sessionId, `seeded question ${index}`)
   }
   await coreControl.scriptTurn({toolCalls: [], text: LONG_REPLY_TEXT})
-  await runTurn(rpc, sessionId, 'the last question')
+  await runTurn(coreBase(), sessionId, 'the last question')
   harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
 
   await expect.element(longReply(), {timeout: 8000}).toBeVisible()

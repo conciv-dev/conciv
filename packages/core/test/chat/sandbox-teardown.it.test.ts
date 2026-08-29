@@ -1,36 +1,24 @@
-import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
-import {afterEach, describe, expect, it, vi} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {MadeApp} from '../../src/app.js'
 import {makeSend} from '../../src/chat/run.js'
 import {stopSession} from '../../src/chat/stop.js'
 import {bootMadeApp} from '../helpers/boot.js'
+import {useMadeApps} from '../helpers/made-apps.js'
 import {requireClaude} from '../helpers/adapters.js'
 
 const claude = requireClaude()
 
 describe('sandbox teardown (IT)', () => {
-  const state = {apps: [] as MadeApp[], dirs: [] as string[]}
-
-  afterEach(async () => {
-    for (const made of state.apps.splice(0)) await made.dispose()
-    for (const dir of state.dirs.splice(0)) rmSync(dir, {recursive: true, force: true})
-  })
-
-  function tmp(prefix: string): string {
-    const dir = mkdtempSync(join(tmpdir(), prefix))
-    state.dirs.push(dir)
-    return dir
-  }
+  const apps = useMadeApps()
+  const tmp = apps.tmp
 
   async function boot(env: NodeJS.ProcessEnv): Promise<MadeApp> {
     const made = await bootMadeApp(
       {stateRoot: tmp('conciv-teardown-state-'), cwd: tmp('conciv-teardown-cwd-'), harness: claude},
       {fakeClaude: {env: () => env}},
     )
-    state.apps.push(made)
+    apps.keep(made)
     return made
   }
 

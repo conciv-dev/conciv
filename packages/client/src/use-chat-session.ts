@@ -6,6 +6,7 @@ import {chatConnection, type ChatConnectionOptions} from './chat-connection.js'
 
 export type UseChatSessionOptions = {
   rpc: RpcClient
+  apiBase: string
   sessionId: string
   connection?: ChatConnectionOptions
   onError?: (error: Error) => void
@@ -35,7 +36,7 @@ function joinedQueueText(queued: QueuedMessage[]): string | null {
 
 export function useChatSession(options: UseChatSessionOptions): ChatSession {
   const [runSource, setRunSource] = createSignal<RunClockSource | null>(null)
-  const connection = chatConnection(options.rpc, options.sessionId, {
+  const connection = chatConnection(options.rpc, options.apiBase, options.sessionId, {
     ...options.connection,
     onLifecycle: (lifecycle) => {
       options.connection?.onLifecycle?.(lifecycle)
@@ -45,6 +46,7 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
   const chat = useChat({
     threadId: options.sessionId,
     connection,
+    persistence: true,
     live: true,
     queue: 'queue',
     onError: options.onError,
@@ -79,10 +81,14 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     }
     void sendQueuedSequentially(queued)
   }
+  const refresh = async (): Promise<void> => {
+    const hydration = await connection.refresh()
+    chat.setMessages(hydration.messages)
+  }
   return {
     ...chat,
     stop,
-    refresh: connection.refresh,
+    refresh,
     interruptAndFlush,
     stopping,
     runSource,

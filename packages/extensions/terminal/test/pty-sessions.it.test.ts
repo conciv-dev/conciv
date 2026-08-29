@@ -48,7 +48,7 @@ describe('pty sessions', () => {
     const {sink} = collect((update) => {
       if (update.kind === 'data' && update.text.includes('tty-roundtrip-42')) echoed.resolve(update.text)
     })
-    s.events(sink)
+    s.attach(sink)
     s.write('echo tty-roundtrip-$((40+2))\r')
     expect(await echoed.promise).toContain('tty-roundtrip-42')
   })
@@ -60,12 +60,12 @@ describe('pty sessions', () => {
     const early = collect((update) => {
       if (update.kind === 'data' && update.text.includes('replay-marker')) marked.resolve(update.text)
     })
-    const detach = s.events(early.sink)
+    const detach = s.attach(early.sink)
     s.write('echo replay-marker\r')
     expect(await marked.promise).toContain('replay-marker')
     detach()
     const late = collect()
-    s.events(late.sink)
+    s.attach(late.sink)
     expect(late.chunks.join('')).toContain('replay-marker')
   })
 
@@ -76,7 +76,7 @@ describe('pty sessions', () => {
     const {sink} = collect((update) => {
       if (update.kind === 'data' && update.text.includes('41 97')) sized.resolve(update.text)
     })
-    s.events(sink)
+    s.attach(sink)
     s.resize(97, 41)
     s.write('stty size\r')
     expect(await sized.promise).toContain('41 97')
@@ -89,7 +89,7 @@ describe('pty sessions', () => {
     const {controls, sink} = collect((update) => {
       if (update.kind === 'control' && update.frame.type === 'exit') exited.resolve(update.frame)
     })
-    s.events(sink)
+    s.attach(sink)
     s.write('exit 3\r')
     expect(await exited.promise).toEqual({type: 'exit', code: 3})
     expect(s.exited()).toEqual({code: 3})
@@ -104,7 +104,7 @@ describe('pty sessions', () => {
       if (update.kind !== 'control') return
       if (update.frame.type === 'error' || update.frame.type === 'exit') failed.resolve(update.frame)
     })
-    s.events(sink)
+    s.attach(sink)
     expect((await failed.promise).type).toMatch(/^(error|exit)$/)
   })
 
@@ -115,12 +115,12 @@ describe('pty sessions', () => {
     const live = collect((update) => {
       if (update.kind === 'data' && update.text.includes('\r\nconciv marker\r\n')) injected.resolve(update.text)
     })
-    const detach = s.events(live.sink)
+    const detach = s.attach(live.sink)
     s.inject('conciv marker')
     expect(await injected.promise).toContain('\r\nconciv marker\r\n')
     detach()
     const late = collect()
-    s.events(late.sink)
+    s.attach(late.sink)
     expect(late.chunks.join('')).toContain('\r\nconciv marker\r\n')
   })
 
@@ -134,7 +134,7 @@ describe('pty sessions', () => {
       if (update.text.includes('sleep 30')) started.resolve(update.text)
       if (update.text.includes('B6K')) resumed.resolve(update.text)
     })
-    s.events(sink)
+    s.attach(sink)
     s.write('sleep 30 && echo S$((5+5))P\r')
     await started.promise
     await new Promise((r) => setTimeout(r, 300))
@@ -153,7 +153,7 @@ describe('pty sessions', () => {
       if (update.frame.busy) turnedBusy.resolve(update.frame)
       if (!update.frame.busy && controls.some((f) => f.type === 'busy' && f.busy)) turnedIdle.resolve(update.frame)
     })
-    s.events(sink)
+    s.attach(sink)
     expect(controls).toEqual([{type: 'busy', busy: false}])
     s.write('printf "\\033]9;4;1\\007"\r')
     expect(await turnedBusy.promise).toEqual({type: 'busy', busy: true})
@@ -173,13 +173,13 @@ describe('pty sessions', () => {
         turnedBusy.resolve(update.frame)
       }
     })
-    const detach = s.events(early.sink)
+    const detach = s.attach(early.sink)
     s.write('printf "\\033]9;4;1\\007"\r')
     await turnedBusy.promise
     expect(s.busy()).toBe(true)
     detach()
     const late = collect()
-    s.events(late.sink)
+    s.attach(late.sink)
     expect(late.controls.some((f) => f.type === 'busy' && f.busy)).toBe(true)
   })
 
@@ -193,7 +193,7 @@ describe('pty sessions', () => {
       if (update.text.includes('sleep 30')) started.resolve(update.text)
       if (update.text.includes('D4N')) resumed.resolve(update.text)
     })
-    s.events(sink)
+    s.attach(sink)
     s.write('sleep 30\r')
     await started.promise
     await new Promise((r) => setTimeout(r, 300))
@@ -208,7 +208,7 @@ describe('pty sessions', () => {
   it('evicts an idle session with no sinks', async () => {
     const sessions = make({idleEvictMs: 100})
     const s = sessions.open('s5', BASH, process.cwd())
-    const detach = s.events(collect().sink)
+    const detach = s.attach(collect().sink)
     detach()
     await until(() => sessions.get('s5') === undefined, {hangGuardMs: 3000})
   })

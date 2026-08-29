@@ -35,7 +35,11 @@ test('composer chip area renders the fixture card with a remove affordance', asy
   const {cards, adapter} = paneAttachments([fixtureExtension()], false)
   const file = new File(['{"x":1}'], 'fixture.bin', {type: 'application/x-fixture'})
   render(() => {
-    const chat = useChatSession({rpc: makeRpcClient('http://127.0.0.1:9'), sessionId: 'conciv_widget'})
+    const chat = useChatSession({
+      rpc: makeRpcClient('http://127.0.0.1:9'),
+      apiBase: 'http://127.0.0.1:9',
+      sessionId: 'conciv_widget',
+    })
     return (
       <ChatProvider chat={chat}>
         <ComposerHandlersProvider value={{onSend: () => {}, onCancel: () => {}}}>

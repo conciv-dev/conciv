@@ -28,7 +28,7 @@ import {
   useDisconnect,
   useGrabProvider,
   useInstances,
-  useRpc,
+  useChatDeps,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
@@ -77,7 +77,7 @@ function PanelSession(): JSX.Element {
   const params = Route.useParams()
   const generation = useConnectionGeneration()
   const appData = useAppData()
-  const rpc = useRpc()
+  const {rpc, apiBase} = useChatDeps()
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
   const instances = useInstances()
@@ -140,7 +140,7 @@ function PanelSession(): JSX.Element {
   })
 
   const chatKey = createMemo(() => ({sessionId: params().sessionId, generation: generation()}))
-  const chat = createMemo(() => useChatSession({rpc, sessionId: chatKey().sessionId}))
+  const chat = createMemo(() => useChatSession({rpc, apiBase: apiBase(), sessionId: chatKey().sessionId}))
   const coordinator = makeRefreshCoordinator({
     chat,
     sessionId: () => params().sessionId,

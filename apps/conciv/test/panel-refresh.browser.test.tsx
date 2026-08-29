@@ -26,7 +26,7 @@ test('refreshing the conversation dismisses the menu, shows progress, and keeps 
   const rpc = coreRpc(coreBase())
   const sessionId = await createSession(rpc)
   await coreControl.scriptTurn({toolCalls: [], text: REPLY_TEXT})
-  await runTurn(rpc, sessionId, 'seed the transcript')
+  await runTurn(coreBase(), sessionId, 'seed the transcript')
   harness.mountShell(`/panel/${sessionId}?open=true`)
 
   await expect.element(reply(), {timeout: 8000}).toBeVisible()

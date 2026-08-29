@@ -32,7 +32,7 @@ export const Route = createRootRoute({
   shellComponent: RootDocument,
 })
 
-function RootDocument({children}: {children: React.ReactNode}) {
+function RootDocument(props: {children: React.ReactNode}) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -41,7 +41,7 @@ function RootDocument({children}: {children: React.ReactNode}) {
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
         <Header />
-        {children}
+        {props.children}
         <Footer />
         <TanStackDevtools
           config={{
