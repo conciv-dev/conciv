@@ -48,24 +48,24 @@ function successResult(content: string): ToolResultPart {
 it('a structured payload whose code matches a declared error renders the declared message', async () => {
   mountView(() => (
     <MetaToolCard
-      part={part('page.fill', {selector: '#ghost', value: 'nobody'})}
-      result={errorResult('{"error":{"message":"page.fill failed","code":"NO_MATCH"}}')}
-      ctx={ctxWith(catalogOf({'page.fill': fillMeta}))}
+      part={part('page_fill', {selector: '#ghost', value: 'nobody'})}
+      result={errorResult('{"error":{"message":"page_fill failed","code":"NO_MATCH"}}')}
+      ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
       addResult={INERT_ADD_RESULT}
     />
   ))
 
   await userEvent.click(page.getByRole('button'))
   await expect.element(page.getByText('nothing on the page matches that selector')).toBeVisible()
-  expect(document.body.textContent).not.toContain('page.fill failed')
+  expect(document.body.textContent).not.toContain('page_fill failed')
 })
 
 it('a structured payload with an unknown code falls through to the payload message', async () => {
   mountView(() => (
     <MetaToolCard
-      part={part('page.fill', {selector: '#ghost', value: 'nobody'})}
+      part={part('page_fill', {selector: '#ghost', value: 'nobody'})}
       result={errorResult('{"error":{"message":"the sandbox blew up","code":"SOMETHING_ELSE"}}')}
-      ctx={ctxWith(catalogOf({'page.fill': fillMeta}))}
+      ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
       addResult={INERT_ADD_RESULT}
     />
   ))
@@ -78,9 +78,9 @@ it('a structured payload with an unknown code falls through to the payload messa
 it('a non-JSON result body that merely looks like a declared-error prefix falls through to the raw text', async () => {
   mountView(() => (
     <MetaToolCard
-      part={part('page.fill', {selector: '#ghost', value: 'nobody'})}
+      part={part('page_fill', {selector: '#ghost', value: 'nobody'})}
       result={errorResult('NO_MATCH: the field vanished')}
-      ctx={ctxWith(catalogOf({'page.fill': fillMeta}))}
+      ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
       addResult={INERT_ADD_RESULT}
     />
   ))
@@ -93,9 +93,9 @@ it('a non-JSON result body that merely looks like a declared-error prefix falls 
 it('a code-mode string error envelope decodes the declared code and shows the catalog message', async () => {
   mountView(() => (
     <MetaToolCard
-      part={part('page.fill', {selector: '#ghost', value: 'nobody'})}
+      part={part('page_fill', {selector: '#ghost', value: 'nobody'})}
       result={errorResult('{"error":"NO_MATCH: the field vanished"}')}
-      ctx={ctxWith(catalogOf({'page.fill': fillMeta}))}
+      ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
       addResult={INERT_ADD_RESULT}
     />
   ))
@@ -109,9 +109,9 @@ it('a code-mode string error envelope decodes the declared code and shows the ca
 it('a code-mode string error envelope with an unknown code falls through to the bare message', async () => {
   mountView(() => (
     <MetaToolCard
-      part={part('page.fill', {selector: '#ghost', value: 'nobody'})}
+      part={part('page_fill', {selector: '#ghost', value: 'nobody'})}
       result={errorResult('{"error":"SOMETHING_ELSE: the sandbox blew up"}')}
-      ctx={ctxWith(catalogOf({'page.fill': fillMeta}))}
+      ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
       addResult={INERT_ADD_RESULT}
     />
   ))
@@ -124,9 +124,9 @@ it('a code-mode string error envelope with an unknown code falls through to the 
 it("a JSON.stringify'd string result renders the plain string, not raw quotes", async () => {
   mountView(() => (
     <MetaToolCard
-      part={part('page.ship', {selector: '#hero'})}
+      part={part('page_ship', {selector: '#hero'})}
       result={successResult(JSON.stringify('shipped-42'))}
-      ctx={ctxWith(catalogOf({'page.ship': shipMeta}))}
+      ctx={ctxWith(catalogOf({page_ship: shipMeta}))}
       addResult={INERT_ADD_RESULT}
     />
   ))

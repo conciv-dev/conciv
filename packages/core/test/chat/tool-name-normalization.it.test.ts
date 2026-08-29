@@ -7,7 +7,7 @@ import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
 
 const probe = defineTool({
-  name: 'probe.ping',
+  name: 'probe_ping',
   description: 'Ping the probe.',
   inputSchema: z.object({}),
   outputSchema: z.object({pong: z.boolean()}),
@@ -38,19 +38,19 @@ async function snapshotToolNames(kit: Kit, harness: TestHarness, wireName: strin
 }
 
 describe('tool-name normalization on the wire (IT)', () => {
-  it('claude bridge form (probe_ping) reaches the widget as the registered name', async () => {
+  it('the bare registered name reaches the widget unchanged', async () => {
     const {kit, harness} = await bootProbe()
-    expect(await snapshotToolNames(kit, harness, 'probe_ping')).toContain('probe.ping')
+    expect(await snapshotToolNames(kit, harness, 'probe_ping')).toContain('probe_ping')
   })
 
-  it('opencode bridge form (tanstack_probe_ping) reaches the widget as the registered name', async () => {
+  it('opencode bridge form (tanstack_probe_ping) is stripped back to the registered name', async () => {
     const {kit, harness} = await bootProbe()
-    expect(await snapshotToolNames(kit, harness, 'tanstack_probe_ping')).toContain('probe.ping')
+    expect(await snapshotToolNames(kit, harness, 'tanstack_probe_ping')).toContain('probe_ping')
   })
 
-  it('mcp server form (mcp__tanstack__probe_ping) reaches the widget as the registered name', async () => {
+  it('mcp server form (mcp__tanstack__probe_ping) is stripped back to the registered name', async () => {
     const {kit, harness} = await bootProbe()
-    expect(await snapshotToolNames(kit, harness, 'mcp__tanstack__probe_ping')).toContain('probe.ping')
+    expect(await snapshotToolNames(kit, harness, 'mcp__tanstack__probe_ping')).toContain('probe_ping')
   })
 
   it('CLI-native names pass through untouched', async () => {

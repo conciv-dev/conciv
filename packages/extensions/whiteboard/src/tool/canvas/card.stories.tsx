@@ -32,7 +32,7 @@ export const Read: Story = {
   render: () =>
     traceFrame('1 read', [
       traceRow(
-        storyPart('canvas.read', {scope: 'draft'}),
+        storyPart('canvas_read', {scope: 'draft'}),
         storyResult({
           scope: 'draft',
           elements: [
@@ -50,7 +50,7 @@ export const Svg: Story = {
   render: () =>
     traceFrame('1 draw', [
       traceRow(
-        storyPart('canvas.svg', {
+        storyPart('canvas_svg', {
           svg: '<path d="M10 10 L90 10 L50 90 Z" fill="#c9857f"/>',
           x: 0,
           y: 0,
@@ -65,7 +65,7 @@ export const Diagram: Story = {
   render: () =>
     traceFrame('1 draw', [
       traceRow(
-        storyPart('canvas.diagram', {mermaid: 'flowchart LR\n  Draft --> Preview --> Commit'}),
+        storyPart('canvas_diagram', {mermaid: 'flowchart LR\n  Draft --> Preview --> Commit'}),
         storyResult({pending: 'p_2'}),
       ),
     ]),
@@ -75,7 +75,7 @@ export const PreviewImage: Story = {
   render: () =>
     traceFrame('1 preview', [
       traceRow(
-        storyPart('canvas.preview', {}),
+        storyPart('canvas_preview', {}),
         storyResultParts([
           {type: 'image', source: {type: 'data', value: PREVIEW_PNG, mimeType: 'image/png'}},
           {type: 'text', content: JSON.stringify({elements: 4})},
@@ -87,19 +87,19 @@ export const PreviewImage: Story = {
 export const PreviewEmpty: Story = {
   render: () =>
     traceFrame('1 preview', [
-      traceRow(storyPart('canvas.preview', {}), storyResult({empty: true, reason: 'draft has no elements yet'})),
+      traceRow(storyPart('canvas_preview', {}), storyResult({empty: true, reason: 'draft has no elements yet'})),
     ]),
 }
 
 export const DeleteConfirmed: Story = {
   render: () =>
-    traceFrame('1 delete', [traceRow(storyPart('canvas.delete', {elementId: 'el_1'}), storyResult({deleted: 'el_1'}))]),
+    traceFrame('1 delete', [traceRow(storyPart('canvas_delete', {elementId: 'el_1'}), storyResult({deleted: 'el_1'}))]),
 }
 
 export const CommitFailed: Story = {
   render: () =>
     traceFrame('1 commit', [
-      traceRow(storyPart('canvas.commit', {}), storyResult({committed: false, reason: 'no draft to commit'})),
+      traceRow(storyPart('canvas_commit', {}), storyResult({committed: false, reason: 'no draft to commit'})),
     ]),
 }
 
@@ -107,12 +107,12 @@ export const ExportFailed: Story = {
   render: () =>
     traceFrame('1 failed', [
       traceRow(
-        storyPart('canvas.preview', {}),
+        storyPart('canvas_preview', {}),
         storyResult({error: 'preview render failed', reason: 'no renderer', elements: 4}),
       ),
     ]),
 }
 
 export const RunningOp: Story = {
-  render: () => traceFrame('1 running', [traceRow(storyPart('canvas.draw', {}, 'input-complete'), undefined)]),
+  render: () => traceFrame('1 running', [traceRow(storyPart('canvas_draw', {}, 'input-complete'), undefined)]),
 }

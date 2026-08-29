@@ -16,7 +16,7 @@ const SESSION_B = SessionId.parse('conciv_ambient_b')
 const FRESH: EngineStaleness = {stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}
 
 const clicker = defineTool({
-  name: 'fixture.click',
+  name: 'fixture_click',
   description: 'Click something on the page',
   inputSchema: z.object({ref: z.string()}),
   outputSchema: z.object({clicked: z.string()}),
@@ -65,7 +65,7 @@ describe('the page forwarder reads its session from the established scope, not f
   it('refuses to run at all when no scope is established', async () => {
     const {primitives} = await madeRuntime()
     await expect(
-      primitives.registry.call('fixture.click', {ref: 'r1'}, {request: {sessionId: SESSION_A, model: null}}),
+      primitives.registry.call('fixture_click', {ref: 'r1'}, {request: {sessionId: SESSION_A, model: null}}),
     ).rejects.toThrow(/runWithSession/)
   })
 
@@ -73,7 +73,7 @@ describe('the page forwarder reads its session from the established scope, not f
     const {runtime, primitives} = await madeRuntime()
     const unsubscribe = widgetOn(primitives, SESSION_A, {clicked: 'a'})
     const result = await runWithSession(runtime.forSession(SESSION_A), () =>
-      primitives.registry.call('fixture.click', {ref: 'r1'}, {request: {sessionId: SESSION_B, model: null}}),
+      primitives.registry.call('fixture_click', {ref: 'r1'}, {request: {sessionId: SESSION_B, model: null}}),
     )
     expect(result).toEqual({clicked: 'a'})
     unsubscribe()
@@ -83,7 +83,7 @@ describe('the page forwarder reads its session from the established scope, not f
     const {runtime, primitives} = await madeRuntime()
     const unsubscribe = widgetOn(primitives, SESSION_A, {clicked: 'a'})
     await runWithSession(runtime.forSession(SESSION_A), () =>
-      primitives.registry.call('fixture.click', {ref: 'r1'}, {request: {sessionId: SESSION_B, model: null}}),
+      primitives.registry.call('fixture_click', {ref: 'r1'}, {request: {sessionId: SESSION_B, model: null}}),
     )
     unsubscribe()
     expect(await runtime.forSession(SESSION_A).page.changes()).toHaveLength(1)
@@ -93,7 +93,7 @@ describe('the page forwarder reads its session from the established scope, not f
   it('a scope method reaches the forwarder without any caller passing a session', async () => {
     const {runtime, primitives} = await madeRuntime()
     const unsubscribe = widgetOn(primitives, SESSION_A, {clicked: 'a'})
-    expect(await runtime.forSession(SESSION_A).tools.call('fixture.click', {ref: 'r1'})).toEqual({clicked: 'a'})
+    expect(await runtime.forSession(SESSION_A).tools.call('fixture_click', {ref: 'r1'})).toEqual({clicked: 'a'})
     unsubscribe()
   })
 })
@@ -102,17 +102,17 @@ describe('catalog reachability is answered per scope', () => {
   it('a page tool is reachable for the session holding the widget and unreachable for another', async () => {
     const {runtime, primitives} = await madeRuntime()
     const unsubscribe = widgetOn(primitives, SESSION_A, {clicked: 'a'})
-    expect(reachableIn(runtime.forSession(SESSION_A).tools.catalog, 'fixture.click')).toBe(true)
-    expect(reachableIn(runtime.forSession(SESSION_B).tools.catalog, 'fixture.click')).toBe(false)
+    expect(reachableIn(runtime.forSession(SESSION_A).tools.catalog, 'fixture_click')).toBe(true)
+    expect(reachableIn(runtime.forSession(SESSION_B).tools.catalog, 'fixture_click')).toBe(false)
     unsubscribe()
   })
 
   it('the engine catalog keeps the engine-wide answer', async () => {
     const {runtime, primitives} = await madeRuntime()
     const unsubscribe = widgetOn(primitives, SESSION_A, {clicked: 'a'})
-    const entry = runtime.engine.catalog().find((signature) => signature.name === 'fixture.click')
+    const entry = runtime.engine.catalog().find((signature) => signature.name === 'fixture_click')
     expect(entry?.reachable).toBe(true)
     unsubscribe()
-    expect(runtime.engine.catalog().find((signature) => signature.name === 'fixture.click')?.reachable).toBe(false)
+    expect(runtime.engine.catalog().find((signature) => signature.name === 'fixture_click')?.reachable).toBe(false)
   })
 })

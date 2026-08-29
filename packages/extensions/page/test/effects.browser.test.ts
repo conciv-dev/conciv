@@ -57,7 +57,7 @@ afterAll(() => {
   driver.dispose()
 })
 
-describe('the page.effect verb drives registered host effects', () => {
+describe('the page_effect verb drives registered host effects', () => {
   it('lists what exists exactly once per name, with its current state', async () => {
     expect(await effectResult({action: 'list'})).toEqual({
       effects: [{name: 'banner', description: 'shows the fixture banner', enabled: false}],

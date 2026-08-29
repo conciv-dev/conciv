@@ -26,8 +26,8 @@ const PAGE_SESSION_ENTRY: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render: Stu
 
 const PAGE_SESSION: PageSessionConfig = {
   entry: PAGE_SESSION_ENTRY,
-  actNames: new Set(['page.fill']),
-  toolPrefix: 'page.',
+  actNames: new Set(['page_fill']),
+  toolPrefix: 'page_',
 }
 
 function dataPart(): MessagePart {

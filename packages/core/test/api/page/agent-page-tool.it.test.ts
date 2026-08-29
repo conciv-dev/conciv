@@ -54,8 +54,8 @@ describe('the agent reaches the page through the same implementation the CLI use
     const session = await kit.session()
     const call = makeApprovingCallTool(kit.base, session)
     return async ({verb, ...input}) => {
-      await annotate(`stage: the agent page.${verb} call`)
-      return call(`page.${verb}`, input)
+      await annotate(`stage: the agent page_${verb} call`)
+      return call(`page_${verb}`, input)
     }
   }
 
@@ -66,12 +66,12 @@ describe('the agent reaches the page through the same implementation the CLI use
     await execute({verb: 'fill', selector: '#email', value: 'a@b.c'})
     await annotate('stage: the page.changes rpc call')
     const afterAgent = ChangesSchema.parse(await kit.rpc.page.changes(undefined, {signal}))
-    expect(afterAgent).toMatchObject([{verb: 'page.fill', selector: '#email', args: {value: 'a@b.c'}}])
+    expect(afterAgent).toMatchObject([{verb: 'page_fill', selector: '#email', args: {value: 'a@b.c'}}])
 
     await annotate('stage: the page.clearChanges rpc call')
     await kit.rpc.page.clearChanges(undefined, {signal})
-    await annotate('stage: the cli page.fill rpc call')
-    await kit.rpc.registry.call({name: 'page.fill', input: {selector: '#email', value: 'a@b.c'}}, {signal})
+    await annotate('stage: the cli page_fill rpc call')
+    await kit.rpc.registry.call({name: 'page_fill', input: {selector: '#email', value: 'a@b.c'}}, {signal})
     await annotate('stage: the page.changes rpc call')
     const afterCli = ChangesSchema.parse(await kit.rpc.page.changes(undefined, {signal}))
     expect(afterAgent).toEqual(afterCli)
@@ -82,15 +82,15 @@ describe('the agent reaches the page through the same implementation the CLI use
     const execute = await agentPageTool(kit, annotate)
 
     await execute({verb: 'fill', selector: '#email', value: 'a@b.c'})
-    await annotate('stage: the cli page.setattr rpc call')
+    await annotate('stage: the cli page_setattr rpc call')
     await kit.rpc.registry.call(
-      {name: 'page.setattr', input: {selector: '#a', attribute: 'data-state', value: 'open'}},
+      {name: 'page_setattr', input: {selector: '#a', attribute: 'data-state', value: 'open'}},
       {signal},
     )
 
     await annotate('stage: the page.changes rpc call')
     const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined, {signal}))
-    expect(changes.map((entry) => entry.verb)).toEqual(['page.fill', 'page.setattr'])
+    expect(changes.map((entry) => entry.verb)).toEqual(['page_fill', 'page_setattr'])
   }, 30_000)
 
   it('never journals an agent-driven read', async ({annotate, signal}) => {
@@ -110,9 +110,9 @@ describe('the agent reaches the page through the same implementation the CLI use
     }))
     const execute = await agentPageTool(kit, annotate)
     const agentResult = SourceSchema.parse(agentPageResult(await execute({verb: 'locate', selector: 'h1'})))
-    await annotate('stage: the cli page.locate rpc call')
+    await annotate('stage: the cli page_locate rpc call')
     const cliResult = SourceSchema.parse(
-      agentPageResult(await kit.rpc.registry.call({name: 'page.locate', input: {selector: 'h1'}}, {signal})),
+      agentPageResult(await kit.rpc.registry.call({name: 'page_locate', input: {selector: 'h1'}}, {signal})),
     )
     expect(agentResult.source).toEqual({file: 'app/page.tsx', line: 17, column: 4})
     expect(agentResult.source).toEqual(cliResult.source)

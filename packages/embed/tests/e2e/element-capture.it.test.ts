@@ -48,7 +48,7 @@ test.describe('a page tool run through the widget stores a frozen picture of the
   test('keeps the pre-edit element after the page flips its theme and deletes the node', async ({page}) => {
     test.setTimeout(90_000)
     await openHostPage(page)
-    await kit.callTool('page.settext', {selector: '#prose', text: 'rewritten by the agent'}, sessionId)
+    await kit.callTool('page_settext', {selector: '#prose', text: 'rewritten by the agent'}, sessionId)
 
     await page.evaluate(() => {
       document.querySelector('#panel')?.classList.replace('theme-light', 'theme-dark')
@@ -74,7 +74,7 @@ test.describe('a page tool run through the widget stores a frozen picture of the
   test('never lets a password value reach the stored capture or the tool result', async ({page}) => {
     test.setTimeout(90_000)
     await openHostPage(page)
-    const result = await kit.callTool('page.fill', {selector: '#secret', value: 'typed by the agent'}, sessionId)
+    const result = await kit.callTool('page_fill', {selector: '#secret', value: 'typed by the agent'}, sessionId)
     const stored: SessionCaptures = await kit.rpc.captures.list({sessionId})
     const secretCaptures = stored.captures.filter((row) => row.capture.descriptor.selectorPath.includes('secret'))
     expect(secretCaptures.map((row) => row.kind).toSorted()).toEqual(['after'])
@@ -86,7 +86,7 @@ test.describe('a page tool run through the widget stores a frozen picture of the
   test('hands the harness a result with no capture in it', async ({page}) => {
     test.setTimeout(90_000)
     await openHostPage(page)
-    const result = await kit.callTool('page.click', {selector: '#cta'}, sessionId)
+    const result = await kit.callTool('page_click', {selector: '#cta'}, sessionId)
     expect(JSON.stringify(result)).not.toContain('cssBundleId')
     expect(JSON.stringify(result)).not.toContain('selectorPath')
     expect(JSON.stringify(result)).not.toContain('data-rr-target')
@@ -96,7 +96,7 @@ test.describe('a page tool run through the widget stores a frozen picture of the
     test.setTimeout(90_000)
     await openHostPage(page)
     const before: SessionCaptures = await kit.rpc.captures.list({sessionId})
-    await kit.callTool('page.text', {selector: '#cta'}, sessionId)
+    await kit.callTool('page_text', {selector: '#cta'}, sessionId)
     const after: SessionCaptures = await kit.rpc.captures.list({sessionId})
     expect(rowIdentities(after)).toEqual(rowIdentities(before))
   })

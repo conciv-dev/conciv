@@ -52,7 +52,7 @@ describe('an element capture is stored beside the transcript and never reaches t
 
   it('keeps the capture out of everything the harness is handed', async () => {
     const {call} = await bootCapturing()
-    const result = await call('page.fill', {selector: '#email', value: SECRET})
+    const result = await call('page_fill', {selector: '#email', value: SECRET})
     expect(JSON.stringify(result)).not.toContain('cssBundleId')
     expect(JSON.stringify(result)).not.toContain('selectorPath')
     expect(JSON.stringify(result)).not.toContain(SECRET)
@@ -60,7 +60,7 @@ describe('an element capture is stored beside the transcript and never reaches t
 
   it('stores both capture sides under the tool call id the agent minted', async () => {
     const {kit, sessionId, call} = await bootCapturing()
-    await call('page.fill', {selector: '#email', value: SECRET})
+    await call('page_fill', {selector: '#email', value: SECRET})
 
     const stored = await kit.rpc.captures.list({sessionId})
     expect(stored.captures.map((row) => row.kind).toSorted()).toEqual(['after', 'before'])
@@ -72,7 +72,7 @@ describe('an element capture is stored beside the transcript and never reaches t
 
   it('drops a session capture and its unreferenced css bundle when the session is deleted', async () => {
     const {kit, sessionId, call} = await bootCapturing()
-    await call('page.fill', {selector: '#email', value: SECRET})
+    await call('page_fill', {selector: '#email', value: SECRET})
     await kit.rpc.sessions.delete({sessionId})
     const stored = await kit.rpc.captures.list({sessionId})
     expect(stored.captures).toEqual([])

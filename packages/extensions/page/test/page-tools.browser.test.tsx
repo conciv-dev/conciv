@@ -19,7 +19,7 @@ const formState = () => page.getByText(/^subscribed:/)
 const declaredOutputOf = (verb: string) => {
   const tool = PAGE_TOOL_DEFS.find((candidate) => candidate.name === `${PAGE_TOOL_PREFIX}${verb}`)
   const output = tool?.outputSchema
-  if (!output) throw new Error(`no page tool declares an output for page.${verb}`)
+  if (!output) throw new Error(`no page tool declares an output for page_${verb}`)
   return output
 }
 
@@ -362,7 +362,7 @@ describe('stale refs', () => {
 
 describe('page reload', () => {
   const documentOnly = (): never => {
-    throw new Error('page.reload must read nothing but the document it was handed')
+    throw new Error('page_reload must read nothing but the document it was handed')
   }
 
   const ctxOver = (target: Document): ClientToolCtx => ({
@@ -379,8 +379,8 @@ describe('page reload', () => {
     new Promise((resolve) => frame.addEventListener('load', () => resolve(), {once: true}))
 
   it('resolves on initiation and the handed-in page really navigates', async () => {
-    const reload = collectClientTools([pageExtension]).find((entry) => entry.name === 'page.reload')
-    if (!reload) throw new Error('no page.reload client tool is mounted')
+    const reload = collectClientTools([pageExtension]).find((entry) => entry.name === 'page_reload')
+    if (!reload) throw new Error('no page_reload client tool is mounted')
     const frame = document.createElement('iframe')
     frame.srcdoc = '<p id="kept">kept</p>'
     const firstLoad = nextLoad(frame)

@@ -52,7 +52,7 @@ export const LogLines: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ConsoleCard
-        part={storyPart('page.console', {})}
+        part={storyPart('page_console', {})}
         result={storyResult({
           entries: [
             {level: 'log', ts: NOON, text: 'checkout mounted'},
@@ -60,7 +60,7 @@ export const LogLines: Story = {
             {level: 'error', ts: NOON + 2400, text: 'TypeError: cart.items is undefined'},
           ],
         })}
-        ctx={storyCtx({'page.console': consoleMeta})}
+        ctx={storyCtx({page_console: consoleMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -79,9 +79,9 @@ export const NoOutput: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ConsoleCard
-        part={storyPart('page.console', {})}
+        part={storyPart('page_console', {})}
         result={storyResult({entries: []})}
-        ctx={storyCtx({'page.console': consoleMeta})}
+        ctx={storyCtx({page_console: consoleMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -93,14 +93,14 @@ export const NoOutput: Story = {
   },
 }
 
-const consoleTool: ToolCardEntry = {names: ['page.console'], ...consoleCard}
+const consoleTool: ToolCardEntry = {names: ['page_console'], ...consoleCard}
 
 export const Trace: Story = {
   render: () =>
     traceGallery('1 log', [
       traceRow(
         consoleTool,
-        storyPart('page.console', {}),
+        storyPart('page_console', {}),
         storyResult({
           entries: [
             {level: 'log', ts: NOON, text: 'checkout mounted'},

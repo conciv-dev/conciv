@@ -8,13 +8,13 @@ const LARGE_UNITS = 1600
 const GROWTH = LARGE_UNITS / SMALL_UNITS
 const LINEAR_HEADROOM = 1.5
 
-const config = {actNames: new Set(['page.fill']), toolPrefix: 'page.'}
+const config = {actNames: new Set(['page_fill']), toolPrefix: 'page_'}
 
 function actChildOf(index: number): ToolCallPartWithParent {
   return {
     type: 'tool-call',
     id: `c${index}`,
-    name: 'page.fill',
+    name: 'page_fill',
     arguments: '{}',
     state: 'complete',
     metadata: {parentToolCallId: `p${index}`},

@@ -43,7 +43,7 @@ const DetailSchema = z
 const DESTRUCTIVE = new Set(['resolve', 'delete'])
 
 function opOf(name: string): string {
-  if (name === 'pin.setState') return 'pin'
+  if (name === 'pin_set_state') return 'pin'
   return name.startsWith('comment.') ? name.slice('comment.'.length) : name
 }
 

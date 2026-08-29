@@ -68,7 +68,7 @@ async function outerExecutionId(stream: RunStream): Promise<string> {
 }
 
 async function evalParentId(stream: RunStream): Promise<string | undefined> {
-  return startOf(await stream.waitFor(isStartOf('page.eval'), {hangGuardMs: 15_000})).metadata?.parentToolCallId
+  return startOf(await stream.waitFor(isStartOf('page_eval'), {hangGuardMs: 15_000})).metadata?.parentToolCallId
 }
 
 const PartSchema = z
@@ -104,12 +104,12 @@ async function snapshotParts(kit: Kit, sessionId: string): Promise<z.infer<typeo
 }
 
 describe('the page-session parent id is the outer execution id on the chat producer path', () => {
-  it('a page.eval run inside a chat turn carries the enclosing execute_typescript call id', async () => {
+  it('a page_eval run inside a chat turn carries the enclosing execute_typescript call id', async () => {
     const {kit, harness} = await bootScripted()
     await bootWidget(kit)
     const sessionId = await kit.session()
     harness.script.scriptToolCall('execute_typescript', {
-      typescriptCode: callThroughCatalog('page.eval', {code: '1 + 1'}),
+      typescriptCode: callThroughCatalog('page_eval', {code: '1 + 1'}),
     })
     const stream = await kit.attach(sessionId)
     const executionId = await withAutoApproval(kit.base, sessionId, async () => {
@@ -122,17 +122,17 @@ describe('the page-session parent id is the outer execution id on the chat produ
 
     const parts = await snapshotParts(kit, sessionId)
     const outer = parts.find((part) => part.name === 'execute_typescript')
-    const inner = parts.find((part) => part.name === 'page.eval')
+    const inner = parts.find((part) => part.name === 'page_eval')
     expect(outer?.id).toBe(executionId)
     expect(inner?.metadata?.parentToolCallId).toBe(executionId)
   }, 60_000)
 
-  it('every page.eval of a multi-eval script names the same one enclosing call', async () => {
+  it('every page_eval of a multi-eval script names the same one enclosing call', async () => {
     const {kit, harness} = await bootScripted()
     await bootWidget(kit)
     const sessionId = await kit.session()
     harness.script.scriptToolCall('execute_typescript', {
-      typescriptCode: callTwiceThroughCatalog('page.eval', [{code: '1 + 1'}, {code: '2 + 2'}]),
+      typescriptCode: callTwiceThroughCatalog('page_eval', [{code: '1 + 1'}, {code: '2 + 2'}]),
     })
     const stream = await kit.attach(sessionId)
     const executionId = await withAutoApproval(kit.base, sessionId, async () => {
@@ -143,14 +143,14 @@ describe('the page-session parent id is the outer execution id on the chat produ
     })
 
     const parts = await snapshotParts(kit, sessionId)
-    const evals = parts.filter((part) => part.name === 'page.eval')
+    const evals = parts.filter((part) => part.name === 'page_eval')
     expect(evals.length).toBe(2)
     expect(evals.map((part) => part.metadata?.parentToolCallId)).toEqual([executionId, executionId])
   }, 60_000)
 })
 
 describe('the page-session parent id is the outer execution id on the /api/mcp producer path', () => {
-  it('a page.eval run through the mcp sandbox carries the enclosing execute_typescript call id', async () => {
+  it('a page_eval run through the mcp sandbox carries the enclosing execute_typescript call id', async () => {
     const kit = await bootKit({})
     cleanups.push(() => kit.cleanup())
     await bootWidget(kit)
@@ -158,7 +158,7 @@ describe('the page-session parent id is the outer execution id on the /api/mcp p
     const stream = await kit.attach(sessionId)
 
     await expect(
-      withAutoApproval(kit.base, sessionId, () => kit.callTool('page.eval', {code: '1 + 1'}, sessionId)),
+      withAutoApproval(kit.base, sessionId, () => kit.callTool('page_eval', {code: '1 + 1'}, sessionId)),
     ).resolves.toMatchObject({result: 2})
 
     const executionId = await outerExecutionId(stream)

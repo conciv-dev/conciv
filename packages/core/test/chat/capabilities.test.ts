@@ -31,7 +31,7 @@ describe('assistCapabilities summaries', () => {
 })
 
 const keyworded = defineTool({
-  name: 'probe.controls',
+  name: 'probe_controls',
   description: 'read every control with its current value',
   inputSchema: z.object({}),
   outputSchema: z.object({}),
@@ -58,5 +58,22 @@ describe('registryCapabilities', () => {
     expect(probeCapabilities()[0]?.description).toBe(
       'read every control with its current value. the one-shot form read',
     )
+  })
+})
+
+const reusedPoint = z.object({x: z.number(), y: z.number()}).meta({id: 'ReusedPoint'})
+
+const idTagged = defineTool({
+  name: 'probe_tagged',
+  description: 'tags a reused sub-schema with an id, which zod emits as $ref plus $defs',
+  inputSchema: z.object({from: reusedPoint, to: reusedPoint}),
+  outputSchema: z.object({}),
+  meta: {summary: 'tag a reused sub-schema with an id', category: 'read'},
+}).client()
+
+describe('tool input schemas must serialize to one inline json schema', () => {
+  test('registration rejects a schema that tags a sub-schema id, because the sandbox never sees $ref', () => {
+    const registry = createToolRegistry({pageCaller: async () => ({ok: true}), isAnyPageConnected: () => true})
+    expect(() => registry.register(idTagged, {owner: 'a test registrant'})).toThrow(/probe_tagged" input.*\$defs/s)
   })
 })

@@ -10,14 +10,14 @@ test('preview returns a real png of the draft without any browser round-trip', a
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    await api.callToolApproved('canvas.svg', {
+    await api.callToolApproved('canvas_svg', {
       svg: "<svg viewBox='0 0 100 100'><rect x='10' y='10' width='80' height='80' fill='#f0a860'/></svg>",
       x: 50,
       y: 50,
       width: 200,
     })
     await until(async () => (await readCanvas(api, 'draft')).length === 1, {hangGuardMs: 30_000, intervalMs: 250})
-    const result = (await api.callTool('canvas.preview', {})) as Array<{
+    const result = (await api.callTool('canvas_preview', {})) as Array<{
       type: string
       source?: {value: string; mimeType: string}
     }>
@@ -33,7 +33,7 @@ test('preview returns a real png of the draft without any browser round-trip', a
 test('preview on an empty draft names the cause', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
-    const result = (await api.callTool('canvas.preview', {})) as {empty: boolean; reason: string}
+    const result = (await api.callTool('canvas_preview', {})) as {empty: boolean; reason: string}
     expect(result.empty).toBe(true)
     expect(result.reason).toMatch(/no elements/i)
   } finally {

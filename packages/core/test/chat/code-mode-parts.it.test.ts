@@ -12,7 +12,7 @@ afterEach(async () => {
 })
 
 const svg = defineTool({
-  name: 'canvas.svg',
+  name: 'canvas_svg',
   description: 'Draw a shape on the canvas.',
   inputSchema: z.object({shape: z.string()}),
   outputSchema: z.object({drawn: z.string()}),
@@ -59,7 +59,7 @@ describe('code-mode per-tool parts on the wire (IT)', () => {
     cleanups.push(() => kit.cleanup())
     const sessionId = await kit.session()
     const parentId = harness.script.scriptToolCall('execute_typescript', {
-      typescriptCode: callThroughCatalog('canvas.svg', {shape: 'circle'}),
+      typescriptCode: callThroughCatalog('canvas_svg', {shape: 'circle'}),
     })
     const stream = await kit.attach(sessionId)
     await kit.rpc.chat.send({runId: 'code-mode-parts-1', sessionId, text: 'draw a circle'})
@@ -68,7 +68,7 @@ describe('code-mode per-tool parts on the wire (IT)', () => {
     for (const chunk of events.all) processor.processChunk(chunk)
     const messages = processor.getMessages()
     const children = childParts(messages)
-    expect(children.map((child) => child.name)).toEqual(['catalog', 'canvas.svg'])
+    expect(children.map((child) => child.name)).toEqual(['catalog', 'canvas_svg'])
     expect(children.every((child) => child.metadata.parentToolCallId === parentId)).toBe(true)
     const raw = JSON.stringify(messages)
     expect(raw).toContain('execute_typescript')

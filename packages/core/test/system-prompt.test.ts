@@ -91,7 +91,7 @@ test('a prompt factory receives the parsed config, not the raw options', () => {
 
 test('the built-in page extension steers the standing prompt toward the typed verbs', () => {
   const prompt = composeSystemPrompt('base prompt', withBuiltinExtensions(undefined), {cwd: '/repo'})
-  expect(prompt).toContain('page.snapshot')
+  expect(prompt).toContain('page_snapshot')
   expect(prompt).toContain('last resort')
   expect(prompt).toContain('approval on every call')
 })

@@ -7,7 +7,7 @@ import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from '../../helpers/boot.js'
 
 const draw = defineTool({
-  name: 'canvas.svg',
+  name: 'canvas_svg',
   description: 'Draw an svg shape on the canvas',
   inputSchema: z.object({shape: z.string()}),
   outputSchema: z.object({drawn: z.string()}),
@@ -50,11 +50,11 @@ describe('/api/mcp sandbox calls render as nested action cards on the session st
       const stream = await kit.attach(session)
       await executeRaw(kit.base, session, "return await external_canvas_svg({shape: 'circle'})")
       const childStart = await stream.waitFor(
-        (chunk) => toolCallStarts([chunk]).some((call) => call.name === 'canvas.svg'),
+        (chunk) => toolCallStarts([chunk]).some((call) => call.name === 'canvas_svg'),
         {hangGuardMs: 10_000},
       )
       const child = toolCallStarts([childStart])[0]
-      if (!child) throw new Error('no canvas.svg tool call on the stream')
+      if (!child) throw new Error('no canvas_svg tool call on the stream')
       expect(child.parent).toBeDefined()
       const parentStart = await stream.waitFor(
         (chunk) => toolCallStarts([chunk]).some((call) => call.name === 'execute_typescript'),

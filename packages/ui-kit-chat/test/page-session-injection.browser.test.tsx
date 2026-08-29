@@ -33,13 +33,13 @@ const PAGE_SESSION_ENTRY: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render: Stu
 
 const PAGE_SESSION: PageSessionConfig = {
   entry: PAGE_SESSION_ENTRY,
-  actNames: new Set(['page.fill', 'page.check']),
-  toolPrefix: 'page.',
+  actNames: new Set(['page_fill', 'page_check']),
+  toolPrefix: 'page_',
 }
 
 function fillChunks(toolCallId: string, withResult: boolean) {
   return createToolCallChunks(
-    'page.fill',
+    'page_fill',
     {selector: '#field', value: 'hello'},
     {toolCallId, ...(withResult ? {result: '{"ok":true,"value":"hello"}'} : {})},
   )
@@ -168,7 +168,7 @@ it('selects a trailing page-session as the live segment instead of the last chai
         assistant('a1', [
           call('b1', 'bash', 'complete'),
           result('b1', 'complete'),
-          call('f1', 'page.fill', 'input-complete'),
+          call('f1', 'page_fill', 'input-complete'),
         ]),
       ]}
     />
@@ -185,7 +185,7 @@ it('settles a live activity session once a trailing reply follows the acts', asy
       messages={[
         user('u1', 'drive the page'),
         assistant('a1', [
-          call('f1', 'page.fill', 'complete'),
+          call('f1', 'page_fill', 'complete'),
           result('f1', 'complete'),
           {type: 'text', content: 'Form handled.'},
         ]),
@@ -203,9 +203,9 @@ it('renders a settled page-session between reply prose without a steps group', a
       messages={[
         user('u1', 'drive the page'),
         assistant('a1', [
-          call('f1', 'page.fill', 'complete'),
+          call('f1', 'page_fill', 'complete'),
           result('f1', 'complete'),
-          call('c1', 'page.check', 'complete'),
+          call('c1', 'page_check', 'complete'),
           result('c1', 'complete'),
           {type: 'text', content: 'Form handled.'},
         ]),
@@ -227,7 +227,7 @@ it('folds a code-mode run into the session card and absorbs its parent and think
         assistant('a1', [
           call('p1', 'execute_typescript', 'complete'),
           {type: 'thinking', content: 'pick the field to edit'},
-          subCall('s1', 'page.fill', 'p1', 'complete'),
+          subCall('s1', 'page_fill', 'p1', 'complete'),
           result('s1', 'complete'),
           result('p1', 'complete'),
         ]),
@@ -299,7 +299,7 @@ it('hands the folded thinking parts to the injected renderer', async () => {
         assistant('a1', [
           call('p1', 'execute_typescript', 'complete'),
           {type: 'thinking', content: 'choose the field'},
-          subCall('s1', 'page.fill', 'p1', 'complete'),
+          subCall('s1', 'page_fill', 'p1', 'complete'),
           result('s1', 'complete'),
           result('p1', 'complete'),
         ]),
@@ -318,7 +318,7 @@ it('renders no phantom card for a parent split from its acts by reply text', asy
         assistant('a1', [
           call('p1', 'execute_typescript', 'complete'),
           {type: 'text', content: 'first, the plan'},
-          subCall('s1', 'page.fill', 'p1', 'complete'),
+          subCall('s1', 'page_fill', 'p1', 'complete'),
           result('s1', 'complete'),
         ]),
       ]}

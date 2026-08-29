@@ -5,7 +5,7 @@ import {makeCallTool, type Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../helpers/boot.js'
 
 const shredder = defineTool({
-  name: 'vault.shred',
+  name: 'vault_shred',
   description: 'Shred a document in the vault.',
   inputSchema: z.object({documentId: z.string()}),
   outputSchema: z.object({shredded: z.string()}),
@@ -16,7 +16,7 @@ const shredder = defineTool({
 const stall = {controller: new AbortController()}
 
 const forever = defineTool({
-  name: 'vault.stall',
+  name: 'vault_stall',
   description: 'A handler that settles only when the test releases it.',
   inputSchema: z.object({}),
   outputSchema: z.object({released: z.literal(true)}),
@@ -55,7 +55,7 @@ describe('the MCP ask path is bounded', () => {
       const stream = await kit.attach(session)
       await stream.waitFor(() => true, {hangGuardMs: 10_000})
       const started = performance.now()
-      const outcome = await settle(kit.callTool('vault.shred', {documentId: 'd1'}, session))
+      const outcome = await settle(kit.callTool('vault_shred', {documentId: 'd1'}, session))
       const elapsed = performance.now() - started
       expect(outcome.ok).toBe(false)
       expect(outcome.ok ? '' : outcome.message).toContain('no approval decision')
@@ -70,11 +70,11 @@ describe('the MCP ask path is bounded', () => {
     const {kit, session} = await bootVault(askTimeoutMs)
     try {
       const started = performance.now()
-      const outcome = await settle(kit.callTool('vault.shred', {documentId: 'd2'}, session))
+      const outcome = await settle(kit.callTool('vault_shred', {documentId: 'd2'}, session))
       const elapsed = performance.now() - started
       const message = outcome.ok ? '' : outcome.message
       expect(outcome.ok).toBe(false)
-      expect(message).toContain('vault.shred')
+      expect(message).toContain('vault_shred')
       expect(message).toContain('nothing is attached')
       expect(elapsed).toBeLessThan(3_000)
     } finally {
@@ -88,14 +88,14 @@ describe('the MCP ask path is bounded', () => {
     try {
       const call = makeCallTool(kit.base, session, {deadlineMs: 3_000})
       const started = performance.now()
-      const failure = await call('vault.stall', {}).then(
+      const failure = await call('vault_stall', {}).then(
         () => null,
         (error: unknown) => error,
       )
       const elapsed = performance.now() - started
       if (!(failure instanceof Error)) throw new Error(`expected a deadline Error, got ${String(failure)}`)
       expect(failure.message).toBe(
-        'runTypescript(vault.stall) exceeded 3000ms waiting on the MCP execute; the server-side run continues until its own timeout',
+        'runTypescript(vault_stall) exceeded 3000ms waiting on the MCP execute; the server-side run continues until its own timeout',
       )
       expect(failure.cause).toBeInstanceOf(Error)
       expect(String(failure.cause)).toMatch(/abort/i)

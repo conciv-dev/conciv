@@ -1,4 +1,4 @@
-import type {z} from 'zod'
+import {z} from 'zod'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
 import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import type {
@@ -169,6 +169,17 @@ export type EmptySegmentToolNames<Names extends string> = Extract<
   Names,
   '' | `.${string}` | `${string}.` | `${string}..${string}`
 >
+
+export const TOOL_NAME_RULE = /^[a-z][a-z0-9_]*$/
+
+const ToolNameSchema = z.string().regex(TOOL_NAME_RULE)
+
+export function assertToolName(name: string): void {
+  if (ToolNameSchema.safeParse(name).success) return
+  throw new Error(
+    `tool "${name}": a tool name is a lowercase snake_case identifier matching ${TOOL_NAME_RULE.source}, so the code-mode isolate can bind it as a JavaScript function name; write page_click, never a dotted name`,
+  )
+}
 
 export const FORBIDDEN_TOOL_SEGMENTS = ['__proto__', 'constructor', 'prototype'] as const
 

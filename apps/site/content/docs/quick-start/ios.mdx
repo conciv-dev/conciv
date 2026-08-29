@@ -92,7 +92,7 @@ ConcivWidget.attach(launcher: .native)
 ## Let the agent build and run the app
 
 Everything above is all you need to see the widget. Optionally, give the agent the `ios` extension so
-it can build, launch, and screenshot the app for you (via the `ios.build` and `ios.run` tools) instead
+it can build, launch, and screenshot the app for you (via the `ios_build` and `ios_run` tools) instead
 of you rebuilding by hand.
 
 <Accordions type="single">
@@ -123,7 +123,7 @@ export default defineConfig({
 
 `port` is optional. The app finds a core on any port through the pairing file below; pinning it only
 keeps the URL stable across restarts, which matters if you launch the app by hand with `CONCIV_URL`.
-From the agent panel you then run `ios.build` and `ios.run` to build and launch the app. Without this
+From the agent panel you then run `ios_build` and `ios_run` to build and launch the app. Without this
 block the widget still works; only the `ios.*` build tools are unavailable.
 
 </Accordion>
@@ -134,7 +134,7 @@ block the widget still works; only the `ios.*` build tools are unavailable.
 `attach()` needs the core's API base, the origin with no `/native` suffix (for example
 `http://127.0.0.1:4599`). The SDK appends `/native` itself. It resolves the base in this order:
 
-- `CONCIV_URL` if set. `ios.run` injects it for you as `SIMCTL_CHILD_CONCIV_URL`, which the app reads
+- `CONCIV_URL` if set. `ios_run` injects it for you as `SIMCTL_CHILD_CONCIV_URL`, which the app reads
   as `CONCIV_URL`; to launch by hand pass `SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 xcrun simctl
 launch booted dev.conciv.YourApp`.
 - Otherwise the pairing file at `~/.conciv/dev-endpoint.json`. A dev core that serves the native page

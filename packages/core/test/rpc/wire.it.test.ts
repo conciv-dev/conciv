@@ -305,7 +305,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
     const firstPromise = iterator.next()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    const verbResult = kit.rpc.registry.call({name: 'page.snapshot', input: {}})
+    const verbResult = kit.rpc.registry.call({name: 'page_snapshot', input: {}})
     const first = await firstPromise
     if (first.done) throw new Error('page.queries ended before a query arrived')
     expect(first.value.requestId).toBeTruthy()
@@ -332,7 +332,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       })
     })()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    const result = await kit.rpc.registry.call({name: 'page.text', input: {selector: 'body'}})
+    const result = await kit.rpc.registry.call({name: 'page_text', input: {selector: 'body'}})
     expect(result).toEqual({text: 'body text'})
     await answered
     abort.abort()
@@ -352,10 +352,10 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       })
     })()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    await kit.rpc.registry.call({name: 'page.fill', input: {selector: '#name', value: 'Ada'}})
+    await kit.rpc.registry.call({name: 'page_fill', input: {selector: '#name', value: 'Ada'}})
     await answered
     const changes = await kit.rpc.page.changes(undefined)
-    expect(changes.map((entry) => entry.verb)).toEqual(['page.fill'])
+    expect(changes.map((entry) => entry.verb)).toEqual(['page_fill'])
     expect(changes[0]).toMatchObject({selector: '#name', args: {value: 'Ada'}})
     await kit.rpc.page.clearChanges(undefined)
     expect(await kit.rpc.page.changes(undefined)).toEqual([])
@@ -365,7 +365,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
 
   it('registry.call with no connected page reports NO_PAGE_CLIENT', async () => {
     const {kit} = await bootWire()
-    await expect(kit.rpc.registry.call({name: 'page.snapshot', input: {}})).rejects.toMatchObject({
+    await expect(kit.rpc.registry.call({name: 'page_snapshot', input: {}})).rejects.toMatchObject({
       code: 'NO_PAGE_CLIENT',
     })
   })
@@ -377,7 +377,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const consumed = iterator.next()
     await new Promise((resolve) => setTimeout(resolve, 50))
     await expect(
-      kit.rpc.registry.call({name: 'page.wait', input: {selector: 'body', timeout: 100}}),
+      kit.rpc.registry.call({name: 'page_wait', input: {selector: 'body', timeout: 100}}),
     ).rejects.toMatchObject({
       code: 'PAGE_TIMEOUT',
     })

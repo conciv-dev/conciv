@@ -23,7 +23,7 @@ function side(kind: ElementCaptureKind): ElementCapture {
 }
 
 function answerFor(name: string): PageOutcome {
-  if (name === 'page.fill') {
+  if (name === 'page_fill') {
     return {ok: true, result: {ok: true, value: 'a@b.c'}, capture: {before: side('before'), after: side('after')}}
   }
   return {ok: true, result: {text: 'ok'}}
@@ -66,13 +66,13 @@ async function bootWidget(kit: Kit): Promise<FakeWidget> {
 }
 
 describe('a code-mode page-tool part surviving reload after a later turn', () => {
-  it('the synthetic page.fill tool-call part is still in the snapshot once a second turn has run', async () => {
+  it('the synthetic page_fill tool-call part is still in the snapshot once a second turn has run', async () => {
     const {kit, harness} = await bootScripted()
     await bootWidget(kit)
     const sessionId = await kit.session()
 
     harness.script.scriptToolCall('execute_typescript', {
-      typescriptCode: callThroughCatalog('page.fill', {selector: '#email', value: 'a@b.c'}),
+      typescriptCode: callThroughCatalog('page_fill', {selector: '#email', value: 'a@b.c'}),
     })
     const firstStream = await kit.attach(sessionId)
     await kit.rpc.chat.send({runId: 'reload-fold-1', sessionId, text: 'fill it in'})
@@ -95,7 +95,7 @@ describe('a code-mode page-tool part surviving reload after a later turn', () =>
 
     const survivingCall = toolCallPartsOf(snapshotChunk.messages).find((part) => part.id === toolCallId)
     expect(survivingCall).toBeDefined()
-    expect(survivingCall).toMatchObject({name: 'page.fill'})
+    expect(survivingCall).toMatchObject({name: 'page_fill'})
 
     const capturesAfterReload = await kit.rpc.captures.list({sessionId})
     expect(capturesAfterReload.captures.some((row) => row.toolCallId === toolCallId)).toBe(true)

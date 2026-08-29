@@ -14,7 +14,7 @@ export async function completeConnectHandshake(page: Page, apiBase: string, sess
   try {
     await subscribed
     const rpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
-    await rpc.registry.call({name: 'page.text', input: {selector: 'html'}})
+    await rpc.registry.call({name: 'page_text', input: {selector: 'html'}})
   } finally {
     observer.dispose()
   }

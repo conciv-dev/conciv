@@ -436,8 +436,8 @@ test('a long thread at the virtualization boundary stays still while a run strea
   await seedThread(rpc, sessionId, SEEDED_EXCHANGES)
   await coreControl.scriptTurn({
     toolCalls: [
-      {name: 'page.fill', input: {selector: '#name', value: 'Ada'}, result: {ok: true, value: 'Ada'}},
-      {name: 'page.click', input: {selector: '#save'}, result: {ok: true}},
+      {name: 'page_fill', input: {selector: '#name', value: 'Ada'}, result: {ok: true, value: 'Ada'}},
+      {name: 'page_click', input: {selector: '#save'}, result: {ok: true}},
     ],
     text: 'The long thread is done.',
   })

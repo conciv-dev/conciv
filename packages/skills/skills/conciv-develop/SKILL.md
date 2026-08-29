@@ -362,7 +362,7 @@ block and the Next.js-specific JSX constraint on local, non-installed extensions
   instead of hand-assembling a `HostApiContext.Provider`.
 - A mutating tool (`meta.mutating: true`, or anything that changes real state) shipped without
   `approval: 'ask'` and without a documented reason — the whiteboard's own destructive tools
-  (`comment.delete`, `comment.resolve`) both set it.
+  (`comment_delete`, `comment_resolve`) both set it.
 - Extension-testkit `host` pointed at source instead of a built `dist/` — you are testing stale
   code, same trap as the widget's own prebuilt-bundle integration tests.
 - A local (non-installed) extension in a Next.js app using Solid JSX — Next compiles

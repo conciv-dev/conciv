@@ -112,7 +112,7 @@ shape stays exactly what `isToolError` expects.
 ## `approval: 'ask'`
 
 Set on any tool whose side effect a user should confirm before it runs — every mutating whiteboard
-comment/pin tool (`comment.resolve`, `comment.delete`) sets it alongside `mutating: true` in `meta`.
+comment/pin tool (`comment_resolve`, `comment_delete`) sets it alongside `mutating: true` in `meta`.
 The widget surfaces an Approve/Deny card; from a test, `callToolApproved` (see
 `references/rpc-and-testing.md`) answers that prompt automatically so you can assert on the
 post-approval result.
