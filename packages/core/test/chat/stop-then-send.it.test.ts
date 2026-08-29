@@ -1,5 +1,4 @@
 import {describe, it, expect, afterEach} from 'vitest'
-import {EventType} from '@tanstack/ai'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
@@ -20,7 +19,7 @@ describe('stop then send (IT)', () => {
     const id = await kit.session()
     const stream = await kit.attach(id)
     await kit.rpc.chat.send({runId: 'stop-then-send-1', sessionId: id, text: 'hang around'})
-    await stream.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
+    await stream.waitForRunStart()
     await kit.rpc.chat.stop({sessionId: id})
     await expect(kit.rpc.chat.send({runId: 'stop-then-send-2', sessionId: id, text: 'follow up'})).resolves.toEqual({
       ok: true,

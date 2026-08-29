@@ -2,7 +2,6 @@ import {describe, it, expect, afterEach} from 'vitest'
 import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
-import {EventType} from '@tanstack/ai'
 import {createFakeHarness, createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
 import {openDb, runMessagesFor, sessionHistoryFor, setRunMessages} from '@conciv/db'
 import {bootCoreApp} from '../helpers/boot.js'
@@ -42,7 +41,7 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
 
     harness.script.hold()
     await before.rpc.chat.send({runId: 'durable-3', sessionId, text: 'turn three interrupted'})
-    await keeper.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 15_000})
+    await keeper.waitForRunStart()
     await before.cleanup()
 
     const after: Kit = await createTestkit(createFakeHarness({text: SCRIPTED_REPLY}), bootOn(root)).setup()

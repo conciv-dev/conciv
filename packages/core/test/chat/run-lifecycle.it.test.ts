@@ -68,7 +68,7 @@ describe('run lifecycle on the wire (IT)', () => {
     const sessionId = await kit.session()
     const stream = await kit.attach(sessionId)
     await kit.rpc.chat.send({runId: 'lifecycle-stop', sessionId, text: 'hang around'})
-    await stream.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 10_000})
+    await stream.waitForRunStart()
 
     const stopping = nextLifecycle(stream, (chunk) => isLifecyclePhase(chunk, 'stopping'))
     await kit.rpc.chat.stop({sessionId})

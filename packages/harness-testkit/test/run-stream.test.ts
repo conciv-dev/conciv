@@ -15,10 +15,18 @@ async function* parked(chunks: StreamChunk[]): AsyncGenerator<StreamChunk> {
   await new Promise(() => {})
 }
 
+async function* slowToStart(preamble: StreamChunk[], gapMs: number): AsyncGenerator<StreamChunk> {
+  yield* scripted(preamble, 0)
+  await new Promise((r) => setTimeout(r, gapMs))
+  yield started
+  yield finished
+}
+
 const text = (delta: string): StreamChunk =>
   ({type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta}) as StreamChunk
 const started = {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'} as StreamChunk
 const finished = {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r'} as StreamChunk
+const accepted = {type: EventType.CUSTOM, name: 'run.accepted', value: {}, timestamp: 0} as StreamChunk
 
 const snapshot = (parts: MessagePart[]): StreamChunk => aguiSnapshotFor([{id: 'a1', role: 'assistant', parts}])
 
@@ -82,6 +90,32 @@ describe('makeRunStream', () => {
     await expect(run.waitFor((chunk) => chunk.type === EventType.RUN_FINISHED, {hangGuardMs: 80})).rejects.toThrow(
       /stall.*seen:/s,
     )
+  })
+
+  it('waitForRunStart outlives a producer that is slow to emit its first chunk', async () => {
+    const run = makeRunStream(slowToStart([snapshot([textPart('catch-up')]), accepted], 150))
+    const chunk = await run.waitForRunStart()
+    expect(chunk.type).toBe(EventType.RUN_STARTED)
+  })
+
+  it('a generic stall budget cannot cover the same slow start', async () => {
+    const run = makeRunStream(slowToStart([snapshot([textPart('catch-up')]), accepted], 150))
+    await expect(run.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 40})).rejects.toThrow(
+      /stall.*MESSAGES_SNAPSHOT/s,
+    )
+  })
+
+  it('waitForRunStart rejects on the run signal when the run ends without starting', async () => {
+    const errored = {type: EventType.RUN_ERROR, threadId: 't', runId: 'r', message: 'no output'} as StreamChunk
+    const run = makeRunStream(parked([snapshot([textPart('catch-up')]), accepted, errored]))
+    await expect(run.waitForRunStart()).rejects.toThrow(/run finished without a matching event.*RUN_ERROR/s)
+  })
+
+  it('waitForRunStart matches the requested runId and ignores an earlier run', async () => {
+    const other = {type: EventType.RUN_STARTED, threadId: 't', runId: 'other'} as StreamChunk
+    const run = makeRunStream(parked([other, started]))
+    const chunk = await run.waitForRunStart({runId: 'r'})
+    expect('runId' in chunk ? chunk.runId : '').toBe('r')
   })
 
   it('parallel waiters each see every chunk', async () => {

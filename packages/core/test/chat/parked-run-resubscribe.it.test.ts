@@ -18,7 +18,7 @@ describe('a subscriber joining a run that is parked mid-turn (IT)', () => {
       await latecomer.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000}),
     )
     expect(assistantTexts(catchUp)).toEqual([SCRIPTED_REPLY])
-    await latecomer.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 10_000})
+    await latecomer.waitForRunStart()
 
     harness.script.release()
     const latecomerEvents = await latecomer.done({hangGuardMs: 15_000})

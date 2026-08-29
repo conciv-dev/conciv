@@ -36,7 +36,7 @@ describe('interrupt and resend without a client-side stop (IT)', () => {
 
     kit.harness.script.hold()
     await kit.rpc.chat.send({runId: 'resend-first', sessionId, text: 'the interrupted instruction'})
-    await stream.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 10_000})
+    await stream.waitForRunStart()
 
     const resent = kit.rpc.chat.send({runId: 'resend-second', sessionId, text: 'the resent instruction'})
     kit.harness.script.release()

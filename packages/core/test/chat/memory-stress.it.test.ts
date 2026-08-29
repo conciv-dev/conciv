@@ -34,7 +34,7 @@ describe('sustained chat load keeps server memory flat (IT)', () => {
     const keeperAbort = new AbortController()
     const keeper = await kit.attach(sessionId, {signal: keeperAbort.signal})
     await kit.rpc.chat.send({runId, sessionId, text: `load ${runId}`})
-    await keeper.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
+    await keeper.waitForRunStart()
     const churnAborts: AbortController[] = []
     for (let index = 0; index < CHURN_SUBSCRIBERS; index += 1) {
       const abort = new AbortController()

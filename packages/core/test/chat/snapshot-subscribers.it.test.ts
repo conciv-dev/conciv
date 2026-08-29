@@ -17,7 +17,7 @@ describe('every live subscriber reconstructs the same transcript (IT)', () => {
 
       harness.script.hold()
       await kit.rpc.chat.send({runId: 'midrun-2', sessionId, text: 'turn two'})
-      await keeper.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 15_000})
+      await keeper.waitForRunStart()
 
       const latecomer = await kit.attach(sessionId)
       const catchUp = asSnapshot(

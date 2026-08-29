@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {StreamChunk} from '@tanstack/ai'
 import {createFakeHarness, until} from '@conciv/harness-testkit'
 import {defineAttachment, defineExtension} from '@conciv/extension'
 import type {ChatContentPart} from '@conciv/protocol/chat-types'
@@ -39,7 +39,7 @@ describe('one live run per session (IT)', () => {
 
     harness.script.hold()
     await kit.rpc.chat.send({runId: 'concurrent-1', sessionId, text: 'first concurrent send'})
-    await keeper.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 15_000})
+    await keeper.waitForRunStart()
 
     const second = kit.rpc.chat.send({runId: 'concurrent-2', sessionId, text: 'second concurrent send'})
     harness.script.release()
