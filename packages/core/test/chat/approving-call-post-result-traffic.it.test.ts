@@ -43,7 +43,7 @@ describe('an approving call keeps completing while its session subscription is b
     const kit = await bootKit({extensions: [whiteboardish]}, noisyHarness())
     try {
       const session = await kit.session()
-      await kit.attach(session)
+      await kit.events(session)
       await kit.chat('keep talking', session)
       const approvingCall = makeApprovingCallTool(kit.base, session)
       const outcome = await approvingCall('canvas_delete', {elementId: 'target'})

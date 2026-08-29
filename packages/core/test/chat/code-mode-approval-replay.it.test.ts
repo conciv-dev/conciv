@@ -65,9 +65,8 @@ describe('a subscriber attaching mid-gate rebuilds the code-mode call as approva
     const kit = await bootKit({cwd: tmpdir(), extensions: [vault]}, harness)
     cleanups.push(() => kit.cleanup())
     const sessionId = await kit.session()
-    const keeper = await kit.attach(sessionId)
     harness.script.scriptToolCall('execute_typescript', {typescriptCode: callThroughCatalog('vault_purge', {})})
-    await kit.rpc.chat.send({runId: 'code-mode-approval-replay-1', sessionId, text: 'purge the vault'})
+    const keeper = await kit.turn('purge the vault', {session: sessionId, runId: 'code-mode-approval-replay-1'})
 
     const asked = await keeper.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 20_000})
     const approvalId = approvalIds(asked)[0]

@@ -3,8 +3,8 @@ import {os, type RpcDeps, type SessionOs} from './mount.js'
 
 export function chatRouter(deps: RpcDeps, sessionOs: SessionOs) {
   return {
-    subscribe: os.chat.subscribe.handler(({input, signal}) =>
-      deps.runtime.forSession(input.sessionId).stream.subscribe(signal ?? new AbortController().signal),
+    events: os.chat.events.handler(({input, signal}) =>
+      deps.runtime.forSession(input.sessionId).stream.events(signal ?? new AbortController().signal),
     ),
     hydrate: os.chat.hydrate.handler(({input}) => deps.runtime.forSession(input.sessionId).history.hydrate()),
     send: os.chat.send.handler(async ({input, errors}) => {

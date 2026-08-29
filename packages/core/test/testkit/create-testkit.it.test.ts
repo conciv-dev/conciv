@@ -13,7 +13,7 @@ describe('createTestkit (real server)', () => {
       async () => {
         const kit = await createTestkit(mode.harness, bootCoreApp()).setup()
         try {
-          const stream = await kit.attach()
+          const stream = await kit.events()
           await kit.chat('reply with exactly PONG')
           const events = await stream.done()
           expect(events.runs()).toBe(1)
@@ -31,7 +31,7 @@ describe('createTestkit (real server)', () => {
         const kit = await createTestkit(mode.harness, bootCoreApp()).setup()
         try {
           const sessionId = await kit.session()
-          const stream = await kit.attach(sessionId)
+          const stream = await kit.events(sessionId)
           if (mode.name === 'fake') {
             mode.harness.script.scriptToolCall('execute_typescript', {
               typescriptCode: "return await external_conciv_ui({kind: 'confirm', question: 'Proceed?'})",

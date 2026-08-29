@@ -11,13 +11,13 @@ describe('transcript snapshots survive a re-subscribe (IT, DB-owned history)', (
     async () => {
       const {kit, sessionId, keeper} = await sessions.open()
 
-      await kit.rpc.chat.send({runId: 'resubscribe-1', sessionId, text: 'turn one'})
+      await kit.turn('turn one', {session: sessionId, runId: 'resubscribe-1'})
       const firstTurn = await keeper.done({hangGuardMs: 15_000})
 
       const poisoner = await freshSubscriberSnapshot(kit, sessionId)
       expect(userTexts(poisoner)).toEqual(['turn one'])
 
-      await kit.rpc.chat.send({runId: 'resubscribe-2', sessionId, text: 'turn two'})
+      await kit.turn('turn two', {session: sessionId, runId: 'resubscribe-2'})
       const secondTurn = await keeper.done({hangGuardMs: 15_000})
 
       const runStart = firstSnapshot(secondTurn.all.slice(firstTurn.all.length))

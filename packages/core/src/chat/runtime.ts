@@ -11,7 +11,7 @@ import type {CommandMemory} from './command-memory.js'
 import type {AttachmentExpanders} from './run.js'
 import {createRunDrivers, type RunDrivers} from './run-drivers.js'
 import {createSessionLocks, type SessionLocks} from './session-locks.js'
-import type {SessionStreams} from './subscribe.js'
+import type {SessionStreams} from './session-events.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 export type ChatDeps = {

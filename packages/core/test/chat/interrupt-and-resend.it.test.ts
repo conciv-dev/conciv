@@ -32,13 +32,12 @@ describe('interrupt and resend without a client-side stop (IT)', () => {
     const kit = await bootFakeKit()
     state.kit = kit
     const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
 
     kit.harness.script.hold()
-    await kit.rpc.chat.send({runId: 'resend-first', sessionId, text: 'the interrupted instruction'})
+    const stream = await kit.turn('the interrupted instruction', {session: sessionId, runId: 'resend-first'})
     await stream.waitForRunStart()
 
-    const resent = kit.rpc.chat.send({runId: 'resend-second', sessionId, text: 'the resent instruction'})
+    const resent = kit.turn('the resent instruction', {session: sessionId, runId: 'resend-second'})
     kit.harness.script.release()
     await expect(resent).resolves.toEqual({ok: true, runId: 'resend-second'})
 

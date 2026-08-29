@@ -32,14 +32,13 @@ describe('sustained chat load keeps server memory flat (IT)', () => {
   async function drive(kit: Kit, harness: TestHarness, sessionId: string, runId: string): Promise<void> {
     harness.script.hold()
     const keeperAbort = new AbortController()
-    const keeper = await kit.attach(sessionId, {signal: keeperAbort.signal})
-    await kit.rpc.chat.send({runId, sessionId, text: `load ${runId}`})
+    const keeper = await kit.turn(`load ${runId}`, {session: sessionId, runId: runId})
     await keeper.waitForRunStart()
     const churnAborts: AbortController[] = []
     for (let index = 0; index < CHURN_SUBSCRIBERS; index += 1) {
       const abort = new AbortController()
       churnAborts.push(abort)
-      await kit.attach(sessionId, {signal: abort.signal})
+      await kit.events(sessionId, {signal: abort.signal})
     }
     for (const abort of churnAborts) abort.abort()
     harness.script.release()
@@ -85,8 +84,7 @@ describe('sustained chat load keeps server memory flat (IT)', () => {
       }
 
       const freshSession = sessionFor(0)
-      const fresh = await kit.attach(freshSession)
-      await kit.rpc.chat.send({runId: 'memory-fresh', sessionId: freshSession, text: 'after the load'})
+      const fresh = await kit.turn('after the load', {session: freshSession, runId: 'memory-fresh'})
       const events = await fresh.done({hangGuardMs: 10_000})
       expect(events.all[0]?.type).toBe(EventType.MESSAGES_SNAPSHOT)
       expect(events.runs()).toBe(1)

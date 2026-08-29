@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
-import {approvalIds, type Kit} from '@conciv/harness-testkit'
+import {approvalIds, type Kit, type RunStream} from '@conciv/harness-testkit'
 import type {PageOutcome} from '@conciv/protocol/page-types'
 import {bootKit} from '../../helpers/boot.js'
 import {connectWidget} from '../../helpers/fake-widget.js'
@@ -47,7 +47,7 @@ async function callViaSandbox(kit: Kit, session: string, name: string, input: un
 
 async function decideNextApproval(
   kit: Kit,
-  stream: Awaited<ReturnType<Kit['attach']>>,
+  stream: RunStream,
   approved: boolean,
 ): Promise<void> {
   const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 10_000})
@@ -104,7 +104,7 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
     const kit = await bootKit({extensions: [askme]})
     try {
       const session = await kit.session()
-      const stream = await kit.attach(session)
+      const stream = await kit.events(session)
       const pending = callViaSandbox(kit, session, 'askme_purge', {})
       await decideNextApproval(kit, stream, true)
       const outcome = await pending
@@ -119,7 +119,7 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
     const kit = await bootKit({extensions: [askme]})
     try {
       const session = await kit.session()
-      const stream = await kit.attach(session)
+      const stream = await kit.events(session)
       const pending = callViaSandbox(kit, session, 'askme_shred', {})
       await decideNextApproval(kit, stream, false)
       const outcome = await pending

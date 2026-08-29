@@ -13,12 +13,10 @@ import {
   type UIMessage,
   type WebSocketLike,
 } from '@tanstack/ai'
-import {SessionId, type ChatContentPart} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, CHAT_WS_PATH, SessionId, type ChatContentPart} from '@conciv/protocol/chat-types'
 import type {ChatDeps} from './runtime.js'
 import {makeTurn, type UserContent} from './run.js'
 
-export const CHAT_WS_PATH = '/chat-ws'
-export const CHAT_SSE_PATH = '/chat-sse'
 
 const LIVE_BATCH = 1
 
@@ -44,9 +42,20 @@ function partsOf(message: UIMessage | ModelMessage): ChatContentPart[] {
   })
 }
 
+function lastUserMessage(messages: Array<UIMessage | ModelMessage>): UIMessage | ModelMessage | undefined {
+  return messages.findLast((message) => RoleSchema.safeParse(message).data?.role === 'user')
+}
+
 export function userContentOf(messages: Array<UIMessage | ModelMessage>): UserContent {
-  const last = messages.findLast((message) => RoleSchema.safeParse(message).data?.role === 'user')
+  const last = lastUserMessage(messages)
   return last ? partsOf(last) : []
+}
+
+const IdSchema = z.object({id: z.string().min(1)})
+
+function userMessageIdOf(messages: Array<UIMessage | ModelMessage>): string | undefined {
+  const last = lastUserMessage(messages)
+  return last ? IdSchema.safeParse(last).data?.id : undefined
 }
 
 function resumeOffsetOf(request: Request): string | null {
@@ -67,7 +76,11 @@ function turnStreamOf(deps: ChatDeps, ctx: TurnContext): AsyncIterable<StreamChu
   return {
     [Symbol.asyncIterator]: async function* () {
       const sessionId = SessionId.parse(ctx.threadId)
-      yield* await makeTurn(deps)(sessionId, ctx.runId, userContentOf(ctx.messages), {signal: ctx.signal})
+      const messageId = userMessageIdOf(ctx.messages)
+      yield* await makeTurn(deps)(sessionId, ctx.runId, userContentOf(ctx.messages), {
+        signal: ctx.signal,
+        ...(messageId === undefined ? {} : {messageId}),
+      })
     },
   }
 }

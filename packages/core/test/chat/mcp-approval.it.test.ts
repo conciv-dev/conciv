@@ -33,7 +33,7 @@ describe('/api/mcp gates risky tools', () => {
   it('holds a risky call until the user approves, then runs it', async () => {
     const {kit, session} = await bootWhiteboardish()
     try {
-      const stream = await kit.attach(session)
+      const stream = await kit.events(session)
       const settled = {done: false}
       const pending = kit.callTool('canvas_delete', {elementId: 'e1'}, session)
       const outcome = pending.then(
@@ -60,7 +60,7 @@ describe('/api/mcp gates risky tools', () => {
   it('fails a risky call the user denies', async () => {
     const {kit, session} = await bootWhiteboardish()
     try {
-      const stream = await kit.attach(session)
+      const stream = await kit.events(session)
       const pending = kit.callTool('canvas_delete', {elementId: 'e2'}, session).then(
         (value) => ({ok: true as const, value}),
         (error: unknown) => ({ok: false as const, message: String(error)}),
@@ -90,7 +90,7 @@ describe('/api/mcp gates risky tools', () => {
   it('a session-scoped approval on a risky tool approves that call only: the next call asks again', async () => {
     const {kit, session} = await bootWhiteboardish()
     try {
-      const stream = await kit.attach(session)
+      const stream = await kit.events(session)
       const first = kit.callTool('canvas_delete', {elementId: 'e5'}, session)
       const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 10_000})
       const approvalId = approvalIds(asked)[0]

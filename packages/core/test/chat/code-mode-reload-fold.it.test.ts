@@ -74,8 +74,7 @@ describe('a code-mode page-tool part surviving reload after a later turn', () =>
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: callThroughCatalog('page_fill', {selector: '#email', value: 'a@b.c'}),
     })
-    const firstStream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'reload-fold-1', sessionId, text: 'fill it in'})
+    const firstStream = await kit.turn('fill it in', {session: sessionId, runId: 'reload-fold-1'})
     await firstStream.done({hangGuardMs: 15_000})
 
     const captures = await kit.rpc.captures.list({sessionId})
@@ -83,11 +82,10 @@ describe('a code-mode page-tool part surviving reload after a later turn', () =>
     const toolCallId = captures.captures[0]?.toolCallId
     if (toolCallId === undefined) throw new Error('no capture toolCallId recorded')
 
-    const secondStream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'reload-fold-2', sessionId, text: 'thanks, that is all'})
+    const secondStream = await kit.turn('thanks, that is all', {session: sessionId, runId: 'reload-fold-2'})
     await secondStream.done({hangGuardMs: 15_000})
 
-    const reattached = await kit.attach(sessionId)
+    const reattached = await kit.events(sessionId)
     const snapshotChunk = await reattached.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {
       hangGuardMs: 5_000,
     })

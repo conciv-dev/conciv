@@ -38,10 +38,10 @@ describe('one live run per session (IT)', () => {
     const {kit, harness, sessionId, keeper} = await sessions.open()
 
     harness.script.hold()
-    await kit.rpc.chat.send({runId: 'concurrent-1', sessionId, text: 'first concurrent send'})
+    await kit.turn('first concurrent send', {session: sessionId, runId: 'concurrent-1'})
     await keeper.waitForRunStart()
 
-    const second = kit.rpc.chat.send({runId: 'concurrent-2', sessionId, text: 'second concurrent send'})
+    const second = kit.turn('second concurrent send', {session: sessionId, runId: 'concurrent-2'})
     harness.script.release()
     await second
 
@@ -61,20 +61,12 @@ describe('one live run per session (IT)', () => {
     const sessionId = await kit.session()
     const seen: StreamChunk[] = []
     const watching = new AbortController()
-    const stream = await kit.rpc.chat.subscribe({sessionId}, {signal: watching.signal})
+    const stream = await kit.rpc.chat.events({sessionId}, {signal: watching.signal})
     void collectChunks(stream, seen)
 
-    const first = kit.rpc.chat.send({
-      runId: 'sametick-1',
-      sessionId,
-      content: pacedTurn('same tick first', SLOW_MIME),
-    })
+    const first = kit.turn({content: pacedTurn('same tick first', SLOW_MIME)}, {session: sessionId, runId: 'sametick-1'})
     await expansion.promise
-    const second = kit.rpc.chat.send({
-      runId: 'sametick-2',
-      sessionId,
-      content: pacedTurn('same tick second', FAST_MIME),
-    })
+    const second = kit.turn({content: pacedTurn('same tick second', FAST_MIME)}, {session: sessionId, runId: 'sametick-2'})
     await Promise.all([first, second])
     await until(() => runsFinished(seen) === 2, {hangGuardMs: 15_000})
     watching.abort()

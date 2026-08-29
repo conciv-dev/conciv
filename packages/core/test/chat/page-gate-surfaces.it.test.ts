@@ -62,7 +62,7 @@ function pumpApprovals(kit: Kit, sessionId: string): {ids: () => string[]} {
   const ctrl = new AbortController()
   const collected: string[] = []
   const pump = (async () => {
-    const stream = await kit.rpc.chat.subscribe({sessionId}, {signal: ctrl.signal})
+    const stream = await kit.rpc.chat.events({sessionId}, {signal: ctrl.signal})
     for await (const chunk of stream) collected.push(...approvalIds(chunk))
   })()
   cleanups.push(async () => {
@@ -80,8 +80,7 @@ describe('the chat surface runs page tools without ever consulting a gate', () =
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: callThroughCatalog('page_effect', {action: 'enable', effect: 'highlight'}),
     })
-    const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'gate-chat-1', sessionId, text: 'light it up'})
+    const stream = await kit.turn('light it up', {session: sessionId, runId: 'gate-chat-1'})
     const events = await stream.done({hangGuardMs: 15_000})
     expect(events.all.flatMap((chunk) => approvalIds(chunk))).toEqual([])
     expect(widget.seen()).toEqual(['page_effect'])
@@ -94,8 +93,7 @@ describe('the chat surface runs page tools without ever consulting a gate', () =
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: callThroughCatalog('page_text', {selector: '#probe'}),
     })
-    const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'gate-chat-2', sessionId, text: 'read it'})
+    const stream = await kit.turn('read it', {session: sessionId, runId: 'gate-chat-2'})
     const events = await stream.done({hangGuardMs: 15_000})
     expect(events.all.flatMap((chunk) => approvalIds(chunk))).toEqual([])
     expect(widget.seen()).toEqual(['page_text'])
@@ -152,8 +150,7 @@ describe('page_eval declares approval and therefore gates on every surface', () 
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: callThroughCatalog('page_eval', {code: '1 + 1'}),
     })
-    const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'gate-eval-1', sessionId, text: 'run it'})
+    const stream = await kit.turn('run it', {session: sessionId, runId: 'gate-eval-1'})
     const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 15_000})
     const approvalId = approvalIds(asked)[0]
     if (approvalId === undefined) throw new Error('no approval id in the stream')
@@ -195,7 +192,7 @@ describe('page_eval declares approval and therefore gates on every surface', () 
 
   it('a denied ask refuses the script and the page never sees it', async () => {
     const {kit, widget, sessionId} = await bootConnected()
-    const stream = await kit.attach(sessionId)
+    const stream = await kit.events(sessionId)
     const rpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
     const pending = rpc.registry.call({name: 'page_eval', input: {code: '1 + 1'}})
     const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 15_000})
@@ -276,7 +273,7 @@ describe('approval-declared tools gate at the RPC boundary (server_restart)', ()
     const kit = await bootKit({cwd: tmpdir(), bridge: restartBridge(), askTimeoutMs: 500})
     cleanups.push(() => kit.cleanup())
     const sessionId = await createdSession(kit)
-    await kit.attach(sessionId)
+    await kit.events(sessionId)
     const rpc = sessionRpcOf(kit, sessionId)
     await expect(rpc.server.restart({})).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
@@ -306,7 +303,7 @@ describe('approval-declared tools gate at the RPC boundary (server_restart)', ()
   async function askedRestart(): Promise<{kit: Kit; sessionId: string; pending: Promise<unknown>; approvalId: string}> {
     const kit = await bootGated()
     const sessionId = await createdSession(kit)
-    const stream = await kit.attach(sessionId)
+    const stream = await kit.events(sessionId)
     const rpc = sessionRpcOf(kit, sessionId)
     const pending = rpc.server.restart({})
     const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 15_000})

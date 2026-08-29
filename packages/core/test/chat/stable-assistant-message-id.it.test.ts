@@ -51,16 +51,14 @@ describe('the assistant message id the client derives from the wire matches the 
     async () => {
       const {kit, sessionId} = await openSession()
       try {
-        const keeper = await kit.attach(sessionId)
-        await kit.rpc.chat.send({runId: 'no-id-1', sessionId, text: 'hello', messageId: 'client-user-1'})
+        const keeper = await kit.turn('hello', {session: sessionId, runId: 'no-id-1', messageId: 'client-user-1'})
         const events = await keeper.done({hangGuardMs: 15_000})
 
         const clientProcessor = new ClientStreamProcessor({})
         for (const chunk of events.all) clientProcessor.processChunk(chunk)
         const clientAssistantId = clientProcessor.getMessages().find((message) => message.role === 'assistant')?.id
 
-        const secondSubscriber = await kit.attach(sessionId)
-        await kit.rpc.chat.send({runId: 'no-id-2', sessionId, text: 'again', messageId: 'client-user-2'})
+        const secondSubscriber = await kit.turn('again', {session: sessionId, runId: 'no-id-2', messageId: 'client-user-2'})
         const secondEvents = await secondSubscriber.done({hangGuardMs: 15_000})
         const coreAssistantId = lastSnapshot(secondEvents.all).messages.find(
           (message) => message.role === 'assistant',

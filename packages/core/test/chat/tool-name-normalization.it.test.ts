@@ -31,8 +31,7 @@ async function bootProbe(): Promise<{kit: Kit; harness: TestHarness}> {
 async function snapshotToolNames(kit: Kit, harness: TestHarness, wireName: string): Promise<string[]> {
   const sessionId = await kit.session()
   harness.script.scriptToolCall(wireName, {}, {blocking: false})
-  const stream = await kit.attach(sessionId)
-  await kit.rpc.chat.send({runId: randomUUID(), sessionId, text: 'ping the probe'})
+  const stream = await kit.turn('ping the probe', {session: sessionId, runId: randomUUID()})
   const events = await stream.done({hangGuardMs: 10_000})
   return events.toolCalls().map((call) => call.name)
 }

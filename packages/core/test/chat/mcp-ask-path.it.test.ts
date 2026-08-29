@@ -52,7 +52,7 @@ describe('the MCP ask path is bounded', () => {
     const askTimeoutMs = 4_000
     const {kit, session} = await bootVault(askTimeoutMs)
     try {
-      const stream = await kit.attach(session)
+      const stream = await kit.events(session)
       await stream.waitFor(() => true, {hangGuardMs: 10_000})
       const started = performance.now()
       const outcome = await settle(kit.callTool('vault_shred', {documentId: 'd1'}, session))

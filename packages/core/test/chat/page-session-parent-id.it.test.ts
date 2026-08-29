@@ -95,7 +95,7 @@ function partsOf(messages: readonly unknown[]): z.infer<typeof PartSchema>[] {
 }
 
 async function snapshotParts(kit: Kit, sessionId: string): Promise<z.infer<typeof PartSchema>[]> {
-  const reattached = await kit.attach(sessionId)
+  const reattached = await kit.events(sessionId)
   const snapshot = await reattached.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {
     hangGuardMs: 10_000,
   })
@@ -111,9 +111,8 @@ describe('the page-session parent id is the outer execution id on the chat produ
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: callThroughCatalog('page_eval', {code: '1 + 1'}),
     })
-    const stream = await kit.attach(sessionId)
     const executionId = await withAutoApproval(kit.base, sessionId, async () => {
-      await kit.rpc.chat.send({runId: 'parent-id-chat-1', sessionId, text: 'evaluate it'})
+      const stream = await kit.turn('evaluate it', {session: sessionId, runId: 'parent-id-chat-1'})
       const outer = await outerExecutionId(stream)
       expect(await evalParentId(stream)).toBe(outer)
       await stream.done({hangGuardMs: 15_000})
@@ -134,9 +133,8 @@ describe('the page-session parent id is the outer execution id on the chat produ
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: callTwiceThroughCatalog('page_eval', [{code: '1 + 1'}, {code: '2 + 2'}]),
     })
-    const stream = await kit.attach(sessionId)
     const executionId = await withAutoApproval(kit.base, sessionId, async () => {
-      await kit.rpc.chat.send({runId: 'parent-id-chat-2', sessionId, text: 'evaluate both'})
+      const stream = await kit.turn('evaluate both', {session: sessionId, runId: 'parent-id-chat-2'})
       const outer = await outerExecutionId(stream)
       await stream.done({hangGuardMs: 20_000})
       return outer
@@ -155,7 +153,7 @@ describe('the page-session parent id is the outer execution id on the /api/mcp p
     cleanups.push(() => kit.cleanup())
     await bootWidget(kit)
     const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
+    const stream = await kit.events(sessionId)
 
     await expect(
       withAutoApproval(kit.base, sessionId, () => kit.callTool('page_eval', {code: '1 + 1'}, sessionId)),

@@ -10,10 +10,10 @@ describe('a subscriber joining a run that is parked mid-turn (IT)', () => {
     const {kit, harness, sessionId, keeper} = await sessions.open()
 
     harness.script.hold()
-    await kit.rpc.chat.send({runId: 'parked-1', sessionId, text: 'turn one'})
+    await kit.turn('turn one', {session: sessionId, runId: 'parked-1'})
     await keeper.waitFor((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 15_000})
 
-    const latecomer = await kit.attach(sessionId)
+    const latecomer = await kit.events(sessionId)
     const catchUp = asSnapshot(
       await latecomer.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000}),
     )

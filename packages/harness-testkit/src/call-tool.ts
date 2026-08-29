@@ -119,7 +119,7 @@ export async function withAutoApproval<Result>(
   const rpc = makeRpcClient(apiBase)
   const sessionRpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
   const abort = new AbortController()
-  const stream = await rpc.chat.subscribe({sessionId: session}, {signal: abort.signal})
+  const stream = await rpc.chat.events({sessionId: session}, {signal: abort.signal})
   const decided = new Set<string>()
   const decide = async (approvalId: string): Promise<void> => {
     if (decided.has(approvalId)) return

@@ -47,7 +47,7 @@ describe('/api/mcp sandbox calls render as nested action cards on the session st
     const kit = await bootKit({extensions: [acme]})
     try {
       const session = await kit.session()
-      const stream = await kit.attach(session)
+      const stream = await kit.events(session)
       await executeRaw(kit.base, session, "return await external_canvas_svg({shape: 'circle'})")
       const childStart = await stream.waitFor(
         (chunk) => toolCallStarts([chunk]).some((call) => call.name === 'canvas_svg'),

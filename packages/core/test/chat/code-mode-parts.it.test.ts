@@ -61,8 +61,7 @@ describe('code-mode per-tool parts on the wire (IT)', () => {
     const parentId = harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: callThroughCatalog('canvas_svg', {shape: 'circle'}),
     })
-    const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'code-mode-parts-1', sessionId, text: 'draw a circle'})
+    const stream = await kit.turn('draw a circle', {session: sessionId, runId: 'code-mode-parts-1'})
     const events = await stream.done({hangGuardMs: 15_000})
     const processor = new StreamProcessor({})
     for (const chunk of events.all) processor.processChunk(chunk)

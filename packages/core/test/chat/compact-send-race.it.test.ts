@@ -14,11 +14,11 @@ describe('compaction shares the per-session run chain (IT)', () => {
     const {kit, harness, sessionId} = await sessions.open()
     const seen: StreamChunk[] = []
     const watching = new AbortController()
-    const stream = await kit.rpc.chat.subscribe({sessionId}, {signal: watching.signal})
+    const stream = await kit.rpc.chat.events({sessionId}, {signal: watching.signal})
     void collectChunks(stream, seen)
 
     harness.script.hold()
-    await kit.rpc.chat.send({runId: 'compact-race-chat', sessionId, text: 'chat turn racing a compact'})
+    await kit.turn('chat turn racing a compact', {session: sessionId, runId: 'compact-race-chat'})
     await until(() => runsStarted(seen) === 1, {hangGuardMs: 15_000})
 
     setTimeout(() => harness.script.release(), PARKED_RUN_MS)
@@ -27,7 +27,7 @@ describe('compaction shares the per-session run chain (IT)', () => {
 
     expect(peakLiveRuns(seen)).toBe(1)
 
-    await kit.rpc.chat.send({runId: 'compact-race-after', sessionId, text: 'turn after compaction'})
+    await kit.turn('turn after compaction', {session: sessionId, runId: 'compact-race-after'})
     await until(() => runsFinished(seen) === 3, {hangGuardMs: 15_000})
     watching.abort()
 

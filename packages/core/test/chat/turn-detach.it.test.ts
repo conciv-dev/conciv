@@ -21,11 +21,8 @@ function runIdOf(chunk: {runId?: unknown}): string | null {
   return typeof chunk.runId === 'string' ? chunk.runId : null
 }
 
-async function waitForSnapshot(stream: RunStream): Promise<string> {
-  const chunk = await stream.waitFor((c) => c.type === EventType.MESSAGES_SNAPSHOT, {
-    hangGuardMs: 5000,
-  })
-  return chunk.type === EventType.MESSAGES_SNAPSHOT ? JSON.stringify(chunk.messages) : ''
+async function hydratedText(kit: Kit, session: string): Promise<string> {
+  return JSON.stringify((await kit.hydrate(session)).messages)
 }
 
 describe('detached turns (IT)', () => {
@@ -44,57 +41,51 @@ describe('detached turns (IT)', () => {
   const setupSlow = (releaseFile: string) => setup({CONCIV_FAKE_RELEASE_FILE: releaseFile})
   const setupHang = () => setup({CONCIV_FAKE_HANG: '1'})
 
-  async function startSlowTurn(text: string): Promise<{kit: Kit; id: string; releaseFile: string}> {
+  async function startSlowTurn(text: string): Promise<{kit: Kit; id: string; releaseFile: string; run: RunStream}> {
     const releaseFile = join(tmp(), 'release')
     const kit = await setupSlow(releaseFile)
     const id = await kit.session()
-    await kit.rpc.chat.send({runId: 'turn-detach-1', sessionId: id, text})
-    return {kit, id, releaseFile}
+    const run = await kit.turn(text, {session: id, runId: 'turn-detach-1'})
+    return {kit, id, releaseFile, run}
   }
 
-  it('a resend while the prior turn is still generating runs concurrently to completion', async () => {
+  it('a resend settles the run still generating and completes on its own', async () => {
     const releaseFile = join(tmp(), 'release')
     const kit = await setupSlow(releaseFile)
     const id = await kit.session()
-    const stream = await kit.attach(id)
-    await kit.rpc.chat.send({runId: 'turn-detach-2', sessionId: id, text: 'hi'})
-    await stream.waitForRunStart()
-    await expect(kit.rpc.chat.send({runId: 'turn-detach-3', sessionId: id, text: 'again'})).resolves.toEqual({
-      ok: true,
-      runId: 'turn-detach-3',
-    })
+    const first = await kit.turn('hi', {session: id, runId: 'turn-detach-2'})
+    await first.waitForRunStart()
+    const second = await kit.turn('again', {session: id, runId: 'turn-detach-3'})
+    await second.waitForRunStart()
     writeFileSync(releaseFile, '')
-    await stream.waitFor((c) => c.type === EventType.RUN_FINISHED && runIdOf(c) === 'turn-detach-2', {
+    await first.waitFor((c) => c.type === EventType.RUN_ERROR || c.type === EventType.RUN_FINISHED, {
       hangGuardMs: 10_000,
     })
-    await stream.waitFor((c) => c.type === EventType.RUN_FINISHED && runIdOf(c) === 'turn-detach-3', {
+    await second.waitFor((c) => c.type === EventType.RUN_FINISHED && runIdOf(c) === 'turn-detach-3', {
       hangGuardMs: 10_000,
     })
+    expect((await kit.hydrate(id)).activeRun).toBeNull()
   })
 
-  it('chat.send resolves ok before the turn finishes', async () => {
+  it('a turn starts streaming long before the harness finishes', async () => {
     const releaseFile = join(tmp(), 'release')
     const kit = await setupSlow(releaseFile)
     const id = await kit.session()
-    const stream = await kit.attach(id)
-    expect(await kit.rpc.chat.send({runId: 'turn-detach-4', sessionId: id, text: 'hi'})).toEqual({
-      ok: true,
-      runId: 'turn-detach-4',
-    })
+    const stream = await kit.turn('hi', {session: id, runId: 'turn-detach-4'})
+    await stream.waitForRunStart()
+    expect((await kit.hydrate(id)).activeRun).toEqual({runId: 'turn-detach-4'})
     writeFileSync(releaseFile, '')
     const events = await stream.done()
     expect(events.runs()).toBe(1)
   })
 
-  it('a mid-run attach catches up in the snapshot, keeps RUN_STARTED, and continues live', async () => {
-    const {kit, id, releaseFile} = await startSlowTurn('hi')
-    const early = await kit.attach(id)
-    await waitForSnapshot(early)
-    await early.waitForRunStart()
-    await early.waitForText('first-half')
-    const late = await kit.attach(id)
-    const catchUp = await waitForSnapshot(late)
-    expect(catchUp).toContain('first-half')
+  it('a mid-run joiner replays what it missed, keeps RUN_STARTED, and continues live', async () => {
+    const {kit, id, releaseFile, run} = await startSlowTurn('hi')
+    await run.waitForRunStart()
+    await run.waitForText('first-half')
+    const late = kit.join('turn-detach-1')
+    await late.waitForText('first-half')
+    expect(await hydratedText(kit, id)).toContain('first-half')
     writeFileSync(releaseFile, '')
     const events = await late.done()
     expect(events.all.some((c) => c.type === EventType.RUN_STARTED)).toBe(true)
@@ -103,17 +94,13 @@ describe('detached turns (IT)', () => {
     expect(events.runs()).toBe(1)
   })
 
-  it('a dropped and re-opened attach sees the complete turn (reload simulation)', async () => {
-    const {kit, id, releaseFile} = await startSlowTurn('rebuild the page')
-    const drop = new AbortController()
-    const before = await kit.attach(id, {signal: drop.signal})
-    const snapshot = await waitForSnapshot(before)
-    expect(snapshot).toContain('rebuild the page')
-    await before.waitForRunStart()
-    await before.waitForText('first-half')
-    drop.abort()
+  it('a dropped and re-joined viewer sees the complete turn (reload simulation)', async () => {
+    const {kit, id, releaseFile, run} = await startSlowTurn('rebuild the page')
+    await run.waitForRunStart()
+    expect(await hydratedText(kit, id)).toContain('rebuild the page')
+    await run.waitForText('first-half')
     writeFileSync(releaseFile, '')
-    const after = await kit.attach(id)
+    const after = kit.join('turn-detach-1')
     const events = await after.done()
     expect(events.text()).toContain('first-half')
     expect(events.text()).toContain('second-half')
@@ -125,21 +112,20 @@ describe('detached turns (IT)', () => {
     const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {}, extensions: [probe]})).setup()
     state.kit = kit
     const id = await kit.session()
-    await kit.rpc.chat.send({runId: 'turn-detach-5', sessionId: id, text: 'hi'})
+    await kit.turn('hi', {session: id, runId: 'turn-detach-5'})
     expect(await runEnded).toBe(id)
     const metas = await kit.rpc.sessions.list(undefined)
     expect(metas.find((meta) => meta.id === id)?.usage).toBeTruthy()
   })
 
-  it('attach during a running turn returns a snapshot with the user text, not 500', async () => {
-    const {kit, id, releaseFile} = await startSlowTurn('summarize this')
-    const early = await kit.attach(id)
-    const snapshot = await waitForSnapshot(early)
-    expect(snapshot).toContain('summarize this')
-    await early.waitForRunStart()
+  it('hydrating during a running turn carries the user text and the live run', async () => {
+    const {kit, id, releaseFile, run} = await startSlowTurn('summarize this')
+    await run.waitForRunStart()
+    const hydration = await kit.hydrate(id)
+    expect(JSON.stringify(hydration.messages)).toContain('summarize this')
+    expect(hydration.activeRun).toEqual({runId: 'turn-detach-1'})
     writeFileSync(releaseFile, '')
-    const late = await kit.attach(id)
-    const events = await late.done()
+    const events = await run.done()
     expect(events.runs()).toBe(1)
   })
 
@@ -149,8 +135,7 @@ describe('detached turns (IT)', () => {
     async () => {
       const kit = await setupHang()
       const id = await kit.session()
-      const stream = await kit.attach(id)
-      await kit.rpc.chat.send({runId: 'turn-detach-6', sessionId: id, text: 'hang around'})
+      const stream = await kit.turn('hang around', {session: id, runId: 'turn-detach-6'})
       await stream.waitForRunStart()
       await kit.rpc.chat.stop({sessionId: id})
       const events = await stream.done({hangGuardMs: 8000})
@@ -166,8 +151,7 @@ describe('detached turns (IT)', () => {
     async () => {
       const kit = await setup({CONCIV_FAKE_HANG: '1', CONCIV_FAKE_IGNORE_TERM: '1'})
       const id = await kit.session()
-      const stream = await kit.attach(id)
-      await kit.rpc.chat.send({runId: 'turn-detach-7', sessionId: id, text: 'hang forever'})
+      const stream = await kit.turn('hang forever', {session: id, runId: 'turn-detach-7'})
       await stream.waitForRunStart()
       await kit.rpc.chat.stop({sessionId: id})
       const events = await stream.done({hangGuardMs: 10_000})
@@ -176,11 +160,9 @@ describe('detached turns (IT)', () => {
     },
   )
 
-  it('attach on an idle session emits the messages snapshot first', async () => {
+  it('hydrating an idle session carries an empty transcript and no run', async () => {
     const kit = await setupSlow(join(tmp(), 'never'))
     const id = await kit.session()
-    const stream = await kit.attach(id)
-    const snapshot = await waitForSnapshot(stream)
-    expect(snapshot).toBe('[]')
+    expect(await kit.hydrate(id)).toEqual({messages: [], activeRun: null, interrupts: null})
   })
 })

@@ -28,7 +28,7 @@ function renderedMessages(chunks: StreamChunk[]): unknown[] {
 }
 
 async function snapshotMessages(kit: Kit, sessionId: string): Promise<unknown[]> {
-  const stream = await kit.attach(sessionId)
+  const stream = await kit.events(sessionId)
   const chunk = await stream.waitFor((c) => c.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 5_000})
   return chunk.type === EventType.MESSAGES_SNAPSHOT ? chunk.messages : []
 }
@@ -49,8 +49,8 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
   it('send starts a turn; attach replays snapshot then streams to RUN_FINISHED', async () => {
     const {kit} = await bootWire()
     const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
-    const accepted = await kit.rpc.chat.send({runId: 'wire-1', sessionId, text: 'hello'})
+    const stream = await kit.events(sessionId)
+    const accepted = await kit.turn('hello', {session: sessionId, runId: 'wire-1'})
     expect(accepted).toEqual({ok: true, runId: 'wire-1'})
     const events = await stream.done({hangGuardMs: 10_000})
     const types = events.all.map((chunk) => chunk.type)
@@ -62,8 +62,8 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const {kit, harness} = await bootWire()
     const sessionId = await kit.session()
     harness.script.hold()
-    await kit.rpc.chat.send({runId: 'wire-2', sessionId, text: 'hello'})
-    const late = await kit.attach(sessionId)
+    await kit.turn('hello', {session: sessionId, runId: 'wire-2'})
+    const late = await kit.events(sessionId)
     harness.script.release()
     const events = await late.done({hangGuardMs: 10_000})
     const types = events.all.map((chunk) => chunk.type)
@@ -74,14 +74,14 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
   it('send consumes the server-side draft: the turn is the user text alone and the row is cleared', async () => {
     const {kit} = await bootWire()
     const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
+    const stream = await kit.events(sessionId)
     await kit.rpc.drafts.set({
       sessionId,
       text: 'draft-text',
       selectionStart: 0,
       selectionEnd: 0,
     })
-    await kit.rpc.chat.send({runId: 'wire-5', sessionId, text: 'about the grabbed element'})
+    await kit.turn('about the grabbed element', {session: sessionId, runId: 'wire-5'})
     await stream.done({hangGuardMs: 10_000})
     const visibleUser = (await snapshotMessages(kit, sessionId)).findLast(
       (message) => isRecord(message) && message.role === 'user',
@@ -95,21 +95,17 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
   it('send forwards multimodal content untouched by the draft row', async () => {
     const {kit} = await bootWire()
     const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
+    const stream = await kit.events(sessionId)
     await kit.rpc.drafts.set({
       sessionId,
       text: 'draft-text',
       selectionStart: 0,
       selectionEnd: 0,
     })
-    await kit.rpc.chat.send({
-      runId: 'wire-12',
-      sessionId,
-      content: [
+    await kit.turn({content: [
         {type: 'text', content: 'what color is this? '},
         {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='}},
-      ],
-    })
+      ]}, {session: sessionId, runId: 'wire-12'})
     await stream.done({hangGuardMs: 10_000})
     const visibleUser = (await snapshotMessages(kit, sessionId)).findLast(
       (message) => isRecord(message) && message.role === 'user',
@@ -122,8 +118,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     ])
     expect(await kit.rpc.drafts.get({sessionId})).toBeNull()
 
-    const followUp = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'wire-6', sessionId, text: 'and what shape is it?'})
+    const followUp = await kit.turn('and what shape is it?', {session: sessionId, runId: 'wire-6'})
     await followUp.done({hangGuardMs: 10_000})
     const priorImage = (await snapshotMessages(kit, sessionId))
       .flatMap((message) => partsOf(message))
@@ -143,8 +138,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const kit = await bootKit({claudeHome}, noResume)
     cleanups.push(() => kit.cleanup())
     const sessionId = await kit.session()
-    const first = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'wire-7', sessionId, text: 'first question'})
+    const first = await kit.turn('first question', {session: sessionId, runId: 'wire-7'})
     await first.done({hangGuardMs: 10_000})
     const transcript = requireTranscriptPath(noResume)(
       kit.stateRoot,
@@ -159,8 +153,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
         JSON.stringify({type: 'assistant', message: {id: 'a1', content: [{type: 'text', text: 'first answer'}]}}),
       ].join('\n'),
     )
-    const second = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'wire-8', sessionId, text: 'second question'})
+    const second = await kit.turn('second question', {session: sessionId, runId: 'wire-8'})
     const events = await second.done({hangGuardMs: 10_000})
     const snapshotJson = JSON.stringify(renderedMessages(events.all))
     expect(snapshotJson).toContain('first question')
@@ -482,11 +475,10 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
   it('conciv_ui blocks the run until chat.uiReply lands the answer as the tool result', async () => {
     const {kit, harness} = await bootWire()
     const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: "return await external_conciv_ui({kind: 'confirm', question: 'Proceed?'})",
     })
-    await kit.rpc.chat.send({runId: 'wire-9', sessionId, text: 'ask me'})
+    const stream = await kit.turn('ask me', {session: sessionId, runId: 'wire-9'})
     const call = await stream.waitForToolCall('conciv_ui', {hangGuardMs: 10_000})
     await kit.rpc.chat.uiReply({sessionId, toolCallId: call.toolCallId, value: 'yes'})
     const events = await stream.done({hangGuardMs: 10_000})
@@ -507,8 +499,8 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: "return await external_conciv_ui({kind: 'confirm', question: 'Proceed?'})",
     })
-    await kit.rpc.chat.send({runId: 'wire-10', sessionId, text: 'ask me'})
-    const late = await kit.attach(sessionId)
+    await kit.turn('ask me', {session: sessionId, runId: 'wire-10'})
+    const late = await kit.events(sessionId)
     const call = await late.waitForToolCall('conciv_ui', {hangGuardMs: 10_000})
     await kit.rpc.chat.uiReply({sessionId, toolCallId: call.toolCallId, value: 'yes'})
     await late.done({hangGuardMs: 10_000})
@@ -520,11 +512,10 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const kit = await bootKit({openInEditor: (file) => opened.push(file)}, harness)
     cleanups.push(() => kit.cleanup())
     const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: "return await external_open({file: 'src/from-tool.ts'})",
     })
-    await kit.rpc.chat.send({runId: 'wire-11', sessionId, text: 'open the file'})
+    const stream = await kit.turn('open the file', {session: sessionId, runId: 'wire-11'})
     await stream.done({hangGuardMs: 10_000})
     expect(opened).toEqual(['src/from-tool.ts'])
   })

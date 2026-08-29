@@ -87,7 +87,7 @@ test.describe('recording attachment end to end in the real widget', () => {
     const chatSession = sessions[0]?.id
     if (!chatSession) throw new Error('widget session not found')
     const attachAbort = new AbortController()
-    const stream = await kit.attach(chatSession, {signal: attachAbort.signal})
+    const stream = await kit.events(chatSession, {signal: attachAbort.signal})
     const snapshot = await stream.waitFor(
       (chunk) => chunk.type === 'MESSAGES_SNAPSHOT' && JSON.stringify(chunk).includes('[click]'),
       {hangGuardMs: 30_000},

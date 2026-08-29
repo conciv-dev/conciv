@@ -130,7 +130,7 @@ export const contract = {
     set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
   },
   chat: {
-    subscribe: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
+    events: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
     hydrate: oc.input(SessionIdInput).output(ChatHydrationSchema),
     send: oc
       .errors({

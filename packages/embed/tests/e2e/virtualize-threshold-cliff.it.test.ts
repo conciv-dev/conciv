@@ -32,7 +32,7 @@ const suite = setupWidgetSuite({text: MARKDOWN_HEAVY_REPLY})
 
 async function seedExchanges(sessionId: string, exchanges: number): Promise<void> {
   const kit = suite.kit()
-  const keeper = await kit.attach(sessionId)
+  const keeper = await kit.events(sessionId)
   for (let index = 0; index < exchanges; index += 1) {
     await kit.chat(`question number ${index} about the reconciliation logic`, sessionId)
     await keeper.done({hangGuardMs: 10_000})

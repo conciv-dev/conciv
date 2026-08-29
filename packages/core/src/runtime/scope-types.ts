@@ -35,7 +35,7 @@ export type SessionStream = {
   publish: (chunk: StreamChunk) => void
   listen: (onChunk: (chunk: StreamChunk) => void) => () => void
   listening: () => boolean
-  subscribe: (signal: AbortSignal) => AsyncGenerator<StreamChunk>
+  events: (signal: AbortSignal) => AsyncGenerator<StreamChunk>
 }
 
 export type SessionAsks = {

@@ -30,8 +30,8 @@ describe('a run started while a subscription is being established is tailed once
     const kit = await boot()
     const sessionId = await kit.session()
 
-    const attaching = kit.attach(sessionId)
-    const sending = kit.rpc.chat.send({runId: 'double-tail-1', sessionId, text: 'say hello'})
+    const attaching = kit.events(sessionId)
+    const sending = kit.turn('say hello', {session: sessionId, runId: 'double-tail-1'})
     const [stream] = await Promise.all([attaching, sending])
     const events = await stream.done({hangGuardMs: 25_000})
 
@@ -46,11 +46,10 @@ describe('a run started while a subscription is being established is tailed once
   it('does not replay a live run twice when the subscriber arrives mid-run', async () => {
     const kit = await boot()
     const sessionId = await kit.session()
-    const keeper = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'double-tail-2', sessionId, text: 'say hello'})
+    const keeper = await kit.turn('say hello', {session: sessionId, runId: 'double-tail-2'})
     await keeper.done({hangGuardMs: 25_000})
 
-    const late = await kit.attach(sessionId)
+    const late = await kit.events(sessionId)
     const snapshot = await late.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000})
     if (snapshot.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('expected a messages snapshot chunk')
     expect(snapshot.messages.filter((message) => message.role === 'user')).toHaveLength(1)

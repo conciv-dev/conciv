@@ -34,8 +34,7 @@ describe('run lifecycle on the wire (IT)', () => {
     const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {}})).setup()
     state.kit = kit
     const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'lifecycle-1', sessionId, text: 'say hello'})
+    const stream = await kit.turn('say hello', {session: sessionId, runId: 'lifecycle-1'})
     await stream.done({hangGuardMs: 20_000})
     const terminal = await nextLifecycle(stream, isTerminalLifecycle)
     expect(terminal.runId).toBe('lifecycle-1')
@@ -49,12 +48,11 @@ describe('run lifecycle on the wire (IT)', () => {
     const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {}})).setup()
     state.kit = kit
     const sessionId = await kit.session()
-    const first = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'lifecycle-replay', sessionId, text: 'say hello'})
+    const first = await kit.turn('say hello', {session: sessionId, runId: 'lifecycle-replay'})
     await first.done({hangGuardMs: 20_000})
     const original = await nextLifecycle(first, isTerminalLifecycle)
 
-    const reloaded = await kit.attach(sessionId)
+    const reloaded = await kit.events(sessionId)
     const replayed = await nextLifecycle(reloaded, (chunk) => runLifecycleOf(chunk) !== null)
     expect(replayed.runId).toBe('lifecycle-replay')
     expect(replayed.phase).toBe('completed')
@@ -66,8 +64,7 @@ describe('run lifecycle on the wire (IT)', () => {
     const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {env: () => ({CONCIV_FAKE_HANG: '1'})}})).setup()
     state.kit = kit
     const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'lifecycle-stop', sessionId, text: 'hang around'})
+    const stream = await kit.turn('hang around', {session: sessionId, runId: 'lifecycle-stop'})
     await stream.waitForRunStart()
 
     const stopping = nextLifecycle(stream, (chunk) => isLifecyclePhase(chunk, 'stopping'))
@@ -90,11 +87,10 @@ describe('run lifecycle on the wire (IT)', () => {
     ).setup()
     state.kit = kit
     const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'lifecycle-fail', sessionId, text: 'never answers'})
+    const stream = await kit.turn('never answers', {session: sessionId, runId: 'lifecycle-fail'})
     await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 20_000})
 
-    const reloaded = await kit.attach(sessionId)
+    const reloaded = await kit.events(sessionId)
     const replayed = await nextLifecycle(reloaded, (chunk) => runLifecycleOf(chunk) !== null)
     expect(replayed.phase).toBe('failed')
     expect(replayed.error).toContain('no output')

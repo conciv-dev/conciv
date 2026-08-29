@@ -218,7 +218,7 @@ const app = new Hono<TerminalEnv>().get(
           data: (chunk) => ws.send(Buffer.from(chunk)),
           control: (frame) => ws.send(JSON.stringify(frame)),
         }
-        detach = session.attach(sink)
+        detach = session.events(sink)
       },
       onMessage(event) {
         const session = sessionOf()

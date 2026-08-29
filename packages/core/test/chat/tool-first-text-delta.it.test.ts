@@ -63,13 +63,7 @@ describe('the client StreamProcessor keeps the first text delta of a tool-first 
     async () => {
       const {kit, sessionId} = await openSession()
       try {
-        const keeper = await kit.attach(sessionId)
-        await kit.rpc.chat.send({
-          runId: 'tool-first-1',
-          sessionId,
-          text: 'what is the weather',
-          messageId: 'client-user-1',
-        })
+        const keeper = await kit.turn('what is the weather', {session: sessionId, runId: 'tool-first-1', messageId: 'client-user-1'})
         const events = await keeper.done({hangGuardMs: 15_000})
 
         const clientProcessor = new ClientStreamProcessor({})

@@ -35,14 +35,13 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
     const harness = createFakeHarness({text: SCRIPTED_REPLY})
     const before = await createTestkit(harness, bootOn(root)).setup()
     const sessionId = await before.session('conciv_durable')
-    const keeper = await before.attach(sessionId)
-    await before.rpc.chat.send({runId: 'durable-1', sessionId, text: 'turn one before restart'})
+    const keeper = await before.turn('turn one before restart', {session: sessionId, runId: 'durable-1'})
     await keeper.done({hangGuardMs: 15_000})
-    await before.rpc.chat.send({runId: 'durable-2', sessionId, text: 'turn two before restart'})
+    await before.turn('turn two before restart', {session: sessionId, runId: 'durable-2'})
     await keeper.done({hangGuardMs: 15_000})
 
     harness.script.hold()
-    await before.rpc.chat.send({runId: 'durable-3', sessionId, text: 'turn three interrupted'})
+    await before.turn('turn three interrupted', {session: sessionId, runId: 'durable-3'})
     await keeper.waitForRunStart()
     await before.cleanup()
 
@@ -59,18 +58,14 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
   it('T4: an attachment turn and later text turns each appear exactly once', {timeout: 60_000}, async () => {
     const {kit, sessionId, keeper} = await sessions.open()
 
-    await kit.rpc.chat.send({
-      runId: 'rich-1',
-      sessionId,
-      content: [
+    await kit.turn({content: [
         {type: 'text', content: 'look at this'},
         {type: 'image', source: {type: 'data', mimeType: 'image/png', value: PNG_PIXEL}},
-      ],
-    })
+      ]}, {session: sessionId, runId: 'rich-1'})
     await keeper.done({hangGuardMs: 15_000})
-    await kit.rpc.chat.send({runId: 'rich-2', sessionId, text: 'then one'})
+    await kit.turn('then one', {session: sessionId, runId: 'rich-2'})
     await keeper.done({hangGuardMs: 15_000})
-    await kit.rpc.chat.send({runId: 'rich-3', sessionId, text: 'then two'})
+    await kit.turn('then two', {session: sessionId, runId: 'rich-3'})
     await keeper.done({hangGuardMs: 15_000})
 
     const snapshot = await freshSubscriberSnapshot(kit, sessionId)

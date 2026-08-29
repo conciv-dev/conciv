@@ -3,7 +3,7 @@ import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ConcivDb} from '@conciv/db'
 import {createAskRegistry, type AskRegistry} from '../chat/ask.js'
 import {createCommandMemory, type CommandMemory} from '../chat/command-memory.js'
-import {createSessionStreams, type SessionStreams} from '../chat/subscribe.js'
+import {createSessionStreams, type SessionStreams} from '../chat/session-events.js'
 import {makeJournal, makePageBus, type CaptureSink, type PageEnv} from '../page-bus.js'
 import {makeBuiltinRegistry} from '../tool-registry.js'
 

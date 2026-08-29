@@ -18,8 +18,7 @@ describe('deleting a session settles its live run before pruning it (IT)', () =>
     ).setup()
     state.kit = kit
     const id = await kit.session()
-    const stream = await kit.attach(id)
-    await kit.rpc.chat.send({runId: 'session-delete-settles-1', sessionId: id, text: 'hang around'})
+    const stream = await kit.turn('hang around', {session: id, runId: 'session-delete-settles-1'})
     await stream.waitForRunStart()
     await kit.rpc.sessions.delete({sessionId: id})
     await expect(stream.done({hangGuardMs: 10_000})).resolves.toBeDefined()

@@ -158,11 +158,10 @@ describe('runId reuse (IT)', () => {
     const kit = await createTestkit(instantHarness, bootCoreApp()).setup()
     try {
       const id = await kit.session()
-      const stream = await kit.attach(id)
       const runId = 'run-id-reuse-rpc-1'
-      await kit.rpc.chat.send({runId, sessionId: id, text: 'first turn'})
+      const stream = await kit.turn('first turn', {session: id, runId: runId})
       await stream.done({hangGuardMs: 5000})
-      const failure = await kit.rpc.chat.send({runId, sessionId: id, text: 'second turn'}).then(
+      const failure = await kit.turn('second turn', {session: id, runId: runId}).then(
         () => null,
         (error: unknown) => error,
       )

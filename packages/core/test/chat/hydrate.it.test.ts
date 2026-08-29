@@ -20,7 +20,7 @@ describe('chat.hydrate serves a thread and the run still generating on it (IT)',
   it('a settled turn hydrates as the stored transcript with no active run', {timeout: 60_000}, async () => {
     const {kit, sessionId, keeper} = await sessions.open()
 
-    await kit.rpc.chat.send({runId: 'hydrate-settled', sessionId, text: 'turn one'})
+    await kit.turn('turn one', {session: sessionId, runId: 'hydrate-settled'})
     await keeper.done({hangGuardMs: 15_000})
 
     const hydration = await kit.rpc.chat.hydrate({sessionId})
@@ -35,7 +35,7 @@ describe('chat.hydrate serves a thread and the run still generating on it (IT)',
     const {kit, harness, sessionId, keeper} = await sessions.open()
 
     harness.script.hold()
-    await kit.rpc.chat.send({runId: 'hydrate-live', sessionId, text: 'turn one'})
+    await kit.turn('turn one', {session: sessionId, runId: 'hydrate-live'})
     await keeper.waitFor((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 15_000})
 
     expect(await kit.rpc.chat.hydrate({sessionId})).toMatchObject({activeRun: {runId: 'hydrate-live'}})

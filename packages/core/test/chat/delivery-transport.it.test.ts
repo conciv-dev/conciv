@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
 import {fetchServerSentEvents, webSocket} from '@tanstack/ai-client'
-import {CHAT_SSE_PATH, CHAT_WS_PATH} from '../../src/chat/delivery.js'
+import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
 import type {Kit} from '@conciv/harness-testkit'
 
@@ -53,7 +53,7 @@ describe('the chat delivery endpoints carry the same run the subscribe stream do
   it('a turn over the websocket folds to the transcript the subscribe stream folds to', {timeout: 60_000}, async () => {
     const {kit, sessionId, keeper} = await sessions.open()
 
-    await kit.rpc.chat.send({runId: 'equivalence-rpc', sessionId, text: 'over rpc'})
+    await kit.turn('over rpc', {session: sessionId, runId: 'equivalence-rpc'})
     const overRpc = await keeper.done({hangGuardMs: 20_000})
 
     const other = await kit.rpc.sessions.create()

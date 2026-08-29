@@ -49,7 +49,7 @@ describe('app dispose (IT)', () => {
     ).setup()
     state.kit = kit
     const sessionId = await kit.session()
-    await kit.rpc.chat.send({runId: 'dispose-drain-1', sessionId, text: 'hi'})
+    await kit.turn('hi', {session: sessionId, runId: 'dispose-drain-1'})
     await until(() => hasBridgeConfig(kit.stateRoot), {hangGuardMs: 10_000})
     expect(turns).toEqual([])
 

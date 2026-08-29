@@ -114,7 +114,7 @@ describe('the CLI transcript is imported into the thread table (IT, claude capab
       const open = await fixture.open()
       const {kit, sessionId, keeper, transcript} = open
 
-      await kit.rpc.chat.send({runId: 'import-widget-1', sessionId, text: 'widget turn'})
+      await kit.turn('widget turn', {session: sessionId, runId: 'import-widget-1'})
       await keeper.done({hangGuardMs: 25_000})
       writeFileSync(transcript, turn('widget turn', 'hello from fake', 1).join('\n'))
 
@@ -126,7 +126,7 @@ describe('the CLI transcript is imported into the thread table (IT, claude capab
       const open = await fixture.open()
       const {kit, sessionId, keeper, transcript} = open
 
-      await kit.rpc.chat.send({runId: 'import-compact-1', sessionId, text: 'before compaction'})
+      await kit.turn('before compaction', {session: sessionId, runId: 'import-compact-1'})
       await keeper.done({hangGuardMs: 25_000})
       writeFileSync(transcript, turn('before compaction', 'hello from fake', 1).join('\n'))
       expect(userTexts(await freshSnapshot(open))).toEqual(['before compaction'])

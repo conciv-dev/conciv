@@ -41,9 +41,7 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
     const claudeHome = tmp()
     const kit = await boot(claudeHome)
     const sessionId = await kit.session()
-    const keeper = await kit.attach(sessionId)
-
-    await kit.rpc.chat.send({runId: 'rich-snapshot-1', sessionId, text: 'first turn before the resubscribe'})
+    const keeper = await kit.turn('first turn before the resubscribe', {session: sessionId, runId: 'rich-snapshot-1'})
     const firstTurn = await keeper.done({hangGuardMs: 20_000})
 
     const transcript = requireTranscriptPath(claude)(kit.stateRoot, HarnessSessionId.parse('sess-fake'), claudeHome)
@@ -56,13 +54,13 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
       ].join('\n'),
     )
 
-    const poisoner = await kit.attach(sessionId)
+    const poisoner = await kit.events(sessionId)
     const poisonerSnapshot = asSnapshot(
       await poisoner.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000}),
     )
     expect(userTexts(poisonerSnapshot)).toEqual(['first turn before the resubscribe'])
 
-    await kit.rpc.chat.send({runId: 'rich-snapshot-2', sessionId, text: 'second turn after the resubscribe'})
+    await kit.turn('second turn after the resubscribe', {session: sessionId, runId: 'rich-snapshot-2'})
     const secondTurn = await keeper.done({hangGuardMs: 20_000})
 
     const runStart = firstSnapshot(secondTurn.all.slice(firstTurn.all.length))
@@ -74,9 +72,7 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
     const claudeHome = tmp()
     const kit = await boot(claudeHome)
     const sessionId = await kit.session()
-    const keeper = await kit.attach(sessionId)
-
-    await kit.rpc.chat.send({runId: 'rich-identical-1', sessionId, text: 'say it again'})
+    const keeper = await kit.turn('say it again', {session: sessionId, runId: 'rich-identical-1'})
     await keeper.done({hangGuardMs: 20_000})
 
     const transcript = requireTranscriptPath(claude)(kit.stateRoot, HarnessSessionId.parse('sess-fake'), claudeHome)
@@ -86,7 +82,7 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
       [transcriptLine('user', 'say it again'), transcriptLine('assistant', 'hello from fake', 'a1')].join('\n'),
     )
 
-    await kit.rpc.chat.send({runId: 'rich-identical-2', sessionId, text: 'say it again'})
+    await kit.turn('say it again', {session: sessionId, runId: 'rich-identical-2'})
     await keeper.done({hangGuardMs: 20_000})
 
     writeFileSync(
@@ -99,7 +95,7 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
       ].join('\n'),
     )
 
-    const fresh = await kit.attach(sessionId)
+    const fresh = await kit.events(sessionId)
     const snapshot = asSnapshot(
       await fresh.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000}),
     )

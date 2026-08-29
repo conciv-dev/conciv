@@ -12,7 +12,7 @@ import type {ChatDeps} from '../chat/runtime.js'
 import type {Compactor, Send} from '../chat/run.js'
 import {pageQueryStream} from '../page-bus.js'
 import {askUi} from '../chat/ask.js'
-import {subscribeSession} from '../chat/subscribe.js'
+import {sessionEvents} from '../chat/session-events.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
 import type {CoreRuntime, EngineScope, SessionScope, ToolCatalog} from './scope-types.js'
@@ -103,7 +103,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       publish: (chunk) => stream.publish(id, chunk),
       listen: (onChunk) => stream.listen(id, onChunk),
       listening: () => stream.listening(id),
-      subscribe: (signal) => subscribeSession(deps.chat, id, signal),
+      events: (signal) => sessionEvents(deps.chat, id, signal),
     },
     asks: {
       open: (key) => asks.open(id, key),
@@ -151,7 +151,7 @@ function established(raw: SessionScope): SessionScope {
       ...raw.stream,
       publish: inScope(raw.stream.publish),
       listen: inScope(raw.stream.listen),
-      subscribe: inScope(raw.stream.subscribe),
+      events: inScope(raw.stream.events),
     },
     asks: {
       ...raw.asks,

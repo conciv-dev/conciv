@@ -37,7 +37,7 @@ export function useTranscriptFixture(prefix: string): {open: () => Promise<Trans
       const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {env: () => ({})}, claudeHome})).setup()
       state.kit = kit
       const sessionId = await kit.session()
-      const keeper = await kit.attach(sessionId)
+      const keeper = await kit.events(sessionId)
       const transcript = requireTranscriptPath(claude)(kit.stateRoot, HarnessSessionId.parse('sess-fake'), claudeHome)
       mkdirSync(dirname(transcript), {recursive: true})
       return {kit, sessionId, keeper, transcript}
@@ -46,6 +46,6 @@ export function useTranscriptFixture(prefix: string): {open: () => Promise<Trans
 }
 
 export async function freshSnapshot(fixture: TranscriptFixture): Promise<SnapshotView> {
-  const fresh = await fixture.kit.attach(fixture.sessionId)
+  const fresh = await fixture.kit.events(fixture.sessionId)
   return asSnapshot(await fresh.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000}))
 }

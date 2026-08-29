@@ -22,13 +22,13 @@ export function useFakeSessions(): {open: () => Promise<FakeSession>; adopt: (ki
       const kit = await bootKit({}, harness)
       kits.push(kit)
       const sessionId = await kit.session()
-      const keeper = await kit.attach(sessionId)
+      const keeper = await kit.events(sessionId)
       return {kit, harness, sessionId, keeper}
     },
   }
 }
 
 export async function freshSubscriberSnapshot(kit: Kit, sessionId: string): Promise<SnapshotView> {
-  const fresh = await kit.attach(sessionId)
+  const fresh = await kit.events(sessionId)
   return asSnapshot(await fresh.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000}))
 }

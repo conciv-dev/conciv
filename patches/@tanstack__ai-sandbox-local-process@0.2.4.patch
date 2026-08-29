@@ -11,7 +11,7 @@ index f849f8708b22a6bd6204f3c78261229543f53b52..b8771923fb0ac9ab3199ce037eddb40c
  		const closed = new Promise((resolve, reject) => {
  			child.once("error", reject);
 diff --git a/dist/esm/provider.js b/dist/esm/provider.js
-index 71e952f4cf3fd4e5119e03819b54e0a87f85b6a5..c074b454e4600fbf11c44e446405d8b18eeb74d4 100644
+index 71e952f4cf3fd4e5119e03819b54e0a87f85b6a5..84ebe510696b547529a8173bd4ac2f6ac69cfd39 100644
 --- a/dist/esm/provider.js
 +++ b/dist/esm/provider.js
 @@ -7,6 +7,15 @@ import * as path from "node:path";
@@ -35,9 +35,9 @@ index 71e952f4cf3fd4e5119e03819b54e0a87f85b6a5..c074b454e4600fbf11c44e446405d8b1
  		return this.config.removeOnDestroy ?? this.config.dir === void 0;
  	}
 +	track(handle) {
-+		const forId = this.minted.get(handle.id) ?? /* @__PURE__ */ new Set();
++		const forId = this.minted.get(handle.id) ?? [];
 +		this.minted.set(handle.id, forId);
-+		forId.add(handle);
++		forId.push(handle);
 +		return handle;
 +	}
  	makeHandle(root) {
@@ -55,7 +55,7 @@ index 71e952f4cf3fd4e5119e03819b54e0a87f85b6a5..c074b454e4600fbf11c44e446405d8b1
  	}
  	baseDir() {
  		return this.config.baseDir ?? path.join(os.tmpdir(), "tanstack-ai-sandboxes");
-@@ -52,13 +67,19 @@ var LocalProcessProvider = class {
+@@ -52,13 +67,21 @@ var LocalProcessProvider = class {
  		return this.makeHandle(input.id);
  	}
  	/**
@@ -64,24 +64,26 @@ index 71e952f4cf3fd4e5119e03819b54e0a87f85b6a5..c074b454e4600fbf11c44e446405d8b1
 -	* a handle we no longer hold may still own the dir as its CWD. The bounded
 -	* retry is all that is available, and a dir that never releases is reported
 -	* through the logger rather than silently left behind.
-+	* Destroy by id (a dir path). Every handle this provider minted for that id
-+	* is destroyed through its own `destroy`, which kills the process tree it
-+	* owns unconditionally and removes the dir when the dir is ours — so
-+	* `removeOnDestroy` keeps meaning exactly what it meant. When no handle is
-+	* tracked (another process minted it, or it was already destroyed) the
-+	* bounded dir retry is still all that is available, and a dir that never
-+	* releases is reported through the logger rather than silently left behind.
++	* Destroy by id (a dir path), tearing down ONE handle this provider minted
++	* for that id through the handle's own `destroy` — oldest first. A fixed
++	* `dir` makes every concurrent run share one id, so destroying every handle
++	* for that id tore down the process tree of a run that was still going.
++	* Creates and destroys pair one-for-one and each handle only kills the
++	* children IT spawned, so this retires exactly one run's tree per call.
  	*/
  	async destroy(input) {
-+		const tracked = [...this.minted.get(input.id) ?? []];
-+		this.minted.delete(input.id);
-+		for (const handle of tracked) await handle.destroy();
-+		if (tracked.length > 0) return;
++		const forId = this.minted.get(input.id);
++		const handle = forId?.shift();
++		if (forId?.length === 0) this.minted.delete(input.id);
++		if (handle) {
++			await handle.destroy();
++			return;
++		}
  		if (this.removeDefault()) await removeDirWithRetry(input.id, this.config.logger);
  	}
  };
 diff --git a/src/provider.ts b/src/provider.ts
-index bd3f9a919b65112f60c463c295d8d256fa096a4b..e909e370cef6ff3bbfafff959d8a3a91dd88e8e3 100644
+index bd3f9a919b65112f60c463c295d8d256fa096a4b..fa754cabf37d4e5e0d26bf8f10403c9bbf727feb 100644
 --- a/src/provider.ts
 +++ b/src/provider.ts
 @@ -48,6 +48,16 @@ export interface LocalProcessSandboxConfig {
@@ -96,7 +98,7 @@ index bd3f9a919b65112f60c463c295d8d256fa096a4b..e909e370cef6ff3bbfafff959d8a3a91
 +   * journaled spawn the abort signal is deliberately dropped and `destroy` IS
 +   * the kill, so forgetting the handle leaks the agent forever.
 +   */
-+  private readonly minted = new Map<string, Set<SandboxHandle>>()
++  private readonly minted = new Map<string, Array<SandboxHandle>>()
 +
    constructor(private readonly config: LocalProcessSandboxConfig) {}
  
@@ -106,9 +108,9 @@ index bd3f9a919b65112f60c463c295d8d256fa096a4b..e909e370cef6ff3bbfafff959d8a3a91
    }
  
 +  private track(handle: SandboxHandle): SandboxHandle {
-+    const forId = this.minted.get(handle.id) ?? new Set<SandboxHandle>()
++    const forId = this.minted.get(handle.id) ?? []
 +    this.minted.set(handle.id, forId)
-+    forId.add(handle)
++    forId.push(handle)
 +    return handle
 +  }
 +
@@ -154,7 +156,7 @@ index bd3f9a919b65112f60c463c295d8d256fa096a4b..e909e370cef6ff3bbfafff959d8a3a91
    }
  
    private baseDir(): string {
-@@ -106,13 +125,19 @@ class LocalProcessProvider implements SandboxProvider {
+@@ -106,13 +125,31 @@ class LocalProcessProvider implements SandboxProvider {
    }
  
    /**
@@ -163,19 +165,31 @@ index bd3f9a919b65112f60c463c295d8d256fa096a4b..e909e370cef6ff3bbfafff959d8a3a91
 -   * a handle we no longer hold may still own the dir as its CWD. The bounded
 -   * retry is all that is available, and a dir that never releases is reported
 -   * through the logger rather than silently left behind.
-+   * Destroy by id (a dir path). Every handle this provider minted for that id
-+   * is destroyed through its own `destroy`, which kills the process tree it
-+   * owns unconditionally and removes the dir when the dir is ours — so
-+   * `removeOnDestroy` keeps meaning exactly what it meant. When no handle is
-+   * tracked (another process minted it, or it was already destroyed) the
-+   * bounded dir retry is still all that is available, and a dir that never
-+   * releases is reported through the logger rather than silently left behind.
++   * Destroy by id (a dir path), tearing down ONE handle this provider minted
++   * for that id through the handle's own `destroy` — which kills the process
++   * tree that handle spawned and removes the dir when the dir is ours, so
++   * `removeOnDestroy` keeps meaning exactly what it meant.
++   *
++   * One handle, not all of them, and oldest first. A fixed `dir` makes every
++   * concurrent run share one id, so destroying every handle for that id tore
++   * down the process tree of a run that was still going. Creates and destroys
++   * pair up one-for-one, and each handle only ever kills the children IT
++   * spawned, so taking them in mint order retires exactly one run's tree per
++   * call and never reaches into another's.
++   *
++   * When no handle is tracked (another process minted it, or it was already
++   * destroyed) the bounded dir retry is still all that is available, and a dir
++   * that never releases is reported through the logger rather than silently
++   * left behind.
     */
    async destroy(input: SandboxDestroyInput): Promise<void> {
-+    const tracked = [...(this.minted.get(input.id) ?? [])]
-+    this.minted.delete(input.id)
-+    for (const handle of tracked) await handle.destroy()
-+    if (tracked.length > 0) return
++    const forId = this.minted.get(input.id)
++    const handle = forId?.shift()
++    if (forId?.length === 0) this.minted.delete(input.id)
++    if (handle) {
++      await handle.destroy()
++      return
++    }
      if (this.removeDefault()) {
        await removeDirWithRetry(input.id, this.config.logger)
      }

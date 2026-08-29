@@ -21,11 +21,7 @@ describe('the transcript merge anchors on native record ids (IT, claude capabili
       const open = await fixture.open()
       const {kit, sessionId, keeper, transcript} = open
 
-      await kit.rpc.chat.send({
-        runId: 'anchor-image-1',
-        sessionId,
-        content: [{type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}}],
-      })
+      await kit.turn({content: [{type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}}]}, {session: sessionId, runId: 'anchor-image-1'})
       await keeper.done({hangGuardMs: 25_000})
 
       writeFileSync(
@@ -45,7 +41,7 @@ describe('the transcript merge anchors on native record ids (IT, claude capabili
     const open = await fixture.open()
     const {kit, sessionId, keeper, transcript} = open
 
-    await kit.rpc.chat.send({runId: 'anchor-text-1', sessionId, text: 'first turn'})
+    await kit.turn('first turn', {session: sessionId, runId: 'anchor-text-1'})
     await keeper.done({hangGuardMs: 25_000})
     writeFileSync(
       transcript,
@@ -55,11 +51,7 @@ describe('the transcript merge anchors on native record ids (IT, claude capabili
       ].join('\n'),
     )
 
-    await kit.rpc.chat.send({
-      runId: 'anchor-image-2',
-      sessionId,
-      content: [{type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}}],
-    })
+    await kit.turn({content: [{type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}}]}, {session: sessionId, runId: 'anchor-image-2'})
     await keeper.done({hangGuardMs: 25_000})
     writeFileSync(
       transcript,
