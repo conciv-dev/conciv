@@ -7,7 +7,7 @@ import {requireClaude} from '../helpers/adapters.js'
 const SESSIONS = 4
 const WARMUP_RUNS = 8
 const MEASURED_RUNS = 48
-const CHURN_SUBSCRIBERS = 2
+const CHURN_JOINERS = 2
 const HEAP_CEILING_BYTES = 7 * 1024 * 1024
 
 const heapProbe: {gc?: () => void} = globalThis
@@ -31,23 +31,15 @@ describe('sustained chat load keeps server memory flat (IT)', () => {
 
   async function drive(kit: Kit, harness: TestHarness, sessionId: string, runId: string): Promise<void> {
     harness.script.hold()
-    const keeperAbort = new AbortController()
-    const keeper = await kit.turn(`load ${runId}`, {session: sessionId, runId: runId})
-    await keeper.waitForRunStart()
-    const churnAborts: AbortController[] = []
-    for (let index = 0; index < CHURN_SUBSCRIBERS; index += 1) {
-      const abort = new AbortController()
-      churnAborts.push(abort)
-      await kit.events(sessionId, {signal: abort.signal})
-    }
-    for (const abort of churnAborts) abort.abort()
+    const owner = await kit.turn(`load ${runId}`, {session: sessionId, runId: runId})
+    await owner.waitForRunStart()
+    for (let index = 0; index < CHURN_JOINERS; index += 1) kit.join(runId)
     harness.script.release()
-    await keeper.done({hangGuardMs: 10_000})
-    keeperAbort.abort()
+    await owner.done({hangGuardMs: 10_000})
   }
 
   it(
-    'subscriber churn across many runs stays under the heap ceiling and leaves clean sessions',
+    'joiner churn across many runs stays under the heap ceiling and leaves clean sessions',
     {
       timeout: 90_000,
     },
@@ -86,7 +78,7 @@ describe('sustained chat load keeps server memory flat (IT)', () => {
       const freshSession = sessionFor(0)
       const fresh = await kit.turn('after the load', {session: freshSession, runId: 'memory-fresh'})
       const events = await fresh.done({hangGuardMs: 10_000})
-      expect(events.all[0]?.type).toBe(EventType.MESSAGES_SNAPSHOT)
+      expect(events.all.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)).toHaveLength(1)
       expect(events.runs()).toBe(1)
       expect(events.all.filter((chunk) => chunk.type === EventType.RUN_STARTED)).toHaveLength(1)
     },

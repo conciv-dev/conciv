@@ -172,7 +172,9 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
   it('rejects a send with an empty message', async () => {
     const kit = await setup()
     const id = await kit.session()
-    await expect(kit.turn('', {session: id, runId: 'chat-2'})).rejects.toThrow()
+    const stream = await kit.turn('', {session: id, runId: 'chat-2'})
+    const events = await stream.done({hangGuardMs: 15_000})
+    expect(events.errors().join(' ')).toContain('empty')
   })
 
   it('keeps per-session state independent under distinct ids', async () => {
@@ -200,8 +202,8 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
       }),
     ).setup()
     state.kit = kit
-    const a = await kit.session()
-    const b = await kit.session()
+    const a = (await kit.rpc.sessions.create(undefined)).sessionId
+    const b = (await kit.rpc.sessions.create(undefined)).sessionId
     hang.add(a)
     await kit.turn('hi', {session: a, runId: 'chat-3'})
     const stream = await kit.turn('hi', {session: b, runId: 'chat-4'})

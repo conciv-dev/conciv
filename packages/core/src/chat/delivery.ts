@@ -13,15 +13,19 @@ import {
   type UIMessage,
   type WebSocketLike,
 } from '@tanstack/ai'
-import {CHAT_SSE_PATH, CHAT_WS_PATH, SessionId, type ChatContentPart} from '@conciv/protocol/chat-types'
+import {
+  CHAT_SSE_PATH,
+  CHAT_WS_PATH,
+  ChatContentPartSchema,
+  SessionId,
+  type ChatContentPart,
+} from '@conciv/protocol/chat-types'
 import type {ChatDeps} from './runtime.js'
 import {makeTurn, type UserContent} from './run.js'
-
 
 const LIVE_BATCH = 1
 
 const TextPartSchema = z.object({type: z.literal('text'), text: z.string().min(1)})
-const ContentTextPartSchema = z.object({type: z.literal('text'), content: z.string().min(1)})
 const RoleSchema = z.object({role: z.string()})
 const StringContentSchema = z.object({content: z.string().min(1)})
 const PartsSchema = z.object({parts: z.array(z.unknown())})
@@ -34,11 +38,10 @@ function partsOf(message: UIMessage | ModelMessage): ChatContentPart[] {
   const content = ArrayContentSchema.safeParse(message)
   const raw = parts.success ? parts.data.parts : content.success ? content.data.content : []
   return raw.flatMap((part): ChatContentPart[] => {
+    const known = ChatContentPartSchema.safeParse(part)
+    if (known.success) return [known.data]
     const asText = TextPartSchema.safeParse(part)
-    if (asText.success) return [{type: 'text', content: asText.data.text}]
-    const asContent = ContentTextPartSchema.safeParse(part)
-    if (asContent.success) return [{type: 'text', content: asContent.data.content}]
-    return []
+    return asText.success ? [{type: 'text', content: asText.data.text}] : []
   })
 }
 
@@ -77,10 +80,17 @@ function turnStreamOf(deps: ChatDeps, ctx: TurnContext): AsyncIterable<StreamChu
     [Symbol.asyncIterator]: async function* () {
       const sessionId = SessionId.parse(ctx.threadId)
       const messageId = userMessageIdOf(ctx.messages)
-      yield* await makeTurn(deps)(sessionId, ctx.runId, userContentOf(ctx.messages), {
-        signal: ctx.signal,
-        ...(messageId === undefined ? {} : {messageId}),
-      })
+      const content = userContentOf(ctx.messages)
+      if (content.length === 0) throw new Error('a turn needs a non-empty message')
+      const unwatch = deps.stream.watch(sessionId)
+      try {
+        yield* await makeTurn(deps)(sessionId, ctx.runId, content, {
+          signal: ctx.signal,
+          ...(messageId === undefined ? {} : {messageId}),
+        })
+      } finally {
+        unwatch()
+      }
     },
   }
 }

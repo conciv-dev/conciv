@@ -18,10 +18,10 @@ describe('chat.hydrate serves a thread and the run still generating on it (IT)',
   })
 
   it('a settled turn hydrates as the stored transcript with no active run', {timeout: 60_000}, async () => {
-    const {kit, sessionId, keeper} = await sessions.open()
+    const {kit, sessionId} = await sessions.open()
 
-    await kit.turn('turn one', {session: sessionId, runId: 'hydrate-settled'})
-    await keeper.done({hangGuardMs: 15_000})
+    const turn = await kit.turn('turn one', {session: sessionId, runId: 'hydrate-settled'})
+    await turn.done({hangGuardMs: 15_000})
 
     const hydration = await kit.rpc.chat.hydrate({sessionId})
     const view = asSnapshot(aguiSnapshotFor(hydration.messages))
@@ -32,16 +32,16 @@ describe('chat.hydrate serves a thread and the run still generating on it (IT)',
   })
 
   it('a run held mid-turn hydrates as the active run and settles to null', {timeout: 60_000}, async () => {
-    const {kit, harness, sessionId, keeper} = await sessions.open()
+    const {kit, harness, sessionId} = await sessions.open()
 
     harness.script.hold()
-    await kit.turn('turn one', {session: sessionId, runId: 'hydrate-live'})
-    await keeper.waitFor((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 15_000})
+    const turn = await kit.turn('turn one', {session: sessionId, runId: 'hydrate-live'})
+    await turn.waitFor((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 15_000})
 
     expect(await kit.rpc.chat.hydrate({sessionId})).toMatchObject({activeRun: {runId: 'hydrate-live'}})
 
     harness.script.release()
-    await keeper.done({hangGuardMs: 15_000})
+    await turn.done({hangGuardMs: 15_000})
 
     expect((await kit.rpc.chat.hydrate({sessionId})).activeRun).toBeNull()
   })

@@ -8,7 +8,7 @@ import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {userTexts} from '../helpers/snapshots.js'
-import {freshSubscriberSnapshot} from '../helpers/fake-session.js'
+import {hydratedSnapshot} from '../helpers/fake-session.js'
 import {freshSnapshot, useTranscriptFixture} from '../helpers/transcript-fixture.js'
 import {createRow} from '../../src/chat/session-rows.js'
 
@@ -80,7 +80,7 @@ describe('the CLI transcript is imported into the thread table (IT, claude capab
     )
     const {kit, sessionId} = await openTerminalSession(root)
 
-    expect(userTexts(await freshSubscriberSnapshot(kit, sessionId))).toEqual(['terminal one', 'terminal two'])
+    expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['terminal one', 'terminal two'])
   })
 
   it('an imported terminal session survives the transcript being deleted', {timeout: 60_000}, async () => {
@@ -88,11 +88,11 @@ describe('the CLI transcript is imported into the thread table (IT, claude capab
     const transcript = transcriptPathIn(root)
     writeFileSync(transcript, turn('terminal one', 'reply one', 1).join('\n'))
     const {kit, sessionId} = await openTerminalSession(root)
-    expect(userTexts(await freshSubscriberSnapshot(kit, sessionId))).toEqual(['terminal one'])
+    expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['terminal one'])
 
     rmSync(transcript)
 
-    expect(userTexts(await freshSubscriberSnapshot(kit, sessionId))).toEqual(['terminal one'])
+    expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['terminal one'])
   })
 
   it('a turn added in the terminal while the session is open shows up', {timeout: 60_000}, async () => {
@@ -100,11 +100,11 @@ describe('the CLI transcript is imported into the thread table (IT, claude capab
     const transcript = transcriptPathIn(root)
     writeFileSync(transcript, turn('terminal one', 'reply one', 1).join('\n'))
     const {kit, sessionId} = await openTerminalSession(root)
-    expect(userTexts(await freshSubscriberSnapshot(kit, sessionId))).toEqual(['terminal one'])
+    expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['terminal one'])
 
     appendFileSync(transcript, `\n${turn('terminal two', 'reply two', 2).join('\n')}`)
 
-    expect(userTexts(await freshSubscriberSnapshot(kit, sessionId))).toEqual(['terminal one', 'terminal two'])
+    expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['terminal one', 'terminal two'])
   })
 
   describe('against a widget-driven session', () => {
@@ -112,10 +112,10 @@ describe('the CLI transcript is imported into the thread table (IT, claude capab
 
     it('does not duplicate a widget turn when the CLI copy is imported', {timeout: 90_000}, async () => {
       const open = await fixture.open()
-      const {kit, sessionId, keeper, transcript} = open
+      const {kit, sessionId, transcript} = open
 
-      await kit.turn('widget turn', {session: sessionId, runId: 'import-widget-1'})
-      await keeper.done({hangGuardMs: 25_000})
+      const widgetTurn = await kit.turn('widget turn', {session: sessionId, runId: 'import-widget-1'})
+      await widgetTurn.done({hangGuardMs: 25_000})
       writeFileSync(transcript, turn('widget turn', 'hello from fake', 1).join('\n'))
 
       expect(userTexts(await freshSnapshot(open))).toEqual(['widget turn'])
@@ -124,10 +124,10 @@ describe('the CLI transcript is imported into the thread table (IT, claude capab
 
     it('keeps the thread and re-anchors when the transcript is compacted away', {timeout: 90_000}, async () => {
       const open = await fixture.open()
-      const {kit, sessionId, keeper, transcript} = open
+      const {kit, sessionId, transcript} = open
 
-      await kit.turn('before compaction', {session: sessionId, runId: 'import-compact-1'})
-      await keeper.done({hangGuardMs: 25_000})
+      const firstTurn = await kit.turn('before compaction', {session: sessionId, runId: 'import-compact-1'})
+      await firstTurn.done({hangGuardMs: 25_000})
       writeFileSync(transcript, turn('before compaction', 'hello from fake', 1).join('\n'))
       expect(userTexts(await freshSnapshot(open))).toEqual(['before compaction'])
 

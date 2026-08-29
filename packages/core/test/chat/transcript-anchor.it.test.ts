@@ -19,10 +19,13 @@ describe('the transcript merge anchors on native record ids (IT, claude capabili
     {timeout: 90_000},
     async () => {
       const open = await fixture.open()
-      const {kit, sessionId, keeper, transcript} = open
+      const {kit, sessionId, transcript} = open
 
-      await kit.turn({content: [{type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}}]}, {session: sessionId, runId: 'anchor-image-1'})
-      await keeper.done({hangGuardMs: 25_000})
+      const turn1 = await kit.turn(
+        {content: [{type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}}]},
+        {session: sessionId, runId: 'anchor-image-1'},
+      )
+      await turn1.done({hangGuardMs: 25_000})
 
       writeFileSync(
         transcript,
@@ -39,10 +42,10 @@ describe('the transcript merge anchors on native record ids (IT, claude capabili
 
   it('keeps the settled CLI turns that precede the first folded run', {timeout: 90_000}, async () => {
     const open = await fixture.open()
-    const {kit, sessionId, keeper, transcript} = open
+    const {kit, sessionId, transcript} = open
 
-    await kit.turn('first turn', {session: sessionId, runId: 'anchor-text-1'})
-    await keeper.done({hangGuardMs: 25_000})
+    const turn2 = await kit.turn('first turn', {session: sessionId, runId: 'anchor-text-1'})
+    await turn2.done({hangGuardMs: 25_000})
     writeFileSync(
       transcript,
       [
@@ -51,8 +54,11 @@ describe('the transcript merge anchors on native record ids (IT, claude capabili
       ].join('\n'),
     )
 
-    await kit.turn({content: [{type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}}]}, {session: sessionId, runId: 'anchor-image-2'})
-    await keeper.done({hangGuardMs: 25_000})
+    const turn3 = await kit.turn(
+      {content: [{type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}}]},
+      {session: sessionId, runId: 'anchor-image-2'},
+    )
+    await turn3.done({hangGuardMs: 25_000})
     writeFileSync(
       transcript,
       [

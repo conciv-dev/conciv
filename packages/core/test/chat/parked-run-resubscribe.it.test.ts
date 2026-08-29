@@ -1,29 +1,31 @@
 import {describe, it, expect} from 'vitest'
-import {EventType} from '@tanstack/ai'
-import {assistantTexts, asSnapshot} from '../helpers/snapshots.js'
+import {EventType, type StreamChunk} from '@tanstack/ai'
 import {SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
 
-describe('a subscriber joining a run that is parked mid-turn (IT)', () => {
+function textDeltas(chunks: readonly StreamChunk[]): string[] {
+  return chunks.flatMap((chunk) =>
+    chunk.type === EventType.TEXT_MESSAGE_CONTENT && typeof chunk.delta === 'string' ? [chunk.delta] : [],
+  )
+}
+
+describe('joining a run that is parked mid-turn (IT)', () => {
   const sessions = useFakeSessions()
 
-  it('T1: the catch-up snapshot carries the streamed text and nothing replays it', {timeout: 60_000}, async () => {
-    const {kit, harness, sessionId, keeper} = await sessions.open()
+  it('T1: the joiner catches up on what already streamed and nothing replays twice', {timeout: 60_000}, async () => {
+    const {kit, harness, sessionId} = await sessions.open()
 
     harness.script.hold()
-    await kit.turn('turn one', {session: sessionId, runId: 'parked-1'})
-    await keeper.waitFor((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 15_000})
+    const owner = await kit.turn('turn one', {session: sessionId, runId: 'parked-1'})
+    await owner.waitFor((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 15_000})
 
-    const latecomer = await kit.events(sessionId)
-    const catchUp = asSnapshot(
-      await latecomer.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000}),
-    )
-    expect(assistantTexts(catchUp)).toEqual([SCRIPTED_REPLY])
+    const latecomer = kit.join('parked-1')
     await latecomer.waitForRunStart()
 
     harness.script.release()
     const latecomerEvents = await latecomer.done({hangGuardMs: 15_000})
+    const ownerEvents = await owner.done({hangGuardMs: 15_000})
 
-    expect(latecomerEvents.all.filter((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)).toEqual([])
     expect(latecomerEvents.text()).toBe(SCRIPTED_REPLY)
+    expect(textDeltas(latecomerEvents.all)).toEqual(textDeltas(ownerEvents.all))
   })
 })

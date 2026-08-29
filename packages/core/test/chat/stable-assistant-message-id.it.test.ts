@@ -58,7 +58,11 @@ describe('the assistant message id the client derives from the wire matches the 
         for (const chunk of events.all) clientProcessor.processChunk(chunk)
         const clientAssistantId = clientProcessor.getMessages().find((message) => message.role === 'assistant')?.id
 
-        const secondSubscriber = await kit.turn('again', {session: sessionId, runId: 'no-id-2', messageId: 'client-user-2'})
+        const secondSubscriber = await kit.turn('again', {
+          session: sessionId,
+          runId: 'no-id-2',
+          messageId: 'client-user-2',
+        })
         const secondEvents = await secondSubscriber.done({hangGuardMs: 15_000})
         const coreAssistantId = lastSnapshot(secondEvents.all).messages.find(
           (message) => message.role === 'assistant',

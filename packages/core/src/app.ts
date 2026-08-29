@@ -548,7 +548,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
             emit: (chunk) => stream.publish(sessionId, chunk),
             ...(opts.askTimeoutMs === undefined ? {} : {timeoutMs: opts.askTimeoutMs}),
           }),
-        listening: (sessionId) => stream.listening(sessionId),
+        listening: (sessionId) => stream.watched(sessionId),
         resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
         staleness,
       },

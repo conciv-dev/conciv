@@ -35,7 +35,10 @@ export type Kit = {
   stateRoot: string
   rpc: RpcClient
   session: (id?: string) => Promise<string>
-  turn: (input: string | ChatMessage, opts?: {session?: string; runId?: string; messageId?: string}) => Promise<RunStream>
+  turn: (
+    input: string | ChatMessage,
+    opts?: {session?: string; runId?: string; messageId?: string},
+  ) => Promise<RunStream>
   join: (runId: string) => RunStream
   hydrate: (session?: string) => Promise<Awaited<ReturnType<RpcClient['chat']['hydrate']>>>
   events: (session?: string, opts?: {signal?: AbortSignal}) => Promise<RunStream>

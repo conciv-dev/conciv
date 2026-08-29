@@ -6,7 +6,13 @@ import {makeRunStream, type RunStream} from './run-stream.js'
 export type TurnMessage = {role: 'user'; parts: UIMessage['parts']}
 
 export type ChatSockets = {
-  turn: (input: {wsBase: string; sessionId: string; runId: string; messageId?: string; message: TurnMessage}) => RunStream
+  turn: (input: {
+    wsBase: string
+    sessionId: string
+    runId: string
+    messageId?: string
+    message: TurnMessage
+  }) => RunStream
   join: (input: {wsBase: string; runId: string}) => RunStream
   closeAll: () => void
 }

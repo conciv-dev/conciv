@@ -101,9 +101,7 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
       const index = doneCursor.index
       doneCursor.index += 1
       const chunk = seen[index]
-      if (chunk?.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') {
-        return makeRunEvents(seen.slice(0, doneCursor.index))
-      }
+      if (chunk && isTerminal(chunk)) return makeRunEvents(seen.slice(0, doneCursor.index))
     }
     return null
   }

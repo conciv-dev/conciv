@@ -154,25 +154,16 @@ describe('runId reuse (IT)', () => {
     }
   })
 
-  it('rpc chat.send surfaces the rejection to the client', {timeout: 15_000}, async () => {
+  it('the turn transport surfaces the rejection to the client', {timeout: 15_000}, async () => {
     const kit = await createTestkit(instantHarness, bootCoreApp()).setup()
     try {
       const id = await kit.session()
       const runId = 'run-id-reuse-rpc-1'
       const stream = await kit.turn('first turn', {session: id, runId: runId})
       await stream.done({hangGuardMs: 5000})
-      const failure = await kit.turn('second turn', {session: id, runId: runId}).then(
-        () => null,
-        (error: unknown) => error,
-      )
-      expect(failure).toBeInstanceOf(Error)
-      expect(failure).toMatchObject({
-        code: 'RUN_ID_TAKEN',
-        defined: true,
-        status: 409,
-        data: {runId},
-        message: expect.stringMatching(/cannot be reused/),
-      })
+      const reused = await kit.turn('second turn', {session: id, runId: runId})
+      const events = await reused.done({hangGuardMs: 5000})
+      expect(events.errors().join(' ')).toMatch(/cannot be reused/)
     } finally {
       await kit.cleanup()
     }

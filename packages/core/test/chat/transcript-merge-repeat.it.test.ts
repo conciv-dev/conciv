@@ -12,20 +12,25 @@ describe('merging the CLI transcript with db-owned history (IT, claude capabilit
 
   it('T11-B: a repeated opening prompt does not duplicate the turns between it', {timeout: 90_000}, async () => {
     const open = await fixture.open()
-    const {kit, sessionId, keeper, transcript} = open
+    const {kit, sessionId, transcript} = open
 
-    await kit.turn({content: [
-        {type: 'text', content: 'say it again'},
-        {type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}},
-      ]}, {session: sessionId, runId: 'merge-repeat-1'})
-    await keeper.done({hangGuardMs: 25_000})
+    const turn1 = await kit.turn(
+      {
+        content: [
+          {type: 'text', content: 'say it again'},
+          {type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}},
+        ],
+      },
+      {session: sessionId, runId: 'merge-repeat-1'},
+    )
+    await turn1.done({hangGuardMs: 25_000})
     writeFileSync(
       transcript,
       [transcriptLine('user', 'say it again'), transcriptLine('assistant', 'hello from fake', 'a1')].join('\n'),
     )
 
-    await kit.turn('and something else', {session: sessionId, runId: 'merge-repeat-2'})
-    await keeper.done({hangGuardMs: 25_000})
+    const turn2 = await kit.turn('and something else', {session: sessionId, runId: 'merge-repeat-2'})
+    await turn2.done({hangGuardMs: 25_000})
     writeFileSync(
       transcript,
       [
@@ -36,8 +41,8 @@ describe('merging the CLI transcript with db-owned history (IT, claude capabilit
       ].join('\n'),
     )
 
-    await kit.turn('say it again', {session: sessionId, runId: 'merge-repeat-3'})
-    await keeper.done({hangGuardMs: 25_000})
+    const turn3 = await kit.turn('say it again', {session: sessionId, runId: 'merge-repeat-3'})
+    await turn3.done({hangGuardMs: 25_000})
     writeFileSync(
       transcript,
       [

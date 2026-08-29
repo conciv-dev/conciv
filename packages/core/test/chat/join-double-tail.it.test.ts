@@ -2,6 +2,8 @@ import {afterEach, describe, expect, it} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../helpers/boot.js'
+import {hydratedSnapshot} from '../helpers/fake-session.js'
+import {userTexts} from '../helpers/snapshots.js'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -25,15 +27,15 @@ function textDeltasOf(chunks: readonly StreamChunk[]): string[] {
   )
 }
 
-describe('a run started while a subscription is being established is tailed once (IT)', () => {
+describe('a run whose log is joined while it is still starting is tailed once (IT)', () => {
   it('delivers each run-started and each text delta exactly once', async () => {
     const kit = await boot()
     const sessionId = await kit.session()
 
-    const attaching = kit.events(sessionId)
-    const sending = kit.turn('say hello', {session: sessionId, runId: 'double-tail-1'})
-    const [stream] = await Promise.all([attaching, sending])
-    const events = await stream.done({hangGuardMs: 25_000})
+    const turn = await kit.turn('say hello', {session: sessionId, runId: 'double-tail-1'})
+    const joined = kit.join('double-tail-1')
+    const events = await joined.done({hangGuardMs: 25_000})
+    await turn.done({hangGuardMs: 25_000})
 
     expect(runStartsOf(events.all, 'double-tail-1')).toBe(1)
     const spoken = textDeltasOf(events.all).join('')
@@ -43,15 +45,12 @@ describe('a run started while a subscription is being established is tailed once
     expect(doubled).toBe(false)
   }, 60_000)
 
-  it('does not replay a live run twice when the subscriber arrives mid-run', async () => {
+  it('does not replay a settled run into the next hydrate', async () => {
     const kit = await boot()
     const sessionId = await kit.session()
-    const keeper = await kit.turn('say hello', {session: sessionId, runId: 'double-tail-2'})
-    await keeper.done({hangGuardMs: 25_000})
+    const turn = await kit.turn('say hello', {session: sessionId, runId: 'double-tail-2'})
+    await turn.done({hangGuardMs: 25_000})
 
-    const late = await kit.events(sessionId)
-    const snapshot = await late.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000})
-    if (snapshot.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('expected a messages snapshot chunk')
-    expect(snapshot.messages.filter((message) => message.role === 'user')).toHaveLength(1)
+    expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['say hello'])
   }, 60_000)
 })

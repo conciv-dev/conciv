@@ -2,8 +2,8 @@ import {afterEach} from 'vitest'
 import {mkdirSync, mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
-import {EventType} from '@tanstack/ai'
-import {createTestkit, type Kit, type RunStream} from '@conciv/harness-testkit'
+import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
+import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {bootCoreApp} from './boot.js'
 import {requireClaude, requireTranscriptPath} from './adapters.js'
@@ -15,7 +15,6 @@ export const ONE_PIXEL_PNG =
 export type TranscriptFixture = {
   kit: Kit
   sessionId: string
-  keeper: RunStream
   transcript: string
 }
 
@@ -37,15 +36,14 @@ export function useTranscriptFixture(prefix: string): {open: () => Promise<Trans
       const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {env: () => ({})}, claudeHome})).setup()
       state.kit = kit
       const sessionId = await kit.session()
-      const keeper = await kit.events(sessionId)
       const transcript = requireTranscriptPath(claude)(kit.stateRoot, HarnessSessionId.parse('sess-fake'), claudeHome)
       mkdirSync(dirname(transcript), {recursive: true})
-      return {kit, sessionId, keeper, transcript}
+      return {kit, sessionId, transcript}
     },
   }
 }
 
 export async function freshSnapshot(fixture: TranscriptFixture): Promise<SnapshotView> {
-  const fresh = await fixture.kit.events(fixture.sessionId)
-  return asSnapshot(await fresh.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000}))
+  const hydration = await fixture.kit.hydrate(fixture.sessionId)
+  return asSnapshot(aguiSnapshotFor(hydration.messages))
 }

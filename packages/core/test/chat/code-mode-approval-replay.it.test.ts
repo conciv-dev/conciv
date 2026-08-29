@@ -6,7 +6,7 @@ import {defineExtension, defineTool} from '@conciv/extension'
 import {approvalIds, createTestHarness} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
-import {freshSubscriberSnapshot} from '../helpers/fake-session.js'
+import {hydratedSnapshot} from '../helpers/fake-session.js'
 import type {SnapshotView} from '../helpers/snapshots.js'
 
 const cleanups: (() => Promise<void>)[] = []
@@ -59,7 +59,7 @@ function toolCallsNamed(snapshot: SnapshotView, name: string): ToolCallPart[] {
     })
 }
 
-describe('a subscriber attaching mid-gate rebuilds the code-mode call as approval-requested', () => {
+describe('a hydrate mid-gate rebuilds the code-mode call as approval-requested', () => {
   it('replays the inner tool call before the approval that belongs to it', async () => {
     const harness = createTestHarness(requireClaude())
     const kit = await bootKit({cwd: tmpdir(), extensions: [vault]}, harness)
@@ -74,7 +74,7 @@ describe('a subscriber attaching mid-gate rebuilds the code-mode call as approva
 
     await keeper.waitFor((chunk) => startsCall(chunk, 'vault_purge'), {hangGuardMs: 20_000})
 
-    const refreshed = await freshSubscriberSnapshot(kit, sessionId)
+    const refreshed = await hydratedSnapshot(kit, sessionId)
     expect(toolCallsNamed(refreshed, 'vault_purge')).toMatchObject([
       {state: 'approval-requested', approval: {id: approvalId}},
     ])

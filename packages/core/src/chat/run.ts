@@ -9,7 +9,6 @@ import {
   RUN_ACCEPTED_EVENT,
   RUN_CANCEL_REASON,
   StreamProcessor,
-  wasCancelRequested,
   type AnyTool,
   type ContentPart,
   type ModelMessage,
@@ -37,7 +36,8 @@ import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js
 import {beginRunMessages, sessionSnapshot, settleRunMessages, writeRunMessages} from './thread.js'
 import {syncedSnapshot, syncTranscript} from './transcript-import.js'
 import {settleContextOccupancy} from './occupancy.js'
-import {publishRunLifecycle, publishRunRecord} from './run-lifecycle.js'
+import {publishRunLifecycle, publishRunRecord, runLifecycleOfRecord} from './run-lifecycle.js'
+import {aguiRunLifecycleFor} from '@conciv/protocol/run-types'
 import {stopRuns} from './stop.js'
 import {activeRunsOf} from './active-runs.js'
 import {asksFor, commandMemoryFor, makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
@@ -140,7 +140,7 @@ async function codeModeExtras(
     sessionId,
     {sessionId, model},
     askGate,
-    {listening: (id) => deps.stream.listening(id)},
+    {listening: (id) => deps.stream.watched(id)},
   )
   const systemPrompts = [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text))
   return {systemPrompts, tools: toolsIngestingIntoRunLog([...(codeMode?.tools ?? [])], ingest)}
@@ -414,13 +414,42 @@ async function finishRun(
 
 const CANCEL_POLL_MS = 250
 
-function cancelWhenRequested(deps: ChatDeps, runId: string, abort: AbortController): () => void {
+function cancelWhenRequested(
+  deps: ChatDeps,
+  runId: string,
+  abort: AbortController,
+  onStopping: (record: RunRecord) => void,
+): () => void {
   const poll = async (): Promise<void> => {
     if (abort.signal.aborted) return
-    if (await wasCancelRequested(deps.runs, runId)) abort.abort(RUN_CANCEL_REASON)
+    const record = await deps.runs.get(runId)
+    if (!record || record.cancelRequested !== true) return
+    onStopping(record)
+    abort.abort(RUN_CANCEL_REASON)
   }
   const timer = setInterval(() => void poll().catch(() => {}), deps.cancelPollMs ?? CANCEL_POLL_MS)
   return () => clearInterval(timer)
+}
+
+function announceRun(
+  deps: ChatDeps,
+  sessionId: SessionId,
+  record: RunRecord,
+  emit: (chunk: StreamChunk) => void,
+): void {
+  const chunk = aguiRunLifecycleFor(runLifecycleOfRecord(record, Date.now()))
+  emit(chunk)
+  deps.stream.publish(sessionId, chunk)
+}
+
+async function announceRunRecord(
+  deps: ChatDeps,
+  sessionId: SessionId,
+  runId: string,
+  emit: (chunk: StreamChunk) => void,
+): Promise<void> {
+  const record = await deps.runs.get(runId)
+  if (record) announceRun(deps, sessionId, record, emit)
 }
 
 async function* runStream(
@@ -431,7 +460,9 @@ async function* runStream(
 ): AsyncGenerator<StreamChunk> {
   const outbound = new AsyncQueue<StreamChunk>()
   const emit = (chunk: StreamChunk): void => outbound.push(chunk)
-  const stopCancelWatch = cancelWhenRequested(deps, req.runId, abort)
+  const stopCancelWatch = cancelWhenRequested(deps, req.runId, abort, (record) =>
+    announceRun(deps, sessionId, record, emit),
+  )
   emit({type: EventType.CUSTOM, name: RUN_ACCEPTED_EVENT, value: {}, timestamp: Date.now()})
   await syncTranscript(deps, sessionId).catch(() => {})
   const runFrom = beginRunMessages(deps.db, sessionId)
@@ -471,6 +502,7 @@ async function* runStream(
     }
     stopCancelWatch()
     await finishRun(deps, sessionId, req, outcome, abort)
+    await announceRunRecord(deps, sessionId, req.runId, emit)
     emit(runEndChunkFor(sessionId, req, outcome))
     outbound.end()
   }

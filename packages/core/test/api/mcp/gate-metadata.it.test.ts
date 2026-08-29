@@ -45,11 +45,7 @@ async function callViaSandbox(kit: Kit, session: string, name: string, input: un
   )
 }
 
-async function decideNextApproval(
-  kit: Kit,
-  stream: RunStream,
-  approved: boolean,
-): Promise<void> {
+async function decideNextApproval(kit: Kit, stream: RunStream, approved: boolean): Promise<void> {
   const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 10_000})
   const approvalId = approvalIds(asked)[0]
   if (approvalId === undefined) throw new Error('no approval id on the stream')

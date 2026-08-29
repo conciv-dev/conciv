@@ -1,6 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {EventType} from '@tanstack/ai'
 import type {PageOutcome} from '@conciv/protocol/page-types'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
@@ -85,13 +84,9 @@ describe('a code-mode page-tool part surviving reload after a later turn', () =>
     const secondStream = await kit.turn('thanks, that is all', {session: sessionId, runId: 'reload-fold-2'})
     await secondStream.done({hangGuardMs: 15_000})
 
-    const reattached = await kit.events(sessionId)
-    const snapshotChunk = await reattached.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {
-      hangGuardMs: 5_000,
-    })
-    if (snapshotChunk.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('expected a messages snapshot chunk')
+    const reloaded = await kit.hydrate(sessionId)
 
-    const survivingCall = toolCallPartsOf(snapshotChunk.messages).find((part) => part.id === toolCallId)
+    const survivingCall = toolCallPartsOf(reloaded.messages).find((part) => part.id === toolCallId)
     expect(survivingCall).toBeDefined()
     expect(survivingCall).toMatchObject({name: 'page_fill'})
 

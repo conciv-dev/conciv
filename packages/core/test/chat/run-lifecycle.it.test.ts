@@ -44,7 +44,7 @@ describe('run lifecycle on the wire (IT)', () => {
     expect(terminal.finishedAt).toBeGreaterThanOrEqual(terminal.startedAt)
   })
 
-  it('replays the last run lifecycle to a fresh subscriber so timing survives a reload', async () => {
+  it('hydrate serves the last run lifecycle so timing survives a reload', async () => {
     const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {}})).setup()
     state.kit = kit
     const sessionId = await kit.session()
@@ -52,12 +52,13 @@ describe('run lifecycle on the wire (IT)', () => {
     await first.done({hangGuardMs: 20_000})
     const original = await nextLifecycle(first, isTerminalLifecycle)
 
-    const reloaded = await kit.events(sessionId)
-    const replayed = await nextLifecycle(reloaded, (chunk) => runLifecycleOf(chunk) !== null)
-    expect(replayed.runId).toBe('lifecycle-replay')
-    expect(replayed.phase).toBe('completed')
-    expect(replayed.startedAt).toBe(original.startedAt)
-    expect(replayed.finishedAt).toBe(original.finishedAt)
+    const replayed = (await kit.hydrate(sessionId)).lastRun
+    expect(replayed).toMatchObject({
+      runId: 'lifecycle-replay',
+      phase: 'completed',
+      startedAt: original.startedAt,
+      finishedAt: original.finishedAt,
+    })
   })
 
   it('acknowledges a stop immediately, before the run has settled', async () => {
@@ -90,9 +91,8 @@ describe('run lifecycle on the wire (IT)', () => {
     const stream = await kit.turn('never answers', {session: sessionId, runId: 'lifecycle-fail'})
     await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 20_000})
 
-    const reloaded = await kit.events(sessionId)
-    const replayed = await nextLifecycle(reloaded, (chunk) => runLifecycleOf(chunk) !== null)
-    expect(replayed.phase).toBe('failed')
-    expect(replayed.error).toContain('no output')
+    const replayed = (await kit.hydrate(sessionId)).lastRun
+    expect(replayed?.phase).toBe('failed')
+    expect(replayed?.error).toContain('no output')
   })
 })

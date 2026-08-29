@@ -3,7 +3,7 @@ import {type StreamChunk} from '@tanstack/ai'
 import {until} from '@conciv/harness-testkit'
 import {userTexts} from '../helpers/snapshots.js'
 import {collectChunks, peakLiveRuns, runsFinished, runsStarted} from '../helpers/run-tally.js'
-import {freshSubscriberSnapshot, useFakeSessions} from '../helpers/fake-session.js'
+import {hydratedSnapshot, useFakeSessions} from '../helpers/fake-session.js'
 
 const PARKED_RUN_MS = 150
 
@@ -31,7 +31,7 @@ describe('compaction shares the per-session run chain (IT)', () => {
     await until(() => runsFinished(seen) === 3, {hangGuardMs: 15_000})
     watching.abort()
 
-    const snapshot = await freshSubscriberSnapshot(kit, sessionId)
+    const snapshot = await hydratedSnapshot(kit, sessionId)
     expect(userTexts(snapshot)).toEqual(['turn after compaction'])
   })
 })

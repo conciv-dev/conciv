@@ -16,8 +16,6 @@ async function nextLifecycle(stream: RunStream, match: (chunk: StreamChunk) => b
   return lifecycle
 }
 
-const anyLifecycle = (chunk: StreamChunk): boolean => runLifecycleOf(chunk) !== null
-
 function isTerminalLifecycle(chunk: StreamChunk): boolean {
   const lifecycle = runLifecycleOf(chunk)
   return lifecycle !== null && isRunPhaseTerminal(lifecycle.phase)
@@ -60,12 +58,13 @@ describe('run records survive a server restart (IT)', () => {
     expect(original.phase).toBe('completed')
 
     const restarted = await boot(root)
-    const reattached = await restarted.events(await restarted.session(sessionId))
-    const replayed = await nextLifecycle(reattached, anyLifecycle)
-    expect(replayed.runId).toBe('restart-done')
-    expect(replayed.phase).toBe('completed')
-    expect(replayed.startedAt).toBe(original.startedAt)
-    expect(replayed.finishedAt).toBe(original.finishedAt)
+    const replayed = (await restarted.hydrate(await restarted.session(sessionId))).lastRun
+    expect(replayed).toMatchObject({
+      runId: 'restart-done',
+      phase: 'completed',
+      startedAt: original.startedAt,
+      finishedAt: original.finishedAt,
+    })
   }, 90_000)
 
   it('reports the terminal error of a failed run on a fresh server over the same database', async () => {
@@ -78,11 +77,10 @@ describe('run records survive a server restart (IT)', () => {
     expect(original.phase).toBe('failed')
 
     const restarted = await boot(root, 300)
-    const reattached = await restarted.events(await restarted.session(sessionId))
-    const replayed = await nextLifecycle(reattached, anyLifecycle)
-    expect(replayed.runId).toBe('restart-failed')
-    expect(replayed.phase).toBe('failed')
-    expect(replayed.error).toContain('no output')
-    expect(replayed.finishedAt).toBe(original.finishedAt)
+    const replayed = (await restarted.hydrate(await restarted.session(sessionId))).lastRun
+    expect(replayed?.runId).toBe('restart-failed')
+    expect(replayed?.phase).toBe('failed')
+    expect(replayed?.error).toContain('no output')
+    expect(replayed?.finishedAt).toBe(original.finishedAt)
   }, 90_000)
 })

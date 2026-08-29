@@ -102,7 +102,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     stream: {
       publish: (chunk) => stream.publish(id, chunk),
       listen: (onChunk) => stream.listen(id, onChunk),
-      listening: () => stream.listening(id),
+      listening: () => stream.watched(id),
       events: (signal) => sessionEvents(deps.chat, id, signal),
     },
     asks: {

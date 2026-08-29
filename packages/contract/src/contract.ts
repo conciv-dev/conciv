@@ -13,6 +13,7 @@ import {
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
+import {RunLifecycleSchema} from '@conciv/protocol/run-types'
 import {
   OpenSourceResultSchema,
   OpenSourceSchema,
@@ -44,6 +45,7 @@ const ChatPendingInterruptSchema = z.object({
 export const ChatHydrationSchema = z.object({
   messages: ChatHistorySchema,
   activeRun: z.object({runId: z.string()}).nullable(),
+  lastRun: RunLifecycleSchema.nullable(),
   interrupts: z.object({runId: z.string(), pending: z.array(ChatPendingInterruptSchema)}).nullable(),
 })
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>

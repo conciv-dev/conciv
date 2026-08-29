@@ -47,14 +47,14 @@ async function overWebSocket(kit: Kit, sessionId: string, runId: string, text: s
   return chunks
 }
 
-describe('the chat delivery endpoints carry the same run the subscribe stream does (IT)', () => {
+describe('the chat delivery endpoints carry the same run whichever one drives it (IT)', () => {
   const sessions = useFakeSessions()
 
-  it('a turn over the websocket folds to the transcript the subscribe stream folds to', {timeout: 60_000}, async () => {
-    const {kit, sessionId, keeper} = await sessions.open()
+  it('a turn over a raw websocket folds to the transcript the testkit turn folds to', {timeout: 60_000}, async () => {
+    const {kit, sessionId} = await sessions.open()
 
-    await kit.turn('over rpc', {session: sessionId, runId: 'equivalence-rpc'})
-    const overRpc = await keeper.done({hangGuardMs: 20_000})
+    const turn = await kit.turn('over rpc', {session: sessionId, runId: 'equivalence-rpc'})
+    const overRpc = await turn.done({hangGuardMs: 20_000})
 
     const other = await kit.rpc.sessions.create()
     const chunks = await overWebSocket(kit, other.sessionId, 'equivalence-ws', 'over rpc')

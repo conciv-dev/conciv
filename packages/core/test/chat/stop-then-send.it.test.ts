@@ -1,4 +1,4 @@
-import {describe, it, expect, afterEach} from 'vitest'
+import {describe, it, afterEach} from 'vitest'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
@@ -20,10 +20,8 @@ describe('stop then send (IT)', () => {
     const stream = await kit.turn('hang around', {session: id, runId: 'stop-then-send-1'})
     await stream.waitForRunStart()
     await kit.rpc.chat.stop({sessionId: id})
-    await expect(kit.turn('follow up', {session: id, runId: 'stop-then-send-2'})).resolves.toEqual({
-      ok: true,
-      runId: 'stop-then-send-2',
-    })
+    const followUp = await kit.turn('follow up', {session: id, runId: 'stop-then-send-2'})
+    await followUp.waitForRunStart({runId: 'stop-then-send-2'})
     await kit.rpc.chat.stop({sessionId: id})
   })
 })

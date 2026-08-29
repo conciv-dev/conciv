@@ -6,7 +6,7 @@ import type {ChatContentPart} from '@conciv/protocol/chat-types'
 import {bootKit} from '../helpers/boot.js'
 import {userTexts} from '../helpers/snapshots.js'
 import {collectChunks, peakLiveRuns, runsFinished} from '../helpers/run-tally.js'
-import {freshSubscriberSnapshot, SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
+import {hydratedSnapshot, SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
 
 const SLOW_MIME = 'application/x-conciv-send-slow-expand'
 const FAST_MIME = 'application/x-conciv-send-fast-expand'
@@ -35,20 +35,20 @@ describe('one live run per session (IT)', () => {
   const sessions = useFakeSessions()
 
   it('T9: a second send without an intervening stop serializes behind the first', {timeout: 60_000}, async () => {
-    const {kit, harness, sessionId, keeper} = await sessions.open()
+    const {kit, harness, sessionId} = await sessions.open()
 
     harness.script.hold()
-    await kit.turn('first concurrent send', {session: sessionId, runId: 'concurrent-1'})
-    await keeper.waitForRunStart()
+    const first = await kit.turn('first concurrent send', {session: sessionId, runId: 'concurrent-1'})
+    await first.waitForRunStart()
 
-    const second = kit.turn('second concurrent send', {session: sessionId, runId: 'concurrent-2'})
+    const queued = kit.turn('second concurrent send', {session: sessionId, runId: 'concurrent-2'})
     harness.script.release()
-    await second
+    const second = await queued
 
-    await keeper.done({hangGuardMs: 15_000})
-    await keeper.done({hangGuardMs: 15_000})
+    await first.done({hangGuardMs: 15_000})
+    await second.done({hangGuardMs: 15_000})
 
-    const snapshot = await freshSubscriberSnapshot(kit, sessionId)
+    const snapshot = await hydratedSnapshot(kit, sessionId)
     expect(userTexts(snapshot)).toEqual(['first concurrent send', 'second concurrent send'])
   })
 
@@ -64,16 +64,22 @@ describe('one live run per session (IT)', () => {
     const stream = await kit.rpc.chat.events({sessionId}, {signal: watching.signal})
     void collectChunks(stream, seen)
 
-    const first = kit.turn({content: pacedTurn('same tick first', SLOW_MIME)}, {session: sessionId, runId: 'sametick-1'})
+    const first = kit.turn(
+      {content: pacedTurn('same tick first', SLOW_MIME)},
+      {session: sessionId, runId: 'sametick-1'},
+    )
     await expansion.promise
-    const second = kit.turn({content: pacedTurn('same tick second', FAST_MIME)}, {session: sessionId, runId: 'sametick-2'})
+    const second = kit.turn(
+      {content: pacedTurn('same tick second', FAST_MIME)},
+      {session: sessionId, runId: 'sametick-2'},
+    )
     await Promise.all([first, second])
     await until(() => runsFinished(seen) === 2, {hangGuardMs: 15_000})
     watching.abort()
 
     expect(peakLiveRuns(seen)).toBe(1)
 
-    const snapshot = await freshSubscriberSnapshot(kit, sessionId)
+    const snapshot = await hydratedSnapshot(kit, sessionId)
     expect(userTexts(snapshot)).toEqual(['same tick first', 'same tick second'])
   })
 })

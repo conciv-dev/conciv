@@ -102,10 +102,15 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       selectionStart: 0,
       selectionEnd: 0,
     })
-    await kit.turn({content: [
-        {type: 'text', content: 'what color is this? '},
-        {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='}},
-      ]}, {session: sessionId, runId: 'wire-12'})
+    await kit.turn(
+      {
+        content: [
+          {type: 'text', content: 'what color is this? '},
+          {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='}},
+        ],
+      },
+      {session: sessionId, runId: 'wire-12'},
+    )
     await stream.done({hangGuardMs: 10_000})
     const visibleUser = (await snapshotMessages(kit, sessionId)).findLast(
       (message) => isRecord(message) && message.role === 'user',
