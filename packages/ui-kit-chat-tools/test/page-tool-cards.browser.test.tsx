@@ -19,7 +19,7 @@ function part(verb: string, input: Record<string, unknown>): ToolCallPart {
   return {
     type: 'tool-call',
     id: 'p1',
-    name: `page.${verb}`,
+    name: `page_${verb}`,
     arguments: JSON.stringify(input),
     input,
     state: 'complete',

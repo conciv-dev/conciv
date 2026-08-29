@@ -18,7 +18,7 @@ function part(
   args: Record<string, unknown> = {},
   state: ToolCallPart['state'] = 'complete',
 ): ToolCallPart {
-  return {type: 'tool-call', id: 'p1', name: `page.${verb}`, arguments: JSON.stringify(args), input: args, state}
+  return {type: 'tool-call', id: 'p1', name: `page_${verb}`, arguments: JSON.stringify(args), input: args, state}
 }
 
 it('every registry page tool declares a label and a non-generic icon', () => {
@@ -52,8 +52,8 @@ it('representative cards render their declared titles and icons for the record',
     {verb: 'effect', args: {action: 'enable', effect: 'highlight'}},
   ]
   for (const {verb, args} of representatives) {
-    const declared = PAGE_TOOL_DEFS.find((def) => def.name === `page.${verb}`)?.meta?.label
-    if (!declared) throw new Error(`page.${verb} declares no label`)
+    const declared = PAGE_TOOL_DEFS.find((def) => def.name === `page_${verb}`)?.meta?.label
+    if (!declared) throw new Error(`page_${verb} declares no label`)
     const selector = args['selector']
     const headline = typeof selector === 'string' ? `${declared.done} ${selector}` : declared.done
     mountView(() => <MetaToolCard part={part(verb, args)} result={undefined} ctx={ctx} addResult={INERT_ADD_RESULT} />)

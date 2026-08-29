@@ -56,7 +56,7 @@ export const EffectTurnedOn: Story = {
       <EffectCard
         part={storyPart('page_effect', {action: 'enable', effect: 'grid-overlay'})}
         result={storyResult({effect: 'grid-overlay', enabled: true})}
-        ctx={storyCtx({'page_effect': effectMeta})}
+        ctx={storyCtx({page_effect: effectMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -84,7 +84,7 @@ export const RegisteredEffects: Story = {
             {name: 'focus-rings', description: 'highlight every focusable element', enabled: false},
           ],
         })}
-        ctx={storyCtx({'page_effect': effectMeta})}
+        ctx={storyCtx({page_effect: effectMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -103,7 +103,7 @@ export const NoEffects: Story = {
       <EffectCard
         part={storyPart('page_effect', {action: 'list'})}
         result={storyResult({effects: []})}
-        ctx={storyCtx({'page_effect': effectMeta})}
+        ctx={storyCtx({page_effect: effectMeta})}
         addResult={storyAddResult}
       />
     </div>

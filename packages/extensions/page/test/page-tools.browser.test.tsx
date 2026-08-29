@@ -19,7 +19,7 @@ const formState = () => page.getByText(/^subscribed:/)
 const declaredOutputOf = (verb: string) => {
   const tool = PAGE_TOOL_DEFS.find((candidate) => candidate.name === `${PAGE_TOOL_PREFIX}${verb}`)
   const output = tool?.outputSchema
-  if (!output) throw new Error(`no page tool declares an output for page.${verb}`)
+  if (!output) throw new Error(`no page tool declares an output for page_${verb}`)
   return output
 }
 
