@@ -203,6 +203,18 @@ function VirtualMessages(props: {
         virtualizer.remeasure()
       })
     }
+    let pendingMetricsFrame: number | undefined
+    onCleanup(() => {
+      if (pendingMetricsFrame !== undefined) cancelAnimationFrame(pendingMetricsFrame)
+    })
+    const scheduleMetricsRefresh = (): void => {
+      if (pendingMetricsFrame !== undefined) return
+      pendingMetricsFrame = requestAnimationFrame(() => {
+        pendingMetricsFrame = undefined
+        if (disposed) return
+        measureViewportMetrics()
+      })
+    }
     void document.fonts.ready.then(() => {
       if (disposed) return
       scheduleEstimateRefresh()
@@ -212,7 +224,7 @@ function VirtualMessages(props: {
       measureViewportMetrics()
       let lastWidth = viewport.clientWidth
       createResizeObserver(viewport, ({width}) => {
-        measureViewportMetrics()
+        scheduleMetricsRefresh()
         if (width === lastWidth) return
         lastWidth = width
         scheduleEstimateRefresh()
