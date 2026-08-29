@@ -35,10 +35,18 @@ function toEntries(payload: unknown): Entry[] {
   return [{key: 'value', preview: preview(payload), value: payload}]
 }
 
-function parseEntries(result: ToolCardProps['result']): Entry[] | null {
+type LoaderDataPayload = {routeId: string; data: unknown}
+
+function loaderDataPayload(result: ToolCardProps['result']): LoaderDataPayload | null {
   const payload = parseResultPayload(result)
-  if (payload === undefined || payload === null) return null
-  return toEntries(payload)
+  if (!isRecord(payload) || typeof payload.routeId !== 'string') return null
+  return {routeId: payload.routeId, data: payload.data}
+}
+
+function parseEntries(result: ToolCardProps['result']): Entry[] | null {
+  const payload = loaderDataPayload(result)
+  if (payload === null || payload.data === undefined || payload.data === null) return null
+  return toEntries(payload.data)
 }
 
 export function LoaderDataCard(props: ToolCardProps): JSX.Element {
@@ -46,7 +54,9 @@ export function LoaderDataCard(props: ToolCardProps): JSX.Element {
   const summary = () => {
     const list = entries()
     if (!list) return ''
-    return `${list.length} ${list.length === 1 ? 'key' : 'keys'}`
+    const keys = `${list.length} ${list.length === 1 ? 'key' : 'keys'}`
+    const routeId = loaderDataPayload(props.result)?.routeId
+    return routeId ? `${keys} · ${routeId}` : keys
   }
   return (
     <InspectionCard {...props} summary={summary()}>

@@ -49,8 +49,8 @@ independent of binding and can be chained before or after `.server`/`.client`.
 Derivations never leak into siblings: calling `.server(...)` on a base builder returns a _new_
 builder; the base stays unbound and can still be `.client(...)`'d separately
 (`packages/extension/test/define-tool.test.ts:33-49`) — this is how the split
-`def.ts`/`server.ts`/`client.ts` pattern below works: one `toolDefinition(...)` feeds two
-independent `defineTool(def).server(...)` and `defineTool(def).render(...)` calls.
+`def.ts`/`server.ts`/`client.ts` pattern below works: one `toolDefinition(...)` feeds an independent
+`defineTool(def)` call per build target.
 
 ## Split def/server/client files (installable packages)
 
@@ -60,32 +60,51 @@ imports node-only code. Real example, `@conciv/extension-tanstack`:
 
 ```ts title="packages/extensions/tanstack/src/tool/def.ts (shape)"
 import {toolDefinition} from '@conciv/extension/tool'
-export const routerStateDef = toolDefinition({name: 'router_state', description: '…', inputSchema: z.object({})})
+export const routerStateDef = toolDefinition({
+  name: 'tanstack_router_state',
+  description: '…',
+  inputSchema: z.object({}),
+  outputSchema: RouterCurrentSchema,
+})
 ```
 
-```ts title="packages/extensions/tanstack/src/tool/server.ts:1,19-20"
-import {defineTool, toolError} from '@conciv/extension'
-import {routerStateDef /* … */} from './def.js'
-
-export const routerStateServer = defineTool(routerStateDef).server((_input, ctx: ToolCtx) =>
-  ctx.adapter.client.routes.current(),
-)
-```
-
-```ts title="packages/extensions/tanstack/src/tool/client.ts:1,29"
+```ts title="packages/extensions/tanstack/src/tool/client.ts (shape)"
 import {defineTool} from '@conciv/extension'
 import {routerStateDef /* … */} from './def.js'
-import {RouterStateCard} from './router-state-card.js'
+import {readRouterState} from '../client/router-adapter.js'
+import {routerStateCard} from './router-state-card.js'
 
-export const routerStateClient = defineTool(routerStateDef).render(RouterStateCard)
+export const tanstackClientTools = [
+  defineTool(routerStateDef)
+    .client(() => readRouterState())
+    .render(routerStateCard),
+]
 ```
 
-The extension's `server.ts` entry imports `*Server` builders into its `tools` array; its `client.tsx`
-entry imports the matching `*Client` (render-only) builders into its own `tools` array. The bundler
-transform picks the right file per build target the same way it splits a single-file extension —
-the tanstack extension just does the split by hand across three files instead of relying on the
-transform inside one file, because it ships as an installable package with real client/server
-build outputs.
+```ts title="packages/extensions/tanstack/src/tool/server.ts (shape)"
+import {defineTool, toolError} from '@conciv/extension'
+import {routeManifestDef, TANSTACK_PAGE_TOOL_DEFS} from './def.js'
+
+export const tanstackServerTools = [
+  defineTool(routeManifestDef).server((_input, ctx: ToolCtx, _request, _page, tools) =>
+    ctx.makeAdapter(tools).server.manifest.routes(),
+  ),
+  ...TANSTACK_PAGE_TOOL_DEFS.map(pageToolDeclaration),
+]
+```
+
+One tool per verb, one name. A page verb IS the tool: the browser build binds it with `.client(impl)`
+and hangs its card off the same builder, while the server build registers the same definition as a
+bare `.client()` declaration so the server registry knows the name exists and routes a `tools.call`
+to the page. Never wrap a page verb in a second server-bound tool under a different name — the model
+would then see two catalog entries for one capability. A tool only earns a `.server(...)` binding
+when its work genuinely happens in node (reading a manifest off disk, draining a bundler ring).
+
+The extension's `server.ts` entry imports the server tools array into its `tools`; its `client.tsx`
+entry imports the client tools array into its own. The bundler transform picks the right file per
+build target the same way it splits a single-file extension — the tanstack extension just does the
+split by hand across three files instead of relying on the transform inside one file, because it
+ships as an installable package with real client/server build outputs.
 
 ## Error contract
 

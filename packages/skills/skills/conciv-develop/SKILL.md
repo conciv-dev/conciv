@@ -191,8 +191,8 @@ const tool = defineTool({
   already `inputSchema.parse`d; `ctx` is whatever your extension's `.server(...)` factory returned
   as `context` (unknown unless you annotate the handler's `ctx` parameter — the generic
   `server<HandlerCtx>` signature lets you write `ctx: YourCtxType`, as
-  `packages/extensions/tanstack/src/tool/server.ts:18-20` does with a `type ToolCtx =
-{adapter: FrameworkAdapter}` annotation); `request` is `{sessionId: string; model: string | null}`
+  `packages/extensions/tanstack/src/tool/server.ts:8` does with a `type ToolCtx =
+{makeAdapter: (tools: ServerToolRegistryAccess) => FrameworkAdapter}` annotation); `request` is `{sessionId: string; model: string | null}`
   for the calling chat turn.
 - `.client(execute?)` binds the tool to run in the browser instead (a DOM inspection tool, for
   example) — its handler receives `ClientToolCtx` (`document`, `target`, `resolve`, `addRef`,
@@ -216,7 +216,7 @@ import {defineTool, toolError} from '@conciv/extension'
 throw toolError('MANIFEST_UNREADABLE', {message: error instanceof Error ? error.message : String(error)})
 ```
 
-(`packages/extensions/tanstack/src/tool/server.ts:1` for the import, `:76` for the throw.) Declare
+(`packages/extensions/tanstack/src/tool/server.ts:1` for the import, `:19` for the throw.) Declare
 the codes you can throw in the definition's `errors` field so the contract is visible from the type
 alone — `packages/extensions/whiteboard/src/tool/comment/def.ts:18` declares
 `const COMMENT_NOT_FOUND = {COMMENT_NOT_FOUND: {message: 'no comment with that cid in this session'}}`

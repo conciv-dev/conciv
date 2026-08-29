@@ -14,11 +14,11 @@ import {
 import {
   backDef,
   dataEntriesDef,
-  dataGetDef,
   dataInvalidateDef,
   dataRefetchDef,
   detectDef,
   errorsSnapshotDef,
+  loaderDataDef,
   navigateDef,
   queryCacheDef,
   queryInvalidateDef,
@@ -27,7 +27,7 @@ import {
   routerInvalidateDef,
   routerStateDef,
   RouteNodeSchema,
-} from '../shared/verb-defs.js'
+} from '../tool/def.js'
 
 type BundlerSubscribe = (listener: (diagnostic: BundlerDiagnostic) => void) => Unsubscribe
 
@@ -67,14 +67,14 @@ export function makeTanstackAdapter(deps: TanstackAdapterDeps): FrameworkAdapter
     client: {
       detect: async () => {
         try {
-          return (await call(detectDef, {})).result
+          return await call(detectDef, {})
         } catch {
           return null
         }
       },
       routes: {
-        current: async () => (await call(routerStateDef, {})).result,
-        tree: async () => RouteNodeSchema.parse((await call(routeTreeDef, {})).result),
+        current: () => call(routerStateDef, {}),
+        tree: async () => RouteNodeSchema.parse(await call(routeTreeDef, {})),
       },
       navigation: {
         navigate: async (input) => {
@@ -93,8 +93,8 @@ export function makeTanstackAdapter(deps: TanstackAdapterDeps): FrameworkAdapter
         },
       },
       data: {
-        entries: async () => (await call(dataEntriesDef, {})).result,
-        get: async (key) => (await call(dataGetDef, {routeId: key})).result,
+        entries: async () => (await call(dataEntriesDef, {})).entries,
+        get: async (key) => (await call(loaderDataDef, {routeId: key})).data,
         invalidate: async (key) => {
           await call(dataInvalidateDef, {routeId: key})
         },
@@ -103,12 +103,12 @@ export function makeTanstackAdapter(deps: TanstackAdapterDeps): FrameworkAdapter
         },
       },
       errors: {
-        snapshot: async () => (await call(errorsSnapshotDef, {})).result,
+        snapshot: async () => (await call(errorsSnapshotDef, {})).errors,
       },
     },
     queryCache: {
-      queries: async () => (await call(queryCacheDef, {})).result.queries,
-      mutations: async () => (await call(queryCacheDef, {})).result.mutations,
+      queries: async () => (await call(queryCacheDef, {})).queries,
+      mutations: async () => (await call(queryCacheDef, {})).mutations,
       invalidate: async (key) => {
         await call(queryInvalidateDef, {key})
       },
