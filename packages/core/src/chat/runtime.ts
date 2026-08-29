@@ -27,6 +27,7 @@ export type ChatDeps = {
   asks: AskRegistry
   commandMemory: CommandMemory
   durability: (runId: string) => StreamDurability
+  durabilityAt: (runId: string, offset: string) => StreamDurability
   runControl: RunController
   runs: RunStore
   claimStartedAt: () => number
@@ -55,6 +56,7 @@ export function makeRunControl(
 ): {
   claimStartedAt: () => number
   durability: (runId: string) => StreamDurability
+  durabilityAt: (runId: string, offset: string) => StreamDurability
   runControl: RunController
   runDrivers: RunDrivers
   runs: RunStore
@@ -62,8 +64,10 @@ export function makeRunControl(
 } {
   const firstChunkDeadlineMs = (firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS) + READER_FIRST_APPEND_GRACE_MS
   const instanceKey = randomUUID()
-  const durability = (runId: string): StreamDurability =>
-    memoryStream({runId: `${instanceKey}:${runId}`}, {firstChunkDeadlineMs})
+  const logFor = (runId: string, offset: string | null): StreamDurability =>
+    memoryStream({runId: `${instanceKey}:${runId}`, offset}, {firstChunkDeadlineMs})
+  const durability = (runId: string): StreamDurability => logFor(runId, null)
+  const durabilityAt = (runId: string, offset: string): StreamDurability => logFor(runId, offset)
   const runs = createRunStore(db)
   let lastStartedAt = 0
   const claimStartedAt = (): number => {
@@ -73,6 +77,7 @@ export function makeRunControl(
   return {
     claimStartedAt,
     durability,
+    durabilityAt,
     runControl: new RunController({runs, durability}),
     runDrivers: createRunDrivers(),
     runs,

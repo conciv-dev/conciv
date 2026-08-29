@@ -34,6 +34,7 @@ import {
   type RowScope,
 } from './chat/session-rows.js'
 import {makeRunControl, type ChatDeps} from './chat/runtime.js'
+import {chatDeliveryRoutes} from './chat/delivery.js'
 import {asksFor, makeAskGate, requiresApproval} from './chat/gate.js'
 import {defineSandbox, defineSandboxPolicy} from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
@@ -257,6 +258,7 @@ function composeRoutes(
       RPC_WS_PATH,
       rpcWebsocketRoute(rpc, {upgrade: upgradeWebSocket, onError: (message) => logError(`[core] ${message}`)}),
     )
+    .route('/', chatDeliveryRoutes(vars.chat, upgradeWebSocket))
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
 }
@@ -324,7 +326,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
-  const {claimStartedAt, durability, runControl, runDrivers, runs, sessionLocks} = makeRunControl(
+  const {claimStartedAt, durability, durabilityAt, runControl, runDrivers, runs, sessionLocks} = makeRunControl(
     db,
     opts.firstChunkTimeoutMs,
   )
@@ -480,6 +482,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     asks,
     commandMemory,
     durability,
+    durabilityAt,
     runControl,
     runs,
     claimStartedAt,

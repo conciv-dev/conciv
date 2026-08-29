@@ -13,6 +13,8 @@ import {
   type AnyTool,
   type ContentPart,
   type ModelMessage,
+  type RunRecord,
+  type RunStatus,
   type SpecTokenUsage,
   type StreamChunk,
   type TokenUsage,
@@ -377,12 +379,37 @@ function runEndChunkFor(sessionId: SessionId, req: RunRequest, outcome: RunOutco
   return {type: EventType.RUN_FINISHED, threadId: sessionId, runId: req.runId, finishReason: 'stop'}
 }
 
-async function finishRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest, outcome: RunOutcome): Promise<void> {
+function settledStatusOf(outcome: RunOutcome, abort: AbortController): RunStatus {
+  if (outcome.error !== null) return 'failed'
+  return abort.signal.aborted ? 'aborted' : 'completed'
+}
+
+async function recordRunSettled(
+  deps: ChatDeps,
+  req: RunRequest,
+  outcome: RunOutcome,
+  abort: AbortController,
+): Promise<void> {
+  await deps.runs.update(req.runId, {
+    status: settledStatusOf(outcome, abort),
+    finishedAt: Date.now(),
+    ...(outcome.error === null ? {} : {error: {message: outcome.error}}),
+  })
+}
+
+async function finishRun(
+  deps: ChatDeps,
+  sessionId: SessionId,
+  req: RunRequest,
+  outcome: RunOutcome,
+  abort: AbortController,
+): Promise<void> {
   await persistRunOutcome(deps, sessionId, req.kind)
   await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
   deps.asks.cancel(sessionId)
   if (deps.onRunEnd) await deps.onRunEnd(sessionId).catch(() => {})
   if (outcome.usage) void settleContextOccupancy(deps, sessionId).catch(() => {})
+  await recordRunSettled(deps, req, outcome, abort).catch(() => {})
 }
 
 const CANCEL_POLL_MS = 250
@@ -443,7 +470,7 @@ async function* runStream(
       if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
     }
     stopCancelWatch()
-    await finishRun(deps, sessionId, req, outcome)
+    await finishRun(deps, sessionId, req, outcome, abort)
     emit(runEndChunkFor(sessionId, req, outcome))
     outbound.end()
   }
@@ -567,20 +594,56 @@ async function failClaimedRun(deps: ChatDeps, runId: string, error: unknown): Pr
   throw error
 }
 
+type ClaimedTurn = {req: RunRequest; record: RunRecord}
+
+async function claimTurn(
+  deps: ChatDeps,
+  sessionId: SessionId,
+  runId: string,
+  content: UserContent,
+  messageId?: string,
+): Promise<ClaimedTurn> {
+  const startedAt = deps.claimStartedAt()
+  const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
+  if (record.threadId !== sessionId || record.startedAt !== startedAt) throw runIdTakenError(runId)
+  const expanded = await prepareLaunchContent(deps, sessionId, content).catch((error: unknown) =>
+    failClaimedRun(deps, runId, error),
+  )
+  await settleActiveRuns(deps, sessionId, runId)
+  return {req: {runId, kind: 'chat', content: expanded, messageId}, record}
+}
+
+async function settleClaim(deps: ChatDeps, sessionId: SessionId, record: RunRecord): Promise<void> {
+  publishRunLifecycle(deps, sessionId, record)
+  await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
+}
+
 export function makeSend(deps: ChatDeps): Send {
   return (sessionId, runId, content, messageId) =>
     deps.sessionLocks.serialize(sessionId, async () => {
-      const startedAt = deps.claimStartedAt()
-      const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
-      if (record.threadId !== sessionId || record.startedAt !== startedAt) throw runIdTakenError(runId)
-      const expanded = await prepareLaunchContent(deps, sessionId, content).catch((error: unknown) =>
-        failClaimedRun(deps, runId, error),
-      )
-      await settleActiveRuns(deps, sessionId, runId)
-      launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded, messageId})
-      publishRunLifecycle(deps, sessionId, record)
-      await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
+      const claimed = await claimTurn(deps, sessionId, runId, content, messageId)
+      launchRun(deps, sessionId, claimed.req)
+      await settleClaim(deps, sessionId, claimed.record)
       return runId
+    })
+}
+
+export type Turn = (
+  sessionId: SessionId,
+  runId: string,
+  content: UserContent,
+  options: {messageId?: string; signal: AbortSignal},
+) => Promise<AsyncIterable<StreamChunk>>
+
+export function makeTurn(deps: ChatDeps): Turn {
+  return (sessionId, runId, content, options) =>
+    deps.sessionLocks.serialize(sessionId, async () => {
+      const claimed = await claimTurn(deps, sessionId, runId, content, options.messageId)
+      const abort = new AbortController()
+      options.signal.addEventListener('abort', () => abort.abort(options.signal.reason), {once: true})
+      const stream = runStream(deps, sessionId, claimed.req, abort)
+      await settleClaim(deps, sessionId, claimed.record)
+      return stream
     })
 }
 
