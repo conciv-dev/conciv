@@ -5,6 +5,7 @@ import {SessionId} from '@conciv/protocol/chat-types'
 import {resolveHarnessModels} from '@conciv/harness'
 import {clearPageChanges, clearRunState, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
 import type {ChatDeps} from '../../chat/runtime.js'
+import {stopSession} from '../../chat/stop.js'
 import {
   createRow,
   listSessionMetas,
@@ -83,6 +84,7 @@ export function sessionsRouter(deps: RpcDeps) {
       return {title}
     }),
     delete: os.sessions.delete.handler(async ({input}) => {
+      await stopSession(chat, input.sessionId)
       await tombstoneRow(db, input.sessionId)
       await db.delete(drafts).where(eq(drafts.sessionId, input.sessionId))
       clearRunState(db, input.sessionId)
