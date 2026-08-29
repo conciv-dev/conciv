@@ -1,5 +1,6 @@
 {
   "$schema": "https://v2-10-3.turborepo.dev/schema.json",
+  "cacheDir": "../.turbo-cache",
   "globalDependencies": ["pnpm-workspace.yaml", ".oxlintrc.json"],
   "concurrency": "50%",
   "cacheMaxAge": "7d",

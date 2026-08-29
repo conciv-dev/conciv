@@ -37,8 +37,16 @@ README.md; this file is the non-obvious operational rules.
 - Package gates filter bare: `turbo run test --filter=<pkg>`. A TRAILING `<pkg>...` means "and all its
   DEPENDENCIES" (28 real suites here instead of 1), not "and its dependents"; `.claude/hooks/turbo-filter-gate.sh`
   blocks it for test/typecheck. The dependents selector is the LEADING form `--filter=...<pkg>`.
+  The same hook also blocks an unfiltered `turbo run test` or `turbo run typecheck`, including the bare
+  root scripts `pnpm test` and `pnpm typecheck` (which expand to it), and a bare `vitest` or `vitest run`
+  with no test file/glob and no `-t`/`--testNamePattern`; pass a `--filter` (or a file argument) instead.
 - Affected-only shortcuts for a branch: `pnpm test:affected` / `typecheck:affected` / `build:affected`
   (`--filter=...[origin/main]`).
+- Gates run with the turbo cache on. `turbo run --force` is banned by `.claude/hooks/turbo-filter-gate.sh`
+  (the cache hash already covers source and deps); if a dist looks stale, delete that package's dist
+  (`rm -rf packages/<pkg>/dist`) and rerun without `--force`. `turbo.json`'s `cacheDir: "../.turbo-cache"`
+  resolves relative to each checkout's `turbo.json`, so every `aidx-wt-*` sibling worktree (and the main
+  checkout) shares one cache at `/Users/<user>/Public/web/.turbo-cache`, outside any repo tree.
 - Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs oxfmt + oxlint on
   staged files. `pnpm install` auto-activates the hook via the `prepare` script; no per-clone step.
   Whole-project gates (typecheck/build/test) are not in hooks; run them manually.
