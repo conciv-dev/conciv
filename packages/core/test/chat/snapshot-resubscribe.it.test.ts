@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {firstSnapshot, userTexts} from '../helpers/snapshots.js'
+import {userTexts} from '../helpers/snapshots.js'
 import {hydratedSnapshot, useFakeSessions} from '../helpers/fake-session.js'
 
 describe('transcript snapshots survive a fresh hydrate (IT, DB-owned history)', () => {
@@ -18,10 +18,7 @@ describe('transcript snapshots survive a fresh hydrate (IT, DB-owned history)', 
       expect(userTexts(poisoner)).toEqual(['turn one'])
 
       const second = await kit.turn('turn two', {session: sessionId, runId: 'resubscribe-2'})
-      const secondTurn = await second.done({hangGuardMs: 15_000})
-
-      const runStart = firstSnapshot(secondTurn.all)
-      expect(userTexts(runStart)).toEqual(['turn one', 'turn two'])
+      await second.done({hangGuardMs: 15_000})
 
       const latecomer = await hydratedSnapshot(kit, sessionId)
       expect(userTexts(latecomer)).toEqual(['turn one', 'turn two'])

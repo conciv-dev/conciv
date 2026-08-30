@@ -25,7 +25,6 @@ import type {HarnessAdapter, HarnessChatConfig} from '@conciv/protocol/harness-t
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {isHarnessSessionId} from '@conciv/protocol/chat-types'
 import type {ChatContentPart, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {deleteThread, drafts, markers, sessions, type ConcivDb} from '@conciv/db'
 import {transcriptPathWithin} from '@conciv/harness'
@@ -489,7 +488,6 @@ async function* runStream(
     try {
       const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, ingest, abort)
       processor.addUserMessage(userParts(req.content), req.messageId)
-      emit(aguiSnapshotFor(sessionSnapshot(deps, sessionId)))
       const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
       const bounded = boundFirstChunk(stream, timeoutMs, () => {
         outcome.error = `${deps.harness.id} produced no output within ${Math.round(timeoutMs / 1000)}s`

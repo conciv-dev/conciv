@@ -6,7 +6,7 @@ import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
-import {firstSnapshot, userTexts} from '../helpers/snapshots.js'
+import {userTexts} from '../helpers/snapshots.js'
 import {hydratedSnapshot} from '../helpers/fake-session.js'
 
 const claude = requireClaude()
@@ -37,7 +37,7 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
     return kit
   }
 
-  it('T5: a between-runs subscriber does not poison the next run-start snapshot', {timeout: 60_000}, async () => {
+  it('T5: a between-runs hydrate does not poison the thread the next run appends to', {timeout: 60_000}, async () => {
     const claudeHome = tmp()
     const kit = await boot(claudeHome)
     const sessionId = await kit.session()
@@ -64,11 +64,11 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
       session: sessionId,
       runId: 'rich-snapshot-2',
     })
-    const secondTurn = await secondStream.done({hangGuardMs: 20_000})
+    await secondStream.done({hangGuardMs: 20_000})
 
-    const runStart = firstSnapshot(secondTurn.all)
-    expect(userTexts(runStart)).toContain('second turn after the resubscribe')
-    expect(runStart.messages.length).toBeGreaterThanOrEqual(poisonerSnapshot.messages.length)
+    const afterSecond = await hydratedSnapshot(kit, sessionId)
+    expect(userTexts(afterSecond)).toContain('second turn after the resubscribe')
+    expect(afterSecond.messages.length).toBeGreaterThanOrEqual(poisonerSnapshot.messages.length)
   })
 
   it('T6: two identical prompts both survive the transcript merge', {timeout: 60_000}, async () => {

@@ -3,6 +3,8 @@ import {EventType} from '@tanstack/ai'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
 import {bootKit} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
+import {hydratedSnapshot} from '../helpers/fake-session.js'
+import {userTexts} from '../helpers/snapshots.js'
 
 const SESSIONS = 4
 const WARMUP_RUNS = 8
@@ -78,9 +80,10 @@ describe('sustained chat load keeps server memory flat (IT)', () => {
       const freshSession = sessionFor(0)
       const fresh = await kit.turn('after the load', {session: freshSession, runId: 'memory-fresh'})
       const events = await fresh.done({hangGuardMs: 10_000})
-      expect(events.all.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)).toHaveLength(1)
       expect(events.runs()).toBe(1)
       expect(events.all.filter((chunk) => chunk.type === EventType.RUN_STARTED)).toHaveLength(1)
+      const hydrated = userTexts(await hydratedSnapshot(kit, freshSession))
+      expect(hydrated.filter((text) => text === 'after the load')).toEqual(['after the load'])
     },
   )
 })

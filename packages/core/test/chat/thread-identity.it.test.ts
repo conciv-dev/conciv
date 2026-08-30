@@ -2,17 +2,11 @@ import {describe, expect, it} from 'vitest'
 import type {UIMessage} from '@tanstack/ai'
 import {startTurn} from '../helpers/detached-turn.js'
 import {sessionSnapshot} from '../../src/chat/thread.js'
-import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
+import {makeChatFixture} from '../helpers/chat-fixture.js'
 import {awaitRunSettled} from '../../src/chat/run-settled.js'
-import {firstSnapshot, type SnapshotView} from '../helpers/snapshots.js'
 
 function storedPartTypes(message: UIMessage | undefined): string[] {
   return (message?.parts ?? []).map((part) => part.type)
-}
-
-async function loggedSnapshot(fixture: ChatFixture, runId: string): Promise<SnapshotView> {
-  const entries = await fixture.chat.durability(runId).snapshot()
-  return firstSnapshot(entries.map((entry) => entry.chunk))
 }
 
 describe('the thread snapshot keeps the identity a live run streamed (IT)', () => {
@@ -33,22 +27,25 @@ describe('the thread snapshot keeps the identity a live run streamed (IT)', () =
     }
   }, 60_000)
 
-  it('opens the second run with the first turn as one assistant message, not two under one id', async () => {
+  it('leaves the first turn as one assistant message under one id when the second run appends', async () => {
     const fixture = await makeChatFixture()
     try {
       fixture.harness.script.scriptTurn({toolCalls: [{name: 'Bash', input: {command: 'ls'}}], text: 'First answer.'})
       await startTurn(fixture.chat, fixture.sessionId, 'thread-identity-2', 'first question')
       await awaitRunSettled(fixture.chat.runs, 'thread-identity-2')
+      const firstAssistantId = sessionSnapshot(fixture.chat, fixture.sessionId)[1]?.id
 
       fixture.harness.script.scriptTurn({toolCalls: [{name: 'Read', input: {filePath: 'second.ts'}}], text: 'Second.'})
       await startTurn(fixture.chat, fixture.sessionId, 'thread-identity-3', 'second question')
       await awaitRunSettled(fixture.chat.runs, 'thread-identity-3')
 
-      const opening = await loggedSnapshot(fixture, 'thread-identity-3')
-      const ids = opening.messages.map((message) => message.id)
+      const opening = sessionSnapshot(fixture.chat, fixture.sessionId)
+      const ids = opening.map((message) => message.id)
       expect(ids).toEqual([...new Set(ids)])
-      expect(opening.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'user'])
-      expect(opening.messages[1]?.parts.map((part) => part.type)).toEqual(['tool-call', 'tool-result', 'text'])
+      expect(opening.map((message) => message.role)).toEqual(['user', 'assistant', 'user', 'assistant'])
+      expect(firstAssistantId).toBeDefined()
+      expect(opening[1]?.id).toBe(firstAssistantId)
+      expect(storedPartTypes(opening[1])).toEqual(['tool-call', 'tool-result', 'text'])
     } finally {
       await fixture.dispose()
     }

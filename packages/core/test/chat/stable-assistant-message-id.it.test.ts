@@ -5,7 +5,7 @@ import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
-import {lastSnapshot} from '../helpers/snapshots.js'
+import {hydratedSnapshot} from '../helpers/fake-session.js'
 
 const REPLY_TEXT = 'a reply with no wire messageId'
 
@@ -63,8 +63,8 @@ describe('the assistant message id the client derives from the wire matches the 
           runId: 'no-id-2',
           messageId: 'client-user-2',
         })
-        const secondEvents = await secondSubscriber.done({hangGuardMs: 15_000})
-        const coreAssistantId = lastSnapshot(secondEvents.all).messages.find(
+        await secondSubscriber.done({hangGuardMs: 15_000})
+        const coreAssistantId = (await hydratedSnapshot(kit, sessionId)).messages.find(
           (message) => message.role === 'assistant',
         )?.id
 

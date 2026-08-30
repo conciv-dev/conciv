@@ -11,6 +11,8 @@ import {CONCIV_SESSION_HEADER, HarnessSessionId} from '@conciv/protocol/chat-typ
 import {openSource} from '@conciv/extension/client'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
+import {hydratedSnapshot} from '../helpers/fake-session.js'
+import {userTexts} from '../helpers/snapshots.js'
 
 type WireContext = {kit: Kit; harness: TestHarness}
 
@@ -51,18 +53,16 @@ async function bootWire(overrides: Parameters<typeof bootKit>[0] = {}): Promise<
 }
 
 describe('rpc over the wire (real app, real http, typed client)', () => {
-  it('a turn leads with the thread snapshot and streams to RUN_FINISHED under the requested run id', async () => {
+  it('a turn streams to RUN_FINISHED under the requested run id and lands in the hydrated thread', async () => {
     const {kit} = await bootWire()
     const sessionId = await kit.session()
     const turn = await kit.turn('hello', {session: sessionId, runId: 'wire-1'})
     const events = await turn.done({hangGuardMs: 10_000})
-    const types = events.all.map((chunk) => chunk.type)
-    expect(types.indexOf(EventType.MESSAGES_SNAPSHOT)).toBeGreaterThanOrEqual(0)
-    expect(types.indexOf(EventType.MESSAGES_SNAPSHOT)).toBeLessThan(types.indexOf(EventType.RUN_FINISHED))
     expect(runIdsOf(events.all, EventType.RUN_FINISHED)).toEqual(['wire-1'])
+    expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['hello'])
   })
 
-  it('a join mid-turn replays the snapshot then RUN_STARTED so clients derive generating', async () => {
+  it('a join mid-turn replays RUN_STARTED so clients derive generating', async () => {
     const {kit, harness} = await bootWire()
     const sessionId = await kit.session()
     harness.script.hold()
@@ -72,9 +72,8 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     await late.waitForRunStart({runId: 'wire-2'})
     harness.script.release()
     const events = await late.done({hangGuardMs: 10_000})
-    const types = events.all.map((chunk) => chunk.type)
-    expect(types.indexOf(EventType.MESSAGES_SNAPSHOT)).toBeGreaterThanOrEqual(0)
-    expect(types.indexOf(EventType.MESSAGES_SNAPSHOT)).toBeLessThan(types.indexOf(EventType.RUN_STARTED))
+    expect(runIdsOf(events.all, EventType.RUN_STARTED)).toEqual(['wire-2'])
+    expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['hello'])
   })
 
   it('send consumes the server-side draft: the turn is the user text alone and the row is cleared', async () => {
@@ -163,10 +162,8 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       ].join('\n'),
     )
     const second = await kit.turn('second question', {session: sessionId, runId: 'wire-8'})
-    const events = await second.done({hangGuardMs: 10_000})
-    const snapshotJson = JSON.stringify(renderedMessages(events.all))
-    expect(snapshotJson).toContain('first question')
-    expect(snapshotJson).toContain('second question')
+    await second.done({hangGuardMs: 10_000})
+    expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['first question', 'second question'])
   })
 
   it('sessions.list reflects a create on refetch (live lists are gone by design)', async () => {
