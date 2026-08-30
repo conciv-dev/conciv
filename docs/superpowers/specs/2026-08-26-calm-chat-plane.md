@@ -163,6 +163,23 @@ There is no non-gesture write. `use-scroll-lock.ts` lost its `scrollTop` clamp f
 
 Landing also tells the instance where it landed (`instance.scrollOffset = element.scrollTop`). Without that, `getScrollOffset()` stays at the pre-landing value until the native scroll event arrives a task later, and every virtual-core decision taken in between — `isAtEnd`, the `wasAtEnd` compensation branch, `shouldAdjustScrollPositionOnItemSizeChange` — is taken against a stale offset. It replaces the earlier readback that republished the offset through `observeElementOffset`, which also reset `scrollAdjustments`, `scrollDirection` and `isScrolling` behind virtual-core's back.
 
+**Resolved 2026-08-30 — the viewport was re-inserted, so the browser discarded the offset.** A DOM re-insert of any ancestor of the viewport resets `scrollTop` to 0, and the reset reaches the scroll listener a frame later, indistinguishable from a reader dragging to the top: the landing memory is cleared and the thread strands. A Solid `Suspense` above the pane re-suspends on a session switch and produces exactly that — the same node removed and re-inserted, twice per switch. This is a sixth cause, not a sixth writer: the correction goes through the one landing call site.
+
+The owner therefore records a **resting anchor** with two modes, updated from real reader events only (the scroll listener, and the landing itself), never from a value the detached window could have moved:
+
+- **preserve-reader-anchor** — the reader is parked above the end. On re-insertion the recorded offset is written back through `writeScroll`, clamped by the DOM to the new maximum, and `landedOffset` stays cleared so the reader is still released.
+- **resume-following** — the owner was landed or geometrically at the end. On re-insertion it re-enters `landOnEnd` against the end the DOM has _now_, so turns appended while the pane was detached are followed rather than stranded above.
+
+Recording the anchor eagerly is load-bearing. `MutationObserver` records are delivered at the microtask checkpoint, after any same-task append has already moved `instance.scrollOffset` through `anchorTo: 'end'`; a snapshot taken inside the callback reads the moved value and mistakes a parked reader for a follower.
+
+**Detection** is a `MutationObserver` with `childList` on each ancestor's direct parent — no `subtree` — walked up to the stable root and across `ShadowRoot` boundaries via `host`. A record counts only when a removed or added node is, or contains, the viewport, so unrelated sibling churn is ignored. The ancestry is re-observed after every callback that leaves the viewport connected; it is never rebuilt while the viewport is detached, because the chain visible from a detached node stops inside the detached subtree and would drop the stable ancestors that see the re-insertion. Measured over 200 streaming updates on a 60-turn thread: 7 observed parents, 0 ancestor callbacks, against 557 childList records inside the viewport — the observation set never sees a row.
+
+**Atomicity and dedup.** The correction runs inside the mutation microtask, before the browser's delayed scroll event, and writes `landedOffset`, `instance.scrollOffset` and `atEnd` together, so the event that follows reports the corrected offset and `onScrolled` does not classify the correction as reader intent. The recovery state is a single three-phase value (`viewport-attached` / `offset-discarded` / `deferred-behind-gesture`) consumed on restoration, so the double detach cycle per switch cannot let a stale first restoration overwrite a newer offset.
+
+**Mid-gesture.** A pointer held on the viewport owns it: restoration is deferred to the next scroll event, and abandoned there if the pointer is still down. A wheel tail is deliberately _not_ treated as ownership — a wheel tick is already committed and guarantees no follow-up scroll event, so deferring behind one strands the viewport at the discarded offset.
+
+Covered by `packages/ui-kit-chat/test/viewport-reinsert-recovery.browser.test.tsx`: reader above the bottom; following with no change; following with an append while detached; reader with an append while detached; an offset past the new maximum after the thread shrinks; two detach cycles inside one task; a genuine scroll to exactly 0 right after re-insertion; and a real re-suspending `Suspense` boundary above the thread.
+
 **Gates:**
 
 - (a) a released user never moves: scrolled up 600px mid-stream, `scrollTop` holds within 1px across the whole stream, the row under the viewport's top edge stays the same row, and `data-at-bottom` is absent.
