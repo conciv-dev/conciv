@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {MadeApp} from '../../src/app.js'
-import {makeSend} from '../../src/chat/run.js'
+import {startTurn} from '../helpers/detached-turn.js'
 import {stopSession} from '../../src/chat/stop.js'
 import {bootMadeApp} from '../helpers/boot.js'
 import {useMadeApps} from '../helpers/made-apps.js'
@@ -26,7 +26,7 @@ describe('sandbox teardown (IT)', () => {
     const made = await boot({CONCIV_FAKE_HANG: '1'})
     const sessionId = SessionId.parse('conciv_teardown-stop')
     const ensureCtx = {threadId: sessionId, runId: 'teardown-stop-1'}
-    await makeSend(made.chat)(sessionId, ensureCtx.runId, 'hang around')
+    await startTurn(made.chat, sessionId, ensureCtx.runId, 'hang around')
     await vi.waitFor(async () => expect(await made.chat.sandbox.ensureExisting(ensureCtx)).not.toBeNull(), {
       timeout: 8000,
       interval: 50,
@@ -41,7 +41,7 @@ describe('sandbox teardown (IT)', () => {
     const made = await boot({})
     const sessionId = SessionId.parse('conciv_teardown-finish')
     const ensureCtx = {threadId: sessionId, runId: 'teardown-finish-1'}
-    await makeSend(made.chat)(sessionId, ensureCtx.runId, 'hi')
+    await startTurn(made.chat, sessionId, ensureCtx.runId, 'hi')
     await vi.waitFor(async () => expect(await made.chat.runs.findActiveRun(sessionId)).toBeNull(), {
       timeout: 8000,
       interval: 50,

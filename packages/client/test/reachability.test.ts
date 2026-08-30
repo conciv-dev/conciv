@@ -2,12 +2,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {createRoot} from 'solid-js'
 import {ORPCError} from '@orpc/client'
 import {onlineManager} from '@tanstack/query-core'
+import {createORPCClient} from '@orpc/client'
 import {browserRpcConnection, closeBrowserRpcConnection} from '@conciv/contract'
-import {
-  fakeNativeSocketConstructor,
-  nextSocket,
-  resetFakeNativeSockets,
-} from '../../contract/test/helpers/fake-native-socket.js'
 import {
   ENGINE_HEARTBEAT_INTERVAL_MS,
   ENGINE_PROBE_INTERVAL_MS,
@@ -18,12 +14,14 @@ import {
   voteEngineProbeSettled,
 } from '../src/reachability.js'
 
+const originalFetch = globalThis.fetch
+
 beforeEach(() => {
-  resetFakeNativeSockets()
-  vi.stubGlobal('WebSocket', fakeNativeSocketConstructor)
+  globalThis.fetch = failThenAnswer()
 })
 
 afterEach(() => {
+  globalThis.fetch = originalFetch
   vi.unstubAllGlobals()
   onlineManager.setEventListener(() => undefined)
   onlineManager.setOnline(true)
@@ -31,6 +29,23 @@ afterEach(() => {
 
 function apiBase(name: string): string {
   return `http://client-reachability-${name}.test`
+}
+
+function failThenAnswer(): typeof globalThis.fetch {
+  const calls = {count: 0}
+  return (async () => {
+    calls.count += 1
+    if (calls.count === 1) throw new TypeError('network error')
+    return new Response(JSON.stringify({json: []}), {headers: {'content-type': 'application/json'}})
+  }) as typeof globalThis.fetch
+}
+
+async function settleAnOnlineVote(base: string): Promise<void> {
+  globalThis.fetch = failThenAnswer()
+  const client = createORPCClient<{sessions: {list: (input: undefined) => Promise<unknown>}}>(
+    browserRpcConnection(base).link,
+  )
+  await client.sessions.list(undefined)
 }
 
 describe('setupEngineReachability', () => {
@@ -43,9 +58,7 @@ describe('setupEngineReachability', () => {
       cleanup = setupEngineReachability(base)
       return engineOnline()
     })
-    browserRpcConnection(base)
-    const socket = await nextSocket()
-    socket.open()
+    await settleAnOnlineVote(base)
     expect(online()).toBe(true)
     cleanup()
     closeBrowserRpcConnection(base)
@@ -67,9 +80,7 @@ describe('setupEngineReachability', () => {
     const cleanupTwo = setupEngineReachability(baseTwo)
     cleanupOne()
     onlineManager.setOnline(false)
-    browserRpcConnection(baseTwo)
-    const socket = await nextSocket()
-    socket.open()
+    await settleAnOnlineVote(baseTwo)
     expect(onlineManager.isOnline()).toBe(true)
     cleanupTwo()
     closeBrowserRpcConnection(baseTwo)
@@ -84,9 +95,7 @@ describe('setupEngineReachability', () => {
     cleanupSlot()
     cleanupSlot = setupEngineReachability(secondSlotBase)
     onlineManager.setOnline(false)
-    browserRpcConnection(otherBase)
-    const socket = await nextSocket()
-    socket.open()
+    await settleAnOnlineVote(otherBase)
     expect(onlineManager.isOnline()).toBe(true)
     cleanupSlot()
     cleanupOther()
@@ -105,9 +114,7 @@ describe('setupEngineReachability', () => {
     const baseC = apiBase('order-c')
     const cleanupC = setupEngineReachability(baseC)
     onlineManager.setOnline(false)
-    browserRpcConnection(baseC)
-    const socket = await nextSocket()
-    socket.open()
+    await settleAnOnlineVote(baseC)
     expect(onlineManager.isOnline()).toBe(true)
     cleanupC()
     closeBrowserRpcConnection(baseC)

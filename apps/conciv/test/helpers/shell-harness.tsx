@@ -22,7 +22,7 @@ export function createShellHarness(base: () => string): ShellHarness {
     const apiBase = base()
     window.__CONCIV_API_BASE__ = apiBase
     const router = createConcivRouter({
-      rpc: makeBrowserRpcClient(apiBase, {transport: 'fetch'}).rpc,
+      rpc: makeBrowserRpcClient(apiBase).rpc,
       history: createMemoryHistory({initialEntries: [entry]}),
       environment: {rootNode: document, document},
       settings: parseConcivSettings(''),

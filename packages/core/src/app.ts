@@ -41,7 +41,7 @@ import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
 import {reclaimAbandonedRuns} from './chat/reclaim.js'
 import {recoverInterruptedRuns, syncedSnapshot} from './chat/transcript-import.js'
-import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
+import {makeCompactor, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
 import {modelOf, openDb, writeToolCapture} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
@@ -51,13 +51,7 @@ import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
-import {
-  makeCompositeRpcRouter,
-  RPC_PREFIX,
-  RPC_WS_PATH,
-  rpcFetchMiddleware,
-  rpcWebsocketRoute,
-} from '@conciv/extension/rpc-mount'
+import {makeCompositeRpcRouter, RPC_PREFIX, rpcFetchMiddleware} from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
@@ -254,10 +248,6 @@ function composeRoutes(
       setTimeout(deps.onShutdown, 50)
       return c.json({ok: true})
     })
-    .get(
-      RPC_WS_PATH,
-      rpcWebsocketRoute(rpc, {upgrade: upgradeWebSocket, onError: (message) => logError(`[core] ${message}`)}),
-    )
     .route('/', chatDeliveryRoutes(vars.chat, upgradeWebSocket))
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
@@ -515,9 +505,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const compactor = makeCompactor(chatDeps)
 
-  const send = makeSend(chatDeps)
-
-  const runtime = makeCoreRuntime({primitives, chat: chatDeps, send, compactor, model: sessionModel, staleness})
+  const runtime = makeCoreRuntime({primitives, chat: chatDeps, compactor, model: sessionModel, staleness})
 
   const rpc = makeRpcRouter({
     chat: chatDeps,

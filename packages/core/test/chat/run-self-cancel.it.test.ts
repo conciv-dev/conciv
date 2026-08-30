@@ -3,7 +3,7 @@ import {join} from 'node:path'
 import {describe, expect, it, vi} from 'vitest'
 import {requestRunCancel} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {makeSend} from '../../src/chat/run.js'
+import {startTurn} from '../helpers/detached-turn.js'
 import {bootMadeApp} from '../helpers/boot.js'
 import {useMadeApps} from '../helpers/made-apps.js'
 import {requireClaude} from '../helpers/adapters.js'
@@ -32,7 +32,7 @@ describe('a run cancels itself off its own record (IT)', () => {
     apps.keep(made)
     const sessionId = SessionId.parse('conciv_self-cancel')
     const runId = 'run-self-cancel-1'
-    await makeSend(made.chat)(sessionId, runId, 'hang around')
+    await startTurn(made.chat, sessionId, runId, 'hang around')
     const harnessPid = {value: 0}
     await vi.waitFor(
       () => {

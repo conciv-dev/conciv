@@ -19,18 +19,17 @@ import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import Unplug from 'lucide-solid/icons/unplug'
 import {Show, Suspense, createMemo, createSignal, type JSX} from 'solid-js'
 import {isSessionId} from '@conciv/protocol/chat-types'
-import {useChatSession} from '@conciv/client'
 import {
   useAnnounce,
   useAppData,
   useAppQueryClient,
-  useConnectionGeneration,
   useDisconnect,
   useGrabProvider,
   useInstances,
   useChatDeps,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
+import {usePaneChat} from '../app/use-pane-chat.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
@@ -75,9 +74,8 @@ export const Route = createFileRoute('/panel/$sessionId')({
 
 function PanelSession(): JSX.Element {
   const params = Route.useParams()
-  const generation = useConnectionGeneration()
   const appData = useAppData()
-  const {rpc, apiBase} = useChatDeps()
+  const {rpc} = useChatDeps()
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
   const instances = useInstances()
@@ -139,8 +137,7 @@ function PanelSession(): JSX.Element {
       running() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
   })
 
-  const chatKey = createMemo(() => ({sessionId: params().sessionId, generation: generation()}))
-  const chat = createMemo(() => useChatSession({rpc, apiBase: apiBase(), sessionId: chatKey().sessionId}))
+  const chat = usePaneChat(() => params().sessionId)
   const coordinator = makeRefreshCoordinator({
     chat,
     sessionId: () => params().sessionId,

@@ -4,7 +4,8 @@ import {describe, expect, it, vi} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {MadeApp} from '../../src/app.js'
-import {makeSend, makeTurn} from '../../src/chat/run.js'
+import {makeTurn} from '../../src/chat/run.js'
+import {startTurn} from '../helpers/detached-turn.js'
 import {stopSession} from '../../src/chat/stop.js'
 import {bootMadeApp} from '../helpers/boot.js'
 import {useMadeApps} from '../helpers/made-apps.js'
@@ -81,7 +82,7 @@ describe('run durability is owned by withSandbox (IT)', () => {
     const made = await boot({CONCIV_FAKE_HANG: '1', CONCIV_TEST_PID_FILE: pidFile})
     const sessionId = SessionId.parse('conciv_durability-stop')
     const runId = 'run-durability-stop-1'
-    await makeSend(made.chat)(sessionId, runId, 'hang around')
+    await startTurn(made.chat, sessionId, runId, 'hang around')
     const harnessPid = await waitForHarnessPid(pidFile)
 
     await stopSession(made.chat, sessionId)
@@ -96,7 +97,7 @@ describe('run durability is owned by withSandbox (IT)', () => {
     const made = await boot({})
     const sessionId = SessionId.parse('conciv_durability-once')
     const runId = 'run-durability-once-1'
-    await makeSend(made.chat)(sessionId, runId, 'say it once')
+    await startTurn(made.chat, sessionId, runId, 'say it once')
     await awaitRunSettled(made.chat.runs, runId)
 
     const chunks = await loggedChunks(made, runId)

@@ -5,7 +5,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest'
 import {z} from 'zod'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {MadeApp} from '../../src/app.js'
-import {makeSend} from '../../src/chat/run.js'
+import {startTurn} from '../helpers/detached-turn.js'
 import {bootMadeApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 
@@ -35,7 +35,7 @@ describe('claude workspace projection (IT)', () => {
     )
     state.made = made
     const sessionId = SessionId.parse('conciv_projection-1')
-    await makeSend(made.chat)(sessionId, 'projection-1', 'hi')
+    await startTurn(made.chat, sessionId, 'projection-1', 'hi')
     await vi.waitFor(async () => expect(await made.chat.runs.findActiveRun(sessionId)).toBeNull(), {
       timeout: 8000,
       interval: 50,

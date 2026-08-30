@@ -1,8 +1,7 @@
-import {AsyncQueue} from '@tanstack/ai-acp'
 import {
   fetchServerSentEvents,
   webSocket,
-  type ConnectConnectionAdapter,
+  type ResumableConnectConnectionAdapter,
   type SubscribeConnectionAdapter,
 } from '@tanstack/ai-client'
 import type {ModelMessage, StreamChunk, UIMessage} from '@tanstack/ai'
@@ -10,10 +9,12 @@ import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {runLifecycleOf, type RunLifecycle} from '@conciv/protocol/run-types'
 import type {ChatHydration, RpcClient} from '@conciv/contract'
 
-export type ChatTransport = 'websocket' | 'sse'
+export type ChatTransport = 'websocket' | 'fetch'
+
+export type ChatTransportPreference = 'auto' | ChatTransport
 
 export type ChatConnectionOptions = {
-  transport?: ChatTransport | 'auto'
+  transport?: ChatTransportPreference
   probeTimeoutMs?: number
   onLifecycle?: (lifecycle: RunLifecycle) => void
   onTransport?: (transport: ChatTransport) => void
@@ -62,27 +63,6 @@ export function socketOpens(url: string, timeoutMs: number): Promise<boolean> {
   })
 }
 
-function subscribeOver(adapter: ConnectConnectionAdapter): SubscribeConnectionAdapter {
-  const listeners = new Set<AsyncQueue<StreamChunk>>()
-  return {
-    subscribe: (abortSignal) => {
-      const queue = new AsyncQueue<StreamChunk>()
-      listeners.add(queue)
-      const stop = (): void => {
-        listeners.delete(queue)
-        queue.end()
-      }
-      abortSignal?.addEventListener('abort', stop, {once: true})
-      return queue
-    },
-    send: async (messages, data, abortSignal, runContext) => {
-      for await (const chunk of adapter.connect(messages, data, abortSignal, runContext)) {
-        for (const queue of listeners) queue.push(chunk)
-      }
-    },
-  }
-}
-
 type Selected = {transport: ChatTransport; adapter: SubscribeConnectionAdapter; joinRun: JoinRun}
 type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>
 
@@ -91,14 +71,53 @@ function overSocket(apiBase: string): Selected {
   return {transport: 'websocket', adapter, joinRun: (runId, signal) => adapter.joinRun(runId, signal)}
 }
 
+async function* readingChunks(readable: ReadableStream<StreamChunk>): AsyncGenerator<StreamChunk> {
+  const reader = readable.getReader()
+  try {
+    for (;;) {
+      const next = await reader.read()
+      if (next.done) return
+      yield next.value
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+function subscribeOver(adapter: ResumableConnectConnectionAdapter): SubscribeConnectionAdapter {
+  const listeners = new Set<WritableStreamDefaultWriter<StreamChunk>>()
+  return {
+    subscribe: (abortSignal) => {
+      const relay = new TransformStream<StreamChunk, StreamChunk>()
+      const writer = relay.writable.getWriter()
+      listeners.add(writer)
+      const stop = (): void => {
+        listeners.delete(writer)
+        void writer.close().catch(() => undefined)
+      }
+      abortSignal?.addEventListener('abort', stop, {once: true})
+      return readingChunks(relay.readable)
+    },
+    send: async (messages, data, abortSignal, runContext) => {
+      for await (const chunk of adapter.connect(messages, data, abortSignal, runContext)) {
+        for (const writer of listeners) void writer.write(chunk).catch(() => undefined)
+      }
+    },
+  }
+}
+
 function overEvents(apiBase: string): Selected {
   const adapter = fetchServerSentEvents(chatEventsUrl(apiBase))
-  return {transport: 'sse', adapter: subscribeOver(adapter), joinRun: (runId, signal) => adapter.joinRun(runId, signal)}
+  return {
+    transport: 'fetch',
+    adapter: subscribeOver(adapter),
+    joinRun: (runId, signal) => adapter.joinRun(runId, signal),
+  }
 }
 
 async function select(apiBase: string, options: ChatConnectionOptions): Promise<Selected> {
   const preference = options.transport ?? 'auto'
-  if (preference === 'sse') return overEvents(apiBase)
+  if (preference === 'fetch') return overEvents(apiBase)
   if (preference === 'websocket') return overSocket(apiBase)
   const opened = await socketOpens(chatSocketUrl(apiBase), options.probeTimeoutMs ?? PROBE_TIMEOUT_MS)
   return opened ? overSocket(apiBase) : overEvents(apiBase)

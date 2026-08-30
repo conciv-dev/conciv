@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {EventType, type StreamChunk, type UIMessage} from '@tanstack/ai'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
-import {chatConnection, type ChatConnection} from '../src/chat-connection.js'
+import {chatConnection, type ChatConnection, type ChatTransport} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
 
 let kit: ClientKit | undefined
@@ -44,6 +44,14 @@ function threadJson(hydration: {messages: unknown[]}): string {
   return JSON.stringify(hydration.messages)
 }
 
+function settledTransport(): {chosen: Promise<ChatTransport>; settle: (transport: ChatTransport) => void} {
+  const held: {settle: (transport: ChatTransport) => void} = {settle: () => {}}
+  const chosen = new Promise<ChatTransport>((resolve) => {
+    held.settle = resolve
+  })
+  return {chosen, settle: (transport) => held.settle(transport)}
+}
+
 describe('chatConnection', () => {
   it('carries the run it starts and leaves the assistant reply on the thread', async () => {
     const {seen, thread} = await turnOf('chat-connection-1', [{type: 'text', content: 'hello'}])
@@ -77,17 +85,26 @@ describe('chatConnection', () => {
     expect(thread).toContain('image/png')
   }, 60_000)
 
-  it('picks the websocket when one opens and the event stream when it does not', async () => {
+  it('picks the websocket when one opens and the fetch event stream when it does not', async () => {
     const clientKit = await bootClientKit()
     kit = clientKit
     const sessionId = await clientKit.session()
     const rpc = makeRpcClient(clientKit.base)
 
-    const auto = chatConnection(rpc, clientKit.base, sessionId, {probeTimeoutMs: 5_000})
-    await auto.hydrate(sessionId)
-    await expect.poll(() => auto.transport(), {timeout: 10_000}).toBe('websocket')
+    const settledOpen = settledTransport()
+    const auto = chatConnection(rpc, clientKit.base, sessionId, {
+      probeTimeoutMs: 5_000,
+      onTransport: settledOpen.settle,
+    })
+    expect(await settledOpen.chosen).toBe('websocket')
+    expect(auto.transport()).toBe('websocket')
 
-    const blocked = chatConnection(rpc, 'http://127.0.0.1:9', sessionId, {probeTimeoutMs: 500})
-    await expect.poll(() => blocked.transport(), {timeout: 10_000}).toBe('sse')
+    const settledBlocked = settledTransport()
+    const blocked = chatConnection(rpc, 'http://127.0.0.1:9', sessionId, {
+      probeTimeoutMs: 500,
+      onTransport: settledBlocked.settle,
+    })
+    expect(await settledBlocked.chosen).toBe('fetch')
+    expect(blocked.transport()).toBe('fetch')
   }, 60_000)
 })

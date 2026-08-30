@@ -44,7 +44,6 @@
     "@orpc/client": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@tanstack/ai": "catalog:",
-    "@tanstack/ai-acp": "catalog:",
     "@tanstack/ai-client": "catalog:",
     "@tanstack/ai-solid": "catalog:",
     "@tanstack/pacer": "^0.21.1",

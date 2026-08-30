@@ -2,8 +2,9 @@ import {expect, test, type Page} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {handleHostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
-import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
+import {watchChatWire} from '@conciv/extension-testkit/chat-wire'
 import {until} from '@conciv/harness-testkit/until'
+import {CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
 import {mountHandle, openHostWithHandle, rebindHandle} from './helpers/handle.js'
 import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
@@ -151,10 +152,10 @@ test.describe('handle.rebind quiesces the old connection before tearing consumer
 
   test('writes nothing more to the old core once rebind is called', async ({page}) => {
     test.setTimeout(180_000)
-    const wire = watchRpcWire(page)
+    const wire = watchChatWire(page)
     const framesSentPerSocket: number[] = []
     page.on('websocket', (socket) => {
-      if (!socket.url().includes('/rpc-ws')) return
+      if (!socket.url().includes(CHAT_WS_PATH)) return
       const index = framesSentPerSocket.length
       framesSentPerSocket.push(0)
       socket.on('framesent', () => {
@@ -173,7 +174,7 @@ test.describe('handle.rebind quiesces the old connection before tearing consumer
     await expect(apiBaseProbe).toHaveText(proxyF.base, {timeout: 30_000})
 
     const settledOnOldSocket = framesSentPerSocket[0] ?? 0
-    const sentOnNewCore = wire.nextChatSend()
+    const sentOnNewCore = wire.nextTurn()
     await sendChatMessage(page, SECOND_USER_TEXT)
     await sentOnNewCore
 
@@ -194,19 +195,19 @@ test.describe('handle.rebind to the base the widget is already on re-runs the tr
 
   test('rides the websocket after the blocked upgrade path opens up again', async ({page}) => {
     test.setTimeout(180_000)
-    const wire = watchRpcWire(page)
+    const wire = watchChatWire(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
 
     await mountHandle(page, blockedCore.base)
     await openChatPanel(page)
-    const blocked = wire.nextChatSend()
+    const blocked = wire.nextTurn()
     await sendChatMessage(page, 'while upgrades are blocked')
     expect((await blocked).transport).toBe('fetch')
 
     blockedCore.setUpgradesBlocked(false)
     await rebindHandle(page, blockedCore.base)
     await expect(chatBox(page)).toBeVisible({timeout: 30_000})
-    const reprobed = wire.nextChatSend()
+    const reprobed = wire.nextTurn()
     await sendChatMessage(page, 'after the upgrade path opens')
     expect((await reprobed).transport).toBe('websocket')
   })

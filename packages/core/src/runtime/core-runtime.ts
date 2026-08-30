@@ -9,7 +9,7 @@ import {syncedSnapshot} from '../chat/transcript-import.js'
 import {hydrateSession} from '../chat/hydrate.js'
 import {stopSession} from '../chat/stop.js'
 import type {ChatDeps} from '../chat/runtime.js'
-import type {Compactor, Send} from '../chat/run.js'
+import type {Compactor} from '../chat/run.js'
 import {pageQueryStream} from '../page-bus.js'
 import {askUi} from '../chat/ask.js'
 import {sessionEvents} from '../chat/session-events.js'
@@ -22,7 +22,6 @@ const MAX_NAVIGATION_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000
 export type CoreRuntimeDeps = {
   primitives: SessionPrimitives
   chat: ChatDeps
-  send: Send
   compactor: Compactor
   model: (sessionId: SessionId) => string | null
   staleness: () => EngineStaleness
@@ -124,7 +123,6 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       hydrate: () => hydrateSession(deps.chat, id),
     },
     run: {
-      send: (runId, content, messageId) => deps.send(id, runId, content, messageId),
       stop: () => stopSession(deps.chat, id),
       compact: () => deps.compactor.run(id),
       live: async () => (await deps.chat.runs.findActiveRun(id)) !== null,
@@ -166,7 +164,6 @@ function established(raw: SessionScope): SessionScope {
     captures: {list: inScope(raw.captures.list), store: inScope(raw.captures.store)},
     history: {messages: inScope(raw.history.messages), hydrate: inScope(raw.history.hydrate)},
     run: {
-      send: inScope(raw.run.send),
       stop: inScope(raw.run.stop),
       compact: inScope(raw.run.compact),
       live: raw.run.live,

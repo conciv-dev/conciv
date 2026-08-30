@@ -143,10 +143,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     rpc,
     rebind: rebindClient,
     close: closeConnection,
-  } = makeBrowserRpcClient(config.apiBase, {
-    transport: config.settings.transport,
-    session: () => activeSession.read(),
-  })
+  } = makeBrowserRpcClient(config.apiBase, {session: () => activeSession.read()})
 
   const [connectionGeneration, setConnectionGeneration] = createSignal(0)
   const [apiBase, setApiBase] = createSignal(config.apiBase)
@@ -238,10 +235,7 @@ type BootConnectConfig = {
 }
 
 function bootConnect(config: BootConnectConfig): BootResult {
-  const deferred = makeBrowserRpcClient(() => null, {
-    transport: config.settings.transport,
-    session: () => activeSession.read(),
-  })
+  const deferred = makeBrowserRpcClient(() => null, {session: () => activeSession.read()})
   const reachabilityRoot = createRoot((dispose) => ({isOnline: engineOnline(), dispose}))
 
   let boundApiBase: string | undefined

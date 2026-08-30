@@ -1,4 +1,3 @@
-import {isRunIdTakenError} from '../../chat/run.js'
 import {os, type RpcDeps, type SessionOs} from './mount.js'
 
 export function chatRouter(deps: RpcDeps, sessionOs: SessionOs) {
@@ -7,18 +6,6 @@ export function chatRouter(deps: RpcDeps, sessionOs: SessionOs) {
       deps.runtime.forSession(input.sessionId).stream.events(signal ?? new AbortController().signal),
     ),
     hydrate: os.chat.hydrate.handler(({input}) => deps.runtime.forSession(input.sessionId).history.hydrate()),
-    send: os.chat.send.handler(async ({input, errors}) => {
-      const runId = await deps.runtime
-        .forSession(input.sessionId)
-        .run.send(input.runId, input.content ?? input.text ?? '', input.messageId)
-        .catch((error: unknown) => {
-          if (isRunIdTakenError(error)) {
-            throw errors.RUN_ID_TAKEN({message: error.message, data: {runId: input.runId}})
-          }
-          throw error
-        })
-      return {ok: true as const, runId}
-    }),
     stop: os.chat.stop.handler(({input}) => deps.runtime.forSession(input.sessionId).run.stop()),
     permissionDecision: sessionOs.chat.permissionDecision.handler(({input, errors}) => {
       const owner = deps.chat.asks.owner(input.approvalId)

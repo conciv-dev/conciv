@@ -49,7 +49,7 @@ function AnnounceLog(props: {entries: () => string[]}): JSX.Element {
 
 export function mountPane(options: PaneMountOptions, view: (pane: PaneContextValue) => JSX.Element): PaneMount {
   window.__CONCIV_API_BASE__ = options.base
-  browserRpcConnection(options.base, 'fetch')
+  browserRpcConnection(options.base)
   const instances = createInstances(options.extensions ?? [])
   const [announced, setAnnounced] = createSignal<string[]>([])
   const [width, setWidth] = createSignal(options.width ?? DEFAULT_PANE_WIDTH_PX)

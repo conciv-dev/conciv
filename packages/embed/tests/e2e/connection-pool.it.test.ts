@@ -1,5 +1,6 @@
 import {expect, test, type BrowserContext, type Page} from '@playwright/test'
 import {httpRpcRequestUrls, rpcCallCursor, type RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
+import {watchChatWire, type ChatWireWatch} from '@conciv/extension-testkit/chat-wire'
 import {setupProxiedEmbedSuite} from './helpers/proxied-suite.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
@@ -8,15 +9,16 @@ const MOUNT_TIMEOUT_MS = 20_000
 
 const suite = setupProxiedEmbedSuite({text: ASSISTANT_TEXT})
 
-type Tab = {page: Page; calls: RpcCallCursor; httpRpcUrls: string[]}
+type Tab = {page: Page; calls: RpcCallCursor; wire: ChatWireWatch; httpRpcUrls: string[]}
 
 async function openTab(context: BrowserContext): Promise<Tab> {
   const page = await context.newPage()
   const {urls} = httpRpcRequestUrls(page)
   const calls = rpcCallCursor(page)
+  const wire = watchChatWire(page)
   await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
   await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
-  return {page, calls, httpRpcUrls: urls}
+  return {page, calls, wire, httpRpcUrls: urls}
 }
 
 async function openPanel(page: Page): Promise<void> {
@@ -33,7 +35,7 @@ async function sendTurn(page: Page, text: string, expectedReplies: number): Prom
 }
 
 test.describe('six widget tabs sharing one browserContext connection pool (the per-test context fixture, not newPage, because the shared-context http connection limit is exactly what this gate measures)', () => {
-  test('gives every tab one rpc websocket, no rpc over http, and a working chat round trip in the last tab', async ({
+  test('gives every tab rpc over http with no rpc websocket at all, and a working chat round trip in the last tab', async ({
     context,
   }) => {
     test.setTimeout(180_000)
@@ -45,7 +47,17 @@ test.describe('six widget tabs sharing one browserContext connection pool (the p
     await openPanel(lastTab.page)
     await sendTurn(lastTab.page, 'hi there', 1)
 
-    for (const tab of tabs) expect(tab.calls.socketsSince()).toBe(1)
-    for (const tab of tabs) expect(tab.httpRpcUrls).toEqual([])
+    for (const tab of tabs) expect(tab.calls.socketsSince()).toBe(0)
+    for (const tab of tabs) expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
+  })
+
+  test('settles the chatting tab on exactly one live chat socket', async ({context}) => {
+    test.setTimeout(180_000)
+    const tab = await openTab(context)
+
+    await openPanel(tab.page)
+    await sendTurn(tab.page, 'hi there', 1)
+
+    expect(tab.wire.liveSockets()).toBe(1)
   })
 })

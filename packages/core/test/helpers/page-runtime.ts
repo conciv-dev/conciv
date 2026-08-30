@@ -3,7 +3,7 @@ import type {EngineStaleness} from '@conciv/contract'
 import {createAskRegistry} from '../../src/chat/ask.js'
 import {createCommandMemory} from '../../src/chat/command-memory.js'
 import {createSessionStreams} from '../../src/chat/session-events.js'
-import {makeCompactor, makeSend} from '../../src/chat/run.js'
+import {makeCompactor} from '../../src/chat/run.js'
 import {makeCoreRuntime} from '../../src/runtime/core-runtime.js'
 import type {CoreRuntime, ScopedToolCall} from '../../src/runtime/scope-types.js'
 import type {SessionPrimitives} from '../../src/runtime/primitives.js'
@@ -24,7 +24,6 @@ export async function pageRuntime(page: PageEnv, registry: ToolRegistry): Promis
   return makeCoreRuntime({
     primitives,
     chat: fixture.chat,
-    send: makeSend(fixture.chat),
     compactor: makeCompactor(fixture.chat),
     model: () => null,
     staleness: () => FRESH,

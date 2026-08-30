@@ -9,7 +9,6 @@ import type {ChatHydration, EngineStaleness, ToolCommandSignature} from '@conciv
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ToolRequest} from '@conciv/extension'
 import type {ChangeEntry} from '../page-bus.js'
-import type {UserContent} from '../chat/run.js'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 
 export type ToolCatalog = ToolRegistry['catalog']
@@ -60,7 +59,6 @@ export type SessionHistory = {
 }
 
 export type SessionRun = {
-  send: (runId: string, content: UserContent, messageId?: string) => Promise<string>
   stop: () => Promise<{ok: true}>
   compact: () => Promise<void>
   live: () => Promise<boolean>

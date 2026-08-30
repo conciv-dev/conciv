@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import type {StreamChunk, UIMessage} from '@tanstack/ai'
-import {makeSend} from '../../src/chat/run.js'
+import type {UIMessage} from '@tanstack/ai'
+import {startTurn} from '../helpers/detached-turn.js'
 import {sessionSnapshot} from '../../src/chat/thread.js'
 import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
 import {awaitRunSettled} from '../../src/chat/run-settled.js'
@@ -11,9 +11,8 @@ function storedPartTypes(message: UIMessage | undefined): string[] {
 }
 
 async function loggedSnapshot(fixture: ChatFixture, runId: string): Promise<SnapshotView> {
-  const chunks: StreamChunk[] = []
-  for await (const entry of fixture.chat.runControl.attach(runId, '-1')) chunks.push(entry.chunk)
-  return firstSnapshot(chunks)
+  const entries = await fixture.chat.durability(runId).snapshot()
+  return firstSnapshot(entries.map((entry) => entry.chunk))
 }
 
 describe('the thread snapshot keeps the identity a live run streamed (IT)', () => {
@@ -21,7 +20,7 @@ describe('the thread snapshot keeps the identity a live run streamed (IT)', () =
     const fixture = await makeChatFixture()
     try {
       fixture.harness.script.scriptTurn({toolCalls: [{name: 'Bash', input: {command: 'ls'}}], text: 'First answer.'})
-      await makeSend(fixture.chat)(fixture.sessionId, 'thread-identity-1', 'first question')
+      await startTurn(fixture.chat, fixture.sessionId, 'thread-identity-1', 'first question')
       await awaitRunSettled(fixture.chat.runs, 'thread-identity-1')
 
       const snapshot = sessionSnapshot(fixture.chat, fixture.sessionId)
@@ -38,11 +37,11 @@ describe('the thread snapshot keeps the identity a live run streamed (IT)', () =
     const fixture = await makeChatFixture()
     try {
       fixture.harness.script.scriptTurn({toolCalls: [{name: 'Bash', input: {command: 'ls'}}], text: 'First answer.'})
-      await makeSend(fixture.chat)(fixture.sessionId, 'thread-identity-2', 'first question')
+      await startTurn(fixture.chat, fixture.sessionId, 'thread-identity-2', 'first question')
       await awaitRunSettled(fixture.chat.runs, 'thread-identity-2')
 
       fixture.harness.script.scriptTurn({toolCalls: [{name: 'Read', input: {filePath: 'second.ts'}}], text: 'Second.'})
-      await makeSend(fixture.chat)(fixture.sessionId, 'thread-identity-3', 'second question')
+      await startTurn(fixture.chat, fixture.sessionId, 'thread-identity-3', 'second question')
       await awaitRunSettled(fixture.chat.runs, 'thread-identity-3')
 
       const opening = await loggedSnapshot(fixture, 'thread-identity-3')

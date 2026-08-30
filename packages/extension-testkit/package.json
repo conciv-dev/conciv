@@ -27,6 +27,7 @@
     "./rpc-frames": "./src/rpc-frames.ts",
     "./rpc-counts": "./src/rpc-counts.ts",
     "./rpc-wire": "./src/rpc-wire.ts",
+    "./chat-wire": "./src/chat-wire.ts",
     "./rpc-fault": "./src/rpc-fault.ts"
   },
   "scripts": {

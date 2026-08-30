@@ -591,18 +591,12 @@ export async function expandUserParts(content: UserContent, expanders: Attachmen
   return expanded
 }
 
-export type Send = (sessionId: SessionId, runId: string, content: UserContent, messageId?: string) => Promise<string>
-
 const RUN_ID_TAKEN_ERROR_NAME = 'RunIdTakenError'
 
 function runIdTakenError(runId: string): Error {
   const error = new Error(`run ${runId} already exists; a runId cannot be reused`)
   error.name = RUN_ID_TAKEN_ERROR_NAME
   return error
-}
-
-export function isRunIdTakenError(error: unknown): error is Error {
-  return error instanceof Error && error.name === RUN_ID_TAKEN_ERROR_NAME
 }
 
 async function prepareLaunchContent(deps: ChatDeps, sessionId: SessionId, content: UserContent): Promise<UserContent> {
@@ -646,16 +640,6 @@ async function claimTurn(
 async function settleClaim(deps: ChatDeps, sessionId: SessionId, record: RunRecord): Promise<void> {
   publishRunLifecycle(deps, sessionId, record)
   await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
-}
-
-export function makeSend(deps: ChatDeps): Send {
-  return (sessionId, runId, content, messageId) =>
-    deps.sessionLocks.serialize(sessionId, async () => {
-      const claimed = await claimTurn(deps, sessionId, runId, content, messageId)
-      void launchRun(deps, sessionId, claimed.req)
-      await settleClaim(deps, sessionId, claimed.record)
-      return runId
-    })
 }
 
 export type Turn = (
