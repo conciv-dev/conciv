@@ -19,6 +19,7 @@ export type ChatSession = ReturnType<typeof useChat> & {
   runSource: Accessor<RunClockSource | null>
   runError: Accessor<string | null>
   sessionRunning: Accessor<boolean>
+  hydrated: Accessor<boolean>
 }
 
 function asError(value: unknown): Error {
@@ -36,11 +37,16 @@ function joinedQueueText(queued: QueuedMessage[]): string | null {
 
 export function useChatSession(options: UseChatSessionOptions): ChatSession {
   const [runSource, setRunSource] = createSignal<RunClockSource | null>(null)
+  const [hydrated, setHydrated] = createSignal(false)
   const connection = chatConnection(options.rpc, options.apiBase, options.sessionId, {
     ...options.connection,
     onLifecycle: (lifecycle) => {
       options.connection?.onLifecycle?.(lifecycle)
       setRunSource({lifecycle, receivedAt: Date.now()})
+    },
+    onHydrated: () => {
+      options.connection?.onHydrated?.()
+      setHydrated(true)
     },
   })
   const chat = useChat({
@@ -94,5 +100,6 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     runSource,
     runError,
     sessionRunning,
+    hydrated,
   }
 }

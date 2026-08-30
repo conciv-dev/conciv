@@ -18,6 +18,7 @@ export type ChatConnectionOptions = {
   probeTimeoutMs?: number
   onLifecycle?: (lifecycle: RunLifecycle) => void
   onTransport?: (transport: ChatTransport) => void
+  onHydrated?: () => void
 }
 
 export type ChatConnection = SubscribeConnectionAdapter & {
@@ -158,7 +159,11 @@ export function chatConnection(
     options.onTransport?.(choice.transport)
     return choice
   })
-  const hydrate = (threadId: string): Promise<ChatHydration> => rpc.chat.hydrate({sessionId: threadId})
+  const hydrate = async (threadId: string): Promise<ChatHydration> => {
+    const hydration = await rpc.chat.hydrate({sessionId: threadId})
+    options.onHydrated?.()
+    return hydration
+  }
   return {
     subscribe: (abortSignal) => watching(selected, options.onLifecycle, abortSignal),
     send: async (messages: Array<UIMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {

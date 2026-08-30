@@ -118,8 +118,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const isStreaming = () => chat.status() === 'streaming'
   const working = () => isThinking() || isStreaming()
   const narrating = () => working() || chat.sessionRunning()
-  const disconnected = () => chat.connectionStatus() !== 'connected'
-  const hydrated = createMemo<boolean>((prev) => prev || !disconnected(), false)
+  const hydrated = chat.hydrated
 
   const panelFocus = usePanelComposerFocus()
   const [inputHandle, setInputHandle] = createSignal<ComposerInputHandle>()
@@ -271,12 +270,10 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                     <Suspense fallback={<ConversationSkeleton />}>
                       <Show when={hydrated()} fallback={<ConversationSkeleton />}>
                         <Thread.Welcome>
-                          <Show when={!disconnected()} fallback={<ConversationSkeleton />}>
-                            <EmptyStateSlot
-                              onStarter={(starter) => void chat.sendMessage(starter)}
-                              instances={instances}
-                            />
-                          </Show>
+                          <EmptyStateSlot
+                            onStarter={(starter) => void chat.sendMessage(starter)}
+                            instances={instances}
+                          />
                         </Thread.Welcome>
                         <Thread.Messages
                           tools={tools()}

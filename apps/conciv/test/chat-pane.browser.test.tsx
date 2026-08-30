@@ -26,7 +26,7 @@ import {forceReducedMotion} from './helpers/reduced-motion.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 
 const SEND_PATH = ['chat', 'send']
-const SUBSCRIBE_PATH = ['chat', 'subscribe']
+const HYDRATE_PATH = ['chat', 'hydrate']
 
 const core = {base: ''}
 const active: {pane: PaneMount | null} = {pane: null}
@@ -300,7 +300,7 @@ test('the refresh affordance re-subscribes and shows the transcript the server r
   mountChatPane(sessionId)
   await expect.element(page.getByText('How can I help you today?')).toBeVisible()
 
-  const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
+  const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
   await page.getByRole('button', {name: 'Refresh the conversation'}).click()
 
   await coreControl.scriptTurn({toolCalls: [], text: 'the refreshed transcript'})
@@ -327,7 +327,7 @@ test('the refresh affordance is disabled while the run streams', async () => {
 
 test('the initial load shows a conversation skeleton until the snapshot arrives', async () => {
   const {sessionId} = await newSession()
-  const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
+  const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
   mountChatPane(sessionId)
 
   await expect.element(skeleton()).toBeVisible()
@@ -424,7 +424,7 @@ test('a new-session divider does not flash before the transcript snapshot hydrat
   const {sessionId} = await newSession()
   await coreControl.scriptTurn({toolCalls: [], text: 'starting a fresh session'})
   await runTurn(core.base, sessionId, 'restart with a clean slate')
-  const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
+  const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
   const mount = mountChatPane(sessionId)
 
   await expect.element(skeleton()).toBeVisible()
