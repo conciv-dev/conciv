@@ -512,19 +512,20 @@ async function* runStream(
   }
 }
 
-function launchRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest): Promise<void> {
+async function pipeRunToLog(deps: ChatDeps, runId: string, stream: AsyncIterable<StreamChunk>): Promise<void> {
+  const log = deps.durability(runId)
+  try {
+    for await (const chunk of stream) await log.append([chunk])
+  } finally {
+    await log.close()
+  }
+}
+
+async function driveRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest): Promise<void> {
+  await deps.runs.createOrResume({runId: req.runId, threadId: sessionId, startedAt: deps.claimStartedAt()})
   const abort = new AbortController()
-  const handle = deps.runControl.start({
-    runId: req.runId,
-    threadId: sessionId,
-    stream: runStream(deps, sessionId, req, abort),
-  })
-  return handle.done
-    .then(
-      () => publishRunRecord(deps, sessionId, req.runId),
-      () => publishRunRecord(deps, sessionId, req.runId),
-    )
-    .catch(() => undefined)
+  await pipeRunToLog(deps, req.runId, runStream(deps, sessionId, req, abort)).catch(() => undefined)
+  await publishRunRecord(deps, sessionId, req.runId).catch(() => undefined)
 }
 
 function contextWindowFor(harness: HarnessAdapter, modelId: string | null): number | undefined {
@@ -672,7 +673,7 @@ export function makeCompactor(deps: ChatDeps): Compactor {
       await settleActiveRuns(deps, sessionId, null)
       const history = await syncedSnapshot(deps, sessionId)
       await addCompactMarker(deps.db, sessionId, history.length)
-      await launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
+      await driveRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
     })
   }
 

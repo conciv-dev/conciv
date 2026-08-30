@@ -265,20 +265,6 @@ export type MadeApp = {
   runtime: CoreRuntime
 }
 
-const RUN_DRAIN_TIMEOUT_MS = 5_000
-
-async function drainWithDeadline(drain: Promise<void>, timeoutMs: number): Promise<boolean> {
-  const timer = {handle: null as ReturnType<typeof setTimeout> | null}
-  const outcome = await Promise.race([
-    drain.then(() => 'drained' as const),
-    new Promise<'timeout'>((resolve) => {
-      timer.handle = setTimeout(() => resolve('timeout'), timeoutMs)
-    }),
-  ])
-  if (timer.handle) clearTimeout(timer.handle)
-  return outcome === 'drained'
-}
-
 function makeServerHarness(harness: HarnessAdapter, cwd: string, claudeHome?: string): ServerHarness {
   const history = harness.history
   const transcriptExists = (token: HarnessSessionId): boolean => {
@@ -318,10 +304,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
-  const {claimStartedAt, durability, durabilityAt, runControl, runs, sessionLocks} = makeRunControl(
-    db,
-    opts.firstChunkTimeoutMs,
-  )
+  const {claimStartedAt, durability, durabilityAt, runs, sessionLocks} = makeRunControl(db, opts.firstChunkTimeoutMs)
   await reclaimAbandonedRuns(runs, Date.now())
 
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
@@ -475,7 +458,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     commandMemory,
     durability,
     durabilityAt,
-    runControl,
     runs,
     claimStartedAt,
     sessionLocks,
@@ -561,8 +543,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
 
   const dispose = async (): Promise<void> => {
-    const drained = await drainWithDeadline(runControl.drain(), RUN_DRAIN_TIMEOUT_MS)
-    if (!drained) logError('[core] disposed with run(s) still in flight')
     for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
     db.$client.close()
   }

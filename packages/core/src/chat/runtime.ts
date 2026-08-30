@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {memoryStream, type RunStore, type StreamDurability} from '@tanstack/ai'
-import {RunController, type SandboxDefinition} from '@tanstack/ai-sandbox'
+import type {SandboxDefinition} from '@tanstack/ai-sandbox'
 import type {UIMessage} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {createRunStore, type ConcivDb} from '@conciv/db'
@@ -27,7 +27,6 @@ export type ChatDeps = {
   commandMemory: CommandMemory
   durability: (runId: string) => StreamDurability
   durabilityAt: (runId: string, offset: string) => StreamDurability
-  runControl: RunController
   runs: RunStore
   claimStartedAt: () => number
   sessionLocks: SessionLocks
@@ -55,7 +54,6 @@ export function makeRunControl(
   claimStartedAt: () => number
   durability: (runId: string) => StreamDurability
   durabilityAt: (runId: string, offset: string) => StreamDurability
-  runControl: RunController
   runs: RunStore
   sessionLocks: SessionLocks
 } {
@@ -75,7 +73,6 @@ export function makeRunControl(
     claimStartedAt,
     durability,
     durabilityAt,
-    runControl: new RunController({runs, durability}),
     runs,
     sessionLocks: createSessionLocks(),
   }
