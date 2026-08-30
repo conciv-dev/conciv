@@ -7,6 +7,9 @@ declare module 'vitest/internal/browser' {
   interface BrowserCommands {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
     closeCore: () => Promise<void>
+    restartCore: () => Promise<void>
+    pushSocketsOpened: () => Promise<number>
+    pushApprovalIds: () => Promise<readonly string[]>
     setStaleness: (value: EngineStaleness) => Promise<void>
     holdTurn: () => Promise<void>
     holdTools: () => Promise<void>

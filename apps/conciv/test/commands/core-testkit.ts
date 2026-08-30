@@ -3,4 +3,5 @@ export {abortRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/extension-testk
 export {dropChatTurns, failChatTurns} from '@conciv/extension-testkit/chat-fault'
 export {rpcCallCursor, rpcCallMark, type RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 export {watchRpcWire, type RpcWireWatch} from '@conciv/extension-testkit/rpc-wire'
+export {watchPushWire, type PushWireWatch} from '@conciv/extension-testkit/push-wire'
 export {createTerminalExtension} from '@conciv/extension-terminal/server'
