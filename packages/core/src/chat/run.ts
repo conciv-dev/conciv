@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {existsSync, readFileSync} from 'node:fs'
+import {join} from 'node:path'
 import {eq} from 'drizzle-orm'
 import {
   chat,
@@ -24,6 +25,7 @@ import {withSandbox} from '@tanstack/ai-sandbox'
 import type {HarnessAdapter, HarnessChatConfig} from '@conciv/protocol/harness-types'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {isHarnessSessionId} from '@conciv/protocol/chat-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import type {ChatContentPart, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {deleteThread, drafts, markers, sessions, type ConcivDb} from '@conciv/db'
@@ -79,6 +81,10 @@ export function resolveSystemText(
     }
   }
   return sources.systemPromptText ?? ''
+}
+
+function runJournalDir(stateRoot: string): string {
+  return join(concivStateDir(stateRoot), 'runs')
 }
 
 export type UserContent = string | ChatContentPart[]
@@ -196,7 +202,11 @@ async function buildRunStream(
     middleware: [
       withSandbox(deps.sandbox, {
         runs: deps.runs,
-        durability: {adapter: deps.durability(req.runId), detachOnDisconnect: true},
+        durability: {
+          adapter: deps.durability(req.runId),
+          journal: runJournalDir(deps.stateRoot),
+          detachOnDisconnect: true,
+        },
       }),
       withConcivGate(gate),
     ],

@@ -67,7 +67,9 @@ describe('run durability is owned by withSandbox (IT)', () => {
     const viewer = new AbortController()
     const stream = await makeTurn(made.chat)(sessionId, runId, 'keep going without me', {signal: viewer.signal})
     void drain(stream)
-    await waitForHarnessPid(pidFile)
+    const harnessPid = await waitForHarnessPid(pidFile)
+    expect(isAlive(harnessPid)).toBe(true)
+    expect((await made.chat.runs.get(runId))?.status).toBe('running')
 
     viewer.abort()
 
