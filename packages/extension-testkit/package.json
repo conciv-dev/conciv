@@ -24,7 +24,6 @@
     "./listen-local": "./src/listen-local.ts",
     "./serve-host": "./src/serve-host.ts",
     "./navigation-state": "./src/navigation-state.ts",
-    "./rpc-frames": "./src/rpc-frames.ts",
     "./rpc-counts": "./src/rpc-counts.ts",
     "./rpc-wire": "./src/rpc-wire.ts",
     "./chat-wire": "./src/chat-wire.ts",
@@ -36,7 +35,7 @@
     "build": "vite build -c vite.test-host.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vite build -c vite.ws-probe.config.ts && vitest run && playwright test"
+    "test": "vitest run"
   },
   "dependencies": {
     "@conciv/browser-fixture": "workspace:*",
@@ -52,8 +51,6 @@
     "@conciv/uno-preset": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
-    "@orpc/standard-server": "catalog:",
-    "@orpc/standard-server-peer": "catalog:",
     "@playwright/test": "^1.61.1",
     "@vitest/coverage-v8": "^4.1.8",
     "p-timeout": "^7.0.1",

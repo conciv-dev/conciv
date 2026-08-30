@@ -15,12 +15,6 @@ catalogs:
     '@orpc/server':
       specifier: 1.14.7
       version: 1.14.7
-    '@orpc/standard-server':
-      specifier: 1.14.7
-      version: 1.14.7
-    '@orpc/standard-server-peer':
-      specifier: 1.14.7
-      version: 1.14.7
     '@orpc/tanstack-query':
       specifier: 1.14.7
       version: 1.14.7
@@ -2139,12 +2133,6 @@ importers:
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.14.7(@opentelemetry/api@1.9.1)(crossws@0.4.10(srvx@0.11.22))(ws@8.21.0)
-      '@orpc/standard-server':
-        specifier: 'catalog:'
-        version: 1.14.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-peer':
-        specifier: 'catalog:'
-        version: 1.14.7(@opentelemetry/api@1.9.1)
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1

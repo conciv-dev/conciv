@@ -1,7 +1,5 @@
-import type {Page, Route, WebSocketRoute} from 'playwright'
+import type {Page, Route} from 'playwright'
 import {toHttpPath} from '@orpc/client/standard'
-import {encodeResponseMessage, MessageType} from '@orpc/standard-server-peer'
-import {decodeRpcFrame} from './rpc-frames.js'
 import {rpcObserverFor} from './rpc-observer.js'
 
 const FAILURE_BODY = {json: {}, meta: []}
@@ -40,7 +38,7 @@ function isPreflight(route: Route): boolean {
 
 export async function failRpcCalls(
   page: Page,
-  options: {path: readonly string[]; status?: number; websocket?: boolean},
+  options: {path: readonly string[]; status?: number},
 ): Promise<RpcFaultInjector> {
   const status = options.status ?? 500
   const broken = {value: true}
@@ -52,30 +50,6 @@ export async function failRpcCalls(
   }
 
   await page.route(matcher, handler)
-
-  const holdSocket = (socket: WebSocketRoute): void => {
-    const server = socket.connectToServer()
-    const outbound = {tail: Promise.resolve()}
-    socket.onMessage((message) => {
-      outbound.tail = outbound.tail.then(async () => {
-        const frame = await decodeRpcFrame(message, 'outbound')
-        if (!broken.value || frame.phase !== 'request' || frame.procedurePath.join('/') !== options.path.join('/')) {
-          server.send(message)
-          return
-        }
-        const failure = await encodeResponseMessage(frame.requestId, MessageType.RESPONSE, {
-          status,
-          headers: {},
-          body: FAILURE_BODY,
-        })
-        if (typeof failure !== 'string') throw new Error('the injected rpc failure frame encoded to binary')
-        socket.send(failure)
-      })
-    })
-    server.onMessage((message) => socket.send(message))
-  }
-
-  if (options.websocket) await page.routeWebSocket((url) => url.pathname.endsWith('/rpc-ws'), holdSocket)
 
   return {
     answered,
@@ -117,7 +91,6 @@ export type RpcHold = {hold: () => void; release: () => void}
 
 export async function holdRpcCalls(page: Page): Promise<RpcHold> {
   const held = {value: false}
-  const sockets = new Set<WebSocketRoute>()
 
   await page.route(
     (url) => url.pathname.startsWith('/rpc/') || url.pathname === RPC_PREFIX,
@@ -127,26 +100,9 @@ export async function holdRpcCalls(page: Page): Promise<RpcHold> {
     },
   )
 
-  await page.routeWebSocket(
-    (url) => url.pathname.endsWith('/rpc-ws'),
-    (socket) => {
-      if (held.value) {
-        void socket.close()
-        return
-      }
-      sockets.add(socket)
-      socket.onClose(() => sockets.delete(socket))
-      const server = socket.connectToServer()
-      socket.onMessage((message) => server.send(message))
-      server.onMessage((message) => socket.send(message))
-    },
-  )
-
   return {
     hold: () => {
       held.value = true
-      for (const socket of sockets) void socket.close()
-      sockets.clear()
     },
     release: () => {
       held.value = false

@@ -1,7 +1,5 @@
 import type {Page} from 'playwright'
-import {rpcObserverFor, type RpcTransport} from './rpc-observer.js'
-
-export type {RpcTransport}
+import {rpcObserverFor} from './rpc-observer.js'
 
 const WIRE_TIMEOUT_MS = 30_000
 const SESSIONS_BOOT_LIST_TIMEOUT_MS = 5_000
