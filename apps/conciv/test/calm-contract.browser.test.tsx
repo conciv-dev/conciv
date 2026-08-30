@@ -78,6 +78,7 @@ afterEach(async () => {
   await coreControl.releaseTools()
   await coreControl.releaseResults()
   await coreControl.releaseTurn()
+  await coreControl.clearScript()
   active.pane?.dispose()
   active.pane = null
 })

@@ -28,6 +28,7 @@ export type ScriptedRun = {
   scriptTurn: (turn: ScriptedTurn) => string[]
   scriptCustomEvent: (name: string, value: unknown) => void
   scriptError: (message: string) => void
+  clearScript: () => void
 }
 
 type QueuedToolCall = {id: string; name: string; input: unknown; result: unknown}
@@ -219,6 +220,11 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const scriptError = (message: string) => {
     queuedErrors.push(message)
   }
+  const clearScript = () => {
+    queuedTurns.splice(0)
+    queuedCustomEvents.splice(0)
+    queuedErrors.splice(0)
+  }
   const drainCustomEvents = () => customEventChunks(queuedCustomEvents.splice(0))
   const settleTurn = async function* (
     turn: QueuedTurn | undefined,
@@ -263,5 +269,6 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     scriptTurn,
     scriptCustomEvent,
     scriptError,
+    clearScript,
   }
 }

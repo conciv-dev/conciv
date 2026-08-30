@@ -158,7 +158,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
     await input.pressSequentially('ship ')
     await input.pressSequentially('/config')
     await pickSuggestion(page, 'Commands', '/config')
-    await waitForDraftWrite(sessionId, 'ship /config')
+    await waitForDraftWrite(sessionId, 'ship /config ')
 
     await page.reload({waitUntil: 'domcontentloaded'})
     const restored = composer(page)

@@ -210,6 +210,10 @@ const scriptError: BrowserCommand<[string]> = (ctx, message): void => {
 
 const scriptTurn: BrowserCommand<[ScriptedTurn]> = (ctx, turn): string[] => kitOf(ctx).harness.script.scriptTurn(turn)
 
+const clearScript: BrowserCommand<[]> = (ctx): void => {
+  kitOf(ctx).harness.script.clearScript()
+}
+
 const scriptToolCall: BrowserCommand<[string, unknown]> = (ctx, name, input): string =>
   kitOf(ctx).harness.script.scriptToolCall(name, input)
 
@@ -325,6 +329,7 @@ export const coreCommands = {
   releaseTurn,
   scriptError,
   scriptTurn,
+  clearScript,
   scriptToolCall,
   scriptCustomEvent,
   setTerminalLaunch,
