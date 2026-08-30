@@ -510,7 +510,9 @@ async function* runStream(
     stopCancelWatch()
     await finishRun(deps, sessionId, req, outcome, abort)
     await announceRunRecord(deps, sessionId, req.runId, emit)
-    emit(runEndChunkFor(sessionId, req, outcome))
+    const runEnd = runEndChunkFor(sessionId, req, outcome)
+    emit(runEnd)
+    deps.stream.publish(sessionId, runEnd)
     outbound.end()
   }
   const pumped = produce()

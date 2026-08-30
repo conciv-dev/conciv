@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
@@ -12,6 +12,18 @@ const deps = (): HarnessChatDeps => ({
   kind: 'chat',
   decide: async (): Promise<'allow' | 'deny'> => 'allow',
 })
+
+function drainUnderSignal(
+  scripted: ScriptedRun,
+  signal: AbortSignal,
+): {seen: {chunks: StreamChunk[]; ended: boolean}; drained: Promise<void>} {
+  const seen: {chunks: StreamChunk[]; ended: boolean} = {chunks: [], ended: false}
+  const drained = (async () => {
+    for await (const chunk of scripted.chatStream(deps(), {request: {signal}})) seen.chunks.push(chunk)
+    seen.ended = true
+  })()
+  return {seen, drained}
+}
 
 function drainInBackground(scripted: ScriptedRun): {chunks: StreamChunk[]; drained: Promise<void>} {
   const chunks: StreamChunk[] = []
@@ -60,6 +72,40 @@ describe('makeScriptedRun', () => {
     expect(out.at(-1)?.type).toBe(EventType.RUN_FINISHED)
     expect(out.some((c) => c.type === EventType.TEXT_MESSAGE_CONTENT)).toBe(true)
     expect(out.some((c) => c.type === EventType.CUSTOM && c.name === 'fake.session-id')).toBe(true)
+  })
+
+  it.each([
+    {
+      name: 'a held turn',
+      arrange: (scripted: ScriptedRun) => scripted.hold(),
+      parked: EventType.TEXT_MESSAGE_CONTENT,
+      withheld: EventType.RUN_FINISHED,
+    },
+    {
+      name: 'a turn held at its tool gate',
+      arrange: (scripted: ScriptedRun) => scripted.holdTools(),
+      parked: EventType.RUN_STARTED,
+      withheld: EventType.TOOL_CALL_START,
+    },
+    {
+      name: 'a turn held at its result gate',
+      arrange: (scripted: ScriptedRun) => scripted.holdResults(),
+      parked: EventType.TOOL_CALL_END,
+      withheld: EventType.TOOL_CALL_RESULT,
+    },
+  ])('ends $name when the caller aborts the request', async ({arrange, parked, withheld}) => {
+    const scripted = makeScriptedRun()
+    scripted.scriptTurn({toolCalls: [{name: 'first_tool', input: {a: 1}}], text: 'done'})
+    arrange(scripted)
+    const controller = new AbortController()
+    const run = drainUnderSignal(scripted, controller.signal)
+
+    await vi.waitFor(() => expect(run.seen.chunks.some((chunk) => chunk.type === parked)).toBe(true))
+    controller.abort()
+
+    await vi.waitFor(() => expect(run.seen.ended).toBe(true), {timeout: 1_000, interval: 10})
+    await run.drained
+    expect(run.seen.chunks.some((chunk) => chunk.type === withheld)).toBe(false)
   })
 
   it('gives each tool call in a session its own toolCallId, matching what scriptToolCall returned', async () => {

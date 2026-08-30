@@ -14,8 +14,10 @@ export type ScriptedTurn = {
 
 export type PacedRelease = {everyMs: number}
 
+export type ScriptedRequest = {request?: Request | RequestInit}
+
 export type ScriptedRun = {
-  chatStream: (deps: HarnessChatDeps) => AsyncGenerator<StreamChunk>
+  chatStream: (deps: HarnessChatDeps, options?: ScriptedRequest) => AsyncGenerator<StreamChunk>
   hold: () => void
   release: () => void
   holdTools: () => void
@@ -99,12 +101,15 @@ async function* turnChunks(
   turn: QueuedTurn,
   results: Gate,
   drainCustomEvents: () => Generator<StreamChunk>,
+  signal: AbortSignal | undefined,
 ): AsyncGenerator<StreamChunk> {
   for (const call of turn.toolCalls) {
+    if (isAborted(signal)) return
     yield* requestChunks(call)
     yield* drainCustomEvents()
     if (turn.blocking) continue
-    await results.wait()
+    await results.wait(signal)
+    if (isAborted(signal)) return
     yield resultChunk(call.id, call.result)
   }
 }
@@ -118,7 +123,15 @@ function* customEventChunks(events: {name: string; value: unknown}[]): Generator
   for (const event of events) yield {type: EventType.CUSTOM, name: event.name, value: event.value, ...THREAD}
 }
 
-type Gate = {hold: () => void; release: (paced?: PacedRelease) => void; wait: () => Promise<void>}
+type Gate = {hold: () => void; release: (paced?: PacedRelease) => void; wait: (signal?: AbortSignal) => Promise<void>}
+
+function requestSignalOf(options: ScriptedRequest | undefined): AbortSignal | undefined {
+  return options?.request?.signal ?? undefined
+}
+
+function isAborted(signal: AbortSignal | undefined): boolean {
+  return signal?.aborted === true
+}
 
 function makeGate(): Gate {
   const state = {
@@ -154,11 +167,16 @@ function makeGate(): Gate {
       state.waiting = new Set<() => void>()
       for (const resume of resuming) resume()
     },
-    wait: async () => {
-      if (!state.held) return
+    wait: async (signal?: AbortSignal) => {
+      if (!state.held || isAborted(signal)) return
       await new Promise<void>((resolve) => {
-        state.waiting.add(resolve)
-        if (state.everyMs > 0) schedule(resolve)
+        const settle = (): void => {
+          state.waiting.delete(settle)
+          resolve()
+        }
+        state.waiting.add(settle)
+        if (state.everyMs > 0) schedule(settle)
+        signal?.addEventListener('abort', settle, {once: true})
       })
     },
   }
@@ -202,25 +220,36 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     queuedErrors.push(message)
   }
   const drainCustomEvents = () => customEventChunks(queuedCustomEvents.splice(0))
-  const chatStream = async function* (deps: HarnessChatDeps): AsyncGenerator<StreamChunk> {
-    turns.count += 1
-    const messageId = `scripted-${turns.count}`
-    yield {type: EventType.RUN_STARTED, ...THREAD}
-    yield sessionIdChunk(deps)
-    const scriptedTurn = queuedTurns.shift()
-    if (scriptedTurn) yield* thinkingChunks(scriptedTurn.thinking)
-    await toolGate.wait()
-    if (scriptedTurn) yield* turnChunks(scriptedTurn, resultGate, drainCustomEvents)
-    if (scriptedTurn?.blocking) {
+  const settleTurn = async function* (
+    turn: QueuedTurn | undefined,
+    messageId: string,
+    signal: AbortSignal | undefined,
+  ): AsyncGenerator<StreamChunk> {
+    if (turn?.blocking === true) {
       yield {type: EventType.RUN_FINISHED, ...THREAD, finishReason: 'tool_calls'}
       return
     }
     yield* drainCustomEvents()
-    yield* textChunks(scriptedTurn?.text ?? defaultText, scriptedTurn?.textPace, messageId)
-    await gate.wait()
+    yield* textChunks(turn?.text ?? defaultText, turn?.textPace, messageId)
+    await gate.wait(signal)
+    if (isAborted(signal)) return
     const failure = queuedErrors.shift()
     if (failure) throw new Error(failure)
     yield {type: EventType.RUN_FINISHED, ...THREAD}
+  }
+  const chatStream = async function* (deps: HarnessChatDeps, options?: ScriptedRequest): AsyncGenerator<StreamChunk> {
+    const signal = requestSignalOf(options)
+    turns.count += 1
+    const messageId = `scripted-${turns.count}`
+    yield {type: EventType.RUN_STARTED, ...THREAD}
+    yield sessionIdChunk(deps)
+    const turn = queuedTurns.shift()
+    if (turn) yield* thinkingChunks(turn.thinking)
+    await toolGate.wait(signal)
+    if (isAborted(signal)) return
+    if (turn) yield* turnChunks(turn, resultGate, drainCustomEvents, signal)
+    if (isAborted(signal)) return
+    yield* settleTurn(turn, messageId, signal)
   }
   return {
     chatStream,
