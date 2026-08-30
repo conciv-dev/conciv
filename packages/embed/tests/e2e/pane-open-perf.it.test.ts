@@ -35,7 +35,7 @@ function scriptMatches(scripts: ScriptEntry[] | undefined, pattern: RegExp): boo
 }
 
 test.describe('pane-open perf with a large restored transcript', () => {
-  test('the estimator/virtualizer remeasure never shares an animation frame with the MESSAGES_SNAPSHOT websocket handler', async ({
+  test('the estimator/virtualizer remeasure never shares an animation frame with the chat websocket handler', async ({
     page,
   }) => {
     test.setTimeout(240_000)
@@ -105,7 +105,7 @@ test.describe('pane-open perf with a large restored transcript', () => {
     )
     expect(
       websocketAttributedEntries,
-      'no long-animation-frame entry was attributed to the MESSAGES_SNAPSHOT websocket handler, so this scenario never generated the ingestion load it claims to test',
+      'no long-animation-frame entry was attributed to the chat websocket handler, so this scenario never generated the ingestion load it claims to test',
     ).not.toHaveLength(0)
 
     const websocketEntriesMixingRemeasure = websocketAttributedEntries.filter((entry) =>
@@ -113,7 +113,7 @@ test.describe('pane-open perf with a large restored transcript', () => {
     )
     expect(
       websocketEntriesMixingRemeasure,
-      'the estimator/virtualizer remeasure pass triggered by the viewport resize observer must run in its own frame (rAF-scheduled), never synchronously inside the same long-animation-frame as the MESSAGES_SNAPSHOT websocket handler',
+      'the estimator/virtualizer remeasure pass triggered by the viewport resize observer must run in its own frame (rAF-scheduled), never synchronously inside the same long-animation-frame as the chat websocket handler',
     ).toHaveLength(0)
   })
 })
