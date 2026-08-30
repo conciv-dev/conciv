@@ -8,6 +8,8 @@ import type {ModelMessage, StreamChunk, UIMessage} from '@tanstack/ai'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {runLifecycleOf, type RunLifecycle} from '@conciv/protocol/run-types'
 import type {ChatHydration, RpcClient} from '@conciv/contract'
+import {acquirePushChannel} from './push-channel.js'
+import {readingValues, relayedValues} from './stream-relay.js'
 
 export type ChatTransport = 'websocket' | 'fetch'
 
@@ -27,6 +29,8 @@ export type ChatConnection = SubscribeConnectionAdapter & {
   transport: () => ChatTransport | null
   refresh: () => Promise<ChatHydration>
 }
+
+type PushSource = () => {events: (abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>; dispose: () => void}
 
 const PROBE_TIMEOUT_MS = 2_000
 
@@ -72,19 +76,6 @@ function overSocket(apiBase: string): Selected {
   return {transport: 'websocket', adapter, joinRun: (runId, signal) => adapter.joinRun(runId, signal)}
 }
 
-async function* readingChunks(readable: ReadableStream<StreamChunk>): AsyncGenerator<StreamChunk> {
-  const reader = readable.getReader()
-  try {
-    for (;;) {
-      const next = await reader.read()
-      if (next.done) return
-      yield next.value
-    }
-  } finally {
-    reader.releaseLock()
-  }
-}
-
 function subscribeOver(adapter: ResumableConnectConnectionAdapter): SubscribeConnectionAdapter {
   const listeners = new Set<WritableStreamDefaultWriter<StreamChunk>>()
   return {
@@ -97,7 +88,7 @@ function subscribeOver(adapter: ResumableConnectConnectionAdapter): SubscribeCon
         void writer.close().catch(() => undefined)
       }
       abortSignal?.addEventListener('abort', stop, {once: true})
-      return readingChunks(relay.readable)
+      return readingValues(relay.readable)
     },
     send: async (messages, data, abortSignal, runContext) => {
       for await (const chunk of adapter.connect(messages, data, abortSignal, runContext)) {
@@ -124,13 +115,40 @@ async function select(apiBase: string, options: ChatConnectionOptions): Promise<
   return opened ? overSocket(apiBase) : overEvents(apiBase)
 }
 
+async function pumpInto<T>(source: AsyncIterable<T>, emit: (value: T) => void): Promise<void> {
+  for await (const value of source) emit(value)
+}
+
+function merged<T>(sources: readonly AsyncIterable<T>[], abortSignal: AbortSignal | undefined): AsyncGenerator<T> {
+  return relayedValues<T>((emit) => {
+    for (const source of sources) void pumpInto(source, emit).catch(() => undefined)
+    return () => undefined
+  }, abortSignal)
+}
+
 async function* watching(
   selected: Promise<Selected>,
+  push: PushSource,
   onLifecycle: ((lifecycle: RunLifecycle) => void) | undefined,
   abortSignal: AbortSignal | undefined,
 ): AsyncGenerator<StreamChunk> {
   const chosen = await selected
-  for await (const chunk of chosen.adapter.subscribe(abortSignal)) {
+  const channel = push()
+  try {
+    yield* relayLifecycle(
+      merged([chosen.adapter.subscribe(abortSignal), channel.events(abortSignal)], abortSignal),
+      onLifecycle,
+    )
+  } finally {
+    channel.dispose()
+  }
+}
+
+async function* relayLifecycle(
+  source: AsyncIterable<StreamChunk>,
+  onLifecycle: ((lifecycle: RunLifecycle) => void) | undefined,
+): AsyncGenerator<StreamChunk> {
+  for await (const chunk of source) {
     if (onLifecycle) {
       const lifecycle = runLifecycleOf(chunk)
       if (lifecycle) onLifecycle(lifecycle)
@@ -153,6 +171,7 @@ export function chatConnection(
   sessionId: string,
   options: ChatConnectionOptions = {},
 ): ChatConnection {
+  const push: PushSource = () => acquirePushChannel({apiBase, sessionId})
   const chosen = {transport: null as ChatTransport | null}
   const selected = select(apiBase, options).then((choice) => {
     chosen.transport = choice.transport
@@ -165,7 +184,7 @@ export function chatConnection(
     return hydration
   }
   return {
-    subscribe: (abortSignal) => watching(selected, options.onLifecycle, abortSignal),
+    subscribe: (abortSignal) => watching(selected, push, options.onLifecycle, abortSignal),
     send: async (messages: Array<UIMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
       await (await selected).adapter.send(messages, data, abortSignal, runContext)
     },

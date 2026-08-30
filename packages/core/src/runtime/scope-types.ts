@@ -10,6 +10,7 @@ import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ToolRequest} from '@conciv/extension'
 import type {ChangeEntry} from '../page-bus.js'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
+import type {PendingApproval} from '../chat/ask.js'
 
 export type ToolCatalog = ToolRegistry['catalog']
 
@@ -38,7 +39,7 @@ export type SessionStream = {
 }
 
 export type SessionAsks = {
-  open: (key: string) => void
+  open: (key: string, approval?: PendingApproval) => void
   pending: () => string[]
   reply: (key: string, value: unknown) => boolean
   waitFor: (key: string, timeoutMs: number) => Promise<unknown>

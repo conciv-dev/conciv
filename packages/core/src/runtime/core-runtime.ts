@@ -105,7 +105,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       events: (signal) => sessionEvents(deps.chat, id, signal),
     },
     asks: {
-      open: (key) => asks.open(id, key),
+      open: (key, approval) => asks.open(id, key, approval),
       pending: () => asks.pending(id),
       reply: (key, value) => asks.reply(id, key, value),
       waitFor: (key, timeoutMs) => asks.waitFor(id, key, timeoutMs),

@@ -147,7 +147,7 @@ export type AskGateDeps = {
   runId?: string
 }
 
-function approvalRequestedChunk(input: {
+export function approvalRequestedChunk(input: {
   toolCallId: string
   toolName: string
   input: unknown

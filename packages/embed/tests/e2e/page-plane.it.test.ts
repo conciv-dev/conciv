@@ -26,7 +26,7 @@ test.afterAll(async () => {
 const openHostPage = (page: Page): Promise<Page> => openPagePlaneHost(page, host.base)
 
 test.describe('startPagePlane executes registry page tools in the browser', () => {
-  test('round-trips page_text through rpc.page.queries to the DOM dispatcher', async ({page}) => {
+  test('round-trips page_text through the push socket to the DOM dispatcher', async ({page}) => {
     test.setTimeout(90_000)
     await openHostPage(page)
     expect(await kit.rpc.registry.call({name: 'page_text', input: {selector: '#probe'}})).toMatchObject({

@@ -35,6 +35,7 @@ import {
 } from './chat/session-rows.js'
 import {makeRunControl, type ChatDeps} from './chat/runtime.js'
 import {chatDeliveryRoutes} from './chat/delivery.js'
+import {pushRoutes, type PushDeps} from './api/push.js'
 import {asksFor, makeAskGate, requiresApproval} from './chat/gate.js'
 import {defineSandbox, defineSandboxPolicy} from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
@@ -225,7 +226,7 @@ export type CoreVars = CorsVars & {chat: ChatDeps} & McpVars
 function composeRoutes(
   vars: CoreVars,
   rpc: CompositeRpcRouter,
-  deps: {staleness: () => EngineStaleness; onShutdown?: () => void},
+  deps: {staleness: () => EngineStaleness; onShutdown?: () => void; push: PushDeps},
 ) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
@@ -249,6 +250,7 @@ function composeRoutes(
       return c.json({ok: true})
     })
     .route('/', chatDeliveryRoutes(vars.chat, upgradeWebSocket))
+    .route('/', pushRoutes(deps.push, upgradeWebSocket))
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
 }
@@ -541,7 +543,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       },
     },
     compositeRpc,
-    {staleness, onShutdown: opts.onShutdown},
+    {
+      staleness,
+      onShutdown: opts.onShutdown,
+      push: {
+        queries: (sessionId, signal) => runtime.forSession(sessionId).page.queries(signal),
+        events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
+        pendingApprovals: (sessionId) => asks.pendingApprovals(sessionId),
+      },
+    },
   )
 
   if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))

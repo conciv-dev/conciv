@@ -4,6 +4,7 @@ export default defineConfig({
   entry: [
     'src/chat-types.ts',
     'src/chat-busy.ts',
+    'src/push-types.ts',
     'src/ui-types.ts',
     'src/run-types.ts',
     'src/editor-types.ts',

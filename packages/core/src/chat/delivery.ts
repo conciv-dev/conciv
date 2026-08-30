@@ -1,5 +1,4 @@
 import {Hono} from 'hono'
-import type {MiddlewareHandler} from 'hono'
 import {z} from 'zod'
 import {
   chatParamsFromRequestBody,
@@ -20,6 +19,7 @@ import {
   SessionId,
   type ChatContentPart,
 } from '@conciv/protocol/chat-types'
+import type {SocketSink, UpgradeWebSocket} from '../lib/socket-upgrade.js'
 import type {ChatDeps} from './runtime.js'
 import {makeTurn, type UserContent} from './run.js'
 
@@ -95,7 +95,6 @@ function turnStreamOf(deps: ChatDeps, ctx: TurnContext): AsyncIterable<StreamChu
   }
 }
 
-type SocketSink = {send: (data: string) => void; close: (code?: number, reason?: string) => void}
 type SocketListener = (event: {data: unknown}) => void
 type SocketEvents = {message: SocketListener[]; close: SocketListener[]; error: SocketListener[]}
 
@@ -123,15 +122,6 @@ function serveSocket(deps: ChatDeps, socket: WebSocketLike, request: Request): v
     batch: LIVE_BATCH,
   })
 }
-
-type SocketHandlers = {
-  onOpen: (event: unknown, ws: SocketSink) => void
-  onMessage: (event: {data: unknown}, ws: SocketSink) => void
-  onClose: () => void
-  onError: () => void
-}
-
-type UpgradeWebSocket = (handler: (c: {req: {raw: Request}}) => SocketHandlers) => MiddlewareHandler
 
 export function chatDeliveryRoutes(deps: ChatDeps, upgrade: UpgradeWebSocket) {
   return new Hono()
