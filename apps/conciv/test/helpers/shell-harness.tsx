@@ -13,6 +13,7 @@ export type ShellMountOptions = {transport?: ChatTransportPreference}
 
 export type ShellHarness = {
   mountShell: (entry: string, extensions?: AnyExtension[], options?: ShellMountOptions) => void
+  navigateToSession: (sessionId: string) => void
   bumpConnectionGeneration: () => void
   dispose: () => void
 }
@@ -37,6 +38,10 @@ export function createShellHarness(base: () => string): ShellHarness {
     render(() => <RouterProvider router={router} />)
   }
 
+  const navigateToSession = (sessionId: string): void => {
+    void mounted.router?.navigate({to: '/panel/$sessionId', params: {sessionId}})
+  }
+
   const bumpConnectionGeneration = (): void => {
     setConnectionGeneration((current) => current + 1)
   }
@@ -49,5 +54,5 @@ export function createShellHarness(base: () => string): ShellHarness {
     delete window.__CONCIV_API_BASE__
   }
 
-  return {mountShell, bumpConnectionGeneration, dispose}
+  return {mountShell, navigateToSession, bumpConnectionGeneration, dispose}
 }

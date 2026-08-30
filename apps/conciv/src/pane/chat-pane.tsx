@@ -37,6 +37,7 @@ import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../app/context.js'
+import {useHarnessMeta} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import {usePane} from '../app/pane-context.js'
 import {foldToolDurations} from './tool-durations.js'
@@ -111,6 +112,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const connected = useConnected()
   const {reachability, notices} = useEngineNotices()
   const instances = useInstances()
+  const harness = useHarnessMeta()
   const pane = usePane()
   const sessionId = untrack(() => props.sessionId)
   const chat = pane.chat()
@@ -132,7 +134,6 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const composerApi = {current: null as ComposerApi | null}
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId}}))
-  const meta = useQuery(() => appData.utils.meta.models.queryOptions())
   const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
   const catalog: ToolCatalogView = {
     loaded: () => registryCatalog.data !== undefined,
@@ -186,7 +187,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
 
   const toolCtx = makeToolViewCtx({
     rpc,
-    harnessId: () => (meta.isPending ? '' : (meta.data?.harness.id ?? '')),
+    harnessId: () => harness()?.id ?? '',
     catalog,
     sendMessage: (text) => void chat.sendMessage(text),
     addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
@@ -230,7 +231,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
     void api.addAttachment(file)
     focusInput()
   }
-  const imageInput = () => (meta.isPending ? undefined : meta.data?.harness.imageInput)
+  const imageInput = () => harness()?.imageInput
   const attachments = createMemo(() =>
     paneAttachments(
       instances.map((instance) => instance.extension),
