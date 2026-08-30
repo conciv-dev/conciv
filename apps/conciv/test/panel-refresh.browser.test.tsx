@@ -7,7 +7,7 @@ import {coreRpc, createSession, runTurn} from './helpers/core-session.js'
 import {createShellHarness} from './helpers/shell-harness.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 
-const SUBSCRIBE_PATH = ['chat', 'subscribe']
+const HYDRATE_PATH = ['chat', 'hydrate']
 const REPLY_TEXT = 'the transcript that outlives a refresh'
 
 const coreBase = bootedCore('panel-refresh')
@@ -34,8 +34,9 @@ test('refreshing the conversation dismisses the menu, shows progress, and keeps 
   await sessionMenu().click()
   await expect.element(refreshRow(), {timeout: 8000}).toBeVisible()
 
-  const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
+  const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
   await refreshRow().click()
+  await coreControl.awaitFaultPending(gate, 1)
 
   await expect.element(refreshingMenu(), {timeout: 8000}).toBeVisible()
   await expect.element(refreshRow()).not.toBeInTheDocument()

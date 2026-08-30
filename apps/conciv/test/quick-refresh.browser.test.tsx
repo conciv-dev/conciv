@@ -7,7 +7,7 @@ import {createShellHarness} from './helpers/shell-harness.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 
 const DRAFT_GET_PATH = ['drafts', 'get']
-const SUBSCRIBE_PATH = ['chat', 'subscribe']
+const HYDRATE_PATH = ['chat', 'hydrate']
 
 const core = {base: ''}
 const harness = createShellHarness(() => core.base)
@@ -78,8 +78,9 @@ test('the quick terminal pane refresh affordance reports progress until the reco
   harness.mountShell(`/quick?panes=${sessionId}&focus=0`)
   await expect.element(editor(), {timeout: 8000}).toBeVisible()
 
-  const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
+  const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
   await refresh().click()
+  await coreControl.awaitFaultPending(gate, 1)
 
   await expect.element(refreshing(), {timeout: 8000}).toBeDisabled()
 
