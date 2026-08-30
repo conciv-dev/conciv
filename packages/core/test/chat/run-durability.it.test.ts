@@ -59,7 +59,7 @@ describe('run durability is owned by withSandbox (IT)', () => {
     return found.pid
   }
 
-  it('a viewer leaving with no cancel intent detaches the run record', {timeout: 30_000}, async () => {
+  it('a viewer leaving detaches the run record and leaves the run running', {timeout: 40_000}, async () => {
     const pidFile = join(tmp('conciv-durability-pid-'), 'pid')
     const made = await boot({CONCIV_FAKE_HANG: '1', CONCIV_TEST_PID_FILE: pidFile})
     const sessionId = SessionId.parse('conciv_durability-detach')
@@ -77,6 +77,9 @@ describe('run durability is owned by withSandbox (IT)', () => {
       async () => expect(await made.chat.runs.get(runId)).toMatchObject({detachedSince: expect.any(Number)}),
       {timeout: 15_000, interval: 50},
     )
+    await awaitRunSettled(made.chat.runs, runId, 3_000)
+    expect((await made.chat.runs.get(runId))?.status).toBe('running')
+    expect(isAlive(harnessPid)).toBe(true)
   })
 
   it('an explicit stop cancels the run, records no detach, and kills the harness', {timeout: 30_000}, async () => {

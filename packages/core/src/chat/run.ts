@@ -648,6 +648,12 @@ async function claimTurn(
   return {req: {runId, kind: 'chat', content: expanded, messageId}, record}
 }
 
+async function detachRun(deps: ChatDeps, runId: string): Promise<void> {
+  const record = await deps.runs.get(runId)
+  if (!record || record.status !== 'running') return
+  await deps.runs.update(runId, {detachedSince: Date.now()})
+}
+
 async function settleClaim(deps: ChatDeps, sessionId: SessionId, record: RunRecord): Promise<void> {
   publishRunLifecycle(deps, sessionId, record)
   await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
@@ -665,7 +671,7 @@ export function makeTurn(deps: ChatDeps): Turn {
     deps.sessionLocks.serialize(sessionId, async () => {
       const claimed = await claimTurn(deps, sessionId, runId, content, options.messageId)
       const abort = new AbortController()
-      options.signal.addEventListener('abort', () => abort.abort(options.signal.reason), {once: true})
+      options.signal.addEventListener('abort', () => void detachRun(deps, runId).catch(() => {}), {once: true})
       const stream = runStream(deps, sessionId, claimed.req, abort)
       await settleClaim(deps, sessionId, claimed.record)
       return stream
