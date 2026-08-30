@@ -1,5 +1,5 @@
 import {useChat, type QueuedMessage} from '@tanstack/ai-solid'
-import {createMemo, createSignal, type Accessor} from 'solid-js'
+import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import type {ChatPendingApproval, RpcClient} from '@conciv/contract'
 import type {ApprovalAsk} from '@conciv/protocol/approval-types'
@@ -81,6 +81,7 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     queue: 'queue',
     onError: options.onError,
   })
+  onCleanup(() => connection.close())
   const stopping = createMemo(() => runSource()?.lifecycle.phase === 'stopping')
   const runError = createMemo(() => {
     const source = runSource()

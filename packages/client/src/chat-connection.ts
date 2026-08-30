@@ -31,6 +31,7 @@ export type ChatConnection = SubscribeConnectionAdapter & {
   hydrate: (threadId: string) => Promise<ChatHydration>
   transport: () => ChatTransport | null
   refresh: () => Promise<ChatHydration>
+  close: () => void
 }
 
 type PushSource = () => {events: (abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>; dispose: () => void}
@@ -74,8 +75,19 @@ export function socketOpens(url: string, timeoutMs: number): Promise<boolean> {
 type Selected = {transport: ChatTransport; adapter: SubscribeConnectionAdapter; joinRun: JoinRun}
 type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>
 
-function overSocket(apiBase: string): Selected {
-  const adapter = webSocket(chatSocketUrl(apiBase))
+function trackingWebSocketImpl(live: Set<WebSocket>): typeof WebSocket {
+  return new Proxy(WebSocket, {
+    construct: (target, args) => {
+      const socket: WebSocket = Reflect.construct(target, args)
+      live.add(socket)
+      socket.addEventListener('close', () => live.delete(socket), {once: true})
+      return socket
+    },
+  })
+}
+
+function overSocket(apiBase: string, live: Set<WebSocket>): Selected {
+  const adapter = webSocket(chatSocketUrl(apiBase), {WebSocketImpl: trackingWebSocketImpl(live)})
   return {transport: 'websocket', adapter, joinRun: (runId, signal) => adapter.joinRun(runId, signal)}
 }
 
@@ -110,12 +122,12 @@ function overEvents(apiBase: string): Selected {
   }
 }
 
-async function select(apiBase: string, options: ChatConnectionOptions): Promise<Selected> {
+async function select(apiBase: string, options: ChatConnectionOptions, live: Set<WebSocket>): Promise<Selected> {
   const preference = options.transport ?? 'auto'
   if (preference === 'fetch') return overEvents(apiBase)
-  if (preference === 'websocket') return overSocket(apiBase)
+  if (preference === 'websocket') return overSocket(apiBase, live)
   const opened = await socketOpens(chatSocketUrl(apiBase), options.probeTimeoutMs ?? PROBE_TIMEOUT_MS)
-  return opened ? overSocket(apiBase) : overEvents(apiBase)
+  return opened ? overSocket(apiBase, live) : overEvents(apiBase)
 }
 
 async function pumpInto<T>(source: AsyncIterable<T>, emit: (value: T) => void): Promise<void> {
@@ -178,8 +190,9 @@ export function chatConnection(
   options: ChatConnectionOptions = {},
 ): ChatConnection {
   const push: PushSource = () => acquirePushChannel({apiBase, sessionId})
-  const chosen = {transport: null as ChatTransport | null}
-  const selected = select(apiBase, options).then((choice) => {
+  const live = new Set<WebSocket>()
+  const chosen: {transport: ChatTransport | null} = {transport: null}
+  const selected = select(apiBase, options, live).then((choice) => {
     chosen.transport = choice.transport
     options.onTransport?.(choice.transport)
     return choice
@@ -198,5 +211,9 @@ export function chatConnection(
     hydrate,
     transport: () => chosen.transport,
     refresh: () => hydrate(sessionId),
+    close: () => {
+      for (const socket of live) socket.close()
+      live.clear()
+    },
   }
 }

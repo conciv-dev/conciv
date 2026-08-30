@@ -18,10 +18,6 @@ function stopButton(page: Page) {
   return page.getByRole('button', {name: 'Stop generating'})
 }
 
-test.afterEach(() => {
-  suite.kit().harness.script.release()
-})
-
 test('the sending tab marks the open panel launcher busy while its run is still streaming', async ({page}) => {
   await sendHeldTurn(page, suite)
 

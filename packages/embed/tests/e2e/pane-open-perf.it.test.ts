@@ -5,6 +5,8 @@ import {openPanel, switchToSessionByTitle} from './helpers/panel.js'
 const EXCHANGE_COUNT = 400
 const TOTAL_TURN_COUNT = EXCHANGE_COUNT * 2
 
+const CHAT_INGESTION_SCRIPTS = /DOMWebSocket\.onmessage|_handleMessage|Response\.text\.then/
+
 const suite = setupWidgetSuite()
 
 type ScriptEntry = {invoker?: string; sourceFunctionName?: string}
@@ -19,10 +21,9 @@ declare global {
 
 async function seedTranscript(sessionId: string, exchanges: number): Promise<void> {
   const kit = suite.kit()
-  const keeper = await kit.events(sessionId)
   for (let index = 0; index < exchanges; index += 1) {
-    await kit.chat(`seed message ${index}`, sessionId)
-    await keeper.done({hangGuardMs: 10_000})
+    const turn = await kit.chat(`seed message ${index}`, sessionId)
+    await turn.done({hangGuardMs: 10_000})
   }
 }
 
@@ -35,9 +36,7 @@ function scriptMatches(scripts: ScriptEntry[] | undefined, pattern: RegExp): boo
 }
 
 test.describe('pane-open perf with a large restored transcript', () => {
-  test('the estimator/virtualizer remeasure never shares an animation frame with the chat websocket handler', async ({
-    page,
-  }) => {
+  test('the estimator/virtualizer remeasure never shares an animation frame with chat ingestion', async ({page}) => {
     test.setTimeout(240_000)
     const {sessionId} = await suite.kit().rpc.sessions.create()
     const title = `big transcript ${sessionId.slice(-12)}`
@@ -100,20 +99,18 @@ test.describe('pane-open perf with a large restored transcript', () => {
       'the viewport resize observer never fired, so this scenario never exercised the estimator/virtualizer remeasure path it claims to test',
     ).toBeGreaterThan(0)
 
-    const websocketAttributedEntries = entries.filter((entry) =>
-      scriptMatches(entry.scripts, /DOMWebSocket\.onmessage|_handleMessage/),
-    )
+    const ingestionAttributedEntries = entries.filter((entry) => scriptMatches(entry.scripts, CHAT_INGESTION_SCRIPTS))
     expect(
-      websocketAttributedEntries,
-      'no long-animation-frame entry was attributed to the chat websocket handler, so this scenario never generated the ingestion load it claims to test',
+      ingestionAttributedEntries,
+      'no long-animation-frame entry was attributed to chat ingestion, so this scenario never generated the ingestion load it claims to test',
     ).not.toHaveLength(0)
 
-    const websocketEntriesMixingRemeasure = websocketAttributedEntries.filter((entry) =>
+    const ingestionEntriesMixingRemeasure = ingestionAttributedEntries.filter((entry) =>
       scriptMatches(entry.scripts, /ResizeObserverCallback/),
     )
     expect(
-      websocketEntriesMixingRemeasure,
-      'the estimator/virtualizer remeasure pass triggered by the viewport resize observer must run in its own frame (rAF-scheduled), never synchronously inside the same long-animation-frame as the chat websocket handler',
+      ingestionEntriesMixingRemeasure,
+      'the estimator/virtualizer remeasure pass triggered by the viewport resize observer must run in its own frame (rAF-scheduled), never synchronously inside the same long-animation-frame as chat ingestion',
     ).toHaveLength(0)
   })
 })
