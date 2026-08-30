@@ -8,7 +8,7 @@ import {rpcObserverFor} from '../src/rpc-observer.js'
 const hostDist = fileURLToPath(new URL('../dist/test-host', import.meta.url))
 const PING_PATH = ['ext', 'ping', 'ping']
 
-test('the page observer sees extension rpc calls made over the connection opened during page load', async () => {
+test('the page observer sees extension rpc calls from the page-load one onward, over the fetch transport', async () => {
   const api = await getExtensionTestApi({server: pingServer, host: fixtureHost(hostDist)})
   try {
     await expect(api.page.getByText('pong: boot')).toBeVisible()
@@ -16,7 +16,8 @@ test('the page observer sees extension rpc calls made over the connection opened
     const mark = observer.mark()
     await api.page.getByRole('button', {name: 'Roundtrip over rpc'}).click()
     await expect(api.page.getByText('pong: again')).toBeVisible()
-    expect(observer.socketCount()).toBe(1)
+    const roundtrip = await observer.completed({path: PING_PATH, since: mark})
+    expect(roundtrip.transport).toBe('fetch')
     expect(observer.startedCount({path: PING_PATH, since: mark})).toBe(1)
     expect(observer.startedCount({path: PING_PATH})).toBe(2)
   } finally {

@@ -3,7 +3,8 @@ import {expect as expectLocator} from 'playwright/test'
 import type {Browser, Page} from 'playwright'
 import {test as browserTest} from '@conciv/browser-fixture'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
-import {httpRpcRequestUrls, rpcCallCursor, type RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
+import {watchChatWire, type ChatWireWatch} from '@conciv/extension-testkit/chat-wire'
+import {httpRpcRequestUrls} from '@conciv/extension-testkit/rpc-counts'
 import {serveStandaloneApp} from './helpers/static-app.js'
 import {proxyTo, type ProxyCore} from './helpers/proxy.js'
 
@@ -47,14 +48,15 @@ function pageUrl(appBase: string, coreBase: string, transport: 'websocket' | 'fe
   return `${appBase}/?core=${encodeURIComponent(coreBase)}&settings=${settings}`
 }
 
-type Tab = {page: Page; calls: RpcCallCursor; httpRpcUrls: string[]; disposeHttpRpc: () => void}
+type Tab = {page: Page; chat: ChatWireWatch; chatSocketMark: number; httpRpcUrls: string[]; disposeHttpRpc: () => void}
 
 async function openTab(browser: Browser, url: string): Promise<Tab> {
   const page = await browser.newPage()
   const http = httpRpcRequestUrls(page)
-  const calls = rpcCallCursor(page)
+  const chat = watchChatWire(page)
+  const chatSocketMark = chat.socketMark()
   await page.goto(url, {waitUntil: 'domcontentloaded'})
-  return {page, calls, httpRpcUrls: http.urls, disposeHttpRpc: http.dispose}
+  return {page, chat, chatSocketMark, httpRpcUrls: http.urls, disposeHttpRpc: http.dispose}
 }
 
 async function completeTurn(page: Page): Promise<void> {
@@ -65,14 +67,16 @@ async function completeTurn(page: Page): Promise<void> {
   await expectLocator(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
 }
 
-test.describe('the standalone entry threads settings.transport into the browser rpc client', () => {
+test.describe('the standalone entry threads settings.transport into the chat connection', () => {
   test(
-    'pins fetch and never opens a websocket when settings say transport: fetch',
+    'pins the event stream and never opens a chat websocket when settings say transport: fetch',
     async ({browser, app, openCore}) => {
       const tab = await openTab(browser, pageUrl(app.base, openCore.base, 'fetch'))
       try {
+        const sent = tab.chat.nextTurn()
         await completeTurn(tab.page)
-        expect(tab.calls.socketsSince()).toBe(0)
+        expect((await sent).transport).toBe('fetch')
+        expect(tab.chat.socketsOpenedSince(tab.chatSocketMark)).toBe(0)
         expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
       } finally {
         tab.disposeHttpRpc()
@@ -83,13 +87,15 @@ test.describe('the standalone entry threads settings.transport into the browser 
   )
 
   test(
-    'pins the websocket and never falls back to fetch when settings say transport: websocket',
+    'pins the chat websocket and never falls back to the event stream when settings say transport: websocket',
     async ({browser, app, openCore}) => {
       const tab = await openTab(browser, pageUrl(app.base, openCore.base, 'websocket'))
       try {
+        const sent = tab.chat.nextTurn()
         await completeTurn(tab.page)
-        expect(tab.calls.socketsSince()).toBe(1)
-        expect(tab.httpRpcUrls).toEqual([])
+        expect((await sent).transport).toBe('websocket')
+        expect(tab.chat.socketsOpenedSince(tab.chatSocketMark)).toBe(1)
+        expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
       } finally {
         tab.disposeHttpRpc()
         await tab.page.close()

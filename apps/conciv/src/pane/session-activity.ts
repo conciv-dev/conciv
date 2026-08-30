@@ -3,17 +3,17 @@ import {useLiveSessions} from '../app/context.js'
 
 export type SessionActivityDeps = {
   sessionId: string
-  working: () => boolean
+  active: () => boolean
   invalidateSessions: () => void
   onSettle: () => void
 }
 
 export function trackSessionActivity(deps: SessionActivityDeps): void {
-  onCleanup(useLiveSessions().register(deps.sessionId, deps.working))
+  onCleanup(useLiveSessions().register(deps.sessionId, deps.active))
 
   let observed = false
   createEffect(() => {
-    const now = deps.working()
+    const now = deps.active()
     if (now === observed) return
     observed = now
     if (!now) deps.onSettle()
