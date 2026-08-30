@@ -1,33 +1,21 @@
 import './helpers/utilities.css'
-import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
+import {expect, test} from 'vitest'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
 import {ChatPane} from '../src/pane/chat-pane.js'
+import {bootedCore} from './helpers/booted-core.js'
+import {keptPane} from './helpers/kept-pane.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession} from './helpers/core-session.js'
-import {mountPane, type PaneMount} from './helpers/pane-harness.js'
+import {mountPane} from './helpers/pane-harness.js'
 
-const core = {base: ''}
-const active: {pane: PaneMount | null} = {pane: null}
-
-beforeAll(async () => {
-  const booted = await coreControl.bootCore({id: 'approval-replay', allowedOrigins: [window.location.origin]})
-  core.base = booted.base
-}, 60_000)
-
-afterAll(async () => {
-  await coreControl.closeCore()
-}, 30_000)
-
-afterEach(() => {
-  active.pane?.dispose()
-  active.pane = null
-})
+const core = bootedCore('approval-replay')
+const keep = keptPane()
 
 async function newSession(): Promise<{rpc: RpcClient; sessionId: string}> {
-  const sessionId = await createSession(coreRpc(core.base))
-  return {rpc: makeRpcClient(core.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}), sessionId}
+  const sessionId = await createSession(coreRpc(core()))
+  return {rpc: makeRpcClient(core(), {headers: {[CONCIV_SESSION_HEADER]: sessionId}}), sessionId}
 }
 
 async function waitingApprovalId(rpc: RpcClient, sessionId: string): Promise<string> {
@@ -39,7 +27,7 @@ async function waitingApprovalId(rpc: RpcClient, sessionId: string): Promise<str
 test('a push socket that replaces a dropped one replays the waiting ask under its own id', async () => {
   const {rpc, sessionId} = await newSession()
   const attached = await coreControl.pushSocketsOpened()
-  active.pane = mountPane({base: core.base, sessionId}, () => <ChatPane sessionId={sessionId} />)
+  keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
   await until(async () => (await coreControl.pushSocketsOpened()) > attached, {hangGuardMs: 20_000})
 
   const asked = rpc.server.reload({file: 'src/replayed-ask.ts'}).catch(() => undefined)

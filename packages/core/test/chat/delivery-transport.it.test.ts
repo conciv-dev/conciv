@@ -2,7 +2,8 @@ import {describe, it, expect} from 'vitest'
 import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
 import {fetchServerSentEvents, webSocket} from '@tanstack/ai-client'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
-import {SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
+import {hydratedSnapshot, SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
+import {assistantTexts, userTexts} from '../helpers/snapshots.js'
 import type {Kit} from '@conciv/harness-testkit'
 
 function foldedTranscript(chunks: StreamChunk[]): Array<{role: string; text: string}> {
@@ -60,7 +61,10 @@ describe('the chat delivery endpoints carry the same run whichever one drives it
     const chunks = await overWebSocket(kit, other.sessionId, 'equivalence-ws', 'over rpc')
 
     expect(foldedTranscript(chunks)).toEqual(foldedTranscript(overRpc.all))
-    expect(foldedTranscript(chunks).map((message) => message.text)).toEqual(['over rpc', SCRIPTED_REPLY])
+    expect(foldedTranscript(chunks).map((message) => message.text)).toEqual([SCRIPTED_REPLY])
+    const thread = await hydratedSnapshot(kit, other.sessionId)
+    expect(userTexts(thread)).toEqual(['over rpc'])
+    expect(assistantTexts(thread)).toEqual([SCRIPTED_REPLY])
   })
 
   it('a turn over the sse endpoint folds to the same transcript', {timeout: 60_000}, async () => {
@@ -77,7 +81,10 @@ describe('the chat delivery endpoints carry the same run whichever one drives it
     )
     const chunks = await collect(stream, isTerminal)
 
-    expect(foldedTranscript(chunks).map((message) => message.text)).toEqual(['over sse', SCRIPTED_REPLY])
+    expect(foldedTranscript(chunks).map((message) => message.text)).toEqual([SCRIPTED_REPLY])
+    const thread = await hydratedSnapshot(kit, sessionId)
+    expect(userTexts(thread)).toEqual(['over sse'])
+    expect(assistantTexts(thread)).toEqual([SCRIPTED_REPLY])
   })
 
   it('an abort frame on the socket cancels the run', {timeout: 60_000}, async () => {
@@ -108,12 +115,13 @@ describe('the chat delivery endpoints carry the same run whichever one drives it
     const {sessionId} = await kit.rpc.sessions.create()
 
     const first = await overWebSocket(kit, sessionId, 'replay-run', 'say it once')
-    expect(foldedTranscript(first).map((message) => message.text)).toEqual(['say it once', SCRIPTED_REPLY])
+    expect(foldedTranscript(first).map((message) => message.text)).toEqual([SCRIPTED_REPLY])
 
     const rejoin = fetchServerSentEvents(`${kit.base}${CHAT_SSE_PATH}`)
     const replayed = await collect(rejoin.joinRun('replay-run'), isTerminal)
 
-    expect(foldedTranscript(replayed).map((message) => message.text)).toEqual(['say it once', SCRIPTED_REPLY])
+    expect(foldedTranscript(replayed).map((message) => message.text)).toEqual([SCRIPTED_REPLY])
+    expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['say it once'])
     expect(replayed.filter((chunk) => chunk.type === EventType.RUN_STARTED)).toHaveLength(1)
   })
 })
