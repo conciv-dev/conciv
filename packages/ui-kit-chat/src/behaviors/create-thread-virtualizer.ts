@@ -13,6 +13,40 @@ import {
 
 export const SCROLL_END_THRESHOLD_PX = 32
 
+type ViewportAnchor = {mode: 'resume-following'} | {mode: 'preserve-reader-anchor'; offset: number}
+
+type OffsetRecovery =
+  | {phase: 'viewport-attached'}
+  | {phase: 'offset-discarded'; anchor: ViewportAnchor}
+  | {phase: 'deferred-behind-gesture'; anchor: ViewportAnchor}
+
+function ancestorParents(element: HTMLElement): Node[] {
+  const parents: Node[] = []
+  let node: Node = element
+  for (;;) {
+    const parent = node.parentNode
+    if (!parent) return parents
+    parents.push(parent)
+    node = parent instanceof ShadowRoot ? parent.host : parent
+  }
+}
+
+function sameAncestry(left: Node[], right: Node[]): boolean {
+  return left.length === right.length && left.every((node, index) => node === right[index])
+}
+
+function wraps(nodes: NodeList, element: HTMLElement): boolean {
+  return Array.from(nodes).some((node) => node === element || node.contains(element))
+}
+
+function observeAncestry(observer: MutationObserver, element: HTMLElement, observed: Node[]): Node[] {
+  const parents = ancestorParents(element)
+  if (sameAncestry(parents, observed)) return observed
+  observer.disconnect()
+  for (const parent of parents) observer.observe(parent, {childList: true})
+  return parents
+}
+
 export type ThreadVirtualizerConfig = {
   scrollElement: Accessor<HTMLElement | undefined>
   count: Accessor<number>
@@ -57,6 +91,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     writeScroll(target[0], 'auto')
     landedOffset = element.scrollTop
     instance.scrollOffset = landedOffset
+    restingAnchor = {mode: 'resume-following'}
     syncAtEnd()
   }
 
@@ -72,10 +107,66 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     writeScroll(offset + (options.adjustments ?? 0), options.behavior)
   }
 
+  let recovery: OffsetRecovery = {phase: 'viewport-attached'}
+  let restingAnchor: ViewportAnchor = {mode: 'resume-following'}
+  let pointerHoldsViewport = false
+
+  const holdViewport = (): void => {
+    pointerHoldsViewport = true
+  }
+  const releaseViewport = (): void => {
+    pointerHoldsViewport = false
+  }
+
+  const rememberAnchor = (element: HTMLElement): void => {
+    restingAnchor =
+      landedOffset === undefined && !atEnd()
+        ? {mode: 'preserve-reader-anchor', offset: element.scrollTop}
+        : {mode: 'resume-following'}
+  }
+
+  const restoreViewport = (anchor: ViewportAnchor): void => {
+    update()
+    const element = config.scrollElement()
+    if (!element?.isConnected) return
+    if (anchor.mode === 'resume-following') {
+      landOnEnd()
+      return
+    }
+    writeScroll(anchor.offset, 'auto')
+    landedOffset = undefined
+    instance.scrollOffset = element.scrollTop
+    syncAtEnd()
+    rememberAnchor(element)
+  }
+
   const onScrolled = (): void => {
+    if (recovery.phase === 'deferred-behind-gesture') {
+      const {anchor} = recovery
+      recovery = {phase: 'viewport-attached'}
+      if (!pointerHoldsViewport) {
+        restoreViewport(anchor)
+        return
+      }
+    }
     const element = config.scrollElement()
     if (element && !stillOnTheLanding(element)) landedOffset = undefined
     syncAtEnd()
+    if (element?.isConnected) rememberAnchor(element)
+  }
+
+  const onAncestryMutated = (records: MutationRecord[], element: HTMLElement): void => {
+    if (recovery.phase === 'viewport-attached' && records.some((record) => wraps(record.removedNodes, element))) {
+      recovery = {phase: 'offset-discarded', anchor: restingAnchor}
+    }
+    if (recovery.phase === 'viewport-attached' || !element.isConnected) return
+    const {anchor} = recovery
+    if (pointerHoldsViewport) {
+      recovery = {phase: 'deferred-behind-gesture', anchor}
+      return
+    }
+    recovery = {phase: 'viewport-attached'}
+    restoreViewport(anchor)
   }
 
   const resolveOptions = (): VirtualizerOptions<HTMLElement, Element> => ({
@@ -138,8 +229,25 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   createEffect(() => {
     const element = config.scrollElement()
     createResizeObserver(element, update)
-    if (element) makeEventListener(element, 'scroll', onScrolled, {passive: true})
+    if (element) {
+      makeEventListener(element, 'scroll', onScrolled, {passive: true})
+      makeEventListener(element, 'pointerdown', holdViewport, {passive: true})
+      makeEventListener(element.ownerDocument, 'pointerup', releaseViewport, {passive: true})
+      makeEventListener(element.ownerDocument, 'pointercancel', releaseViewport, {passive: true})
+    }
     update()
+  })
+
+  createEffect(() => {
+    const element = config.scrollElement()
+    if (!element) return
+    let observed: Node[] = []
+    const observer = new MutationObserver((records) => {
+      onAncestryMutated(records, element)
+      if (element.isConnected) observed = observeAncestry(observer, element, observed)
+    })
+    observed = observeAncestry(observer, element, observed)
+    onCleanup(() => observer.disconnect())
   })
 
   createEffect(() => {
