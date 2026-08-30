@@ -24,6 +24,8 @@ export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
   | {kind: 'gate'; path?: string[]}
+  | {kind: 'chat-refused'; status?: number}
+  | {kind: 'chat-dropped'}
 
 type Fault = {
   pending: () => number
@@ -219,31 +221,49 @@ const awaitWarmSessionResolved: BrowserCommand<[number]> = (ctx, since): Promise
 const awaitSessionsListed: BrowserCommand<[number]> = (ctx, since): Promise<number | null> =>
   wireOf(ctx).sessionsListedSince(since)
 
+type Injector = {repair: () => void; dispose: () => Promise<void>; answered?: () => Promise<void>}
+
+function trackedFault(handle: string, kind: FaultSpec['kind'], injector: Injector): Fault {
+  const answered = injector.answered
+  return {
+    pending: () => 0,
+    answered: () =>
+      answered
+        ? answered()
+        : Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which answers no single rpc call`)),
+    awaitCaptured: () =>
+      Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which never captures pending requests`)),
+    release: () => {
+      injector.repair()
+      return Promise.resolve()
+    },
+    dispose: injector.dispose,
+  }
+}
+
 const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<string> => {
   const state = stateOf(ctx)
-  const {abortRpcCalls, failRpcCalls, gateRpcCalls} = await testkitOf(ctx)
+  const {abortRpcCalls, dropChatTurns, failChatTurns, failRpcCalls, gateRpcCalls} = await testkitOf(ctx)
   state.handles.count += 1
   const handle = `fault-${state.handles.count}`
   if (spec.kind === 'gate') {
     state.faults.set(handle, await gateRpcCalls(ctx.page, spec.path ? {path: spec.path} : {}))
     return handle
   }
+  if (spec.kind === 'chat-dropped') {
+    state.faults.set(handle, trackedFault(handle, spec.kind, await dropChatTurns(ctx.page)))
+    return handle
+  }
+  if (spec.kind === 'chat-refused') {
+    const injected = await failChatTurns(ctx.page, spec.status ? {status: spec.status} : {})
+    state.faults.set(handle, trackedFault(handle, spec.kind, injected))
+    return handle
+  }
   const injector =
     spec.kind === 'abort'
       ? await abortRpcCalls(ctx.page, spec.path ? {path: spec.path} : {})
       : await failRpcCalls(ctx.page, {path: spec.path, ...(spec.status ? {status: spec.status} : {})})
-  state.faults.set(handle, {
-    pending: () => 0,
-    answered: injector.answered,
-    awaitCaptured: async () => {
-      throw new Error(`the fault "${handle}" is a ${spec.kind} fault, which never captures pending requests`)
-    },
-    release: () => {
-      injector.repair()
-      return Promise.resolve()
-    },
-    dispose: injector.dispose,
-  })
+  state.faults.set(handle, trackedFault(handle, spec.kind, injector))
   return handle
 }
 

@@ -9,7 +9,7 @@ import {makeAppContextValue} from './app-context-value.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../../src/app/reachability.js'
 import type {AnyExtension} from '@conciv/extension'
 import type {Grab, GrabProvider} from '@conciv/grab'
-import {useChatSession} from '@conciv/client'
+import {useChatSession, type ChatTransportPreference} from '@conciv/client'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../../src/app/pane-context.js'
 import {createInstances} from '../../src/extension/create-instances.js'
 import {makeGrabStaging} from '../../src/pane/grab-staging.js'
@@ -24,6 +24,7 @@ export type PaneMountOptions = {
   extensions?: AnyExtension[]
   ground?: (grab: Grab) => Promise<Grab | null>
   width?: number
+  transport?: ChatTransportPreference
   onNewSession?: () => void
 }
 
@@ -60,7 +61,14 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   })
   const {rpc, data, queryClient} = app
   const chatRoot = createRoot((disposeChat) => {
-    const chat = createMemo(() => useChatSession({rpc, apiBase: options.base, sessionId: options.sessionId}))
+    const chat = createMemo(() =>
+      useChatSession({
+        rpc,
+        apiBase: options.base,
+        sessionId: options.sessionId,
+        ...(options.transport === undefined ? {} : {connection: {transport: options.transport}}),
+      }),
+    )
     const coordinator = makeRefreshCoordinator({
       chat,
       sessionId: () => options.sessionId,

@@ -25,7 +25,6 @@ import {mountPane, type PaneMount, type PaneMountOptions} from './helpers/pane-h
 import {forceReducedMotion} from './helpers/reduced-motion.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 
-const SEND_PATH = ['chat', 'send']
 const HYDRATE_PATH = ['chat', 'hydrate']
 
 const core = {base: ''}
@@ -63,7 +62,7 @@ function grabOptions(...grabs: Grab[]): Pick<PaneMountOptions, 'grabProvider' | 
 
 function mountChatPane(
   sessionId: string,
-  options: Pick<PaneMountOptions, 'grabProvider' | 'extensions'> = {},
+  options: Pick<PaneMountOptions, 'grabProvider' | 'extensions' | 'transport'> = {},
 ): PaneMount {
   const mount = mountPane({base: core.base, sessionId, ...options}, (pane) => {
     const queue = createMemo(() => pane.chat().queue())
@@ -106,9 +105,9 @@ async function stageGrabThroughComposer(): Promise<void> {
   await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
 }
 
-async function sendWithStagedGrab(): Promise<void> {
+async function sendWithStagedGrab(options: Pick<PaneMountOptions, 'transport'> = {}): Promise<void> {
   const {sessionId} = await newSession()
-  mountChatPane(sessionId, grabOptions(HERO_GRAB))
+  mountChatPane(sessionId, {...grabOptions(HERO_GRAB), ...options})
   await stageGrabThroughComposer()
   await input().fill('explain the section I grabbed')
   await userEvent.keyboard('{Enter}')
@@ -154,8 +153,8 @@ test('a staged grab keeps its snapshot and source label across a panel reload', 
 
 test('a rejected send keeps the draft in the composer and tells the user why', async () => {
   const {sessionId} = await newSession()
-  await faults.install({kind: 'fail', path: SEND_PATH, status: 500})
-  mountChatPane(sessionId)
+  await faults.install({kind: 'chat-refused', status: 500})
+  mountChatPane(sessionId, {transport: 'fetch'})
 
   await expect.element(input()).toBeVisible()
   await input().fill('a message the server refuses')
@@ -174,8 +173,8 @@ test('sending drops the staged grab card at once, while the turn is still stream
 })
 
 test('a send the server refuses puts the staged grab card back', async () => {
-  await faults.install({kind: 'fail', path: SEND_PATH, status: 500})
-  await sendWithStagedGrab()
+  await faults.install({kind: 'chat-refused', status: 500})
+  await sendWithStagedGrab({transport: 'fetch'})
 
   await expect.element(notifications()).toHaveTextContent(/Internal Server Error|could not be sent/)
   await expect.element(removeGrab()).toBeVisible()
@@ -183,10 +182,10 @@ test('a send the server refuses puts the staged grab card back', async () => {
 })
 
 test('a send that throws at the transport puts the staged grab card back', async () => {
-  await faults.install({kind: 'abort', path: SEND_PATH})
-  await sendWithStagedGrab()
+  await faults.install({kind: 'chat-dropped'})
+  await sendWithStagedGrab({transport: 'fetch'})
 
-  await expect.element(notifications()).toHaveTextContent(/could not be sent|fetch/)
+  await expect.element(notifications()).toHaveTextContent(/could not be sent|Stream response body read failed/)
   await expect.element(removeGrab()).toBeVisible()
   await expect.element(page.getByText(HERO_LABEL).last()).toBeVisible()
 })
