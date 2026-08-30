@@ -9,7 +9,6 @@ import {
   type StreamChunk,
 } from '@tanstack/ai'
 import {
-  APPROVAL_REQUESTED_EVENT,
   defineSandboxPolicy,
   evaluateCommand,
   nodeHttpBridgeProvisioner,
@@ -18,6 +17,7 @@ import {
   type PolicyDecision,
   type ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
+import {APPROVAL_REQUESTED_EVENT, approvalSettledChunk} from '@conciv/protocol/approval-types'
 import type {AskRegistry, PendingApproval} from './ask.js'
 import type {CommandMemory} from './command-memory.js'
 import {commandSegments, escapesReadOnlyIntent} from './command-grammar.js'
@@ -199,6 +199,7 @@ export function makeAskGate(deps: AskGateDeps): PermissionGate {
       )
       const approved = await deps.asks.waitFor(approvalId, deps.timeoutMs ?? ASK_TIMEOUT_MS)
       deps.onAskSettled?.(approvalId)
+      deps.emit(approvalSettledChunk(approvalId))
       if (approved === true) return 'allow'
       return approved === false ? 'deny' : 'timeout'
     },

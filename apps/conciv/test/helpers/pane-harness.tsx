@@ -56,6 +56,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   const [width, setWidth] = createSignal(options.width ?? DEFAULT_PANE_WIDTH_PX)
   const app = makeAppContextValue({
     base: options.base,
+    sessionId: options.sessionId,
     announce: (message) => setAnnounced((entries) => [...entries, message]),
     instances,
   })

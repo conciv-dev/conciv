@@ -1,5 +1,6 @@
 import {QueryClient} from '@tanstack/solid-query'
 import {makeRpcClient} from '@conciv/contract'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {type AppContextValue} from '../../src/app/context.js'
 import {makeLiveSessions} from '../../src/app/live-sessions.js'
 import {createWarmSession} from '../../src/app/warm-session.js'
@@ -10,12 +11,16 @@ import type {ExtensionInstance} from '../../src/extension/extension-slots.js'
 
 export type AppContextValueOptions = {
   base: string
+  sessionId?: string
   announce?: (message: string) => void
   instances?: ExtensionInstance[]
 }
 
 export function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
-  const rpc = makeRpcClient(options.base)
+  const rpc = makeRpcClient(
+    options.base,
+    options.sessionId === undefined ? {} : {headers: {[CONCIV_SESSION_HEADER]: options.sessionId}},
+  )
   const queryClient = new QueryClient()
   const announce = options.announce
   const data = makeAppData(rpc, queryClient)

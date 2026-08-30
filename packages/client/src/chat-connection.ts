@@ -7,6 +7,7 @@ import {
 import type {ModelMessage, StreamChunk, UIMessage} from '@tanstack/ai'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {runLifecycleOf, type RunLifecycle} from '@conciv/protocol/run-types'
+import {approvalAskOf, approvalSettledOf, type ApprovalAsk} from '@conciv/protocol/approval-types'
 import type {ChatHydration, RpcClient} from '@conciv/contract'
 import {acquirePushChannel} from './push-channel.js'
 import {readingValues, relayedValues} from './stream-relay.js'
@@ -20,7 +21,9 @@ export type ChatConnectionOptions = {
   probeTimeoutMs?: number
   onLifecycle?: (lifecycle: RunLifecycle) => void
   onTransport?: (transport: ChatTransport) => void
-  onHydrated?: () => void
+  onHydrated?: (hydration: ChatHydration) => void
+  onApprovalAsk?: (ask: ApprovalAsk) => void
+  onApprovalSettled?: (approvalId: string) => void
 }
 
 export type ChatConnection = SubscribeConnectionAdapter & {
@@ -129,30 +132,33 @@ function merged<T>(sources: readonly AsyncIterable<T>[], abortSignal: AbortSigna
 async function* watching(
   selected: Promise<Selected>,
   push: PushSource,
-  onLifecycle: ((lifecycle: RunLifecycle) => void) | undefined,
+  options: ChatConnectionOptions,
   abortSignal: AbortSignal | undefined,
 ): AsyncGenerator<StreamChunk> {
   const chosen = await selected
   const channel = push()
   try {
-    yield* relayLifecycle(
-      merged([chosen.adapter.subscribe(abortSignal), channel.events(abortSignal)], abortSignal),
-      onLifecycle,
-    )
+    yield* noticing(merged([chosen.adapter.subscribe(abortSignal), channel.events(abortSignal)], abortSignal), options)
   } finally {
     channel.dispose()
   }
 }
 
-async function* relayLifecycle(
+function notice(chunk: StreamChunk, options: ChatConnectionOptions): void {
+  const lifecycle = runLifecycleOf(chunk)
+  if (lifecycle) options.onLifecycle?.(lifecycle)
+  const ask = approvalAskOf(chunk)
+  if (ask) options.onApprovalAsk?.(ask)
+  const settled = approvalSettledOf(chunk)
+  if (settled !== null) options.onApprovalSettled?.(settled)
+}
+
+async function* noticing(
   source: AsyncIterable<StreamChunk>,
-  onLifecycle: ((lifecycle: RunLifecycle) => void) | undefined,
+  options: ChatConnectionOptions,
 ): AsyncGenerator<StreamChunk> {
   for await (const chunk of source) {
-    if (onLifecycle) {
-      const lifecycle = runLifecycleOf(chunk)
-      if (lifecycle) onLifecycle(lifecycle)
-    }
+    notice(chunk, options)
     yield chunk
   }
 }
@@ -180,11 +186,11 @@ export function chatConnection(
   })
   const hydrate = async (threadId: string): Promise<ChatHydration> => {
     const hydration = await rpc.chat.hydrate({sessionId: threadId})
-    options.onHydrated?.()
+    options.onHydrated?.(hydration)
     return hydration
   }
   return {
-    subscribe: (abortSignal) => watching(selected, push, options.onLifecycle, abortSignal),
+    subscribe: (abortSignal) => watching(selected, push, options, abortSignal),
     send: async (messages: Array<UIMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
       await (await selected).adapter.send(messages, data, abortSignal, runContext)
     },

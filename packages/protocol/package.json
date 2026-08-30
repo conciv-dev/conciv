@@ -41,6 +41,10 @@
       "types": "./dist/run-types.d.ts",
       "import": "./dist/run-types.js"
     },
+    "./approval-types": {
+      "types": "./dist/approval-types.d.ts",
+      "import": "./dist/approval-types.js"
+    },
     "./editor-types": {
       "types": "./dist/editor-types.d.ts",
       "import": "./dist/editor-types.js"

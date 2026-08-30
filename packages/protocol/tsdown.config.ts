@@ -7,6 +7,7 @@ export default defineConfig({
     'src/push-types.ts',
     'src/ui-types.ts',
     'src/run-types.ts',
+    'src/approval-types.ts',
     'src/editor-types.ts',
     'src/harness-types.ts',
     'src/framework-types.ts',

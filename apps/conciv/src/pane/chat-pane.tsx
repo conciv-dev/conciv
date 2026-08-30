@@ -52,6 +52,7 @@ import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage} from './draft-storage.js'
 import {useSessionCaptures} from './session-captures.js'
 import {makeToolViewCtx} from './tool-view-ctx.js'
+import {PendingApprovals} from './pending-approvals.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
@@ -141,6 +142,23 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
     chat.messages().at(-1)?.role === 'assistant' ? NOW_ROW_UNDER_TURN : NOW_ROW,
   )
   const activeCall = createMemo(() => activeToolCall(chat.messages()))
+  const transcriptToolCallIds = createMemo(
+    () =>
+      new Set(
+        chat
+          .messages()
+          .flatMap((message) => message.parts)
+          .flatMap((part) => (part.type === 'tool-call' ? [part.id] : [])),
+      ),
+  )
+  const outOfBandAsks = createMemo(() =>
+    chat.pendingApprovals().filter((ask) => !transcriptToolCallIds().has(ask.toolCallId)),
+  )
+  createEffect<number>((previous) => {
+    const waiting = outOfBandAsks().length
+    if (waiting > previous) announce('conciv is asking for permission.')
+    return waiting
+  }, 0)
   const narrationTitle = () => {
     const call = activeCall()
     if (call) return nowTitle(call, catalog)
@@ -285,6 +303,9 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                         <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
                         <Show when={compacting()}>
                           <Divider kind="compact" pending />
+                        </Show>
+                        <Show when={outOfBandAsks().length > 0}>
+                          <PendingApprovals asks={outOfBandAsks()} ctx={toolCtx} />
                         </Show>
                         <Show when={narrating()}>
                           <div class={narrationRowClass()}>
