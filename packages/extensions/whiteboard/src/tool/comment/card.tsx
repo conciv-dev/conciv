@@ -44,7 +44,7 @@ const DESTRUCTIVE = new Set(['resolve', 'delete'])
 
 function opOf(name: string): string {
   if (name === 'pin_set_state') return 'pin'
-  return name.startsWith('comment.') ? name.slice('comment.'.length) : name
+  return name.startsWith('comment_') ? name.slice('comment_'.length) : name
 }
 
 function textOf(parts: unknown): string {

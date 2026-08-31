@@ -23,8 +23,8 @@ describe('CanvasOpCard (real browser)', () => {
       {type: 'text', content: JSON.stringify({elements: 2})},
     ])
     mountToolCard(CanvasOpCard, {name: 'canvas_preview', content})
-    await expect.element(page.getByRole('button', {name: /canvas\.preview/})).toBeVisible()
-    await page.getByRole('button', {name: /canvas\.preview/}).click()
+    await expect.element(page.getByRole('button', {name: /canvas_preview/})).toBeVisible()
+    await page.getByRole('button', {name: /canvas_preview/}).click()
     await expect.element(page.getByRole('img', {name: 'canvas preview'})).toBeVisible()
   })
 
@@ -35,7 +35,7 @@ describe('CanvasOpCard (real browser)', () => {
       content: JSON.stringify({deleted: 'el_9'}),
     })
     await expect.element(page.getByText('canvas_delete')).toBeVisible()
-    await page.getByRole('button', {name: /canvas\.delete/}).click()
+    await page.getByRole('button', {name: /canvas_delete/}).click()
     await expect.element(page.getByText('delete el_9')).toBeVisible()
   })
 
@@ -44,7 +44,7 @@ describe('CanvasOpCard (real browser)', () => {
       name: 'canvas_preview',
       content: JSON.stringify({error: 'preview render failed', reason: 'no renderer'}),
     })
-    await page.getByRole('button', {name: /canvas\.preview/}).click()
+    await page.getByRole('button', {name: /canvas_preview/}).click()
     await expect.element(page.getByText('preview render failed')).toBeVisible()
     await expect.element(page.getByText(/no renderer/)).toBeVisible()
   })
@@ -64,7 +64,7 @@ describe('CommentOpCard (real browser)', () => {
       },
       content: JSON.stringify({cid: 'c_42'}),
     })
-    await page.getByRole('button', {name: /comment\.create/}).click()
+    await page.getByRole('button', {name: /comment_create/}).click()
     await expect.element(page.getByText('Looks off-center')).toBeVisible()
     await expect.element(page.getByText('c_42').first()).toBeVisible()
   })
@@ -84,7 +84,7 @@ describe('CommentOpCard (real browser)', () => {
       args: {cid: 'c_42'},
       content: JSON.stringify({cid: 'c_42', deleted: true}),
     })
-    await page.getByRole('button', {name: /comment\.delete/}).click()
+    await page.getByRole('button', {name: /comment_delete/}).click()
     await expect.element(page.getByText('delete', {exact: true})).toBeVisible()
     await expect.element(page.getByText('deleted').first()).toBeVisible()
   })

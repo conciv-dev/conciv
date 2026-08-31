@@ -57,7 +57,7 @@ function elementCount(elements: unknown[] | number | undefined): number | null {
 }
 
 function opOf(name: string): string {
-  return name.startsWith('canvas.') ? name.slice('canvas.'.length) : name
+  return name.startsWith('canvas_') ? name.slice('canvas_'.length) : name
 }
 
 type Detail = z.infer<typeof DetailSchema>
