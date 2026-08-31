@@ -73,6 +73,7 @@ overrides:
 packageExtensionsChecksum: sha256-dVhKvsWIVuG9nPr1LtcuSzZV8oO+dNO4ylE3TdR8UyE=
 
 patchedDependencies:
+  '@pierre/diffs@1.3.6': 3711b90c75407de715cad086c04ca96c362d0bfacc7b822347b54d96997dd3fe
   '@tanstack/ai-sandbox-local-process@0.2.4': 1f3323d02e663cf6548926675882585dd552539c38e9a8db3d94ad8e9479ce81
   '@tanstack/ai-sandbox@0.5.3': 39192862d663a7580e91b9e43dac73c3e7a50e66529a097e926f83270ef4e893
 
@@ -3646,7 +3647,7 @@ importers:
     dependencies:
       '@pierre/diffs':
         specifier: 1.3.6
-        version: 1.3.6(@shikijs/themes@4.2.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 1.3.6(patch_hash=3711b90c75407de715cad086c04ca96c362d0bfacc7b822347b54d96997dd3fe)(@shikijs/themes@4.2.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/solid-pacer':
         specifier: 0.22.0
         version: 0.22.0(solid-js@1.9.14)
@@ -20755,7 +20756,7 @@ snapshots:
       '@parcel/watcher-win32-ia32': 2.5.6
       '@parcel/watcher-win32-x64': 2.5.6
 
-  '@pierre/diffs@1.3.6(@shikijs/themes@4.2.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@pierre/diffs@1.3.6(patch_hash=3711b90c75407de715cad086c04ca96c362d0bfacc7b822347b54d96997dd3fe)(@shikijs/themes@4.2.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@pierre/theme': 2.0.0
       '@pierre/theming': 1.0.1(@pierre/theme@2.0.0)(@shikijs/themes@4.2.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(shiki@4.2.0)

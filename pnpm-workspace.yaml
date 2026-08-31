@@ -144,5 +144,6 @@ minimumReleaseAgeExclude:
   - '@tanstack/ai-event-client'
   - '@tanstack/ai-skills'
 patchedDependencies:
+  '@pierre/diffs@1.3.6': patches/@pierre__diffs@1.3.6.patch
   '@tanstack/ai-sandbox-local-process@0.2.4': patches/@tanstack__ai-sandbox-local-process@0.2.4.patch
   '@tanstack/ai-sandbox@0.5.3': patches/@tanstack__ai-sandbox@0.5.3.patch

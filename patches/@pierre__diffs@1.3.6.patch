@@ -1,0 +1,54 @@
+diff --git a/dist/renderers/FileRenderer.js b/dist/renderers/FileRenderer.js
+index fb146c3585d1ee374b8d99fefe26867b6384a73a..af49a32ed0f4b4a74c2ffce344ba9b384322c15f 100644
+--- a/dist/renderers/FileRenderer.js
++++ b/dist/renderers/FileRenderer.js
+@@ -33,6 +33,7 @@ var FileRenderer = class {
+ 	__id = `file-renderer:${++instanceId}`;
+ 	highlighter;
+ 	renderCache;
++	currentFile;
+ 	computedLang = "text";
+ 	lineAnnotations = {};
+ 	lineCache;
+@@ -88,6 +89,7 @@ var FileRenderer = class {
+ 	}
+ 	recycle() {
+ 		this.clearRenderCache();
++		this.currentFile = void 0;
+ 		this.highlighter = void 0;
+ 		this.workerManager?.cleanUpTasks(this);
+ 		this.lineCache = void 0;
+@@ -118,6 +120,7 @@ var FileRenderer = class {
+ 		if (renderCache != null && renderCache.isDirty === true && renderCache.file.cacheKey != null) this.workerManager?.evictFileFromCache(renderCache.file.cacheKey);
+ 	}
+ 	hydrate(file) {
++		this.currentFile = file;
+ 		const { options } = this.getRenderOptions(file);
+ 		const massiveFile = isFileMassive(this.getOrCreateLineCache(file).length, this.getTokenizeMaxLength());
+ 		let cache = this.workerManager?.getFileResultCache(file);
+@@ -305,6 +308,7 @@ var FileRenderer = class {
+ 	}
+ 	renderFile(file = this.renderCache?.file, renderRange = DEFAULT_RENDER_RANGE) {
+ 		if (file == null) return;
++		this.currentFile = file;
+ 		this.invalidateChangedUnkeyedFile(file);
+ 		if (this.renderCache?.isDirty === true && !areFilesEqual(file, this.renderCache.file)) {
+ 			this.clearRenderCache();
+@@ -367,6 +371,7 @@ var FileRenderer = class {
+ 		return this.renderCache.result != null ? this.processFileResult(this.renderCache.file, renderRange, this.renderCache.result) : void 0;
+ 	}
+ 	async asyncRender(file, renderRange = DEFAULT_RENDER_RANGE) {
++		this.currentFile = file;
+ 		const { result } = await this.asyncHighlight(file);
+ 		return this.processFileResult(file, renderRange, result);
+ 	}
+@@ -493,7 +498,8 @@ var FileRenderer = class {
+ 		this.applyHighlightResult(file, result, options, highlighted);
+ 	}
+ 	applyHighlightResult(file, result, options, highlighted = true) {
+-		if (this.renderCache == null) return;
++		const { currentFile } = this;
++		if (this.renderCache == null || currentFile == null || !areFilesEqual(file, currentFile)) return;
+ 		const triggerRenderUpdate = !areFilesEqual(file, this.renderCache.file) || !this.renderCache.highlighted || !areFileRenderOptionsEqual(options, this.renderCache.options);
+ 		this.renderCache = {
+ 			file,
