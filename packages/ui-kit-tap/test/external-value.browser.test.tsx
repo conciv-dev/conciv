@@ -53,6 +53,7 @@ const undoChord = navigator.platform.includes('Mac') ? '{Meta>}z{/Meta}' : '{Con
 
 async function placeCaret(offset: number): Promise<void> {
   await userEvent.click(editable())
+  await expect.element(editable()).toHaveFocus()
   await userEvent.keyboard('{Home}')
   await expect.element(caret(0, 0)).toBeInTheDocument()
   await userEvent.keyboard(`{ArrowRight>${offset}}`)
@@ -61,6 +62,7 @@ async function placeCaret(offset: number): Promise<void> {
 
 async function insertChip(): Promise<void> {
   await userEvent.click(editable())
+  await expect.element(editable()).toHaveFocus()
   await userEvent.keyboard('/')
   await expect.element(page.getByRole('option', {name: '/clear'})).toBeVisible()
   await userEvent.keyboard('{Enter}')
@@ -124,6 +126,7 @@ it('leaves an externally written value alone when the user undoes', async () => 
   await expect.element(editable()).toHaveTextContent('@ai:opus')
 
   await userEvent.click(page.getByRole('button', {name: FOCUS_END}))
+  await expect.element(editable()).toHaveFocus()
   await expect.element(caret(8, 8)).toBeInTheDocument()
   await userEvent.keyboard(undoChord)
   await userEvent.keyboard('{Backspace}')
