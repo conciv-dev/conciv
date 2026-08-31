@@ -39,9 +39,8 @@ describe('lifecycle runId stamping (the wire identity of a run is the client-min
     const kit = await createTestkit(innerIdHarness, bootCoreApp()).setup()
     try {
       const id = await kit.session()
-      const stream = await kit.attach(id)
-      await kit.rpc.chat.send({runId: 'stamp-1', sessionId: id, text: 'hi'})
-      const started = await stream.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
+      const stream = await kit.turn('hi', {session: id, runId: 'stamp-1'})
+      const started = await stream.waitForRunStart()
       const finished = await stream.waitFor((chunk) => chunk.type === EventType.RUN_FINISHED, {hangGuardMs: 5000})
       expect(runIdOf(started)).toBe('stamp-1')
       expect(runIdOf(finished)).toBe('stamp-1')

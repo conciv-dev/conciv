@@ -221,7 +221,7 @@ export type SessionListInput = {
   harnessKind: string
   cwd: string
   nativeList: HarnessSessionMeta[]
-  running: (sessionId: SessionId) => boolean
+  running: ReadonlySet<string>
   model: (sessionId: SessionId) => string | null
   includeHidden: boolean
 }
@@ -246,7 +246,7 @@ function rowMeta(row: SessionRecord, native: HarnessSessionMeta | undefined, inp
   return {
     ...rowFacts(row, native),
     id: row.id,
-    running: input.running(row.id),
+    running: input.running.has(row.id),
     origin: row.origin === 'external' ? 'external' : 'conciv',
     usage: row.usage,
     model: input.model(row.id) ?? row.model,

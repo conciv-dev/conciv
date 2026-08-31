@@ -2,10 +2,18 @@ import {EventType, type StreamChunk} from '@tanstack/ai'
 import {collectToolCalls, makeRunEvents, type RunEvents, type SeenToolCall} from './run-events.js'
 
 export type RunStream = {
+  tap: (listener: (chunk: StreamChunk) => void) => () => void
   waitFor: (match: (e: StreamChunk) => boolean, opts?: {hangGuardMs?: number}) => Promise<StreamChunk>
+  waitForRunStart: (opts?: {runId?: string}) => Promise<StreamChunk>
   waitForToolCall: (name: string, opts?: {hangGuardMs?: number}) => Promise<SeenToolCall>
   waitForText: (substr: string) => Promise<void>
   done: (opts?: {hangGuardMs?: number}) => Promise<RunEvents>
+}
+
+function isRunStart(chunk: StreamChunk, runId: string | undefined): boolean {
+  if (chunk.type !== EventType.RUN_STARTED) return false
+  if (runId === undefined) return true
+  return 'runId' in chunk && chunk.runId === runId
 }
 
 function isTerminal(chunk: StreamChunk): boolean {
@@ -48,12 +56,12 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
     return collector.failure === '' ? base : `${base} (source error: ${collector.failure})`
   }
 
-  function waitFor(match: (e: StreamChunk) => boolean, hangGuardMs: number): Promise<StreamChunk> {
+  function waitFor(match: (e: StreamChunk) => boolean, hangGuardMs: number | null): Promise<StreamChunk> {
     const liveStart = seen.length
     return new Promise<StreamChunk>((resolve, reject) => {
       const settle = (finish: () => void): void => {
         listeners.delete(listener)
-        clearTimeout(guard)
+        if (guard !== null) clearTimeout(guard)
         finish()
       }
       const listener = (): void => {
@@ -68,15 +76,20 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
           return settle(() => reject(new Error(endMessage('run-stream: source ended without a matching event'))))
         }
       }
-      const guard = setTimeout(
-        () =>
-          settle(() =>
-            reject(
-              new Error(`run-stream: stall - no matching event within ${hangGuardMs}ms (seen: ${summarize(seen)})`),
-            ),
-          ),
-        hangGuardMs,
-      )
+      const guard =
+        hangGuardMs === null
+          ? null
+          : setTimeout(
+              () =>
+                settle(() =>
+                  reject(
+                    new Error(
+                      `run-stream: stall - no matching event within ${hangGuardMs}ms (seen: ${summarize(seen)})`,
+                    ),
+                  ),
+                ),
+              hangGuardMs,
+            )
       listeners.add(listener)
       listener()
     })
@@ -89,9 +102,7 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
       const index = doneCursor.index
       doneCursor.index += 1
       const chunk = seen[index]
-      if (chunk?.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') {
-        return makeRunEvents(seen.slice(0, doneCursor.index))
-      }
+      if (chunk && isTerminal(chunk)) return makeRunEvents(seen.slice(0, doneCursor.index))
     }
     return null
   }
@@ -123,7 +134,23 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
   }
 
   return {
+    tap: (onChunk) => {
+      const cursor = {index: 0}
+      const listener = (): void => {
+        while (cursor.index < seen.length) {
+          const chunk = seen[cursor.index]
+          cursor.index += 1
+          if (chunk) onChunk(chunk)
+        }
+      }
+      listeners.add(listener)
+      listener()
+      return () => {
+        listeners.delete(listener)
+      }
+    },
     waitFor: (match, opts) => waitFor(match, opts?.hangGuardMs ?? 90_000),
+    waitForRunStart: (opts) => waitFor((chunk) => isRunStart(chunk, opts?.runId), null),
     waitForToolCall: async (name, opts) => {
       await waitFor(() => collectToolCalls(seen, name).length > 0, opts?.hangGuardMs ?? 90_000)
       const call = collectToolCalls([...seen], name).at(-1)

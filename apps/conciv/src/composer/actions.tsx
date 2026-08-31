@@ -5,6 +5,7 @@ import Crosshair from 'lucide-solid/icons/crosshair'
 import FoldVertical from 'lucide-solid/icons/fold-vertical'
 import SquarePen from 'lucide-solid/icons/square-pen'
 import {getHostApi} from '@conciv/extension/host'
+import {writeClipboardText} from '@conciv/ui-kit-system'
 import type {Grab} from '@conciv/grab'
 import {useAppData} from '../app/context.js'
 import {useNotices} from '../shell/notice-context.js'
@@ -30,7 +31,7 @@ function errorCode(error: unknown): string | null {
 
 async function copyCommand(notify: Notify, command: string): Promise<void> {
   try {
-    await navigator.clipboard.writeText(command)
+    await writeClipboardText(command)
     notify('Command copied. Paste it in your terminal.')
   } catch {
     notify(`Run in your terminal: ${command}`)

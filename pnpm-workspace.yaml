@@ -20,18 +20,25 @@ catalog:
   '@orpc/standard-server-peer': 1.14.7
   '@orpc/tanstack-query': 1.14.7
 
-  # The @tanstack/ai family pins the same way: ai-isolate-node@0.1.49 and ai-isolate-quickjs@0.2.0
-  # each peer-require ai-code-mode@0.3.10 exactly, ai-code-mode depends on @tanstack/ai@0.43.1
-  # exactly, and ai-client/ai-mcp/ai-solid each pin their sibling exactly too. Mixing lines
-  # installs two copies of @tanstack/ai and splits its runtime and types, so the whole family is
-  # single-sourced here and every manifest resolves "catalog:" to the same release.
-  '@tanstack/ai': 0.43.1
-  '@tanstack/ai-client': 0.23.1
-  '@tanstack/ai-code-mode': 0.3.10
-  '@tanstack/ai-isolate-node': 0.1.49
-  '@tanstack/ai-isolate-quickjs': 0.2.0
-  '@tanstack/ai-mcp': 0.2.7
-  '@tanstack/ai-solid': 0.16.1
+  # The @tanstack/ai family moved to caret peer ranges as of 0.48.0 (each sibling
+  # peer-requires "@tanstack/ai": "^0.48.0" etc rather than an exact pin), so a single
+  # resolvable line is no longer load-bearing the way it was pre-0.48 — but the whole family
+  # is still single-sourced here so every manifest resolves "catalog:" to the same release
+  # and pnpm never installs two copies of @tanstack/ai.
+  '@tanstack/ai': 0.51.0
+  '@tanstack/ai-client': 0.29.1
+  '@tanstack/ai-persistence': 0.5.3
+  '@tanstack/ai-code-mode': 0.4.6
+  '@tanstack/ai-isolate-node': 0.1.51
+  '@tanstack/ai-isolate-quickjs': 0.3.1
+  '@tanstack/ai-mcp': 0.3.7
+  '@tanstack/ai-solid': 0.19.3
+  '@tanstack/ai-sandbox': 0.5.3
+  '@tanstack/ai-sandbox-local-process': 0.2.4
+  '@tanstack/ai-claude-code': 0.6.2
+  '@tanstack/ai-codex': 0.5.2
+  '@tanstack/ai-opencode': 0.4.2
+  '@tanstack/ai-acp': 0.3.7
 
 # Force patched protobufjs (GHSA-wcpc-wj8m-hjx6 prototype pollution); pulled in transitively
 # via jazz-tools OpenTelemetry in the whiteboard extension.
@@ -109,26 +116,6 @@ minimumReleaseAge: 2880
 # regardless. Remove once it has aged out.
 minimumReleaseAgeExclude:
   - '@publint/pack'
-  # @tanstack/ai stack pinned by the 2026-07-06 tanstack-harness-migration plan (versions
-  # verified against the tanstack/ai repo); released same-day, excluded to unblock the
-  # migration. Drop once the pinned versions age past the window.
-  - '@tanstack/ai'
-  - '@tanstack/ai-client'
-  - '@tanstack/ai-solid'
-  - '@tanstack/ai-mcp'
-  - '@tanstack/ai-sandbox'
-  - '@tanstack/ai-sandbox-local-process'
-  - '@tanstack/ai-claude-code'
-  - '@tanstack/ai-codex'
-  - '@tanstack/ai-opencode'
-  - '@tanstack/ai-acp'
-  # Added 2026-08-04: the 0.43.0 line of the @tanstack/ai stack was published the same day and the
-  # release was reviewed before we took it. These four are transitive members of that stack that
-  # were missing from the list above. Drop them once they age past the window.
-  - '@tanstack/ai-code-mode'
-  - '@tanstack/ai-isolate-node'
-  - '@tanstack/ai-event-client'
-  - '@tanstack/ai-utils'
   # jazz-tools alpha moves faster than the 48h window; the whiteboard extension pins an exact
   # alpha (reviewed in the migration plan). Drop these once Jazz reaches a stable cadence.
   - 'jazz-tools'
@@ -138,5 +125,25 @@ minimumReleaseAgeExclude:
   - '@garden-co/jazz-napi-darwin-x64'
   - '@garden-co/jazz-napi-linux-x64-gnu'
   - '@garden-co/jazz-napi-win32-x64-msvc'
+  # 2026-08-28: 0.51-lockstep @tanstack/ai family published 2026-08-27T17:58-17:59Z (issue #1247
+  # StreamProcessor fix), younger than the 48h window. isolate-node/isolate-quickjs stay off this
+  # list: their 0.1.51/0.3.1 releases are from 2026-08-18 and already past the cooldown.
+  - '@tanstack/ai'
+  - '@tanstack/ai-client'
+  - '@tanstack/ai-persistence'
+  - '@tanstack/ai-solid'
+  - '@tanstack/ai-code-mode'
+  - '@tanstack/ai-mcp'
+  - '@tanstack/ai-sandbox'
+  - '@tanstack/ai-claude-code'
+  - '@tanstack/ai-codex'
+  - '@tanstack/ai-opencode'
+  - '@tanstack/ai-acp'
+  # Transitive deps pulled in at the same 0.51 lockstep: ai-event-client (peer of @tanstack/ai)
+  # and ai-skills (new dep of @tanstack/ai-sandbox as of 0.5.3), both published 2026-08-27T17:59Z.
+  - '@tanstack/ai-event-client'
+  - '@tanstack/ai-skills'
 patchedDependencies:
-  '@tanstack/ai-sandbox-local-process@0.2.1': patches/@tanstack__ai-sandbox-local-process@0.2.1.patch
+  '@pierre/diffs@1.3.6': patches/@pierre__diffs@1.3.6.patch
+  '@tanstack/ai-sandbox-local-process@0.2.4': patches/@tanstack__ai-sandbox-local-process@0.2.4.patch
+  '@tanstack/ai-sandbox@0.5.3': patches/@tanstack__ai-sandbox@0.5.3.patch

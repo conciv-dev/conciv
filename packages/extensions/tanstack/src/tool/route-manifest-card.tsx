@@ -1,8 +1,9 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, InspectionCard} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
 
 type RouteRow = {path: string; kind: string; dynamic: boolean}
 
@@ -31,7 +32,7 @@ export function RouteManifestCard(props: ToolCardProps): JSX.Element {
             <For each={list()}>
               {(route) => (
                 <CardRow>
-                  <span class="text-chat-text-2 flex-1 min-w-0 truncate">{route.path}</span>
+                  <TruncatedText class="text-chat-text-2 flex-1 min-w-0" text={route.path} />
                   <span class="text-[10.5px] text-chat-text-3 tracking-[0.06em] shrink-0 w-14 uppercase">
                     {route.kind}
                   </span>
@@ -46,4 +47,9 @@ export function RouteManifestCard(props: ToolCardProps): JSX.Element {
       </Show>
     </InspectionCard>
   )
+}
+
+export const routeManifestCard: ToolCardView = {
+  render: RouteManifestCard,
+  hasEmbeddedBody: (part, result) => settledCardBody(part, result, parseRoutes(result) !== null),
 }

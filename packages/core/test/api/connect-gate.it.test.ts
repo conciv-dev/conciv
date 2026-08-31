@@ -28,8 +28,8 @@ describe('token-gated core', () => {
     const res = await fetch(`http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/health`)
     expect(res.status).toBe(200)
     const raw = z.record(z.string(), z.unknown()).parse(await res.json())
-    expect(Object.keys(raw).sort()).toEqual(['engine', 'harness', 'ok'])
-    expect(Object.keys(z.record(z.string(), z.unknown()).parse(raw.engine)).sort()).toEqual([
+    expect(Object.keys(raw).toSorted()).toEqual(['engine', 'harness', 'ok'])
+    expect(Object.keys(z.record(z.string(), z.unknown()).parse(raw.engine)).toSorted()).toEqual([
       'bootedAt',
       'changed',
       'fingerprint',

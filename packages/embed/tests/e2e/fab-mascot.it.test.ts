@@ -22,10 +22,6 @@ const GAZE_TARGET = {x: 12, y: 12}
 const emitter = (page: Page) =>
   page.locator('[data-conciv-fab] .conciv-fab-rig [data-scope="mascot"][data-part="effect"] > span')
 
-test.afterEach(() => {
-  suite.kit().harness.script.release()
-})
-
 test('the launcher hosts the mascot stage as decorative content', async ({page}) => {
   await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
 

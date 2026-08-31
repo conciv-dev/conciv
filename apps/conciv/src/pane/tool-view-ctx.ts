@@ -19,8 +19,8 @@ export function makeToolViewCtx(deps: ToolViewCtxDeps): ToolViewCtx {
     sendMessage: deps.sendMessage,
     catalog: deps.catalog,
     addResult: deps.addResult,
-    respondApproval: (approvalId, approved) => {
-      void deps.rpc.chat.permissionDecision({approvalId, approved}).catch(() => {})
+    respondApproval: (approvalId, approved, scope) => {
+      void deps.rpc.chat.permissionDecision({approvalId, approved, scope}).catch(() => {})
     },
     durationFor: deps.durationFor,
     captureFor: deps.captureFor,

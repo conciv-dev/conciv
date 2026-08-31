@@ -4,7 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {Trace as ChatTrace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
-import {ReadBulkCard} from './read-bulk-card.js'
+import {ReadBulkCard, readBulkCard} from './read-bulk-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
 const meta: Meta = {title: 'Extensions/Page/tool/ReadBulkCard'}
@@ -76,9 +76,9 @@ export const DomMarkup: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ReadBulkCard
-        part={storyPart('page.dom', {selector: '#hero'})}
+        part={storyPart('page_dom', {selector: '#hero'})}
         result={storyResult({html: '<section id="hero"><h1>Ship it on Friday</h1></section>'})}
-        ctx={storyCtx({'page.dom': domMeta})}
+        ctx={storyCtx({page_dom: domMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -96,14 +96,14 @@ export const SnapshotNodes: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ReadBulkCard
-        part={storyPart('page.snapshot', {selector: 'form'})}
+        part={storyPart('page_snapshot', {selector: 'form'})}
         result={storyResult({
           nodes: [
             {ref: 'e12', role: 'textbox', name: 'Email'},
             {ref: 'e13', role: 'button', name: 'Ship it'},
           ],
         })}
-        ctx={storyCtx({'page.snapshot': snapshotMeta})}
+        ctx={storyCtx({page_snapshot: snapshotMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -120,12 +120,12 @@ export const QueryMatches: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ReadBulkCard
-        part={storyPart('page.query', {selector: 'button.primary'})}
+        part={storyPart('page_query', {selector: 'button.primary'})}
         result={storyResult({
           count: 3,
           elements: [{tagName: 'button', className: 'primary'}, {tagName: 'button'}, {tagName: 'button'}],
         })}
-        ctx={storyCtx({'page.query': queryMeta})}
+        ctx={storyCtx({page_query: queryMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -141,9 +141,9 @@ export const EmptySnapshot: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ReadBulkCard
-        part={storyPart('page.snapshot', {selector: '#empty'})}
+        part={storyPart('page_snapshot', {selector: '#empty'})}
         result={storyResult({nodes: []})}
-        ctx={storyCtx({'page.snapshot': snapshotMeta})}
+        ctx={storyCtx({page_snapshot: snapshotMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -155,14 +155,14 @@ export const EmptySnapshot: Story = {
   },
 }
 
-const readBulkTool: ToolCardEntry = {names: ['page.snapshot'], render: ReadBulkCard}
+const readBulkTool: ToolCardEntry = {names: ['page_snapshot'], ...readBulkCard}
 
 export const Trace: Story = {
   render: () =>
     traceGallery('1 snap', [
       traceRow(
         readBulkTool,
-        storyPart('page.snapshot', {selector: 'form'}),
+        storyPart('page_snapshot', {selector: 'form'}),
         storyResult({
           nodes: [
             {ref: 'e12', role: 'textbox', name: 'Email'},

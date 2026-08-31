@@ -1,3 +1,4 @@
+import {isEqual} from 'es-toolkit'
 import type {JSX} from 'solid-js'
 import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
@@ -45,6 +46,12 @@ function turnBounds(messages: ReadonlyArray<UIMessage>): TurnBounds[] {
   return bounds
 }
 
+function sameMessage(previous: UIMessage | undefined, message: UIMessage): boolean {
+  if (previous === message) return true
+  if (!previous || previous.role !== message.role) return false
+  return isEqual(previous.parts, message.parts)
+}
+
 function sourceUnchanged(
   bound: TurnBounds,
   prevMessages: ReadonlyArray<UIMessage>,
@@ -52,7 +59,7 @@ function sourceUnchanged(
 ): boolean {
   return messages
     .slice(bound.start, bound.end + 1)
-    .every((message, offset) => prevMessages[bound.start + offset] === message)
+    .every((message, offset) => sameMessage(prevMessages[bound.start + offset], message))
 }
 
 function buildTurn(messages: ReadonlyArray<UIMessage>, bound: TurnBounds): Turn {
@@ -81,7 +88,7 @@ export function diffTurns(
 export type GroupKey = `group-${string}`
 export type GroupPath = readonly GroupKey[]
 
-export type GroupByContext = {toolEntries?: ReadonlyArray<ToolCardEntry>}
+export type GroupByContext = {toolEntries?: ReadonlyArray<ToolCardEntry>; live?: boolean}
 
 export type Grouper = (parts: ReadonlyArray<MessagePart>, context: GroupByContext) => ReadonlyArray<GroupPath | null>
 
@@ -110,6 +117,7 @@ export type GroupRenderProps = {
   parts: () => readonly MessagePart[]
   resultFor: (toolCallId: string) => ToolResultPart | undefined
   streaming: boolean
+  folded?: boolean
   children?: JSX.Element
 }
 
@@ -255,6 +263,53 @@ export function groupParts(
   context: GroupByContext,
 ): readonly GroupNode[] {
   return buildGroupTree(grouper(parts, context), parts.map(partIdOf))
+}
+
+type StickyMemo = {
+  parts: ReadonlyArray<MessagePart>
+  context: GroupByContext
+  paths: ReadonlyArray<GroupPath | null>
+}
+
+function sameGroupContext(left: GroupByContext, right: GroupByContext): boolean {
+  return left.toolEntries === right.toolEntries && left.live === right.live
+}
+
+function sharedPrefixLength(previous: ReadonlyArray<MessagePart>, next: ReadonlyArray<MessagePart>): number {
+  const limit = Math.min(previous.length, next.length)
+  let shared = 0
+  while (shared < limit && previous[shared] === next[shared]) shared += 1
+  return shared
+}
+
+function reusableLength(
+  memo: StickyMemo | undefined,
+  parts: ReadonlyArray<MessagePart>,
+  context: GroupByContext,
+): number {
+  if (!memo || !sameGroupContext(memo.context, context)) return 0
+  return sharedPrefixLength(memo.parts, parts)
+}
+
+export function stickyGrouper(grouper: Grouper): Grouper {
+  let memo: StickyMemo | undefined
+  return (parts, context) => {
+    const reused = reusableLength(memo, parts, context)
+    const arrivals = Array.from({length: parts.length - reused}, (_, offset) => {
+      const index = reused + offset
+      const arrival = index === parts.length - 1 ? parts : parts.slice(0, index + 1)
+      return grouper(arrival, context)[index] ?? null
+    })
+    const paths = [...(memo?.paths.slice(0, reused) ?? []), ...arrivals]
+    memo = {parts, context, paths}
+    return paths
+  }
+}
+
+export function lastGroupedIndex(nodes: readonly GroupNode[]): number {
+  const last = nodes.at(-1)
+  if (!last) return -1
+  return last.type === 'part' ? last.index : (last.indices.at(-1) ?? -1)
 }
 
 export function groupEntryFor(entries: ReadonlyArray<GroupEntry>, key: GroupKey): GroupEntry | undefined {

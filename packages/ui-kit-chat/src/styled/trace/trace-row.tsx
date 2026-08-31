@@ -1,6 +1,6 @@
-import {Show, splitProps, type JSX} from 'solid-js'
+import {createMemo, Show, splitProps, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
-import {Collapsible} from '@conciv/ui-kit-system'
+import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolRowMark, ToolRowProjection} from '../../tools/primitives/tool-row.js'
 import {FOCUS_INSET} from '../classes.js'
 
@@ -11,7 +11,7 @@ export const TRACE_INDENT = 'ps-[var(--chat-trace-gutter)]'
 export const TRACE_HOVER_INDENT = '-mx-2 px-2 ps-[calc(var(--chat-trace-gutter)+0.5rem)]'
 
 const ROW = `${TRACE_LINE} ${TRACE_HOVER_INDENT}`
-const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-[var(--chat-radius-sm)] [background:transparent] [transition:background-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] ${FOCUS_INSET}`
+const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-[var(--chat-radius-sm)] [background:transparent] [transition:background-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:cursor-default disabled:hover:[background:transparent] ${FOCUS_INSET}`
 const MARK = 'select-none flex-none w-[9px] text-center text-[11px] leading-none [font-family:var(--chat-mono)]'
 const LABEL = `${TRACE_MICROLABEL} min-w-[38px] text-chat-microlabel`
 const RUN_LABEL = `${TRACE_MICROLABEL} min-w-[38px] text-chat-accent`
@@ -54,7 +54,7 @@ function metaTone(mark: ToolRowMark, meta: string): string {
 }
 
 export function TraceMark(props: {mark: ToolRowMark}): JSX.Element {
-  const face = () => markFace(props.mark)
+  const face = createMemo(() => markFace(props.mark))
   return (
     <span role="img" aria-label={face().label} class={`${MARK}  ${face().tone}`}>
       {face().glyph}
@@ -82,31 +82,23 @@ export function TraceFoldableRow(props: {
   line: () => JSX.Element
   ring?: boolean
   body?: () => JSX.Element
+  foldable?: boolean
 }): JSX.Element {
-  const [local] = splitProps(props, ['line', 'ring', 'body'])
+  const [local] = splitProps(props, ['line', 'ring', 'body', 'foldable'])
+  const foldable = () => local.foldable ?? local.body !== undefined
   return (
     <li class={ROW_ITEM} data-trace-live={local.ring ? '' : undefined}>
-      <Show
-        when={local.body}
-        fallback={
-          <div class={ROW}>
-            {local.line()}
-            <span aria-hidden="true" class={FOLD_SLOT} />
-          </div>
-        }
-      >
-        {(body) => (
-          <Collapsible.Root defaultOpen class="min-w-0 w-full">
-            <Collapsible.Trigger class={`${ROW}  ${FOLD_ROW}`}>
-              {local.line()}
-              <FoldIndicator />
-            </Collapsible.Trigger>
-            <Collapsible.Content>
-              <div class={BLOCK}>{body()()}</div>
-            </Collapsible.Content>
-          </Collapsible.Root>
-        )}
-      </Show>
+      <Collapsible.Root defaultOpen disabled={!foldable()} class="min-w-0 w-full">
+        <Collapsible.Trigger disabled={!foldable()} class={`${ROW}  ${FOLD_ROW}`}>
+          {local.line()}
+          <Show when={foldable()} fallback={<span aria-hidden="true" class={FOLD_SLOT} />}>
+            <FoldIndicator />
+          </Show>
+        </Collapsible.Trigger>
+        <Collapsible.Content>
+          <Show when={local.body}>{(body) => <div class={BLOCK}>{body()()}</div>}</Show>
+        </Collapsible.Content>
+      </Collapsible.Root>
     </li>
   )
 }
@@ -118,8 +110,9 @@ export function TraceRunRow(props: {
   live?: boolean
   ring?: boolean
   body?: () => JSX.Element
+  foldable?: boolean
 }): JSX.Element {
-  const [local] = splitProps(props, ['label', 'text', 'meta', 'live', 'ring', 'body'])
+  const [local] = splitProps(props, ['label', 'text', 'meta', 'live', 'ring', 'body', 'foldable'])
   const line = (): JSX.Element => (
     <>
       <Show
@@ -133,45 +126,33 @@ export function TraceRunRow(props: {
         <TraceRing />
       </Show>
       <span class={RUN_LABEL}>{local.label}</span>
-      <span class={RUN_TEXT}>{local.text}</span>
-      <Show when={local.meta}>{(meta) => <span class={`${META} text-chat-dim`}>{meta()}</span>}</Show>
+      <TruncatedText class={RUN_TEXT} text={local.text} />
+      <Show when={local.meta}>{(meta) => <TruncatedText class={`${META} text-chat-dim`} text={meta()} />}</Show>
     </>
   )
-  return <TraceFoldableRow line={line} ring={local.ring} body={local.body} />
+  return <TraceFoldableRow line={line} ring={local.ring} body={local.body} foldable={local.foldable} />
 }
 
 export function TraceToolRow(props: {
   projection: ToolRowProjection
   ring?: boolean
   body?: () => JSX.Element
+  foldable?: boolean
 }): JSX.Element {
-  const [local] = splitProps(props, ['projection', 'ring', 'body'])
-  const asRunRow = () => local.projection.mark === 'run' && (local.ring ?? true)
+  const [local] = splitProps(props, ['projection', 'ring', 'body', 'foldable'])
+  const running = createMemo(() => local.projection.mark === 'run' && (local.ring ?? true))
   const body = () => local.projection.block ?? local.body
+  const labelClass = createMemo(() => (running() ? RUN_LABEL : LABEL))
+  const metaClass = createMemo(() => `${META}  ${metaTone(local.projection.mark, local.projection.meta ?? '')}`)
   const line = (): JSX.Element => (
     <>
-      <TraceMark mark={local.projection.mark} />
-      <span class={LABEL}>{local.projection.label}</span>
-      <span class={TARGET}>{local.projection.target}</span>
-      <Show when={local.projection.meta}>
-        {(meta) => <span class={`${META}  ${metaTone(local.projection.mark, meta())}`}>{meta()}</span>}
+      <Show when={running()} fallback={<TraceMark mark={local.projection.mark} />}>
+        <TraceRing />
       </Show>
+      <span class={labelClass()}>{local.projection.label}</span>
+      <TruncatedText class={TARGET} text={local.projection.target} />
+      <Show when={local.projection.meta}>{(meta) => <TruncatedText class={metaClass()} text={meta()} />}</Show>
     </>
   )
-  return (
-    <Show
-      when={!asRunRow()}
-      fallback={
-        <TraceRunRow
-          label={local.projection.label}
-          text={local.projection.target}
-          meta={local.projection.meta}
-          ring={local.ring}
-          body={body()}
-        />
-      }
-    >
-      <TraceFoldableRow line={line} ring={local.ring} body={body()} />
-    </Show>
-  )
+  return <TraceFoldableRow line={line} ring={local.ring} body={body()} foldable={local.foldable} />
 }

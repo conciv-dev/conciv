@@ -211,7 +211,7 @@ describe('claude connect bridge', () => {
   it('forwards a request and writes the json reply with the session header attached', async () => {
     const served = await serveEcho()
     const cwd = projectServedBy('one', served.url)
-    const lines = await bridgeLines({cwd, input: [rpcCall(1, 'canvas.draw')], expected: 1})
+    const lines = await bridgeLines({cwd, input: [rpcCall(1, 'canvas_draw')], expected: 1})
 
     expect(onlyFrame(lines)).toEqual({jsonrpc: '2.0', id: 1, result: {ok: true}})
     expect(served.recorded[0]?.session).toBe(CLAUDE_SESSION)
@@ -222,7 +222,7 @@ describe('claude connect bridge', () => {
       sendJson(response, 500, JSON.stringify({message: 'internal error'}))
     })
     const cwd = projectServedBy('one', served.url)
-    const lines = await bridgeLines({cwd, input: [rpcCall(2, 'canvas.draw')], expected: 1})
+    const lines = await bridgeLines({cwd, input: [rpcCall(2, 'canvas_draw')], expected: 1})
     const frame = onlyFrame(lines)
 
     expect(frame.id).toBe(2)
@@ -235,7 +235,7 @@ describe('claude connect bridge', () => {
       response.end('<!doctype html><h1>not found</h1>')
     })
     const cwd = projectServedBy('one', served.url)
-    const lines = await bridgeLines({cwd, input: [rpcCall(3, 'canvas.draw')], expected: 1})
+    const lines = await bridgeLines({cwd, input: [rpcCall(3, 'canvas_draw')], expected: 1})
     const frame = onlyFrame(lines)
 
     expect(frame.id).toBe(3)
@@ -248,7 +248,7 @@ describe('claude connect bridge', () => {
       response.end('hello')
     })
     const cwd = projectServedBy('one', served.url)
-    const lines = await bridgeLines({cwd, input: [rpcCall(13, 'canvas.draw')], expected: 1})
+    const lines = await bridgeLines({cwd, input: [rpcCall(13, 'canvas_draw')], expected: 1})
     const frame = onlyFrame(lines)
 
     expect(frame.id).toBe(13)
@@ -260,7 +260,7 @@ describe('claude connect bridge', () => {
       sendJson(response, 200, '')
     })
     const cwd = projectServedBy('one', served.url)
-    const lines = await bridgeLines({cwd, input: [rpcCall(14, 'canvas.draw')], expected: 1})
+    const lines = await bridgeLines({cwd, input: [rpcCall(14, 'canvas_draw')], expected: 1})
     const frame = onlyFrame(lines)
 
     expect(frame.id).toBe(14)
@@ -269,7 +269,7 @@ describe('claude connect bridge', () => {
 
   it('answers an error frame when the server is not listening', async () => {
     const cwd = projectServedBy('one', await closedServerUrl())
-    const lines = await bridgeLines({cwd, input: [rpcCall(4, 'canvas.draw')], expected: 1})
+    const lines = await bridgeLines({cwd, input: [rpcCall(4, 'canvas_draw')], expected: 1})
     const frame = onlyFrame(lines)
 
     expect(frame.id).toBe(4)
@@ -279,7 +279,7 @@ describe('claude connect bridge', () => {
   it('times out a server that never answers', async () => {
     const served = await serve(() => {})
     const cwd = projectServedBy('one', served.url)
-    const lines = await bridgeLines({cwd, input: [rpcCall(5, 'canvas.draw')], expected: 1, timeoutMs: 300})
+    const lines = await bridgeLines({cwd, input: [rpcCall(5, 'canvas_draw')], expected: 1, timeoutMs: 300})
     const frame = onlyFrame(lines)
 
     expect(frame.id).toBe(5)
@@ -292,7 +292,7 @@ describe('claude connect bridge', () => {
     })
     const cwd = projectServedBy('one', served.url)
     const notification = JSON.stringify({jsonrpc: '2.0', method: 'notifications/initialized'})
-    const input = [notification, rpcCall(6, 'canvas.draw')]
+    const input = [notification, rpcCall(6, 'canvas_draw')]
     const lines = await bridgeLines({cwd, input, expected: 1})
 
     expect(onlyFrame(lines).id).toBe(6)
@@ -305,7 +305,7 @@ describe('claude connect bridge', () => {
       sendEvents(response, `event: message\ndata: ${first}\n\nevent: message\ndata: ${second}\n\n`)
     })
     const cwd = projectServedBy('one', served.url)
-    const lines = await bridgeLines({cwd, input: [rpcCall(7, 'canvas.draw')], expected: 2})
+    const lines = await bridgeLines({cwd, input: [rpcCall(7, 'canvas_draw')], expected: 2})
 
     expect(lines).toHaveLength(2)
     expect(frames(lines).map((frame) => frame.method ?? frame.id)).toEqual(['notifications/progress', 7])
@@ -318,7 +318,7 @@ describe('claude connect bridge', () => {
       sendEvents(response, `${head}\n${tail}\n\n`)
     })
     const cwd = projectServedBy('one', served.url)
-    const lines = await bridgeLines({cwd, input: [rpcCall(8, 'canvas.draw')], expected: 1})
+    const lines = await bridgeLines({cwd, input: [rpcCall(8, 'canvas_draw')], expected: 1})
     const frame = onlyFrame(lines)
 
     expect(frame.id).toBe(8)
@@ -331,7 +331,7 @@ describe('claude connect bridge', () => {
       sendJson(response, 200, JSON.stringify({jsonrpc: '2.0', id: 9, result: {text}}))
     })
     const cwd = projectServedBy('one', served.url)
-    const lines = await bridgeLines({cwd, input: [rpcCall(9, 'canvas.draw')], expected: 1})
+    const lines = await bridgeLines({cwd, input: [rpcCall(9, 'canvas_draw')], expected: 1})
     const frame = onlyFrame(lines)
 
     expect(frame.id).toBe(9)
@@ -345,7 +345,7 @@ describe('claude connect bridge', () => {
       setTimeout(() => sendJson(response, 200, JSON.stringify({jsonrpc: '2.0', id, result: {ok: true}})), delays[id])
     })
     const cwd = projectServedBy('one', served.url)
-    const input = [rpcCall(10, 'canvas.draw'), rpcCall(11, 'canvas.draw'), rpcCall(12, 'canvas.draw')]
+    const input = [rpcCall(10, 'canvas_draw'), rpcCall(11, 'canvas_draw'), rpcCall(12, 'canvas_draw')]
     const lines = await bridgeLines({cwd, input, expected: 3})
 
     expect(lines).toHaveLength(3)
@@ -364,9 +364,9 @@ describe('claude connect bridge project resolution', () => {
     const firstProject = projectServedBy('first', first.url)
     const secondProject = projectServedBy('second', second.url)
 
-    const toFirst = await bridgeLines({cwd: firstProject, input: [rpcCall(20, 'canvas.draw')], expected: 1})
-    const toSecond = await bridgeLines({cwd: secondProject, input: [rpcCall(21, 'canvas.draw')], expected: 1})
-    const backToFirst = await bridgeLines({cwd: firstProject, input: [rpcCall(22, 'canvas.draw')], expected: 1})
+    const toFirst = await bridgeLines({cwd: firstProject, input: [rpcCall(20, 'canvas_draw')], expected: 1})
+    const toSecond = await bridgeLines({cwd: secondProject, input: [rpcCall(21, 'canvas_draw')], expected: 1})
+    const backToFirst = await bridgeLines({cwd: firstProject, input: [rpcCall(22, 'canvas_draw')], expected: 1})
 
     expect(frames([...toFirst, ...toSecond, ...backToFirst]).map((frame) => frame.id)).toEqual([20, 21, 22])
     expect(first.recorded.map((entry) => callId(entry.body))).toEqual([20, 22])
@@ -378,7 +378,7 @@ describe('claude connect bridge project resolution', () => {
     const project = projectServedBy('nested', served.url)
     const nested = join(project, 'packages', 'app')
     mkdirSync(nested, {recursive: true})
-    const lines = await bridgeLines({cwd: nested, input: [rpcCall(23, 'canvas.draw')], expected: 1})
+    const lines = await bridgeLines({cwd: nested, input: [rpcCall(23, 'canvas_draw')], expected: 1})
 
     expect(onlyFrame(lines).id).toBe(23)
     expect(served.recorded).toHaveLength(1)
@@ -388,13 +388,13 @@ describe('claude connect bridge project resolution', () => {
     const before = await serveEcho()
     const project = projectServedBy('restart', before.url)
     const bridge = startBridge({cwd: project})
-    bridge.write(rpcCall(24, 'canvas.draw'))
+    bridge.write(rpcCall(24, 'canvas_draw'))
     await bridge.frames(1)
 
     await stopServer(before.server)
     const after = await serveEcho()
     pointProjectAt(project, after.url)
-    bridge.write(rpcCall(25, 'canvas.draw'))
+    bridge.write(rpcCall(25, 'canvas_draw'))
     const lines = await bridge.frames(2)
     bridge.stop()
 
@@ -407,7 +407,7 @@ describe('claude connect bridge project resolution', () => {
     const served = await serveEcho()
     projectServedBy('served', served.url)
     const stranger = makeProject('stranger')
-    const lines = await bridgeLines({cwd: stranger, input: [rpcCall(26, 'canvas.draw')], expected: 1})
+    const lines = await bridgeLines({cwd: stranger, input: [rpcCall(26, 'canvas_draw')], expected: 1})
     const frame = onlyFrame(lines)
 
     expect(frame.id).toBe(26)
@@ -420,7 +420,7 @@ describe('claude connect bridge project resolution', () => {
     const parent = projectServedBy('nested-parent', parentServed.url)
     const child = join(parent, 'child')
     mkdirSync(concivStateDir(child), {recursive: true})
-    const lines = await bridgeLines({cwd: child, input: [rpcCall(27, 'canvas.draw')], expected: 1})
+    const lines = await bridgeLines({cwd: child, input: [rpcCall(27, 'canvas_draw')], expected: 1})
     const frame = onlyFrame(lines)
 
     expect(frame.id).toBe(27)
@@ -435,7 +435,7 @@ describe('claude connect bridge project resolution', () => {
     const child = join(parent, 'child')
     mkdirSync(child, {recursive: true})
     pointProjectAt(child, childServed.url)
-    const lines = await bridgeLines({cwd: child, input: [rpcCall(28, 'canvas.draw')], expected: 1})
+    const lines = await bridgeLines({cwd: child, input: [rpcCall(28, 'canvas_draw')], expected: 1})
     const frame = onlyFrame(lines)
 
     expect(frame.id).toBe(28)

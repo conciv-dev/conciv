@@ -98,9 +98,9 @@ export const ReadTool: Story = {
   render: () =>
     frame(
       <MetaToolCard
-        part={part('page.text', {selector: '#headline', trim: true})}
+        part={part('page_text', {selector: '#headline', trim: true})}
         result={result('Ship it on Friday')}
-        ctx={ctxFor({'page.text': textMeta})}
+        ctx={ctxFor({page_text: textMeta})}
         addResult={INERT_ADD_RESULT}
         durationMs={120}
       />,
@@ -119,16 +119,16 @@ export const MutatingTool: Story = {
   render: () =>
     frame(
       <MetaToolCard
-        part={part('page.fill', {selector: '#email', value: 'ada@example.com'})}
+        part={part('page_fill', {selector: '#email', value: 'ada@example.com'})}
         result={result('{"ok":true}')}
-        ctx={ctxFor({'page.fill': fillMeta})}
+        ctx={ctxFor({page_fill: fillMeta})}
         addResult={INERT_ADD_RESULT}
       />,
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Filled the field #email')).toBeVisible()
-    await expect(canvas.getByText('edits page')).toBeVisible()
+    await expect(canvas.getByText('page edit')).toBeVisible()
   },
 }
 
@@ -136,9 +136,9 @@ export const MirroringTool: Story = {
   render: () =>
     frame(
       <MetaToolCard
-        part={part('page.highlight', {selector: '.cta'})}
+        part={part('page_highlight', {selector: '.cta'})}
         result={result('{"ok":true}')}
-        ctx={ctxFor({'page.highlight': highlightMeta})}
+        ctx={ctxFor({page_highlight: highlightMeta})}
         addResult={INERT_ADD_RESULT}
       />,
     ),
@@ -153,9 +153,9 @@ export const DeclaredError: Story = {
   render: () =>
     frame(
       <MetaToolCard
-        part={part('page.fill', {selector: '#ghost', value: 'nobody'})}
-        result={result('{"error":{"message":"page.fill failed","code":"NO_MATCH"}}', 'error')}
-        ctx={ctxFor({'page.fill': fillMeta})}
+        part={part('page_fill', {selector: '#ghost', value: 'nobody'})}
+        result={result('{"error":{"message":"page_fill failed","code":"NO_MATCH"}}', 'error')}
+        ctx={ctxFor({page_fill: fillMeta})}
         addResult={INERT_ADD_RESULT}
       />,
     ),
@@ -163,7 +163,7 @@ export const DeclaredError: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button'))
     await waitFor(() => expect(canvas.getByText('nothing on the page matches that selector')).toBeVisible())
-    await expect(canvas.queryByText('page.fill failed')).toBeNull()
+    await expect(canvas.queryByText('page_fill failed')).toBeNull()
   },
 }
 
@@ -195,9 +195,9 @@ export const TitleTooltip: Story = {
   render: () =>
     frame(
       <MetaToolCard
-        part={part('page.fill', {selector: '#email', value: 'ada@example.com'})}
+        part={part('page_fill', {selector: '#email', value: 'ada@example.com'})}
         result={result('{"ok":true}')}
-        ctx={ctxFor({'page.fill': fillMeta})}
+        ctx={ctxFor({page_fill: fillMeta})}
         addResult={INERT_ADD_RESULT}
       />,
     ),
@@ -214,9 +214,9 @@ export const PositionalHeadline: Story = {
   render: () =>
     frame(
       <MetaToolCard
-        part={part('page.text', {selector: 'main > h1', trim: false}, 'input-complete')}
+        part={part('page_text', {selector: 'main > h1', trim: false}, 'input-complete')}
         result={undefined}
-        ctx={ctxFor({'page.text': textMeta})}
+        ctx={ctxFor({page_text: textMeta})}
         addResult={INERT_ADD_RESULT}
       />,
     ),
@@ -230,9 +230,9 @@ export const CapturedElement: Story = {
   render: () =>
     frame(
       <MetaToolCard
-        part={part('page.fill', {selector: '#email', value: 'ada@example.com'})}
+        part={part('page_fill', {selector: '#email', value: 'ada@example.com'})}
         result={result('{"ok":true}')}
-        ctx={ctxFor({'page.fill': fillMeta})}
+        ctx={ctxFor({page_fill: fillMeta})}
         addResult={INERT_ADD_RESULT}
         capture={{after: ELEMENT_CAPTURE_FIXTURE_FULL, css: ELEMENT_CAPTURE_FIXTURE_CSS}}
       />,
@@ -248,9 +248,9 @@ export const DegradedCapture: Story = {
   render: () =>
     frame(
       <MetaToolCard
-        part={part('page.fill', {selector: '#email', value: 'ada@example.com'})}
+        part={part('page_fill', {selector: '#email', value: 'ada@example.com'})}
         result={result('{"ok":true}')}
-        ctx={ctxFor({'page.fill': fillMeta})}
+        ctx={ctxFor({page_fill: fillMeta})}
         addResult={INERT_ADD_RESULT}
         capture={{after: ELEMENT_CAPTURE_FIXTURE_DESCRIPTOR_ONLY}}
       />,

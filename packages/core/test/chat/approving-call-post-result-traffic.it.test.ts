@@ -9,7 +9,7 @@ import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
 
 const canvasDelete = defineTool({
-  name: 'canvas.delete',
+  name: 'canvas_delete',
   description: 'Remove an element from the canvas by elementId.',
   inputSchema: z.object({elementId: z.string()}),
   outputSchema: z.object({removed: z.string()}),
@@ -43,10 +43,10 @@ describe('an approving call keeps completing while its session subscription is b
     const kit = await bootKit({extensions: [whiteboardish]}, noisyHarness())
     try {
       const session = await kit.session()
-      await kit.attach(session)
+      await kit.events(session)
       await kit.chat('keep talking', session)
       const approvingCall = makeApprovingCallTool(kit.base, session)
-      const outcome = await approvingCall('canvas.delete', {elementId: 'target'})
+      const outcome = await approvingCall('canvas_delete', {elementId: 'target'})
       expect(JSON.stringify(outcome)).toContain('target')
     } finally {
       await kit.cleanup()

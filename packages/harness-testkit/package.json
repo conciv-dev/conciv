@@ -28,6 +28,7 @@
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@tanstack/ai": "catalog:",
+    "@tanstack/ai-client": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
     "hono": "4.12.27",
     "p-timeout": "^7.0.1",

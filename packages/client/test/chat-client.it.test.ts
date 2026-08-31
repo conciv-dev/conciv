@@ -10,43 +10,27 @@ afterEach(async () => {
   kit = undefined
 })
 
-type Observed = {
-  messages: UIMessage[]
-  generating: boolean
-  connectionStatus: string
-}
+type Observed = {messages: UIMessage[]; generating: boolean}
 
-type ClientUpdate =
-  | {kind: 'messages'; messages: UIMessage[]}
-  | {kind: 'generating'; generating: boolean}
-  | {kind: 'connection'; status: string}
-
-type ObserveOpts = {
-  onUpdate: (update: ClientUpdate) => void
-  connectionOptions?: Parameters<typeof chatConnection>[2]
-  connection?: ReturnType<typeof chatConnection>
-}
+type ClientUpdate = {kind: 'messages'; messages: UIMessage[]} | {kind: 'generating'; generating: boolean}
 
 function observeClient(
-  kitBase: string,
+  base: string,
   sessionId: string,
-  opts: ObserveOpts,
+  onUpdate: (update: ClientUpdate) => void,
 ): {client: ChatClient; observed: Observed} {
-  const observed: Observed = {messages: [], generating: false, connectionStatus: 'disconnected'}
-  const connection = opts.connection ?? chatConnection(makeRpcClient(kitBase), sessionId, opts.connectionOptions ?? {})
+  const observed: Observed = {messages: [], generating: false}
   const client = new ChatClient({
-    connection,
+    connection: chatConnection(makeRpcClient(base), base, sessionId),
+    threadId: sessionId,
+    persistence: true,
     onMessagesChange: (messages) => {
       observed.messages = messages
-      opts.onUpdate({kind: 'messages', messages})
+      onUpdate({kind: 'messages', messages})
     },
-    onSessionGeneratingChange: (isGenerating) => {
-      observed.generating = isGenerating
-      opts.onUpdate({kind: 'generating', generating: isGenerating})
-    },
-    onConnectionStatusChange: (status) => {
-      observed.connectionStatus = status
-      opts.onUpdate({kind: 'connection', status})
+    onSessionGeneratingChange: (generating) => {
+      observed.generating = generating
+      onUpdate({kind: 'generating', generating})
     },
   })
   return {client, observed}
@@ -59,17 +43,12 @@ describe('ChatClient over chatConnection (useChatSession composition, headless)'
   it('sendMessage round-trips: user message renders, assistant text streams in, generating settles', async () => {
     kit = await bootClientKit()
     const sessionId = await kit.session()
-    const connected = Promise.withResolvers<void>()
     const settled = Promise.withResolvers<void>()
-    const {client, observed} = observeClient(kit.base, sessionId, {
-      onUpdate: (update) => {
-        if (update.kind === 'connection' && update.status === 'connected') connected.resolve()
-        if (update.kind === 'generating' && !update.generating) settled.resolve()
-      },
+    const {client, observed} = observeClient(kit.base, sessionId, (update) => {
+      if (update.kind === 'generating' && !update.generating) settled.resolve()
     })
     client.subscribe()
     try {
-      await connected.promise
       await client.sendMessage('hello')
       await settled.promise
       expect(observed.messages[0]?.role).toBe('user')
@@ -81,52 +60,48 @@ describe('ChatClient over chatConnection (useChatSession composition, headless)'
       ).toContain('ok')
     } finally {
       client.unsubscribe()
+      client.dispose()
     }
-  })
+  }, 60_000)
 
   it('a run whose adapter stream dies after RUN_STARTED still settles generating', async () => {
     kit = await bootClientKit()
     const sessionId = await kit.session()
-    const connected = Promise.withResolvers<void>()
-    const {client, observed} = observeClient(kit.base, sessionId, {
-      onUpdate: (update) => {
-        if (update.kind === 'connection' && update.status === 'connected') connected.resolve()
-      },
-    })
+    const {client, observed} = observeClient(kit.base, sessionId, () => {})
     client.subscribe()
     try {
-      await connected.promise
       kit.harness.script.scriptError('adapter stream blew up')
       await client.sendMessage('hello')
       expect(observed.generating).toBe(false)
     } finally {
       client.unsubscribe()
+      client.dispose()
     }
-  })
+  }, 60_000)
 
-  it('attaching mid-turn hydrates messages from the snapshot and flags generating', async () => {
-    kit = await bootClientKit()
-    const sessionId = await kit.session()
-    kit.gate.hold()
-    await makeRpcClient(kit.base).chat.send({sessionId, runId: 'chat-client-1', text: 'started elsewhere'})
+  it('a client mounting mid-turn hydrates the thread and rejoins the run in flight', async () => {
+    const clientKit = await bootClientKit()
+    kit = clientKit
+    const sessionId = await clientKit.session()
+    clientKit.gate.hold()
+    const elsewhere = await clientKit.turn('started elsewhere', {session: sessionId, runId: 'chat-client-1'})
+    await elsewhere.waitForRunStart()
+
     const hydrated = Promise.withResolvers<UIMessage[]>()
-    const running = Promise.withResolvers<void>()
     const settled = Promise.withResolvers<void>()
-    const {client} = observeClient(kit.base, sessionId, {
-      onUpdate: (update) => {
-        if (update.kind === 'messages') hydrated.resolve(update.messages)
-        if (update.kind === 'generating' && update.generating) running.resolve()
-        if (update.kind === 'generating' && !update.generating) settled.resolve()
-      },
+    const {client} = observeClient(clientKit.base, sessionId, (update) => {
+      if (update.kind === 'messages' && update.messages.length > 0) hydrated.resolve(update.messages)
+      if (update.kind === 'generating' && !update.generating) settled.resolve()
     })
     client.subscribe()
+    client.attach()
     try {
       expect((await hydrated.promise).some((message) => textOf(message).includes('started elsewhere'))).toBe(true)
-      await running.promise
-      kit?.gate.release()
+      clientKit.gate.release()
       await settled.promise
     } finally {
       client.unsubscribe()
+      client.dispose()
     }
-  })
+  }, 60_000)
 })

@@ -1,0 +1,195 @@
+diff --git a/dist/esm/handle.js b/dist/esm/handle.js
+index f849f8708b22a6bd6204f3c78261229543f53b52..b8771923fb0ac9ab3199ce037eddb40c75b7a3ae 100644
+--- a/dist/esm/handle.js
++++ b/dist/esm/handle.js
+@@ -633,6 +633,7 @@ var LocalProcessHandle = class {
+ 			detached: spawnDetached
+ 		});
+ 		this.track(child);
++		child.stdin.on("error", () => {});
+ 		if (opts?.signal) opts.signal.addEventListener("abort", () => killTree(child, void 0, this.options.logger), { once: true });
+ 		const closed = new Promise((resolve, reject) => {
+ 			child.once("error", reject);
+diff --git a/dist/esm/provider.js b/dist/esm/provider.js
+index 71e952f4cf3fd4e5119e03819b54e0a87f85b6a5..84ebe510696b547529a8173bd4ac2f6ac69cfd39 100644
+--- a/dist/esm/provider.js
++++ b/dist/esm/provider.js
+@@ -7,6 +7,15 @@ import * as path from "node:path";
+ var LocalProcessProvider = class {
+ 	config;
+ 	name = "local-process";
++	/**
++	* Every handle this provider minted, keyed by its id (the backing dir). A
++	* `create`/`resume` hands the caller a handle the provider then forgets, so
++	* `destroy(id)` had no way to reach the process tree that handle spawned —
++	* it could only remove the dir, and only when the dir was ours. Under a
++	* journaled spawn the abort signal is deliberately dropped and `destroy` IS
++	* the kill, so forgetting the handle leaks the agent forever.
++	*/
++	minted = /* @__PURE__ */ new Map();
+ 	constructor(config) {
+ 		this.config = config;
+ 	}
+@@ -16,8 +25,14 @@ var LocalProcessProvider = class {
+ 	removeDefault() {
+ 		return this.config.removeOnDestroy ?? this.config.dir === void 0;
+ 	}
++	track(handle) {
++		const forId = this.minted.get(handle.id) ?? [];
++		this.minted.set(handle.id, forId);
++		forId.push(handle);
++		return handle;
++	}
+ 	makeHandle(root) {
+-		return new LocalProcessHandle({
++		return this.track(new LocalProcessHandle({
+ 			root,
+ 			removeOnDestroy: this.removeDefault(),
+ 			scrubEnv: this.config.scrubEnv,
+@@ -33,7 +48,7 @@ var LocalProcessProvider = class {
+ 					forkFactory: () => Promise.reject(/* @__PURE__ */ new Error("nested fork unsupported"))
+ 				});
+ 			}
+-		});
++		}));
+ 	}
+ 	baseDir() {
+ 		return this.config.baseDir ?? path.join(os.tmpdir(), "tanstack-ai-sandboxes");
+@@ -52,13 +67,21 @@ var LocalProcessProvider = class {
+ 		return this.makeHandle(input.id);
+ 	}
+ 	/**
+-	* Destroy by id (a dir path). Unlike `LocalProcessHandle.destroy` there is no
+-	* handle here, so no children can be killed first — a process spawned through
+-	* a handle we no longer hold may still own the dir as its CWD. The bounded
+-	* retry is all that is available, and a dir that never releases is reported
+-	* through the logger rather than silently left behind.
++	* Destroy by id (a dir path), tearing down ONE handle this provider minted
++	* for that id through the handle's own `destroy` — oldest first. A fixed
++	* `dir` makes every concurrent run share one id, so destroying every handle
++	* for that id tore down the process tree of a run that was still going.
++	* Creates and destroys pair one-for-one and each handle only kills the
++	* children IT spawned, so this retires exactly one run's tree per call.
+ 	*/
+ 	async destroy(input) {
++		const forId = this.minted.get(input.id);
++		const handle = forId?.shift();
++		if (forId?.length === 0) this.minted.delete(input.id);
++		if (handle) {
++			await handle.destroy();
++			return;
++		}
+ 		if (this.removeDefault()) await removeDirWithRetry(input.id, this.config.logger);
+ 	}
+ };
+diff --git a/src/provider.ts b/src/provider.ts
+index bd3f9a919b65112f60c463c295d8d256fa096a4b..fa754cabf37d4e5e0d26bf8f10403c9bbf727feb 100644
+--- a/src/provider.ts
++++ b/src/provider.ts
+@@ -48,6 +48,16 @@ export interface LocalProcessSandboxConfig {
+ class LocalProcessProvider implements SandboxProvider {
+   readonly name = 'local-process'
+ 
++  /**
++   * Every handle this provider minted, keyed by its id (the backing dir). A
++   * `create`/`resume` hands the caller a handle the provider then forgets, so
++   * `destroy(id)` had no way to reach the process tree that handle spawned —
++   * it could only remove the dir, and only when the dir was ours. Under a
++   * journaled spawn the abort signal is deliberately dropped and `destroy` IS
++   * the kill, so forgetting the handle leaks the agent forever.
++   */
++  private readonly minted = new Map<string, Array<SandboxHandle>>()
++
+   constructor(private readonly config: LocalProcessSandboxConfig) {}
+ 
+   capabilities(): SandboxCapabilities {
+@@ -58,25 +68,34 @@ class LocalProcessProvider implements SandboxProvider {
+     return this.config.removeOnDestroy ?? this.config.dir === undefined
+   }
+ 
++  private track(handle: SandboxHandle): SandboxHandle {
++    const forId = this.minted.get(handle.id) ?? []
++    this.minted.set(handle.id, forId)
++    forId.push(handle)
++    return handle
++  }
++
+   private makeHandle(root: string): SandboxHandle {
+-    return new LocalProcessHandle({
+-      root,
+-      removeOnDestroy: this.removeDefault(),
+-      scrubEnv: this.config.scrubEnv,
+-      logger: this.config.logger,
+-      forkFactory: async (sourceRoot) => {
+-        const dest = path.join(this.baseDir(), `fork-${randomUUID()}`)
+-        await fsp.mkdir(dest, { recursive: true })
+-        await fsp.cp(sourceRoot, dest, { recursive: true })
+-        return new LocalProcessHandle({
+-          root: dest,
+-          removeOnDestroy: true,
+-          logger: this.config.logger,
+-          forkFactory: () =>
+-            Promise.reject(new Error('nested fork unsupported')),
+-        })
+-      },
+-    })
++    return this.track(
++      new LocalProcessHandle({
++        root,
++        removeOnDestroy: this.removeDefault(),
++        scrubEnv: this.config.scrubEnv,
++        logger: this.config.logger,
++        forkFactory: async (sourceRoot) => {
++          const dest = path.join(this.baseDir(), `fork-${randomUUID()}`)
++          await fsp.mkdir(dest, { recursive: true })
++          await fsp.cp(sourceRoot, dest, { recursive: true })
++          return new LocalProcessHandle({
++            root: dest,
++            removeOnDestroy: true,
++            logger: this.config.logger,
++            forkFactory: () =>
++              Promise.reject(new Error('nested fork unsupported')),
++          })
++        },
++      }),
++    )
+   }
+ 
+   private baseDir(): string {
+@@ -106,13 +125,31 @@ class LocalProcessProvider implements SandboxProvider {
+   }
+ 
+   /**
+-   * Destroy by id (a dir path). Unlike `LocalProcessHandle.destroy` there is no
+-   * handle here, so no children can be killed first — a process spawned through
+-   * a handle we no longer hold may still own the dir as its CWD. The bounded
+-   * retry is all that is available, and a dir that never releases is reported
+-   * through the logger rather than silently left behind.
++   * Destroy by id (a dir path), tearing down ONE handle this provider minted
++   * for that id through the handle's own `destroy` — which kills the process
++   * tree that handle spawned and removes the dir when the dir is ours, so
++   * `removeOnDestroy` keeps meaning exactly what it meant.
++   *
++   * One handle, not all of them, and oldest first. A fixed `dir` makes every
++   * concurrent run share one id, so destroying every handle for that id tore
++   * down the process tree of a run that was still going. Creates and destroys
++   * pair up one-for-one, and each handle only ever kills the children IT
++   * spawned, so taking them in mint order retires exactly one run's tree per
++   * call and never reaches into another's.
++   *
++   * When no handle is tracked (another process minted it, or it was already
++   * destroyed) the bounded dir retry is still all that is available, and a dir
++   * that never releases is reported through the logger rather than silently
++   * left behind.
+    */
+   async destroy(input: SandboxDestroyInput): Promise<void> {
++    const forId = this.minted.get(input.id)
++    const handle = forId?.shift()
++    if (forId?.length === 0) this.minted.delete(input.id)
++    if (handle) {
++      await handle.destroy()
++      return
++    }
+     if (this.removeDefault()) {
+       await removeDirWithRetry(input.id, this.config.logger)
+     }

@@ -25,9 +25,25 @@
       "types": "./dist/chat-types.d.ts",
       "import": "./dist/chat-types.js"
     },
+    "./push-types": {
+      "types": "./dist/push-types.d.ts",
+      "import": "./dist/push-types.js"
+    },
+    "./chat-busy": {
+      "types": "./dist/chat-busy.d.ts",
+      "import": "./dist/chat-busy.js"
+    },
     "./ui-types": {
       "types": "./dist/ui-types.d.ts",
       "import": "./dist/ui-types.js"
+    },
+    "./run-types": {
+      "types": "./dist/run-types.d.ts",
+      "import": "./dist/run-types.js"
+    },
+    "./approval-types": {
+      "types": "./dist/approval-types.d.ts",
+      "import": "./dist/approval-types.js"
     },
     "./editor-types": {
       "types": "./dist/editor-types.d.ts",

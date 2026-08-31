@@ -7,10 +7,10 @@ import {
   type IsolateDriver,
   type ToolBinding,
 } from '@tanstack/ai-code-mode'
-import type {AnyTool} from '@tanstack/ai'
-import {sanitizeIdentifier, uniqueIdentifier, type ToolRequest} from '@conciv/extension'
+import {toolDefinition, type AnyTool, type ServerTool} from '@tanstack/ai'
+import type {ToolRequest} from '@conciv/extension'
 import type {CodeCapability} from './capabilities.js'
-import {toChatTool, type ToolRunContext} from './runtime.js'
+import type {ToolRunContext} from './runtime.js'
 import {approvalRefusal, noListenerRefusal, requiresApproval, type PermissionGate} from './gate.js'
 import {CODE_MODE_TOOL_CALL_EVENT, CODE_MODE_TOOL_ERROR_EVENT, CODE_MODE_TOOL_RESULT_EVENT} from './code-mode-parts.js'
 import {logError} from '../lib/debug.js'
@@ -141,18 +141,7 @@ export function gatedToolRun(
     })
 }
 
-export type NamedCapability = {capability: CodeCapability; bindingName: string}
-
-export function withBindingNames(capabilities: CodeCapability[]): NamedCapability[] {
-  const taken = new Set<string>()
-  return capabilities.map((capability) => {
-    const bindingName = uniqueIdentifier(sanitizeIdentifier(capability.name), taken)
-    taken.add(bindingName)
-    return {capability, bindingName}
-  })
-}
-
-type BoundCapability = NamedCapability & {binding: ToolBinding}
+type BoundCapability = {capability: CodeCapability; binding: ToolBinding}
 
 function bindCapabilities(
   capabilities: CodeCapability[],
@@ -161,26 +150,23 @@ function bindCapabilities(
   gate: PermissionGate,
   listening: SessionListening,
 ): BoundCapability[] {
-  const named = withBindingNames(capabilities)
   const record = toolsToBindings(
-    named.map((entry) =>
-      toChatTool(
-        {
-          name: entry.bindingName,
-          description: entry.capability.description,
-          inputSchema: entry.capability.inputSchema,
-        },
-        gatedToolRun(entry.capability, sessionId, request, gate, listening),
-        {lazy: true},
-      ),
+    capabilities.map((capability) =>
+      toolDefinition({
+        name: capability.name,
+        description: capability.description,
+        inputSchema: capability.inputSchema,
+        outputSchema: z.unknown(),
+        lazy: true,
+      }).server(gatedToolRun(capability, sessionId, request, gate, listening)),
     ),
     CAPABILITY_BINDING_PREFIX,
   )
   const bindings = Object.values(record)
-  return named.map((entry, index) => {
+  return capabilities.map((capability, index) => {
     const binding = bindings[index]
     if (binding === undefined) throw new Error('the built bindings drifted from the capability list')
-    return {...entry, binding}
+    return {capability, binding}
   })
 }
 
@@ -199,9 +185,10 @@ const CatalogQuerySchema = z.object({
 
 function catalogList(bound: BoundCapability[], search: string | undefined): unknown {
   const term = search?.toLowerCase() ?? ''
-  const entries = bound.filter(({capability, bindingName}) => {
+  const entries = bound.filter(({capability}) => {
     if (term === '') return true
-    const haystack = `${capability.name} ${bindingName} ${capability.summary} ${capability.category}`.toLowerCase()
+    const haystack =
+      `${capability.name} ${capability.description} ${capability.category} ${capability.keywords.join(' ')}`.toLowerCase()
     return haystack.includes(term)
   })
   return {
@@ -218,9 +205,7 @@ function catalogList(bound: BoundCapability[], search: string | undefined): unkn
 }
 
 function capabilityDetail(bound: BoundCapability[], name: string): unknown {
-  const found = bound.find(
-    ({capability, bindingName, binding}) => capability.name === name || bindingName === name || binding.name === name,
-  )
+  const found = bound.find(({capability, binding}) => capability.name === name || binding.name === name)
   if (!found) throw new Error(`unknown capability "${name}"; call catalog({}) to list what exists`)
   const signature = found.capability.signature()
   const output = signature.output === undefined ? undefined : jsonRecord(signature.output, `${name} output`)
@@ -247,21 +232,20 @@ function capabilityDetail(bound: BoundCapability[], name: string): unknown {
   }
 }
 
-function catalogTool(current: () => BoundCapability[]): ReturnType<typeof toChatTool> {
-  return toChatTool(
-    {
-      name: CATALOG_TOOL_NAME,
-      description:
-        'List and inspect every capability in this sandbox: catalog({}) or catalog({search}) lists entries with the exact function name to call, catalog({name}) returns one full typed signature.',
-      inputSchema: CatalogQuerySchema,
-    },
-    (args, context) =>
-      emittingToolCall(CATALOG_TOOL_NAME, args, context, async () => {
-        const query = CatalogQuerySchema.parse(args ?? {})
-        const bound = current()
-        if (query.name !== undefined) return capabilityDetail(bound, query.name)
-        return catalogList(bound, query.search)
-      }),
+function catalogTool(current: () => BoundCapability[]): ServerTool<typeof CatalogQuerySchema, z.ZodUnknown> {
+  return toolDefinition({
+    name: CATALOG_TOOL_NAME,
+    description:
+      'List and inspect every capability in this sandbox: catalog({}) or catalog({search}) lists entries with the exact function name to call, catalog({name}) returns one full typed signature.',
+    inputSchema: CatalogQuerySchema,
+    outputSchema: z.unknown(),
+  }).server((args, context: ToolRunContext | undefined) =>
+    emittingToolCall(CATALOG_TOOL_NAME, args, context, async () => {
+      const query = CatalogQuerySchema.parse(args ?? {})
+      const bound = current()
+      if (query.name !== undefined) return capabilityDetail(bound, query.name)
+      return catalogList(bound, query.search)
+    }),
   )
 }
 
@@ -315,7 +299,7 @@ export async function makeCodeMode(
     tools: [catalogTool(() => bindCapabilities(capabilities(), sessionId, request, gate, listening))],
     timeout: options.timeoutMs ?? CODE_MODE_TIMEOUT_MS,
     onSecretParameter: 'throw',
-    getSkillBindings: async () => {
+    getSnippetBindings: async () => {
       const bound = bindCapabilities(capabilities(), sessionId, request, gate, listening)
       return Object.fromEntries(bound.map((entry) => [entry.binding.name, entry.binding]))
     },

@@ -11,9 +11,9 @@ test('commit moves the whole draft to the live canvas', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    await api.callToolApproved('canvas.svg', {svg: HOUSE, x: 60, y: 60, width: 300})
+    await api.callToolApproved('canvas_svg', {svg: HOUSE, x: 60, y: 60, width: 300})
     await until(async () => (await read(api, 'draft')).length === 2, {hangGuardMs: 30_000, intervalMs: 250})
-    const result = (await api.callToolApproved('canvas.commit', {})) as {committed: boolean}
+    const result = (await api.callToolApproved('canvas_commit', {})) as {committed: boolean}
     expect(result.committed).toBe(true)
     await until(async () => (await read(api, 'live')).length === 2, {hangGuardMs: 30_000, intervalMs: 250})
     expect(await read(api, 'draft')).toHaveLength(0)
@@ -26,9 +26,9 @@ test('discard clears the draft and never touches live', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    await api.callToolApproved('canvas.svg', {svg: HOUSE, x: 60, y: 60, width: 300})
+    await api.callToolApproved('canvas_svg', {svg: HOUSE, x: 60, y: 60, width: 300})
     await until(async () => (await read(api, 'draft')).length === 2, {hangGuardMs: 30_000, intervalMs: 250})
-    const result = (await api.callToolApproved('canvas.discard', {})) as {discarded: number}
+    const result = (await api.callToolApproved('canvas_discard', {})) as {discarded: number}
     expect(result.discarded).toBe(2)
     expect(await read(api, 'draft')).toHaveLength(0)
     expect(await read(api, 'live')).toHaveLength(0)
@@ -41,7 +41,7 @@ test('commit with empty draft is a clean no-op', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    const result = (await api.callToolApproved('canvas.commit', {})) as {committed: boolean; reason?: string}
+    const result = (await api.callToolApproved('canvas_commit', {})) as {committed: boolean; reason?: string}
     expect(result.committed).toBe(false)
     expect(result.reason).toMatch(/no draft/i)
   } finally {

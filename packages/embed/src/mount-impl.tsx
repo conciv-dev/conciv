@@ -2,7 +2,7 @@ import {createEffect, createRoot, createSignal, onCleanup} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
-import {engineOnline, subscribeEngineOnline} from '@conciv/client'
+import {acquirePushChannel} from '@conciv/client'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import {
   collectClientEffects,
@@ -71,9 +71,9 @@ function runDisposers(disposers: Array<() => void>): void {
 
 type SessionPagePlaneConfig = {
   session: () => string | null
+  apiBase: () => string
   rpc: RpcClient
   driver: () => PageDriver
-  isOnline: () => boolean
   redoOnChange: () => unknown
 }
 
@@ -82,15 +82,17 @@ function startSessionPagePlane(config: SessionPagePlaneConfig): {dispose: () => 
     createEffect(() => {
       config.redoOnChange()
       const sessionId = config.session()
-      if (!sessionId) return
+      const apiBase = config.apiBase()
+      if (!sessionId || apiBase === '') return
+      const channel = acquirePushChannel({apiBase, sessionId})
       const plane = startPagePlane({
-        rpc: config.rpc,
-        document,
+        source: {queries: channel.queries, reply: (input) => config.rpc.page.reply(input)},
         driver: config.driver(),
-        isOnline: config.isOnline,
-        subscribeOnline: subscribeEngineOnline,
       })
-      onCleanup(() => plane.dispose())
+      onCleanup(() => {
+        plane.dispose()
+        channel.dispose()
+      })
     })
     return {dispose}
   })
@@ -143,10 +145,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     rpc,
     rebind: rebindClient,
     close: closeConnection,
-  } = makeBrowserRpcClient(config.apiBase, {
-    transport: config.settings.transport,
-    session: () => activeSession.read(),
-  })
+  } = makeBrowserRpcClient(config.apiBase, {session: () => activeSession.read()})
 
   const [connectionGeneration, setConnectionGeneration] = createSignal(0)
   const [apiBase, setApiBase] = createSignal(config.apiBase)
@@ -154,9 +153,9 @@ function bootNormal(config: BootNormalConfig): BootResult {
   const activeSession = makeActiveSessionBinding((session) =>
     startSessionPagePlane({
       session,
+      apiBase,
       rpc,
       driver: () => driver,
-      isOnline: reachabilityRoot.isOnline,
       redoOnChange: connectionGeneration,
     }),
   )
@@ -183,8 +182,6 @@ function bootNormal(config: BootNormalConfig): BootResult {
   window.__TSR_ROUTER__ = hostRouter
   const driver = makeDomPageDriver({tools: mountedClientTools(router), effects: mountedClientEffects(router)})
   window.__CONCIV_PAGE_DRIVER__ = driver
-
-  const reachabilityRoot = createRoot((dispose) => ({isOnline: engineOnline(), dispose}))
 
   const container = document.createElement('div')
   config.root.appendChild(container)
@@ -223,7 +220,6 @@ function bootNormal(config: BootNormalConfig): BootResult {
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
-    reachabilityRoot.dispose,
     closeConnection,
     interactive.notify,
   ]
@@ -238,20 +234,15 @@ type BootConnectConfig = {
 }
 
 function bootConnect(config: BootConnectConfig): BootResult {
-  const deferred = makeBrowserRpcClient(() => null, {
-    transport: config.settings.transport,
-    session: () => activeSession.read(),
-  })
-  const reachabilityRoot = createRoot((dispose) => ({isOnline: engineOnline(), dispose}))
-
+  const deferred = makeBrowserRpcClient(() => null, {session: () => activeSession.read()})
   let boundApiBase: string | undefined
   const [apiBase, setApiBase] = createSignal('')
   const activeSession = makeActiveSessionBinding((session) =>
     startSessionPagePlane({
-      session: () => (apiBase() === '' ? null : session()),
+      session,
+      apiBase,
       rpc: deferred.rpc,
       driver: () => driver,
-      isOnline: reachabilityRoot.isOnline,
       redoOnChange: apiBase,
     }),
   )
@@ -290,7 +281,6 @@ function bootConnect(config: BootConnectConfig): BootResult {
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
-    reachabilityRoot.dispose,
     deferred.close,
     interactive.notify,
   ]

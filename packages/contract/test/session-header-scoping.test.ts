@@ -39,15 +39,13 @@ afterAll(async () => {
 it('each client on one api base sends its own session identity, and a session-less client sends none', async () => {
   const first = dynamicBrowserRpcLink(
     () => base,
-    'fetch',
     () => 'conciv_first',
   )
   const second = dynamicBrowserRpcLink(
     () => base,
-    'fetch',
     () => 'conciv_second',
   )
-  const anonymous = dynamicBrowserRpcLink(() => base, 'fetch')
+  const anonymous = dynamicBrowserRpcLink(() => base)
 
   await first.call(['probe'], {}, {context: {}})
   await second.call(['probe'], {}, {context: {}})

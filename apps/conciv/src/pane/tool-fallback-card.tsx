@@ -1,13 +1,13 @@
 import type {JSX} from 'solid-js'
 import Wrench from 'lucide-solid/icons/wrench'
-import {ToolCard, ToolFallback, ToolFallbackPrimitive} from '@conciv/ui-kit-chat/tools'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {ToolCard, ToolFallback, ToolFallbackPrimitive, toolFallbackHasEmbeddedBody} from '@conciv/ui-kit-chat/tools'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 
 function ToolIcon(): JSX.Element {
   return <Wrench size={14} />
 }
 
-export function ToolFallbackCard(props: ToolCardProps): JSX.Element {
+function ToolFallbackCard(props: ToolCardProps): JSX.Element {
   return (
     <ToolCard Icon={ToolIcon} title={`Tool: ${props.part.name}`} part={props.part} result={props.result}>
       <ToolFallbackPrimitive.Root part={props.part} result={props.result} ctx={props.ctx} durationMs={props.durationMs}>
@@ -20,4 +20,9 @@ export function ToolFallbackCard(props: ToolCardProps): JSX.Element {
       </ToolFallbackPrimitive.Root>
     </ToolCard>
   )
+}
+
+export const toolFallbackCard: ToolCardView = {
+  render: ToolFallbackCard,
+  hasEmbeddedBody: toolFallbackHasEmbeddedBody,
 }

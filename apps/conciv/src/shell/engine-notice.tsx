@@ -2,7 +2,7 @@ import {createEffect, type JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import {useRouter, useSearch} from '@tanstack/solid-router'
 import {engineProbeRefetchInterval, voteEngineProbeSettled} from '@conciv/client'
-import {browserRpcTransport, reprobeBrowserRpcConnection} from '@conciv/contract'
+import {resetBrowserRpcConnection} from '@conciv/contract'
 import {useApiBase, useAppData, useConnected} from '../app/context.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {useNotices} from './notice-context.js'
@@ -18,19 +18,16 @@ export function EngineStaleNotice(): JSX.Element {
   const connected = useConnected()
   const reachability = useEngineReachability()
   const notices = useNotices()
-  const apiBase = useApiBase()
   const router = useRouter({warn: false})
   const search = router ? useSearch({strict: false}) : undefined
   const engine = useQuery(() => {
     const online = reachability.online()
     const panelOpen = search?.()?.open === true
-    const currentApiBase = apiBase()
     return {
       ...appData.utils.meta.engine.queryOptions(),
       enabled: connected(),
       networkMode: 'always',
-      refetchInterval: () =>
-        engineProbeRefetchInterval(online, browserRpcTransport(currentApiBase) === 'fetch' && panelOpen),
+      refetchInterval: () => engineProbeRefetchInterval(online, panelOpen),
     }
   })
   const standing = {fingerprint: null as string | null}
@@ -67,7 +64,7 @@ export function EngineUnreachableNotice(): JSX.Element {
   const apiBase = useApiBase()
   const router = useRouter()
   const retry = (): void => {
-    reprobeBrowserRpcConnection(apiBase())
+    resetBrowserRpcConnection(apiBase())
     void router.invalidate()
   }
   createEffect(() => {

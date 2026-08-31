@@ -28,16 +28,16 @@ test('a reloaded transcript of page acts renders one aggregated session card wit
   const sessionId = await createSession(rpc)
   await coreControl.scriptTurn({
     toolCalls: [
-      {name: 'page.fill', input: {selector: '#name', value: 'Ada'}, result: {ok: true, value: 'Ada'}},
+      {name: 'page_fill', input: {selector: '#name', value: 'Ada'}, result: {ok: true, value: 'Ada'}},
       {
-        name: 'page.fill',
+        name: 'page_fill',
         input: {selector: '#email', value: 'ada@example.com'},
         result: {ok: true, value: 'ada@example.com'},
       },
     ],
     text: 'The profile form is filled in.',
   })
-  await runTurn(rpc, sessionId, 'fill in the profile form')
+  await runTurn(core.base, sessionId, 'fill in the profile form')
 
   mounted.pane = mountPane({base: core.base, sessionId}, () => <ChatPane sessionId={sessionId} />)
 

@@ -18,6 +18,14 @@ README.md; this file is the non-obvious operational rules.
 ## Toolchain
 
 - pnpm (exact version pinned in root `package.json` `packageManager`), Node >= 22. Monorepo orchestrated by turbo.
+- `intent list` needs `pnpm install` to have run in the tree you invoke it from. Intent discovers skills by
+  resolving each workspace package's dependencies; in a git worktree with no `node_modules` of its own, Node
+  resolution escapes upward into the MAIN checkout's `node_modules` and finds only what is hoisted there
+  (`fallow`, `@conciv/skills`). The result is a list showing `fallow` alone and every other entry reported as
+  "declared in intent.skills but was not discovered" — and `@conciv/*` resolved from the main checkout is
+  additionally mismatched, because its `packageRoot` falls outside this root's workspace globs so it is typed
+  `npm` and the `workspace:` matcher misses it. `load` does not apply that kind check, so it keeps working and
+  masks the problem. `pnpm install` in the worktree is the whole fix; nothing in `intent.skills` needs changing.
 - Local turbo runs default to 50% concurrency (`turbo.json`) so builds don't saturate the workstation;
   CI re-uncaps with `TURBO_CONCURRENCY=100%` per workflow. Agent/background gate runs use
   `TURBO_CONCURRENCY=70%` and are not niced; test gates stay serial (`TURBO_CONCURRENCY=1 VITEST_MAX_FORKS=1`).
@@ -25,12 +33,24 @@ README.md; this file is the non-obvious operational rules.
   (oxlint). Format: `pnpm format:check` / `pnpm format` (oxfmt).
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
   So a green `test` already proves the build: don't run a separate `build` gate unless the package has
-  no `test` script (`@conciv/serve`, `@conciv/solid-diffs`, `@conciv/ui-kit-tap`, the `conciv-e2e-*` apps).
+  no `test` script (`@conciv/serve`, `@conciv/ui-kit-tap`, the `conciv-e2e-*` apps).
 - Package gates filter bare: `turbo run test --filter=<pkg>`. A TRAILING `<pkg>...` means "and all its
   DEPENDENCIES" (28 real suites here instead of 1), not "and its dependents"; `.claude/hooks/turbo-filter-gate.sh`
   blocks it for test/typecheck. The dependents selector is the LEADING form `--filter=...<pkg>`.
+  The same hook also blocks an unfiltered `turbo run test` or `turbo run typecheck`, including the bare
+  root scripts `pnpm test` and `pnpm typecheck` (which expand to it), and a bare `vitest` or `vitest run`
+  with no test file/glob and no `-t`/`--testNamePattern`; pass a `--filter` (or a file argument) instead.
 - Affected-only shortcuts for a branch: `pnpm test:affected` / `typecheck:affected` / `build:affected`
   (`--filter=...[origin/main]`).
+- Gates run with the turbo cache on. `turbo run --force` is banned by `.claude/hooks/turbo-filter-gate.sh`
+  (the cache hash already covers source and deps); if a dist looks stale, delete that package's dist
+  (`rm -rf packages/<pkg>/dist`) and rerun without `--force`. `turbo.json` pins no `cacheDir`, so turbo
+  uses its own default inside the checkout: a committed `cacheDir` pointing outside the repo escapes the
+  checkout on CI runners, where nothing exists above the workspace.
+  To share one cache across the main checkout and every `aidx-wt-*` sibling worktree, export
+  `TURBO_CACHE_DIR=../.turbo-cache` in your shell (it resolves per checkout, landing on one directory at
+  `/Users/<user>/Public/web/.turbo-cache`, outside any repo tree). Local gate and agent runs are the only
+  places that want it; never commit it back into `turbo.json`.
 - Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs oxfmt + oxlint on
   staged files. `pnpm install` auto-activates the hook via the `prepare` script; no per-clone step.
   Whole-project gates (typecheck/build/test) are not in hooks; run them manually.

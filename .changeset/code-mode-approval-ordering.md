@@ -1,0 +1,5 @@
+---
+'@conciv/core': patch
+---
+
+A refresh in the middle of a code-mode approval now re-renders the approval card. The synthetic `conciv:tool_call` chunks that stand for a capability called inside `execute_typescript` used to reach the durable run log the long way round — isolate, chat stream, stream fold, run controller — while the gate wrote its approval-requested chunk to that same log directly and synchronously. The gate always won the race, so the log held an approval for a tool call it had not announced yet, and the server-side replay that rebuilds a resubscribing client's snapshot dropped it: the part came back as `input-complete` with no approval to answer. Both now enter the log through the same door. The run hands code-mode tools an emitter that folds each `conciv:tool_*` event into chunks and appends them at emit time, which is before the gate is consulted, so true order is preserved by construction rather than by timing; the stream fold no longer expands those events, so nothing is written twice. The approval still carries the inner tool call's id, so it lands on the nested part instead of the outer `execute_typescript` one.

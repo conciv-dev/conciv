@@ -1,7 +1,7 @@
 import {HostApiProvider} from '@conciv/extension/host'
 import {createFileRoute, useRouter} from '@tanstack/solid-router'
 import {useMutation} from '@tanstack/solid-query'
-import {reprobeBrowserRpcConnection} from '@conciv/contract'
+import {resetBrowserRpcConnection} from '@conciv/contract'
 import {Show, type JSX} from 'solid-js'
 import {useConnectBinding, useInstances} from '../app/context.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
@@ -26,7 +26,7 @@ function ConnectRoute(): JSX.Element {
 
   const retry = (apiBase: string): void => {
     if (classifyRpcError(bind.error, BIND_FAILED_MESSAGE, GENERIC_ERROR_MESSAGE).transportFailure)
-      reprobeBrowserRpcConnection(apiBase)
+      resetBrowserRpcConnection(apiBase)
     bind.mutate(apiBase)
   }
 

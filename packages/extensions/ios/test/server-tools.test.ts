@@ -110,7 +110,7 @@ describe('ios tools when the extension is not configured', () => {
   })
 })
 
-describe('ios.build swiftc mode', () => {
+describe('ios_build swiftc mode', () => {
   it('parses a real swiftc error transcript into diagnostics and reports failure', async () => {
     const {diagnostics, calls} = await runFailingSwiftcBuild([
       {when: (call) => has(call, '--show-sdk-path'), reply: {stdout: '/sdk/iphonesimulator'}},
@@ -167,7 +167,7 @@ describe('ios.build swiftc mode', () => {
   })
 })
 
-describe('ios.build xcodebuild mode', () => {
+describe('ios_build xcodebuild mode', () => {
   it('parses xcodebuild diagnostics and does not resolve an app path on failure', async () => {
     const {runner, calls} = fakeRunner([
       {when: (call) => has(call, 'build'), reply: {code: 1, stdout: transcript('xcodebuild-error.txt')}},
@@ -270,7 +270,7 @@ function launchScenario(): {root: string; runner: SimctlRunner; calls: Call[]} {
   return {root, runner, calls}
 }
 
-describe('ios.run', () => {
+describe('ios_run', () => {
   it('resolves the booted udid, drives boot/install/terminate/launch, and passes SIMCTL_CHILD env', async () => {
     const {root, runner, calls} = launchScenario()
     const result = await runRun(
@@ -332,7 +332,7 @@ describe('ios.run', () => {
   })
 })
 
-describe('ios.build packaging steps are checked', () => {
+describe('ios_build packaging steps are checked', () => {
   it('fails the build with diagnostics when plutil conversion fails', async () => {
     const {calls, diagnostics} = await runFailingSwiftcBuild([
       {when: (call) => has(call, '--show-sdk-path'), reply: {stdout: '/sdk/iphonesimulator'}},
@@ -370,7 +370,7 @@ describe('ios.build packaging steps are checked', () => {
   })
 })
 
-describe('ios.run install and device selection', () => {
+describe('ios_run install and device selection', () => {
   it('fails without terminating or launching when simctl install fails', async () => {
     const root = tempBuiltSwiftProject()
     const {runner, calls} = fakeRunner([
@@ -413,7 +413,7 @@ async function failedRun(ctx: IosToolContext): Promise<RunFailure> {
   return result
 }
 
-describe('ios.run failure stages are diagnosable', () => {
+describe('ios_run failure stages are diagnosable', () => {
   it('reports the resolve-simulator stage when no simulator matches', async () => {
     const root = tempSwiftProject()
     const {runner} = fakeRunner([{when: (call) => has(call, 'list'), reply: {stdout: JSON.stringify({devices: {}})}}])
@@ -440,7 +440,7 @@ describe('ios.run failure stages are diagnosable', () => {
     ])
     const result = await failedRun({config: xcodebuildConfig(), runner, cwd: '/tmp', nativeUrl: () => undefined})
     expect(result.stage).toBe('artifact')
-    expect(result.error).toContain('ios.build')
+    expect(result.error).toContain('ios_build')
   })
 
   it('reports the artifact stage naming the missing bundle when the project was never built', async () => {
@@ -452,7 +452,7 @@ describe('ios.run failure stages are diagnosable', () => {
     expect(result.stage).toBe('artifact')
     expect(result.error).toContain(join(root, 'build', 'pay.app'))
     expect(result.error).toContain('swiftc')
-    expect(result.error).toContain('ios.build')
+    expect(result.error).toContain('ios_build')
     expect(calls.some((call) => has(call, 'install'))).toBe(false)
   })
 
@@ -481,7 +481,7 @@ describe('ios.run failure stages are diagnosable', () => {
   })
 })
 
-describe('ios.screenshot', () => {
+describe('ios_screenshot', () => {
   it('returns an imageResult with png dimensions parsed from the byte stream', async () => {
     const png = Buffer.from(PNG_RED_4x4_BASE64, 'base64')
     const {runner} = fakeRunner([
@@ -503,7 +503,7 @@ async function failedLogs(ctx: IosToolContext, input: {predicate?: string} = {})
   return result
 }
 
-describe('ios.logs', () => {
+describe('ios_logs', () => {
   it('returns recent lines and honors the limit', async () => {
     const {runner, calls} = fakeRunner([
       {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
@@ -526,7 +526,7 @@ describe('ios.logs', () => {
     const {runner} = fakeRunner([{when: (call) => has(call, 'list'), reply: {stdout: JSON.stringify({devices: {}})}}])
     const result = await failedLogs({config: swiftcConfig('/tmp'), runner, cwd: '/tmp'})
     expect(result.lines).toEqual([])
-    expect(result.error).toContain('ios.logs')
+    expect(result.error).toContain('ios_logs')
   })
 
   it('surfaces the log show stderr on failure so an invalid predicate is diagnosable', async () => {

@@ -32,7 +32,7 @@ export function makeExtRpcClient<TRouter extends AnyRouter>(
 ): RouterClient<TRouter, ExtRpcContext> {
   if (typeof location === 'undefined') return nodeFetchClient<TRouter>(apiBase, extensionSlug, session)
   return createORPCClient(
-    dynamicBrowserRpcLink(() => apiBase, 'auto', session),
+    dynamicBrowserRpcLink(() => apiBase, session),
     {path: ['ext', extensionSlug]},
   )
 }

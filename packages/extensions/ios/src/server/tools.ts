@@ -330,7 +330,7 @@ async function resolveUdid(ctx: IosToolContext, config: IosConfig): Promise<stri
 type AppArtifact = {ok: true; appPath: string} | {ok: false; error: string}
 
 function missingArtifact(path: string, mode: IosConfig['buildMode']): AppArtifact {
-  return {ok: false, error: `no built .app at ${path} (${mode} build mode): run ios.build before ios.run`}
+  return {ok: false, error: `no built .app at ${path} (${mode} build mode): run ios_build before ios_run`}
 }
 
 async function resolveAppPath(ctx: IosToolContext, config: IosConfig): Promise<AppArtifact> {
@@ -340,7 +340,7 @@ async function resolveAppPath(ctx: IosToolContext, config: IosConfig): Promise<A
   }
   const resolved = await resolveXcodebuildAppPath(ctx, config)
   if (resolved === null) {
-    return {ok: false, error: 'no built .app found in the xcodebuild settings: run ios.build before ios.run'}
+    return {ok: false, error: 'no built .app found in the xcodebuild settings: run ios_build before ios_run'}
   }
   return existsSync(resolved) ? {ok: true, appPath: resolved} : missingArtifact(resolved, 'xcodebuild')
 }
@@ -444,11 +444,11 @@ export async function runScreenshot(ctx: IosToolContext): Promise<ContentPart[] 
   if (!ctx.config) return NOT_CONFIGURED
   const config = ctx.config
   const udid = await resolveUdid(ctx, config)
-  if (!udid) return {ok: false, error: 'no matching simulator for ios.screenshot'}
+  if (!udid) return {ok: false, error: 'no matching simulator for ios_screenshot'}
   const shot = await ctx.runner.run('xcrun', ['simctl', 'io', udid, 'screenshot', '--type', 'png', '-'], {
     env: developerEnv(config),
   })
-  if (shot.code !== 0) return {ok: false, error: shot.stderr.trim() || 'ios.screenshot failed'}
+  if (shot.code !== 0) return {ok: false, error: shot.stderr.trim() || 'ios_screenshot failed'}
   const {width, height} = pngDimensions(shot.stdout)
   return imageResult('image/png', shot.stdout.toString('base64'), {width, height})
 }
@@ -460,7 +460,7 @@ export async function runLogs(
   if (!ctx.config) return NOT_CONFIGURED
   const config = ctx.config
   const udid = await resolveUdid(ctx, config)
-  if (!udid) return {ok: false, lines: [], error: 'no matching simulator for ios.logs'}
+  if (!udid) return {ok: false, lines: [], error: 'no matching simulator for ios_logs'}
   const sinceSeconds = input.sinceSeconds ?? 60
   const args = [
     'simctl',

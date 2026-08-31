@@ -131,11 +131,11 @@ export function buildMessages(
     if (parts.length === 0) continue
     partsByMessage.set(row.message_id, [...(partsByMessage.get(row.message_id) ?? []), ...parts])
   }
-  return messageRows.flatMap((row, index) => {
+  return messageRows.flatMap((row) => {
     const message = MessageDataSchema.safeParse(parseJsonOrNull(row.data))
     if (!message.success) return []
     const parts = partsByMessage.get(row.id) ?? []
-    return parts.length > 0 ? [{id: `h${index + 1}`, role: message.data.role, parts}] : []
+    return parts.length > 0 ? [{id: row.id, role: message.data.role, parts}] : []
   })
 }
 

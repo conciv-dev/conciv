@@ -1,6 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {EventType} from '@tanstack/ai'
 import type {PageOutcome} from '@conciv/protocol/page-types'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
@@ -23,7 +22,7 @@ function side(kind: ElementCaptureKind): ElementCapture {
 }
 
 function answerFor(name: string): PageOutcome {
-  if (name === 'page.fill') {
+  if (name === 'page_fill') {
     return {ok: true, result: {ok: true, value: 'a@b.c'}, capture: {before: side('before'), after: side('after')}}
   }
   return {ok: true, result: {text: 'ok'}}
@@ -66,16 +65,15 @@ async function bootWidget(kit: Kit): Promise<FakeWidget> {
 }
 
 describe('a code-mode page-tool part surviving reload after a later turn', () => {
-  it('the synthetic page.fill tool-call part is still in the snapshot once a second turn has run', async () => {
+  it('the synthetic page_fill tool-call part is still in the snapshot once a second turn has run', async () => {
     const {kit, harness} = await bootScripted()
     await bootWidget(kit)
     const sessionId = await kit.session()
 
     harness.script.scriptToolCall('execute_typescript', {
-      typescriptCode: callThroughCatalog('page.fill', {selector: '#email', value: 'a@b.c'}),
+      typescriptCode: callThroughCatalog('page_fill', {selector: '#email', value: 'a@b.c'}),
     })
-    const firstStream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'reload-fold-1', sessionId, text: 'fill it in'})
+    const firstStream = await kit.turn('fill it in', {session: sessionId, runId: 'reload-fold-1'})
     await firstStream.done({hangGuardMs: 15_000})
 
     const captures = await kit.rpc.captures.list({sessionId})
@@ -83,19 +81,14 @@ describe('a code-mode page-tool part surviving reload after a later turn', () =>
     const toolCallId = captures.captures[0]?.toolCallId
     if (toolCallId === undefined) throw new Error('no capture toolCallId recorded')
 
-    const secondStream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'reload-fold-2', sessionId, text: 'thanks, that is all'})
+    const secondStream = await kit.turn('thanks, that is all', {session: sessionId, runId: 'reload-fold-2'})
     await secondStream.done({hangGuardMs: 15_000})
 
-    const reattached = await kit.attach(sessionId)
-    const snapshotChunk = await reattached.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {
-      hangGuardMs: 5_000,
-    })
-    if (snapshotChunk.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('expected a messages snapshot chunk')
+    const reloaded = await kit.hydrate(sessionId)
 
-    const survivingCall = toolCallPartsOf(snapshotChunk.messages).find((part) => part.id === toolCallId)
+    const survivingCall = toolCallPartsOf(reloaded.messages).find((part) => part.id === toolCallId)
     expect(survivingCall).toBeDefined()
-    expect(survivingCall).toMatchObject({name: 'page.fill'})
+    expect(survivingCall).toMatchObject({name: 'page_fill'})
 
     const capturesAfterReload = await kit.rpc.captures.list({sessionId})
     expect(capturesAfterReload.captures.some((row) => row.toolCallId === toolCallId)).toBe(true)

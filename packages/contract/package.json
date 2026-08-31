@@ -41,8 +41,6 @@
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@tanstack/ai": "catalog:",
-    "@tanstack/pacer": "^0.21.1",
-    "partysocket": "^1.3.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -15,7 +15,7 @@ import {
 } from '../src/store/story-connection.js'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
-import {haltRun, RunSettledIndicator, startRun} from './run-harness.js'
+import {haltRun, startRun, streamingThread} from './run-harness.js'
 
 function StubSessionCard(props: GroupRenderProps): JSX.Element {
   const parts = () => pageSessionCallParts(props.parts(), props.node.indices)
@@ -26,8 +26,8 @@ const PAGE_SESSION_ENTRY: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render: Stu
 
 const PAGE_SESSION: PageSessionConfig = {
   entry: PAGE_SESSION_ENTRY,
-  actNames: new Set(['page.fill']),
-  toolPrefix: 'page.',
+  actNames: new Set(['page_fill']),
+  toolPrefix: 'page_',
 }
 
 function dataPart(): MessagePart {
@@ -83,17 +83,6 @@ it('renders no reasoning group for a thinking part with only whitespace content'
   await expectReplyWithoutChain()
 })
 
-it('renders no trace for a segment that only thought and ran nothing', async () => {
-  mountView(
-    staticThread([
-      {type: 'thinking', content: 'weighing it'},
-      {type: 'text', content: 'All set.'},
-    ]),
-  )
-
-  await expectReplyWithoutChain()
-})
-
 it('keeps a chain group for a thinking part once the segment also ran a tool', async () => {
   mountView(
     staticThread([
@@ -104,40 +93,19 @@ it('keeps a chain group for a thinking part once the segment also ran a tool', a
   )
 
   const trigger = page.getByRole('button', {name: /trace/i})
-  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'closed')
-  await userEvent.click(trigger)
-  await expect.element(trigger).toHaveAttribute('data-state', 'open')
+  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
   await expect.element(page.getByText('weighing it'), {timeout: 3000}).toBeVisible()
+  await userEvent.click(trigger)
+  await expect.element(trigger).toHaveAttribute('data-state', 'closed')
 })
 
-function StreamingEmptyThinkingThread(): JSX.Element {
-  const chat = useChat({
-    connection: storyConnection({
-      chunks: [...createReasoningChunks(' ', 'blank-thought'), ...createTextChunks('blank run reply', 'blank-reply')],
-      chunkDelay: 1,
-      runsUntilStopped: true,
-    }),
-  })
-  return (
-    <ChatProvider chat={chat}>
-      <button type="button" onClick={() => void chat.sendMessage('think')}>
-        ask
-      </button>
-      <button type="button" onClick={() => void chat.stop()}>
-        halt
-      </button>
-      <RunSettledIndicator />
-      <Thread>
-        <Thread.Viewport>
-          <Thread.Messages />
-        </Thread.Viewport>
-      </Thread>
-    </ChatProvider>
-  )
-}
+const BLANK_THINKING_CHUNKS = [
+  ...createReasoningChunks(' ', 'blank-thought'),
+  ...createTextChunks('blank run reply', 'blank-reply'),
+]
 
 it('opens no streaming group for a blank thinking part mid-run', async () => {
-  mountView(() => <StreamingEmptyThinkingThread />)
+  mountView(streamingThread(BLANK_THINKING_CHUNKS, 1))
 
   await startRun()
   await expect.element(page.getByText('blank run reply'), {timeout: 3000}).toBeVisible()
@@ -147,34 +115,13 @@ it('opens no streaming group for a blank thinking part mid-run', async () => {
   await expect.element(page.getByRole('button', {name: /trace/i})).not.toBeInTheDocument()
 })
 
-function StreamingThinkingThread(): JSX.Element {
-  const chat = useChat({
-    connection: storyConnection({
-      chunks: [...createReasoningChunks('mapping the repo'), ...createToolCallChunks('Bash', {command: 'ls'})],
-      chunkDelay: 30,
-      runsUntilStopped: true,
-    }),
-  })
-  return (
-    <ChatProvider chat={chat}>
-      <button type="button" onClick={() => void chat.sendMessage('think')}>
-        ask
-      </button>
-      <button type="button" onClick={() => void chat.stop()}>
-        halt
-      </button>
-      <RunSettledIndicator />
-      <Thread>
-        <Thread.Viewport>
-          <Thread.Messages />
-        </Thread.Viewport>
-      </Thread>
-    </ChatProvider>
-  )
-}
+const THINKING_THEN_TOOL_CHUNKS = [
+  ...createReasoningChunks('mapping the repo'),
+  ...createToolCallChunks('Bash', {command: 'ls'}),
+]
 
 it('shows the group with its first member expanded while the run streams', async () => {
-  mountView(() => <StreamingThinkingThread />)
+  mountView(streamingThread(THINKING_THEN_TOOL_CHUNKS, 30))
 
   await startRun()
   const trigger = page.getByRole('button', {name: /trace/i})

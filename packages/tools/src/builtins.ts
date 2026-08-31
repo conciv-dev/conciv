@@ -9,7 +9,7 @@ export {
 } from './builtins/server-tools.js'
 export type {BuiltinCategory} from './builtins/shared.js'
 
-export const SERVER_TOOL_PREFIX = 'server.'
+export const SERVER_TOOL_PREFIX = 'server_'
 
 export function serverOperationOfTool(name: string): string {
   if (!name.startsWith(SERVER_TOOL_PREFIX)) throw new Error(`"${name}" is not a dev-server tool`)

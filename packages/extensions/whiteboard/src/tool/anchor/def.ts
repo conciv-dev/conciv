@@ -2,7 +2,7 @@ import {toolDefinition} from '@conciv/extension/tool'
 import {z} from 'zod'
 
 export const anchorResolveDef = toolDefinition({
-  name: 'anchor.resolve',
+  name: 'anchor_resolve',
   description: 'Check whether a source-linked comment still points at its element (fresh/moved/drifted).',
   inputSchema: z.object({cid: z.string()}),
   outputSchema: z.object({
@@ -18,5 +18,5 @@ export const anchorResolveDef = toolDefinition({
     mutating: false,
     keywords: ['anchor', 'drift', 'resolve'],
   },
-  promptSnippet: 'Use anchor.resolve to see if a comment has drifted from the code it was attached to.',
+  promptSnippet: 'Use anchor_resolve to see if a comment has drifted from the code it was attached to.',
 })

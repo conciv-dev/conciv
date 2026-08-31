@@ -5,7 +5,8 @@ import {join} from 'node:path'
 import pTimeout from 'p-timeout'
 import {serveApp} from './serve-app.js'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {ChatContentPartSchema, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {ChatContentPartSchema, CONCIV_SESSION_HEADER, type ChatContentPart} from '@conciv/protocol/chat-types'
+import {makeChatSockets, type TurnMessage} from './chat-turn.js'
 import {makeRunStream, type RunStream} from './run-stream.js'
 import {makeCallTool} from './call-tool.js'
 import {makeRpcClient, makeSessionBoundRpcClient, type RpcClient} from './session.js'
@@ -34,16 +35,24 @@ export type Kit = {
   stateRoot: string
   rpc: RpcClient
   session: (id?: string) => Promise<string>
-  attach: (session?: string, opts?: {signal?: AbortSignal}) => Promise<RunStream>
-  chat: (input: string | ChatMessage, session?: string) => Promise<void>
+  turn: (
+    input: string | ChatMessage,
+    opts?: {session?: string; runId?: string; messageId?: string},
+  ) => Promise<RunStream>
+  join: (runId: string) => RunStream
+  hydrate: (session?: string) => Promise<Awaited<ReturnType<RpcClient['chat']['hydrate']>>>
+  events: (session?: string, opts?: {signal?: AbortSignal}) => Promise<RunStream>
+  chat: (input: string | ChatMessage, session?: string) => Promise<RunStream>
   post: (path: string, body: unknown, session?: string) => Promise<Response>
   get: (path: string, session?: string) => Promise<Response>
-  invokeTool: (name: string, input: unknown, opts: {instruction: string}, session?: string) => Promise<void>
+  invokeTool: (name: string, input: unknown, opts: {instruction: string}, session?: string) => Promise<RunStream>
   callTool: (name: string, input: unknown, session?: string) => Promise<unknown>
   restartServer: () => Promise<void>
   cleanup: () => Promise<void>
 }
 export type Testkit = {setup: () => Promise<Kit>}
+
+export type TestkitOptions = {stateRoot?: string}
 
 function isTextPart(part: unknown): part is {type: 'text'; content: string} {
   return (
@@ -56,6 +65,19 @@ function isTextPart(part: unknown): part is {type: 'text'; content: string} {
   )
 }
 
+function userMessage(input: string | ChatMessage): TurnMessage {
+  if (typeof input === 'string') return {role: 'user', parts: [{type: 'text', content: input}]}
+  const parsed = ChatContentPartSchema.array().safeParse(input.content)
+  if (!parsed.success) return {role: 'user', parts: [{type: 'text', content: textOf(input)}]}
+  return {role: 'user', parts: parsed.data.map(contentPart)}
+}
+
+function contentPart(part: ChatContentPart): TurnMessage['parts'][number] {
+  if (part.type === 'text') return {type: 'text', content: part.content}
+  if (part.type === 'image') return {type: 'image', source: part.source}
+  return {type: 'document', source: part.source}
+}
+
 function textOf(input: string | ChatMessage): string {
   if (typeof input === 'string') return input
   const parts = input.parts
@@ -66,10 +88,11 @@ function textOf(input: string | ChatMessage): string {
     .join('\n')
 }
 
-export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
+export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: TestkitOptions = {}): Testkit {
+  const ownsStateRoot = options.stateRoot === undefined
   return {
     setup: async () => {
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
+      const stateRoot = options.stateRoot ?? mkdtempSync(join(tmpdir(), 'conciv-kit-'))
       const app = await boot({stateRoot, cwd: stateRoot, harness})
       let served = await serveApp(app.fetch)
       const base = served.base
@@ -96,18 +119,19 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
       const callTool = async (name: string, input: unknown, session?: string): Promise<unknown> =>
         makeCallTool(base, await sessionFor(session))(name, input)
 
-      const sendChat = async (input: string | ChatMessage, session: string): Promise<void> => {
-        const runId = randomUUID()
-        if (typeof input === 'string') {
-          await rpc.chat.send({sessionId: session, runId, text: input})
-          return
-        }
-        const content = ChatContentPartSchema.array().safeParse(input.content)
-        await rpc.chat.send(
-          content.success
-            ? {sessionId: session, runId, content: content.data}
-            : {sessionId: session, runId, text: textOf(input)},
-        )
+      const sockets = makeChatSockets()
+      const startTurn = async (
+        input: string | ChatMessage,
+        opts: {session?: string; runId?: string; messageId?: string} = {},
+      ): Promise<RunStream> => {
+        const sessionId = await sessionFor(opts.session)
+        return sockets.turn({
+          wsBase,
+          sessionId,
+          runId: opts.runId ?? randomUUID(),
+          ...(opts.messageId === undefined ? {} : {messageId: opts.messageId}),
+          message: userMessage(input),
+        })
       }
 
       return {
@@ -116,30 +140,28 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
         stateRoot,
         rpc,
         session: (id) => (id ? resolve(id) : Promise.resolve(activeSession.id)),
-        attach: async (session, opts) => {
+        turn: startTurn,
+        join: (runId) => sockets.join({wsBase, runId}),
+        hydrate: async (session) => rpc.chat.hydrate({sessionId: await sessionFor(session)}),
+        events: async (session, opts) => {
           const abort = new AbortController()
           aborts.push(abort)
           const signal = opts?.signal ? AbortSignal.any([abort.signal, opts.signal]) : abort.signal
           const id = await sessionFor(session)
-          const iterator = await rpc.chat.subscribe({sessionId: id}, {signal})
-          return makeRunStream(iterator)
+          return makeRunStream(await rpc.chat.events({sessionId: id}, {signal}))
         },
-        chat: async (input, session) => {
-          await sendChat(input, await sessionFor(session))
-        },
+        chat: (input, session) => startTurn(input, {session}),
         post,
         get: async (path, session) =>
           fetch(`${base}${path}`, {headers: {[CONCIV_SESSION_HEADER]: session ?? activeSession.id}}),
         invokeTool: async (name, input, opts, session) => {
           const id = await sessionFor(session)
-          if (isTestHarness(harness)) {
-            harness.script.hold()
-            await sendChat('go', id)
-            await callTool(name, input, id)
-            harness.script.release()
-          } else {
-            await sendChat(opts.instruction, id)
-          }
+          if (!isTestHarness(harness)) return startTurn(opts.instruction, {session: id})
+          harness.script.hold()
+          const stream = await startTurn('go', {session: id})
+          await callTool(name, input, id)
+          harness.script.release()
+          return stream
         },
         callTool,
         restartServer: async () => {
@@ -147,6 +169,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
           served = await serveApp(app.fetch, {port: served.port})
         },
         cleanup: async () => {
+          sockets.closeAll()
           for (const abort of aborts) abort.abort()
           const stopLiveSessions = async () => {
             const sessions = (await rpc.sessions.list({includeHidden: true}).catch(() => [])) ?? []
@@ -156,7 +179,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
           await pTimeout(stopLiveSessions(), {milliseconds: 3_000, fallback: () => undefined})
           await app.dispose()
           await served.close()
-          rmSync(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
+          if (ownsStateRoot) rmSync(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
         },
       }
     },

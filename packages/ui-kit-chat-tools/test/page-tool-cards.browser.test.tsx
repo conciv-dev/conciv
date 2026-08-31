@@ -19,7 +19,7 @@ function part(verb: string, input: Record<string, unknown>): ToolCallPart {
   return {
     type: 'tool-call',
     id: 'p1',
-    name: `page.${verb}`,
+    name: `page_${verb}`,
     arguments: JSON.stringify(input),
     input,
     state: 'complete',
@@ -89,5 +89,5 @@ it('falls back to the bare tool name when the catalog declares nothing for it', 
     <MetaToolCard part={part('nosuchverb', {})} result={undefined} ctx={ctx} addResult={INERT_ADD_RESULT} />
   ))
 
-  await expect.element(page.getByText('page.nosuchverb')).toBeVisible()
+  await expect.element(page.getByText('page_nosuchverb')).toBeVisible()
 })

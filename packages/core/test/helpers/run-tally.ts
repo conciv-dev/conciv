@@ -1,6 +1,5 @@
-import {EventType, type StreamChunk} from '@tanstack/ai'
-
-type RunEndChunk = Extract<StreamChunk, {type: EventType.RUN_FINISHED}>
+import type {StreamChunk} from '@tanstack/ai'
+import {isRunPhaseTerminal, runLifecycleOf, type RunPhase} from '@conciv/protocol/run-types'
 
 export async function collectChunks(source: AsyncIterable<StreamChunk>, into: StreamChunk[]): Promise<void> {
   try {
@@ -8,24 +7,31 @@ export async function collectChunks(source: AsyncIterable<StreamChunk>, into: St
   } catch {}
 }
 
-export function isRunEnd(chunk: StreamChunk): chunk is RunEndChunk {
-  return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
+function runIdsAtPhase(chunks: StreamChunk[], match: (phase: RunPhase) => boolean): Set<string> {
+  const seen = new Set<string>()
+  for (const chunk of chunks) {
+    const lifecycle = runLifecycleOf(chunk)
+    if (lifecycle && match(lifecycle.phase)) seen.add(lifecycle.runId)
+  }
+  return seen
 }
 
 export function runsStarted(chunks: StreamChunk[]): number {
-  return chunks.filter((chunk) => chunk.type === EventType.RUN_STARTED).length
+  return runIdsAtPhase(chunks, (phase) => phase === 'running').size
 }
 
 export function runsFinished(chunks: StreamChunk[]): number {
-  return chunks.filter(isRunEnd).length
+  return runIdsAtPhase(chunks, isRunPhaseTerminal).size
 }
 
 export function peakLiveRuns(chunks: StreamChunk[]): number {
   const open = new Set<string>()
   const tally = {peak: 0}
   for (const chunk of chunks) {
-    if (chunk.type === EventType.RUN_STARTED) open.add(chunk.runId)
-    if (chunk.type === EventType.RUN_FINISHED) open.delete(chunk.runId)
+    const lifecycle = runLifecycleOf(chunk)
+    if (!lifecycle) continue
+    if (isRunPhaseTerminal(lifecycle.phase)) open.delete(lifecycle.runId)
+    if (lifecycle.phase === 'running') open.add(lifecycle.runId)
     tally.peak = Math.max(tally.peak, open.size)
   }
   return tally.peak

@@ -162,7 +162,12 @@ function RootComponent() {
               sessionId={activeSession}
               colorScheme={colorScheme}
             >
-              <RootChrome fab={fab} politeMessage={politeMessage} assertiveMessage={assertiveMessage} />
+              <RootChrome
+                fab={fab}
+                activeSession={activeSession}
+                politeMessage={politeMessage}
+                assertiveMessage={assertiveMessage}
+              />
               <EffectsSurface instances={app.instances} />
             </HostApiProvider>
           </EngineReachabilityContext.Provider>
@@ -174,6 +179,7 @@ function RootComponent() {
 
 function RootChrome(props: {
   fab: ReturnType<typeof createDraggablePosition>
+  activeSession: () => string | null
   politeMessage: () => string
   assertiveMessage: () => string
 }) {
@@ -197,7 +203,12 @@ function RootChrome(props: {
   const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
 
   const warm = useWarmSession()
-  const working = () => liveSessions.anyRunning() || warm.rows().some((session) => session.running)
+  const activeRowRunning = () => warm.rows().find((session) => session.id === props.activeSession())?.running ?? false
+  const working = () => {
+    const activity = liveSessions.activityIn(props.activeSession())
+    if (activity === 'unmounted') return activeRowRunning()
+    return activity === 'running'
+  }
 
   let rootEl: HTMLDivElement | undefined
   let fabEl: HTMLButtonElement | undefined

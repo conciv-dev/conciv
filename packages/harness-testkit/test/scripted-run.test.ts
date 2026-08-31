@@ -1,8 +1,8 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
-import {makeScriptedRun} from '../src/scripted-run.js'
+import {makeScriptedRun, type ScriptedRun} from '../src/scripted-run.js'
 
 const deps = (): HarnessChatDeps => ({
   cwd: '.',
@@ -13,6 +13,56 @@ const deps = (): HarnessChatDeps => ({
   decide: async (): Promise<'allow' | 'deny'> => 'allow',
 })
 
+function drainUnderSignal(
+  scripted: ScriptedRun,
+  signal: AbortSignal,
+): {seen: {chunks: StreamChunk[]; ended: boolean}; drained: Promise<void>} {
+  const seen: {chunks: StreamChunk[]; ended: boolean} = {chunks: [], ended: false}
+  const drained = (async () => {
+    for await (const chunk of scripted.chatStream(deps(), {request: {signal}})) seen.chunks.push(chunk)
+    seen.ended = true
+  })()
+  return {seen, drained}
+}
+
+function drainInBackground(scripted: ScriptedRun): {chunks: StreamChunk[]; drained: Promise<void>} {
+  const chunks: StreamChunk[] = []
+  const drain = async (): Promise<void> => {
+    for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+  }
+  return {chunks, drained: drain()}
+}
+
+function drainResultTimes(scripted: ScriptedRun): {times: number[]; drained: Promise<void>} {
+  const times: number[] = []
+  const drain = async (): Promise<void> => {
+    for await (const chunk of scripted.chatStream(deps())) {
+      if (chunk.type === EventType.TOOL_CALL_RESULT) times.push(performance.now())
+    }
+  }
+  return {times, drained: drain()}
+}
+
+function drainTextDeltas(scripted: ScriptedRun): {deltas: string[]; times: number[]; drained: Promise<void>} {
+  const deltas: string[] = []
+  const times: number[] = []
+  const drain = async (): Promise<void> => {
+    for await (const chunk of scripted.chatStream(deps())) {
+      if (chunk.type !== EventType.TEXT_MESSAGE_CONTENT) continue
+      deltas.push(chunk.delta)
+      times.push(performance.now())
+    }
+  }
+  return {deltas, times, drained: drain()}
+}
+
+const PACED_STEPS = 4
+const PACE_MS = 40
+const PACE_TOLERANCE = 0.8
+const TEXT_CHUNK_SIZE = 8
+const PACED_TEXT = 'abcdefghijklmnopqrstuvwxyz0123456789'
+const PACED_TEXT_SLICES = Math.ceil(PACED_TEXT.length / TEXT_CHUNK_SIZE)
+
 describe('makeScriptedRun', () => {
   it('emits a full lifecycle with a session-id custom event', async () => {
     const {chatStream} = makeScriptedRun({text: 'hello from fake'})
@@ -22,6 +72,40 @@ describe('makeScriptedRun', () => {
     expect(out.at(-1)?.type).toBe(EventType.RUN_FINISHED)
     expect(out.some((c) => c.type === EventType.TEXT_MESSAGE_CONTENT)).toBe(true)
     expect(out.some((c) => c.type === EventType.CUSTOM && c.name === 'fake.session-id')).toBe(true)
+  })
+
+  it.each([
+    {
+      name: 'a held turn',
+      arrange: (scripted: ScriptedRun) => scripted.hold(),
+      parked: EventType.TEXT_MESSAGE_CONTENT,
+      withheld: EventType.RUN_FINISHED,
+    },
+    {
+      name: 'a turn held at its tool gate',
+      arrange: (scripted: ScriptedRun) => scripted.holdTools(),
+      parked: EventType.RUN_STARTED,
+      withheld: EventType.TOOL_CALL_START,
+    },
+    {
+      name: 'a turn held at its result gate',
+      arrange: (scripted: ScriptedRun) => scripted.holdResults(),
+      parked: EventType.TOOL_CALL_END,
+      withheld: EventType.TOOL_CALL_RESULT,
+    },
+  ])('ends $name when the caller aborts the request', async ({arrange, parked, withheld}) => {
+    const scripted = makeScriptedRun()
+    scripted.scriptTurn({toolCalls: [{name: 'first_tool', input: {a: 1}}], text: 'done'})
+    arrange(scripted)
+    const controller = new AbortController()
+    const run = drainUnderSignal(scripted, controller.signal)
+
+    await vi.waitFor(() => expect(run.seen.chunks.some((chunk) => chunk.type === parked)).toBe(true))
+    controller.abort()
+
+    await vi.waitFor(() => expect(run.seen.ended).toBe(true), {timeout: 1_000, interval: 10})
+    await run.drained
+    expect(run.seen.chunks.some((chunk) => chunk.type === withheld)).toBe(false)
   })
 
   it('gives each tool call in a session its own toolCallId, matching what scriptToolCall returned', async () => {
@@ -84,6 +168,18 @@ describe('makeScriptedRun', () => {
     expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
   })
 
+  it('passes a scripted string tool result through raw instead of JSON-quoting it', async () => {
+    const scripted = makeScriptedRun()
+    const multilineResult = 'line one\nline two\nline three'
+    const ids = scripted.scriptTurn({toolCalls: [{name: 'read_file', input: {a: 1}, result: multilineResult}]})
+    const chunks: StreamChunk[] = []
+    for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+    const results = chunks.flatMap((chunk) =>
+      chunk.type === EventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
+    )
+    expect(results).toEqual([{id: ids[0], content: multilineResult}])
+  })
+
   it('keeps a scripted null tool result as null instead of substituting the default', async () => {
     const scripted = makeScriptedRun()
     const ids = scripted.scriptTurn({toolCalls: [{name: 'nullish_tool', input: {a: 1}, result: null}]})
@@ -112,14 +208,88 @@ describe('makeScriptedRun', () => {
     expect(startsIn(second)).toEqual(['second_tool'])
   })
 
+  it('holds every tool result until releaseResults(), leaving the tool call started and unresolved', async () => {
+    const scripted = makeScriptedRun()
+    const ids = scripted.scriptTurn({toolCalls: [{name: 'held_tool', input: {a: 1}}], text: 'done'})
+    scripted.holdResults()
+    const {chunks, drained} = drainInBackground(scripted)
+    await new Promise((r) => setTimeout(r, 30))
+    expect(chunks.some((c) => c.type === EventType.TOOL_CALL_START && c.toolCallId === ids[0])).toBe(true)
+    expect(chunks.some((c) => c.type === EventType.TOOL_CALL_RESULT)).toBe(false)
+    scripted.releaseResults()
+    await drained
+    const results = chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_RESULT ? [chunk.toolCallId] : []))
+    expect(results).toEqual(ids)
+    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+  })
+
+  it('releases held tool results one every everyMs instead of all at once', async () => {
+    const scripted = makeScriptedRun()
+    const ids = scripted.scriptTurn({
+      toolCalls: Array.from({length: PACED_STEPS}, (_, index) => ({name: 'paced_tool', input: {step: index}})),
+      text: 'done',
+    })
+    scripted.holdResults()
+    const {times, drained} = drainResultTimes(scripted)
+    await new Promise((r) => setTimeout(r, 20))
+    expect(times.length).toBe(0)
+    scripted.releaseResults({everyMs: PACE_MS})
+    await drained
+    expect(times.length).toBe(ids.length)
+    const span = (times.at(-1) ?? 0) - (times.at(0) ?? 0)
+    expect(span).toBeGreaterThanOrEqual(PACE_MS * (PACED_STEPS - 1) * PACE_TOLERANCE)
+  })
+
+  it('streams a paced turn text as several deltas spaced by everyMs instead of one delta', async () => {
+    const scripted = makeScriptedRun()
+    scripted.scriptTurn({
+      toolCalls: [],
+      text: PACED_TEXT,
+      textPace: {chunk: TEXT_CHUNK_SIZE, everyMs: PACE_MS},
+    })
+    const {deltas, times, drained} = drainTextDeltas(scripted)
+    await drained
+    expect(deltas.length).toBe(PACED_TEXT_SLICES)
+    expect(deltas.join('')).toBe(PACED_TEXT)
+    const span = (times.at(-1) ?? 0) - (times.at(0) ?? 0)
+    expect(span).toBeGreaterThanOrEqual(PACE_MS * (PACED_TEXT_SLICES - 1) * PACE_TOLERANCE)
+  })
+
+  it('streams an unpaced turn text as one delta', async () => {
+    const scripted = makeScriptedRun()
+    scripted.scriptTurn({toolCalls: [], text: PACED_TEXT})
+    const {deltas, drained} = drainTextDeltas(scripted)
+    await drained
+    expect(deltas).toEqual([PACED_TEXT])
+  })
+
+  it('emits a queued custom event while the tool call it names is still unresolved', async () => {
+    const scripted = makeScriptedRun()
+    const ids = scripted.scriptTurn({toolCalls: [{name: 'risky_tool', input: {command: 'rm -rf build'}}]})
+    scripted.scriptCustomEvent('approval-requested', {
+      toolCallId: ids[0],
+      toolName: 'risky_tool',
+      input: {command: 'rm -rf build'},
+      approval: {id: 'ask-1', needsApproval: true},
+    })
+    scripted.holdResults()
+    const {chunks, drained} = drainInBackground(scripted)
+    await new Promise((r) => setTimeout(r, 30))
+    expect(chunks.some((c) => c.type === EventType.CUSTOM && c.name === 'approval-requested')).toBe(true)
+    expect(chunks.some((c) => c.type === EventType.TOOL_CALL_RESULT)).toBe(false)
+    scripted.releaseResults()
+    await drained
+    const order = chunks.flatMap((chunk) => {
+      if (chunk.type === EventType.CUSTOM && chunk.name === 'approval-requested') return ['ask']
+      return chunk.type === EventType.TOOL_CALL_RESULT ? ['result'] : []
+    })
+    expect(order).toEqual(['ask', 'result'])
+  })
+
   it('holds the turn open until release()', async () => {
     const scripted = makeScriptedRun()
     scripted.hold()
-    const chunks: StreamChunk[] = []
-    const drain = async (): Promise<void> => {
-      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
-    }
-    const drained = drain()
+    const {chunks, drained} = drainInBackground(scripted)
     await new Promise((r) => setTimeout(r, 30))
     expect(chunks.some((c) => c.type === EventType.RUN_FINISHED)).toBe(false)
     scripted.release()

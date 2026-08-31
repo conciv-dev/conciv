@@ -1,42 +1,29 @@
 import './helpers/utilities.css'
-import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
+import {expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import pageExtension from '@conciv/extension-page/client'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
 import {ChatPane} from '../src/pane/chat-pane.js'
 import {makePaneGrabApi} from '../src/extension/pane-grab.js'
-import {coreControl} from './helpers/core-control.js'
+import {bootedCore} from './helpers/booted-core.js'
+import {keptPane} from './helpers/kept-pane.js'
 import {coreRpc, createSession} from './helpers/core-session.js'
 import {HERO_GRAB, HERO_LABEL} from './helpers/grab-fixtures.js'
-import {mountPane, type PaneMount} from './helpers/pane-harness.js'
+import {mountPane} from './helpers/pane-harness.js'
 
-const core = {base: ''}
-const active: {pane: PaneMount | null} = {pane: null}
-
-beforeAll(async () => {
-  const booted = await coreControl.bootCore({id: 'grab-staging', allowedOrigins: [window.location.origin]})
-  core.base = booted.base
-}, 60_000)
-
-afterAll(async () => {
-  await coreControl.closeCore()
-}, 30_000)
-
-afterEach(() => {
-  active.pane?.dispose()
-  active.pane = null
-})
+const core = bootedCore('grab-staging')
+const keep = keptPane()
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const snapshot = () => page.getByTitle('Grabbed element snapshot')
 const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
 
 test('the grab api an extension receives can stage, read and clear, as the terminal does', async () => {
-  const sessionId = await createSession(coreRpc(core.base))
-  const mount = mountPane({base: core.base, sessionId, extensions: [pageExtension]}, () => (
+  const sessionId = await createSession(coreRpc(core()))
+  const mount = mountPane({base: core(), sessionId, extensions: [pageExtension]}, () => (
     <ChatPane sessionId={sessionId} />
   ))
-  active.pane = mount
+  keep(mount)
   await expect.element(input()).toBeVisible()
   const api = makePaneGrabApi(mount.pane.grabStaging, mount.pane.grabProvider)
 

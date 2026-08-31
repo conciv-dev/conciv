@@ -13,6 +13,7 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {createStore} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {UIMessage} from '@tanstack/ai-client'
 import {Primitive, type Slottable} from '../util/primitive.js'
@@ -20,80 +21,68 @@ import {useChatContext, useComposer, useThread} from '../../store/chat-context.j
 import {pairResults, type Turn} from '../../store/grouping.js'
 import {MessageProvider} from '../message/message-context.js'
 import {SuggestionProvider, type SuggestionData} from '../suggestion/suggestion.js'
-import {ViewportProvider, useThreadViewport} from './viewport-context.js'
 import {
-  ViewportInternalProvider,
-  useViewportInternal,
-  type ThreadVirtualScroll,
-  type ViewportInternalValue,
-} from './viewport-internal.js'
-import {useThreadScroll} from '../../behaviors/use-thread-scroll.js'
+  ViewportProvider,
+  useThreadViewport,
+  useOptionalThreadViewport,
+  useSendFromUser,
+  type ThreadScroller,
+  type ViewportContextValue,
+} from './viewport-context.js'
+import {ViewportInternalProvider, useViewportInternal, type ViewportInternalValue} from './viewport-internal.js'
 import {createThreadVirtualizer} from '../../behaviors/create-thread-virtualizer.js'
 import {useTurnEstimator, type TurnEstimate} from './turn-estimate.js'
-import {virtualizeThreshold} from './virtualize-threshold.js'
+import {VIRTUALIZE_THRESHOLD} from './virtualize-threshold.js'
 
 const ROW_ESTIMATE_PX = 72
+const EVICTING_OVERSCAN = 8
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
 
 function Root(props: DivProps): JSX.Element {
-  return <Primitive.div {...props} />
+  const [scroller, setScroller] = createSignal<ThreadScroller>()
+  const landOnEnd = () => scroller()?.landOnEnd()
+  return (
+    <ViewportProvider
+      value={{
+        isAtBottom: () => scroller()?.atEnd() ?? true,
+        scrollToBottom: landOnEnd,
+        sendFromUser: (deliver) => {
+          landOnEnd()
+          return deliver()
+        },
+        setScroller,
+      }}
+    >
+      <Primitive.div {...props} />
+    </ViewportProvider>
+  )
 }
 
 type ViewportProps = DivProps & {
-  autoScroll?: boolean
-  turnAnchor?: 'top' | 'bottom'
-  topAnchorMessageClamp?: {tallerThan?: string; visibleHeight?: string}
-  scrollToBottomOnRunStart?: boolean
-  scrollToBottomOnInitialize?: boolean
-  scrollToBottomOnThreadSwitch?: boolean
   footer?: JSX.Element
   ref?: HTMLDivElement | ((element: HTMLDivElement) => void)
 }
 
 function Viewport(props: ViewportProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
-    'autoScroll',
-    'turnAnchor',
-    'topAnchorMessageClamp',
-    'scrollToBottomOnRunStart',
-    'scrollToBottomOnInitialize',
-    'scrollToBottomOnThreadSwitch',
-    'footer',
-    'ref',
-  ])
+  const [local, rest] = splitProps(props, ['footer', 'ref'])
+  const viewport = useThreadViewport()
   const [element, setElement] = createSignal<HTMLDivElement>()
-  let virtualScroll: ThreadVirtualScroll | undefined
-  const scroll = useThreadScroll(element, local, () => virtualScroll)
   const assignRef = (node: HTMLDivElement) => {
     setElement(node)
     if (typeof local.ref === 'function') local.ref(node)
   }
-  const internal: ViewportInternalValue = {
-    element,
-    turnAnchor: () => local.turnAnchor ?? 'bottom',
-    isAtBottom: scroll.isAtBottom,
-    ownsViewport: () => scroll.paused() || (scroll.isAtBottom() && scroll.follows()),
-    pinToBottom: scroll.pinToBottom,
-    setVirtualScroll: (ops) => {
-      virtualScroll = ops
-    },
-  }
+  const internal: ViewportInternalValue = {element}
   return (
-    <ViewportProvider
-      value={{isAtBottom: scroll.isAtBottom, scrollToBottom: scroll.scrollToBottom, pauseFollow: scroll.pauseFollow}}
-    >
-      <ViewportInternalProvider value={internal}>
-        <Primitive.div
-          data-thread-viewport
-          data-at-bottom={scroll.isAtBottom() ? '' : undefined}
-          data-escaped={scroll.escapedFromLock() ? '' : undefined}
-          ref={assignRef}
-          {...rest}
-        />
-        {local.footer}
-      </ViewportInternalProvider>
-    </ViewportProvider>
+    <ViewportInternalProvider value={internal}>
+      <Primitive.div
+        data-thread-viewport
+        data-at-bottom={viewport.isAtBottom() ? '' : undefined}
+        ref={assignRef}
+        {...rest}
+      />
+      {local.footer}
+    </ViewportInternalProvider>
   )
 }
 
@@ -147,48 +136,9 @@ function TurnSlot(props: TurnSlotProps): JSX.Element {
   )
 }
 
-type CapturedAnchor = {kind: 'bottom'} | {kind: 'anchor'; key: string; offset: number}
-
-type ModeSwapAnchor = {current?: CapturedAnchor}
-
-function captureAnchor(internal: ViewportInternalValue | undefined): CapturedAnchor | undefined {
-  if (!internal) return undefined
-  if (internal.isAtBottom()) return {kind: 'bottom'}
-  const viewport = internal.element()
-  if (!viewport) return undefined
-  const viewportTop = viewport.getBoundingClientRect().top
-  const rows = Array.from(viewport.querySelectorAll('[data-message-id]'))
-  const anchorRow = rows.find((row) => row.getBoundingClientRect().bottom > viewportTop)
-  const key = anchorRow?.getAttribute('data-message-id')
-  if (!anchorRow || !key) return undefined
-  return {kind: 'anchor', key, offset: anchorRow.getBoundingClientRect().top - viewportTop}
-}
-
-function FlatMessages(props: {
-  messages: MessagesProps
-  internal: ViewportInternalValue | undefined
-  swapAnchor: ModeSwapAnchor
-}): JSX.Element {
+function PlainMessages(props: {messages: MessagesProps}): JSX.Element {
   const thread = useThread()
   const turns = () => thread.turns
-  onCleanup(() => {
-    props.swapAnchor.current = captureAnchor(props.internal)
-  })
-  onMount(() => {
-    const anchor = props.swapAnchor.current
-    const internal = props.internal
-    props.swapAnchor.current = undefined
-    if (!anchor || !internal) return
-    if (anchor.kind === 'bottom') {
-      internal.pinToBottom()
-      return
-    }
-    const viewport = internal.element()
-    const row = viewport?.querySelector(`[data-message-id="${CSS.escape(anchor.key)}"]`)
-    if (!viewport || !row) return
-    const currentOffset = row.getBoundingClientRect().top - viewport.getBoundingClientRect().top
-    viewport.scrollTop += currentOffset - anchor.offset
-  })
   return (
     <Index each={turns()}>
       {(turn, index) => (
@@ -201,32 +151,41 @@ function FlatMessages(props: {
 function VirtualMessages(props: {
   messages: MessagesProps
   internal: ViewportInternalValue
-  swapAnchor: ModeSwapAnchor
+  viewport: ViewportContextValue
 }): JSX.Element {
   const thread = useThread()
   const turns = () => thread.turns
   const estimator = useTurnEstimator()
-  const [gap, setGap] = createSignal(0)
+  const [spacer, setSpacer] = createSignal<HTMLDivElement>()
+  const [metrics, setMetrics] = createStore({gap: 0, scrollMargin: 0})
   const settledEstimate = (index: number): TurnEstimate | undefined => {
     if (index === turns().length - 1) return undefined
     const turn = turns()[index]
     if (!turn) return undefined
     return estimator?.estimateTurn(turn)
   }
+  const measureViewportMetrics = (): void => {
+    const viewport = props.internal.element()
+    const node = spacer()
+    if (!viewport || !node) return
+    setMetrics({
+      gap: Number.parseFloat(getComputedStyle(viewport).rowGap) || 0,
+      scrollMargin: node.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop,
+    })
+  }
   const virtualizer = createThreadVirtualizer({
     scrollElement: () => props.internal.element(),
     count: () => turns().length,
-    keyAt: (index) => turns()[index]?.key ?? `${index}`,
+    keyAt: (index) => turns()[index]?.key,
     estimateSizeAt: (index) => settledEstimate(index)?.height ?? ROW_ESTIMATE_PX,
-    gap,
-    ownsViewport: () => props.internal.ownsViewport(),
-  })
-  onCleanup(() => {
-    props.swapAnchor.current = captureAnchor(props.internal)
+    exactAt: (index) => settledEstimate(index)?.exact === true,
+    gap: () => metrics.gap,
+    scrollMargin: () => metrics.scrollMargin,
+    overscan: () => (turns().length < VIRTUALIZE_THRESHOLD ? turns().length : EVICTING_OVERSCAN),
   })
   onMount(() => {
-    props.internal.setVirtualScroll({scrollToLast: virtualizer.scrollToLast})
-    onCleanup(() => props.internal.setVirtualScroll(undefined))
+    props.viewport.setScroller({atEnd: virtualizer.atEnd, landOnEnd: virtualizer.landOnEnd})
+    onCleanup(() => props.viewport.setScroller(undefined))
     let disposed = false
     onCleanup(() => {
       disposed = true
@@ -244,15 +203,28 @@ function VirtualMessages(props: {
         virtualizer.remeasure()
       })
     }
+    let pendingMetricsFrame: number | undefined
+    onCleanup(() => {
+      if (pendingMetricsFrame !== undefined) cancelAnimationFrame(pendingMetricsFrame)
+    })
+    const scheduleMetricsRefresh = (): void => {
+      if (pendingMetricsFrame !== undefined) return
+      pendingMetricsFrame = requestAnimationFrame(() => {
+        pendingMetricsFrame = undefined
+        if (disposed) return
+        measureViewportMetrics()
+      })
+    }
     void document.fonts.ready.then(() => {
       if (disposed) return
       scheduleEstimateRefresh()
     })
     const viewport = props.internal.element()
     if (viewport) {
-      setGap(Number.parseFloat(getComputedStyle(viewport).rowGap) || 0)
+      measureViewportMetrics()
       let lastWidth = viewport.clientWidth
       createResizeObserver(viewport, ({width}) => {
+        scheduleMetricsRefresh()
         if (width === lastWidth) return
         lastWidth = width
         scheduleEstimateRefresh()
@@ -263,19 +235,12 @@ function VirtualMessages(props: {
         viewport.style.overflowAnchor = previousAnchoring
       })
     }
-    const anchor = props.swapAnchor.current
-    props.swapAnchor.current = undefined
-    if (anchor?.kind === 'anchor') {
-      const index = turns().findIndex((turn) => turn.key === anchor.key)
-      if (index >= 0) {
-        virtualizer.scrollToAnchor(index, anchor.offset)
-        return
-      }
-    }
-    props.internal.pinToBottom()
   })
   return (
-    <div style={{position: 'relative', width: '100%', flex: 'none', height: `${virtualizer.totalSize()}px`}}>
+    <div
+      ref={setSpacer}
+      style={{position: 'relative', width: '100%', flex: 'none', height: `${virtualizer.totalSize()}px`}}
+    >
       <For each={virtualizer.items}>
         {(item) => (
           <div
@@ -292,7 +257,7 @@ function VirtualMessages(props: {
               width: '100%',
               display: 'flex',
               'flex-direction': 'column',
-              transform: `translateY(${item.start}px)`,
+              transform: `translateY(${item.start - metrics.scrollMargin}px)`,
             }}
           >
             <TurnSlot
@@ -309,18 +274,12 @@ function VirtualMessages(props: {
 }
 
 function Messages(props: MessagesProps): JSX.Element {
-  const thread = useThread()
   const internal = useViewportInternal()
-  const eligible = () =>
-    internal !== undefined && internal.turnAnchor() === 'bottom' && thread.turns.length >= virtualizeThreshold.value
-  const mode = createMemo(() => (eligible() ? 'virtual' : 'flat'))
-  const swapAnchor: ModeSwapAnchor = {}
+  const viewport = useOptionalThreadViewport()
+  const virtualizable = () => (internal && viewport ? {internal, viewport} : undefined)
   return (
-    <Show
-      when={mode() === 'virtual' ? internal : undefined}
-      fallback={<FlatMessages messages={props} internal={internal} swapAnchor={swapAnchor} />}
-    >
-      {(resolved) => <VirtualMessages messages={props} internal={resolved()} swapAnchor={swapAnchor} />}
+    <Show when={virtualizable()} fallback={<PlainMessages messages={props} />}>
+      {(resolved) => <VirtualMessages messages={props} internal={resolved().internal} viewport={resolved().viewport} />}
     </Show>
   )
 }
@@ -375,17 +334,16 @@ function Unstable_MessageById(props: MessageByIdProps): JSX.Element {
   )
 }
 
-function ScrollToBottom(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & {behavior?: ScrollBehavior}): JSX.Element {
+function ScrollToBottom(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
   const viewport = useThreadViewport()
-  const [local, rest] = splitProps(props, ['behavior'])
   return (
     <button
       type="button"
       aria-label="Scroll to bottom"
-      {...rest}
+      {...props}
       disabled={viewport.isAtBottom()}
       data-at-bottom={viewport.isAtBottom() ? '' : undefined}
-      onClick={() => viewport.scrollToBottom(local.behavior ?? 'smooth')}
+      onClick={() => viewport.scrollToBottom()}
     />
   )
 }
@@ -399,11 +357,13 @@ type SuggestionProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
 function Suggestion(props: SuggestionProps): JSX.Element {
   const chat = useChatContext()
   const composer = useComposer()
+  const sendFromUser = useSendFromUser()
   const [local, rest] = splitProps(props, ['prompt', 'send', 'clearComposer'])
   const activate = () => {
     if (local.clearComposer !== false) composer.setText('')
     if (local.send) {
-      void chat.sendMessage(local.prompt)
+      const prompt = local.prompt
+      void sendFromUser(() => chat.sendMessage(prompt))
       return
     }
     composer.setText(local.prompt)

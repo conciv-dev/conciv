@@ -1,13 +1,13 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
-import {approvalIds, type Kit} from '@conciv/harness-testkit'
+import {approvalIds, type Kit, type RunStream} from '@conciv/harness-testkit'
 import type {PageOutcome} from '@conciv/protocol/page-types'
 import {bootKit} from '../../helpers/boot.js'
 import {connectWidget} from '../../helpers/fake-widget.js'
 
 const wipe = defineTool({
-  name: 'acme.wipe',
+  name: 'acme_wipe',
   description: 'Erase the whole canvas.',
   inputSchema: z.object({}),
   outputSchema: z.object({wiped: z.boolean()}),
@@ -17,7 +17,7 @@ const wipe = defineTool({
 const acme = defineExtension({name: 'acme', tools: [wipe]})
 
 const purge = defineTool({
-  name: 'askme.purge',
+  name: 'askme_purge',
   description: 'Purge the archive.',
   inputSchema: z.object({}),
   outputSchema: z.object({purged: z.boolean()}),
@@ -26,7 +26,7 @@ const purge = defineTool({
 }).server(() => ({purged: true}))
 
 const shred = defineTool({
-  name: 'askme.shred',
+  name: 'askme_shred',
   description: 'Shred a document.',
   inputSchema: z.object({}),
   outputSchema: z.object({shredded: z.boolean()}),
@@ -45,30 +45,26 @@ async function callViaSandbox(kit: Kit, session: string, name: string, input: un
   )
 }
 
-async function decideNextApproval(
-  kit: Kit,
-  stream: Awaited<ReturnType<Kit['attach']>>,
-  approved: boolean,
-): Promise<void> {
+async function decideNextApproval(kit: Kit, stream: RunStream, approved: boolean): Promise<void> {
   const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 10_000})
   const approvalId = approvalIds(asked)[0]
   if (approvalId === undefined) throw new Error('no approval id on the stream')
   await kit.rpc.chat.permissionDecision({approvalId, approved})
 }
 
-function evalAnswer(): PageOutcome {
-  return {ok: true, result: {result: 2}}
+function pageAnswer(): PageOutcome {
+  return {ok: true, result: {ok: true}}
 }
 
 describe('/api/mcp gate decisions come from the approval declaration, not mutating', () => {
   it('a mutating BUILT-IN with no approval declaration runs without any prompt', async () => {
     const kit = await bootKit()
-    const widget = await connectWidget(kit, evalAnswer)
+    const widget = await connectWidget(kit, pageAnswer)
     try {
       const session = await kit.session()
-      const outcome = await callViaSandbox(kit, session, 'page.eval', {code: '1 + 1'})
+      const outcome = await callViaSandbox(kit, session, 'page_css', {text: 'body{color:red}'})
       expect(outcome.ok).toBe(true)
-      expect(widget.seen()).toEqual(['page.eval'])
+      expect(widget.seen()).toEqual(['page_css'])
     } finally {
       widget.end()
       await kit.cleanup()
@@ -92,7 +88,7 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
     const kit = await bootKit({extensions: [acme]})
     try {
       const session = await kit.session()
-      const outcome = await callViaSandbox(kit, session, 'acme.wipe', {})
+      const outcome = await callViaSandbox(kit, session, 'acme_wipe', {})
       expect(outcome.ok).toBe(true)
       expect(outcome.message).toContain('wiped')
     } finally {
@@ -104,8 +100,8 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
     const kit = await bootKit({extensions: [askme]})
     try {
       const session = await kit.session()
-      const stream = await kit.attach(session)
-      const pending = callViaSandbox(kit, session, 'askme.purge', {})
+      const stream = await kit.events(session)
+      const pending = callViaSandbox(kit, session, 'askme_purge', {})
       await decideNextApproval(kit, stream, true)
       const outcome = await pending
       expect(outcome.ok).toBe(true)
@@ -119,8 +115,8 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
     const kit = await bootKit({extensions: [askme]})
     try {
       const session = await kit.session()
-      const stream = await kit.attach(session)
-      const pending = callViaSandbox(kit, session, 'askme.shred', {})
+      const stream = await kit.events(session)
+      const pending = callViaSandbox(kit, session, 'askme_shred', {})
       await decideNextApproval(kit, stream, false)
       const outcome = await pending
       expect(outcome.ok).toBe(false)
@@ -133,9 +129,9 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
   it('an ask-declared call with no session to ask in is refused', async () => {
     const kit = await bootKit({extensions: [askme]})
     try {
-      const outcome = await callViaSandbox(kit, '', 'askme.purge', {})
+      const outcome = await callViaSandbox(kit, '', 'askme_purge', {})
       expect(outcome.ok).toBe(false)
-      expect(outcome.message).toContain('askme.purge')
+      expect(outcome.message).toContain('askme_purge')
       expect(outcome.message).toContain('nothing is attached')
     } finally {
       await kit.cleanup()

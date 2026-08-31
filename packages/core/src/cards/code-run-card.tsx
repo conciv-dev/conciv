@@ -1,13 +1,14 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
+import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {
-  Chip,
   clip,
   CodeBlock,
   ErrorBlock,
   parseInput,
   parseResultPayload,
   resultText,
+  ShapedValue,
   ToolCard,
   toolStatus,
   TraceOutputBlock,
@@ -59,14 +60,24 @@ function hasResult(output: ExecuteResult | null): boolean {
   return output?.success === true && output.result !== undefined
 }
 
+const SECTION_LABEL =
+  'text-[length:var(--chat-text-micro)] text-chat-microlabel leading-none tracking-[0.13em] uppercase [font-family:var(--chat-mono)]'
+
 function ConsoleLogs(props: {logs: string[]}): JSX.Element {
   return (
     <>
-      <span class="text-[length:var(--chat-text-micro)] text-chat-microlabel leading-none tracking-[0.13em] uppercase [font-family:var(--chat-mono)]">
-        console
-      </span>
+      <span class={SECTION_LABEL}>console</span>
       <CodeBlock file={{name: 'console.txt', lang: 'ansi', contents: props.logs.join('\n')}} />
     </>
+  )
+}
+
+function RunResult(props: {output: ExecuteResult | null}): JSX.Element {
+  return (
+    <Show when={hasResult(props.output)}>
+      <span class={SECTION_LABEL}>result</span>
+      <ShapedValue name="result" value={props.output?.result} />
+    </Show>
   )
 }
 
@@ -91,11 +102,10 @@ function codeStatusText(settled: boolean, failed: boolean): string | undefined {
   return failed ? 'error' : 'ok'
 }
 
-function runOutputText(output: ExecuteResult | null): string {
+function runLogText(output: ExecuteResult | null): string {
   const parts = [...logsOf(output)]
   const error = errorOf(output)
   if (error) parts.push(errorMessage(error))
-  if (hasResult(output)) parts.push(JSON.stringify(output?.result))
   return parts.join('\n')
 }
 
@@ -104,20 +114,25 @@ function EmbeddedOutput(props: {
   failed: boolean
   result: ToolCardProps['result']
 }): JSX.Element {
-  const text = () => runOutputText(props.output)
+  const text = () => runLogText(props.output)
   return (
-    <Switch>
-      <Match when={props.output === null && props.failed}>
-        <ErrorBlock label="Error" message={transportErrorText(props.result)} />
-      </Match>
-      <Match when={text()}>
-        {(value) => (
-          <TraceOutputBlock tone={props.failed ? 'error' : 'normal'} text={value()}>
-            <CodeBlock size="xs" maxHeight="none" file={{name: 'output.log', lang: 'ansi', contents: value()}} />
-          </TraceOutputBlock>
-        )}
-      </Match>
-    </Switch>
+    <Show
+      when={props.output === null && props.failed}
+      fallback={
+        <>
+          <Show when={text()}>
+            {(value) => (
+              <TraceOutputBlock tone={props.failed ? 'error' : 'normal'} text={value()}>
+                <CodeBlock size="xs" maxHeight="none" file={{name: 'output.log', lang: 'ansi', contents: value()}} />
+              </TraceOutputBlock>
+            )}
+          </Show>
+          <RunResult output={props.output} />
+        </>
+      }
+    >
+      <ErrorBlock label="Error" message={transportErrorText(props.result)} />
+    </Show>
   )
 }
 
@@ -133,9 +148,7 @@ function FullOutput(props: {
       <Show when={logsOf(props.output).length > 0}>
         <ConsoleLogs logs={logsOf(props.output)} />
       </Show>
-      <Show when={hasResult(props.output)}>
-        <Chip kind="pill" value={JSON.stringify(props.output?.result)} />
-      </Show>
+      <RunResult output={props.output} />
       <Switch>
         <Match when={errorOf(props.output)}>{(error) => <ErrorBox error={error()} />}</Match>
         <Match when={props.output === null && props.failed}>
@@ -175,7 +188,15 @@ export function CodeRunCard(props: ToolCardProps): JSX.Element {
   )
 }
 
+function codeRunHasEmbeddedBody(part: ToolCallPart, result: ToolResultPart | undefined): boolean {
+  const output = parseOutput(result)
+  if (runLogText(output).length > 0) return true
+  if (hasResult(output)) return true
+  return output === null && toolStatus(part, result) === 'error'
+}
+
 export const codeRunTool: ToolCardEntry = {
   names: [EXECUTE_TOOL_NAME],
   render: CodeRunCard,
+  hasEmbeddedBody: codeRunHasEmbeddedBody,
 }

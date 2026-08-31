@@ -58,6 +58,17 @@ describe('shortToolLabel', () => {
   it('splits an acronym-prefixed camelCase name on the word boundary', () => {
     expect(shortToolLabel('DOMSnapshot')).toBe('dom_snapshot')
   })
+
+  it('drops the namespace segment from a snake_case first-party tool name', () => {
+    expect(shortToolLabel('page_fill')).toBe('fill')
+    expect(shortToolLabel('page_check')).toBe('check')
+    expect(shortToolLabel('canvas_svg')).toBe('svg')
+  })
+
+  it('keeps a camelCase compound word intact even though tokenizing introduces underscores', () => {
+    expect(shortToolLabel('DOMSnapshot')).toBe('dom_snapshot')
+    expect(shortToolLabel('routerState')).toBe('router_state')
+  })
 })
 
 describe('primaryArgument', () => {

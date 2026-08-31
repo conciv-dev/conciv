@@ -6,10 +6,11 @@ import {trackSessionActivity} from '../src/pane/session-activity.js'
 import {makeAppContextValue} from './helpers/app-context-value.js'
 
 const OFFLINE_BASE = 'http://127.0.0.1:1'
+const PANE_SESSION_ID = 'the-mounted-session'
 
 type ActivityProbe = {
   app: AppContextValue
-  setWorking: (value: boolean) => void
+  setActive: (value: boolean) => void
   invalidations: () => number
   settles: () => number
   unmount: () => void
@@ -17,16 +18,16 @@ type ActivityProbe = {
 
 function mountActivity(): ActivityProbe {
   const scope = createRoot((dispose) => ({app: makeAppContextValue({base: OFFLINE_BASE}), dispose}))
-  const [working, setWorking] = createSignal(false)
+  const [active, setActive] = createSignal(false)
   let invalidations = 0
   let settles = 0
   const Pane = (): JSX.Element => {
     trackSessionActivity({
-      working,
+      sessionId: PANE_SESSION_ID,
+      active,
       invalidateSessions: () => {
         invalidations += 1
       },
-      onStart: () => {},
       onSettle: () => {
         settles += 1
       },
@@ -40,7 +41,7 @@ function mountActivity(): ActivityProbe {
   ))
   return {
     app: scope.app,
-    setWorking,
+    setActive,
     invalidations: () => invalidations,
     settles: () => settles,
     unmount: () => {
@@ -53,7 +54,7 @@ function mountActivity(): ActivityProbe {
 describe('trackSessionActivity', () => {
   it('invalidates the session list when a pane closes while its run is still in flight', () => {
     const probe = mountActivity()
-    probe.setWorking(true)
+    probe.setActive(true)
 
     probe.unmount()
 
@@ -62,10 +63,10 @@ describe('trackSessionActivity', () => {
 
   it('invalidates the session list when the final settle and the close land in one batch', () => {
     const probe = mountActivity()
-    probe.setWorking(true)
+    probe.setActive(true)
 
     batch(() => {
-      probe.setWorking(false)
+      probe.setActive(false)
       probe.unmount()
     })
 
@@ -83,12 +84,14 @@ describe('trackSessionActivity', () => {
 
   it('releases the launcher when the pane unmounts', () => {
     const probe = mountActivity()
-    probe.setWorking(true)
+    probe.setActive(true)
 
-    expect(probe.app.liveSessions.anyRunning()).toBe(true)
+    expect(probe.app.liveSessions.activityIn(PANE_SESSION_ID)).toBe('running')
 
     probe.unmount()
 
-    expect(probe.app.liveSessions.anyRunning(), 'an unmounted pane stops holding the launcher').toBe(false)
+    expect(probe.app.liveSessions.activityIn(PANE_SESSION_ID), 'an unmounted pane stops holding the launcher').toBe(
+      'unmounted',
+    )
   })
 })

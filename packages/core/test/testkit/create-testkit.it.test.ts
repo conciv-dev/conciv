@@ -13,9 +13,8 @@ describe('createTestkit (real server)', () => {
       async () => {
         const kit = await createTestkit(mode.harness, bootCoreApp()).setup()
         try {
-          const stream = await kit.attach()
-          await kit.chat('reply with exactly PONG')
-          const events = await stream.done()
+          const turn = await kit.chat('reply with exactly PONG')
+          const events = await turn.done()
           expect(events.runs()).toBe(1)
           if (mode.name === 'real') expect(events.text().toUpperCase()).toContain('PONG')
         } finally {
@@ -31,23 +30,20 @@ describe('createTestkit (real server)', () => {
         const kit = await createTestkit(mode.harness, bootCoreApp()).setup()
         try {
           const sessionId = await kit.session()
-          const stream = await kit.attach(sessionId)
           if (mode.name === 'fake') {
             mode.harness.script.scriptToolCall('execute_typescript', {
               typescriptCode: "return await external_conciv_ui({kind: 'confirm', question: 'Proceed?'})",
             })
-            await kit.chat('go', sessionId)
           }
-          if (mode.name === 'real') {
-            await kit.chat(
-              'Inside execute_typescript, call external_conciv_ui with kind confirm, question "Proceed?". Then reply DONE.',
-              sessionId,
-            )
-          }
-          const call = await stream.waitForToolCall('conciv_ui')
+          const instruction =
+            mode.name === 'fake'
+              ? 'go'
+              : 'Inside execute_typescript, call external_conciv_ui with kind confirm, question "Proceed?". Then reply DONE.'
+          const turn = await kit.chat(instruction, sessionId)
+          const call = await turn.waitForToolCall('conciv_ui')
           expect(call.name).toBe('conciv_ui')
           await kit.rpc.chat.uiReply({sessionId, toolCallId: call.toolCallId, value: 'yes'})
-          await stream.done({hangGuardMs: 60_000})
+          await turn.done({hangGuardMs: 60_000})
         } finally {
           await kit.cleanup()
         }

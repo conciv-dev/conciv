@@ -26,10 +26,10 @@ test.afterAll(async () => {
 const openHostPage = (page: Page): Promise<Page> => openPagePlaneHost(page, host.base)
 
 test.describe('startPagePlane executes registry page tools in the browser', () => {
-  test('round-trips page.text through rpc.page.queries to the DOM dispatcher', async ({page}) => {
+  test('round-trips page_text through the push socket to the DOM dispatcher', async ({page}) => {
     test.setTimeout(90_000)
     await openHostPage(page)
-    expect(await kit.rpc.registry.call({name: 'page.text', input: {selector: '#probe'}})).toMatchObject({
+    expect(await kit.rpc.registry.call({name: 'page_text', input: {selector: '#probe'}})).toMatchObject({
       text: 'page-bus-ok',
     })
   })
@@ -39,15 +39,15 @@ test.describe('startPagePlane executes registry page tools in the browser', () =
   }) => {
     test.setTimeout(90_000)
     await openHostPage(page)
-    await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#not-here'}})).rejects.toMatchObject({
+    await expect(kit.rpc.registry.call({name: 'page_text', input: {selector: '#not-here'}})).rejects.toMatchObject({
       code: 'INVALID_ARGS',
-      message: 'page.text: no element for selector #not-here',
+      message: 'page_text: no element for selector #not-here',
     })
   })
 
   test('the snapshot tool sees host page structure', async ({page}) => {
     test.setTimeout(90_000)
     await openHostPage(page)
-    expect(JSON.stringify(await kit.rpc.registry.call({name: 'page.snapshot', input: {}}))).toContain('Embed page')
+    expect(JSON.stringify(await kit.rpc.registry.call({name: 'page_snapshot', input: {}}))).toContain('Embed page')
   })
 })

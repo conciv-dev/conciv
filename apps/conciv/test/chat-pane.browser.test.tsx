@@ -12,7 +12,7 @@ import {ChatPane} from '../src/pane/chat-pane.js'
 import {QueueStrip} from '../src/pane/queue-strip.js'
 import {RefreshButton} from '../src/shell/refresh-button.js'
 import {coreControl} from './helpers/core-control.js'
-import {coreRpc, createSession, openTranscriptStream, runTurn, seedDraft, sendTurn} from './helpers/core-session.js'
+import {coreRpc, createSession, runTurn, seedDraft, sendTurn} from './helpers/core-session.js'
 import {
   grabProviderFor,
   HERO_GRAB,
@@ -22,10 +22,10 @@ import {
   PRICING_LABEL,
 } from './helpers/grab-fixtures.js'
 import {mountPane, type PaneMount, type PaneMountOptions} from './helpers/pane-harness.js'
+import {forceReducedMotion} from './helpers/reduced-motion.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 
-const SEND_PATH = ['chat', 'send']
-const SUBSCRIBE_PATH = ['chat', 'subscribe']
+const HYDRATE_PATH = ['chat', 'hydrate']
 
 const core = {base: ''}
 const active: {pane: PaneMount | null} = {pane: null}
@@ -62,7 +62,7 @@ function grabOptions(...grabs: Grab[]): Pick<PaneMountOptions, 'grabProvider' | 
 
 function mountChatPane(
   sessionId: string,
-  options: Pick<PaneMountOptions, 'grabProvider' | 'extensions'> = {},
+  options: Pick<PaneMountOptions, 'grabProvider' | 'extensions' | 'transport'> = {},
 ): PaneMount {
   const mount = mountPane({base: core.base, sessionId, ...options}, (pane) => {
     const queue = createMemo(() => pane.chat().queue())
@@ -88,6 +88,10 @@ const snapshot = () => page.getByTitle('Grabbed element snapshot')
 const notifications = () => page.getByRole('region', {name: /Notifications/})
 const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
 const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
+const narration = () => page.getByText('Responding…', {exact: true})
+const FROZEN_GLYPH = '⠿'
+const frozenGlyph = () => page.getByText(FROZEN_GLYPH, {exact: true})
+const traceList = () => page.getByRole('list', {name: 'Execution trace'})
 
 async function pickGrabFromOverflow(): Promise<void> {
   await userEvent.click(overflowTrigger())
@@ -101,9 +105,9 @@ async function stageGrabThroughComposer(): Promise<void> {
   await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
 }
 
-async function sendWithStagedGrab(): Promise<void> {
+async function sendWithStagedGrab(options: Pick<PaneMountOptions, 'transport'> = {}): Promise<void> {
   const {sessionId} = await newSession()
-  mountChatPane(sessionId, grabOptions(HERO_GRAB))
+  mountChatPane(sessionId, {...grabOptions(HERO_GRAB), ...options})
   await stageGrabThroughComposer()
   await input().fill('explain the section I grabbed')
   await userEvent.keyboard('{Enter}')
@@ -149,8 +153,8 @@ test('a staged grab keeps its snapshot and source label across a panel reload', 
 
 test('a rejected send keeps the draft in the composer and tells the user why', async () => {
   const {sessionId} = await newSession()
-  await faults.install({kind: 'fail', path: SEND_PATH, status: 500})
-  mountChatPane(sessionId)
+  await faults.install({kind: 'chat-refused', status: 500})
+  mountChatPane(sessionId, {transport: 'fetch'})
 
   await expect.element(input()).toBeVisible()
   await input().fill('a message the server refuses')
@@ -169,8 +173,8 @@ test('sending drops the staged grab card at once, while the turn is still stream
 })
 
 test('a send the server refuses puts the staged grab card back', async () => {
-  await faults.install({kind: 'fail', path: SEND_PATH, status: 500})
-  await sendWithStagedGrab()
+  await faults.install({kind: 'chat-refused', status: 500})
+  await sendWithStagedGrab({transport: 'fetch'})
 
   await expect.element(notifications()).toHaveTextContent(/Internal Server Error|could not be sent/)
   await expect.element(removeGrab()).toBeVisible()
@@ -178,10 +182,10 @@ test('a send the server refuses puts the staged grab card back', async () => {
 })
 
 test('a send that throws at the transport puts the staged grab card back', async () => {
-  await faults.install({kind: 'abort', path: SEND_PATH})
-  await sendWithStagedGrab()
+  await faults.install({kind: 'chat-dropped'})
+  await sendWithStagedGrab({transport: 'fetch'})
 
-  await expect.element(notifications()).toHaveTextContent(/could not be sent|fetch/)
+  await expect.element(notifications()).toHaveTextContent(/could not be sent|Stream response body read failed/)
   await expect.element(removeGrab()).toBeVisible()
   await expect.element(page.getByText(HERO_LABEL).last()).toBeVisible()
 })
@@ -212,7 +216,7 @@ test('a queued second send cannot cross-restore the grabs of the turn that faile
   await expect.element(page.getByText(PRICING_LABEL)).not.toBeInTheDocument()
 })
 
-test('sending announces thinking and then the reply through the live region', async () => {
+test('sending announces the settled reply through the live region', async () => {
   const {sessionId} = await newSession()
   mountChatPane(sessionId)
 
@@ -220,23 +224,88 @@ test('sending announces thinking and then the reply through the live region', as
   await input().fill('rename the widget package')
   await userEvent.keyboard('{Enter}')
 
-  await expect.element(page.getByRole('log', {name: 'Announcements'})).toHaveTextContent('conciv is thinking…')
   await expect.element(page.getByRole('log', {name: 'Announcements'})).toHaveTextContent('conciv replied.')
 })
 
+test('a run in flight narrates what the agent is doing above the composer', async () => {
+  const {sessionId} = await newSession()
+  await coreControl.holdTurn()
+  mountChatPane(sessionId)
+
+  await expect.element(input()).toBeVisible()
+  await input().fill('start a long run')
+  await userEvent.keyboard('{Enter}')
+
+  await expect.element(page.getByText('Responding…', {exact: true})).toBeVisible()
+  await page.screenshot({path: '__screenshots__/chat-pane/now-line-above-composer.png'})
+
+  await coreControl.releaseTurn()
+  await expect.element(page.getByText('Responding…', {exact: true})).not.toBeInTheDocument()
+})
+
+test('one narration line rides the whole run, outside the trace, across the tool and text boundary', async () => {
+  const restoreMotion = forceReducedMotion()
+  const {sessionId} = await newSession()
+  await coreControl.scriptTurn({
+    toolCalls: [
+      {name: 'Bash', input: {command: 'ls'}},
+      {name: 'Read', input: {filePath: 'widget-shell.tsx'}},
+    ],
+    text: 'Both steps are done.',
+    thinking: 'mapping the two steps',
+  })
+  await coreControl.holdTools()
+  await coreControl.holdTurn()
+  mountChatPane(sessionId)
+
+  await expect.element(input()).toBeVisible()
+  await input().fill('run a couple of tools then answer')
+  await userEvent.keyboard('{Enter}')
+
+  await expect.element(page.getByText('mapping the two steps')).toBeVisible()
+  await expect.element(frozenGlyph()).toBeVisible()
+  await expect.element(traceList().getByText(FROZEN_GLYPH, {exact: true})).not.toBeInTheDocument()
+  await page.screenshot({path: '__screenshots__/chat-pane/now-line-during-tools.png'})
+
+  await coreControl.releaseTools()
+  await expect.element(page.getByText('Both steps are done.')).toBeVisible()
+  await expect.element(frozenGlyph()).toBeVisible()
+  await expect.element(traceList().getByText(FROZEN_GLYPH, {exact: true})).not.toBeInTheDocument()
+  await page.screenshot({path: '__screenshots__/chat-pane/now-line-after-text.png'})
+
+  await coreControl.releaseTurn()
+  await expect.element(frozenGlyph()).not.toBeInTheDocument()
+  restoreMotion()
+})
+
+test('a pane that joins a run another client already started narrates it, and stops when it ends', async () => {
+  const {sessionId} = await newSession()
+  await coreControl.holdTurn()
+  await sendTurn(core.base, sessionId, 'a turn driven from another client')
+
+  mountChatPane(sessionId)
+
+  await expect.element(input()).toBeVisible()
+  await expect.element(narration()).toBeVisible()
+  await page.screenshot({path: '__screenshots__/chat-pane/now-line-joins-remote-run.png'})
+
+  await coreControl.releaseTurn()
+
+  await expect.element(narration()).not.toBeInTheDocument()
+})
+
 test('the refresh affordance re-subscribes and shows the transcript the server re-leads', async () => {
-  const {rpc, sessionId} = await newSession()
+  const {sessionId} = await newSession()
   mountChatPane(sessionId)
   await expect.element(page.getByText('How can I help you today?')).toBeVisible()
 
-  const stream = await openTranscriptStream(rpc, sessionId)
-  const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
+  const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
   await page.getByRole('button', {name: 'Refresh the conversation'}).click()
 
   await coreControl.scriptTurn({toolCalls: [], text: 'the refreshed transcript'})
-  await sendTurn(rpc, sessionId, 'lead the transcript from the server')
-  await stream.awaitTurnEnd()
-  stream.close()
+  const turn = await sendTurn(core.base, sessionId, 'lead the transcript from the server')
+  await turn.awaitTurnEnd()
+  turn.close()
   await coreControl.releaseFault(gate)
 
   await expect.element(page.getByText('the refreshed transcript')).toBeVisible()
@@ -257,7 +326,7 @@ test('the refresh affordance is disabled while the run streams', async () => {
 
 test('the initial load shows a conversation skeleton until the snapshot arrives', async () => {
   const {sessionId} = await newSession()
-  const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
+  const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
   mountChatPane(sessionId)
 
   await expect.element(skeleton()).toBeVisible()
@@ -344,17 +413,17 @@ test('Escape in the focused composer does what the stop button does and leaves t
 test('Escape outside the composer does not stop the run', async () => {
   await startStreamingRun()
 
-  await userEvent.click(page.getByRole('log', {name: 'Announcements'}))
+  await userEvent.click(page.getByText('first turn'))
   await userEvent.keyboard('{Escape}')
 
   await expect.element(stopButton()).toBeVisible()
 })
 
 test('a new-session divider does not flash before the transcript snapshot hydrates', async () => {
-  const {rpc, sessionId} = await newSession()
+  const {sessionId} = await newSession()
   await coreControl.scriptTurn({toolCalls: [], text: 'starting a fresh session'})
-  await runTurn(rpc, sessionId, 'restart with a clean slate')
-  const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
+  await runTurn(core.base, sessionId, 'restart with a clean slate')
+  const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
   const mount = mountChatPane(sessionId)
 
   await expect.element(skeleton()).toBeVisible()

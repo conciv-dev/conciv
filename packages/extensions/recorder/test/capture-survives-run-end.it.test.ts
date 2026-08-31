@@ -1,19 +1,25 @@
 import {randomUUID} from 'node:crypto'
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {createFakeHarness, makeRpcClient} from '@conciv/harness-testkit'
+import {fetchServerSentEvents} from '@tanstack/ai-client'
+import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
+import {createFakeHarness} from '@conciv/harness-testkit'
 import {useRecorderTestApi} from './helpers/test-api.js'
 import {addMarker} from './helpers/fixtures.js'
 
 const api = useRecorderTestApi({harness: createFakeHarness()})
 
 async function runAgentTurnToCompletion(): Promise<void> {
-  const rpc = makeRpcClient(api().apiBase)
   const abort = new AbortController()
-  const stream = await rpc.chat.subscribe({sessionId: api().session}, {signal: abort.signal})
-  await rpc.chat.send({sessionId: api().session, runId: randomUUID(), text: 'hello'})
-  for await (const chunk of stream) {
-    if (chunk.type === 'RUN_FINISHED') break
+  const connection = fetchServerSentEvents(`${api().apiBase}${CHAT_SSE_PATH}`)
+  const turn = connection.connect(
+    [{id: randomUUID(), role: 'user', parts: [{type: 'text', content: 'hello'}]}],
+    {},
+    abort.signal,
+    {threadId: api().session, runId: randomUUID()},
+  )
+  for await (const chunk of turn) {
+    if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') break
   }
   abort.abort()
 }

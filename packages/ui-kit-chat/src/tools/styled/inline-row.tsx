@@ -1,4 +1,5 @@
 import {Show, type JSX} from 'solid-js'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {StatusVisual} from '../primitives/status-visual.js'
 import type {ToolStatus} from '../primitives/tool-status.js'
 import type {EmbeddedCardHeader} from '../primitives/tool-row.js'
@@ -28,7 +29,7 @@ export function InlineRow(props: {label: string; status: ToolStatus; value: stri
   return (
     <InlineShell name={props.label} status={props.status}>
       <Show when={props.value}>
-        <span class="text-chat-text-3 truncate">{props.value}</span>
+        <TruncatedText class="text-chat-text-3" text={props.value} />
       </Show>
     </InlineShell>
   )

@@ -1,6 +1,6 @@
 import {cors} from 'hono/cors'
 import type {MiddlewareHandler} from 'hono'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CHAT_DELIVERY_HEADERS, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 
 const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'] as const
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(LOOPBACK_HOSTNAMES)
@@ -56,7 +56,7 @@ export function corsMiddleware(): MiddlewareHandler<{Variables: CorsVars}> {
       origin: (candidate) => (originAllowed(candidate, extra) ? candidate : ''),
       credentials: true,
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['content-type', CONCIV_SESSION_HEADER],
+      allowHeaders: ['content-type', CONCIV_SESSION_HEADER, ...CHAT_DELIVERY_HEADERS],
     })
     return corsHandler(c, next)
   }

@@ -12,7 +12,7 @@ test('the thread card closes when its root comment is gone, leaving no empty hea
     await openThreadPin(api.page)
     await api.page.getByRole('button', {name: 'Close thread'}).waitFor({timeout: 30_000})
 
-    await api.callToolApproved('comment.delete', {cid})
+    await api.callToolApproved('comment_delete', {cid})
 
     await expectLocator(api.page.getByRole('button', {name: 'Close thread'})).toHaveCount(0, {timeout: 30_000})
     expect(await api.page.getByRole('button', {name: 'Resolve thread'}).count()).toBe(0)

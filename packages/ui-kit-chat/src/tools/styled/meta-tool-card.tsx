@@ -1,15 +1,16 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import {z} from 'zod'
-import type {ToolResultPart} from '@tanstack/ai-client'
-import type {ToolCardProps, ToolViewError} from '@conciv/protocol/tool-view-types'
+import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCardProps, ToolViewCtx, ToolViewError, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {parseInput, parseResultPayload, resultText} from '../primitives/tool-util.js'
 import {MUTATING_BADGE, clip, displayValue} from '../primitives/tool-presentation.js'
+import {namedArgument} from '../primitives/tool-row.js'
 import {CardShell, cardHeader} from './card-shell.js'
-import {useEmbeddedRowLine} from './card-chrome.js'
 import {CHIP} from './chip.js'
 import {JsonTree} from './json-tree.js'
+import {ShapedValue} from './shaped-content.js'
 import {ElementPreview} from './element-preview.js'
 import {MirrorRow, NoteRow} from './note-row.js'
 import {CodeBlock} from './code-block.js'
@@ -91,7 +92,7 @@ function ResultView(props: {outputSchema: unknown; payload: unknown; raw: string
   const list = () => (Array.isArray(props.payload) ? props.payload : undefined)
   const decoded = () => (typeof props.payload === 'string' ? props.payload : props.raw)
   return (
-    <Switch fallback={<ResultBlock name="result.json" contents={props.raw} />}>
+    <Switch fallback={<ShapedValue name="result" value={props.payload} />}>
       <Match when={view() === 'list' && list()}>{(items) => <JsonTree data={items()} />}</Match>
       <Match when={view() === 'code'}>
         <ResultBlock name="result.txt" contents={decoded()} />
@@ -101,6 +102,27 @@ function ResultView(props: {outputSchema: unknown; payload: unknown; raw: string
       </Match>
     </Switch>
   )
+}
+
+function summaryLine(part: ToolCallPart, meta: ToolViewMeta | undefined): string | undefined {
+  const summary = meta?.summary
+  if (summary === undefined || summary.length === 0) return undefined
+  if (meta?.label !== undefined) return summary
+  return namedArgument(part) === undefined ? undefined : summary
+}
+
+export function metaToolHasEmbeddedBody(
+  part: ToolCallPart,
+  result: ToolResultPart | undefined,
+  ctx: ToolViewCtx,
+): boolean {
+  const meta = ctx.catalog.meta(part.name)
+  const capture = ctx.captureFor?.(part.id)
+  if ((capture?.after ?? capture?.before) !== undefined) return true
+  if (summaryLine(part, meta) !== undefined) return true
+  if (meta?.hint !== undefined || meta?.approval === 'ask' || meta?.mirrors === true) return true
+  if (failureText(result, meta?.errors) !== undefined) return true
+  return resultText(result).length > 0
 }
 
 export function MetaToolCard(props: ToolCardProps): JSX.Element {
@@ -129,12 +151,7 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
     }
   }
   const accent = () => CATEGORY_ACCENT[meta()?.category ?? ''] ?? NEUTRAL_ACCENT
-  const rowLine = useEmbeddedRowLine()
-  const bodySummary = () => {
-    const summary = meta()?.summary
-    if (summary === undefined || summary.length === 0) return undefined
-    return rowLine().includes(summary) ? undefined : summary
-  }
+  const bodySummary = () => summaryLine(props.part, meta())
   return (
     <CardShell
       meta={meta()}

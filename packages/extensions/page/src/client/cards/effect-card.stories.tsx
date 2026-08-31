@@ -4,8 +4,10 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {Trace as ChatTrace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
-import {EffectCard} from './effect-card.js'
+import {effectCard} from './effect-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+
+const EffectCard = effectCard.render
 
 const meta: Meta = {title: 'Extensions/Page/tool/EffectCard'}
 export default meta
@@ -52,9 +54,9 @@ export const EffectTurnedOn: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <EffectCard
-        part={storyPart('page.effect', {action: 'enable', effect: 'grid-overlay'})}
+        part={storyPart('page_effect', {action: 'enable', effect: 'grid-overlay'})}
         result={storyResult({effect: 'grid-overlay', enabled: true})}
-        ctx={storyCtx({'page.effect': effectMeta})}
+        ctx={storyCtx({page_effect: effectMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -75,14 +77,14 @@ export const RegisteredEffects: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <EffectCard
-        part={storyPart('page.effect', {action: 'list'})}
+        part={storyPart('page_effect', {action: 'list'})}
         result={storyResult({
           effects: [
             {name: 'grid-overlay', description: 'draw the layout grid over the page', enabled: true},
             {name: 'focus-rings', description: 'highlight every focusable element', enabled: false},
           ],
         })}
-        ctx={storyCtx({'page.effect': effectMeta})}
+        ctx={storyCtx({page_effect: effectMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -99,9 +101,9 @@ export const NoEffects: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <EffectCard
-        part={storyPart('page.effect', {action: 'list'})}
+        part={storyPart('page_effect', {action: 'list'})}
         result={storyResult({effects: []})}
-        ctx={storyCtx({'page.effect': effectMeta})}
+        ctx={storyCtx({page_effect: effectMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -113,14 +115,14 @@ export const NoEffects: Story = {
   },
 }
 
-const effectTool: ToolCardEntry = {names: ['page.effect'], render: EffectCard}
+const effectTool: ToolCardEntry = {names: ['page_effect'], ...effectCard}
 
 export const Trace: Story = {
   render: () =>
     traceGallery('1 effect', [
       traceRow(
         effectTool,
-        storyPart('page.effect', {action: 'enable', effect: 'grid-overlay'}),
+        storyPart('page_effect', {action: 'enable', effect: 'grid-overlay'}),
         storyResult({effect: 'grid-overlay', enabled: true}),
       ),
     ]),

@@ -27,7 +27,7 @@ export const createFloatingComment = (
   text: string,
   options: {authorModel?: string} = {},
 ): Promise<unknown> =>
-  api.callToolApproved('comment.create', {
+  api.callToolApproved('comment_create', {
     cid,
     kind: 'floating',
     parts: [{type: 'text', text}],
@@ -45,4 +45,4 @@ export const openThreadPin = async (page: Page): Promise<void> => {
 }
 
 export const readCanvas = async (api: ToolCaller, scope: string): Promise<unknown[]> =>
-  ((await api.callTool('canvas.read', {scope})) as {elements: unknown[]}).elements
+  ((await api.callTool('canvas_read', {scope})) as {elements: unknown[]}).elements

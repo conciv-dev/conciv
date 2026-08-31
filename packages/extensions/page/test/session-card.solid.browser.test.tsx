@@ -31,7 +31,7 @@ function toolCall(
 }
 
 function fillCall(id: string, selector: string, value: string): ToolCallPart {
-  return toolCall(id, 'page.fill', {selector, value}, 'input-complete')
+  return toolCall(id, 'page_fill', {selector, value}, 'input-complete')
 }
 
 function okResult(id: string): ToolResultPart {
@@ -44,6 +44,17 @@ function errorResult(id: string, message: string): ToolResultPart {
 
 function lookup(results: Record<string, ToolResultPart>): (id: string) => ToolResultPart | undefined {
   return (id) => results[id]
+}
+
+async function mountSettled(
+  parts: readonly MessagePart[],
+  results: Record<string, ToolResultPart>,
+  title: RegExp,
+): Promise<void> {
+  mount(() => (
+    <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={lookup(results)} streaming={false} />
+  ))
+  await expect.element(page.getByRole('button', {name: title})).toHaveAttribute('aria-expanded', 'true')
 }
 
 test('streamed act appends and token growth keep the existing step-rail rows mounted', async () => {
@@ -67,7 +78,7 @@ test('streamed act appends and token growth keep the existing step-rail rows mou
 })
 
 test('a streaming act outside the shorthand verbs still reads as a running phrase', async () => {
-  const parts: ToolCallPart[] = [toolCall('h1', 'page.hover', {selector: '#menu'}, 'input-complete')]
+  const parts: ToolCallPart[] = [toolCall('h1', 'page_hover', {selector: '#menu'}, 'input-complete')]
   mount(() => (
     <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={() => undefined} streaming={true} />
   ))
@@ -86,13 +97,10 @@ test('a settled session shows its folded reasoning and script in a collapsed fla
   const parts: MessagePart[] = [
     ...THINKING,
     codeRun('p1'),
-    toolCall('f1', 'page.fill', {selector: '#prose', value: 'better prose'}, 'complete'),
+    toolCall('f1', 'page_fill', {selector: '#prose', value: 'better prose'}, 'complete'),
   ]
-  mount(() => (
-    <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={lookup(results)} streaming={false} />
-  ))
+  await mountSettled(parts, results, /Edited the page/)
 
-  await page.getByRole('button', {name: /Edited the page/}).click()
   const section = page.getByRole('button', {name: 'Reasoning · script'})
   await expect.element(section).toBeVisible()
   await expect.element(page.getByText('choose the field wisely')).not.toBeInTheDocument()
@@ -103,12 +111,10 @@ test('a settled session shows its folded reasoning and script in a collapsed fla
 
 test('an expanded session shows its step rail without a tool-input row of its own', async () => {
   const results = {f1: okResult('f1')}
-  const parts: ToolCallPart[] = [toolCall('f1', 'page.fill', {selector: '#name', value: 'Ada'}, 'complete')]
-  mount(() => (
-    <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={lookup(results)} streaming={false} />
-  ))
+  const parts: ToolCallPart[] = [toolCall('f1', 'page_fill', {selector: '#name', value: 'Ada'}, 'complete')]
 
-  await page.getByRole('button', {name: /Edited the page/}).click()
+  await mountSettled(parts, results, /Edited the page/)
+
   await expect.element(page.getByText('#name')).toBeVisible()
   await expect.element(page.getByText('no input')).not.toBeInTheDocument()
 })
@@ -117,7 +123,7 @@ test('a session whose only error is the folded script run reports error status',
   const results = {p1: errorResult('p1', 'Script exploded'), f1: okResult('f1')}
   const parts: ToolCallPart[] = [
     codeRun('p1'),
-    toolCall('f1', 'page.fill', {selector: '#prose', value: 'x'}, 'complete'),
+    toolCall('f1', 'page_fill', {selector: '#prose', value: 'x'}, 'complete'),
   ]
   mount(() => (
     <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={lookup(results)} streaming={false} />
@@ -130,7 +136,7 @@ test('a session whose only error is the folded script run reports error status',
 
 test('a settled session without a folded route result shows no location pill', async () => {
   const results = {f1: okResult('f1')}
-  const parts: ToolCallPart[] = [toolCall('f1', 'page.fill', {selector: '#name', value: 'Ada'}, 'complete')]
+  const parts: ToolCallPart[] = [toolCall('f1', 'page_fill', {selector: '#name', value: 'Ada'}, 'complete')]
   mount(() => (
     <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={lookup(results)} streaming={false} />
   ))
@@ -139,8 +145,21 @@ test('a settled session without a folded route result shows no location pill', a
   expect(document.body.textContent).not.toContain(location.host)
 })
 
+const SCRIPT_LINE = "const rows = document.querySelectorAll('tr')"
+
+test('a script step reads its own first code line, with no duplicate value pill beside it', async () => {
+  const results = {s1: okResult('s1')}
+  const parts: ToolCallPart[] = [toolCall('s1', 'page_eval', {code: `${SCRIPT_LINE}\nreturn rows.length`}, 'complete')]
+
+  await mountSettled(parts, results, /Ran script on the page/)
+
+  await expect.element(page.getByRole('listitem')).toHaveTextContent(SCRIPT_LINE)
+  expect(page.getByText('script', {exact: true}).query()).toBeNull()
+  expect(document.body.textContent).not.toContain(`“${SCRIPT_LINE}”`)
+})
+
 test('a streaming session without a route result shows the current location honestly', async () => {
-  const parts: ToolCallPart[] = [toolCall('f1', 'page.fill', {selector: '#name', value: 'Ada'}, 'input-complete')]
+  const parts: ToolCallPart[] = [toolCall('f1', 'page_fill', {selector: '#name', value: 'Ada'}, 'input-complete')]
   mount(() => (
     <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={() => undefined} streaming={true} />
   ))

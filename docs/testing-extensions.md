@@ -67,8 +67,8 @@ Invoking the extension's tools (what the AI agent does) is a real external HTTP 
 correct:
 
 ```ts
-await callTool('canvas.diagram', {mermaid: 'flowchart TD\n A-->B'})
-const read = (await callTool('canvas.read', {})) as {elements: {version: number}[]}
+await callTool('canvas_diagram', {mermaid: 'flowchart TD\n A-->B'})
+const read = (await callTool('canvas_read', {})) as {elements: {version: number}[]}
 ```
 
 This is NOT reaching into the page; it's the same `/api/mcp` the harness uses. Use it for AI-draw,

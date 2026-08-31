@@ -5,13 +5,14 @@ import type {EngineStaleness, ToolCommandSignature} from '@conciv/contract'
 import type {ToolRequest} from '@conciv/extension'
 import {navigation, sessionCaptures, writeToolCapture} from '@conciv/db'
 import {symbolicateFrames} from '../editor/symbolicate.js'
-import {sessionSnapshot} from '../chat/transcript.js'
+import {syncedSnapshot} from '../chat/transcript-import.js'
+import {hydrateSession} from '../chat/hydrate.js'
 import {stopSession} from '../chat/stop.js'
 import type {ChatDeps} from '../chat/runtime.js'
-import type {Compactor, Send} from '../chat/run.js'
+import type {Compactor} from '../chat/run.js'
 import {pageQueryStream} from '../page-bus.js'
 import {askUi} from '../chat/ask.js'
-import {subscribeSession} from '../chat/subscribe.js'
+import {sessionEvents} from '../chat/session-events.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
 import type {CoreRuntime, EngineScope, SessionScope, ToolCatalog} from './scope-types.js'
@@ -21,7 +22,6 @@ const MAX_NAVIGATION_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000
 export type CoreRuntimeDeps = {
   primitives: SessionPrimitives
   chat: ChatDeps
-  send: Send
   compactor: Compactor
   model: (sessionId: SessionId) => string | null
   staleness: () => EngineStaleness
@@ -77,7 +77,7 @@ function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
 }
 
 function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
-  const {asks, liveRuns, page, registry, stream} = deps.primitives
+  const {asks, page, registry, stream} = deps.primitives
   const model = deps.model(id)
   const view = registry.whenPageConnected(() => page.bus.connected(id))
   const requestFor = (toolCallId: string | undefined): ToolRequest =>
@@ -101,11 +101,11 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     stream: {
       publish: (chunk) => stream.publish(id, chunk),
       listen: (onChunk) => stream.listen(id, onChunk),
-      listening: () => stream.listening(id),
-      subscribe: (signal) => subscribeSession(deps.chat, id, signal),
+      listening: () => stream.watched(id),
+      events: (signal) => sessionEvents(deps.chat, id, signal),
     },
     asks: {
-      open: (key) => asks.open(id, key),
+      open: (key, approval) => asks.open(id, key, approval),
       pending: () => asks.pending(id),
       reply: (key, value) => asks.reply(id, key, value),
       waitFor: (key, timeoutMs) => asks.waitFor(id, key, timeoutMs),
@@ -119,13 +119,13 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       store: (toolCallId, bundle) => writeToolCapture(deps.chat.db, {sessionId: id, toolCallId, bundle}),
     },
     history: {
-      messages: () => sessionSnapshot(deps.chat, id),
+      messages: () => syncedSnapshot(deps.chat, id),
+      hydrate: () => hydrateSession(deps.chat, id),
     },
     run: {
-      send: (runId, content) => deps.send(id, runId, content),
       stop: () => stopSession(deps.chat, id),
       compact: () => deps.compactor.run(id),
-      live: () => liveRuns.running(id),
+      live: async () => (await deps.chat.runs.findActiveRun(id)) !== null,
     },
   }
 }
@@ -149,7 +149,7 @@ function established(raw: SessionScope): SessionScope {
       ...raw.stream,
       publish: inScope(raw.stream.publish),
       listen: inScope(raw.stream.listen),
-      subscribe: inScope(raw.stream.subscribe),
+      events: inScope(raw.stream.events),
     },
     asks: {
       ...raw.asks,
@@ -162,9 +162,8 @@ function established(raw: SessionScope): SessionScope {
       ui: inScope(raw.asks.ui),
     },
     captures: {list: inScope(raw.captures.list), store: inScope(raw.captures.store)},
-    history: {messages: inScope(raw.history.messages)},
+    history: {messages: inScope(raw.history.messages), hydrate: inScope(raw.history.hydrate)},
     run: {
-      send: inScope(raw.run.send),
       stop: inScope(raw.run.stop),
       compact: inScope(raw.run.compact),
       live: raw.run.live,

@@ -2,12 +2,12 @@ import {describe, it, expect, afterEach} from 'vitest'
 import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
-import {EventType} from '@tanstack/ai'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
-import {asSnapshot, firstSnapshot, userTexts} from '../helpers/snapshots.js'
+import {userTexts} from '../helpers/snapshots.js'
+import {hydratedSnapshot} from '../helpers/fake-session.js'
 
 const claude = requireClaude()
 
@@ -37,14 +37,15 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
     return kit
   }
 
-  it('T5: a between-runs subscriber does not poison the next run-start snapshot', {timeout: 60_000}, async () => {
+  it('T5: a between-runs hydrate does not poison the thread the next run appends to', {timeout: 60_000}, async () => {
     const claudeHome = tmp()
     const kit = await boot(claudeHome)
     const sessionId = await kit.session()
-    const keeper = await kit.attach(sessionId)
-
-    await kit.rpc.chat.send({runId: 'rich-snapshot-1', sessionId, text: 'first turn before the resubscribe'})
-    const firstTurn = await keeper.done({hangGuardMs: 20_000})
+    const firstStream = await kit.turn('first turn before the resubscribe', {
+      session: sessionId,
+      runId: 'rich-snapshot-1',
+    })
+    await firstStream.done({hangGuardMs: 20_000})
 
     const transcript = requireTranscriptPath(claude)(kit.stateRoot, HarnessSessionId.parse('sess-fake'), claudeHome)
     mkdirSync(dirname(transcript), {recursive: true})
@@ -56,28 +57,26 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
       ].join('\n'),
     )
 
-    const poisoner = await kit.attach(sessionId)
-    const poisonerSnapshot = asSnapshot(
-      await poisoner.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000}),
-    )
+    const poisonerSnapshot = await hydratedSnapshot(kit, sessionId)
     expect(userTexts(poisonerSnapshot)).toEqual(['first turn before the resubscribe'])
 
-    await kit.rpc.chat.send({runId: 'rich-snapshot-2', sessionId, text: 'second turn after the resubscribe'})
-    const secondTurn = await keeper.done({hangGuardMs: 20_000})
+    const secondStream = await kit.turn('second turn after the resubscribe', {
+      session: sessionId,
+      runId: 'rich-snapshot-2',
+    })
+    await secondStream.done({hangGuardMs: 20_000})
 
-    const runStart = firstSnapshot(secondTurn.all.slice(firstTurn.all.length))
-    expect(userTexts(runStart)).toContain('second turn after the resubscribe')
-    expect(runStart.messages.length).toBeGreaterThanOrEqual(poisonerSnapshot.messages.length)
+    const afterSecond = await hydratedSnapshot(kit, sessionId)
+    expect(userTexts(afterSecond)).toContain('second turn after the resubscribe')
+    expect(afterSecond.messages.length).toBeGreaterThanOrEqual(poisonerSnapshot.messages.length)
   })
 
   it('T6: two identical prompts both survive the transcript merge', {timeout: 60_000}, async () => {
     const claudeHome = tmp()
     const kit = await boot(claudeHome)
     const sessionId = await kit.session()
-    const keeper = await kit.attach(sessionId)
-
-    await kit.rpc.chat.send({runId: 'rich-identical-1', sessionId, text: 'say it again'})
-    await keeper.done({hangGuardMs: 20_000})
+    const firstStream = await kit.turn('say it again', {session: sessionId, runId: 'rich-identical-1'})
+    await firstStream.done({hangGuardMs: 20_000})
 
     const transcript = requireTranscriptPath(claude)(kit.stateRoot, HarnessSessionId.parse('sess-fake'), claudeHome)
     mkdirSync(dirname(transcript), {recursive: true})
@@ -86,8 +85,8 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
       [transcriptLine('user', 'say it again'), transcriptLine('assistant', 'hello from fake', 'a1')].join('\n'),
     )
 
-    await kit.rpc.chat.send({runId: 'rich-identical-2', sessionId, text: 'say it again'})
-    await keeper.done({hangGuardMs: 20_000})
+    const secondStream = await kit.turn('say it again', {session: sessionId, runId: 'rich-identical-2'})
+    await secondStream.done({hangGuardMs: 20_000})
 
     writeFileSync(
       transcript,
@@ -99,10 +98,6 @@ describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI 
       ].join('\n'),
     )
 
-    const fresh = await kit.attach(sessionId)
-    const snapshot = asSnapshot(
-      await fresh.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000}),
-    )
-    expect(userTexts(snapshot)).toEqual(['say it again', 'say it again'])
+    expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['say it again', 'say it again'])
   })
 })

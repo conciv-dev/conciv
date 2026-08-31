@@ -1,8 +1,9 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, InspectionCard} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
 
 const MatchSchema = z.object({routeId: z.string(), path: z.string().default(''), status: z.string().optional()}).loose()
 
@@ -41,12 +42,12 @@ export function RouterStateCard(props: ToolCardProps): JSX.Element {
         {(value) => (
           <CardRows>
             <CardRow>
-              <span class="text-chat-text-hi min-w-0 truncate">{locationLine(value().location)}</span>
+              <TruncatedText class="text-chat-text-hi min-w-0" text={locationLine(value().location)} />
             </CardRow>
             <For each={value().matches}>
               {(match) => (
                 <CardRow>
-                  <span class="text-chat-text-2 min-w-0 truncate">{match.routeId}</span>
+                  <TruncatedText class="text-chat-text-2 min-w-0" text={match.routeId} />
                   <Show when={match.path}>
                     <span class="text-chat-text-3 shrink-0">{match.path}</span>
                   </Show>
@@ -68,4 +69,9 @@ export function RouterStateCard(props: ToolCardProps): JSX.Element {
       </Show>
     </InspectionCard>
   )
+}
+
+export const routerStateCard: ToolCardView = {
+  render: RouterStateCard,
+  hasEmbeddedBody: (part, result) => settledCardBody(part, result, parseState(result) !== null),
 }

@@ -1,8 +1,9 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardNote, CardRow, CardRows, InspectionCard} from './card-shared.js'
+import {CardNote, CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
 
 type TraceRow = {name: string; file: string | null; durationMs: number; status: string}
 
@@ -53,9 +54,9 @@ export function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
                   aria-hidden="true"
                   class={`rounded-full shrink-0 h-1.5 w-1.5 ${trace.status === 'error' ? 'bg-chat-danger' : 'bg-chat-success'}`}
                 />
-                <span class="text-chat-text-2 min-w-0 truncate">{trace.name}</span>
+                <TruncatedText class="text-chat-text-2 min-w-0" text={trace.name} />
                 <Show when={trace.file}>
-                  {(file) => <span class="text-chat-text-3 min-w-0 truncate">{file()}</span>}
+                  {(file) => <TruncatedText class="text-chat-text-3 min-w-0" text={file()} />}
                 </Show>
                 <span class="text-chat-text-3 ml-auto shrink-0 tabular-nums">{trace.durationMs}ms</span>
                 <Chip kind="pill" value={trace.status} tone={trace.status === 'error' ? 'danger' : undefined} />
@@ -66,4 +67,9 @@ export function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
       </Show>
     </InspectionCard>
   )
+}
+
+export const serverFnTraceCard: ToolCardView = {
+  render: ServerFnTraceCard,
+  hasEmbeddedBody: (part, result) => settledCardBody(part, result, true),
 }

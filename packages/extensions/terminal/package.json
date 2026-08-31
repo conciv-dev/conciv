@@ -77,6 +77,7 @@
     "@playwright/test": "^1.61.1",
     "@solidjs/testing-library": "^0.8.10",
     "@tanstack/ai": "catalog:",
+    "@tanstack/ai-client": "catalog:",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",
     "@vitest/browser-playwright": "4.1.10",

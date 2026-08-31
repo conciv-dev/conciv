@@ -18,6 +18,7 @@ export function setupWidgetSuite(options: Parameters<typeof bootEmbedKit>[0] = {
   })
 
   test.afterEach(async () => {
+    kit.harness.script.release()
     await host.close()
     await kit.cleanup()
   })

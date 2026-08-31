@@ -1,6 +1,5 @@
 import {expect, test, type Page} from '@playwright/test'
-import {rpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
-import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
+import {watchChatWire} from '@conciv/extension-testkit/chat-wire'
 import {setupProxiedEmbedSuite} from './helpers/proxied-suite.js'
 
 const ASSISTANT_TEXT = 'Reply across the drop'
@@ -16,30 +15,31 @@ async function sendTurn(page: Page, text: string): Promise<void> {
 }
 
 test.describe('chat survives a forced websocket drop', () => {
-  test('re-subscribes and completes the next turn on a fresh socket after the core drops every connection', async ({
-    page,
-  }) => {
+  test('reopens the chat socket and completes the next turn after the core drops every connection', async ({page}) => {
     test.setTimeout(120_000)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
-    const wire = watchRpcWire(page)
+    const wire = watchChatWire(page)
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
     await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({
       timeout: MOUNT_TIMEOUT_MS,
     })
 
+    const first = wire.nextTurn()
     await sendTurn(page, FIRST_TEXT)
+    expect((await first).transport).toBe('websocket')
     await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: MOUNT_TIMEOUT_MS})
 
-    const reconnected = rpcCallCursor(page)
-    const frames = wire.chatReconnect()
+    const mark = wire.socketMark()
+    const second = wire.nextTurn()
     suite.core().dropConnections()
 
     await sendTurn(page, SECOND_TEXT)
+    expect((await second).transport).toBe('websocket')
+    await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(2, {timeout: MOUNT_TIMEOUT_MS})
 
-    expect(await frames).toEqual({stop: 'websocket', send: 'websocket', subscribe: 'websocket'})
-    expect(reconnected.socketsSince()).toBeGreaterThan(0)
+    expect(wire.socketsOpenedSince(mark)).toBeGreaterThan(0)
     expect(pageErrors).toEqual([])
   })
 })

@@ -5,12 +5,12 @@ import type {PageCaptureBundle, SessionCaptures} from '@conciv/protocol/element-
 import type {SourceLoc} from '@conciv/protocol/page-types'
 import type {NavigationWrite} from '@conciv/protocol/chat-types'
 import type {RawFrame} from '../editor/symbolicate.js'
-import type {EngineStaleness, ToolCommandSignature} from '@conciv/contract'
+import type {ChatHydration, EngineStaleness, ToolCommandSignature} from '@conciv/contract'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ToolRequest} from '@conciv/extension'
 import type {ChangeEntry} from '../page-bus.js'
-import type {UserContent} from '../chat/run.js'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
+import type {PendingApproval} from '../chat/ask.js'
 
 export type ToolCatalog = ToolRegistry['catalog']
 
@@ -35,11 +35,11 @@ export type SessionStream = {
   publish: (chunk: StreamChunk) => void
   listen: (onChunk: (chunk: StreamChunk) => void) => () => void
   listening: () => boolean
-  subscribe: (signal: AbortSignal) => AsyncGenerator<StreamChunk>
+  events: (signal: AbortSignal) => AsyncGenerator<StreamChunk>
 }
 
 export type SessionAsks = {
-  open: (key: string) => void
+  open: (key: string, approval?: PendingApproval) => void
   pending: () => string[]
   reply: (key: string, value: unknown) => boolean
   waitFor: (key: string, timeoutMs: number) => Promise<unknown>
@@ -56,13 +56,13 @@ export type SessionCapturesScope = {
 
 export type SessionHistory = {
   messages: () => Promise<UIMessage[]>
+  hydrate: () => Promise<ChatHydration>
 }
 
 export type SessionRun = {
-  send: (runId: string, content: UserContent) => Promise<string>
   stop: () => Promise<{ok: true}>
   compact: () => Promise<void>
-  live: () => boolean
+  live: () => Promise<boolean>
 }
 
 export type SessionScope = {

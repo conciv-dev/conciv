@@ -4,6 +4,19 @@ import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
+const DIFFS_ENTRIES = ['@pierre/diffs', '@pierre/diffs/worker']
+
+const HIGHLIGHT_WORKER_LANGUAGES = [
+  '@shikijs/langs-precompiled/typescript',
+  '@shikijs/langs-precompiled/tsx',
+  '@shikijs/langs-precompiled/javascript',
+  '@shikijs/langs-precompiled/jsx',
+  '@shikijs/langs-precompiled/json',
+  '@shikijs/langs-precompiled/css',
+  '@shikijs/langs-precompiled/html',
+  '@shikijs/langs-precompiled/markdown',
+]
+
 export default defineConfig({
   resolve: {conditions: ['browser', 'development']},
   ssr: {resolve: {conditions: ['browser', 'development'], externalConditions: ['browser', 'development']}},
@@ -24,7 +37,7 @@ export default defineConfig({
       {
         extends: true,
         plugins: [solidPlugin(), UnoCSS({content: {filesystem: ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx}']}})],
-        optimizeDeps: browserOptimizeDeps(),
+        optimizeDeps: browserOptimizeDeps([...DIFFS_ENTRIES, ...HIGHLIGHT_WORKER_LANGUAGES]),
         test: {
           ...ciTestSolidBrowser(),
           name: 'ui-kit-chat-browser',
@@ -34,7 +47,7 @@ export default defineConfig({
             enabled: true,
             headless: true,
             provider: playwright({}),
-            instances: [{browser: 'chromium', launch: {channel: 'chrome'}}],
+            instances: [{browser: 'chromium'}],
           },
         },
       },

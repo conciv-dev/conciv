@@ -144,9 +144,14 @@ test('tanstack_query_invalidate no-ops on unknown keys and refetches the real ke
 const truncationMarkerSchema = z.object({__conciv: z.literal('object'), preview: z.literal('{…}')}).loose()
 
 const loaderDataSchema = z.object({
-  server: z.object({greeting: z.string()}).loose(),
-  local: z.object({n: z.number()}).loose(),
-  deep: z.object({a: truncationMarkerSchema}).loose(),
+  routeId: z.string(),
+  data: z
+    .object({
+      server: z.object({greeting: z.string()}).loose(),
+      local: z.object({n: z.number()}).loose(),
+      deep: z.object({a: truncationMarkerSchema}).loose(),
+    })
+    .loose(),
 })
 
 test('tanstack_loader_data returns dehydrated leaf loader data with depth truncation applied', async () => {
@@ -158,8 +163,9 @@ test('tanstack_loader_data returns dehydrated leaf loader data with depth trunca
   const payload = await api.callTool('tanstack_loader_data', {})
   const loaderData = loaderDataSchema.parse(payload)
 
-  expect(Object.keys(loaderData)).toEqual(expect.arrayContaining(['server', 'local', 'deep']))
-  expect(loaderData.deep.a.__conciv).toBe('object')
-  expect(loaderData.deep.a.preview).toBe('{…}')
+  expect(loaderData.routeId).toBe('/about')
+  expect(Object.keys(loaderData.data)).toEqual(expect.arrayContaining(['server', 'local', 'deep']))
+  expect(loaderData.data.deep.a.__conciv).toBe('object')
+  expect(loaderData.data.deep.a.preview).toBe('{…}')
   expect(JSON.stringify(payload)).not.toContain('too-deep')
 })

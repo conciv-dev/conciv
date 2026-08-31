@@ -165,7 +165,6 @@ export type FrameworkClientCore = {
     entries(): Promise<CacheEntry[]>
     get(key: string): Promise<unknown>
     invalidate(key: string): Promise<void>
-    refetch(key: string): Promise<void>
   }
   errors: {
     snapshot(): Promise<AppError[]>

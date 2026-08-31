@@ -22,7 +22,6 @@ export type {
   ToolMeta,
   ToolNameProblem,
 } from './define-tool.js'
-export {sanitizeIdentifier, uniqueIdentifier} from './sanitize-identifier.js'
 export {defineAttachment} from './define-attachment.js'
 export type {AnyAttachmentBuilder, AttachmentBuilder} from './define-attachment.js'
 export {imageResult} from './image-result.js'
@@ -59,6 +58,7 @@ export type {
   ServerResult,
   SystemPromptFactory,
   SystemPromptResolver,
+  ToolCard,
   ToolRenderer,
   ToolRequest,
 } from './types.js'

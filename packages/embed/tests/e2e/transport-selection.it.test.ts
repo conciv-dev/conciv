@@ -1,6 +1,6 @@
 import {expect, test, type Page} from '@playwright/test'
 import {httpRpcRequestUrls, rpcCallCursor, type RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
-import {watchRpcWire, type RpcWireWatch} from '@conciv/extension-testkit/rpc-wire'
+import {watchChatWire, type ChatWireWatch} from '@conciv/extension-testkit/chat-wire'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {hostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
@@ -36,12 +36,12 @@ test.afterEach(async () => {
   await kit.cleanup()
 })
 
-type Tab = {page: Page; calls: RpcCallCursor; wire: RpcWireWatch; httpRpcUrls: string[]}
+type Tab = {page: Page; calls: RpcCallCursor; wire: ChatWireWatch; httpRpcUrls: string[]}
 
 async function openTab(page: Page, hostBase: string): Promise<Tab> {
   const {urls} = httpRpcRequestUrls(page)
   const calls = rpcCallCursor(page)
-  const wire = watchRpcWire(page)
+  const wire = watchChatWire(page)
   await page.goto(hostBase, {waitUntil: 'domcontentloaded'})
   return {page, calls, wire, httpRpcUrls: urls}
 }
@@ -54,30 +54,35 @@ async function completeTurn(page: Page): Promise<void> {
   await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
 }
 
-test.describe('the browser factory picks one transport per tab at boot', () => {
-  test('rides the websocket when the boot probe succeeds', async ({page}) => {
-    test.setTimeout(90_000)
+test.describe('the chat connection picks one delivery transport per tab at boot', () => {
+  test('rides the chat websocket when the boot probe succeeds, while rpc rides http', async ({page}) => {
+    test.setTimeout(120_000)
     const tab = await openTab(page, openHost.base)
+    const sent = tab.wire.nextTurn()
     await completeTurn(tab.page)
-    expect(tab.calls.socketsSince()).toBe(1)
-    expect(tab.httpRpcUrls).toEqual([])
+    expect((await sent).transport).toBe('websocket')
+    expect(tab.calls.socketsSince()).toBe(0)
+    expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
   })
 
-  test('falls back to fetch for the whole tab when the websocket upgrade is blocked', async ({page}) => {
+  test('falls back to the chat event stream for the whole tab when the websocket upgrade is blocked', async ({
+    page,
+  }) => {
     test.setTimeout(120_000)
     const tab = await openTab(page, blockedHost.base)
-    const sent = tab.wire.nextChatSend()
+    const sent = tab.wire.nextTurn()
     await completeTurn(tab.page)
     expect((await sent).transport).toBe('fetch')
     expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
   })
 
-  test('honours the fetch escape hatch without probing the websocket', async ({page}) => {
+  test('honours the fetch escape hatch without ever opening a chat socket', async ({page}) => {
     test.setTimeout(120_000)
     const tab = await openTab(page, pinnedFetchHost.base)
-    const sent = tab.wire.nextChatSend()
+    const mark = tab.wire.socketMark()
+    const sent = tab.wire.nextTurn()
     await completeTurn(tab.page)
-    expect(tab.calls.socketsSince()).toBe(0)
     expect((await sent).transport).toBe('fetch')
+    expect(tab.wire.socketsOpenedSince(mark)).toBe(0)
   })
 })

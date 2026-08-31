@@ -2,8 +2,8 @@ import {eventIterator, oc} from '@orpc/contract'
 import {z} from 'zod'
 import type {StreamChunk} from '@tanstack/ai'
 import {
-  ChatContentPartSchema,
   ChatCommandsSchema,
+  ChatHistorySchema,
   ChatModelsSchema,
   ChatToolsSchema,
   NativeSessionRefSchema,
@@ -12,6 +12,7 @@ import {
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
+import {RunLifecycleSchema} from '@conciv/protocol/run-types'
 import {
   OpenSourceResultSchema,
   OpenSourceSchema,
@@ -28,13 +29,29 @@ import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'object' && value !== null)
 
 const SessionIdInput = z.object({sessionId: SessionId})
-export const ChatSendInput = SessionIdInput.extend({
-  runId: z.string().min(1),
-  text: z.string().min(1).optional(),
-  content: z.union([z.string().min(1), z.array(ChatContentPartSchema).min(1).max(16)]).optional(),
-}).refine((input) => input.text !== undefined || input.content !== undefined)
+const ChatPendingInterruptSchema = z.object({
+  id: z.string(),
+  reason: z.string(),
+  message: z.string().optional(),
+  toolCallId: z.string().optional(),
+})
+const ChatPendingApprovalSchema = z.object({
+  approvalId: z.string(),
+  toolCallId: z.string(),
+  toolName: z.string(),
+  input: z.unknown(),
+  runId: z.string().nullable(),
+})
+export type ChatPendingApproval = z.infer<typeof ChatPendingApprovalSchema>
+export const ChatHydrationSchema = z.object({
+  messages: ChatHistorySchema,
+  activeRun: z.object({runId: z.string()}).nullable(),
+  lastRun: RunLifecycleSchema.nullable(),
+  pendingApprovals: z.array(ChatPendingApprovalSchema),
+  interrupts: z.object({runId: z.string(), pending: z.array(ChatPendingInterruptSchema)}).nullable(),
+})
+export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
-const SendAccepted = z.object({ok: z.literal(true), runId: z.string()})
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
@@ -116,17 +133,8 @@ export const contract = {
     set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
   },
   chat: {
-    subscribe: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    send: oc
-      .errors({
-        RUN_ID_TAKEN: {
-          status: 409,
-          message: 'runId already belongs to another run, live or finished',
-          data: z.object({runId: z.string()}),
-        },
-      })
-      .input(ChatSendInput)
-      .output(SendAccepted),
+    events: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
+    hydrate: oc.input(SessionIdInput).output(ChatHydrationSchema),
     stop: oc.input(SessionIdInput).output(Ok),
     permissionDecision: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending approval'}})

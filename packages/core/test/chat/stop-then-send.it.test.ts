@@ -1,5 +1,4 @@
-import {describe, it, expect, afterEach} from 'vitest'
-import {EventType} from '@tanstack/ai'
+import {describe, it, afterEach} from 'vitest'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
@@ -18,14 +17,11 @@ describe('stop then send (IT)', () => {
     const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {env: () => ({CONCIV_FAKE_HANG: '1'})}})).setup()
     state.kit = kit
     const id = await kit.session()
-    const stream = await kit.attach(id)
-    await kit.rpc.chat.send({runId: 'stop-then-send-1', sessionId: id, text: 'hang around'})
-    await stream.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
+    const stream = await kit.turn('hang around', {session: id, runId: 'stop-then-send-1'})
+    await stream.waitForRunStart()
     await kit.rpc.chat.stop({sessionId: id})
-    await expect(kit.rpc.chat.send({runId: 'stop-then-send-2', sessionId: id, text: 'follow up'})).resolves.toEqual({
-      ok: true,
-      runId: 'stop-then-send-2',
-    })
+    const followUp = await kit.turn('follow up', {session: id, runId: 'stop-then-send-2'})
+    await followUp.waitForRunStart({runId: 'stop-then-send-2'})
     await kit.rpc.chat.stop({sessionId: id})
   })
 })

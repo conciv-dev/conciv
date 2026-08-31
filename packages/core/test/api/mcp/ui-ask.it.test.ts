@@ -11,7 +11,7 @@ describe('conciv_ui asked through /api/mcp', () => {
     const kit = await bootKit()
     cleanups.push(() => kit.cleanup())
     const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
+    const stream = await kit.events(sessionId)
     const pending = kit.callTool('conciv_ui', {kind: 'confirm', question: 'Proceed?'}, sessionId)
     const call = await stream.waitForToolCall('conciv_ui', {hangGuardMs: 15_000})
     await kit.rpc.chat.uiReply({sessionId, toolCallId: call.toolCallId, value: 'yes'})

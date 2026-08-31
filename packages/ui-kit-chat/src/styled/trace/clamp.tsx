@@ -1,4 +1,4 @@
-import {createSignal, onMount, Show, splitProps, type JSX} from 'solid-js'
+import {createSignal, onCleanup, onMount, Show, splitProps, type JSX} from 'solid-js'
 import {makeResizeObserver} from '@solid-primitives/resize-observer'
 import {Button} from '@conciv/ui-kit-system'
 import {FOCUS} from '../classes.js'
@@ -47,8 +47,19 @@ export function TraceClamp(props: {
     if (!viewportElement || !contentElement) return
     setMeasuredPixels(contentElement.scrollHeight - viewportElement.clientHeight)
   }
+  let measureFrame: number | undefined
+  const scheduleMeasure = () => {
+    if (measureFrame !== undefined) return
+    measureFrame = requestAnimationFrame(() => {
+      measureFrame = undefined
+      measure()
+    })
+  }
+  onCleanup(() => {
+    if (measureFrame !== undefined) cancelAnimationFrame(measureFrame)
+  })
   // oxlint-disable-next-line solid/reactivity
-  const {observe} = makeResizeObserver(measure)
+  const {observe} = makeResizeObserver(scheduleMeasure)
   const mountViewport = (element: HTMLDivElement) => {
     setViewport(element)
     observe(element)

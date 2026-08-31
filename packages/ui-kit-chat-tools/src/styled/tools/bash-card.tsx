@@ -81,4 +81,4 @@ export function BashCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const bashTool: ToolCardEntry = {names: ['Bash'], render: BashCard}
+export const bashTool: ToolCardEntry = {names: ['Bash'], render: BashCard, hasEmbeddedBody: () => true}

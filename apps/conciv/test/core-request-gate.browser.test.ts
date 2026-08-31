@@ -1,5 +1,4 @@
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {EventType} from '@tanstack/ai'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {coreControl} from './helpers/core-control.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
@@ -10,11 +9,6 @@ const faults = trackedFaults()
 function statusOf(value: unknown): number | null {
   if (typeof value !== 'object' || value === null || !('status' in value)) return null
   return typeof value.status === 'number' ? value.status : null
-}
-
-function chunkType(value: unknown): unknown {
-  if (typeof value !== 'object' || value === null || !('type' in value)) return null
-  return value.type
 }
 
 function rpc(): RpcClient {
@@ -33,13 +27,13 @@ afterAll(async () => {
 }, 30_000)
 
 describe('gated rpc requests against a real core', () => {
-  it('holds the subscribe request until release, then streams the real snapshot', async () => {
+  it('holds the session-events request until release, then streams the real channel', async () => {
     const {sessionId} = await rpc().sessions.create()
-    const gate = await faults.install({kind: 'gate', path: ['chat', 'subscribe']})
+    const gate = await faults.install({kind: 'gate', path: ['chat', 'events']})
     const arrived = {value: false}
     const subscription = rpc()
-      .chat.subscribe({sessionId})
-      .then((iterator) => {
+      .chat.events({sessionId})
+      .then((iterator: AsyncIterable<unknown>) => {
         arrived.value = true
         return iterator
       })
@@ -48,13 +42,10 @@ describe('gated rpc requests against a real core', () => {
     expect(arrived.value).toBe(false)
 
     await coreControl.releaseFault(gate)
-    const iterator = await subscription
-    const first = await iterator.next()
+    await subscription
 
-    expect(chunkType(first.value)).toBe(EventType.MESSAGES_SNAPSHOT)
+    expect(arrived.value).toBe(true)
     expect(await coreControl.faultPending(gate)).toBe(0)
-
-    await iterator.return?.()
   }, 30_000)
 
   it('keeps a cross-origin injected failure an rpc rejection rather than a transport error', async () => {

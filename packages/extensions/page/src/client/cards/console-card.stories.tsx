@@ -4,8 +4,10 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {Trace as ChatTrace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
-import {ConsoleCard} from './console-card.js'
+import {consoleCard} from './console-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+
+const ConsoleCard = consoleCard.render
 
 const meta: Meta = {title: 'Extensions/Page/tool/ConsoleCard'}
 export default meta
@@ -50,7 +52,7 @@ export const LogLines: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ConsoleCard
-        part={storyPart('page.console', {})}
+        part={storyPart('page_console', {})}
         result={storyResult({
           entries: [
             {level: 'log', ts: NOON, text: 'checkout mounted'},
@@ -58,7 +60,7 @@ export const LogLines: Story = {
             {level: 'error', ts: NOON + 2400, text: 'TypeError: cart.items is undefined'},
           ],
         })}
-        ctx={storyCtx({'page.console': consoleMeta})}
+        ctx={storyCtx({page_console: consoleMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -77,9 +79,9 @@ export const NoOutput: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ConsoleCard
-        part={storyPart('page.console', {})}
+        part={storyPart('page_console', {})}
         result={storyResult({entries: []})}
-        ctx={storyCtx({'page.console': consoleMeta})}
+        ctx={storyCtx({page_console: consoleMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -91,14 +93,14 @@ export const NoOutput: Story = {
   },
 }
 
-const consoleTool: ToolCardEntry = {names: ['page.console'], render: ConsoleCard}
+const consoleTool: ToolCardEntry = {names: ['page_console'], ...consoleCard}
 
 export const Trace: Story = {
   render: () =>
     traceGallery('1 log', [
       traceRow(
         consoleTool,
-        storyPart('page.console', {}),
+        storyPart('page_console', {}),
         storyResult({
           entries: [
             {level: 'log', ts: NOON, text: 'checkout mounted'},

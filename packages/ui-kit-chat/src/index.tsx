@@ -45,6 +45,7 @@ export {
 } from './store/page-session.js'
 export {ToolProvider, useToolCtx} from './store/tool-context.js'
 export {createTurnRollup, sessionTotals, summaryLine, turnRollup, type TurnRollup} from './store/turn-rollup.js'
+export {activeCallInParts, activeToolCall} from './store/active-call.js'
 export {
   createSessionStatus,
   deriveSessionStatus,
@@ -52,10 +53,10 @@ export {
   type SessionStatusInput,
   type SessionStatusKind,
 } from './store/session-status.js'
-export {createTurnClock, foldTurnClock, formatElapsed, type TurnClockState} from './store/turn-clock.js'
+export {createRunClock, formatElapsed, runClock, type RunClockSource, type RunClockState} from './store/run-clock.js'
 export {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from './primitives/activity/activity.js'
 export {Activity, type ActivityProps} from './styled/activity.js'
-export {chatBusy} from './store/chat-busy.js'
+export {chatBusy} from '@conciv/protocol/chat-busy'
 export {
   createApprovalChunk,
   createReasoningChunks,
@@ -75,6 +76,8 @@ export {
 
 export {Thread as ThreadPrimitive, type MessagesComponents} from './primitives/thread/thread.js'
 export {ViewportProvider, useThreadViewport, type ViewportContextValue} from './primitives/thread/viewport-context.js'
+export {VIRTUALIZE_THRESHOLD} from './primitives/thread/virtualize-threshold.js'
+export {SCROLL_END_THRESHOLD_PX} from './behaviors/create-thread-virtualizer.js'
 export {Message as MessagePrimitive, type PartsComponents} from './primitives/message/message.js'
 export {
   MessageProvider,
@@ -116,7 +119,7 @@ export {
   type ComposerActionsInlineProps,
   type ComposerActionsSlotProps,
 } from './primitives/composer/composer-actions.js'
-export {ActionBar as ActionBarPrimitive, useCopied} from './primitives/action-bar/action-bar.js'
+export {ActionBar as ActionBarPrimitive, useCopyStatus} from './primitives/action-bar/action-bar.js'
 export {
   ActionHandlersProvider,
   useActionHandlers,
@@ -180,8 +183,6 @@ export {
 
 export {readComposerDraft, writeComposerDraft, type PersistedComposerDraft} from './behaviors/composer-draft-storage.js'
 export {useComposerDraftPersistence, type ComposerDraftPersistenceOptions} from './behaviors/use-composer-draft.js'
-export {useThreadAutoScroll} from './behaviors/use-thread-auto-scroll.js'
-export {useTopAnchorReserve} from './behaviors/use-top-anchor-reserve.js'
 export {useSizeHandle} from './behaviors/use-size-handle.js'
 
 export {Thread, type ThreadComponents, type ThreadMessagesProps, type ThreadRootProps} from './styled/thread.js'
@@ -197,4 +198,5 @@ export {AttachmentByMime, createDocumentAttachmentAdapter} from './styled/attach
 export type {AttachmentCardSlot} from './styled/attachment-dispatch.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
 export {NowLine} from './styled/now-line.js'
+export {MorphLabel} from './styled/morph-label.js'
 export {VirtualLines, type VirtualLinesProps} from './styled/virtual-lines.js'

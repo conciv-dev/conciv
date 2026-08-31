@@ -9,6 +9,9 @@ const argv = process.argv.slice(2)
 const argvFile = process.env.CONCIV_TEST_ARGV_FILE
 if (argvFile) writeFileSync(argvFile, JSON.stringify(argv))
 
+const pidFile = process.env.CONCIV_TEST_PID_FILE
+if (pidFile) writeFileSync(pidFile, String(process.pid))
+
 async function readStdin(): Promise<string> {
   if (process.stdin.isTTY) return ''
   let data = ''
@@ -23,6 +26,9 @@ function emit(lines: unknown[]): void {
 
 const fakeSessionId = process.env.CONCIV_FAKE_SESSION_ID ?? 'sess-fake'
 
+const HANG_DEADLINE_MS = 120_000
+const HANG_REPLY_TEXT = 'fake harness reached its hang deadline'
+
 const prompt = await readStdin()
 if (process.env.CONCIV_TEST_PROMPT_FILE) writeFileSync(process.env.CONCIV_TEST_PROMPT_FILE, prompt)
 
@@ -30,7 +36,35 @@ if (process.env.CONCIV_FAKE_HANG) {
   emit([{type: 'system', subtype: 'init', session_id: fakeSessionId, model: 'claude-test'}])
   const onTerm = process.env.CONCIV_FAKE_IGNORE_TERM ? () => {} : () => process.exit(143)
   process.on('SIGTERM', onTerm)
-  setInterval(() => {}, 1000)
+  setTimeout(() => {
+    emit([
+      {
+        type: 'stream_event',
+        parent_tool_use_id: null,
+        event: {type: 'content_block_start', index: 0, content_block: {type: 'text', text: ''}},
+      },
+      {
+        type: 'stream_event',
+        parent_tool_use_id: null,
+        event: {type: 'content_block_delta', index: 0, delta: {type: 'text_delta', text: HANG_REPLY_TEXT}},
+      },
+      {type: 'stream_event', parent_tool_use_id: null, event: {type: 'content_block_stop', index: 0}},
+      {
+        type: 'assistant',
+        parent_tool_use_id: null,
+        message: {model: 'claude-test', content: [{type: 'text', text: HANG_REPLY_TEXT}]},
+      },
+      {
+        type: 'result',
+        subtype: 'success',
+        session_id: fakeSessionId,
+        num_turns: 1,
+        total_cost_usd: 0.001,
+        usage: {input_tokens: 100, output_tokens: 5},
+      },
+    ])
+    process.exit(0)
+  }, HANG_DEADLINE_MS)
 } else if (process.env.CONCIV_FAKE_RELEASE_FILE) {
   const releaseFile = process.env.CONCIV_FAKE_RELEASE_FILE
   emit([

@@ -1,0 +1,60 @@
+import {describe, it, expect} from 'vitest'
+import {writeFileSync} from 'node:fs'
+import {userTexts} from '../helpers/snapshots.js'
+import {freshSnapshot, ONE_PIXEL_PNG, useTranscriptFixture} from '../helpers/transcript-fixture.js'
+
+function transcriptLine(role: 'user' | 'assistant', text: string, id?: string): string {
+  return JSON.stringify({type: role, message: {...(id ? {id} : {}), content: [{type: 'text', text}]}})
+}
+
+describe('merging the CLI transcript with db-owned history (IT, claude capabilities)', () => {
+  const fixture = useTranscriptFixture('conciv-merge-repeat')
+
+  it('T11-B: a repeated opening prompt does not duplicate the turns between it', {timeout: 90_000}, async () => {
+    const open = await fixture.open()
+    const {kit, sessionId, transcript} = open
+
+    const turn1 = await kit.turn(
+      {
+        content: [
+          {type: 'text', content: 'say it again'},
+          {type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}},
+        ],
+      },
+      {session: sessionId, runId: 'merge-repeat-1'},
+    )
+    await turn1.done({hangGuardMs: 25_000})
+    writeFileSync(
+      transcript,
+      [transcriptLine('user', 'say it again'), transcriptLine('assistant', 'hello from fake', 'a1')].join('\n'),
+    )
+
+    const turn2 = await kit.turn('and something else', {session: sessionId, runId: 'merge-repeat-2'})
+    await turn2.done({hangGuardMs: 25_000})
+    writeFileSync(
+      transcript,
+      [
+        transcriptLine('user', 'say it again'),
+        transcriptLine('assistant', 'hello from fake', 'a1'),
+        transcriptLine('user', 'and something else'),
+        transcriptLine('assistant', 'hello from fake', 'a2'),
+      ].join('\n'),
+    )
+
+    const turn3 = await kit.turn('say it again', {session: sessionId, runId: 'merge-repeat-3'})
+    await turn3.done({hangGuardMs: 25_000})
+    writeFileSync(
+      transcript,
+      [
+        transcriptLine('user', 'say it again'),
+        transcriptLine('assistant', 'hello from fake', 'a1'),
+        transcriptLine('user', 'and something else'),
+        transcriptLine('assistant', 'hello from fake', 'a2'),
+        transcriptLine('user', 'say it again'),
+        transcriptLine('assistant', 'hello from fake', 'a3'),
+      ].join('\n'),
+    )
+
+    expect(userTexts(await freshSnapshot(open))).toEqual(['say it again', 'and something else', 'say it again'])
+  })
+})

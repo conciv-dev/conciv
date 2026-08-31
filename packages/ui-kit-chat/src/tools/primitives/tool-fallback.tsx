@@ -18,7 +18,7 @@ function resultText(result: ToolResultPart | undefined): string {
   return JSON.stringify(result.content, null, 2)
 }
 
-function errorText(result: ToolResultPart | undefined): string | undefined {
+export function fallbackErrorText(result: ToolResultPart | undefined): string | undefined {
   if (result?.state !== 'error') return undefined
   if (result.error) return typeof result.error === 'string' ? result.error : JSON.stringify(result.error)
   return resultText(result) || undefined
@@ -56,7 +56,7 @@ function Root(props: {
   const status = createMemo(() => toolStatus(props.part, props.result))
   const toolArgsText = createMemo(() => argsText(props.part))
   const toolResultText = createMemo(() => resultText(props.result))
-  const toolErrorText = createMemo(() => errorText(props.result))
+  const toolErrorText = createMemo(() => fallbackErrorText(props.result))
   return (
     <ToolFallbackContext.Provider
       value={{

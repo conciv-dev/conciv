@@ -12,10 +12,11 @@ const request: ToolRequest = {sessionId: SessionId.parse('conciv_x'), model: nul
 const allowGate = {decide: async () => 'allow' as const}
 
 const canvas: CodeCapability = {
-  name: 'canvas.svg',
-  description: 'canvas.svg draws a shape. Extra prose here.',
-  summary: 'canvas.svg draws a shape',
+  name: 'canvas_svg',
+  description: 'canvas_svg draws a shape. Extra prose here.',
+  summary: 'canvas_svg draws a shape',
   category: 'extension',
+  keywords: [],
   mutating: false,
   reachable: true,
   errors: [],
@@ -99,8 +100,8 @@ describe('code-mode nested-call parent id from real execution (IT, real chat + r
     expect(parents.every((id) => id === PARENT_CALL_ID)).toBe(true)
 
     const parts = foldedMessages(chunks).flatMap((message) => message.parts)
-    const child = parts.find((part) => part.type === 'tool-call' && part.name === 'canvas.svg')
-    expect(child).toMatchObject({name: 'canvas.svg', metadata: {parentToolCallId: PARENT_CALL_ID}})
+    const child = parts.find((part) => part.type === 'tool-call' && part.name === 'canvas_svg')
+    expect(child).toMatchObject({name: 'canvas_svg', metadata: {parentToolCallId: PARENT_CALL_ID}})
     const parent = parts.find((part) => part.type === 'tool-call' && part.name === 'execute_typescript')
     expect(parent).toBeDefined()
   })
@@ -124,6 +125,6 @@ describe('code-mode nested-call parent id from real execution (IT, real chat + r
     const child = parts.find((part) => part.type === 'tool-call' && part.name === 'catalog')
     expect(child).toMatchObject({name: 'catalog', metadata: {parentToolCallId: PARENT_CALL_ID}})
     const outputRaw = child && 'output' in child ? JSON.stringify(child.output) : ''
-    expect(outputRaw).toContain('canvas.svg')
+    expect(outputRaw).toContain('canvas_svg')
   })
 })

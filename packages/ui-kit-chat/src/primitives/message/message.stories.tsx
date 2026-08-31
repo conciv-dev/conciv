@@ -138,6 +138,7 @@ export const PartsGrouped: Story = {
 const CONFIRM_ENTRY: ToolCardEntry = {
   names: ['confirm_ui'],
   render: () => <span>confirm card</span>,
+  hasEmbeddedBody: () => true,
   display: 'standalone',
 }
 

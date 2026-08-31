@@ -1,7 +1,8 @@
 import {For, Show, type JSX} from 'solid-js'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, InspectionCard, JsonValue} from './card-shared.js'
+import {CardRow, CardRows, settledCardBody, InspectionCard, JsonValue} from './card-shared.js'
 
 type Entry = {key: string; preview: string; value: unknown}
 
@@ -34,10 +35,18 @@ function toEntries(payload: unknown): Entry[] {
   return [{key: 'value', preview: preview(payload), value: payload}]
 }
 
-function parseEntries(result: ToolCardProps['result']): Entry[] | null {
+type LoaderDataPayload = {routeId: string; data: unknown}
+
+function loaderDataPayload(result: ToolCardProps['result']): LoaderDataPayload | null {
   const payload = parseResultPayload(result)
-  if (payload === undefined || payload === null) return null
-  return toEntries(payload)
+  if (!isRecord(payload) || typeof payload.routeId !== 'string') return null
+  return {routeId: payload.routeId, data: payload.data}
+}
+
+function parseEntries(result: ToolCardProps['result']): Entry[] | null {
+  const payload = loaderDataPayload(result)
+  if (payload === null || payload.data === undefined || payload.data === null) return null
+  return toEntries(payload.data)
 }
 
 export function LoaderDataCard(props: ToolCardProps): JSX.Element {
@@ -45,7 +54,9 @@ export function LoaderDataCard(props: ToolCardProps): JSX.Element {
   const summary = () => {
     const list = entries()
     if (!list) return ''
-    return `${list.length} ${list.length === 1 ? 'key' : 'keys'}`
+    const keys = `${list.length} ${list.length === 1 ? 'key' : 'keys'}`
+    const routeId = loaderDataPayload(props.result)?.routeId
+    return routeId ? `${keys} · ${routeId}` : keys
   }
   return (
     <InspectionCard {...props} summary={summary()}>
@@ -56,8 +67,8 @@ export function LoaderDataCard(props: ToolCardProps): JSX.Element {
               {(entry) => (
                 <div class="flex flex-col gap-1">
                   <CardRow>
-                    <span class="text-chat-text-2 min-w-0 truncate">{entry.key}</span>
-                    <span class="text-chat-text-3 min-w-0 truncate">{entry.preview}</span>
+                    <TruncatedText class="text-chat-text-2 min-w-0" text={entry.key} />
+                    <TruncatedText class="text-chat-text-3 min-w-0" text={entry.preview} />
                   </CardRow>
                   <Show when={!isTruncatedMarker(entry.value)}>
                     <JsonValue value={entry.value} name={`${entry.key}.json`} />
@@ -70,4 +81,9 @@ export function LoaderDataCard(props: ToolCardProps): JSX.Element {
       </Show>
     </InspectionCard>
   )
+}
+
+export const loaderDataCard: ToolCardView = {
+  render: LoaderDataCard,
+  hasEmbeddedBody: (part, result) => settledCardBody(part, result, parseEntries(result) !== null),
 }

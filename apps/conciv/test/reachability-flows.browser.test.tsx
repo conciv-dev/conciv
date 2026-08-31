@@ -3,7 +3,7 @@ import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession} from './helpers/core-session.js'
-import {createShellHarness} from './helpers/shell-harness.js'
+import {createShellHarness, type ShellMountOptions} from './helpers/shell-harness.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 import {expectRetryRecovers} from './helpers/retry-recovery.js'
 
@@ -28,9 +28,9 @@ const genericBoundary = () => page.getByText('Something went wrong!')
 const engineUnreachableNotice = () => page.getByText('conciv lost connection to the engine.')
 const serverError = () => page.getByText('Internal Server Error')
 
-async function openSessionPanel(): Promise<void> {
+async function openSessionPanel(options: ShellMountOptions = {}): Promise<void> {
   const sessionId = await createSession(coreRpc(core.base))
-  harness.mountShell(`/panel/${sessionId}?open=true`)
+  harness.mountShell(`/panel/${sessionId}?open=true`, [], options)
   await expect.element(editor(), {timeout: 8000}).toBeVisible()
 }
 
@@ -83,8 +83,8 @@ test('a sustained outage raises exactly one standing notice, and it clears once 
 }, 30_000)
 
 test('a 500 from an otherwise healthy engine never raises the unreachable notice', async () => {
-  const refused = await faults.install({kind: 'fail', path: ['chat', 'send'], status: 500})
-  await openSessionPanel()
+  const refused = await faults.install({kind: 'chat-refused', status: 500})
+  await openSessionPanel({transport: 'fetch'})
 
   await editor().fill('rename the widget package')
   await userEvent.keyboard('{Enter}')

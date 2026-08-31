@@ -1,5 +1,5 @@
 import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js'
-import {Button, Combobox, TooltipIconButton} from '@conciv/ui-kit-system'
+import {Button, Combobox, TooltipIconButton, TruncatedText} from '@conciv/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import Check from 'lucide-solid/icons/check'
@@ -139,7 +139,7 @@ export function SessionSelector(props: {
   return (
     <Combobox.Root
       ids={{root: idPrefix}}
-      class={isPill() ? 'inline-flex min-w-0 max-w-full' : ''}
+      class={isPill() ? 'inline-flex min-w-0 max-w-full' : 'flex min-w-0 max-w-full'}
       collection={collection()}
       value={valueArr()}
       inputValue={query()}
@@ -165,12 +165,12 @@ export function SessionSelector(props: {
       selectionBehavior="clear"
       positioning={{strategy: 'fixed', placement: 'bottom-start', gutter: 6}}
     >
-      <Combobox.Control class="inline-flex min-w-0">
+      <Combobox.Control class="inline-flex min-w-0 max-w-full">
         <Combobox.Trigger
           class={`group text-[0.75rem] text-chat-text-2 border border-transparent rounded-chat-pill bg-transparent inline-flex gap-1.5 h-7 min-w-0 cursor-pointer trans-cbb items-center hover:text-chat-text-hi [&[aria-disabled=true]]:opacity-[0.55] [&[aria-disabled=true]]:cursor-not-allowed ${
             isPill()
               ? 'max-w-64 py-0 pr-1.5 pl-2 hover:border-chat-line hover:bg-chat-fill-soft data-[state=open]:border-chat-line data-[state=open]:bg-chat-fill-soft data-[state=open]:text-chat-text-hi'
-              : 'p-0 font-chat-mono'
+              : 'max-w-full p-0 font-chat-mono'
           }`}
           data-empty={canRename() ? undefined : ''}
           aria-label={`Session: ${triggerLabel()}`}
@@ -181,7 +181,7 @@ export function SessionSelector(props: {
           >
             <span class="rounded-chat-pill bg-chat-accent shrink-0 size-1.75" aria-hidden="true" />
           </Show>
-          <span class="min-w-0 truncate group-data-[empty]:text-chat-text-2">{triggerLabel()}</span>
+          <TruncatedText class="min-w-0 group-data-[empty]:text-chat-text-2" text={triggerLabel()} />
           <ChevronDown
             class="opacity-45 shrink-0 size-3.25 [transition:rotate_160ms_var(--chat-ease),opacity_120ms_var(--chat-ease)] group-data-[state=open]:opacity-90 group-hover:opacity-90 group-data-[state=open]:rotate-180"
             aria-hidden="true"
@@ -273,9 +273,9 @@ export function SessionSelector(props: {
                         aria-label={`${s.title}, ${metaLabel(s, now())}${s.running ? `, ${RUNNING_LABEL}` : ''}`}
                       >
                         <div class="flex flex-1 flex-col gap-px min-w-0">
-                          <span class="truncate">
+                          <TruncatedText text={s.title}>
                             <Combobox.ItemText>{s.title}</Combobox.ItemText>
-                          </span>
+                          </TruncatedText>
                           <span class="text-[0.6875rem] text-chat-text-3 truncate" aria-hidden="true">
                             Edited {relativeTime(s.updatedAt, now())} · {s.messageCount} messages
                           </span>

@@ -35,7 +35,7 @@ describe('conciv CLI argument rejection', () => {
       await runCli(main, ['tools', 'react', 'override', '#a', '--target', 'hooks', '--hook-id', '2', '--json', 'true']),
     ).toBe(0)
     expect(answer.seen()).toMatchObject({
-      name: 'page.override',
+      name: 'page_override',
       input: {selector: '#a', target: 'hooks', hookId: 2, json: 'true'},
     })
   })
@@ -60,7 +60,7 @@ describe('conciv CLI argument rejection', () => {
     const kit = await bootCli(cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
     expect(await runCli(main, ['tools', '--json', 'page', 'click', '#a'])).toBe(0)
-    expect(answer.seen()).toMatchObject({name: 'page.click'})
+    expect(answer.seen()).toMatchObject({name: 'page_click'})
   })
 
   it('rejects an unknown subcommand with the closest verb', async () => {

@@ -30,7 +30,7 @@ test.afterAll(async () => {
 })
 
 async function buttonRef(): Promise<string> {
-  const snapshot = SnapshotSchema.parse(await kit.rpc.registry.call({name: 'page.snapshot', input: {}}))
+  const snapshot = SnapshotSchema.parse(await kit.rpc.registry.call({name: 'page_snapshot', input: {}}))
   const node = snapshot.nodes.find((entry) => entry.role === 'button' && entry.name === 'Press target')
   if (!node) throw new Error('the snapshot did not list the press button')
   return node.ref
@@ -56,68 +56,68 @@ test.describe('the page-tool dispatcher serves registry page tools under bootCon
   })
 
   test('a plain read round-trips server -> browser -> result', async () => {
-    await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#probe'}})).resolves.toMatchObject({
+    await expect(kit.rpc.registry.call({name: 'page_text', input: {selector: '#probe'}})).resolves.toMatchObject({
       text: 'page-bus-ok',
     })
   })
 
   test('a mutating tool acts on the page, journals by declared meta, and fires the browser mirror', async () => {
-    await expect(kit.rpc.registry.call({name: 'page.click', input: {selector: '#press-btn'}})).resolves.toMatchObject({
+    await expect(kit.rpc.registry.call({name: 'page_click', input: {selector: '#press-btn'}})).resolves.toMatchObject({
       ok: true,
     })
-    await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#clicked-flag'}})).resolves.toMatchObject(
+    await expect(kit.rpc.registry.call({name: 'page_text', input: {selector: '#clicked-flag'}})).resolves.toMatchObject(
       {text: 'clicked'},
     )
     const changes = await kit.rpc.page.changes(undefined)
-    expect(changes.map((entry) => entry.verb)).toContain('page.click')
+    expect(changes.map((entry) => entry.verb)).toContain('page_click')
     await expect(page.locator('[data-conciv-cursor]')).toHaveCount(1, {timeout: 10_000})
   })
 
   test('a ref-consuming tool resolves its target through the shared refs machinery', async () => {
     const ref = await buttonRef()
-    await expect(kit.rpc.registry.call({name: 'page.attr', input: {ref, attribute: 'id'}})).resolves.toMatchObject({
+    await expect(kit.rpc.registry.call({name: 'page_attr', input: {ref, attribute: 'id'}})).resolves.toMatchObject({
       value: 'press-btn',
     })
   })
 
   test('a missing target rejects with the transport invalid-args mapping, not a success shape', async () => {
-    await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#not-here'}})).rejects.toMatchObject({
+    await expect(kit.rpc.registry.call({name: 'page_text', input: {selector: '#not-here'}})).rejects.toMatchObject({
       code: 'INVALID_ARGS',
     })
   })
 
-  test.describe('the page.effect verb drives host-registered effects', () => {
+  test.describe('the page_effect verb drives host-registered effects', () => {
     test('lists the highlight effect the widget registers', async () => {
-      await expect(kit.rpc.registry.call({name: 'page.effect', input: {action: 'list'}})).resolves.toMatchObject({
+      await expect(kit.rpc.registry.call({name: 'page_effect', input: {action: 'list'}})).resolves.toMatchObject({
         effects: [{name: 'highlight', enabled: false}],
       })
     })
 
     test('enable shows the highlight inspector on the page, disable reverts, toggle flips', async () => {
       await expect(
-        kit.rpc.registry.call({name: 'page.effect', input: {action: 'enable', effect: 'highlight'}}),
+        kit.rpc.registry.call({name: 'page_effect', input: {action: 'enable', effect: 'highlight'}}),
       ).resolves.toMatchObject({effect: 'highlight', enabled: true})
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(1, {timeout: 10_000})
 
       await expect(
-        kit.rpc.registry.call({name: 'page.effect', input: {action: 'disable', effect: 'highlight'}}),
+        kit.rpc.registry.call({name: 'page_effect', input: {action: 'disable', effect: 'highlight'}}),
       ).resolves.toMatchObject({effect: 'highlight', enabled: false})
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
 
       await expect(
-        kit.rpc.registry.call({name: 'page.effect', input: {action: 'toggle', effect: 'highlight'}}),
+        kit.rpc.registry.call({name: 'page_effect', input: {action: 'toggle', effect: 'highlight'}}),
       ).resolves.toMatchObject({effect: 'highlight', enabled: true})
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(1, {timeout: 10_000})
 
       await expect(
-        kit.rpc.registry.call({name: 'page.effect', input: {action: 'toggle', effect: 'highlight'}}),
+        kit.rpc.registry.call({name: 'page_effect', input: {action: 'toggle', effect: 'highlight'}}),
       ).resolves.toMatchObject({effect: 'highlight', enabled: false})
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
     })
 
     test('an unknown effect name rejects with the declared error', async () => {
       await expect(
-        kit.rpc.registry.call({name: 'page.effect', input: {action: 'enable', effect: 'confetti'}}),
+        kit.rpc.registry.call({name: 'page_effect', input: {action: 'enable', effect: 'confetti'}}),
       ).rejects.toMatchObject({code: 'UNKNOWN_EFFECT'})
     })
   })

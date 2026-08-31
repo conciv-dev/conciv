@@ -37,9 +37,9 @@ async function expandFirst(): Promise<void> {
 it('MetaToolCard shows a quiet no-input row instead of an empty strip for a zero-input tool', async () => {
   mountView(() => (
     <MetaToolCard
-      part={part('page.noop', {})}
+      part={part('page_noop', {})}
       result={undefined}
-      ctx={ctxWith(catalogOf({'page.noop': NO_SCHEMA_META}))}
+      ctx={ctxWith(catalogOf({page_noop: NO_SCHEMA_META}))}
       addResult={INERT_ADD_RESULT}
     />
   ))
@@ -51,9 +51,9 @@ it('MetaToolCard shows a quiet no-input row instead of an empty strip for a zero
 it('MetaToolCard shows an input key the schema never declared', async () => {
   mountView(() => (
     <MetaToolCard
-      part={part('page.fill', {selector: '#name', value: 'Ada', timeoutMs: 250})}
+      part={part('page_fill', {selector: '#name', value: 'Ada', timeoutMs: 250})}
       result={undefined}
-      ctx={ctxWith(catalogOf({'page.fill': FILL_META}))}
+      ctx={ctxWith(catalogOf({page_fill: FILL_META}))}
       addResult={INERT_ADD_RESULT}
     />
   ))
@@ -66,9 +66,9 @@ it('MetaToolCard shows an input key the schema never declared', async () => {
 it('MetaToolCard shows the input of a declared tool that has no input schema', async () => {
   mountView(() => (
     <MetaToolCard
-      part={part('page.noop', {reason: 'warming the cache'})}
+      part={part('page_noop', {reason: 'warming the cache'})}
       result={undefined}
-      ctx={ctxWith(catalogOf({'page.noop': NO_SCHEMA_META}))}
+      ctx={ctxWith(catalogOf({page_noop: NO_SCHEMA_META}))}
       addResult={INERT_ADD_RESULT}
     />
   ))
@@ -81,9 +81,9 @@ it('MetaToolCard shows the input of a declared tool that has no input schema', a
 it('MetaToolCard shows its input chips while running with no result yet', async () => {
   mountView(() => (
     <MetaToolCard
-      part={part('page.fill', {selector: '#name', value: 'Ada'}, 'input-complete')}
+      part={part('page_fill', {selector: '#name', value: 'Ada'}, 'input-complete')}
       result={undefined}
-      ctx={ctxWith(catalogOf({'page.fill': FILL_META}))}
+      ctx={ctxWith(catalogOf({page_fill: FILL_META}))}
       addResult={INERT_ADD_RESULT}
     />
   ))
@@ -95,9 +95,9 @@ it('MetaToolCard shows its input chips while running with no result yet', async 
 it('MetaToolCard shows the error block alongside its input chips for an error-only result', async () => {
   mountView(() => (
     <MetaToolCard
-      part={part('page.fill', {selector: '#name', value: 'Ada'})}
+      part={part('page_fill', {selector: '#name', value: 'Ada'})}
       result={errorResult('element not found')}
-      ctx={ctxWith(catalogOf({'page.fill': FILL_META}))}
+      ctx={ctxWith(catalogOf({page_fill: FILL_META}))}
       addResult={INERT_ADD_RESULT}
     />
   ))
