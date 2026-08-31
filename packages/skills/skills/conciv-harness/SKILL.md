@@ -51,7 +51,7 @@ export const yourHarness = defineHarness({
 (`packages/harness/src/codex/index.ts:21-52`, the smallest complete adapter in the repo — no
 `attach`, `tty`, or `commands`.) Register it in `packages/harness/src/registry.ts` (`for (const adapter
 of [claude, codex, geminiCli, opencode, pi]) registerHarness(adapter)`,
-`packages/harness/src/registry.ts:30`) and add its docs entry to
+`packages/harness/src/registry.ts:31`) and add its docs entry to
 `apps/site/content/docs/harnesses.mdx`.
 
 ## HarnessCapabilities: flags that gate the type, not just behavior
@@ -72,7 +72,7 @@ export type HarnessCapabilities = {
 
 (`packages/protocol/src/harness-types.ts:5-19`.) Three of these flags are load-bearing for the type
 checker — `HarnessAdapter` is an intersection of three conditional pairs
-(`packages/protocol/src/harness-types.ts:212-224`):
+(`packages/protocol/src/harness-types.ts:191-203`):
 
 - `capabilities.transcriptHistory: true` ⇒ `history: HarnessHistory` is REQUIRED. `false` ⇒ `history`
   must be `undefined` (omit the field entirely).
@@ -83,8 +83,8 @@ checker — `HarnessAdapter` is an intersection of three conditional pairs
 There is no matching compile-time link for `resume`, `permissionGate`, `compaction`, `systemPrompt`,
 `mcp`, or `imageInput` — those are read at runtime by `packages/core/src/chat/run.ts` (e.g.
 `deps.harness.capabilities.resume` gates whether a resume token is looked up,
-`packages/core/src/chat/run.ts:138-140`; `deps.harness.capabilities.compaction` picks `/compact` vs a
-fallback prompt, `packages/core/src/chat/run.ts:102-104`). Declare them honestly: `resume: false` when
+`packages/core/src/chat/run.ts:173-174`; `deps.harness.capabilities.compaction` picks `/compact` vs a
+fallback prompt, `packages/core/src/chat/run.ts:112-114`). Declare them honestly: `resume: false` when
 your CLI has no session-resume flag, `mcp: 'none'` when it can't accept an MCP server URL, and so on —
 core branches on these values to decide what to even attempt.
 
@@ -98,8 +98,8 @@ only `chatConfig` (+ optionally `connect`).
 ```ts
 export type HarnessChatDeps = {
   cwd: string
-  sessionId: string
-  resumeSessionId: string | null
+  sessionId: SessionId
+  resumeSessionId: HarnessSessionId | null
   model?: string
   env: Record<string, string | undefined>
   kind: 'chat' | 'compact'
@@ -114,13 +114,16 @@ export type HarnessChatConfig = {
 }
 ```
 
-(`packages/protocol/src/harness-types.ts:125-140`.) `chatConfig` is a plain function, `deps =>
+(`packages/protocol/src/harness-types.ts:99-114`.) `chatConfig` is a plain function, `deps =>
 HarnessChatConfig` — no async, no side effects at call time. Its `adapter` is a published
 `@tanstack/ai-*` text adapter for CLIs that have one (`codexText` from `@tanstack/ai-codex`); if none
 exists for your CLI, build one with `makeTextAdapter(name, stream)` from
 `packages/harness/src/_shared/text-adapter.ts:45-47`, where `stream` is your own
-`AsyncIterable<StreamChunk>` producer that spawns the CLI **through the sandbox process handle**, not
-`node:child_process` directly (see the sandbox-virtual workdir section below).
+`AsyncIterable<StreamChunk>` producer. Prefer **declaring** the launch command and letting the adapter
+run it, the way `acpChatConfig` hands `acpCompatible` a `command` string plus a permission handler
+built from `deps.decide` (`packages/harness/src/_shared/acp.ts:15-24`): everything launched that way
+runs under `withSandbox`'s lifecycle. Reaching for `node:child_process` inside your `stream` steps
+outside the sandbox and its abort handling (see the sandbox-virtual workdir section below).
 
 Canonical call site — codex, which needs no message prep:
 
@@ -143,12 +146,12 @@ rather than casting.
 
 `prepareMessages` is where you rewrite the turn before it reaches the adapter — e.g. claude's chat
 config swaps in image file references or a literal `/compact` prompt depending on `deps.kind`
-(`packages/harness/src/claude/chat.ts:68-76`). Only add it if your CLI needs message-shape
+(`packages/harness/src/claude/chat.ts:72-85`). Only add it if your CLI needs message-shape
 translation; most adapters omit it.
 
 ## `chat()` owns the turn — you never spawn or decode the CLI in core/widget
 
-`packages/core/src/chat/run.ts:142-170` is the only call site that invokes `chatConfig` and hands the
+`packages/core/src/chat/run.ts:177-215` is the only call site that invokes `chatConfig` and hands the
 result to `chat()`:
 
 ```ts
@@ -157,26 +160,46 @@ return chat({
   adapter: config.adapter,
   messages,
   systemPrompts: extras.systemPrompts,
+  threadId: sessionId,
+  runId: req.runId,
   tools: extras.tools,
+  lazyToolsConfig: {includeDescription: 'first-sentence'},
   modelOptions: config.modelOptions,
-  middleware: [withConcivSandbox(deps.sandbox), withConcivGate(gate, sessionId)],
+  middleware: [
+    withSandbox(deps.sandbox, {
+      runs: deps.runs,
+      durability: {
+        adapter: deps.durability(req.runId),
+        journal: runJournalDir(deps.stateRoot),
+        detachOnDisconnect: true,
+      },
+    }),
+    withConcivGate(gate),
+  ],
   abortController: abort,
+  debug: harnessDebug,
 })
 ```
 
-`withConcivSandbox` (`packages/core/src/chat/sandbox.ts:73-83`) provisions a
-`localProcessSandbox({dir: cwd})` sandbox handle and injects abort→kill/SIGKILL-escalation process
-wrapping (`packages/core/src/chat/sandbox.ts:24-71`). `withConcivGate`
-(`packages/core/src/chat/gate.ts:175`) is the permission-gate middleware that turns tool-call requests
-into `deps.decide('allow' | 'deny')` callbacks. Neither of these exists per-harness — they are generic
-`@tanstack/ai` middleware that apply to every adapter equally. If your adapter needs a CLI-specific
-"is this command risky" check, that's a sign the check belongs in `deps.decide` (via `permissionGate:
-'callback'`), not a special case bolted onto core or the widget.
+Both middleware are generic `@tanstack/ai` middleware that apply to every adapter equally; neither has
+a per-harness variant. `withSandbox` is the published one from `@tanstack/ai-sandbox`, and conciv hands
+it a `SandboxDefinition` built once at engine start — `localProcessSandbox({dir: opts.cwd})` behind a
+`default: 'ask'` policy, reused per thread (`packages/core/src/app.ts:449-455`) — together with the
+durability options that make a run recoverable: the same event-log adapter the transport replays from,
+a journal directory under the conciv state dir, and `detachOnDisconnect: true`, which leaves the agent
+running when a client disconnects instead of destroying its sandbox. `withConcivGate`
+(`packages/core/src/chat/gate.ts:276-284`) publishes a tool-bridge provisioner that wraps every bridged
+tool in `gate.decide(...)` before it executes (`gateProvisioner`,
+`packages/core/src/chat/gate.ts:255-274`). The `decide` callback your `chatConfig` receives is that
+same gate narrowed to `'allow' | 'deny'` (`packages/core/src/chat/run.ts:185-186`). If your adapter
+needs a CLI-specific "is this command risky" check, that's a sign the check belongs in `deps.decide`
+(via `permissionGate: 'callback'`), not a special case bolted onto core or the widget.
 
 ## Sandbox-virtual workdir: `chatConfig` never passes a host `cwd`; `connect.plan()` legitimately does
 
-`localProcessSandbox({dir: cwd})` roots every process spawned **through the sandbox** at `deps.cwd`
-already — the sandbox root IS `deps.cwd`, not a subdirectory of it (AGENTS.md, "Harness & runner
+`localProcessSandbox({dir: opts.cwd})` (`packages/core/src/app.ts:449-455`) roots every process
+spawned **through the sandbox** at `deps.cwd` already — the sandbox root IS `deps.cwd`, not a
+subdirectory of it (AGENTS.md, "Harness & runner
 adapters": "the local-process sandbox root IS the cwd... adapters default to `/workspace`"). Because of
 that, `chatConfig(deps)`'s adapter must **not** thread `deps.cwd` back in as an explicit `cwd`/`--cwd`
 value for the process it spawns through the sandbox: a CLI that defaults its own working directory to
@@ -188,7 +211,7 @@ resolved _again_, relative to the sandbox root, and that's what nests a junk
 
 `deps.cwd` is still a legitimate value inside `chatConfig` for anything that isn't the process's
 working directory: claude's chat config threads it through as `addDirs: [deps.cwd]`
-(`packages/harness/src/claude/chat.ts:68`), an additional-directory permission grant for MCP/tool file
+(`packages/harness/src/claude/chat.ts:75`), an additional-directory permission grant for MCP/tool file
 access, not a `cwd` override.
 
 `connect.plan(ctx)` is a different seam — it builds the argv for the connected **host terminal**
@@ -207,7 +230,7 @@ export type HarnessConnectContext = {
   cwd: string
   stateDir: string
   concivSessionId: SessionId
-  harnessSessionId: string | null
+  harnessSessionId: HarnessSessionId | null
   resume: boolean
   owned: boolean
   model: string | null
@@ -220,7 +243,7 @@ export type HarnessConnect = {plan(ctx: HarnessConnectContext): HarnessConnectPl
 ```
 
 (`packages/protocol/src/harness-types.ts:42-62`.) `connect` is optional on `HarnessAdapterBase`
-(`packages/protocol/src/harness-types.ts:202`) but every full adapter has one — it's how the connected
+(`packages/protocol/src/harness-types.ts:182`) but every full adapter has one — it's how the connected
 terminal / attach flow launches the raw CLI process (as opposed to `chatConfig`, which drives the
 programmatic chat loop). `plan()` is synchronous and pure: given the context, return the argv, any env
 vars, and any files that must exist before spawn (`files` entries are `{path, contents, mode?}`).
@@ -249,7 +272,7 @@ harness advertised `mcp !== 'none'`; branch on them rather than assuming they're
 - **`models?: HarnessModels`** — either a plain `HarnessModel[]` or a `() => HarnessModel[] |
 Promise<HarnessModel[]>` for CLIs whose model list must be fetched
   (`packages/protocol/src/harness-types.ts:25-34`). Read it through
-  `resolveHarnessModels(adapter)` (`packages/harness/src/registry.ts:24-28`), never by branching on
+  `resolveHarnessModels(adapter)` (`packages/harness/src/registry.ts:25-29`), never by branching on
   `typeof adapter.models` yourself elsewhere.
 - **`tty?: {command(ctx: HarnessConnectContext): TtyCommand}`** — the argv/options for opening the CLI
   in the built-in terminal pane, separate from `connect.plan()`'s attach flow.
@@ -261,38 +284,41 @@ Promise<HarnessModel[]>` for CLIs whose model list must be fetched
 ## HarnessHistory: reading the CLI's own transcript
 
 Required whenever `capabilities.transcriptHistory: true`. The contract
-(`packages/protocol/src/harness-types.ts:177-194`) has two required methods and several optional
-refinements:
+(`packages/protocol/src/harness-types.ts:159-174`) has three required methods, several optional
+refinements, and one all-or-nothing pair:
 
 ```ts
-export type HarnessHistory = {
-  messages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]>
-  observe(cwd: string, sessionId: string, home?: string): TranscriptHandle
-  transcriptPath?(cwd: string, sessionId: string, home?: string): string
-  withinProject?(cwd: string, sessionId: string, home?: string): boolean
+export type HarnessHistory = HarnessTranscriptPaths & {
+  messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<UIMessage[]>
+  observe(cwd: string, sessionId: HarnessSessionId, home?: string): TranscriptHandle
+  withinProject?(cwd: string, sessionId: HarnessSessionId, home?: string): boolean
   nameFromTranscript?(raw: string): string | null
   contextTokens?(raw: string): number | undefined
   list(cwd: string, home?: string): Promise<HarnessSessionMeta[]>
-  meta?(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionMeta | null>
-  summary?(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionSummary | null>
+  meta?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null>
+  summary?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionSummary | null>
 }
 ```
 
-`messages()`, `observe()`, and `list()` are the required minimum (the only three fields without a `?`
-on the type above): parse the CLI's own on-disk transcript into `UIMessage[]`, return a live-tailing
-`TranscriptHandle` (`revision()/read()/close()`) for streaming updates into an open chat pane, and
-enumerate past sessions for a cwd. Build `observe()` with the shared `makeJsonlHandle()` helper if your
-CLI's transcript is JSONL-per-line (both `claude`
-and `codex` do this: `packages/harness/src/codex/history.ts:344-358`). See
+`messages()`, `observe()`, and `list()` are the required minimum: parse the CLI's own on-disk
+transcript into `UIMessage[]`, return a live-tailing `TranscriptHandle` (`revision()/read()/close()`)
+for streaming updates into an open chat pane, and enumerate past sessions for a cwd. `HarnessTranscriptPaths`
+(`packages/protocol/src/harness-types.ts:151-157`) is a union, not two loose optionals: declare BOTH
+`transcriptPath` and `transcriptRoot` or neither, because core resolves one against the other and
+rejects a transcript that escapes the root (`transcriptPathWithin`,
+`packages/harness/src/_shared/contained-path.ts:30-40`, reached for resume liveness by
+`resumableToken` in `packages/core/src/chat/run.ts:51-64`). Build `observe()` with the shared
+`makeJsonlHandle()` helper if your CLI's transcript is JSONL-per-line (both `claude`
+and `codex` do this: `packages/harness/src/codex/history.ts:347-360`). See
 `references/transcript-history.md` for the full worked walkthrough (event folding, `verifyHead`
 project-scoping, incremental byte-offset reads) — it's the densest part of a real adapter and doesn't
 fit in this file's budget.
 
 ## Red flags — stop and reconsider
 
-- Spawning the CLI with `node:child_process` (or anything other than the sandbox's `process.spawn`)
-  from inside `chatConfig`'s adapter or a custom `stream` function — that bypasses abort handling and
-  the sandbox's filesystem scoping.
+- Spawning the CLI with `node:child_process` from inside `chatConfig`'s adapter or a custom `stream`
+  function, instead of declaring the command and letting the published adapter under `withSandbox`
+  launch it — a self-spawned process bypasses abort handling and the sandbox's filesystem scoping.
 - Any `if (harnessId === 'your-cli')` branch inside `packages/core` or the widget — the whole point of
   the capability contract is that core never special-cases a harness by name.
 - Threading `deps.cwd` into `chatConfig`'s adapter as an explicit `cwd`/`--cwd` value — the sandbox
@@ -322,9 +348,11 @@ fit in this file's budget.
 - `packages/harness/src/pi/index.ts`
 - `packages/harness/src/_shared/text-adapter.ts`
 - `packages/harness/src/_shared/env.ts`
+- `packages/harness/src/_shared/acp.ts`
 - `packages/harness/src/_shared/jsonl-handle.ts`
+- `packages/harness/src/_shared/contained-path.ts`
 - `packages/core/src/chat/run.ts`
-- `packages/core/src/chat/sandbox.ts`
+- `packages/core/src/app.ts`
 - `packages/core/src/chat/gate.ts`
 - `apps/site/content/docs/harnesses.mdx`
 - `AGENTS.md`
