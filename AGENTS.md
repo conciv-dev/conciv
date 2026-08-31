@@ -44,9 +44,13 @@ README.md; this file is the non-obvious operational rules.
   (`--filter=...[origin/main]`).
 - Gates run with the turbo cache on. `turbo run --force` is banned by `.claude/hooks/turbo-filter-gate.sh`
   (the cache hash already covers source and deps); if a dist looks stale, delete that package's dist
-  (`rm -rf packages/<pkg>/dist`) and rerun without `--force`. `turbo.json`'s `cacheDir: "../.turbo-cache"`
-  resolves relative to each checkout's `turbo.json`, so every `aidx-wt-*` sibling worktree (and the main
-  checkout) shares one cache at `/Users/<user>/Public/web/.turbo-cache`, outside any repo tree.
+  (`rm -rf packages/<pkg>/dist`) and rerun without `--force`. `turbo.json` pins no `cacheDir`, so turbo
+  uses its own default inside the checkout: a committed `cacheDir` pointing outside the repo escapes the
+  checkout on CI runners, where nothing exists above the workspace.
+  To share one cache across the main checkout and every `aidx-wt-*` sibling worktree, export
+  `TURBO_CACHE_DIR=../.turbo-cache` in your shell (it resolves per checkout, landing on one directory at
+  `/Users/<user>/Public/web/.turbo-cache`, outside any repo tree). Local gate and agent runs are the only
+  places that want it; never commit it back into `turbo.json`.
 - Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs oxfmt + oxlint on
   staged files. `pnpm install` auto-activates the hook via the `prepare` script; no per-clone step.
   Whole-project gates (typecheck/build/test) are not in hooks; run them manually.
