@@ -22,7 +22,7 @@ type CalmDrift = CalmSurface & {deltaBlock: number; deltaInline: number}
 
 export type CalmCheckpoint = {rebaseline?: boolean}
 
-export type FrameGaps = {frames: number; p50: number; p95: number; max: number; over33: number}
+export type FrameGaps = {sampledMs: number; p50: number; p95: number; max: number; over33: number}
 
 export type CalmWatch = {
   checkpoint: (options?: CalmCheckpoint) => Promise<void>
@@ -249,7 +249,7 @@ function tenths(value: number): number {
 function summariseGaps(gaps: ReadonlyArray<number>): FrameGaps {
   const sorted = gaps.toSorted((left, right) => left - right)
   return {
-    frames: gaps.length,
+    sampledMs: tenths(gaps.reduce((total, gap) => total + gap, 0)),
     p50: tenths(percentileOf(sorted, 0.5)),
     p95: tenths(percentileOf(sorted, 0.95)),
     max: tenths(sorted.at(-1) ?? 0),

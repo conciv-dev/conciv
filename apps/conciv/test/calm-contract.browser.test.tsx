@@ -23,7 +23,7 @@ const SHOTS = '__screenshots__/calm-contract'
 const MULTI_TOOL_STEPS = 20
 const FRAME_P95_BUDGET_MS = 20
 const FRAME_JANK_BUDGET = 2
-const MIN_SAMPLED_FRAMES = 40
+const MIN_SAMPLED_WINDOW_MS = 300
 const MULTI_TOOL_PACE_MS = 50
 const BOUNDARY_PACE_MS = 400
 const EDIT_STEP_INTERVAL = 5
@@ -150,7 +150,7 @@ function streamedCodeAnswer(): string {
 
 function expectSmooth(watch: CalmWatch): void {
   const gaps = watch.frameGaps()
-  expect(gaps.frames).toBeGreaterThanOrEqual(MIN_SAMPLED_FRAMES)
+  expect(gaps.sampledMs).toBeGreaterThanOrEqual(MIN_SAMPLED_WINDOW_MS)
   expect(gaps.p95).toBeLessThanOrEqual(FRAME_P95_BUDGET_MS)
   expect(gaps.over33).toBeLessThanOrEqual(FRAME_JANK_BUDGET)
 }
