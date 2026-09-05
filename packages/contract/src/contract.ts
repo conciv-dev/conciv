@@ -23,6 +23,7 @@ import {
 import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
 import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
+import {SettingsHistoryEntrySchema, SettingsReadSchema, SettingsScopeSchema} from '@conciv/protocol/settings-types'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'object' && value !== null)
@@ -36,6 +37,18 @@ export const ChatSendInput = SessionIdInput.extend({
 const Ok = z.object({ok: z.literal(true)})
 const SendAccepted = z.object({ok: z.literal(true), runId: z.string()})
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
+const SettingsWriteResult = z.object({ok: z.literal(true), opId: z.string()})
+const settingsWriteErrors = {
+  UNKNOWN_KEY: {message: 'no registered setting with that key'},
+  INVALID_VALUE: {message: 'the value failed the registry schema for this key'},
+  REVISION_CONFLICT: {
+    status: 409,
+    message: 'the settings file changed since it was read; refetch and retry',
+    data: z.object({scope: SettingsScopeSchema, revision: z.string()}),
+  },
+  LAYER_UNPARSEABLE: {message: 'the settings file does not parse; fix it before writing'},
+  LOCK_TIMEOUT: {message: 'another process is holding the global settings lock'},
+}
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
@@ -114,6 +127,44 @@ export const contract = {
   navigation: {
     get: oc.output(NavigationWriteSchema.nullable()),
     set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
+  },
+  settings: {
+    get: oc.output(SettingsReadSchema),
+    set: oc
+      .errors(settingsWriteErrors)
+      .input(
+        z.object({
+          key: z.string(),
+          value: z.unknown(),
+          scope: SettingsScopeSchema,
+          expectedRevision: z.string(),
+        }),
+      )
+      .output(SettingsWriteResult),
+    clear: oc
+      .errors(settingsWriteErrors)
+      .input(z.object({key: z.string(), scope: SettingsScopeSchema, expectedRevision: z.string()}))
+      .output(SettingsWriteResult),
+    applyGlobally: oc
+      .errors(settingsWriteErrors)
+      .input(
+        z.object({
+          key: z.string(),
+          value: z.unknown(),
+          expectedRevisions: z.object({project: z.string(), global: z.string()}),
+        }),
+      )
+      .output(SettingsWriteResult),
+    reset: oc
+      .errors(settingsWriteErrors)
+      .input(
+        z.object({
+          key: z.string(),
+          expectedRevisions: z.object({project: z.string(), global: z.string()}),
+        }),
+      )
+      .output(SettingsWriteResult),
+    history: oc.input(z.object({key: z.string()})).output(z.array(SettingsHistoryEntrySchema)),
   },
   chat: {
     subscribe: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),

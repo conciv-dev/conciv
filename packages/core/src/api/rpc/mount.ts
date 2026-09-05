@@ -8,6 +8,7 @@ import type {CompositeRpcRouter as CompositeRouterOf} from '@conciv/extension/rp
 import type {ChatDeps} from '../../chat/runtime.js'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
+import type {SettingsService} from '../../settings/service.js'
 import {runWithSession} from '../../runtime/session-context.js'
 import type {makeRpcRouter} from './router.js'
 
@@ -16,6 +17,7 @@ export type RpcDeps = {
   tools: ChatTool[]
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   runtime: CoreRuntime
+  settings: SettingsService
   staleness: () => EngineStaleness
   askTimeoutMs?: number
 }
