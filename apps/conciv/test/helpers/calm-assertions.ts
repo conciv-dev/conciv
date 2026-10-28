@@ -12,7 +12,6 @@ const TOLERANCE_PX = 1
 const DESCRIPTION_LENGTH = 44
 const SETTLE_PASSES = 3
 const JANK_FRAME_MS = 33
-const TOP_EDGE_PROBE_PX = 2
 
 export type CalmAllowance = 'narration' | 'virtualization' | 'error-replacement' | 'user-collapsed-trace'
 
@@ -84,16 +83,17 @@ function distanceFromEnd(viewport: HTMLElement): number {
   return Math.max(0, viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop)
 }
 
-export function topEdgeRowIndex(viewport: HTMLElement): string | null {
-  const frame = viewport.getBoundingClientRect()
-  const found = document.elementFromPoint(frame.left + frame.width / 2, frame.top + TOP_EDGE_PROBE_PX)
-  return found?.closest('[data-index]')?.getAttribute('data-index') ?? null
+function topEdgeRowElement(viewport: HTMLElement): Element | null {
+  const frameTop = viewport.getBoundingClientRect().top
+  const crossing = [...viewport.querySelectorAll('[data-index]')]
+    .map((row) => ({row, box: row.getBoundingClientRect()}))
+    .filter(({box}) => box.bottom > frameTop)
+    .toSorted((first, second) => first.box.top - second.box.top)
+  return crossing[0]?.row ?? null
 }
 
-function topEdgeRowElement(viewport: HTMLElement): Element | null {
-  const frame = viewport.getBoundingClientRect()
-  const found = document.elementFromPoint(frame.left + frame.width / 2, frame.top + TOP_EDGE_PROBE_PX)
-  return found?.closest('[data-index]') ?? null
+export function topEdgeRowIndex(viewport: HTMLElement): string | null {
+  return topEdgeRowElement(viewport)?.getAttribute('data-index') ?? null
 }
 
 function offsetWithinViewport(row: Element, viewport: HTMLElement): number {

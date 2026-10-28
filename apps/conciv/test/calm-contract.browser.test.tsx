@@ -562,6 +562,7 @@ test('a reader who scrolled up keeps their exact position for the whole stream [
     await userEvent.wheel(gate.viewport, {delta: {y: -SCROLL_UP_PX}})
     await expect.element(page.elementLocator(gate.viewport)).not.toHaveAttribute('data-at-bottom')
     const rowBefore = topEdgeRowIndex(gate.viewport)
+    expect(rowBefore, 'no thread row crosses the viewport top after the wheel').not.toBeNull()
     const watch = watchViewportScroll()
 
     await coreControl.releaseTools()
@@ -621,6 +622,7 @@ test('an appended turn never drags a reader who scrolls up while it streams [gat
     await userEvent.wheel(gate.viewport, {delta: {y: -SCROLL_UP_PX}})
     await expect.element(page.elementLocator(gate.viewport)).not.toHaveAttribute('data-at-bottom')
     const rowBefore = topEdgeRowIndex(gate.viewport)
+    expect(rowBefore, 'no thread row crosses the viewport top after the wheel').not.toBeNull()
     const offsetBefore = topEdgeRowOffset(gate.viewport)
     const watch = watchViewportScroll()
 
