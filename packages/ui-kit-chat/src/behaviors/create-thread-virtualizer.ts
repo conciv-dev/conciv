@@ -197,9 +197,13 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   const [measured, setMeasured] = createSignal(false)
   const [atEnd, setAtEnd] = createSignal(true)
 
-  const syncAtEnd = () => {
+  const liveAtEnd = (): boolean => {
     const element = config.scrollElement()
-    setAtEnd(!element || element.scrollHeight - element.scrollTop - element.clientHeight <= SCROLL_END_THRESHOLD_PX)
+    return !element || element.scrollHeight - element.scrollTop - element.clientHeight <= SCROLL_END_THRESHOLD_PX
+  }
+
+  const syncAtEnd = () => {
+    setAtEnd(liveAtEnd())
   }
 
   const sync = () => {
@@ -217,7 +221,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   createComputed((previousCount: number) => {
     const nextCount = config.count()
-    const followsAppend = nextCount > previousCount && instance.isAtEnd()
+    const followsAppend = nextCount > previousCount && liveAtEnd()
     instance.setOptions(resolveOptions())
     sync()
     if (!followsAppend) return nextCount
@@ -273,7 +277,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   const needsLanding = (element: HTMLElement, sameThread: boolean): boolean => {
     if (!sameThread) return true
-    return instance.isAtEnd() || stillOnTheLanding(element)
+    return liveAtEnd() || stillOnTheLanding(element)
   }
 
   createEffect(() => {

@@ -130,8 +130,10 @@ function rowUnderTopEdge(viewport: HTMLElement): string {
   return found?.closest('[data-index]')?.getAttribute('data-index') ?? 'none'
 }
 
-function heldEveryFrame(label: string): string {
-  return `${label} held ${PROBE_FRAMES} of ${PROBE_FRAMES} frames`
+async function expectHeldEveryFrame(label: string): Promise<void> {
+  await expect
+    .element(page.getByText(new RegExp(`^${label} held \\d+ of ${PROBE_FRAMES} frames$`)))
+    .toHaveTextContent(`${label} held ${PROBE_FRAMES} of ${PROBE_FRAMES} frames`)
 }
 
 function holdSteady(host: HTMLElement, label: string, read: () => string): void {
@@ -220,7 +222,7 @@ it('a wheel up taken right after the mount landing is never dragged back to the 
   wheelUpTo(thread.viewport(), 0)
   holdSteady(thread.host, 'mount landing offset', () => String(thread.viewport().scrollTop))
 
-  await expect.element(page.getByText(heldEveryFrame('mount landing offset'))).toBeInTheDocument()
+  await expectHeldEveryFrame('mount landing offset')
   await expect.element(page.getByText('question 0')).toBeVisible()
   await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
 })
@@ -234,7 +236,7 @@ it('a wheel up after the latest-turn gesture holds the reading row while turns k
   wheelUpTo(thread.viewport(), 0)
   holdSteady(thread.host, 'reading row', () => rowUnderTopEdge(thread.viewport()))
 
-  await expect.element(page.getByText(heldEveryFrame('reading row'))).toBeInTheDocument()
+  await expectHeldEveryFrame('reading row')
   await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
 })
 
@@ -331,7 +333,7 @@ it('a reader parked at the top of a grown thread is left there when more turns a
   thread.chat().setMessages(seedMessages(GROWN_THREAD + APPENDED_AFTER_PARKING))
   holdSteady(thread.host, 'parked at the top', () => String(thread.viewport().scrollTop))
 
-  await expect.element(page.getByText(heldEveryFrame('parked at the top'))).toBeInTheDocument()
+  await expectHeldEveryFrame('parked at the top')
   await expect.element(page.getByText('question 0')).toBeVisible()
   expect(thread.viewport().scrollTop).toBe(0)
 })
