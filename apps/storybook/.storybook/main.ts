@@ -55,7 +55,6 @@ const config: StorybookConfig = {
           'rehype-harden',
           'rehype-raw',
           'rehype-sanitize',
-          'unist-util-visit-parents',
           'shiki/core',
           'shiki/engine/javascript',
           'shiki/langs/bash.mjs',

@@ -261,10 +261,7 @@ export const WidgetStreamFrozen: Story = {
     const root = canvasElement.querySelector('.sd-root') as HTMLElement
     await waitFor(() => expect(root.textContent).toContain('doing'), {timeout: 15000})
 
-    const delays = Array.from(root.querySelectorAll('[data-sd-animate]')).map((s) =>
-      Number(/--sd-delay:(\d+)ms/.exec((s as HTMLElement).getAttribute('style') ?? '')?.[1] ?? '0'),
-    )
-    await expect(Math.max(...delays, 0)).toBe(0)
+    await expect(root.querySelector('[data-sd-animate]')).toBeNull()
 
     const blocks = Array.from(root.querySelectorAll(':scope > *')) as HTMLElement[]
     const last = blocks.at(-1)!
@@ -288,10 +285,7 @@ export const NoAnimation: Story = {
     const canvas = within(canvasElement)
     await waitFor(() => expect(canvas.getByText(/Streaming Markdown/)).toBeInTheDocument(), {timeout: 15000})
 
-    const span = canvasElement.querySelector('[data-sd-animate]')
-    if (span) {
-      expect(span.getAttribute('style')).toContain('--sd-duration:0ms')
-    }
+    await expect(canvasElement.querySelector('[data-sd-animate]')).toBeNull()
   },
 }
 

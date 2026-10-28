@@ -1,8 +1,19 @@
-import {type Accessor, createMemo, createRenderEffect, Index, type JSX, Match, Switch} from 'solid-js'
+import {
+  createComputed,
+  createMemo,
+  createRenderEffect,
+  For,
+  Index,
+  type JSX,
+  Match,
+  on,
+  onMount,
+  Show,
+  Switch,
+} from 'solid-js'
+import {createStore, reconcile} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
-import {createImmutable} from '@solid-primitives/immutable'
 import {unified, type Pluggable} from 'unified'
-import type {Root, RootContent} from 'hast'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import remarkGfm from 'remark-gfm'
@@ -11,7 +22,6 @@ import {harden} from 'rehype-harden'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, {defaultSchema} from 'rehype-sanitize'
 import {parseMarkdownIntoBlocks} from './parse-blocks.js'
-import {createAnimatePlugin, type AnimatePlugin} from './animate.js'
 
 export type HighlightCode = (code: string, lang: string | undefined) => string
 
@@ -30,7 +40,6 @@ const rawSchema = {
 const rawPlugins: Pluggable[] = [rehypeRaw, [rehypeSanitize, rawSchema]]
 const defaultLinkPrefixes: string[] = ['*']
 const defaultImagePrefixes: string[] = ['*']
-const hastImmutableOptions = {key: null, merge: true}
 
 export type StreamdownProps = {
   children: string
@@ -46,36 +55,74 @@ export type StreamdownProps = {
   class?: string
 }
 
-export type HastLikeNode = {
-  type: string
-  value?: string
-  tagName?: string
-  properties: Record<string, unknown>
-  children: HastLikeNode[]
+type MarkdownElementNode = {
+  key: string
+  type: 'element'
+  tag: string
+  attributes: Record<string, unknown>
+  children: MarkdownNode[]
+  animate?: true
+}
+type MarkdownTextNode = {key: string; type: 'text'; text: string}
+type MarkdownWordNode = {key: string; type: 'word'; text: string; animate?: true}
+type MarkdownNode = MarkdownElementNode | MarkdownTextNode | MarkdownWordNode
+
+type HastRoot = ReturnType<MarkdownProcessor['runSync']>
+type HastElement = Extract<HastRoot['children'][number], {type: 'element'}>
+type HastContent = HastElement['children'][number]
+
+function elementAttributes(properties: Record<string, unknown>): Record<string, unknown> {
+  const {className, ...rest} = properties
+  if (className === undefined || className === null) return rest
+  return {...rest, class: Array.isArray(className) ? className.join(' ') : className}
 }
 
-function normalizeHastNode(node: Root | RootContent): HastLikeNode {
-  if (node.type === 'text') return {type: 'text', value: node.value, properties: {}, children: []}
-  if (node.type === 'element') {
-    return {
-      type: 'element',
-      tagName: node.tagName,
-      properties: node.properties,
-      children: node.children.map(normalizeHastNode),
-    }
+function hastNode(
+  node: HastContent,
+  path: string,
+  words: boolean,
+  animate: boolean,
+  inlineCode: boolean,
+): MarkdownNode[] {
+  if (node.type === 'text') {
+    if (!words) return [{key: path, type: 'text', text: node.value}]
+    const parts = inlineCode ? Array.from(node.value) : node.value.split(/(\s+)/)
+    return parts.flatMap((text, index): MarkdownNode[] => {
+      if (!text) return []
+      if (/^\s+$/.test(text)) return [{key: `${path}:${index}`, type: 'text', text}]
+      return [{key: `${path}:${index}`, type: 'word', text, ...(animate ? {animate: true as const} : {})}]
+    })
   }
-  if (node.type === 'root') return {type: 'root', properties: {}, children: node.children.map(normalizeHastNode)}
-  return {type: node.type, properties: {}, children: []}
+  if (node.type !== 'element') return []
+  const isInlineCode = words && node.tagName === 'code'
+  const childWords = words && node.tagName !== 'pre'
+  return [
+    {
+      key: `${path}:${node.tagName}`,
+      type: 'element',
+      tag: node.tagName,
+      attributes: elementAttributes(node.properties),
+      children: node.children.flatMap((child, index) =>
+        hastNode(child, `${path}.${index}`, childWords, animate, inlineCode || isInlineCode),
+      ),
+      ...(animate && isInlineCode ? {animate: true as const} : {}),
+    },
+  ]
 }
 
-function codeText(node: HastLikeNode | undefined): string {
-  const child = node?.children[0]
-  return child && child.type === 'text' ? (child.value ?? '') : ''
+function hastToMarkdownNodes(root: HastRoot, words: boolean, animate: boolean): MarkdownNode[] {
+  return root.children.flatMap((node, index) =>
+    node.type === 'doctype' ? [] : hastNode(node, `${index}`, words, animate, false),
+  )
+}
+
+function nodeText(node: MarkdownNode): string {
+  if (node.type === 'element') return node.children.map(nodeText).join('')
+  return node.text
 }
 
 function codeLang(className: unknown): string | undefined {
-  const cls = Array.isArray(className) ? className.join(' ') : typeof className === 'string' ? className : ''
-  return /language-(\w+)/.exec(cls)?.[1]
+  return /language-(\w+)/.exec(typeof className === 'string' ? className : '')?.[1]
 }
 
 function findIncompleteCodeFence(markdown: string): boolean {
@@ -107,135 +154,111 @@ function HastText(props: {value: string}): JSX.Element {
   return node
 }
 
-function HastNode(props: {
-  node: () => HastLikeNode
-  components: Record<string, (props: any) => JSX.Element>
-  highlightCode?: HighlightCode
-}): JSX.Element {
+function markEntering(element: HTMLElement, animate: boolean | undefined): void {
+  if (animate) element.setAttribute('data-sd-animate', '')
+}
+
+function MarkdownWord(props: {node: MarkdownWordNode}): JSX.Element {
   return (
-    <Switch>
-      <Match when={props.node().type === 'text'}>
-        <HastText value={props.node().value ?? ''} />
-      </Match>
-      <Match when={props.node().type === 'element'}>
-        <HastElement node={props.node} components={props.components} highlightCode={props.highlightCode} />
-      </Match>
-      <Match when={props.node().type === 'root'}>
-        <Index each={props.node().children}>
-          {(child) => <HastNode node={child} components={props.components} highlightCode={props.highlightCode} />}
-        </Index>
-      </Match>
-    </Switch>
+    <span ref={(element) => markEntering(element, props.node.animate)} data-sd-word="">
+      {props.node.text}
+    </span>
   )
 }
 
-function HastElement(props: {
-  node: () => HastLikeNode
-  components: Record<string, (props: any) => JSX.Element>
-  highlightCode?: HighlightCode
-}): JSX.Element {
-  const component = () => {
-    const tagName = props.node().tagName ?? 'span'
-    return props.components[tagName] || tagName
-  }
-  const isCustom = () => typeof component() === 'function'
+function codeChild(node: MarkdownElementNode): MarkdownElementNode | undefined {
+  return node.children.find((child): child is MarkdownElementNode => child.type === 'element' && child.tag === 'code')
+}
 
-  const attrs = createMemo(() => {
-    const p: Record<string, unknown> = {...props.node().properties}
-    if (p.className) {
-      p.class = Array.isArray(p.className) ? p.className.join(' ') : p.className
-      delete p.className
-    }
-    return p
-  })
+function HighlightedPre(props: {node: MarkdownElementNode; highlightCode: HighlightCode}): JSX.Element {
+  return (
+    <Show when={codeChild(props.node)} fallback={<MarkdownElement node={props.node} />}>
+      {(code) => <div innerHTML={props.highlightCode(nodeText(code()), codeLang(code().attributes.class))} />}
+    </Show>
+  )
+}
 
+function MarkdownElement(props: {node: MarkdownElementNode; highlightCode?: HighlightCode}): JSX.Element {
   return (
     <Dynamic
-      component={component()}
-      {...attrs()}
-      node={isCustom() ? props.node() : undefined}
-      highlightCode={isCustom() ? props.highlightCode : undefined}
+      component={props.node.tag}
+      ref={(element: HTMLElement) => markEntering(element, props.node.animate)}
+      {...props.node.attributes}
     >
-      <Index each={props.node().children}>
-        {(child) => <HastNode node={child} components={props.components} highlightCode={props.highlightCode} />}
-      </Index>
+      <For each={props.node.children}>
+        {(child) => <MarkdownDomNode node={child} highlightCode={props.highlightCode} />}
+      </For>
     </Dynamic>
   )
 }
 
-const Pre = (props: {
-  node?: HastLikeNode
-  children?: JSX.Element
-  class?: string
-  highlightCode?: HighlightCode
-}): JSX.Element => {
-  const codeNode = createMemo(() => props.node?.children.find((c) => c.type === 'element' && c.tagName === 'code'))
+function asText(node: MarkdownNode): MarkdownTextNode | undefined {
+  return node.type === 'text' ? node : undefined
+}
+
+function asWord(node: MarkdownNode): MarkdownWordNode | undefined {
+  return node.type === 'word' ? node : undefined
+}
+
+function asElement(node: MarkdownNode): MarkdownElementNode | undefined {
+  return node.type === 'element' ? node : undefined
+}
+
+function MarkdownDomNode(props: {node: MarkdownNode; highlightCode?: HighlightCode}): JSX.Element {
   return (
-    <Switch fallback={<pre class={props.class}>{props.children}</pre>}>
-      <Match when={props.highlightCode && codeNode()}>
-        {(node) => <div innerHTML={props.highlightCode!(codeText(node()), codeLang(node().properties.className))} />}
+    <Switch>
+      <Match when={asText(props.node)}>{(node) => <HastText value={node().text} />}</Match>
+      <Match when={asWord(props.node)}>{(node) => <MarkdownWord node={node()} />}</Match>
+      <Match when={asElement(props.node)}>
+        {(node) => (
+          <Show
+            when={node().tag === 'pre' && props.highlightCode}
+            fallback={<MarkdownElement node={node()} highlightCode={props.highlightCode} />}
+          >
+            {(highlightCode) => <HighlightedPre node={node()} highlightCode={highlightCode()} />}
+          </Show>
+        )}
       </Match>
     </Switch>
   )
 }
 
-const Code = (props: {class?: string; children?: JSX.Element}): JSX.Element => (
-  <code class={props.class}>{props.children}</code>
-)
-
-const STABLE_COMPONENTS = {pre: Pre, code: Code}
-
-export type HastBuildProps = {
-  text: string
-  animate: boolean
-  plugin: AnimatePlugin
+type MarkdownProcessorOptions = {
   allowRawHtml: boolean
   linkPrefixes: string[]
   imagePrefixes: string[]
 }
 
-export function createHast(props: Accessor<HastBuildProps>): HastLikeNode {
-  const processor = createMemo(() => {
-    const current = props()
-    const hardenPlugin: Pluggable = [
-      harden,
-      {allowedLinkPrefixes: current.linkPrefixes, allowedImagePrefixes: current.imagePrefixes},
-    ]
-    return unified()
-      .use(remarkParse)
-      .use(remarkGfm)
-      .use(remarkRehype, {allowDangerousHtml: true})
-      .use([
-        ...(current.allowRawHtml ? rawPlugins : []),
-        hardenPlugin,
-        ...(current.animate ? [current.plugin.rehypePlugin] : []),
-      ])
-  })
-
-  const rawHast = createMemo(() => {
-    const p = processor()
-    const current = props()
-
-    current.plugin.setPrevContentLength(current.plugin.getLastRenderCharCount())
-    const parsed = p.runSync(p.parse(current.text)) as Root
-    return normalizeHastNode(parsed)
-  })
-
-  return createImmutable(() => rawHast(), hastImmutableOptions)
+function createMarkdownProcessor(options: MarkdownProcessorOptions) {
+  return unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkRehype, {allowDangerousHtml: true})
+    .use([
+      ...(options.allowRawHtml ? rawPlugins : []),
+      [harden, {allowedLinkPrefixes: options.linkPrefixes, allowedImagePrefixes: options.imagePrefixes}],
+    ])
 }
+
+type MarkdownProcessor = ReturnType<typeof createMarkdownProcessor>
 
 function Block(props: {
   text: string
-  animate: boolean
-  plugin: AnimatePlugin
-  allowRawHtml: boolean
+  streaming: boolean
+  enter: boolean
+  processor: MarkdownProcessor
   highlightCode: HighlightCode | undefined
-  linkPrefixes: string[]
-  imagePrefixes: string[]
 }): JSX.Element {
-  const hast = createHast(() => props)
-
-  return <HastNode node={() => hast} components={STABLE_COMPONENTS as any} highlightCode={props.highlightCode} />
+  const hast = createMemo(() => props.processor.runSync(props.processor.parse(props.text)))
+  const [nodes, setNodes] = createStore<MarkdownNode[]>([])
+  createComputed(
+    on(hast, (root, previous) =>
+      setNodes(
+        reconcile(hastToMarkdownNodes(root, props.streaming, previous ? props.streaming : props.enter), {key: 'key'}),
+      ),
+    ),
+  )
+  return <For each={nodes}>{(node) => <MarkdownDomNode node={node} highlightCode={props.highlightCode} />}</For>
 }
 
 function normalizeCaret(caret: StreamdownProps['caret']): CaretVariant | undefined {
@@ -250,23 +273,25 @@ function hideCaret(lastBlock: string | undefined): boolean {
 }
 
 export function Streamdown(props: StreamdownProps): JSX.Element {
-  const plugins = new Map<number, AnimatePlugin>()
-  const pluginFor = (index: number): AnimatePlugin => {
-    let p = plugins.get(index)
-    if (!p) {
-      p = createAnimatePlugin()
-      plugins.set(index, p)
-    }
-    return p
-  }
-
   const blocks = createMemo(() => {
-    const src = props.children ?? ''
-    const healed = props.parseIncompleteMarkdown === false ? src : remend(src, props.remendOptions)
-    return parseMarkdownIntoBlocks(healed).filter((b) => b.trim())
+    const source = props.children ?? ''
+    const healed = props.parseIncompleteMarkdown === false ? source : remend(source, props.remendOptions)
+    return parseMarkdownIntoBlocks(healed).filter((block) => block.trim())
   })
 
+  const processor = createMemo(() =>
+    createMarkdownProcessor({
+      allowRawHtml: props.allowRawHtml === true,
+      linkPrefixes: props.allowedLinkPrefixes ?? defaultLinkPrefixes,
+      imagePrefixes: props.allowedImagePrefixes ?? defaultImagePrefixes,
+    }),
+  )
+
   const shouldAnimate = () => props.animated !== false && props.isAnimating === true
+  let ready = false
+  onMount(() => {
+    ready = true
+  })
 
   const caretStyle = (): JSX.CSSProperties => {
     const variant = normalizeCaret(props.caret)
@@ -277,15 +302,13 @@ export function Streamdown(props: StreamdownProps): JSX.Element {
   return (
     <div class={`sd-root${props.class ? ` ${props.class}` : ''}`} style={caretStyle()}>
       <Index each={blocks()}>
-        {(block, index) => (
+        {(block) => (
           <Block
             text={block()}
-            animate={shouldAnimate()}
-            plugin={pluginFor(index)}
-            allowRawHtml={props.allowRawHtml === true}
+            streaming={shouldAnimate()}
+            enter={ready && shouldAnimate()}
+            processor={processor()}
             highlightCode={props.highlightCode}
-            linkPrefixes={props.allowedLinkPrefixes ?? defaultLinkPrefixes}
-            imagePrefixes={props.allowedImagePrefixes ?? defaultImagePrefixes}
           />
         )}
       </Index>

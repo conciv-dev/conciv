@@ -1,8 +1,7 @@
-/* Token fade-in for streamed markdown. Spans are injected by the animate rehype plugin with
-   per-token CSS vars (--sd-animation/--sd-duration/--sd-easing/--sd-delay). */
+/* Word fade-in for streamed markdown. The renderer marks only newly mounted words (and inline code)
+   with data-sd-animate; settled words keep their DOM node, so their animation never restarts. */
 [data-sd-animate] {
-  animation: var(--sd-animation, sd-fadeIn) var(--sd-duration, 150ms) var(--sd-easing, cubic-bezier(0.22, 1, 0.36, 1))
-    var(--sd-delay, 0ms) both;
+  animation: sd-fadeIn 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -26,27 +25,5 @@
   }
   to {
     opacity: 1;
-  }
-}
-
-@keyframes sd-blurIn {
-  from {
-    opacity: 0;
-    filter: blur(4px);
-  }
-  to {
-    opacity: 1;
-    filter: blur(0);
-  }
-}
-
-@keyframes sd-slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }

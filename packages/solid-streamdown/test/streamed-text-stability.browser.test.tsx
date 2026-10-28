@@ -14,7 +14,7 @@ const chunks = [
 function renderedNodes(paragraph: Element): Node[] {
   return [
     ...paragraph.childNodes,
-    ...[...paragraph.querySelectorAll('[data-sd-animate]')].flatMap((span) => [...span.childNodes]),
+    ...[...paragraph.querySelectorAll('[data-sd-word]')].flatMap((span) => [...span.childNodes]),
   ]
 }
 
