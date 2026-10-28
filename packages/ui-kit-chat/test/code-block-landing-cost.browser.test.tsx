@@ -2,7 +2,9 @@ import 'virtual:uno.css'
 import {For, createSignal} from 'solid-js'
 import {expect, it} from 'vitest'
 import {page} from 'vitest/browser'
+import {primeHighlightWorkerPool} from '@conciv/solid-diffs'
 import {CodeBlock} from '../src/tools/styled/code-block.js'
+import {codeTheme} from '../src/theme/code-theme.js'
 import {mountView} from './mount-view.js'
 
 const LANDINGS = 30
@@ -11,6 +13,7 @@ const PACE_MS = 120
 const FRAME_BUDGET_P95_MS = 20
 const FRAME_BUDGET_MAX_MS = 100
 const LAST_MARKER = `resolveStep${LANDINGS - 1}`
+const WARM_UP_MARKER = 'warmUpHighlighter'
 
 function sourceFile(index: number): string {
   return Array.from({length: FILE_LINES}, (_, line) => {
@@ -36,12 +39,17 @@ function percentile(sorted: number[], fraction: number): number {
 }
 
 it('keeps the main thread responsive while thirty tool results land', async () => {
+  primeHighlightWorkerPool({theme: codeTheme()})
   const [landed, setLanded] = createSignal<number[]>([])
   mountView(() => (
-    <For each={landed()}>
-      {(index) => <CodeBlock file={{name: `resolve-step-${index}.ts`, lang: 'ts', contents: sourceFile(index)}} />}
-    </For>
+    <>
+      <CodeBlock file={{name: 'warm-up.ts', lang: 'ts', contents: `export const ${WARM_UP_MARKER} = true`}} />
+      <For each={landed()}>
+        {(index) => <CodeBlock file={{name: `resolve-step-${index}.ts`, lang: 'ts', contents: sourceFile(index)}} />}
+      </For>
+    </>
   ))
+  await expect.element(page.getByText(WARM_UP_MARKER, {exact: false}).first()).toBeVisible()
 
   const gaps: number[] = []
   const recorder = {running: true}
