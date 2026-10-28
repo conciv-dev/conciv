@@ -1,4 +1,4 @@
-import {type Accessor, createMemo, Index, type JSX, Match, Switch} from 'solid-js'
+import {type Accessor, createMemo, createRenderEffect, Index, type JSX, Match, Switch} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {createImmutable} from '@solid-primitives/immutable'
 import {unified, type Pluggable} from 'unified'
@@ -99,6 +99,14 @@ function findIncompleteCodeFence(markdown: string): boolean {
   return openFenceChar !== undefined
 }
 
+function HastText(props: {value: string}): JSX.Element {
+  const node = document.createTextNode('')
+  createRenderEffect(() => {
+    node.data = props.value
+  })
+  return node
+}
+
 function HastNode(props: {
   node: () => HastLikeNode
   components: Record<string, (props: any) => JSX.Element>
@@ -106,7 +114,9 @@ function HastNode(props: {
 }): JSX.Element {
   return (
     <Switch>
-      <Match when={props.node().type === 'text'}>{props.node().value}</Match>
+      <Match when={props.node().type === 'text'}>
+        <HastText value={props.node().value ?? ''} />
+      </Match>
       <Match when={props.node().type === 'element'}>
         <HastElement node={props.node} components={props.components} highlightCode={props.highlightCode} />
       </Match>
