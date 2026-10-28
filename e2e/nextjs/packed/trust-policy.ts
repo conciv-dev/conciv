@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile)
 
 export type TrustPolicyInstallResult = {stdout: string; stderr: string}
 
-const UPSTREAM_BLOCKED_TRUST_EXCLUDES = ['semver', 'langium']
+const UPSTREAM_BLOCKED_TRUST_EXCLUDES = ['semver', 'langium', '@pierre/theme']
 
 export async function runTrustPolicyInstall(): Promise<TrustPolicyInstallResult> {
   const root = mkdtempSync(join(tmpdir(), 'conciv-trust-policy-'))

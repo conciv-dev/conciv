@@ -5,7 +5,7 @@ import type {FileDiffOptions} from '@pierre/diffs'
 const HIGHLIGHT_WORKER_COUNT = 2
 
 export type DiffsRenderOptions = Pick<
-  FileDiffOptions<undefined>,
+  FileDiffOptions<undefined, undefined>,
   'theme' | 'useTokenTransformer' | 'tokenizeMaxLineLength' | 'lineDiffType' | 'maxLineDiffLength'
 >
 

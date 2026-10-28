@@ -6,7 +6,7 @@ import {highlightWorkerPool} from './worker-pool.js'
 export type SolidFileDiffProps = {
   oldFile: FileContents
   newFile: FileContents
-  options?: FileDiffOptions<undefined>
+  options?: FileDiffOptions<undefined, undefined>
   class?: string
   style?: JSX.CSSProperties
 }

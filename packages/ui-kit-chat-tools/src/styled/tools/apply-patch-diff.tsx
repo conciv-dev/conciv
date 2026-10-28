@@ -12,7 +12,7 @@ import {
 import {diffBlockClass, ToolCard} from '@conciv/ui-kit-chat/tools'
 import {codeTheme} from '@conciv/ui-kit-chat/theme/code-theme'
 
-function diffOptions(disableFileHeader = false): FileDiffOptions<undefined> {
+function diffOptions(disableFileHeader = false): FileDiffOptions<undefined, undefined> {
   return {
     theme: codeTheme(),
     themeType: 'system',

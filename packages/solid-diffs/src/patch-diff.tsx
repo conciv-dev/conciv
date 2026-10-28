@@ -5,7 +5,7 @@ import {highlightWorkerPool} from './worker-pool.js'
 
 export type SolidPatchDiffProps = {
   patch: string
-  options?: FileDiffOptions<undefined>
+  options?: FileDiffOptions<undefined, undefined>
   class?: string
   style?: JSX.CSSProperties
 }

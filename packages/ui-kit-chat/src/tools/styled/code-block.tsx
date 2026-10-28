@@ -5,7 +5,7 @@ import {codeBlockOptions, codeBlockFileChromeOptions, codeLineOptions} from '../
 import {useEmbeddedCard} from './card-chrome.js'
 import {codeTheme} from '../../theme/code-theme.js'
 
-function blessedDiffOptions(): FileDiffOptions<undefined> {
+function blessedDiffOptions(): FileDiffOptions<undefined, undefined> {
   return {
     theme: codeTheme(),
     themeType: 'system',

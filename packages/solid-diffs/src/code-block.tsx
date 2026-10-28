@@ -5,7 +5,7 @@ import {highlightWorkerPool} from './worker-pool.js'
 
 export type SolidCodeBlockProps = {
   file: FileContents
-  options?: FileOptions<undefined>
+  options?: FileOptions<undefined, undefined>
   class?: string
   style?: JSX.CSSProperties
 }

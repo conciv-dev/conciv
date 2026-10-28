@@ -15,7 +15,7 @@ const makeStreamingFile = (lineCount: number): FileContents => ({
 
 test('a highlight for a superseded file never replaces the current render', async () => {
   let renderUpdates = 0
-  const renderer = new FileRenderer({theme: DEFAULT_THEMES}, () => {
+  const renderer = new FileRenderer({theme: DEFAULT_THEMES}, undefined, () => {
     renderUpdates += 1
   })
   const earlyFile = makeStreamingFile(3)

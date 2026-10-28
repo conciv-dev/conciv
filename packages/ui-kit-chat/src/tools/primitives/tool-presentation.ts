@@ -11,7 +11,7 @@ export const QUIET_TEXT_CLASS = 'text-[length:var(--chat-text-xs)] m-0 [color:va
 export const DANGER_TEXT_CLASS =
   'text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)] whitespace-pre-wrap [overflow-wrap:anywhere] [color:var(--chat-danger)] [font-family:var(--chat-mono)] m-0'
 
-export function codeBlockOptions(): FileOptions<undefined> {
+export function codeBlockOptions(): FileOptions<undefined, undefined> {
   return {
     theme: codeTheme(),
     themeType: 'system',
@@ -21,11 +21,11 @@ export function codeBlockOptions(): FileOptions<undefined> {
   }
 }
 
-export function codeLineOptions(): FileOptions<undefined> {
+export function codeLineOptions(): FileOptions<undefined, undefined> {
   return {...codeBlockOptions(), overflow: 'scroll'}
 }
 
-export function codeBlockFileChromeOptions(): FileOptions<undefined> {
+export function codeBlockFileChromeOptions(): FileOptions<undefined, undefined> {
   return {
     ...codeBlockOptions(),
     disableFileHeader: false,
