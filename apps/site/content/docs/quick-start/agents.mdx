@@ -29,7 +29,8 @@ claude is the one harness with a deeper integration: init generates the plugin f
 project. If the claude CLI is not selected the step resolves as `skipped: not selected`, and if the
 plugin manager fails init prints the two commands to run yourself.
 
-init writes the marketplace, the plugin manifest, and the MCP bridge, but no `.mcp.json`: the conciv
+init writes the marketplace, the plugin manifest, the MCP bridge, and a `conciv` skill that tells
+claude to reach for the conciv CLI before any browser MCP tool, but no `.mcp.json`: the conciv
 dev server writes that manifest when it connects to a claude session, so the plugin always points at
 the address that is actually serving.
 
@@ -49,15 +50,28 @@ Paste this section into AGENTS.md (and CLAUDE.md if you keep one):
 
 ## conciv
 
-conciv connects coding agents to the app running in the browser.
+This project has conciv installed. For everything in the running browser, use the conciv CLI through Bash (`conciv tools page ...`, `conciv tools react ...`, `conciv tools server ...`). Use browser MCP tools only when a conciv command cannot do what you need.
 
-Run `conciv tools --help` to discover every command. The CLI finds the running dev server itself: no config, no addresses.
+### When to use conciv instead of the browser MCP
 
-- `conciv tools page` - read and drive the live page; `--help` lists every capability
-- `conciv tools react` - inspect and edit live React components
-- `conciv tools server` - inspect and nudge the dev server; `--help` lists every capability
+Use the browser MCP for plain navigation, clicks and screenshots. For anything about why the page
+looks or behaves the way it does, use conciv first. Every command prints JSON. Start with
+`conciv tools page snapshot` to get a ref or a selector for the element you care about.
 
-These commands need the dev server running.
+- Which component rendered an element, and the source file and line: `conciv tools react locate <selector>`
+- Props, state, hooks and context of a live component: `conciv tools react inspect <selector>`
+- Every mounted instance of a component by name: `conciv tools react find <ComponentName>`
+- A value that stays stale, a list that does not refresh, cached data: `conciv tools react inspect` on the component, then `conciv tools page eval` to read the store or query cache on `window`
+- An element that cannot be clicked or is not visible: `conciv tools page query <selector>` for its box and styles, `conciv tools page eval` with `getComputedStyle` and `elementFromPoint`
+- Browser console errors and warnings: `conciv tools page console`
+- Unexpected re-renders or a memo that never updates: `conciv tools react track <selector>`
+- Module graph, transformed source, a forced hot update: `conciv tools server graph|transform|reload`
+
+Run `conciv tools --help` for every command. Every command needs the project's conciv dev server running.
+
+### MCP sandbox
+
+conciv is also connected via MCP. Capabilities are discovered inside the sandbox with `await external_catalog({})`, never a static list.
 
 <!-- conciv:end -->
 ```
@@ -70,7 +84,8 @@ The plugin files are generated, not hand-written, so this one piece goes through
 npx @conciv/cli@latest init
 ```
 
-Pick claude at the prompt. init writes `.conciv/claude-connect` and installs the plugin for you.
+Pick claude at the prompt. init writes `.conciv/claude-connect`, including the `conciv` skill, and installs the
+plugin for you.
 Run the two commands yourself only if init reports the step as manual:
 
 ```bash

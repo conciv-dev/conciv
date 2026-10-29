@@ -3,6 +3,7 @@ import {defineConfig} from 'tsdown'
 export default defineConfig({
   entry: [
     'src/registry.ts',
+    'src/agent-guide.ts',
     'src/claude/init.ts',
     'src/claude/bridge.ts',
     'src/claude/endpoint.ts',
