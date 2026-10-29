@@ -13,20 +13,20 @@ export type SolidCodeBlockProps = {
 export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
   let instance: File<undefined> | null = null
 
+  const requestRender = syncRender({
+    target: () => instance,
+    payload: () => ({file: props.file}),
+    options: () => props.options,
+  })
+
   const setRef = (node: HTMLElement) => {
-    instance = new File(props.options, highlightWorkerPool(props.options), () => instance?.render({file: props.file}))
+    instance = new File(props.options, highlightWorkerPool(props.options), requestRender)
     void instance.hydrate({file: props.file, fileContainer: node})
     onCleanup(() => {
       instance?.cleanUp()
       instance = null
     })
   }
-
-  syncRender({
-    target: () => instance,
-    payload: () => ({file: props.file}),
-    options: () => props.options,
-  })
 
   return <diffs-container ref={(node) => setRef(node)} class={props.class} style={props.style} />
 }
