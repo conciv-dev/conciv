@@ -60,10 +60,7 @@ function callCtx(
       return el
     },
     addRef: (el) => addRef(el, refs),
-    resetRefs: () => {
-      refs.map.clear()
-      refs.n = 0
-    },
+    resetRefs: () => refs.map.clear(),
     consoleEntries: (since) => consoleBuf.filter((entry) => entry.ts >= (since ?? 0)),
     effects,
   }

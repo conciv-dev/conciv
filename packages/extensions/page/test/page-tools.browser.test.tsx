@@ -366,6 +366,42 @@ describe('stale refs', () => {
   })
 })
 
+describe('refs across snapshots', () => {
+  const refOfRole = (snapshot: Record<string, unknown>, role: string): string => {
+    const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : []
+    const entry = nodes.find(
+      (node) => typeof node === 'object' && node !== null && 'role' in node && node.role === role,
+    )
+    return entry && typeof entry === 'object' && 'ref' in entry ? String(entry.ref) : ''
+  }
+
+  it('a ref from an earlier snapshot fails as stale after the page changed instead of aliasing a new element', async () => {
+    const host = document.createElement('div')
+    host.id = 'login-host'
+    host.innerHTML = `
+      <form>
+        <div class="MuiFormControl-root MuiTextField-root">
+          <label for="login-username">Username *</label>
+          <div class="MuiInputBase-root MuiFilledInput-root"><input id="login-username" name="username" type="text" /></div>
+        </div>
+      </form>
+    `
+    container.appendChild(host)
+    const username = refOfRole(await resultOf('snapshot', {selector: '#login-host'}), 'textbox')
+    expect(username).not.toBe('')
+    expect(await resultOf('fill', {ref: username, value: 'demo'})).toEqual({ok: true, value: 'demo'})
+    host.innerHTML = `
+      <nav><a href="#/a">Dashboard</a><a href="#/b">Orders</a><a href="#/c">Invoices</a><a href="#/d">Reviews</a></nav>
+    `
+    await resultOf('snapshot', {selector: '#login-host'})
+    expect(await failureOf('fill', {ref: username, value: 'demo'})).toEqual({
+      code: 'invalid-args',
+      message: `stale ref ${username}; re-run page snapshot`,
+    })
+    host.remove()
+  })
+})
+
 describe('page reload', () => {
   const documentOnly = (): never => {
     throw new Error('page_reload must read nothing but the document it was handed')
