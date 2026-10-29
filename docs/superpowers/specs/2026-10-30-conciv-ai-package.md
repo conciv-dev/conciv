@@ -1,6 +1,6 @@
 # `@conciv/ai`: one package that owns @tanstack/ai
 
-Status: draft for sign-off. Part of the deps-latest lane
+Status: signed off 2026-10-30. Part of the deps-latest lane
 (`docs/superpowers/plans/2026-10-29-deps-latest.md`). Companion spec:
 `2026-10-29-approvals-deny-and-retry.md`.
 
@@ -85,8 +85,8 @@ Steps 1 to 3 run in parallel lanes. Step 4 depends on 1. Step 5 is last.
   browser tests, and the calm contract and perf gates, which move to `@conciv/ai/testkit`.
 - `@conciv/ai` passes publint and attw; `PUBLIC_PACKAGES` lists it.
 
-## Open questions for the user
+## Decisions (user, 2026-10-30)
 
-1. Does the chat plane move INTO `@conciv/ai/server` (the package owns all runtime use), or stay in
-   core with `@conciv/ai/server` only wrapping library calls? The draft says move: one place.
-2. `packages/harness` imports adapters through `@conciv/ai/adapters` (no exception), as drafted?
+1. The chat plane moves INTO `@conciv/ai/server`. Core keeps the app and only wires
+   `createChatPlane(deps)`.
+2. `packages/harness` builds on `@conciv/ai/adapters`. No exception to the boundary rule.
