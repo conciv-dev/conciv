@@ -48,9 +48,15 @@ function scriptedResult(call: ScriptedTurnToolCall): unknown {
   return call.result
 }
 
-function* requestChunks(call: {id: string; name: string; input: unknown}): Generator<StreamChunk> {
+function* requestChunks(call: {id: string; name: string; input: unknown}, messageId: string): Generator<StreamChunk> {
   const toolCallId = call.id
-  yield {type: EventType.TOOL_CALL_START, toolCallId, toolCallName: call.name, toolName: call.name}
+  yield {
+    type: EventType.TOOL_CALL_START,
+    toolCallId,
+    toolCallName: call.name,
+    toolName: call.name,
+    parentMessageId: messageId,
+  }
   yield {type: EventType.TOOL_CALL_ARGS, toolCallId, delta: JSON.stringify(call.input)}
   yield {type: EventType.TOOL_CALL_END, toolCallId}
 }
@@ -105,10 +111,11 @@ async function* turnChunks(
   results: Gate,
   drainCustomEvents: () => Generator<StreamChunk>,
   signal: AbortSignal | undefined,
+  messageId: string,
 ): AsyncGenerator<StreamChunk> {
   for (const call of turn.toolCalls) {
     if (isAborted(signal)) return
-    yield* requestChunks(call)
+    yield* requestChunks(call, messageId)
     yield* drainCustomEvents()
     if (turn.blocking) continue
     await results.wait(signal)
@@ -255,7 +262,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     if (turn) yield* thinkingChunks(turn.thinking)
     await toolGate.wait(signal)
     if (isAborted(signal)) return
-    if (turn) yield* turnChunks(turn, resultGate, drainCustomEvents, signal)
+    if (turn) yield* turnChunks(turn, resultGate, drainCustomEvents, signal, messageId)
     if (isAborted(signal)) return
     yield* settleTurn(turn, messageId, signal)
   }

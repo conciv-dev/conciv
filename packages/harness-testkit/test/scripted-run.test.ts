@@ -56,6 +56,13 @@ function drainTextDeltas(scripted: ScriptedRun): {deltas: string[]; times: numbe
   return {deltas, times, drained: drain()}
 }
 
+function assistantIds(processor: StreamProcessor): string[] {
+  return processor
+    .getMessages()
+    .filter((message) => message.role === 'assistant')
+    .map((message) => message.id)
+}
+
 const PACED_STEPS = 4
 const PACE_MS = 40
 const PACE_TOLERANCE = 0.8
@@ -255,7 +262,7 @@ describe('makeScriptedRun', () => {
     expect(span).toBeGreaterThanOrEqual(PACE_MS * (PACED_TEXT_SLICES - 1) * PACE_TOLERANCE)
   })
 
-  it('folds a paced answer after tool calls into one text part, the way a chat processor reads the stream', async () => {
+  it('folds a paced answer after tool calls into one text part of the message that already holds the tool calls, the way a chat processor reads the stream', async () => {
     const scripted = makeScriptedRun()
     scripted.scriptTurn({
       toolCalls: [{name: 'first_tool', input: {a: 1}}],
@@ -263,10 +270,15 @@ describe('makeScriptedRun', () => {
       textPace: {chunk: TEXT_CHUNK_SIZE, everyMs: 0},
     })
     const processor = new StreamProcessor()
-    for await (const chunk of scripted.chatStream(deps())) processor.processChunk(chunk)
+    const toolCallMessageIds: string[] = []
+    for await (const chunk of scripted.chatStream(deps())) {
+      processor.processChunk(chunk)
+      if (chunk.type === EventType.TOOL_CALL_START) toolCallMessageIds.push(...assistantIds(processor))
+    }
     const texts = processor
       .getMessages()
       .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])))
+    expect(assistantIds(processor)).toEqual(toolCallMessageIds)
     expect(texts).toEqual([PACED_TEXT])
   })
 
