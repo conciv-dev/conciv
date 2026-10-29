@@ -1,8 +1,9 @@
 import {defineConfig} from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/messages.ts', 'src/events.ts', 'src/tools.ts', 'src/usage.ts', 'src/testkit.ts'],
+  entry: ['src/messages.ts', 'src/events.ts', 'src/tools.ts', 'src/usage.ts', 'src/adapters.ts', 'src/testkit.ts'],
   format: 'esm',
   fixedExtension: false,
-  dts: false,
+  dts: true,
+  noExternal: [/^@tanstack\/ai-(acp|claude-code|codex|opencode)(\/|$)/],
 })

@@ -1,7 +1,7 @@
 {
   "name": "@conciv/ai",
   "version": "0.0.19",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The chat primitives conciv is built from: messages, events, tools, usage and a testkit.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The chat primitives conciv is built from: messages, events, tools, usage, the CLI text adapters and a testkit.",
   "keywords": [
     "ag-ui",
     "ai",
@@ -39,13 +39,17 @@
     "./testkit": {
       "types": "./dist/testkit.d.ts",
       "import": "./dist/testkit.js"
+    },
+    "./adapters": {
+      "types": "./dist/adapters.d.ts",
+      "import": "./dist/adapters.js"
     }
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
@@ -53,14 +57,22 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "~1.8.0",
+    "@opencode-ai/sdk": "^1.19.4",
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-client": "catalog:",
+    "@tanstack/ai-sandbox": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
+    "@tanstack/ai-acp": "catalog:",
+    "@tanstack/ai-claude-code": "catalog:",
+    "@tanstack/ai-codex": "catalog:",
+    "@tanstack/ai-opencode": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "oxc-parser": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

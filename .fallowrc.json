@@ -104,6 +104,8 @@
     "circular-dependencies": "warn"
   },
   "ignoreDependencies": [
+    "@agentclientprotocol/sdk",
+    "@opencode-ai/sdk",
     "collections",
     "@conciv/app-extensions",
     "conciv",
