@@ -103,7 +103,7 @@ it('announces the decision the reader just made', async () => {
 
   await page.getByRole('button', {name: 'Deny'}).click()
 
-  await expect.element(page.getByRole('status')).toHaveTextContent('Denied')
+  await expect.element(page.getByRole('status')).toHaveTextContent('Denied the request')
 })
 
 it('keeps the announcement status paragraph a child of the list item, both while pending and after it settles', async () => {
@@ -117,7 +117,7 @@ it('keeps the announcement status paragraph a child of the list item, both while
 
   await page.getByRole('button', {name: 'Deny'}).click()
 
-  await expect.element(page.getByRole('status')).toHaveTextContent('Denied')
+  await expect.element(page.getByRole('status')).toHaveTextContent('Denied the request')
   expect(container.querySelector('li > p[role="status"]')).not.toBeNull()
 })
 
@@ -164,6 +164,6 @@ it('shows the expiry countdown only for a request that carries a deadline', asyn
   ))
 
   await expect.element(page.getByRole('timer')).toBeVisible()
-  await expect.element(page.getByRole('timer')).toHaveTextContent(/expires in 1:\d\d/)
+  await expect.element(page.getByRole('timer')).toMatchTextContent(/expires in 1:\d\d/)
   expect(document.querySelectorAll('[role="timer"]')).toHaveLength(1)
 })

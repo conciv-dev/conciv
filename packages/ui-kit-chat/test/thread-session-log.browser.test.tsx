@@ -254,8 +254,8 @@ it('gives each trace segment of one turn its own summary line', async () => {
   await expect.element(page.getByText('Tests are green.'), {timeout: 3000}).toBeVisible()
 
   const triggers = page.getByRole('button', {name: /trace/i})
-  await expect.element(triggers.nth(0), {timeout: 3000}).toHaveTextContent('1 read')
-  await expect.element(triggers.nth(1), {timeout: 3000}).toHaveTextContent('1 bash')
+  await expect.element(triggers.nth(0), {timeout: 3000}).toMatchTextContent('1 read')
+  await expect.element(triggers.nth(1), {timeout: 3000}).toMatchTextContent('1 bash')
 })
 
 function messagesWithInterleavedTurn(): UIMessage[] {

@@ -108,7 +108,7 @@ describe('target resolution', () => {
 describe('dom verbs', () => {
   it('clicks through React handlers and mirrors the action', async () => {
     expect(await resultOf('click', {selector: '[data-fixture="leaf"]'})).toEqual({ok: true})
-    await expect.element(leaf()).toHaveTextContent(':1:')
+    await expect.element(leaf()).toMatchTextContent(':1:')
     expect(document.querySelector('[data-conciv-cursor]')).not.toBeNull()
   })
 
@@ -128,25 +128,25 @@ describe('dom verbs', () => {
 
   it('drives React-controlled checkboxes and radios so component state follows', async () => {
     expect(await resultOf('check', {selector: '#subscribe'})).toEqual({ok: true, checked: true})
-    await expect.element(formState()).toHaveTextContent('subscribed: true')
+    await expect.element(formState()).toMatchTextContent('subscribed: true')
 
     expect(await resultOf('check', {selector: '#subscribe'})).toEqual({ok: true, checked: true})
-    await expect.element(formState()).toHaveTextContent('subscribed: true')
+    await expect.element(formState()).toMatchTextContent('subscribed: true')
 
     expect(await resultOf('uncheck', {selector: '#subscribe'})).toEqual({ok: true, checked: false})
-    await expect.element(formState()).toHaveTextContent('subscribed: false')
+    await expect.element(formState()).toMatchTextContent('subscribed: false')
 
     expect(await resultOf('check', {selector: '#plan-pro'})).toEqual({ok: true, checked: true})
-    await expect.element(formState()).toHaveTextContent('plan: pro')
+    await expect.element(formState()).toMatchTextContent('plan: pro')
 
     expect(await failureOf('uncheck', {selector: '#plan-pro'})).toEqual({
       code: 'invalid-args',
       message: 'cannot uncheck a radio; check another radio in the same group instead',
     })
-    await expect.element(formState()).toHaveTextContent('plan: pro')
+    await expect.element(formState()).toMatchTextContent('plan: pro')
 
     expect(await resultOf('check', {selector: '#plan-free'})).toEqual({ok: true, checked: true})
-    await expect.element(formState()).toHaveTextContent('plan: free')
+    await expect.element(formState()).toMatchTextContent('plan: free')
   })
 
   it('mutates attributes, classes, styles, text, and structure', async () => {
@@ -223,7 +223,7 @@ describe('react verbs through the dispatcher', () => {
   it('tracks renders between start and stop', async () => {
     await resultOf('track', {action: 'start'})
     await resultOf('click', {name: 'Leaf'})
-    await expect.element(leaf()).toHaveTextContent(':2:')
+    await expect.element(leaf()).toMatchTextContent(':2:')
     const report = await resultOf('track', {action: 'report'})
     const components = Array.isArray(report.components) ? report.components : []
     expect(

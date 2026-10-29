@@ -21,7 +21,7 @@ test('the card shows the snapshot and its source label', async () => {
   mount()
 
   await expect.element(page.getByTitle('Grabbed element snapshot')).toBeVisible()
-  await expect.element(page.getByText('Hero at src/routes/index.tsx:12')).toBeVisible()
+  await expect.element(page.getByText('Hero at src/routes/index.tsx:12', {exact: false})).toBeVisible()
 })
 
 test('clicking the card opens a dialog that can reveal the agent text', async () => {

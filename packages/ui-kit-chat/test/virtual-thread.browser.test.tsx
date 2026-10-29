@@ -196,7 +196,7 @@ function appendTurnsEvery(chat: UseChatReturn, from: number, added: number, ever
 it('virtualizes above the threshold: early turns unmount, pinned to the latest turn', async () => {
   const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
 
-  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
   await expect.element(thread.transcript).toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('question 0')).not.toBeInTheDocument()
 })
@@ -205,7 +205,7 @@ it('virtualizing above the threshold never trips a ResizeObserver notification l
   windowErrors.length = 0
   mountThread(seedMessages(ABOVE_THRESHOLD))
 
-  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
 
   const loopErrors = windowErrors.filter((message) => message.includes('ResizeObserver loop'))
   expect(loopErrors).toEqual([])
@@ -214,7 +214,7 @@ it('virtualizing above the threshold never trips a ResizeObserver notification l
 it('windows nothing below the threshold: every turn stays mounted', async () => {
   mountThread(seedMessages(WELL_BELOW_THRESHOLD))
 
-  await expect.element(page.getByText(lastAnswer(WELL_BELOW_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(WELL_BELOW_THRESHOLD), {exact: false})).toBeVisible()
   await expect.element(page.getByText('question 0')).toBeInTheDocument()
 })
 
@@ -222,7 +222,7 @@ type EscapedThread = {thread: ReturnType<typeof mountThread>; latest: ReturnType
 
 async function mountAndEscapeToTheTop(): Promise<EscapedThread> {
   const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
-  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
   const latest = page.getByRole('button', {name: 'Scroll to bottom'})
 
   wheelUpTo(thread.viewport(), 0)
@@ -237,12 +237,12 @@ it('escapes on wheel up and re-pins via the scroll-to-bottom button', async () =
 
   await latest.click()
   await expect.element(latest).toBeDisabled()
-  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
 })
 
 it('a wheel up taken right after the mount landing is never dragged back to the end', async () => {
   const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
-  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
 
   wheelUpTo(thread.viewport(), 0)
   holdSteady(thread.host, 'mount landing offset', () => String(thread.viewport().scrollTop))
@@ -267,25 +267,25 @@ it('a wheel up after the latest-turn gesture holds the reading row while turns k
 
 it('crossing the threshold while following keeps the bottom pinned', async () => {
   const thread = mountThread(seedMessages(JUST_BELOW_THRESHOLD))
-  await expect.element(page.getByText(lastAnswer(JUST_BELOW_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(JUST_BELOW_THRESHOLD), {exact: false})).toBeVisible()
   await expect.element(page.getByText('question 0')).toBeInTheDocument()
 
   thread.chat().setMessages(seedMessages(ABOVE_THRESHOLD))
-  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
   await expect.element(page.getByText('question 0')).not.toBeInTheDocument()
   await expect.element(thread.transcript).toHaveAttribute('data-at-bottom')
 })
 
 it('crossing the threshold keeps every on-screen turn root, and evicts only rows above the viewport', async () => {
   const thread = mountThread(seedMessages(JUST_BELOW_THRESHOLD))
-  await expect.element(page.getByText(lastAnswer(JUST_BELOW_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(JUST_BELOW_THRESHOLD), {exact: false})).toBeVisible()
   await expect.element(page.getByText('question 0')).toBeInTheDocument()
 
   const onScreenBeforeCrossing = rootsOnScreen(thread.viewport())
   expect(onScreenBeforeCrossing.map(messageIdOf)).toContain(`m${JUST_BELOW_THRESHOLD - 1}`)
 
   thread.chat().setMessages(seedMessages(JUST_ABOVE_THRESHOLD))
-  await expect.element(page.getByText(lastAnswer(JUST_ABOVE_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(JUST_ABOVE_THRESHOLD), {exact: false})).toBeVisible()
 
   const rootsAfterCrossing = keyBy(Array.from(thread.viewport().querySelectorAll('[data-message-id]')), messageIdOf)
   const rebuilt = onScreenBeforeCrossing
@@ -302,13 +302,13 @@ it('crossing the threshold keeps every on-screen turn root, and evicts only rows
   expect(evictedFromView).toEqual([])
 
   thread.chat().setMessages(seedMessages(ABOVE_THRESHOLD))
-  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
   await expect.element(page.getByText('question 0')).not.toBeInTheDocument()
 })
 
 it('history prepend keeps the reading position while scrolled up', async () => {
   const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
-  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
 
   wheelUpTo(thread.viewport(), 0)
   await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
@@ -346,10 +346,10 @@ function countScrollWrites(viewport: HTMLElement): {calls: () => number} {
 
 it('a reader parked at the top of a grown thread is left there when more turns arrive', async () => {
   const thread = mountThread(seedMessages(TINY_THREAD))
-  await expect.element(page.getByText(lastAnswer(TINY_THREAD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(TINY_THREAD), {exact: false})).toBeVisible()
 
   thread.chat().setMessages(seedMessages(GROWN_THREAD))
-  await expect.element(page.getByText(lastAnswer(GROWN_THREAD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(GROWN_THREAD), {exact: false})).toBeVisible()
 
   wheelUpTo(thread.viewport(), 0)
   await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
@@ -399,7 +399,7 @@ it('a trackpad wheel up while a reply streams at the end escapes the follow and 
     chunks: streamedReply(STREAMED_LINES),
     chunkDelay: STREAM_CHUNK_DELAY_MS,
   })
-  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
   await expect.element(thread.transcript).toHaveAttribute('data-at-bottom')
 
   void thread.chat().sendMessage('stream a long reply')

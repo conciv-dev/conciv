@@ -91,7 +91,7 @@ test('a 500 from an otherwise healthy engine never raises the unreachable notice
 
   await expect
     .element(page.getByRole('region', {name: /Notifications/}))
-    .toHaveTextContent(/Internal Server Error|could not be sent/)
+    .toMatchTextContent(/Internal Server Error|could not be sent/)
   await expect.element(engineUnreachableNotice()).not.toBeInTheDocument()
 
   await coreControl.releaseFault(refused)

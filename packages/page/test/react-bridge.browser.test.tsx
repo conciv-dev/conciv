@@ -97,7 +97,7 @@ describe('override', () => {
   it('overrides function-component props through the dev renderer', async () => {
     const result = await override(leaf(), 'props', ['label'], 'B')
     expect(result).toEqual({ok: true})
-    await expect.element(leafText()).toHaveTextContent('B:')
+    await expect.element(leafText()).toMatchTextContent('B:')
   })
 
   it('overrides hook state by hook id', async () => {
@@ -106,13 +106,13 @@ describe('override', () => {
     expect(editable).toBeDefined()
     const result = await override(leaf(), 'hooks', [], 9, editable?.id)
     expect(result).toEqual({ok: true})
-    await expect.element(leafText()).toHaveTextContent(':9:')
+    await expect.element(leafText()).toMatchTextContent(':9:')
   })
 
   it('overrides the nearest context provider value', async () => {
     const result = await override(leaf(), 'context', [], 'contrast')
     expect(result).toEqual({ok: true})
-    await expect.element(leafText()).toHaveTextContent(':contrast')
+    await expect.element(leafText()).toMatchTextContent(':contrast')
   })
 
   it('reports actionable errors for unsupported targets', async () => {

@@ -96,13 +96,13 @@ it('re-arms the copied window when the same text is copied again', async () => {
 it('announces the copy through a live region so a pointer user hears it too', async () => {
   await copyOnce(accept([]))
 
-  await expect.element(page.getByRole('status')).toHaveTextContent('Copied')
+  await expect.element(page.getByRole('status')).toHaveTextContent('Copied to clipboard')
 })
 
 it('announces a refusal through the live region', async () => {
   await copyOnce(refuse)
 
-  await expect.element(page.getByRole('status')).toHaveTextContent('Could not copy')
+  await expect.element(page.getByRole('status')).toHaveTextContent('Could not copy to clipboard')
 })
 
 it('renames the copy button to Copied while the copy is fresh', async () => {
@@ -122,7 +122,7 @@ it('renames the copy button to Copy failed when the clipboard refuses', async ()
 it('announces the copy button result in its own live region', async () => {
   await copyOnceWithButton(accept([]))
 
-  await expect.element(page.getByRole('status')).toHaveTextContent('Copied')
+  await expect.element(page.getByRole('status')).toHaveTextContent('Copied to clipboard')
 })
 
 it('takes keyboard focus with a visible focus ring', async () => {

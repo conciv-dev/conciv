@@ -16,7 +16,7 @@ export default defineConfig({
         },
       },
       {
-        esbuild: {jsx: 'automatic', jsxImportSource: 'react'},
+        oxc: {jsx: {runtime: 'automatic', importSource: 'react'}},
         test: {
           ...ciTest(),
           name: 'browser',

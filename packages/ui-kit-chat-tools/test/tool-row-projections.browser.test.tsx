@@ -56,7 +56,7 @@ it('projects an apply_patch call as an edit row with its added and removed count
   mountView(() => row(call('apply_patch', {patchText: PATCH}), result('applied')))
 
   await expect.element(page.getByText('edit')).toBeVisible()
-  await expect.element(page.getByText('turn-rollup.ts')).toBeVisible()
+  await expect.element(page.getByText('turn-rollup.ts', {exact: false})).toBeVisible()
   await expect.element(page.getByText('+2 −1')).toBeVisible()
 })
 
@@ -69,9 +69,9 @@ it('projects a Write call as a write row and an Edit call as an edit row', async
   ))
 
   await expect.element(page.getByText('write')).toBeVisible()
-  await expect.element(page.getByText('new-file.ts')).toBeVisible()
+  await expect.element(page.getByText('new-file.ts', {exact: false})).toBeVisible()
   await expect.element(page.getByText('+3 −0')).toBeVisible()
-  await expect.element(page.getByText('old.ts')).toBeVisible()
+  await expect.element(page.getByText('old.ts', {exact: false})).toBeVisible()
   await expect.element(page.getByText('+1 −1')).toBeVisible()
 })
 
