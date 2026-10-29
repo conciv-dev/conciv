@@ -1,5 +1,6 @@
 import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
+import {CONCIV_COMMAND_GUIDE, CONCIV_RANKING_SENTENCE} from '@conciv/harness-init/agent-guide'
 import {harnessAgentsMdNote, type HarnessId} from '../../harness-detect.js'
 import {captureFile} from '../../interrupt.js'
 import type {ManualCard} from '../../ledger.js'
@@ -22,13 +23,15 @@ export function agentsSection(consented: HarnessId[]): string {
     '',
     '## conciv',
     '',
-    'conciv is connected via MCP.',
+    CONCIV_RANKING_SENTENCE,
     '',
-    'Capabilities are discovered inside the sandbox with `await external_catalog({})`, never a static list.',
+    CONCIV_COMMAND_GUIDE,
     '',
-    "The project's conciv dev server must be running.",
+    "Run `conciv tools --help` for every command. Every command needs the project's conciv dev server running.",
     '',
-    'One-shot CLI equivalent: `conciv tools --help`.',
+    '### MCP sandbox',
+    '',
+    'conciv is also connected via MCP. Capabilities are discovered inside the sandbox with `await external_catalog({})`, never a static list.',
     ...setUpFor,
     ...notes,
     '',

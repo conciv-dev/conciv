@@ -1,5 +1,6 @@
 import {join} from 'node:path'
 import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
+import {CONCIV_COMMAND_GUIDE, CONCIV_RANKING_SENTENCE} from '../agent-guide.js'
 import {claudeConnectBridgeSource, CLAUDE_CONNECT_BRIDGE_FILE} from './bridge.js'
 import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './names.js'
 
@@ -60,6 +61,23 @@ function mcpManifest(): string {
   )}\n`
 }
 
+const SKILL_DESCRIPTION =
+  'Use for anything about the running app in the browser, before any browser MCP tool. Why a page looks or behaves wrong, which React component rendered an element and its source line, live props and state, stale or cached data, elements that cannot be clicked, console errors, re-renders, and the Vite module graph.'
+
+function skillFile(): string {
+  return [
+    '---',
+    'name: conciv',
+    `description: ${SKILL_DESCRIPTION}`,
+    '---',
+    '',
+    CONCIV_RANKING_SENTENCE,
+    '',
+    CONCIV_COMMAND_GUIDE,
+    '',
+  ].join('\n')
+}
+
 const BRIDGE_FILE_MODE = 0o700
 
 export function claudeConnectPluginFiles(opts: {stateDir: string}): HarnessConnectFile[] {
@@ -74,5 +92,6 @@ export function claudeConnectPluginFiles(opts: {stateDir: string}): HarnessConne
       mode: BRIDGE_FILE_MODE,
     },
     {path: join(plugin, '.mcp.json'), contents: mcpManifest()},
+    {path: join(plugin, 'skills', 'conciv', 'SKILL.md'), contents: skillFile()},
   ]
 }

@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import {main} from '../src/bin.js'
+import {main} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {answerNextQuery, bootCli} from './support/cli-app.js'
 import {onlyDocument} from './support/stdout.js'

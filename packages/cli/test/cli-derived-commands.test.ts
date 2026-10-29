@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
-import {main} from '../src/bin.js'
+import {main} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {answerNextQuery, approvedSession, bootCli} from './support/cli-app.js'
 import {cliSession} from './support/cli-session.js'

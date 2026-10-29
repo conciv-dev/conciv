@@ -104,7 +104,8 @@ test('the published CLI never loads the browser half of the widget stack', () =>
 
 test('the CLI reads the tool declarations without loading the extension package index', () => {
   const external = runtimeClosure(cliEntry)
-  expect([...external].filter((specifier) => specifier.startsWith('@conciv/extension'))).toEqual([
+  expect([...external].filter((specifier) => specifier.startsWith('@conciv/extension')).toSorted()).toEqual([
+    '@conciv/extension-page/defs',
     '@conciv/extension/tool',
   ])
 })

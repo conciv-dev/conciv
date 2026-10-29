@@ -27,7 +27,7 @@ function holdPort(port: number): Promise<() => Promise<void>> {
   })
 }
 
-test('start boots on the requested fixed port', async () => {
+test('start boots on the requested fixed port and records it for the CLI', async () => {
   const root = mkdtempSync(join(tmpdir(), 'conciv-engine-port-'))
   try {
     const engine = await start({
@@ -38,6 +38,7 @@ test('start boots on the requested fixed port', async () => {
     })
     try {
       expect(engine.port).toBe(41799)
+      expect(recordedPort(root)).toEqual({port: 41799})
     } finally {
       await engine.stop()
     }
@@ -60,7 +61,7 @@ test('an exact port that is already taken fails loudly instead of landing somewh
   }
 })
 
-test('a preferred port that is already taken falls back to a free port the engine really serves on', async () => {
+test('a preferred port that is already taken falls back to a free port the engine really serves on and records it', async () => {
   const rootFirst = mkdtempSync(join(tmpdir(), 'conciv-engine-port-'))
   const rootSecond = mkdtempSync(join(tmpdir(), 'conciv-engine-port-'))
   const preferred = await getPort()
@@ -80,6 +81,8 @@ test('a preferred port that is already taken falls back to a free port the engin
     })
     try {
       expect(second.port).not.toBe(preferred)
+      expect(recordedPort(rootFirst)).toEqual({port: preferred})
+      expect(recordedPort(rootSecond)).toEqual({port: second.port})
       expect((await fetch(`http://127.0.0.1:${second.port}/health`)).ok).toBe(true)
       expect((await fetch(`http://127.0.0.1:${first.port}/health`)).ok).toBe(true)
     } finally {

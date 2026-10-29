@@ -2,6 +2,7 @@ import {runCommand, showUsage, type CommandDef} from 'citty'
 import {argsOf, argumentProblem, commandProblem, resolveLeaf} from './arguments.js'
 import {failureOf} from './failure.js'
 import {outcomeOf, writeFailure, writeOutcome, type CliOutcome} from './envelope.js'
+import {pageHelpNote} from './page.js'
 
 const HELP_FLAGS = new Set(['--help', '-h'])
 
@@ -10,6 +11,8 @@ export async function runCli(root: CommandDef, rawArgs: string[]): Promise<numbe
     const resolved = await resolveLeaf(root, rawArgs)
     if (rawArgs.some((token) => HELP_FLAGS.has(token))) {
       await showUsage(resolved.command, resolved.parent)
+      const note = await pageHelpNote([resolved.command, resolved.parent])
+      if (note !== null) console.log(note)
       return 0
     }
     if (resolved.kind !== 'leaf') return writeFailure(commandProblem(resolved))
