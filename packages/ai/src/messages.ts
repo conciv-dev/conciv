@@ -3,15 +3,18 @@ import {
   modelMessagesToUIMessages,
   uiMessageToModelMessages,
   type ContentPart as LibraryContentPart,
-  type MessagePart,
   type ModelMessage as LibraryModelMessage,
-  type ThinkingPart as LibraryThinkingPart,
-  type ToolCallPart as LibraryToolCallPart,
-  type ToolCallState as LibraryToolCallState,
-  type ToolResultPart as LibraryToolResultPart,
-  type UIMessage,
 } from '@tanstack/ai'
-import type {MultimodalContent, QueuedMessage as LibraryQueuedMessage} from '@tanstack/ai-client'
+import type {
+  MessagePart,
+  MultimodalContent,
+  QueuedMessage as LibraryQueuedMessage,
+  ThinkingPart as LibraryThinkingPart,
+  ToolCallPart as LibraryToolCallPart,
+  ToolCallState as LibraryToolCallState,
+  ToolResultPart as LibraryToolResultPart,
+  UIMessage,
+} from '@tanstack/ai-client'
 
 export type ChatMessage = UIMessage
 
