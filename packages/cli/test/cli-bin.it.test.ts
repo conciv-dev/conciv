@@ -56,6 +56,29 @@ describe('the built conciv bin through a pipe', () => {
     expect(conciv(['--help'], {FORCE_COLOR: '1'}).stdout).toContain(ESCAPE)
   })
 
+  it('lists the built-in page verbs offline and says so on the last line', () => {
+    const help = conciv(['tools', 'page', '--help'])
+    expect(help.status).toBe(0)
+    expect(help.stdout).toContain('snapshot')
+    expect(help.stdout).toContain('fill')
+    expect(help.stdout.trim().split('\n').at(-1)).toBe(
+      'offline: showing the built-in page capabilities; a running server may add more',
+    )
+  })
+
+  it('lists only the react verbs under react --help offline', () => {
+    const help = conciv(['tools', 'react', '--help'])
+    expect(help.status).toBe(0)
+    expect(help.stdout).toContain('locate')
+    expect(help.stdout).not.toContain('fill')
+  })
+
+  it('shows a verb flags offline', () => {
+    const help = conciv(['tools', 'page', 'fill', '--help'])
+    expect(help.status).toBe(0)
+    expect(help.stdout).toContain('--value')
+  })
+
   it('running a page verb offline still fails, pointing at server.json and CONCIV_PORT', () => {
     const run = conciv(['tools', 'page', 'snapshot'])
     expect(run.status).toBe(1)

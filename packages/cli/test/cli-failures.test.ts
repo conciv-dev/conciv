@@ -1,7 +1,7 @@
 import {createServer, type Server} from 'node:http'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {z} from 'zod'
-import {main} from '../src/bin.js'
+import {main} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {captureStdout, onlyDocument} from './support/stdout.js'
 
@@ -79,13 +79,14 @@ describe('conciv CLI failure reporting', () => {
     expect(error.stack).toBeUndefined()
   })
 
-  it('page --help with no dev server fails as the standard envelope, not an unhandled rejection', async () => {
+  it('a page verb with no dev server fails as the standard envelope, not an unhandled rejection', async () => {
     process.env.CONCIV_PORT = String(await closedPort())
-    const code = await runCli(main, ['tools', 'page', '--help'])
+    const code = await runCli(main, ['tools', 'page', 'snapshot'])
     expect(code).toBe(1)
     const error = failure()
     expect(error.kind).toBe('user')
     expect(error.message).toContain('No conciv dev server')
+    expect(error.hint).toContain('.conciv/server.json')
     expect(error.hint).toContain('CONCIV_PORT')
   })
 

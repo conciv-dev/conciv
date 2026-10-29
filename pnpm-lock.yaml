@@ -1768,6 +1768,9 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
+      '@conciv/extension-page':
+        specifier: workspace:^
+        version: link:../extensions/page
       '@conciv/harness-init':
         specifier: workspace:^
         version: link:../harness-init

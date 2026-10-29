@@ -52,14 +52,24 @@ async function withSession(origin: string, call: (rpc: RpcClient) => Promise<unk
   return call(makeRpcClient(origin, {headers}))
 }
 
-export async function runRpc(call: (rpc: RpcClient) => Promise<unknown>): Promise<CliOutcome> {
-  const origin = engineOrigin(process.cwd(), process.env)
+async function servedOutcome(origin: string, call: (rpc: RpcClient) => Promise<unknown>): Promise<CliOutcome | null> {
   const result = await safe(withSession(origin, call))
   if (result.isSuccess) return {report: 'json', data: result.data}
   if (result.isDefined) throw rpcFailure(toORPCError(result.error))
-  if (offline(result.error, 0)) throw offlineFailure(origin)
+  if (offline(result.error, 0)) return null
   if (rejectedByServer(result.error)) throw rpcFailure(toORPCError(result.error))
   throw result.error
+}
+
+export async function runRpc(call: (rpc: RpcClient) => Promise<unknown>): Promise<CliOutcome> {
+  const origin = engineOrigin(process.cwd(), process.env)
+  const outcome = await servedOutcome(origin, call)
+  if (outcome === null) throw offlineFailure(origin)
+  return outcome
+}
+
+export function runRpcWhenServing(call: (rpc: RpcClient) => Promise<unknown>): Promise<CliOutcome | null> {
+  return servedOutcome(engineOrigin(process.cwd(), process.env), call)
 }
 
 function rejectedByServer(error: unknown): boolean {
