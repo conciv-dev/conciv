@@ -13,11 +13,11 @@
   "dependencies": {
     "@conciv/it": "workspace:*",
     "@solidjs/meta": "^0.29.4",
-    "@solidjs/router": "^0.15.0",
-    "@solidjs/start": "2.0.0-alpha.2",
-    "@solidjs/vite-plugin-nitro-2": "^0.1.0",
+    "@solidjs/router": "^1.0.0",
+    "@solidjs/start": "^2.1.0",
+    "@solidjs/vite-plugin-nitro-2": "^0.3.2",
     "solid-js": "catalog:",
-    "vite": "^7.0.0"
+    "vite": "catalog:"
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
