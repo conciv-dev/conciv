@@ -67,8 +67,12 @@ async function create(): Promise<ReactGrabAdapter> {
     })
   }
   const hooks = {
-    onActivate: () => setPicking(true),
-    onDeactivate: () => setPicking(false),
+    onActivate: () => {
+      setPicking(true)
+    },
+    onDeactivate: () => {
+      setPicking(false)
+    },
 
     onElementSelect: (element: Element) => {
       if (!intercept) return

@@ -244,8 +244,8 @@ catalogs:
       specifier: ^19.3.1
       version: 19.3.1
     react-grab:
-      specifier: 0.1.48
-      version: 0.1.48
+      specifier: 0.1.50
+      version: 0.1.50
     rehype-harden:
       specifier: ^1.1.8
       version: 1.1.8
@@ -2158,7 +2158,7 @@ importers:
         version: 0.5.41(react@19.3.1)
       react-grab:
         specifier: 'catalog:'
-        version: 0.1.48(react@19.3.1)
+        version: 0.1.50(react@19.3.1)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -3517,7 +3517,7 @@ importers:
         version: 0.5.41(react@19.3.1)
       react-grab:
         specifier: 'catalog:'
-        version: 0.1.48(react@19.3.1)
+        version: 0.1.50(react@19.3.1)
       rrweb-snapshot:
         specifier: 'catalog:'
         version: 2.2.0
@@ -8998,8 +8998,8 @@ packages:
   '@radix-ui/rect@1.1.2':
     resolution: {integrity: sha512-xnXE7wG13PI+cxieVssYXlQJuYVRhH9NBoxt3KNwzghDIA69GMm7d4wXRouHIYjE+KvS6U/MsMO73NdS2MH9ZA==}
 
-  '@react-grab/cli@0.1.48':
-    resolution: {integrity: sha512-KXRZFN0b78BeVa4Tq1FC9kiXPpC5lS4pQp/mvQ1azy9dZUJ3zfc7Ei84+yvGh+WoYdceMCFxXfBp6qhU/G056g==}
+  '@react-grab/cli@0.1.50':
+    resolution: {integrity: sha512-Px/Hwhhyk2PubCA4ZaRFsfvwxhbxXsetJyvqC6aFFi8WhJhA+oVC33aTzuAeWmM3fhb4/8ce8YsHXI1d6ChcKg==}
     hasBin: true
 
   '@rolldown/binding-android-arm-eabi@1.2.15':
@@ -11736,8 +11736,8 @@ packages:
     peerDependencies:
       react: '>=17.0.1'
 
-  bippy@0.5.43:
-    resolution: {integrity: sha512-Tvu7b1M7+d8b9/YHaCeODEsi2CgbuoBql+dWSBrNnCuqJ1gMUeY3i0r+319hvjjl5GVBP6FFWxrKnq3fhZER0w==}
+  bippy@0.6.1:
+    resolution: {integrity: sha512-ky4m94Y/KfsddjGkKTsV4uFjZqkJjpOjQ2t5gKPdX6XH1MNxMNX5FrVefsxV4lpjemEmEdwe0e0YbzAMNs3oUQ==}
     peerDependencies:
       react: '>=17.0.1'
 
@@ -15894,8 +15894,8 @@ packages:
     peerDependencies:
       react: ^19.3.1
 
-  react-grab@0.1.48:
-    resolution: {integrity: sha512-p3WnmK9LLvXE/c4ITPLlXcP1fkXo2VFEQqK94tIfcHIWKNdqdhYYFyNVioO50HR+uyHIwT63Z4txZDqJlVcD/Q==}
+  react-grab@0.1.50:
+    resolution: {integrity: sha512-zRkHKq/8a1msCpEOp8BDROeQZT50m0OH2XPrP6jk5op+JAHrlsm3pj7eAQMOsct87EZDeGNnu4r+sGsJJzyw1Q==}
     hasBin: true
     peerDependencies:
       react: '>=17.0.0'
@@ -21640,7 +21640,7 @@ snapshots:
 
   '@radix-ui/rect@1.1.2': {}
 
-  '@react-grab/cli@0.1.48':
+  '@react-grab/cli@0.1.50':
     dependencies:
       agent-install: 0.0.6
       commander: 14.0.3
@@ -25294,7 +25294,7 @@ snapshots:
     dependencies:
       react: 19.3.1
 
-  bippy@0.5.43(react@19.3.1):
+  bippy@0.6.1(react@19.3.1):
     dependencies:
       react: 19.3.1
 
@@ -29943,10 +29943,10 @@ snapshots:
       react: 19.3.1
       scheduler: 0.28.0
 
-  react-grab@0.1.48(react@19.3.1):
+  react-grab@0.1.50(react@19.3.1):
     dependencies:
-      '@react-grab/cli': 0.1.48
-      bippy: 0.5.43(react@19.3.1)
+      '@react-grab/cli': 0.1.50
+      bippy: 0.6.1(react@19.3.1)
     optionalDependencies:
       react: 19.3.1
 
