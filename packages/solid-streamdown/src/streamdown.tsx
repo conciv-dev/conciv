@@ -8,7 +8,6 @@ import {
   Match,
   on,
   onMount,
-  Show,
   Switch,
 } from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
@@ -23,7 +22,9 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, {defaultSchema} from 'rehype-sanitize'
 import {parseMarkdownIntoBlocks} from './parse-blocks.js'
 
-export type HighlightCode = (code: string, lang: string | undefined) => string
+export type FenceView = (props: {code: string}) => JSX.Element
+
+export type HighlightCode = (code: string, lang: string | undefined) => HastElement | FenceView | undefined
 
 export type CaretVariant = 'block' | 'circle'
 
@@ -65,11 +66,21 @@ type MarkdownElementNode = {
 }
 type MarkdownTextNode = {key: string; type: 'text'; text: string}
 type MarkdownWordNode = {key: string; type: 'word'; text: string; animate?: true}
-type MarkdownNode = MarkdownElementNode | MarkdownTextNode | MarkdownWordNode
+type MarkdownViewNode = {key: string; type: 'view'; code: string; view: FenceView}
+type MarkdownNode = MarkdownElementNode | MarkdownTextNode | MarkdownWordNode | MarkdownViewNode
 
 type HastRoot = ReturnType<MarkdownProcessor['runSync']>
-type HastElement = Extract<HastRoot['children'][number], {type: 'element'}>
-type HastContent = HastElement['children'][number]
+type HastText = {type: 'text'; value: string}
+type HastLiteral = {type: 'comment' | 'raw'; value: string}
+export type HastElement = {
+  type: 'element'
+  tagName: string
+  properties: Record<string, unknown>
+  children: HastContent[]
+}
+type HastContent = HastElement | HastText | HastLiteral
+
+type HastWalk = {words: boolean; animate: boolean; inlineCode: boolean; highlightCode: HighlightCode | undefined}
 
 function elementAttributes(properties: Record<string, unknown>): Record<string, unknown> {
   const {className, ...rest} = properties
@@ -77,48 +88,62 @@ function elementAttributes(properties: Record<string, unknown>): Record<string, 
   return {...rest, class: Array.isArray(className) ? className.join(' ') : className}
 }
 
-function hastNode(
-  node: HastContent,
-  path: string,
-  words: boolean,
-  animate: boolean,
-  inlineCode: boolean,
-): MarkdownNode[] {
-  if (node.type === 'text') {
-    if (!words) return [{key: path, type: 'text', text: node.value}]
-    const parts = inlineCode ? Array.from(node.value) : node.value.split(/(\s+)/)
-    return parts.flatMap((text, index): MarkdownNode[] => {
-      if (!text) return []
-      if (/^\s+$/.test(text)) return [{key: `${path}:${index}`, type: 'text', text}]
-      return [{key: `${path}:${index}`, type: 'word', text, ...(animate ? {animate: true as const} : {})}]
-    })
-  }
+function hastText(node: HastContent): string {
+  if (node.type === 'text') return node.value
+  if (node.type !== 'element') return ''
+  return node.children.map(hastText).join('')
+}
+
+function fenceCode(node: HastElement): HastElement | undefined {
+  return node.children.find((child): child is HastElement => child.type === 'element' && child.tagName === 'code')
+}
+
+function highlightedFence(node: HastElement, path: string, walk: HastWalk): MarkdownNode[] | undefined {
+  if (node.tagName !== 'pre' || !walk.highlightCode) return undefined
+  const code = fenceCode(node)
+  if (!code) return undefined
+  const text = hastText(code)
+  const result = walk.highlightCode(text, codeLang(elementAttributes(code.properties).class))
+  if (typeof result === 'function') return [{key: `${path}:view`, type: 'view', code: text, view: result}]
+  if (!result) return undefined
+  return hastNode(result, path, {...walk, highlightCode: undefined})
+}
+
+function textNodes(node: HastText, path: string, walk: HastWalk): MarkdownNode[] {
+  if (!walk.words) return [{key: path, type: 'text', text: node.value}]
+  const parts = walk.inlineCode ? Array.from(node.value) : node.value.split(/(\s+)/)
+  return parts.flatMap((text, index): MarkdownNode[] => {
+    if (!text) return []
+    if (/^\s+$/.test(text)) return [{key: `${path}:${index}`, type: 'text', text}]
+    return [{key: `${path}:${index}`, type: 'word', text, ...(walk.animate ? {animate: true as const} : {})}]
+  })
+}
+
+function hastNode(node: HastContent, path: string, walk: HastWalk): MarkdownNode[] {
+  if (node.type === 'text') return textNodes(node, path, walk)
   if (node.type !== 'element') return []
-  const isInlineCode = words && node.tagName === 'code'
-  const childWords = words && node.tagName !== 'pre'
+  const fence = highlightedFence(node, path, walk)
+  if (fence) return fence
+  const isInlineCode = walk.words && node.tagName === 'code'
+  const childWalk = {
+    ...walk,
+    words: walk.words && node.tagName !== 'pre',
+    inlineCode: walk.inlineCode || isInlineCode,
+  }
   return [
     {
       key: `${path}:${node.tagName}`,
       type: 'element',
       tag: node.tagName,
       attributes: elementAttributes(node.properties),
-      children: node.children.flatMap((child, index) =>
-        hastNode(child, `${path}.${index}`, childWords, animate, inlineCode || isInlineCode),
-      ),
-      ...(animate && isInlineCode ? {animate: true as const} : {}),
+      children: node.children.flatMap((child, index) => hastNode(child, `${path}.${index}`, childWalk)),
+      ...(walk.animate && isInlineCode ? {animate: true as const} : {}),
     },
   ]
 }
 
-function hastToMarkdownNodes(root: HastRoot, words: boolean, animate: boolean): MarkdownNode[] {
-  return root.children.flatMap((node, index) =>
-    node.type === 'doctype' ? [] : hastNode(node, `${index}`, words, animate, false),
-  )
-}
-
-function nodeText(node: MarkdownNode): string {
-  if (node.type === 'element') return node.children.map(nodeText).join('')
-  return node.text
+function hastToMarkdownNodes(root: HastRoot, walk: HastWalk): MarkdownNode[] {
+  return root.children.flatMap((node, index) => (node.type === 'doctype' ? [] : hastNode(node, `${index}`, walk)))
 }
 
 function codeLang(className: unknown): string | undefined {
@@ -166,28 +191,14 @@ function MarkdownWord(props: {node: MarkdownWordNode}): JSX.Element {
   )
 }
 
-function codeChild(node: MarkdownElementNode): MarkdownElementNode | undefined {
-  return node.children.find((child): child is MarkdownElementNode => child.type === 'element' && child.tag === 'code')
-}
-
-function HighlightedPre(props: {node: MarkdownElementNode; highlightCode: HighlightCode}): JSX.Element {
-  return (
-    <Show when={codeChild(props.node)} fallback={<MarkdownElement node={props.node} />}>
-      {(code) => <div innerHTML={props.highlightCode(nodeText(code()), codeLang(code().attributes.class))} />}
-    </Show>
-  )
-}
-
-function MarkdownElement(props: {node: MarkdownElementNode; highlightCode?: HighlightCode}): JSX.Element {
+function MarkdownElement(props: {node: MarkdownElementNode}): JSX.Element {
   return (
     <Dynamic
       component={props.node.tag}
       ref={(element: HTMLElement) => markEntering(element, props.node.animate)}
       {...props.node.attributes}
     >
-      <For each={props.node.children}>
-        {(child) => <MarkdownDomNode node={child} highlightCode={props.highlightCode} />}
-      </For>
+      <For each={props.node.children}>{(child) => <MarkdownDomNode node={child} />}</For>
     </Dynamic>
   )
 }
@@ -204,21 +215,17 @@ function asElement(node: MarkdownNode): MarkdownElementNode | undefined {
   return node.type === 'element' ? node : undefined
 }
 
-function MarkdownDomNode(props: {node: MarkdownNode; highlightCode?: HighlightCode}): JSX.Element {
+function asView(node: MarkdownNode): MarkdownViewNode | undefined {
+  return node.type === 'view' ? node : undefined
+}
+
+function MarkdownDomNode(props: {node: MarkdownNode}): JSX.Element {
   return (
     <Switch>
       <Match when={asText(props.node)}>{(node) => <HastText value={node().text} />}</Match>
       <Match when={asWord(props.node)}>{(node) => <MarkdownWord node={node()} />}</Match>
-      <Match when={asElement(props.node)}>
-        {(node) => (
-          <Show
-            when={node().tag === 'pre' && props.highlightCode}
-            fallback={<MarkdownElement node={node()} highlightCode={props.highlightCode} />}
-          >
-            {(highlightCode) => <HighlightedPre node={node()} highlightCode={highlightCode()} />}
-          </Show>
-        )}
-      </Match>
+      <Match when={asElement(props.node)}>{(node) => <MarkdownElement node={node()} />}</Match>
+      <Match when={asView(props.node)}>{(node) => <Dynamic component={node().view} code={node().code} />}</Match>
     </Switch>
   )
 }
@@ -249,16 +256,26 @@ function Block(props: {
   processor: MarkdownProcessor
   highlightCode: HighlightCode | undefined
 }): JSX.Element {
-  const hast = createMemo(() => props.processor.runSync(props.processor.parse(props.text)))
-  const [nodes, setNodes] = createStore<MarkdownNode[]>([])
-  createComputed(
-    on(hast, (root, previous) =>
-      setNodes(
-        reconcile(hastToMarkdownNodes(root, props.streaming, previous ? props.streaming : props.enter), {key: 'key'}),
-      ),
+  const parsed = createMemo(
+    on(
+      () => props.processor.runSync(props.processor.parse(props.text)),
+      (root, previous) => ({
+        root,
+        words: props.streaming,
+        animate: previous ? props.streaming : props.enter,
+      }),
     ),
   )
-  return <For each={nodes}>{(node) => <MarkdownDomNode node={node} highlightCode={props.highlightCode} />}</For>
+  const [nodes, setNodes] = createStore<MarkdownNode[]>([])
+  createComputed(() => {
+    const {root, words, animate} = parsed()
+    setNodes(
+      reconcile(hastToMarkdownNodes(root, {words, animate, inlineCode: false, highlightCode: props.highlightCode}), {
+        key: 'key',
+      }),
+    )
+  })
+  return <For each={nodes}>{(node) => <MarkdownDomNode node={node} />}</For>
 }
 
 function normalizeCaret(caret: StreamdownProps['caret']): CaretVariant | undefined {

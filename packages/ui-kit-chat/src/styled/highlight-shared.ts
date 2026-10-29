@@ -1,4 +1,5 @@
 import type {HighlighterCore} from 'shiki/core'
+import type {HastElement} from '@conciv/solid-streamdown'
 import {CODE_THEME_NAME} from '../theme/code-theme-tokens.js'
 
 export const WARMUP_SNIPPETS: Record<string, string> = {
@@ -147,7 +148,7 @@ export type HighlightRequestMessage = {type: 'highlight'; id: string; code: stri
 
 export type HighlightReadyMessage = {type: 'ready'; core: HighlightCore; languages: string[]}
 
-export type HighlightResultMessage = {type: 'result'; id: string; html: string}
+export type HighlightResultMessage = {type: 'result'; id: string; pre: HastElement | null}
 
 export type WorkerToMainMessage = HighlightReadyMessage | HighlightResultMessage
 

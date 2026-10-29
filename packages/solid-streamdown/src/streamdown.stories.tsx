@@ -3,9 +3,12 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, waitFor, within} from 'storybook/test'
 import {Streamdown, type CaretVariant, type HighlightCode} from './streamdown.js'
 
-const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-const demoHighlight: HighlightCode = (code, lang) =>
-  `<pre class="sd-demo-code" data-lang="${lang ?? ''}"><code>${escapeHtml(code)}</code></pre>`
+const demoHighlight: HighlightCode = (code, lang) => ({
+  type: 'element',
+  tagName: 'pre',
+  properties: {class: 'sd-demo-code', 'data-lang': lang ?? ''},
+  children: [{type: 'element', tagName: 'code', properties: {}, children: [{type: 'text', value: code}]}],
+})
 
 const SAMPLE = `# Streaming Markdown
 

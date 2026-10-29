@@ -1,5 +1,6 @@
 import {createHighlighterCore, type HighlighterCore} from 'shiki/core'
 import {createJavaScriptRawEngine, createJavaScriptRegexEngine} from 'shiki/engine/javascript'
+import type {HastElement} from '@conciv/solid-streamdown'
 import {warmupLanguages, type MainToWorkerMessage, type WorkerToMainMessage} from './highlight-shared.js'
 import {CODE_THEME_NAME, concivCodeTheme} from '../theme/code-theme-tokens.js'
 
@@ -17,16 +18,16 @@ function resolveHighlighter(requested: string): HighlighterCore | null {
   return null
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+function highlightedPre(message: MainToWorkerMessage): HastElement | null {
+  const highlighter = resolveHighlighter(message.lang)
+  if (!highlighter) return null
+  const root = highlighter.codeToHast(message.code, {lang: message.lang, theme: CODE_THEME_NAME})
+  const pre = root.children[0]
+  return pre?.type === 'element' ? pre : null
 }
 
 function handleHighlightRequest(message: MainToWorkerMessage): void {
-  const highlighter = resolveHighlighter(message.lang)
-  const html = highlighter
-    ? highlighter.codeToHtml(message.code, {lang: message.lang, theme: CODE_THEME_NAME})
-    : `<pre><code>${escapeHtml(message.code)}</code></pre>`
-  post({type: 'result', id: message.id, html})
+  post({type: 'result', id: message.id, pre: highlightedPre(message)})
 }
 
 void createHighlighterCore({

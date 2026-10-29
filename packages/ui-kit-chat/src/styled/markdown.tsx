@@ -1,37 +1,39 @@
-import {createSignal, type JSX} from 'solid-js'
-import {createStore, produce} from 'solid-js/store'
-import {Streamdown} from '@conciv/solid-streamdown'
+import {createSignal, onMount, Show, type JSX} from 'solid-js'
+import {createStore, produce, unwrap} from 'solid-js/store'
+import {Streamdown, type HastElement, type HighlightCode} from '@conciv/solid-streamdown'
 import type {WorkerToMainMessage} from './highlight-shared.js'
 import HighlightWorkerConstructor from './highlight-worker.ts?worker&inline'
 
 const MAX_CACHE_ENTRIES = 512
 
-const [highlightStore, setHighlightStore] = createStore<Record<string, string>>({})
-const highlightInsertionOrder: Array<string> = []
+function createBoundedStore<Value>() {
+  const [store, setStore] = createStore<Record<string, Value>>({})
+  const insertionOrder: Array<string> = []
+  function remember(key: string, value: Value): void {
+    const isNewKey = !(key in store)
+    setStore(key, () => value)
+    if (!isNewKey) return
+    insertionOrder.push(key)
+    if (insertionOrder.length <= MAX_CACHE_ENTRIES) return
+    const oldestKey = insertionOrder.shift()
+    if (oldestKey === undefined) return
+    setStore(
+      produce((draft) => {
+        delete draft[oldestKey]
+      }),
+    )
+  }
+  return {store, remember}
+}
+
+const highlights = createBoundedStore<HastElement>()
+const diagrams = createBoundedStore<string>()
+const [latestStreamedCode, setLatestStreamedCode] = createStore<Record<string, string>>({})
 const pendingHighlights = new Set<string>()
 const [backendReadyTick, bumpBackendReadyTick] = createSignal(0, {equals: false})
 
-function escapeHtml(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
 function cacheKey(language: string, code: string): string {
   return `${language}::${code}`
-}
-
-function rememberHighlight(key: string, html: string): void {
-  const isNewKey = !(key in highlightStore)
-  setHighlightStore(key, html)
-  if (!isNewKey) return
-  highlightInsertionOrder.push(key)
-  if (highlightInsertionOrder.length <= MAX_CACHE_ENTRIES) return
-  const oldestKey = highlightInsertionOrder.shift()
-  if (oldestKey === undefined) return
-  setHighlightStore(
-    produce((store) => {
-      delete store[oldestKey]
-    }),
-  )
 }
 
 type HighlightBackend = {
@@ -45,7 +47,7 @@ function createWorkerBackend(worker: Worker): HighlightBackend {
   let precompiledLanguages: Set<string> | null = null
   let regexLanguages: Set<string> | null = null
   let nextId = 0
-  const resultCallbacks = new Map<string, (html: string) => void>()
+  const resultCallbacks = new Map<string, (pre: HastElement | null) => void>()
   const streamingRequests = new Map<string, DeferredHighlight | null>()
 
   function isSupportedLanguage(language: string): boolean {
@@ -57,14 +59,15 @@ function createWorkerBackend(worker: Worker): HighlightBackend {
     if (streaming) streamingRequests.set(language, null)
     const id = String(nextId)
     nextId += 1
-    resultCallbacks.set(id, (html) => {
+    resultCallbacks.set(id, (pre) => {
       pendingHighlights.delete(key)
-      rememberHighlight(key, html)
+      if (pre) highlights.remember(key, pre)
       if (!streaming) return
+      if (pre) setLatestStreamedCode(language, code)
       const deferred = streamingRequests.get(language)
       streamingRequests.delete(language)
       if (deferred === null || deferred === undefined) return
-      if (!(deferred.key in highlightStore)) postHighlight(deferred.key, language, deferred.code, true)
+      if (!(deferred.key in highlights.store)) postHighlight(deferred.key, language, deferred.code, true)
     })
     worker.postMessage({type: 'highlight', id, code, lang: language})
   }
@@ -80,7 +83,7 @@ function createWorkerBackend(worker: Worker): HighlightBackend {
     const callback = resultCallbacks.get(message.id)
     if (!callback) return
     resultCallbacks.delete(message.id)
-    callback(message.html)
+    callback(message.pre)
   })
 
   return {
@@ -133,38 +136,13 @@ export function warmHighlighter(): void {
   ensureBackend()
 }
 
-function plainBlock(code: string): string {
-  return `<pre><code>${escapeHtml(code)}</code></pre>`
-}
-
-type DiagramTheme = 'default' | 'dark'
-
-type DiagramStyle = {theme: DiagramTheme; fontFamily: string}
-
-const DARK_SCHEME_QUERY = '(prefers-color-scheme: dark)'
+type DiagramStyle = {theme: 'default' | 'dark'; fontFamily: string}
 
 let diagramCount = 0
 
-function prefersDark(): boolean {
-  return typeof matchMedia === 'function' && matchMedia(DARK_SCHEME_QUERY).matches
-}
-
-function diagramStyle(root: Element | null): DiagramStyle {
-  const computed = root?.ownerDocument.defaultView?.getComputedStyle(root)
-  const scheme = computed?.colorScheme.trim() ?? ''
-  const fontFamily = computed?.fontFamily ?? 'inherit'
-  if (scheme === 'dark') return {theme: 'dark', fontFamily}
-  if (scheme === 'light') return {theme: 'default', fontFamily}
-  return {theme: prefersDark() ? 'dark' : 'default', fontFamily}
-}
-
-function diagramKey(source: string, style: DiagramStyle | null): string {
-  return cacheKey(style ? `mermaid:${style.theme}:${style.fontFamily}` : 'mermaid', source)
-}
-
-function connectedStyle(root: Element | null): DiagramStyle | null {
-  if (!root?.isConnected) return null
-  return diagramStyle(root)
+function diagramStyle(element: Element): DiagramStyle {
+  const computed = getComputedStyle(element)
+  return {theme: computed.colorScheme.trim() === 'dark' ? 'dark' : 'default', fontFamily: computed.fontFamily}
 }
 
 async function renderDiagram(source: string, style: DiagramStyle): Promise<string> {
@@ -178,57 +156,88 @@ async function renderDiagram(source: string, style: DiagramStyle): Promise<strin
   })
   diagramCount += 1
   const {svg} = await mermaid.render(`conciv-diagram-${diagramCount}`, source)
-  return `<div class="chat-diagram">${svg}</div>`
+  return svg
 }
 
-async function settleDiagram(source: string, root: () => Element | null): Promise<void> {
-  await import('mermaid')
-  const style = connectedStyle(root()) ?? diagramStyle(null)
-  const themedKey = diagramKey(source, style)
-  const html = highlightStore[themedKey] ?? (await renderDiagram(source, style).catch(() => plainBlock(source)))
-  rememberHighlight(themedKey, html)
-  rememberHighlight(diagramKey(source, null), html)
+function MermaidDiagram(props: {code: string}): JSX.Element {
+  const [svg, setSvg] = createSignal<string>()
+  let source: HTMLPreElement | undefined
+  onMount(() => {
+    if (!source) return
+    const style = diagramStyle(source)
+    const key = cacheKey(`mermaid:${style.theme}:${style.fontFamily}`, props.code)
+    const cached = diagrams.store[key]
+    if (cached !== undefined) return setSvg(cached)
+    void renderDiagram(props.code, style)
+      .then((markup) => {
+        diagrams.remember(key, markup)
+        setSvg(markup)
+      })
+      .catch(() => undefined)
+  })
+  return (
+    <Show
+      when={svg()}
+      fallback={
+        <pre
+          ref={(element) => {
+            source = element
+          }}
+        >
+          <code>{props.code}</code>
+        </pre>
+      }
+    >
+      {(markup) => (
+        <div
+          class="chat-diagram"
+          ref={(element) => {
+            element.innerHTML = markup()
+          }}
+        />
+      )}
+    </Show>
+  )
 }
 
-function requestDiagram(source: string, root: () => Element | null): void {
-  const pendingKey = diagramKey(source, null)
-  if (pendingHighlights.has(pendingKey)) return
-  pendingHighlights.add(pendingKey)
-  void settleDiagram(source, root)
-    .catch(() => undefined)
-    .finally(() => pendingHighlights.delete(pendingKey))
+function withStreamedTail(pre: HastElement, tail: string): HastElement {
+  if (!tail) return pre
+  return {
+    ...pre,
+    children: pre.children.map((child) =>
+      child.type === 'element' && child.tagName === 'code'
+        ? {...child, children: [...child.children, {type: 'text', value: tail}]}
+        : child,
+    ),
+  }
 }
 
-function diagramBlock(code: string, streaming: boolean, root: () => Element | null): string {
-  if (streaming) return plainBlock(code)
-  const style = connectedStyle(root())
-  const themed = style ? highlightStore[diagramKey(code, style)] : undefined
-  if (themed !== undefined) return themed
-  requestDiagram(code, root)
-  return highlightStore[diagramKey(code, null)] ?? plainBlock(code)
+function streamedPrefix(language: string, code: string): HastElement | undefined {
+  const prefix = latestStreamedCode[language]
+  if (prefix === undefined || !code.startsWith(prefix)) return undefined
+  const cached = highlights.store[cacheKey(language, prefix)]
+  return cached && withStreamedTail(unwrap(cached), code.slice(prefix.length))
 }
 
-function codeBlock(code: string, lang: string | undefined, streaming: boolean, root: () => Element | null): string {
+function codeBlock(code: string, lang: string | undefined, streaming: boolean): ReturnType<HighlightCode> {
   backendReadyTick()
   const requested = (lang ?? '').trim().toLowerCase()
-  if (requested === 'mermaid') return diagramBlock(code, streaming, root)
+  if (requested === 'mermaid') return streaming ? undefined : MermaidDiagram
   const active = ensureBackend()
-  if (!active || !active.isSupported(requested)) return plainBlock(code)
+  if (!active || !active.isSupported(requested)) return undefined
   const key = cacheKey(requested, code)
-  const cached = highlightStore[key]
-  if (cached !== undefined) return cached
+  const cached = highlights.store[key]
+  if (cached !== undefined) return unwrap(cached)
   active.requestHighlight(key, requested, code, streaming)
-  return plainBlock(code)
+  return streamedPrefix(requested, code)
 }
 
 export type MarkdownProps = {content: string; streaming?: boolean}
 
 export function Markdown(props: MarkdownProps): JSX.Element {
   warmHighlighter()
-  let root: Element | null = null
-  const highlightCode = (code: string, lang: string | undefined): string =>
-    codeBlock(code, lang, props.streaming === true, () => root)
-  const view = (
+  const highlightCode: HighlightCode = (code, lang) => codeBlock(code, lang, props.streaming === true)
+  return (
     <Streamdown
       class={props.streaming ? 'prose-chat chat-caret-live' : 'prose-chat'}
       isAnimating={props.streaming === true}
@@ -238,6 +247,4 @@ export function Markdown(props: MarkdownProps): JSX.Element {
       {props.content}
     </Streamdown>
   )
-  root = view instanceof Element ? view : null
-  return view
 }
