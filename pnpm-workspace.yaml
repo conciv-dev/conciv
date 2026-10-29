@@ -78,8 +78,8 @@ catalog:
   '@unocss/postcss': '^66.12.0'
   '@unocss/reset': '^66.12.0'
   '@vitejs/plugin-react': '^6.1.2'
-  '@vitest/browser-playwright': 4.1.12
-  '@vitest/coverage-v8': '^4.1.12'
+  '@vitest/browser-playwright': 5.0.5
+  '@vitest/coverage-v8': '^5.0.5'
   bippy: 0.5.41
   citty: '^0.2.2'
   class-variance-authority: '^0.7.1'
@@ -126,7 +126,7 @@ catalog:
   unocss: '^66.12.0'
   vite: '^8.3.5'
   vite-plugin-solid: '^2.11.14'
-  vitest: '^4.1.12'
+  vitest: '^5.0.5'
   ws: '^8.22.0'
   zod: '^4.6.7'
 
@@ -259,3 +259,5 @@ minimumReleaseAgeExclude:
 patchedDependencies:
   '@tanstack/ai-sandbox-local-process@0.2.4': patches/@tanstack__ai-sandbox-local-process@0.2.4.patch
   '@tanstack/ai-sandbox@0.5.3': patches/@tanstack__ai-sandbox@0.5.3.patch
+  # vitest-dev/vitest#11709: read cached server modules as utf-8 (fixes #11682 code.charCodeAt crash); drop once a vitest release includes it
+  vitest@5.0.5: patches/vitest@5.0.5.patch
