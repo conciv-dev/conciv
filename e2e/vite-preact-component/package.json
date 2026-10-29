@@ -14,14 +14,14 @@
     "@conciv/extension-terminal": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/preact": "workspace:*",
-    "preact": "^10.29.7"
+    "preact": "catalog:"
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
-    "@playwright/test": "^1.61.1",
-    "@types/node": "^24.13.2",
-    "oxlint": "^1.71.0",
-    "typescript": "~6.0.2",
-    "vite": "^8.1.1"
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
   }
 }

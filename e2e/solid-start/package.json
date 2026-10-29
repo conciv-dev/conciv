@@ -16,12 +16,12 @@
     "@solidjs/router": "^0.15.0",
     "@solidjs/start": "2.0.0-alpha.2",
     "@solidjs/vite-plugin-nitro-2": "^0.1.0",
-    "solid-js": "^1.9.5",
+    "solid-js": "catalog:",
     "vite": "^7.0.0"
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
-    "@playwright/test": "^1.61.1"
+    "@playwright/test": "catalog:"
   },
   "engines": {
     "node": ">=22"

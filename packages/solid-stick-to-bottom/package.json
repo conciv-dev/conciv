@@ -37,19 +37,19 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@solid-primitives/event-listener": "^2.4.6",
-    "@solid-primitives/timer": "^1.4.4"
+    "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/timer": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^22.19.21",
-    "@vitest/browser-playwright": "4.1.10",
-    "solid-js": "^1.9.13",
-    "storybook": "^10.5.0",
-    "storybook-solidjs-vite": "^10.6.0",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "solid-js": "catalog:",
+    "storybook": "catalog:",
+    "storybook-solidjs-vite": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

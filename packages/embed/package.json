@@ -40,7 +40,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@ark-ui/solid": "^5.37.1",
+    "@ark-ui/solid": "catalog:",
     "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
@@ -56,11 +56,11 @@
     "@conciv/ui-kit-chat-tools": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/ui-kit-tap": "workspace:^",
-    "@tanstack/pacer": "^0.21.1",
-    "@tanstack/solid-router": "^1.170.17",
-    "bippy": "0.5.41",
-    "react-grab": "^0.1.44",
-    "solid-js": "^1.9.13"
+    "@tanstack/pacer": "catalog:",
+    "@tanstack/solid-router": "catalog:",
+    "bippy": "catalog:",
+    "react-grab": "catalog:",
+    "solid-js": "catalog:"
   },
   "devDependencies": {
     "@conciv/app": "workspace:*",
@@ -73,20 +73,20 @@
     "@conciv/vitest-config": "workspace:*",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
-    "@playwright/test": "^1.61.1",
-    "@solid-primitives/event-listener": "^2.4.6",
-    "@types/node": "^26.1.0",
-    "@unocss/postcss": "^66.7.2",
-    "@unocss/reset": "^66.7.2",
-    "@vitest/coverage-v8": "^4.1.8",
-    "publint": "^0.3.14",
-    "tsdown": "^0.22.4",
-    "typescript": "^6.0.3",
-    "unocss": "^66.7.2",
-    "vite": "^8.0.16",
-    "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8",
-    "zod": "^4.4.3"
+    "@playwright/test": "catalog:",
+    "@solid-primitives/event-listener": "catalog:",
+    "@types/node": "catalog:",
+    "@unocss/postcss": "catalog:",
+    "@unocss/reset": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "unocss": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

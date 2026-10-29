@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
-    "@playwright/test": "^1.61.1"
+    "@playwright/test": "catalog:"
   },
   "engines": {
     "node": ">=22.12.0"

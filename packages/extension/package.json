@@ -68,18 +68,18 @@
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@tanstack/ai": "catalog:",
-    "hono": "^4.12.0",
-    "zod": "^4.4.3"
+    "hono": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^22.19.21",
-    "@vitest/coverage-v8": "^4.1.8",
-    "solid-js": "^1.9.13",
-    "tsdown": "^0.22.4",
-    "typescript": "^6.0.3",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "solid-js": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
     "unplugin-solid": "^1.0.0",
-    "vitest": "^4.1.8"
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

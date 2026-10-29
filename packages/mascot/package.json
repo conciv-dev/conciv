@@ -112,26 +112,26 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "gsap": "^3.15.0"
+    "gsap": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@playwright/test": "^1.61.1",
-    "@solidjs/testing-library": "^0.8.10",
-    "@types/node": "^26.1.0",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "@vitest/browser-playwright": "4.1.10",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "solid-js": "^1.9.13",
-    "storybook": "^10.5.0",
-    "storybook-solidjs-vite": "^10.6.0",
-    "tsdown": "^0.22.4",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8"
+    "@playwright/test": "catalog:",
+    "@solidjs/testing-library": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "solid-js": "catalog:",
+    "storybook": "catalog:",
+    "storybook-solidjs-vite": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "react": ">=18",

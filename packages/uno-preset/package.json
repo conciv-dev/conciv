@@ -33,11 +33,11 @@
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^22.19.21",
-    "@vitest/coverage-v8": "^4.1.8",
-    "typescript": "^6.0.3",
-    "unocss": "^66.7.2",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "typescript": "catalog:",
+    "unocss": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "unocss": "^66.7.2"

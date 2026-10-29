@@ -27,26 +27,26 @@
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
-    "@solid-primitives/event-listener": "^2.4.5",
-    "@solid-primitives/timer": "^1.4.4",
-    "lucide-solid": "^1.18.0"
+    "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/timer": "catalog:",
+    "lucide-solid": "catalog:"
   },
   "devDependencies": {
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@playwright/test": "^1.61.1",
-    "@solidjs/testing-library": "^0.8.10",
-    "@types/node": "^22.19.21",
-    "@vitest/browser-playwright": "4.1.10",
-    "@vitest/coverage-v8": "^4.1.8",
-    "playwright": "^1.61.1",
-    "solid-js": "^1.9.13",
-    "typescript": "^6.0.3",
-    "unocss": "^66.7.2",
-    "vite": "^8.0.16",
-    "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8"
+    "@playwright/test": "catalog:",
+    "@solidjs/testing-library": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "playwright": "catalog:",
+    "solid-js": "catalog:",
+    "typescript": "catalog:",
+    "unocss": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

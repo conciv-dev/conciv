@@ -45,9 +45,9 @@
     "@orpc/tanstack-query": "catalog:",
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-solid": "catalog:",
-    "@tanstack/pacer": "^0.21.1",
-    "@tanstack/query-core": "^5.80.2",
-    "solid-js": "^1.9.13"
+    "@tanstack/pacer": "catalog:",
+    "@tanstack/query-core": "catalog:",
+    "solid-js": "catalog:"
   },
   "devDependencies": {
     "@conciv/core": "workspace:^",
@@ -55,10 +55,10 @@
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@tanstack/ai-client": "catalog:",
-    "@tanstack/solid-query": "^5.101.2",
-    "@vitest/coverage-v8": "^4.1.8",
-    "tsdown": "^0.22.4",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "@tanstack/solid-query": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

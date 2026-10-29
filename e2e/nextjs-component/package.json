@@ -12,17 +12,17 @@
     "@conciv/extension-terminal": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/react": "workspace:*",
-    "next": "16.2.10",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
-    "@playwright/test": "^1.61.1",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "typescript": "^5"
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:"
   },
   "dependenciesMeta": {
     "@conciv/extension-terminal": {

@@ -47,15 +47,15 @@
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^26.1.0",
-    "@vitest/coverage-v8": "^4.1.8",
-    "playwright": "^1.61.1",
-    "preact": "^10.29.7",
-    "publint": "^0.3.14",
-    "tsdown": "^0.22.4",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "playwright": "catalog:",
+    "preact": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "preact": ">=10"

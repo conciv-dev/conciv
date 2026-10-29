@@ -9,19 +9,19 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as QuickRouteImport } from './routes/quick'
-import { Route as PanelRouteImport } from './routes/panel'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PipSessionIdRouteImport } from './routes/pip.$sessionId'
-import { Route as PanelLatestRouteImport } from './routes/panel.latest'
-import { Route as PanelConnectRouteImport } from './routes/panel.connect'
+import { Route as PanelRouteImport } from './routes/panel'
+import { Route as QuickRouteImport } from './routes/quick'
 import { Route as PanelSessionIdRouteImport } from './routes/panel.$sessionId'
+import { Route as PanelConnectRouteImport } from './routes/panel.connect'
+import { Route as PanelLatestRouteImport } from './routes/panel.latest'
+import { Route as PipSessionIdRouteImport } from './routes/pip.$sessionId'
 import { Route as PanelSessionIdIndexRouteImport } from './routes/panel.$sessionId.index'
 import { Route as PanelSessionIdViewRouteImport } from './routes/panel.$sessionId.$view'
 
-const QuickRoute = QuickRouteImport.update({
-  id: '/quick',
-  path: '/quick',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PanelRoute = PanelRouteImport.update({
@@ -29,19 +29,14 @@ const PanelRoute = PanelRouteImport.update({
   path: '/panel',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const QuickRoute = QuickRouteImport.update({
+  id: '/quick',
+  path: '/quick',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PipSessionIdRoute = PipSessionIdRouteImport.update({
-  id: '/pip/$sessionId',
-  path: '/pip/$sessionId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PanelLatestRoute = PanelLatestRouteImport.update({
-  id: '/latest',
-  path: '/latest',
+const PanelSessionIdRoute = PanelSessionIdRouteImport.update({
+  id: '/$sessionId',
+  path: '/$sessionId',
   getParentRoute: () => PanelRoute,
 } as any)
 const PanelConnectRoute = PanelConnectRouteImport.update({
@@ -49,10 +44,15 @@ const PanelConnectRoute = PanelConnectRouteImport.update({
   path: '/connect',
   getParentRoute: () => PanelRoute,
 } as any)
-const PanelSessionIdRoute = PanelSessionIdRouteImport.update({
-  id: '/$sessionId',
-  path: '/$sessionId',
+const PanelLatestRoute = PanelLatestRouteImport.update({
+  id: '/latest',
+  path: '/latest',
   getParentRoute: () => PanelRoute,
+} as any)
+const PipSessionIdRoute = PipSessionIdRouteImport.update({
+  id: '/pip/$sessionId',
+  path: '/pip/$sessionId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const PanelSessionIdIndexRoute = PanelSessionIdIndexRouteImport.update({
   id: '/',
@@ -142,11 +142,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/solid-router' {
   interface FileRoutesByPath {
-    '/quick': {
-      id: '/quick'
-      path: '/quick'
-      fullPath: '/quick'
-      preLoaderRoute: typeof QuickRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/panel': {
@@ -156,25 +156,18 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof PanelRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/quick': {
+      id: '/quick'
+      path: '/quick'
+      fullPath: '/quick'
+      preLoaderRoute: typeof QuickRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/pip/$sessionId': {
-      id: '/pip/$sessionId'
-      path: '/pip/$sessionId'
-      fullPath: '/pip/$sessionId'
-      preLoaderRoute: typeof PipSessionIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/panel/latest': {
-      id: '/panel/latest'
-      path: '/latest'
-      fullPath: '/panel/latest'
-      preLoaderRoute: typeof PanelLatestRouteImport
+    '/panel/$sessionId': {
+      id: '/panel/$sessionId'
+      path: '/$sessionId'
+      fullPath: '/panel/$sessionId'
+      preLoaderRoute: typeof PanelSessionIdRouteImport
       parentRoute: typeof PanelRoute
     }
     '/panel/connect': {
@@ -184,12 +177,19 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof PanelConnectRouteImport
       parentRoute: typeof PanelRoute
     }
-    '/panel/$sessionId': {
-      id: '/panel/$sessionId'
-      path: '/$sessionId'
-      fullPath: '/panel/$sessionId'
-      preLoaderRoute: typeof PanelSessionIdRouteImport
+    '/panel/latest': {
+      id: '/panel/latest'
+      path: '/latest'
+      fullPath: '/panel/latest'
+      preLoaderRoute: typeof PanelLatestRouteImport
       parentRoute: typeof PanelRoute
+    }
+    '/pip/$sessionId': {
+      id: '/pip/$sessionId'
+      path: '/pip/$sessionId'
+      fullPath: '/pip/$sessionId'
+      preLoaderRoute: typeof PipSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/panel/$sessionId/': {
       id: '/panel/$sessionId/'

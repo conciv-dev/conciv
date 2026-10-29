@@ -35,25 +35,25 @@
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "bippy": "0.5.41",
-    "react-grab": "^0.1.44",
-    "rrweb-snapshot": "2.1.0",
-    "solid-js": "^1.9.13"
+    "bippy": "catalog:",
+    "react-grab": "catalog:",
+    "rrweb-snapshot": "catalog:",
+    "solid-js": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
     "@fontsource-variable/wix-madefor-text": "^5.2.8",
-    "@types/node": "^26.1.0",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitest/browser-playwright": "4.1.10",
-    "@vitest/coverage-v8": "^4.1.8",
-    "playwright": "^1.61.1",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "tsdown": "^0.22.4",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8",
-    "zod": "^4.4.3"
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "playwright": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
   }
 }

@@ -16,13 +16,13 @@
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
-    "@playwright/test": "^1.61.1",
+    "@playwright/test": "catalog:",
     "@sveltejs/adapter-auto": "^7.0.1",
     "@sveltejs/kit": "^2.63.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "svelte": "^5.56.1",
     "svelte-check": "^4.6.0",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "typescript": "catalog:",
+    "vite": "catalog:"
   }
 }
