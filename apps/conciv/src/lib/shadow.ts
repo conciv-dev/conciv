@@ -51,33 +51,41 @@ function keepEditableKeysOffTheHostPage(root: ShadowRoot): () => void {
   }
 }
 
-function keepSelectionInsideTheWidget(root: ShadowRoot): () => void {
-  const shield = document.createElement('div')
-  shield.style.position = 'fixed'
-  shield.style.inset = '0'
-  shield.style.pointerEvents = 'auto'
-  shield.style.userSelect = 'none'
-  shield.hidden = true
-  root.prepend(shield)
+const SELECTING_ATTRIBUTE = 'data-conciv-selecting'
+
+function registerSelectionContainment(doc: Document = document): void {
+  if (doc.querySelector('style[data-conciv-selection]')) return
+  const style = doc.createElement('style')
+  style.setAttribute('data-conciv-selection', '')
+  style.textContent = `html[${SELECTING_ATTRIBUTE}],html[${SELECTING_ATTRIBUTE}] *{user-select:none !important}`
+  doc.head.appendChild(style)
+}
+
+function keepSelectionInsideTheWidget(host: HTMLElement, root: ShadowRoot): () => void {
   const release = () => {
-    shield.hidden = true
+    document.documentElement.removeAttribute(SELECTING_ATTRIBUTE)
+    host.style.removeProperty('user-select')
   }
   const clears = [
     makeEventListener(root, 'pointerdown', () => {
-      shield.hidden = false
+      host.style.setProperty('user-select', 'text', 'important')
+      document.documentElement.setAttribute(SELECTING_ATTRIBUTE, '')
     }),
     makeEventListener(document, 'pointerup', release),
     makeEventListener(document, 'pointercancel', release),
+    makeEventListener(document, 'dragstart', release),
+    makeEventListener(window, 'blur', release),
   ]
   return () => {
     for (const clear of clears) clear()
-    shield.remove()
+    release()
   }
 }
 
 export function createShadowRoot(host: HTMLElement): {host: HTMLElement; root: ShadowRoot; dispose: () => void} {
   registerWind4Properties()
   registerFonts(CHAT_FONTS)
+  registerSelectionContainment()
   host.style.position = 'fixed'
   host.style.inset = '0'
   host.style.pointerEvents = 'none'
@@ -87,7 +95,7 @@ export function createShadowRoot(host: HTMLElement): {host: HTMLElement; root: S
   style.textContent = styles
   root.appendChild(style)
   const releaseKeys = keepEditableKeysOffTheHostPage(root)
-  const releaseSelection = keepSelectionInsideTheWidget(root)
+  const releaseSelection = keepSelectionInsideTheWidget(host, root)
   return {
     host,
     root,
