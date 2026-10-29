@@ -11,6 +11,7 @@ import {
   assertPublicDepsPublic,
   assertPublicSet,
   assertPublishedChangesCovered,
+  assertSharedDependenciesCatalogued,
   assertValidTag,
   assertVersioned,
   assertWorkspaceRoot,
@@ -76,6 +77,18 @@ const checkChangesets = defineCommand({
       }
       await assertPublishedChangesCovered(cwd, args.base)
     }
+  },
+})
+
+const checkCatalog = defineCommand({
+  meta: {
+    name: 'check-catalog',
+    description:
+      'Fail when an external dependency shared by two or more workspace manifests is not taken from the catalog',
+  },
+  async run() {
+    const {cwd} = await atRoot()
+    await assertSharedDependenciesCatalogued(cwd)
   },
 })
 
@@ -359,6 +372,7 @@ const main = defineCommand({
   subCommands: {
     version,
     'check-changesets': checkChangesets,
+    'check-catalog': checkCatalog,
     check,
     release,
     snapshot,

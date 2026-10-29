@@ -266,6 +266,7 @@ jobs:
       # --require-coverage check runs in verify-changesets.yml, which can also
       # retrigger on label changes (pull_request's default types can't).
       - run: pnpm exec conciv-publish check-changesets
+      - run: pnpm exec conciv-publish check-catalog
       # Build the site too so bundle-size can measure the Cloudflare worker and gate it below.
       - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*' --filter=site
       # Token codegen drift: the base token sheet, every class-scoped skin block and both

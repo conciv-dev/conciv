@@ -3,6 +3,7 @@ import {join, relative} from 'node:path'
 import parseChangesetFile from '@changesets/parse'
 import {execa} from 'execa'
 import {qualifiesForCoverage} from './coverage-files.ts'
+import {parseManifest} from './manifest.ts'
 import {buildDependencyGraph, readWorkspacePackages, transitiveDependents, type WorkspacePackage} from './workspace.ts'
 
 const CHANGESET_DIR = '.changeset'
@@ -279,5 +280,45 @@ export async function assertPublicDepsPublic(cwd: string): Promise<void> {
     )
   if (violations.length > 0) {
     throw new Error(violations.join('\n'))
+  }
+}
+
+const CATALOG_EXEMPTIONS: Record<string, string[]> = {
+  'e2e/solid-start': ['vite'],
+  'packages/extensions/whiteboard': ['drizzle-kit', 'drizzle-orm'],
+}
+
+type DependencyUse = {name: string; manifestDir: string; spec: string}
+
+function externalDependencyUses(pkg: WorkspacePackage): DependencyUse[] {
+  const manifestDir = pkg.relativeDir === '' ? '.' : pkg.relativeDir
+  return Object.entries({...pkg.manifest.dependencies, ...pkg.manifest.devDependencies})
+    .filter(([, spec]) => !spec.startsWith('workspace:'))
+    .map(([name, spec]) => ({name, manifestDir, spec}))
+}
+
+async function readRootPackage(cwd: string): Promise<WorkspacePackage> {
+  const manifestPath = join(cwd, 'package.json')
+  const raw: unknown = JSON.parse(await readFile(manifestPath, 'utf8'))
+  return {dir: cwd, relativeDir: '', manifest: parseManifest(raw, manifestPath)}
+}
+
+function isExempt(use: DependencyUse): boolean {
+  return (CATALOG_EXEMPTIONS[use.manifestDir] ?? []).includes(use.name)
+}
+
+export async function assertSharedDependenciesCatalogued(cwd: string): Promise<void> {
+  const packages = [await readRootPackage(cwd), ...(await readWorkspacePackages(cwd))]
+  const usesByName = Object.groupBy(packages.flatMap(externalDependencyUses), (use) => use.name)
+  const violations = Object.values(usesByName)
+    .filter((uses) => uses !== undefined && uses.length > 1)
+    .flatMap((uses) => uses ?? [])
+    .filter((use) => !use.spec.startsWith('catalog:') && !isExempt(use))
+    .map((use) => `${use.manifestDir}/package.json: ${use.name} ${JSON.stringify(use.spec)}`)
+    .toSorted()
+  if (violations.length > 0) {
+    throw new Error(
+      `dependencies shared by two or more workspace manifests must use "catalog:" and take their version from the catalog in pnpm-workspace.yaml:\n${violations.join('\n')}`,
+    )
   }
 }
