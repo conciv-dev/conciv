@@ -1,0 +1,92 @@
+# `@conciv/ai`: one package that owns @tanstack/ai
+
+Status: draft for sign-off. Part of the deps-latest lane
+(`docs/superpowers/plans/2026-10-29-deps-latest.md`). Companion spec:
+`2026-10-29-approvals-deny-and-retry.md`.
+
+## Decisions already made (user, 2026-10-29)
+
+- Direction: stay on TanStack AI's documented setup for CLI agents: `chat()` + `withSandbox` +
+  the CLI text adapters + `useChat` (the setup of the `sandbox-web` and `ts-react-chat` examples).
+  No `@tanstack/ai-harness`: its docs never use a CLI as a session's main adapter (only as
+  `codingAgents()` tools under an API-model lead, `docs/harness/coding-agents.md`), and its
+  `permissions()` plugin cannot see a CLI's own tool calls ("The agent owns the loop",
+  `docs/adapters/claude-code.md` Limitations).
+- Rewriting our side from scratch is fine.
+- Encapsulate @tanstack/ai in ONE package that provides the primitives the platform is built from.
+  No other package imports `@tanstack/ai*`.
+
+## Today
+
+About 300 files in 17 packages import `@tanstack/ai*` (ai-client 155, ai 121, ai-solid 46, the rest
+under 10 each). About 75% are message/part TYPES used for rendering (ui-kit-chat, ui-kit-chat-tools,
+extension cards). Runtime use is concentrated in `packages/core/src/chat/*` and `packages/db`
+(chat plane), `packages/harness` (CLI adapters), `packages/client` (`useChat`, transports), and one
+`toolDefinition` in `packages/tools`. Full map: the research report kept in the session scratchpad.
+
+## The package
+
+`packages/ai`, name `@conciv/ai`, published (it is a dependency of published packages). It holds
+our own code built on @tanstack/ai, not re-exports. A file whose only job is to re-export library
+names is a barrel and is not allowed. Each subpath export is a concrete module with our names and
+our shapes.
+
+| Subpath | Runtime | Holds |
+|---|---|---|
+| `@conciv/ai/messages` | any | `ChatMessage`, `ChatPart`, `ToolCallPart`, `ToolResultPart`, `ThinkingPart`, `ToolCallState`, `ModelMessage`, `ContentPart`, `SendContent`, `QueuedMessage`; `toModelMessages`, `toChatMessages`, `isContentParts` |
+| `@conciv/ai/events` | any | `ChatEvent`; `defineChatEvent(name, schema)` returning `{create, parse}` (zod-validated); our events defined with it: approval asked, run lifecycle, ui answer, code-mode child tool events |
+| `@conciv/ai/tools` | any | `defineTool` (on `toolDefinition`), the type extensions author against |
+| `@conciv/ai/usage` | any | `UsageSnapshot` and the token-usage mapping |
+| `@conciv/ai/session` | browser (Solid) | `createChatSession(...)` returning a `ChatSession`: messages, status, send (with interrupt), stop, queue, cancelQueued, reload, plus ours: pending approvals, stopping, session running, hydrated, refresh, interrupt-and-flush. Built on ai-solid `useChat` and the ai-client transports. ui-kit-chat binds to `ChatSession`, never to `useChat` |
+| `@conciv/ai/server` | node | the chat plane: `createChatPlane(deps)`, which runs a turn (`chat()` + `withSandbox` + gate middleware + code mode), delivery (WebSocket/SSE, resume), run control, persistence stores, MCP endpoint plumbing, approval grants. Moves out of `packages/core/src/chat/*` and the chat tables of `packages/db` |
+| `@conciv/ai/adapters` | node | `TextAdapter`, `makeTextAdapter`, and one factory per CLI (`claudeCode`, `codex`, `opencode`, `acp`) with their model lists and permission types. `packages/harness` builds its `chatConfig` from these |
+| `@conciv/ai/testkit` | any | fake `ChatSession`, scripted connection, chunk builders (text, reasoning, tool call, approval), used by stories and tests |
+
+Types are named aliases of the library types at first (`type ChatMessage = UIMessage`), owned by
+us, so they can diverge later without touching consumers.
+
+## Boundary
+
+- `packages/ai` is the only package with `@tanstack/ai*` in its manifest. Every other manifest
+  drops them.
+- oxlint `no-restricted-imports` forbids `@tanstack/ai*` outside `packages/ai`, so a new import
+  fails lint. Lands with the oxlint 1.90 lane.
+- `packages/core` keeps the app: sessions, extensions, RPC, the page bridge. It wires
+  `createChatPlane` and owns no chat internals.
+- `packages/protocol` keeps conciv-only vocabulary (session ids, harness capability types, RPC
+  shapes) typed with `@conciv/ai` primitives.
+- The sandbox policy content (read-only command list, extra allows) is product and stays in core;
+  core passes it to the chat plane.
+
+## Order of work
+
+1. Create `packages/ai` with the `messages`, `events`, `tools`, `usage` and `testkit` subpaths. Move
+   every type import to them (UI kits, extensions, tools, protocol, apps/conciv, harness-testkit).
+   Mechanical, about 250 files.
+2. `session`: build `ChatSession`; move `packages/client`'s `useChat` usage and ui-kit-chat's
+   `UseChatReturn` onto it.
+3. `adapters`: move the CLI adapter construction; `packages/harness` keeps the per-CLI product
+   knowledge (history, commands, connect, tty) and builds on `@conciv/ai/adapters`.
+4. `server`: move the chat plane out of core and db, and implement the approvals spec
+   (`2026-10-29-approvals-deny-and-retry.md`) inside it.
+5. Drop `@tanstack/ai*` from every other manifest; turn on the lint rule.
+
+Steps 1 to 3 run in parallel lanes. Step 4 depends on 1. Step 5 is last.
+
+## Acceptance
+
+- `git grep "from '@tanstack/ai"` outside `packages/ai` returns nothing; lint rule active.
+- The product acceptance list from the chat-plane inventory holds (CLI gate, resume, slash
+  commands, image input, compaction; transcript import without duplicates; approvals per the
+  approvals spec; `conciv_ui`; queue/steer/remove and cancel-with-queue; stop with the stopping
+  phase and the run clock; first-chunk timeout; compact and dividers; sessions; drafts; context
+  meter; extension tools through code mode and the external MCP; extension hooks and attachment
+  expanders; transport setting; boot recovery). Pinned by the existing core ITs, apps/conciv
+  browser tests, and the calm contract and perf gates, which move to `@conciv/ai/testkit`.
+- `@conciv/ai` passes publint and attw; `PUBLIC_PACKAGES` lists it.
+
+## Open questions for the user
+
+1. Does the chat plane move INTO `@conciv/ai/server` (the package owns all runtime use), or stay in
+   core with `@conciv/ai/server` only wrapping library calls? The draft says move: one place.
+2. `packages/harness` imports adapters through `@conciv/ai/adapters` (no exception), as drafted?

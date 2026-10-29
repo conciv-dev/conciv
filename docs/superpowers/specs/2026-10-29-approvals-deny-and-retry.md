@@ -1,6 +1,13 @@
 # Approvals on @tanstack/ai 1.0: the library's deny-and-retry flow
 
-Status: signed off 2026-10-29. Part of the deps-latest lane (plan:
+Status: signed off 2026-10-29; re-confirmed 2026-10-30 after reading the docs. The documented CLI
+behaviour is exactly this flow: `docs/adapters/claude-code.md` "Permissions and policy" ("If the
+policy says `ask`, the adapter sends an approval-requested event and denies the action. The client
+approves, then runs the turn again") and `docs/sandbox/policy.md`. Note the docs disagree with
+themselves: `policy.md` "How ask reaches the user" says the action waits, and
+`docs/interrupts/migration.md` says the custom event became a `RUN_FINISHED` interrupt. The 1.0
+adapter source denies, and emits the custom event. No doc shows the client side for CLI asks, so
+the fills below stand. Implemented inside `@conciv/ai/server` (`2026-10-30-conciv-ai-package.md`). Part of the deps-latest lane (plan:
 `docs/superpowers/plans/2026-10-29-deps-latest.md`).
 
 ## Why
