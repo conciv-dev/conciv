@@ -44,8 +44,8 @@ test('a reloaded transcript of page acts renders one aggregated session card wit
   await expect.element(page.getByText('Edited the page'), {timeout: 5000}).toBeVisible()
   await expect.element(page.getByText('The profile form is filled in.')).toBeVisible()
   expect(page.getByText('Edited the page').elements()).toHaveLength(1)
-  await expect.element(page.getByText('Typed', {exact: false})).not.toBeInTheDocument()
-  await expect.element(page.getByText('Chain of Thought', {exact: false})).not.toBeInTheDocument()
+  await expect.element(page.getByText('Typed')).not.toBeInTheDocument()
+  await expect.element(page.getByRole('button', {name: '2 steps'})).not.toBeInTheDocument()
 })
 
 test('a live code-mode page act settles into one session card when the reply streams after it in the same message', async () => {

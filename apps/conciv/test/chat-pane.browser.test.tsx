@@ -102,7 +102,7 @@ async function stageGrabThroughComposer(): Promise<void> {
   await expect.element(input()).toBeVisible()
   await pickGrabFromOverflow()
   await expect.element(snapshot()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL, {exact: false})).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
 }
 
 async function sendWithStagedGrab(options: Pick<PaneMountOptions, 'transport'> = {}): Promise<void> {
@@ -133,7 +133,7 @@ test('restores the server-side draft text and staged grabs when the pane mounts'
 
   await expect.element(input()).toHaveTextContent('kept across the reload')
   await expect.element(snapshot()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL, {exact: false})).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
 })
 
 test('a staged grab keeps its snapshot and source label across a panel reload', async () => {
@@ -148,7 +148,7 @@ test('a staged grab keeps its snapshot and source label across a panel reload', 
   mountChatPane(sessionId, {extensions: [pageExtension]})
 
   await expect.element(snapshot()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL, {exact: false})).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
 })
 
 test('a rejected send keeps the draft in the composer and tells the user why', async () => {
@@ -178,7 +178,7 @@ test('a send the server refuses puts the staged grab card back', async () => {
 
   await expect.element(notifications()).toMatchTextContent(/Internal Server Error|could not be sent/)
   await expect.element(removeGrab()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL, {exact: false}).last()).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`).last()).toBeVisible()
 })
 
 test('a send that throws at the transport puts the staged grab card back', async () => {
@@ -187,7 +187,7 @@ test('a send that throws at the transport puts the staged grab card back', async
 
   await expect.element(notifications()).toMatchTextContent(/could not be sent|Stream response body read failed/)
   await expect.element(removeGrab()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL, {exact: false}).last()).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`).last()).toBeVisible()
 })
 
 test('a queued second send cannot cross-restore the grabs of the turn that failed', async () => {
@@ -196,24 +196,24 @@ test('a queued second send cannot cross-restore the grabs of the turn that faile
   await coreControl.holdTurn()
   mountChatPane(sessionId, grabOptions(PRICING_GRAB))
 
-  await expect.element(page.getByText(HERO_LABEL, {exact: false})).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
   await input().fill('turn A')
   await userEvent.keyboard('{Enter}')
   await expect.element(stopButton()).toBeVisible()
 
   await pickGrabFromOverflow()
-  await expect.element(page.getByText(PRICING_LABEL, {exact: false})).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${PRICING_LABEL}`)).toBeVisible()
   await input().fill('turn B')
   await userEvent.keyboard('{Enter}')
   await expect.element(page.getByRole('button', {name: 'Remove from queue'})).toBeVisible()
-  await expect.element(page.getByText(PRICING_LABEL, {exact: false})).not.toBeInTheDocument()
+  await expect.element(page.getByText(`↳ in ${PRICING_LABEL}`)).not.toBeInTheDocument()
 
   await coreControl.scriptError('turn A failed')
   await coreControl.releaseTurn()
 
   await expect.element(removeGrab()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL, {exact: false}).last()).toBeVisible()
-  await expect.element(page.getByText(PRICING_LABEL, {exact: false})).not.toBeInTheDocument()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`).last()).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${PRICING_LABEL}`)).not.toBeInTheDocument()
 })
 
 test('sending announces the settled reply through the live region', async () => {

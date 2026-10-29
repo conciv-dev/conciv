@@ -30,7 +30,7 @@ test('the grab api an extension receives can stage, read and clear, as the termi
   api.stage(HERO_GRAB)
 
   await expect.element(snapshot()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL, {exact: false})).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
   expect(api.staged().map((grab) => grab.text)).toEqual([HERO_GRAB.text])
 
   api.clear()
