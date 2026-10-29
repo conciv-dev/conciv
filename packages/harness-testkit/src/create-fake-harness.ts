@@ -9,7 +9,7 @@ import {
   type HarnessModel,
   type HarnessSessionMeta,
 } from '@conciv/protocol/harness-types'
-import {makeTextAdapter} from '@conciv/harness'
+import {makeTextAdapter} from '@conciv/ai/adapters'
 import {makeScriptedRun, type ScriptedRun} from './scripted-run.js'
 
 export type FakeHarness = HarnessAdapter & {

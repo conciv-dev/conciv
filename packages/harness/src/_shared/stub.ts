@@ -1,5 +1,5 @@
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {makeTextAdapter} from '@conciv/ai/adapters'
+import {ChatEventType, type ChatEvent} from '@conciv/ai/events'
 import {
   defineHarness,
   type HarnessAdapter,
@@ -7,13 +7,12 @@ import {
   type HarnessChatConfig,
   type HarnessChatDeps,
 } from '@conciv/protocol/harness-types'
-import {makeTextAdapter} from './text-adapter.js'
 
 export function unsupportedChatConfig(id: string, binName: string): (deps: HarnessChatDeps) => HarnessChatConfig {
   return () => ({
     adapter: makeTextAdapter(id, async function* (): AsyncGenerator<ChatEvent> {
-      yield {type: EventType.RUN_STARTED, threadId: id, runId: id}
-      yield {type: EventType.RUN_ERROR, message: `${binName} is not installed or not yet supported`}
+      yield {type: ChatEventType.RUN_STARTED, threadId: id, runId: id}
+      yield {type: ChatEventType.RUN_ERROR, message: `${binName} is not installed or not yet supported`}
     }),
   })
 }

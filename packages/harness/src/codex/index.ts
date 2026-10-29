@@ -1,4 +1,4 @@
-import {codexText, CODEX_MODELS} from '@tanstack/ai-codex'
+import {codex as codexAdapter, codexModels} from '@conciv/ai/adapters'
 import {defineHarness, type HarnessChatConfig, type HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {definedEntries} from '../_shared/env.js'
 import {codexMcpArgs} from './args.js'
@@ -9,7 +9,7 @@ const BRIDGED_MCP_SERVER_NAME = 'tanstack'
 const bridgeApproveConfig = {[`mcp_servers.${BRIDGED_MCP_SERVER_NAME}.default_tools_approval_mode`]: '"approve"'}
 
 const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: codexText(deps.model ?? 'gpt-5.5', {
+  adapter: codexAdapter(deps.model ?? 'gpt-5.5', {
     sandboxMode: 'workspace-write',
     approvalPolicy: 'never',
     ...(deps.hasTools ? {config: bridgeApproveConfig} : {}),
@@ -34,7 +34,7 @@ export const codex = defineHarness({
     init: 'none',
   },
   chatConfig: codexChatConfig,
-  models: ['gpt-5.5', ...CODEX_MODELS].map((id) => ({id, name: id, group: 'Codex'})),
+  models: ['gpt-5.5', ...codexModels].map((id) => ({id, name: id, group: 'Codex'})),
   defaultModel: 'gpt-5.5',
   history: codexHistory,
   connect: {

@@ -1,5 +1,4 @@
-import {acpCompatible} from '@tanstack/ai-acp'
-import type {AcpPermissionOutcome, AcpPermissionRequest} from '@tanstack/ai-acp'
+import {acp, type AcpPermissionOutcome, type AcpPermissionRequest} from '@conciv/ai/adapters'
 import type {HarnessChatConfig, HarnessChatDeps} from '@conciv/protocol/harness-types'
 
 export function acpPermissionHandler(decide: HarnessChatDeps['decide']) {
@@ -14,12 +13,12 @@ export function acpPermissionHandler(decide: HarnessChatDeps['decide']) {
 
 export function acpChatConfig(name: string, commandOf: (model: string) => string, defaultModel: string) {
   return (deps: HarnessChatDeps): HarnessChatConfig => ({
-    adapter: acpCompatible({
+    adapter: acp(deps.model ?? defaultModel, {
       name,
       command: ({model}) => commandOf(model),
       permissions: 'interactive',
       onPermissionRequest: acpPermissionHandler(deps.decide),
-    })(deps.model ?? defaultModel),
+    }),
     modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
   })
 }

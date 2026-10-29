@@ -115,12 +115,10 @@
   },
   "dependencies": {
     "@conciv/ai": "workspace:^",
-    "@tanstack/ai": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@tanstack/ai-client": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "solid-js": "catalog:",

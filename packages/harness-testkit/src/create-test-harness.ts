@@ -1,5 +1,5 @@
 import type {HarnessAdapter, HarnessChatDeps} from '@conciv/protocol/harness-types'
-import {makeTextAdapter} from '@conciv/harness'
+import {makeTextAdapter} from '@conciv/ai/adapters'
 import {makeScriptedRun, type ScriptedRun} from './scripted-run.js'
 
 export type TestHarness = HarnessAdapter & {

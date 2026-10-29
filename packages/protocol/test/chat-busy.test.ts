@@ -1,11 +1,10 @@
 import {createSignal} from 'solid-js'
 import {describe, expect, it} from 'vitest'
-import type {ChatClientState} from '@tanstack/ai-client'
 import {chatBusy} from '../src/chat-busy.js'
 
 describe('chatBusy', () => {
   it('includes local and shared generation state', () => {
-    const [status, setStatus] = createSignal<ChatClientState>('ready')
+    const [status, setStatus] = createSignal('ready')
     const [sessionGenerating, setSessionGenerating] = createSignal(false)
     const chat = {status, sessionGenerating}
 

@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import type {AnyTextAdapter} from '@tanstack/ai'
+import type {TextAdapter} from '@conciv/ai/adapters'
 import {defineHarness, type TranscriptHandle} from '../src/harness-types.js'
 
 const stubHandle: TranscriptHandle = {
@@ -8,7 +8,7 @@ const stubHandle: TranscriptHandle = {
   close: () => {},
 }
 
-const fakeAdapter: AnyTextAdapter = {
+const fakeAdapter: TextAdapter = {
   kind: 'text',
   name: 'fake',
   model: 'fake',
