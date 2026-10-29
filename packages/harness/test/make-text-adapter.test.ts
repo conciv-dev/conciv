@@ -1,5 +1,6 @@
 import {expect, test} from 'vitest'
-import {chat, EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {chat, EventType} from '@tanstack/ai'
 import {lastUserModelText, makeTextAdapter} from '../src/_shared/text-adapter.js'
 import {scriptedRunChunks} from './helpers/scripted-chunks.js'
 
@@ -7,7 +8,7 @@ test('makeTextAdapter drives chat() with the provided stream fn', async () => {
   const adapter = makeTextAdapter('scripted', async function* (options) {
     yield* scriptedRunChunks(`echo:${lastUserModelText(options.messages)}`)
   })
-  const chunks: StreamChunk[] = []
+  const chunks: ChatEvent[] = []
   for await (const chunk of chat({adapter, threadId: 'make-text-adapter', messages: [{role: 'user', content: 'hi'}]}))
     chunks.push(chunk)
   const content = chunks.find((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)

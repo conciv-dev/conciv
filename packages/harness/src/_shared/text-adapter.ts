@@ -1,4 +1,5 @@
-import type {StreamChunk, TextOptions} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import type {TextOptions} from '@tanstack/ai'
 import {BaseTextAdapter, type StructuredOutputOptions, type StructuredOutputResult} from '@tanstack/ai/adapters'
 import type {HarnessImage} from '@conciv/protocol/harness-types'
 
@@ -21,7 +22,7 @@ export function lastUserImages(messages: TextOptions['messages']): HarnessImage[
   })
 }
 
-export type ChatStreamFn = (options: TextOptions<Record<string, never>>) => AsyncIterable<StreamChunk>
+export type ChatStreamFn = (options: TextOptions<Record<string, never>>) => AsyncIterable<ChatEvent>
 
 class DelegatingTextAdapter extends BaseTextAdapter<string, Record<string, never>, InputModalities, MsgMeta> {
   readonly name: string
@@ -33,7 +34,7 @@ class DelegatingTextAdapter extends BaseTextAdapter<string, Record<string, never
     this.stream = stream
   }
 
-  chatStream(options: TextOptions<Record<string, never>>): AsyncIterable<StreamChunk> {
+  chatStream(options: TextOptions<Record<string, never>>): AsyncIterable<ChatEvent> {
     return this.stream(options)
   }
 

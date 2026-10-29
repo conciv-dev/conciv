@@ -1,20 +1,21 @@
-import type {StreamChunk, StreamDurability} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import type {StreamDurability} from '@tanstack/ai'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {makeTurn, type UserContent} from '../../src/chat/run.js'
 import type {ChatDeps} from '../../src/chat/runtime.js'
 
 export type DetachedTurn = {
   runId: string
-  chunks: () => readonly StreamChunk[]
-  drained: Promise<readonly StreamChunk[]>
+  chunks: () => readonly ChatEvent[]
+  drained: Promise<readonly ChatEvent[]>
   stop: () => void
 }
 
 async function drain(
-  stream: AsyncIterable<StreamChunk>,
+  stream: AsyncIterable<ChatEvent>,
   log: StreamDurability,
-  into: StreamChunk[],
-): Promise<readonly StreamChunk[]> {
+  into: ChatEvent[],
+): Promise<readonly ChatEvent[]> {
   try {
     for await (const chunk of stream) {
       into.push(chunk)
@@ -34,7 +35,7 @@ export async function startTurn(
 ): Promise<DetachedTurn> {
   const abort = new AbortController()
   const stream = await makeTurn(deps)(sessionId, runId, content, {signal: abort.signal})
-  const collected: StreamChunk[] = []
+  const collected: ChatEvent[] = []
   const drained = drain(stream, deps.durability(runId), collected)
   return {
     runId,
@@ -49,6 +50,6 @@ export async function runTurnToCompletion(
   sessionId: SessionId,
   runId: string,
   content: UserContent,
-): Promise<readonly StreamChunk[]> {
+): Promise<readonly ChatEvent[]> {
   return (await startTurn(deps, sessionId, runId, content)).drained
 }

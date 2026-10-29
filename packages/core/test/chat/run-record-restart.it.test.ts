@@ -2,22 +2,22 @@ import {afterEach, describe, expect, it} from 'vitest'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {EventType, type StreamChunk} from '@tanstack/ai'
-import {isRunPhaseTerminal, runLifecycleOf, type RunLifecycle} from '@conciv/protocol/run-types'
+import {type ChatEvent, isRunPhaseTerminal, runLifecycleEvent, type RunLifecycle} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {createTestkit, type Kit, type RunStream} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 
 const claude = requireClaude()
 
-async function nextLifecycle(stream: RunStream, match: (chunk: StreamChunk) => boolean): Promise<RunLifecycle> {
-  const lifecycle = runLifecycleOf(await stream.waitFor(match, {hangGuardMs: 20_000}))
+async function nextLifecycle(stream: RunStream, match: (chunk: ChatEvent) => boolean): Promise<RunLifecycle> {
+  const lifecycle = runLifecycleEvent.parse(await stream.waitFor(match, {hangGuardMs: 20_000}))
   if (!lifecycle) throw new Error('the matched chunk did not carry a run lifecycle')
   return lifecycle
 }
 
-function isTerminalLifecycle(chunk: StreamChunk): boolean {
-  const lifecycle = runLifecycleOf(chunk)
+function isTerminalLifecycle(chunk: ChatEvent): boolean {
+  const lifecycle = runLifecycleEvent.parse(chunk)
   return lifecycle !== null && isRunPhaseTerminal(lifecycle.phase)
 }
 

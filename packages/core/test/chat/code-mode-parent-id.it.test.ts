@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {chat, EventType, StreamProcessor, type StreamChunk, type TextOptions} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {chat, EventType, StreamProcessor, type TextOptions} from '@tanstack/ai'
 import {makeTextAdapter} from '@conciv/harness'
 import type {ToolRequest} from '@conciv/extension'
 import {SessionId} from '@conciv/protocol/chat-types'
@@ -29,7 +30,7 @@ const PARENT_CALL_ID = 'exec-parent-1'
 
 const ToolCallValueSchema = z.object({callId: z.string(), name: z.string(), toolCallId: z.string().optional()})
 
-function parentIdsOfToolCalls(chunks: StreamChunk[]): (string | undefined)[] {
+function parentIdsOfToolCalls(chunks: ChatEvent[]): (string | undefined)[] {
   return chunks.flatMap((chunk) => {
     if (chunk.type !== EventType.CUSTOM || chunk.name !== 'conciv:tool_call') return []
     const parsed = ToolCallValueSchema.safeParse(chunk.value)
@@ -39,7 +40,7 @@ function parentIdsOfToolCalls(chunks: StreamChunk[]): (string | undefined)[] {
 
 function scriptedAdapter(typescriptCode: string): ReturnType<typeof makeTextAdapter> {
   const rounds = {value: 0}
-  async function* stream(options: TextOptions<Record<string, never>>): AsyncGenerator<StreamChunk> {
+  async function* stream(options: TextOptions<Record<string, never>>): AsyncGenerator<ChatEvent> {
     void options
     const round = rounds.value
     rounds.value += 1
@@ -65,7 +66,7 @@ function scriptedAdapter(typescriptCode: string): ReturnType<typeof makeTextAdap
   return makeTextAdapter('scripted', stream)
 }
 
-function foldedMessages(chunks: StreamChunk[]): ReturnType<StreamProcessor['getMessages']> {
+function foldedMessages(chunks: ChatEvent[]): ReturnType<StreamProcessor['getMessages']> {
   const processor = new StreamProcessor({events: {}})
   for (const chunk of chunks) {
     const synthesized = codeModeToolChunks(chunk)
@@ -83,7 +84,7 @@ describe('code-mode nested-call parent id from real execution (IT, real chat + r
     const codeMode = await makeCodeMode(() => [canvas], request.sessionId, request, allowGate, {listening: () => true})
     if (!codeMode) throw new Error('code mode unavailable: isolated-vm probe reported incompatible')
 
-    const chunks: StreamChunk[] = []
+    const chunks: ChatEvent[] = []
     for await (const chunk of chat({
       adapter: scriptedAdapter('return await external_canvas_svg({})'),
       messages: [{role: 'user', content: 'draw a circle'}],
@@ -109,7 +110,7 @@ describe('code-mode nested-call parent id from real execution (IT, real chat + r
     const codeMode = await makeCodeMode(() => [canvas], request.sessionId, request, allowGate, {listening: () => true})
     if (!codeMode) throw new Error('code mode unavailable: isolated-vm probe reported incompatible')
 
-    const chunks: StreamChunk[] = []
+    const chunks: ChatEvent[] = []
     for await (const chunk of chat({
       adapter: scriptedAdapter("return await external_catalog({search: 'canvas'})"),
       messages: [{role: 'user', content: 'what can you do'}],

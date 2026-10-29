@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit} from '@conciv/harness-testkit'
@@ -18,11 +19,11 @@ const baseCaps = {
   init: 'none',
 } as const
 
-function hangingGenerator(signal: AbortSignal | undefined): AsyncIterable<StreamChunk> {
+function hangingGenerator(signal: AbortSignal | undefined): AsyncIterable<ChatEvent> {
   return {
     [Symbol.asyncIterator]: () => ({
       next: () =>
-        new Promise<IteratorResult<StreamChunk>>((resolve) => {
+        new Promise<IteratorResult<ChatEvent>>((resolve) => {
           signal?.addEventListener('abort', () => resolve({done: true, value: undefined}), {once: true})
         }),
     }),

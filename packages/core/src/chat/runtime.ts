@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {memoryStream, type RunStore, type StreamDurability} from '@tanstack/ai'
 import type {SandboxDefinition} from '@tanstack/ai-sandbox'
-import type {UIMessage} from '@tanstack/ai'
+import type {ChatMessage} from '@conciv/ai/messages'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {createRunStore, type ConcivDb} from '@conciv/db'
 import type {CodeCapability} from './capabilities.js'
@@ -31,7 +31,7 @@ export type ChatDeps = {
   claimStartedAt: () => number
   sessionLocks: SessionLocks
   stream: SessionStreams
-  snapshot: (sessionId: SessionId) => Promise<UIMessage[]>
+  snapshot: (sessionId: SessionId) => Promise<ChatMessage[]>
   risky: ReadonlySet<string>
   commandAllows: () => readonly string[]
   toolNames: ReadonlySet<string>

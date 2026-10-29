@@ -1,13 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import {
-  defineChatMiddleware,
-  EventType,
-  withTanstackMetadata,
-  type AnyTool,
-  type CustomEvent,
-  type StreamChunk,
-} from '@tanstack/ai'
+import {type ChatEvent, approvalRequestedEvent, approvalSettledEvent} from '@conciv/ai/events'
+import {defineChatMiddleware, withTanstackMetadata, type AnyTool} from '@tanstack/ai'
 import {
   defineSandboxPolicy,
   evaluateCommand,
@@ -17,7 +11,6 @@ import {
   type PolicyDecision,
   type ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
-import {APPROVAL_REQUESTED_EVENT, approvalSettledChunk} from '@conciv/protocol/approval-types'
 import type {AskRegistry, PendingApproval} from './ask.js'
 import type {CommandMemory} from './command-memory.js'
 import {commandSegments, escapesReadOnlyIntent} from './command-grammar.js'
@@ -139,7 +132,7 @@ export function commandMemoryFor(memory: CommandMemory, sessionId: SessionId): B
 
 export type AskGateDeps = {
   asks: BoundAsks
-  emit: (chunk: StreamChunk) => void
+  emit: (chunk: ChatEvent) => void
   timeoutMs?: number
   onAsk?: (approvalId: string) => void
   onAskSettled?: (approvalId: string) => void
@@ -154,17 +147,13 @@ export function approvalRequestedChunk(input: {
   approvalId: string
   threadId?: string
   runId?: string
-}): StreamChunk {
-  const event: CustomEvent = {
-    type: EventType.CUSTOM,
-    name: APPROVAL_REQUESTED_EVENT,
-    value: {
-      toolCallId: input.toolCallId,
-      toolName: input.toolName,
-      input: input.input,
-      approval: {id: input.approvalId, needsApproval: true},
-    },
-  }
+}): ChatEvent {
+  const event = approvalRequestedEvent.create({
+    toolCallId: input.toolCallId,
+    toolName: input.toolName,
+    input: input.input,
+    approval: {id: input.approvalId, needsApproval: true},
+  })
   if (input.threadId === undefined || input.runId === undefined) return event
   return withTanstackMetadata(event, {threadId: input.threadId, runId: input.runId})
 }
@@ -199,7 +188,7 @@ export function makeAskGate(deps: AskGateDeps): PermissionGate {
       )
       const approved = await deps.asks.waitFor(approvalId, deps.timeoutMs ?? ASK_TIMEOUT_MS)
       deps.onAskSettled?.(approvalId)
-      deps.emit(approvalSettledChunk(approvalId))
+      deps.emit(approvalSettledEvent.create({approvalId: approvalId}))
       if (approved === true) return 'allow'
       return approved === false ? 'deny' : 'timeout'
     },

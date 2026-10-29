@@ -1,6 +1,6 @@
 import {index, integer, primaryKey, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
 import type {NavigationEntry} from '@conciv/protocol/chat-types'
-import type {UsageSnapshot} from '@conciv/protocol/usage-types'
+import type {UsageSnapshot} from '@conciv/ai/usage'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 
 export const sessions = sqliteTable(

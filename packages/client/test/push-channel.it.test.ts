@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {approvalIds} from '@conciv/harness-testkit'
-import type {StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
 import {PushFrameSchema, type PushFrame} from '@conciv/protocol/push-types'
 import {acquirePushChannel, livePushChannelCount, pushSocketUrl, type PageQueryFrame} from '../src/push-channel.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
@@ -33,7 +33,7 @@ async function nextQuery(source: AsyncIterable<PageQueryFrame>): Promise<PageQue
   throw new Error('the push channel closed before a page query arrived')
 }
 
-async function nextApproval(source: AsyncIterable<StreamChunk>): Promise<string> {
+async function nextApproval(source: AsyncIterable<ChatEvent>): Promise<string> {
   for await (const chunk of source) {
     const [approvalId] = approvalIds(chunk)
     if (approvalId !== undefined) return approvalId

@@ -1,7 +1,8 @@
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, it, vi} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {MadeApp} from '../../src/app.js'
 import {makeTurn} from '../../src/chat/run.js'
@@ -23,7 +24,7 @@ function isAlive(pid: number): boolean {
   }
 }
 
-async function drain(stream: AsyncIterable<StreamChunk>): Promise<void> {
+async function drain(stream: AsyncIterable<ChatEvent>): Promise<void> {
   try {
     for await (const chunk of stream) void chunk
   } catch {}
@@ -42,7 +43,7 @@ describe('run durability is owned by withSandbox (IT)', () => {
     return made
   }
 
-  async function loggedChunks(made: MadeApp, runId: string): Promise<StreamChunk[]> {
+  async function loggedChunks(made: MadeApp, runId: string): Promise<ChatEvent[]> {
     const entries = await made.chat.durability(runId).snapshot()
     return entries.map((entry) => entry.chunk)
   }

@@ -2,6 +2,9 @@ import {randomUUID} from 'node:crypto'
 import {existsSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {eq} from 'drizzle-orm'
+import type {ContentPart, ModelMessage, ChatMessage} from '@conciv/ai/messages'
+import {type ChatEvent, runLifecycleEvent} from '@conciv/ai/events'
+import {type TokenUsage, tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/ai/usage'
 import {
   chat,
   EventType,
@@ -11,14 +14,9 @@ import {
   RUN_CANCEL_REASON,
   StreamProcessor,
   type AnyTool,
-  type ContentPart,
-  type ModelMessage,
   type RunRecord,
   type RunStatus,
   type SpecTokenUsage,
-  type StreamChunk,
-  type TokenUsage,
-  type UIMessage,
 } from '@tanstack/ai'
 import {AsyncQueue} from '@tanstack/ai-acp'
 import {withSandbox} from '@tanstack/ai-sandbox'
@@ -27,7 +25,6 @@ import type {AttachmentDocumentPart} from '@conciv/extension'
 import {isHarnessSessionId} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {ChatContentPart, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {deleteThread, drafts, markers, sessions, type ConcivDb} from '@conciv/db'
 import {transcriptPathWithin} from '@conciv/harness'
 import {FIRST_CHUNK_TIMEOUT_MS} from './run-timing.js'
@@ -37,7 +34,6 @@ import {beginRunMessages, sessionSnapshot, settleRunMessages, writeRunMessages} 
 import {syncedSnapshot, syncTranscript} from './transcript-import.js'
 import {settleContextOccupancy} from './occupancy.js'
 import {publishRunLifecycle, publishRunRecord, runLifecycleOfRecord} from './run-lifecycle.js'
-import {aguiRunLifecycleFor} from '@conciv/protocol/run-types'
 import {stopRuns} from './stop.js'
 import {activeRunsOf} from './active-runs.js'
 import {asksFor, commandMemoryFor, makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
@@ -113,7 +109,7 @@ function compactContent(deps: ChatDeps): UserContent {
   return deps.harness.capabilities.compaction ? '/compact' : COMPACT_FALLBACK_PROMPT
 }
 
-type RunIngest = (chunks: StreamChunk[]) => void
+type RunIngest = (chunks: ChatEvent[]) => void
 
 function toolsIngestingIntoRunLog(tools: AnyTool[], ingest: RunIngest): AnyTool[] {
   return tools.map((tool) => {
@@ -154,7 +150,7 @@ async function turnMessages(
   deps: ChatDeps,
   sessionId: SessionId,
   options: {resumable: boolean; content: UserContent; prepare: HarnessChatConfig['prepareMessages']},
-): Promise<Array<UIMessage | ModelMessage>> {
+): Promise<Array<ChatMessage | ModelMessage>> {
   const history = options.resumable ? [] : sessionSnapshot(deps, sessionId)
   const turn = [userModelMessage(options.content)]
   return [...history, ...(options.prepare?.(turn) ?? turn)]
@@ -167,7 +163,7 @@ async function buildRunStream(
   gates: {gate: PermissionGate; askGate: PermissionGate},
   ingest: RunIngest,
   abort: AbortController,
-): Promise<AsyncIterable<StreamChunk>> {
+): Promise<AsyncIterable<ChatEvent>> {
   const gate = gates.gate
   const model = (await rowById(deps.db, sessionId))?.model ?? null
   const resumeSessionId = deps.harness.capabilities.resume
@@ -215,7 +211,7 @@ async function buildRunStream(
   })
 }
 
-function stampRunId(chunk: StreamChunk, runId: string): StreamChunk {
+function stampRunId(chunk: ChatEvent, runId: string): ChatEvent {
   if (
     chunk.type !== EventType.RUN_STARTED &&
     chunk.type !== EventType.RUN_FINISHED &&
@@ -227,7 +223,7 @@ function stampRunId(chunk: StreamChunk, runId: string): StreamChunk {
   return {...chunk, runId}
 }
 
-export function mintedSessionId(chunk: StreamChunk): HarnessSessionId | null {
+export function mintedSessionId(chunk: ChatEvent): HarnessSessionId | null {
   if (chunk.type !== EventType.CUSTOM || !chunk.name.endsWith('.session-id')) return null
   const value = chunk.value
   if (typeof value !== 'object' || value === null || !('sessionId' in value)) return null
@@ -237,15 +233,15 @@ export function mintedSessionId(chunk: StreamChunk): HarnessSessionId | null {
 type RunOutcome = {
   error: string | null
   usage: UsageSnapshot | null
-  runEnd: StreamChunk | null
+  runEnd: ChatEvent | null
 }
 
-function isRunEndChunk(chunk: StreamChunk): boolean {
+function isRunEndChunk(chunk: ChatEvent): boolean {
   if (chunk.type === EventType.RUN_ERROR) return true
   return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
 }
 
-function noteToolCall(deps: ChatDeps, sessionId: SessionId, chunk: StreamChunk): void {
+function noteToolCall(deps: ChatDeps, sessionId: SessionId, chunk: ChatEvent): void {
   if (chunk.type !== EventType.TOOL_CALL_START) return
   deps.asks.noteToolCall(sessionId, chunk.toolCallId, chunk.toolCallName)
 }
@@ -254,15 +250,15 @@ function tokenUsageOf(usage: TokenUsage | SpecTokenUsage[] | undefined): TokenUs
   return Array.isArray(usage) ? fromSpecTokenUsage(usage) : usage
 }
 
-function noteUsage(deps: ChatDeps, model: string | null, chunk: StreamChunk, outcome: RunOutcome): void {
+function noteUsage(deps: ChatDeps, model: string | null, chunk: ChatEvent, outcome: RunOutcome): void {
   if (chunk.type !== EventType.RUN_FINISHED || chunk.finishReason === 'tool_calls') return
   const usage = tokenUsageOf(chunk.usage)
   if (!usage) return
   outcome.usage = usageSnapshotFor(deps, model ?? deps.harness.defaultModel ?? null, usage)
 }
 
-function isTextMessageChunk(chunk: StreamChunk): chunk is Extract<
-  StreamChunk,
+function isTextMessageChunk(chunk: ChatEvent): chunk is Extract<
+  ChatEvent,
   {
     type:
       | typeof EventType.TEXT_MESSAGE_START
@@ -277,9 +273,9 @@ function isTextMessageChunk(chunk: StreamChunk): chunk is Extract<
   )
 }
 
-function assistantMessageIdStamper(): (chunk: StreamChunk) => StreamChunk {
+function assistantMessageIdStamper(): (chunk: ChatEvent) => ChatEvent {
   let mintedId: string | null = null
-  return (chunk: StreamChunk): StreamChunk => {
+  return (chunk: ChatEvent): ChatEvent => {
     if (!isTextMessageChunk(chunk)) return chunk
     if (chunk.messageId !== '') {
       mintedId = chunk.type === EventType.TEXT_MESSAGE_END ? null : chunk.messageId
@@ -293,7 +289,7 @@ function assistantMessageIdStamper(): (chunk: StreamChunk) => StreamChunk {
 
 type ChunkFold = {deps: ChatDeps; sessionId: SessionId; model: string | null; processor: StreamProcessor}
 
-function foldChunk(fold: ChunkFold, chunk: StreamChunk, outcome: RunOutcome): 'continue' | 'stop' {
+function foldChunk(fold: ChunkFold, chunk: ChatEvent, outcome: RunOutcome): 'continue' | 'stop' {
   const {deps, sessionId} = fold
   fold.processor.processChunk(chunk)
   if (isRunEndChunk(chunk)) outcome.runEnd = chunk
@@ -312,9 +308,9 @@ async function* foldRunStream(
   fold: ChunkFold,
   normalize: (name: string) => string,
   req: RunRequest,
-  stream: AsyncIterable<StreamChunk>,
+  stream: AsyncIterable<ChatEvent>,
   outcome: RunOutcome,
-): AsyncGenerator<StreamChunk> {
+): AsyncGenerator<ChatEvent> {
   const stampAssistantId = assistantMessageIdStamper()
   for await (const raw of stream) {
     const stamped = stampAssistantId(normalizeChunkToolName(stampRunId(raw, req.runId), normalize))
@@ -324,15 +320,15 @@ async function* foldRunStream(
   }
 }
 
-function isHarnessOutput(chunk: StreamChunk): boolean {
+function isHarnessOutput(chunk: ChatEvent): boolean {
   return chunk.type !== EventType.RUN_STARTED && chunk.type !== EventType.CUSTOM
 }
 
 async function* boundFirstChunk(
-  stream: AsyncIterable<StreamChunk>,
+  stream: AsyncIterable<ChatEvent>,
   timeoutMs: number,
   onTimeout: () => void,
-): AsyncGenerator<StreamChunk> {
+): AsyncGenerator<ChatEvent> {
   const timer = {handle: null as ReturnType<typeof setTimeout> | null}
   const deadline = new Promise<'timeout'>((resolve) => {
     timer.handle = setTimeout(() => resolve('timeout'), timeoutMs)
@@ -377,7 +373,7 @@ async function persistRunOutcome(deps: ChatDeps, sessionId: SessionId, kind: Tur
   await syncTranscript(deps, sessionId).catch(() => {})
 }
 
-function runEndChunkFor(sessionId: SessionId, req: RunRequest, outcome: RunOutcome): StreamChunk {
+function runEndChunkFor(sessionId: SessionId, req: RunRequest, outcome: RunOutcome): ChatEvent {
   if (outcome.runEnd) return outcome.runEnd
   if (outcome.error !== null) {
     return {type: EventType.RUN_ERROR, threadId: sessionId, runId: req.runId, message: outcome.error}
@@ -437,13 +433,8 @@ function cancelWhenRequested(
   return () => clearInterval(timer)
 }
 
-function announceRun(
-  deps: ChatDeps,
-  sessionId: SessionId,
-  record: RunRecord,
-  emit: (chunk: StreamChunk) => void,
-): void {
-  const chunk = aguiRunLifecycleFor(runLifecycleOfRecord(record, Date.now()))
+function announceRun(deps: ChatDeps, sessionId: SessionId, record: RunRecord, emit: (chunk: ChatEvent) => void): void {
+  const chunk = runLifecycleEvent.create(runLifecycleOfRecord(record, Date.now()))
   emit(chunk)
   deps.stream.publish(sessionId, chunk)
 }
@@ -452,7 +443,7 @@ async function announceRunRecord(
   deps: ChatDeps,
   sessionId: SessionId,
   runId: string,
-  emit: (chunk: StreamChunk) => void,
+  emit: (chunk: ChatEvent) => void,
 ): Promise<void> {
   const record = await deps.runs.get(runId)
   if (record) announceRun(deps, sessionId, record, emit)
@@ -463,9 +454,9 @@ async function* runStream(
   sessionId: SessionId,
   req: RunRequest,
   abort: AbortController,
-): AsyncGenerator<StreamChunk> {
-  const outbound = new AsyncQueue<StreamChunk>()
-  const emit = (chunk: StreamChunk): void => outbound.push(chunk)
+): AsyncGenerator<ChatEvent> {
+  const outbound = new AsyncQueue<ChatEvent>()
+  const emit = (chunk: ChatEvent): void => outbound.push(chunk)
   const stopCancelWatch = cancelWhenRequested(deps, req.runId, abort, (record) =>
     announceRun(deps, sessionId, record, emit),
   )
@@ -522,7 +513,7 @@ async function* runStream(
   }
 }
 
-async function pipeRunToLog(deps: ChatDeps, runId: string, stream: AsyncIterable<StreamChunk>): Promise<void> {
+async function pipeRunToLog(deps: ChatDeps, runId: string, stream: AsyncIterable<ChatEvent>): Promise<void> {
   const log = deps.durability(runId)
   try {
     for await (const chunk of stream) await log.append([chunk])
@@ -662,7 +653,7 @@ export type Turn = (
   runId: string,
   content: UserContent,
   options: {messageId?: string; signal: AbortSignal},
-) => Promise<AsyncIterable<StreamChunk>>
+) => Promise<AsyncIterable<ChatEvent>>
 
 export function makeTurn(deps: ChatDeps): Turn {
   return (sessionId, runId, content, options) =>

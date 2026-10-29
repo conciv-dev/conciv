@@ -1,12 +1,12 @@
 import {modelMessagesToUIMessages, uiMessageToModelMessages} from '@tanstack/ai'
-import type {UIMessage} from '@tanstack/ai'
+import type {ChatMessage} from '@conciv/ai/messages'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {readThread, threadMessages, updateThread, type ConcivDb} from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
 import {normalizeHistoryToolNames} from './tool-names.js'
 
-function rejoinSplitMessages(messages: UIMessage[]): UIMessage[] {
-  return messages.reduce<UIMessage[]>((rejoined, message) => {
+function rejoinSplitMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.reduce<ChatMessage[]>((rejoined, message) => {
     const previous = rejoined.at(-1)
     if (previous === undefined || previous.id !== message.id) {
       rejoined.push(message)
@@ -17,7 +17,7 @@ function rejoinSplitMessages(messages: UIMessage[]): UIMessage[] {
   }, [])
 }
 
-export function sessionSnapshot(deps: ChatDeps, sessionId: SessionId): UIMessage[] {
+export function sessionSnapshot(deps: ChatDeps, sessionId: SessionId): ChatMessage[] {
   const stored = rejoinSplitMessages(modelMessagesToUIMessages(threadMessages(deps.db, sessionId)))
   return normalizeHistoryToolNames(stored, deps.toolNames)
 }
@@ -26,7 +26,7 @@ export function beginRunMessages(db: ConcivDb, threadId: string): number {
   return readThread(db, threadId).messages.length
 }
 
-export function writeRunMessages(db: ConcivDb, threadId: string, from: number, messages: UIMessage[]): void {
+export function writeRunMessages(db: ConcivDb, threadId: string, from: number, messages: ChatMessage[]): void {
   updateThread(db, threadId, (state) => ({
     ...state,
     pendingFrom: Math.min(state.pendingFrom ?? from, from),

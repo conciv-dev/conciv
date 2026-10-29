@@ -2,7 +2,8 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestHarness, createTestkit} from '@conciv/harness-testkit'
@@ -29,7 +30,7 @@ const baseCaps = {
   init: 'none',
 } as const
 
-async function* instantGenerator(): AsyncGenerator<StreamChunk> {
+async function* instantGenerator(): AsyncGenerator<ChatEvent> {
   yield {type: EventType.RUN_STARTED, threadId: 'instant', runId: 'instant'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'instant-msg', delta: 'ok'}
   yield {type: EventType.RUN_FINISHED, threadId: 'instant', runId: 'instant'}
@@ -50,7 +51,7 @@ function deferred(): {promise: Promise<void>; resolve: () => void} {
   return {promise, resolve}
 }
 
-async function replayRunLog(chat: ChatFixture['chat'], runId: string): Promise<StreamChunk[]> {
+async function replayRunLog(chat: ChatFixture['chat'], runId: string): Promise<ChatEvent[]> {
   const entries = await chat.durability(runId).snapshot()
   return entries.map((entry) => entry.chunk)
 }

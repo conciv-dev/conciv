@@ -1,6 +1,6 @@
 import {open, stat} from 'node:fs/promises'
 import type {Stats} from 'node:fs'
-import type {UIMessage} from '@conciv/protocol/chat-types'
+import type {ChatMessage} from '@conciv/ai/messages'
 import type {
   TranscriptChunk,
   TranscriptFailure,
@@ -15,7 +15,7 @@ const NEWLINE = 0x0a
 export type JsonlParser<State> = {
   empty(): State
   foldLine(state: State, line: string): State
-  messages(state: State): UIMessage[]
+  messages(state: State): ChatMessage[]
 }
 
 export type JsonlSource<State> = {

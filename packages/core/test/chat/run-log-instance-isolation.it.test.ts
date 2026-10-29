@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {startTurn} from '../helpers/detached-turn.js'
 import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
 import {awaitRunSettled} from '../../src/chat/run-settled.js'
@@ -12,12 +13,12 @@ async function runToCompletion(fixture: ChatFixture, runId: string, origin: stri
   await awaitRunSettled(fixture.chat.runs, runId)
 }
 
-async function replayRunLog(fixture: ChatFixture, runId: string): Promise<StreamChunk[]> {
+async function replayRunLog(fixture: ChatFixture, runId: string): Promise<ChatEvent[]> {
   const entries = await fixture.chat.durability(runId).snapshot()
   return entries.map((entry) => entry.chunk)
 }
 
-function probeOrigins(chunks: StreamChunk[]): string[] {
+function probeOrigins(chunks: ChatEvent[]): string[] {
   return chunks.flatMap((chunk) => {
     if (chunk.type !== EventType.CUSTOM || chunk.name !== PROBE_EVENT) return []
     const value = chunk.value

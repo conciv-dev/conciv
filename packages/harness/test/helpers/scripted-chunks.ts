@@ -1,6 +1,7 @@
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 
-export function* scriptedRunChunks(text: string): Generator<StreamChunk> {
+export function* scriptedRunChunks(text: string): Generator<ChatEvent> {
   yield {type: EventType.RUN_STARTED, threadId: 'scripted', runId: 'scripted'}
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'scripted-m1', role: 'assistant'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'scripted-m1', delta: text}
@@ -8,7 +9,7 @@ export function* scriptedRunChunks(text: string): Generator<StreamChunk> {
   yield {type: EventType.RUN_FINISHED, threadId: 'scripted', runId: 'scripted'}
 }
 
-export function* runErrorChunks(message: string): Generator<StreamChunk> {
+export function* runErrorChunks(message: string): Generator<ChatEvent> {
   yield {type: EventType.RUN_STARTED, threadId: 'scripted', runId: 'scripted'}
   yield {type: EventType.RUN_ERROR, message}
 }

@@ -2,7 +2,8 @@ import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {expect} from 'vitest'
-import {chat, EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {chat, EventType} from '@tanstack/ai'
 import {withSandbox} from '@tanstack/ai-sandbox'
 import type {HarnessAdapter, HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
@@ -20,7 +21,7 @@ export type HarnessTurnOpts = {
   model?: string
 }
 
-export async function runHarnessTurn(opts: HarnessTurnOpts): Promise<StreamChunk[]> {
+export async function runHarnessTurn(opts: HarnessTurnOpts): Promise<ChatEvent[]> {
   const deps: HarnessChatDeps = {
     cwd: opts.dir,
     sessionId: opts.sessionId,
@@ -33,7 +34,7 @@ export async function runHarnessTurn(opts: HarnessTurnOpts): Promise<StreamChunk
   const config = opts.harness.chatConfig(deps)
   const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-harness-turn-'))
   const made = await bootMadeApp({stateRoot, cwd: opts.dir, harness: opts.harness})
-  const chunks: StreamChunk[] = []
+  const chunks: ChatEvent[] = []
   try {
     const stream = chat({
       adapter: config.adapter,
@@ -49,7 +50,7 @@ export async function runHarnessTurn(opts: HarnessTurnOpts): Promise<StreamChunk
   return chunks
 }
 
-export function sessionIdFrom(chunks: StreamChunk[], eventName: string): HarnessSessionId | null {
+export function sessionIdFrom(chunks: ChatEvent[], eventName: string): HarnessSessionId | null {
   for (const chunk of chunks) {
     if (chunk.type !== EventType.CUSTOM || chunk.name !== eventName) continue
     const value = chunk.value
@@ -60,7 +61,7 @@ export function sessionIdFrom(chunks: StreamChunk[], eventName: string): Harness
   return null
 }
 
-export function textOf(chunks: StreamChunk[]): string {
+export function textOf(chunks: ChatEvent[]): string {
   return chunks.flatMap((chunk) => (chunk.type === EventType.TEXT_MESSAGE_CONTENT ? [chunk.delta] : [])).join('')
 }
 

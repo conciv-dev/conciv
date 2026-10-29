@@ -1,6 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {z} from 'zod'
-import type {AnyTool, StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import type {AnyTool} from '@tanstack/ai'
 import {approvalIds} from '@conciv/harness-testkit'
 import {toolError, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
@@ -93,7 +94,7 @@ function replyingGate(timeoutMs: number): {
   approvalId: () => string | undefined
 } {
   const asks = createAskRegistry()
-  const emitted: StreamChunk[] = []
+  const emitted: ChatEvent[] = []
   const gate = makeAskGate({asks: asksFor(asks, SESSION), emit: (chunk) => emitted.push(chunk), timeoutMs})
   return {gate, asks, approvalId: () => emitted.flatMap(approvalIds)[0]}
 }

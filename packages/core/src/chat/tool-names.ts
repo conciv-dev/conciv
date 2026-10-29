@@ -1,4 +1,6 @@
-import {EventType, type StreamChunk, type UIMessage} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatMessage} from '@conciv/ai/messages'
+import {EventType} from '@tanstack/ai'
 import type {ChatHistory} from '@conciv/protocol/chat-types'
 
 const MCP_PREFIX = /^mcp__.+?__/
@@ -18,7 +20,7 @@ export function makeToolNameNormalizer(registered: ReadonlySet<string>): (name: 
   }
 }
 
-function normalizeMessage(message: UIMessage, normalize: (name: string) => string): UIMessage {
+function normalizeMessage(message: ChatMessage, normalize: (name: string) => string): ChatMessage {
   if (!Array.isArray(message.parts)) return message
   if (!message.parts.some((part) => part.type === 'tool-call' && part.name !== normalize(part.name))) return message
   return {
@@ -32,7 +34,7 @@ export function normalizeHistoryToolNames(history: ChatHistory, registered: Read
   return history.map((message) => normalizeMessage(message, normalize))
 }
 
-export function normalizeChunkToolName(chunk: StreamChunk, normalize: (name: string) => string): StreamChunk {
+export function normalizeChunkToolName(chunk: ChatEvent, normalize: (name: string) => string): ChatEvent {
   if (chunk.type !== EventType.TOOL_CALL_START) return chunk
   const normalized = normalize(chunk.toolCallName)
   if (normalized === chunk.toolCallName) return chunk

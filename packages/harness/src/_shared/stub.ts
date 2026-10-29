@@ -1,4 +1,5 @@
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {
   defineHarness,
   type HarnessAdapter,
@@ -10,7 +11,7 @@ import {makeTextAdapter} from './text-adapter.js'
 
 export function unsupportedChatConfig(id: string, binName: string): (deps: HarnessChatDeps) => HarnessChatConfig {
   return () => ({
-    adapter: makeTextAdapter(id, async function* (): AsyncGenerator<StreamChunk> {
+    adapter: makeTextAdapter(id, async function* (): AsyncGenerator<ChatEvent> {
       yield {type: EventType.RUN_STARTED, threadId: id, runId: id}
       yield {type: EventType.RUN_ERROR, message: `${binName} is not installed or not yet supported`}
     }),

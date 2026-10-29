@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../helpers/boot.js'
 import {hydratedSnapshot} from '../helpers/fake-session.js'
@@ -16,12 +17,12 @@ async function boot(): Promise<Kit> {
   return kit
 }
 
-function runStartsOf(chunks: readonly StreamChunk[], runId: string): number {
+function runStartsOf(chunks: readonly ChatEvent[], runId: string): number {
   return chunks.filter((chunk) => chunk.type === EventType.RUN_STARTED && 'runId' in chunk && chunk.runId === runId)
     .length
 }
 
-function textDeltasOf(chunks: readonly StreamChunk[]): string[] {
+function textDeltasOf(chunks: readonly ChatEvent[]): string[] {
   return chunks.flatMap((chunk) =>
     chunk.type === EventType.TEXT_MESSAGE_CONTENT && typeof chunk.delta === 'string' ? [chunk.delta] : [],
   )

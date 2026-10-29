@@ -1,5 +1,5 @@
 import {and, eq, like} from 'drizzle-orm'
-import type {ModelMessage} from '@tanstack/ai'
+import type {ModelMessage} from '@conciv/ai/messages'
 import type {ConcivDb} from './db.js'
 import {chatMetadata, chatThreads, runMessages, sessionHistory} from './run-schema.js'
 import {anchorKey, pendingFromKey, TRANSCRIPT_NAMESPACE} from './chat-thread-import.js'

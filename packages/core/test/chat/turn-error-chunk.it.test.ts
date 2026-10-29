@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit} from '@conciv/harness-testkit'
@@ -20,7 +21,7 @@ const baseCaps = {
   init: 'none',
 } as const
 
-async function* erroringGenerator(): AsyncGenerator<StreamChunk> {
+async function* erroringGenerator(): AsyncGenerator<ChatEvent> {
   yield {type: EventType.RUN_STARTED, threadId: 'stub', runId: 'stub'}
   yield {type: EventType.RUN_ERROR, message: CHUNK_FAIL}
 }

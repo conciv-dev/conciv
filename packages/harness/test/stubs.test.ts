@@ -1,5 +1,6 @@
 import {describe, it, expect} from 'vitest'
-import {chat, EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {chat, EventType} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {pi} from '../src/pi/index.js'
 
@@ -17,7 +18,7 @@ describe.each([['pi', pi]])('%s stub', (id, adapter) => {
       kind: 'chat',
       decide: async () => 'allow',
     })
-    const chunks: StreamChunk[] = []
+    const chunks: ChatEvent[] = []
     for await (const chunk of chat({
       adapter: config.adapter,
       threadId: 'stubs',

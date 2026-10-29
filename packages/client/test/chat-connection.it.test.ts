@@ -1,5 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk, type UIMessage} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatMessage} from '@conciv/ai/messages'
+import {EventType} from '@tanstack/ai'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {chatConnection, type ChatConnection, type ChatTransport} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
@@ -10,8 +12,8 @@ afterEach(async () => {
   kit = undefined
 })
 
-async function drainRun(connection: ChatConnection, abort: AbortController): Promise<StreamChunk[]> {
-  const seen: StreamChunk[] = []
+async function drainRun(connection: ChatConnection, abort: AbortController): Promise<ChatEvent[]> {
+  const seen: ChatEvent[] = []
   for await (const chunk of connection.subscribe(abort.signal)) {
     seen.push(chunk)
     if (chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR) return seen
@@ -27,7 +29,7 @@ async function opened(): Promise<{rpc: RpcClient; sessionId: string; connection:
   return {rpc, sessionId, connection: chatConnection(rpc, clientKit.base, sessionId)}
 }
 
-async function turnOf(runId: string, parts: UIMessage['parts'], extra: UIMessage[] = []) {
+async function turnOf(runId: string, parts: ChatMessage['parts'], extra: ChatMessage[] = []) {
   const {rpc, sessionId, connection} = await opened()
   const abort = new AbortController()
   const draining = drainRun(connection, abort)

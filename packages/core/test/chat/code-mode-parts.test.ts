@@ -1,8 +1,9 @@
 import {describe, expect, test} from 'vitest'
-import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType, StreamProcessor} from '@tanstack/ai'
 import {codeModeToolChunks} from '../../src/chat/code-mode-parts.js'
 
-const custom = (name: string, value: Record<string, unknown>): StreamChunk => ({type: EventType.CUSTOM, name, value})
+const custom = (name: string, value: Record<string, unknown>): ChatEvent => ({type: EventType.CUSTOM, name, value})
 
 describe('codeModeToolChunks', () => {
   test('conciv:tool_call becomes START/ARGS/END stamped with the parent tool-call id', () => {

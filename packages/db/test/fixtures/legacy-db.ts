@@ -1,7 +1,7 @@
 import {mkdirSync} from 'node:fs'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
-import type {UIMessage} from '@tanstack/ai'
+import type {ChatMessage} from '@conciv/ai/messages'
 import {CODE_MODE_SYNTHETIC_PART_MARKER} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {drizzle} from 'drizzle-orm/node-sqlite'
@@ -17,7 +17,7 @@ export const LEGACY_SESSION_ID = 's-legacy'
 export const LEGACY_ANCHOR_NATIVE_ID = 'native-a2'
 export const FOLDED_WITHOUT_ANCHOR_SESSION_ID = 's-legacy-unanchored'
 
-export const LEGACY_HISTORY: UIMessage[] = [
+export const LEGACY_HISTORY: ChatMessage[] = [
   {
     id: 'u1',
     role: 'user',
@@ -45,7 +45,7 @@ export const LEGACY_HISTORY: UIMessage[] = [
   },
 ]
 
-export const LEGACY_PENDING: UIMessage[] = [
+export const LEGACY_PENDING: ChatMessage[] = [
   {
     id: 'u3',
     role: 'user',

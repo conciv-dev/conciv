@@ -1,5 +1,5 @@
 import type {RunRecord, RunStatus} from '@tanstack/ai'
-import {aguiRunLifecycleFor, type RunLifecycle, type RunPhase} from '@conciv/protocol/run-types'
+import {runLifecycleEvent, type RunLifecycle, type RunPhase} from '@conciv/ai/events'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ChatDeps} from './runtime.js'
 
@@ -28,7 +28,7 @@ export function runLifecycleOfRecord(record: RunRecord, now: number): RunLifecyc
 }
 
 export function publishRunLifecycle(deps: ChatDeps, sessionId: SessionId, record: RunRecord): void {
-  deps.stream.publish(sessionId, aguiRunLifecycleFor(runLifecycleOfRecord(record, Date.now())))
+  deps.stream.publish(sessionId, runLifecycleEvent.create(runLifecycleOfRecord(record, Date.now())))
 }
 
 export async function publishRunRecord(deps: ChatDeps, sessionId: SessionId, runId: string): Promise<void> {

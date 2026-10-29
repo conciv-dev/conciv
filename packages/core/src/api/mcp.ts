@@ -3,7 +3,9 @@ import {Hono} from 'hono'
 import {z} from 'zod'
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import {EventType, isContentPartArray, type ContentPart, type StreamChunk} from '@tanstack/ai'
+import type {ContentPart} from '@conciv/ai/messages'
+import {type ChatEvent, codeModeToolCallEvent} from '@conciv/ai/events'
+import {EventType, isContentPartArray} from '@tanstack/ai'
 import type {ToolRequest} from '@conciv/extension'
 import type {EngineStaleness} from '@conciv/contract'
 import {HTTPException} from 'hono/http-exception'
@@ -22,7 +24,7 @@ import {loopbackHostAllowlist} from '../lib/cors.js'
 import type {CodeCapability} from '../chat/capabilities.js'
 import type {PermissionGate} from '../chat/gate.js'
 import {makeCodeMode, type CodeMode} from '../chat/code-mode.js'
-import {CODE_MODE_TOOL_CALL_EVENT, codeModeEventPublisher} from '../chat/code-mode-parts.js'
+import {codeModeEventPublisher} from '../chat/code-mode-parts.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema} from './execute-schemas.js'
 
 export function sessionIdFromHeaders(headers: Headers): SessionId | null {
@@ -149,9 +151,9 @@ function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply
   return {content: [{type: 'text', text: cappedText(body)}]}
 }
 
-type PublishChunks = (chunks: StreamChunk[]) => void
+type PublishChunks = (chunks: ChatEvent[]) => void
 
-function executeStartChunks(executionId: string, typescriptCode: string): StreamChunk[] {
+function executeStartChunks(executionId: string, typescriptCode: string): ChatEvent[] {
   return [
     {
       type: EventType.TOOL_CALL_START,
@@ -163,7 +165,7 @@ function executeStartChunks(executionId: string, typescriptCode: string): Stream
   ]
 }
 
-function executeResultChunk(executionId: string, reply: ExecuteReply): StreamChunk {
+function executeResultChunk(executionId: string, reply: ExecuteReply): ChatEvent {
   const text = reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
   return {
     type: EventType.TOOL_CALL_RESULT,
@@ -188,7 +190,7 @@ function sandboxEventContext(
   const emit = codeModeEventPublisher(executionId, publish)
   return {
     emitCustomEvent: (eventName, value) => {
-      if (eventName === CODE_MODE_TOOL_CALL_EVENT) {
+      if (eventName === codeModeToolCallEvent.name) {
         const parsed = SandboxToolCallSchema.safeParse(value)
         if (parsed.success) note(parsed.data.callId, parsed.data.name)
       }

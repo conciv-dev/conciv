@@ -1,5 +1,5 @@
 import {uiMessageToModelMessages} from '@tanstack/ai'
-import type {UIMessage} from '@tanstack/ai'
+import type {ChatMessage} from '@conciv/ai/messages'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -17,7 +17,7 @@ async function readTranscript(
   cwd: string,
   nativeId: HarnessSessionId,
   claudeHome?: string,
-): Promise<UIMessage[]> {
+): Promise<ChatMessage[]> {
   const history = harness.history
   if (!history) return []
   try {
@@ -44,14 +44,14 @@ function turnBoundary(messages: readonly Spoken[], turns: number): number {
   return messages.length
 }
 
-function freshTranscript(anchor: ThreadAnchor | null, transcript: UIMessage[]): UIMessage[] | null {
+function freshTranscript(anchor: ThreadAnchor | null, transcript: ChatMessage[]): ChatMessage[] | null {
   if (anchor === null) return transcript
   if (anchor.nativeId === null) return null
   const index = transcript.findIndex((message) => message.id === anchor.nativeId)
   return index === -1 ? null : transcript.slice(index + 1)
 }
 
-export function importFold(state: ThreadState, transcript: UIMessage[]): ThreadState {
+export function importFold(state: ThreadState, transcript: ChatMessage[]): ThreadState {
   const tailId = transcript.at(-1)?.id ?? null
   const anchor = tailId === null ? state.anchor : {nativeId: tailId}
   const fresh = freshTranscript(state.anchor, transcript)
@@ -76,7 +76,7 @@ export async function syncTranscript(scope: TranscriptScope, sessionId: SessionI
   updateThread(scope.db, sessionId, (state) => importFold(state, transcript))
 }
 
-export async function syncedSnapshot(deps: ChatDeps, sessionId: SessionId): Promise<UIMessage[]> {
+export async function syncedSnapshot(deps: ChatDeps, sessionId: SessionId): Promise<ChatMessage[]> {
   const active = await deps.runs.findActiveRun(sessionId)
   if (active === null) await syncTranscript(deps, sessionId).catch(() => {})
   return sessionSnapshot(deps, sessionId)

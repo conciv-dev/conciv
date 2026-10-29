@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import type {ModelMessage} from '@tanstack/ai'
+import type {ModelMessage} from '@conciv/ai/messages'
 import {claudeCodeText} from '@tanstack/ai-claude-code'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {

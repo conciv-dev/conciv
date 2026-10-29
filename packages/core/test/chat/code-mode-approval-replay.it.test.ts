@@ -1,7 +1,8 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {tmpdir} from 'node:os'
 import {z} from 'zod'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {approvalIds, createTestHarness} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'
@@ -45,7 +46,7 @@ function callThroughCatalog(name: string, input: unknown): string {
   `
 }
 
-function startsCall(chunk: StreamChunk, name: string): boolean {
+function startsCall(chunk: ChatEvent, name: string): boolean {
   if (chunk.type !== EventType.TOOL_CALL_START) return false
   return chunk.toolCallName === name
 }
@@ -75,7 +76,7 @@ describe('joining a run mid-gate rebuilds the code-mode call as approval-request
     await keeper.waitFor((chunk) => startsCall(chunk, 'vault_purge'), {hangGuardMs: 20_000})
 
     const joined = kit.join('code-mode-approval-replay-1')
-    const replayed: StreamChunk[] = []
+    const replayed: ChatEvent[] = []
     const stopTapping = joined.tap((chunk) => replayed.push(chunk))
     await joined.waitFor((chunk) => startsCall(chunk, 'vault_purge'), {hangGuardMs: 20_000})
     await joined.waitFor((chunk) => approvalIds(chunk).includes(approvalId), {hangGuardMs: 20_000})

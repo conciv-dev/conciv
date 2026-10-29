@@ -5,7 +5,7 @@ import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {z} from 'zod'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
-import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
+import type {ChatPart, ChatMessage} from '@conciv/ai/messages'
 import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle} from '@conciv/protocol/harness-types'
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
 import {containedPath} from '../_shared/contained-path.js'
@@ -151,15 +151,15 @@ function toolName(name: string, namespace: string | null | undefined): string {
   return namespace ? `${namespace}__${name}` : name
 }
 
-function hasCall(message: UIMessage, callId: string): boolean {
+function hasCall(message: ChatMessage, callId: string): boolean {
   return message.parts.some((part) => part.type === 'tool-call' && part.id === callId)
 }
 
 type SpineEvent =
   | {kind: 'user'; text: string}
   | {kind: 'assistant'; text: string}
-  | {kind: 'call'; part: MessagePart}
-  | {kind: 'output'; callId: string; part: MessagePart}
+  | {kind: 'call'; part: ChatPart}
+  | {kind: 'output'; callId: string; part: ChatPart}
 
 function spineEvent(payload: unknown): SpineEvent | null {
   const user = UserMessagePayloadSchema.safeParse(payload)
@@ -210,20 +210,20 @@ function spineEvent(payload: unknown): SpineEvent | null {
   }
 }
 
-type CodexSpine = {messages: UIMessage[]; opened: number}
+type CodexSpine = {messages: ChatMessage[]; opened: number}
 
-function openMessage(spine: CodexSpine, role: 'user' | 'assistant', parts: MessagePart[]): void {
+function openMessage(spine: CodexSpine, role: 'user' | 'assistant', parts: ChatPart[]): void {
   spine.opened += 1
   spine.messages.push({id: `h${spine.opened}`, role, parts})
 }
 
-function appendAssistant(spine: CodexSpine, part: MessagePart): void {
+function appendAssistant(spine: CodexSpine, part: ChatPart): void {
   const last = spine.messages.at(-1)
   if (last?.role === 'assistant') last.parts.push(part)
   else openMessage(spine, 'assistant', [part])
 }
 
-function attachOutput(spine: CodexSpine, callId: string, part: MessagePart): void {
+function attachOutput(spine: CodexSpine, callId: string, part: ChatPart): void {
   const owner = spine.messages.findLast((message) => hasCall(message, callId))
   if (owner) owner.parts.push(part)
   else appendAssistant(spine, part)
@@ -259,11 +259,11 @@ function foldLine(spine: CodexSpine, line: string): CodexSpine {
   return spine
 }
 
-function spineMessages(spine: CodexSpine): UIMessage[] {
+function spineMessages(spine: CodexSpine): ChatMessage[] {
   return spine.messages.map((message) => ({...message, parts: [...message.parts]}))
 }
 
-function parseHistory(raw: string): UIMessage[] {
+function parseHistory(raw: string): ChatMessage[] {
   return raw.split('\n').reduce(foldLine, emptySpine()).messages
 }
 
@@ -320,7 +320,7 @@ function rolloutWithinProject(cwd: string, sessionId: string, home: string = hom
   return projectRollout(cwd, sessionId, home) !== null
 }
 
-async function transcriptMessages(cwd: string, sessionId: string, home: string = homedir()): Promise<UIMessage[]> {
+async function transcriptMessages(cwd: string, sessionId: string, home: string = homedir()): Promise<ChatMessage[]> {
   const rollout = projectRollout(cwd, sessionId, home)
   return rollout ? parseHistory(rollout.raw) : []
 }

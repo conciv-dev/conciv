@@ -1,5 +1,6 @@
 import {describe, it, expect} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {StreamProcessor as ClientStreamProcessor} from '@tanstack/ai-client'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
@@ -9,7 +10,7 @@ import {bootCoreApp} from '../helpers/boot.js'
 const ASSISTANT_MESSAGE_ID = 'tool-first-assistant-1'
 const TOOL_CALL_ID = 'tool-first-call-1'
 
-async function* toolFirstThenTextStream(): AsyncGenerator<StreamChunk> {
+async function* toolFirstThenTextStream(): AsyncGenerator<ChatEvent> {
   yield {type: EventType.RUN_STARTED, threadId: 'thread', runId: 'run'}
   yield {
     type: EventType.TOOL_CALL_START,

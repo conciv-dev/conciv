@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {EventType, type StreamChunk, type TextOptions} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType, type TextOptions} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {defineExtension, defineTool} from '@conciv/extension'
@@ -22,7 +23,7 @@ const whiteboardish = defineExtension({name: 'whiteboardish', tools: [canvasDele
 const NOISE_CHUNK_COUNT = 60
 const NOISE_INTERVAL_MS = 15
 
-async function* noisyStream(options: TextOptions<Record<string, never>>): AsyncGenerator<StreamChunk> {
+async function* noisyStream(options: TextOptions<Record<string, never>>): AsyncGenerator<ChatEvent> {
   void options
   yield {type: EventType.RUN_STARTED, threadId: 'noisy', runId: 'noisy'}
   for (let index = 0; index < NOISE_CHUNK_COUNT; index += 1) {

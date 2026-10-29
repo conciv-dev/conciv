@@ -1,4 +1,5 @@
-import type {StreamChunk, UIMessage} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatMessage} from '@conciv/ai/messages'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageOutcome} from '@conciv/protocol/page-types'
 import type {PageCaptureBundle, SessionCaptures} from '@conciv/protocol/element-capture-types'
@@ -32,10 +33,10 @@ export type SessionPage = {
 }
 
 export type SessionStream = {
-  publish: (chunk: StreamChunk) => void
-  listen: (onChunk: (chunk: StreamChunk) => void) => () => void
+  publish: (chunk: ChatEvent) => void
+  listen: (onChunk: (chunk: ChatEvent) => void) => () => void
   listening: () => boolean
-  events: (signal: AbortSignal) => AsyncGenerator<StreamChunk>
+  events: (signal: AbortSignal) => AsyncGenerator<ChatEvent>
 }
 
 export type SessionAsks = {
@@ -55,7 +56,7 @@ export type SessionCapturesScope = {
 }
 
 export type SessionHistory = {
-  messages: () => Promise<UIMessage[]>
+  messages: () => Promise<ChatMessage[]>
   hydrate: () => Promise<ChatHydration>
 }
 

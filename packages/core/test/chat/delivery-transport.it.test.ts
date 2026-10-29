@@ -1,12 +1,13 @@
 import {describe, it, expect} from 'vitest'
-import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType, StreamProcessor} from '@tanstack/ai'
 import {fetchServerSentEvents, webSocket} from '@tanstack/ai-client'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {hydratedSnapshot, SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
 import {assistantTexts, userTexts} from '../helpers/snapshots.js'
 import type {Kit} from '@conciv/harness-testkit'
 
-function foldedTranscript(chunks: StreamChunk[]): Array<{role: string; text: string}> {
+function foldedTranscript(chunks: ChatEvent[]): Array<{role: string; text: string}> {
   const processor = new StreamProcessor({})
   for (const chunk of chunks) processor.processChunk(chunk)
   return processor.getMessages().map((message) => ({
@@ -18,11 +19,8 @@ function foldedTranscript(chunks: StreamChunk[]): Array<{role: string; text: str
   }))
 }
 
-async function collect(
-  stream: AsyncIterable<StreamChunk>,
-  until: (chunk: StreamChunk) => boolean,
-): Promise<StreamChunk[]> {
-  const seen: StreamChunk[] = []
+async function collect(stream: AsyncIterable<ChatEvent>, until: (chunk: ChatEvent) => boolean): Promise<ChatEvent[]> {
+  const seen: ChatEvent[] = []
   for await (const chunk of stream) {
     seen.push(chunk)
     if (until(chunk)) break
@@ -30,10 +28,10 @@ async function collect(
   return seen
 }
 
-const isTerminal = (chunk: StreamChunk): boolean =>
+const isTerminal = (chunk: ChatEvent): boolean =>
   chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR
 
-async function overWebSocket(kit: Kit, sessionId: string, runId: string, text: string): Promise<StreamChunk[]> {
+async function overWebSocket(kit: Kit, sessionId: string, runId: string, text: string): Promise<ChatEvent[]> {
   const connection = webSocket(`${kit.wsBase}${CHAT_WS_PATH}`)
   const abort = new AbortController()
   const stream = connection.subscribe(abort.signal)

@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
 import {until} from '@conciv/harness-testkit'
 import {userTexts} from '../helpers/snapshots.js'
 import {collectChunks, peakLiveRuns, runsFinished, runsStarted} from '../helpers/run-tally.js'
@@ -12,7 +12,7 @@ describe('compaction shares the per-session run chain (IT)', () => {
 
   it('T11: a compact fired while a chat run is live never overlaps it', {timeout: 60_000}, async () => {
     const {kit, harness, sessionId} = await sessions.open()
-    const seen: StreamChunk[] = []
+    const seen: ChatEvent[] = []
     const watching = new AbortController()
     const stream = await kit.rpc.chat.events({sessionId}, {signal: watching.signal})
     void collectChunks(stream, seen)

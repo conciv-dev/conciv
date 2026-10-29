@@ -1,5 +1,6 @@
 import {describe, it, expect} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {StreamProcessor as ClientStreamProcessor} from '@tanstack/ai/client'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
@@ -9,7 +10,7 @@ import {hydratedSnapshot} from '../helpers/fake-session.js'
 
 const REPLY_TEXT = 'a reply with no wire messageId'
 
-async function* noMessageIdChatStream(): AsyncGenerator<StreamChunk> {
+async function* noMessageIdChatStream(): AsyncGenerator<ChatEvent> {
   yield {type: EventType.RUN_STARTED, threadId: 'thread', runId: 'run'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: '', delta: REPLY_TEXT}
   yield {type: EventType.RUN_FINISHED, threadId: 'thread', runId: 'run'}

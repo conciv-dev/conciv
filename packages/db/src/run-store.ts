@@ -1,6 +1,6 @@
 import type {RunRecord, RunStatus, RunStore} from '@tanstack/ai'
 import {and, asc, desc, eq, isNotNull, isNull, lte} from 'drizzle-orm'
-import type {RunPhase} from '@conciv/protocol/run-types'
+import type {RunPhase} from '@conciv/ai/events'
 import type {ConcivDb} from './db.js'
 import {chatRuns, runs} from './run-schema.js'
 

@@ -1,10 +1,9 @@
 import {describe, it, expect} from 'vitest'
-import type {StreamChunk} from '@tanstack/ai'
-import {aguiRunLifecycleFor} from '@conciv/protocol/run-types'
+import {type ChatEvent, runLifecycleEvent} from '@conciv/ai/events'
 import {peakLiveRuns} from './run-tally.js'
 
-function lifecycle(runId: string, phase: 'running' | 'completed'): StreamChunk {
-  return aguiRunLifecycleFor({
+function lifecycle(runId: string, phase: 'running' | 'completed'): ChatEvent {
+  return runLifecycleEvent.create({
     runId,
     phase,
     startedAt: 0,
@@ -16,7 +15,7 @@ function lifecycle(runId: string, phase: 'running' | 'completed'): StreamChunk {
 
 describe('peakLiveRuns', () => {
   it('closes a run on its terminal lifecycle so a later run does not inflate the peak', () => {
-    const chunks: StreamChunk[] = [
+    const chunks: ChatEvent[] = [
       lifecycle('blocking', 'running'),
       lifecycle('blocking', 'completed'),
       lifecycle('next', 'running'),
@@ -27,7 +26,7 @@ describe('peakLiveRuns', () => {
   })
 
   it('counts two runs that overlap', () => {
-    const chunks: StreamChunk[] = [
+    const chunks: ChatEvent[] = [
       lifecycle('first', 'running'),
       lifecycle('second', 'running'),
       lifecycle('first', 'completed'),

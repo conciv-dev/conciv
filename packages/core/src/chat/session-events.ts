@@ -1,17 +1,17 @@
 import {AsyncQueue} from '@tanstack/ai-acp'
-import type {StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ChatDeps} from './runtime.js'
 
 export type SessionStreams = {
-  publish: (sessionId: SessionId, chunk: StreamChunk) => void
-  listen: (sessionId: SessionId, onChunk: (chunk: StreamChunk) => void) => () => void
+  publish: (sessionId: SessionId, chunk: ChatEvent) => void
+  listen: (sessionId: SessionId, onChunk: (chunk: ChatEvent) => void) => () => void
   watch: (sessionId: SessionId) => () => void
   watched: (sessionId: SessionId) => boolean
 }
 
 export function createSessionStreams(): SessionStreams {
-  const bySession = new Map<string, Set<(chunk: StreamChunk) => void>>()
+  const bySession = new Map<string, Set<(chunk: ChatEvent) => void>>()
   const watchers = new Map<string, Set<object>>()
   const watch = (sessionId: SessionId): (() => void) => {
     const token = {}
@@ -43,8 +43,8 @@ export function createSessionStreams(): SessionStreams {
   }
 }
 
-export function sessionEvents(deps: ChatDeps, sessionId: SessionId, signal: AbortSignal): AsyncGenerator<StreamChunk> {
-  const queue = new AsyncQueue<StreamChunk>()
+export function sessionEvents(deps: ChatDeps, sessionId: SessionId, signal: AbortSignal): AsyncGenerator<ChatEvent> {
+  const queue = new AsyncQueue<ChatEvent>()
   const stop = (): void => queue.end()
   signal.addEventListener('abort', stop, {once: true})
   const unlisten = deps.stream.listen(sessionId, (chunk) => queue.push(chunk))
@@ -56,10 +56,10 @@ export function sessionEvents(deps: ChatDeps, sessionId: SessionId, signal: Abor
 }
 
 async function* drain(
-  queue: AsyncQueue<StreamChunk>,
+  queue: AsyncQueue<ChatEvent>,
   signal: AbortSignal,
   release: () => void,
-): AsyncGenerator<StreamChunk> {
+): AsyncGenerator<ChatEvent> {
   try {
     for await (const chunk of queue) {
       yield chunk

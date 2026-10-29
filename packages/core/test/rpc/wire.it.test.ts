@@ -3,7 +3,8 @@ import {mkdtempSync, realpathSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
-import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType, StreamProcessor} from '@tanstack/ai'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {createTestHarness, makeRpcClient, withAutoApproval, type Kit, type TestHarness} from '@conciv/harness-testkit'
@@ -23,14 +24,14 @@ function partsOf(message: unknown): unknown[] {
   return message.parts
 }
 
-function runIdsOf(chunks: StreamChunk[], type: StreamChunk['type']): string[] {
+function runIdsOf(chunks: ChatEvent[], type: ChatEvent['type']): string[] {
   return chunks.flatMap((chunk) => {
     if (chunk.type !== type || !('runId' in chunk)) return []
     return typeof chunk.runId === 'string' ? [chunk.runId] : []
   })
 }
 
-function renderedMessages(chunks: StreamChunk[]): unknown[] {
+function renderedMessages(chunks: ChatEvent[]): unknown[] {
   const processor = new StreamProcessor({})
   for (const chunk of chunks) processor.processChunk(chunk)
   return processor.getMessages()

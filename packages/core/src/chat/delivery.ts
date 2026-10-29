@@ -1,5 +1,7 @@
 import {Hono} from 'hono'
 import {z} from 'zod'
+import type {ModelMessage, ChatMessage} from '@conciv/ai/messages'
+import type {ChatEvent} from '@conciv/ai/events'
 import {
   chatParamsFromRequestBody,
   resolveResumeRunId,
@@ -7,9 +9,6 @@ import {
   resumeWebSocketStream,
   toServerSentEventsResponse,
   toWebSocketStream,
-  type ModelMessage,
-  type StreamChunk,
-  type UIMessage,
   type WebSocketLike,
 } from '@tanstack/ai'
 import {
@@ -31,7 +30,7 @@ const StringContentSchema = z.object({content: z.string().min(1)})
 const PartsSchema = z.object({parts: z.array(z.unknown())})
 const ArrayContentSchema = z.object({content: z.array(z.unknown())})
 
-function partsOf(message: UIMessage | ModelMessage): ChatContentPart[] {
+function partsOf(message: ChatMessage | ModelMessage): ChatContentPart[] {
   const plain = StringContentSchema.safeParse(message)
   if (plain.success) return [{type: 'text', content: plain.data.content}]
   const parts = PartsSchema.safeParse(message)
@@ -45,18 +44,18 @@ function partsOf(message: UIMessage | ModelMessage): ChatContentPart[] {
   })
 }
 
-function lastUserMessage(messages: Array<UIMessage | ModelMessage>): UIMessage | ModelMessage | undefined {
+function lastUserMessage(messages: Array<ChatMessage | ModelMessage>): ChatMessage | ModelMessage | undefined {
   return messages.findLast((message) => RoleSchema.safeParse(message).data?.role === 'user')
 }
 
-export function userContentOf(messages: Array<UIMessage | ModelMessage>): UserContent {
+export function userContentOf(messages: Array<ChatMessage | ModelMessage>): UserContent {
   const last = lastUserMessage(messages)
   return last ? partsOf(last) : []
 }
 
 const IdSchema = z.object({id: z.string().min(1)})
 
-function userMessageIdOf(messages: Array<UIMessage | ModelMessage>): string | undefined {
+function userMessageIdOf(messages: Array<ChatMessage | ModelMessage>): string | undefined {
   const last = lastUserMessage(messages)
   return last ? IdSchema.safeParse(last).data?.id : undefined
 }
@@ -71,11 +70,11 @@ function resumeOffsetOf(request: Request): string | null {
 type TurnContext = {
   threadId: string
   runId: string
-  messages: Array<UIMessage | ModelMessage>
+  messages: Array<ChatMessage | ModelMessage>
   signal: AbortSignal
 }
 
-function turnStreamOf(deps: ChatDeps, ctx: TurnContext): AsyncIterable<StreamChunk> {
+function turnStreamOf(deps: ChatDeps, ctx: TurnContext): AsyncIterable<ChatEvent> {
   return {
     [Symbol.asyncIterator]: async function* () {
       const sessionId = SessionId.parse(ctx.threadId)

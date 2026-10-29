@@ -4,10 +4,16 @@ import {
   type ResumableConnectConnectionAdapter,
   type SubscribeConnectionAdapter,
 } from '@tanstack/ai-client'
-import type {ModelMessage, StreamChunk, UIMessage} from '@tanstack/ai'
+import type {ModelMessage, ChatMessage} from '@conciv/ai/messages'
+import {
+  type ChatEvent,
+  runLifecycleEvent,
+  type RunLifecycle,
+  approvalAskOf,
+  approvalSettledEvent,
+  type ApprovalAsk,
+} from '@conciv/ai/events'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
-import {runLifecycleOf, type RunLifecycle} from '@conciv/protocol/run-types'
-import {approvalAskOf, approvalSettledOf, type ApprovalAsk} from '@conciv/protocol/approval-types'
 import type {ChatHydration, RpcClient} from '@conciv/contract'
 import {acquirePushChannel} from './push-channel.js'
 import {readingValues, relayedValues} from './stream-relay.js'
@@ -27,14 +33,14 @@ export type ChatConnectionOptions = {
 }
 
 export type ChatConnection = SubscribeConnectionAdapter & {
-  joinRun: (runId: string, abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>
+  joinRun: (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
   hydrate: (threadId: string) => Promise<ChatHydration>
   transport: () => ChatTransport | null
   refresh: () => Promise<ChatHydration>
   close: () => void
 }
 
-type PushSource = () => {events: (abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>; dispose: () => void}
+type PushSource = () => {events: (abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>; dispose: () => void}
 
 const PROBE_TIMEOUT_MS = 2_000
 
@@ -73,7 +79,7 @@ export function socketOpens(url: string, timeoutMs: number): Promise<boolean> {
 }
 
 type Selected = {transport: ChatTransport; adapter: SubscribeConnectionAdapter; joinRun: JoinRun}
-type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>
+type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
 
 function trackingWebSocketImpl(live: Set<WebSocket>): typeof WebSocket {
   return new Proxy(WebSocket, {
@@ -92,10 +98,10 @@ function overSocket(apiBase: string, live: Set<WebSocket>): Selected {
 }
 
 function subscribeOver(adapter: ResumableConnectConnectionAdapter): SubscribeConnectionAdapter {
-  const listeners = new Set<WritableStreamDefaultWriter<StreamChunk>>()
+  const listeners = new Set<WritableStreamDefaultWriter<ChatEvent>>()
   return {
     subscribe: (abortSignal) => {
-      const relay = new TransformStream<StreamChunk, StreamChunk>()
+      const relay = new TransformStream<ChatEvent, ChatEvent>()
       const writer = relay.writable.getWriter()
       listeners.add(writer)
       const stop = (): void => {
@@ -146,7 +152,7 @@ async function* watching(
   push: PushSource,
   options: ChatConnectionOptions,
   abortSignal: AbortSignal | undefined,
-): AsyncGenerator<StreamChunk> {
+): AsyncGenerator<ChatEvent> {
   const chosen = await selected
   const channel = push()
   try {
@@ -156,19 +162,16 @@ async function* watching(
   }
 }
 
-function notice(chunk: StreamChunk, options: ChatConnectionOptions): void {
-  const lifecycle = runLifecycleOf(chunk)
+function notice(chunk: ChatEvent, options: ChatConnectionOptions): void {
+  const lifecycle = runLifecycleEvent.parse(chunk)
   if (lifecycle) options.onLifecycle?.(lifecycle)
   const ask = approvalAskOf(chunk)
   if (ask) options.onApprovalAsk?.(ask)
-  const settled = approvalSettledOf(chunk)
+  const settled = approvalSettledEvent.parse(chunk)?.approvalId ?? null
   if (settled !== null) options.onApprovalSettled?.(settled)
 }
 
-async function* noticing(
-  source: AsyncIterable<StreamChunk>,
-  options: ChatConnectionOptions,
-): AsyncGenerator<StreamChunk> {
+async function* noticing(source: AsyncIterable<ChatEvent>, options: ChatConnectionOptions): AsyncGenerator<ChatEvent> {
   for await (const chunk of source) {
     notice(chunk, options)
     yield chunk
@@ -179,7 +182,7 @@ async function* joining(
   selected: Promise<Selected>,
   runId: string,
   abortSignal?: AbortSignal,
-): AsyncGenerator<StreamChunk> {
+): AsyncGenerator<ChatEvent> {
   yield* (await selected).joinRun(runId, abortSignal)
 }
 
@@ -204,7 +207,7 @@ export function chatConnection(
   }
   return {
     subscribe: (abortSignal) => watching(selected, push, options, abortSignal),
-    send: async (messages: Array<UIMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
+    send: async (messages: Array<ChatMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
       await (await selected).adapter.send(messages, data, abortSignal, runContext)
     },
     joinRun: (runId, abortSignal) => joining(selected, runId, abortSignal),

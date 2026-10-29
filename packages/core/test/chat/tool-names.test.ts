@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import type {UIMessage} from '@tanstack/ai'
+import type {ChatMessage} from '@conciv/ai/messages'
 import {makeToolNameNormalizer, normalizeHistoryToolNames} from '../../src/chat/tool-names.js'
 
 const REGISTERED = new Set(['canvas_read', 'probe_ping', 'conciv_ui', 'recording_start'])
@@ -43,7 +43,7 @@ describe('makeToolNameNormalizer', () => {
 
 describe('normalizeHistoryToolNames', () => {
   test('rewrites tool-call part names, leaves other parts alone', () => {
-    const history: UIMessage[] = [
+    const history: ChatMessage[] = [
       {id: 'u1', role: 'user', parts: [{type: 'text', content: 'draw'}]},
       {
         id: 'a1',

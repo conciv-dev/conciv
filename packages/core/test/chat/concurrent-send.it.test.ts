@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import type {StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
 import {createFakeHarness, until} from '@conciv/harness-testkit'
 import {defineAttachment, defineExtension} from '@conciv/extension'
 import type {ChatContentPart} from '@conciv/protocol/chat-types'
@@ -59,7 +59,7 @@ describe('one live run per session (IT)', () => {
     const kit = await bootKit({extensions: [paced], firstChunkTimeoutMs: 500}, harness)
     sessions.adopt(kit)
     const sessionId = await kit.session()
-    const seen: StreamChunk[] = []
+    const seen: ChatEvent[] = []
     const watching = new AbortController()
     const stream = await kit.rpc.chat.events({sessionId}, {signal: watching.signal})
     void collectChunks(stream, seen)

@@ -1,12 +1,13 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 
 const claude = requireClaude()
 
-function isRunEnd(chunk: StreamChunk): boolean {
+function isRunEnd(chunk: ChatEvent): boolean {
   if (chunk.type === EventType.RUN_ERROR) return true
   return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
 }

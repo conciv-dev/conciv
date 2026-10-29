@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
 import {approvalIds} from '@conciv/harness-testkit'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {createAskRegistry} from '../../src/chat/ask.js'
@@ -11,7 +11,7 @@ const SESSION = SessionId.parse('conciv_x')
 const fixture = (timeoutMs?: number) => {
   const asks = createAskRegistry()
   const memory = createCommandMemory()
-  const emitted: StreamChunk[] = []
+  const emitted: ChatEvent[] = []
   const risky = new Set(['canvas_delete'])
   const gate = makeRunGate({
     asks: asksFor(asks, SESSION),

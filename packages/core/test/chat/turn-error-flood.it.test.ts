@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit} from '@conciv/harness-testkit'
@@ -20,9 +21,9 @@ const baseCaps = {
   init: 'none',
 } as const
 
-async function* failingGenerator(): AsyncGenerator<StreamChunk> {
+async function* failingGenerator(): AsyncGenerator<ChatEvent> {
   await Promise.reject(new Error(FAIL))
-  const none: StreamChunk[] = []
+  const none: ChatEvent[] = []
   yield* none
 }
 
@@ -33,7 +34,7 @@ const failingHarness = defineHarness({
   capabilities: baseCaps,
 })
 
-async function failingTurn(harness: HarnessAdapter): Promise<{seedCalls: string[]; runError: StreamChunk}> {
+async function failingTurn(harness: HarnessAdapter): Promise<{seedCalls: string[]; runError: ChatEvent}> {
   const original = console.error
   const calls: string[] = []
   console.error = (...args: unknown[]) => void calls.push(args.map((a) => String(a)).join(' '))

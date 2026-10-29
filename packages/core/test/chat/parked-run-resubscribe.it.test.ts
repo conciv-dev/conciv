@@ -1,8 +1,9 @@
 import {describe, it, expect} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
 
-function textDeltas(chunks: readonly StreamChunk[]): string[] {
+function textDeltas(chunks: readonly ChatEvent[]): string[] {
   return chunks.flatMap((chunk) =>
     chunk.type === EventType.TEXT_MESSAGE_CONTENT && typeof chunk.delta === 'string' ? [chunk.delta] : [],
   )

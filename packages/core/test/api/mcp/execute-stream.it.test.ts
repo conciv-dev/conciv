@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {defineExtension, defineTool} from '@conciv/extension'
@@ -29,7 +30,7 @@ async function executeRaw(base: string, session: string, typescriptCode: string)
   }
 }
 
-function toolCallStarts(chunks: StreamChunk[]): {toolCallId: string; name: string; parent?: string}[] {
+function toolCallStarts(chunks: ChatEvent[]): {toolCallId: string; name: string; parent?: string}[] {
   return chunks.flatMap((chunk) => {
     if (chunk.type !== EventType.TOOL_CALL_START) return []
     const name = chunk.toolCallName

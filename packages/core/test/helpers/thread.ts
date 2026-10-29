@@ -1,8 +1,8 @@
 import {modelMessagesToUIMessages} from '@tanstack/ai'
-import type {UIMessage} from '@tanstack/ai'
+import type {ChatMessage} from '@conciv/ai/messages'
 import {readThread, type ConcivDb} from '@conciv/db'
 
-export function threadUiMessages(db: ConcivDb, sessionId: string): UIMessage[] {
+export function threadUiMessages(db: ConcivDb, sessionId: string): ChatMessage[] {
   return modelMessagesToUIMessages(readThread(db, sessionId).messages)
 }
 

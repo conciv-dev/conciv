@@ -1,11 +1,11 @@
 import {describe, expect, it} from 'vitest'
-import type {UIMessage} from '@tanstack/ai'
+import type {ChatMessage} from '@conciv/ai/messages'
 import {startTurn} from '../helpers/detached-turn.js'
 import {sessionSnapshot} from '../../src/chat/thread.js'
 import {makeChatFixture} from '../helpers/chat-fixture.js'
 import {awaitRunSettled} from '../../src/chat/run-settled.js'
 
-function storedPartTypes(message: UIMessage | undefined): string[] {
+function storedPartTypes(message: ChatMessage | undefined): string[] {
   return (message?.parts ?? []).map((part) => part.type)
 }
 

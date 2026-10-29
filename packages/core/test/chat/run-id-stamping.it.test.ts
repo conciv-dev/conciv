@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit} from '@conciv/harness-testkit'
@@ -17,7 +18,7 @@ const baseCaps = {
   init: 'none',
 } as const
 
-async function* innerIdGenerator(): AsyncGenerator<StreamChunk> {
+async function* innerIdGenerator(): AsyncGenerator<ChatEvent> {
   yield {type: EventType.RUN_STARTED, threadId: 'inner', runId: 'inner'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'inner-msg', delta: 'ok'}
   yield {type: EventType.RUN_FINISHED, threadId: 'inner', runId: 'inner'}
@@ -30,7 +31,7 @@ const innerIdHarness = defineHarness({
   capabilities: baseCaps,
 })
 
-function runIdOf(chunk: StreamChunk): string | null {
+function runIdOf(chunk: ChatEvent): string | null {
   return 'runId' in chunk && typeof chunk.runId === 'string' ? chunk.runId : null
 }
 

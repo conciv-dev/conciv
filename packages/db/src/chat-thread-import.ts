@@ -1,6 +1,6 @@
 import {and, eq} from 'drizzle-orm'
 import {uiMessageToModelMessages} from '@tanstack/ai'
-import type {ModelMessage} from '@tanstack/ai'
+import type {ModelMessage} from '@conciv/ai/messages'
 import {ChatHistorySchema} from '@conciv/protocol/chat-types'
 import type {ConcivDb} from './db.js'
 import {chatMetadata, chatThreads, runMessages, sessionHistory} from './run-schema.js'

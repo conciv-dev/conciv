@@ -12,7 +12,7 @@ import type {ToolRequest} from '@conciv/extension'
 import type {CodeCapability} from './capabilities.js'
 import type {ToolRunContext} from './runtime.js'
 import {approvalRefusal, noListenerRefusal, requiresApproval, type PermissionGate} from './gate.js'
-import {CODE_MODE_TOOL_CALL_EVENT, CODE_MODE_TOOL_ERROR_EVENT, CODE_MODE_TOOL_RESULT_EVENT} from './code-mode-parts.js'
+import {codeModeToolCallEvent, codeModeToolErrorEvent, codeModeToolResultEvent} from '@conciv/ai/events'
 import {logError} from '../lib/debug.js'
 import {cappedValue} from '../lib/result-cap.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
@@ -110,14 +110,14 @@ async function emittingToolCall(
 ): Promise<unknown> {
   const callId = randomUUID()
   const emit = context?.emitCustomEvent ?? (() => {})
-  emit(CODE_MODE_TOOL_CALL_EVENT, {callId, name, input: args})
+  emit(codeModeToolCallEvent.name, {callId, name, input: args})
   try {
     const result = await execute(callId)
-    emit(CODE_MODE_TOOL_RESULT_EVENT, {callId, result: cappedValue(result, `the ${name} result`)})
+    emit(codeModeToolResultEvent.name, {callId, result: cappedValue(result, `the ${name} result`)})
     return result
   } catch (error) {
     const encoded = encodeDeclaredError(error)
-    emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: encoded.message})
+    emit(codeModeToolErrorEvent.name, {callId, error: encoded.message})
     throw encoded
   }
 }

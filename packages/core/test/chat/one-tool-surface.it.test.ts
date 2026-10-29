@@ -1,7 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {EventType, type StreamChunk, type TextOptions} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType, type TextOptions} from '@tanstack/ai'
 import {makeTextAdapter} from '@conciv/harness'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {defineExtension, defineTool} from '@conciv/extension'
@@ -19,7 +20,7 @@ const acme = defineExtension({name: 'acme', tools: [echo]})
 
 function recordingHarness(): {harness: HarnessAdapter; provisioned: () => string[]} {
   const rounds: string[][] = []
-  async function* stream(options: TextOptions<Record<string, never>>): AsyncGenerator<StreamChunk> {
+  async function* stream(options: TextOptions<Record<string, never>>): AsyncGenerator<ChatEvent> {
     rounds.push((options.tools ?? []).map((tool) => tool.name))
     yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'}
     yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'ok'}

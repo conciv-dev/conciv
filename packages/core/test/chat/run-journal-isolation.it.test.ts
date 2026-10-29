@@ -2,7 +2,8 @@ import {randomUUID} from 'node:crypto'
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, it, vi} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {MadeApp} from '../../src/app.js'
 import {makeTurn, mintedSessionId} from '../../src/chat/run.js'
@@ -14,13 +15,13 @@ import {requireClaude} from '../helpers/adapters.js'
 
 const claude = requireClaude()
 
-async function drain(stream: AsyncIterable<StreamChunk>): Promise<void> {
+async function drain(stream: AsyncIterable<ChatEvent>): Promise<void> {
   try {
     for await (const chunk of stream) void chunk
   } catch {}
 }
 
-function textOf(chunks: readonly StreamChunk[]): string {
+function textOf(chunks: readonly ChatEvent[]): string {
   return chunks
     .filter((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
     .map((chunk) => (chunk.type === EventType.TEXT_MESSAGE_CONTENT ? chunk.delta : ''))

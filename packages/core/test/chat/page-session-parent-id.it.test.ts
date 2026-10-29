@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
+import {EventType} from '@tanstack/ai'
 import type {PageOutcome} from '@conciv/protocol/page-types'
 import {
   autoApprove,
@@ -57,7 +58,7 @@ async function bootWidget(kit: Kit): Promise<FakeWidget> {
   return widget
 }
 
-function isStartOf(toolName: string): (chunk: StreamChunk) => boolean {
+function isStartOf(toolName: string): (chunk: ChatEvent) => boolean {
   return (chunk) => chunk.type === EventType.TOOL_CALL_START && chunk.toolCallName === toolName
 }
 
@@ -66,7 +67,7 @@ const StartChunkSchema = z.object({
   metadata: z.object({parentToolCallId: z.string().optional()}).loose().optional(),
 })
 
-function startOf(chunk: StreamChunk): z.infer<typeof StartChunkSchema> {
+function startOf(chunk: ChatEvent): z.infer<typeof StartChunkSchema> {
   return StartChunkSchema.parse(chunk)
 }
 

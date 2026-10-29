@@ -4,7 +4,7 @@ import {homedir} from 'node:os'
 import {join, resolve} from 'node:path'
 import {z} from 'zod'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
-import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
+import type {ChatPart, ChatMessage} from '@conciv/ai/messages'
 import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle} from '@conciv/protocol/harness-types'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {containedPath} from '../_shared/contained-path.js'
@@ -97,10 +97,10 @@ function blockText(blocks: unknown): string {
     .join('\n')
 }
 
-function partsFrom(content: unknown): MessagePart[] {
+function partsFrom(content: unknown): ChatPart[] {
   if (typeof content === 'string') return content ? [{type: 'text', content}] : []
   if (!Array.isArray(content)) return []
-  return content.flatMap<MessagePart>((block) => {
+  return content.flatMap<ChatPart>((block) => {
     const text = TextContentSchema.safeParse(block)
     if (text.success) return text.data.text ? [{type: 'text', content: text.data.text}] : []
     const thinking = ThinkingContentSchema.safeParse(block)
@@ -121,7 +121,7 @@ function partsFrom(content: unknown): MessagePart[] {
   })
 }
 
-function spokenMessage(raw: unknown): {role: 'user' | 'assistant'; parts: MessagePart[]} | null {
+function spokenMessage(raw: unknown): {role: 'user' | 'assistant'; parts: ChatPart[]} | null {
   const user = UserMessageSchema.safeParse(raw)
   if (user.success) return {role: 'user', parts: partsFrom(user.data.content)}
   const assistant = AssistantMessageSchema.safeParse(raw)
@@ -129,7 +129,7 @@ function spokenMessage(raw: unknown): {role: 'user' | 'assistant'; parts: Messag
   return null
 }
 
-function toolResultPart(raw: unknown): MessagePart | null {
+function toolResultPart(raw: unknown): ChatPart | null {
   const result = ToolResultMessageSchema.safeParse(raw)
   if (!result.success) return null
   return {
@@ -156,10 +156,10 @@ function foldLine(state: PiFold, line: string): PiFold {
   return state
 }
 
-function messagesOf(entries: Entry[]): UIMessage[] {
-  const out: UIMessage[] = []
+function messagesOf(entries: Entry[]): ChatMessage[] {
+  const out: ChatMessage[] = []
   const idState = {n: 0}
-  const open = (role: 'user' | 'assistant', parts: MessagePart[], nativeId: string | undefined): void => {
+  const open = (role: 'user' | 'assistant', parts: ChatPart[], nativeId: string | undefined): void => {
     idState.n += 1
     out.push({id: nativeId ?? `h${idState.n}`, role, parts})
   }
@@ -179,7 +179,7 @@ function messagesOf(entries: Entry[]): UIMessage[] {
   return out
 }
 
-function parseHistory(raw: string): UIMessage[] {
+function parseHistory(raw: string): ChatMessage[] {
   return messagesOf(entriesOf(raw))
 }
 
@@ -187,7 +187,7 @@ function condense(value: string, max: number): string {
   return value.replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
-function textOf(message: UIMessage): string {
+function textOf(message: ChatMessage): string {
   const part = message.parts.find((candidate) => candidate.type === 'text')
   return part && part.type === 'text' ? part.content : ''
 }
@@ -246,7 +246,7 @@ function containedTranscript(cwd: string, sessionId: string, home?: string): str
   return containedPath(transcriptRoot(cwd, home), transcriptPath(cwd, sessionId, home))
 }
 
-async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]> {
+async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<ChatMessage[]> {
   const path = containedTranscript(cwd, sessionId, home)
   if (path === null) return []
   const raw = await readFile(path, 'utf8').catch(() => '')
@@ -267,12 +267,12 @@ function observeTranscript(cwd: string, sessionId: string, home?: string): Trans
   })
 }
 
-function firstUserText(messages: UIMessage[]): string {
+function firstUserText(messages: ChatMessage[]): string {
   const first = messages.find((message) => message.role === 'user')
   return first ? textOf(first) : ''
 }
 
-function lastText(messages: UIMessage[]): string | null {
+function lastText(messages: ChatMessage[]): string | null {
   const last = messages.at(-1)
   return last ? condense(textOf(last), MAX_PREVIEW) || null : null
 }

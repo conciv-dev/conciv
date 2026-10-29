@@ -3,7 +3,7 @@ import {eq} from 'drizzle-orm'
 import {sessions} from '@conciv/db'
 import {transcriptPathWithin} from '@conciv/harness'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {UsageSnapshot} from '@conciv/protocol/usage-types'
+import type {UsageSnapshot} from '@conciv/ai/usage'
 import type {ChatDeps} from './runtime.js'
 import {nativeIdFor, rowById} from './session-rows.js'
 
