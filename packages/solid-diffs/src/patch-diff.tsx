@@ -15,7 +15,9 @@ export function SolidPatchDiff(props: SolidPatchDiffProps): JSX.Element {
   const singularPatch = createMemo(() => getSingularPatch(props.patch))
 
   const setRef = (node: HTMLElement) => {
-    instance = new FileDiff(props.options, highlightWorkerPool(props.options), true)
+    instance = new FileDiff(props.options, highlightWorkerPool(props.options), () =>
+      instance?.render({fileDiff: singularPatch()}),
+    )
     void instance.hydrate({fileDiff: singularPatch(), fileContainer: node})
     onCleanup(() => {
       instance?.cleanUp()

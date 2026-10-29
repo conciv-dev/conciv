@@ -14,7 +14,7 @@ export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
   let instance: File<undefined> | null = null
 
   const setRef = (node: HTMLElement) => {
-    instance = new File(props.options, highlightWorkerPool(props.options), true)
+    instance = new File(props.options, highlightWorkerPool(props.options), () => instance?.render({file: props.file}))
     void instance.hydrate({file: props.file, fileContainer: node})
     onCleanup(() => {
       instance?.cleanUp()

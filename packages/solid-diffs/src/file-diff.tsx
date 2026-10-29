@@ -15,7 +15,9 @@ export function SolidFileDiff(props: SolidFileDiffProps): JSX.Element {
   let instance: FileDiff<undefined> | null = null
 
   const setRef = (node: HTMLElement) => {
-    instance = new FileDiff(props.options, highlightWorkerPool(props.options), true)
+    instance = new FileDiff(props.options, highlightWorkerPool(props.options), () =>
+      instance?.render({oldFile: props.oldFile, newFile: props.newFile}),
+    )
     void instance.hydrate({oldFile: props.oldFile, newFile: props.newFile, fileContainer: node})
     onCleanup(() => {
       instance?.cleanUp()

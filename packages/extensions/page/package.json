@@ -64,7 +64,7 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/ui-kit-system": "workspace:^",
-    "js-beautify": "^1.15.4",
+    "js-beautify": "^2.0.3",
     "lucide-solid": "catalog:",
     "zod": "catalog:"
   },
