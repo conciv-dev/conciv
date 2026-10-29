@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@conciv/ui-kit-system": "workspace:*",
-    "@floating-ui/dom": "^1.7.6",
+    "@floating-ui/dom": "^1.8.0",
     "@tiptap/core": "catalog:",
     "@tiptap/extension-document": "catalog:",
     "@tiptap/extension-hard-break": "catalog:",

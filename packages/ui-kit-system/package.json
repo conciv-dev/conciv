@@ -53,7 +53,7 @@
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/timer": "catalog:",
     "@tanstack/solid-virtual": "catalog:",
-    "@zag-js/json-tree-utils": "^1.41.2",
+    "@zag-js/json-tree-utils": "^1.47.0",
     "class-variance-authority": "catalog:",
     "lucide-solid": "catalog:"
   },

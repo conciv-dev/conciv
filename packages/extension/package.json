@@ -78,7 +78,7 @@
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "unplugin-solid": "^1.0.0",
+    "unplugin-solid": "^2.0.0",
     "vitest": "catalog:"
   },
   "peerDependencies": {

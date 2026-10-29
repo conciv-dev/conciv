@@ -1,6 +1,6 @@
 import {access, lstat, readFile, readdir} from 'node:fs/promises'
 import {join, relative} from 'node:path'
-import parseChangesetFile from '@changesets/parse'
+import {parseChangesetFile} from '@changesets/parse'
 import {execa} from 'execa'
 import {qualifiesForCoverage} from './coverage-files.ts'
 import {parseManifest} from './manifest.ts'

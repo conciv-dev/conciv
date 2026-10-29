@@ -12,7 +12,7 @@ export function syncRender<Options, Payload>(source: {
   target: () => RenderTarget<Options, Payload> | null
   payload: () => Payload
   options: () => Options | undefined
-}): void {
+}): () => void {
   let primed = false
   let renderedOptions: Options | undefined
   const [pacedPayload] = createThrottledValue(source.payload, {
@@ -36,4 +36,9 @@ export function syncRender<Options, Payload>(source: {
     if (options) target.setOptions(options)
     void target.render({...payload, forceRender: optionsChanged})
   })
+
+  return () => {
+    const target = source.target()
+    if (target) void target.render({...source.payload(), forceRender: true})
+  }
 }

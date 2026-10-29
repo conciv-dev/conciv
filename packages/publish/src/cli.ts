@@ -122,7 +122,7 @@ const snapshot = defineCommand({
     await assertPublicDepsPublic(cwd)
     await changeset('version', '--snapshot', args.tag)
     await turbo('build', 'publint', 'attw')
-    await changeset('publish', '--tag', args.tag, '--no-git-checks')
+    await changeset('publish', '--tag', args.tag)
   },
 })
 
@@ -193,7 +193,7 @@ async function applySyncPlan(cwd: string, run: Run, turbo: Turbo, unhealthy: Syn
     }
     await wireTrust(run, name)
   }
-  await run('pnpm', ['exec', 'changeset', 'tag'])
+  await run('pnpm', ['exec', 'changeset', 'git-tag'])
   await run('git', ['push', 'origin', '--tags'])
 }
 

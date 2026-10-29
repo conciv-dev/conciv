@@ -80,7 +80,7 @@ catalog:
   '@vitejs/plugin-react': '^6.1.2'
   '@vitest/browser-playwright': 4.1.12
   '@vitest/coverage-v8': '^4.1.12'
-  bippy: 0.5.41
+  bippy: 0.7.3
   citty: '^0.2.2'
   class-variance-authority: '^0.7.1'
   drizzle-kit: '1.0.0-rc.5'
@@ -105,7 +105,7 @@ catalog:
   publint: '^0.3.25'
   react: '^19.3.1'
   react-dom: '^19.3.1'
-  react-grab: 0.1.50
+  react-grab: 0.2.0
   rehype-harden: '^1.1.8'
   rehype-raw: '^7.0.0'
   rehype-sanitize: '^6.0.0'
