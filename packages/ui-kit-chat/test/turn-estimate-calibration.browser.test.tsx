@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import '@conciv/ui-kit-system/tokens.css'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import type {JSX} from 'solid-js'
-import {page} from 'vitest/browser'
+import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
 import type {MessagePart, UIMessage} from '@tanstack/ai-client'
@@ -146,7 +146,7 @@ async function sweepMeasured(viewport: HTMLElement): Promise<Map<number, number>
   await nextFrame()
   collectHeights(viewport, measured)
   while (viewport.scrollTop > 1) {
-    viewport.scrollTop = Math.max(0, viewport.scrollTop - viewport.clientHeight / 2)
+    await userEvent.wheel(viewport, {delta: {y: -viewport.clientHeight / 2}})
     await nextFrame()
     await nextFrame()
     collectHeights(viewport, measured)

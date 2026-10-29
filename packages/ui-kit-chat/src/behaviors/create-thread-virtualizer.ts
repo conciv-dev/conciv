@@ -15,6 +15,8 @@ export const SCROLL_END_THRESHOLD_PX = 1
 
 type ViewportAnchor = {mode: 'resume-following'} | {mode: 'preserve-reader-anchor'; offset: number}
 
+type ReaderInput = 'untouched' | 'holding' | 'touched'
+
 type OffsetRecovery =
   | {phase: 'viewport-attached'}
   | {phase: 'offset-discarded'; anchor: ViewportAnchor}
@@ -89,6 +91,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     const target = instance.getOffsetForIndex(lastIndex, 'end')
     if (!target) return
     writeScroll(target[0], 'auto')
+    if (readerInput !== 'holding') readerInput = 'untouched'
     landedOffset = element.scrollTop
     instance.scrollOffset = landedOffset
     restingAnchor = {mode: 'resume-following'}
@@ -109,13 +112,16 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   let recovery: OffsetRecovery = {phase: 'viewport-attached'}
   let restingAnchor: ViewportAnchor = {mode: 'resume-following'}
-  let pointerHoldsViewport = false
+  let readerInput: ReaderInput = 'untouched'
 
   const holdViewport = (): void => {
-    pointerHoldsViewport = true
+    readerInput = 'holding'
   }
   const releaseViewport = (): void => {
-    pointerHoldsViewport = false
+    if (readerInput === 'holding') readerInput = 'touched'
+  }
+  const noteReaderInput = (): void => {
+    if (readerInput !== 'holding') readerInput = 'touched'
   }
 
   const rememberAnchor = (element: HTMLElement): void => {
@@ -140,17 +146,25 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     rememberAnchor(element)
   }
 
+  const releaseOrReland = (): void => {
+    if (landedOffset !== undefined && readerInput === 'untouched') {
+      landOnEnd()
+      return
+    }
+    landedOffset = undefined
+  }
+
   const onScrolled = (): void => {
     if (recovery.phase === 'deferred-behind-gesture') {
       const {anchor} = recovery
       recovery = {phase: 'viewport-attached'}
-      if (!pointerHoldsViewport) {
+      if (readerInput !== 'holding') {
         restoreViewport(anchor)
         return
       }
     }
     const element = config.scrollElement()
-    if (element && !stillOnTheLanding(element)) landedOffset = undefined
+    if (element && !stillOnTheLanding(element)) releaseOrReland()
     syncAtEnd()
     if (element?.isConnected) rememberAnchor(element)
   }
@@ -161,7 +175,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     }
     if (recovery.phase === 'viewport-attached' || !element.isConnected) return
     const {anchor} = recovery
-    if (pointerHoldsViewport) {
+    if (readerInput === 'holding') {
       recovery = {phase: 'deferred-behind-gesture', anchor}
       return
     }
@@ -245,6 +259,9 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     if (element) {
       makeEventListener(element, 'scroll', onScrolled, {passive: true})
       makeEventListener(element, 'pointerdown', holdViewport, {passive: true})
+      makeEventListener(element, 'wheel', noteReaderInput, {passive: true})
+      makeEventListener(element, 'touchmove', noteReaderInput, {passive: true})
+      makeEventListener(element, 'keydown', noteReaderInput, {passive: true})
       makeEventListener(element.ownerDocument, 'pointerup', releaseViewport, {passive: true})
       makeEventListener(element.ownerDocument, 'pointercancel', releaseViewport, {passive: true})
     }
