@@ -244,7 +244,7 @@ export function createTurnEstimator(
 
   const resolveContainerWidth = (): number | undefined => {
     const element = viewport()
-    if (!element) return undefined
+    if (!element?.isConnected) return undefined
     metrics ??= resolveMetrics(element)
     const containerWidth = element.clientWidth - metrics.viewportPadX
     return containerWidth > 0 ? containerWidth : undefined
