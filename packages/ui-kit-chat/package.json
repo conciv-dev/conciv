@@ -76,7 +76,7 @@
     "class-variance-authority": "catalog:",
     "es-toolkit": "catalog:",
     "lucide-solid": "catalog:",
-    "mermaid": "^11.15.0",
+    "mermaid": "catalog:",
     "rrweb-snapshot": "catalog:",
     "shiki": "catalog:",
     "zod": "catalog:"
