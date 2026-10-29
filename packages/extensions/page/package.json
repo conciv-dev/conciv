@@ -69,10 +69,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/ai": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
-    "@tanstack/ai-client": "catalog:",
     "@types/js-beautify": "^1.14.3",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

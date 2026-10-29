@@ -4,7 +4,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {fetchServerSentEvents} from '@tanstack/ai-client'
-import {EventType} from '@tanstack/ai'
+import {ChatEventType} from '@conciv/ai/events'
 import {start, type Engine} from '@conciv/core'
 import {createFakeHarness, makeRpcClient, type RpcClient} from '@conciv/harness-testkit'
 import {makeExtRpcClient} from '@conciv/extension'
@@ -107,11 +107,11 @@ describe('prefixed serving over the real wire (start with an access token)', () 
       {threadId: sessionId, runId: randomUUID()},
     )) {
       types.push(chunk.type)
-      if (chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR) break
+      if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) break
     }
     abort.abort()
 
-    expect(types).toContain(EventType.RUN_FINISHED)
+    expect(types).toContain(ChatEventType.RUN_FINISHED)
   })
 
   it('answers chat.permissionDecision through the prefixed route', {timeout: 15_000}, async () => {

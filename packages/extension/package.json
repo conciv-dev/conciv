@@ -61,13 +61,13 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/ai": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
-    "@tanstack/ai": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"
   },
