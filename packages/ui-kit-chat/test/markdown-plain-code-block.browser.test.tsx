@@ -7,7 +7,7 @@ import {page} from 'vitest/browser'
 import {Markdown} from '../src/styled/markdown.js'
 import {mountView} from './mount-view.js'
 
-const UNKNOWN_LANGUAGE_FENCE = ['```mermaid', 'flowchart', '```'].join('\n')
+const UNKNOWN_LANGUAGE_FENCE = ['```unknownlang', 'flowchart', '```'].join('\n')
 const HIGHLIGHTED_FENCE = ['```markdown', 'flowchart', '**done**', '```'].join('\n')
 const LATE_GRAMMAR_FENCE = ['```bash', 'echo', '```'].join('\n')
 

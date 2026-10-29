@@ -131,6 +131,17 @@
   color: var(--shiki-foreground);
 }
 
+.prose-chat .chat-diagram {
+  margin-block: calc(var(--chat-space) * 5);
+  overflow-x: auto;
+}
+
+.prose-chat .chat-diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
 /* @pierre/diffs (tool-card code blocks) resolves its dual theme via CSS `color-scheme`, but sets
    `color-scheme: light dark` on its own shadow host inside `@layer base`, which would follow the OS
    rather than the widget. This unlayered rule beats that layered one and hands the component the
