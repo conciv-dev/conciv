@@ -2,7 +2,7 @@ import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {groupBy} from 'es-toolkit'
 import Palette from 'lucide-solid/icons/palette'
-import Trash2 from 'lucide-solid/icons/trash-2'
+import Trash2 from 'lucide-solid/icons/trash'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {
   CodeBlock,

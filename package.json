@@ -43,7 +43,7 @@
     "@j178/prek": "^0.4.5",
     "@oxlint/plugins": "^1.69.0",
     "@types/node": "catalog:",
-    "@unocss/eslint-plugin": "66.7.2",
+    "@unocss/eslint-plugin": "66.12.0",
     "@vitest/coverage-v8": "catalog:",
     "eslint-plugin-playwright": "2.10.4",
     "eslint-plugin-solid": "0.14.5",

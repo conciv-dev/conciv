@@ -69,7 +69,7 @@ test('the drift guard throws naming the drifted registry package when a plain in
   writeFileSync(join(root, 'pnpm-lock.yaml'), fakeLock(['@orpc/tanstack-query@1.15.0']))
   try {
     expect(() => assertLockNotDrifted(root, committedPath)).toThrow(
-      /@orpc\/tanstack-query@1\.15\.0.*@orpc\/tanstack-query@1\.14\.7|@orpc\/tanstack-query@1\.14\.7.*@orpc\/tanstack-query@1\.15\.0/s,
+      /@orpc\/tanstack-query@1\.15\.0[\s\S]*@orpc\/tanstack-query@1\.14\.7|@orpc\/tanstack-query@1\.14\.7[\s\S]*@orpc\/tanstack-query@1\.15\.0/,
     )
   } finally {
     rmSync(root, {recursive: true, force: true})

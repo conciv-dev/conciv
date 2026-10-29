@@ -1,5 +1,5 @@
 import {Show, type JSX} from 'solid-js'
-import {Toast as Ark, Toaster as ArkToaster, createToaster} from '@ark-ui/solid/toast'
+import {Toast as Ark, Toaster as ArkToaster, createToaster, type CreateToasterReturn} from '@ark-ui/solid/toast'
 import XIcon from 'lucide-solid/icons/x'
 
 const ROOT =
@@ -9,7 +9,7 @@ const DESCRIPTION = 'text-[0.75rem] text-chat-text-2'
 const CLOSE =
   'absolute top-1.5 right-1.5 inline-flex items-center justify-center size-7 rounded-chat-surface-sm text-chat-text-3 cursor-pointer hover:text-chat-text hover:bg-chat-fill-strong focus-ring'
 
-type ToasterInstance = ReturnType<typeof createToaster>
+type ToasterInstance = CreateToasterReturn
 
 function Toaster(props: {toaster: ToasterInstance}): JSX.Element {
   return (

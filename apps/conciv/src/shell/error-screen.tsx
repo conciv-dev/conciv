@@ -1,5 +1,5 @@
 import type {JSX} from 'solid-js'
-import AlertTriangle from 'lucide-solid/icons/alert-triangle'
+import AlertTriangle from 'lucide-solid/icons/triangle-alert'
 import {Button} from '@conciv/ui-kit-system'
 
 export type ErrorScreenProps = {
