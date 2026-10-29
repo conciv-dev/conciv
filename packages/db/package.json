@@ -41,16 +41,16 @@
     "@conciv/protocol": "workspace:^",
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-persistence": "catalog:",
-    "drizzle-orm": "1.0.0-rc.4"
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^26.1.0",
-    "@vitest/coverage-v8": "^4.1.8",
-    "drizzle-kit": "1.0.0-rc.4",
-    "tsdown": "^0.22.4",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "drizzle-kit": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

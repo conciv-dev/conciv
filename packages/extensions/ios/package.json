@@ -57,19 +57,19 @@
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "zod": "^4.4.3"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/core": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^22.19.21",
-    "solid-js": "^1.9.13",
-    "tsdown": "^0.22.4",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "solid-js": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

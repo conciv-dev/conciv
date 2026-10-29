@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it, onTestFinished} from 'vitest'
 import {ConcivLockup} from '../../src/react/conciv-lockup.js'
-import {antennaOf, cursorOf, SETTLE_WINDOW_MS, TRAILING_FRAME_MS, wait} from './lockup-dom.js'
+import {antennaFlickTransforms, antennaOf, cursorOf, SETTLE_WINDOW_MS, TRAILING_FRAME_MS, wait} from './lockup-dom.js'
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean
@@ -41,8 +41,8 @@ it('wakes the cursor blink and antenna flick on hover when motion is welcome', a
 
   await userEvent.hover(logo)
 
-  expect(antennaOf(container).getAttribute('style')).toContain('rotate(')
   await expect.element(page.elementLocator(cursorOf(container))).toHaveAttribute('opacity', '1')
+  expect(antennaFlickTransforms(container)).toContain('translateY(-4.5px) rotate(-14deg)')
 })
 
 it('wakes the blink when the link takes real keyboard focus', async () => {

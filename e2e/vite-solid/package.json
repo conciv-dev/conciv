@@ -11,14 +11,14 @@
   },
   "dependencies": {
     "@conciv/it": "workspace:*",
-    "solid-js": "^1.9.13"
+    "solid-js": "catalog:"
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
-    "@playwright/test": "^1.61.1",
-    "@types/node": "^24.13.2",
-    "typescript": "~6.0.2",
-    "vite": "^8.1.1",
-    "vite-plugin-solid": "^2.11.12"
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:"
   }
 }

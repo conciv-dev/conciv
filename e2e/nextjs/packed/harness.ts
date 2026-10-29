@@ -160,12 +160,20 @@ export async function buildAndPack(tgzDir: string): Promise<{overrides: Record<s
   return {overrides, closure}
 }
 
-function readMinimumReleaseAge(): number {
-  const text = readFileSync(join(WORKSPACE_ROOT, 'pnpm-workspace.yaml'), 'utf8')
-  const match = /^minimumReleaseAge:\s*(\d+)/m.exec(text)
-  const value = match?.[1]
-  if (value === undefined) throw new Error('minimumReleaseAge not found in root pnpm-workspace.yaml')
-  return Number(value)
+function workspaceConfig(key: string): unknown {
+  return JSON.parse(execFileSync('pnpm', ['config', 'get', key, '--json'], {cwd: WORKSPACE_ROOT, encoding: 'utf8'}))
+}
+
+function releaseAgeYaml(): string[] {
+  const minimumReleaseAge = workspaceConfig('minimumReleaseAge')
+  if (typeof minimumReleaseAge !== 'number') throw new Error('minimumReleaseAge not set in root pnpm-workspace.yaml')
+  const exclude = workspaceConfig('minimumReleaseAgeExclude')
+  const excluded = Array.isArray(exclude) ? exclude.filter((name) => typeof name === 'string') : []
+  return [
+    `minimumReleaseAge: ${minimumReleaseAge}`,
+    'minimumReleaseAgeExclude:',
+    ...excluded.map((name) => `  - '${name}'`),
+  ]
 }
 
 function writeFixtureFiles(appDir: string, overrides: Record<string, string>): void {
@@ -298,7 +306,7 @@ export async function setupFixture(options: SetupFixtureOptions = {}): Promise<F
   const workspaceYaml = [
     'packages:',
     "  - 'packages/*'",
-    `minimumReleaseAge: ${readMinimumReleaseAge()}`,
+    ...releaseAgeYaml(),
     'allowBuilds:',
     '  isolated-vm: false',
     '  sharp: false',

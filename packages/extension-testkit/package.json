@@ -51,21 +51,21 @@
     "@conciv/uno-preset": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
-    "@playwright/test": "^1.61.1",
-    "@vitest/coverage-v8": "^4.1.8",
-    "p-timeout": "^7.0.1",
-    "playwright": "^1.61.1",
-    "solid-js": "^1.9.13",
-    "unocss": "^66.7.2",
-    "vite": "^8.0.16",
-    "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8",
-    "zod": "^4.4.3"
+    "@playwright/test": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "p-timeout": "catalog:",
+    "playwright": "catalog:",
+    "solid-js": "catalog:",
+    "unocss": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^22.19.21",
-    "typescript": "^6.0.3"
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

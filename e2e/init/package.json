@@ -10,8 +10,8 @@
   "devDependencies": {
     "@conciv/cli": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^22.19.21",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

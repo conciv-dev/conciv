@@ -11,7 +11,7 @@ function scratchFile(name: string, content: string): string {
   return path
 }
 
-type SignalListeners = NodeJS.SignalsListener[]
+type SignalListeners = ReturnType<typeof process.listeners<'SIGINT'>>
 
 function fireNewSigintListener(before: SignalListeners): void {
   const added = process.listeners('SIGINT').filter((listener) => !before.includes(listener))

@@ -26,14 +26,14 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@solidjs/testing-library": "^0.8.10",
-    "@types/node": "^22.19.21",
-    "@vitest/coverage-v8": "^4.1.8",
-    "solid-js": "^1.9.13",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8"
+    "@solidjs/testing-library": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "solid-js": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "@solidjs/testing-library": "^0.8.10",

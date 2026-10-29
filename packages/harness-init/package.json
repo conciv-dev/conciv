@@ -86,14 +86,14 @@
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
-    "zod": "^4.4.3"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^22.19.21",
-    "@vitest/coverage-v8": "^4.1.8",
-    "tsdown": "^0.22.4",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

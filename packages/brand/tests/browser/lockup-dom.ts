@@ -17,3 +17,10 @@ export function antennaOf(container: ParentNode): SVGGElement {
 export function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
+
+export function antennaFlickTransforms(container: ParentNode): string[] {
+  return antennaOf(container)
+    .getAnimations()
+    .flatMap((animation) => (animation.effect instanceof KeyframeEffect ? animation.effect.getKeyframes() : []))
+    .map((keyframe) => String(keyframe.transform))
+}

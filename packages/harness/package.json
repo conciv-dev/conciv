@@ -72,7 +72,7 @@
     "@opencode-ai/sdk": "^1.17.4",
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-sandbox": "catalog:",
-    "zod": "^4.4.3"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
@@ -80,12 +80,12 @@
     "@tanstack/ai-claude-code": "catalog:",
     "@tanstack/ai-codex": "catalog:",
     "@tanstack/ai-opencode": "catalog:",
-    "@types/node": "^22.19.21",
-    "@vitest/coverage-v8": "^4.1.8",
-    "oxc-parser": "^0.127.0",
-    "tsdown": "^0.22.4",
-    "tsx": "^4.22.4",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "oxc-parser": "catalog:",
+    "tsdown": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

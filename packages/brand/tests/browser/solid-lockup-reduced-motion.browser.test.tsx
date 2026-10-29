@@ -2,7 +2,7 @@ import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {ConcivLockup} from '../../src/solid/conciv-lockup.js'
-import {antennaOf, cursorOf, SETTLE_WINDOW_MS, wait} from './lockup-dom.js'
+import {antennaFlickTransforms, cursorOf, SETTLE_WINDOW_MS, wait} from './lockup-dom.js'
 
 function mountLinkedLockup(): {container: HTMLElement; unmount: () => void} {
   const mounted = render(() => (
@@ -22,7 +22,7 @@ it('stays fully static on hover when the reader asks for reduced motion', async 
   await wait(SETTLE_WINDOW_MS)
 
   expect(cursorOf(container).getAttribute('opacity')).toBe('0')
-  expect(antennaOf(container).getAttribute('style')).not.toContain('rotate(')
+  expect(antennaFlickTransforms(container)).toEqual([])
 })
 
 it('stays fully static on keyboard focus when the reader asks for reduced motion', async () => {
@@ -34,5 +34,5 @@ it('stays fully static on keyboard focus when the reader asks for reduced motion
   await wait(SETTLE_WINDOW_MS)
 
   expect(cursorOf(container).getAttribute('opacity')).toBe('0')
-  expect(antennaOf(container).getAttribute('style')).not.toContain('rotate(')
+  expect(antennaFlickTransforms(container)).toEqual([])
 })

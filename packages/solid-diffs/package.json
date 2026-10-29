@@ -43,14 +43,14 @@
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^22.19.21",
-    "solid-js": "^1.9.13",
-    "storybook": "^10.5.0",
-    "storybook-solidjs-vite": "^10.6.0",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "solid-js": "catalog:",
+    "storybook": "catalog:",
+    "storybook-solidjs-vite": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

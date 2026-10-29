@@ -42,19 +42,19 @@
     "@conciv/vitest-config": "workspace:*",
     "@j178/prek": "^0.4.5",
     "@oxlint/plugins": "^1.69.0",
-    "@types/node": "^22.19.21",
-    "@unocss/eslint-plugin": "66.7.2",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@types/node": "catalog:",
+    "@unocss/eslint-plugin": "66.12.0",
+    "@vitest/coverage-v8": "catalog:",
     "eslint-plugin-playwright": "2.10.4",
     "eslint-plugin-solid": "0.14.5",
     "fallow": "3.35.0",
     "oxfmt": "^0.54.0",
-    "oxlint": "^1.69.0",
-    "playwright": "^1.61.1",
-    "publint": "^0.3.21",
+    "oxlint": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
     "turbo": "^2.10.3",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

@@ -63,24 +63,24 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@tanstack/ai": "catalog:",
-    "lucide-solid": "^1.18.0",
-    "zod": "^4.4.3"
+    "lucide-solid": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@tanstack/ai-client": "catalog:",
-    "@types/node": "^22.19.21",
-    "@vitest/coverage-v8": "^4.1.8",
-    "solid-js": "^1.9.13",
-    "storybook": "^10.5.0",
-    "storybook-solidjs-vite": "^10.6.0",
-    "tsdown": "^0.22.4",
-    "typescript": "^6.0.3",
-    "unocss": "^66.7.2",
-    "vite": "^8.0.16",
-    "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "solid-js": "catalog:",
+    "storybook": "catalog:",
+    "storybook-solidjs-vite": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "unocss": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

@@ -30,16 +30,16 @@
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-client": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
-    "hono": "4.12.27",
-    "p-timeout": "^7.0.1",
-    "zod": "^4.4.3"
+    "hono": "catalog:",
+    "p-timeout": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/harness": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^22.19.21",
-    "@vitest/coverage-v8": "^4.1.8",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

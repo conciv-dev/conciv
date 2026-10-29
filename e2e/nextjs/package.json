@@ -11,21 +11,21 @@
   },
   "dependencies": {
     "@conciv/it": "workspace:*",
-    "next": "16.2.10",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@conciv/contract": "workspace:*",
     "@conciv/e2e-utils": "workspace:*",
     "@conciv/protocol": "workspace:*",
-    "@playwright/test": "^1.61.1",
+    "@playwright/test": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "tsx": "^4.22.4",
-    "typescript": "^5"
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   },
   "dependenciesMeta": {
     "@conciv/it": {

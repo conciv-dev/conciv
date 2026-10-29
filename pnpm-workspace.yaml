@@ -13,12 +13,12 @@ syncInjectedDepsAfterScripts:
 # it can resolve two different @orpc releases and split the pair. Single-sourcing the
 # version here means every manifest's "catalog:" resolves to the same exact release.
 catalog:
-  '@orpc/client': 1.14.7
-  '@orpc/contract': 1.14.7
-  '@orpc/server': 1.14.7
-  '@orpc/standard-server': 1.14.7
-  '@orpc/standard-server-peer': 1.14.7
-  '@orpc/tanstack-query': 1.14.7
+  '@orpc/client': 1.16.1
+  '@orpc/contract': 1.16.1
+  '@orpc/server': 1.16.1
+  '@orpc/standard-server': 1.16.1
+  '@orpc/standard-server-peer': 1.16.1
+  '@orpc/tanstack-query': 1.16.1
 
   # The @tanstack/ai family moved to caret peer ranges as of 0.48.0 (each sibling
   # peer-requires "@tanstack/ai": "^0.48.0" etc rather than an exact pin), so a single
@@ -39,6 +39,96 @@ catalog:
   '@tanstack/ai-codex': 0.5.2
   '@tanstack/ai-opencode': 0.4.2
   '@tanstack/ai-acp': 0.3.7
+
+  '@ark-ui/solid': '^5.39.3'
+  '@clack/prompts': '^1.8.1'
+  '@hono/node-server': '^2.1.5'
+  '@playwright/test': '^1.64.1'
+  '@shikijs/langs-precompiled': 4.5.0
+  '@solid-primitives/event-listener': '^2.4.6'
+  '@solid-primitives/timer': '^1.4.4'
+  '@solidjs/testing-library': '^0.8.10'
+  '@storybook/addon-docs': '^10.6.5'
+  '@tailwindcss/typography': '^0.5.20'
+  '@tailwindcss/vite': '^4.3.3'
+  '@tanstack/devtools-vite': '^0.8.5'
+  '@tanstack/pacer': '^0.23.1'
+  '@tanstack/query-core': '^5.105.0'
+  '@tanstack/react-devtools': '^0.10.13'
+  '@tanstack/react-query': '^5.105.0'
+  '@tanstack/react-router': 1.170.42
+  '@tanstack/react-router-devtools': 1.167.2
+  '@tanstack/react-start': 1.168.61
+  '@tanstack/router-cli': 1.167.41
+  '@tanstack/router-plugin': 1.168.43
+  '@tanstack/solid-query': '^5.105.0'
+  '@tanstack/solid-router': 1.170.39
+  '@tanstack/solid-virtual': '^3.13.51'
+  '@tiptap/core': '^3.32.1'
+  '@tiptap/extension-document': '^3.32.1'
+  '@tiptap/extension-hard-break': '^3.32.1'
+  '@tiptap/extension-mention': '^3.32.1'
+  '@tiptap/extension-paragraph': '^3.32.1'
+  '@tiptap/extension-text': '^3.32.1'
+  '@tiptap/pm': '^3.32.1'
+  '@types/node': '^26.6.6'
+  '@types/react': '^19.3.0'
+  '@types/react-dom': '^19.3.0'
+  '@types/ws': '^8.18.2'
+  '@unocss/postcss': '^66.12.0'
+  '@unocss/reset': '^66.12.0'
+  '@vitejs/plugin-react': '^6.1.2'
+  '@vitest/browser-playwright': 4.1.12
+  '@vitest/coverage-v8': '^4.1.12'
+  bippy: 0.5.41
+  citty: '^0.2.2'
+  class-variance-authority: '^0.7.1'
+  drizzle-kit: '1.0.0-rc.5'
+  drizzle-orm: '1.0.0-rc.5'
+  es-toolkit: '^1.53.0'
+  get-port: '^7.2.0'
+  gsap: '^3.15.0'
+  hono: '^4.13.14'
+  lucide-react: '^1.64.0'
+  lucide-solid: '^1.64.0'
+  marked: '^18.1.2'
+  mermaid: '^11.15.0'
+  motion: '^14.7.1'
+  next: 16.4.3
+  nitro: npm:nitro-nightly@3.0.1-20261029-122457-3f1c8af0
+  oxc-parser: '^0.156.0'
+  oxlint: 1.73.0
+  p-timeout: '^8.0.0'
+  playwright: '^1.64.1'
+  postcss: '^8.5.32'
+  preact: '^11.1.0'
+  publint: '^0.3.25'
+  react: '^19.3.1'
+  react-dom: '^19.3.1'
+  react-grab: 0.1.50
+  rehype-harden: '^1.1.8'
+  rehype-raw: '^7.0.0'
+  rehype-sanitize: '^6.0.0'
+  remark-gfm: '^4.0.1'
+  remark-parse: '^11.0.0'
+  remark-rehype: '^11.1.2'
+  remend: '^1.4.0'
+  rrweb-snapshot: 2.2.0
+  shiki: '^4.5.0'
+  solid-js: '^1.9.17'
+  storybook: '^10.6.5'
+  storybook-solidjs-vite: '^10.7.4'
+  tailwindcss: '^4.3.3'
+  tsdown: '^0.23.4'
+  tsx: '^4.23.15'
+  typescript: '^6.0.3'
+  unified: '^11.0.5'
+  unocss: '^66.12.0'
+  vite: '^8.3.5'
+  vite-plugin-solid: '^2.11.14'
+  vitest: '^4.1.12'
+  ws: '^8.22.0'
+  zod: '^4.6.7'
 
 # Force patched protobufjs (GHSA-wcpc-wj8m-hjx6 prototype pollution); pulled in transitively
 # via jazz-tools OpenTelemetry in the whiteboard extension.
@@ -143,6 +233,29 @@ minimumReleaseAgeExclude:
   # and ai-skills (new dep of @tanstack/ai-sandbox as of 0.5.3), both published 2026-08-27T17:59Z.
   - '@tanstack/ai-event-client'
   - '@tanstack/ai-skills'
+  # Added 2026-10-29 for the catalog upgrade: these release more often than the 48h window
+  # allows (storybook, tiptap, lucide and @types/node weekly, tsdown and the nitro nightly
+  # alias daily), so the window always blocks their latest. Reviewed on each bump.
+  - 'storybook'
+  - '@storybook/addon-docs'
+  - '@tanstack/solid-virtual'
+  - '@tiptap/core'
+  - '@tiptap/extension-document'
+  - '@tiptap/extension-hard-break'
+  - '@tiptap/extension-mention'
+  - '@tiptap/extension-paragraph'
+  - '@tiptap/extension-text'
+  - '@tiptap/pm'
+  - '@types/node'
+  - 'lucide-react'
+  - 'lucide-solid'
+  - 'tsdown'
+  - 'nitro-nightly'
+  # Transitive members of the families above, published in the same release trains.
+  - '@storybook/react-dom-shim'
+  - '@tanstack/virtual-core'
+  - '@tiptap/suggestion'
+  - 'env-runner'
 patchedDependencies:
   '@tanstack/ai-sandbox-local-process@0.2.4': patches/@tanstack__ai-sandbox-local-process@0.2.4.patch
   '@tanstack/ai-sandbox@0.5.3': patches/@tanstack__ai-sandbox@0.5.3.patch

@@ -128,15 +128,15 @@
   "dependencies": {
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-client": "catalog:",
-    "zod": "^4.4.3"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^22.19.21",
-    "@vitest/coverage-v8": "^4.1.8",
-    "solid-js": "^1.9.13",
-    "tsdown": "^0.22.4",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "solid-js": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

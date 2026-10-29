@@ -47,16 +47,16 @@
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^26.1.0",
-    "@vitest/coverage-v8": "^4.1.8",
-    "playwright": "^1.61.1",
-    "publint": "^0.3.14",
-    "solid-js": "^1.9.13",
-    "tsdown": "^0.22.4",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "solid-js": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "solid-js": ">=1.8"

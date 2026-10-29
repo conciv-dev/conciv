@@ -21,10 +21,10 @@
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@types/node": "^22.19.21",
-    "lucide-solid": "^1.18.0",
-    "oxlint": "^1.69.0",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "@types/node": "catalog:",
+    "lucide-solid": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
