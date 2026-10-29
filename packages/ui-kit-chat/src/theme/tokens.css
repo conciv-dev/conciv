@@ -119,9 +119,16 @@
 
 /* Markdown code fences: shiki renders the shared css-variables theme, so token colors resolve from
    the --shiki-* set above and follow the resolved scheme. The fence surface stays flat so it reads as
-   part of the message, not as a pasted block. */
+   part of the message, not as a pasted block. A fence the highlighter leaves plain (a language it has no
+   grammar for, or one whose tokens have not arrived yet) takes the same surface and base text color, so it
+   reads as code instead of the typography preset's pale pre text meant for a dark block. */
 .shiki {
   background: transparent !important;
+}
+
+.prose-chat pre {
+  background: transparent;
+  color: var(--shiki-foreground);
 }
 
 /* @pierre/diffs (tool-card code blocks) resolves its dual theme via CSS `color-scheme`, but sets
