@@ -256,15 +256,13 @@ function Block(props: {
   processor: MarkdownProcessor
   highlightCode: HighlightCode | undefined
 }): JSX.Element {
+  const hast = createMemo(() => props.processor.runSync(props.processor.parse(props.text)))
   const parsed = createMemo(
-    on(
-      () => props.processor.runSync(props.processor.parse(props.text)),
-      (root, previous) => ({
-        root,
-        words: props.streaming,
-        animate: previous ? props.streaming : props.enter,
-      }),
-    ),
+    on([hast, () => props.streaming], ([root, streaming], previous) => ({
+      root,
+      words: streaming,
+      animate: previous ? streaming : props.enter,
+    })),
   )
   const [nodes, setNodes] = createStore<MarkdownNode[]>([])
   createComputed(() => {
