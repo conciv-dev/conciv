@@ -1,15 +1,14 @@
 import {
   getFiberFromHostInstance,
-  getFiberStack,
   getDisplayName,
   isCompositeFiber,
-  getNearestHostFiber,
+  isHostFiber,
   getLatestFiber,
   getRDTHook,
   traverseFiber,
   _fiberRoots,
 } from 'bippy'
-import {parseStack, hasDebugStack, getFallbackOwnerStack, formatOwnerStack} from 'bippy/source'
+import {parseStack, hasDebugStack, getFallbackParentStack, formatOwnerStack} from 'bippy/source'
 import {installTracker} from './render-tracker.js'
 import {sourceFromAttr} from './source-attr.js'
 import type {RefAdder} from './page-snapshot.js'
@@ -80,14 +79,18 @@ async function fiberForEl(el: Element, tries = 20): Promise<Fiber | null> {
   return null
 }
 
+function* fiberStack(fiber: Fiber): Generator<Fiber> {
+  for (let node = fiber; node.return; node = node.return) yield node
+}
+
 function compositeNames(fiber: Fiber): string[] {
-  return getFiberStack(fiber)
+  return Array.from(fiberStack(fiber))
     .filter((f: Fiber) => isCompositeFiber(f))
     .map((f: Fiber) => getDisplayName(f) || '?')
 }
 
 function rawFrames(fiber: Fiber): RawFrame[] {
-  const stack = hasDebugStack(fiber) ? fiber._debugStack.stack : getFallbackOwnerStack(fiber)
+  const stack = (hasDebugStack(fiber) ? fiber._debugStack.stack : undefined) ?? getFallbackParentStack(fiber)
   return parseStack(formatOwnerStack(stack)).map((fr) => ({
     ...(fr.fileName === undefined ? {} : {fileName: fr.fileName}),
     ...(fr.lineNumber === undefined ? {} : {line: fr.lineNumber}),
@@ -106,7 +109,7 @@ export function framesForElement(el: Element): RawFrame[] {
 }
 
 function hostElementOf(composite: Fiber): Element | null {
-  const host = getNearestHostFiber(composite)
+  const host = traverseFiber(composite, isHostFiber) ?? traverseFiber(composite, isHostFiber, true)
   return host?.stateNode instanceof Element ? host.stateNode : null
 }
 
@@ -116,7 +119,7 @@ function ownerOf(f: Fiber, addRef: RefAdder): Owner {
 }
 
 function ownerChain(fiber: Fiber, addRef: RefAdder, limit = 12): Owner[] {
-  return getFiberStack(fiber)
+  return Array.from(fiberStack(fiber))
     .filter((f: Fiber) => isCompositeFiber(f))
     .slice(0, limit)
     .map((f: Fiber) => ownerOf(f, addRef))
@@ -192,7 +195,7 @@ function setInPlace(obj: Record<string, unknown>, path: (string | number)[], val
 }
 
 function composedFiber(fiber: Fiber): Fiber | undefined {
-  return isCompositeFiber(fiber) ? fiber : getFiberStack(fiber).find((f: Fiber) => isCompositeFiber(f))
+  return traverseFiber(fiber, isCompositeFiber, true) ?? undefined
 }
 
 const REACT_PROVIDER = Symbol.for('react.provider')
@@ -343,7 +346,7 @@ function scannedRootFibers(): Fiber[] {
   for (const el of Array.from(document.querySelectorAll('*'))) {
     const key = Object.keys(el).find(isReactDomKey)
     if (!key) continue
-    const stack = getFiberStack((el as unknown as Record<string, Fiber>)[key])
+    const stack = Array.from(fiberStack((el as unknown as Record<string, Fiber>)[key]))
     const top = stack[stack.length - 1]
     if (top) return [top]
   }
