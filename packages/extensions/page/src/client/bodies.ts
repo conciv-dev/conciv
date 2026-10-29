@@ -45,6 +45,7 @@ import {
   sethtmlDef,
   setstyleDef,
   settextDef,
+  screenshotDef,
   snapshotDef,
   submitDef,
   textDef,
@@ -61,6 +62,7 @@ import {effectCard} from './cards/effect-card.js'
 import {reactCard} from './cards/react-card.js'
 import {readBulkCard} from './cards/read-bulk-card.js'
 import {readValueCard} from './cards/read-value-card.js'
+import {screenshot} from './screenshot.js'
 
 function fail(message: string): never {
   throw pageFailure('handler-error', message)
@@ -170,6 +172,8 @@ const snapshotTool = snapshotDef
     return {nodes: buildSnapshot(root, ctx.addRef)}
   })
   .render(readBulkCard)
+
+const screenshotTool = screenshotDef.client(screenshot).render(readValueCard)
 
 const locateTool = locateDef
   .client(async (input, ctx) => {
@@ -465,6 +469,7 @@ export const PAGE_CLIENT_TOOLS: readonly AnyToolBuilder[] = [
   attrTool,
   existsTool,
   snapshotTool,
+  screenshotTool,
   locateTool,
   treeTool,
   inspectTool,

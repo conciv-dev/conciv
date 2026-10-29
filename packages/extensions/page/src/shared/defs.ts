@@ -196,6 +196,30 @@ export const snapshotDef = pageTool({
   output: z.object({nodes: z.array(AnyRecord)}),
 })
 
+export const PageScreenshotSchema = z.object({
+  image: z.string(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+})
+
+export type PageScreenshot = z.infer<typeof PageScreenshotSchema>
+
+const ImagePart = z.object({type: z.literal('image')}).loose()
+
+const ImageDetailPart = z.object({type: z.literal('text'), content: z.string()}).loose()
+
+export const screenshotDef = pageTool({
+  verb: 'screenshot',
+  summary: 'capture the visible viewport as a webp image',
+  category: 'read',
+  icon: 'read',
+  label: {running: 'Taking a screenshot', done: 'Took a screenshot'},
+  hint: 'the one look at what the user sees: pixels, not DOM; for structure use page_snapshot or page_tree',
+  keywords: ['screenshot', 'image', 'viewport', 'pixels', 'visual'],
+  input: noInput,
+  output: z.array(z.union([ImagePart, ImageDetailPart])),
+})
+
 export const cssDef = pageTool({
   verb: 'css',
   summary: 'inject a stylesheet into the live page',
@@ -616,6 +640,7 @@ export const PAGE_TOOL_DEFS = [
   attrDef,
   existsDef,
   snapshotDef,
+  screenshotDef,
   locateDef,
   treeDef,
   inspectDef,

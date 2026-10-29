@@ -64,6 +64,7 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/ui-kit-system": "workspace:^",
+    "@zumer/snapdom": "catalog:",
     "js-beautify": "^1.15.4",
     "lucide-solid": "catalog:",
     "zod": "catalog:"
