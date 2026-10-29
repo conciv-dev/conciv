@@ -28,11 +28,11 @@ export async function runTrustPolicyInstall(): Promise<TrustPolicyInstallResult>
       "  - '.'",
       'trustPolicy: no-downgrade',
       'trustPolicyExclude:',
-      ...UPSTREAM_BLOCKED_TRUST_EXCLUDES.map((name) => `  - ${name}`),
+      ...UPSTREAM_BLOCKED_TRUST_EXCLUDES.map((name) => `  - ${JSON.stringify(name)}`),
       'allowBuilds:',
       '  isolated-vm: true',
       'overrides:',
-      ...Object.entries(overrides).map(([name, value]) => `  '${name}': '${value}'`),
+      ...Object.entries(overrides).map(([name, value]) => `  ${JSON.stringify(name)}: ${JSON.stringify(value)}`),
       '',
     ].join('\n')
     writeFileSync(join(root, 'pnpm-workspace.yaml'), workspaceYaml)
