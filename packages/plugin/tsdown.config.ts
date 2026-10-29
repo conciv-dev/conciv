@@ -9,6 +9,7 @@ export default defineConfig({
     'src/rollup.ts',
     'src/esbuild.ts',
     'src/nextjs.ts',
+    'src/nextjs-edge.ts',
     'src/nextjs-widget.ts',
   ],
   format: 'esm',

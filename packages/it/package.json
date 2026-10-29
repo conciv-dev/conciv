@@ -44,6 +44,7 @@
     },
     "./plugin/nextjs": {
       "types": "./dist/nextjs.d.ts",
+      "edge-light": "./dist/nextjs-edge.js",
       "import": "./dist/nextjs.js",
       "default": "./dist/nextjs.js"
     },
