@@ -1,6 +1,6 @@
 import {Match, Switch, type JSX} from 'solid-js'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
+import {CardShell, ErrorBlock, JsonTree, ResultImage, cardHeader, parseResultMedia} from '@conciv/ui-kit-chat/tools'
 import {ChipRow, ELEMENT_TARGET_KEYS, cardErrorMessage, cardPayload, elementChip, resultChips} from './shared.js'
 
 function payloadIsStructured(payload: unknown): boolean {
@@ -13,6 +13,7 @@ export function ReadValueCard(props: ToolCardProps): JSX.Element {
   const nested = () => payloadIsStructured(payload())
   const values = () => resultChips(props.result)
   const errorMessage = () => cardErrorMessage(props.result)
+  const imageUrl = () => parseResultMedia(props.result).imageUrl
   return (
     <CardShell
       meta={meta()}
@@ -26,6 +27,7 @@ export function ReadValueCard(props: ToolCardProps): JSX.Element {
       <div class="flex flex-col gap-1.5">
         <Switch>
           <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
+          <Match when={imageUrl()}>{(url) => <ResultImage src={url()} alt={title()} />}</Match>
           <Match when={nested()}>
             <JsonTree data={payload()} />
           </Match>

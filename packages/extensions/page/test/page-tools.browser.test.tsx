@@ -1,7 +1,8 @@
 import type {PageError} from '@conciv/protocol/page-types'
 import {collectClientTools, type ClientToolCtx} from '@conciv/extension'
 import {installReactBridge, makeDomPageDriver, type PageDriver} from '@conciv/page'
-import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
+import {afterAll, beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest'
+import {z} from 'zod'
 import {page} from 'vitest/browser'
 import {createRoot, type Root} from 'react-dom/client'
 import pageExtension from '../src/client.js'
@@ -442,5 +443,57 @@ describe('page reload', () => {
     expect(after?.getElementById('kept')).not.toBeNull()
     expect(after?.getElementById('scribbled')).toBeNull()
     frame.remove()
+  }, 10_000)
+})
+
+describe('screenshot', () => {
+  const CapturedShape = z.object({image: z.string().min(1), width: z.number(), height: z.number()})
+
+  const screenshotOf = async () => {
+    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
+    if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
+    return CapturedShape.parse(outcome.result)
+  }
+
+  const decoded = async (image: string): Promise<ImageBitmap> => {
+    const response = await fetch(`data:image/webp;base64,${image}`)
+    return createImageBitmap(await response.blob())
+  }
+
+  const centrePixel = (bitmap: ImageBitmap): number[] => {
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('no 2d context to sample the screenshot')
+    context.drawImage(bitmap, 0, 0)
+    return Array.from(context.getImageData(Math.floor(bitmap.width / 2), Math.floor(bitmap.height / 2), 1, 1).data)
+  }
+
+  const isRed = ([red = 0, green = 0, blue = 0]: number[]): boolean => red > 200 && green < 60 && blue < 60
+
+  const coverViewport = (marker?: string): HTMLElement => {
+    const cover = document.createElement('div')
+    if (marker) cover.setAttribute(marker, '')
+    cover.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgb(255,0,0)'
+    document.body.appendChild(cover)
+    onTestFinished(() => cover.remove())
+    return cover
+  }
+
+  it('captures the visible viewport as a webp the size of the window', async () => {
+    const shot = await screenshotOf()
+    expect({width: shot.width, height: shot.height}).toEqual({width: window.innerWidth, height: window.innerHeight})
+    expect(atob(shot.image).slice(8, 12)).toBe('WEBP')
+    const bitmap = await decoded(shot.image)
+    expect({width: bitmap.width, height: bitmap.height}).toEqual({width: shot.width, height: shot.height})
+  }, 10_000)
+
+  it('leaves the conciv widget host out of the capture', async () => {
+    const plain = coverViewport()
+    const covered = centrePixel(await decoded((await screenshotOf()).image))
+    plain.remove()
+    coverViewport('data-conciv-root')
+    const excluded = centrePixel(await decoded((await screenshotOf()).image))
+    expect(isRed(covered)).toBe(true)
+    expect(isRed(excluded)).toBe(false)
   }, 10_000)
 })

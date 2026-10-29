@@ -31,3 +31,16 @@ describe('react tool outputs accept a deliberately null component', () => {
     })
   })
 })
+
+describe('page_screenshot hands the model pixels', () => {
+  it('turns the page capture into a webp image part followed by its size', async () => {
+    const registry = registryReplying({image: 'UklGRg==', width: 4, height: 3})
+    const screenshotServer = pageServer.tools?.find((tool) => tool.name === 'page_screenshot')
+    if (!screenshotServer) throw new Error('the page server extension declares no screenshot tool')
+    registry.register(screenshotServer, {owner: 'the page extension', context: {symbolicate: async () => null}})
+    await expect(registry.call('page_screenshot', {}, {request: TEST_REQUEST})).resolves.toEqual([
+      {type: 'image', source: {type: 'data', value: 'UklGRg==', mimeType: 'image/webp'}},
+      {type: 'text', content: JSON.stringify({width: 4, height: 3})},
+    ])
+  })
+})

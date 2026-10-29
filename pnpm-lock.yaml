@@ -180,6 +180,9 @@ catalogs:
     '@vitest/coverage-v8':
       specifier: ^4.1.12
       version: 4.1.12
+    '@zumer/snapdom':
+      specifier: 3.3.3
+      version: 3.3.3
     bippy:
       specifier: 0.5.41
       version: 0.5.41
@@ -2507,6 +2510,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
+      '@zumer/snapdom':
+        specifier: 'catalog:'
+        version: 3.3.3
       js-beautify:
         specifier: ^1.15.4
         version: 1.15.4
@@ -11558,6 +11564,9 @@ packages:
 
   '@zag-js/utils@1.45.0':
     resolution: {integrity: sha512-LyeGfTEojjhDcajCCGxvjrgFuPoMia1HKefdP6KqvJpC78+1awahBoZpYYZlbab2WPawgCaprcDevBJFlOe6Ag==}
+
+  '@zumer/snapdom@3.3.3':
+    resolution: {integrity: sha512-yC6BYk1kfTu5+yOs8YN/DIjYxt7L0WVT61otI6aY+a/we9F2aJqIr1ngrks5kozmgiXg07TwKSTuteOOPwdGDQ==}
 
   abbrev@2.0.0:
     resolution: {integrity: sha512-6/mh1E2u2YgEsCHdY0Yx5oW+61gZU+1vXaoiHHrpKeuRNNgFvS+/jrwHiQhB5apAf5oB7UB7E19ol2R2LKH8hQ==}
@@ -25122,6 +25131,8 @@ snapshots:
       csstype: 3.2.3
 
   '@zag-js/utils@1.45.0': {}
+
+  '@zumer/snapdom@3.3.3': {}
 
   abbrev@2.0.0: {}
 
