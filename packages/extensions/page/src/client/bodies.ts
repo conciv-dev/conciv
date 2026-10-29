@@ -447,10 +447,18 @@ const cssTool = cssDef
   })
   .render(editLiveCard)
 
+function evaluate(code: string): unknown {
+  try {
+    return new Function(`return (async () => (${code}\n))()`)()
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    return new Function(`return (async () => { ${code}\n})()`)()
+  }
+}
+
 const evalTool = evalDef
   .client(async (input) => {
-    const fn = new Function(`return (async () => { ${input.code} })()`)
-    const result: unknown = await fn()
+    const result: unknown = await evaluate(input.code)
     return {result: serialize(result)}
   })
   .render(editLiveCard)

@@ -191,6 +191,12 @@ describe('dom verbs', () => {
     expect(element.result).toMatchObject({tagName: 'form'})
   })
 
+  it('returns the value of a bare expression and still runs a statement body', async () => {
+    expect(await resultOf('eval', {code: '2 + 3'})).toEqual({result: 5})
+    expect(await resultOf('eval', {code: 'document.querySelector("#frm").tagName'})).toEqual({result: 'FORM'})
+    expect(await resultOf('eval', {code: 'const a = 1; return a + 1'})).toEqual({result: 2})
+  })
+
   it('injects css stylesheets', async () => {
     expect(await resultOf('css', {text: '#prose{letter-spacing:3px}'})).toEqual({ok: true})
     expect(document.querySelector('style[data-vibe-css]')?.textContent).toContain('letter-spacing')
