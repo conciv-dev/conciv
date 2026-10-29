@@ -8,7 +8,14 @@ const ASSISTANT_REPLY = 'The widget reply stays selectable inside the chat threa
 
 const HOST_TEXT = 'Host page article text that must never join a chat selection.'
 
-const HOST_BODY = `
+const HOST_STYLES: Record<string, string> = {
+  'a host page with default selection styles': '',
+  'a host page that forces its article text selectable': 'main p{user-select:text}',
+  'a host page that forces its article text selectable with !important': 'main p{user-select:text !important}',
+}
+
+const hostBody = (url: URL) => `
+  <style>${HOST_STYLES[url.searchParams.get('host') ?? ''] ?? ''}</style>
   <main style="padding:48px 60% 0 24px;font:20px/1.6 sans-serif">
     <p>${HOST_TEXT}</p>
     <p>${HOST_TEXT}</p>
@@ -25,7 +32,7 @@ let host: {base: string; close: () => Promise<void>}
 
 test.beforeEach(async () => {
   kit = await bootEmbedKit({text: ASSISTANT_REPLY})
-  host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}))
+  host = await serveHost((url) => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: hostBody(url)}))
 })
 
 test.afterEach(async () => {
@@ -33,9 +40,9 @@ test.afterEach(async () => {
   await kit.cleanup()
 })
 
-async function openWithReply(page: Page): Promise<void> {
+async function openWithReply(page: Page, hostStyle = ''): Promise<void> {
   await page.setViewportSize({width: 1400, height: 900})
-  await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+  await page.goto(`${host.base}/?${new URLSearchParams({host: hostStyle})}`, {waitUntil: 'domcontentloaded'})
   await openPanel(page)
   await sendMessage(page, 'say something selectable', ASSISTANT_REPLY)
 }
@@ -67,25 +74,35 @@ function selectionEnds(page: Page): Promise<SelectionEnds> {
 }
 
 test.describe('text selection and the host page', () => {
-  const outwardDrags: {name: string; target: (page: Page) => Promise<Point>}[] = [
+  const outwardDrags: {name: string; target: (page: Page) => Promise<Point>; selects: RegExp}[] = [
     {
       name: 'up past the top of the panel',
       target: async (page) => ({...(await textStart(page, ASSISTANT_REPLY)), y: 2}),
+      selects: /^\s*CONCIV[\s\S]*say something selectable[\s\S]*The widge$/,
     },
-    {name: 'sideways over host page text', target: (page) => textStart(page, HOST_TEXT)},
+    {name: 'sideways over host page text', target: (page) => textStart(page, HOST_TEXT), selects: /^The widge$/},
+    {
+      name: 'down past the bottom of the panel',
+      target: async (page) => ({...(await textStart(page, ASSISTANT_REPLY)), y: 895}),
+      selects: /^t reply stays selectable inside the chat thread for quoting\.\s*$/,
+    },
   ]
 
-  for (const outward of outwardDrags) {
-    test(`a selection dragged from the chat reply ${outward.name} stays inside the widget`, async ({page}) => {
-      test.setTimeout(120_000)
-      await openWithReply(page)
+  for (const hostStyle of Object.keys(HOST_STYLES)) {
+    for (const outward of outwardDrags) {
+      test(`on ${hostStyle}, a selection dragged from the chat reply ${outward.name} stays inside the widget`, async ({
+        page,
+      }) => {
+        test.setTimeout(120_000)
+        await openWithReply(page, hostStyle)
 
-      await drag(page, await textStart(page, ASSISTANT_REPLY), await outward.target(page))
+        await drag(page, await textStart(page, ASSISTANT_REPLY), await outward.target(page))
 
-      const ends = await selectionEnds(page)
-      expect(ends.text).toContain('The wid')
-      expect(ends).toMatchObject({startInWidget: true, endInWidget: true})
-    })
+        const ends = await selectionEnds(page)
+        expect(ends.text).toMatch(outward.selects)
+        expect(ends).toMatchObject({startInWidget: true, endInWidget: true})
+      })
+    }
   }
 
   test('a selection started on the host page and dragged over the panel still selects host text', async ({page}) => {

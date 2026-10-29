@@ -51,38 +51,37 @@ function keepEditableKeysOffTheHostPage(root: ShadowRoot): () => void {
   }
 }
 
-const SELECTING_ATTRIBUTE = 'data-conciv-selecting'
-
-function registerSelectionContainment(doc: Document = document): void {
-  if (doc.querySelector('style[data-conciv-selection]')) return
-  const style = doc.createElement('style')
-  style.setAttribute('data-conciv-selection', '')
-  style.textContent = `html[${SELECTING_ATTRIBUTE}]{user-select:none}`
-  doc.head.appendChild(style)
-}
-
 function keepSelectionInsideTheWidget(root: ShadowRoot): () => void {
-  const release = () => document.documentElement.removeAttribute(SELECTING_ATTRIBUTE)
+  const shield = document.createElement('div')
+  shield.style.position = 'fixed'
+  shield.style.inset = '0'
+  shield.style.pointerEvents = 'auto'
+  shield.style.userSelect = 'none'
+  shield.hidden = true
+  root.prepend(shield)
+  const release = () => {
+    shield.hidden = true
+  }
   const clears = [
-    makeEventListener(root, 'pointerdown', () => document.documentElement.setAttribute(SELECTING_ATTRIBUTE, '')),
+    makeEventListener(root, 'pointerdown', () => {
+      shield.hidden = false
+    }),
     makeEventListener(document, 'pointerup', release),
     makeEventListener(document, 'pointercancel', release),
   ]
   return () => {
     for (const clear of clears) clear()
-    release()
+    shield.remove()
   }
 }
 
 export function createShadowRoot(host: HTMLElement): {host: HTMLElement; root: ShadowRoot; dispose: () => void} {
   registerWind4Properties()
   registerFonts(CHAT_FONTS)
-  registerSelectionContainment()
   host.style.position = 'fixed'
   host.style.inset = '0'
   host.style.pointerEvents = 'none'
   host.style.zIndex = '2147483000'
-  host.style.userSelect = 'text'
   const root = host.attachShadow({mode: 'open'})
   const style = document.createElement('style')
   style.textContent = styles
