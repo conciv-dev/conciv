@@ -12,6 +12,7 @@ type Story = StoryObj
 
 function ErrorApp(props: {expose: (chat: UseChatReturn) => void}): JSX.Element {
   const chat = useChat({
+    threadId: 'error',
     connection: storyConnection({shouldError: true, error: new globalThis.Error('Stream failed: 500')}),
   })
   onMount(() => props.expose(chat))

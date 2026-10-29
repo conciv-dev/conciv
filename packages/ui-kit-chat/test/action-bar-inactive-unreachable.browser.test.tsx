@@ -27,7 +27,7 @@ function twoDistinctRepliesConnection(): ConnectConnectionAdapter {
 }
 
 function ComposedThread(): JSX.Element {
-  const chat = useChat({connection: twoDistinctRepliesConnection()})
+  const chat = useChat({threadId: 'action-bar-inactive-unreachable', connection: twoDistinctRepliesConnection()})
   return (
     <ChatProvider chat={chat}>
       <button type="button" onClick={() => void chat.sendMessage('one')}>

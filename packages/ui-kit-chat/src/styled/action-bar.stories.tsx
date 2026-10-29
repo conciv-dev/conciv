@@ -29,7 +29,7 @@ function AssistantMessage(): JSX.Element {
 }
 
 function Frame(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'action-bar', connection: storyConnection()})
   onMount(() => chat.setMessages([REPLY]))
   return (
     <div class="p-3 w-96 [background:var(--chat-bg)]">

@@ -31,6 +31,7 @@ const entries: ToolCardEntry[] = [
 
 function StandaloneThread(): JSX.Element {
   const chat = useChat({
+    threadId: 'standalone-tool-outside-chain',
     connection: storyConnection({
       chunks: [
         ...createReasoningChunks('deciding what to confirm'),

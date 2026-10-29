@@ -11,6 +11,7 @@ import {memoryStorage} from './helpers/memory-storage.js'
 
 function Harness(): JSX.Element {
   const chat = useChat({
+    threadId: 'pane-composer-stop-send',
     connection: storyConnection({chunks: createTextChunks('working on it'), runsUntilStopped: true}),
   })
   onMount(() => void chat.sendMessage('go'))

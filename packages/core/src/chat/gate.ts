@@ -5,7 +5,7 @@ import {
   EventType,
   withTanstackMetadata,
   type AnyTool,
-  type ApprovalRequestedEvent,
+  type CustomEvent,
   type StreamChunk,
 } from '@tanstack/ai'
 import {
@@ -155,7 +155,7 @@ export function approvalRequestedChunk(input: {
   threadId?: string
   runId?: string
 }): StreamChunk {
-  const event: ApprovalRequestedEvent = {
+  const event: CustomEvent = {
     type: EventType.CUSTOM,
     name: APPROVAL_REQUESTED_EVENT,
     value: {

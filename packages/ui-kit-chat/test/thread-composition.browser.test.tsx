@@ -10,6 +10,7 @@ import {mountView} from './mount-view.js'
 
 function ComposedThread(): JSX.Element {
   const chat = useChat({
+    threadId: 'thread-composition',
     connection: storyConnection({chunks: [...createTextChunks('On it.')], chunkDelay: 2}),
   })
   return (

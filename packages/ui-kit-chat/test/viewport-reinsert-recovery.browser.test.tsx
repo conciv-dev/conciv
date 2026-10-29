@@ -38,7 +38,11 @@ type MountedThread = {
 type ThreadBodyProps = {initial: UIMessage[]; onChat: (chat: UseChatReturn) => void; ref: (node: HTMLElement) => void}
 
 function ThreadBody(props: ThreadBodyProps): JSX.Element {
-  const value = useChat({connection: storyConnection({chunks: []}), initialMessages: props.initial})
+  const value = useChat({
+    threadId: 'viewport-reinsert-recovery',
+    connection: storyConnection({chunks: []}),
+    initialMessages: props.initial,
+  })
   onMount(() => props.onChat(value))
   return (
     <ChatProvider chat={value}>

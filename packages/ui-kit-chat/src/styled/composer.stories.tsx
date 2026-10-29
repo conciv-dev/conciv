@@ -11,7 +11,10 @@ export default meta
 type Story = StoryObj
 
 function IdleComposer(): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000})})
+  const chat = useChat({
+    threadId: 'composer',
+    connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000}),
+  })
   return (
     <ChatProvider chat={chat}>
       <Composer inputLabel="Message" />
@@ -21,6 +24,7 @@ function IdleComposer(): JSX.Element {
 
 function BusyComposer(): JSX.Element {
   const chat = useChat({
+    threadId: 'composer',
     connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000}),
     queue: {whenBusy: 'queue', drain: 'fifo'},
   })

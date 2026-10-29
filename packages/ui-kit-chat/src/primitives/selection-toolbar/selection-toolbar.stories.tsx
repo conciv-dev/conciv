@@ -17,7 +17,7 @@ function DraftEcho(): JSX.Element {
 }
 
 function App(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'selection-toolbar', connection: storyConnection()})
   let source: HTMLParagraphElement | undefined
   return (
     <ChatProvider chat={chat}>

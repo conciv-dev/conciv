@@ -24,7 +24,7 @@ function createSlotProbe(label: string): Component {
 }
 
 function ChatHost(props: ParentProps): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'slot-instances', connection: storyConnection()})
   return <ChatProvider chat={chat}>{props.children}</ChatProvider>
 }
 

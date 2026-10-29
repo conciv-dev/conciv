@@ -49,7 +49,6 @@ function scriptedAdapter(typescriptCode: string): ReturnType<typeof makeTextAdap
         type: EventType.TOOL_CALL_START,
         toolCallId: PARENT_CALL_ID,
         toolCallName: 'execute_typescript',
-        toolName: 'execute_typescript',
       }
       yield {
         type: EventType.TOOL_CALL_ARGS,

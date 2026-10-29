@@ -23,7 +23,7 @@ function longThread(): UIMessage[] {
 }
 
 function TallThread(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'latest-chip-overlay', connection: storyConnection()})
   onMount(() => chat.setMessages(longThread()))
   return (
     <ChatProvider chat={chat}>

@@ -41,7 +41,7 @@ describe('an extension tool run from a chat turn knows which tool call it is ans
     const answer = events.all.findLast(
       (chunk) => chunk.type === EventType.TOOL_CALL_RESULT && chunk.toolCallId === call.toolCallId,
     )
-    if (answer === undefined || answer.type !== EventType.TOOL_CALL_RESULT) {
+    if (answer === undefined || answer.type !== EventType.TOOL_CALL_RESULT || typeof answer.content !== 'string') {
       throw new Error('the chat turn never carried a result for the tool call')
     }
     expect(EchoResultSchema.parse(JSON.parse(answer.content)).toolCallId).toBe(call.toolCallId)

@@ -20,7 +20,7 @@ function staticThread(parts: MessagePart[]): () => JSX.Element {
     {id: 'a1', role: 'assistant', parts},
   ]
   return function StaticThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection()})
+    const chat = useChat({threadId: 'thinking-narration', connection: storyConnection()})
     onMount(() => chat.setMessages(messages))
     return (
       <ChatProvider chat={chat}>

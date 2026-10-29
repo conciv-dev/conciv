@@ -99,7 +99,11 @@ function baseToolCtx(): ToolViewCtx {
 function mountThread(messages: UIMessage[]): () => HTMLElement {
   let viewport: HTMLElement | undefined
   function CalibrationThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection({chunks: []}), initialMessages: messages})
+    const chat = useChat({
+      threadId: 'turn-estimate-calibration',
+      connection: storyConnection({chunks: []}),
+      initialMessages: messages,
+    })
     return (
       <div class="flex flex-col h-[520px] w-[560px]">
         <ChatProvider chat={chat}>

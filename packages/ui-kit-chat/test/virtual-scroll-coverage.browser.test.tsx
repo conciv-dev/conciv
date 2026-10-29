@@ -101,7 +101,11 @@ function baseToolCtx(): ToolViewCtx {
 function mountThread(initial: UIMessage[]): () => HTMLElement {
   let viewport: HTMLElement | undefined
   function VirtualThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection({chunks: []}), initialMessages: initial})
+    const chat = useChat({
+      threadId: 'virtual-scroll-coverage',
+      connection: storyConnection({chunks: []}),
+      initialMessages: initial,
+    })
     return (
       <div class="flex flex-col h-[520px] w-[560px]">
         <ChatProvider chat={chat}>

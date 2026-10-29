@@ -58,7 +58,7 @@ async function bootWidget(kit: Kit): Promise<FakeWidget> {
 }
 
 function isStartOf(toolName: string): (chunk: StreamChunk) => boolean {
-  return (chunk) => chunk.type === EventType.TOOL_CALL_START && (chunk.toolCallName ?? chunk.toolName) === toolName
+  return (chunk) => chunk.type === EventType.TOOL_CALL_START && chunk.toolCallName === toolName
 }
 
 const StartChunkSchema = z.object({

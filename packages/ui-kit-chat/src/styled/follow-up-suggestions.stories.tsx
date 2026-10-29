@@ -20,7 +20,10 @@ const SUGGESTIONS: SuggestionData[] = [
 const REPLY: UIMessage = {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'Done.'}]}
 
 function Frame(): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: createTextChunks('On it.'), chunkDelay: 3})})
+  const chat = useChat({
+    threadId: 'follow-up-suggestions',
+    connection: storyConnection({chunks: createTextChunks('On it.'), chunkDelay: 3}),
+  })
   onMount(() => chat.setMessages([REPLY]))
   return (
     <div class="p-3 w-96 [background:var(--chat-bg)]">

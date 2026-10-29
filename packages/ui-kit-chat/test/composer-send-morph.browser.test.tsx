@@ -10,7 +10,7 @@ import {Composer} from '../src/styled/composer.js'
 import {mountView} from './mount-view.js'
 
 function StyledHost(props: ParentProps<{connection?: StoryConnectionOptions}>): JSX.Element {
-  const chat = useChat({connection: storyConnection(untrack(() => props.connection))})
+  const chat = useChat({threadId: 'composer-send-morph', connection: storyConnection(untrack(() => props.connection))})
   return (
     <ChatProvider chat={chat}>
       <ComposerHandlersProvider value={{}}>{props.children}</ComposerHandlersProvider>

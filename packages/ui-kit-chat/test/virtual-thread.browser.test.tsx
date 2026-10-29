@@ -68,7 +68,7 @@ function mountThread(
   let viewport: HTMLElement | undefined
   let chat: UseChatReturn | undefined
   function VirtualThread(): JSX.Element {
-    const value = useChat({connection: storyConnection(stream), initialMessages: initial})
+    const value = useChat({threadId: 'virtual-thread', connection: storyConnection(stream), initialMessages: initial})
     onMount(() => {
       chat = value
     })

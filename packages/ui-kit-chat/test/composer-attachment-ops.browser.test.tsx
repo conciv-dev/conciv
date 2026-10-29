@@ -31,7 +31,7 @@ function trackedAdapter(onRemove?: (attachment: Attachment) => void): Attachment
 }
 
 function ChatHost(props: ParentProps): JSX.Element {
-  const chat = useChat({connection: storyConnection(untrack(() => undefined))})
+  const chat = useChat({threadId: 'composer-attachment-ops', connection: storyConnection(untrack(() => undefined))})
   return (
     <ChatProvider chat={chat}>
       <ComposerHandlersProvider value={{}}>{props.children}</ComposerHandlersProvider>

@@ -19,6 +19,7 @@ function lifecycleSourceAt(phase: RunClockSource['lifecycle']['phase']): RunCloc
 
 function Harness(props: {settle: (settle: () => void) => void}): JSX.Element {
   const chat = useChat({
+    threadId: 'pane-composer-stopping',
     connection: storyConnection({chunks: createTextChunks('working on it'), runsUntilStopped: true}),
   })
   const [serverGenerating, setServerGenerating] = createSignal(true)

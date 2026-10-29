@@ -10,6 +10,7 @@ type Story = StoryObj
 
 function QueuedThread(props: {count: number}): JSX.Element {
   const chat = useChat({
+    threadId: 'queue-strip',
     connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 4000}),
     queue: {whenBusy: 'queue', drain: 'fifo'},
   })

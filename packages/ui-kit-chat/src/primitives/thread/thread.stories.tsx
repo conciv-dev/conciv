@@ -45,7 +45,7 @@ function AssistantMessage(): JSX.Element {
 }
 
 function ThreadHarness(props: {options: StoryConnectionOptions; expose: (chat: UseChatReturn) => void}): JSX.Element {
-  const chat = useChat({connection: storyConnection(untrack(() => props.options))})
+  const chat = useChat({threadId: 'thread', connection: storyConnection(untrack(() => props.options))})
   onMount(() => props.expose(chat))
   return (
     <ChatProvider chat={chat}>
@@ -117,7 +117,10 @@ function StarterChip(): JSX.Element {
 
 export const SuggestionsSendOnClick: Story = {
   render: () => {
-    const chat = useChat({connection: storyConnection({chunks: createTextChunks('On it.'), chunkDelay: 1})})
+    const chat = useChat({
+      threadId: 'thread',
+      connection: storyConnection({chunks: createTextChunks('On it.'), chunkDelay: 1}),
+    })
     return (
       <ChatProvider chat={chat}>
         <Thread.Root class="flex flex-col gap-2">

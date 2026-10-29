@@ -157,7 +157,6 @@ function executeStartChunks(executionId: string, typescriptCode: string): Stream
       type: EventType.TOOL_CALL_START,
       toolCallId: executionId,
       toolCallName: EXECUTE_TOOL_NAME,
-      toolName: EXECUTE_TOOL_NAME,
     },
     {type: EventType.TOOL_CALL_ARGS, toolCallId: executionId, delta: JSON.stringify({typescriptCode})},
     {type: EventType.TOOL_CALL_END, toolCallId: executionId},
@@ -171,7 +170,7 @@ function executeResultChunk(executionId: string, reply: ExecuteReply): StreamChu
     messageId: `${executionId}-result`,
     toolCallId: executionId,
     content: text || JSON.stringify({result: 'non-text content'}),
-    state: reply.isError === true ? 'output-error' : 'output-available',
+    ...(reply.isError === true && {metadata: {tanstack: {state: 'output-error'}}}),
   }
 }
 

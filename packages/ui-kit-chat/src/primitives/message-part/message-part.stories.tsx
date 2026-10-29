@@ -28,7 +28,7 @@ function UserMessage(): JSX.Element {
 
 export const ImagePart: Story = {
   render: () => {
-    const chat = useChat({connection: storyConnection()})
+    const chat = useChat({threadId: 'message-part', connection: storyConnection()})
     const message: UIMessage = {
       id: 'u-img',
       role: 'user',
@@ -73,7 +73,7 @@ function InProgressUser(): JSX.Element {
 
 export const InProgressWhileToolRuns: Story = {
   render: () => {
-    const chat = useChat({connection: storyConnection()})
+    const chat = useChat({threadId: 'message-part', connection: storyConnection()})
     const message: UIMessage = {
       id: 'a-run',
       role: 'assistant',
@@ -125,13 +125,13 @@ function ProbeAssistant(): JSX.Element {
 
 export const PartAccessors: Story = {
   render: () => {
-    const chat = useChat({connection: storyConnection()})
+    const chat = useChat({threadId: 'message-part', connection: storyConnection()})
     const message: UIMessage = {
       id: 'a-parts',
       role: 'assistant',
       parts: [
         {type: 'document', source: {type: 'data', value: '', mimeType: 'application/pdf'}},
-        {type: 'structured-output', status: 'complete', raw: '{"ok":true}'},
+        {type: 'structured-output', status: 'complete', raw: '{"ok":true}', data: {ok: true}},
         {type: 'text', content: 'done'},
       ],
     }

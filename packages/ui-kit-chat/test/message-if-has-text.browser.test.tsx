@@ -34,7 +34,7 @@ function turnOf(parts: MessagePart[]): Turn {
 }
 
 function Host(props: ParentProps<{parts: MessagePart[]}>): JSX.Element {
-  const chat = useChat({connection: storyConnection(untrack(() => undefined))})
+  const chat = useChat({threadId: 'message-if-has-text', connection: storyConnection(untrack(() => undefined))})
   const turn = untrack(() => turnOf(props.parts))
   return (
     <ChatProvider chat={chat}>

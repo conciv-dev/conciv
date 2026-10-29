@@ -26,7 +26,6 @@ function callChunks(value: unknown): StreamChunk[] | null {
       type: EventType.TOOL_CALL_START,
       toolCallId: callId,
       toolCallName: name,
-      toolName: name,
       metadata: {
         [CODE_MODE_SYNTHETIC_PART_MARKER]: true,
         ...(toolCallId !== undefined ? {parentToolCallId: toolCallId} : {}),
@@ -46,7 +45,6 @@ function resultChunks(value: unknown): StreamChunk[] | null {
       messageId: `${parsed.data.callId}-result`,
       toolCallId: parsed.data.callId,
       content: JSON.stringify(parsed.data.result ?? null),
-      state: 'output-available',
     },
   ]
 }
@@ -60,7 +58,7 @@ function errorChunks(value: unknown): StreamChunk[] | null {
       messageId: `${parsed.data.callId}-result`,
       toolCallId: parsed.data.callId,
       content: JSON.stringify({error: parsed.data.error}),
-      state: 'output-error',
+      metadata: {tanstack: {state: 'output-error'}},
     },
   ]
 }

@@ -20,7 +20,10 @@ function withText(): MultimodalContent {
 }
 
 function ThreadHost(props: {content: () => MultimodalContent}): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: [], chunkDelay: 2})})
+  const chat = useChat({
+    threadId: 'attachment-only-user-message',
+    connection: storyConnection({chunks: [], chunkDelay: 2}),
+  })
   return (
     <ChatProvider chat={chat}>
       <button type="button" onClick={() => void chat.sendMessage(props.content())}>

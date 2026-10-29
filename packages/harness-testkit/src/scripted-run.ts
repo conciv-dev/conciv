@@ -54,7 +54,6 @@ function* requestChunks(call: {id: string; name: string; input: unknown}, messag
     type: EventType.TOOL_CALL_START,
     toolCallId,
     toolCallName: call.name,
-    toolName: call.name,
     parentMessageId: messageId,
   }
   yield {type: EventType.TOOL_CALL_ARGS, toolCallId, delta: JSON.stringify(call.input)}
@@ -72,7 +71,6 @@ function resultChunk(toolCallId: string, result: unknown): StreamChunk {
     messageId: `${toolCallId}-result`,
     toolCallId,
     content: stringifyToolResult(result),
-    state: 'output-available',
   }
 }
 

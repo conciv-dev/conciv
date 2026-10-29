@@ -25,7 +25,7 @@ function createProbeStorage(seed?: string): {storage: WebStorage; written: Acces
 }
 
 function ChatHost(props: ParentProps<{connection?: StoryConnectionOptions; handlers?: ComposerHandlers}>): JSX.Element {
-  const chat = useChat({connection: storyConnection(untrack(() => props.connection))})
+  const chat = useChat({threadId: 'composer-completion', connection: storyConnection(untrack(() => props.connection))})
   const handlers = untrack(() => props.handlers ?? {})
   return (
     <ChatProvider chat={chat}>

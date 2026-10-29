@@ -34,9 +34,7 @@ export function normalizeHistoryToolNames(history: ChatHistory, registered: Read
 
 export function normalizeChunkToolName(chunk: StreamChunk, normalize: (name: string) => string): StreamChunk {
   if (chunk.type !== EventType.TOOL_CALL_START) return chunk
-  const name = chunk.toolCallName ?? chunk.toolName
-  if (typeof name !== 'string') return chunk
-  const normalized = normalize(name)
-  if (normalized === name) return chunk
-  return {...chunk, toolCallName: normalized, toolName: normalized}
+  const normalized = normalize(chunk.toolCallName)
+  if (normalized === chunk.toolCallName) return chunk
+  return {...chunk, toolCallName: normalized}
 }

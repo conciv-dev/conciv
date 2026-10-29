@@ -40,7 +40,11 @@ type MountedThread = {
 function mountThread(initial: UIMessage[]): MountedThread {
   let chat: UseChatReturn | undefined
   function View(): JSX.Element {
-    const value = useChat({connection: storyConnection({chunks: []}), initialMessages: initial})
+    const value = useChat({
+      threadId: 'thread-follow-machine',
+      connection: storyConnection({chunks: []}),
+      initialMessages: initial,
+    })
     onMount(() => {
       chat = value
     })

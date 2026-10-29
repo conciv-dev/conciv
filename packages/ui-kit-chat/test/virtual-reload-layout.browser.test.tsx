@@ -33,7 +33,11 @@ function seedTranscript(turns: number): UIMessage[] {
 }
 
 function ReloadedThread(props: {initial: UIMessage[]; ref?: (element: HTMLElement) => void}): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: []}), initialMessages: props.initial})
+  const chat = useChat({
+    threadId: 'virtual-reload-layout',
+    connection: storyConnection({chunks: []}),
+    initialMessages: props.initial,
+  })
   return (
     <ChatProvider chat={chat}>
       <Thread class="h-150 w-100">
@@ -177,7 +181,11 @@ function GrowingTail(): JSX.Element {
 }
 
 function LateTailThread(props: {initial: UIMessage[]; ref?: (element: HTMLElement) => void}): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: []}), initialMessages: props.initial})
+  const chat = useChat({
+    threadId: 'virtual-reload-layout',
+    connection: storyConnection({chunks: []}),
+    initialMessages: props.initial,
+  })
   const lastKey = props.initial[props.initial.length - 1]?.id
   return (
     <ChatProvider chat={chat}>

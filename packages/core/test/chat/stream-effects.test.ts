@@ -21,8 +21,6 @@ test('captures session-id custom events from any adapter', () => {
     messageId: 'm',
     delta: 'x',
     timestamp: 1,
-    threadId: 't',
-    runId: 'r',
   })
   expect(text).toBeNull()
   const unrelated = mintedSessionId({

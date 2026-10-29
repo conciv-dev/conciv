@@ -47,7 +47,7 @@ function callThroughCatalog(name: string, input: unknown): string {
 
 function startsCall(chunk: StreamChunk, name: string): boolean {
   if (chunk.type !== EventType.TOOL_CALL_START) return false
-  return (chunk.toolCallName ?? chunk.toolName) === name
+  return chunk.toolCallName === name
 }
 
 function toolCallsNamed(snapshot: SnapshotView, name: string): ToolCallPart[] {

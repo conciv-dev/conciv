@@ -32,8 +32,7 @@ async function executeRaw(base: string, session: string, typescriptCode: string)
 function toolCallStarts(chunks: StreamChunk[]): {toolCallId: string; name: string; parent?: string}[] {
   return chunks.flatMap((chunk) => {
     if (chunk.type !== EventType.TOOL_CALL_START) return []
-    const name = chunk.toolCallName ?? chunk.toolName
-    if (typeof name !== 'string') return []
+    const name = chunk.toolCallName
     const meta = z
       .object({parentToolCallId: z.string().optional()})
       .loose()

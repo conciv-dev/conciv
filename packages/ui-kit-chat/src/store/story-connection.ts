@@ -1,4 +1,4 @@
-import {EventType, type ApprovalRequestedEvent, type StreamChunk} from '@tanstack/ai'
+import {EventType, type CustomEvent, type StreamChunk} from '@tanstack/ai'
 import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
 
 export type StoryConnectionOptions = {
@@ -90,7 +90,7 @@ export function createToolCallChunks(name: string, input: unknown, options?: Too
   const toolCallId = options?.toolCallId ?? `story-${name}`
   const messageId = options?.messageId ?? `story-${name}-result`
   const chunks: Array<StreamChunk | null> = [
-    {type: EventType.TOOL_CALL_START, toolCallId, toolCallName: name, toolName: name},
+    {type: EventType.TOOL_CALL_START, toolCallId, toolCallName: name},
     {type: EventType.TOOL_CALL_ARGS, toolCallId, delta: JSON.stringify(input ?? {})},
     {type: EventType.TOOL_CALL_END, toolCallId},
     options?.result === undefined
@@ -100,7 +100,7 @@ export function createToolCallChunks(name: string, input: unknown, options?: Too
           messageId,
           toolCallId,
           content: options.result,
-          state: options.state ?? 'output-available',
+          ...(options.state === 'output-error' && {metadata: {tanstack: {state: 'output-error'}}}),
         },
   ]
   return chunks.filter(present)
@@ -110,7 +110,7 @@ export function createApprovalChunk(
   name: string,
   input: unknown,
   options?: {toolCallId?: string; approvalId?: string},
-): ApprovalRequestedEvent {
+): CustomEvent {
   const toolCallId = options?.toolCallId ?? `story-${name}`
   const approvalId = options?.approvalId ?? `story-${name}-approval`
   return {

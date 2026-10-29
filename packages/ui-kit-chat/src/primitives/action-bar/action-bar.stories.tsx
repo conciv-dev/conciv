@@ -55,7 +55,7 @@ function AssistantMessage(): JSX.Element {
 }
 
 function Frame(props: {handlers?: boolean}): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'action-bar', connection: storyConnection()})
   onMount(() => chat.setMessages([REPLY]))
   const handlers = untrack(() => (props.handlers ? {onEdit: () => {}, onSpeak: () => {}, onFeedback: () => {}} : {}))
   return (
@@ -130,7 +130,7 @@ function FloatUser(): JSX.Element {
 }
 
 function FloatFrame(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'action-bar', connection: storyConnection()})
   onMount(() => chat.setMessages([REPLY, {id: 'u1', role: 'user', parts: [{type: 'text', content: 'thanks'}]}]))
   return (
     <ChatProvider chat={chat}>

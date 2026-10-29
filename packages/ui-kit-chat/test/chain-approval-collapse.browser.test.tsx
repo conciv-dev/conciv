@@ -36,6 +36,7 @@ function approvalToolCtx(): ToolViewCtx {
 
 function ApprovalThread(): JSX.Element {
   const chat = useChat({
+    threadId: 'chain-approval-collapse',
     connection: storyConnection({
       chunks: [
         ...createReasoningChunks('deciding what to run'),

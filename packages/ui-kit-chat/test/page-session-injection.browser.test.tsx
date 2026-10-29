@@ -50,7 +50,7 @@ function threadHarness(
   pageSession?: PageSessionConfig,
 ): () => JSX.Element {
   return function ThreadHarness(): JSX.Element {
-    const chat = useChat({connection: storyConnection(options)})
+    const chat = useChat({threadId: 'page-session-injection', connection: storyConnection(options)})
     return (
       <ChatProvider chat={chat}>
         <button type="button" onClick={() => void chat.sendMessage('drive the page')}>
@@ -274,7 +274,6 @@ it('keeps the live session streaming when a trailing foreign result arrives', as
             messageId: 'foreign-result',
             toolCallId: 'foreign',
             content: '{}',
-            state: 'output-available',
           },
         ],
         chunkDelay: 1,

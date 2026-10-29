@@ -49,7 +49,7 @@ function staticThread(
   groupEntries: readonly GroupEntry[],
 ): () => JSX.Element {
   return function StaticThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection()})
+    const chat = useChat({threadId: 'nested-group-rendering', connection: storyConnection()})
     onMount(() => chat.setMessages(messagesWith(parts)))
     return (
       <ChatProvider chat={chat}>
@@ -143,7 +143,7 @@ function groupedPartsThread(parts: MessagePart[], grouping: Grouping): () => JSX
     <Message.Unstable_PartsGrouped grouping={grouping} components={{Group: GroupWrapper}} />
   )
   return function GroupedPartsThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection()})
+    const chat = useChat({threadId: 'nested-group-rendering', connection: storyConnection()})
     onMount(() => chat.setMessages(messagesWith(parts)))
     return (
       <ChatProvider chat={chat}>
@@ -174,7 +174,7 @@ it('suppresses every wrapper of a nested group whose descendants render nothing'
   mountView(
     groupedPartsThread(
       [
-        {type: 'structured-output', status: 'complete', raw: '{}'},
+        {type: 'structured-output', status: 'complete', raw: '{}', data: {}},
         {type: 'text', content: 'visible reply'},
       ],
       grouping,

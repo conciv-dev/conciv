@@ -14,7 +14,6 @@ describe('codeModeToolChunks', () => {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'c1',
         toolCallName: 'canvas_svg',
-        toolName: 'canvas_svg',
         metadata: {codeModeSynthetic: true, parentToolCallId: 'parent-1'},
       },
       {type: EventType.TOOL_CALL_ARGS, toolCallId: 'c1', delta: '{"x":1}'},
@@ -28,7 +27,6 @@ describe('codeModeToolChunks', () => {
       type: EventType.TOOL_CALL_START,
       toolCallId: 'c1',
       toolCallName: 'canvas_svg',
-      toolName: 'canvas_svg',
       metadata: {codeModeSynthetic: true},
     })
   })
@@ -41,7 +39,6 @@ describe('codeModeToolChunks', () => {
         messageId: 'c1-result',
         toolCallId: 'c1',
         content: '{"ok":true}',
-        state: 'output-available',
       },
     ])
   })
@@ -54,7 +51,7 @@ describe('codeModeToolChunks', () => {
         messageId: 'c1-result',
         toolCallId: 'c1',
         content: '{"error":"denied"}',
-        state: 'output-error',
+        metadata: {tanstack: {state: 'output-error'}},
       },
     ])
   })

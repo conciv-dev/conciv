@@ -77,7 +77,7 @@ function runningStepMessages(): UIMessage[] {
 }
 
 function TracedThread(props: {messages: UIMessage[]}): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread-trace-rail', connection: storyConnection()})
   onMount(() => chat.setMessages(props.messages))
   return (
     <ChatProvider chat={chat}>

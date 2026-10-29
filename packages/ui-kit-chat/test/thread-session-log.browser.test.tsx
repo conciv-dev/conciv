@@ -48,7 +48,7 @@ function messagesWithPrompts(): UIMessage[] {
 }
 
 function StaticPromptsThread(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithPrompts()))
   return (
     <ChatProvider chat={chat}>
@@ -108,7 +108,7 @@ function messagesWithSettledTrace(): UIMessage[] {
 }
 
 function SettledTraceThread(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithSettledTrace()))
   return (
     <ChatProvider chat={chat}>
@@ -178,7 +178,7 @@ function messagesWithoutTools(): UIMessage[] {
 }
 
 function ToollessThread(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithoutTools()))
   return (
     <ChatProvider chat={chat}>
@@ -233,7 +233,7 @@ function messagesWithTwoSegments(): UIMessage[] {
 }
 
 function TwoSegmentThread(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithTwoSegments()))
   return (
     <ChatProvider chat={chat}>
@@ -282,7 +282,7 @@ function messagesWithInterleavedTurn(): UIMessage[] {
 }
 
 function InterleavedTurnThread(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithInterleavedTurn()))
   return (
     <ChatProvider chat={chat}>

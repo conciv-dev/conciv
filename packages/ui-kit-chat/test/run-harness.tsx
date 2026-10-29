@@ -11,7 +11,10 @@ const RUN_TIMEOUT_MS = 3000
 
 export function streamingThread(chunks: StreamChunk[], chunkDelay: number): () => JSX.Element {
   return function StreamingThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection({chunks, chunkDelay, runsUntilStopped: true})})
+    const chat = useChat({
+      threadId: 'run-harness',
+      connection: storyConnection({chunks, chunkDelay, runsUntilStopped: true}),
+    })
     return (
       <ChatProvider chat={chat}>
         <button type="button" onClick={() => void chat.sendMessage('think')}>

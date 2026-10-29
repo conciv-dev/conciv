@@ -18,7 +18,11 @@ describe.each([['pi', pi]])('%s stub', (id, adapter) => {
       decide: async () => 'allow',
     })
     const chunks: StreamChunk[] = []
-    for await (const chunk of chat({adapter: config.adapter, messages: [{role: 'user', content: 'hi'}]})) {
+    for await (const chunk of chat({
+      adapter: config.adapter,
+      threadId: 'stubs',
+      messages: [{role: 'user', content: 'hi'}],
+    })) {
       chunks.push(chunk)
     }
     const last = chunks.at(-1)

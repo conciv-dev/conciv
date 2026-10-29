@@ -31,7 +31,7 @@ const PAGE_SESSION: PageSessionConfig = {
 }
 
 function dataPart(): MessagePart {
-  return {type: 'structured-output', status: 'complete', raw: '{"done":true}'}
+  return {type: 'structured-output', status: 'complete', raw: '{"done":true}', data: {done: true}}
 }
 
 function staticThread(parts: MessagePart[], pageSession?: PageSessionConfig): () => JSX.Element {
@@ -40,7 +40,7 @@ function staticThread(parts: MessagePart[], pageSession?: PageSessionConfig): ()
     {id: 'a1', role: 'assistant', parts},
   ]
   return function StaticThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection()})
+    const chat = useChat({threadId: 'empty-group-suppression', connection: storyConnection()})
     onMount(() => chat.setMessages(messages))
     return (
       <ChatProvider chat={chat}>

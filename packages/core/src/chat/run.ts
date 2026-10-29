@@ -247,9 +247,7 @@ function isRunEndChunk(chunk: StreamChunk): boolean {
 
 function noteToolCall(deps: ChatDeps, sessionId: SessionId, chunk: StreamChunk): void {
   if (chunk.type !== EventType.TOOL_CALL_START) return
-  const name = chunk.toolCallName ?? chunk.toolName
-  if (typeof name !== 'string') return
-  deps.asks.noteToolCall(sessionId, chunk.toolCallId, name)
+  deps.asks.noteToolCall(sessionId, chunk.toolCallId, chunk.toolCallName)
 }
 
 function tokenUsageOf(usage: TokenUsage | SpecTokenUsage[] | undefined): TokenUsage | undefined {

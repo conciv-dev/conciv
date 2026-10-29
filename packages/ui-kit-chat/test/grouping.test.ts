@@ -100,8 +100,8 @@ describe('default grouper', () => {
   it('gives unrenderable data parts no node at all', () => {
     expect(
       group([
-        {type: 'structured-output', status: 'complete', raw: '{}'},
-        {type: 'structured-output', status: 'complete', raw: '{}'},
+        {type: 'structured-output', status: 'complete', raw: '{}', data: {}},
+        {type: 'structured-output', status: 'complete', raw: '{}', data: {}},
         {type: 'text', content: 'done'},
       ]),
     ).toEqual([leaf(2)])
@@ -114,7 +114,7 @@ describe('default grouper', () => {
   it('creates no group at all for a run of only unrenderable parts', () => {
     expect(
       group([
-        {type: 'structured-output', status: 'complete', raw: '{}'},
+        {type: 'structured-output', status: 'complete', raw: '{}', data: {}},
         {type: 'thinking', content: '  '},
         {type: 'tool-result', toolCallId: 't1', content: 'ok', state: 'complete'},
       ]),
@@ -125,7 +125,7 @@ describe('default grouper', () => {
     const nodes = groupParts(
       [
         {type: 'thinking', content: 'plan'},
-        {type: 'structured-output', status: 'complete', raw: '{}'},
+        {type: 'structured-output', status: 'complete', raw: '{}', data: {}},
         {type: 'text', content: 'done'},
       ],
       defaultGrouper,

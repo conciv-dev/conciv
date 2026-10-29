@@ -37,6 +37,7 @@ test('permission tool blocks until gate decides, then allows', async () => {
       }),
   }
   const bridge = await gateProvisioner(gate).provision([], {
+    threadId: 'bridge-gate',
     provider: 'local-process',
     permission: {toolName: 'approval_prompt', resolve: () => ({behavior: 'deny', message: 'unused upstream resolver'})},
   })
@@ -51,6 +52,7 @@ test('permission tool blocks until gate decides, then allows', async () => {
 test('permission tool denies when the gate denies', async () => {
   const gate = {decide: async () => 'deny' as const}
   const bridge = await gateProvisioner(gate).provision([], {
+    threadId: 'bridge-gate',
     provider: 'local-process',
     permission: {toolName: 'approval_prompt', resolve: () => ({behavior: 'allow'})},
   })
@@ -67,6 +69,7 @@ test('a gate timeout on a bridged tool reads as no decision, not a user denial',
     inputSchema: z.object({}),
   }).server(async () => ({}))
   const bridge = await gateProvisioner(gate).provision([slow], {
+    threadId: 'bridge-gate',
     provider: 'local-process',
   })
   const result = await callBridgeTool(bridge, 'slow_tool', {})
@@ -101,6 +104,7 @@ test('bridged tool calls route through the gate before executing', async () => {
     return {}
   })
   const bridge = await gateProvisioner(gate).provision([echo, blocked], {
+    threadId: 'bridge-gate',
     provider: 'local-process',
   })
   const ok = await callBridgeTool(bridge, 'echo_tool', {value: 'hi'})

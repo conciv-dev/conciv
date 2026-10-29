@@ -8,7 +8,8 @@ test('makeTextAdapter drives chat() with the provided stream fn', async () => {
     yield* scriptedRunChunks(`echo:${lastUserModelText(options.messages)}`)
   })
   const chunks: StreamChunk[] = []
-  for await (const chunk of chat({adapter, messages: [{role: 'user', content: 'hi'}]})) chunks.push(chunk)
+  for await (const chunk of chat({adapter, threadId: 'make-text-adapter', messages: [{role: 'user', content: 'hi'}]}))
+    chunks.push(chunk)
   const content = chunks.find((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
   expect(content && 'delta' in content ? content.delta : undefined).toBe('echo:hi')
   expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)

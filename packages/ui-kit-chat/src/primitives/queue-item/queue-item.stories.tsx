@@ -25,6 +25,7 @@ const attachmentOnlyContent: MultimodalContent = {
 
 function Queue(props: {onSteer: () => Promise<void>}): JSX.Element {
   const chat = useChat({
+    threadId: 'queue-item',
     connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000}),
     queue: {whenBusy: 'queue', drain: 'fifo'},
   })

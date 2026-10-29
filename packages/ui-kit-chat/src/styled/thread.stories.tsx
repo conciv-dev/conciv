@@ -25,6 +25,7 @@ function Welcome(): JSX.Element {
 
 function ThreadApp(props: {expose: (chat: UseChatReturn) => void}): JSX.Element {
   const chat = useChat({
+    threadId: 'thread',
     connection: storyConnection({
       chunks: [
         ...createReasoningChunks('Searching the codebase'),
@@ -109,6 +110,7 @@ const renderDivider = (): JSX.Element => <Divider />
 
 function SlotsApp(): JSX.Element {
   const chat = useChat({
+    threadId: 'thread',
     connection: storyConnection({
       chunks: [...createTextChunks('On it.')],
       chunkDelay: 2,
@@ -132,7 +134,7 @@ function SlotsApp(): JSX.Element {
 }
 
 function ShiftApp(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread', connection: storyConnection()})
   onMount(() =>
     chat.setMessages([
       {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'First reply, older.'}]},

@@ -49,6 +49,7 @@ function ThreadDump(): JSX.Element {
 export const StreamsTextThroughRealUseChat: Story = {
   render: () => {
     const chat = useChat({
+      threadId: 'chat-context',
       connection: storyConnection({
         chunks: [
           ...createReasoningChunks('Looking at the stack trace'),

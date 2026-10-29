@@ -34,7 +34,10 @@ function AssistantMessage(): JSX.Element {
 }
 
 function ComposerApp(): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2})})
+  const chat = useChat({
+    threadId: 'composer',
+    connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2}),
+  })
   return (
     <ChatProvider chat={chat}>
       <Thread.Root class="flex flex-col gap-2">
@@ -78,7 +81,10 @@ export const EnterSubmits: Story = {
 }
 
 function CancelApp(props: {onCancel: () => void}): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2000})})
+  const chat = useChat({
+    threadId: 'composer',
+    connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2000}),
+  })
   const handlers = untrack(() => ({onCancel: props.onCancel}))
   return (
     <ChatProvider chat={chat}>
@@ -129,6 +135,7 @@ export const EscapeRoutesThroughHandler: Story = {
 
 function QueueApp(): JSX.Element {
   const chat = useChat({
+    threadId: 'composer',
     connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000}),
     queue: {whenBusy: 'queue', drain: 'fifo'},
   })
@@ -179,7 +186,7 @@ function AttachmentComposerApp(props: {
   adapter: AttachmentAdapter
   onSend: (content: string | MultimodalContent) => void
 }): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: createTextChunks('unused')})})
+  const chat = useChat({threadId: 'composer', connection: storyConnection({chunks: createTextChunks('unused')})})
   const handlers = untrack(() => ({onSend: props.onSend}))
   return (
     <ChatProvider chat={chat}>

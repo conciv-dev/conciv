@@ -42,7 +42,7 @@ function isTextContent(content: QueuedMessage['content']): content is string {
   return typeof content === 'string'
 }
 
-function joinedQueueText(queued: QueuedMessage[]): string | null {
+function joinedQueueText(queued: readonly QueuedMessage[]): string | null {
   if (!queued.every((item) => isTextContent(item.content))) return null
   return queued.map((item) => item.content).join('\n')
 }
@@ -95,7 +95,7 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     chat.stop()
     void options.rpc.chat.stop({sessionId: options.sessionId}).catch((error) => options.onError?.(asError(error)))
   }
-  const sendQueuedSequentially = async (queued: QueuedMessage[]): Promise<void> => {
+  const sendQueuedSequentially = async (queued: readonly QueuedMessage[]): Promise<void> => {
     for (const item of queued) await chat.sendMessage(item.content)
   }
   const interruptAndFlush = () => {

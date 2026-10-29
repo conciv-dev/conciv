@@ -29,7 +29,10 @@ export const TriggerOpensPanel: Story = {
 }
 
 function RunStartFrame(): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: createTextChunks('Working on it.'), chunkDelay: 5})})
+  const chat = useChat({
+    threadId: 'assistant-modal',
+    connection: storyConnection({chunks: createTextChunks('Working on it.'), chunkDelay: 5}),
+  })
   return (
     <ChatProvider chat={chat}>
       <button type="button" onClick={() => void chat.sendMessage('go')}>
