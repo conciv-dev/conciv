@@ -74,4 +74,4 @@ export function TodoCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const todoTool: ToolCardEntry = {names: ['TodoWrite'], render: TodoCard}
+export const todoTool: ToolCardEntry = {names: ['TodoWrite'], render: TodoCard, hasEmbeddedBody: () => true}

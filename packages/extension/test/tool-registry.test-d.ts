@@ -7,7 +7,7 @@ import type {RegistryToolMeta} from '../src/tool-registry.js'
 
 test('the client binding handler receives input typed by the schema', () => {
   defineTool({
-    name: 'page.fill',
+    name: 'page_fill',
     description: 'type text into a field',
     inputSchema: z.object({target: z.string(), value: z.string()}),
     outputSchema: z.object({filled: z.boolean()}),

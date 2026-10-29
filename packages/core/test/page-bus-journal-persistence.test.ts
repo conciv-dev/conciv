@@ -14,26 +14,26 @@ describe('the page-change journal is DB-backed', () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-journal-'))
     const journal = makeJournal(openDb(stateRoot))
 
-    await journal.append(SESSION_A, {verb: 'page.click', selector: '.a', args: {}}, 1)
-    await journal.append(SESSION_B, {verb: 'page.click', selector: '.b', args: {}}, 2)
+    await journal.append(SESSION_A, {verb: 'page_click', selector: '.a', args: {}}, 1)
+    await journal.append(SESSION_B, {verb: 'page_click', selector: '.b', args: {}}, 2)
 
-    expect(await journal.list(SESSION_A)).toMatchObject([{verb: 'page.click', selector: '.a'}])
-    expect(await journal.list(SESSION_B)).toMatchObject([{verb: 'page.click', selector: '.b'}])
+    expect(await journal.list(SESSION_A)).toMatchObject([{verb: 'page_click', selector: '.a'}])
+    expect(await journal.list(SESSION_B)).toMatchObject([{verb: 'page_click', selector: '.b'}])
 
     await journal.clear(SESSION_A)
 
     expect(await journal.list(SESSION_A)).toEqual([])
-    expect(await journal.list(SESSION_B)).toMatchObject([{verb: 'page.click', selector: '.b'}])
+    expect(await journal.list(SESSION_B)).toMatchObject([{verb: 'page_click', selector: '.b'}])
   })
 
   it('survives an engine restart: entries written before a fresh db handle are still readable after', async () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-journal-restart-'))
     const beforeRestart = makeJournal(openDb(stateRoot))
-    await beforeRestart.append(SESSION_A, {verb: 'page.fill', selector: '#email', args: {value: 'a@b.c'}}, 10)
+    await beforeRestart.append(SESSION_A, {verb: 'page_fill', selector: '#email', args: {value: 'a@b.c'}}, 10)
 
     const afterRestart = makeJournal(openDb(stateRoot))
     expect(await afterRestart.list(SESSION_A)).toMatchObject([
-      {verb: 'page.fill', selector: '#email', args: {value: 'a@b.c'}},
+      {verb: 'page_fill', selector: '#email', args: {value: 'a@b.c'}},
     ])
   })
 })

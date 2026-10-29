@@ -1,9 +1,9 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, DANGER_TEXT_CLASS, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {PageValueChip} from '../page-result-views.js'
-import {LIST_ROW_CLASS, QUIET_TEXT_CLASS, cardErrorMessage, cardPayload} from './shared.js'
+import {LIST_ROW_CLASS, QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, hasPayloadOrError} from './shared.js'
 
 const ConsolePayload = z.looseObject({
   entries: z.array(z.looseObject({level: z.string(), ts: z.number(), text: z.string()})),
@@ -47,7 +47,7 @@ function levelClassOf(level: string): string {
   return isErrorLevel(level) ? LEVEL_DANGER : LEVEL_QUIET
 }
 
-export function ConsoleCard(props: ToolCardProps): JSX.Element {
+function ConsoleCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
   const payload = () => cardPayload(props.result)
   const lines = () => linesOf(payload())
@@ -95,4 +95,9 @@ export function ConsoleCard(props: ToolCardProps): JSX.Element {
       </div>
     </CardShell>
   )
+}
+
+export const consoleCard: ToolCardView = {
+  render: ConsoleCard,
+  hasEmbeddedBody: (_part, result) => hasPayloadOrError(result),
 }

@@ -3,11 +3,12 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {fetchServerSentEvents} from '@tanstack/ai-client'
 import {EventType} from '@tanstack/ai'
 import {start, type Engine} from '@conciv/core'
 import {createFakeHarness, makeRpcClient, type RpcClient} from '@conciv/harness-testkit'
 import {makeExtRpcClient} from '@conciv/extension'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter, HarnessConnectContext} from '@conciv/protocol/harness-types'
 import terminalExtension, {type TerminalRouter} from '../src/server.js'
 
@@ -94,24 +95,23 @@ describe('prefixed serving over the real wire (start with an access token)', () 
     },
   )
 
-  it('streams a chat turn over subscribe through the prefixed route', {timeout: 15_000}, async () => {
+  it('streams a chat turn over the prefixed delivery route', {timeout: 15_000}, async () => {
     const {sessionId} = await rpc.sessions.create(undefined)
     const abort = new AbortController()
-    const iterator = await rpc.chat.subscribe({sessionId}, {signal: abort.signal})
-    try {
-      await rpc.chat.send({runId: randomUUID(), sessionId, text: 'hello through the prefix'})
-      const types: string[] = []
-      while (types.at(-1) !== EventType.RUN_FINISHED) {
-        const next = await iterator.next()
-        if (next.done) break
-        types.push(next.value.type)
-      }
-      expect(types[0]).toBe(EventType.MESSAGES_SNAPSHOT)
-      expect(types).toContain(EventType.RUN_FINISHED)
-    } finally {
-      abort.abort()
-      await iterator.return(undefined).catch(() => {})
+    const connection = fetchServerSentEvents(`${base}${CHAT_SSE_PATH}`)
+    const types: string[] = []
+    for await (const chunk of connection.connect(
+      [{id: randomUUID(), role: 'user', parts: [{type: 'text', content: 'hello through the prefix'}]}],
+      {},
+      abort.signal,
+      {threadId: sessionId, runId: randomUUID()},
+    )) {
+      types.push(chunk.type)
+      if (chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR) break
     }
+    abort.abort()
+
+    expect(types).toContain(EventType.RUN_FINISHED)
   })
 
   it('answers chat.permissionDecision through the prefixed route', {timeout: 15_000}, async () => {

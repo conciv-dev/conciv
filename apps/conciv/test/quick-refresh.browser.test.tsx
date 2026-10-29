@@ -7,6 +7,7 @@ import {createShellHarness} from './helpers/shell-harness.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 
 const DRAFT_GET_PATH = ['drafts', 'get']
+const HYDRATE_PATH = ['chat', 'hydrate']
 
 const core = {base: ''}
 const harness = createShellHarness(() => core.base)
@@ -28,6 +29,7 @@ afterEach(async () => {
 
 const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const refresh = () => page.getByRole('button', {name: 'Refresh the conversation'})
+const refreshing = () => page.getByRole('button', {name: 'Refreshing the conversation'})
 const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
 
 test('the quick terminal pane bar carries refresh while the composer is still loading', async () => {
@@ -69,4 +71,20 @@ test('a quick terminal pane disables its refresh affordance while the run stream
 
   await expect.element(stopButton()).toBeVisible()
   await expect.element(refresh()).toBeDisabled()
+}, 30_000)
+
+test('the quick terminal pane refresh affordance reports progress until the reconnect settles', async () => {
+  const sessionId = await createSession(coreRpc(core.base))
+  harness.mountShell(`/quick?panes=${sessionId}&focus=0`)
+  await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+  const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
+  await refresh().click()
+  await coreControl.awaitFaultPending(gate, 1)
+
+  await expect.element(refreshing(), {timeout: 8000}).toBeDisabled()
+
+  await coreControl.releaseFault(gate)
+
+  await expect.element(refresh(), {timeout: 8000}).toBeEnabled()
 }, 30_000)

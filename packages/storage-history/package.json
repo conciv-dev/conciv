@@ -37,7 +37,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@tanstack/history": "^1.162.0"
+    "@tanstack/history": "^1.162.5"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",

@@ -51,7 +51,7 @@ describe('parseHistory', () => {
         message: {
           id: 'msg_A',
           role: 'assistant',
-          content: [{type: 'tool_use', id: 'toolu_1', name: 'mcp__conciv__page.snapshot', input: {verb: 'snapshot'}}],
+          content: [{type: 'tool_use', id: 'toolu_1', name: 'mcp__conciv__page_snapshot', input: {verb: 'snapshot'}}],
         },
       }),
       JSON.stringify({
@@ -81,7 +81,7 @@ describe('parseHistory', () => {
           {
             type: 'tool_use',
             id: 'toolu_2',
-            name: 'mcp__plugin_conciv-connect_conciv__page.snapshot',
+            name: 'mcp__plugin_conciv-connect_conciv__page_snapshot',
             input: {verb: 'snapshot'},
           },
         ],
@@ -89,7 +89,7 @@ describe('parseHistory', () => {
     })
 
     const call = parseHistory(jsonl)[0]?.parts[0]
-    expect(call).toMatchObject({type: 'tool-call', name: 'page.snapshot'})
+    expect(call).toMatchObject({type: 'tool-call', name: 'page_snapshot'})
   })
 
   it('leaves other plugin servers fully qualified', () => {

@@ -43,7 +43,7 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
       ok: true,
       result: {component: 'Home', stack: ['Home'], frames: [{fileName: `file://${chunk}`, line: 2, column: 1}]},
     }))
-    const data = LocateSchema.parse(await callPage(kit, 'page.locate', {selector: 'h1'}))
+    const data = LocateSchema.parse(await callPage(kit, 'page_locate', {selector: 'h1'}))
     expect(data.component).toBe('Home')
     expect(data.source).toEqual({file: 'app/page.tsx', line: 17, column: 4})
   })
@@ -51,27 +51,27 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
   it('round-trips a page query: SSE push → widget reply → the query resolves', async () => {
     const kit = await setup()
     state.widget = await connectWidget(kit, () => ({ok: true, result: {pathname: '/checkout', search: '', href: 'x'}}))
-    expect(await callPage(kit, 'page.route')).toEqual({pathname: '/checkout', search: '', href: 'x'})
+    expect(await callPage(kit, 'page_route')).toEqual({pathname: '/checkout', search: '', href: 'x'})
   })
 
   it('reports NO_PAGE_CLIENT when no widget is subscribed', async () => {
     const kit = await setup()
-    await expect(callPage(kit, 'page.route')).rejects.toMatchObject({
+    await expect(callPage(kit, 'page_route')).rejects.toMatchObject({
       code: 'NO_PAGE_CLIENT',
     })
   })
 
   it('rejects a name no tool answers to as UNKNOWN_TOOL without touching the bus', async () => {
     const kit = await setup()
-    await expect(callPage(kit, 'page.nothing')).rejects.toMatchObject({code: 'UNKNOWN_TOOL'})
+    await expect(callPage(kit, 'page_nothing')).rejects.toMatchObject({code: 'UNKNOWN_TOOL'})
   })
 
   it('round-trips a fill action and the journal records it', async () => {
     const kit = await setup()
     state.widget = await connectWidget(kit, () => ({ok: true, result: {ok: true, value: 'a@b.c'}}))
-    expect(await callPage(kit, 'page.fill', {selector: '#email', value: 'a@b.c'})).toEqual({ok: true, value: 'a@b.c'})
+    expect(await callPage(kit, 'page_fill', {selector: '#email', value: 'a@b.c'})).toEqual({ok: true, value: 'a@b.c'})
     const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
-    expect(changes).toMatchObject([{verb: 'page.fill', selector: '#email', args: {value: 'a@b.c'}}])
+    expect(changes).toMatchObject([{verb: 'page_fill', selector: '#email', args: {value: 'a@b.c'}}])
   })
 
   const FAILURE_CODES: [PageReportedErrorCode, string][] = [
@@ -83,9 +83,9 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
   it.each(FAILURE_CODES)('turns the browser failure %s into the declared rpc error %s', async (code, rpcCode) => {
     const kit = await setup()
     state.widget = await connectWidget(kit, () => ({ok: false, error: {code, message: `${code} says no`}}))
-    await expect(callPage(kit, 'page.text', {selector: '#h'})).rejects.toMatchObject({
+    await expect(callPage(kit, 'page_text', {selector: '#h'})).rejects.toMatchObject({
       code: rpcCode,
-      message: `page.text: ${code} says no`,
+      message: `page_text: ${code} says no`,
     })
   })
 
@@ -95,7 +95,7 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
       ok: false,
       error: {code: 'invalid-args', message: 'no element for selector #email'},
     }))
-    await expect(callPage(kit, 'page.fill', {selector: '#email', value: 'a@b.c'})).rejects.toMatchObject({
+    await expect(callPage(kit, 'page_fill', {selector: '#email', value: 'a@b.c'})).rejects.toMatchObject({
       code: 'INVALID_ARGS',
     })
     expect(ChangesSchema.parse(await kit.rpc.page.changes(undefined))).toEqual([])
@@ -104,10 +104,10 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
   it('does NOT journal a read, and clear empties the journal', async () => {
     const kit = await setup()
     state.widget = await connectWidget(kit, (name) =>
-      name === 'page.text' ? {ok: true, result: {text: 'hi'}} : {ok: true, result: {ok: true}},
+      name === 'page_text' ? {ok: true, result: {text: 'hi'}} : {ok: true, result: {ok: true}},
     )
-    await callPage(kit, 'page.text', {selector: '#h'})
-    await callPage(kit, 'page.click', {selector: '.btn'})
+    await callPage(kit, 'page_text', {selector: '#h'})
+    await callPage(kit, 'page_click', {selector: '.btn'})
     expect(ChangesSchema.parse(await kit.rpc.page.changes(undefined))).toHaveLength(1)
     await kit.rpc.page.clearChanges(undefined)
     expect(ChangesSchema.parse(await kit.rpc.page.changes(undefined))).toEqual([])

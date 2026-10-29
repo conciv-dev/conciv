@@ -1,6 +1,7 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, userEvent, waitFor, within} from 'storybook/test'
+import {CodeBlock} from '../../tools/styled/code-block.js'
 import {TraceOutputBlock} from './output-block.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/trace/OutputBlock'}
@@ -19,6 +20,8 @@ const STDERR = [
   'src/store/turn-rollup.ts(42,11): error TS2345:',
   "  Argument of type 'string' is not assignable to parameter of type 'number'.",
 ].join('\n')
+
+const DENIED = 'Denied by user'
 
 function frame(child: JSX.Element): JSX.Element {
   return (
@@ -49,7 +52,20 @@ export const ErrorTone: Story = {
   },
 }
 
-export const HoverActions: Story = {
+export const DeniedSingleLine: Story = {
+  render: () =>
+    frame(
+      <TraceOutputBlock tone="error" text={DENIED}>
+        <CodeBlock size="xs" maxHeight="none" file={{name: 'output.log', lang: 'log', contents: DENIED}} />
+      </TraceOutputBlock>,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('group', {name: 'Error output'})).toBeVisible()
+  },
+}
+
+export const ChromeRowActions: Story = {
   render: () =>
     frame(
       <TraceOutputBlock text={STDOUT} onOpen={() => {}}>
@@ -58,10 +74,9 @@ export const HoverActions: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    const copyBtn = canvas.getByRole('button', {name: 'Copy'})
-    await expect(copyBtn).not.toBeVisible()
-    await userEvent.tab()
-    await waitFor(() => expect(copyBtn).toBeVisible())
+    await expect(canvas.getByRole('button', {name: 'Copy'})).toBeVisible()
     await expect(canvas.getByRole('button', {name: 'Open'})).toBeVisible()
+    await userEvent.tab()
+    await waitFor(() => expect(canvas.getByRole('button', {name: 'Copy'})).toHaveFocus())
   },
 }

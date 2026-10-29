@@ -5,7 +5,7 @@ import type {ElementCapture, PageCaptureBundle} from '@conciv/protocol/element-c
 import {makeDomPageDriver, type PageDriver} from '../src/page-driver.js'
 
 const readValue = defineTool({
-  name: 'probe.readvalue',
+  name: 'probe_readvalue',
   description: 'reads a value without capturing',
   inputSchema: z.object({selector: z.string()}),
   outputSchema: z.object({value: z.string()}),
@@ -16,7 +16,7 @@ const readValue = defineTool({
 })
 
 const actFill = defineTool({
-  name: 'probe.fill',
+  name: 'probe_fill',
   description: 'types into an input',
   inputSchema: z.object({selector: z.string(), value: z.string()}),
   outputSchema: z.object({ok: z.literal(true)}),
@@ -28,7 +28,7 @@ const actFill = defineTool({
 })
 
 const editText = defineTool({
-  name: 'probe.settext',
+  name: 'probe_settext',
   description: 'replaces the text of an element',
   inputSchema: z.object({selector: z.string(), text: z.string()}),
   outputSchema: z.object({ok: z.literal(true)}),
@@ -39,7 +39,7 @@ const editText = defineTool({
 })
 
 const editRemove = defineTool({
-  name: 'probe.remove',
+  name: 'probe_remove',
   description: 'removes an element',
   inputSchema: z.object({selector: z.string()}),
   outputSchema: z.object({ok: z.literal(true)}),
@@ -50,7 +50,7 @@ const editRemove = defineTool({
 })
 
 const editStyled = defineTool({
-  name: 'probe.settextstyled',
+  name: 'probe_settextstyled',
   description: 'replaces the text of an element while the page injects a rule',
   inputSchema: z.object({selector: z.string(), text: z.string()}),
   outputSchema: z.object({ok: z.literal(true)}),
@@ -66,7 +66,7 @@ const editStyled = defineTool({
 })
 
 const actMark = defineTool({
-  name: 'probe.mark',
+  name: 'probe_mark',
   description: 'marks an element without touching its children',
   inputSchema: z.object({selector: z.string()}),
   outputSchema: z.object({ok: z.literal(true)}),
@@ -241,7 +241,7 @@ async function decodedDataUrlSize(dataUrl: string): Promise<{width: number; heig
 
 describe('a page tool capture freezes the element as it was when the tool ran', () => {
   it('survives a later class flip and a later deletion of the captured node', async () => {
-    const bundle = await captureOf('probe.settext', {selector: '#prose', text: 'rewritten'})
+    const bundle = await captureOf('probe_settext', {selector: '#prose', text: 'rewritten'})
     const after = bundle.after
     if (after === undefined) throw new Error('the edit carried no after capture')
     expect(after.descriptor.accessibleName).toBe('rewritten')
@@ -256,7 +256,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
   })
 
   it('carries the ancestor skeleton down to a marked target so page css still matches', async () => {
-    const bundle = await captureOf('probe.fill', {selector: '#card', value: CARD_SENTINEL})
+    const bundle = await captureOf('probe_fill', {selector: '#card', value: CARD_SENTINEL})
     const node = JSON.stringify(bundle.after?.node ?? null)
     expect(node).toContain('data-rr-target')
     expect(node).toContain('capture-form')
@@ -265,15 +265,15 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
   })
 
   it('carries the css bundle on every capture so a dropped one never leaves a dangling reference', async () => {
-    const first = await captureOf('probe.fill', {selector: '#card', value: '1'})
-    const second = await captureOf('probe.fill', {selector: '#card', value: '2'})
+    const first = await captureOf('probe_fill', {selector: '#card', value: '1'})
+    const second = await captureOf('probe_fill', {selector: '#card', value: '2'})
     expect(second.after?.cssBundleId).toBe(first.after?.cssBundleId)
     expect(second.cssBundles?.at(0)?.hash).toBe(second.after?.cssBundleId)
     expect(second.cssBundles?.at(0)?.css).toBe(first.cssBundles?.at(0)?.css)
   })
 
   it('keeps a css bundle for each side when the page injects a rule while the tool runs', async () => {
-    const bundle = await captureOf('probe.settextstyled', {selector: '#prose', text: 'restyled'})
+    const bundle = await captureOf('probe_settextstyled', {selector: '#prose', text: 'restyled'})
     const beforeId = bundle.before?.cssBundleId
     const afterId = bundle.after?.cssBundleId
     expect(beforeId).toBeDefined()
@@ -287,7 +287,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
   })
 
   it('keeps a password out of the capture payload and out of the result', async () => {
-    const outcome = await driver.execute({name: 'probe.fill', input: {selector: '#secret', value: 'typed'}})
+    const outcome = await driver.execute({name: 'probe_fill', input: {selector: '#secret', value: 'typed'}})
     if (!outcome.ok) throw new Error('the fill failed')
     expect(JSON.stringify(outcome.result)).not.toContain(PASSWORD)
     expect(JSON.stringify(outcome.capture)).not.toContain(PASSWORD)
@@ -295,7 +295,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
   })
 
   it('keeps a payment field out of the capture payload and out of the result', async () => {
-    const outcome = await driver.execute({name: 'probe.fill', input: {selector: '#card', value: CARD_SENTINEL}})
+    const outcome = await driver.execute({name: 'probe_fill', input: {selector: '#card', value: CARD_SENTINEL}})
     if (!outcome.ok) throw new Error('the fill failed')
     expect(JSON.stringify(outcome.result)).not.toContain(CARD_SENTINEL)
     expect(JSON.stringify(outcome.capture)).not.toContain(CARD_SENTINEL)
@@ -303,12 +303,12 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
   })
 
   it('takes no capture for a read verb', async () => {
-    const outcome = await driver.execute({name: 'probe.readvalue', input: {selector: '#prose'}})
+    const outcome = await driver.execute({name: 'probe_readvalue', input: {selector: '#prose'}})
     expect(outcome).toEqual({ok: true, result: {value: 'original prose'}})
   })
 
   it('records a before side and no after side when the verb detaches the element', async () => {
-    const bundle = await captureOf('probe.remove', {selector: '#doomed'})
+    const bundle = await captureOf('probe_remove', {selector: '#doomed'})
     expect(bundle.before?.descriptor.accessibleName).toBe('temporary')
     expect(bundle.after).toBeUndefined()
   })
@@ -317,13 +317,13 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     const widget = document.createElement('div')
     widget.setAttribute('data-conciv-root', '')
     document.querySelector('#panel')?.appendChild(widget)
-    const bundle = await captureOf('probe.settext', {selector: '#panel', text: 'wiped'})
+    const bundle = await captureOf('probe_settext', {selector: '#panel', text: 'wiped'})
     expect(bundle.before?.node).toBeUndefined()
     expect(bundle.before?.descriptor.selectorPath).toContain('#panel')
   })
 
   it('strips event-handler attributes, javascript: URLs, and iframe/object/embed nodes from the captured subtree', async () => {
-    const bundle = await captureOf('probe.mark', {selector: '#hostile'})
+    const bundle = await captureOf('probe_mark', {selector: '#hostile'})
     const node = bundle.after?.node
     expect(node).toBeDefined()
 
@@ -352,7 +352,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
   })
 
   it('keeps script and stylesheet-link nodes out of the serialized payload', async () => {
-    const bundle = await captureOf('probe.mark', {selector: '#hostile'})
+    const bundle = await captureOf('probe_mark', {selector: '#hostile'})
     const node = bundle.after?.node
     expect(node).toBeDefined()
 
@@ -366,7 +366,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
   })
 
   it('still produces a capture when an attribute carries an out-of-range numeric character reference', async () => {
-    const bundle = await captureOf('probe.mark', {selector: '#hostile'})
+    const bundle = await captureOf('probe_mark', {selector: '#hostile'})
     const node = bundle.after?.node
     expect(node).toBeDefined()
 
@@ -381,7 +381,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     image.style.width = '24px'
     image.style.height = '16px'
 
-    const bundle = await captureOf('probe.mark', {selector: '#media'})
+    const bundle = await captureOf('probe_mark', {selector: '#media'})
     const imageNode = findById(bundle.after?.node, 'fixture-image')
 
     expect(imageNode).toBeDefined()
@@ -398,7 +398,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     await appendLoadedImage(media, 'first-image', noiseUrl)
     await appendLoadedImage(media, 'second-image', noiseUrl)
 
-    const unconstrained = await captureOf('probe.mark', {selector: '#media'})
+    const unconstrained = await captureOf('probe_mark', {selector: '#media'})
     const probeNode = unconstrained.after?.node
     const firstCost = inlineImageCost(requiredDataUrl(probeNode, 'first-image'))
     const secondCost = inlineImageCost(requiredDataUrl(probeNode, 'second-image'))
@@ -409,7 +409,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     filler.textContent = 'x'.repeat(200_000 - baseBytes - firstCost - Math.floor(firstCost / 2))
     media.appendChild(filler)
 
-    const bundle = await captureOf('probe.mark', {selector: '#media'})
+    const bundle = await captureOf('probe_mark', {selector: '#media'})
     const node = bundle.after?.node
 
     expect(node).toBeDefined()
@@ -426,7 +426,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     filler.textContent = '€'.repeat(69_000)
     media.appendChild(filler)
 
-    const bundle = await captureOf('probe.mark', {selector: '#media'})
+    const bundle = await captureOf('probe_mark', {selector: '#media'})
 
     expect(bundle.after?.descriptor.selectorPath).toContain('#media')
     expect(bundle.after?.node).toBeUndefined()
@@ -439,7 +439,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     oversized.style.height = '10px'
     await appendLoadedImage(media, 'sibling-image', await paintedBlobUrl(8, 8, solidPaint))
 
-    const bundle = await captureOf('probe.mark', {selector: '#media'})
+    const bundle = await captureOf('probe_mark', {selector: '#media'})
     const node = bundle.after?.node
 
     expect(findById(node, 'sibling-image')?.attributes?.['rr_dataURL']).toBeDefined()
@@ -456,7 +456,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     const errorSpy = vi.spyOn(console, 'error')
     const listenerSpy = vi.spyOn(tainted, 'addEventListener')
 
-    const bundle = await captureOf('probe.mark', {selector: '#media'})
+    const bundle = await captureOf('probe_mark', {selector: '#media'})
     const node = bundle.after?.node
 
     expect(findById(node, 'clean-image')?.attributes?.['rr_dataURL']).toBeDefined()
@@ -479,7 +479,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     await appendLoadedImage(blockedWrap, 'nested-blocked-image', await paintedBlobUrl(8, 8, solidPaint))
     await appendLoadedImage(media, 'plain-image', await paintedBlobUrl(8, 8, solidPaint))
 
-    const bundle = await captureOf('probe.mark', {selector: '#media'})
+    const bundle = await captureOf('probe_mark', {selector: '#media'})
     const node = bundle.after?.node
 
     expect(findById(node, 'plain-image')?.attributes?.['rr_dataURL']).toBeDefined()
@@ -500,7 +500,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     }
     panel.appendChild(bloat)
 
-    const bundle = await captureOf('probe.mark', {selector: '#bloated'})
+    const bundle = await captureOf('probe_mark', {selector: '#bloated'})
 
     expect(bundle.after?.descriptor.selectorPath).toContain('#bloated')
     expect(bundle.after?.node).toBeUndefined()

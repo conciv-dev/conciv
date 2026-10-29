@@ -3,9 +3,12 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, waitFor, within} from 'storybook/test'
 import {Streamdown, type CaretVariant, type HighlightCode} from './streamdown.js'
 
-const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-const demoHighlight: HighlightCode = (code, lang) =>
-  `<pre class="sd-demo-code" data-lang="${lang ?? ''}"><code>${escapeHtml(code)}</code></pre>`
+const demoHighlight: HighlightCode = (code, lang) => ({
+  type: 'element',
+  tagName: 'pre',
+  properties: {class: 'sd-demo-code', 'data-lang': lang ?? ''},
+  children: [{type: 'element', tagName: 'code', properties: {}, children: [{type: 'text', value: code}]}],
+})
 
 const SAMPLE = `# Streaming Markdown
 
@@ -261,10 +264,7 @@ export const WidgetStreamFrozen: Story = {
     const root = canvasElement.querySelector('.sd-root') as HTMLElement
     await waitFor(() => expect(root.textContent).toContain('doing'), {timeout: 15000})
 
-    const delays = Array.from(root.querySelectorAll('[data-sd-animate]')).map((s) =>
-      Number(/--sd-delay:(\d+)ms/.exec((s as HTMLElement).getAttribute('style') ?? '')?.[1] ?? '0'),
-    )
-    await expect(Math.max(...delays, 0)).toBe(0)
+    await expect(root.querySelector('[data-sd-animate]')).toBeNull()
 
     const blocks = Array.from(root.querySelectorAll(':scope > *')) as HTMLElement[]
     const last = blocks.at(-1)!
@@ -288,10 +288,7 @@ export const NoAnimation: Story = {
     const canvas = within(canvasElement)
     await waitFor(() => expect(canvas.getByText(/Streaming Markdown/)).toBeInTheDocument(), {timeout: 15000})
 
-    const span = canvasElement.querySelector('[data-sd-animate]')
-    if (span) {
-      expect(span.getAttribute('style')).toContain('--sd-duration:0ms')
-    }
+    await expect(canvasElement.querySelector('[data-sd-animate]')).toBeNull()
   },
 }
 

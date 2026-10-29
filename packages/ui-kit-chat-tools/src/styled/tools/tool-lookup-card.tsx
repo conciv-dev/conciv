@@ -23,4 +23,5 @@ export function ToolLookupCard(props: ToolCardProps): JSX.Element {
 export const toolLookupTool: ToolCardEntry = {
   names: ['ToolSearch'],
   render: ToolLookupCard,
+  hasEmbeddedBody: () => true,
 }

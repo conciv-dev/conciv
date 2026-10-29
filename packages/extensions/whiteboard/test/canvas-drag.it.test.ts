@@ -7,7 +7,7 @@ import {openCanvas, testHost} from './canvas-it-helpers.js'
 
 type CanvasElement = {x: number; width: number; height: number}
 const readElements = async (api: ExtensionTestApi): Promise<CanvasElement[]> =>
-  ((await api.callTool('canvas.read', {})) as {elements: CanvasElement[]}).elements
+  ((await api.callTool('canvas_read', {})) as {elements: CanvasElement[]}).elements
 
 const firstWidth = async (api: ExtensionTestApi): Promise<number> => (await readElements(api))[0]?.width ?? 0
 const firstDeltaX = async (api: ExtensionTestApi, fromX: number): Promise<number> =>

@@ -101,8 +101,8 @@ export const LiveAccentMidProgress: Story = {
   },
 }
 
-export const CollapsedRecord: Story = {
-  render: () => frame(<Trace summary={SUMMARY} compactLine={COMPACT} items={allRowKinds} />),
+export const FoldedByNextPrompt: Story = {
+  render: () => frame(<Trace summary={SUMMARY} compactLine={COMPACT} items={allRowKinds} folded />),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', {name: /Show trace/})).toBeVisible()

@@ -44,7 +44,7 @@ describe('the rpc catalog carries the card cosmetics a widget needs', () => {
     const kit = await bootKit({extensions: [acme]})
     try {
       const parsed = CatalogSchema.parse(await kit.rpc.registry.catalog(undefined))
-      const declared = parsed.find((signature) => signature.name === 'page.click')
+      const declared = parsed.find((signature) => signature.name === 'page_click')
       expect(declared?.icon).toBe('pointer')
       expect(declared?.label?.done).toBe('Clicked')
       expect(declared?.mirrors).toBe(true)
@@ -63,7 +63,7 @@ describe('the rpc catalog carries the card cosmetics a widget needs', () => {
       const parsed = CatalogSchema.parse(fromNewerServer)
 
       expect(parsed).toHaveLength(live.length)
-      const declared = parsed.find((signature) => signature.name === 'page.click')
+      const declared = parsed.find((signature) => signature.name === 'page_click')
       expect(declared?.icon).toBeUndefined()
       expect(declared?.label).toBeUndefined()
       expect(declared?.summary).toBe('click an element')

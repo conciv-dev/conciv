@@ -1,12 +1,12 @@
 import {afterEach} from 'vitest'
-import {EventType} from '@tanstack/ai'
-import {createFakeHarness, type FakeHarness, type Kit, type RunStream} from '@conciv/harness-testkit'
+import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
+import {createFakeHarness, type FakeHarness, type Kit} from '@conciv/harness-testkit'
 import {bootKit} from './boot.js'
 import {asSnapshot, type SnapshotView} from './snapshots.js'
 
 export const SCRIPTED_REPLY = 'scripted reply'
 
-export type FakeSession = {kit: Kit; harness: FakeHarness; sessionId: string; keeper: RunStream}
+export type FakeSession = {kit: Kit; harness: FakeHarness; sessionId: string}
 
 export function useFakeSessions(): {open: () => Promise<FakeSession>; adopt: (kit: Kit) => void} {
   const kits: Kit[] = []
@@ -22,13 +22,12 @@ export function useFakeSessions(): {open: () => Promise<FakeSession>; adopt: (ki
       const kit = await bootKit({}, harness)
       kits.push(kit)
       const sessionId = await kit.session()
-      const keeper = await kit.attach(sessionId)
-      return {kit, harness, sessionId, keeper}
+      return {kit, harness, sessionId}
     },
   }
 }
 
-export async function freshSubscriberSnapshot(kit: Kit, sessionId: string): Promise<SnapshotView> {
-  const fresh = await kit.attach(sessionId)
-  return asSnapshot(await fresh.waitFor((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 10_000}))
+export async function hydratedSnapshot(kit: Kit, sessionId: string): Promise<SnapshotView> {
+  const hydration = await kit.hydrate(sessionId)
+  return asSnapshot(aguiSnapshotFor(hydration.messages))
 }

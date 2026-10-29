@@ -53,4 +53,8 @@ export function FileReadCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const fileReadTool: ToolCardEntry = {names: ['Read', 'open'], render: FileReadCard}
+export const fileReadTool: ToolCardEntry = {
+  names: ['Read', 'open'],
+  render: FileReadCard,
+  hasEmbeddedBody: () => true,
+}

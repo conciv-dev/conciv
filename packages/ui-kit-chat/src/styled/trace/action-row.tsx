@@ -1,5 +1,5 @@
 import {Show, splitProps, type JSX} from 'solid-js'
-import {Button} from '@conciv/ui-kit-system'
+import {Button, TruncatedText} from '@conciv/ui-kit-system'
 import {FOCUS} from '../classes.js'
 import {TRACE_INDENT} from './trace-row.js'
 
@@ -17,13 +17,13 @@ export function TraceActionRow(props: {
 }): JSX.Element {
   const [local] = splitProps(props, ['label', 'hint', 'explainer', 'disabled', 'onAction'])
   return (
-    <li class="relative list-none min-w-0 pb-[3px]">
+    <li class="pb-[3px] list-none min-w-0 relative">
       <div class={ROW}>
         <Button variant="plain" size="none" class={BUTTON} disabled={local.disabled} onClick={() => local.onAction?.()}>
           {local.label}
         </Button>
         <Show when={local.hint}>{(hint) => <span class={HINT}>{hint()}</span>}</Show>
-        <Show when={local.explainer}>{(explainer) => <span class={EXPLAINER}>{explainer()}</span>}</Show>
+        <Show when={local.explainer}>{(explainer) => <TruncatedText class={EXPLAINER} text={explainer()} />}</Show>
       </div>
     </li>
   )

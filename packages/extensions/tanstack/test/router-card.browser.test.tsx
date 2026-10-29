@@ -68,13 +68,17 @@ const ROUTE_TREE = JSON.stringify({
 })
 
 const LOADER_DATA = JSON.stringify({
-  server: {greeting: 'hello'},
-  local: {n: 42},
-  deep: {__conciv: 'object', size: 1, preview: '{…}'},
+  routeId: '/about',
+  data: {
+    server: {greeting: 'hello'},
+    local: {n: 42},
+    deep: {__conciv: 'object', size: 1, preview: '{…}'},
+  },
 })
 
 const LOADER_DATA_WITH_ORDINARY_PREVIEW_FIELD = JSON.stringify({
-  article: {title: 'Ship the trace redesign', preview: 'short excerpt', author: 'Omri'},
+  routeId: '/articles',
+  data: {article: {title: 'Ship the trace redesign', preview: 'short excerpt', author: 'Omri'}},
 })
 
 function escapeRegExp(text: string): string {
@@ -194,7 +198,7 @@ describe('LoaderDataCard (real browser)', () => {
 
   it('shows the loader keys and truncation marker on success', async () => {
     mountToolCard(LoaderDataCard, {name: 'tanstack_loader_data', content: LOADER_DATA, ctx: catalogCtx})
-    await expect.element(page.getByText('3 keys')).toBeVisible()
+    await expect.element(page.getByText('3 keys · /about')).toBeVisible()
     await page.getByRole('button', {name: doneTitleOf('tanstack_loader_data')}).click()
     await expect.element(page.getByText('server')).toBeVisible()
     await expect.element(page.getByText('deep')).toBeVisible()
@@ -240,13 +244,13 @@ describe('NavigateCard (real browser)', () => {
 
 describe('RouterInvalidateCard (real browser)', () => {
   it('renders a loading affordance while the action runs', async () => {
-    mountToolCard(RouterInvalidateCard, {name: 'tanstack_invalidate', ctx: catalogCtx})
-    await expect.element(page.getByText(runningTitleOf('tanstack_invalidate'))).toBeVisible()
+    mountToolCard(RouterInvalidateCard, {name: 'tanstack_router_invalidate', ctx: catalogCtx})
+    await expect.element(page.getByText(runningTitleOf('tanstack_router_invalidate'))).toBeVisible()
   })
 
   it('confirms invalidation on success', async () => {
     mountToolCard(RouterInvalidateCard, {
-      name: 'tanstack_invalidate',
+      name: 'tanstack_router_invalidate',
       content: JSON.stringify({ok: true}),
       ctx: catalogCtx,
     })
@@ -254,7 +258,11 @@ describe('RouterInvalidateCard (real browser)', () => {
   })
 
   it('renders the error message when the action fails', async () => {
-    await expectErrorCard(RouterInvalidateCard, 'tanstack_invalidate', 'TanStack router invalidate is not available')
+    await expectErrorCard(
+      RouterInvalidateCard,
+      'tanstack_router_invalidate',
+      'TanStack router invalidate is not available',
+    )
   })
 })
 

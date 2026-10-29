@@ -1,4 +1,4 @@
-import type {z} from 'zod'
+import {z} from 'zod'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
 import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import type {
@@ -6,7 +6,7 @@ import type {
   ExtensionTool,
   ServerToolRegistryAccess,
   ServerToolPageAccess,
-  ToolRenderer,
+  ToolCard,
   ToolRequest,
 } from './types.js'
 
@@ -108,7 +108,7 @@ export type ToolBuilder<
   client: (
     execute?: (input: z.infer<Schema>, ctx: ClientToolCtx) => Promise<unknown> | unknown,
   ) => ToolBuilder<Name, Schema, Output, Errors, 'client', Ctx>
-  render: (renderer: ToolRenderer) => ToolBuilder<Name, Schema, Output, Errors, Binding, Ctx>
+  render: (card: ToolCard) => ToolBuilder<Name, Schema, Output, Errors, Binding, Ctx>
 }
 
 type ToolNameOf<Tool> = Tool extends {name: infer Name extends string} ? (string extends Name ? never : Name) : never
@@ -170,6 +170,17 @@ export type EmptySegmentToolNames<Names extends string> = Extract<
   '' | `.${string}` | `${string}.` | `${string}..${string}`
 >
 
+export const TOOL_NAME_RULE = /^[a-z][a-z0-9_]*$/
+
+const ToolNameSchema = z.string().regex(TOOL_NAME_RULE)
+
+export function assertToolName(name: string): void {
+  if (ToolNameSchema.safeParse(name).success) return
+  throw new Error(
+    `tool "${name}": a tool name is a lowercase snake_case identifier matching ${TOOL_NAME_RULE.source}, so the code-mode isolate can bind it as a JavaScript function name; write page_click, never a dotted name`,
+  )
+}
+
 export const FORBIDDEN_TOOL_SEGMENTS = ['__proto__', 'constructor', 'prototype'] as const
 
 export type ForbiddenToolSegment = (typeof FORBIDDEN_TOOL_SEGMENTS)[number]
@@ -220,7 +231,7 @@ type ToolState<Binding extends ToolBinding | undefined> = {
     tools: ServerToolRegistryAccess,
   ) => Promise<unknown>
   clientExecute?: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
-  render?: ToolRenderer
+  render?: ToolCard
 }
 
 function assertToolMeta(name: string, meta: ToolMeta | undefined): void {
@@ -292,8 +303,8 @@ function toolBuilder<
         clientExecute: async (raw, ctx) => execute(definition.inputSchema.parse(raw), ctx),
       })
     },
-    render(renderer) {
-      return toolBuilder<Name, Schema, Output, Errors, Binding, Ctx>(definition, {...state, render: renderer})
+    render(card) {
+      return toolBuilder<Name, Schema, Output, Errors, Binding, Ctx>(definition, {...state, render: card})
     },
   }
 }

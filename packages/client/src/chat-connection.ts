@@ -1,160 +1,219 @@
+import {
+  fetchServerSentEvents,
+  webSocket,
+  type ResumableConnectConnectionAdapter,
+  type SubscribeConnectionAdapter,
+} from '@tanstack/ai-client'
 import type {ModelMessage, StreamChunk, UIMessage} from '@tanstack/ai'
-import type {SubscribeConnectionAdapter} from '@tanstack/ai-solid'
-import {AsyncRetryer} from '@tanstack/pacer'
-import {ORPCError} from '@orpc/client'
-import type {RpcClient} from '@conciv/contract'
-import type {ChatContentPart} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
+import {runLifecycleOf, type RunLifecycle} from '@conciv/protocol/run-types'
+import {approvalAskOf, approvalSettledOf, type ApprovalAsk} from '@conciv/protocol/approval-types'
+import type {ChatHydration, RpcClient} from '@conciv/contract'
+import {acquirePushChannel} from './push-channel.js'
+import {readingValues, relayedValues} from './stream-relay.js'
+
+export type ChatTransport = 'websocket' | 'fetch'
+
+export type ChatTransportPreference = 'auto' | ChatTransport
 
 export type ChatConnectionOptions = {
-  retryDelayMs?: number
-  offlineRetryDelayMs?: number
-  isOnline?: () => boolean
-  onRetry?: (error: unknown) => void
+  transport?: ChatTransportPreference
+  probeTimeoutMs?: number
+  onLifecycle?: (lifecycle: RunLifecycle) => void
+  onTransport?: (transport: ChatTransport) => void
+  onHydrated?: (hydration: ChatHydration) => void
+  onApprovalAsk?: (ask: ApprovalAsk) => void
+  onApprovalSettled?: (approvalId: string) => void
 }
 
-const DEFAULT_RETRY_DELAY_MS = 500
-const DEFAULT_OFFLINE_RETRY_DELAY_MS = 2000
-
-export function chatRetryDelayMs(options: ChatConnectionOptions): number {
-  if (options.isOnline && !options.isOnline()) return options.offlineRetryDelayMs ?? DEFAULT_OFFLINE_RETRY_DELAY_MS
-  return options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS
+export type ChatConnection = SubscribeConnectionAdapter & {
+  joinRun: (runId: string, abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>
+  hydrate: (threadId: string) => Promise<ChatHydration>
+  transport: () => ChatTransport | null
+  refresh: () => Promise<ChatHydration>
+  close: () => void
 }
 
-export function isReachabilityError(error: unknown): boolean {
-  return !(error instanceof ORPCError)
+type PushSource = () => {events: (abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>; dispose: () => void}
+
+const PROBE_TIMEOUT_MS = 2_000
+
+function absoluteUrl(apiBase: string, path: string): string {
+  const origin = typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.href
+  return new URL(`${apiBase}${path}`, origin).toString()
 }
 
-export type ChatConnection = SubscribeConnectionAdapter & {refresh: () => void}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
+export function chatSocketUrl(apiBase: string): string {
+  const url = new URL(absoluteUrl(apiBase, CHAT_WS_PATH))
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url.toString()
 }
 
-type ImageContentPart = Extract<ChatContentPart, {type: 'image'}>
-
-function imageSource(source: unknown): ImageContentPart['source'] | undefined {
-  if (
-    !isRecord(source) ||
-    source.type !== 'data' ||
-    typeof source.value !== 'string' ||
-    typeof source.mimeType !== 'string' ||
-    source.mimeType.length === 0
-  )
-    return undefined
-  return {type: 'data', value: source.value, mimeType: source.mimeType}
+export function chatEventsUrl(apiBase: string): string {
+  return absoluteUrl(apiBase, CHAT_SSE_PATH)
 }
 
-function partMetadata(part: Record<string, unknown>): {metadata?: Record<string, unknown>} {
-  const metadata = part.metadata
-  return typeof metadata === 'object' && metadata !== null ? {metadata: {...metadata}} : {}
+export function socketOpens(url: string, timeoutMs: number): Promise<boolean> {
+  if (typeof WebSocket === 'undefined') return Promise.resolve(false)
+  return new Promise<boolean>((resolve) => {
+    const socket = new WebSocket(url)
+    const settle = (opened: boolean): void => {
+      clearTimeout(timer)
+      socket.onopen = null
+      socket.onerror = null
+      socket.onclose = null
+      if (socket.readyState <= 1) socket.close()
+      resolve(opened)
+    }
+    const timer = setTimeout(() => settle(false), timeoutMs)
+    socket.onopen = () => settle(true)
+    socket.onerror = () => settle(false)
+    socket.onclose = () => settle(false)
+  })
 }
 
-export function partContent(part: unknown): ChatContentPart[] {
-  if (!isRecord(part)) return []
-  if (part.type === 'text' && typeof part.content === 'string')
-    return [{type: 'text', content: part.content, ...partMetadata(part)}]
-  if (part.type !== 'image' && part.type !== 'document') return []
-  const source = imageSource(part.source)
-  if (!source) return []
-  if (part.type === 'image') return [{type: 'image', source, ...partMetadata(part)}]
-  return [{type: 'document', source, ...partMetadata(part)}]
-}
+type Selected = {transport: ChatTransport; adapter: SubscribeConnectionAdapter; joinRun: JoinRun}
+type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>
 
-function textOf(message: UIMessage | ModelMessage): string {
-  if ('parts' in message) {
-    return message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
-  }
-  return typeof message.content === 'string' ? message.content : ''
-}
-
-function contentFromParts(parts: ChatContentPart[], fallback: string): string | ChatContentPart[] {
-  if (parts.length === 0) return fallback
-  if (parts.every((part) => part.type === 'text')) return parts.map((part) => part.content ?? '').join('\n')
-  return parts
-}
-
-function contentOf(message: UIMessage | ModelMessage): string | ChatContentPart[] {
-  if ('parts' in message) return contentFromParts(message.parts.flatMap(partContent), textOf(message))
-  if (typeof message.content === 'string') return message.content
-  if (Array.isArray(message.content)) return contentFromParts(message.content.flatMap(partContent), '')
-  return ''
-}
-
-function turnContent(messages: Array<UIMessage> | Array<ModelMessage>): string | ChatContentPart[] {
-  const last = messages[messages.length - 1]
-  return last ? contentOf(last) : ''
-}
-
-type SessionStream = AsyncIterable<StreamChunk>
-
-async function openStream(
-  rpc: RpcClient,
-  sessionId: string,
-  options: ChatConnectionOptions,
-  signal: AbortSignal,
-): Promise<SessionStream | undefined> {
-  const retryer = new AsyncRetryer(async () => await rpc.chat.subscribe({sessionId}, {signal}), {
-    backoff: 'fixed',
-    baseWait: () => chatRetryDelayMs(options),
-    throwOnError: false,
-    maxAttempts: () => (signal.aborted ? 1 : Number.MAX_SAFE_INTEGER),
-    onRetry: (_attempt, error) => {
-      if (isReachabilityError(error)) options.onRetry?.(error)
+function trackingWebSocketImpl(live: Set<WebSocket>): typeof WebSocket {
+  return new Proxy(WebSocket, {
+    construct: (target, args) => {
+      const socket: WebSocket = Reflect.construct(target, args)
+      live.add(socket)
+      socket.addEventListener('close', () => live.delete(socket), {once: true})
+      return socket
     },
   })
-  const abortRetryer = () => retryer.abort()
-  signal.addEventListener('abort', abortRetryer, {once: true})
-  try {
-    return await retryer.execute()
-  } finally {
-    signal.removeEventListener('abort', abortRetryer)
-  }
 }
 
-type StreamControl = {attempt: AbortController | null}
-
-function stillListening(consumerSignal: AbortSignal | undefined): boolean {
-  return !(consumerSignal?.aborted ?? false)
+function overSocket(apiBase: string, live: Set<WebSocket>): Selected {
+  const adapter = webSocket(chatSocketUrl(apiBase), {WebSocketImpl: trackingWebSocketImpl(live)})
+  return {transport: 'websocket', adapter, joinRun: (runId, signal) => adapter.joinRun(runId, signal)}
 }
 
-function scopedSignal(consumerSignal: AbortSignal | undefined, attempt: AbortController): AbortSignal {
-  if (!consumerSignal) return attempt.signal
-  return AbortSignal.any([consumerSignal, attempt.signal])
-}
-
-async function* subscribeStream(
-  rpc: RpcClient,
-  sessionId: string,
-  options: ChatConnectionOptions,
-  control: StreamControl,
-  consumerSignal: AbortSignal | undefined,
-): AsyncGenerator<StreamChunk> {
-  while (stillListening(consumerSignal)) {
-    const attempt = new AbortController()
-    control.attempt = attempt
-    const stream = await openStream(rpc, sessionId, options, scopedSignal(consumerSignal, attempt))
-    if (!stream) return
-    try {
-      yield* stream
-      if (!attempt.signal.aborted) return
-    } catch (error) {
-      if (!stillListening(consumerSignal)) return
-      if (!attempt.signal.aborted && isReachabilityError(error)) options.onRetry?.(error)
-    }
-  }
-}
-
-export function chatConnection(rpc: RpcClient, sessionId: string, options: ChatConnectionOptions = {}): ChatConnection {
-  const control: StreamControl = {attempt: null}
+function subscribeOver(adapter: ResumableConnectConnectionAdapter): SubscribeConnectionAdapter {
+  const listeners = new Set<WritableStreamDefaultWriter<StreamChunk>>()
   return {
-    subscribe: (abortSignal) => subscribeStream(rpc, sessionId, options, control, abortSignal),
-    send: async (messages, _data, abortSignal, runContext) => {
-      const runId = runContext?.runId
-      if (!runId) throw new Error('chat.send needs the run id the chat client minted for this turn')
-      const content = turnContent(messages)
-      await rpc.chat.stop({sessionId}, {signal: abortSignal})
-      await rpc.chat.send({sessionId, runId, content}, {signal: abortSignal})
+    subscribe: (abortSignal) => {
+      const relay = new TransformStream<StreamChunk, StreamChunk>()
+      const writer = relay.writable.getWriter()
+      listeners.add(writer)
+      const stop = (): void => {
+        listeners.delete(writer)
+        void writer.close().catch(() => undefined)
+      }
+      abortSignal?.addEventListener('abort', stop, {once: true})
+      return readingValues(relay.readable)
     },
-    refresh: () => control.attempt?.abort(),
+    send: async (messages, data, abortSignal, runContext) => {
+      for await (const chunk of adapter.connect(messages, data, abortSignal, runContext)) {
+        for (const writer of listeners) void writer.write(chunk).catch(() => undefined)
+      }
+    },
+  }
+}
+
+function overEvents(apiBase: string): Selected {
+  const adapter = fetchServerSentEvents(chatEventsUrl(apiBase))
+  return {
+    transport: 'fetch',
+    adapter: subscribeOver(adapter),
+    joinRun: (runId, signal) => adapter.joinRun(runId, signal),
+  }
+}
+
+async function select(apiBase: string, options: ChatConnectionOptions, live: Set<WebSocket>): Promise<Selected> {
+  const preference = options.transport ?? 'auto'
+  if (preference === 'fetch') return overEvents(apiBase)
+  if (preference === 'websocket') return overSocket(apiBase, live)
+  const opened = await socketOpens(chatSocketUrl(apiBase), options.probeTimeoutMs ?? PROBE_TIMEOUT_MS)
+  return opened ? overSocket(apiBase, live) : overEvents(apiBase)
+}
+
+async function pumpInto<T>(source: AsyncIterable<T>, emit: (value: T) => void): Promise<void> {
+  for await (const value of source) emit(value)
+}
+
+function merged<T>(sources: readonly AsyncIterable<T>[], abortSignal: AbortSignal | undefined): AsyncGenerator<T> {
+  return relayedValues<T>((emit) => {
+    for (const source of sources) void pumpInto(source, emit).catch(() => undefined)
+    return () => undefined
+  }, abortSignal)
+}
+
+async function* watching(
+  selected: Promise<Selected>,
+  push: PushSource,
+  options: ChatConnectionOptions,
+  abortSignal: AbortSignal | undefined,
+): AsyncGenerator<StreamChunk> {
+  const chosen = await selected
+  const channel = push()
+  try {
+    yield* noticing(merged([chosen.adapter.subscribe(abortSignal), channel.events(abortSignal)], abortSignal), options)
+  } finally {
+    channel.dispose()
+  }
+}
+
+function notice(chunk: StreamChunk, options: ChatConnectionOptions): void {
+  const lifecycle = runLifecycleOf(chunk)
+  if (lifecycle) options.onLifecycle?.(lifecycle)
+  const ask = approvalAskOf(chunk)
+  if (ask) options.onApprovalAsk?.(ask)
+  const settled = approvalSettledOf(chunk)
+  if (settled !== null) options.onApprovalSettled?.(settled)
+}
+
+async function* noticing(
+  source: AsyncIterable<StreamChunk>,
+  options: ChatConnectionOptions,
+): AsyncGenerator<StreamChunk> {
+  for await (const chunk of source) {
+    notice(chunk, options)
+    yield chunk
+  }
+}
+
+async function* joining(
+  selected: Promise<Selected>,
+  runId: string,
+  abortSignal?: AbortSignal,
+): AsyncGenerator<StreamChunk> {
+  yield* (await selected).joinRun(runId, abortSignal)
+}
+
+export function chatConnection(
+  rpc: RpcClient,
+  apiBase: string,
+  sessionId: string,
+  options: ChatConnectionOptions = {},
+): ChatConnection {
+  const push: PushSource = () => acquirePushChannel({apiBase, sessionId})
+  const live = new Set<WebSocket>()
+  const chosen: {transport: ChatTransport | null} = {transport: null}
+  const selected = select(apiBase, options, live).then((choice) => {
+    chosen.transport = choice.transport
+    options.onTransport?.(choice.transport)
+    return choice
+  })
+  const hydrate = async (threadId: string): Promise<ChatHydration> => {
+    const hydration = await rpc.chat.hydrate({sessionId: threadId})
+    options.onHydrated?.(hydration)
+    return hydration
+  }
+  return {
+    subscribe: (abortSignal) => watching(selected, push, options, abortSignal),
+    send: async (messages: Array<UIMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
+      await (await selected).adapter.send(messages, data, abortSignal, runContext)
+    },
+    joinRun: (runId, abortSignal) => joining(selected, runId, abortSignal),
+    hydrate,
+    transport: () => chosen.transport,
+    refresh: () => hydrate(sessionId),
+    close: () => {
+      for (const socket of live) socket.close()
+      live.clear()
+    },
   }
 }

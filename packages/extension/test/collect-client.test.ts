@@ -6,7 +6,8 @@ import {collectToolRenderers, collectClientEffects} from '../src/collect-client.
 import type {ClientEffect} from '../src/types.js'
 
 const Card = () => null
-const draw = defineTool({name: 'draw', description: 'd', inputSchema: z.object({})}).render(Card)
+const drawCard = {render: Card, hasEmbeddedBody: () => true}
+const draw = defineTool({name: 'draw', description: 'd', inputSchema: z.object({})}).render(drawCard)
 
 function makeEffect(name: string): ClientEffect {
   let enabled = false

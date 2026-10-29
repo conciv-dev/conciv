@@ -20,7 +20,7 @@ const RenderedTextPart = z.object({type: z.literal('text'), content: z.string()}
 const RenderedImage = z.array(z.union([RenderedImagePart, RenderedTextPart]))
 
 export const canvasReadDef = toolDefinition({
-  name: 'canvas.read',
+  name: 'canvas_read',
   description:
     'List canvas elements. scope "live" (default) reads the published canvas; scope "draft" reads the hidden work-in-progress draft.',
   inputSchema: z.object({scope: z.enum(['live', 'draft']).default('live')}),
@@ -33,11 +33,11 @@ export const canvasReadDef = toolDefinition({
     hint: 'pass scope "draft" to inspect the work-in-progress draft',
   },
   promptSnippet:
-    'Use canvas.read to see what is already drawn before adding more; pass scope "draft" to inspect the draft.',
+    'Use canvas_read to see what is already drawn before adding more; pass scope "draft" to inspect the draft.',
 })
 
 export const canvasSvgDef = toolDefinition({
-  name: 'canvas.svg',
+  name: 'canvas_svg',
   description:
     'Draw by writing SVG markup (paths, shapes, text, fills). Converted in the browser into editable Excalidraw elements. Drawings land in the hidden draft; commit publishes them.',
   inputSchema: z.object({
@@ -54,15 +54,15 @@ export const canvasSvgDef = toolDefinition({
     category: 'whiteboard',
     mutating: true,
     keywords: ['canvas', 'draw', 'svg'],
-    hint: 'iterate with canvas.preview, then publish with canvas.commit',
+    hint: 'iterate with canvas_preview, then publish with canvas_commit',
   },
   streamTitle: 'Drawing on the canvas',
   promptSnippet:
-    'Use canvas.svg for anything organic or illustrated: write SVG paths with layered fills, then iterate with canvas.preview before canvas.commit.',
+    'Use canvas_svg for anything organic or illustrated: write SVG paths with layered fills, then iterate with canvas_preview before canvas_commit.',
 })
 
 export const canvasDrawDef = toolDefinition({
-  name: 'canvas.draw',
+  name: 'canvas_draw',
   description:
     'Add Excalidraw element skeletons (rectangle, ellipse, diamond, text, arrow, line) to the hidden draft; commit publishes them.',
   inputSchema: z.object({elements: z.array(skeleton)}),
@@ -74,11 +74,11 @@ export const canvasDrawDef = toolDefinition({
     keywords: ['canvas', 'draw', 'shapes'],
   },
   streamTitle: 'Drawing on the canvas',
-  promptSnippet: 'Use canvas.draw to sketch shapes and text for the user; pass an array of element skeletons.',
+  promptSnippet: 'Use canvas_draw to sketch shapes and text for the user; pass an array of element skeletons.',
 })
 
 export const canvasDiagramDef = toolDefinition({
-  name: 'canvas.diagram',
+  name: 'canvas_diagram',
   description: 'Render a Mermaid diagram (flowchart, sequence, class, ...) into the hidden draft; commit publishes it.',
   inputSchema: z.object({mermaid: z.string()}),
   outputSchema: PendingOutput,
@@ -90,11 +90,11 @@ export const canvasDiagramDef = toolDefinition({
     keywords: ['canvas', 'diagram', 'mermaid'],
   },
   streamTitle: 'Drawing a diagram',
-  promptSnippet: 'Use canvas.diagram with Mermaid source to render a structured diagram on the canvas.',
+  promptSnippet: 'Use canvas_diagram with Mermaid source to render a structured diagram on the canvas.',
 })
 
 export const canvasConnectDef = toolDefinition({
-  name: 'canvas.connect',
+  name: 'canvas_connect',
   description: 'Draw a binding arrow from one element to another by elementId.',
   inputSchema: z.object({fromId: z.string(), toId: z.string()}),
   outputSchema: PendingOutput,
@@ -104,11 +104,11 @@ export const canvasConnectDef = toolDefinition({
     mutating: true,
     keywords: ['canvas', 'arrow', 'connect'],
   },
-  promptSnippet: 'Use canvas.connect to link two existing elements with an arrow.',
+  promptSnippet: 'Use canvas_connect to link two existing elements with an arrow.',
 })
 
 export const canvasUpdateDef = toolDefinition({
-  name: 'canvas.update',
+  name: 'canvas_update',
   description: 'Patch fields of an existing canvas element by elementId.',
   inputSchema: z.object({elementId: z.string(), patch: z.record(z.string(), z.unknown())}),
   outputSchema: z.object({updated: z.boolean()}),
@@ -119,11 +119,11 @@ export const canvasUpdateDef = toolDefinition({
     keywords: ['canvas', 'update', 'patch'],
     hint: 'answers updated false when the elementId matches nothing',
   },
-  promptSnippet: 'Use canvas.update to change an element you previously drew.',
+  promptSnippet: 'Use canvas_update to change an element you previously drew.',
 })
 
 export const canvasDeleteDef = toolDefinition({
-  name: 'canvas.delete',
+  name: 'canvas_delete',
   description: 'Remove an element from the canvas by elementId.',
   inputSchema: z.object({elementId: z.string()}),
   outputSchema: z.object({deleted: z.string()}),
@@ -135,11 +135,11 @@ export const canvasDeleteDef = toolDefinition({
     keywords: ['canvas', 'delete', 'element'],
     hint: 'destructive; the user is asked to confirm',
   },
-  promptSnippet: 'Use canvas.delete to remove an element. Destructive; the user is asked to confirm.',
+  promptSnippet: 'Use canvas_delete to remove an element. Destructive; the user is asked to confirm.',
 })
 
 export const canvasClearDef = toolDefinition({
-  name: 'canvas.clear',
+  name: 'canvas_clear',
   description: 'Remove every element from the canvas.',
   inputSchema: z.object({}),
   outputSchema: z.object({cleared: z.number()}),
@@ -151,11 +151,11 @@ export const canvasClearDef = toolDefinition({
     keywords: ['canvas', 'clear', 'wipe'],
     hint: 'destructive; the user is asked to confirm',
   },
-  promptSnippet: 'Use canvas.clear to wipe the canvas. Destructive; the user is asked to confirm.',
+  promptSnippet: 'Use canvas_clear to wipe the canvas. Destructive; the user is asked to confirm.',
 })
 
 export const canvasExportDef = toolDefinition({
-  name: 'canvas.export',
+  name: 'canvas_export',
   description:
     'Export the canvas: json returns elements; png returns a real Excalidraw rendering (requires an open canvas tab).',
   inputSchema: z.object({
@@ -173,13 +173,13 @@ export const canvasExportDef = toolDefinition({
     category: 'whiteboard',
     mutating: false,
     keywords: ['canvas', 'export', 'png'],
-    hint: 'png needs an open canvas tab; canvas.preview works without one',
+    hint: 'png needs an open canvas tab; canvas_preview works without one',
   },
-  promptSnippet: 'Use canvas.export with format png and scope draft for a ground-truth render before canvas.commit.',
+  promptSnippet: 'Use canvas_export with format png and scope draft for a ground-truth render before canvas_commit.',
 })
 
 export const canvasCommitDef = toolDefinition({
-  name: 'canvas.commit',
+  name: 'canvas_commit',
   description: 'Publish the hidden draft to the shared canvas. The agent cursor performs the drawing for the user.',
   inputSchema: z.object({}),
   outputSchema: z.union([
@@ -195,11 +195,11 @@ export const canvasCommitDef = toolDefinition({
     hint: 'until commit the user sees nothing of the draft',
   },
   streamTitle: 'Publishing the drawing',
-  promptSnippet: 'Always finish a drawing with canvas.commit; until then the user sees nothing.',
+  promptSnippet: 'Always finish a drawing with canvas_commit; until then the user sees nothing.',
 })
 
 export const canvasDiscardDef = toolDefinition({
-  name: 'canvas.discard',
+  name: 'canvas_discard',
   description: 'Throw away the hidden draft without publishing anything.',
   inputSchema: z.object({}),
   outputSchema: z.object({discarded: z.number(), error: z.string().optional(), reason: z.string().optional()}),
@@ -209,13 +209,13 @@ export const canvasDiscardDef = toolDefinition({
     mutating: true,
     keywords: ['canvas', 'discard', 'draft'],
   },
-  promptSnippet: 'Use canvas.discard to abandon a draft and start over.',
+  promptSnippet: 'Use canvas_discard to abandon a draft and start over.',
 })
 
 export const canvasPreviewDef = toolDefinition({
-  name: 'canvas.preview',
+  name: 'canvas_preview',
   description:
-    'Fast server-side PNG of the current hidden draft (approximate: plain shapes, no hand-drawn strokes). Use between refinements; canvas.export png is the ground truth.',
+    'Fast server-side PNG of the current hidden draft (approximate: plain shapes, no hand-drawn strokes). Use between refinements; canvas_export png is the ground truth.',
   inputSchema: z.object({}),
   outputSchema: z.union([
     RenderedImage,
@@ -227,8 +227,8 @@ export const canvasPreviewDef = toolDefinition({
     category: 'whiteboard',
     mutating: false,
     keywords: ['canvas', 'preview', 'draft'],
-    hint: 'approximate render; canvas.export png is the ground truth',
+    hint: 'approximate render; canvas_export png is the ground truth',
   },
   streamTitle: 'Checking the draft',
-  promptSnippet: 'After drawing into the draft, call canvas.preview, critique the image, refine, repeat.',
+  promptSnippet: 'After drawing into the draft, call canvas_preview, critique the image, refine, repeat.',
 })

@@ -1,7 +1,7 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {Tabs} from '@conciv/ui-kit-system'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {
   CardShell,
   CodeBlock,
@@ -44,7 +44,7 @@ function codeContents(input: Record<string, unknown>): string {
   return typeof value === 'string' ? value : ''
 }
 
-export function EditLiveCard(props: ToolCardProps): JSX.Element {
+function EditLiveCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
   const verb = () => pageVerbOfTool(props.part.name)
   const before = () => props.capture?.before
@@ -111,4 +111,12 @@ export function EditLiveCard(props: ToolCardProps): JSX.Element {
       </div>
     </CardShell>
   )
+}
+
+export const editLiveCard: ToolCardView = {
+  render: EditLiveCard,
+  hasEmbeddedBody: (part, result, ctx) =>
+    CODE_VERBS.has(pageVerbOfTool(part.name)) ||
+    ctx.captureFor?.(part.id)?.before !== undefined ||
+    cardErrorMessage(result) !== undefined,
 }

@@ -6,6 +6,11 @@ export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
 export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
+export const CHAT_WS_PATH = '/chat-ws'
+export const CHAT_SSE_PATH = '/chat-sse'
+
+export const CHAT_DELIVERY_HEADERS = ['x-run-id', 'last-event-id'] as const
+
 export const CONCIV_CLAUDE_SESSION_HEADER = 'conciv-claude-session-id'
 
 export const CODE_MODE_SYNTHETIC_PART_MARKER = 'codeModeSynthetic'
@@ -49,28 +54,6 @@ export const ChatContentPartSchema = z.discriminatedUnion('type', [
     .loose(),
 ])
 export type ChatContentPart = z.infer<typeof ChatContentPartSchema>
-
-export const ChatMessageSchema = z
-  .object({
-    role: z.string(),
-    content: z.union([z.string(), z.array(ChatContentPartSchema)]).optional(),
-    parts: z.array(z.object({type: z.string(), content: z.string().optional()}).loose()).optional(),
-  })
-  .loose()
-
-const TurnIntent = z.enum(['chat', 'compact'])
-const MetaCarrier = z.object({model: z.string().optional(), intent: TurnIntent.optional()}).loose().optional()
-export const ChatRequestSchema = z.object({
-  messages: z.array(ChatMessageSchema),
-  model: z.string().optional(),
-
-  intent: TurnIntent.optional(),
-  forwardedProps: MetaCarrier,
-  data: MetaCarrier,
-})
-
-export type ChatMessage = z.infer<typeof ChatMessageSchema>
-export type ChatRequest = z.infer<typeof ChatRequestSchema>
 
 export const SessionId = z
   .string()
@@ -125,7 +108,14 @@ export type RenameResponse = z.infer<typeof RenameResponseSchema>
 export const OkSchema = z.object({ok: z.boolean()})
 export type Ok = z.infer<typeof OkSchema>
 
-export const PermissionDecisionSchema = z.object({approvalId: z.string(), approved: z.boolean()})
+export const PermissionScopeSchema = z.enum(['once', 'session'])
+export type PermissionScope = z.infer<typeof PermissionScopeSchema>
+
+export const PermissionDecisionSchema = z.object({
+  approvalId: z.string(),
+  approved: z.boolean(),
+  scope: PermissionScopeSchema.default('once'),
+})
 export type PermissionDecision = z.infer<typeof PermissionDecisionSchema>
 
 export const NavigationEntrySchema = z.object({href: z.string(), state: z.unknown().optional()})

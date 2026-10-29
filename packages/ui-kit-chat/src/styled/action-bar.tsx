@@ -1,12 +1,13 @@
-import {type JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import Check from 'lucide-solid/icons/check'
 import Copy from 'lucide-solid/icons/copy'
 import Download from 'lucide-solid/icons/download'
 import MoreHorizontal from 'lucide-solid/icons/ellipsis'
 import Pencil from 'lucide-solid/icons/pencil'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
-import {Swap, TooltipIconButton, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
-import {ActionBar, useCopied, useExportMarkdown} from '../primitives/action-bar/action-bar.js'
+import TriangleAlert from 'lucide-solid/icons/triangle-alert'
+import {Swap, TooltipIconButton, TooltipIconButtonSlot, type ClipboardCopyStatus} from '@conciv/ui-kit-system'
+import {ActionBar, useCopyStatus, useExportMarkdown} from '../primitives/action-bar/action-bar.js'
 import {ActionBarMore} from '../primitives/action-bar-more/action-bar-more.js'
 import {FOCUS, HIGHLIGHT} from './classes.js'
 
@@ -28,17 +29,40 @@ function ExportMarkdownItem(): JSX.Element {
   )
 }
 
+const COPY_TOOLTIP: Record<ClipboardCopyStatus, string> = {idle: 'Copy', copied: 'Copied', failed: 'Copy failed'}
+const COPY_MESSAGE: Record<ClipboardCopyStatus, string> = {
+  idle: '',
+  copied: 'Copied the message',
+  failed: 'Could not copy the message',
+}
+
 function CopySwap(): JSX.Element {
-  const copied = useCopied()
+  const status = useCopyStatus()
   return (
-    <Swap.Root swap={copied()}>
+    <Swap.Root swap={status() !== 'idle'}>
       <Swap.Indicator type="on">
-        <Check size={ICON} />
+        <Show when={status() === 'failed'} fallback={<Check size={ICON} />}>
+          <TriangleAlert size={ICON} class="text-chat-danger" />
+        </Show>
       </Swap.Indicator>
       <Swap.Indicator type="off">
         <Copy size={ICON} />
       </Swap.Indicator>
     </Swap.Root>
+  )
+}
+
+function CopyButton(props: {buttonProps: JSX.ButtonHTMLAttributes<HTMLButtonElement>}): JSX.Element {
+  const status = useCopyStatus()
+  return (
+    <>
+      <TooltipIconButton {...props.buttonProps} tooltip={COPY_TOOLTIP[status()]} class="size-6">
+        <CopySwap />
+      </TooltipIconButton>
+      <span role="status" aria-live="polite" class="sr-only">
+        {COPY_MESSAGE[status()]}
+      </span>
+    </>
   )
 }
 
@@ -57,13 +81,7 @@ export function AssistantActionBar(): JSX.Element {
       aria-label="Message actions"
       class={ASSISTANT_BAR_CLASS}
     >
-      <ActionBar.Copy
-        render={(props) => (
-          <TooltipIconButton {...props} tooltip="Copy" class="size-6">
-            <CopySwap />
-          </TooltipIconButton>
-        )}
-      />
+      <ActionBar.Copy render={(props) => <CopyButton buttonProps={props} />} />
       <ActionBar.Reload
         render={(props) => (
           <TooltipIconButton {...props} tooltip="Refresh" class="size-6">
@@ -99,7 +117,7 @@ export function UserActionBar(): JSX.Element {
       autohideFloat="always"
       role="toolbar"
       aria-label="Message actions"
-      class={`flex flex-col items-end pointer-events-auto data-[floating=true]:bottom-0 data-[floating=true]:right-0 data-[floating=true]:absolute ${AUTOHIDE_VISIBILITY}`}
+      class={`flex flex-col pointer-events-auto items-end data-[floating=true]:bottom-0 data-[floating=true]:right-0 data-[floating=true]:absolute ${AUTOHIDE_VISIBILITY}`}
     >
       <ActionBar.Edit
         render={(props) => (

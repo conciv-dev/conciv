@@ -1,25 +1,33 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {toolStatus, type ToolStatus} from '../primitives/tool-status.js'
 import {formatDuration} from '../primitives/tool-util.js'
 import {useToolCallDuration} from '../primitives/tool-duration.js'
 import {StatusVisual} from '../primitives/status-visual.js'
-import {createAutoCollapse} from '../../primitives/util/create-auto-collapse.js'
+import {createSettleFold} from '../../primitives/util/create-settle-fold.js'
+import {CardHeadline, CARD_HEADLINE_TEXT} from './card-headline.js'
 import {CollapsibleCard, type CardVariant} from './collapsible-card.js'
 import {publishCardHeader, useEmbeddedCard, useEmbeddedRowLine} from './card-chrome.js'
 import type {EmbeddedCardHeader} from '../primitives/tool-row.js'
 
-const TITLE = 'text-chat-text flex-1 min-w-0 truncate'
-const SUBTITLE = 'text-chat-text-3 flex-none min-w-0 max-w-[45%] truncate'
-const METRIC =
-  'text-chat-text-3 text-[length:var(--chat-text-xs)] flex-none min-w-0 max-w-[35%] truncate [font-family:var(--chat-mono)] tabular-nums'
-const EMBEDDED_SUBTITLE = 'text-chat-text-3 text-[length:var(--chat-text-xs)] m-0 min-w-0 truncate'
+const TITLE = `text-chat-text flex-1 min-w-0 truncate ${CARD_HEADLINE_TEXT}`
+const SUBTITLE = `text-chat-text-3 flex-none min-w-0 max-w-[45%] truncate ${CARD_HEADLINE_TEXT}`
+const METRIC = `text-chat-text-3 text-[length:var(--chat-text-xs)] flex-none min-w-0 max-w-[35%] truncate [font-family:var(--chat-mono)] tabular-nums ${CARD_HEADLINE_TEXT}`
+const EMBEDDED_SUBTITLE = 'block text-chat-text-3 text-[length:var(--chat-text-xs)] m-0 min-w-0'
 const MICROLABEL =
   'uppercase text-[length:var(--chat-text-micro)] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] flex-none text-chat-microlabel'
-const TERMINAL_TITLE = 'min-w-0 flex-1 truncate text-[length:var(--chat-text-md)] text-chat-frame-text font-medium'
-const TERMINAL_META =
-  'flex-none min-w-0 max-w-[45%] truncate text-[length:var(--chat-text-xs)] text-chat-text-3 [font-family:var(--chat-mono)] tabular-nums'
+const TERMINAL_TITLE = `min-w-0 flex-1 truncate text-[length:var(--chat-text-md)] text-chat-frame-text font-medium ${CARD_HEADLINE_TEXT}`
+const TERMINAL_META = `flex-none min-w-0 max-w-[45%] truncate text-[length:var(--chat-text-xs)] text-chat-text-3 [font-family:var(--chat-mono)] tabular-nums ${CARD_HEADLINE_TEXT}`
+
+function HeadlineText(props: {reveal: boolean; class: string; text: string}): JSX.Element {
+  return (
+    <Show when={props.reveal} fallback={<span class={props.class}>{props.text}</span>}>
+      <TruncatedText class={props.class} text={props.text} />
+    </Show>
+  )
+}
 
 function TerminalHeaderContent(props: {
   label: string
@@ -27,13 +35,20 @@ function TerminalHeaderContent(props: {
   meta: string | undefined
   duration: string | undefined
   status: ToolStatus
+  reveal: boolean
 }): JSX.Element {
   return (
     <>
       <span class={MICROLABEL}>{props.label}</span>
-      <span class={TERMINAL_TITLE}>{props.title}</span>
-      <Show when={props.meta}>{(meta) => <span class={TERMINAL_META}>{meta()}</span>}</Show>
-      <Show when={props.duration}>{(value) => <span class={TERMINAL_META}>{value()}</span>}</Show>
+      <CardHeadline class="flex-1">
+        <HeadlineText reveal={props.reveal} class={TERMINAL_TITLE} text={props.title} />
+        <Show when={props.meta}>
+          {(meta) => <HeadlineText reveal={props.reveal} class={TERMINAL_META} text={meta()} />}
+        </Show>
+        <Show when={props.duration}>
+          {(value) => <HeadlineText reveal={props.reveal} class={TERMINAL_META} text={value()} />}
+        </Show>
+      </CardHeadline>
       <StatusVisual status={props.status} form="dot" />
     </>
   )
@@ -46,6 +61,7 @@ function HeaderContent(props: {
   meta: string | undefined
   duration: string | undefined
   status: ToolStatus
+  reveal: boolean
 }): JSX.Element {
   return (
     <>
@@ -56,16 +72,16 @@ function HeaderContent(props: {
           </span>
         )}
       </Show>
-      <Show when={props.subtitle} fallback={<span class={TITLE}>{props.title}</span>}>
-        {(subtitle) => (
-          <>
-            <span class={TITLE}>{props.title}</span>
-            <span class={SUBTITLE}>{subtitle()}</span>
-          </>
-        )}
-      </Show>
-      <Show when={props.meta}>{(meta) => <span class={METRIC}>{meta()}</span>}</Show>
-      <Show when={props.duration}>{(value) => <span class={METRIC}>{value()}</span>}</Show>
+      <CardHeadline class="flex-1">
+        <HeadlineText reveal={props.reveal} class={TITLE} text={props.title} />
+        <Show when={props.subtitle}>
+          {(subtitle) => <HeadlineText reveal={props.reveal} class={SUBTITLE} text={subtitle()} />}
+        </Show>
+        <Show when={props.meta}>{(meta) => <HeadlineText reveal={props.reveal} class={METRIC} text={meta()} />}</Show>
+        <Show when={props.duration}>
+          {(value) => <HeadlineText reveal={props.reveal} class={METRIC} text={value()} />}
+        </Show>
+      </CardHeadline>
       <StatusVisual status={props.status} form="dot" />
     </>
   )
@@ -82,6 +98,7 @@ export function ToolCard(props: {
   durationMs?: number
   defaultOpen?: boolean
   autoOpen?: boolean
+  folded?: boolean
   status?: ToolStatus
   header?: JSX.Element
   flushHeader?: boolean
@@ -94,8 +111,10 @@ export function ToolCard(props: {
   const ambientDuration = useToolCallDuration()
   const duration = () => formatDuration(props.durationMs ?? ambientDuration())
   const embedded = useEmbeddedCard()
-  const collapse = createAutoCollapse({
-    streaming: () => props.autoOpen === true || status() === 'approval',
+  const asked = () => props.part.state === 'approval-requested' || props.part.state === 'approval-responded'
+  const collapse = createSettleFold({
+    revealed: () => props.autoOpen === true || asked(),
+    folded: () => props.folded ?? false,
     defaultOpen: props.defaultOpen,
   })
   publishCardHeader((): EmbeddedCardHeader => ({title: props.title, meta: props.meta, status: status()}))
@@ -105,6 +124,7 @@ export function ToolCard(props: {
     if (subtitle === undefined || subtitle.length === 0) return undefined
     return rowLine().includes(subtitle) ? undefined : subtitle
   }
+  const reveal = () => props.titleTooltip === undefined
   const defaultHeader = (): JSX.Element => {
     if (props.variant === 'terminal') {
       return (
@@ -114,6 +134,7 @@ export function ToolCard(props: {
           meta={props.meta}
           duration={duration()}
           status={status()}
+          reveal={reveal()}
         />
       )
     }
@@ -125,12 +146,13 @@ export function ToolCard(props: {
         meta={props.meta}
         duration={duration()}
         status={status()}
+        reveal={reveal()}
       />
     )
   }
   const embeddedBody = (): JSX.Element => (
     <>
-      <Show when={bodySubtitle()}>{(subtitle) => <p class={EMBEDDED_SUBTITLE}>{subtitle()}</p>}</Show>
+      <Show when={bodySubtitle()}>{(subtitle) => <TruncatedText class={EMBEDDED_SUBTITLE} text={subtitle()} />}</Show>
       {props.children}
     </>
   )

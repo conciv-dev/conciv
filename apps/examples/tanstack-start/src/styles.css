@@ -249,7 +249,6 @@ pre code {
   border: 1px solid var(--line);
   background: linear-gradient(168deg, var(--surface-strong), var(--surface));
   box-shadow: var(--shadow-card);
-  backdrop-filter: blur(8px);
 }
 
 .island-raised {

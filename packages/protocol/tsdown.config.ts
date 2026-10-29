@@ -3,7 +3,11 @@ import {defineConfig} from 'tsdown'
 export default defineConfig({
   entry: [
     'src/chat-types.ts',
+    'src/chat-busy.ts',
+    'src/push-types.ts',
     'src/ui-types.ts',
+    'src/run-types.ts',
+    'src/approval-types.ts',
     'src/editor-types.ts',
     'src/harness-types.ts',
     'src/framework-types.ts',

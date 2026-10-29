@@ -1,4 +1,4 @@
-import {defineConfig} from 'vitest/config'
+import {configDefaults, defineConfig} from 'vitest/config'
 import {BaseSequencer, type TestSpecification} from 'vitest/node'
 import {coreCommands} from './test/commands/core-control.js'
 import {playwright} from '@vitest/browser-playwright'
@@ -6,6 +6,9 @@ import solidPlugin from 'vite-plugin-solid'
 import {browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
 const SESSION_KILLER_SUITE = 'router-restore.browser.test.ts'
+const PERF_SUITE = 'test/calm-perf.browser.test.tsx'
+const PERF_MODE = 'perf'
+const BROWSER_SUITES = ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx']
 
 class RunSessionKillerLastSequencer extends BaseSequencer {
   override async sort(files: Array<TestSpecification>): Promise<Array<TestSpecification>> {
@@ -16,7 +19,7 @@ class RunSessionKillerLastSequencer extends BaseSequencer {
   }
 }
 
-export default defineConfig({
+export default defineConfig(({mode}) => ({
   test: {
     ...ciTest(),
     sequence: {sequencer: RunSessionKillerLastSequencer},
@@ -37,7 +40,8 @@ export default defineConfig({
         test: {
           ...ciTestSolidBrowser(),
           name: 'browser',
-          include: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
+          include: mode === PERF_MODE ? [PERF_SUITE] : BROWSER_SUITES,
+          exclude: mode === PERF_MODE ? configDefaults.exclude : [...configDefaults.exclude, PERF_SUITE],
           fileParallelism: false,
           browser: {
             enabled: true,
@@ -50,4 +54,4 @@ export default defineConfig({
       },
     ],
   },
-})
+}))

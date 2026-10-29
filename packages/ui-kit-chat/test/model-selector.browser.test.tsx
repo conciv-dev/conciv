@@ -109,3 +109,51 @@ it('reveals and filters the styled model list from keystrokes typed right after 
   await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).toBeVisible()
   await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).not.toBeInTheDocument()
 })
+
+const MODELS_WITH_DISABLED: readonly ModelOption[] = [
+  ...HARNESS_MODELS,
+  {id: 'claude-legacy-3-0', name: 'Claude Legacy 3.0', disabled: true},
+]
+
+function DisabledAwareSelector(): JSX.Element {
+  return (
+    <ModelSelector.Root models={MODELS_WITH_DISABLED} defaultValue="claude-opus-4-8">
+      <ModelSelector.Trigger aria-label="Select model" />
+      <ModelSelector.Content>
+        <ModelSelector.Search />
+        <ModelSelector.List />
+      </ModelSelector.Content>
+    </ModelSelector.Root>
+  )
+}
+
+async function eraseQuery(length: number): Promise<void> {
+  for (let stroke = 0; stroke < length; stroke += 1) {
+    await userEvent.keyboard('{Backspace}')
+  }
+}
+
+it('filters disabled options out of the list alongside the enabled ones', async () => {
+  mountView(() => <DisabledAwareSelector />)
+
+  await userEvent.click(page.getByRole('button', {name: 'Select model'}))
+  await expect.element(page.getByText('Claude Legacy 3.0'), {timeout: 2000}).toBeVisible()
+  await userEvent.keyboard('sonnet')
+
+  await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.getByText('Claude Legacy 3.0'), {timeout: 2000}).not.toBeInTheDocument()
+  await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).not.toBeInTheDocument()
+})
+
+it('restores every option, disabled included, when the query is cleared', async () => {
+  mountView(() => <DisabledAwareSelector />)
+
+  await userEvent.click(page.getByRole('button', {name: 'Select model'}))
+  await userEvent.keyboard('sonnet')
+  await expect.element(page.getByText('Claude Legacy 3.0'), {timeout: 2000}).not.toBeInTheDocument()
+  await eraseQuery('sonnet'.length)
+
+  await expect.element(page.getByText('Claude Legacy 3.0'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).toBeVisible()
+})

@@ -1,7 +1,7 @@
 {
   "name": "@conciv/page",
   "version": "0.0.19",
-  "description": "The DOM half of the conciv page plane: page-query driver + handlers, react bridge, react-grab picking, overlays. Inlined by @conciv/embed; subscribes rpc.page.queries and replies with executed verbs.",
+  "description": "The DOM half of the conciv page plane: page-query driver + handlers, react bridge, react-grab picking, overlays. Inlined by @conciv/embed; subscribes the engine push socket for page queries and replies with executed verbs.",
   "homepage": "https://conciv.dev",
   "license": "MIT",
   "repository": {
@@ -31,7 +31,6 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",

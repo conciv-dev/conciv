@@ -24,7 +24,11 @@ function mountThread(cards: readonly AttachmentCardSlot[]): HTMLElement {
 }
 
 function ThreadApp(props: {cards: readonly AttachmentCardSlot[]}): JSX.Element {
-  const chat = useChatSession({rpc: makeRpcClient('http://127.0.0.1:9'), sessionId: 'conciv_userturn'})
+  const chat = useChatSession({
+    rpc: makeRpcClient('http://127.0.0.1:9'),
+    apiBase: 'http://127.0.0.1:9',
+    sessionId: 'conciv_userturn',
+  })
   onMount(() => void chat.sendMessage({content: userParts}).catch(() => {}))
   return (
     <ChatProvider chat={chat}>

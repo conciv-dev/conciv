@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {
   PAGE_ACT_TOOL_NAMES,
+  PAGE_TOOL_PREFIX,
   PAGE_TOOL_DEFS,
   pageToolMetaOf,
   pageVerbGerund,
@@ -22,6 +23,7 @@ const MUTATING_VERBS = [
   'insert',
   'override',
   'press',
+  'reload',
   'remove',
   'removeattr',
   'removeclass',
@@ -49,10 +51,10 @@ const MIRROR_VERBS = [
 ] as const
 
 describe('page tool declarations', () => {
-  it('declares 37 verbs, every one registry-grade with meta, output, icon and label', () => {
-    expect(PAGE_TOOL_DEFS).toHaveLength(37)
+  it('declares 38 verbs, every one registry-grade with meta, output, icon and label', () => {
+    expect(PAGE_TOOL_DEFS).toHaveLength(38)
     for (const def of PAGE_TOOL_DEFS) {
-      expect(def.name.startsWith('page.')).toBe(true)
+      expect(def.name.startsWith(PAGE_TOOL_PREFIX)).toBe(true)
       expect(def.meta?.summary).toBeTruthy()
       expect(def.outputSchema).toBeDefined()
       expect(def.meta?.icon).toBeTruthy()
@@ -108,11 +110,15 @@ describe('page tool declarations', () => {
     expect(pageVerbGerund('nothing')).toBe('nothing')
   })
 
+  it('gates exactly one verb behind an approval declaration: the last-resort script', () => {
+    expect(PAGE_TOOL_DEFS.filter((def) => def.approval === 'ask').map((def) => def.name)).toEqual(['page_eval'])
+  })
+
   it('derives the act tool-name set from mutating meta', () => {
-    expect(PAGE_ACT_TOOL_NAMES.has('page.click')).toBe(true)
-    expect(PAGE_ACT_TOOL_NAMES.has('page.fill')).toBe(true)
-    expect(PAGE_ACT_TOOL_NAMES.has('page.snapshot')).toBe(false)
-    expect(PAGE_ACT_TOOL_NAMES.has('page.route')).toBe(false)
-    expect([...PAGE_ACT_TOOL_NAMES].toSorted()).toEqual(MUTATING_VERBS.map((verb) => `page.${verb}`))
+    expect(PAGE_ACT_TOOL_NAMES.has('page_click')).toBe(true)
+    expect(PAGE_ACT_TOOL_NAMES.has('page_fill')).toBe(true)
+    expect(PAGE_ACT_TOOL_NAMES.has('page_snapshot')).toBe(false)
+    expect(PAGE_ACT_TOOL_NAMES.has('page_route')).toBe(false)
+    expect([...PAGE_ACT_TOOL_NAMES].toSorted()).toEqual(MUTATING_VERBS.map((verb) => `${PAGE_TOOL_PREFIX}${verb}`))
   })
 })

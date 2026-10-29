@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile)
 
 export type TrustPolicyInstallResult = {stdout: string; stderr: string}
 
-const UPSTREAM_BLOCKED_TRUST_EXCLUDES = ['semver', 'langium']
+const UPSTREAM_BLOCKED_TRUST_EXCLUDES = ['semver', 'langium', '@pierre/theme']
 
 export async function runTrustPolicyInstall(): Promise<TrustPolicyInstallResult> {
   const root = mkdtempSync(join(tmpdir(), 'conciv-trust-policy-'))
@@ -28,11 +28,11 @@ export async function runTrustPolicyInstall(): Promise<TrustPolicyInstallResult>
       "  - '.'",
       'trustPolicy: no-downgrade',
       'trustPolicyExclude:',
-      ...UPSTREAM_BLOCKED_TRUST_EXCLUDES.map((name) => `  - ${name}`),
+      ...UPSTREAM_BLOCKED_TRUST_EXCLUDES.map((name) => `  - ${JSON.stringify(name)}`),
       'allowBuilds:',
       '  isolated-vm: true',
       'overrides:',
-      ...Object.entries(overrides).map(([name, value]) => `  '${name}': '${value}'`),
+      ...Object.entries(overrides).map(([name, value]) => `  ${JSON.stringify(name)}: ${JSON.stringify(value)}`),
       '',
     ].join('\n')
     writeFileSync(join(root, 'pnpm-workspace.yaml'), workspaceYaml)

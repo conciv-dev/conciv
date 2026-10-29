@@ -72,3 +72,19 @@ export function codeModeToolChunks(chunk: StreamChunk): StreamChunk[] | null {
   if (chunk.name === CODE_MODE_TOOL_ERROR_EVENT) return errorChunks(chunk.value)
   return null
 }
+
+export function codeModeEventPublisher(
+  parentToolCallId: string | undefined,
+  publish: (chunks: StreamChunk[]) => void,
+  unmapped?: (eventName: string, value: Record<string, unknown>) => void,
+): (eventName: string, value: Record<string, unknown>) => void {
+  return (eventName, value) => {
+    const stamped = parentToolCallId === undefined ? value : {...value, toolCallId: parentToolCallId}
+    const chunks = codeModeToolChunks({type: EventType.CUSTOM, name: eventName, value: stamped, timestamp: Date.now()})
+    if (chunks === null) {
+      unmapped?.(eventName, value)
+      return
+    }
+    publish(chunks)
+  }
+}

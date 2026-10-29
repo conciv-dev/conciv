@@ -56,7 +56,8 @@ export const CopyAndExport: Story = {
     await expect(copy).not.toHaveAttribute('data-copied')
     await userEvent.click(copy)
 
-    await waitFor(() => expect(c.getByRole('button', {name: 'Copy'})).toHaveAttribute('data-copied'))
+    await waitFor(() => expect(c.getByRole('button', {name: 'Copy failed'})).toHaveAttribute('data-copy-failed'))
+    await waitFor(() => expect(c.getByRole('status')).toHaveTextContent('Could not copy the message'))
 
     const more = c.getByRole('button', {name: 'More message actions'})
     await userEvent.hover(more)

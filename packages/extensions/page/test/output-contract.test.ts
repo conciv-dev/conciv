@@ -18,7 +18,7 @@ describe('react tool outputs accept a deliberately null component', () => {
     const locateServer = pageServer.tools?.find((tool) => tool.name === locateDef.name)
     if (!locateServer) throw new Error('the page server extension declares no locate tool')
     registry.register(locateServer, {owner: 'the page extension', context: {symbolicate: async () => null}})
-    await expect(registry.call('page.locate', {selector: '#anon'}, {request: TEST_REQUEST})).resolves.toMatchObject({
+    await expect(registry.call('page_locate', {selector: '#anon'}, {request: TEST_REQUEST})).resolves.toMatchObject({
       component: null,
     })
   })
@@ -26,7 +26,7 @@ describe('react tool outputs accept a deliberately null component', () => {
   it('inspect resolves when the composite has no resolvable display name', async () => {
     const registry = registryReplying({component: null, props: {}, state: null, hooks: [], rect: null})
     registry.register(inspectDef.client(), {owner: 'a test registrant'})
-    await expect(registry.call('page.inspect', {selector: '#anon'}, {request: TEST_REQUEST})).resolves.toMatchObject({
+    await expect(registry.call('page_inspect', {selector: '#anon'}, {request: TEST_REQUEST})).resolves.toMatchObject({
       component: null,
     })
   })

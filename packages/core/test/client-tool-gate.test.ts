@@ -22,7 +22,7 @@ const ApprovalChunkSchema = z.object({value: z.object({approval: z.object({id: z
 
 function attrProbeTool() {
   return defineTool({
-    name: 'probe.attr',
+    name: 'probe_attr',
     description: 'probe read that can raise a declared error over the dispatcher seam',
     inputSchema: z.object({ref: z.string(), attribute: z.string()}),
     outputSchema: z.object({value: z.string()}),
@@ -33,7 +33,7 @@ function attrProbeTool() {
 
 function askProbeTool(ran: {value: boolean} = {value: false}) {
   return defineTool({
-    name: 'probe.reset',
+    name: 'probe_reset',
     description: 'destructive probe that declares it needs approval',
     inputSchema: z.object({}),
     outputSchema: z.object({ok: z.literal(true)}),
@@ -83,19 +83,19 @@ function capabilityNamed(capabilities: CodeCapability[], name: string): CodeCapa
 describe('registry page tools ride the final {requestId, name, input} envelope over the page bus', () => {
   it('forwards the registry name and the nested validated input, and returns the browser result', async () => {
     const {scope, frames} = await bootRegistry(() => ({ok: true, result: {text: 'hello'}}))
-    await expect(scope.tools.call('page.text', {selector: '#probe'})).resolves.toEqual({
+    await expect(scope.tools.call('page_text', {selector: '#probe'})).resolves.toEqual({
       text: 'hello',
     })
-    expect(frames).toMatchObject([{name: 'page.text', input: {selector: '#probe'}}])
+    expect(frames).toMatchObject([{name: 'page_text', input: {selector: '#probe'}}])
   })
 
   it('journals a mutating call from the declaration meta and leaves reads out of the journal', async () => {
     const {scope, env} = await bootRegistry((query) =>
-      query.name === 'page.click' ? {ok: true, result: {ok: true}} : {ok: true, result: {text: ''}},
+      query.name === 'page_click' ? {ok: true, result: {ok: true}} : {ok: true, result: {text: ''}},
     )
-    await scope.tools.call('page.text', {selector: '#probe'})
-    await scope.tools.call('page.click', {selector: '#go'})
-    expect(await env.journal.list(SESSION)).toMatchObject([{verb: 'page.click', selector: '#go'}])
+    await scope.tools.call('page_text', {selector: '#probe'})
+    await scope.tools.call('page_click', {selector: '#go'})
+    expect(await env.journal.list(SESSION)).toMatchObject([{verb: 'page_click', selector: '#go'}])
   })
 
   it('rebuilds a browser-raised toolError into the declared error', async () => {
@@ -103,7 +103,7 @@ describe('registry page tools ride the final {requestId, name, input} envelope o
       ok: false,
       error: {code: 'handler-error', message: 'no attr', raised: {code: 'NO_ATTRIBUTE', message: 'no attr'}},
     }))
-    await expect(scope.tools.call('probe.attr', {ref: 'v1', attribute: 'data-none'})).rejects.toMatchObject({
+    await expect(scope.tools.call('probe_attr', {ref: 'v1', attribute: 'data-none'})).rejects.toMatchObject({
       code: 'NO_ATTRIBUTE',
     })
   })
@@ -117,7 +117,7 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
     const gate = makeAskGate({asks: asksFor(asks, SESSION), emit: (chunk) => emitted.push(chunk), timeoutMs: 5_000})
     const click = capabilityNamed(
       registryCapabilities(registry.sandboxTools(), scopedToolCallOf(runtime)),
-      'page.click',
+      'page_click',
     )
     expect(click.mutating).toBe(true)
     expect(click.approval).toBeUndefined()
@@ -125,7 +125,7 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
       ok: true,
     })
     expect(emitted).toEqual([])
-    expect(frames).toMatchObject([{name: 'page.click'}])
+    expect(frames).toMatchObject([{name: 'page_click'}])
   })
 
   it('an approval-declared capability prompts, and approval releases it', async () => {
@@ -139,7 +139,7 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
     const gate = makeAskGate({asks: asksFor(asks, SESSION), emit: (chunk) => holder.settle(chunk), timeoutMs: 5_000})
     const reset = capabilityNamed(
       registryCapabilities(registry.sandboxTools(), scopedToolCallOf(runtime)),
-      'probe.reset',
+      'probe_reset',
     )
     expect(reset.approval).toBe('ask')
     const pending = gatedToolRun(reset, SESSION, testRequest, gate, attached)({})
@@ -160,7 +160,7 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
     const gate = makeAskGate({asks: asksFor(asks, SESSION), emit: (chunk) => holder.settle(chunk), timeoutMs: 5_000})
     const reset = capabilityNamed(
       registryCapabilities(registry.sandboxTools(), scopedToolCallOf(runtime)),
-      'probe.reset',
+      'probe_reset',
     )
     const pending = gatedToolRun(reset, SESSION, testRequest, gate, attached)({})
     const chunk = ApprovalChunkSchema.parse(await chunkArrived)
@@ -173,7 +173,7 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
     const {registry, runtime} = await bootRegistry(() => ({ok: true, result: {text: 'hello'}}))
     const asks = createAskRegistry()
     const gate = makeAskGate({asks: asksFor(asks, SESSION), emit: () => {}, timeoutMs: 100})
-    const text = capabilityNamed(registryCapabilities(registry.sandboxTools(), scopedToolCallOf(runtime)), 'page.text')
+    const text = capabilityNamed(registryCapabilities(registry.sandboxTools(), scopedToolCallOf(runtime)), 'page_text')
     expect(text.mutating).toBe(false)
     const run = gatedToolRun(text, SESSION, testRequest, gate, attached)
     await expect(run({selector: '#probe'})).resolves.toMatchObject({text: 'hello'})

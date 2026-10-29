@@ -5,7 +5,7 @@ import {defineTool, type ToolBuilder, type ToolErrors, type ToolMeta} from '@con
 
 export const PAGE_EXTENSION_NAME = 'page'
 
-export const PAGE_TOOL_PREFIX = 'page.'
+export const PAGE_TOOL_PREFIX = 'page_'
 
 export function pageVerbOfTool(name: string): string {
   if (!name.startsWith(PAGE_TOOL_PREFIX)) throw new Error(`"${name}" is not a page tool`)
@@ -57,16 +57,18 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   hint?: string
   mutating?: boolean
   mirrors?: boolean
+  approval?: 'ask'
   capture?: ToolCaptureMode
   keywords?: readonly string[]
   errors?: ToolErrors
 }): PageToolDef<Shape, Out> {
   return defineTool({
-    name: `page.${spec.verb}`,
+    name: `page_${spec.verb}`,
     description: spec.summary,
     inputSchema: spec.input,
     outputSchema: spec.output,
     errors: spec.errors,
+    approval: spec.approval,
     meta: {
       summary: spec.summary,
       category: spec.category,
@@ -184,12 +186,12 @@ export const existsDef = pageTool({
 
 export const snapshotDef = pageTool({
   verb: 'snapshot',
-  summary: 'take an accessibility snapshot with a ref for every control',
+  summary: 'read every control on the page with its current value, checked state and ref',
   category: 'read',
   icon: 'read',
   label: {running: 'Capturing a snapshot', done: 'Captured a snapshot'},
-  hint: 'act on every ref from one snapshot before taking another',
-  keywords: ['accessibility', 'refs'],
+  hint: 'the one-shot form read: act on every ref from one snapshot before taking another',
+  keywords: ['accessibility', 'refs', 'form', 'fields', 'controls', 'checked'],
   input: z.object({selector: SelectorOnly}),
   output: z.object({nodes: z.array(AnyRecord)}),
 })
@@ -214,6 +216,7 @@ export const evalDef = pageTool({
   label: {running: 'Running a script', done: 'Ran a script'},
   hint: 'the last resort: for React props, state or hooks use the react capabilities first, and for anything else prefer the dedicated read, act and edit-live capabilities',
   mutating: true,
+  approval: 'ask',
   keywords: ['script', 'javascript'],
   input: z.object({code: z.string().describe('javascript to run in the page, awaited')}),
   output: z.object({result: z.unknown()}),
@@ -343,6 +346,27 @@ export const waitDef = pageTool({
     timeout: z.coerce.number().optional().describe('max wait in ms'),
   }),
   output: z.object({ok: z.literal(true), state: PageWaitStateSchema}),
+})
+
+export const reloadDef = pageTool({
+  verb: 'reload',
+  summary: 'reload the live page',
+  category: 'act',
+  icon: 'wait',
+  label: {running: 'Reloading the page', done: 'Reloaded the page'},
+  hint: 'returns the moment the reload is initiated, never a post-reload state; read the fresh page with page_snapshot once it is up',
+  mutating: true,
+  capture: 'none',
+  keywords: ['refresh', 'navigate', 'location'],
+  input: noInput,
+  output: z.object({
+    ok: z.literal(true),
+    initiated: z
+      .literal(true)
+      .describe(
+        'the reload has started; the navigation destroys the context this ran in, so no result from after the reload can come back',
+      ),
+  }),
 })
 
 export const clickDef = pageTool({
@@ -600,6 +624,7 @@ export const PAGE_TOOL_DEFS = [
   trackDef,
   effectDef,
   waitDef,
+  reloadDef,
   clickDef,
   fillDef,
   selectDef,

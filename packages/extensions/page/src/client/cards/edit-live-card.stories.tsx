@@ -11,8 +11,10 @@ import {
   ToolTraceRow,
   type TraceItem,
 } from '@conciv/ui-kit-chat/tools'
-import {EditLiveCard} from './edit-live-card.js'
+import {editLiveCard} from './edit-live-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+
+const EditLiveCard = editLiveCard.render
 
 const meta: Meta = {title: 'Extensions/Page/tool/EditLiveCard'}
 export default meta
@@ -70,9 +72,9 @@ export const TextChangeWithDiff: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <EditLiveCard
-        part={storyPart('page.settext', {selector: '#cta', text: 'Order placed'})}
+        part={storyPart('page_settext', {selector: '#cta', text: 'Order placed'})}
         result={storyResult({ok: true})}
-        ctx={storyCtx({'page.settext': settextMeta})}
+        ctx={storyCtx({page_settext: settextMeta})}
         addResult={storyAddResult}
         capture={{
           before: ELEMENT_CAPTURE_FIXTURE_EDIT_BEFORE,
@@ -108,9 +110,9 @@ export const EvalCodeBlock: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <EditLiveCard
-        part={storyPart('page.eval', {code: 'return document.title'})}
+        part={storyPart('page_eval', {code: 'return document.title'})}
         result={storyResult({result: 'Storefront'})}
-        ctx={storyCtx({'page.eval': evalMeta})}
+        ctx={storyCtx({page_eval: evalMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -131,8 +133,8 @@ export const EvalCodeBlock: Story = {
 }
 
 const editLiveTool: ToolCardEntry = {
-  names: ['page.setattr', 'page.eval'],
-  render: EditLiveCard,
+  names: ['page_setattr', 'page_eval'],
+  ...editLiveCard,
 }
 
 export const Trace: Story = {
@@ -140,12 +142,12 @@ export const Trace: Story = {
     traceGallery('2 edits', [
       traceRow(
         editLiveTool,
-        storyPart('page.setattr', {selector: '#cta', attribute: 'disabled', value: 'true'}, 'complete', 'e1'),
+        storyPart('page_setattr', {selector: '#cta', attribute: 'disabled', value: 'true'}, 'complete', 'e1'),
         storyResult({ok: true}, 'complete', 'e1'),
       ),
       traceRow(
         editLiveTool,
-        storyPart('page.eval', {code: 'return document.title'}, 'complete', 'e2'),
+        storyPart('page_eval', {code: 'return document.title'}, 'complete', 'e2'),
         storyResult({result: 'Storefront'}, 'complete', 'e2'),
       ),
     ]),

@@ -3,6 +3,7 @@ import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
 
 const MessageSchema = z
   .object({
+    id: z.string().optional(),
     role: z.string(),
     parts: z.array(z.object({type: z.string(), content: z.string().optional()}).loose()).default([]),
   })
@@ -26,14 +27,16 @@ export function asSnapshot(chunk: StreamChunk): SnapshotView {
   return parsed.data
 }
 
-export function firstSnapshot(chunks: StreamChunk[]): SnapshotView {
-  const found = chunks.find((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
-  if (!found) throw new Error('no MESSAGES_SNAPSHOT was published')
-  return asSnapshot(found)
-}
-
 export function userTexts(snapshot: SnapshotView): string[] {
   return snapshot.messages.filter((message) => message.role === 'user').map(textOf)
+}
+
+export function userMessageIds(snapshot: SnapshotView): Array<string | undefined> {
+  return snapshot.messages.filter((message) => message.role === 'user').map((message) => message.id)
+}
+
+export function assistantTexts(snapshot: SnapshotView): string[] {
+  return snapshot.messages.filter((message) => message.role === 'assistant').map(textOf)
 }
 
 export function partTypes(snapshot: SnapshotView): string[] {
@@ -44,6 +47,10 @@ function rendered(chunks: StreamChunk[]): SnapshotMessage[] {
   const processor = new StreamProcessor({})
   for (const chunk of chunks) processor.processChunk(chunk)
   return z.array(MessageSchema).parse(processor.getMessages())
+}
+
+export function reconstructSnapshot(chunks: StreamChunk[]): SnapshotView {
+  return {type: EventType.MESSAGES_SNAPSHOT, messages: rendered(chunks)}
 }
 
 export function reconstructTranscript(chunks: StreamChunk[]): string[] {

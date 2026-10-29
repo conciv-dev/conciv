@@ -28,7 +28,10 @@ const deployRun = defineTool({
   meta: {summary: 'deploy the current branch', category: 'deploy', mutating: true},
 })
   .server(({env}) => ({url: `https://${env}.example.com`}))
-  .render((props) => <div data-conciv-deploy-card>Deploying… ({props.part.name})</div>)
+  .render({
+    render: (props) => <div data-conciv-deploy-card>Deploying… ({props.part.name})</div>,
+    hasEmbeddedBody: () => true,
+  })
 
 const deploy = defineExtension({name: DEPLOY_NAME, Component: DeploySurface, tools: [deployRun]})
 export default deploy

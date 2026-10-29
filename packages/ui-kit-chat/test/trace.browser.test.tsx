@@ -104,7 +104,7 @@ it('collapses to a single record line and restores the rows when toggled back', 
 })
 
 it('starts collapsed when the trace opens closed', async () => {
-  mountView(() => <Trace summary={SUMMARY} compactLine={COMPACT} items={settledItems} />)
+  mountView(() => <Trace summary={SUMMARY} compactLine={COMPACT} items={settledItems} folded />)
 
   await expect.element(page.getByRole('button', {name: /Show trace/})).toBeVisible()
   await expect.element(page.getByText('src/app.tsx')).not.toBeInTheDocument()

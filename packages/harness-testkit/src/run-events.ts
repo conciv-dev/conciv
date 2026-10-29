@@ -1,4 +1,5 @@
 import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
+import {approvalAskOf} from '@conciv/protocol/approval-types'
 import {z} from 'zod'
 
 export type SeenToolCall = {toolCallId: string; name: string; input: unknown}
@@ -41,17 +42,9 @@ function partsOf(all: StreamChunk[], role?: string): unknown[] {
   })
 }
 
-const ApprovalChunkSchema = z
-  .object({
-    type: z.literal(EventType.CUSTOM),
-    name: z.literal('approval-requested'),
-    value: z.object({approval: z.object({id: z.string()}).loose()}).loose(),
-  })
-  .loose()
-
 export function approvalIds(chunk: StreamChunk): string[] {
-  const parsed = ApprovalChunkSchema.safeParse(chunk)
-  return parsed.success ? [parsed.data.value.approval.id] : []
+  const ask = approvalAskOf(chunk)
+  return ask ? [ask.approvalId] : []
 }
 
 export function collectToolCalls(all: StreamChunk[], name?: string): SeenToolCall[] {

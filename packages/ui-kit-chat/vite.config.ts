@@ -15,7 +15,16 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: [/^solid-js/, /^zod/, /^@tanstack\//, /^@conciv\//, /^@pierre\/diffs/, /^shiki/, /^@shikijs\//],
+      external: [
+        /^solid-js/,
+        /^zod/,
+        /^mermaid/,
+        /^@tanstack\//,
+        /^@conciv\//,
+        /^@pierre\/diffs/,
+        /^shiki/,
+        /^@shikijs\//,
+      ],
     },
     emptyOutDir: true,
     sourcemap: true,

@@ -27,14 +27,14 @@ type Story = StoryObj
 
 export const Fresh: Story = {
   render: () =>
-    traceFrame('1 resolve', [traceRow(storyPart('anchor.resolve', {cid: 'c_1'}), storyResult({status: 'fresh'}))]),
+    traceFrame('1 resolve', [traceRow(storyPart('anchor_resolve', {cid: 'c_1'}), storyResult({status: 'fresh'}))]),
 }
 
 export const Drifted: Story = {
   render: () =>
     traceFrame('1 resolve', [
       traceRow(
-        storyPart('anchor.resolve', {cid: 'c_2'}),
+        storyPart('anchor_resolve', {cid: 'c_2'}),
         storyResult({
           status: 'drifted',
           diff: {before: 'export function SessionPanel() {', after: 'export function SessionPanel(props) {'},
@@ -46,6 +46,6 @@ export const Drifted: Story = {
 export const NotFound: Story = {
   render: () =>
     traceFrame('1 failed', [
-      traceRow(storyPart('anchor.resolve', {cid: 'c_9'}), storyErrorResult('comment c_9 not found')),
+      traceRow(storyPart('anchor_resolve', {cid: 'c_9'}), storyErrorResult('comment c_9 not found')),
     ]),
 }

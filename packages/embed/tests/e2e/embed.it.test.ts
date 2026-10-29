@@ -1,4 +1,4 @@
-import {expect, test, type Page} from '@playwright/test'
+import {expect, test, type Locator, type Page} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {hostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
@@ -47,14 +47,15 @@ async function openPage(page: Page): Promise<Page> {
   return page
 }
 
-async function sendAndRevealThought(page: Page, message: string): Promise<void> {
+function latestTrace(page: Page): Locator {
+  return page.getByRole('list', {name: 'Execution trace'}).last()
+}
+
+async function sendAndSettleWithTraceOpen(page: Page, message: string): Promise<void> {
   await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill(message)
   await page.getByRole('button', {name: 'Send message'}).click()
   await expect(page.getByRole('button', {name: 'Stop generating'})).toBeHidden({timeout: 30_000})
-  await page
-    .getByRole('button', {name: /Show trace$/})
-    .last()
-    .click()
+  await expect(page.getByRole('button', {name: /Hide trace$/}).last()).toBeVisible({timeout: 30_000})
 }
 
 test.describe('embed boots the conciv app against a real core', () => {
@@ -62,8 +63,8 @@ test.describe('embed boots the conciv app against a real core', () => {
     test.setTimeout(240_000)
     await openPage(page)
     await openPanel(page)
-    await page.getByRole('button', {name: 'Terminal'}).click()
-    await expect(page.getByRole('button', {name: 'Terminal'})).toHaveAttribute('aria-pressed', 'true', {
+    await page.getByRole('tab', {name: 'Terminal'}).click()
+    await expect(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
       timeout: 30_000,
     })
     await until(
@@ -77,7 +78,7 @@ test.describe('embed boots the conciv app against a real core', () => {
     await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
     await until(async () => !(await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000, intervalMs: 100})
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
-    await expect(page.getByRole('button', {name: 'Terminal'})).toHaveAttribute('aria-pressed', 'true', {
+    await expect(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
       timeout: 30_000,
     })
     await until(async () => (await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000, intervalMs: 100})
@@ -89,13 +90,13 @@ test.describe('embed boots the conciv app against a real core', () => {
     test.setTimeout(180_000)
     const first = await openPage(page)
     await openPanel(first)
-    await first.getByRole('button', {name: 'Terminal'}).click()
+    await first.getByRole('tab', {name: 'Terminal'}).click()
     await until(async () => (await currentHref(kit)).includes('/terminal'), {hangGuardMs: 30_000, intervalMs: 100})
     expect(await currentHref(kit)).toMatch(/\/terminal\?.*open=true/)
     await first.close()
     const second = await openPage(await context.newPage())
     await expect(second.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
-    await expect(second.getByRole('button', {name: 'Terminal'})).toHaveAttribute('aria-pressed', 'true', {
+    await expect(second.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
       timeout: 30_000,
     })
   })
@@ -211,11 +212,12 @@ test.describe('embed boots the conciv app against a real core', () => {
     kit.harness.script.scriptToolCall('execute_typescript', {typescriptCode: 'return 1'}, {blocking: false})
     kit.harness.script.scriptToolCall('catalog', {search: 'weather'}, {blocking: false})
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await sendAndRevealThought(page, 'run some code')
-    await expect(page.getByRole('button', {name: /exec return 1/})).toBeVisible({timeout: 30_000})
-    await expect(page.getByText('return 1').first()).toBeVisible({timeout: 30_000})
-    await sendAndRevealThought(page, 'now check the catalog')
-    await expect(page.getByText('Capability catalog').last()).toBeVisible({timeout: 30_000})
+    await sendAndSettleWithTraceOpen(page, 'run some code')
+    await expect(latestTrace(page).getByText('return 1').first()).toBeVisible({timeout: 30_000})
+    await expect(page.getByRole('button', {name: /exec return 1/})).toBeDisabled()
+    await sendAndSettleWithTraceOpen(page, 'now check the catalog')
+    await expect(latestTrace(page).getByText('Capability catalog')).toBeVisible({timeout: 30_000})
+    await expect(page.getByRole('button', {name: /Show trace$/})).toHaveCount(1)
     await expect(input).toHaveText('')
     const announced = await page.getByRole('alert').allTextContents()
     expect(announced.every((text) => text.trim() === '')).toBe(true)

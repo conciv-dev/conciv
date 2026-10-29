@@ -153,9 +153,8 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     const argvFile = join(tmp(), 'argv.json')
     const kit = await setup({argvFile})
     const {sessionId: id} = await kit.rpc.sessions.create(undefined)
-    const stream = await kit.attach(id)
     await kit.rpc.sessions.model({sessionId: id, model: 'haiku'})
-    await kit.rpc.chat.send({runId: 'chat-1', sessionId: id, text: 'hi'})
+    const stream = await kit.turn('hi', {session: id, runId: 'chat-1'})
     await stream.done()
     const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
     expect(argv).toContain('--model')
@@ -173,7 +172,9 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
   it('rejects a send with an empty message', async () => {
     const kit = await setup()
     const id = await kit.session()
-    await expect(kit.rpc.chat.send({runId: 'chat-2', sessionId: id, text: ''})).rejects.toThrow()
+    const stream = await kit.turn('', {session: id, runId: 'chat-2'})
+    const events = await stream.done({hangGuardMs: 15_000})
+    expect(events.errors().join(' ')).toContain('empty')
   })
 
   it('keeps per-session state independent under distinct ids', async () => {
@@ -201,12 +202,11 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
       }),
     ).setup()
     state.kit = kit
-    const a = await kit.session()
-    const b = await kit.session()
+    const a = (await kit.rpc.sessions.create(undefined)).sessionId
+    const b = (await kit.rpc.sessions.create(undefined)).sessionId
     hang.add(a)
-    await kit.rpc.chat.send({runId: 'chat-3', sessionId: a, text: 'hi'})
-    const stream = await kit.attach(b)
-    await kit.rpc.chat.send({runId: 'chat-4', sessionId: b, text: 'hi'})
+    await kit.turn('hi', {session: a, runId: 'chat-3'})
+    const stream = await kit.turn('hi', {session: b, runId: 'chat-4'})
     await stream.done()
     await kit.rpc.chat.stop({sessionId: a})
   })

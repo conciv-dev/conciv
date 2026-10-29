@@ -12,10 +12,8 @@ import tanstackExtension from '../src/server.js'
 const hostDist = fileURLToPath(new URL('../dist/test-host', import.meta.url))
 
 const routerStateSchema = z.object({
-  result: z.object({
-    location: z.object({pathname: z.string(), search: z.string(), hash: z.string()}),
-    matches: z.array(z.looseObject({routeId: z.string(), path: z.string(), loaderData: z.unknown()})),
-  }),
+  location: z.object({pathname: z.string(), search: z.string(), hash: z.string()}),
+  matches: z.array(z.looseObject({routeId: z.string(), path: z.string(), loaderData: z.unknown()})),
 })
 
 const loaderDataSchema = z.looseObject({
@@ -58,15 +56,15 @@ const test = browserTest.extend<{$file: {kit: CoreKit; host: ServedHost; connect
 
 test.describe('bootConnect: the tanstack client verbs answer the registry through the connect handle', () => {
   test(
-    'tanstack.routerState reads the live TanStack app the connect handle attached to',
+    'tanstack_router_state reads the live TanStack app the connect handle attached to',
     async ({connectedPage, kit}) => {
       await connectedPage.getByRole('link', {name: 'About'}).click()
       await expectLocator(connectedPage.getByRole('heading', {name: 'About this app'})).toBeVisible()
 
-      const state = routerStateSchema.parse(await kit.rpc.registry.call({name: 'tanstack.routerState', input: {}}))
+      const state = routerStateSchema.parse(await kit.rpc.registry.call({name: 'tanstack_router_state', input: {}}))
 
-      expect(state.result.location.pathname).toBe('/about')
-      const aboutMatch = state.result.matches.find((match) => match.routeId === '/about')
+      expect(state.location.pathname).toBe('/about')
+      const aboutMatch = state.matches.find((match) => match.routeId === '/about')
       if (!aboutMatch) throw new Error('the router state did not list the /about match')
       const loaderData = loaderDataSchema.parse(aboutMatch.loaderData)
       expect(loaderData.server.greeting).toBe('hello')

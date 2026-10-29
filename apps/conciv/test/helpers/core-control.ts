@@ -1,17 +1,27 @@
 import {commands} from 'vitest/browser'
 import type {EngineStaleness} from '@conciv/contract'
-import type {ScriptedTurn} from '@conciv/harness-testkit'
+import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {BootCoreInput, BootCoreResult, FaultSpec} from '../commands/core-control.js'
 
 declare module 'vitest/internal/browser' {
   interface BrowserCommands {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
     closeCore: () => Promise<void>
+    restartCore: () => Promise<void>
+    pushSocketsOpened: () => Promise<number>
+    pushApprovalIds: () => Promise<readonly string[]>
     setStaleness: (value: EngineStaleness) => Promise<void>
     holdTurn: () => Promise<void>
+    holdTools: () => Promise<void>
+    releaseTools: () => Promise<void>
+    holdResults: () => Promise<void>
+    releaseResults: (paced?: PacedRelease) => Promise<void>
     releaseTurn: () => Promise<void>
     scriptError: (message: string) => Promise<void>
     scriptTurn: (turn: ScriptedTurn) => Promise<string[]>
+    clearScript: () => Promise<void>
+    scriptToolCall: (name: string, input: unknown) => Promise<string>
+    scriptCustomEvent: (name: string, value: unknown) => Promise<void>
     setTerminalLaunch: (succeeds: boolean) => Promise<void>
     terminalLaunches: () => Promise<number>
     rpcCallCount: (path: string[]) => Promise<number>

@@ -12,7 +12,7 @@ function start(): void {
   window.__CONCIV_API_BASE__ = apiBase
   const activeSession: {read: () => string | null} = {read: () => null}
   const router = createConcivRouter({
-    rpc: makeBrowserRpcClient(apiBase, {transport: settings.transport, session: () => activeSession.read()}).rpc,
+    rpc: makeBrowserRpcClient(apiBase, {session: () => activeSession.read()}).rpc,
     history: createBrowserHistory(),
     environment: {rootNode: document, document},
     settings,

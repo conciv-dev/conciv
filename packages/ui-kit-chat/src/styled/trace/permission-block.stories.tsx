@@ -81,7 +81,11 @@ export const Answered: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', {name: /Deny/}))
-    await waitFor(() => expect(canvas.queryByRole('group', {name: 'Permission request'})).toBeNull())
-    await expect(canvas.getByRole('status')).toHaveTextContent('Denied')
+    await waitFor(() => expect(canvas.getByText('Denied')).toBeVisible())
+    await expect(canvas.getByRole('group', {name: 'Permission request'})).toBeVisible()
+    await expect(canvas.getByText(COMMAND)).toBeVisible()
+    expect(canvas.queryByRole('button', {name: /Approve/})).toBeNull()
+    expect(canvas.queryByRole('button', {name: /Deny/})).toBeNull()
+    await expect(canvas.getByRole('status')).toHaveTextContent('Denied the request')
   },
 }

@@ -31,7 +31,7 @@ function serverTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
 }) {
   const category: BuiltinCategory = 'server'
   return defineTool({
-    name: `server.${spec.operation}`,
+    name: `server_${spec.operation}`,
     description: spec.summary,
     inputSchema: spec.input,
     outputSchema: spec.output,
@@ -129,13 +129,13 @@ const restartTool = serverTool({
 })
 
 export const BUILTIN_SERVER_TOOL = {
-  'server.config': configTool,
-  'server.urls': urlsTool,
-  'server.resolve': resolveTool,
-  'server.graph': graphTool,
-  'server.transform': transformTool,
-  'server.reload': reloadTool,
-  'server.restart': restartTool,
+  server_config: configTool,
+  server_urls: urlsTool,
+  server_resolve: resolveTool,
+  server_graph: graphTool,
+  server_transform: transformTool,
+  server_reload: reloadTool,
+  server_restart: restartTool,
 } as const
 
 export const BUILTIN_SERVER_TOOLS = Object.values(BUILTIN_SERVER_TOOL)

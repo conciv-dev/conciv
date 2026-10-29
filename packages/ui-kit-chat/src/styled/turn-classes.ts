@@ -19,7 +19,7 @@ export const ANSWER_ROW_CLASS = `flex min-w-0 w-full pt-[6px] ${TURN_INDENT_CLAS
 
 export const ANSWER_ACTION_ROW_CLASS = `absolute bottom-0 start-0 flex items-start pointer-events-none ${TURN_INDENT_CLASS}`
 
-export const ANSWER_CONTENT_CLASS = 'min-w-0 text-[14px] leading-[1.6] [text-wrap:pretty] text-chat-text'
+export const ANSWER_CONTENT_CLASS = 'min-w-0 text-[14px] leading-[1.6] text-chat-text'
 
 export const ANSWER_CONTENT_SETTLED_CLASS =
   'min-w-0 text-[14px] leading-[1.6] [text-wrap:pretty] text-chat-body-settled'
