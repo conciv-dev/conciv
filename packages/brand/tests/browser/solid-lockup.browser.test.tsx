@@ -2,7 +2,7 @@ import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {ConcivLockup} from '../../src/solid/conciv-lockup.js'
-import {antennaOf, cursorOf, SETTLE_WINDOW_MS, TRAILING_FRAME_MS, wait} from './lockup-dom.js'
+import {antennaFlickTransforms, antennaOf, cursorOf, SETTLE_WINDOW_MS, TRAILING_FRAME_MS, wait} from './lockup-dom.js'
 
 function mountLinkedLockup(): {container: HTMLElement; unmount: () => void} {
   const mounted = render(() => (
@@ -23,8 +23,8 @@ it('wakes the cursor blink and antenna flick on hover when motion is welcome', a
 
   await userEvent.hover(logo)
 
-  expect(antennaOf(container).getAttribute('style')).toContain('rotate(')
   await expect.element(page.elementLocator(cursorOf(container))).toHaveAttribute('opacity', '1')
+  expect(antennaFlickTransforms(container)).toContain('translateY(-4.5px) rotate(-14deg)')
 })
 
 it('wakes the blink when the link takes real keyboard focus', async () => {
