@@ -1,6 +1,6 @@
 import {eventIterator, oc} from '@orpc/contract'
 import {z} from 'zod'
-import type {StreamChunk} from '@tanstack/ai'
+import {type ChatEvent, RunLifecycleSchema} from '@conciv/ai/events'
 import {
   ChatCommandsSchema,
   ChatHistorySchema,
@@ -12,7 +12,6 @@ import {
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
-import {RunLifecycleSchema} from '@conciv/protocol/run-types'
 import {
   OpenSourceResultSchema,
   OpenSourceSchema,
@@ -26,7 +25,7 @@ import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
-const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'object' && value !== null)
+const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
 const SessionIdInput = z.object({sessionId: SessionId})
 const ChatPendingInterruptSchema = z.object({

@@ -1,4 +1,5 @@
-import type {AnyTextAdapter, ModelMessage, UIMessage} from '@tanstack/ai'
+import type {ModelMessage, ChatMessage} from '@conciv/ai/messages'
+import type {AnyTextAdapter} from '@tanstack/ai'
 import type {HarnessSessionId, SessionId} from './chat-types.js'
 import type {TtyCommand} from './terminal-types.js'
 
@@ -124,7 +125,7 @@ export type HarnessSessionMeta = {
   createdAt?: number
 }
 
-export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: UIMessage[]}
+export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: ChatMessage[]}
 
 export const TRANSCRIPT_FAILURES = ['missing', 'unreadable', 'corrupt'] as const
 
@@ -138,7 +139,7 @@ export type TranscriptChunk = {
   ok: true
   rev: string
   changedAt: number
-  messages: UIMessage[]
+  messages: ChatMessage[]
   replaced: boolean
 }
 
@@ -157,7 +158,7 @@ export type HarnessTranscriptPaths =
     }
 
 export type HarnessHistory = HarnessTranscriptPaths & {
-  messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<UIMessage[]>
+  messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<ChatMessage[]>
   observe(cwd: string, sessionId: HarnessSessionId, home?: string): TranscriptHandle
 
   withinProject?(cwd: string, sessionId: HarnessSessionId, home?: string): boolean

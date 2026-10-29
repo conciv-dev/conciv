@@ -1,5 +1,5 @@
 import type {Component} from 'solid-js'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai/messages'
 import type {ToolIconKey, ToolLabel} from './tool-icon-types.js'
 import type {ToolCaptureView} from './element-capture-types.js'
 import type {PermissionScope} from './chat-types.js'

@@ -37,14 +37,6 @@
       "types": "./dist/ui-types.d.ts",
       "import": "./dist/ui-types.js"
     },
-    "./run-types": {
-      "types": "./dist/run-types.d.ts",
-      "import": "./dist/run-types.js"
-    },
-    "./approval-types": {
-      "types": "./dist/approval-types.d.ts",
-      "import": "./dist/approval-types.js"
-    },
     "./editor-types": {
       "types": "./dist/editor-types.d.ts",
       "import": "./dist/editor-types.js"
@@ -89,10 +81,6 @@
       "types": "./dist/page-introspect-types.d.ts",
       "import": "./dist/page-introspect-types.js"
     },
-    "./usage-types": {
-      "types": "./dist/usage-types.d.ts",
-      "import": "./dist/usage-types.js"
-    },
     "./tool-icon-types": {
       "types": "./dist/tool-icon-types.d.ts",
       "import": "./dist/tool-icon-types.js"
@@ -126,12 +114,13 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/ai": "workspace:^",
     "@tanstack/ai": "catalog:",
-    "@tanstack/ai-client": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
+    "@tanstack/ai-client": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "solid-js": "catalog:",
