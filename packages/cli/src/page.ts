@@ -7,7 +7,7 @@ import {wireToolCommand} from './tool-command.js'
 
 const REACT_CATEGORY = 'react'
 
-const PAGE_TOOL_PREFIX = 'page.'
+const PAGE_TOOL_PREFIX = 'page_'
 
 const CatalogSchema = z.array(ToolCommandSignatureSchema)
 

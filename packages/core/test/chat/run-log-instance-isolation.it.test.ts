@@ -1,21 +1,20 @@
 import {describe, expect, it} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import {makeSend} from '../../src/chat/run.js'
+import {startTurn} from '../helpers/detached-turn.js'
 import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
+import {awaitRunSettled} from '../../src/chat/run-settled.js'
 
 const PROBE_EVENT = 'isolation-probe'
 
 async function runToCompletion(fixture: ChatFixture, runId: string, origin: string): Promise<void> {
   fixture.harness.script.scriptCustomEvent(PROBE_EVENT, {origin})
-  const send = makeSend(fixture.chat)
-  await send(fixture.sessionId, runId, `hello from ${origin}`)
-  await Promise.all(fixture.chat.liveRuns.of(fixture.sessionId).map((run) => run.done))
+  await startTurn(fixture.chat, fixture.sessionId, runId, `hello from ${origin}`)
+  await awaitRunSettled(fixture.chat.runs, runId)
 }
 
 async function replayRunLog(fixture: ChatFixture, runId: string): Promise<StreamChunk[]> {
-  const chunks: StreamChunk[] = []
-  for await (const entry of fixture.chat.runControl.attach(runId, '-1')) chunks.push(entry.chunk)
-  return chunks
+  const entries = await fixture.chat.durability(runId).snapshot()
+  return entries.map((entry) => entry.chunk)
 }
 
 function probeOrigins(chunks: StreamChunk[]): string[] {

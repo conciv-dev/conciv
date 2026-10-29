@@ -22,59 +22,59 @@ const ChangesSchema = z.array(z.object({verb: z.string()}).loose())
 type BootedPath = {kit: EmbedKit; page: Page}
 
 async function buttonRef(kit: EmbedKit): Promise<string> {
-  const snapshot = SnapshotSchema.parse(await kit.rpc.registry.call({name: 'page.snapshot', input: {}}))
+  const snapshot = SnapshotSchema.parse(await kit.rpc.registry.call({name: 'page_snapshot', input: {}}))
   const node = snapshot.nodes.find((entry) => entry.role === 'button' && entry.name === 'Press target')
   if (!node) throw new Error('the snapshot did not list the press button')
   return node.ref
 }
 
 function verbGroupBattery(boot: () => BootedPath): void {
-  test('read: page.text reports the live DOM', async () => {
+  test('read: page_text reports the live DOM', async () => {
     const {kit} = boot()
-    await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#probe'}})).resolves.toMatchObject({
+    await expect(kit.rpc.registry.call({name: 'page_text', input: {selector: '#probe'}})).resolves.toMatchObject({
       text: 'page-bus-ok',
     })
   })
 
-  test('read: page.attr resolves a snapshot ref through the shared refs machinery', async () => {
+  test('read: page_attr resolves a snapshot ref through the shared refs machinery', async () => {
     const {kit} = boot()
     const ref = await buttonRef(kit)
-    await expect(kit.rpc.registry.call({name: 'page.attr', input: {ref, attribute: 'id'}})).resolves.toMatchObject({
+    await expect(kit.rpc.registry.call({name: 'page_attr', input: {ref, attribute: 'id'}})).resolves.toMatchObject({
       value: 'press-btn',
     })
   })
 
-  test('react: page.locate fails structurally on a page without a React tree', async () => {
+  test('react: page_locate fails structurally on a page without a React tree', async () => {
     const {kit} = boot()
-    await expect(kit.rpc.registry.call({name: 'page.locate', input: {selector: '#title'}})).rejects.toMatchObject({
+    await expect(kit.rpc.registry.call({name: 'page_locate', input: {selector: '#title'}})).rejects.toMatchObject({
       code: 'HANDLER_ERROR',
       message: expect.stringContaining('no React fiber'),
     })
   })
 
-  test('act: page.click acts on the page, journals, and fires the browser mirror', async () => {
+  test('act: page_click acts on the page, journals, and fires the browser mirror', async () => {
     const {kit, page} = boot()
-    await expect(kit.rpc.registry.call({name: 'page.click', input: {selector: '#press-btn'}})).resolves.toMatchObject({
+    await expect(kit.rpc.registry.call({name: 'page_click', input: {selector: '#press-btn'}})).resolves.toMatchObject({
       ok: true,
     })
-    await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#clicked-flag'}})).resolves.toMatchObject(
+    await expect(kit.rpc.registry.call({name: 'page_text', input: {selector: '#clicked-flag'}})).resolves.toMatchObject(
       {text: 'clicked'},
     )
     const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
-    expect(changes.map((entry) => entry.verb)).toContain('page.click')
+    expect(changes.map((entry) => entry.verb)).toContain('page_click')
     await expect(page.locator('[data-conciv-cursor]')).toHaveCount(1, {timeout: 10_000})
   })
 
-  test('edit-live: page.settext rewrites the DOM and journals by declared meta', async () => {
+  test('edit-live: page_settext rewrites the DOM and journals by declared meta', async () => {
     const {kit} = boot()
     await expect(
-      kit.rpc.registry.call({name: 'page.settext', input: {selector: '#title', text: 'Rewritten title'}}),
+      kit.rpc.registry.call({name: 'page_settext', input: {selector: '#title', text: 'Rewritten title'}}),
     ).resolves.toMatchObject({ok: true})
-    await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#title'}})).resolves.toMatchObject({
+    await expect(kit.rpc.registry.call({name: 'page_text', input: {selector: '#title'}})).resolves.toMatchObject({
       text: 'Rewritten title',
     })
     const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
-    expect(changes.map((entry) => entry.verb)).toContain('page.settext')
+    expect(changes.map((entry) => entry.verb)).toContain('page_settext')
   })
 }
 

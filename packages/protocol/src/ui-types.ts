@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {EventType, type ApprovalRequestedEvent, type StreamChunk} from '@tanstack/ai'
+import {EventType, type StreamChunk} from '@tanstack/ai'
 import type {ChatHistory} from './chat-types.js'
 
 export const UiFormFieldSchema = z.object({
@@ -23,23 +23,6 @@ const MessagesSnapshotChunkSchema = z.custom<StreamChunk>(
 
 export function aguiSnapshotFor(messages: ChatHistory): StreamChunk {
   return MessagesSnapshotChunkSchema.parse({type: EventType.MESSAGES_SNAPSHOT, messages})
-}
-
-export const APPROVAL_REQUESTED_EVENT = 'approval-requested'
-
-export type ApprovalRequest = {toolCallId: string; toolName: string; input: unknown; approvalId: string}
-
-export function aguiApprovalRequestedFor(req: ApprovalRequest): ApprovalRequestedEvent {
-  return {
-    type: EventType.CUSTOM,
-    name: APPROVAL_REQUESTED_EVENT,
-    value: {
-      toolCallId: req.toolCallId,
-      toolName: req.toolName,
-      input: req.input,
-      approval: {id: req.approvalId, needsApproval: true},
-    },
-  }
 }
 
 export const UiInputSchema = z.object({

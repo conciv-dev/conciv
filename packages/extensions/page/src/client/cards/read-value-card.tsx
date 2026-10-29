@@ -1,5 +1,5 @@
 import {Match, Switch, type JSX} from 'solid-js'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {ChipRow, ELEMENT_TARGET_KEYS, cardErrorMessage, cardPayload, elementChip, resultChips} from './shared.js'
 
@@ -36,4 +36,12 @@ export function ReadValueCard(props: ToolCardProps): JSX.Element {
       </div>
     </CardShell>
   )
+}
+
+export const readValueCard: ToolCardView = {
+  render: ReadValueCard,
+  hasEmbeddedBody: (_part, result) =>
+    cardErrorMessage(result) !== undefined ||
+    payloadIsStructured(cardPayload(result)) ||
+    resultChips(result).length > 0,
 }

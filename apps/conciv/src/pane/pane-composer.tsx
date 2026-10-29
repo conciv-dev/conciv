@@ -53,6 +53,7 @@ const ENGINE_UNREACHABLE_LABEL = 'conciv lost connection to the engine'
 const ATTACHMENT_LABEL = 'Add an attachment'
 const SEND_LABEL = 'Send message'
 const STOP_LABEL = 'Stop generating'
+const STOPPING_LABEL = 'Stopping the run'
 const MAX_INLINE_AUTO_ACTIONS = 0
 
 function ComposerSendControl(): JSX.Element {
@@ -74,11 +75,16 @@ function ComposerSendControl(): JSX.Element {
         </ComposerPrimitive.Send>
       }
     >
-      <ComposerPrimitive.Cancel class={`${TRAILING_BTN} ${TRAILING_STOP}`} aria-label={STOP_LABEL}>
-        Stop
-        <span class={TRAILING_HINT} aria-hidden="true">
-          ^C
-        </span>
+      <ComposerPrimitive.Cancel
+        class={`${TRAILING_BTN} ${TRAILING_STOP}`}
+        aria-label={composer.isStopping() ? STOPPING_LABEL : STOP_LABEL}
+      >
+        {composer.isStopping() ? 'Stopping…' : 'Stop'}
+        <Show when={!composer.isStopping()}>
+          <span class={TRAILING_HINT} aria-hidden="true">
+            ^C
+          </span>
+        </Show>
       </ComposerPrimitive.Cancel>
     </Show>
   )

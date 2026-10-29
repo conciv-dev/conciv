@@ -1,6 +1,7 @@
 import {createMemo, Show, type JSX} from 'solid-js'
 import SearchIcon from 'lucide-solid/icons/search'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolStatus} from '@conciv/ui-kit-chat/tools'
 import {Search, useSearch} from '../../primitives/tools/search.js'
 import {
@@ -50,11 +51,11 @@ function plainTitle(verb: string, pattern: string): string {
 
 function SearchTitle(props: {verb: string; pattern: string}): JSX.Element {
   return (
-    <Show when={props.pattern} fallback={<span class={HEADER_TITLE_CLASS}>{props.verb} files</span>}>
+    <Show when={props.pattern} fallback={<TruncatedText class={HEADER_TITLE_CLASS} text={`${props.verb} files`} />}>
       {(pattern) => (
-        <span class={HEADER_TITLE_CLASS}>
+        <TruncatedText class={HEADER_TITLE_CLASS} text={`${props.verb} “${pattern()}”`}>
           {props.verb} <span class={HEADER_PATTERN_CLASS}>“{pattern()}”</span>
-        </span>
+        </TruncatedText>
       )}
     </Show>
   )
@@ -71,8 +72,8 @@ function SearchHeader(): JSX.Element {
         <Icon />
       </span>
       <SearchTitle verb={search.verb()} pattern={search.pattern()} />
-      <Show when={search.meta()}>{(meta) => <span class={HEADER_METRIC_CLASS}>{meta()}</span>}</Show>
-      <Show when={duration()}>{(value) => <span class={HEADER_METRIC_CLASS}>{value()}</span>}</Show>
+      <Show when={search.meta()}>{(meta) => <TruncatedText class={HEADER_METRIC_CLASS} text={meta()} />}</Show>
+      <Show when={duration()}>{(value) => <TruncatedText class={HEADER_METRIC_CLASS} text={value()} />}</Show>
       <StatusVisual status={status()} form="dot" />
     </>
   )
@@ -150,4 +151,4 @@ export function SearchCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const searchTool: ToolCardEntry = {names: ['Grep', 'Glob'], render: SearchCard}
+export const searchTool: ToolCardEntry = {names: ['Grep', 'Glob'], render: SearchCard, hasEmbeddedBody: () => true}

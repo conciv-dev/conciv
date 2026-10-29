@@ -17,7 +17,8 @@
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:perf": "vitest run --mode perf --project browser"
   },
   "dependencies": {
     "@ark-ui/solid": "catalog:",
@@ -38,7 +39,6 @@
     "@conciv/ui-kit-tap": "workspace:^",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/mutation-observer": "^1.2.4",
-    "@solid-primitives/timer": "catalog:",
     "@tanstack/ai-client": "catalog:",
     "@tanstack/hotkeys": "^0.8.0",
     "@tanstack/pacer": "catalog:",

@@ -11,31 +11,46 @@ afterEach(async () => {
 })
 
 describe('chatConnection reconnect', () => {
-  it('survives a server restart: fresh attach yields a second snapshot without resubscribing', async () => {
-    kit = await bootClientKit()
-    const sessionId = await kit.session()
-    const rpc = makeRpcClient(kit.base)
-    const retries: unknown[] = []
-    const connection = chatConnection(rpc, sessionId, {retryDelayMs: 25, onRetry: (error) => retries.push(error)})
-    const abort = new AbortController()
-    const snapshots: StreamChunk[] = []
-    const firstSnapshot = Promise.withResolvers<StreamChunk>()
-    const secondSnapshot = Promise.withResolvers<StreamChunk>()
-    const consumer = (async () => {
-      for await (const chunk of connection.subscribe(abort.signal)) {
-        if (chunk.type !== EventType.MESSAGES_SNAPSHOT) continue
-        snapshots.push(chunk)
-        if (snapshots.length === 1) firstSnapshot.resolve(chunk)
-        if (snapshots.length === 2) {
-          secondSnapshot.resolve(chunk)
-          abort.abort()
-        }
-      }
-    })()
-    expect((await firstSnapshot.promise).type).toBe(EventType.MESSAGES_SNAPSHOT)
-    await kit.restartServer()
-    expect((await secondSnapshot.promise).type).toBe(EventType.MESSAGES_SNAPSHOT)
-    await consumer
-    expect(retries.length).toBeGreaterThanOrEqual(1)
-  })
+  it('survives a server restart: a turn sent afterwards still streams to completion', async () => {
+    const clientKit = await bootClientKit()
+    kit = clientKit
+    const sessionId = await clientKit.session()
+    const connection = chatConnection(makeRpcClient(clientKit.base), clientKit.base, sessionId)
+
+    const before = new AbortController()
+    const firstRun = collect(connection.subscribe(before.signal))
+    await connection.send(
+      [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'before'}]}],
+      undefined,
+      undefined,
+      {
+        threadId: sessionId,
+        runId: 'reconnect-1',
+      },
+    )
+    expect((await firstRun).at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    before.abort()
+
+    await clientKit.restartServer()
+
+    const after = new AbortController()
+    const secondRun = collect(connection.subscribe(after.signal))
+    await connection.send([{id: 'u2', role: 'user', parts: [{type: 'text', content: 'after'}]}], undefined, undefined, {
+      threadId: sessionId,
+      runId: 'reconnect-2',
+    })
+    expect((await secondRun).at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    after.abort()
+
+    expect(JSON.stringify((await connection.hydrate(sessionId)).messages)).toContain('after')
+  }, 90_000)
 })
+
+async function collect(stream: AsyncIterable<StreamChunk>): Promise<StreamChunk[]> {
+  const seen: StreamChunk[] = []
+  for await (const chunk of stream) {
+    seen.push(chunk)
+    if (chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR) return seen
+  }
+  return seen
+}

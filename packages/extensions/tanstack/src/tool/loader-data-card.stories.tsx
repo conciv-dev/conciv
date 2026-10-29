@@ -8,11 +8,14 @@ export default meta
 type Story = StoryObj
 
 const LOADER_DATA = {
-  posts: [
-    {id: '1', title: 'Ship the trace redesign'},
-    {id: '2', title: 'Write the session log spec'},
-  ],
-  user: {name: 'Omri', role: 'admin'},
+  routeId: '/posts',
+  data: {
+    posts: [
+      {id: '1', title: 'Ship the trace redesign'},
+      {id: '2', title: 'Write the session log spec'},
+    ],
+    user: {name: 'Omri', role: 'admin'},
+  },
 }
 
 export const Done: Story = {
@@ -22,7 +25,7 @@ export const Done: Story = {
     ]),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('2 keys')).toBeVisible()
+    await expect(canvas.getByText('2 keys · /posts')).toBeVisible()
     await waitFor(() => expect(canvas.getByText('posts')).toBeVisible())
     await expect(canvas.getByText('user')).toBeVisible()
   },

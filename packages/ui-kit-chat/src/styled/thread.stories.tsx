@@ -77,15 +77,16 @@ function play(): Story {
       await userEvent.click(c.getByText('ask'))
       await waitFor(() => expect(c.getByText('search for the symbol')).toBeVisible())
       const reply = await waitFor(() => c.getByText(/No matches: the symbol is unused/), {timeout: 5000})
+      const traceHeader = c.getByText('1 shell').closest('button')
+      if (!traceHeader) throw new Error('trace header trigger not found')
 
+      await expect(traceHeader).toHaveAttribute('data-state', 'open')
+      await expect(c.getByText('shell')).toBeVisible()
       const before = reply.getBoundingClientRect()
 
       await userEvent.click(c.getByText('1 shell'))
-      await waitFor(() => expect(c.getByText('shell')).toBeVisible())
-      const shellRow = c.getByText('shell').closest('button')
-      if (!shellRow) throw new Error('shell trace row trigger not found')
-
-      await waitFor(() => expect(shellRow).toHaveAttribute('data-state', 'open'))
+      await waitFor(() => expect(traceHeader).toHaveAttribute('data-state', 'closed'))
+      await waitFor(() => expect(c.getByText('shell')).not.toBeVisible())
       const after = reply.getBoundingClientRect()
 
       expect(after.left).toBeCloseTo(before.left, 0)

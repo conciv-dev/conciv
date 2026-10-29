@@ -44,10 +44,10 @@ const CatalogDetail = z
   .loose()
 
 const DECLARED: Record<string, {mutating: boolean; approval: 'ask' | undefined}> = {
-  'ios.build': {mutating: true, approval: 'ask'},
-  'ios.run': {mutating: true, approval: 'ask'},
-  'ios.screenshot': {mutating: false, approval: undefined},
-  'ios.logs': {mutating: false, approval: undefined},
+  ios_build: {mutating: true, approval: 'ask'},
+  ios_run: {mutating: true, approval: 'ask'},
+  ios_screenshot: {mutating: false, approval: undefined},
+  ios_logs: {mutating: false, approval: undefined},
 }
 
 describe('the ios tools ride the tool registry into the catalog and the sandbox (IT)', () => {
@@ -68,14 +68,14 @@ describe('the ios tools ride the tool registry into the catalog and the sandbox 
     }
   }, 60_000)
 
-  it('carries an image-shaped output schema for ios.screenshot and a diagnostics-shaped one for ios.build', async () => {
+  it('carries an image-shaped output schema for ios_screenshot and a diagnostics-shaped one for ios_build', async () => {
     const {base, engine} = await boot()
     try {
       const screenshot = CatalogDetail.parse(
-        await runSandbox(base, "return await external_catalog({name: 'ios.screenshot'})"),
+        await runSandbox(base, "return await external_catalog({name: 'ios_screenshot'})"),
       )
       expect(JSON.stringify(screenshot.output)).toContain('image')
-      const build = CatalogDetail.parse(await runSandbox(base, "return await external_catalog({name: 'ios.build'})"))
+      const build = CatalogDetail.parse(await runSandbox(base, "return await external_catalog({name: 'ios_build'})"))
       expect(JSON.stringify(build.output)).toContain('diagnostics')
     } finally {
       await engine.stop()
@@ -91,7 +91,7 @@ describe('the ios tools ride the tool registry into the catalog and the sandbox 
           await runSandbox(
             base,
             [
-              "const found = await external_catalog({name: 'ios.logs'})",
+              "const found = await external_catalog({name: 'ios_logs'})",
               'const answer = await globalThis[found.call]({})',
               'return {category: found.category, answer}',
             ].join('\n'),

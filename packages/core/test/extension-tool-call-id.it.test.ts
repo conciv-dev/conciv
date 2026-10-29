@@ -33,8 +33,7 @@ describe('an extension tool run from a chat turn knows which tool call it is ans
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: 'return await external_acme_echo_call_id({})',
     })
-    const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: randomUUID(), sessionId, text: 'echo the call id'})
+    const stream = await kit.turn('echo the call id', {session: sessionId, runId: randomUUID()})
     const events = await stream.done({hangGuardMs: 20_000})
 
     const call = events.toolCalls('acme_echo_call_id').at(-1)

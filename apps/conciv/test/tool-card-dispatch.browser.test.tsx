@@ -44,7 +44,7 @@ const realPageRenderers = collectToolRenderers([pageExtension])
 
 it('the real page extension registers a .render() card for its verbs', () => {
   expect(realPageRenderers.length).toBeGreaterThan(0)
-  expect(realPageRenderers.some((entry) => entry.names.includes('page.click'))).toBe(true)
+  expect(realPageRenderers.some((entry) => entry.names.includes('page_click'))).toBe(true)
 })
 
 it('an extension-supplied .render() card wins over builtinToolCards for the same tool', async () => {
@@ -52,7 +52,7 @@ it('an extension-supplied .render() card wins over builtinToolCards for the same
 
   mount(() => (
     <ToolCallCard
-      part={part('page.click', {selector: '#cta'})}
+      part={part('page_click', {selector: '#cta'})}
       result={undefined}
       ctx={INERT_TOOL_CTX}
       tools={() => tools}

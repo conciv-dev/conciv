@@ -2,6 +2,7 @@ import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import Blocks from 'lucide-solid/icons/blocks'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {
   CodeBlock,
   countLabel,
@@ -79,7 +80,7 @@ function EntryRow(props: {name: string; detail: string}): JSX.Element {
   return (
     <p class={ENTRY_ROW}>
       <span class={ENTRY_NAME}>{props.name}</span>
-      <span class={ENTRY_DETAIL}>{props.detail}</span>
+      <TruncatedText class={ENTRY_DETAIL} text={props.detail} />
     </p>
   )
 }

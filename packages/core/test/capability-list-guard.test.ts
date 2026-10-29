@@ -278,8 +278,8 @@ const VIOLATION_REMEDY =
 
 describe('capability lists live in the registry declarations only', () => {
   test('the scan is grounded: it sees the builtins, the extension declarations, and the source tree', () => {
-    expect(capabilityNames).toContain('server.config')
-    expect(capabilityNames).toContain('canvas.draw')
+    expect(capabilityNames).toContain('server_config')
+    expect(capabilityNames).toContain('canvas_draw')
     expect(capabilityNames).toContain('recording_start')
     expect(capabilityNames.length).toBeGreaterThan(80)
     expect(sources.length).toBeGreaterThan(200)
@@ -325,53 +325,53 @@ describe('capability lists live in the registry declarations only', () => {
 
   test('a file that declares a tool and also carries a parallel quoted-key dispatch table trips on the table', () => {
     const text = [
-      "const alphaOneDef = defineTool({name: 'alpha.one', description: 'declares one (and only one) tool'})",
-      "const HANDLERS = {'alpha.two': 2, 'alpha.three': 3}",
+      "const alphaOneDef = defineTool({name: 'alpha_one', description: 'declares one (and only one) tool'})",
+      "const HANDLERS = {'alpha_two': 2, 'alpha_three': 3}",
     ].join('\n')
-    expect(declaredNamesIn(text)).toEqual(['alpha.one'])
+    expect(declaredNamesIn(text)).toEqual(['alpha_one'])
     expect(
-      foreignNamesIn(text, ['alpha.one', 'alpha.two', 'alpha.three'], new Set(declaredNamesIn(text)), false),
-    ).toEqual(['alpha.two', 'alpha.three'])
+      foreignNamesIn(text, ['alpha_one', 'alpha_two', 'alpha_three'], new Set(declaredNamesIn(text)), false),
+    ).toEqual(['alpha_two', 'alpha_three'])
   })
 
   test('a local declaration factory templating the tool name is harvested at its call sites', () => {
     const text = [
       'function alphaTool(spec: {verb: string; summary: string}) {',
-      '  return defineTool({name: `alpha.${spec.verb}`, description: spec.summary})',
+      '  return defineTool({name: `alpha_${spec.verb}`, description: spec.summary})',
       '}',
       "const oneDef = alphaTool({verb: 'one', summary: 'the first tool'})",
       "const twoDef = alphaTool({verb: 'two', summary: 'the second tool'})",
     ].join('\n')
-    expect(declaredNamesIn(text)).toEqual(['alpha.one', 'alpha.two'])
+    expect(declaredNamesIn(text)).toEqual(['alpha_one', 'alpha_two'])
   })
 
   test('a defineTool( mention inside a string exempts nothing', () => {
     const text = [
       "const doc = 'call defineTool( to declare a tool'",
-      "const KEYS = {'alpha.one': 1, 'alpha.two': 2}",
+      "const KEYS = {'alpha_one': 1, 'alpha_two': 2}",
     ].join('\n')
     expect(declaredNamesIn(text)).toEqual([])
-    expect(foreignNamesIn(text, ['alpha.one', 'alpha.two'], new Set(), false)).toEqual(['alpha.one', 'alpha.two'])
+    expect(foreignNamesIn(text, ['alpha_one', 'alpha_two'], new Set(), false)).toEqual(['alpha_one', 'alpha_two'])
   })
 
   test('a capability list constructed inside a template literal trips', () => {
-    const text = "const list = `alpha.one alpha.two`.split(' ')"
-    expect(foreignNamesIn(text, ['alpha.one', 'alpha.two'], new Set(), false)).toEqual(['alpha.one', 'alpha.two'])
+    const text = "const list = `alpha_one alpha_two`.split(' ')"
+    expect(foreignNamesIn(text, ['alpha_one', 'alpha_two'], new Set(), false)).toEqual(['alpha_one', 'alpha_two'])
   })
 
   test('indexing the declaration map stays permitted', () => {
-    const text = "const one = DECLARATIONS['alpha.one']\nconst two = DECLARATIONS['alpha.two']"
-    expect(foreignNamesIn(text, ['alpha.one', 'alpha.two'], new Set(), false)).toEqual([])
+    const text = "const one = DECLARATIONS['alpha_one']\nconst two = DECLARATIONS['alpha_two']"
+    expect(foreignNamesIn(text, ['alpha_one', 'alpha_two'], new Set(), false)).toEqual([])
   })
 
   test('a singleton list stays permitted', () => {
-    const text = "const only = ['alpha.one']"
-    expect(foreignNamesIn(text, ['alpha.one', 'alpha.two'], new Set(), false)).toEqual([])
+    const text = "const only = ['alpha_one']"
+    expect(foreignNamesIn(text, ['alpha_one', 'alpha_two'], new Set(), false)).toEqual([])
   })
 
   test('template prose matching respects name boundaries', () => {
-    const text = 'const prompt = `alpha.onemore and alpha.one.extra are different tools`'
-    expect(foreignNamesIn(text, ['alpha.one'], new Set(), false)).toEqual([])
+    const text = 'const prompt = `alpha_onemore and alpha_one_extra are different tools`'
+    expect(foreignNamesIn(text, ['alpha_one'], new Set(), false)).toEqual([])
   })
 
   test('prompt-prose files are a visible named allowlist exempting the template channel only, honest while they still teach names in prose', () => {

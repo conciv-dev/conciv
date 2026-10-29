@@ -1,7 +1,24 @@
-import {defineTool} from '@conciv/extension'
+import {defineTool, type AnyToolBuilder} from '@conciv/extension'
+import {invalidateQuery, readMutations, readQueryCache, refetchQuery} from '../client/query-adapter.js'
+import {readRuntimeErrors} from '../client/error-ring.js'
+import {
+  goBack,
+  invalidateRouter,
+  invalidateRouterMatch,
+  navigateTo,
+  readDataEntries,
+  readDetect,
+  readLoaderData,
+  readRouterState,
+  readRouteTree,
+} from '../client/router-adapter.js'
 import {
   backDef,
   buildErrorsDef,
+  dataEntriesDef,
+  dataInvalidateDef,
+  detectDef,
+  errorsSnapshotDef,
   loaderDataDef,
   navigateDef,
   queryCacheDef,
@@ -13,39 +30,52 @@ import {
   routerStateDef,
   serverFnTraceDef,
 } from './def.js'
-import {BackCard} from './back-card.js'
-import {BuildErrorsCard} from './build-errors-card.js'
-import {LoaderDataCard} from './loader-data-card.js'
-import {NavigateCard} from './navigate-card.js'
-import {QueryCacheCard} from './query-cache-card.js'
-import {QueryInvalidateCard} from './query-invalidate-card.js'
-import {QueryRefetchCard} from './query-refetch-card.js'
-import {RouteManifestCard} from './route-manifest-card.js'
-import {RouterInvalidateCard} from './router-invalidate-card.js'
-import {RouterStateCard} from './router-state-card.js'
-import {RouteTreeCard} from './route-tree-card.js'
-import {ServerFnTraceCard} from './server-fn-trace-card.js'
+import {backCard} from './back-card.js'
+import {buildErrorsCard} from './build-errors-card.js'
+import {loaderDataCard} from './loader-data-card.js'
+import {navigateCard} from './navigate-card.js'
+import {queryCacheCard} from './query-cache-card.js'
+import {queryInvalidateCard} from './query-invalidate-card.js'
+import {queryRefetchCard} from './query-refetch-card.js'
+import {routeManifestCard} from './route-manifest-card.js'
+import {routerInvalidateCard} from './router-invalidate-card.js'
+import {routerStateCard} from './router-state-card.js'
+import {routeTreeCard} from './route-tree-card.js'
+import {serverFnTraceCard} from './server-fn-trace-card.js'
 
-export const routerStateClient = defineTool(routerStateDef).render(RouterStateCard)
-
-export const routeTreeClient = defineTool(routeTreeDef).render(RouteTreeCard)
-
-export const loaderDataClient = defineTool(loaderDataDef).render(LoaderDataCard)
-
-export const queryCacheClient = defineTool(queryCacheDef).render(QueryCacheCard)
-
-export const navigateClient = defineTool(navigateDef).render(NavigateCard)
-
-export const routerInvalidateClient = defineTool(routerInvalidateDef).render(RouterInvalidateCard)
-
-export const backClient = defineTool(backDef).render(BackCard)
-
-export const queryInvalidateClient = defineTool(queryInvalidateDef).render(QueryInvalidateCard)
-
-export const queryRefetchClient = defineTool(queryRefetchDef).render(QueryRefetchCard)
-
-export const buildErrorsClient = defineTool(buildErrorsDef).render(BuildErrorsCard)
-
-export const routeManifestClient = defineTool(routeManifestDef).render(RouteManifestCard)
-
-export const serverFnTraceClient = defineTool(serverFnTraceDef).render(ServerFnTraceCard)
+export const tanstackClientTools: readonly AnyToolBuilder[] = [
+  defineTool(detectDef).client(() => readDetect()),
+  defineTool(routerStateDef)
+    .client(() => readRouterState())
+    .render(routerStateCard),
+  defineTool(routeTreeDef)
+    .client(() => readRouteTree())
+    .render(routeTreeCard),
+  defineTool(dataEntriesDef).client(() => readDataEntries()),
+  defineTool(loaderDataDef)
+    .client((input) => readLoaderData(input.routeId))
+    .render(loaderDataCard),
+  defineTool(dataInvalidateDef).client((input) => invalidateRouterMatch(input.routeId)),
+  defineTool(errorsSnapshotDef).client(() => readRuntimeErrors()),
+  defineTool(queryCacheDef)
+    .client(() => ({queries: readQueryCache(), mutations: readMutations()}))
+    .render(queryCacheCard),
+  defineTool(queryInvalidateDef)
+    .client((input) => invalidateQuery(input.key))
+    .render(queryInvalidateCard),
+  defineTool(queryRefetchDef)
+    .client((input) => refetchQuery(input.key))
+    .render(queryRefetchCard),
+  defineTool(navigateDef)
+    .client((input) => navigateTo(input))
+    .render(navigateCard),
+  defineTool(routerInvalidateDef)
+    .client(() => invalidateRouter())
+    .render(routerInvalidateCard),
+  defineTool(backDef)
+    .client(() => goBack())
+    .render(backCard),
+  defineTool(buildErrorsDef).render(buildErrorsCard),
+  defineTool(routeManifestDef).render(routeManifestCard),
+  defineTool(serverFnTraceDef).render(serverFnTraceCard),
+]

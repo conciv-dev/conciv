@@ -57,6 +57,52 @@ it('renders a field chip with a tooltip inside a ChipGroup, keeping the dl child
   expect(host.querySelector('dd')).toBeNull()
 })
 
+const LONG_VALUE = 'Frontend engineer who ships accessible interfaces and keeps the design system honest'
+const CHIP_LIST = 'm-0 p-0 list-none flex flex-row gap-1.5'
+const CHIP_SLOT = 'flex min-w-0'
+
+function chipShowing(host: Element, value: string): HTMLElement {
+  for (const node of host.querySelectorAll('[data-scope="tooltip"][data-part="trigger"]')) {
+    if (node instanceof HTMLElement && node.textContent === value) return node
+  }
+  throw new Error(`no chip reading "${value}" hosts a tooltip trigger`)
+}
+
+it('reveals a clipped chip value in a tooltip without being asked for one', async () => {
+  mountView(() => (
+    <ul class={CHIP_LIST}>
+      <li class={CHIP_SLOT} aria-label="clipped chip">
+        <Chip kind="pill" maxWidth="compact" value={LONG_VALUE} />
+      </li>
+    </ul>
+  ))
+
+  await page.getByRole('listitem', {name: 'clipped chip'}).hover()
+
+  await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG_VALUE)
+})
+
+it('leaves a chip value that fits without a tooltip', async () => {
+  const host = mountView(() => (
+    <ul class={CHIP_LIST}>
+      <li class={CHIP_SLOT} aria-label="clipped chip">
+        <Chip kind="pill" maxWidth="compact" value={LONG_VALUE} />
+      </li>
+      <li class={CHIP_SLOT} aria-label="fitting chip">
+        <Chip kind="pill" maxWidth="compact" value="idle" />
+      </li>
+    </ul>
+  ))
+
+  await page.getByRole('listitem', {name: 'clipped chip'}).hover()
+  await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG_VALUE)
+
+  await page.getByRole('listitem', {name: 'fitting chip'}).hover()
+
+  await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+  expect(chipShowing(host, 'idle').hasAttribute('aria-describedby')).toBe(false)
+})
+
 it('gives each tone its own accessible tooltip content, distinguishing tones without relying on class names', async () => {
   mountView(() => (
     <ChipGroup>

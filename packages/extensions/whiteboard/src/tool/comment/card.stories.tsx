@@ -31,7 +31,7 @@ export const CreatePreview: Story = {
   render: () =>
     traceFrame('1 comment', [
       traceRow(
-        storyPart('comment.create', {
+        storyPart('comment_create', {
           cid: 'c_42',
           kind: 'source-linked',
           parts: [{type: 'text', text: 'This card overlaps the header on narrow widths.'}],
@@ -50,7 +50,7 @@ export const ListResults: Story = {
   render: () =>
     traceFrame('1 list', [
       traceRow(
-        storyPart('comment.list', {scope: 'session'}),
+        storyPart('comment_list', {scope: 'session'}),
         storyResult({
           comments: [
             {
@@ -80,7 +80,7 @@ export const ReadThread: Story = {
   render: () =>
     traceFrame('1 read', [
       traceRow(
-        storyPart('comment.read', {cid: 'c_1'}),
+        storyPart('comment_read', {cid: 'c_1'}),
         storyResult({
           comment: {
             cid: 'c_1',
@@ -108,14 +108,14 @@ export const ReadThread: Story = {
 export const ResolveConfirmed: Story = {
   render: () =>
     traceFrame('1 resolve', [
-      traceRow(storyPart('comment.resolve', {cid: 'c_1'}), storyResult({cid: 'c_1', status: 'resolved'})),
+      traceRow(storyPart('comment_resolve', {cid: 'c_1'}), storyResult({cid: 'c_1', status: 'resolved'})),
     ]),
 }
 
 export const DeleteConfirmed: Story = {
   render: () =>
     traceFrame('1 delete', [
-      traceRow(storyPart('comment.delete', {cid: 'c_42'}), storyResult({cid: 'c_42', deleted: true})),
+      traceRow(storyPart('comment_delete', {cid: 'c_42'}), storyResult({cid: 'c_42', deleted: true})),
     ]),
 }
 
@@ -123,7 +123,7 @@ export const PinLocked: Story = {
   render: () =>
     traceFrame('1 pin', [
       traceRow(
-        storyPart('pin.setState', {cid: 'c_42', pinState: 'locked'}),
+        storyPart('pin_set_state', {cid: 'c_42', pinState: 'locked'}),
         storyResult({cid: 'c_42', pinState: 'locked'}),
       ),
     ]),
@@ -132,6 +132,6 @@ export const PinLocked: Story = {
 export const NotFound: Story = {
   render: () =>
     traceFrame('1 failed', [
-      traceRow(storyPart('comment.resolve', {cid: 'c_9'}), storyErrorResult('comment c_9 not found')),
+      traceRow(storyPart('comment_resolve', {cid: 'c_9'}), storyErrorResult('comment c_9 not found')),
     ]),
 }

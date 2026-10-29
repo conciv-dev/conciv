@@ -1,11 +1,12 @@
-import {createMemo, type JSX} from 'solid-js'
+import type {JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import {useRouter} from '@tanstack/solid-router'
-import {useChatSession} from '@conciv/client'
-import {useAppData, useConnectionGeneration, useGrabProvider, useRpc} from './context.js'
+import {useAnnounce, useAppData, useAppQueryClient, useGrabProvider, useChatDeps} from './context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from './pane-context.js'
+import {usePaneChat} from './use-pane-chat.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
+import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 
 export function PaneProvider(props: {
   sessionId: string
@@ -13,9 +14,10 @@ export function PaneProvider(props: {
   children: JSX.Element
 }): JSX.Element {
   const appData = useAppData()
-  const rpc = useRpc()
+  const {rpc} = useChatDeps()
+  const queryClient = useAppQueryClient()
+  const announce = useAnnounce()
   const router = useRouter()
-  const generation = useConnectionGeneration()
   const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
   const row = () => (sessions.data ?? []).find((session) => session.id === props.sessionId)
   const running = () => row()?.running ?? false
@@ -27,8 +29,14 @@ export function PaneProvider(props: {
     void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
   }
 
-  const chatKey = createMemo(() => ({sessionId: props.sessionId, generation: generation()}))
-  const chat = createMemo(() => useChatSession({rpc, sessionId: chatKey().sessionId}))
+  const chat = usePaneChat(() => props.sessionId)
+  const coordinator = makeRefreshCoordinator({
+    chat,
+    sessionId: () => props.sessionId,
+    appData,
+    queryClient,
+    announce,
+  })
 
   const value: PaneContextValue = {
     sessionId: () => props.sessionId,
@@ -48,6 +56,8 @@ export function PaneProvider(props: {
       void openNewSession()
     },
     chat,
+    refresh: coordinator.refresh,
+    isRefreshing: coordinator.isRefreshing,
   }
 
   return <PaneContext.Provider value={value}>{props.children}</PaneContext.Provider>

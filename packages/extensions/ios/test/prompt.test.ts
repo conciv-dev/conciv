@@ -14,9 +14,9 @@ function prompt(overrides: Partial<IosConfig> = {}, cwd = '/Users/dev/pay'): str
 }
 
 describe('iOS system prompt', () => {
-  it('keeps steering the agent to ios.build instead of a demo build script', () => {
+  it('keeps steering the agent to ios_build instead of a demo build script', () => {
     expect(prompt()).not.toContain('build.sh')
-    expect(prompt()).toContain('ios.build')
+    expect(prompt()).toContain('ios_build')
   })
 
   it('names the session it is serving: the app, the simulator, and the working directory', () => {

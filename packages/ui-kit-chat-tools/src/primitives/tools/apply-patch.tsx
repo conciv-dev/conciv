@@ -119,7 +119,7 @@ function Root(props: {part: ToolCallPart; result: ToolResultPart | undefined; ch
   )
 }
 
-function Diffs(props: {options?: FileDiffOptions<undefined>; class?: string}): JSX.Element {
+function Diffs(props: {options?: FileDiffOptions<undefined, undefined>; class?: string}): JSX.Element {
   const context = useApplyPatch()
   return (
     <For each={context.blocks()}>

@@ -5,7 +5,7 @@ import RotateCw from 'lucide-solid/icons/rotate-cw'
 import SquareArrowOutUpRight from 'lucide-solid/icons/square-arrow-out-up-right'
 import {ModelSelector, useModelSelectorContext} from '@conciv/ui-kit-chat'
 import type {ModelOption} from '@conciv/ui-kit-chat'
-import {Button, TooltipIconButton} from '@conciv/ui-kit-system'
+import {Button, TooltipIconButton, writeClipboardText} from '@conciv/ui-kit-system'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {ORPCError} from '@orpc/client'
 import {getExtensionApi} from '@conciv/extension'
@@ -71,7 +71,7 @@ export function TerminalActions(): JSX.Element {
     store.bumpRespawn()
   }
   const copyCommand = (command: string): Promise<void> =>
-    navigator.clipboard.writeText(command).then(
+    writeClipboardText(command).then(
       () => {
         leaveView()
         toast('Command copied. Paste it in your terminal.')

@@ -10,7 +10,7 @@ import {ToolProvider} from '../src/store/tool-context.js'
 import {createTextChunks, storyConnection} from '../src/store/story-connection.js'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
-import {RunSettledIndicator, startRun, waitForRunSettled} from './run-harness.js'
+import {haltRun, startRun, streamingThread} from './run-harness.js'
 
 function baseToolCtx(): ToolViewCtx {
   return {
@@ -22,39 +22,19 @@ function baseToolCtx(): ToolViewCtx {
   }
 }
 
-function StreamingThread(): JSX.Element {
-  const chat = useChat({
-    connection: storyConnection({chunks: createTextChunks('The fix is a missing await.'), chunkDelay: 400}),
-  })
-  return (
-    <ChatProvider chat={chat}>
-      <ToolProvider value={baseToolCtx()}>
-        <button type="button" onClick={() => void chat.sendMessage('what is the bug?')}>
-          ask
-        </button>
-        <RunSettledIndicator />
-        <Thread>
-          <Thread.Viewport>
-            <Thread.Messages />
-          </Thread.Viewport>
-        </Thread>
-      </ToolProvider>
-    </ChatProvider>
-  )
-}
-
 it('shows a blinking caret on the streaming answer and removes it once the run settles', async () => {
-  const container = mountView(() => <StreamingThread />)
+  const container = mountView(streamingThread(createTextChunks('The fix is a missing await.'), 1))
 
   await startRun()
   await expect.element(page.getByText(/The fix/), {timeout: 3000}).toBeVisible()
+  await expect.element(page.getByText('run live')).toBeVisible()
 
   const proseRoot = container.querySelector('.sd-root')
   if (!proseRoot) throw new Error('expected the streamed markdown root to be mounted')
   await expect.element(page.elementLocator(proseRoot)).toHaveClass(/chat-caret-live/)
   await page.screenshot({path: '__screenshots__/thread-session-log/streaming-caret.png'})
 
-  await waitForRunSettled()
+  await haltRun()
   await expect.element(page.elementLocator(proseRoot)).not.toHaveClass(/chat-caret-live/)
 })
 
@@ -192,10 +172,7 @@ function messagesWithoutTools(): UIMessage[] {
     {
       id: 'a1',
       role: 'assistant',
-      parts: [
-        {type: 'thinking', content: 'reading the exports in my head'},
-        {type: 'text', content: 'It coalesces messages into turns.'},
-      ],
+      parts: [{type: 'text', content: 'It coalesces messages into turns.'}],
     },
   ]
 }
@@ -216,7 +193,7 @@ function ToollessThread(): JSX.Element {
   )
 }
 
-it('renders no trace at all for a turn segment that ran no tools', async () => {
+it('renders no trace at all for a turn segment that neither reasoned nor ran tools', async () => {
   mountView(() => <ToollessThread />)
 
   await expect.element(page.getByText('It coalesces messages into turns.'), {timeout: 3000}).toBeVisible()

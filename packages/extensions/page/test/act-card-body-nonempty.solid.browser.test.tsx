@@ -36,9 +36,9 @@ async function expandFirstCard(): Promise<void> {
 it('shows a quiet no-input row instead of an empty strip for a zero-input act call', async () => {
   render(() => (
     <ActCard
-      part={storyPart('page.effect', {})}
+      part={storyPart('page_effect', {})}
       result={undefined}
-      ctx={storyCtx({'page.effect': NO_SCHEMA_META})}
+      ctx={storyCtx({page_effect: NO_SCHEMA_META})}
       addResult={storyAddResult}
     />
   ))
@@ -50,9 +50,9 @@ it('shows a quiet no-input row instead of an empty strip for a zero-input act ca
 it('shows its input chips while running with no result yet', async () => {
   render(() => (
     <ActCard
-      part={storyPart('page.fill', {selector: '#email', value: 'ada@example.com'}, 'input-complete')}
+      part={storyPart('page_fill', {selector: '#email', value: 'ada@example.com'}, 'input-complete')}
       result={undefined}
-      ctx={storyCtx({'page.fill': FILL_META})}
+      ctx={storyCtx({page_fill: FILL_META})}
       addResult={storyAddResult}
     />
   ))
@@ -65,9 +65,9 @@ it('shows its input chips while running with no result yet', async () => {
 it('shows the error block alongside its input chips for an error-only result', async () => {
   render(() => (
     <ActCard
-      part={storyPart('page.fill', {selector: '#email', value: 'ada@example.com'})}
+      part={storyPart('page_fill', {selector: '#email', value: 'ada@example.com'})}
       result={errorResult('s1', 'element not found')}
-      ctx={storyCtx({'page.fill': FILL_META})}
+      ctx={storyCtx({page_fill: FILL_META})}
       addResult={storyAddResult}
     />
   ))

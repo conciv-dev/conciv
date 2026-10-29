@@ -1,6 +1,6 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {
   ChipRow,
@@ -9,6 +9,7 @@ import {
   cardErrorMessage,
   cardPayload,
   elementChip,
+  hasPayloadOrError,
   mutatingBadge,
 } from './shared.js'
 
@@ -118,4 +119,9 @@ export function ReactCard(props: ToolCardProps): JSX.Element {
       </div>
     </CardShell>
   )
+}
+
+export const reactCard: ToolCardView = {
+  render: ReactCard,
+  hasEmbeddedBody: (_part, result) => hasPayloadOrError(result),
 }

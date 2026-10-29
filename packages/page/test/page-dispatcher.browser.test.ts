@@ -4,7 +4,7 @@ import {collectClientTools, defineExtension, defineTool, toolError} from '@conci
 import {makeDomPageDriver, type PageDriver} from '../src/page-driver.js'
 
 const readText = defineTool({
-  name: 'probe.text',
+  name: 'probe_text',
   description: 'reads text through the dispatcher ctx',
   inputSchema: z.object({selector: z.string().optional(), ref: z.string().optional()}),
   outputSchema: z.object({text: z.string()}),
@@ -12,7 +12,7 @@ const readText = defineTool({
 }).client((input, ctx) => ({text: ctx.target(input).textContent ?? ''}))
 
 const mirroredClick = defineTool({
-  name: 'probe.click',
+  name: 'probe_click',
   description: 'clicks through the dispatcher ctx and mirrors',
   inputSchema: z.object({selector: z.string()}),
   outputSchema: z.object({ok: z.literal(true)}),
@@ -25,7 +25,7 @@ const mirroredClick = defineTool({
 })
 
 const refMaker = defineTool({
-  name: 'probe.mark',
+  name: 'probe_mark',
   description: 'adds a ref for the target element',
   inputSchema: z.object({selector: z.string()}),
   outputSchema: z.object({ref: z.string()}),
@@ -33,7 +33,7 @@ const refMaker = defineTool({
 }).client((input, ctx) => ({ref: ctx.addRef(ctx.target(input))}))
 
 const raiser = defineTool({
-  name: 'probe.raise',
+  name: 'probe_raise',
   description: 'throws a typed tool error',
   inputSchema: z.object({}),
   outputSchema: z.object({}),
@@ -44,7 +44,7 @@ const raiser = defineTool({
 })
 
 const misbehaved = defineTool({
-  name: 'probe.badresult',
+  name: 'probe_badresult',
   description: 'returns a non-record result',
   inputSchema: z.object({}),
   outputSchema: z.object({}),
@@ -52,7 +52,7 @@ const misbehaved = defineTool({
 }).client(() => 42)
 
 const undefinedLeaker = defineTool({
-  name: 'probe.undef',
+  name: 'probe_undef',
   description: 'returns a record whose values JSON would silently drop or nullify',
   inputSchema: z.object({where: z.enum(['object', 'array'])}),
   outputSchema: z.object({}),
@@ -84,67 +84,67 @@ afterAll(() => {
 
 describe('the page-tool dispatcher', () => {
   it('runs a client body by registry name with a lazily resolved target', async () => {
-    expect(await driver.execute({name: 'probe.text', input: {selector: '#prose'}})).toEqual({
+    expect(await driver.execute({name: 'probe_text', input: {selector: '#prose'}})).toEqual({
       ok: true,
       result: {text: 'hello dispatcher'},
     })
   })
 
   it('rejects an undeclared name as unknown-verb', async () => {
-    expect(await driver.execute({name: 'probe.nothing', input: {}})).toEqual({
+    expect(await driver.execute({name: 'probe_nothing', input: {}})).toEqual({
       ok: false,
-      error: {code: 'unknown-verb', message: 'no mounted extension declares a client tool named "probe.nothing"'},
+      error: {code: 'unknown-verb', message: 'no mounted extension declares a client tool named "probe_nothing"'},
     })
   })
 
   it('explains each way a target can be missing, as an invalid-args failure', async () => {
-    const stale = await driver.execute({name: 'probe.text', input: {ref: 'v999'}})
+    const stale = await driver.execute({name: 'probe_text', input: {ref: 'v999'}})
     expect(stale).toEqual({ok: false, error: {code: 'invalid-args', message: 'stale ref v999; re-run page snapshot'}})
-    const missing = await driver.execute({name: 'probe.text', input: {selector: '#nope'}})
+    const missing = await driver.execute({name: 'probe_text', input: {selector: '#nope'}})
     expect(missing).toEqual({ok: false, error: {code: 'invalid-args', message: 'no element for selector #nope'}})
-    const bare = await driver.execute({name: 'probe.text', input: {}})
+    const bare = await driver.execute({name: 'probe_text', input: {}})
     expect(bare).toEqual({ok: false, error: {code: 'invalid-args', message: 'no target: pass ref, selector, or name'}})
   })
 
   it('mirrors an action when the declaration says so and shares refs across calls', async () => {
-    const marked = await driver.execute({name: 'probe.mark', input: {selector: '#btn'}})
+    const marked = await driver.execute({name: 'probe_mark', input: {selector: '#btn'}})
     if (!marked.ok) throw new Error('mark failed')
     const ref = String(marked.result.ref)
-    expect(await driver.execute({name: 'probe.click', input: {selector: '#btn'}})).toMatchObject({
+    expect(await driver.execute({name: 'probe_click', input: {selector: '#btn'}})).toMatchObject({
       ok: true,
       result: {ok: true},
     })
     expect(document.querySelector('[data-conciv-cursor]')).not.toBeNull()
-    expect(await driver.execute({name: 'probe.text', input: {ref}})).toEqual({ok: true, result: {text: 'clicked'}})
+    expect(await driver.execute({name: 'probe_text', input: {ref}})).toEqual({ok: true, result: {text: 'clicked'}})
   })
 
   it('carries a thrown toolError as a raised handler-error', async () => {
-    expect(await driver.execute({name: 'probe.raise', input: {}})).toEqual({
+    expect(await driver.execute({name: 'probe_raise', input: {}})).toEqual({
       ok: false,
       error: {code: 'handler-error', message: 'not today', raised: {code: 'NO_LUCK', message: 'not today'}},
     })
   })
 
   it('reports a schema-rejected input as invalid-args', async () => {
-    const outcome = await driver.execute({name: 'probe.click', input: {}})
+    const outcome = await driver.execute({name: 'probe_click', input: {}})
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error.code).toBe('invalid-args')
   })
 
   it('refuses a non-record result', async () => {
-    expect(await driver.execute({name: 'probe.badresult', input: {}})).toEqual({
+    expect(await driver.execute({name: 'probe_badresult', input: {}})).toEqual({
       ok: false,
-      error: {code: 'handler-error', message: 'probe.badresult returned a non-serializable result'},
+      error: {code: 'handler-error', message: 'probe_badresult returned a non-serializable result'},
     })
   })
 
   it.each(['object', 'array'] as const)(
     'refuses a result carrying undefined in an %s, which JSON would silently mutate in transit',
     async (where) => {
-      expect(await driver.execute({name: 'probe.undef', input: {where}})).toEqual({
+      expect(await driver.execute({name: 'probe_undef', input: {where}})).toEqual({
         ok: false,
-        error: {code: 'handler-error', message: 'probe.undef returned a non-serializable result'},
+        error: {code: 'handler-error', message: 'probe_undef returned a non-serializable result'},
       })
     },
   )
@@ -154,15 +154,15 @@ describe('the page-tool dispatcher', () => {
     ephemeral.id = 'ephemeral'
     ephemeral.textContent = 'about to vanish'
     host.appendChild(ephemeral)
-    const marked = await driver.execute({name: 'probe.mark', input: {selector: '#ephemeral'}})
+    const marked = await driver.execute({name: 'probe_mark', input: {selector: '#ephemeral'}})
     if (!marked.ok) throw new Error('mark failed')
     const ref = String(marked.result.ref)
-    expect(await driver.execute({name: 'probe.text', input: {ref}})).toEqual({
+    expect(await driver.execute({name: 'probe_text', input: {ref}})).toEqual({
       ok: true,
       result: {text: 'about to vanish'},
     })
     ephemeral.remove()
-    expect(await driver.execute({name: 'probe.text', input: {ref}})).toEqual({
+    expect(await driver.execute({name: 'probe_text', input: {ref}})).toEqual({
       ok: false,
       error: {code: 'invalid-args', message: `stale ref ${ref}; re-run page snapshot`},
     })

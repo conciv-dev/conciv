@@ -1,5 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {groupBy} from 'es-toolkit'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {CodeBlock} from '@conciv/ui-kit-chat/tools'
 
 export type SearchMatch = {file: string; line: number; snippet: string}
@@ -94,7 +95,9 @@ export function SearchMatches(props: {groups: SearchFileGroup[]}): JSX.Element {
         {(group) => (
           <div class="min-w-0">
             <div class={FILE_ROW}>
-              <span class={FILE_PATH}>{shortenPath(group.file)}</span>
+              <TruncatedText class={FILE_PATH} text={group.file}>
+                {shortenPath(group.file)}
+              </TruncatedText>
               <Show when={group.matches.length > 1}>
                 <span class={FILE_COUNT}>{group.matches.length}</span>
               </Show>

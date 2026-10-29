@@ -220,7 +220,7 @@ export function Island(props: {
   const performExport = async (row: PendingRow): Promise<void> => {
     const {requestId, scope} = row.payload as unknown as {requestId: string; scope: 'live' | 'draft' | 'both'}
     const payload = await exportReply(scope).catch((error) => {
-      console.error(`[whiteboard] canvas.export render failed: ${String(error)}`)
+      console.error(`[whiteboard] canvas_export render failed: ${String(error)}`)
       return {error: 'export render failed', reason: String(error)}
     })
     try {

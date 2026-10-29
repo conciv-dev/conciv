@@ -55,8 +55,7 @@ describe('a chat turn carries one tool surface', () => {
     const kit = await bootKit({extensions: [acme]}, harness)
     cleanups.push(() => kit.cleanup())
     const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: randomUUID(), sessionId, text: 'say hello'})
+    const stream = await kit.turn('say hello', {session: sessionId, runId: randomUUID()})
     await stream.done({hangGuardMs: 20_000})
 
     expect(provisioned()).toEqual(['execute_typescript'])

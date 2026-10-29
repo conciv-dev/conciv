@@ -1,6 +1,7 @@
 import {Show, splitProps, Switch, Match, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {
   CardShell,
   CodeBlock,
@@ -26,6 +27,16 @@ function readError(part: ToolCardProps['part'], result: ToolCardProps['result'])
 
 function isRunning(part: ToolCardProps['part'], result: ToolCardProps['result']): boolean {
   return toolStatus(part, result) === 'running'
+}
+
+export function settledCardBody(
+  part: ToolCardProps['part'],
+  result: ToolCardProps['result'],
+  hasContent: boolean,
+): boolean {
+  if (readError(part, result) !== null) return true
+  if (isRunning(part, result)) return false
+  return hasContent
 }
 
 export function CardRows(props: {children: JSX.Element}): JSX.Element {
@@ -74,9 +85,10 @@ export function ErrorRecord(props: {heading?: string; body: string}): JSX.Elemen
     <div class="px-2.5 py-1.75 border border-chat-frame-line-error rounded-[var(--chat-radius-sm)] bg-chat-frame-bg flex flex-col gap-1 min-w-0">
       <Show when={props.heading}>
         {(heading) => (
-          <p class="text-[length:var(--chat-text-xs)] text-chat-text-2 leading-[var(--chat-trace-gutter)] m-0 min-w-0 truncate [font-family:var(--chat-mono)]">
-            {heading()}
-          </p>
+          <TruncatedText
+            class="text-[length:var(--chat-text-xs)] text-chat-text-2 leading-[var(--chat-trace-gutter)] m-0 min-w-0 block [font-family:var(--chat-mono)]"
+            text={heading()}
+          />
         )}
       </Show>
       <p class="text-[length:var(--chat-text-xs)] text-chat-frame-text-error leading-[var(--chat-trace-gutter)] m-0 [font-family:var(--chat-mono)]">

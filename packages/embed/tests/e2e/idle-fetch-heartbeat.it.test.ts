@@ -10,9 +10,9 @@ const UNREACHABLE_TIMEOUT_MS = 45_000
 const RECOVERY_TIMEOUT_MS = 20_000
 const HEARTBEAT_WINDOW_MS = 32_000
 
-const suite = setupProxiedEmbedSuite({text: ASSISTANT_TEXT, proxy: {blockUpgrades: true}})
+const suite = setupProxiedEmbedSuite({text: ASSISTANT_TEXT})
 
-test.describe('an idle widget on the fetch transport still notices the engine going unreachable', () => {
+test.describe('an idle widget notices the engine going unreachable through the rpc heartbeat', () => {
   test('the open panel heartbeat surfaces the unreachable notice with no user interaction, and clears it on recovery', async ({
     page,
   }) => {

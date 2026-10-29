@@ -1,8 +1,10 @@
 import './helpers/utilities.css'
-import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
+import {expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {createSignal, For} from 'solid-js'
 import {ChatPane} from '../src/pane/chat-pane.js'
+import {bootedCore} from './helpers/booted-core.js'
+import {keptPane} from './helpers/kept-pane.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession} from './helpers/core-session.js'
 import {mountPane, type PaneMount} from './helpers/pane-harness.js'
@@ -14,23 +16,9 @@ const COMPACT_PATH = ['sessions', 'compact']
 const NARROW_PX = 160
 const WIDE_PX = 460
 
-const core = {base: ''}
-const active: {pane: PaneMount | null} = {pane: null}
+const core = bootedCore('composer-overflow')
+const keep = keptPane()
 const faults = trackedFaults()
-
-beforeAll(async () => {
-  const booted = await coreControl.bootCore({id: 'composer-overflow', allowedOrigins: [window.location.origin]})
-  core.base = booted.base
-}, 60_000)
-
-afterAll(async () => {
-  await coreControl.closeCore()
-}, 30_000)
-
-afterEach(() => {
-  active.pane?.dispose()
-  active.pane = null
-})
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const grabButton = () => page.getByRole('button', {name: 'Select an element from the page'})
@@ -43,11 +31,11 @@ const newSessionItem = () => page.getByRole('menuitem', {name: 'Start a new sess
 const compactItem = () => page.getByRole('menuitem', {name: 'Compress the conversation'})
 
 async function mountComposer(width?: number): Promise<PaneMount> {
-  const sessionId = await createSession(coreRpc(core.base))
+  const sessionId = await createSession(coreRpc(core()))
   const [requests, setRequests] = createSignal<string[]>([])
   const mount = mountPane(
     {
-      base: core.base,
+      base: core(),
       sessionId,
       width,
       onNewSession: () => setRequests((current) => [...current, 'a new session']),
@@ -61,7 +49,7 @@ async function mountComposer(width?: number): Promise<PaneMount> {
       </>
     ),
   )
-  active.pane = mount
+  keep(mount)
   await expect.element(input()).toBeVisible()
   return mount
 }
@@ -84,11 +72,11 @@ test('a wide composer keeps no actions inline and runs everything from the overf
 })
 
 test('the model pill is reachable from the overflow menu instead of sitting inline', async () => {
-  const sessionId = await createSession(coreRpc(core.base))
-  const models = await coreRpc(core.base).meta.models()
+  const sessionId = await createSession(coreRpc(core()))
+  const models = await coreRpc(core()).meta.models()
   const firstModel = models.models[0]
-  const mount = mountPane({base: core.base, sessionId, width: WIDE_PX}, () => <ChatPane sessionId={sessionId} />)
-  active.pane = mount
+  const mount = mountPane({base: core(), sessionId, width: WIDE_PX}, () => <ChatPane sessionId={sessionId} />)
+  keep(mount)
   await expect.element(input()).toBeVisible()
 
   await userEvent.click(trigger())

@@ -84,13 +84,16 @@ function labelTokens(segment: string): string[] {
 }
 
 export function shortToolLabel(name: string): string {
-  const segments = name.split(/__|\./).filter(Boolean)
-  const tokens = labelTokens(segments[segments.length - 1] ?? name)
+  const lastSegment = name.split(/__|\./).filter(Boolean).at(-1) ?? name
+  const tokens = labelTokens(lastSegment)
   const raw = tokens.join('_')
   const alias = VERB_ALIASES[raw] ?? VERB_ALIASES[tokens[0] ?? raw] ?? VERB_ALIASES[tokens[tokens.length - 1] ?? raw]
   if (alias) return alias
-  const candidates = labelCandidates(raw, tokens)
-  return candidates.find((candidate) => candidate.length <= MAX_LABEL_LENGTH) ?? abbreviate(candidates[2] ?? raw)
+  const hasNamespace = tokens.length > 1 && lastSegment.includes('_')
+  const verbTokens = hasNamespace ? tokens.slice(1) : tokens
+  const verbRaw = verbTokens.join('_')
+  const candidates = labelCandidates(verbRaw, verbTokens)
+  return candidates.find((candidate) => candidate.length <= MAX_LABEL_LENGTH) ?? abbreviate(candidates[2] ?? verbRaw)
 }
 
 const TARGET_KEYS = [

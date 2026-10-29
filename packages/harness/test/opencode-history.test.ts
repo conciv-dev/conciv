@@ -124,9 +124,9 @@ describe('opencode history sidecar', () => {
 
   it('rebuilds the conversation from the message and part rows', async () => {
     expect(await history().messages(PROJECT, SESSION, state.home)).toEqual([
-      {id: 'h1', role: 'user', parts: [{type: 'text', content: 'count the files'}]},
+      {id: 'msg_1', role: 'user', parts: [{type: 'text', content: 'count the files'}]},
       {
-        id: 'h2',
+        id: 'msg_2',
         role: 'assistant',
         parts: [
           {

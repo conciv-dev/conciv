@@ -38,4 +38,5 @@ export function FileEditCard(props: ToolCardProps): JSX.Element {
 export const fileEditTool: ToolCardEntry = {
   names: ['Edit', 'MultiEdit', 'Write'],
   render: FileEditCard,
+  hasEmbeddedBody: () => true,
 }

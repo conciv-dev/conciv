@@ -41,7 +41,6 @@
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints styles.css"
   },
   "dependencies": {
-    "@solid-primitives/immutable": "^1.1.5",
     "marked": "catalog:",
     "rehype-harden": "catalog:",
     "rehype-raw": "catalog:",
@@ -50,13 +49,11 @@
     "remark-parse": "catalog:",
     "remark-rehype": "catalog:",
     "remend": "catalog:",
-    "unified": "catalog:",
-    "unist-util-visit-parents": "catalog:"
+    "unified": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
-    "@types/hast": "^3.0.4",
     "@types/node": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "@vitest/coverage-v8": "catalog:",

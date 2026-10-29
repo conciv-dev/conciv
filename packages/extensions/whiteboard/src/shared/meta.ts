@@ -5,9 +5,9 @@ const WHITEBOARD_DRAWING_PROMPT = `
 
 Draw in a hidden draft; the user only sees committed work.
 
-Routing: canvas.svg for anything organic, illustrated, or styled (write real SVG paths); canvas.draw for boxes and simple layout; canvas.diagram for structured graphs (mermaid).
+Routing: canvas_svg for anything organic, illustrated, or styled (write real SVG paths); canvas_draw for boxes and simple layout; canvas_diagram for structured graphs (mermaid).
 
-The loop: draw into the draft with canvas.svg, then canvas.preview to see it (fast, approximate), critique honestly (proportions, overlaps, floating parts, palette), refine with more canvas.svg / canvas.update / canvas.delete, repeat. Before publishing run canvas.export with format png and scope draft for a ground-truth render, then canvas.commit. Never leave a good draft uncommitted; use canvas.discard to abandon a bad one.
+The loop: draw into the draft with canvas_svg, then canvas_preview to see it (fast, approximate), critique honestly (proportions, overlaps, floating parts, palette), refine with more canvas_svg / canvas_update / canvas_delete, repeat. Before publishing run canvas_export with format png and scope draft for a ground-truth render, then canvas_commit. Never leave a good draft uncommitted; use canvas_discard to abandon a bad one.
 
 Style: default to sketch technique for drawings - varied stroke weight, hatched shading, contour strokes, minimal flat fills, roughness 1. Use flat fills with clean outlines for icons, clipart asks, and diagram shapes (roughness 0). Compose big shapes first, then layer detail; keep a limited palette (3-5 colors).
 

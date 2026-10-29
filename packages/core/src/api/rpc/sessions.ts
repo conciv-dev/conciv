@@ -3,8 +3,18 @@ import {eq} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {resolveHarnessModels} from '@conciv/harness'
-import {clearPageChanges, clearRunState, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
+import {
+  clearPageChanges,
+  clearRunState,
+  deleteSessionCaptures,
+  drafts,
+  markers,
+  modelOf,
+  runningThreadIds,
+  sessions,
+} from '@conciv/db'
 import type {ChatDeps} from '../../chat/runtime.js'
+import {stopSession} from '../../chat/stop.js'
 import {
   createRow,
   listSessionMetas,
@@ -25,7 +35,7 @@ export async function rpcSessionList(chat: ChatDeps, includeHidden: boolean): Pr
     harnessKind: chat.harness.id,
     cwd: chat.cwd,
     nativeList,
-    running: (sessionId) => chat.liveRuns.running(sessionId),
+    running: await runningThreadIds(chat.db),
     model: (sessionId) => modelOf(chat.db, sessionId),
     includeHidden,
   })
@@ -83,6 +93,7 @@ export function sessionsRouter(deps: RpcDeps) {
       return {title}
     }),
     delete: os.sessions.delete.handler(async ({input}) => {
+      await stopSession(chat, input.sessionId)
       await tombstoneRow(db, input.sessionId)
       await db.delete(drafts).where(eq(drafts.sessionId, input.sessionId))
       clearRunState(db, input.sessionId)

@@ -77,6 +77,7 @@
     "@conciv/serve": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@solidjs/testing-library": "catalog:",
+    "@tanstack/ai-client": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
     "@types/node": "catalog:",
     "@vitest/browser-playwright": "catalog:",

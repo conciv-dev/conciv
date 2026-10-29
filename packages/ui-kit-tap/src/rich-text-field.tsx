@@ -85,6 +85,39 @@ function appendCommand(text: string) {
   }
 }
 
+function commonPrefixLength(current: string, next: string): number {
+  const limit = Math.min(current.length, next.length)
+  let length = 0
+  while (length < limit && current[length] === next[length]) length += 1
+  return length
+}
+
+function commonSuffixLength(current: string, next: string, prefix: number): number {
+  const limit = Math.min(current.length, next.length) - prefix
+  let length = 0
+  while (length < limit && current[current.length - 1 - length] === next[next.length - 1 - length]) length += 1
+  return length
+}
+
+function externalValueCommand(next: string) {
+  return ({tr, state}: CommandProps) => {
+    const current = projectDocument(state.doc)
+    const prefix = commonPrefixLength(current, next)
+    const suffix = commonSuffixLength(current, next, prefix)
+    const from = offsetToPosition(state.doc, prefix)
+    const to = offsetToPosition(state.doc, current.length - suffix)
+    tr.replace(from, to, plainTextSlice(state.schema, next.slice(prefix, next.length - suffix)))
+    if (current === '') tr.setSelection(Selection.atEnd(tr.doc))
+    return true
+  }
+}
+
+function applyExternalValue(editor: Editor, value: string): void {
+  editor.chain().command(externalValueCommand(value)).run()
+  const {doc, selection, plugins} = editor.state
+  editor.view.updateState(EditorState.create({doc, selection, plugins}))
+}
+
 function openingSelectionCommand(selection: RichTextFieldSelection | undefined) {
   return ({tr, state}: CommandProps) => {
     if (!selection) {
@@ -212,8 +245,7 @@ export function RichTextField(props: {
     createEffect(() => {
       const value = props.value
       if (value === projectDocument(editor.state.doc)) return
-      const doc = editor.schema.nodeFromJSON(buildDocument(value))
-      editor.view.updateState(EditorState.create({doc, selection: Selection.atEnd(doc), plugins: editor.state.plugins}))
+      applyExternalValue(editor, value)
     })
 
     createEffect(() => {

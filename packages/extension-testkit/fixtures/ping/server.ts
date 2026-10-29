@@ -3,7 +3,7 @@ import {defineExtension, defineTool} from '@conciv/extension'
 import {makePingRouter} from './router.js'
 
 const echo = defineTool({
-  name: 'ping.echo',
+  name: 'ping_echo',
   description: 'Echo the given text back.',
   inputSchema: z.object({text: z.string()}),
   outputSchema: z.object({echo: z.string()}),
@@ -11,7 +11,7 @@ const echo = defineTool({
 }).server((input) => ({echo: input.text}))
 
 const flood = defineTool({
-  name: 'ping.flood',
+  name: 'ping_flood',
   description: 'Return a payload far past the MCP display cap.',
   inputSchema: z.object({}),
   outputSchema: z.object({payload: z.string()}),
@@ -19,7 +19,7 @@ const flood = defineTool({
 }).server(() => ({payload: 'x'.repeat(120_000)}))
 
 const decoy = defineTool({
-  name: 'ping.decoy',
+  name: 'ping_decoy',
   description: 'Return a payload shaped like the truncation envelope.',
   inputSchema: z.object({}),
   outputSchema: z.object({truncated: z.boolean(), reason: z.string(), head: z.string()}),

@@ -25,8 +25,8 @@ describe('the page catalog reports what the system can actually do', () => {
     for (const entry of catalog.list()) expect(entry.reachable).toBe(true)
   })
 
-  it('describes page.effect as the real host-effect driver, not a stub', () => {
-    const signature = bootCatalog({connected: true}).get('page.effect')
+  it('describes page_effect as the real host-effect driver, not a stub', () => {
+    const signature = bootCatalog({connected: true}).get('page_effect')
     expect(signature.summary).toBe(
       'enable, disable, toggle, report or list the visual effects the host page registered',
     )
@@ -34,8 +34,25 @@ describe('the page catalog reports what the system can actually do', () => {
     expect(signature.hint).toContain('action list reports every registered effect')
   })
 
+  it('describes page_snapshot by what it answers: every control with its value, checked state and ref', () => {
+    const signature = bootCatalog({connected: true}).get('page_snapshot')
+    expect(signature.summary).toBe('read every control on the page with its current value, checked state and ref')
+    expect(signature.keywords).toContain('form')
+  })
+
+  it('declares page_eval as approval-gated so the last resort costs a decision', () => {
+    expect(bootCatalog({connected: true}).get('page_eval').approval).toBe('ask')
+  })
+
+  it('declares page_reload as a mutating act whose result is only the initiation', () => {
+    const signature = bootCatalog({connected: true}).get('page_reload')
+    expect(signature.mutating).toBe(true)
+    expect(signature.approval).toBeUndefined()
+    expect(signature.hint).toContain('snapshot')
+  })
+
   it('surfaces the UNKNOWN_EFFECT declaration through the catalog signature', () => {
-    const signature = bootCatalog({connected: true}).get('page.effect')
+    const signature = bootCatalog({connected: true}).get('page_effect')
     expect(signature.errors).toContainEqual({
       code: 'UNKNOWN_EFFECT',
       message: 'no effect is registered under that name',

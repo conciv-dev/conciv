@@ -8,7 +8,15 @@ function bareToolName(name: string): string {
   return name.replace(MCP_PREFIX, '')
 }
 
-type Ask = {promise: Promise<unknown>; settle: (value: unknown) => void}
+type Ask = {promise: Promise<unknown>; settle: (value: unknown) => void; approval: PendingApproval | null}
+
+export type PendingApproval = {
+  approvalId: string
+  toolCallId: string
+  toolName: string
+  input: unknown
+  runId: string | null
+}
 
 type UiCall = {callId: string; claimed: boolean}
 
@@ -19,9 +27,10 @@ type SessionAsks = {
 }
 
 export type AskRegistry = {
-  open: (sessionId: SessionId, key: string) => void
+  open: (sessionId: SessionId, key: string, approval?: PendingApproval) => void
   owner: (key: string) => SessionId | null
   pending: (sessionId: SessionId) => string[]
+  pendingApprovals: (sessionId: SessionId) => PendingApproval[]
   reply: (sessionId: SessionId, key: string, value: unknown) => boolean
   waitFor: (sessionId: SessionId, key: string, timeoutMs: number) => Promise<unknown>
   cancel: (sessionId: SessionId) => void
@@ -29,12 +38,12 @@ export type AskRegistry = {
   nextUiCall: (sessionId: SessionId, timeoutMs: number) => Promise<string | null>
 }
 
-function makeAsk(): Ask {
+function makeAsk(approval: PendingApproval | null): Ask {
   const holder = {settle: (_value: unknown): void => {}}
   const promise = new Promise<unknown>((resolve) => {
     holder.settle = resolve
   })
-  return {promise, settle: (value) => holder.settle(value)}
+  return {promise, settle: (value) => holder.settle(value), approval}
 }
 
 export function createAskRegistry(): AskRegistry {
@@ -48,17 +57,17 @@ export function createAskRegistry(): AskRegistry {
     return created
   }
 
-  const askOf = (state: SessionAsks, key: string): Ask => {
+  const askOf = (state: SessionAsks, key: string, approval: PendingApproval | null = null): Ask => {
     const existing = state.asks.get(key)
     if (existing) return existing
-    const created = makeAsk()
+    const created = makeAsk(approval)
     state.asks.set(key, created)
     return created
   }
 
   return {
-    open: (sessionId, key) => {
-      askOf(stateOf(sessionId), key)
+    open: (sessionId, key, approval) => {
+      askOf(stateOf(sessionId), key, approval ?? null)
     },
     owner: (key) => {
       for (const [sessionId, state] of bySession) {
@@ -67,6 +76,8 @@ export function createAskRegistry(): AskRegistry {
       return null
     },
     pending: (sessionId) => [...(bySession.get(sessionId)?.asks.keys() ?? [])],
+    pendingApprovals: (sessionId) =>
+      [...(bySession.get(sessionId)?.asks.values() ?? [])].flatMap((ask) => (ask.approval ? [ask.approval] : [])),
     reply: (sessionId, key, value) => {
       const state = bySession.get(sessionId)
       const ask = state?.asks.get(key)

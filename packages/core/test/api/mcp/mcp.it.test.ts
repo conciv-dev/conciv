@@ -88,7 +88,7 @@ describe('/api/mcp single code-mode surface', () => {
       const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
       expect(tool?.description).toBeDefined()
       expect(tool?.description).not.toContain('acme_draw')
-      expect(tool?.description).not.toContain('page.snapshot')
+      expect(tool?.description).not.toContain('page_snapshot')
       expect(tool?.description).toContain('catalog')
     } finally {
       await mcp.close()

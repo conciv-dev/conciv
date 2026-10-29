@@ -55,9 +55,12 @@
   "devDependencies": {
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
     "@unocss/postcss": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "playwright": "catalog:",
     "postcss": "catalog:",
     "solid-js": "catalog:",
     "storybook": "catalog:",

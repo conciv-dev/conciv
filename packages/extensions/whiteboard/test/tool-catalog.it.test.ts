@@ -17,28 +17,28 @@ const Detail = z
   .loose()
 
 const DECLARED_MUTATING: Record<string, boolean> = {
-  'canvas.read': false,
-  'canvas.svg': true,
-  'canvas.preview': false,
-  'canvas.export': false,
-  'canvas.draw': true,
-  'canvas.diagram': true,
-  'canvas.connect': true,
-  'canvas.update': true,
-  'canvas.delete': true,
-  'canvas.clear': true,
-  'canvas.commit': true,
-  'canvas.discard': true,
-  'comment.create': true,
-  'comment.reply': true,
-  'comment.read': false,
-  'comment.list': false,
-  'comment.resolve': true,
-  'comment.delete': true,
-  'comment.move': true,
-  'pin.setState': true,
-  'anchor.resolve': false,
-  'element.reference': false,
+  canvas_read: false,
+  canvas_svg: true,
+  canvas_preview: false,
+  canvas_export: false,
+  canvas_draw: true,
+  canvas_diagram: true,
+  canvas_connect: true,
+  canvas_update: true,
+  canvas_delete: true,
+  canvas_clear: true,
+  canvas_commit: true,
+  canvas_discard: true,
+  comment_create: true,
+  comment_reply: true,
+  comment_read: false,
+  comment_list: false,
+  comment_resolve: true,
+  comment_delete: true,
+  comment_move: true,
+  pin_set_state: true,
+  anchor_resolve: false,
+  element_reference: false,
 }
 
 const EXPECTED_NAMES = new Set(Object.keys(DECLARED_MUTATING))
@@ -63,17 +63,17 @@ test('the sandbox catalog carries exactly the twenty-two whiteboard declarations
 })
 
 const DECLARED_ERRORS: Record<string, string[]> = {
-  'canvas.svg': ['INVALID_SVG'],
-  'canvas.diagram': ['DIAGRAM_TOO_LARGE'],
-  'canvas.export': ['EXPORT_TIMEOUT'],
-  'canvas.commit': ['COMMIT_TIMEOUT'],
-  'comment.reply': ['COMMENT_NOT_FOUND'],
-  'comment.read': ['COMMENT_NOT_FOUND'],
-  'comment.resolve': ['COMMENT_NOT_FOUND'],
-  'comment.delete': ['COMMENT_NOT_FOUND'],
-  'comment.move': ['PIN_NOT_FOUND'],
-  'pin.setState': ['PIN_NOT_FOUND'],
-  'anchor.resolve': ['COMMENT_NOT_FOUND'],
+  canvas_svg: ['INVALID_SVG'],
+  canvas_diagram: ['DIAGRAM_TOO_LARGE'],
+  canvas_export: ['EXPORT_TIMEOUT'],
+  canvas_commit: ['COMMIT_TIMEOUT'],
+  comment_reply: ['COMMENT_NOT_FOUND'],
+  comment_read: ['COMMENT_NOT_FOUND'],
+  comment_resolve: ['COMMENT_NOT_FOUND'],
+  comment_delete: ['COMMENT_NOT_FOUND'],
+  comment_move: ['PIN_NOT_FOUND'],
+  pin_set_state: ['PIN_NOT_FOUND'],
+  anchor_resolve: ['COMMENT_NOT_FOUND'],
 }
 
 type OutputShape =
@@ -110,15 +110,15 @@ function shapeOf(node: JsonSchemaNode): OutputShape {
 }
 
 const EXPECTED_OUTPUT_SHAPES: Record<string, OutputShape> = {
-  'canvas.read': {kind: 'object', properties: ['elements', 'scope'], required: ['elements', 'scope']},
-  'canvas.svg': {kind: 'object', properties: ['pending'], required: ['pending']},
-  'canvas.draw': {kind: 'object', properties: ['pending'], required: ['pending']},
-  'canvas.diagram': {kind: 'object', properties: ['pending'], required: ['pending']},
-  'canvas.connect': {kind: 'object', properties: ['pending'], required: ['pending']},
-  'canvas.update': {kind: 'object', properties: ['updated'], required: ['updated']},
-  'canvas.delete': {kind: 'object', properties: ['deleted'], required: ['deleted']},
-  'canvas.clear': {kind: 'object', properties: ['cleared'], required: ['cleared']},
-  'canvas.export': {
+  canvas_read: {kind: 'object', properties: ['elements', 'scope'], required: ['elements', 'scope']},
+  canvas_svg: {kind: 'object', properties: ['pending'], required: ['pending']},
+  canvas_draw: {kind: 'object', properties: ['pending'], required: ['pending']},
+  canvas_diagram: {kind: 'object', properties: ['pending'], required: ['pending']},
+  canvas_connect: {kind: 'object', properties: ['pending'], required: ['pending']},
+  canvas_update: {kind: 'object', properties: ['updated'], required: ['updated']},
+  canvas_delete: {kind: 'object', properties: ['deleted'], required: ['deleted']},
+  canvas_clear: {kind: 'object', properties: ['cleared'], required: ['cleared']},
+  canvas_export: {
     kind: 'union',
     members: [
       {kind: 'array'},
@@ -126,19 +126,19 @@ const EXPECTED_OUTPUT_SHAPES: Record<string, OutputShape> = {
       {kind: 'object', properties: ['elements'], required: ['elements']},
     ],
   },
-  'canvas.commit': {
+  canvas_commit: {
     kind: 'union',
     members: [
       {kind: 'object', properties: ['committed', 'elements'], required: ['committed', 'elements']},
       {kind: 'object', properties: ['committed', 'reason'], required: ['committed', 'reason']},
     ],
   },
-  'canvas.discard': {
+  canvas_discard: {
     kind: 'object',
     properties: ['discarded', 'error', 'reason'],
     required: ['discarded'],
   },
-  'canvas.preview': {
+  canvas_preview: {
     kind: 'union',
     members: [
       {kind: 'array'},
@@ -146,20 +146,20 @@ const EXPECTED_OUTPUT_SHAPES: Record<string, OutputShape> = {
       {kind: 'object', properties: ['elements', 'error', 'reason'], required: ['elements', 'error', 'reason']},
     ],
   },
-  'comment.create': {kind: 'object', properties: ['cid'], required: ['cid']},
-  'comment.reply': {kind: 'object', properties: ['cid'], required: ['cid']},
-  'comment.read': {kind: 'object', properties: ['comment', 'replies'], required: ['comment', 'replies']},
-  'comment.list': {kind: 'object', properties: ['comments'], required: ['comments']},
-  'comment.resolve': {kind: 'object', properties: ['cid', 'status'], required: ['cid', 'status']},
-  'comment.delete': {kind: 'object', properties: ['cid', 'deleted'], required: ['cid', 'deleted']},
-  'comment.move': {kind: 'object', properties: ['cid', 'x', 'y'], required: ['cid', 'x', 'y']},
-  'pin.setState': {kind: 'object', properties: ['cid', 'pinState'], required: ['cid', 'pinState']},
-  'anchor.resolve': {
+  comment_create: {kind: 'object', properties: ['cid'], required: ['cid']},
+  comment_reply: {kind: 'object', properties: ['cid'], required: ['cid']},
+  comment_read: {kind: 'object', properties: ['comment', 'replies'], required: ['comment', 'replies']},
+  comment_list: {kind: 'object', properties: ['comments'], required: ['comments']},
+  comment_resolve: {kind: 'object', properties: ['cid', 'status'], required: ['cid', 'status']},
+  comment_delete: {kind: 'object', properties: ['cid', 'deleted'], required: ['cid', 'deleted']},
+  comment_move: {kind: 'object', properties: ['cid', 'x', 'y'], required: ['cid', 'x', 'y']},
+  pin_set_state: {kind: 'object', properties: ['cid', 'pinState'], required: ['cid', 'pinState']},
+  anchor_resolve: {
     kind: 'object',
     properties: ['anchor', 'candidates', 'diff', 'status'],
     required: ['status'],
   },
-  'element.reference': {
+  element_reference: {
     kind: 'object',
     properties: ['column', 'file', 'found', 'line'],
     required: ['found'],
@@ -186,7 +186,7 @@ test('every whiteboard declaration exposes the exact declared errors and output 
 test('a thrown COMMENT_NOT_FOUND surfaces its declared code through the real call path', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
-    await expect(api.callTool('comment.read', {cid: 'nonexistent-cid'})).rejects.toThrow(/COMMENT_NOT_FOUND/)
+    await expect(api.callTool('comment_read', {cid: 'nonexistent-cid'})).rejects.toThrow(/COMMENT_NOT_FOUND/)
   } finally {
     await api.dispose()
   }

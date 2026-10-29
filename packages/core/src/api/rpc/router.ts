@@ -138,24 +138,24 @@ export function makeRpcRouter(deps: RpcDeps) {
       }),
     },
     server: {
-      config: sessionOs.server.config.handler(({errors}) => callTool(BUILTIN_SERVER_TOOL['server.config'], {}, errors)),
+      config: sessionOs.server.config.handler(({errors}) => callTool(BUILTIN_SERVER_TOOL.server_config, {}, errors)),
       resolve: sessionOs.server.resolve.handler(({input, errors}) =>
-        callTool(BUILTIN_SERVER_TOOL['server.resolve'], input, errors),
+        callTool(BUILTIN_SERVER_TOOL.server_resolve, input, errors),
       ),
       graph: sessionOs.server.graph.handler(({input, errors}) =>
-        callTool(BUILTIN_SERVER_TOOL['server.graph'], input, errors),
+        callTool(BUILTIN_SERVER_TOOL.server_graph, input, errors),
       ),
       transform: sessionOs.server.transform.handler(({input, errors}) =>
-        callTool(BUILTIN_SERVER_TOOL['server.transform'], input, errors),
+        callTool(BUILTIN_SERVER_TOOL.server_transform, input, errors),
       ),
-      urls: sessionOs.server.urls.handler(({errors}) => callTool(BUILTIN_SERVER_TOOL['server.urls'], {}, errors)),
+      urls: sessionOs.server.urls.handler(({errors}) => callTool(BUILTIN_SERVER_TOOL.server_urls, {}, errors)),
       reload: sessionOs.server.reload.handler(async ({input, errors}) => {
-        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.reload'].name, input, errors)
-        return callTool(BUILTIN_SERVER_TOOL['server.reload'], input, errors)
+        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL.server_reload.name, input, errors)
+        return callTool(BUILTIN_SERVER_TOOL.server_reload, input, errors)
       }),
       restart: sessionOs.server.restart.handler(async ({input, errors}) => {
-        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.restart'].name, input, errors)
-        return callTool(BUILTIN_SERVER_TOOL['server.restart'], input, errors)
+        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL.server_restart.name, input, errors)
+        return callTool(BUILTIN_SERVER_TOOL.server_restart, input, errors)
       }),
     },
     editor: {

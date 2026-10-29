@@ -34,8 +34,9 @@ const CLIENT_SURFACES = [
       'Browser-only setup; client = {apiBase, client, requestMeta}. value merges into useContext, dispose runs on unmount.',
   },
   {
-    method: 'defineTool(...).render(Card)',
-    description: "Co-located SolidJS card for the tool's result (browser only).",
+    method: 'defineTool(...).render({render: Card, hasEmbeddedBody})',
+    description:
+      "Co-located SolidJS card for the tool's result (browser only); hasEmbeddedBody(part, result, ctx) tells a trace row whether the card renders a body.",
   },
 ] as const
 
@@ -139,7 +140,7 @@ const ${name}Do = defineTool({
   inputSchema: z.object({input: z.string()}),
 })
   .server((input) => ({result: input.input}))
-  .render((props) => <div>Custom render for {props.part.name}</div>)
+  .render({render: (props) => <div>Custom render for {props.part.name}</div>, hasEmbeddedBody: () => true})
 
 export default defineExtension({name: '${name}', tools: [${name}Do]})
 `,
@@ -166,7 +167,7 @@ const ${name}Do = defineTool({
   promptSnippet: 'You can use ${name}_do.',
 })
   .server((input) => ({result: input.input}))
-  .render((props) => <div>${name}: {props.part.name}</div>)
+  .render({render: (props) => <div>${name}: {props.part.name}</div>, hasEmbeddedBody: () => true})
 
 const extension = defineExtension({name: '${name}', Component, tools: [${name}Do]})
   .client((client) => ({value: {ready: true}}))

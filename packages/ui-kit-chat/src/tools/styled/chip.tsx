@@ -1,11 +1,15 @@
 import {Show, splitProps, type JSX} from 'solid-js'
 import {cva} from 'class-variance-authority'
-import {Tooltip} from '@conciv/ui-kit-system'
+import {CLIP_REVEAL, createClipReveal, revealTriggerProps, Tooltip} from '@conciv/ui-kit-system'
 
 const chip = cva(
-  'inline-flex max-w-full min-w-0 items-center gap-1.25 overflow-hidden text-ellipsis whitespace-nowrap leading-none rounded-[var(--chat-radius-pill)] [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)]',
+  'inline-flex min-w-0 items-center gap-1.25 overflow-hidden text-ellipsis whitespace-nowrap leading-none rounded-[var(--chat-radius-pill)] [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)]',
   {
     variants: {
+      maxWidth: {
+        full: 'max-w-full',
+        compact: 'max-w-40',
+      },
       kind: {
         field: 'px-2.25 pt-1.25 pb-1',
         pill: 'px-2 pt-1.25 pb-1',
@@ -65,11 +69,11 @@ const chip = cva(
         class: '[background:var(--chat-sunken)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)]',
       },
     ],
-    defaultVariants: {kind: 'field', tone: 'neutral'},
+    defaultVariants: {kind: 'field', tone: 'neutral', maxWidth: 'full'},
   },
 )
 
-export const CHIP = chip({kind: 'field', tone: 'neutral'})
+export const CHIP = chip({kind: 'field', tone: 'neutral', maxWidth: 'full'})
 
 const FIELD_KEY = 'text-chat-text-3 m-0'
 const FIELD_VALUE = 'whitespace-nowrap text-ellipsis overflow-hidden [color:var(--chat-text)] m-0'
@@ -103,20 +107,48 @@ function triggerContent(kind: 'field' | 'pill', name: string | undefined, value:
   return fieldSpanContent(name, value)
 }
 
+function ClippedChip(props: {value: string; content: JSX.Element; class: string}): JSX.Element {
+  const [local] = splitProps(props, ['value', 'content', 'class'])
+  const reveal = createClipReveal()
+  return (
+    <Tooltip.Root onOpenChange={reveal.onOpenChange} lazyMount unmountOnExit>
+      <Tooltip.Trigger
+        asChild={(triggerProps) => (
+          <div {...revealTriggerProps(reveal, triggerProps())} ref={reveal.ref} class={local.class}>
+            {local.content}
+          </div>
+        )}
+      />
+      <Show when={reveal.clipped()}>
+        <Tooltip.Positioner>
+          <Tooltip.Content class={CLIP_REVEAL}>{local.value}</Tooltip.Content>
+        </Tooltip.Positioner>
+      </Show>
+    </Tooltip.Root>
+  )
+}
+
 export function Chip(props: {
   name?: string
   value: string
   kind?: 'field' | 'pill'
   tone?: 'neutral' | 'accent' | 'success' | 'danger'
+  maxWidth?: 'full' | 'compact'
   tooltip?: string
   class?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['name', 'value', 'kind', 'tone', 'tooltip', 'class'])
+  const [local] = splitProps(props, ['name', 'value', 'kind', 'tone', 'maxWidth', 'tooltip', 'class'])
   const kind = (): 'field' | 'pill' => local.kind ?? 'field'
-  const chipClass = (): string => `${chip({kind: kind(), tone: local.tone ?? 'neutral'})} ${local.class ?? ''}`
+  const chipClass = (): string =>
+    `${chip({kind: kind(), tone: local.tone ?? 'neutral', maxWidth: local.maxWidth ?? 'full'})} ${local.class ?? ''}`
 
   return (
-    <Show when={local.tooltip} fallback={<div class={chipClass()}>{chipContent(kind(), local.name, local.value)}</div>}>
+    <Show
+      when={local.tooltip}
+      fallback={
+        <ClippedChip value={local.value} content={chipContent(kind(), local.name, local.value)} class={chipClass()} />
+      }
+    >
       {(tooltip) => (
         <div class="contents">
           <Tooltip.Root unmountOnExit lazyMount>

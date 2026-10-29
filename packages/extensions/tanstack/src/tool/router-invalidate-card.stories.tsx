@@ -9,7 +9,7 @@ type Story = StoryObj
 
 export const Done: Story = {
   render: () =>
-    traceFrame('1 router invalidate', [traceRow(storyPart('tanstack_invalidate', {}), storyResult({ok: true}))]),
+    traceFrame('1 router invalidate', [traceRow(storyPart('tanstack_router_invalidate', {}), storyResult({ok: true}))]),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await waitFor(() => expect(canvas.getByText('invalidated', {exact: true})).toBeVisible())
@@ -19,7 +19,10 @@ export const Done: Story = {
 export const ErrorState: Story = {
   render: () =>
     traceFrame('1 router invalidate', [
-      traceRow(storyPart('tanstack_invalidate', {}), storyErrorResult('TanStack router invalidate is not available')),
+      traceRow(
+        storyPart('tanstack_router_invalidate', {}),
+        storyErrorResult('TanStack router invalidate is not available'),
+      ),
     ]),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)

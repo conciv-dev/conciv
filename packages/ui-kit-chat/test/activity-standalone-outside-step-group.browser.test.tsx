@@ -11,7 +11,9 @@ function ConfirmCard(props: ToolCardProps): JSX.Element {
   return <p>Confirm this action for {props.part.name}</p>
 }
 
-const entries: ToolCardEntry[] = [{names: ['confirm_ui'], render: ConfirmCard, display: 'standalone'}]
+const entries: ToolCardEntry[] = [
+  {names: ['confirm_ui'], render: ConfirmCard, hasEmbeddedBody: () => true, display: 'standalone'},
+]
 
 function call(id: string, name: string, state: ToolCallPart['state']): MessagePart {
   return {type: 'tool-call', id, name, arguments: '{}', state}

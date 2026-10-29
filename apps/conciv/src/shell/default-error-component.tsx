@@ -1,6 +1,6 @@
 import {createMemo, type JSX} from 'solid-js'
 import {useRouteContext, useRouter, type ErrorComponentProps} from '@tanstack/solid-router'
-import {reprobeBrowserRpcConnection} from '@conciv/contract'
+import {resetBrowserRpcConnection} from '@conciv/contract'
 import {ErrorScreen} from './error-screen.js'
 import {classifyRpcError, type RpcErrorClassification} from './rpc-error-message.js'
 
@@ -14,7 +14,7 @@ export function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
     classifyRpcError(props.error, ENGINE_UNREACHABLE_MESSAGE, GENERIC_ERROR_MESSAGE),
   )
   const retry = (): void => {
-    if (classification().transportFailure) reprobeBrowserRpcConnection(apiBase()?.() ?? '')
+    if (classification().transportFailure) resetBrowserRpcConnection(apiBase()?.() ?? '')
     void router.invalidate()
   }
   return <ErrorScreen message={classification().message} onRetry={retry} />

@@ -1,5 +1,6 @@
 ---
 '@conciv/solid-streamdown': patch
+'@conciv/ui-kit-chat': patch
 ---
 
-Fix a measured DOM churn regression during streaming: `Block` rebuilt a fresh hast object graph on every text update, so Solid saw new object identity for every node and destroyed/recreated the whole subtree (72k+ node removals per turn with animation on). The hast tree built by the new `createHast` export now flows through `createImmutable` so unchanged nodes keep their identity across renders and Solid patches instead of rebuilding. Rendered markdown, animation timing, and caret behavior are unchanged.
+Stop streamed text from flickering. Each markdown block is now a keyed node tree held in a store and reconciled by key, so words that have already settled keep their DOM node and never replay their fade; only newly mounted words animate in. The old character-counting animate plugin, its stagger variables, and the `createImmutable` hast wrapper are gone. The streaming answer also drops `text-wrap: pretty`, which re-balanced line breaks as text grew and moved settled words between lines; settled answers keep it.

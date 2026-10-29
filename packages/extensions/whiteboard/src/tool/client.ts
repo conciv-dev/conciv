@@ -25,32 +25,32 @@ import {
 } from './comment/def.js'
 import {elementReferenceDef} from './element/def.js'
 import {anchorResolveDef} from './anchor/def.js'
-import {CanvasOpCard} from './canvas/card.js'
-import {CommentOpCard} from './comment/card.js'
-import {ElementReferenceCard} from './element/card.js'
-import {AnchorResolveCard} from './anchor/card.js'
+import {canvasOpCard} from './canvas/card.js'
+import {commentOpCard} from './comment/card.js'
+import {elementReferenceCard} from './element/card.js'
+import {anchorResolveCard} from './anchor/card.js'
 
 export const whiteboardToolClients = [
-  defineTool(canvasReadDef).render(CanvasOpCard),
-  defineTool(canvasSvgDef).render(CanvasOpCard),
-  defineTool(canvasPreviewDef).render(CanvasOpCard),
-  defineTool(canvasExportDef).render(CanvasOpCard),
-  defineTool(canvasDrawDef).render(CanvasOpCard),
-  defineTool(canvasDiagramDef).render(CanvasOpCard),
-  defineTool(canvasConnectDef).render(CanvasOpCard),
-  defineTool(canvasUpdateDef).render(CanvasOpCard),
-  defineTool(canvasDeleteDef).render(CanvasOpCard),
-  defineTool(canvasClearDef).render(CanvasOpCard),
-  defineTool(canvasCommitDef).render(CanvasOpCard),
-  defineTool(canvasDiscardDef).render(CanvasOpCard),
-  defineTool(commentCreateDef).render(CommentOpCard),
-  defineTool(commentReplyDef).render(CommentOpCard),
-  defineTool(commentReadDef).render(CommentOpCard),
-  defineTool(commentListDef).render(CommentOpCard),
-  defineTool(commentResolveDef).render(CommentOpCard),
-  defineTool(commentDeleteDef).render(CommentOpCard),
-  defineTool(commentMoveDef).render(CommentOpCard),
-  defineTool(pinSetStateDef).render(CommentOpCard),
-  defineTool(elementReferenceDef).render(ElementReferenceCard),
-  defineTool(anchorResolveDef).render(AnchorResolveCard),
+  defineTool(canvasReadDef).render(canvasOpCard),
+  defineTool(canvasSvgDef).render(canvasOpCard),
+  defineTool(canvasPreviewDef).render(canvasOpCard),
+  defineTool(canvasExportDef).render(canvasOpCard),
+  defineTool(canvasDrawDef).render(canvasOpCard),
+  defineTool(canvasDiagramDef).render(canvasOpCard),
+  defineTool(canvasConnectDef).render(canvasOpCard),
+  defineTool(canvasUpdateDef).render(canvasOpCard),
+  defineTool(canvasDeleteDef).render(canvasOpCard),
+  defineTool(canvasClearDef).render(canvasOpCard),
+  defineTool(canvasCommitDef).render(canvasOpCard),
+  defineTool(canvasDiscardDef).render(canvasOpCard),
+  defineTool(commentCreateDef).render(commentOpCard),
+  defineTool(commentReplyDef).render(commentOpCard),
+  defineTool(commentReadDef).render(commentOpCard),
+  defineTool(commentListDef).render(commentOpCard),
+  defineTool(commentResolveDef).render(commentOpCard),
+  defineTool(commentDeleteDef).render(commentOpCard),
+  defineTool(commentMoveDef).render(commentOpCard),
+  defineTool(pinSetStateDef).render(commentOpCard),
+  defineTool(elementReferenceDef).render(elementReferenceCard),
+  defineTool(anchorResolveDef).render(anchorResolveCard),
 ]

@@ -41,7 +41,7 @@ describe('built-in tool declarations', () => {
     const catalog = registryWith(fakeBundler()).catalog.list()
     expect(catalog.map((entry) => entry.name).toSorted()).toEqual(builtinToolNames().toSorted())
     const bindings = new Map(catalog.map((entry) => [entry.name, entry.binding]))
-    expect(bindings.get('server.urls')).toBe('server')
+    expect(bindings.get('server_urls')).toBe('server')
     expect(bindings.get('open')).toBe('server')
   })
 
@@ -61,11 +61,11 @@ describe('built-in tool declarations', () => {
   it('runs a server tool and the open tool end to end through the registry', async () => {
     const opened: string[] = []
     const registry = registryWith(fakeBundler(), opened)
-    await expect(registry.call('server.urls', {}, {request: testRequest})).resolves.toEqual({
+    await expect(registry.call('server_urls', {}, {request: testRequest})).resolves.toEqual({
       local: ['http://localhost:5173/'],
       network: [],
     })
-    await expect(registry.call('server.resolve', {spec: 'x'}, {request: testRequest})).resolves.toEqual({
+    await expect(registry.call('server_resolve', {spec: 'x'}, {request: testRequest})).resolves.toEqual({
       id: '/app/src/x.ts',
     })
     await expect(registry.call('open', {file: 'src/app.ts', line: 4}, {request: testRequest})).resolves.toEqual({
@@ -78,7 +78,7 @@ describe('built-in tool declarations', () => {
 
   it('raises its declared NO_BUNDLER error when no dev server is attached', async () => {
     const registry = registryWith(undefined)
-    const failure = await registry.call('server.config', {}, {request: testRequest}).then(
+    const failure = await registry.call('server_config', {}, {request: testRequest}).then(
       () => null,
       (error: unknown) => error,
     )

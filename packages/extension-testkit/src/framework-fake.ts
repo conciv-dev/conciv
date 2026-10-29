@@ -129,7 +129,6 @@ const defaultClient: FrameworkClientCore = {
     entries: async () => fakeCacheEntries,
     get: async () => fakeLoaderData,
     invalidate: async () => {},
-    refetch: async () => {},
   },
   errors: {
     snapshot: async () => fakeAppErrors,

@@ -57,8 +57,7 @@ describe('run log pre-seeding on the slow-finish deadline path (IT)', () => {
       ).setup()
       try {
         const id = await kit.session()
-        const stream = await kit.attach(id)
-        await kit.rpc.chat.send({runId: 'run-log-preseed-1', sessionId: id, text: 'hi'})
+        const stream = await kit.turn('hi', {session: id, runId: 'run-log-preseed-1'})
         const runError = await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 8_500})
         expect('message' in runError ? runError.message : '').toContain('no output')
       } finally {

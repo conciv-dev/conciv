@@ -44,11 +44,11 @@ it('keeps the assistant action bar reachable by Tab without hovering the turn fi
   await expect.element(page.getByRole('button', {name: 'Copy'})).toHaveFocus()
 })
 
-it('activates the copy action from the keyboard when the turn was never hovered', async () => {
+it('says the copy did not land when the clipboard refuses a keyboard-activated copy', async () => {
   await mountWithAssistantReply()
 
   await userEvent.tab()
   await userEvent.keyboard('{Enter}')
 
-  await expect.element(page.getByRole('button', {name: 'Copy'})).toHaveAttribute('data-copied')
+  await expect.element(page.getByRole('button', {name: 'Copy failed'})).toBeVisible()
 })
