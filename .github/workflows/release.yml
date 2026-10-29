@@ -37,7 +37,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    uses: ./.github/workflows/ci.yml
+    uses: $/.github/workflows/ci.yml
 
   release:
     needs: test
