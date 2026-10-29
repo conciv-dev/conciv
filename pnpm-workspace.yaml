@@ -41,7 +41,7 @@ catalog:
   '@solid-primitives/event-listener': '^2.4.6'
   '@solid-primitives/timer': '^1.4.4'
   '@solidjs/testing-library': '^0.8.10'
-  '@storybook/addon-docs': '^10.6.4'
+  '@storybook/addon-docs': '^10.6.5'
   '@tailwindcss/typography': '^0.5.20'
   '@tailwindcss/vite': '^4.3.3'
   '@tanstack/ai-acp': 0.2.4
@@ -58,15 +58,15 @@ catalog:
   '@tanstack/router-plugin': 1.168.43
   '@tanstack/solid-query': '^5.105.0'
   '@tanstack/solid-router': 1.170.39
-  '@tanstack/solid-virtual': '^3.13.50'
-  '@tiptap/core': '^3.32.0'
-  '@tiptap/extension-document': '^3.32.0'
-  '@tiptap/extension-hard-break': '^3.32.0'
-  '@tiptap/extension-mention': '^3.32.0'
-  '@tiptap/extension-paragraph': '^3.32.0'
-  '@tiptap/extension-text': '^3.32.0'
-  '@tiptap/pm': '^3.32.0'
-  '@types/node': '^26.6.5'
+  '@tanstack/solid-virtual': '^3.13.51'
+  '@tiptap/core': '^3.32.1'
+  '@tiptap/extension-document': '^3.32.1'
+  '@tiptap/extension-hard-break': '^3.32.1'
+  '@tiptap/extension-mention': '^3.32.1'
+  '@tiptap/extension-paragraph': '^3.32.1'
+  '@tiptap/extension-text': '^3.32.1'
+  '@tiptap/pm': '^3.32.1'
+  '@types/node': '^26.6.6'
   '@types/react': '^19.3.0'
   '@types/react-dom': '^19.3.0'
   '@types/ws': '^8.18.2'
@@ -84,12 +84,12 @@ catalog:
   get-port: '^7.2.0'
   gsap: '^3.15.0'
   hono: '^4.13.14'
-  lucide-react: '^1.62.0'
-  lucide-solid: '^1.62.0'
+  lucide-react: '^1.64.0'
+  lucide-solid: '^1.64.0'
   marked: '^18.1.2'
   motion: 12.42.2
   next: 16.4.3
-  nitro: npm:nitro-nightly@3.0.1-20261027-105357-b2437562
+  nitro: npm:nitro-nightly@3.0.1-20261029-122457-3f1c8af0
   oxc-parser: '^0.156.0'
   oxlint: 1.73.0
   p-timeout: '^8.0.0'
@@ -110,10 +110,10 @@ catalog:
   rrweb-snapshot: 2.2.0
   shiki: '^4.5.0'
   solid-js: '^1.9.17'
-  storybook: '^10.6.4'
+  storybook: '^10.6.5'
   storybook-solidjs-vite: '^10.7.4'
   tailwindcss: '^4.3.3'
-  tsdown: '^0.23.2'
+  tsdown: '^0.23.4'
   tsx: '^4.23.15'
   typescript: '^6.0.3'
   unified: '^11.0.5'
@@ -230,5 +230,28 @@ minimumReleaseAgeExclude:
   - '@garden-co/jazz-napi-darwin-x64'
   - '@garden-co/jazz-napi-linux-x64-gnu'
   - '@garden-co/jazz-napi-win32-x64-msvc'
+  # Added 2026-10-29 for the catalog upgrade: these release more often than the 48h window
+  # allows (storybook, tiptap, lucide and @types/node weekly, tsdown and the nitro nightly
+  # alias daily), so the window always blocks their latest. Reviewed on each bump.
+  - 'storybook'
+  - '@storybook/addon-docs'
+  - '@tanstack/solid-virtual'
+  - '@tiptap/core'
+  - '@tiptap/extension-document'
+  - '@tiptap/extension-hard-break'
+  - '@tiptap/extension-mention'
+  - '@tiptap/extension-paragraph'
+  - '@tiptap/extension-text'
+  - '@tiptap/pm'
+  - '@types/node'
+  - 'lucide-react'
+  - 'lucide-solid'
+  - 'tsdown'
+  - 'nitro-nightly'
+  # Transitive members of the families above, published in the same release trains.
+  - '@storybook/react-dom-shim'
+  - '@tanstack/virtual-core'
+  - '@tiptap/suggestion'
+  - 'env-runner'
 patchedDependencies:
   '@tanstack/ai-sandbox-local-process@0.2.1': patches/@tanstack__ai-sandbox-local-process@0.2.1.patch
