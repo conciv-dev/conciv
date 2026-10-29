@@ -2,14 +2,14 @@ import 'virtual:uno.css'
 import {createSignal, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import type {UIMessage} from '@tanstack/ai-client'
+import type {ChatMessage} from '@conciv/ai/messages'
 import {Activity} from '../src/styled/activity.js'
 import {mountView} from './mount-view.js'
 
 const FULLY_IN_VIEWPORT = {ratio: 0.99}
 const LINE_COUNT = 60
 
-function turns(count: number): UIMessage[] {
+function turns(count: number): ChatMessage[] {
   return Array.from({length: count}, (_, index) => ({
     id: `m${index}`,
     role: index % 2 === 0 ? 'user' : 'assistant',

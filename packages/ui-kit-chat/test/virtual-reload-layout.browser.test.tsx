@@ -3,9 +3,9 @@ import {createSignal, onMount, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
+import type {ChatMessage} from '@conciv/ai/messages'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {VIRTUALIZE_THRESHOLD} from '../src/primitives/thread/virtualize-threshold.js'
 import {mountView} from './mount-view.js'
@@ -18,10 +18,10 @@ function answerFor(index: number): string {
   return `seeded answer ${index}`
 }
 
-function seedTranscript(turns: number): UIMessage[] {
+function seedTranscript(turns: number): ChatMessage[] {
   return Array.from(
     {length: turns},
-    (_unused, index): UIMessage =>
+    (_unused, index): ChatMessage =>
       index % 2 === 0
         ? {id: `m${index}`, role: 'user', parts: [{type: 'text', content: `seeded question ${index}`}]}
         : {
@@ -32,7 +32,7 @@ function seedTranscript(turns: number): UIMessage[] {
   )
 }
 
-function ReloadedThread(props: {initial: UIMessage[]; ref?: (element: HTMLElement) => void}): JSX.Element {
+function ReloadedThread(props: {initial: ChatMessage[]; ref?: (element: HTMLElement) => void}): JSX.Element {
   const chat = useChat({
     threadId: 'virtual-reload-layout',
     connection: storyConnection({chunks: []}),
@@ -49,7 +49,7 @@ function ReloadedThread(props: {initial: UIMessage[]; ref?: (element: HTMLElemen
   )
 }
 
-function mountReloadedThread(initial: UIMessage[]): {host: HTMLElement; viewport: () => HTMLElement} {
+function mountReloadedThread(initial: ChatMessage[]): {host: HTMLElement; viewport: () => HTMLElement} {
   let viewport: HTMLElement | undefined
   const host = mountView(() => (
     <ReloadedThread
@@ -180,7 +180,7 @@ function GrowingTail(): JSX.Element {
   return <div style={{height: tall() ? '41px' : '0px'}} />
 }
 
-function LateTailThread(props: {initial: UIMessage[]; ref?: (element: HTMLElement) => void}): JSX.Element {
+function LateTailThread(props: {initial: ChatMessage[]; ref?: (element: HTMLElement) => void}): JSX.Element {
   const chat = useChat({
     threadId: 'virtual-reload-layout',
     connection: storyConnection({chunks: []}),

@@ -2,9 +2,9 @@ import {onMount, Show, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
+import type {ChatMessage} from '@conciv/ai/messages'
 import {ChatProvider} from '../../store/chat-context.js'
-import {storyConnection} from '../../store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../thread/thread.js'
 import {Message} from '../message/message.js'
 import {SAMPLE_IMAGE_BASE64, SAMPLE_IMAGE_MIME} from '../../store/sample-image.fixtures.js'
@@ -29,7 +29,7 @@ function UserMessage(): JSX.Element {
 export const ImagePart: Story = {
   render: () => {
     const chat = useChat({threadId: 'message-part', connection: storyConnection()})
-    const message: UIMessage = {
+    const message: ChatMessage = {
       id: 'u-img',
       role: 'user',
       parts: [
@@ -74,7 +74,7 @@ function InProgressUser(): JSX.Element {
 export const InProgressWhileToolRuns: Story = {
   render: () => {
     const chat = useChat({threadId: 'message-part', connection: storyConnection()})
-    const message: UIMessage = {
+    const message: ChatMessage = {
       id: 'a-run',
       role: 'assistant',
       parts: [{type: 'tool-call', id: 't1', name: 'read', arguments: '{}', state: 'input-streaming'}],
@@ -126,7 +126,7 @@ function ProbeAssistant(): JSX.Element {
 export const PartAccessors: Story = {
   render: () => {
     const chat = useChat({threadId: 'message-part', connection: storyConnection()})
-    const message: UIMessage = {
+    const message: ChatMessage = {
       id: 'a-parts',
       role: 'assistant',
       parts: [

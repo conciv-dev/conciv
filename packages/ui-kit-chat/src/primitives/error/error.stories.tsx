@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import {ChatProvider} from '../../store/chat-context.js'
-import {storyConnection} from '../../store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Error} from './error.js'
 
 const meta: Meta = {title: 'ui-kit-chat/primitives/Error'}

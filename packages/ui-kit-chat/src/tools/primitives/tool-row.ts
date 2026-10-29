@@ -1,5 +1,5 @@
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai/messages'
 import type {JSX} from 'solid-js'
 import {toolStatus, type ToolStatus} from './tool-status.js'
 

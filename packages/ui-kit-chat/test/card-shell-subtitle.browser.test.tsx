@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolCallPart} from '@conciv/ai/messages'
 import {CardShell} from '../src/tools/styled/card-shell.js'
 
 const PART: ToolCallPart = {type: 'tool-call', id: 't1', name: 'demo_tool', arguments: '{}', state: 'input-complete'}

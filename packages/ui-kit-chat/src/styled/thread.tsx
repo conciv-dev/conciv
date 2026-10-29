@@ -14,7 +14,7 @@ import {
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
-import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
+import type {ChatPart, ToolCallPart} from '@conciv/ai/messages'
 import type {ToolCardEntry, ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {useChatContext, useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
@@ -101,13 +101,13 @@ function firstLine(text: string): string {
   return (text.split('\n')[0] ?? '').trim()
 }
 
-function asThinking(part: MessagePart | undefined): Extract<MessagePart, {type: 'thinking'}> | null {
+function asThinking(part: ChatPart | undefined): Extract<ChatPart, {type: 'thinking'}> | null {
   return part?.type === 'thinking' && part.content.trim().length > 0 ? part : null
 }
-function asToolCall(part: MessagePart | undefined): ToolCallPart | null {
+function asToolCall(part: ChatPart | undefined): ToolCallPart | null {
   return part?.type === 'tool-call' ? part : null
 }
-function asText(part: MessagePart | undefined): Extract<MessagePart, {type: 'text'}> | null {
+function asText(part: ChatPart | undefined): Extract<ChatPart, {type: 'text'}> | null {
   return part?.type === 'text' && part.content.trim().length > 0 ? part : null
 }
 
@@ -119,11 +119,11 @@ function asPartNode(node: GroupNode): GroupNodePart | null {
   return node.type === 'part' ? node : null
 }
 
-function rollupOfParts(parts: readonly MessagePart[]): TurnRollup {
+function rollupOfParts(parts: readonly ChatPart[]): TurnRollup {
   return turnRollup({key: 'segment', role: 'assistant', parts: [...parts], start: 0, end: 0})
 }
 
-function planBody(part: () => Extract<MessagePart, {type: 'thinking'}>): (() => JSX.Element) | undefined {
+function planBody(part: () => Extract<ChatPart, {type: 'thinking'}>): (() => JSX.Element) | undefined {
   const text = part().content.trim()
   if (text.split('\n').length < 2 && text.length <= PLAN_INLINE_LENGTH) return undefined
   return () => <TraceBodyFrame>{text}</TraceBodyFrame>
@@ -160,7 +160,7 @@ function AssistantTurn(props: {
     node.type === 'part' ? partLive(node.index) : node.indices.some(partLive) || (runActive() && groupStillOpen(node))
   const folded = () => !message.isLast()
   const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => {
-    const segmentParts = createMemo<MessagePart[]>(() =>
+    const segmentParts = createMemo<ChatPart[]>(() =>
       groupProps.node.indices.flatMap((partIndex) => {
         const part = groupProps.parts()[partIndex]
         return part ? [part] : []
@@ -303,7 +303,7 @@ function AssistantTurn(props: {
 function promptTextOf(turn: Turn): string {
   return turn.parts
     .filter(
-      (part): part is Extract<MessagePart, {type: 'text'}> =>
+      (part): part is Extract<ChatPart, {type: 'text'}> =>
         part.type === 'text' && part.content.trim().length > 0 && !partIsModelOnly(part),
     )
     .map((part) => part.content)

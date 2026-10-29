@@ -4,10 +4,10 @@ import {page, type Locator} from 'vitest/browser'
 import {expect, it, onTestFinished} from 'vitest'
 import {keyBy, range, uniq} from 'es-toolkit'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
+import type {ChatMessage} from '@conciv/ai/messages'
+import {ChatEventType, type ChatEvent} from '@conciv/ai/events'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {storyConnection, type StoryConnectionOptions} from '../src/store/story-connection.js'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import {storyConnection, type StoryConnectionOptions} from '@conciv/ai/testkit'
 import {Thread} from '../src/primitives/thread/thread.js'
 import {Message} from '../src/primitives/message/message.js'
 import {VIRTUALIZE_THRESHOLD} from '../src/primitives/thread/virtualize-threshold.js'
@@ -27,8 +27,8 @@ window.addEventListener('error', (event) => {
   windowErrors.push(typeof event.message === 'string' ? event.message : String(event))
 })
 
-function seedMessages(count: number): UIMessage[] {
-  const messages: UIMessage[] = []
+function seedMessages(count: number): ChatMessage[] {
+  const messages: ChatMessage[] = []
   for (let index = 0; index < count; index++) {
     const id = `m${index}`
     messages.push(
@@ -57,7 +57,7 @@ function AssistantMessage(): JSX.Element {
 }
 
 function mountThread(
-  initial: UIMessage[],
+  initial: ChatMessage[],
   stream: StoryConnectionOptions = {chunks: []},
 ): {
   host: HTMLElement
@@ -314,7 +314,7 @@ it('history prepend keeps the reading position while scrolled up', async () => {
   await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('question 0')).toBeVisible()
 
-  const older: UIMessage[] = Array.from({length: 10}, (_, index) => ({
+  const older: ChatMessage[] = Array.from({length: 10}, (_, index) => ({
     id: `old${index}`,
     role: index % 2 === 0 ? 'user' : 'assistant',
     parts: [{type: 'text', content: `older ${index}`}],
@@ -379,18 +379,18 @@ const STREAM_CHUNK_DELAY_MS = 24
 const TRACKPAD_TICKS = 20
 const TRACKPAD_STEP_PX = 6
 
-function streamedReply(lines: number): StreamChunk[] {
+function streamedReply(lines: number): ChatEvent[] {
   const messageId = 'streamed-reply'
   return [
-    {type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant'},
+    {type: ChatEventType.TEXT_MESSAGE_START, messageId, role: 'assistant'},
     ...range(0, lines).map(
-      (line): StreamChunk => ({
-        type: EventType.TEXT_MESSAGE_CONTENT,
+      (line): ChatEvent => ({
+        type: ChatEventType.TEXT_MESSAGE_CONTENT,
         messageId,
         delta: `streamed line ${line}. ${'more streamed prose. '.repeat(4)}\n\n`,
       }),
     ),
-    {type: EventType.TEXT_MESSAGE_END, messageId},
+    {type: ChatEventType.TEXT_MESSAGE_END, messageId},
   ]
 }
 

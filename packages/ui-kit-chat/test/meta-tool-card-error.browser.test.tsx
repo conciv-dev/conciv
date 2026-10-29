@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import type {ToolResultPart} from '@tanstack/ai-client'
+import type {ToolResultPart} from '@conciv/ai/messages'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {MetaToolCard} from '../src/tools/styled/meta-tool-card.js'
 import {INERT_ADD_RESULT} from '../src/store/tool-context.js'

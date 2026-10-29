@@ -5,17 +5,17 @@ import {onMount, type JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
-import type {MessagePart, UIMessage} from '@tanstack/ai-client'
+import type {ChatPart, ChatMessage} from '@conciv/ai/messages'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {createReasoningChunks, createToolCallChunks, storyConnection} from '../src/store/story-connection.js'
+import {createReasoningChunks, createToolCallChunks, storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 import {haltRun, startRun, streamingThread} from './run-harness.js'
 
 const TIMEOUT_MS = 3000
 
-function staticThread(parts: MessagePart[]): () => JSX.Element {
-  const messages: UIMessage[] = [
+function staticThread(parts: ChatPart[]): () => JSX.Element {
+  const messages: ChatMessage[] = [
     {id: 'u1', role: 'user', parts: [{type: 'text', content: 'go'}]},
     {id: 'a1', role: 'assistant', parts},
   ]

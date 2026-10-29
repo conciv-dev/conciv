@@ -4,7 +4,7 @@ import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {createTextChunks, storyConnection} from '../src/store/story-connection.js'
+import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 

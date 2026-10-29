@@ -15,7 +15,7 @@ import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Loader from 'lucide-solid/icons/loader'
 import ShieldQuestion from 'lucide-solid/icons/shield-question-mark'
 import X from 'lucide-solid/icons/x'
-import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
+import type {ChatPart, ToolCallPart, ChatMessage} from '@conciv/ai/messages'
 import type {ToolCardEntry, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {Key} from '@solid-primitives/keyed'
 import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
@@ -65,7 +65,7 @@ const ActivityConfigContext = createContext<ActivityConfig>({
 })
 
 export type ActivityProps = ParentProps<{
-  messages: UIMessage[]
+  messages: ChatMessage[]
   live?: boolean
   label?: ActivityLabeler
   tools?: ToolCardEntry[]
@@ -124,11 +124,11 @@ const STEP_TRIGGER = `group flex w-full items-center gap-2 px-2 py-1 rounded-[va
 const STEP_CHEVRON =
   'size-3 shrink-0 ml-auto opacity-0 group-hover:opacity-100 [transition:rotate_150ms_var(--chat-ease)] group-data-[state=open]:opacity-100 group-data-[state=closed]:-rotate-90'
 
-function asThinking(part: MessagePart | undefined): Extract<MessagePart, {type: 'thinking'}> | null {
+function asThinking(part: ChatPart | undefined): Extract<ChatPart, {type: 'thinking'}> | null {
   return part?.type === 'thinking' && part.content.trim().length > 0 ? part : null
 }
 
-function asToolCall(part: MessagePart | undefined): ToolCallPart | null {
+function asToolCall(part: ChatPart | undefined): ToolCallPart | null {
   return part?.type === 'tool-call' ? part : null
 }
 
@@ -198,7 +198,7 @@ function SubCallGroup(props: {parent: ToolCallPart; subCalls: ToolCallPart[]}): 
   )
 }
 
-function ThinkingStep(props: {part: Extract<MessagePart, {type: 'thinking'}>}): JSX.Element {
+function ThinkingStep(props: {part: Extract<ChatPart, {type: 'thinking'}>}): JSX.Element {
   return (
     <StepShell glyph={stepGlyph('complete')} title="Reasoning">
       <div class="text-[length:var(--chat-text-sm)] leading-[1.45] whitespace-pre-wrap [color:var(--chat-text-2)]">
@@ -273,7 +273,7 @@ function StepGroup(props: {turn: Turn; node: GroupNodeGroup; liveSegment: boolea
   )
 }
 
-function asText(part: MessagePart | undefined): Extract<MessagePart, {type: 'text'}> | null {
+function asText(part: ChatPart | undefined): Extract<ChatPart, {type: 'text'}> | null {
   return part?.type === 'text' && part.content.trim().length > 0 ? part : null
 }
 

@@ -56,6 +56,7 @@
   "dependencies": {
     "@ark-ui/solid": "catalog:",
     "@chenglou/pretext": "0.0.8",
+    "@conciv/ai": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
@@ -70,7 +71,6 @@
     "@solid-primitives/media": "^2.3.6",
     "@solid-primitives/resize-observer": "^2.2.0",
     "@solid-primitives/timer": "catalog:",
-    "@tanstack/ai-client": "catalog:",
     "@tanstack/pacer": "catalog:",
     "@tanstack/solid-virtual": "catalog:",
     "class-variance-authority": "catalog:",
@@ -86,6 +86,7 @@
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/ai": "catalog:",
+    "@tanstack/ai-client": "catalog:",
     "@tanstack/ai-solid": "catalog:",
     "@types/node": "catalog:",
     "@unocss/postcss": "catalog:",

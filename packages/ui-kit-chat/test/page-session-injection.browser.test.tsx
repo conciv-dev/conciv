@@ -3,10 +3,10 @@ import {onMount, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
-import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
+import type {ChatPart, ToolCallPart, ChatMessage} from '@conciv/ai/messages'
+import {ChatEventType} from '@conciv/ai/events'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {EventType} from '@tanstack/ai'
-import {createTextChunks, createToolCallChunks, storyConnection} from '../src/store/story-connection.js'
+import {createTextChunks, createToolCallChunks, storyConnection} from '@conciv/ai/testkit'
 import {PAGE_SESSION_GROUP_KEY, type GroupEntry, type GroupRenderProps} from '../src/store/grouping.js'
 import {pageSessionCallParts, pageSessionThinkingParts, type PageSessionConfig} from '../src/store/page-session.js'
 import {Thread} from '../src/styled/thread.js'
@@ -119,19 +119,19 @@ it('keeps the flat chain rendering when no page-session config is passed', async
   await expect.element(page.getByText('session settled')).not.toBeInTheDocument()
 })
 
-function user(id: string, text: string): UIMessage {
+function user(id: string, text: string): ChatMessage {
   return {id, role: 'user', parts: [{type: 'text', content: text}]}
 }
 
-function assistant(id: string, parts: MessagePart[]): UIMessage {
+function assistant(id: string, parts: ChatPart[]): ChatMessage {
   return {id, role: 'assistant', parts}
 }
 
-function call(id: string, name: string, state: ToolCallPart['state']): MessagePart {
+function call(id: string, name: string, state: ToolCallPart['state']): ChatPart {
   return {type: 'tool-call', id, name, arguments: '{}', state}
 }
 
-function subCall(id: string, name: string, parent: string, state: ToolCallPart['state']): MessagePart {
+function subCall(id: string, name: string, parent: string, state: ToolCallPart['state']): ChatPart {
   const part: ToolCallPart & {metadata?: {parentToolCallId?: string}} = {
     type: 'tool-call',
     id,
@@ -143,13 +143,13 @@ function subCall(id: string, name: string, parent: string, state: ToolCallPart['
   return part
 }
 
-function result(toolCallId: string, state: 'complete' | 'error'): MessagePart {
+function result(toolCallId: string, state: 'complete' | 'error'): ChatPart {
   return {type: 'tool-result', toolCallId, content: '{"ok":true}', state}
 }
 
 const label = (part: ToolCallPart): string => part.name
 
-function ActivityHarness(props: {messages: UIMessage[]; live?: boolean}): JSX.Element {
+function ActivityHarness(props: {messages: ChatMessage[]; live?: boolean}): JSX.Element {
   return (
     <div class="flex flex-col h-96 w-96">
       <Activity.Root messages={props.messages} live={props.live} label={label} pageSession={PAGE_SESSION}>
@@ -270,7 +270,7 @@ it('keeps the live session streaming when a trailing foreign result arrives', as
           ...fillChunks('f1', true),
           ...fillChunks('f2', true),
           {
-            type: EventType.TOOL_CALL_RESULT,
+            type: ChatEventType.TOOL_CALL_RESULT,
             messageId: 'foreign-result',
             toolCallId: 'foreign',
             content: '{}',

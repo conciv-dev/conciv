@@ -2,9 +2,9 @@ import {onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, fn, within, userEvent, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
-import type {MultimodalContent} from '@tanstack/ai-client'
+import type {SendContent} from '@conciv/ai/messages'
 import {ChatProvider} from '../../store/chat-context.js'
-import {storyConnection, createTextChunks} from '../../store/story-connection.js'
+import {storyConnection, createTextChunks} from '@conciv/ai/testkit'
 import {Thread} from '../thread/thread.js'
 import {Message} from '../message/message.js'
 import {QueueItem} from '../queue-item/queue-item.js'
@@ -184,7 +184,7 @@ function AttachmentChip(): JSX.Element {
 
 function AttachmentComposerApp(props: {
   adapter: AttachmentAdapter
-  onSend: (content: string | MultimodalContent) => void
+  onSend: (content: string | SendContent) => void
 }): JSX.Element {
   const chat = useChat({threadId: 'composer', connection: storyConnection({chunks: createTextChunks('unused')})})
   const handlers = untrack(() => ({onSend: props.onSend}))

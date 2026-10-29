@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolCallPart} from '@conciv/ai/messages'
 import type {ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import {parseInput} from './tool-util.js'
 

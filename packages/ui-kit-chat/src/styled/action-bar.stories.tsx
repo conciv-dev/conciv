@@ -2,9 +2,9 @@ import {onMount, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
+import type {ChatMessage} from '@conciv/ai/messages'
 import {ChatProvider} from '../store/chat-context.js'
-import {storyConnection} from '../store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../primitives/thread/thread.js'
 import {Message} from '../primitives/message/message.js'
 import {AssistantActionBar} from './action-bar.js'
@@ -13,7 +13,7 @@ const meta: Meta = {title: 'ui-kit-chat/styled/ActionBar'}
 export default meta
 type Story = StoryObj
 
-const REPLY: UIMessage = {
+const REPLY: ChatMessage = {
   id: 'a1',
   role: 'assistant',
   parts: [{type: 'text', content: 'Add the missing await on line 12.'}],

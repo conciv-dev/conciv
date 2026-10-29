@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {expect, it} from 'vitest'
 import {createStore, produce} from 'solid-js/store'
 import {Index} from 'solid-js'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolCallPart} from '@conciv/ai/messages'
 import {ToolCard} from '../src/tools/styled/tool-card.js'
 import {mountView} from './mount-view.js'
 

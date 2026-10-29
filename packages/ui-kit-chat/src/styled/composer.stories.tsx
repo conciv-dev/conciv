@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, userEvent, waitFor, within} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
 import {ChatProvider} from '../store/chat-context.js'
-import {createTextChunks, storyConnection} from '../store/story-connection.js'
+import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {Composer} from './composer.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/Composer'}

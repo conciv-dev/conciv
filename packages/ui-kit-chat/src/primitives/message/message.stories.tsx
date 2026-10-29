@@ -2,11 +2,11 @@ import {onMount, type JSX, type ParentProps} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
+import type {ChatMessage} from '@conciv/ai/messages'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../../store/chat-context.js'
 import {defaultGrouper, type GroupKey} from '../../store/grouping.js'
-import {storyConnection} from '../../store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../thread/thread.js'
 import {Attachment} from '../attachment/attachment.js'
 import {Message} from './message.js'
@@ -15,7 +15,7 @@ const meta: Meta = {title: 'ui-kit-chat/primitives/Message'}
 export default meta
 type Story = StoryObj
 
-const WITH_ATTACHMENTS: UIMessage = {
+const WITH_ATTACHMENTS: ChatMessage = {
   id: 'u-att',
   role: 'user',
   parts: [
@@ -84,7 +84,7 @@ export const AttachmentByIndexShowsOne: Story = {
   },
 }
 
-const CHAIN_THEN_REPLY: UIMessage = {
+const CHAIN_THEN_REPLY: ChatMessage = {
   id: 'a-grouped',
   role: 'assistant',
   parts: [
@@ -142,7 +142,7 @@ const CONFIRM_ENTRY: ToolCardEntry = {
   display: 'standalone',
 }
 
-const GROUPED_WITH_STANDALONE: UIMessage = {
+const GROUPED_WITH_STANDALONE: ChatMessage = {
   id: 'a-grouped-standalone',
   role: 'assistant',
   parts: [

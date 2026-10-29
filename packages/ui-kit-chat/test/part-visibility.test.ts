@@ -1,10 +1,10 @@
 import {describe, expect, it} from 'vitest'
 import {partIsModelOnly} from '../src/primitives/message-part/part-visibility.js'
-import type {MessagePart} from '@tanstack/ai-client'
+import type {ChatPart} from '@conciv/ai/messages'
 import {defaultGrouper, groupParts} from '../src/store/grouping.js'
 
-function modelOnlyText(content: string): MessagePart {
-  const part: MessagePart & {metadata?: unknown} = {type: 'text', content, metadata: {modelOnly: true}}
+function modelOnlyText(content: string): ChatPart {
+  const part: ChatPart & {metadata?: unknown} = {type: 'text', content, metadata: {modelOnly: true}}
   return part
 }
 

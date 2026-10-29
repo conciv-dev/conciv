@@ -5,9 +5,9 @@ import {onMount, type JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
+import type {ChatMessage} from '@conciv/ai/messages'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {VIRTUALIZE_THRESHOLD} from '../src/primitives/thread/virtualize-threshold.js'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
@@ -15,8 +15,8 @@ import {mountView} from './mount-view.js'
 const exchangeCount = VIRTUALIZE_THRESHOLD
 const lastExchange = exchangeCount - 1
 
-function longThread(): UIMessage[] {
-  return Array.from({length: exchangeCount}, (_, index): UIMessage[] => [
+function longThread(): ChatMessage[] {
+  return Array.from({length: exchangeCount}, (_, index): ChatMessage[] => [
     {id: `u${index}`, role: 'user', parts: [{type: 'text', content: `question number ${index}`}]},
     {id: `a${index}`, role: 'assistant', parts: [{type: 'text', content: `answer number ${index}\n`.repeat(6)}]},
   ]).flat()

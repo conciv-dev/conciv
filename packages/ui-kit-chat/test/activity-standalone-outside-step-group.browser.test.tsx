@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import type {JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
+import type {ChatPart, ToolCallPart, ChatMessage} from '@conciv/ai/messages'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Activity} from '../src/styled/activity.js'
 import {mountView} from './mount-view.js'
@@ -15,15 +15,15 @@ const entries: ToolCardEntry[] = [
   {names: ['confirm_ui'], render: ConfirmCard, hasEmbeddedBody: () => true, display: 'standalone'},
 ]
 
-function call(id: string, name: string, state: ToolCallPart['state']): MessagePart {
+function call(id: string, name: string, state: ToolCallPart['state']): ChatPart {
   return {type: 'tool-call', id, name, arguments: '{}', state}
 }
 
-function result(toolCallId: string, state: 'complete' | 'error'): MessagePart {
+function result(toolCallId: string, state: 'complete' | 'error'): ChatPart {
   return {type: 'tool-result', toolCallId, content: 'ok', state}
 }
 
-const messages: UIMessage[] = [
+const messages: ChatMessage[] = [
   {id: 'u1', role: 'user', parts: [{type: 'text', content: 'please confirm the deploy'}]},
   {
     id: 'a1',

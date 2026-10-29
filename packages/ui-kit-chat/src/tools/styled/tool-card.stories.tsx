@@ -2,7 +2,7 @@ import {createSignal, type JSX} from 'solid-js'
 import Wrench from 'lucide-solid/icons/wrench'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolCallPart, ToolCallState, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolCallState, ToolResultPart} from '@conciv/ai/messages'
 import {ToolCard} from './tool-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat/tools/styled/ToolCard'}

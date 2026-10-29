@@ -1,4 +1,4 @@
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai/messages'
 
 export type ToolStatus = 'running' | 'complete' | 'error' | 'approval'
 

@@ -3,9 +3,9 @@ import type {JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
-import type {MultimodalContent} from '@tanstack/ai-client'
+import type {SendContent} from '@conciv/ai/messages'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 
@@ -15,11 +15,11 @@ function imagePart() {
   return {type: 'image', source: {type: 'data', value: GIF, mimeType: 'image/gif'}} as const
 }
 
-function withText(): MultimodalContent {
+function withText(): SendContent {
   return {content: [{type: 'text', content: 'here it is'}, imagePart()]}
 }
 
-function ThreadHost(props: {content: () => MultimodalContent}): JSX.Element {
+function ThreadHost(props: {content: () => SendContent}): JSX.Element {
   const chat = useChat({
     threadId: 'attachment-only-user-message',
     connection: storyConnection({chunks: [], chunkDelay: 2}),

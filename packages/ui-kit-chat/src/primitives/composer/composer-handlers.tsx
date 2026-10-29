@@ -1,8 +1,8 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import type {MultimodalContent} from '@tanstack/ai-client'
+import type {SendContent} from '@conciv/ai/messages'
 
 export type ComposerHandlers = {
-  onSend?: (content: string | MultimodalContent) => void | Promise<unknown>
+  onSend?: (content: string | SendContent) => void | Promise<unknown>
   onSendError?: (error: unknown) => void
   onCancel?: () => void
   onSteer?: () => void | Promise<unknown>
