@@ -3,7 +3,7 @@ import {BaseSequencer, type TestSpecification} from 'vitest/node'
 import {coreCommands} from './test/commands/core-control.js'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
-import {browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
+import {TANSTACK_AI_SOLID_DEPS, browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
 const SESSION_KILLER_SUITE = 'router-restore.browser.test.ts'
 const PERF_SUITE = 'test/calm-perf.browser.test.tsx'
@@ -36,7 +36,7 @@ export default defineConfig(({mode}) => ({
       },
       {
         plugins: [solidPlugin()],
-        optimizeDeps: browserOptimizeDeps(),
+        optimizeDeps: browserOptimizeDeps(TANSTACK_AI_SOLID_DEPS),
         test: {
           ...ciTestSolidBrowser(),
           name: 'browser',
