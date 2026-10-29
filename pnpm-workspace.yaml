@@ -236,3 +236,14 @@ minimumReleaseAgeExclude:
   - '@storybook/react-dom-shim'
   - '@tiptap/suggestion'
   - 'env-runner'
+patchedDependencies:
+  # LocalProcessProvider.destroy(id) only retries the dir (src/provider.ts:129-133 in 1.0.0); it never
+  # reaches the handle that spawned the CLI, so a stopped turn leaves the agent running. The patch tracks
+  # minted handles and destroys one through its own destroy. Drop it once upstream kills the tree there.
+  '@tanstack/ai-sandbox-local-process@1.0.0': patches/@tanstack__ai-sandbox-local-process@1.0.0.patch
+  # withSandbox declares ProjectionCapability in provides unconditionally (src/middleware.ts:502 in 1.0.0)
+  # but only provides it for a definition with a workspace (src/middleware.ts:891-892), so every
+  # workspace-less run fails the engine's provides check; and it builds the projection root through
+  # resolveHarnessCwd (src/middleware.ts:894), a host path where the sandbox expects a virtual one.
+  # Drop the patch once upstream fixes both lines.
+  '@tanstack/ai-sandbox@1.0.0': patches/@tanstack__ai-sandbox@1.0.0.patch

@@ -1,0 +1,72 @@
+diff --git a/dist/esm/provider.js b/dist/esm/provider.js
+index 051dbf488e1057b4b4b50f9763df72fa0d01e9bd..1f36413a6545c2ea8935e5c62d717113b9eddb5b 100644
+--- a/dist/esm/provider.js
++++ b/dist/esm/provider.js
+@@ -7,6 +7,15 @@ import * as path from "node:path";
+ var LocalProcessProvider = class {
+ 	config;
+ 	name = "local-process";
++	/**
++	* Every handle this provider minted, keyed by its id (the backing dir). A
++	* `create`/`resume` hands the caller a handle the provider then forgets, so
++	* `destroy(id)` had no way to reach the process tree that handle spawned —
++	* it could only remove the dir, and only when the dir was ours. Under a
++	* journaled spawn the abort signal is deliberately dropped and `destroy` IS
++	* the kill, so forgetting the handle leaks the agent forever.
++	*/
++	minted = /* @__PURE__ */ new Map();
+ 	constructor(config) {
+ 		this.config = config;
+ 	}
+@@ -16,8 +25,14 @@ var LocalProcessProvider = class {
+ 	removeDefault() {
+ 		return this.config.removeOnDestroy ?? this.config.dir === void 0;
+ 	}
++	track(handle) {
++		const forId = this.minted.get(handle.id) ?? [];
++		this.minted.set(handle.id, forId);
++		forId.push(handle);
++		return handle;
++	}
+ 	makeHandle(root) {
+-		return new LocalProcessHandle({
++		return this.track(new LocalProcessHandle({
+ 			root,
+ 			removeOnDestroy: this.removeDefault(),
+ 			scrubEnv: this.config.scrubEnv,
+@@ -36,7 +51,7 @@ var LocalProcessProvider = class {
+ 					forkFactory: () => Promise.reject(/* @__PURE__ */ new Error("nested fork unsupported"))
+ 				});
+ 			}
+-		});
++		}));
+ 	}
+ 	baseDir() {
+ 		return this.config.baseDir ?? path.join(os.tmpdir(), "tanstack-ai-sandboxes");
+@@ -55,13 +70,21 @@ var LocalProcessProvider = class {
+ 		return this.makeHandle(input.id);
+ 	}
+ 	/**
+-	* Destroy by id (a dir path). Unlike `LocalProcessHandle.destroy` there is no
+-	* handle here, so no children can be killed first — a process spawned through
+-	* a handle we no longer hold may still own the dir as its CWD. The bounded
+-	* retry is all that is available, and a dir that never releases is reported
+-	* through the logger rather than silently left behind.
++	* Destroy by id (a dir path), tearing down ONE handle this provider minted
++	* for that id through the handle's own `destroy` — oldest first. A fixed
++	* `dir` makes every concurrent run share one id, so destroying every handle
++	* for that id tore down the process tree of a run that was still going.
++	* Creates and destroys pair one-for-one and each handle only kills the
++	* children IT spawned, so this retires exactly one run's tree per call.
+ 	*/
+ 	async destroy(input) {
++		const forId = this.minted.get(input.id);
++		const handle = forId?.shift();
++		if (forId?.length === 0) this.minted.delete(input.id);
++		if (handle) {
++			await handle.destroy();
++			return;
++		}
+ 		if (this.removeDefault()) await removeDirWithRetry(input.id, this.config.logger);
+ 	}
+ };
