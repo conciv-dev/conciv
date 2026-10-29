@@ -55,4 +55,18 @@ describe('the built conciv bin through a pipe', () => {
   it('keeps colour when FORCE_COLOR asks for it', () => {
     expect(conciv(['--help'], {FORCE_COLOR: '1'}).stdout).toContain(ESCAPE)
   })
+
+  it('running a page verb offline still fails, pointing at server.json and CONCIV_PORT', () => {
+    const run = conciv(['tools', 'page', 'snapshot'])
+    expect(run.status).toBe(1)
+    const document: unknown = JSON.parse(run.stdout)
+    expect(document).toMatchObject({
+      ok: false,
+      error: {
+        kind: 'user',
+        message: `No conciv dev server on 127.0.0.1:${closedPort}.`,
+        hint: "Start your app (pnpm dev). conciv reads the engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port, not Vite's).",
+      },
+    })
+  })
 })

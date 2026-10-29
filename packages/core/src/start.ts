@@ -76,9 +76,7 @@ async function servePersistedPort(fetchHandler: FetchHandler, stateFile: string)
   const persisted = readPersistedPort(stateFile)
   const reused = persisted === undefined ? undefined : await reservePort(fetchHandler, persisted)
   if (reused) return reused
-  const serving = await serveHono({fetch: fetchHandler, port: 0})
-  writePersistedPort(stateFile, serving.port)
-  return serving
+  return serveHono({fetch: fetchHandler, port: 0})
 }
 
 async function servePreferredPort(fetchHandler: FetchHandler, preferred: number): Promise<Served> {
@@ -91,10 +89,24 @@ async function servePreferredPort(fetchHandler: FetchHandler, preferred: number)
   return serving
 }
 
-function servePort(fetchHandler: FetchHandler, request: PortRequest | undefined, stateFile: string): Promise<Served> {
+function serveRequestedPort(
+  fetchHandler: FetchHandler,
+  request: PortRequest | undefined,
+  stateFile: string,
+): Promise<Served> {
   if (request === undefined) return servePersistedPort(fetchHandler, stateFile)
   if ('exact' in request) return serveHono({fetch: fetchHandler, port: request.exact})
   return servePreferredPort(fetchHandler, request.preferred)
+}
+
+async function servePort(
+  fetchHandler: FetchHandler,
+  request: PortRequest | undefined,
+  stateFile: string,
+): Promise<Served> {
+  const serving = await serveRequestedPort(fetchHandler, request, stateFile)
+  writePersistedPort(stateFile, serving.port)
+  return serving
 }
 
 function onceNotifier(callback?: () => void): () => void {
