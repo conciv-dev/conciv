@@ -56,13 +56,13 @@ catalog:
   '@tanstack/query-core': '^5.105.0'
   '@tanstack/react-devtools': '^0.10.13'
   '@tanstack/react-query': '^5.105.0'
-  '@tanstack/react-router': 1.170.42
+  '@tanstack/react-router': 1.170.46
   '@tanstack/react-router-devtools': 1.167.2
-  '@tanstack/react-start': 1.168.61
-  '@tanstack/router-cli': 1.167.41
-  '@tanstack/router-plugin': 1.168.43
+  '@tanstack/react-start': 1.169.4
+  '@tanstack/router-cli': 1.167.46
+  '@tanstack/router-plugin': 1.168.48
   '@tanstack/solid-query': '^5.105.0'
-  '@tanstack/solid-router': 1.170.39
+  '@tanstack/solid-router': 1.170.43
   '@tanstack/solid-virtual': '^3.13.51'
   '@tiptap/core': '^3.32.1'
   '@tiptap/extension-document': '^3.32.1'
@@ -92,7 +92,7 @@ catalog:
   lucide-react: '^1.64.0'
   lucide-solid: '^1.64.0'
   marked: '^18.1.2'
-  mermaid: '^11.15.0'
+  mermaid: '^12.2.0'
   motion: '^14.7.1'
   next: 16.4.3
   nitro: npm:nitro-nightly@3.0.1-20261029-122457-3f1c8af0
@@ -233,6 +233,8 @@ minimumReleaseAgeExclude:
   # and ai-skills (new dep of @tanstack/ai-sandbox as of 0.5.3), both published 2026-08-27T17:59Z.
   - '@tanstack/ai-event-client'
   - '@tanstack/ai-skills'
+  # Every @tanstack/* package tracks its latest release regardless of age.
+  - '@tanstack/redact'
   # Added 2026-10-29 for the catalog upgrade: these release more often than the 48h window
   # allows (storybook, tiptap, lucide and @types/node weekly, tsdown and the nitro nightly
   # alias daily), so the window always blocks their latest. Reviewed on each bump.
