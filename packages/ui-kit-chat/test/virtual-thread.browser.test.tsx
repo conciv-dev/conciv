@@ -1,6 +1,6 @@
 import 'virtual:uno.css'
 import {onMount, type JSX} from 'solid-js'
-import {page} from 'vitest/browser'
+import {page, type Locator} from 'vitest/browser'
 import {expect, it, onTestFinished} from 'vitest'
 import {keyBy, range, uniq} from 'es-toolkit'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
@@ -62,6 +62,7 @@ function mountThread(
 ): {
   host: HTMLElement
   viewport: () => HTMLElement
+  transcript: Locator
   chat: () => UseChatReturn
 } {
   let viewport: HTMLElement | undefined
@@ -75,6 +76,8 @@ function mountThread(
       <ChatProvider chat={value}>
         <Thread.Root class="flex flex-col h-80 relative">
           <Thread.Viewport
+            role="log"
+            aria-label="Conversation"
             ref={(element) => {
               viewport = element
             }}
@@ -98,6 +101,7 @@ function mountThread(
       if (!viewport) throw new Error('viewport not mounted')
       return viewport
     },
+    transcript: page.getByRole('log', {name: 'Conversation'}),
     chat: () => {
       if (!chat) throw new Error('chat not mounted')
       return chat
@@ -193,7 +197,7 @@ it('virtualizes above the threshold: early turns unmount, pinned to the latest t
   const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
 
   await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
-  await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom')
+  await expect.element(thread.transcript).toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('question 0')).not.toBeInTheDocument()
 })
 
@@ -228,7 +232,7 @@ async function mountAndEscapeToTheTop(): Promise<EscapedThread> {
 
 it('escapes on wheel up and re-pins via the scroll-to-bottom button', async () => {
   const {thread, latest} = await mountAndEscapeToTheTop()
-  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
+  await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('question 0')).toBeVisible()
 
   await latest.click()
@@ -245,7 +249,7 @@ it('a wheel up taken right after the mount landing is never dragged back to the 
 
   await expectHeldEveryFrame('mount landing offset')
   await expect.element(page.getByText('question 0')).toBeVisible()
-  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
+  await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
 })
 
 it('a wheel up after the latest-turn gesture holds the reading row while turns keep arriving', async () => {
@@ -258,7 +262,7 @@ it('a wheel up after the latest-turn gesture holds the reading row while turns k
   holdSteady(thread.host, 'reading row', () => rowUnderTopEdge(thread.viewport()))
 
   await expectHeldEveryFrame('reading row')
-  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
+  await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
 })
 
 it('crossing the threshold while following keeps the bottom pinned', async () => {
@@ -269,7 +273,7 @@ it('crossing the threshold while following keeps the bottom pinned', async () =>
   thread.chat().setMessages(seedMessages(ABOVE_THRESHOLD))
   await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
   await expect.element(page.getByText('question 0')).not.toBeInTheDocument()
-  await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom')
+  await expect.element(thread.transcript).toHaveAttribute('data-at-bottom')
 })
 
 it('crossing the threshold keeps every on-screen turn root, and evicts only rows above the viewport', async () => {
@@ -307,7 +311,7 @@ it('history prepend keeps the reading position while scrolled up', async () => {
   await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
 
   wheelUpTo(thread.viewport(), 0)
-  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
+  await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('question 0')).toBeVisible()
 
   const older: UIMessage[] = Array.from({length: 10}, (_, index) => ({
@@ -318,7 +322,7 @@ it('history prepend keeps the reading position while scrolled up', async () => {
   thread.chat().setMessages([...older, ...seedMessages(ABOVE_THRESHOLD)])
 
   await expect.element(page.getByText('question 0')).toBeVisible()
-  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
+  await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
 })
 
 const TINY_THREAD = 3
@@ -348,7 +352,7 @@ it('a reader parked at the top of a grown thread is left there when more turns a
   await expect.element(page.getByText(lastAnswer(GROWN_THREAD))).toBeVisible()
 
   wheelUpTo(thread.viewport(), 0)
-  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
+  await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('question 0')).toBeVisible()
 
   thread.chat().setMessages(seedMessages(GROWN_THREAD + APPENDED_AFTER_PARKING))
@@ -396,7 +400,7 @@ it('a trackpad wheel up while a reply streams at the end escapes the follow and 
     chunkDelay: STREAM_CHUNK_DELAY_MS,
   })
   await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
-  await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom')
+  await expect.element(thread.transcript).toHaveAttribute('data-at-bottom')
 
   void thread.chat().sendMessage('stream a long reply')
   await expect.element(page.getByText('streamed line 30.', {exact: false})).toBeVisible()
@@ -405,6 +409,6 @@ it('a trackpad wheel up while a reply streams at the end escapes the follow and 
   holdSteady(thread.host, 'trackpad reading offset', () => String(Math.round(thread.viewport().scrollTop)))
 
   await expectHeldEveryFrame('trackpad reading offset')
-  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
+  await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText(`streamed line ${STREAMED_LINES - 1}.`, {exact: false})).not.toBeInTheDocument()
 })
