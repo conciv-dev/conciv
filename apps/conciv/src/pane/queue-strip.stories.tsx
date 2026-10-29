@@ -1,7 +1,8 @@
 import {onMount, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {useChat} from '@tanstack/ai-solid'
-import {ChatProvider, createTextChunks, storyConnection} from '@conciv/ui-kit-chat'
+import {ChatProvider} from '@conciv/ui-kit-chat'
+import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {QueueStrip} from './queue-strip.js'
 
 const meta: Meta = {title: 'conciv/pane/QueueStrip'}
