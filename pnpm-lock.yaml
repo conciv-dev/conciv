@@ -3752,8 +3752,8 @@ importers:
   packages/storage-history:
     dependencies:
       '@tanstack/history':
-        specifier: ^1.162.0
-        version: 1.162.0
+        specifier: ^1.162.5
+        version: 1.162.5
     devDependencies:
       '@conciv/vitest-config':
         specifier: workspace:*
