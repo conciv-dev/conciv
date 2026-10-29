@@ -1,4 +1,5 @@
 import {For, Show, type JSX} from 'solid-js'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {CHIP, CodeBlock} from '@conciv/ui-kit-chat/tools'
 import {LIST_ROW_CLASS} from './cards/shared.js'
 import {formatHtml} from './page-format.js'
@@ -23,9 +24,7 @@ export function A11yNodeList(props: {nodes: readonly A11yNode[]}): JSX.Element {
             <Show when={node.role}>
               <span class={ROLE}>{node.role}</span>
             </Show>
-            <Show when={node.name}>
-              <span class={NAME}>{node.name}</span>
-            </Show>
+            <Show when={node.name}>{(name) => <TruncatedText class={NAME} text={name()} />}</Show>
             <Show when={node.ref}>
               <span class={REF}>{node.ref}</span>
             </Show>

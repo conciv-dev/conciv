@@ -44,13 +44,19 @@
           "packages/core/src/page-bus.ts",
           "packages/core/src/tool-registry.ts",
           "packages/core/src/chat/ask.ts",
-          "packages/core/src/chat/subscribe.ts",
-          "packages/core/src/chat/live-runs.ts"
+          "packages/core/src/chat/subscribe.ts"
         ]
       },
       {
         "name": "core-shared-leaf",
-        "patterns": ["packages/core/src/chat/ask-constants.ts", "packages/core/src/lib/debug.ts"]
+        "patterns": [
+          "packages/core/src/chat/ask-constants.ts",
+          "packages/core/src/chat/run-lifecycle.ts",
+          "packages/core/src/lib/debug.ts",
+          "packages/core/src/chat/active-runs.ts",
+          "packages/core/src/chat/run-drivers.ts",
+          "packages/core/src/chat/session-locks.ts"
+        ]
       },
       {
         "name": "core-callers",
@@ -90,13 +96,7 @@
   "health": {
     "maxCyclomatic": 20,
     "maxCrap": 30,
-    "thresholdOverrides": [
-      {
-        "files": ["packages/solid-stick-to-bottom/src/stick-to-bottom.ts"],
-        "maxCrap": 100,
-        "reason": "Exercised exclusively by packages/solid-stick-to-bottom/src/stick-to-bottom.stories.tsx and packages/ui-kit-chat/src/behaviors/scroll.stories.tsx play functions (Omri's stories-only mandate, #397); *.stories.tsx is in ignorePatterns so fallow's coverage estimate reads these functions as untested even though the story suite drives them directly. CRAP is a coverage proxy here, not a real complexity regression."
-      }
-    ]
+    "thresholdOverrides": []
   },
   "rules": {
     "unused-exports": "warn",
@@ -170,7 +170,6 @@
     "@conciv/react",
     "@conciv/solid",
     "@conciv/solid-diffs",
-    "@conciv/solid-stick-to-bottom",
     "@conciv/solid-streamdown",
     "@conciv/tools",
     "@conciv/ui-kit-chat",

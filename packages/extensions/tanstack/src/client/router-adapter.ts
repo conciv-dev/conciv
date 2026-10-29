@@ -177,9 +177,9 @@ function matchToCacheEntry(match: unknown): CacheEntry {
   }
 }
 
-export function readDataEntries(): CacheEntry[] {
+export function readDataEntries(): {entries: CacheEntry[]} {
   const router = requireRouter()
-  return router.state.matches.map(matchToCacheEntry)
+  return {entries: router.state.matches.map(matchToCacheEntry)}
 }
 
 function childrenOf(value: unknown): unknown[] {
@@ -245,11 +245,11 @@ function pickMatch(matches: unknown[], routeId?: string): Record<string, unknown
   return isObject(leaf) ? leaf : null
 }
 
-export function readLoaderData(routeId?: string): unknown {
+export function readLoaderData(routeId?: string): {routeId: string; data: unknown} {
   const router = requireRouter()
   const match = pickMatch(router.state.matches, routeId)
-  if (!match) return null
-  return dehydrate(match.loaderData)
+  if (!match) return {routeId: routeId ?? '', data: null}
+  return {routeId: stringValue(match.routeId), data: dehydrate(match.loaderData)}
 }
 
 export async function navigateTo(input: {

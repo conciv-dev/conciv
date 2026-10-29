@@ -77,7 +77,6 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   const onSend = async (content: string | MultimodalContent): Promise<void> => {
     const verdict = checkSend(content, {
       busy: compacting(),
-      connected: deps.chat.connectionStatus() === 'connected',
       reachable: deps.reachability.online(),
     })
     if (!verdict.ok) throw sendRejection(verdict)

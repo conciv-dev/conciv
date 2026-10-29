@@ -4,7 +4,7 @@ import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
-import {makeApp, type MakeAppOpts} from './app.js'
+import {makeApp, withBuiltinExtensions, type MakeAppOpts} from './app.js'
 
 export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
@@ -122,7 +122,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
 
-  const systemPrompt = composeSystemPrompt(cfg.systemPrompt, opts.extensions ?? [], {
+  const systemPrompt = composeSystemPrompt(cfg.systemPrompt, withBuiltinExtensions(opts.extensions), {
     cwd: opts.root,
     extensions: cfg.extensions,
   })

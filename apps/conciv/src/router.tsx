@@ -8,6 +8,7 @@ import type {AnyExtension} from '@conciv/extension'
 import {setupEngineReachability} from '@conciv/client'
 import {routeTree} from './routeTree.gen'
 import {makeAppData, type AppData} from './data/app-data.js'
+import {createHarnessMeta, HarnessMetaContext} from './data/harness-meta.js'
 import type {ConcivSettings} from './data/settings.js'
 import type {ExtensionInstance} from './extension/extension-slots.js'
 import {createInstances} from './extension/create-instances.js'
@@ -96,11 +97,13 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const extensions = [highlight, ...(config.extensions ?? [])]
   const instances = createInstances(extensions)
   const apiBase = config.apiBase ?? (() => '')
+  const connected = config.connected ?? (() => true)
   const reachability = wireEngineReachability(apiBase)
   const disposeInstances = makeGuardedDisposer(instances, reachability.dispose)
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
     onCleanup(disposeInstances)
-    return <>{props.children}</>
+    const harness = createHarnessMeta(data, connected, queryClient)
+    return <HarnessMetaContext.Provider value={harness}>{props.children}</HarnessMetaContext.Provider>
   }
   return createRouter({
     routeTree,
@@ -119,7 +122,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       data,
       extensions,
       instances,
-      connected: config.connected ?? (() => true),
+      connected,
       connectMode: config.connectMode ?? false,
       bindApiBase: config.bindApiBase,
       disconnect: config.disconnect,

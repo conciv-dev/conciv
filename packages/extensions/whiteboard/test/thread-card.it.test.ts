@@ -24,7 +24,7 @@ test('clicking a pin opens the thread card with its comment and replies', async 
     for (const name of ['Previous thread', 'Next thread', 'Resolve thread', 'Delete thread', 'Close thread'])
       await api.page.getByRole('button', {name}).waitFor()
 
-    await api.callToolApproved('comment.reply', {
+    await api.callToolApproved('comment_reply', {
       cid,
       parts: [{type: 'text', text: 'and here is a reply'}],
       authorKind: 'ai',

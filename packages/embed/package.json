@@ -71,7 +71,6 @@
     "@conciv/page": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@playwright/test": "^1.61.1",
     "@solid-primitives/event-listener": "^2.4.6",

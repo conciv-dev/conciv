@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {groupBy} from 'es-toolkit'
 import Palette from 'lucide-solid/icons/palette'
 import Trash2 from 'lucide-solid/icons/trash-2'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {
   CodeBlock,
   ErrorBlock,
@@ -57,7 +57,7 @@ function elementCount(elements: unknown[] | number | undefined): number | null {
 }
 
 function opOf(name: string): string {
-  return name.startsWith('canvas.') ? name.slice('canvas.'.length) : name
+  return name.startsWith('canvas_') ? name.slice('canvas_'.length) : name
 }
 
 type Detail = z.infer<typeof DetailSchema>
@@ -251,3 +251,4 @@ export function CanvasOpCard(props: ToolCardProps): JSX.Element {
     </ToolCard>
   )
 }
+export const canvasOpCard: ToolCardView = {render: CanvasOpCard, hasEmbeddedBody: () => true}

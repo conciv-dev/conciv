@@ -104,7 +104,7 @@ export function createFakeHarness(
     binName: 'true',
     ...(opts.displayName ? {displayName: opts.displayName} : {}),
     ...(opts.connect ? {connect: opts.connect} : {}),
-    chatConfig: (deps) => ({adapter: makeTextAdapter(id, () => scripted.chatStream(deps))}),
+    chatConfig: (deps) => ({adapter: makeTextAdapter(id, (options) => scripted.chatStream(deps, options))}),
     models: opts.models,
     tty: opts.tty,
   }

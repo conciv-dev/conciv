@@ -6,7 +6,7 @@ import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension} from '@conciv/extension'
 import {createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
-import {makeApp} from '../../src/app.js'
+import {makeApp, type MadeApp} from '../../src/app.js'
 import type {ResolvedConcivConfig} from '../../src/config.js'
 import {requireClaude} from './adapters.js'
 
@@ -39,41 +39,47 @@ export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter =
   return createTestkit(harness, bootCoreApp(overrides)).setup()
 }
 
+export type BootEnv = {stateRoot: string; cwd: string; harness: HarnessAdapter}
+
+export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promise<MadeApp> {
+  const cfg: ResolvedConcivConfig = {
+    enabled: true,
+    widgetUrl: undefined,
+    stateRoot: env.stateRoot,
+    harness: env.harness.id,
+    harnessBin: undefined,
+    sessionId: undefined,
+    harnessSessionId: undefined,
+    systemPrompt: '',
+    extensions: undefined,
+  }
+  const fake = overrides.fakeClaude
+  const binDir = fake ? fakeClaudeBinDir(env.stateRoot) : null
+  const harnessEnv = binDir
+    ? (sessionId?: string): NodeJS.ProcessEnv => ({
+        ...process.env,
+        PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        ...fake?.env?.(sessionId),
+      })
+    : undefined
+  return makeApp({
+    cfg,
+    cwd: overrides.cwd ?? env.cwd,
+    openInEditor: overrides.openInEditor ?? (() => {}),
+    harness: env.harness,
+    harnessEnv,
+    claudeHome: overrides.claudeHome,
+    extensions: overrides.extensions,
+    extensionConfig: overrides.extensionConfig,
+    bridge: overrides.bridge,
+    firstChunkTimeoutMs: overrides.firstChunkTimeoutMs,
+    askTimeoutMs: overrides.askTimeoutMs,
+  })
+}
+
 export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
   return async (env) => {
-    const cfg: ResolvedConcivConfig = {
-      enabled: true,
-      widgetUrl: undefined,
-      stateRoot: env.stateRoot,
-      harness: env.harness.id,
-      harnessBin: undefined,
-      sessionId: undefined,
-      harnessSessionId: undefined,
-      systemPrompt: '',
-      extensions: undefined,
-    }
-    const fake = overrides.fakeClaude
-    const binDir = fake ? fakeClaudeBinDir(env.stateRoot) : null
-    const harnessEnv = binDir
-      ? (sessionId?: string): NodeJS.ProcessEnv => ({
-          ...process.env,
-          PATH: `${binDir}:${process.env.PATH ?? ''}`,
-          ...fake?.env?.(sessionId),
-        })
-      : undefined
-    const {app, dispose} = await makeApp({
-      cfg,
-      cwd: overrides.cwd ?? env.cwd,
-      openInEditor: overrides.openInEditor ?? (() => {}),
-      harness: env.harness,
-      harnessEnv,
-      claudeHome: overrides.claudeHome,
-      extensions: overrides.extensions,
-      extensionConfig: overrides.extensionConfig,
-      bridge: overrides.bridge,
-      firstChunkTimeoutMs: overrides.firstChunkTimeoutMs,
-      askTimeoutMs: overrides.askTimeoutMs,
-    })
+    const {app, dispose} = await bootMadeApp(env, overrides)
     return {fetch: app.fetch, dispose}
   }
 }

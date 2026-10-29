@@ -9,7 +9,7 @@ test('calls a real extension tool over MCP', async () => {
   try {
     const session = await resolveSession(apiBase)
     const callTool = makeCallTool(apiBase, session)
-    const result = await callTool('ping.echo', {text: 'marco-polo'})
+    const result = await callTool('ping_echo', {text: 'marco-polo'})
     expect(JSON.stringify(result)).toContain('marco-polo')
   } finally {
     await stop()
@@ -21,10 +21,10 @@ test('an oversized tool reply fails loud, and aggregating inside the sandbox sta
   try {
     const session = await resolveSession(apiBase)
     const callTool = makeCallTool(apiBase, session)
-    await expect(callTool('ping.flood', {})).rejects.toThrow(/truncated/)
+    await expect(callTool('ping_flood', {})).rejects.toThrow(/truncated/)
     const runTypescript = makeRunTypescript(apiBase, session)
     const length = await runTypescript(`
-      const found = await external_catalog({name: 'ping.flood'})
+      const found = await external_catalog({name: 'ping_flood'})
       const reply = await globalThis[found.call]({})
       return reply.payload.length
     `)
@@ -39,7 +39,7 @@ test('a tool result merely shaped like the truncation envelope passes through un
   try {
     const session = await resolveSession(apiBase)
     const callTool = makeCallTool(apiBase, session)
-    const result = await callTool('ping.decoy', {})
+    const result = await callTool('ping_decoy', {})
     expect(result).toEqual({truncated: true, reason: 'looks like an envelope', head: 'not really'})
   } finally {
     await stop()

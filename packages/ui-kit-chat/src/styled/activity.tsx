@@ -16,8 +16,9 @@ import Loader from 'lucide-solid/icons/loader'
 import ShieldQuestion from 'lucide-solid/icons/shield-question-mark'
 import X from 'lucide-solid/icons/x'
 import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
-import type {ToolCardEntry, ToolUIComponent, ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {Collapsible} from '@conciv/ui-kit-system'
+import type {ToolCardEntry, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {Key} from '@solid-primitives/keyed'
+import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import {INERT_TOOL_CTX} from '../store/tool-context.js'
 import {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from '../primitives/activity/activity.js'
 import {
@@ -32,23 +33,22 @@ import {
   type GroupNodePart,
   type Grouping,
   type Turn,
+  groupNodeIdentity,
 } from '../store/grouping.js'
 import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {Dynamic} from 'solid-js/web'
 import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
-import {createAutoCollapse} from '../primitives/util/create-auto-collapse.js'
-import {useThreadAutoScroll} from '../behaviors/use-thread-auto-scroll.js'
+import {createSettleFold} from '../primitives/util/create-settle-fold.js'
 import {ToolCallCard} from '../tools/styled/tool-call-card.js'
 import {Group} from './group.js'
-import {ToolFallback} from '../tools/styled/tool-fallback.js'
+import {toolFallbackCardView} from '../tools/styled/tool-fallback.js'
 import {Markdown} from './markdown.js'
-import {NowLine} from './now-line.js'
 import {SHIMMER} from './shimmer.js'
 import {FOCUS_INSET, SPIN} from './classes.js'
 
 type ActivityConfig = {
   tools: () => ToolCardEntry[]
-  fallback: () => ToolUIComponent
+  fallback: () => ToolCardView
   ctx: () => ToolViewCtx
   pageSession: () => PageSessionConfig | undefined
   grouping: () => Grouping | undefined
@@ -57,7 +57,7 @@ type ActivityConfig = {
 
 const ActivityConfigContext = createContext<ActivityConfig>({
   tools: () => [],
-  fallback: () => ToolFallback,
+  fallback: () => toolFallbackCardView,
   ctx: () => ({...INERT_TOOL_CTX, respondApproval: () => {}}),
   pageSession: () => undefined,
   grouping: () => undefined,
@@ -70,7 +70,7 @@ export type ActivityProps = ParentProps<{
   label?: ActivityLabeler
   tools?: ToolCardEntry[]
   ctx?: ToolViewCtx
-  fallback?: ToolUIComponent
+  fallback?: ToolCardView
   pageSession?: PageSessionConfig
   grouping?: Grouping
   groupEntries?: readonly GroupEntry[]
@@ -84,7 +84,7 @@ function Root(props: ActivityProps): JSX.Element {
       <ActivityConfigContext.Provider
         value={{
           tools: () => props.tools ?? [],
-          fallback: () => props.fallback ?? ToolFallback,
+          fallback: () => props.fallback ?? toolFallbackCardView,
           ctx: () => props.ctx ?? parent.ctx(),
           pageSession: () => props.pageSession ?? parent.pageSession(),
           grouping: () => props.grouping ?? parent.grouping(),
@@ -135,12 +135,12 @@ function asToolCall(part: MessagePart | undefined): ToolCallPart | null {
 function StepShell(
   props: ParentProps<{glyph: JSX.Element; title: string; titleClass?: string; autoOpen?: boolean}>,
 ): JSX.Element {
-  const collapse = createAutoCollapse({streaming: () => props.autoOpen === true})
+  const collapse = createSettleFold({revealed: () => props.autoOpen === true})
   return (
     <Collapsible.Root open={collapse.open()} onOpenChange={(details) => collapse.setOpen(details.open)}>
       <Collapsible.Trigger class={STEP_TRIGGER}>
         {props.glyph}
-        <span class={`text-left flex-1 min-w-0 truncate ${props.titleClass ?? ''}`}>{props.title}</span>
+        <TruncatedText class={`text-left flex-1 min-w-0 ${props.titleClass ?? ''}`} text={props.title} />
         <ChevronDown size={12} class={STEP_CHEVRON} aria-hidden="true" />
       </Collapsible.Trigger>
       <Collapsible.Content>
@@ -160,7 +160,7 @@ function ToolStep(props: {part: ToolCallPart; subCalls?: ToolCallPart[]}): JSX.E
       glyph={stepGlyph(status())}
       title={activity.label(props.part)}
       titleClass={status() === 'running' ? SHIMMER : ''}
-      autoOpen={status() === 'approval'}
+      autoOpen={props.part.state === 'approval-requested' || props.part.state === 'approval-responded'}
     >
       <ToolCallCard
         part={props.part}
@@ -247,9 +247,10 @@ function StepGroup(props: {turn: Turn; node: GroupNodeGroup; liveSegment: boolea
         <Show when={props.liveSegment} fallback={<span class="shrink-0 size-3" aria-hidden="true" />}>
           <Loader size={12} class={SPIN} aria-hidden="true" />
         </Show>
-        <span class={`font-medium text-left flex-1 min-w-0 truncate ${props.liveSegment ? SHIMMER : ''}`}>
-          {title()}
-        </span>
+        <TruncatedText
+          class={`font-medium text-left flex-1 min-w-0 ${props.liveSegment ? SHIMMER : ''}`}
+          text={title()}
+        />
         <ChevronDown size={12} class={GROUP_CHEVRON} aria-hidden="true" />
       </Collapsible.Trigger>
       <Collapsible.Content>
@@ -358,9 +359,11 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
   const NodeListView = (listProps: {nodes: readonly GroupNode[]; streaming: boolean}): JSX.Element => {
     const lastRenderableIndex = createMemo(() => listProps.nodes.map(renderable).lastIndexOf(true))
     return (
-      <Index each={listProps.nodes}>
-        {(node, index) => <NodeView node={node()} streaming={listProps.streaming && index === lastRenderableIndex()} />}
-      </Index>
+      <Key each={listProps.nodes} by={groupNodeIdentity}>
+        {(node, index) => (
+          <NodeView node={node()} streaming={listProps.streaming && index() === lastRenderableIndex()} />
+        )}
+      </Key>
     )
   }
   return (
@@ -387,44 +390,26 @@ function UserTurnView(props: {turn: Turn}): JSX.Element {
 
 function Timeline(props: {id?: string; 'aria-label'?: string; class?: string; children?: JSX.Element}): JSX.Element {
   const activity = useActivity()
-  const [viewport, setViewport] = createSignal<HTMLElement>()
-  useThreadAutoScroll(viewport, {autoScroll: () => true})
   return (
     <div
-      ref={setViewport}
       id={props.id}
       aria-label={props['aria-label']}
-      class={`px-2.5 py-2.5 flex flex-1 flex-col gap-2.5 min-h-0 min-w-0 overflow-y-auto ${props.class ?? ''}`}
+      class={`px-2.5 py-2.5 flex flex-1 flex-col-reverse min-h-0 min-w-0 overflow-y-auto ${props.class ?? ''}`}
       role="log"
       aria-live="polite"
     >
-      <Index each={activity.turns()}>
-        {(turn) => (
-          <Show when={turn().role === 'user'} fallback={<AssistantTurnView turn={turn()} />}>
-            <UserTurnView turn={turn()} />
-          </Show>
-        )}
-      </Index>
-      {props.children}
+      <div class="mb-auto flex flex-col gap-2.5 min-w-0">
+        <Index each={activity.turns()}>
+          {(turn) => (
+            <Show when={turn().role === 'user'} fallback={<AssistantTurnView turn={turn()} />}>
+              <UserTurnView turn={turn()} />
+            </Show>
+          )}
+        </Index>
+        {props.children}
+      </div>
     </div>
   )
 }
 
-function Now(props: {onStop?: () => void; class?: string}): JSX.Element {
-  const activity = useActivity()
-  const title = () => {
-    const call = activity.activeCall()
-    return activity.live() && call ? activity.label(call) : null
-  }
-  return (
-    <Show when={title()}>
-      {(text) => (
-        <div class={`px-2.5 pb-2.5 shrink-0 ${props.class ?? ''}`}>
-          <NowLine title={text()} onStop={props.onStop} />
-        </div>
-      )}
-    </Show>
-  )
-}
-
-export const Activity = Object.assign(Root, {Root, Timeline, Now})
+export const Activity = Object.assign(Root, {Root, Timeline})

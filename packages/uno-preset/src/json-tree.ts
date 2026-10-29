@@ -7,13 +7,18 @@ export const jsonTree: Rule = [
     return `
 ${s}{display:flex;flex-direction:column}
 
+${s} [data-part=branch]{block-size:100%}
+
 ${s} [data-part=branch-control],
 ${s} [data-part=item]{
   display:flex;
   align-items:center;
   gap:.25rem;
+  box-sizing:border-box;
+  block-size:100%;
+  line-height:1rem;
   padding-block:.125rem;
-  padding-right:.25rem;
+  padding-inline-end:.25rem;
   padding-inline-start:calc((var(--depth) - 1) * .75rem);
 }
 

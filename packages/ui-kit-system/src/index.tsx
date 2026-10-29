@@ -10,6 +10,15 @@ export {Progress} from './progress.js'
 export {Loader, type LoaderSize} from './loader.js'
 export {Tooltip} from './tooltip.js'
 export {
+  CLIP_REVEAL,
+  createClipReveal,
+  revealTriggerProps,
+  TruncatedText,
+  type ClipReveal,
+  type TruncatedTextProps,
+  type TruncatedTextSide,
+} from './truncated-text.js'
+export {
   TooltipIconButton,
   TooltipIconButtonSlot,
   type TooltipIconButtonProps,
@@ -29,15 +38,28 @@ export {Popover, type PopoverApi} from './popover.js'
 export {Toast, ToastGroup, createToaster, type ToasterInstance} from './toast.js'
 export {Avatar} from './avatar.js'
 export {RelativeTime} from './relative-time.js'
-export {Tabs} from './tabs.js'
+export {Tabs, TabsPrimitive} from './tabs.js'
 export {Switch} from './switch.js'
 export {Swap} from './swap.js'
+export {
+  createClipboardCopy,
+  writeClipboardText,
+  type ClipboardCopy,
+  type ClipboardCopyLabels,
+  type ClipboardCopyOptions,
+  type ClipboardCopyStatus,
+} from './clipboard.js'
+export {
+  ClipboardCopyButton,
+  type ClipboardCopyButtonProps,
+  type ClipboardCopyTooltips,
+} from './clipboard-copy-button.js'
 export {Presence} from './presence.js'
 export {Splitter} from './splitter.js'
 export {StatusDot, type StatusDotTone} from './status-dot.js'
 export {FocusTrap, type FocusTrapProps} from './focus-trap.js'
 export {EnvironmentProvider} from './environment.js'
-export {JsonTreeView} from './json-tree-view.js'
+export {VirtualJsonTree, type VirtualJsonTreeProps} from './virtual-json-tree.js'
 export {createResizable, type Grow} from './resize.js'
 export {readStorage, writeStorage} from './storage.js'
 export {TOKENS, type TokenDefinition} from './tokens.js'

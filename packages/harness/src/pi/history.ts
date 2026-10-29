@@ -159,22 +159,22 @@ function foldLine(state: PiFold, line: string): PiFold {
 function messagesOf(entries: Entry[]): UIMessage[] {
   const out: UIMessage[] = []
   const idState = {n: 0}
-  const open = (role: 'user' | 'assistant', parts: MessagePart[]): void => {
+  const open = (role: 'user' | 'assistant', parts: MessagePart[], nativeId: string | undefined): void => {
     idState.n += 1
-    out.push({id: `h${idState.n}`, role, parts})
+    out.push({id: nativeId ?? `h${idState.n}`, role, parts})
   }
 
   for (const entry of activePath(entries)) {
     const spoken = spokenMessage(entry.message)
     if (spoken) {
-      if (spoken.parts.length > 0) open(spoken.role, spoken.parts)
+      if (spoken.parts.length > 0) open(spoken.role, spoken.parts, entry.id)
       continue
     }
     const part = toolResultPart(entry.message)
     if (!part) continue
     const owner = out.findLast((message) => message.role === 'assistant')
     if (owner) owner.parts.push(part)
-    else open('assistant', [part])
+    else open('assistant', [part], entry.id)
   }
   return out
 }

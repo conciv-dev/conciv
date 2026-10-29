@@ -80,7 +80,7 @@ const canvasExportTool = defineTool(canvasExportDef).server(async (input, ctx: W
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
   throw toolError('EXPORT_TIMEOUT', {
-    message: 'export timed out: no canvas tab is connected (canvas.preview works without one)',
+    message: 'export timed out: no canvas tab is connected (canvas_preview works without one)',
   })
 })
 
@@ -184,7 +184,7 @@ const canvasDiscardTool = defineTool(canvasDiscardDef).server(async (_input, ctx
     for (const row of pendings) await ctx.store.deletePending(row.id, room)
     return {discarded: drafts.length}
   } catch (error) {
-    console.error(`[whiteboard] canvas.discard failed: ${String(error)}`)
+    console.error(`[whiteboard] canvas_discard failed: ${String(error)}`)
     return {discarded: 0, error: 'discard failed', reason: String(error)}
   }
 })
@@ -197,7 +197,7 @@ const canvasPreviewTool = defineTool(canvasPreviewDef).server(async (_input, ctx
   try {
     return imageResult('image/png', await renderDraftPng(svg, width, height), {elements: rows.length})
   } catch (error) {
-    console.error(`[whiteboard] canvas.preview render failed: ${String(error)}`)
+    console.error(`[whiteboard] canvas_preview render failed: ${String(error)}`)
     return {error: 'preview render failed', reason: String(error), elements: rows.length}
   }
 })

@@ -1,45 +1,48 @@
 import {randomUUID} from 'node:crypto'
 import {existsSync, readFileSync} from 'node:fs'
+import {join} from 'node:path'
 import {eq} from 'drizzle-orm'
 import {
   chat,
   EventType,
+  fromSpecTokenUsage,
+  generateMessageId,
   RUN_ACCEPTED_EVENT,
+  RUN_CANCEL_REASON,
   StreamProcessor,
   type AnyTool,
   type ContentPart,
   type ModelMessage,
+  type RunRecord,
+  type RunStatus,
+  type SpecTokenUsage,
   type StreamChunk,
   type TokenUsage,
   type UIMessage,
 } from '@tanstack/ai'
+import {AsyncQueue} from '@tanstack/ai-acp'
+import {withSandbox} from '@tanstack/ai-sandbox'
 import type {HarnessAdapter, HarnessChatConfig} from '@conciv/protocol/harness-types'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {isHarnessSessionId} from '@conciv/protocol/chat-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import type {ChatContentPart, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
-import {
-  clearSessionHistory,
-  drafts,
-  foldRichRunMessagesIntoHistory,
-  foldRunMessagesIntoHistory,
-  markers,
-  sessions,
-  setRunMessages,
-  type ConcivDb,
-} from '@conciv/db'
+import {deleteThread, drafts, markers, sessions, type ConcivDb} from '@conciv/db'
 import {transcriptPathWithin} from '@conciv/harness'
 import {FIRST_CHUNK_TIMEOUT_MS} from './run-timing.js'
-import type {ChatDeps} from './runtime.js'
-import type {LiveRun} from './live-runs.js'
+import type {ChatDeps, ToolRunContext} from './runtime.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
-import {sessionSnapshot} from './transcript.js'
-import {stopSession} from './stop.js'
-import {asksFor, makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
-import {withConcivSandbox} from './sandbox.js'
+import {beginRunMessages, sessionSnapshot, settleRunMessages, writeRunMessages} from './thread.js'
+import {syncedSnapshot, syncTranscript} from './transcript-import.js'
+import {settleContextOccupancy} from './occupancy.js'
+import {publishRunLifecycle, publishRunRecord, runLifecycleOfRecord} from './run-lifecycle.js'
+import {aguiRunLifecycleFor} from '@conciv/protocol/run-types'
+import {stopRuns} from './stop.js'
+import {activeRunsOf} from './active-runs.js'
+import {asksFor, commandMemoryFor, makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
 import {makeCodeMode} from './code-mode.js'
-import {codeModeToolChunks} from './code-mode-parts.js'
+import {codeModeEventPublisher} from './code-mode-parts.js'
 import {makeToolNameNormalizer, normalizeChunkToolName} from './tool-names.js'
 import {harnessDebug, logError} from '../lib/debug.js'
 
@@ -80,12 +83,17 @@ export function resolveSystemText(
   return sources.systemPromptText ?? ''
 }
 
+function runJournalDir(stateRoot: string): string {
+  return join(concivStateDir(stateRoot), 'runs')
+}
+
 export type UserContent = string | ChatContentPart[]
 
 type RunRequest = {
   runId: string
   kind: TurnKind
   content: UserContent
+  messageId?: string
 }
 
 function userParts(content: UserContent): ContentPart[] {
@@ -105,21 +113,41 @@ function compactContent(deps: ChatDeps): UserContent {
   return deps.harness.capabilities.compaction ? '/compact' : COMPACT_FALLBACK_PROMPT
 }
 
+type RunIngest = (chunks: StreamChunk[]) => void
+
+function toolsIngestingIntoRunLog(tools: AnyTool[], ingest: RunIngest): AnyTool[] {
+  return tools.map((tool) => {
+    const execute = tool.execute
+    if (!execute) return tool
+    return {
+      ...tool,
+      execute: async (args: unknown, context?: ToolRunContext) =>
+        execute(args, {
+          ...context,
+          emitCustomEvent: codeModeEventPublisher(context?.toolCallId, ingest, (eventName, value) =>
+            context?.emitCustomEvent?.(eventName, value),
+          ),
+        }),
+    }
+  })
+}
+
 async function codeModeExtras(
   deps: ChatDeps,
   sessionId: SessionId,
   model: string | null,
   askGate: PermissionGate,
+  ingest: RunIngest,
 ): Promise<{systemPrompts: string[]; tools: AnyTool[]}> {
   const codeMode = await makeCodeMode(
     () => deps.codeModeCapabilities(sessionId),
     sessionId,
     {sessionId, model},
     askGate,
-    {listening: (id) => deps.stream.listening(id)},
+    {listening: (id) => deps.stream.watched(id)},
   )
   const systemPrompts = [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text))
-  return {systemPrompts, tools: [...(codeMode?.tools ?? [])]}
+  return {systemPrompts, tools: toolsIngestingIntoRunLog([...(codeMode?.tools ?? [])], ingest)}
 }
 
 async function turnMessages(
@@ -127,7 +155,7 @@ async function turnMessages(
   sessionId: SessionId,
   options: {resumable: boolean; content: UserContent; prepare: HarnessChatConfig['prepareMessages']},
 ): Promise<Array<UIMessage | ModelMessage>> {
-  const history = options.resumable ? [] : await sessionSnapshot(deps, sessionId)
+  const history = options.resumable ? [] : sessionSnapshot(deps, sessionId)
   const turn = [userModelMessage(options.content)]
   return [...history, ...(options.prepare?.(turn) ?? turn)]
 }
@@ -137,6 +165,7 @@ async function buildRunStream(
   sessionId: SessionId,
   req: RunRequest,
   gates: {gate: PermissionGate; askGate: PermissionGate},
+  ingest: RunIngest,
   abort: AbortController,
 ): Promise<AsyncIterable<StreamChunk>> {
   const gate = gates.gate
@@ -144,7 +173,7 @@ async function buildRunStream(
   const resumeSessionId = deps.harness.capabilities.resume
     ? resumableToken(deps.harness, deps.cwd, await nativeIdFor(deps.db, sessionId), deps.claudeHome)
     : null
-  const extras = await codeModeExtras(deps, sessionId, model, gates.askGate)
+  const extras = await codeModeExtras(deps, sessionId, model, gates.askGate, ingest)
   const config = deps.harness.chatConfig({
     cwd: deps.cwd,
     sessionId,
@@ -170,7 +199,17 @@ async function buildRunStream(
     tools: extras.tools,
     lazyToolsConfig: {includeDescription: 'first-sentence'},
     modelOptions: config.modelOptions,
-    middleware: [withConcivSandbox(deps.sandbox), withConcivGate(gate)],
+    middleware: [
+      withSandbox(deps.sandbox, {
+        runs: deps.runs,
+        durability: {
+          adapter: deps.durability(req.runId),
+          journal: runJournalDir(deps.stateRoot),
+          detachOnDisconnect: true,
+        },
+      }),
+      withConcivGate(gate),
+    ],
     abortController: abort,
     debug: harnessDebug,
   })
@@ -213,9 +252,45 @@ function noteToolCall(deps: ChatDeps, sessionId: SessionId, chunk: StreamChunk):
   deps.asks.noteToolCall(sessionId, chunk.toolCallId, name)
 }
 
+function tokenUsageOf(usage: TokenUsage | SpecTokenUsage[] | undefined): TokenUsage | undefined {
+  return Array.isArray(usage) ? fromSpecTokenUsage(usage) : usage
+}
+
 function noteUsage(deps: ChatDeps, model: string | null, chunk: StreamChunk, outcome: RunOutcome): void {
-  if (chunk.type !== EventType.RUN_FINISHED || chunk.finishReason === 'tool_calls' || !chunk.usage) return
-  outcome.usage = usageSnapshotFor(deps, model ?? deps.harness.defaultModel ?? null, chunk.usage)
+  if (chunk.type !== EventType.RUN_FINISHED || chunk.finishReason === 'tool_calls') return
+  const usage = tokenUsageOf(chunk.usage)
+  if (!usage) return
+  outcome.usage = usageSnapshotFor(deps, model ?? deps.harness.defaultModel ?? null, usage)
+}
+
+function isTextMessageChunk(chunk: StreamChunk): chunk is Extract<
+  StreamChunk,
+  {
+    type:
+      | typeof EventType.TEXT_MESSAGE_START
+      | typeof EventType.TEXT_MESSAGE_CONTENT
+      | typeof EventType.TEXT_MESSAGE_END
+  }
+> {
+  return (
+    chunk.type === EventType.TEXT_MESSAGE_START ||
+    chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
+    chunk.type === EventType.TEXT_MESSAGE_END
+  )
+}
+
+function assistantMessageIdStamper(): (chunk: StreamChunk) => StreamChunk {
+  let mintedId: string | null = null
+  return (chunk: StreamChunk): StreamChunk => {
+    if (!isTextMessageChunk(chunk)) return chunk
+    if (chunk.messageId !== '') {
+      mintedId = chunk.type === EventType.TEXT_MESSAGE_END ? null : chunk.messageId
+      return chunk
+    }
+    const id = mintedId ?? generateMessageId()
+    mintedId = chunk.type === EventType.TEXT_MESSAGE_END ? null : id
+    return {...chunk, messageId: id}
+  }
 }
 
 type ChunkFold = {deps: ChatDeps; sessionId: SessionId; model: string | null; processor: StreamProcessor}
@@ -236,39 +311,23 @@ function foldChunk(fold: ChunkFold, chunk: StreamChunk, outcome: RunOutcome): 'c
 }
 
 async function* foldRunStream(
-  deps: ChatDeps,
-  sessionId: SessionId,
+  fold: ChunkFold,
+  normalize: (name: string) => string,
   req: RunRequest,
-  processor: StreamProcessor,
   stream: AsyncIterable<StreamChunk>,
   outcome: RunOutcome,
 ): AsyncGenerator<StreamChunk> {
-  const model = (await rowById(deps.db, sessionId))?.model ?? null
-  const normalize = makeToolNameNormalizer(deps.toolNames)
-  const fold: ChunkFold = {deps, sessionId, model, processor}
+  const stampAssistantId = assistantMessageIdStamper()
   for await (const raw of stream) {
-    for (const chunk of codeModeToolChunks(raw) ?? [raw]) {
-      const stamped = normalizeChunkToolName(stampRunId(chunk, req.runId), normalize)
-      const step = foldChunk(fold, stamped, outcome)
-      if (!isRunEndChunk(stamped)) yield stamped
-      if (step === 'stop') return
-    }
+    const stamped = stampAssistantId(normalizeChunkToolName(stampRunId(raw, req.runId), normalize))
+    const step = foldChunk(fold, stamped, outcome)
+    if (!isRunEndChunk(stamped)) yield stamped
+    if (step === 'stop') return
   }
 }
 
-async function firstOrTimeout(
-  iterator: AsyncIterator<StreamChunk>,
-  timeoutMs: number,
-): Promise<IteratorResult<StreamChunk> | 'timeout'> {
-  const timer = {handle: null as ReturnType<typeof setTimeout> | null}
-  const first = await Promise.race([
-    iterator.next(),
-    new Promise<'timeout'>((resolve) => {
-      timer.handle = setTimeout(() => resolve('timeout'), timeoutMs)
-    }),
-  ])
-  if (timer.handle) clearTimeout(timer.handle)
-  return first
+function isHarnessOutput(chunk: StreamChunk): boolean {
+  return chunk.type !== EventType.RUN_STARTED && chunk.type !== EventType.CUSTOM
 }
 
 async function* boundFirstChunk(
@@ -276,15 +335,27 @@ async function* boundFirstChunk(
   timeoutMs: number,
   onTimeout: () => void,
 ): AsyncGenerator<StreamChunk> {
+  const timer = {handle: null as ReturnType<typeof setTimeout> | null}
+  const deadline = new Promise<'timeout'>((resolve) => {
+    timer.handle = setTimeout(() => resolve('timeout'), timeoutMs)
+  })
   const iterator = stream[Symbol.asyncIterator]()
-  const first = await firstOrTimeout(iterator, timeoutMs)
-  if (first === 'timeout') {
-    onTimeout()
-    void iterator.return?.(undefined)?.catch?.(() => {})
-    return
+  const waiting = {output: true}
+  while (waiting.output) {
+    const next = await Promise.race([iterator.next(), deadline])
+    if (next === 'timeout') {
+      onTimeout()
+      void iterator.return?.(undefined)?.catch?.(() => {})
+      return
+    }
+    if (next.done) {
+      if (timer.handle) clearTimeout(timer.handle)
+      return
+    }
+    yield next.value
+    waiting.output = !isHarnessOutput(next.value)
   }
-  if (first.done) return
-  yield first.value
+  if (timer.handle) clearTimeout(timer.handle)
   yield* {[Symbol.asyncIterator]: () => iterator}
 }
 
@@ -296,16 +367,16 @@ async function recordRunEnd(deps: ChatDeps, sessionId: SessionId, usage: UsageSn
     .where(eq(sessions.id, sessionId))
 }
 
-function persistRunOutcome(deps: ChatDeps, sessionId: SessionId, kind: TurnKind): void {
+async function persistRunOutcome(deps: ChatDeps, sessionId: SessionId, kind: TurnKind): Promise<void> {
   if (kind !== 'chat') {
-    clearSessionHistory(deps.db, sessionId)
+    deleteThread(deps.db, sessionId)
     return
   }
-  if (deps.harness.capabilities.transcriptHistory) {
-    foldRichRunMessagesIntoHistory(deps.db, sessionId)
+  if (!deps.harness.capabilities.transcriptHistory) {
+    settleRunMessages(deps.db, sessionId)
     return
   }
-  foldRunMessagesIntoHistory(deps.db, sessionId)
+  await syncTranscript(deps, sessionId).catch(() => {})
 }
 
 function runEndChunkFor(sessionId: SessionId, req: RunRequest, outcome: RunOutcome): StreamChunk {
@@ -316,13 +387,77 @@ function runEndChunkFor(sessionId: SessionId, req: RunRequest, outcome: RunOutco
   return {type: EventType.RUN_FINISHED, threadId: sessionId, runId: req.runId, finishReason: 'stop'}
 }
 
-async function finishRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest, outcome: RunOutcome): Promise<void> {
-  persistRunOutcome(deps, sessionId, req.kind)
-  if (outcome.usage) outcome.usage.contextTokens = await contextOccupancyFor(deps, sessionId).catch(() => undefined)
+function settledStatusOf(outcome: RunOutcome, abort: AbortController): RunStatus {
+  if (outcome.error !== null) return 'failed'
+  return abort.signal.aborted ? 'aborted' : 'completed'
+}
+
+async function recordRunSettled(
+  deps: ChatDeps,
+  req: RunRequest,
+  outcome: RunOutcome,
+  abort: AbortController,
+): Promise<void> {
+  await deps.runs.update(req.runId, {
+    status: settledStatusOf(outcome, abort),
+    finishedAt: Date.now(),
+    ...(outcome.error === null ? {} : {error: {message: outcome.error}}),
+  })
+}
+
+async function finishRun(
+  deps: ChatDeps,
+  sessionId: SessionId,
+  req: RunRequest,
+  outcome: RunOutcome,
+  abort: AbortController,
+): Promise<void> {
+  await persistRunOutcome(deps, sessionId, req.kind)
   await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
-  deps.liveRuns.settle(sessionId, req.runId)
   deps.asks.cancel(sessionId)
   if (deps.onRunEnd) await deps.onRunEnd(sessionId).catch(() => {})
+  if (outcome.usage) void settleContextOccupancy(deps, sessionId).catch(() => {})
+  await recordRunSettled(deps, req, outcome, abort).catch(() => {})
+}
+
+const CANCEL_POLL_MS = 250
+
+function cancelWhenRequested(
+  deps: ChatDeps,
+  runId: string,
+  abort: AbortController,
+  onStopping: (record: RunRecord) => void,
+): () => void {
+  const poll = async (): Promise<void> => {
+    if (abort.signal.aborted) return
+    const record = await deps.runs.get(runId)
+    if (!record || record.cancelRequested !== true) return
+    onStopping(record)
+    abort.abort(RUN_CANCEL_REASON)
+  }
+  const timer = setInterval(() => void poll().catch(() => {}), deps.cancelPollMs ?? CANCEL_POLL_MS)
+  return () => clearInterval(timer)
+}
+
+function announceRun(
+  deps: ChatDeps,
+  sessionId: SessionId,
+  record: RunRecord,
+  emit: (chunk: StreamChunk) => void,
+): void {
+  const chunk = aguiRunLifecycleFor(runLifecycleOfRecord(record, Date.now()))
+  emit(chunk)
+  deps.stream.publish(sessionId, chunk)
+}
+
+async function announceRunRecord(
+  deps: ChatDeps,
+  sessionId: SessionId,
+  runId: string,
+  emit: (chunk: StreamChunk) => void,
+): Promise<void> {
+  const record = await deps.runs.get(runId)
+  if (record) announceRun(deps, sessionId, record, emit)
 }
 
 async function* runStream(
@@ -331,73 +466,84 @@ async function* runStream(
   req: RunRequest,
   abort: AbortController,
 ): AsyncGenerator<StreamChunk> {
-  yield {type: EventType.CUSTOM, name: RUN_ACCEPTED_EVENT, value: {}, timestamp: Date.now()}
-  const runLog = deps.durability(req.runId)
+  const outbound = new AsyncQueue<StreamChunk>()
+  const emit = (chunk: StreamChunk): void => outbound.push(chunk)
+  const stopCancelWatch = cancelWhenRequested(deps, req.runId, abort, (record) =>
+    announceRun(deps, sessionId, record, emit),
+  )
+  emit({type: EventType.CUSTOM, name: RUN_ACCEPTED_EVENT, value: {}, timestamp: Date.now()})
+  await syncTranscript(deps, sessionId).catch(() => {})
+  const runFrom = beginRunMessages(deps.db, sessionId)
   const processor = new StreamProcessor({
-    events: {onMessagesChange: (messages) => setRunMessages(deps.db, sessionId, messages)},
+    events: {onMessagesChange: (messages) => writeRunMessages(deps.db, sessionId, runFrom, messages)},
   })
-  const gateDeps = {
-    asks: asksFor(deps.asks, sessionId),
-    emit: (chunk: StreamChunk) => void runLog.append([chunk]).catch(() => {}),
-  }
+  const gateDeps = {asks: asksFor(deps.asks, sessionId), emit, threadId: sessionId, runId: req.runId}
   const gate = makeRunGate({
     ...gateDeps,
     risky: deps.risky,
     commandAllows: deps.commandAllows,
+    memory: commandMemoryFor(deps.commandMemory, sessionId),
   })
   const askGate = makeAskGate(gateDeps)
   const outcome: RunOutcome = {error: null, usage: null, runEnd: null}
-  try {
-    const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, abort)
-    processor.addUserMessage(userParts(req.content))
-    deps.stream.publish(sessionId, aguiSnapshotFor(await sessionSnapshot(deps, sessionId)))
-    const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
-    const bounded = boundFirstChunk(stream, timeoutMs, () => {
-      outcome.error = `${deps.harness.id} produced no output within ${Math.round(timeoutMs / 1000)}s`
-      abort.abort()
-    })
-    yield* foldRunStream(deps, sessionId, req, processor, bounded, outcome)
-  } catch (error) {
-    if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
+  const model = (await rowById(deps.db, sessionId))?.model ?? null
+  const normalize = makeToolNameNormalizer(deps.toolNames)
+  const fold: ChunkFold = {deps, sessionId, model, processor}
+  const ingest: RunIngest = (chunks) => {
+    const named = chunks.map((chunk) => normalizeChunkToolName(chunk, normalize))
+    for (const chunk of named) foldChunk(fold, chunk, outcome)
+    for (const chunk of named) emit(chunk)
   }
-  await finishRun(deps, sessionId, req, outcome)
-  yield runEndChunkFor(sessionId, req, outcome)
+  const produce = async (): Promise<void> => {
+    try {
+      const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, ingest, abort)
+      processor.addUserMessage(userParts(req.content), req.messageId)
+      const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
+      const bounded = boundFirstChunk(stream, timeoutMs, () => {
+        outcome.error = `${deps.harness.id} produced no output within ${Math.round(timeoutMs / 1000)}s`
+        abort.abort(RUN_CANCEL_REASON)
+      })
+      for await (const chunk of foldRunStream(fold, normalize, req, bounded, outcome)) emit(chunk)
+    } catch (error) {
+      if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
+    }
+    stopCancelWatch()
+    await finishRun(deps, sessionId, req, outcome, abort)
+    await announceRunRecord(deps, sessionId, req.runId, emit)
+    const runEnd = runEndChunkFor(sessionId, req, outcome)
+    emit(runEnd)
+    deps.stream.publish(sessionId, runEnd)
+    outbound.end()
+  }
+  const pumped = produce()
+  try {
+    for await (const chunk of outbound) yield chunk
+  } finally {
+    stopCancelWatch()
+    await pumped
+  }
 }
 
-function launchRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest): LiveRun {
-  const abort = new AbortController()
-  const handle = deps.runControl.start({
-    runId: req.runId,
-    threadId: sessionId,
-    stream: runStream(deps, sessionId, req, abort),
-  })
-  const run: LiveRun = {
-    runId: req.runId,
-    abort,
-    done: handle.done.then(
-      () => undefined,
-      () => undefined,
-    ),
+async function pipeRunToLog(deps: ChatDeps, runId: string, stream: AsyncIterable<StreamChunk>): Promise<void> {
+  const log = deps.durability(runId)
+  try {
+    for await (const chunk of stream) await log.append([chunk])
+  } finally {
+    await log.close()
   }
-  deps.liveRuns.start(sessionId, run)
-  return run
+}
+
+async function driveRun(deps: ChatDeps, sessionId: SessionId, req: RunRequest): Promise<void> {
+  await deps.runs.createOrResume({runId: req.runId, threadId: sessionId, startedAt: deps.claimStartedAt()})
+  const abort = new AbortController()
+  await pipeRunToLog(deps, req.runId, runStream(deps, sessionId, req, abort)).catch(() => undefined)
+  await publishRunRecord(deps, sessionId, req.runId).catch(() => undefined)
 }
 
 function contextWindowFor(harness: HarnessAdapter, modelId: string | null): number | undefined {
   const models = harness.models
   if (!Array.isArray(models) || !modelId) return undefined
   return models.find((model) => model.id === modelId)?.contextWindow
-}
-
-async function contextOccupancyFor(deps: ChatDeps, sessionId: SessionId): Promise<number | undefined> {
-  const history = deps.harness.history
-  if (!history?.contextTokens || !history.transcriptPath) return undefined
-  const nativeId = await nativeIdFor(deps.db, sessionId)
-  if (!nativeId) return undefined
-  const path = transcriptPathWithin(history, deps.cwd, nativeId, deps.claudeHome)
-  if (path === null) return undefined
-  if (!existsSync(path)) return undefined
-  return history.contextTokens(readFileSync(path, 'utf8'))
 }
 
 function usageSnapshotFor(deps: ChatDeps, modelId: string | null, usage: TokenUsage): UsageSnapshot {
@@ -456,8 +602,6 @@ export async function expandUserParts(content: UserContent, expanders: Attachmen
   return expanded
 }
 
-export type Send = (sessionId: SessionId, runId: string, content: UserContent) => Promise<string>
-
 const RUN_ID_TAKEN_ERROR_NAME = 'RunIdTakenError'
 
 function runIdTakenError(runId: string): Error {
@@ -466,20 +610,17 @@ function runIdTakenError(runId: string): Error {
   return error
 }
 
-export function isRunIdTakenError(error: unknown): error is Error {
-  return error instanceof Error && error.name === RUN_ID_TAKEN_ERROR_NAME
-}
-
 async function prepareLaunchContent(deps: ChatDeps, sessionId: SessionId, content: UserContent): Promise<UserContent> {
   deps.onRunStart?.(sessionId)
   await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
   return expandUserParts(content, deps.attachmentExpanders)
 }
 
-async function settleLiveRuns(deps: ChatDeps, sessionId: SessionId): Promise<void> {
-  if (!deps.liveRuns.running(sessionId)) return
-  await stopSession(deps, sessionId)
-  await Promise.all(deps.liveRuns.of(sessionId).map((run) => run.done))
+async function settleActiveRuns(deps: ChatDeps, sessionId: SessionId, claimed: string | null): Promise<void> {
+  const active = (await activeRunsOf(deps.runs, sessionId)).filter((record) => record.runId !== claimed)
+  if (active.length === 0) return
+  deps.asks.cancel(sessionId)
+  await stopRuns(deps, sessionId, active)
 }
 
 async function failClaimedRun(deps: ChatDeps, runId: string, error: unknown): Promise<never> {
@@ -488,19 +629,52 @@ async function failClaimedRun(deps: ChatDeps, runId: string, error: unknown): Pr
   throw error
 }
 
-export function makeSend(deps: ChatDeps): Send {
-  return (sessionId, runId, content) =>
-    deps.liveRuns.serialize(sessionId, async () => {
-      const startedAt = deps.claimStartedAt()
-      const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
-      if (record.threadId !== sessionId || record.startedAt !== startedAt) throw runIdTakenError(runId)
-      const expanded = await prepareLaunchContent(deps, sessionId, content).catch((error: unknown) =>
-        failClaimedRun(deps, runId, error),
-      )
-      await settleLiveRuns(deps, sessionId)
-      launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
-      await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
-      return runId
+type ClaimedTurn = {req: RunRequest; record: RunRecord}
+
+async function claimTurn(
+  deps: ChatDeps,
+  sessionId: SessionId,
+  runId: string,
+  content: UserContent,
+  messageId?: string,
+): Promise<ClaimedTurn> {
+  const startedAt = deps.claimStartedAt()
+  const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
+  if (record.threadId !== sessionId || record.startedAt !== startedAt) throw runIdTakenError(runId)
+  const expanded = await prepareLaunchContent(deps, sessionId, content).catch((error: unknown) =>
+    failClaimedRun(deps, runId, error),
+  )
+  await settleActiveRuns(deps, sessionId, runId)
+  return {req: {runId, kind: 'chat', content: expanded, messageId}, record}
+}
+
+async function detachRun(deps: ChatDeps, runId: string): Promise<void> {
+  const record = await deps.runs.get(runId)
+  if (!record || record.status !== 'running') return
+  await deps.runs.update(runId, {detachedSince: Date.now()})
+}
+
+async function settleClaim(deps: ChatDeps, sessionId: SessionId, record: RunRecord): Promise<void> {
+  publishRunLifecycle(deps, sessionId, record)
+  await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
+}
+
+export type Turn = (
+  sessionId: SessionId,
+  runId: string,
+  content: UserContent,
+  options: {messageId?: string; signal: AbortSignal},
+) => Promise<AsyncIterable<StreamChunk>>
+
+export function makeTurn(deps: ChatDeps): Turn {
+  return (sessionId, runId, content, options) =>
+    deps.sessionLocks.serialize(sessionId, async () => {
+      const claimed = await claimTurn(deps, sessionId, runId, content, options.messageId)
+      const abort = new AbortController()
+      options.signal.addEventListener('abort', () => void detachRun(deps, runId).catch(() => {}), {once: true})
+      const stream = runStream(deps, sessionId, claimed.req, abort)
+      await settleClaim(deps, sessionId, claimed.record)
+      return stream
     })
 }
 
@@ -512,13 +686,12 @@ async function addCompactMarker(db: ConcivDb, sessionId: SessionId, afterTurn: n
 
 export function makeCompactor(deps: ChatDeps): Compactor {
   function run(sessionId: SessionId): Promise<void> {
-    return deps.liveRuns.serialize(sessionId, async () => {
+    return deps.sessionLocks.serialize(sessionId, async () => {
       deps.onRunStart?.(sessionId)
-      await settleLiveRuns(deps, sessionId)
-      const history = await sessionSnapshot(deps, sessionId)
+      await settleActiveRuns(deps, sessionId, null)
+      const history = await syncedSnapshot(deps, sessionId)
       await addCompactMarker(deps.db, sessionId, history.length)
-      const live = launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
-      await live.done
+      await driveRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
     })
   }
 

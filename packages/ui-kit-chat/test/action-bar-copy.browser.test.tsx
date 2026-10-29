@@ -22,7 +22,16 @@ const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(
 
 const copyButton = () => page.getByRole('button', {name: 'Copy'})
 
-function mountCopyAction(): void {
+const accept =
+  (written: string[]) =>
+  (text: string): Promise<void> => {
+    written.push(text)
+    return Promise.resolve()
+  }
+
+const refuse = (): Promise<void> => Promise.reject(new Error('the document is not focused'))
+
+function mountCopyAction(writeText: (text: string) => Promise<void>): void {
   mountView(
     (): JSX.Element => (
       <MessageProvider
@@ -33,14 +42,35 @@ function mountCopyAction(): void {
           isLast: () => true,
         }}
       >
-        <ActionBar.Copy copiedDuration={COPIED_MS}>copy</ActionBar.Copy>
+        <ActionBar.Copy copiedDuration={COPIED_MS} writeText={writeText}>
+          copy
+        </ActionBar.Copy>
       </MessageProvider>
     ),
   )
 }
 
+it('hands the message text to the clipboard', async () => {
+  const written: string[] = []
+  mountCopyAction(accept(written))
+
+  await copyButton().click()
+
+  await expect.element(copyButton(), {timeout: 1000}).toHaveAttribute('data-copied')
+  expect(written).toEqual(['copied text'])
+})
+
+it('does not claim the message was copied when the clipboard refuses', async () => {
+  mountCopyAction(refuse)
+
+  await copyButton().click()
+
+  await expect.element(copyButton(), {timeout: 1000}).toHaveAttribute('data-copy-failed')
+  expect(copyButton().element().hasAttribute('data-copied')).toBe(false)
+})
+
 it('keeps the copied state when a second copy re-arms the window', async () => {
-  mountCopyAction()
+  mountCopyAction(accept([]))
   await copyButton().click()
   await expect.element(copyButton(), {timeout: 1000}).toHaveAttribute('data-copied')
   await wait(RE_ARM_AFTER_MS)
@@ -50,7 +80,7 @@ it('keeps the copied state when a second copy re-arms the window', async () => {
 })
 
 it('drops the copied state once the re-armed window runs out', async () => {
-  mountCopyAction()
+  mountCopyAction(accept([]))
   await copyButton().click()
   await expect.element(copyButton(), {timeout: 1000}).toHaveAttribute('data-copied')
   await wait(RE_ARM_AFTER_MS)

@@ -81,21 +81,21 @@ describe('InlineShell embedded in a trace row', () => {
   it('drops the tool name and status glyph, leaving only the inline detail', async () => {
     render(() => (
       <CardChromeProvider value="embedded">
-        <InlineShell name="element.reference" status="complete">
+        <InlineShell name="element_reference" status="complete">
           <span>MissingWidget is not on the page</span>
         </InlineShell>
       </CardChromeProvider>
     ))
     await expect.element(page.getByText('MissingWidget is not on the page')).toBeVisible()
-    expect(page.getByText('element.reference').query()).toBeNull()
+    expect(page.getByText('element_reference').query()).toBeNull()
   })
 
   it('keeps the name and glyph as a standalone inline row', async () => {
     render(() => (
-      <InlineShell name="anchor.resolve" status="complete">
+      <InlineShell name="anchor_resolve" status="complete">
         <span>c1 · fresh</span>
       </InlineShell>
     ))
-    await expect.element(page.getByText('anchor.resolve')).toBeVisible()
+    await expect.element(page.getByText('anchor_resolve')).toBeVisible()
   })
 })

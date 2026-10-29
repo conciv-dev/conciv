@@ -4,6 +4,7 @@ import type {StreamChunk} from '@tanstack/ai'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {approvalIds} from './run-events.js'
 import {makeRpcClient} from './session.js'
+import type {RunStream} from './run-stream.js'
 
 export type CallTool = (name: string, input: unknown) => Promise<unknown>
 
@@ -110,6 +111,18 @@ async function pumpApprovals(
   }
 }
 
+export function autoApprove(apiBase: string, session: string, stream: RunStream): () => void {
+  const sessionRpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
+  const decided = new Set<string>()
+  return stream.tap((chunk) => {
+    for (const approvalId of approvalIds(chunk)) {
+      if (decided.has(approvalId)) continue
+      decided.add(approvalId)
+      void sessionRpc.chat.permissionDecision({approvalId, approved: true}).catch(() => {})
+    }
+  })
+}
+
 export async function withAutoApproval<Result>(
   apiBase: string,
   session: string,
@@ -119,7 +132,7 @@ export async function withAutoApproval<Result>(
   const rpc = makeRpcClient(apiBase)
   const sessionRpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
   const abort = new AbortController()
-  const stream = await rpc.chat.subscribe({sessionId: session}, {signal: abort.signal})
+  const stream = await rpc.chat.events({sessionId: session}, {signal: abort.signal})
   const decided = new Set<string>()
   const decide = async (approvalId: string): Promise<void> => {
     if (decided.has(approvalId)) return

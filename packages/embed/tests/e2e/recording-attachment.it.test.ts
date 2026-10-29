@@ -48,7 +48,7 @@ test.describe('recording attachment end to end in the real widget', () => {
       return appended.events.filter((event) => ClickEventSchema.safeParse(event).success).length
     }
 
-    await page.getByRole('button', {name: 'Recorder'}).click()
+    await page.getByRole('tab', {name: 'Recorder'}).click()
     await until(
       async () => {
         const {clients} = await recorderRpc.clients()
@@ -86,14 +86,15 @@ test.describe('recording attachment end to end in the real widget', () => {
     const sessions = await kit.rpc.sessions.list()
     const chatSession = sessions[0]?.id
     if (!chatSession) throw new Error('widget session not found')
-    const attachAbort = new AbortController()
-    const stream = await kit.attach(chatSession, {signal: attachAbort.signal})
-    const snapshot = await stream.waitFor(
-      (chunk) => chunk.type === 'MESSAGES_SNAPSHOT' && JSON.stringify(chunk).includes('[click]'),
-      {hangGuardMs: 30_000},
+    const persisted = {messages: ''}
+    await until(
+      async () => {
+        persisted.messages = JSON.stringify((await kit.rpc.chat.hydrate({sessionId: chatSession})).messages)
+        return persisted.messages.includes('[click]')
+      },
+      {hangGuardMs: 30_000, intervalMs: 200},
     )
-    expect(JSON.stringify(snapshot)).toContain('"modelOnly":true')
-    attachAbort.abort()
+    expect(persisted.messages).toContain('"modelOnly":true')
 
     const transcript = page.getByRole('log')
     await transcript

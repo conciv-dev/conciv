@@ -17,7 +17,9 @@ const FIXED_TARGETS: Record<string, string> = {css: 'stylesheet', eval: 'script'
 
 const SCRIPT_VERBS = new Set(['eval', 'css', 'effect'])
 
-const CODE_INPUT_KEYS: Record<string, string> = {eval: 'code', css: 'text'}
+const CODE_TARGET_KEYS: Record<string, string> = {eval: 'code'}
+
+const CODE_INPUT_KEYS: Record<string, string> = {css: 'text'}
 
 const CHIP_BUDGET = 64
 
@@ -57,11 +59,22 @@ function descriptorField(capture: ToolCaptureView | undefined, field: 'accessibl
   return nonEmpty(capture?.after?.descriptor[field]) ?? nonEmpty(capture?.before?.descriptor[field])
 }
 
+function codeTargetLine(verb: string, input: Record<string, unknown>): string | undefined {
+  const codeKey = CODE_TARGET_KEYS[verb]
+  if (codeKey === undefined) return undefined
+  const source = nonEmpty(input[codeKey])
+  if (source === undefined) return undefined
+  const line = firstMeaningfulLine(source)
+  return line === undefined ? undefined : clipLine(line)
+}
+
 function stepTarget(
   verb: string,
   input: Record<string, unknown>,
   capture: ToolCaptureView | undefined,
 ): {target: string; namedTarget: boolean} {
+  const codeLine = codeTargetLine(verb, input)
+  if (codeLine !== undefined) return {target: codeLine, namedTarget: false}
   const fixed = FIXED_TARGETS[verb]
   if (fixed !== undefined) return {target: fixed, namedTarget: false}
   const named = descriptorField(capture, 'accessibleName')

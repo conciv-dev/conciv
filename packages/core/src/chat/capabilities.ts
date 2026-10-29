@@ -1,9 +1,8 @@
 import {z} from 'zod'
 import type {ToolRequest} from '@conciv/extension'
-import type {SandboxTool} from '@conciv/extension/registry'
+import {toInlineJsonSchema, type SandboxTool} from '@conciv/extension/registry'
 import type {ScopedToolCall} from '../runtime/scope-types.js'
 import type {ConcivServerTool} from '@conciv/tools'
-import {resolveSchemaRefs} from './resolve-schema-refs.js'
 
 export type CapabilitySignature = {
   input: unknown
@@ -16,6 +15,7 @@ export type CodeCapability = {
   description: string
   summary: string
   category: string
+  keywords: readonly string[]
   approval?: 'ask'
   mutating: boolean
   reachable: boolean
@@ -40,6 +40,7 @@ export function registryCapabilities(tools: readonly SandboxTool[], call: Scoped
       description: tool.hint === undefined ? tool.summary : `${tool.summary}. ${tool.hint}`,
       summary: tool.summary,
       category: tool.category ?? 'other',
+      keywords: tool.keywords,
       ...(tool.approval === undefined ? {} : {approval: tool.approval}),
       mutating: tool.mutating,
       reachable: tool.reachable,
@@ -47,8 +48,8 @@ export function registryCapabilities(tools: readonly SandboxTool[], call: Scoped
       inputSchema: tool.schema,
       execute: (input, request) => call(tool.name, input, request),
       signature: () => ({
-        input: resolveSchemaRefs(tool.inputSchema),
-        output: resolveSchemaRefs(tool.outputSchema),
+        input: tool.inputSchema,
+        output: tool.outputSchema,
         errors,
       }),
     }
@@ -61,13 +62,14 @@ export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] 
     description: tool.description,
     summary: firstSentence(tool.description),
     category: 'assist',
+    keywords: [],
     mutating: false,
     reachable: true,
     errors: [],
     inputSchema: tool.inputSchema,
     execute: (input) => tool.execute(input),
     signature: () => ({
-      input: resolveSchemaRefs(z.toJSONSchema(tool.inputSchema, {io: 'input'})),
+      input: toInlineJsonSchema(tool.inputSchema, `the ${tool.name} input`, 'input'),
       output: undefined,
       errors: [],
     }),

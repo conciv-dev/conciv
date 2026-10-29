@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {RpcTransportPreference} from '@conciv/contract'
+import type {ChatTransportPreference} from '@conciv/client'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 
 export type Launcher = 'native' | 'mascot' | false
@@ -9,7 +9,7 @@ export type ConcivSettings = {
   quickTerminal: {enabled: boolean; hotkeys: string[]}
   defaultOpen: boolean
   launcher: Launcher
-  transport: RpcTransportPreference
+  transport: ChatTransportPreference
 }
 
 const DEFAULT_HOTKEYS = ['Mod+`']
@@ -42,7 +42,7 @@ function hotkeysOf(quickTerminal: unknown): string[] {
 
 const TransportSchema = z.enum(['auto', 'websocket', 'fetch']).default('auto').catch('auto')
 
-function transportOf(transport: unknown): RpcTransportPreference {
+function transportOf(transport: unknown): ChatTransportPreference {
   return TransportSchema.parse(transport)
 }
 

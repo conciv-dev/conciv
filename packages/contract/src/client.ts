@@ -7,7 +7,6 @@ import {
   dynamicBrowserRpcLink,
   RPC_UNBOUND_MESSAGE,
   type RpcClientContext,
-  type RpcTransportPreference,
   type SessionAccessor,
 } from './browser-transport.js'
 
@@ -23,7 +22,7 @@ export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): 
   return createORPCClient(link)
 }
 
-export type BrowserRpcClientOptions = {transport?: RpcTransportPreference; session?: SessionAccessor}
+export type BrowserRpcClientOptions = {session?: SessionAccessor}
 
 export type BrowserRpcClient = {
   rpc: RpcClient
@@ -39,7 +38,7 @@ export function makeBrowserRpcClient(
 ): BrowserRpcClient {
   const state: {accessor: () => string | null} = {accessor: typeof base === 'function' ? base : () => base}
   const currentBase = (): string | null => state.accessor()
-  const link = dynamicBrowserRpcLink(currentBase, options.transport, options.session)
+  const link = dynamicBrowserRpcLink(currentBase, options.session)
   return {
     rpc: createORPCClient(link),
     bound: () => currentBase() !== null,

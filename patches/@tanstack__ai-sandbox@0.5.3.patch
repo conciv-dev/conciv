@@ -1,0 +1,65 @@
+diff --git a/dist/esm/middleware.d.ts b/dist/esm/middleware.d.ts
+index 4945a5a31ad3bb5b3e162667f5b70347487685a9..9d783b47f570899ed5a62e3bf9b06f66219f1c4d 100644
+--- a/dist/esm/middleware.d.ts
++++ b/dist/esm/middleware.d.ts
+@@ -1,5 +1,4 @@
+ import { SandboxCapability } from './capabilities.js';
+-import { ProjectionCapability } from './projection.js';
+ import { SandboxSnapshotPolicy } from './snapshots.js';
+ import { SandboxCheckpointStore } from './checkpoint-store.js';
+ import { LockStore } from '@tanstack/ai/locks';
+@@ -82,4 +81,4 @@ export interface SandboxMiddlewareOptions<TOffset extends string = string> {
+      */
+     durability?: SandboxDurabilityOptions<TOffset>;
+ }
+-export declare function withSandbox<TOffset extends string = string>(definition: SandboxDefinition, options?: SandboxMiddlewareOptions<TOffset>): DefinedChatMiddleware<unknown, readonly [], readonly [typeof SandboxCapability, typeof ProjectionCapability]>;
++export declare function withSandbox<TOffset extends string = string>(definition: SandboxDefinition, options?: SandboxMiddlewareOptions<TOffset>): DefinedChatMiddleware<unknown, readonly [], readonly [typeof SandboxCapability]>;
+diff --git a/dist/esm/middleware.js b/dist/esm/middleware.js
+index 74b7bbca9f7bc2c3365691378f100406ed5b04c4..5a63d1a59dac04eec5253647e1005ccc121c9292 100644
+--- a/dist/esm/middleware.js
++++ b/dist/esm/middleware.js
+@@ -210,7 +210,7 @@ async function dispatchDefinitionHooks(hooks, event, logger) {
+ function withSandbox(definition, options) {
+ 	return defineChatMiddleware({
+ 		name: "sandbox",
+-		provides: [SandboxCapability, ProjectionCapability],
++		provides: [SandboxCapability],
+ 		optionalRequires: [SandboxInstanceStoreCapability, LocksCapability],
+ 		async setup(ctx) {
+ 			const ensureCtx = buildEnsureCtx(ctx, options);
+@@ -364,7 +364,7 @@ function withSandbox(definition, options) {
+ 				const workspace = definition.workspace;
+ 				if (workspace !== void 0) {
+ 					const virtualRoot = workspace.root ?? "/workspace";
+-					const root = resolveHarnessCwd(handle, virtualRoot);
++					const root = virtualRoot;
+ 					const workspaceHash = computeWorkspaceHash(workspace);
+ 					const secrets = workspace.secrets;
+ 					provideWorkspaceProjection(ctx, {
+diff --git a/src/middleware.ts b/src/middleware.ts
+index aba99a20932262570dc48c7578c6406aad92d54c..6c304973a1150dd790a17e7cf9e230eb52418251 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -478,11 +478,11 @@ export function withSandbox<TOffset extends string = string>(
+ ): DefinedChatMiddleware<
+   unknown,
+   readonly [],
+-  readonly [typeof SandboxCapability, typeof ProjectionCapability]
++  readonly [typeof SandboxCapability]
+ > {
+   return defineChatMiddleware({
+     name: 'sandbox',
+-    provides: [SandboxCapability, ProjectionCapability],
++    provides: [SandboxCapability],
+     // SandboxPolicyCapability is provided conditionally (only when the
+     // definition has a policy), so it is intentionally NOT declared here —
+     // consumers read it via `getOptional`. SandboxDurabilityCapability and
+@@ -874,7 +874,7 @@ export function withSandbox<TOffset extends string = string>(
+         const workspace = definition.workspace
+         if (workspace !== undefined) {
+           const virtualRoot = workspace.root ?? DEFAULT_WORKSPACE_ROOT
+-          const root = resolveHarnessCwd(handle, virtualRoot)
++          const root = virtualRoot
+           const workspaceHash = computeWorkspaceHash(workspace)
+           const secrets = workspace.secrets
+           provideWorkspaceProjection(ctx, {

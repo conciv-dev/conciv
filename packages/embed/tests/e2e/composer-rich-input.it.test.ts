@@ -1,6 +1,6 @@
 import {expect, test, type Page} from '@playwright/test'
 import recorderServer from '@conciv/extension-recorder'
-import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
+import {watchChatWire} from '@conciv/extension-testkit/chat-wire'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanelOnNewSession} from './helpers/panel.js'
 import {untilPanelDraft} from './helpers/drafts.js'
@@ -48,7 +48,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
   }) => {
     test.setTimeout(180_000)
     const page = fixturePage
-    const wire = watchRpcWire(page)
+    const wire = watchChatWire(page)
     await openComposer(page)
     const input = composer(page)
 
@@ -64,7 +64,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
     await input.pressSequentially('second line')
 
     const expected = 'please run /config then @recording_start \nsecond line'
-    const sent = wire.nextChatSend().then((send) => send.content)
+    const sent = wire.nextTurn().then((turn) => turn.content)
     await page.getByRole('button', {name: 'Send message'}).click()
     expect(await sent).toBe(expected)
     await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
@@ -158,7 +158,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
     await input.pressSequentially('ship ')
     await input.pressSequentially('/config')
     await pickSuggestion(page, 'Commands', '/config')
-    await waitForDraftWrite(sessionId, 'ship /config')
+    await waitForDraftWrite(sessionId, 'ship /config ')
 
     await page.reload({waitUntil: 'domcontentloaded'})
     const restored = composer(page)
@@ -174,6 +174,8 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
     const input = composer(page)
 
     await input.pressSequentially('hello world')
+    await waitForDraftWrite(sessionId, 'hello world')
+    await expect(input).toBeFocused()
     for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowLeft')
     await input.pressSequentially('X')
     await expect(input).toHaveText('helloX world')
@@ -182,6 +184,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
     await page.reload({waitUntil: 'domcontentloaded'})
     const restored = composer(page)
     await expect(restored).toHaveText('helloX world', {timeout: 30_000})
+    await expect(restored).toBeFocused()
 
     await page.keyboard.type('Y')
     await expect(restored).toHaveText('helloXY world')
@@ -192,7 +195,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
   }) => {
     test.setTimeout(90_000)
     const page = fixturePage
-    const wire = watchRpcWire(page)
+    const wire = watchChatWire(page)
     await openComposer(page)
     const input = composer(page)
     const cdp = await page.context().newCDPSession(page)
@@ -204,7 +207,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
 
     await cdp.send('Input.insertText', {text: 'ん'})
     await expect(input).toHaveText('helloん')
-    const sent = wire.nextChatSend().then((send) => send.content)
+    const sent = wire.nextTurn().then((turn) => turn.content)
     await page.keyboard.press('Enter')
     expect(await sent).toBe('helloん')
 
@@ -215,7 +218,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
   test('the send button submits the visible draft including pending composition text', async ({page: fixturePage}) => {
     test.setTimeout(90_000)
     const page = fixturePage
-    const wire = watchRpcWire(page)
+    const wire = watchChatWire(page)
     await openComposer(page)
     const input = composer(page)
     const cdp = await page.context().newCDPSession(page)
@@ -223,7 +226,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
     await input.pressSequentially('committed draft')
     await cdp.send('Input.imeSetComposition', {text: 'か', selectionStart: 1, selectionEnd: 1})
     await expect(input).toHaveText('committed draftか')
-    const sent = wire.nextChatSend().then((send) => send.content)
+    const sent = wire.nextTurn().then((turn) => turn.content)
     await page.getByRole('button', {name: 'Send message'}).click()
     expect(await sent).toBe('committed draftか')
 

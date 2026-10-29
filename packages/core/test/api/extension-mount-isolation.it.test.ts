@@ -23,7 +23,7 @@ function cfgFor(stateRoot: string): ResolvedConcivConfig {
 }
 
 const healthyTool = defineTool({
-  name: 'healthy.ok',
+  name: 'healthy_ok',
   description: 'a healthy tool',
   inputSchema: z.object({}),
   outputSchema: z.object({ok: z.boolean()}),

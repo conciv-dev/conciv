@@ -1,9 +1,9 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {StatusDot, type StatusDotTone} from '@conciv/ui-kit-system'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, ErrorBlock, JsonTree, MirrorRow, cardHeader} from '@conciv/ui-kit-chat/tools'
-import {QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, mutatingBadge} from './shared.js'
+import {QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, hasPayloadOrError, mutatingBadge} from './shared.js'
 
 const SingleEffect = z.looseObject({effect: z.string(), enabled: z.boolean()})
 
@@ -52,7 +52,7 @@ function EffectRowView(props: {row: EffectRow}): JSX.Element {
   )
 }
 
-export function EffectCard(props: ToolCardProps): JSX.Element {
+function EffectCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
   const payload = () => cardPayload(props.result)
   const rows = () => rowsOf(payload())
@@ -96,4 +96,9 @@ export function EffectCard(props: ToolCardProps): JSX.Element {
       </div>
     </CardShell>
   )
+}
+
+export const effectCard: ToolCardView = {
+  render: EffectCard,
+  hasEmbeddedBody: (part, result, ctx) => hasPayloadOrError(result) || ctx.catalog.meta(part.name)?.mirrors === true,
 }

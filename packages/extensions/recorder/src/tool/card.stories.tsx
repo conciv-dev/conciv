@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Trace, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 
-import {RecordingToolCard} from './card.js'
+import {RecordingToolCard, recordingToolCard} from './card.js'
 import {pullToolClient, startToolClient, stopToolClient} from './client.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
@@ -75,7 +75,11 @@ export const Recording: Story = {
 }
 
 const recorderTools = [
-  {names: [startToolClient.name, stopToolClient.name, pullToolClient.name], render: RecordingToolCard},
+  {
+    names: [startToolClient.name, stopToolClient.name, pullToolClient.name],
+    render: recordingToolCard.render,
+    hasEmbeddedBody: recordingToolCard.hasEmbeddedBody,
+  },
 ]
 
 function embeddedGallery(

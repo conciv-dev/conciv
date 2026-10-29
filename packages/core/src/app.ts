@@ -34,11 +34,15 @@ import {
   type RowScope,
 } from './chat/session-rows.js'
 import {makeRunControl, type ChatDeps} from './chat/runtime.js'
+import {chatDeliveryRoutes} from './chat/delivery.js'
+import {pushRoutes, type PushDeps} from './api/push.js'
 import {asksFor, makeAskGate, requiresApproval} from './chat/gate.js'
-import {makeConcivSandbox} from './chat/sandbox.js'
+import {defineSandbox, defineSandboxPolicy} from '@tanstack/ai-sandbox'
+import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
-import {recoverInterruptedRuns, sessionSnapshot} from './chat/transcript.js'
-import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
+import {reclaimAbandonedRuns} from './chat/reclaim.js'
+import {recoverInterruptedRuns, syncedSnapshot} from './chat/transcript-import.js'
+import {makeCompactor, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
 import {modelOf, openDb, writeToolCapture} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
@@ -48,16 +52,12 @@ import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
-import {
-  makeCompositeRpcRouter,
-  RPC_PREFIX,
-  RPC_WS_PATH,
-  rpcFetchMiddleware,
-  rpcWebsocketRoute,
-} from '@conciv/extension/rpc-mount'
+import {makeCompositeRpcRouter, RPC_PREFIX, rpcFetchMiddleware} from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
+import {assertToolName} from '@conciv/extension/tool'
+import {BUILTIN_OPEN_TOOL, SERVER_TOOL_PREFIX} from '@conciv/tools/builtins'
 import {logError} from './lib/debug.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import type {OpenInEditor} from './editor/open.js'
@@ -194,6 +194,7 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
   const owners = new Map<string, string>()
   for (const [source, names] of sources) {
     for (const name of names) {
+      assertToolName(name)
       const existing = owners.get(name)
       if (existing !== undefined) {
         throw new Error(`capability name "${name}" is declared by both ${existing} and ${source}`)
@@ -201,6 +202,17 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
       owners.set(name, source)
     }
   }
+}
+
+const CLI_TOOL_GROUPS = [
+  {prefix: PAGE_TOOL_PREFIX, command: 'conciv tools page'},
+  {prefix: SERVER_TOOL_PREFIX, command: 'conciv tools server'},
+] as const
+
+function cliCommandOf(name: string): string | null {
+  if (name === BUILTIN_OPEN_TOOL.name) return 'conciv tools open'
+  const matched = CLI_TOOL_GROUPS.find(({prefix}) => name.startsWith(prefix))
+  return matched === undefined ? null : `${matched.command} ${name.slice(matched.prefix.length)}`
 }
 
 export const HealthSchema = z.object({
@@ -214,7 +226,7 @@ export type CoreVars = CorsVars & {chat: ChatDeps} & McpVars
 function composeRoutes(
   vars: CoreVars,
   rpc: CompositeRpcRouter,
-  deps: {staleness: () => EngineStaleness; onShutdown?: () => void},
+  deps: {staleness: () => EngineStaleness; onShutdown?: () => void; push: PushDeps},
 ) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
@@ -237,10 +249,8 @@ function composeRoutes(
       setTimeout(deps.onShutdown, 50)
       return c.json({ok: true})
     })
-    .get(
-      RPC_WS_PATH,
-      rpcWebsocketRoute(rpc, {upgrade: upgradeWebSocket, onError: (message) => logError(`[core] ${message}`)}),
-    )
+    .route('/', chatDeliveryRoutes(vars.chat, upgradeWebSocket))
+    .route('/', pushRoutes(deps.push, upgradeWebSocket))
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
 }
@@ -249,23 +259,10 @@ export type AppType = ReturnType<typeof composeRoutes>
 
 export type MadeApp = {
   app: AppType
+  chat: ChatDeps
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
-}
-
-const RUN_DRAIN_TIMEOUT_MS = 5_000
-
-async function drainWithDeadline(drain: Promise<void>, timeoutMs: number): Promise<boolean> {
-  const timer = {handle: null as ReturnType<typeof setTimeout> | null}
-  const outcome = await Promise.race([
-    drain.then(() => 'drained' as const),
-    new Promise<'timeout'>((resolve) => {
-      timer.handle = setTimeout(() => resolve('timeout'), timeoutMs)
-    }),
-  ])
-  if (timer.handle) clearTimeout(timer.handle)
-  return outcome === 'drained'
 }
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string, claudeHome?: string): ServerHarness {
@@ -294,8 +291,12 @@ async function mcpSessionId(
   return anonymousExternalRow(rows)
 }
 
+export function withBuiltinExtensions(extensions: readonly AnyExtension[] | undefined): AnyExtension[] {
+  return [pageServerExtension, ...(extensions ?? [])]
+}
+
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
-  const extensions = [pageServerExtension, ...(opts.extensions ?? [])]
+  const extensions = withBuiltinExtensions(opts.extensions)
 
   assertUniqueExtensionSlugs(extensions)
 
@@ -303,7 +304,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
-  const {claimStartedAt, durability, runControl, runs} = makeRunControl(opts.firstChunkTimeoutMs)
+  const {claimStartedAt, durability, durabilityAt, runs, sessionLocks} = makeRunControl(db, opts.firstChunkTimeoutMs)
+  await reclaimAbandonedRuns(runs, Date.now())
 
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
 
@@ -314,7 +316,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     bundler: () => opts.bridge,
     openInEditor: opts.openInEditor,
   })
-  const {asks, liveRuns, registry, stream} = primitives
+  const {asks, commandMemory, registry, stream} = primitives
   const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
     runtime.forSession(request.sessionId).tools.call(name, input, {toolCallId: request.toolCallId})
@@ -325,7 +327,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       await ensureRow(db, sessionId, harness.id, opts.cwd)
       await recordNativeId(db, sessionId, token)
     },
-    chatBusy: (sessionId) => liveRuns.running(sessionId),
+    chatBusy: async (sessionId) => (await runs.findActiveRun(sessionId)) !== null,
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
@@ -397,12 +399,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       .flatMap((entry) => {
         const signature = registry.catalog.get(entry.name)
         if (requiresApproval(signature)) return []
-        const [group, operation] = [entry.path.slice(0, -1).join(' '), entry.path.at(-1)]
-        if (operation === undefined) return []
-        const command = group === '' ? `conciv tools ${operation}` : `conciv tools ${group} ${operation}`
+        const command = cliCommandOf(entry.name)
+        if (command === null) return []
         const aliases = [command, `${command} *`]
         if (entry.name.startsWith(PAGE_TOOL_PREFIX) && signature.category === 'react') {
-          aliases.push(`conciv tools react ${operation}`, `conciv tools react ${operation} *`)
+          const verb = entry.name.slice(PAGE_TOOL_PREFIX.length)
+          aliases.push(`conciv tools react ${verb}`, `conciv tools react ${verb} *`)
         }
         return aliases
       })
@@ -444,16 +446,23 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       {systemPromptFile: opts.systemPromptFile, systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt},
       harness.capabilities.systemPrompt,
     ),
-    sandbox: makeConcivSandbox(opts.cwd),
+    sandbox: defineSandbox({
+      id: 'conciv',
+      provider: localProcessSandbox({dir: opts.cwd}),
+      policy: defineSandboxPolicy({default: 'ask'}),
+      fileEvents: false,
+      lifecycle: {reuse: 'thread', destroyOnComplete: false},
+    }),
     db,
     asks,
+    commandMemory,
     durability,
-    runControl,
+    durabilityAt,
     runs,
     claimStartedAt,
-    liveRuns,
+    sessionLocks,
     stream,
-    snapshot: (sessionId) => sessionSnapshot(chatDeps, sessionId),
+    snapshot: (sessionId) => syncedSnapshot(chatDeps, sessionId),
     risky,
     commandAllows: askFreeCommandAllows,
     toolNames: new Set(toolList.map((tool) => tool.name)),
@@ -480,9 +489,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const compactor = makeCompactor(chatDeps)
 
-  const send = makeSend(chatDeps)
-
-  const runtime = makeCoreRuntime({primitives, chat: chatDeps, send, compactor, model: sessionModel, staleness})
+  const runtime = makeCoreRuntime({primitives, chat: chatDeps, compactor, model: sessionModel, staleness})
 
   const rpc = makeRpcRouter({
     chat: chatDeps,
@@ -512,13 +519,21 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
             emit: (chunk) => stream.publish(sessionId, chunk),
             ...(opts.askTimeoutMs === undefined ? {} : {timeoutMs: opts.askTimeoutMs}),
           }),
-        listening: (sessionId) => stream.listening(sessionId),
+        listening: (sessionId) => stream.watched(sessionId),
         resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
         staleness,
       },
     },
     compositeRpc,
-    {staleness, onShutdown: opts.onShutdown},
+    {
+      staleness,
+      onShutdown: opts.onShutdown,
+      push: {
+        queries: (sessionId, signal) => runtime.forSession(sessionId).page.queries(signal),
+        events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
+        pendingApprovals: (sessionId) => asks.pendingApprovals(sessionId),
+      },
+    },
   )
 
   if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))
@@ -528,11 +543,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
 
   const dispose = async (): Promise<void> => {
-    const drained = await drainWithDeadline(runControl.drain(), RUN_DRAIN_TIMEOUT_MS)
-    if (!drained) logError('[core] disposed with run(s) still in flight')
     for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
     db.$client.close()
   }
 
-  return {app, dispose, extensionContexts, runtime}
+  return {app, chat: chatDeps, dispose, extensionContexts, runtime}
 }

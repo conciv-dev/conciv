@@ -3,6 +3,7 @@ import {serveApp, type ServedApp} from '@conciv/harness-testkit'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import {makeApp} from '../../src/app.js'
 import {resolveConfig} from '../../src/config.js'
 
@@ -66,6 +67,23 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
     const allowHeaders = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase()
     expect(allowHeaders).toContain('conciv-session-id')
     expect(res.headers.get('access-control-allow-methods') ?? '').toContain('POST')
+  })
+
+  it('preflight for the chat delivery endpoint allows the run-id and resume-offset headers', async () => {
+    const {served, base} = await startServer()
+    state.served = served
+    const res = await fetch(`${base}${CHAT_SSE_PATH}`, {
+      method: 'OPTIONS',
+      headers: {
+        origin: ORIGIN,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type, x-run-id, last-event-id',
+      },
+    })
+    expect(res.status).toBe(204)
+    const allowHeaders = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase()
+    expect(allowHeaders).toContain('x-run-id')
+    expect(allowHeaders).toContain('last-event-id')
   })
 
   it('echoes CORS headers on an actual rpc call (never *)', async () => {

@@ -9,6 +9,7 @@ import {
   pairResults,
   parentToolCallIdOf,
   standaloneToolNames,
+  stickyGrouper,
   type GroupByContext,
   type GroupNode,
   type Grouper,
@@ -37,12 +38,17 @@ function group(parts: MessagePart[], grouper: Grouper = defaultGrouper, context:
   return shape(groupParts(parts, grouper, context))
 }
 
-const CONFIRM_ENTRY: ToolCardEntry = {names: ['confirm_ui'], render: () => null, display: 'standalone'}
+const CONFIRM_ENTRY: ToolCardEntry = {
+  names: ['confirm_ui'],
+  render: () => null,
+  hasEmbeddedBody: () => false,
+  display: 'standalone',
+}
 const STANDALONE_CONTEXT: GroupByContext = {toolEntries: [CONFIRM_ENTRY]}
 
 const pageGrouper = createPageSessionGrouper({
-  actNames: new Set(['page.click', 'page.fill']),
-  toolPrefix: 'page.',
+  actNames: new Set(['page_click', 'page_fill']),
+  toolPrefix: 'page_',
 })
 
 const chain = (...indices: number[]): Shape => ({group: 'group-chain', indices})
@@ -134,9 +140,9 @@ describe('page-session grouper', () => {
     expect(
       group(
         [
-          {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'p1', name: 'page_click', arguments: '{}', state: 'complete'},
           {type: 'tool-result', toolCallId: 'p1', content: 'ok', state: 'complete'},
-          {type: 'tool-call', id: 'p2', name: 'page.fill', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'p2', name: 'page_fill', arguments: '{}', state: 'complete'},
         ],
         pageGrouper,
       ),
@@ -147,10 +153,10 @@ describe('page-session grouper', () => {
     expect(
       group(
         [
-          {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
-          {type: 'tool-call', id: 'r1', name: 'page.text', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'p1', name: 'page_click', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'r1', name: 'page_text', arguments: '{}', state: 'complete'},
           {type: 'text', content: '  '},
-          {type: 'tool-call', id: 'p2', name: 'page.fill', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'p2', name: 'page_fill', arguments: '{}', state: 'complete'},
         ],
         pageGrouper,
       ),
@@ -161,7 +167,7 @@ describe('page-session grouper', () => {
     expect(
       group(
         [
-          {type: 'tool-call', id: 'r1', name: 'page.text', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'r1', name: 'page_text', arguments: '{}', state: 'complete'},
           {type: 'tool-result', toolCallId: 'other', content: 'ok', state: 'complete'},
         ],
         pageGrouper,
@@ -173,10 +179,10 @@ describe('page-session grouper', () => {
     expect(
       group(
         [
-          {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'p1', name: 'page_click', arguments: '{}', state: 'complete'},
           {type: 'text', content: 'clicked it'},
           {type: 'tool-call', id: 'b1', name: 'bash', arguments: '{}', state: 'complete'},
-          {type: 'tool-call', id: 'p2', name: 'page.fill', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'p2', name: 'page_fill', arguments: '{}', state: 'complete'},
         ],
         pageGrouper,
       ),
@@ -187,7 +193,7 @@ describe('page-session grouper', () => {
     expect(
       group(
         [
-          {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'p1', name: 'page_click', arguments: '{}', state: 'complete'},
           {type: 'tool-call', id: 'b1', name: 'bash', arguments: '{}', state: 'complete'},
           {type: 'tool-result', toolCallId: 'p1', content: 'ok', state: 'complete'},
         ],
@@ -204,7 +210,7 @@ describe('page-session grouper', () => {
     state: 'complete',
   })
 
-  const subAct = (id: string, parent: string, name = 'page.fill'): MessagePart => {
+  const subAct = (id: string, parent: string, name = 'page_fill'): MessagePart => {
     const part: ToolCallPartWithParent = {
       type: 'tool-call',
       id,
@@ -241,13 +247,20 @@ describe('page-session grouper', () => {
       group(
         [
           codeCall('q1', 'execute_typescript'),
-          subAct('r1', 'q1', 'page.text'),
+          subAct('r1', 'q1', 'page_text'),
           {type: 'tool-result', toolCallId: 'r1', content: 'body', state: 'complete'},
-          {type: 'tool-call', id: 'f1', name: 'page.fill', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'f1', name: 'page_fill', arguments: '{}', state: 'complete'},
         ],
         pageGrouper,
       ),
     ).toEqual([chain(0, 1), session(3)])
+  })
+
+  it('leaves a live code run where it was born and only folds it into the session once settled', () => {
+    const parts: MessagePart[] = [codeCall('p1', 'execute_typescript'), subAct('s1', 'p1')]
+
+    expect(group(parts, pageGrouper, {live: true})).toEqual([chain(0), session(1)])
+    expect(group(parts, pageGrouper)).toEqual([session(0, 1)])
   })
 
   it('still closes a code-mode session on reply text', () => {
@@ -259,7 +272,7 @@ describe('page-session grouper', () => {
           {type: 'tool-result', toolCallId: 's1', content: 'ok', state: 'complete'},
           {type: 'tool-result', toolCallId: 'p1', content: 'ok', state: 'complete'},
           {type: 'text', content: 'first stretch done'},
-          {type: 'tool-call', id: 'f2', name: 'page.fill', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'f2', name: 'page_fill', arguments: '{}', state: 'complete'},
         ],
         pageGrouper,
       ),
@@ -270,9 +283,9 @@ describe('page-session grouper', () => {
     expect(
       group(
         [
-          {type: 'tool-call', id: 'f1', name: 'page.fill', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'f1', name: 'page_fill', arguments: '{}', state: 'complete'},
           {type: 'thinking', content: 'next field'},
-          {type: 'tool-call', id: 'f2', name: 'page.fill', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'f2', name: 'page_fill', arguments: '{}', state: 'complete'},
         ],
         pageGrouper,
       ),
@@ -306,13 +319,27 @@ describe('page-session grouper', () => {
     ).toEqual([chain(0), leaf(1), session(2)])
   })
 
+  it('leaves an unstamped act child beside its code run instead of correlating them by proximity', () => {
+    expect(
+      group(
+        [
+          codeCall('p1', 'execute_typescript'),
+          {type: 'tool-call', id: 's1', name: 'page_fill', arguments: '{}', state: 'complete'},
+          {type: 'tool-result', toolCallId: 's1', content: 'ok', state: 'complete'},
+          {type: 'tool-result', toolCallId: 'p1', content: 'ok', state: 'complete'},
+        ],
+        pageGrouper,
+      ),
+    ).toEqual([chain(0), session(1)])
+  })
+
   it('never folds an approval-requested call into a session', () => {
     expect(
       group(
         [
-          {type: 'tool-call', id: 'f1', name: 'page.fill', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'f1', name: 'page_fill', arguments: '{}', state: 'complete'},
           {type: 'tool-result', toolCallId: 'f1', content: 'ok', state: 'complete'},
-          {type: 'tool-call', id: 'f2', name: 'page.fill', arguments: '{}', state: 'approval-requested'},
+          {type: 'tool-call', id: 'f2', name: 'page_fill', arguments: '{}', state: 'approval-requested'},
         ],
         pageGrouper,
       ),
@@ -324,7 +351,7 @@ describe('page-session grouper', () => {
       group(
         [
           {type: 'thinking', content: 'survey the page first'},
-          {type: 'tool-call', id: 'f1', name: 'page.fill', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'f1', name: 'page_fill', arguments: '{}', state: 'complete'},
         ],
         pageGrouper,
       ),
@@ -335,7 +362,7 @@ describe('page-session grouper', () => {
     expect(
       group(
         [
-          {type: 'tool-call', id: 'r1', name: 'page.text', arguments: '{}', state: 'complete'},
+          {type: 'tool-call', id: 'r1', name: 'page_text', arguments: '{}', state: 'complete'},
           {type: 'tool-result', toolCallId: 'r1', content: 'ok', state: 'complete'},
         ],
         pageGrouper,
@@ -346,11 +373,52 @@ describe('page-session grouper', () => {
   it('groups page parts as a plain chain under the default grouper', () => {
     expect(
       group([
-        {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
+        {type: 'tool-call', id: 'p1', name: 'page_click', arguments: '{}', state: 'complete'},
         {type: 'tool-result', toolCallId: 'p1', content: 'ok', state: 'complete'},
         {type: 'text', content: 'done'},
       ]),
     ).toEqual([chain(0), leaf(2)])
+  })
+})
+
+describe('sticky grouper', () => {
+  const livePart = (index: number): MessagePart =>
+    index % 2 === 0
+      ? {type: 'thinking', content: `step ${index}`}
+      : {type: 'tool-call', id: `t${index}`, name: 'read', arguments: '{}', state: 'complete'}
+
+  const stickyConfig = {actNames: new Set(['page_fill']), toolPrefix: 'page_'}
+
+  it('classifies each appended part once instead of rerunning every prefix', () => {
+    const parts = Array.from({length: 200}, (_, index) => livePart(index))
+    let calls = 0
+    const counting: Grouper = (prefix, context) => {
+      calls += 1
+      return defaultGrouper(prefix, context)
+    }
+    const sticky = stickyGrouper(counting)
+    const frames = parts.map((_, index) => sticky(parts.slice(0, index + 1), {live: true}))
+
+    expect(frames.at(-1)).toEqual(defaultGrouper(parts, {live: true}))
+    expect(calls).toBeLessThanOrEqual(parts.length + 4)
+  })
+
+  it('reclassifies from the first part whose identity changed', () => {
+    const reused = createPageSessionGrouper(stickyConfig)
+    const fresh = createPageSessionGrouper(stickyConfig)
+    const head: MessagePart = {
+      type: 'tool-call',
+      id: 'p1',
+      name: 'execute_typescript',
+      arguments: '{}',
+      state: 'complete',
+    }
+    const act: MessagePart = {type: 'tool-call', id: 'f1', name: 'page_fill', arguments: '{}', state: 'complete'}
+    const replaced: MessagePart = {type: 'text', content: 'a fresh opening line'}
+
+    reused([head], {live: true})
+
+    expect(reused([replaced, act], {live: true})).toEqual(fresh([replaced, act], {live: true}))
   })
 })
 
@@ -555,7 +623,7 @@ function childPart(id: string, parent: string): MessagePart {
   const part: ToolCallPartWithParent = {
     type: 'tool-call',
     id,
-    name: 'canvas.svg',
+    name: 'canvas_svg',
     arguments: '{}',
     state: 'complete',
     metadata: {parentToolCallId: parent},
@@ -605,7 +673,7 @@ describe('image parts', () => {
 
 describe('standaloneToolNames', () => {
   it('lets the first entry claiming a name decide, matching card resolution', () => {
-    const inlineFirst: ToolCardEntry = {names: ['confirm_ui'], render: () => null}
+    const inlineFirst: ToolCardEntry = {names: ['confirm_ui'], render: () => null, hasEmbeddedBody: () => false}
     const context: GroupByContext = {toolEntries: [inlineFirst, CONFIRM_ENTRY]}
     expect([...standaloneToolNames(context)]).toEqual([])
     expect(
@@ -618,7 +686,9 @@ describe('standaloneToolNames', () => {
   })
 
   it('marks the name standalone when the first entry claiming it is standalone', () => {
-    const context: GroupByContext = {toolEntries: [CONFIRM_ENTRY, {names: ['confirm_ui'], render: () => null}]}
+    const context: GroupByContext = {
+      toolEntries: [CONFIRM_ENTRY, {names: ['confirm_ui'], render: () => null, hasEmbeddedBody: () => false}],
+    }
     expect([...standaloneToolNames(context)]).toEqual(['confirm_ui'])
   })
 })

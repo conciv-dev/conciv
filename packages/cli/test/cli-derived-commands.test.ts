@@ -21,7 +21,7 @@ async function helpFor(argv: string[]): Promise<string> {
 }
 
 const beacon = defineTool({
-  name: 'page.beacon',
+  name: 'page_beacon',
   description: 'Raise the acme beacon over the page.',
   inputSchema: z.object({height: z.number().int().min(1)}),
   outputSchema: z.object({raised: z.boolean()}),
@@ -48,14 +48,14 @@ describe('the CLI reads its commands from the tool declarations', () => {
     const kit = await bootCli(cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {effect: 'confetti', enabled: true}})
     expect(await runCli(main, ['tools', 'page', 'effect', '--action', 'enable', '--effect', 'confetti'])).toBe(0)
-    expect(answer.seen()).toMatchObject({name: 'page.effect', input: {action: 'enable', effect: 'confetti'}})
+    expect(answer.seen()).toMatchObject({name: 'page_effect', input: {action: 'enable', effect: 'confetti'}})
   })
 
   it('accepts every action value the protocol declares, not only the first three', async () => {
     const kit = await bootCli(cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {}})
     expect(await runCli(main, ['tools', 'react', 'track', '--action', 'toggle'])).toBe(0)
-    expect(answer.seen()).toMatchObject({name: 'page.track', input: {action: 'toggle'}})
+    expect(answer.seen()).toMatchObject({name: 'page_track', input: {action: 'toggle'}})
   })
 
   it('names the attribute of an edit separately from the React component name', async () => {
@@ -65,7 +65,7 @@ describe('the CLI reads its commands from the tool declarations', () => {
       0,
     )
     expect(answer.seen()).toMatchObject({
-      name: 'page.setattr',
+      name: 'page_setattr',
       input: {selector: '#a', attribute: 'data-state', value: 'open'},
     })
   })
@@ -81,7 +81,7 @@ describe('the CLI reads its commands from the tool declarations', () => {
     const kit = await bootCli(cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: ''}})
     expect(await runCli(main, ['tools', 'page', 'fill', '#email', '--value', ''])).toBe(0)
-    expect(answer.seen()).toMatchObject({name: 'page.fill', input: {selector: '#email', value: ''}})
+    expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email', value: ''}})
   })
 
   it('still refuses a required flag that was never passed at all', async () => {

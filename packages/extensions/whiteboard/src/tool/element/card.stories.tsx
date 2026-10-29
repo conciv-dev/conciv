@@ -29,7 +29,7 @@ export const Found: Story = {
   render: () =>
     traceFrame('1 reference', [
       traceRow(
-        storyPart('element.reference', {file: 'src/panel/session-panel.tsx', component: 'SessionPanel'}),
+        storyPart('element_reference', {file: 'src/panel/session-panel.tsx', component: 'SessionPanel'}),
         storyResult({found: true, file: 'src/panel/session-panel.tsx', line: 42, column: 3}),
       ),
     ]),
@@ -39,7 +39,7 @@ export const NotFound: Story = {
   render: () =>
     traceFrame('1 reference', [
       traceRow(
-        storyPart('element.reference', {file: 'src/panel/session-panel.tsx', component: 'MissingWidget'}),
+        storyPart('element_reference', {file: 'src/panel/session-panel.tsx', component: 'MissingWidget'}),
         storyResult({found: false}),
       ),
     ]),

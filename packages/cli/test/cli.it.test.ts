@@ -37,7 +37,7 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
     const kit = await bootCli(cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'a@b.c'}})
     const code = await runCli(main, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c'])
-    expect(answer.seen()).toMatchObject({name: 'page.fill', input: {selector: '#email', value: 'a@b.c'}})
+    expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email', value: 'a@b.c'}})
     expect(code).toBe(0)
     expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true, value: 'a@b.c'}})
   })
@@ -46,7 +46,7 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
     const kit = await bootCli(cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'x'}})
     const code = await runCli(main, ['tools', 'page', 'fill', '#email', '--value', 'x', '--json'])
-    expect(answer.seen()).toMatchObject({name: 'page.fill', input: {selector: '#email'}})
+    expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email'}})
     expect(code).toBe(0)
     expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true, value: 'x'}})
   })
@@ -58,11 +58,11 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
       error: {code: 'invalid-args', message: 'no element for selector #email'},
     })
     const code = await runCli(main, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c'])
-    expect(answer.seen()).toMatchObject({name: 'page.fill', input: {selector: '#email'}})
+    expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email'}})
     expect(code).toBe(1)
     expect(onlyDocument(written)).toEqual({
       ok: false,
-      error: {kind: 'user', code: 'INVALID_ARGS', message: 'page.fill: no element for selector #email'},
+      error: {kind: 'user', code: 'INVALID_ARGS', message: 'page_fill: no element for selector #email'},
     })
   })
 
@@ -75,7 +75,7 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
       error: {
         kind: 'user',
         code: 'NO_PAGE_CLIENT',
-        message: expect.stringContaining('page.snapshot: no widget connected to session'),
+        message: expect.stringContaining('page_snapshot: no widget connected to session'),
       },
     })
   })
@@ -115,10 +115,10 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
     const kit = await bootCli(cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'Ada'}})
     await runCli(main, ['tools', 'page', 'fill', '#name', '--value', 'Ada'])
-    expect(answer.seen()).toMatchObject({name: 'page.fill'})
+    expect(answer.seen()).toMatchObject({name: 'page_fill'})
     written.length = 0
     expect(await runCli(main, ['tools', 'page', 'changes'])).toBe(0)
-    expect(onlyDocument(written)).toMatchObject({ok: true, data: [{verb: 'page.fill', selector: '#name'}]})
+    expect(onlyDocument(written)).toMatchObject({ok: true, data: [{verb: 'page_fill', selector: '#name'}]})
     written.length = 0
     expect(await runCli(main, ['tools', 'page', 'changes', '--clear'])).toBe(0)
     expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})

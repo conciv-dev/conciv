@@ -22,23 +22,6 @@ type ConcivProviderUsage = {
   numTurns?: number
 }
 
-export function snapshotToTokenUsage(s: UsageSnapshot): TokenUsage {
-  const provider: ConcivProviderUsage = {
-    modelId: s.modelId,
-    contextWindow: s.contextWindow,
-    totalCostUsd: s.totalCostUsd,
-    numTurns: s.numTurns,
-  }
-  return {
-    promptTokens: s.inputTokens ?? 0,
-    completionTokens: s.outputTokens ?? 0,
-    totalTokens: (s.inputTokens ?? 0) + (s.outputTokens ?? 0),
-    promptTokensDetails: {cachedTokens: s.cacheReadTokens, cacheWriteTokens: s.cacheWriteTokens},
-    completionTokensDetails: {reasoningTokens: s.reasoningTokens},
-    providerUsageDetails: provider,
-  }
-}
-
 export function tokenUsageToSnapshot(u: TokenUsage): UsageSnapshot {
   const p = (u.providerUsageDetails ?? {}) as ConcivProviderUsage
   return {

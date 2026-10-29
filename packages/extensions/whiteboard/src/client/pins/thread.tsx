@@ -17,7 +17,7 @@ import {codeTheme} from '@conciv/ui-kit-chat/theme/code-theme'
 import {useComments, type Comment} from '../model/comments.js'
 import {Avatar, Menu, MenuItem, Tooltip} from '../ui.js'
 
-function codeOptions(): FileOptions<undefined> {
+function codeOptions(): FileOptions<undefined, undefined> {
   return {
     theme: codeTheme(),
     themeType: 'system',

@@ -20,7 +20,7 @@
     "@conciv/e2e-utils": "workspace:*",
     "@conciv/protocol": "workspace:*",
     "@playwright/test": "^1.61.1",
-    "@tanstack/ai-mcp": "^0.2.7",
+    "@tanstack/ai-mcp": "catalog:",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

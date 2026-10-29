@@ -15,14 +15,17 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {
   pageSessionCallParts,
   pageSessionThinkingParts,
+  MorphLabel,
   ReasoningText,
   useToolCtx,
   type GroupRenderProps,
 } from '@conciv/ui-kit-chat'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {
+  CARD_HEADLINE_TEXT,
+  CardHeadline,
   Chip,
-  clip,
   CodeBlock,
   CollapsibleSection,
   ErrorBlock,
@@ -69,21 +72,19 @@ const VERB_ICONS: Record<string, LucideIcon> = {
 const HEAD = 'flex flex-1 items-center gap-2 min-w-0 ps-4 h-9'
 const HEAD_DOTS = 'flex gap-2 flex-none'
 const HEAD_DOT = 'size-2.5 rounded-full'
-const HEAD_TITLE =
-  'shrink min-w-0 truncate whitespace-nowrap text-[length:var(--chat-text-md)] [color:var(--chat-text)]'
-const HEAD_COUNT =
-  'hidden @[22rem]:inline flex-none whitespace-nowrap [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] tabular-nums'
+const HEAD_TITLE = `flex-1 min-w-[9ch] text-[length:var(--chat-text-md)] [color:var(--chat-text)] ${CARD_HEADLINE_TEXT}`
+const HEAD_COUNT = `hidden @[22rem]:inline flex-none min-w-[9ch] text-end whitespace-nowrap [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] tabular-nums ${CARD_HEADLINE_TEXT}`
 const HEAD_SPACER = 'flex-1 min-w-0 flex self-stretch my-1.5'
 const HEAD_URL =
   'hidden @[26rem]:inline-flex anim-combo items-center flex-1 min-w-0 [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] [background:var(--chat-fill)] [box-shadow:inset_0_0_0_1px_var(--chat-line-soft)] rounded-[var(--chat-radius-pill)] px-3'
-const HEAD_LIVE =
-  'flex-none inline-flex items-center gap-1.5 [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-accent)]'
-const HEAD_LIVE_TEXT = 'hidden @[18rem]:inline'
-const HEAD_BADGE =
-  'hidden @[20rem]:inline flex-none whitespace-nowrap [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]'
+const HEAD_STATE =
+  'hidden @[20rem]:grid flex-none min-w-[9ch] justify-items-end whitespace-nowrap [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)]'
+const HEAD_STATE_LIVE = '[color:var(--chat-accent)]'
+const HEAD_STATE_SETTLED = '[color:var(--chat-text-3)]'
+const ACTING_LABEL = 'acting'
 
 const RAIL =
-  'm-0 p-0 list-none grid grid-cols-[max-content_max-content_1fr_max-content] w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-hidden'
+  'm-0 p-0 list-none grid grid-cols-[1.375rem_5rem_1fr_minmax(0,max-content)] w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-hidden'
 const ROW =
   'group px-2.5 py-1.5 grid grid-cols-subgrid col-span-4 gap-2.5 items-center min-w-0 [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill)]'
 const ROW_ENTRANCE = '[[data-state=open]_&]:anim-msg animate-fill-backwards'
@@ -107,12 +108,12 @@ const ROW_VERB =
 const ROW_VERB_NEUTRAL = `${ROW_VERB} [color:var(--chat-text-3)] group-hover:[color:var(--chat-text-2)]`
 const ROW_VERB_DONE = `${ROW_VERB} [color:var(--chat-success)]`
 const ROW_VERB_ERROR = `${ROW_VERB} [color:var(--chat-danger)]`
-const ROW_VERB_LABEL = 'sr-only @[22rem]:not-sr-only whitespace-nowrap'
+const ROW_VERB_LABEL = 'min-w-0 truncate whitespace-nowrap'
 const ROW_TARGET = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] [color:var(--chat-text)]'
 const ROW_TARGET_ERROR = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] [color:var(--chat-danger)]'
 const ROW_TARGET_ABORTED = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] [color:var(--chat-text-3)]'
 const ROW_TARGET_ACTIVE = `flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] ${SHIMMER}`
-const ROW_VALUE = 'hidden @[24rem]:inline-flex anim-combo flex-none max-w-40 leading-none'
+const ROW_VALUE = 'hidden @[24rem]:inline-flex anim-combo min-w-0 leading-none'
 
 const RoutePayload = z.looseObject({href: z.string()})
 
@@ -234,11 +235,12 @@ function StepRow(props: {step: PageSessionStep; index: number; streaming: boolea
         <Dynamic component={VERB_ICONS[props.step.verb] ?? Pointer} size={12} aria-hidden="true" class="shrink-0" />
         <span class={ROW_VERB_LABEL}>{props.step.verb}</span>
       </span>
-      <span class={rowTargetClass(props.step.state)}>
-        {props.step.state === 'streaming' ? activeSentence(props.step) : props.step.target}
-      </span>
+      <TruncatedText
+        class={rowTargetClass(props.step.state)}
+        text={props.step.state === 'streaming' ? activeSentence(props.step) : props.step.target}
+      />
       <Show when={props.step.value}>
-        {(value) => <Chip kind="pill" tone="accent" value={`“${clip(value())}”`} class={ROW_VALUE} />}
+        {(value) => <Chip kind="pill" tone="accent" maxWidth="compact" value={`“${value()}”`} class={ROW_VALUE} />}
       </Show>
     </li>
   )
@@ -258,23 +260,24 @@ function SessionHeader(props: {
         <span class={`${HEAD_DOT} [background:var(--chat-warn)]`} />
         <span class={`${HEAD_DOT} [background:var(--chat-success)]`} />
       </span>
-      <span class={HEAD_TITLE}>{props.title}</span>
-      <span class={HEAD_COUNT}>{props.count}</span>
+      <CardHeadline class="flex-1">
+        <MorphLabel text={props.title} boxClass={HEAD_TITLE} />
+        <span class={HEAD_COUNT}>{props.count}</span>
+      </CardHeadline>
       <span class={HEAD_SPACER}>
         <Show when={props.url}>
           {(url) => (
             <span class={HEAD_URL}>
-              <span class="truncate">{url()}</span>
+              <span class="min-w-0 truncate">{url()}</span>
             </span>
           )}
         </Show>
       </span>
-      <Show when={props.streaming} fallback={<span class={HEAD_BADGE}>{mutatingBadge(SESSION_META)}</span>}>
-        <span class={HEAD_LIVE}>
-          <StatusVisual status="running" form="dot" />
-          <span class={HEAD_LIVE_TEXT}>acting</span>
-        </span>
-      </Show>
+      <MorphLabel
+        text={props.streaming ? ACTING_LABEL : (mutatingBadge(SESSION_META) ?? '')}
+        boxClass={HEAD_STATE}
+        class={props.streaming ? HEAD_STATE_LIVE : HEAD_STATE_SETTLED}
+      />
       <StatusVisual status={props.status} form="dot" />
     </span>
   )
@@ -304,7 +307,8 @@ export function SessionCard(props: GroupRenderProps): JSX.Element {
           part={anchor()}
           result={props.resultFor(anchor().id)}
           status={status()}
-          autoOpen={props.streaming}
+          autoOpen
+          folded={props.folded}
           flushHeader
           class="@container"
           header={

@@ -12,8 +12,8 @@ function push(error: AppError): void {
   stored = [...stored, error].slice(-CAPACITY)
 }
 
-export function readRuntimeErrors(): AppError[] {
-  return [...stored]
+export function readRuntimeErrors(): {errors: AppError[]} {
+  return {errors: [...stored]}
 }
 
 function messageOf(value: unknown, fallback: string): string {

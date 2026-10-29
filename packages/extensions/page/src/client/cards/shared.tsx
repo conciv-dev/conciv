@@ -71,6 +71,10 @@ export function elementChip(part: ToolCardProps['part']): CardChip | undefined {
   return value === undefined ? undefined : {name: 'element', value}
 }
 
+export function hasPayloadOrError(result: ToolCardProps['result']): boolean {
+  return cardErrorMessage(result) !== undefined || cardPayload(result) !== undefined
+}
+
 export function cardErrorMessage(result: ToolCardProps['result']): string | undefined {
   if (result?.state !== 'error') return undefined
   const direct = result.error

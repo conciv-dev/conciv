@@ -9,6 +9,7 @@ import {
   createTestHarness,
   makeApprovingRegistryCall,
   makeRpcClient,
+  withAutoApproval,
   type Kit,
   type TestHarness,
 } from '@conciv/harness-testkit'
@@ -22,8 +23,9 @@ afterEach(async () => {
 })
 
 function answerFor(name: string): PageOutcome {
-  if (name === 'page.effect') return {ok: true, result: {effect: 'highlight', enabled: true}}
-  if (name === 'page.fill') return {ok: true, result: {ok: true, value: 'a@b.c'}}
+  if (name === 'page_effect') return {ok: true, result: {effect: 'highlight', enabled: true}}
+  if (name === 'page_fill') return {ok: true, result: {ok: true, value: 'a@b.c'}}
+  if (name === 'page_eval') return {ok: true, result: {result: 2}}
   return {ok: true, result: {text: 'page-gate-ok'}}
 }
 
@@ -49,11 +51,18 @@ async function bootScripted(): Promise<{kit: Kit; harness: TestHarness}> {
   return {kit, harness}
 }
 
+async function bootConnected(): Promise<{kit: Kit; widget: FakeWidget; sessionId: string}> {
+  const kit = await bootKit({cwd: tmpdir()})
+  cleanups.push(() => kit.cleanup())
+  const widget = await bootWidget(kit)
+  return {kit, widget, sessionId: await kit.session()}
+}
+
 function pumpApprovals(kit: Kit, sessionId: string): {ids: () => string[]} {
   const ctrl = new AbortController()
   const collected: string[] = []
   const pump = (async () => {
-    const stream = await kit.rpc.chat.subscribe({sessionId}, {signal: ctrl.signal})
+    const stream = await kit.rpc.chat.events({sessionId}, {signal: ctrl.signal})
     for await (const chunk of stream) collected.push(...approvalIds(chunk))
   })()
   cleanups.push(async () => {
@@ -64,88 +73,138 @@ function pumpApprovals(kit: Kit, sessionId: string): {ids: () => string[]} {
 }
 
 describe('the chat surface runs page tools without ever consulting a gate', () => {
-  it('a chat turn running page.effect enable completes with zero approval chunks', async () => {
+  it('a chat turn running page_effect enable completes with zero approval chunks', async () => {
     const {kit, harness} = await bootScripted()
     const widget = await bootWidget(kit)
     const sessionId = await kit.session()
     harness.script.scriptToolCall('execute_typescript', {
-      typescriptCode: callThroughCatalog('page.effect', {action: 'enable', effect: 'highlight'}),
+      typescriptCode: callThroughCatalog('page_effect', {action: 'enable', effect: 'highlight'}),
     })
-    const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'gate-chat-1', sessionId, text: 'light it up'})
+    const stream = await kit.turn('light it up', {session: sessionId, runId: 'gate-chat-1'})
     const events = await stream.done({hangGuardMs: 15_000})
     expect(events.all.flatMap((chunk) => approvalIds(chunk))).toEqual([])
-    expect(widget.seen()).toEqual(['page.effect'])
+    expect(widget.seen()).toEqual(['page_effect'])
   }, 40_000)
 
-  it('a chat turn running page.text completes the same way', async () => {
+  it('a chat turn running page_text completes the same way', async () => {
     const {kit, harness} = await bootScripted()
     const widget = await bootWidget(kit)
     const sessionId = await kit.session()
     harness.script.scriptToolCall('execute_typescript', {
-      typescriptCode: callThroughCatalog('page.text', {selector: '#probe'}),
+      typescriptCode: callThroughCatalog('page_text', {selector: '#probe'}),
     })
-    const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({runId: 'gate-chat-2', sessionId, text: 'read it'})
+    const stream = await kit.turn('read it', {session: sessionId, runId: 'gate-chat-2'})
     const events = await stream.done({hangGuardMs: 15_000})
     expect(events.all.flatMap((chunk) => approvalIds(chunk))).toEqual([])
-    expect(widget.seen()).toEqual(['page.text'])
+    expect(widget.seen()).toEqual(['page_text'])
   }, 40_000)
 })
 
 describe('the code-mode surface (execute_typescript over /api/mcp) runs page tools ungated', () => {
-  it('page.effect enable resolves without ever emitting an approval ask', async () => {
-    const kit = await bootKit({cwd: tmpdir()})
-    cleanups.push(() => kit.cleanup())
-    const widget = await bootWidget(kit)
-    const sessionId = await kit.session()
+  it('page_effect enable resolves without ever emitting an approval ask', async () => {
+    const {kit, widget, sessionId} = await bootConnected()
     const approvals = pumpApprovals(kit, sessionId)
     await expect(
-      kit.callTool('page.effect', {action: 'enable', effect: 'highlight'}, sessionId),
+      kit.callTool('page_effect', {action: 'enable', effect: 'highlight'}, sessionId),
     ).resolves.toMatchObject({effect: 'highlight', enabled: true})
-    expect(widget.seen()).toEqual(['page.effect'])
+    expect(widget.seen()).toEqual(['page_effect'])
     expect(approvals.ids()).toEqual([])
   }, 40_000)
 
-  it('page.text resolves without ever emitting an approval ask', async () => {
-    const kit = await bootKit({cwd: tmpdir()})
-    cleanups.push(() => kit.cleanup())
-    const widget = await bootWidget(kit)
-    const sessionId = await kit.session()
+  it('page_text resolves without ever emitting an approval ask', async () => {
+    const {kit, widget, sessionId} = await bootConnected()
     const approvals = pumpApprovals(kit, sessionId)
-    await expect(kit.callTool('page.text', {selector: '#probe'}, sessionId)).resolves.toMatchObject({
+    await expect(kit.callTool('page_text', {selector: '#probe'}, sessionId)).resolves.toMatchObject({
       text: 'page-gate-ok',
     })
-    expect(widget.seen()).toEqual(['page.text'])
+    expect(widget.seen()).toEqual(['page_text'])
     expect(approvals.ids()).toEqual([])
   }, 40_000)
 })
 
 describe('the RPC surface (registry.call) runs page tools ungated and still journals mutations', () => {
   it('an ungated mutating page call executes without approval', async () => {
-    const kit = await bootKit({cwd: tmpdir()})
-    cleanups.push(() => kit.cleanup())
-    const widget = await bootWidget(kit)
+    const {kit, widget} = await bootConnected()
     await expect(
-      kit.rpc.registry.call({name: 'page.effect', input: {action: 'enable', effect: 'highlight'}}),
+      kit.rpc.registry.call({name: 'page_effect', input: {action: 'enable', effect: 'highlight'}}),
     ).resolves.toMatchObject({effect: 'highlight', enabled: true})
-    expect(widget.seen()).toEqual(['page.effect'])
+    expect(widget.seen()).toEqual(['page_effect'])
   }, 40_000)
 
-  it('page.fill lands in the journal: mutating stays bookkeeping, not a gate', async () => {
-    const kit = await bootKit({cwd: tmpdir()})
-    cleanups.push(() => kit.cleanup())
-    const widget = await bootWidget(kit)
+  it('page_fill lands in the journal: mutating stays bookkeeping, not a gate', async () => {
+    const {kit, widget} = await bootConnected()
     await expect(
-      kit.rpc.registry.call({name: 'page.fill', input: {selector: '#email', value: 'a@b.c'}}),
+      kit.rpc.registry.call({name: 'page_fill', input: {selector: '#email', value: 'a@b.c'}}),
     ).resolves.toMatchObject({ok: true})
-    expect(widget.seen()).toEqual(['page.fill'])
+    expect(widget.seen()).toEqual(['page_fill'])
     const changes = await kit.rpc.page.changes(undefined)
-    expect(changes.map((entry) => entry.verb)).toEqual(['page.fill'])
+    expect(changes.map((entry) => entry.verb)).toEqual(['page_fill'])
   }, 40_000)
 })
 
-describe('approval-declared tools gate at the RPC boundary (server.restart)', () => {
+describe('page_eval declares approval and therefore gates on every surface', () => {
+  it('a chat turn asks before the script reaches the page and runs it only after the answer', async () => {
+    const {kit, harness} = await bootScripted()
+    const widget = await bootWidget(kit)
+    const sessionId = await kit.session()
+    harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: callThroughCatalog('page_eval', {code: '1 + 1'}),
+    })
+    const stream = await kit.turn('run it', {session: sessionId, runId: 'gate-eval-1'})
+    const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 15_000})
+    const approvalId = approvalIds(asked)[0]
+    if (approvalId === undefined) throw new Error('no approval id in the stream')
+    await kit.rpc.chat.permissionDecision({approvalId, approved: true})
+    await stream.done({hangGuardMs: 15_000})
+    expect(widget.seen()).toEqual(['page_eval'])
+  }, 40_000)
+
+  it('the /api/mcp surface asks too, and the answered ask releases the call', async () => {
+    const {kit, widget, sessionId} = await bootConnected()
+    const approved: string[] = []
+    await expect(
+      withAutoApproval(
+        kit.base,
+        sessionId,
+        () => kit.callTool('page_eval', {code: '1 + 1'}, sessionId),
+        (approvalId) => approved.push(approvalId),
+      ),
+    ).resolves.toMatchObject({result: 2})
+    expect(approved).toHaveLength(1)
+    expect(widget.seen()).toEqual(['page_eval'])
+  }, 40_000)
+
+  it('registry.call runs page_eval once the ask is answered', async () => {
+    const {kit, widget, sessionId} = await bootConnected()
+    const rpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    const approved: string[] = []
+    await expect(
+      withAutoApproval(
+        kit.base,
+        sessionId,
+        () => rpc.registry.call({name: 'page_eval', input: {code: '1 + 1'}}),
+        (approvalId) => approved.push(approvalId),
+      ),
+    ).resolves.toMatchObject({result: 2})
+    expect(approved).toHaveLength(1)
+    expect(widget.seen()).toEqual(['page_eval'])
+  }, 40_000)
+
+  it('a denied ask refuses the script and the page never sees it', async () => {
+    const {kit, widget, sessionId} = await bootConnected()
+    const stream = await kit.events(sessionId)
+    const rpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    const pending = rpc.registry.call({name: 'page_eval', input: {code: '1 + 1'}})
+    const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 15_000})
+    const approvalId = approvalIds(asked)[0]
+    if (approvalId === undefined) throw new Error('no approval id in the stream')
+    await rpc.chat.permissionDecision({approvalId, approved: false})
+    await expect(pending).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+    expect(widget.seen()).toEqual([])
+  }, 40_000)
+})
+
+describe('approval-declared tools gate at the RPC boundary (server_restart)', () => {
   function restartBridge() {
     return defineBundlerBridge({
       id: 'gate-test',
@@ -214,7 +273,7 @@ describe('approval-declared tools gate at the RPC boundary (server.restart)', ()
     const kit = await bootKit({cwd: tmpdir(), bridge: restartBridge(), askTimeoutMs: 500})
     cleanups.push(() => kit.cleanup())
     const sessionId = await createdSession(kit)
-    await kit.attach(sessionId)
+    await kit.events(sessionId)
     const rpc = sessionRpcOf(kit, sessionId)
     await expect(rpc.server.restart({})).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
@@ -244,7 +303,7 @@ describe('approval-declared tools gate at the RPC boundary (server.restart)', ()
   async function askedRestart(): Promise<{kit: Kit; sessionId: string; pending: Promise<unknown>; approvalId: string}> {
     const kit = await bootGated()
     const sessionId = await createdSession(kit)
-    const stream = await kit.attach(sessionId)
+    const stream = await kit.events(sessionId)
     const rpc = sessionRpcOf(kit, sessionId)
     const pending = rpc.server.restart({})
     const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 15_000})
@@ -261,25 +320,27 @@ describe('approval-declared tools gate at the RPC boundary (server.restart)', ()
 
   it('a denial rejects with the denial wording', async () => {
     const {kit, sessionId, pending, approvalId} = await askedRestart()
-    await sessionRpcOf(kit, sessionId).chat.permissionDecision({approvalId, approved: false})
-    await expect(pending).rejects.toMatchObject({
+    const refused = expect(pending).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
       message: expect.stringContaining('denied by the user'),
     })
+    await sessionRpcOf(kit, sessionId).chat.permissionDecision({approvalId, approved: false})
+    await refused
   }, 40_000)
 
   it('a stopped session settles the ask as no-decision, not a lie about the user denying', async () => {
     const {kit, sessionId, pending} = await askedRestart()
-    await kit.rpc.chat.stop({sessionId})
-    await expect(pending).rejects.toMatchObject({
+    const refused = expect(pending).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
       message: expect.stringContaining('no approval decision'),
     })
+    await kit.rpc.chat.stop({sessionId})
+    await refused
   }, 40_000)
 
   it('registry.call gates the same declaration through the same helper', async () => {
     const kit = await bootGated()
     const sessionId = await createdSession(kit)
-    await expect(makeApprovingRegistryCall(kit.base, sessionId)('server.restart', {})).resolves.toEqual({ok: true})
+    await expect(makeApprovingRegistryCall(kit.base, sessionId)('server_restart', {})).resolves.toEqual({ok: true})
   }, 40_000)
 })

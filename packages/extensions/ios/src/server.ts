@@ -27,7 +27,7 @@ const LogsInput = z.object({
 })
 
 const buildTool = defineTool({
-  name: 'ios.build',
+  name: 'ios_build',
   description: 'Compile the native iOS project for the simulator and report build diagnostics.',
   inputSchema: BuildInput,
   outputSchema: BuildOutputSchema,
@@ -45,7 +45,7 @@ const buildTool = defineTool({
 }).server((input, ctx: IosToolContext) => runBuild(ctx, input))
 
 const runTool = defineTool({
-  name: 'ios.run',
+  name: 'ios_run',
   description: 'Boot the simulator, install the built app, and launch it so the change is visible.',
   inputSchema: RunInput,
   outputSchema: RunOutputSchema,
@@ -63,7 +63,7 @@ const runTool = defineTool({
 }).server((input, ctx: IosToolContext) => runRun(ctx, input))
 
 const screenshotTool = defineTool({
-  name: 'ios.screenshot',
+  name: 'ios_screenshot',
   description: 'Capture the current simulator screen as a PNG image to verify what is on screen.',
   inputSchema: ScreenshotInput,
   outputSchema: ScreenshotOutputSchema,
@@ -79,7 +79,7 @@ const screenshotTool = defineTool({
 }).server((_input, ctx: IosToolContext) => runScreenshot(ctx))
 
 const logsTool = defineTool({
-  name: 'ios.logs',
+  name: 'ios_logs',
   description: 'Return recent simulator log lines, optionally filtered by a log predicate.',
   inputSchema: LogsInput,
   outputSchema: LogsOutputSchema,

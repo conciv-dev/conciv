@@ -4,7 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {Trace as ChatTrace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
-import {ReadValueCard} from './read-value-card.js'
+import {ReadValueCard, readValueCard} from './read-value-card.js'
 import {
   STORY_FRAME_CLASS,
   storyAddResult,
@@ -59,9 +59,9 @@ export const ElementAndValue: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ReadValueCard
-        part={storyPart('page.text', {selector: '#headline'})}
+        part={storyPart('page_text', {selector: '#headline'})}
         result={storyResult({text: 'Ship it on Friday'})}
-        ctx={storyCtx({'page.text': textMeta})}
+        ctx={storyCtx({page_text: textMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -79,7 +79,7 @@ export const RootArray: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ReadValueCard
-        part={storyPart('page.text', {selector: '.item'})}
+        part={storyPart('page_text', {selector: '.item'})}
         result={storyResult(['Ship the trace redesign', 'Write the session log spec'])}
         ctx={storyCtx({})}
         addResult={storyAddResult}
@@ -99,7 +99,7 @@ export const RouteObject: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ReadValueCard
-        part={storyPart('page.route', {})}
+        part={storyPart('page_route', {})}
         result={storyResult({pathname: '/checkout', search: '?step=2', href: 'https://shop.test/checkout?step=2'})}
         ctx={storyCtx({})}
         addResult={storyAddResult}
@@ -115,8 +115,8 @@ export const RouteObject: Story = {
 }
 
 const readValueTool: ToolCardEntry = {
-  names: ['page.text', 'page.exists'],
-  render: ReadValueCard,
+  names: ['page_text', 'page_exists'],
+  ...readValueCard,
 }
 
 export const Trace: Story = {
@@ -124,12 +124,12 @@ export const Trace: Story = {
     traceGallery('2 reads', [
       traceRow(
         readValueTool,
-        storyPart('page.text', {selector: '#headline'}, 'complete', 'r1'),
+        storyPart('page_text', {selector: '#headline'}, 'complete', 'r1'),
         storyResult({text: 'Ship it on Friday'}, 'complete', 'r1'),
       ),
       traceRow(
         readValueTool,
-        storyPart('page.exists', {selector: '#missing'}, 'complete', 'r2'),
+        storyPart('page_exists', {selector: '#missing'}, 'complete', 'r2'),
         storyErrorResult('element not found: #missing', 'r2'),
       ),
     ]),

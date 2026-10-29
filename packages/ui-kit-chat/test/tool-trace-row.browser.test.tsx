@@ -91,6 +91,7 @@ function outputTool(text: string): ToolCardEntry {
   return {
     names: ['Bash'],
     render: () => <TraceOutputBlock text={text}>{text}</TraceOutputBlock>,
+    hasEmbeddedBody: () => true,
   }
 }
 
@@ -139,11 +140,36 @@ it('leaves a body that already fits without any clamp footer', async () => {
   )
 })
 
+const silentTool: ToolCardEntry = {
+  names: ['Bash'],
+  render: () => null,
+  hasEmbeddedBody: () => false,
+}
+
+it('leaves the row inert when the card declares it renders no embedded body', async () => {
+  mountView(() => <ToolTraceRow part={bashCall()} result={undefined} ctx={noCtx} tools={() => [silentTool]} />)
+
+  await expect.element(page.getByText('grep -rn match src')).toBeVisible()
+  await expect.element(page.getByRole('button')).toBeDisabled()
+})
+
+const speakingTool: ToolCardEntry = {
+  names: ['ping'],
+  render: () => <TraceOutputBlock text="pong">pong</TraceOutputBlock>,
+  hasEmbeddedBody: () => true,
+}
+
+it('mounts the body a card declares even when the call carries no arguments and no result', async () => {
+  mountView(() => <ToolTraceRow part={call('ping', {})} result={undefined} ctx={noCtx} tools={() => [speakingTool]} />)
+
+  await expect.element(page.getByText('pong')).toBeVisible()
+})
+
 it('leaves a row with nothing to show inert rather than offering an empty fold', async () => {
   mountView(() => <ToolTraceRow part={call('ping', {})} result={undefined} ctx={noCtx} tools={() => []} />)
 
   await expect.element(page.getByText('ping').first()).toBeVisible()
-  expect(document.querySelectorAll('button')).toHaveLength(0)
+  await expect.element(page.getByRole('button')).toBeDisabled()
 })
 
 it('routes a call waiting on approval to the permission block', async () => {
@@ -158,6 +184,7 @@ it('routes a call waiting on approval to the permission block', async () => {
 
   await page.getByRole('button', {name: 'Approve'}).click()
 
-  await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+  await expect.element(page.getByText('Approved', {exact: true})).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Approve'})).not.toBeInTheDocument()
   expect(decisions).toEqual([{id: 'ap-1', approved: true}])
 })

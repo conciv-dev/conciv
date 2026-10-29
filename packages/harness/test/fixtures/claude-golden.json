@@ -21,7 +21,7 @@
         {
           "type": "tool-call",
           "id": "toolu_1",
-          "name": "page.snapshot",
+          "name": "page_snapshot",
           "arguments": "{\"verb\":\"snapshot\"}",
           "state": "input-complete"
         },

@@ -4,7 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {Trace as ChatTrace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
-import {ReactCard} from './react-card.js'
+import {ReactCard, reactCard} from './react-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
 const meta: Meta = {title: 'Extensions/Page/tool/ReactCard'}
@@ -70,14 +70,14 @@ export const LocatedSource: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ReactCard
-        part={storyPart('page.locate', {selector: '#checkout'})}
+        part={storyPart('page_locate', {selector: '#checkout'})}
         result={storyResult({
           component: 'CheckoutButton',
           stack: ['CheckoutButton', 'CheckoutForm'],
           frames: [{fileName: 'src/checkout/button.tsx', line: 42, fn: 'CheckoutButton'}],
           source: {file: 'src/checkout/button.tsx', line: 42, column: 3},
         })}
-        ctx={storyCtx({'page.locate': locateMeta})}
+        ctx={storyCtx({page_locate: locateMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -95,14 +95,14 @@ export const InspectedProps: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ReactCard
-        part={storyPart('page.inspect', {selector: '#checkout'})}
+        part={storyPart('page_inspect', {selector: '#checkout'})}
         result={storyResult({
           component: 'CheckoutButton',
           props: {label: 'Ship it', disabled: false},
           state: null,
           hooks: [{id: 0, value: 'idle'}],
         })}
-        ctx={storyCtx({'page.inspect': inspectMeta})}
+        ctx={storyCtx({page_inspect: inspectMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -119,7 +119,7 @@ export const RenderCounts: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ReactCard
-        part={storyPart('page.track', {action: 'report'})}
+        part={storyPart('page_track', {action: 'report'})}
         result={storyResult({
           tracking: true,
           tracked: 2,
@@ -130,7 +130,7 @@ export const RenderCounts: Story = {
           ],
           note: 'render durations need a profiling build (react-dom/profiling or <Profiler>)',
         })}
-        ctx={storyCtx({'page.track': trackMeta})}
+        ctx={storyCtx({page_track: trackMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -147,9 +147,9 @@ export const NoRenders: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
       <ReactCard
-        part={storyPart('page.track', {action: 'report'})}
+        part={storyPart('page_track', {action: 'report'})}
         result={storyResult({tracking: true, tracked: 0, timingsAvailable: true, components: []})}
-        ctx={storyCtx({'page.track': trackMeta})}
+        ctx={storyCtx({page_track: trackMeta})}
         addResult={storyAddResult}
       />
     </div>
@@ -161,14 +161,14 @@ export const NoRenders: Story = {
   },
 }
 
-const reactTool: ToolCardEntry = {names: ['page.tree'], render: ReactCard}
+const reactTool: ToolCardEntry = {names: ['page_tree'], ...reactCard}
 
 export const Trace: Story = {
   render: () =>
     traceGallery('1 tree', [
       traceRow(
         reactTool,
-        storyPart('page.tree', {selector: '#checkout'}),
+        storyPart('page_tree', {selector: '#checkout'}),
         storyResult({
           nodes: [
             {

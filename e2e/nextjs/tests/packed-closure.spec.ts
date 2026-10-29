@@ -47,6 +47,14 @@ test('the pack catalog reader collects top-level registry entries and drops file
   expect(packageCatalogKeys(lock)).toEqual(new Set(['@orpc/tanstack-query@1.14.7', 'is-odd@3.0.1']))
 })
 
+test('the pack catalog reader ignores keys nested inside a package entry', () => {
+  const lock = fakeLock(['is-odd@3.0.1']).replace(
+    "  'is-odd@3.0.1':",
+    "  'is-odd@3.0.1':\n    peerDependenciesMeta:\n      ajv:\n        optional: true",
+  )
+  expect(packageCatalogKeys(lock)).toEqual(new Set(['is-odd@3.0.1']))
+})
+
 test('the drift guard passes when the produced lockfile matches the committed one on registry packages', () => {
   const root = mkdtempSync(join(tmpdir(), 'conciv-drift-guard-match-'))
   const committedPath = join(root, 'committed-lock.yaml')

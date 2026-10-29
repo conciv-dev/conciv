@@ -1,5 +1,6 @@
 import {expect, test, type Page, type WebSocket as PageWebSocket} from '@playwright/test'
-import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
+import {watchChatWire} from '@conciv/extension-testkit/chat-wire'
+import {CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {handleHostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
@@ -40,11 +41,12 @@ function closedWithin(socket: PageWebSocket, timeoutMs: number): Promise<boolean
   })
 }
 
-function rpcSocket(page: Page): Promise<PageWebSocket> {
-  return page.waitForEvent('websocket', {
-    predicate: (socket) => socket.url().includes('/rpc-ws'),
-    timeout: 30_000,
+function trackChatSockets(page: Page): {last: () => PageWebSocket | undefined} {
+  const seen: PageWebSocket[] = []
+  page.on('websocket', (socket) => {
+    if (socket.url().includes(CHAT_WS_PATH)) seen.push(socket)
   })
+  return {last: () => seen.at(-1)}
 }
 
 test.describe('createConciv lifecycle', () => {
@@ -125,19 +127,20 @@ test.describe('createConciv lifecycle', () => {
     expect(pageErrors).toEqual([])
   })
 
-  test('closes the tab rpc websocket on unmount and dials a fresh one on remount', async ({page}) => {
+  test('closes the tab chat websocket on unmount and dials a fresh one on remount', async ({page}) => {
     test.setTimeout(180_000)
-    const wire = watchRpcWire(page)
+    const wire = watchChatWire(page)
+    const sockets = trackChatSockets(page)
     await openPage(page)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
-    const socketOpened = rpcSocket(page)
     await mountHandle(page, kit.base)
-    const socket = await socketOpened
     await openChatPanel(page)
     await sendChatMessage(page, 'before the unmount')
     await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
 
+    const socket = sockets.last()
+    if (!socket) throw new Error('the first turn opened no chat websocket')
     const closed = closedWithin(socket, SOCKET_CLOSE_TIMEOUT_MS)
     await unmountHandle(page)
     await expect(fab(page)).toHaveCount(0, {timeout: 30_000})
@@ -145,7 +148,7 @@ test.describe('createConciv lifecycle', () => {
 
     await remountHandle(page)
     await expect(chatBox(page)).toBeVisible({timeout: 30_000})
-    const remounted = wire.nextChatSend()
+    const remounted = wire.nextTurn()
     await sendChatMessage(page, 'after the remount')
     expect((await remounted).transport).toBe('websocket')
     expect(pageErrors).toEqual([])

@@ -39,5 +39,9 @@ export function storyErrorResult(message: string): ToolResultPart {
 }
 
 export function traceTools(): ToolCardEntry[] {
-  return whiteboardToolClients.flatMap((tool) => (tool.__render ? [{names: [tool.name], render: tool.__render}] : []))
+  return whiteboardToolClients.flatMap((tool) =>
+    tool.__render
+      ? [{names: [tool.name], render: tool.__render.render, hasEmbeddedBody: tool.__render.hasEmbeddedBody}]
+      : [],
+  )
 }

@@ -50,7 +50,7 @@ test('every derivation leaves the base builder unbound and never leaks into a si
   const base = defineTool({name: 't', description: 'd', inputSchema: z.object({n: z.number()})})
   const bound = base.server((input) => input.n)
   const forwarded = base.client((input) => input.n)
-  const rendered = base.render(() => null)
+  const rendered = base.render({render: () => null, hasEmbeddedBody: () => true})
   expect(base.binding).toBeUndefined()
   expect(base.__serverRun).toBeUndefined()
   expect(base.__clientExecute).toBeUndefined()
@@ -61,7 +61,8 @@ test('every derivation leaves the base builder unbound and never leaks into a si
   expect(forwarded.binding).toBe('client')
   expect(forwarded.__serverRun).toBeUndefined()
   expect(rendered.binding).toBeUndefined()
-  expect(rendered.__render).toBeTypeOf('function')
+  expect(rendered.__render?.render).toBeTypeOf('function')
+  expect(rendered.__render?.hasEmbeddedBody).toBeTypeOf('function')
 })
 
 test('streamTitle is carried onto the builder', () => {

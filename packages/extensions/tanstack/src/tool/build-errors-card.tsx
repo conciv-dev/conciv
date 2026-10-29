@@ -1,8 +1,8 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardNote, ErrorRecord, InspectionCard} from './card-shared.js'
+import {CardNote, ErrorRecord, InspectionCard, settledCardBody} from './card-shared.js'
 
 type BuildError = {message: string; where: string | null}
 
@@ -46,4 +46,9 @@ export function BuildErrorsCard(props: ToolCardProps): JSX.Element {
       </Show>
     </InspectionCard>
   )
+}
+
+export const buildErrorsCard: ToolCardView = {
+  render: BuildErrorsCard,
+  hasEmbeddedBody: (part, result) => settledCardBody(part, result, true),
 }

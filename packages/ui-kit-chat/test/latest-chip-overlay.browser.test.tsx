@@ -8,11 +8,11 @@ import {useChat} from '@tanstack/ai-solid'
 import type {UIMessage} from '@tanstack/ai-client'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection} from '../src/store/story-connection.js'
-import {virtualizeThreshold} from '../src/primitives/thread/virtualize-threshold.js'
+import {VIRTUALIZE_THRESHOLD} from '../src/primitives/thread/virtualize-threshold.js'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 
-const exchangeCount = virtualizeThreshold.value
+const exchangeCount = VIRTUALIZE_THRESHOLD
 const lastExchange = exchangeCount - 1
 
 function longThread(): UIMessage[] {

@@ -4,7 +4,7 @@ import Check from 'lucide-solid/icons/check'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import LayoutTemplate from 'lucide-solid/icons/layout-template'
 import MessageCircleOff from 'lucide-solid/icons/message-circle-off'
-import {Button, createListCollection, Select, TextField} from '@conciv/ui-kit-system'
+import {Button, createListCollection, Select, TextField, TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {
   UiAnswerSchema,
@@ -359,7 +359,7 @@ export function UiCard(props: ToolCardProps): JSX.Element {
           <Icon />
         </span>
         <span class={MICROLABEL}>UI</span>
-        <span class={HEADER_TITLE}>{title(input()?.kind)}</span>
+        <TruncatedText class={HEADER_TITLE} text={title(input()?.kind)} />
         <StatusVisual status={toolStatus(props.part, props.result)} form="dot" />
       </div>
       <div class={BODY}>

@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {HostApiProvider} from '@conciv/extension/host'
 import {Trace, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
-import {TestCard} from './card.js'
+import {TestCard, testCard} from './card.js'
 import {testToolClient} from './client.js'
 import {
   FAILING_RUN,
@@ -77,7 +77,9 @@ export const Running: Story = {
   },
 }
 
-const testRunnerTools = [{names: [testToolClient.name], render: TestCard}]
+const testRunnerTools = [
+  {names: [testToolClient.name], render: testCard.render, hasEmbeddedBody: testCard.hasEmbeddedBody},
+]
 
 function embeddedGallery(summary: string, child: JSX.Element): JSX.Element {
   return (

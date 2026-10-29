@@ -433,7 +433,7 @@ describe('opencode transcript handle', () => {
     expect(revision(await handle.revision())).toEqual({rev: '1785305469728:1', changedAt: 1785305469728})
     const read = chunk(await handle.read())
     expect(read.replaced).toBe(true)
-    expect(read.messages).toEqual([{id: 'h1', role: 'user', parts: [{type: 'text', content: 'count the files'}]}])
+    expect(read.messages).toEqual([{id: 'msg_1', role: 'user', parts: [{type: 'text', content: 'count the files'}]}])
     handle.close()
   })
 
