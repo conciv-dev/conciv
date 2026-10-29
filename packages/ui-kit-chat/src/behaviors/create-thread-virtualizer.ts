@@ -308,7 +308,9 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     measured,
     atEnd,
     landOnEnd,
-    measureRow: (element) => instance.measureElement(element),
+    measureRow: (element) => {
+      if (element.isConnected) instance.measureElement(element)
+    },
     remeasure: () => {
       instance.measureElement(null)
       instance.measure()
