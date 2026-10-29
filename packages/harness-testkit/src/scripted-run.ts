@@ -92,10 +92,12 @@ function textSlices(text: string, pace: PacedText | undefined): string[] {
 
 async function* textChunks(text: string, pace: PacedText | undefined, messageId: string): AsyncGenerator<StreamChunk> {
   const slices = textSlices(text, pace)
+  yield {type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant'}
   for (const [index, delta] of slices.entries()) {
     if (index > 0 && pace) await delay(pace.everyMs)
     yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta}
   }
+  yield {type: EventType.TEXT_MESSAGE_END, messageId}
 }
 
 async function* turnChunks(

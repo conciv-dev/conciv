@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {makeScriptedRun, type ScriptedRun} from '../src/scripted-run.js'
@@ -253,6 +253,21 @@ describe('makeScriptedRun', () => {
     expect(deltas.join('')).toBe(PACED_TEXT)
     const span = (times.at(-1) ?? 0) - (times.at(0) ?? 0)
     expect(span).toBeGreaterThanOrEqual(PACE_MS * (PACED_TEXT_SLICES - 1) * PACE_TOLERANCE)
+  })
+
+  it('folds a paced answer after tool calls into one text part, the way a chat processor reads the stream', async () => {
+    const scripted = makeScriptedRun()
+    scripted.scriptTurn({
+      toolCalls: [{name: 'first_tool', input: {a: 1}}],
+      text: PACED_TEXT,
+      textPace: {chunk: TEXT_CHUNK_SIZE, everyMs: 0},
+    })
+    const processor = new StreamProcessor()
+    for await (const chunk of scripted.chatStream(deps())) processor.processChunk(chunk)
+    const texts = processor
+      .getMessages()
+      .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])))
+    expect(texts).toEqual([PACED_TEXT])
   })
 
   it('streams an unpaced turn text as one delta', async () => {
