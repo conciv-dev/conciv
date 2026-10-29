@@ -39,7 +39,7 @@ describe('the session stream carries the end of a run (IT)', () => {
     const stream = await kit.turn('hang around', {session: sessionId, runId: 'session-run-stopped'})
     await stream.waitForRunStart()
 
-    await kit.rpc.chat.stop({sessionId})
+    await kit.rpc.chat.stop({sessionId, runIds: ['session-run-stopped']})
 
     const ended = await events.waitFor(isRunEnd, {hangGuardMs: 20_000})
     expect(ended).toMatchObject({runId: 'session-run-stopped'})

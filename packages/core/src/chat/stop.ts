@@ -16,6 +16,18 @@ export async function stopRuns(deps: ChatDeps, sessionId: SessionId, records: re
   await Promise.all(records.map((record) => awaitRunSettled(deps.runs, record.runId).catch(() => {})))
 }
 
+export async function stopListedRuns(
+  deps: ChatDeps,
+  sessionId: SessionId,
+  runIds: readonly string[],
+): Promise<{ok: true}> {
+  const active = await activeRunsOf(deps.runs, sessionId)
+  const listed = active.filter((record) => runIds.includes(record.runId))
+  if (listed.length === active.length) deps.asks.cancel(sessionId)
+  await stopRuns(deps, sessionId, listed)
+  return {ok: true}
+}
+
 export async function stopSession(deps: ChatDeps, sessionId: SessionId): Promise<{ok: true}> {
   deps.asks.cancel(sessionId)
   await stopRuns(deps, sessionId, await activeRunsOf(deps.runs, sessionId))

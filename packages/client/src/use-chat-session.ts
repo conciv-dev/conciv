@@ -91,26 +91,34 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     const source = runSource()
     return source !== null && !isRunPhaseTerminal(source.lifecycle.phase)
   })
-  const stop = () => {
+  const seenRunIds = (): string[] => {
+    const source = runSource()
+    const lifecycleRunIds = source && !isRunPhaseTerminal(source.lifecycle.phase) ? [source.lifecycle.runId] : []
+    const localRunId = chat.runId()
+    return localRunId === null ? lifecycleRunIds : [...lifecycleRunIds, localRunId]
+  }
+  const stopSeenRuns = async (): Promise<void> => {
+    const runIds = seenRunIds()
     chat.stop()
-    void options.rpc.chat.stop({sessionId: options.sessionId}).catch((error) => options.onError?.(asError(error)))
+    await options.rpc.chat
+      .stop({sessionId: options.sessionId, runIds})
+      .catch((error) => options.onError?.(asError(error)))
+  }
+  const stop = () => {
+    void stopSeenRuns()
   }
   const sendQueuedSequentially = async (queued: QueuedMessage[]): Promise<void> => {
     for (const item of queued) await chat.sendMessage(item.content)
   }
-  const interruptAndFlush = () => {
-    const queued = chat.queue()
-    if (queued.length === 0) {
-      stop()
-      return
-    }
-    stop()
+  const flushAfterStop = async (queued: QueuedMessage[]): Promise<void> => {
+    await stopSeenRuns()
+    if (queued.length === 0) return
     const joined = joinedQueueText(queued)
-    if (joined !== null) {
-      void chat.sendMessage(joined)
-      return
-    }
-    void sendQueuedSequentially(queued)
+    if (joined === null) return sendQueuedSequentially(queued)
+    await chat.sendMessage(joined)
+  }
+  const interruptAndFlush = () => {
+    void flushAfterStop(chat.queue())
   }
   const refresh = async (): Promise<void> => {
     const hydration = await connection.refresh()
