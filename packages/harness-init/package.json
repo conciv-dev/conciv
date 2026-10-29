@@ -24,6 +24,10 @@
       "types": "./dist/registry.d.ts",
       "import": "./dist/registry.js"
     },
+    "./agent-guide": {
+      "types": "./dist/agent-guide.d.ts",
+      "import": "./dist/agent-guide.js"
+    },
     "./claude": {
       "types": "./dist/claude/init.d.ts",
       "import": "./dist/claude/init.js"
