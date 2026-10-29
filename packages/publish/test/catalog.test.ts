@@ -55,10 +55,13 @@ test('assertSharedDependenciesCatalogued ignores workspace: references and peerD
 })
 
 test('assertSharedDependenciesCatalogued lets an exempt manifest keep its own line of a shared dep', async () => {
-  const root = await scaffoldWorkspaceRoot('catalog-exempt-', ['packages/*', 'e2e/*'])
+  const root = await scaffoldWorkspaceRoot('catalog-exempt-', ['packages/*', 'packages/extensions/*'])
   await Promise.all([
-    writeManifest(join(root, 'packages', 'a'), {name: '@conciv/a', devDependencies: {vite: 'catalog:'}}),
-    writeManifest(join(root, 'e2e', 'solid-start'), {name: 'conciv-e2e-solid-start', dependencies: {vite: '^7.0.0'}}),
+    writeManifest(join(root, 'packages', 'a'), {name: '@conciv/a', dependencies: {'drizzle-orm': 'catalog:'}}),
+    writeManifest(join(root, 'packages', 'extensions', 'whiteboard'), {
+      name: '@conciv/extension-whiteboard',
+      dependencies: {'drizzle-orm': '^0.45.4'},
+    }),
   ])
   await expect(assertSharedDependenciesCatalogued(root)).resolves.toBeUndefined()
 })
