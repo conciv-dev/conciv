@@ -306,6 +306,10 @@ export function stickyGrouper(grouper: Grouper): Grouper {
   }
 }
 
+export function groupNodeIdentity(node: GroupNode): string {
+  return `${node.type}:${node.nodeKey}`
+}
+
 export function lastGroupedIndex(nodes: readonly GroupNode[]): number {
   const last = nodes.at(-1)
   if (!last) return -1

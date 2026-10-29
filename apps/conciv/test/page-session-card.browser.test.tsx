@@ -1,6 +1,6 @@
 import './helpers/utilities.css'
 import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
-import {page} from 'vitest/browser'
+import {page, userEvent} from 'vitest/browser'
 import {ChatPane} from '../src/pane/chat-pane.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, runTurn} from './helpers/core-session.js'
@@ -46,4 +46,21 @@ test('a reloaded transcript of page acts renders one aggregated session card wit
   expect(page.getByText('Edited the page').elements()).toHaveLength(1)
   await expect.element(page.getByText('Typed')).not.toBeInTheDocument()
   await expect.element(page.getByText('Chain of Thought')).not.toBeInTheDocument()
+})
+
+test('a live code-mode page act settles into one session card when the reply streams after it in the same message', async () => {
+  const rpc = coreRpc(core.base)
+  const sessionId = await createSession(rpc)
+  mounted.pane = mountPane({base: core.base, sessionId}, () => <ChatPane sessionId={sessionId} />)
+  await coreControl.scriptToolCall('execute_typescript', {
+    typescriptCode: "await external_page_settext({selector: '#prose', text: 'rewritten'})",
+  })
+
+  await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill('rewrite the prose')
+  await userEvent.keyboard('{Enter}')
+
+  await expect.element(page.getByRole('button', {name: 'Send message'}), {timeout: 15_000}).toBeVisible()
+  await expect.element(page.getByText('Edited the page')).toBeVisible()
+  await expect.element(page.getByText('Hello from conciv')).toBeVisible()
+  await expect.element(page.getByText(/stale value/)).not.toBeInTheDocument()
 })

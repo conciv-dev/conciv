@@ -1,7 +1,6 @@
 import {
   createContext,
   createMemo,
-  Index,
   indexArray,
   Match,
   onMount,
@@ -13,6 +12,7 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {Key} from '@solid-primitives/keyed'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
@@ -23,6 +23,7 @@ import {Message} from '../primitives/message/message.js'
 import {useMessage} from '../primitives/message/message-context.js'
 import {
   CHAIN_GROUP_KEY,
+  groupNodeIdentity,
   groupParts,
   lastGroupedIndex,
   type GroupEntry,
@@ -284,7 +285,9 @@ function AssistantTurn(props: {
     </Switch>
   )
   const NodeListView = (listProps: {nodes: readonly GroupNode[]}): JSX.Element => (
-    <Index each={listProps.nodes}>{(node) => <NodeView node={node()} />}</Index>
+    <Key each={listProps.nodes} by={groupNodeIdentity}>
+      {(node) => <NodeView node={node()} />}
+    </Key>
   )
   return (
     <Message.Root data-conciv-msg class={ASSISTANT_ROOT_CLASS}>
