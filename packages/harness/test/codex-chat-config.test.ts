@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps, HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {codex} from '../src/codex/index.js'
+import {codexDefaultModel} from '../src/codex/models.js'
 
 const connectContext = (over: Partial<HarnessConnectContext> = {}): HarnessConnectContext => ({
   cwd: '/tmp',
@@ -33,8 +34,8 @@ describe('codex chatConfig', () => {
     expect(config.adapter.model).toBe('gpt-5.1')
   })
 
-  it('defaults the model when none is requested', () => {
-    expect(codex.chatConfig(deps()).adapter.model).toBe('gpt-5.5')
+  it('defaults to the model codex itself would choose when none is requested', () => {
+    expect(codex.chatConfig(deps()).adapter.model).toBe(codexDefaultModel())
   })
 
   it('threads the resume session id through modelOptions and leaves the workdir to the sandbox', () => {
