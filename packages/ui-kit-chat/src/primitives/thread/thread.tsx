@@ -35,7 +35,6 @@ import {useTurnEstimator, type TurnEstimate} from './turn-estimate.js'
 import {VIRTUALIZE_THRESHOLD} from './virtualize-threshold.js'
 
 const ROW_ESTIMATE_PX = 72
-const LIVE_ROW_ESTIMATE_PX = 0
 const EVICTING_OVERSCAN = 8
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
@@ -178,8 +177,7 @@ function VirtualMessages(props: {
     scrollElement: () => props.internal.element(),
     count: () => turns().length,
     keyAt: (index) => turns()[index]?.key,
-    estimateSizeAt: (index) =>
-      index === turns().length - 1 ? LIVE_ROW_ESTIMATE_PX : (settledEstimate(index)?.height ?? ROW_ESTIMATE_PX),
+    estimateSizeAt: (index) => settledEstimate(index)?.height ?? ROW_ESTIMATE_PX,
     exactAt: (index) => settledEstimate(index)?.exact === true,
     gap: () => metrics.gap,
     scrollMargin: () => metrics.scrollMargin,
