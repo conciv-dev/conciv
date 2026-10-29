@@ -212,24 +212,28 @@ function withStreamedTail(pre: HastElement, tail: string): HastElement {
   }
 }
 
-function streamedPrefix(language: string, code: string): HastElement | undefined {
-  const prefix = latestStreamedCode[language]
-  if (prefix === undefined || !code.startsWith(prefix)) return undefined
-  const cached = highlights.store[cacheKey(language, prefix)]
-  return cached && withStreamedTail(unwrap(cached), code.slice(prefix.length))
+function highlightedWithTail(language: string, highlighted: string, fenceText: string): HastElement | undefined {
+  const cached = highlights.store[cacheKey(language, highlighted)]
+  return cached && withStreamedTail(unwrap(cached), fenceText.slice(highlighted.length))
 }
 
-function codeBlock(code: string, lang: string | undefined, streaming: boolean): ReturnType<HighlightCode> {
+function streamedPrefix(language: string, fenceText: string): HastElement | undefined {
+  const prefix = latestStreamedCode[language]
+  if (prefix === undefined || !fenceText.startsWith(prefix)) return undefined
+  return highlightedWithTail(language, prefix, fenceText)
+}
+
+function codeBlock(fenceText: string, lang: string | undefined, streaming: boolean): ReturnType<HighlightCode> {
   backendReadyTick()
   const requested = (lang ?? '').trim().toLowerCase()
   if (requested === 'mermaid') return streaming ? undefined : MermaidDiagram
   const active = ensureBackend()
   if (!active || !active.isSupported(requested)) return undefined
-  const key = cacheKey(requested, code)
-  const cached = highlights.store[key]
-  if (cached !== undefined) return unwrap(cached)
-  active.requestHighlight(key, requested, code, streaming)
-  return streamedPrefix(requested, code)
+  const code = fenceText.endsWith('\n') ? fenceText.slice(0, -1) : fenceText
+  const highlighted = highlightedWithTail(requested, code, fenceText)
+  if (highlighted) return highlighted
+  active.requestHighlight(cacheKey(requested, code), requested, code, streaming)
+  return streamedPrefix(requested, fenceText)
 }
 
 export type MarkdownProps = {content: string; streaming?: boolean}
