@@ -335,7 +335,7 @@ export function assertClosed(root: string): void {
   }
 }
 
-const PACKAGE_CATALOG_ENTRY = /^ {2}'?(.+?)'?:$/
+const PACKAGE_CATALOG_ENTRY = /^ {2}'?(\S+?)'?:$/
 
 export function packageCatalogKeys(lockText: string): Set<string> {
   const lines = lockText.split('\n')
