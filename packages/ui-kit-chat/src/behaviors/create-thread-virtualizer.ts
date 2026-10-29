@@ -11,7 +11,7 @@ import {
   type VirtualizerOptions,
 } from '@tanstack/solid-virtual'
 
-export const SCROLL_END_THRESHOLD_PX = 32
+export const SCROLL_END_THRESHOLD_PX = 1
 
 type ViewportAnchor = {mode: 'resume-following'} | {mode: 'preserve-reader-anchor'; offset: number}
 
@@ -182,7 +182,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     overscan: config.overscan(),
     anchorTo: 'end',
     followOnAppend: false,
-    scrollEndThreshold: SCROLL_END_THRESHOLD_PX,
+    scrollEndThreshold: -1,
     observeElementRect,
     observeElementOffset,
     scrollToFn,
@@ -191,6 +191,10 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   })
 
   const instance = new Virtualizer(resolveOptions())
+  instance.shouldAdjustScrollPositionOnItemSizeChange = (item) => {
+    const offset = instance.scrollOffset ?? 0
+    return item.end <= offset || (item.start < offset && !instance.itemSizeCache.has(item.key))
+  }
 
   const [items, setItems] = createStore(instance.getVirtualItems())
   const [totalSize, setTotalSize] = createSignal(instance.getTotalSize())
@@ -202,8 +206,13 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     return !element || element.scrollHeight - element.scrollTop - element.clientHeight <= SCROLL_END_THRESHOLD_PX
   }
 
+  const followingReader = (): boolean => {
+    const element = config.scrollElement()
+    return liveAtEnd() || (element !== undefined && stillOnTheLanding(element))
+  }
+
   const syncAtEnd = () => {
-    setAtEnd(liveAtEnd())
+    setAtEnd(followingReader())
   }
 
   const sync = () => {
@@ -221,7 +230,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   createComputed((previousCount: number) => {
     const nextCount = config.count()
-    const followsAppend = nextCount > previousCount && liveAtEnd()
+    const followsAppend = nextCount > previousCount && followingReader()
     instance.setOptions(resolveOptions())
     sync()
     if (!followsAppend) return nextCount
@@ -277,7 +286,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   const needsLanding = (element: HTMLElement, sameThread: boolean): boolean => {
     if (!sameThread) return true
-    return liveAtEnd() || stillOnTheLanding(element)
+    return followingReader()
   }
 
   createEffect(() => {

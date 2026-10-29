@@ -6,7 +6,8 @@ import {keyBy, range, uniq} from 'es-toolkit'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import type {UIMessage} from '@tanstack/ai-client'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection, type StoryConnectionOptions} from '../src/store/story-connection.js'
+import {EventType, type StreamChunk} from '@tanstack/ai'
 import {Thread} from '../src/primitives/thread/thread.js'
 import {Message} from '../src/primitives/message/message.js'
 import {VIRTUALIZE_THRESHOLD} from '../src/primitives/thread/virtualize-threshold.js'
@@ -55,7 +56,10 @@ function AssistantMessage(): JSX.Element {
   )
 }
 
-function mountThread(initial: UIMessage[]): {
+function mountThread(
+  initial: UIMessage[],
+  stream: StoryConnectionOptions = {chunks: []},
+): {
   host: HTMLElement
   viewport: () => HTMLElement
   chat: () => UseChatReturn
@@ -63,7 +67,7 @@ function mountThread(initial: UIMessage[]): {
   let viewport: HTMLElement | undefined
   let chat: UseChatReturn | undefined
   function VirtualThread(): JSX.Element {
-    const value = useChat({connection: storyConnection({chunks: []}), initialMessages: initial})
+    const value = useChat({connection: storyConnection(stream), initialMessages: initial})
     onMount(() => {
       chat = value
     })
@@ -104,6 +108,23 @@ function mountThread(initial: UIMessage[]): {
 function wheelUpTo(viewport: HTMLElement, scrollTop: number): void {
   viewport.dispatchEvent(new WheelEvent('wheel', {deltaY: -120, bubbles: true}))
   viewport.scrollTop = scrollTop
+}
+
+function trackpadWheelUp(viewport: HTMLElement, ticks: number, stepPx: number): Promise<void> {
+  return new Promise((resolve) => {
+    let remaining = ticks
+    const tick = (): void => {
+      viewport.dispatchEvent(new WheelEvent('wheel', {deltaY: -stepPx, bubbles: true}))
+      viewport.scrollTop -= stepPx
+      remaining -= 1
+      if (remaining <= 0) {
+        resolve()
+        return
+      }
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
 }
 
 const PROBE_FRAMES = 60
@@ -347,4 +368,43 @@ it('the latest-turn gesture writes the scroll position at most once', async () =
   await expect.element(latest).toBeDisabled()
 
   expect(writes.calls()).toBeLessThanOrEqual(1)
+})
+
+const STREAMED_LINES = 120
+const STREAM_CHUNK_DELAY_MS = 24
+const TRACKPAD_TICKS = 20
+const TRACKPAD_STEP_PX = 6
+
+function streamedReply(lines: number): StreamChunk[] {
+  const messageId = 'streamed-reply'
+  return [
+    {type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant'},
+    ...range(0, lines).map(
+      (line): StreamChunk => ({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        delta: `streamed line ${line}. ${'more streamed prose. '.repeat(4)}\n\n`,
+      }),
+    ),
+    {type: EventType.TEXT_MESSAGE_END, messageId},
+  ]
+}
+
+it('a trackpad wheel up while a reply streams at the end escapes the follow and holds still', async () => {
+  const thread = mountThread(seedMessages(ABOVE_THRESHOLD), {
+    chunks: streamedReply(STREAMED_LINES),
+    chunkDelay: STREAM_CHUNK_DELAY_MS,
+  })
+  await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD))).toBeVisible()
+  await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom')
+
+  void thread.chat().sendMessage('stream a long reply')
+  await expect.element(page.getByText('streamed line 30.', {exact: false})).toBeVisible()
+
+  await trackpadWheelUp(thread.viewport(), TRACKPAD_TICKS, TRACKPAD_STEP_PX)
+  holdSteady(thread.host, 'trackpad reading offset', () => String(Math.round(thread.viewport().scrollTop)))
+
+  await expectHeldEveryFrame('trackpad reading offset')
+  await expect.element(page.elementLocator(thread.viewport())).not.toHaveAttribute('data-at-bottom')
+  await expect.element(page.getByText(`streamed line ${STREAMED_LINES - 1}.`, {exact: false})).not.toBeInTheDocument()
 })
