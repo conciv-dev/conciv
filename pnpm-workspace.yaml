@@ -87,7 +87,7 @@ catalog:
   lucide-react: '^1.64.0'
   lucide-solid: '^1.64.0'
   marked: '^18.1.2'
-  motion: 12.42.2
+  motion: '^14.7.1'
   next: 16.4.3
   nitro: npm:nitro-nightly@3.0.1-20261029-122457-3f1c8af0
   oxc-parser: '^0.156.0'
