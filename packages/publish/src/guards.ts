@@ -283,7 +283,6 @@ export async function assertPublicDepsPublic(cwd: string): Promise<void> {
 }
 
 const CATALOG_EXEMPTIONS: Record<string, string[]> = {
-  'e2e/solid-start': ['vite'],
   'packages/extensions/whiteboard': ['drizzle-kit', 'drizzle-orm'],
 }
 
