@@ -1,5 +1,6 @@
 import {describe, expect, it, vi} from 'vitest'
-import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
+import {ChatEventType, type ChatEvent} from '@conciv/ai/events'
+import {StreamProcessor} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {makeScriptedRun, type ScriptedRun} from '../src/scripted-run.js'
@@ -16,8 +17,8 @@ const deps = (): HarnessChatDeps => ({
 function drainUnderSignal(
   scripted: ScriptedRun,
   signal: AbortSignal,
-): {seen: {chunks: StreamChunk[]; ended: boolean}; drained: Promise<void>} {
-  const seen: {chunks: StreamChunk[]; ended: boolean} = {chunks: [], ended: false}
+): {seen: {chunks: ChatEvent[]; ended: boolean}; drained: Promise<void>} {
+  const seen: {chunks: ChatEvent[]; ended: boolean} = {chunks: [], ended: false}
   const drained = (async () => {
     for await (const chunk of scripted.chatStream(deps(), {request: {signal}})) seen.chunks.push(chunk)
     seen.ended = true
@@ -25,8 +26,8 @@ function drainUnderSignal(
   return {seen, drained}
 }
 
-function drainInBackground(scripted: ScriptedRun): {chunks: StreamChunk[]; drained: Promise<void>} {
-  const chunks: StreamChunk[] = []
+function drainInBackground(scripted: ScriptedRun): {chunks: ChatEvent[]; drained: Promise<void>} {
+  const chunks: ChatEvent[] = []
   const drain = async (): Promise<void> => {
     for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
   }
@@ -37,7 +38,7 @@ function drainResultTimes(scripted: ScriptedRun): {times: number[]; drained: Pro
   const times: number[] = []
   const drain = async (): Promise<void> => {
     for await (const chunk of scripted.chatStream(deps())) {
-      if (chunk.type === EventType.TOOL_CALL_RESULT) times.push(performance.now())
+      if (chunk.type === ChatEventType.TOOL_CALL_RESULT) times.push(performance.now())
     }
   }
   return {times, drained: drain()}
@@ -48,7 +49,7 @@ function drainTextDeltas(scripted: ScriptedRun): {deltas: string[]; times: numbe
   const times: number[] = []
   const drain = async (): Promise<void> => {
     for await (const chunk of scripted.chatStream(deps())) {
-      if (chunk.type !== EventType.TEXT_MESSAGE_CONTENT) continue
+      if (chunk.type !== ChatEventType.TEXT_MESSAGE_CONTENT) continue
       deltas.push(chunk.delta)
       times.push(performance.now())
     }
@@ -73,32 +74,32 @@ const PACED_TEXT_SLICES = Math.ceil(PACED_TEXT.length / TEXT_CHUNK_SIZE)
 describe('makeScriptedRun', () => {
   it('emits a full lifecycle with a session-id custom event', async () => {
     const {chatStream} = makeScriptedRun({text: 'hello from fake'})
-    const out: StreamChunk[] = []
+    const out: ChatEvent[] = []
     for await (const chunk of chatStream(deps())) out.push(chunk)
-    expect(out.at(0)?.type).toBe(EventType.RUN_STARTED)
-    expect(out.at(-1)?.type).toBe(EventType.RUN_FINISHED)
-    expect(out.some((c) => c.type === EventType.TEXT_MESSAGE_CONTENT)).toBe(true)
-    expect(out.some((c) => c.type === EventType.CUSTOM && c.name === 'fake.session-id')).toBe(true)
+    expect(out.at(0)?.type).toBe(ChatEventType.RUN_STARTED)
+    expect(out.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
+    expect(out.some((c) => c.type === ChatEventType.TEXT_MESSAGE_CONTENT)).toBe(true)
+    expect(out.some((c) => c.type === ChatEventType.CUSTOM && c.name === 'fake.session-id')).toBe(true)
   })
 
   it.each([
     {
       name: 'a held turn',
       arrange: (scripted: ScriptedRun) => scripted.hold(),
-      parked: EventType.TEXT_MESSAGE_CONTENT,
-      withheld: EventType.RUN_FINISHED,
+      parked: ChatEventType.TEXT_MESSAGE_CONTENT,
+      withheld: ChatEventType.RUN_FINISHED,
     },
     {
       name: 'a turn held at its tool gate',
       arrange: (scripted: ScriptedRun) => scripted.holdTools(),
-      parked: EventType.RUN_STARTED,
-      withheld: EventType.TOOL_CALL_START,
+      parked: ChatEventType.RUN_STARTED,
+      withheld: ChatEventType.TOOL_CALL_START,
     },
     {
       name: 'a turn held at its result gate',
       arrange: (scripted: ScriptedRun) => scripted.holdResults(),
-      parked: EventType.TOOL_CALL_END,
-      withheld: EventType.TOOL_CALL_RESULT,
+      parked: ChatEventType.TOOL_CALL_END,
+      withheld: ChatEventType.TOOL_CALL_RESULT,
     },
   ])('ends $name when the caller aborts the request', async ({arrange, parked, withheld}) => {
     const scripted = makeScriptedRun()
@@ -121,7 +122,7 @@ describe('makeScriptedRun', () => {
     const secondScriptedId = scripted.scriptToolCall('second_tool', {b: 2}, {blocking: false})
     const collectToolCallId = async (): Promise<string> => {
       for await (const chunk of scripted.chatStream(deps())) {
-        if (chunk.type === EventType.TOOL_CALL_START) return chunk.toolCallId
+        if (chunk.type === ChatEventType.TOOL_CALL_START) return chunk.toolCallId
       }
       throw new Error('no tool call start emitted')
     }
@@ -136,15 +137,15 @@ describe('makeScriptedRun', () => {
     const scripted = makeScriptedRun()
     scripted.scriptToolCall('first_tool', {a: 1})
     scripted.scriptToolCall('second_tool', {b: 2})
-    const drainTurn = async (): Promise<StreamChunk[]> => {
-      const chunks: StreamChunk[] = []
+    const drainTurn = async (): Promise<ChatEvent[]> => {
+      const chunks: ChatEvent[] = []
       for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
       return chunks
     }
     const first = await drainTurn()
     const second = await drainTurn()
-    const startsIn = (chunks: StreamChunk[]): string[] =>
-      chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_START ? [chunk.toolCallName] : []))
+    const startsIn = (chunks: ChatEvent[]): string[] =>
+      chunks.flatMap((chunk) => (chunk.type === ChatEventType.TOOL_CALL_START ? [chunk.toolCallName] : []))
     expect(startsIn(first)).toEqual(['first_tool'])
     expect(startsIn(second)).toEqual(['second_tool'])
   })
@@ -158,31 +159,31 @@ describe('makeScriptedRun', () => {
       ],
       text: 'both tools ran',
     })
-    const chunks: StreamChunk[] = []
+    const chunks: ChatEvent[] = []
     for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
 
-    const starts = chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_START ? [chunk.toolCallId] : []))
+    const starts = chunks.flatMap((chunk) => (chunk.type === ChatEventType.TOOL_CALL_START ? [chunk.toolCallId] : []))
     const results = chunks.flatMap((chunk) =>
-      chunk.type === EventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
+      chunk.type === ChatEventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
     )
-    const text = chunks.flatMap((chunk) => (chunk.type === EventType.TEXT_MESSAGE_CONTENT ? [chunk.delta] : []))
+    const text = chunks.flatMap((chunk) => (chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT ? [chunk.delta] : []))
     expect(starts).toEqual(ids)
     expect(results).toEqual([
       {id: ids[0], content: JSON.stringify({ok: 'one'})},
       {id: ids[1], content: JSON.stringify({ok: 'two'})},
     ])
     expect(text).toEqual(['both tools ran'])
-    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    expect(chunks.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
   })
 
   it('passes a scripted string tool result through raw instead of JSON-quoting it', async () => {
     const scripted = makeScriptedRun()
     const multilineResult = 'line one\nline two\nline three'
     const ids = scripted.scriptTurn({toolCalls: [{name: 'read_file', input: {a: 1}, result: multilineResult}]})
-    const chunks: StreamChunk[] = []
+    const chunks: ChatEvent[] = []
     for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
     const results = chunks.flatMap((chunk) =>
-      chunk.type === EventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
+      chunk.type === ChatEventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
     )
     expect(results).toEqual([{id: ids[0], content: multilineResult}])
   })
@@ -190,10 +191,10 @@ describe('makeScriptedRun', () => {
   it('keeps a scripted null tool result as null instead of substituting the default', async () => {
     const scripted = makeScriptedRun()
     const ids = scripted.scriptTurn({toolCalls: [{name: 'nullish_tool', input: {a: 1}, result: null}]})
-    const chunks: StreamChunk[] = []
+    const chunks: ChatEvent[] = []
     for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
     const results = chunks.flatMap((chunk) =>
-      chunk.type === EventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
+      chunk.type === ChatEventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
     )
     expect(results).toEqual([{id: ids[0], content: 'null'}])
   })
@@ -202,15 +203,15 @@ describe('makeScriptedRun', () => {
     const scripted = makeScriptedRun()
     scripted.scriptToolCall('first_tool', {a: 1})
     scripted.scriptTurn({toolCalls: [{name: 'second_tool', input: {b: 2}}], text: 'turn ran'})
-    const drainTurn = async (): Promise<StreamChunk[]> => {
-      const chunks: StreamChunk[] = []
+    const drainTurn = async (): Promise<ChatEvent[]> => {
+      const chunks: ChatEvent[] = []
       for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
       return chunks
     }
     const first = await drainTurn()
     const second = await drainTurn()
-    const startsIn = (chunks: StreamChunk[]): string[] =>
-      chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_START ? [chunk.toolCallName] : []))
+    const startsIn = (chunks: ChatEvent[]): string[] =>
+      chunks.flatMap((chunk) => (chunk.type === ChatEventType.TOOL_CALL_START ? [chunk.toolCallName] : []))
     expect(startsIn(first)).toEqual(['first_tool'])
     expect(startsIn(second)).toEqual(['second_tool'])
   })
@@ -221,13 +222,13 @@ describe('makeScriptedRun', () => {
     scripted.holdResults()
     const {chunks, drained} = drainInBackground(scripted)
     await new Promise((r) => setTimeout(r, 30))
-    expect(chunks.some((c) => c.type === EventType.TOOL_CALL_START && c.toolCallId === ids[0])).toBe(true)
-    expect(chunks.some((c) => c.type === EventType.TOOL_CALL_RESULT)).toBe(false)
+    expect(chunks.some((c) => c.type === ChatEventType.TOOL_CALL_START && c.toolCallId === ids[0])).toBe(true)
+    expect(chunks.some((c) => c.type === ChatEventType.TOOL_CALL_RESULT)).toBe(false)
     scripted.releaseResults()
     await drained
-    const results = chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_RESULT ? [chunk.toolCallId] : []))
+    const results = chunks.flatMap((chunk) => (chunk.type === ChatEventType.TOOL_CALL_RESULT ? [chunk.toolCallId] : []))
     expect(results).toEqual(ids)
-    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    expect(chunks.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
   })
 
   it('releases held tool results one every everyMs instead of all at once', async () => {
@@ -273,7 +274,7 @@ describe('makeScriptedRun', () => {
     const toolCallMessageIds: string[] = []
     for await (const chunk of scripted.chatStream(deps())) {
       processor.processChunk(chunk)
-      if (chunk.type === EventType.TOOL_CALL_START) toolCallMessageIds.push(...assistantIds(processor))
+      if (chunk.type === ChatEventType.TOOL_CALL_START) toolCallMessageIds.push(...assistantIds(processor))
     }
     const texts = processor
       .getMessages()
@@ -302,13 +303,13 @@ describe('makeScriptedRun', () => {
     scripted.holdResults()
     const {chunks, drained} = drainInBackground(scripted)
     await new Promise((r) => setTimeout(r, 30))
-    expect(chunks.some((c) => c.type === EventType.CUSTOM && c.name === 'approval-requested')).toBe(true)
-    expect(chunks.some((c) => c.type === EventType.TOOL_CALL_RESULT)).toBe(false)
+    expect(chunks.some((c) => c.type === ChatEventType.CUSTOM && c.name === 'approval-requested')).toBe(true)
+    expect(chunks.some((c) => c.type === ChatEventType.TOOL_CALL_RESULT)).toBe(false)
     scripted.releaseResults()
     await drained
     const order = chunks.flatMap((chunk) => {
-      if (chunk.type === EventType.CUSTOM && chunk.name === 'approval-requested') return ['ask']
-      return chunk.type === EventType.TOOL_CALL_RESULT ? ['result'] : []
+      if (chunk.type === ChatEventType.CUSTOM && chunk.name === 'approval-requested') return ['ask']
+      return chunk.type === ChatEventType.TOOL_CALL_RESULT ? ['result'] : []
     })
     expect(order).toEqual(['ask', 'result'])
   })
@@ -318,9 +319,9 @@ describe('makeScriptedRun', () => {
     scripted.hold()
     const {chunks, drained} = drainInBackground(scripted)
     await new Promise((r) => setTimeout(r, 30))
-    expect(chunks.some((c) => c.type === EventType.RUN_FINISHED)).toBe(false)
+    expect(chunks.some((c) => c.type === ChatEventType.RUN_FINISHED)).toBe(false)
     scripted.release()
     await drained
-    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    expect(chunks.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
   })
 })

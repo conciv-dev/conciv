@@ -1,38 +1,39 @@
 import {describe, expect, it} from 'vitest'
-import {EventType, type MessagePart, type StreamChunk} from '@tanstack/ai'
+import {ChatEventType, type ChatEvent} from '@conciv/ai/events'
+import type {ChatPart} from '@conciv/ai/messages'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {makeRunStream} from '../src/run-stream.js'
 
-async function* scripted(chunks: StreamChunk[], gapMs = 5): AsyncGenerator<StreamChunk> {
+async function* scripted(chunks: ChatEvent[], gapMs = 5): AsyncGenerator<ChatEvent> {
   for (const chunk of chunks) {
     await new Promise((r) => setTimeout(r, gapMs))
     yield chunk
   }
 }
 
-async function* parked(chunks: StreamChunk[]): AsyncGenerator<StreamChunk> {
+async function* parked(chunks: ChatEvent[]): AsyncGenerator<ChatEvent> {
   yield* scripted(chunks)
   await new Promise(() => {})
 }
 
-async function* slowToStart(preamble: StreamChunk[], gapMs: number): AsyncGenerator<StreamChunk> {
+async function* slowToStart(preamble: ChatEvent[], gapMs: number): AsyncGenerator<ChatEvent> {
   yield* scripted(preamble, 0)
   await new Promise((r) => setTimeout(r, gapMs))
   yield started
   yield finished
 }
 
-const text = (delta: string): StreamChunk =>
-  ({type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta}) as StreamChunk
-const started = {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'} as StreamChunk
-const finished = {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r'} as StreamChunk
-const accepted = {type: EventType.CUSTOM, name: 'run.accepted', value: {}, timestamp: 0} as StreamChunk
+const text = (delta: string): ChatEvent =>
+  ({type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta}) as ChatEvent
+const started = {type: ChatEventType.RUN_STARTED, threadId: 't', runId: 'r'} as ChatEvent
+const finished = {type: ChatEventType.RUN_FINISHED, threadId: 't', runId: 'r'} as ChatEvent
+const accepted = {type: ChatEventType.CUSTOM, name: 'run.accepted', value: {}, timestamp: 0} as ChatEvent
 
-const snapshot = (parts: MessagePart[]): StreamChunk => aguiSnapshotFor([{id: 'a1', role: 'assistant', parts}])
+const snapshot = (parts: ChatPart[]): ChatEvent => aguiSnapshotFor([{id: 'a1', role: 'assistant', parts}])
 
-const textPart = (content: string): MessagePart => ({type: 'text', content})
+const textPart = (content: string): ChatPart => ({type: 'text', content})
 
-const toolCallPart = (id: string, name: string, args: unknown): MessagePart => ({
+const toolCallPart = (id: string, name: string, args: unknown): ChatPart => ({
   type: 'tool-call',
   id,
   name,
@@ -87,7 +88,7 @@ describe('makeRunStream', () => {
 
   it('hang guard fires while the source is parked', async () => {
     const run = makeRunStream(parked([started, text('still going')]))
-    await expect(run.waitFor((chunk) => chunk.type === EventType.RUN_FINISHED, {hangGuardMs: 80})).rejects.toThrow(
+    await expect(run.waitFor((chunk) => chunk.type === ChatEventType.RUN_FINISHED, {hangGuardMs: 80})).rejects.toThrow(
       /stall.*seen:/s,
     )
   })
@@ -95,24 +96,24 @@ describe('makeRunStream', () => {
   it('waitForRunStart outlives a producer that is slow to emit its first chunk', async () => {
     const run = makeRunStream(slowToStart([snapshot([textPart('catch-up')]), accepted], 150))
     const chunk = await run.waitForRunStart()
-    expect(chunk.type).toBe(EventType.RUN_STARTED)
+    expect(chunk.type).toBe(ChatEventType.RUN_STARTED)
   })
 
   it('a generic stall budget cannot cover the same slow start', async () => {
     const run = makeRunStream(slowToStart([snapshot([textPart('catch-up')]), accepted], 150))
-    await expect(run.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 40})).rejects.toThrow(
+    await expect(run.waitFor((chunk) => chunk.type === ChatEventType.RUN_STARTED, {hangGuardMs: 40})).rejects.toThrow(
       /stall.*MESSAGES_SNAPSHOT/s,
     )
   })
 
   it('waitForRunStart rejects on the run signal when the run ends without starting', async () => {
-    const errored = {type: EventType.RUN_ERROR, threadId: 't', runId: 'r', message: 'no output'} as StreamChunk
+    const errored = {type: ChatEventType.RUN_ERROR, threadId: 't', runId: 'r', message: 'no output'} as ChatEvent
     const run = makeRunStream(parked([snapshot([textPart('catch-up')]), accepted, errored]))
     await expect(run.waitForRunStart()).rejects.toThrow(/run finished without a matching event.*RUN_ERROR/s)
   })
 
   it('waitForRunStart matches the requested runId and ignores an earlier run', async () => {
-    const other = {type: EventType.RUN_STARTED, threadId: 't', runId: 'other'} as StreamChunk
+    const other = {type: ChatEventType.RUN_STARTED, threadId: 't', runId: 'other'} as ChatEvent
     const run = makeRunStream(parked([other, started]))
     const chunk = await run.waitForRunStart({runId: 'r'})
     expect('runId' in chunk ? chunk.runId : '').toBe('r')
@@ -120,18 +121,18 @@ describe('makeRunStream', () => {
 
   it('parallel waiters each see every chunk', async () => {
     const run = makeRunStream(scripted([started, text('alpha'), text('beta'), finished]))
-    const isDelta = (delta: string) => (chunk: StreamChunk) =>
-      chunk.type === EventType.TEXT_MESSAGE_CONTENT && chunk.delta === delta
+    const isDelta = (delta: string) => (chunk: ChatEvent) =>
+      chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT && chunk.delta === delta
     const [alpha, beta] = await Promise.all([run.waitFor(isDelta('alpha')), run.waitFor(isDelta('beta'))])
-    expect(alpha.type).toBe(EventType.TEXT_MESSAGE_CONTENT)
-    expect(beta.type).toBe(EventType.TEXT_MESSAGE_CONTENT)
+    expect(alpha.type).toBe(ChatEventType.TEXT_MESSAGE_CONTENT)
+    expect(beta.type).toBe(ChatEventType.TEXT_MESSAGE_CONTENT)
   })
 
   it('a late waiter replays chunks already collected', async () => {
     const run = makeRunStream(scripted([started, text('early'), finished]))
     await run.done()
-    const chunk = await run.waitFor((c) => c.type === EventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 100})
-    expect(chunk.type).toBe(EventType.TEXT_MESSAGE_CONTENT)
+    const chunk = await run.waitFor((c) => c.type === ChatEventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 100})
+    expect(chunk.type).toBe(ChatEventType.TEXT_MESSAGE_CONTENT)
   })
 
   it('done resolves when RUN_FINISHED landed before the call', async () => {
@@ -151,11 +152,11 @@ describe('makeRunStream', () => {
 
   it('an intermediate tool_calls RUN_FINISHED does not end done()', async () => {
     const intermediate = {
-      type: EventType.RUN_FINISHED,
+      type: ChatEventType.RUN_FINISHED,
       threadId: 't',
       runId: 'r',
       finishReason: 'tool_calls',
-    } as StreamChunk
+    } as ChatEvent
     const run = makeRunStream(
       scripted([
         started,

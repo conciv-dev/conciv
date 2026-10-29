@@ -1,9 +1,9 @@
 import {webSocket} from '@tanstack/ai-client'
-import type {UIMessage} from '@tanstack/ai'
+import type {ChatMessage} from '@conciv/ai/messages'
 import {CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {makeRunStream, type RunStream} from './run-stream.js'
 
-export type TurnMessage = {role: 'user'; parts: UIMessage['parts']}
+export type TurnMessage = {role: 'user'; parts: ChatMessage['parts']}
 
 export type ChatSockets = {
   turn: (input: {

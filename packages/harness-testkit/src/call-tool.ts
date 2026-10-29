@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
-import type {StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai/events'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {approvalIds} from './run-events.js'
 import {makeRpcClient} from './session.js'
@@ -94,7 +94,7 @@ function abortSignalPromise(signal: AbortSignal): Promise<'aborted'> {
 }
 
 async function pumpApprovals(
-  stream: AsyncIterable<StreamChunk>,
+  stream: AsyncIterable<ChatEvent>,
   signal: AbortSignal,
   decide: (approvalId: string) => Promise<void>,
 ): Promise<void> {
