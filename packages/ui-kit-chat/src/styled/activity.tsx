@@ -17,6 +17,7 @@ import ShieldQuestion from 'lucide-solid/icons/shield-question-mark'
 import X from 'lucide-solid/icons/x'
 import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {Key} from '@solid-primitives/keyed'
 import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import {INERT_TOOL_CTX} from '../store/tool-context.js'
 import {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from '../primitives/activity/activity.js'
@@ -32,6 +33,7 @@ import {
   type GroupNodePart,
   type Grouping,
   type Turn,
+  groupNodeIdentity,
 } from '../store/grouping.js'
 import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {Dynamic} from 'solid-js/web'
@@ -357,9 +359,11 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
   const NodeListView = (listProps: {nodes: readonly GroupNode[]; streaming: boolean}): JSX.Element => {
     const lastRenderableIndex = createMemo(() => listProps.nodes.map(renderable).lastIndexOf(true))
     return (
-      <Index each={listProps.nodes}>
-        {(node, index) => <NodeView node={node()} streaming={listProps.streaming && index === lastRenderableIndex()} />}
-      </Index>
+      <Key each={listProps.nodes} by={groupNodeIdentity}>
+        {(node, index) => (
+          <NodeView node={node()} streaming={listProps.streaming && index() === lastRenderableIndex()} />
+        )}
+      </Key>
     )
   }
   return (
