@@ -111,20 +111,20 @@ it('clamps a long body and reveals the rest from the frame footer', async () => 
     <ToolTraceRow part={bashCall()} result={undefined} ctx={noCtx} tools={() => [longOutputTool]} />
   ))
 
-  await expect.element(page.getByText('src/file-0.ts:0: a matching line'), {timeout: 3000}).toBeVisible()
+  await expect.element(page.getByText(LONG_OUTPUT), {timeout: 3000}).toBeVisible()
 
   const control = revealControl(container)
   expect(control.getAttribute('aria-expanded')).toBe('false')
   expect(control.textContent).toContain('24 more lines')
 
   await userEvent.click(control)
-  await expect.element(page.getByText('src/file-34.ts:34: a matching line'), {timeout: 3000}).toBeVisible()
+  await expect.element(page.getByText(LONG_OUTPUT), {timeout: 3000}).toBeVisible()
 
   expect(control.getAttribute('aria-expanded')).toBe('true')
   expect(control.textContent).toBe('show less')
 
   await userEvent.click(control)
-  await expect.element(page.getByText('src/file-0.ts:0: a matching line'), {timeout: 3000}).toBeVisible()
+  await expect.element(page.getByText(LONG_OUTPUT), {timeout: 3000}).toBeVisible()
 
   expect(control.getAttribute('aria-expanded')).toBe('false')
 })
@@ -134,7 +134,7 @@ it('leaves a body that already fits without any clamp footer', async () => {
     <ToolTraceRow part={bashCall()} result={undefined} ctx={noCtx} tools={() => [shortOutputTool]} />
   ))
 
-  await expect.element(page.getByText('one'), {timeout: 3000}).toBeVisible()
+  await expect.element(page.getByText('one\ntwo'), {timeout: 3000}).toBeVisible()
   expect([...container.querySelectorAll('button')].map((button) => button.textContent ?? '')).not.toContain(
     expect.stringContaining('more lines'),
   )

@@ -45,7 +45,7 @@ describe('CanvasOpCard (real browser)', () => {
       content: JSON.stringify({error: 'preview render failed', reason: 'no renderer'}),
     })
     await page.getByRole('button', {name: /canvas_preview/}).click()
-    await expect.element(page.getByText('preview render failed')).toBeVisible()
+    await expect.element(page.getByText('preview render failed · no renderer')).toBeVisible()
     await expect.element(page.getByText(/no renderer/)).toBeVisible()
   })
 })

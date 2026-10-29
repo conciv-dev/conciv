@@ -96,7 +96,7 @@ type SettledThread = {
 
 async function mountSettledThread(): Promise<SettledThread> {
   const thread = mountThread(seed(TURN_COUNT))
-  await expect.element(page.getByText(`tail marker ${LAST_TURN}`).first()).toBeVisible()
+  await expect.element(page.getByText(`answer ${LAST_TURN} tail marker ${LAST_TURN}`)).toBeVisible()
   await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom', '')
   return {thread, viewport: thread.viewport()}
 }
@@ -141,7 +141,7 @@ it('returns to the bottom and re-follows when Latest is pressed', async () => {
 
   await page.getByText('Latest').click()
   await expect.element(page.elementLocator(settled.viewport)).toHaveAttribute('data-at-bottom', '')
-  await expect.element(page.getByText(`tail marker ${LAST_TURN}`).first()).toBeVisible()
+  await expect.element(page.getByText(`answer ${LAST_TURN} tail marker ${LAST_TURN}`)).toBeVisible()
 
   expect(distanceFromEnd(settled.viewport)).toBeLessThanOrEqual(2)
 })
@@ -150,7 +150,7 @@ it('stays pinned to the end when turns are appended while following', async () =
   const settled = await mountSettledThread()
 
   settled.thread.chat().setMessages([...seed(TURN_COUNT), ...seed(TURN_COUNT + 3).slice(TURN_COUNT * 2)])
-  await expect.element(page.getByText(`tail marker ${TURN_COUNT + 2}`).first()).toBeVisible()
+  await expect.element(page.getByText(`answer ${TURN_COUNT + 2} tail marker ${TURN_COUNT + 2}`)).toBeVisible()
 
   expect(distanceFromEnd(settled.viewport)).toBeLessThanOrEqual(2)
 })

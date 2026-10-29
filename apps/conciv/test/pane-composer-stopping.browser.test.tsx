@@ -63,7 +63,7 @@ describe('PaneComposer stopping state', () => {
 
     const stop = page.getByRole('button', {name: 'Stop generating'})
     await expect.element(stop).toBeEnabled()
-    await expect.element(stop).toHaveTextContent('Stop')
+    await expect.element(stop).toHaveTextContent('Stop^C')
 
     await userEvent.click(stop)
 
@@ -76,6 +76,6 @@ describe('PaneComposer stopping state', () => {
 
     const send = page.getByRole('button', {name: 'Send message'})
     await expect.element(send).toBeVisible()
-    await expect.element(send).toHaveTextContent('Send')
+    await expect.element(send).toHaveTextContent('Send⏎')
   })
 })

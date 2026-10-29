@@ -27,7 +27,7 @@ describe('highlight worker fallback', () => {
 
       expect(preElement(host).className).not.toContain('shiki')
 
-      await expect.element(page.getByText('fallbackMarker')).toBeVisible()
+      await expect.element(page.getByText('const fallbackMarker = 1')).toBeVisible()
       expect(preElement(host).className).not.toContain('shiki')
       expect(preElement(host).querySelector('code')).not.toBeNull()
     } finally {

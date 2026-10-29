@@ -54,8 +54,9 @@ test('an engine running outdated code says so, and says it is the server code th
 
   await expect
     .element(page.getByRole('alert'))
-    .toHaveTextContent('server code on disk is newer than the running engine')
-  await expect.element(page.getByRole('alert')).toHaveTextContent('Restart the dev server')
+    .toHaveTextContent(
+      'Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.Dismiss',
+    )
 })
 
 test('an engine that matches the code on disk raises nothing at all', async () => {

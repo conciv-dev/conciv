@@ -14,6 +14,7 @@ import {mountView} from './mount-view.js'
 
 const exchangeCount = VIRTUALIZE_THRESHOLD
 const lastExchange = exchangeCount - 1
+const lastAnswer = Array.from({length: 6}, () => `answer number ${lastExchange}`).join(' ')
 
 function longThread(): UIMessage[] {
   return Array.from({length: exchangeCount}, (_, index): UIMessage[] => [
@@ -52,7 +53,7 @@ function chipWrapper(container: HTMLElement): HTMLElement {
 
 it('shows the Latest chip as an overlay outside the scroll content of a virtualized thread', async () => {
   const container = mountView(() => <TallThread />)
-  await expect.element(page.getByText(`answer number ${lastExchange}`).first()).toBeVisible()
+  await expect.element(page.getByText(lastAnswer)).toBeVisible()
   await expect.element(page.getByText('question number 0')).not.toBeInTheDocument()
 
   const viewport = viewportEl(container)
@@ -67,6 +68,6 @@ it('shows the Latest chip as an overlay outside the scroll content of a virtuali
 
   await page.getByText('Latest').click()
   await expect.element(page.elementLocator(viewport)).toHaveAttribute('data-at-bottom', '')
-  await expect.element(page.getByText(`answer number ${lastExchange}`).first()).toBeVisible()
+  await expect.element(page.getByText(lastAnswer)).toBeVisible()
   expect(chipWrapper(container).inert).toBe(true)
 })
