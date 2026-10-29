@@ -107,6 +107,8 @@ README.md; this file is the non-obvious operational rules.
 ## Testing
 
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
+- The calm perf gate (frame-gap budgets) is `pnpm --filter @conciv/app test:perf`, kept out of `pnpm test`;
+  run it locally in Chromium and Firefox before merging a chat-plane change.
 - Widget integration tests load the PREBUILT bundle (`packages/embed/dist/conciv-widget.global.js`):
   rebuild it (`pnpm turbo run build --filter=@conciv/embed`) before running them, or you test
   stale code.

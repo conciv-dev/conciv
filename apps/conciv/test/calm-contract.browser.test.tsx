@@ -1,14 +1,10 @@
 import '../src/styles.css'
-import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
+import {expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import type {RpcClient} from '@conciv/contract'
-import {ChatPane} from '../src/pane/chat-pane.js'
 import {coreControl} from './helpers/core-control.js'
-import {coreRpc, createSession, runTurn, sendTurn} from './helpers/core-session.js'
-import {mountPane, type PaneMount} from './helpers/pane-harness.js'
+import {sendTurn} from './helpers/core-session.js'
 import {SCROLL_END_THRESHOLD_PX, VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
 import {
-  createCalmWatch,
   pinViewportToBottom,
   threadViewportElement,
   topEdgeRowIndex,
@@ -18,33 +14,30 @@ import {
 } from './helpers/calm-assertions.js'
 import {forceReducedMotion} from './helpers/reduced-motion.js'
 import {watchTextGrowth} from './helpers/growth-watch.js'
+import {
+  STREAMED_CODE_CLOSING,
+  STREAMED_TEXT_CHUNK,
+  STREAMED_TEXT_PACE_MS,
+  core,
+  input,
+  mountChatPane,
+  multiToolStep,
+  type ScriptedToolStep,
+  newSession,
+  promptWith,
+  registerCalmCore,
+  seedThread,
+  startBoundaryRun,
+  startHeldToolRun,
+  startMultiToolRun,
+  stopButton,
+  streamCodeAnswer,
+  streamedCodeAnswer,
+  watchCalm,
+} from './helpers/calm-session.js'
 
 const SHOTS = '__screenshots__/calm-contract'
-const MULTI_TOOL_STEPS = 20
-const FRAME_P95_BUDGET_MS = 20
-const FRAME_JANK_BUDGET = 2
-const MIN_SAMPLED_WINDOW_MS = 300
-const MULTI_TOOL_PACE_MS = 50
-const BOUNDARY_PACE_MS = 400
-const EDIT_STEP_INTERVAL = 5
-const DIFF_BEFORE = [
-  'export function total(items: Item[]): number {',
-  '  let sum = 0',
-  '  for (const item of items) sum += item.price',
-  '  return sum',
-  '}',
-].join('\n')
-const DIFF_AFTER = [
-  'export function total(items: readonly Item[]): number {',
-  '  return items.reduce((sum, item) => sum + item.price * item.quantity, 0)',
-  '}',
-].join('\n')
-const STREAMED_CODE_LINES = 40
-const STREAMED_TEXT_CHUNK = 56
-const STREAMED_TEXT_PACE_MS = 30
-const STREAMED_CODE_CLOSING = 'That is the whole helper.'
 const MIN_CODE_GROWTH_STEPS = 10
-const SEEDED_EXCHANGES = Math.floor((VIRTUALIZE_THRESHOLD - 4) / 2)
 const BOUNDARY_EXCHANGES = Math.floor(VIRTUALIZE_THRESHOLD / 2)
 const VIEWPORT_HEIGHT_PX = 600
 const SCROLL_UP_PX = 600
@@ -60,100 +53,11 @@ const CATCH_UP_FRAME_BUDGET = 3
 const FOLD_GATE_SCROLL_PX = 170
 const ROW_ROUNDING_TOLERANCE_PX = 4
 
-const core = {base: ''}
-const active: {pane: PaneMount | null; watch: CalmWatch | null} = {pane: null, watch: null}
+registerCalmCore('calm-contract')
 
-beforeAll(async () => {
-  const booted = await coreControl.bootCore({id: 'calm-contract', allowedOrigins: [window.location.origin]})
-  core.base = booted.base
-}, 60_000)
-
-afterAll(async () => {
-  await coreControl.closeCore()
-}, 30_000)
-
-afterEach(async () => {
-  active.watch?.stop()
-  active.watch = null
-  await coreControl.releaseTools()
-  await coreControl.releaseResults()
-  await coreControl.releaseTurn()
-  await coreControl.clearScript()
-  active.pane?.dispose()
-  active.pane = null
-})
-
-async function newSession(): Promise<{rpc: RpcClient; sessionId: string}> {
-  const rpc = coreRpc(core.base)
-  return {rpc, sessionId: await createSession(rpc)}
-}
-
-function mountChatPane(sessionId: string): PaneMount {
-  const mount = mountPane({base: core.base, sessionId}, () => <ChatPane sessionId={sessionId} />)
-  active.pane = mount
-  return mount
-}
-
-function watchCalm(allow: Parameters<typeof createCalmWatch>[0] = {}): CalmWatch {
-  const watch = createCalmWatch(allow)
-  active.watch = watch
-  return watch
-}
-
-const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
 const sendButton = () => page.getByRole('button', {name: 'Send message'})
 const traceToggle = () => page.getByText(/^(Show|Hide) trace$/)
 const permissionRequest = () => page.getByRole('group', {name: 'Permission request'})
-
-async function promptWith(text: string): Promise<void> {
-  await expect.element(input()).toBeVisible()
-  await input().fill(text)
-  await userEvent.keyboard('{Enter}')
-  await expect.element(page.getByText(text)).toBeVisible()
-}
-
-type ScriptedToolStep = {name: string; input: Record<string, string>}
-
-function editStep(index: number): ScriptedToolStep {
-  return {name: 'Edit', input: {file_path: `step-${index}.tsx`, old_string: DIFF_BEFORE, new_string: DIFF_AFTER}}
-}
-
-function multiToolStep(index: number): ScriptedToolStep {
-  if (index > 0 && index % EDIT_STEP_INTERVAL === 0) return editStep(index)
-  if (index % 2 === 0) return {name: 'Bash', input: {command: `probe step ${index}`}}
-  return {name: 'Read', input: {filePath: `step-${index}.tsx`}}
-}
-
-function multiToolSteps(): ScriptedToolStep[] {
-  return Array.from({length: MULTI_TOOL_STEPS}, (_, index): ScriptedToolStep => multiToolStep(index))
-}
-
-function streamedCodeLine(index: number): string {
-  return `  const step${index} = await resolve(input.steps[${index}], {retries: ${index % 4}})`
-}
-
-function streamedCodeAnswer(): string {
-  return [
-    'Here is the helper you asked for.',
-    '',
-    '```ts',
-    'export async function resolveEveryStep(input: PipelineInput): Promise<StepResult[]> {',
-    ...Array.from({length: STREAMED_CODE_LINES}, (_, index) => streamedCodeLine(index)),
-    '  return [step0]',
-    '}',
-    '```',
-    '',
-    STREAMED_CODE_CLOSING,
-  ].join('\n')
-}
-
-function expectSmooth(watch: CalmWatch): void {
-  const gaps = watch.frameGaps()
-  expect(gaps.sampledMs).toBeGreaterThanOrEqual(MIN_SAMPLED_WINDOW_MS)
-  expect(gaps.p95).toBeLessThanOrEqual(FRAME_P95_BUDGET_MS)
-  expect(gaps.over33).toBeLessThanOrEqual(FRAME_JANK_BUDGET)
-}
 
 function expectCalm(watch: CalmWatch): void {
   expect(watch.removed()).toEqual([])
@@ -162,47 +66,8 @@ function expectCalm(watch: CalmWatch): void {
   expect(watch.shiftedAboveLiveRegion()).toEqual([])
 }
 
-async function seedThread(base: string, sessionId: string, exchanges: number): Promise<void> {
-  for (let index = 0; index < exchanges; index += 1) {
-    await runTurn(base, sessionId, `seeded exchange ${index}`)
-  }
-}
-
-async function startHeldToolRun(config: {
-  prompt: string
-  pending: string
-  settled: string
-  paceMs?: number
-  allow?: Parameters<typeof createCalmWatch>[0]
-}): Promise<CalmWatch> {
-  await coreControl.holdTools()
-  await coreControl.holdResults()
-  await coreControl.holdTurn()
-  await promptWith(config.prompt)
-  await expect.element(stopButton()).toBeVisible()
-  const watch = watchCalm(config.allow)
-  await watch.checkpoint()
-  await coreControl.releaseTools()
-  await expect.element(page.getByText(config.pending, {exact: true})).toBeVisible()
-  await watch.checkpoint()
-  await coreControl.releaseResults(config.paceMs ? {everyMs: config.paceMs} : undefined)
-  await expect.element(page.getByText(config.settled, {exact: true})).toBeVisible()
-  await watch.checkpoint()
-  return watch
-}
-
 test('surface immortality and stillness across a multi-tool run [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
-  const {sessionId} = await newSession()
-  await coreControl.scriptTurn({toolCalls: multiToolSteps(), text: 'All twenty steps are done.'})
-  mountChatPane(sessionId)
-
-  const watch = await startHeldToolRun({
-    prompt: 'run twenty tools then answer',
-    pending: 'probe step 0',
-    settled: `step-${MULTI_TOOL_STEPS - 1}.tsx`,
-    paceMs: MULTI_TOOL_PACE_MS,
-  })
-  expectSmooth(watch)
+  const watch = await startMultiToolRun()
   await page.screenshot({path: `${SHOTS}/multi-tool-mid-stream.png`})
   expectCalm(watch)
 
@@ -427,27 +292,7 @@ test('a run under reduced motion stays as still as one with motion [mechanism A:
 })
 
 test('a long thread at the virtualization boundary stays still while a run streams [mechanism C: retroactive regrouping, page-session.ts:141-151]', async () => {
-  const {sessionId} = await newSession()
-  await seedThread(core.base, sessionId, SEEDED_EXCHANGES)
-  await coreControl.scriptTurn({
-    toolCalls: [
-      {name: 'page_fill', input: {selector: '#name', value: 'Ada'}, result: {ok: true, value: 'Ada'}},
-      {name: 'page_click', input: {selector: '#save'}, result: {ok: true}},
-    ],
-    text: 'The long thread is done.',
-  })
-  mountChatPane(sessionId)
-  await expect.element(page.getByText(`seeded exchange ${SEEDED_EXCHANGES - 1}`, {exact: true})).toBeVisible()
-  await expect.element(page.getByText('seeded exchange 0', {exact: true})).toBeInTheDocument()
-
-  const watch = await startHeldToolRun({
-    prompt: 'fill and save the form',
-    pending: '1 action',
-    settled: '2 actions',
-    paceMs: BOUNDARY_PACE_MS,
-    allow: {allow: ['virtualization']},
-  })
-  expectSmooth(watch)
+  const watch = await startBoundaryRun()
   expectCalm(watch)
 
   await coreControl.releaseTurn()
@@ -485,25 +330,8 @@ test('a thread crossing the virtualization threshold mid-run keeps its visible s
   }
 }, 120_000)
 
-test('a streamed code block stays calm and cheap [mechanism D: per-chunk re-tokenisation, render-sync.ts:19-24]', async () => {
-  const {sessionId} = await newSession()
-  await coreControl.scriptTurn({
-    toolCalls: [],
-    text: streamedCodeAnswer(),
-    textPace: {chunk: STREAMED_TEXT_CHUNK, everyMs: STREAMED_TEXT_PACE_MS},
-  })
-  mountChatPane(sessionId)
-
-  await coreControl.holdTools()
-  await promptWith('write the helper that resolves every step')
-  await expect.element(stopButton()).toBeVisible()
-  const watch = watchCalm()
-  await watch.checkpoint({rebaseline: true})
-
-  await coreControl.releaseTools()
-  await expect.element(page.getByText(STREAMED_CODE_CLOSING, {exact: true})).toBeVisible()
-  await watch.checkpoint()
-  expectSmooth(watch)
+test('a streamed code block stays calm [mechanism D: per-chunk re-tokenisation, render-sync.ts:19-24]', async () => {
+  const watch = await streamCodeAnswer()
   await page.screenshot({path: `${SHOTS}/streamed-code-block.png`})
   expectCalm(watch)
 }, 120_000)

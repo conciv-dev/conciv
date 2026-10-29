@@ -17,7 +17,8 @@
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:perf": "vitest run --mode perf --project browser"
   },
   "dependencies": {
     "@ark-ui/solid": "^5.37.1",
