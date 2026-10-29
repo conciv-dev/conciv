@@ -51,6 +51,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/harness',
   '@conciv/harness-init',
   '@conciv/protocol',
+  '@conciv/ai',
   '@conciv/contract',
   '@conciv/db',
   '@conciv/storage-history',
