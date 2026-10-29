@@ -12,7 +12,7 @@ describe('init command', () => {
   })
 
   it('registers under the root command', async () => {
-    const {main} = await import('../src/bin.js')
+    const {main} = await import('../src/main.js')
     const subCommands = await Promise.resolve(main.subCommands)
     expect(Object.keys(subCommands ?? {})).toContain('init')
   })
