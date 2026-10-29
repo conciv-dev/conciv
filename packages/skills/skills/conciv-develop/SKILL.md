@@ -224,7 +224,7 @@ and `packages/extensions/whiteboard/src/tool/comment/def.ts:59` attaches it via
 `errors: COMMENT_NOT_FOUND` on a tool that can throw it.
 
 Full field-by-field reference and the split `def.ts`/`server.ts`/`client.ts` pattern for
-installable packages: `references/tool-contract.md`.
+installable packages: [tool-contract](references/tool-contract.md).
 
 ## Attachments
 
@@ -312,7 +312,7 @@ import {subscriptionIterator} from '@conciv/extension'
 ```
 
 Deeper RPC and streaming patterns (custom Hono routes vs. an oRPC router, `subscriptionIterator`'s
-exact signature): `references/rpc-and-testing.md`.
+exact signature): [rpc-and-testing](references/rpc-and-testing.md).
 
 ## Testing
 
@@ -337,7 +337,7 @@ prebuilt-bundle tests); `host` can also be a hand-written `async ({apiBase, sess
 close}` for a custom fixture app, as `packages/extensions/tanstack/test/helpers/tanstack-test-api.ts`
 does with `serveDir`. `callToolApproved` is the variant that also answers the Approve/Deny prompt for
 tools with `approval: 'ask'`. Full API and the two-client (`secondClient`) pattern for realtime
-features: `references/rpc-and-testing.md`.
+features: [rpc-and-testing](references/rpc-and-testing.md).
 
 ## Installing a published extension (someone else's, or your own)
 

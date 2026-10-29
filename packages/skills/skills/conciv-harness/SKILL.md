@@ -310,7 +310,7 @@ rejects a transcript that escapes the root (`transcriptPathWithin`,
 `resumableToken` in `packages/core/src/chat/run.ts:51-64`). Build `observe()` with the shared
 `makeJsonlHandle()` helper if your CLI's transcript is JSONL-per-line (both `claude`
 and `codex` do this: `packages/harness/src/codex/history.ts:347-360`). See
-`references/transcript-history.md` for the full worked walkthrough (event folding, `verifyHead`
+[transcript-history](references/transcript-history.md) for the full worked walkthrough (event folding, `verifyHead`
 project-scoping, incremental byte-offset reads) — it's the densest part of a real adapter and doesn't
 fit in this file's budget.
 
