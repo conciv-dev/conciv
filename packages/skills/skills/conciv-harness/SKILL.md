@@ -17,7 +17,7 @@ flag wrong and TypeScript rejects the adapter, not a runtime check.
 
 The one documented failure mode this skill exists to prevent: an adapter that spawns or decodes the
 CLI itself, or special-cases the harness id in core/widget code, instead of returning a
-`@tanstack/ai-*` text adapter from `chatConfig()` and letting `chat()` (with the conciv sandbox +
+`@conciv/ai/server` text adapter from `chatConfig()` and letting `chat()` (with the conciv sandbox +
 permission-gate middleware) own the process lifecycle. Every existing adapter (`claude`, `codex`) goes
 through that one seam — a new harness that bypasses it duplicates process management, loses abort
 handling, and loses the sandbox's `dir`-scoped filesystem.
@@ -108,19 +108,19 @@ export type HarnessChatDeps = {
 }
 
 export type HarnessChatConfig = {
-  adapter: AnyTextAdapter
+  adapter: TextAdapter
   modelOptions?: Record<string, unknown>
   prepareMessages?: (messages: ModelMessage[]) => ModelMessage[]
 }
 ```
 
 (`packages/protocol/src/harness-types.ts:99-114`.) `chatConfig` is a plain function, `deps =>
-HarnessChatConfig` — no async, no side effects at call time. Its `adapter` is a published
-`@tanstack/ai-*` text adapter for CLIs that have one (`codexText` from `@tanstack/ai-codex`); if none
-exists for your CLI, build one with `makeTextAdapter(name, stream)` from
-`packages/harness/src/_shared/text-adapter.ts:45-47`, where `stream` is your own
-`AsyncIterable<StreamChunk>` producer. Prefer **declaring** the launch command and letting the adapter
-run it, the way `acpChatConfig` hands `acpCompatible` a `command` string plus a permission handler
+HarnessChatConfig` — no async, no side effects at call time. Its `adapter` comes from a
+`@conciv/ai/server` factory for CLIs that have one (`codex`, `claudeCode`, `opencode`, `acp`, thin
+typed wrappers over the published `@tanstack/ai-*` adapters); if none exists for your CLI, build one
+with `makeTextAdapter(name, stream)` from `packages/ai/src/adapters.ts`, where `stream` is your own
+`AsyncIterable<ChatEvent>` producer. Harness code never imports `@tanstack/ai*` directly. Prefer **declaring** the launch command and letting the adapter
+run it, the way `acpChatConfig` hands `acp` a `command` string plus a permission handler
 built from `deps.decide` (`packages/harness/src/_shared/acp.ts:15-24`): everything launched that way
 runs under `withSandbox`'s lifecycle. Reaching for `node:child_process` inside your `stream` steps
 outside the sandbox and its abort handling (see the sandbox-virtual workdir section below).
@@ -129,7 +129,7 @@ Canonical call site — codex, which needs no message prep:
 
 ```ts
 const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: codexText(deps.model ?? 'gpt-5.5', {
+  adapter: codexAdapter(deps.model ?? 'gpt-5.5', {
     sandboxMode: 'workspace-write',
     approvalPolicy: 'never',
     ...(deps.hasTools ? {config: bridgeApproveConfig} : {}),
@@ -346,6 +346,7 @@ fit in this file's budget.
 - `packages/harness/src/claude/chat.ts`
 - `packages/harness/src/claude/sdk.ts`
 - `packages/harness/src/pi/index.ts`
+- `packages/ai/src/adapters.ts`
 - `packages/harness/src/_shared/text-adapter.ts`
 - `packages/harness/src/_shared/env.ts`
 - `packages/harness/src/_shared/acp.ts`

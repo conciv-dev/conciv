@@ -1,7 +1,7 @@
 import type {JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {Trace as ChatTrace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
 import {consoleCard} from './console-card.js'

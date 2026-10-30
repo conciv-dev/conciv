@@ -1,6 +1,6 @@
 import {createMemo, createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import type {
   ToolCardEntry,
   ToolCardProps,

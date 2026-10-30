@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from '../../helpers/boot.js'
+import {connectMcpClient} from '../../helpers/mcp-client.js'
 
 const draw = defineTool({
   name: 'acme_draw',
@@ -15,7 +15,7 @@ const draw = defineTool({
 const acme = defineExtension({name: 'acme', tools: [draw]})
 
 async function execute(base: string, typescriptCode: string): Promise<unknown> {
-  const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+  const mcp = await connectMcpClient(`${base}/api/mcp`)
   try {
     const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
     if (!tool?.execute) throw new Error('execute_typescript not on /api/mcp')
@@ -31,25 +31,16 @@ async function execute(base: string, typescriptCode: string): Promise<unknown> {
 }
 
 describe('/api/mcp extension tools through the sandbox', () => {
-  it('discovers an extension tool through the catalog binding and calls it in the same round trip', async () => {
+  it('discovers an extension tool through discover_tools and calls it in the same round trip', async () => {
     const kit = await bootKit({extensions: [acme]})
+    const mcp = await connectMcpClient(`${kit.base}/api/mcp`)
     try {
-      const result = await execute(
-        kit.base,
-        `
-          const found = await external_catalog({search: 'acme'})
-          const entry = found.tools.find((tool) => tool.name === 'acme_draw')
-          if (!entry) throw new Error('acme_draw missing from the catalog')
-          const detail = await external_catalog({name: entry.name})
-          const drawn = await external_acme_draw({shape: 'square'})
-          return {call: entry.call, stub: detail.typeStub, drawn}
-        `,
-      )
-      const shaped = z.object({call: z.string(), stub: z.string(), drawn: z.unknown()}).parse(result)
-      expect(shaped.call).toBe('external_acme_draw')
-      expect(shaped.stub).toContain('external_acme_draw')
-      expect(JSON.stringify(shaped.drawn)).toContain('square')
+      const discover = (await mcp.tools()).find((entry) => entry.name === 'discover_tools')
+      expect(JSON.stringify(await discover?.execute({toolNames: ['acme_draw']}))).toContain('acme_draw')
+      const drawn = await execute(kit.base, "return await external_acme_draw({shape: 'square'})")
+      expect(JSON.stringify(drawn)).toContain('square')
     } finally {
+      await mcp.close()
       await kit.cleanup()
     }
   }, 30_000)

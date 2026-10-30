@@ -3,12 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import {ChatProvider} from '../store/chat-context.js'
-import {
-  storyConnection,
-  createTextChunks,
-  createReasoningChunks,
-  createToolCallChunks,
-} from '../store/story-connection.js'
+import {storyConnection, createTextChunks, createReasoningChunks, createToolCallChunks} from '@conciv/ai/testkit'
 import {Thread} from './thread.js'
 import {Composer} from './composer.js'
 import {NowLine} from './now-line.js'
@@ -25,6 +20,7 @@ function Welcome(): JSX.Element {
 
 function ThreadApp(props: {expose: (chat: UseChatReturn) => void}): JSX.Element {
   const chat = useChat({
+    threadId: 'thread',
     connection: storyConnection({
       chunks: [
         ...createReasoningChunks('Searching the codebase'),
@@ -109,6 +105,7 @@ const renderDivider = (): JSX.Element => <Divider />
 
 function SlotsApp(): JSX.Element {
   const chat = useChat({
+    threadId: 'thread',
     connection: storyConnection({
       chunks: [...createTextChunks('On it.')],
       chunkDelay: 2,
@@ -132,7 +129,7 @@ function SlotsApp(): JSX.Element {
 }
 
 function ShiftApp(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread', connection: storyConnection()})
   onMount(() =>
     chat.setMessages([
       {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'First reply, older.'}]},

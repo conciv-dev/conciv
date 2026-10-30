@@ -1,7 +1,7 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, userEvent, waitFor, within} from 'storybook/test'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolCallPart} from '@conciv/ai'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {TracePermissionBlock} from './permission-block.js'
 

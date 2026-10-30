@@ -38,9 +38,8 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/ai": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@tanstack/ai": "catalog:",
-    "@tanstack/ai-persistence": "catalog:",
     "drizzle-orm": "catalog:"
   },
   "devDependencies": {

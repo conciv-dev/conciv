@@ -4,8 +4,9 @@ import {createMemo, createSignal, onMount, type JSX} from 'solid-js'
 import {describe, expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {useChat} from '@tanstack/ai-solid'
-import {ChatProvider, ComposerHandlersProvider, createTextChunks, storyConnection} from '@conciv/ui-kit-chat'
-import type {RunClockSource} from '@conciv/protocol/run-types'
+import {ChatProvider, ComposerHandlersProvider} from '@conciv/ui-kit-chat'
+import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
+import type {RunClockSource} from '@conciv/ai'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {memoryStorage} from './helpers/memory-storage.js'
@@ -19,6 +20,7 @@ function lifecycleSourceAt(phase: RunClockSource['lifecycle']['phase']): RunCloc
 
 function Harness(props: {settle: (settle: () => void) => void}): JSX.Element {
   const chat = useChat({
+    threadId: 'pane-composer-stopping',
     connection: storyConnection({chunks: createTextChunks('working on it'), runsUntilStopped: true}),
   })
   const [serverGenerating, setServerGenerating] = createSignal(true)

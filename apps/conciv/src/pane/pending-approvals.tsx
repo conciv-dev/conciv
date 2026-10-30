@@ -1,6 +1,5 @@
 import {For, splitProps, type JSX} from 'solid-js'
-import type {ToolCallPart} from '@tanstack/ai-client'
-import type {ApprovalAsk} from '@conciv/protocol/approval-types'
+import type {ToolCallPart, ApprovalAsk} from '@conciv/ai'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {genericRowProjection, TracePermissionBlock} from '@conciv/ui-kit-chat/tools'
 

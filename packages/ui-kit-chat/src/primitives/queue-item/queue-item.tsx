@@ -2,10 +2,10 @@ import {createContext, useContext, type JSX} from 'solid-js'
 import {Primitive} from '../util/primitive.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useChatContext} from '../../store/chat-context.js'
-import type {MultimodalContent, QueuedMessage} from '@tanstack/ai-client'
+import type {SendContent, QueuedMessage} from '@conciv/ai'
 import {useComposerHandlers} from '../composer/composer-handlers.js'
 
-export type {QueuedMessage} from '@tanstack/ai-client'
+export type {QueuedMessage} from '@conciv/ai'
 
 const QueueItemContext = createContext<QueuedMessage>()
 
@@ -17,7 +17,7 @@ function useQueueItem(): QueuedMessage {
   return context
 }
 
-type ContentParts = Exclude<MultimodalContent['content'], string>
+type ContentParts = Exclude<SendContent['content'], string>
 
 function attachmentLabel(parts: ContentParts): string {
   const count = parts.filter((part) => part.type !== 'text').length

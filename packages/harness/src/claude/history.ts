@@ -2,7 +2,7 @@ import {readdir, stat, readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
-import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
+import type {ChatPart, ChatMessage} from '@conciv/ai'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {
   HarnessHistory,
@@ -57,19 +57,19 @@ const TranscriptRecordSchema = z
 
 type TranscriptRecord = z.infer<typeof TranscriptRecordSchema>
 
-function textPart(block: unknown): MessagePart | null {
+function textPart(block: unknown): ChatPart | null {
   const text = TextBlock.safeParse(block)
   if (!text.success) return null
   return {type: 'text', content: text.data.text}
 }
 
-function thinkingPart(block: unknown): MessagePart | null {
+function thinkingPart(block: unknown): ChatPart | null {
   const thinking = ThinkingBlock.safeParse(block)
   if (!thinking.success) return null
   return {type: 'thinking', content: thinking.data.thinking}
 }
 
-function toolCallPart(block: unknown): MessagePart | null {
+function toolCallPart(block: unknown): ChatPart | null {
   const tool = ToolUseBlock.safeParse(block)
   if (!tool.success) return null
   return {
@@ -81,7 +81,7 @@ function toolCallPart(block: unknown): MessagePart | null {
   }
 }
 
-function toolResultPart(block: unknown): MessagePart | null {
+function toolResultPart(block: unknown): ChatPart | null {
   const result = ToolResultBlock.safeParse(block)
   if (!result.success) return null
   return {
@@ -94,7 +94,7 @@ function toolResultPart(block: unknown): MessagePart | null {
 
 const BLOCK_READERS = [textPart, thinkingPart, toolCallPart, toolResultPart]
 
-function blockParts(block: unknown): MessagePart[] {
+function blockParts(block: unknown): ChatPart[] {
   for (const read of BLOCK_READERS) {
     const part = read(block)
     if (part) return [part]
@@ -102,20 +102,20 @@ function blockParts(block: unknown): MessagePart[] {
   return []
 }
 
-function partsFrom(content: unknown): MessagePart[] {
+function partsFrom(content: unknown): ChatPart[] {
   if (typeof content === 'string') return content ? [{type: 'text', content}] : []
   if (!Array.isArray(content)) return []
   return content.flatMap(blockParts)
 }
 
-function textOf(parts: MessagePart[]): string {
+function textOf(parts: ChatPart[]): string {
   return parts
     .filter((p) => p.type === 'text')
     .map((p) => ('content' in p ? p.content : ''))
     .join('\n')
 }
 
-function isInternal(parts: MessagePart[]): boolean {
+function isInternal(parts: ChatPart[]): boolean {
   const text = textOf(parts)
   return INTERNAL_MARKERS.some((m) => text.includes(m))
 }
@@ -134,14 +134,14 @@ function isFromMachinery(record: TranscriptRecord): boolean {
   return origin.success && origin.data.kind !== 'human'
 }
 
-function humanMessageParts(record: TranscriptRecord, parts: MessagePart[]): MessagePart[] | null {
+function humanMessageParts(record: TranscriptRecord, parts: ChatPart[]): ChatPart[] | null {
   if (isFromMachinery(record)) return null
   const spoken = parts.filter((p) => p.type !== 'tool-result')
   if (spoken.length === 0 || isInternal(spoken) || isSyntheticText(textOf(spoken))) return null
   return spoken
 }
 
-function firstText(parts: MessagePart[]): string | null {
+function firstText(parts: ChatPart[]): string | null {
   const text = parts.find((p) => p.type === 'text')
   if (!text || text.type !== 'text' || typeof text.content !== 'string') return null
   return text.content
@@ -160,7 +160,7 @@ const ResultRecordSchema = z
 const StampedRecordSchema = z.object({timestamp: z.string().optional()}).loose()
 
 type ClaudeFold = {
-  messages: UIMessage[]
+  messages: ChatMessage[]
   openAssistantId: string | null
   count: number
   title: string | null
@@ -211,7 +211,7 @@ function foldFacts(state: ClaudeFold, record: unknown): void {
   foldCreatedAt(state, record)
 }
 
-function foldPreview(state: ClaudeFold, spoken: MessagePart[] | null, fromUser: boolean): void {
+function foldPreview(state: ClaudeFold, spoken: ChatPart[] | null, fromUser: boolean): void {
   if (!spoken || isInternal(spoken)) return
   const text = firstText(spoken)
   if (text === null) return
@@ -222,7 +222,7 @@ function foldPreview(state: ClaudeFold, spoken: MessagePart[] | null, fromUser: 
 function pushMessage(
   state: ClaudeFold,
   role: 'user' | 'assistant',
-  parts: MessagePart[],
+  parts: ChatPart[],
   nativeId: string | undefined,
 ): void {
   state.count += 1
@@ -231,8 +231,8 @@ function pushMessage(
 
 function foldUserTurn(
   state: ClaudeFold,
-  parts: MessagePart[],
-  human: MessagePart[] | null,
+  parts: ChatPart[],
+  human: ChatPart[] | null,
   nativeId: string | undefined,
 ): void {
   const results = parts.filter((p) => p.type === 'tool-result')
@@ -246,7 +246,7 @@ function foldUserTurn(
 function foldAssistantTurn(
   state: ClaudeFold,
   claudeId: string | undefined,
-  parts: MessagePart[],
+  parts: ChatPart[],
   nativeId: string | undefined,
 ): void {
   const open = state.messages.at(-1)
@@ -297,11 +297,11 @@ function foldTranscript(jsonl: string): ClaudeFold {
   return jsonl.split('\n').reduce(foldLine, emptyFold())
 }
 
-function foldMessages(state: ClaudeFold): UIMessage[] {
+function foldMessages(state: ClaudeFold): ChatMessage[] {
   return state.messages.map((message) => ({...message, parts: [...message.parts]}))
 }
 
-export function parseHistory(jsonl: string): UIMessage[] {
+export function parseHistory(jsonl: string): ChatMessage[] {
   return foldTranscript(jsonl).messages
 }
 
@@ -439,7 +439,7 @@ export function withinProject(cwd: string, sessionId: string, home: string = hom
   return containedPath(transcriptRoot(cwd, home), transcriptPath(cwd, sessionId, home)) !== null
 }
 
-async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]> {
+async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<ChatMessage[]> {
   if (!withinProject(cwd, sessionId, home)) return []
   const raw = await readFile(transcriptPath(cwd, sessionId, home), 'utf8').catch(() => '')
   return raw ? parseHistory(raw) : []

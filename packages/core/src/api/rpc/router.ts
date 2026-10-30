@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {asc, eq} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
@@ -7,9 +6,7 @@ import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
 import type {RegistryCallErrorName} from '@conciv/contract'
-import {listCommands} from '../../chat/commands.js'
-import {makeAskGate, requiresApproval} from '../../chat/gate.js'
-import {rowById} from '../../chat/session-rows.js'
+import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
@@ -34,34 +31,6 @@ function registryCallError(error: unknown, errors: RegistryErrors): Error {
 
 function hasErrorCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === code
-}
-
-type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
-
-async function approveAskGatedCall(deps: RpcDeps, name: string, input: unknown, errors: ApprovalErrors): Promise<void> {
-  const scope = session()
-  if (!requiresApproval(scope.tools.catalog.get(name))) return
-  if ((await rowById(deps.chat.db, scope.id)) === null) {
-    throw errors.APPROVAL_DENIED({
-      message: `"${name}" requires approval but session "${scope.id}" does not exist`,
-    })
-  }
-  if (!scope.stream.listening()) {
-    throw errors.APPROVAL_DENIED({
-      message: `"${name}" requires approval but nothing is attached to session "${scope.id}" to answer; open the widget on that session and retry`,
-    })
-  }
-  const gate = makeAskGate({
-    asks: scope.asks,
-    emit: (chunk) => scope.stream.publish(chunk),
-    ...(deps.askTimeoutMs === undefined ? {} : {timeoutMs: deps.askTimeoutMs}),
-  })
-  const decision = await gate.decide(name, input, randomUUID())
-  if (decision === 'allow') return
-  if (decision === 'deny') throw errors.APPROVAL_DENIED({message: `"${name}" was denied by the user`})
-  throw errors.APPROVAL_DENIED({
-    message: `"${name}" received no approval decision (the ask timed out or the session stopped)`,
-  })
 }
 
 async function callTool<Output extends z.ZodType>(
@@ -111,7 +80,6 @@ export function makeRpcRouter(deps: RpcDeps) {
       catalog: os.registry.catalog.handler(() => engine.catalog()),
       call: sessionOs.registry.call.handler(async ({input, context, errors}) => {
         if (!context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
-        await approveAskGatedCall(deps, input.name, input.input, errors)
         try {
           return await context.session.tools.call(input.name, input.input)
         } catch (error) {
@@ -150,11 +118,9 @@ export function makeRpcRouter(deps: RpcDeps) {
       ),
       urls: sessionOs.server.urls.handler(({errors}) => callTool(BUILTIN_SERVER_TOOL.server_urls, {}, errors)),
       reload: sessionOs.server.reload.handler(async ({input, errors}) => {
-        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL.server_reload.name, input, errors)
         return callTool(BUILTIN_SERVER_TOOL.server_reload, input, errors)
       }),
       restart: sessionOs.server.restart.handler(async ({input, errors}) => {
-        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL.server_restart.name, input, errors)
         return callTool(BUILTIN_SERVER_TOOL.server_restart, input, errors)
       }),
     },

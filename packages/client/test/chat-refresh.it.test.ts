@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai'
+import {EventType} from '@tanstack/ai'
 import {makeRpcClient} from '@conciv/contract'
 import {chatConnection} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
@@ -32,7 +33,7 @@ describe('chatConnection refresh', () => {
     kit = await bootClientKit()
     const sessionId = await kit.session()
     const connection = chatConnection(makeRpcClient(kit.base), kit.base, sessionId)
-    const seen: StreamChunk[] = []
+    const seen: ChatEvent[] = []
     const abort = new AbortController()
     void (async () => {
       for await (const chunk of connection.subscribe(abort.signal)) seen.push(chunk)

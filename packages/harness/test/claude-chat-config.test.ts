@@ -13,7 +13,6 @@ const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
   resumeSessionId: null,
   env: {},
   kind: 'chat',
-  decide: async () => 'allow',
   ...over,
 })
 
@@ -47,6 +46,11 @@ describe('claudeChatConfig', () => {
   it('disables the native AskUserQuestion, which has no channel back to the widget and self-answers as declined', () => {
     const config = claudeChatConfig(deps())
     expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({disallowedTools: ['AskUserQuestion']})
+  })
+
+  it('allows the bridged conciv tools so claude does not ask a second time before the conciv gate', () => {
+    const config = claudeChatConfig(deps())
+    expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({allowedTools: ['mcp__tanstack']})
   })
 
   it('threads the resume session id through modelOptions and leaves the workdir to the sandbox', () => {

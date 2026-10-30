@@ -38,6 +38,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/ai": "workspace:^",
     "@conciv/extension-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
@@ -53,7 +54,6 @@
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
-    "@tanstack/ai-client": "catalog:",
     "@types/node": "catalog:",
     "@unocss/postcss": "catalog:",
     "@vitest/browser-playwright": "catalog:",

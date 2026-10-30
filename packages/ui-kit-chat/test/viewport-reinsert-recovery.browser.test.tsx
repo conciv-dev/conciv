@@ -6,9 +6,9 @@ import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
+import type {ChatMessage} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 
 const TURN_COUNT = 60
@@ -20,8 +20,8 @@ function answerBody(index: number): string {
   return `answer ${index}\ntail marker ${index}`
 }
 
-function seed(count: number): UIMessage[] {
-  return Array.from({length: count}, (_unused, index): UIMessage[] => [
+function seed(count: number): ChatMessage[] {
+  return Array.from({length: count}, (_unused, index): ChatMessage[] => [
     {id: `u${index}`, role: 'user', parts: [{type: 'text', content: `question ${index}`}]},
     {id: `a${index}`, role: 'assistant', parts: [{type: 'text', content: answerBody(index)}]},
   ]).flat()
@@ -35,10 +35,14 @@ type MountedThread = {
   chat: () => UseChatReturn
 }
 
-type ThreadBodyProps = {initial: UIMessage[]; onChat: (chat: UseChatReturn) => void; ref: (node: HTMLElement) => void}
+type ThreadBodyProps = {initial: ChatMessage[]; onChat: (chat: UseChatReturn) => void; ref: (node: HTMLElement) => void}
 
 function ThreadBody(props: ThreadBodyProps): JSX.Element {
-  const value = useChat({connection: storyConnection({chunks: []}), initialMessages: props.initial})
+  const value = useChat({
+    threadId: 'viewport-reinsert-recovery',
+    connection: storyConnection({chunks: []}),
+    initialMessages: props.initial,
+  })
   onMount(() => props.onChat(value))
   return (
     <ChatProvider chat={value}>
@@ -73,7 +77,7 @@ function mountedThreadFrom(
   }
 }
 
-function mountThread(initial: UIMessage[]): MountedThread {
+function mountThread(initial: ChatMessage[]): MountedThread {
   let chat: UseChatReturn | undefined
   let branch: HTMLElement | undefined
   const result = render(() => (
@@ -243,7 +247,7 @@ it('a genuine scroll to the very top right after re-insertion is left alone', as
   await expectRestingOffset(thread, () => 0)
 })
 
-function mountSuspendableThread(initial: UIMessage[]): {
+function mountSuspendableThread(initial: ChatMessage[]): {
   thread: MountedThread
   suspend: () => void
   resume: () => void

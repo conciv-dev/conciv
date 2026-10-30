@@ -186,10 +186,11 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   })
 
   const toolCtx = makeToolViewCtx({
-    rpc,
     harnessId: () => harness()?.id ?? '',
     catalog,
     sendMessage: (text) => void chat.sendMessage(text),
+    decide: (approvalId, approved, scope) => chat.decide(approvalId, approved, scope),
+    onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
     durationFor: (toolCallId) => durations()[toolCallId],
     captureFor: captures.lookup,

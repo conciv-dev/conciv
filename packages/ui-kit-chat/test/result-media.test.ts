@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ToolResultPart} from '@tanstack/ai-client'
+import type {ToolResultPart} from '@conciv/ai'
 import {parseResultMedia} from '../src/tools/primitives/result-media.js'
 
 function resultOf(content: string): ToolResultPart {

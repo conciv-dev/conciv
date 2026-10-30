@@ -5,9 +5,11 @@ import {bootExtensionServer} from './boot-server.js'
 import {
   makeApprovingCallTool,
   makeCallTool,
+  makeDiscoverTools,
   makeRunTypescript,
   resolveSession,
   type CallTool,
+  type DiscoverTools,
   type RunTypescript,
 } from '@conciv/harness-testkit'
 import {launch, openObservedPage} from './launch.js'
@@ -30,6 +32,7 @@ export type ExtensionTestApi = {
 
   callToolApproved: CallTool
   runTypescript: RunTypescript
+  discoverTools: DiscoverTools
   session: string
   apiBase: string
   serverContext: unknown
@@ -53,6 +56,7 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
     callTool: makeCallTool(apiBase, session),
     callToolApproved: makeApprovingCallTool(apiBase, session),
     runTypescript: makeRunTypescript(apiBase, session),
+    discoverTools: makeDiscoverTools(apiBase, session),
     session,
     apiBase,
     serverContext: extensionContexts[extension.server.name],

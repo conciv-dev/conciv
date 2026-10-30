@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import {ChatEventType, type ChatEvent} from '@conciv/ai'
 import type {ChatHistory} from './chat-types.js'
 
 export const UiFormFieldSchema = z.object({
@@ -11,18 +11,18 @@ export const UiFormFieldSchema = z.object({
 
 export type UiFormField = z.infer<typeof UiFormFieldSchema>
 
-const MessagesSnapshotChunkSchema = z.custom<StreamChunk>(
+const MessagesSnapshotChunkSchema = z.custom<ChatEvent>(
   (value) =>
     typeof value === 'object' &&
     value !== null &&
     'type' in value &&
-    value.type === EventType.MESSAGES_SNAPSHOT &&
+    value.type === ChatEventType.MESSAGES_SNAPSHOT &&
     'messages' in value &&
     Array.isArray(value.messages),
 )
 
-export function aguiSnapshotFor(messages: ChatHistory): StreamChunk {
-  return MessagesSnapshotChunkSchema.parse({type: EventType.MESSAGES_SNAPSHOT, messages})
+export function aguiSnapshotFor(messages: ChatHistory): ChatEvent {
+  return MessagesSnapshotChunkSchema.parse({type: ChatEventType.MESSAGES_SNAPSHOT, messages})
 }
 
 export const UiInputSchema = z.object({

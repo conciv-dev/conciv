@@ -1,5 +1,5 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX} from 'solid-js'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {toolStatus, type ToolStatus} from './tool-status.js'
 

@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {expect, it} from 'vitest'
 import {page} from 'vitest/browser'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolCallPart} from '@conciv/ai'
 import type {
   ToolCardEntry,
   ToolCatalogView,

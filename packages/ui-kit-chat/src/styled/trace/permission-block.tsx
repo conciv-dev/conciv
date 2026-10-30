@@ -1,7 +1,7 @@
 import {createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {createTimer} from '@solid-primitives/timer'
 import {makeEventListener} from '@solid-primitives/event-listener'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolCallPart} from '@conciv/ai'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {Button} from '@conciv/ui-kit-system'
 import {Permission, usePermission} from '../../tools/primitives/permission.js'

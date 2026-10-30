@@ -1,29 +1,15 @@
 import {Hono} from 'hono'
-import type {StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PushFrame} from '@conciv/protocol/push-types'
-import type {PendingApproval} from '../chat/ask.js'
-import {approvalRequestedChunk} from '../chat/gate.js'
-import type {SocketSink, UpgradeWebSocket} from '../lib/socket-upgrade.js'
+import type {UpgradeWebSocket, WSContext} from 'hono/ws'
 import {logError} from '../lib/debug.js'
 
 export type PageQuery = {requestId: string; query: unknown}
 
 export type PushDeps = {
   queries: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<PageQuery>
-  events: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<StreamChunk>
-  pendingApprovals: (sessionId: SessionId) => PendingApproval[]
-}
-
-function replayedApproval(sessionId: SessionId, approval: PendingApproval): StreamChunk {
-  return approvalRequestedChunk({
-    toolCallId: approval.toolCallId,
-    toolName: approval.toolName,
-    input: approval.input,
-    approvalId: approval.approvalId,
-    threadId: sessionId,
-    ...(approval.runId === null ? {} : {runId: approval.runId}),
-  })
+  events: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<ChatEvent>
 }
 
 const NO_SESSION_CLOSE_CODE = 1008
@@ -44,7 +30,7 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
     upgrade((c) => {
       const requested = SessionId.safeParse(new URL(c.req.raw.url).searchParams.get(PUSH_SESSION_PARAM))
       const abort = new AbortController()
-      const held: {sink: SocketSink | null} = {sink: null}
+      const held: {sink: WSContext | null} = {sink: null}
       const send = (frame: PushFrame): void => held.sink?.send(JSON.stringify(frame))
       return {
         onOpen: (_event, ws) => {
@@ -55,9 +41,6 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
           }
           const sessionId = requested.data
           send({channel: 'ready'})
-          for (const approval of deps.pendingApprovals(sessionId)) {
-            send({channel: 'chat', chunk: replayedApproval(sessionId, approval)})
-          }
           pump(
             deps.queries(sessionId, abort.signal),
             ({requestId, query}) => send({channel: 'page', requestId, query}),

@@ -1,7 +1,7 @@
 import {expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
-import type {ToolResultPart} from '@tanstack/ai-client'
+import type {ToolResultPart} from '@conciv/ai'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ActCard} from '../src/client/cards/act-card.js'
 import {storyAddResult, storyCtx, storyPart} from '../src/client/cards/story.fixtures.js'

@@ -1,5 +1,5 @@
 import {range, uniqBy} from 'es-toolkit'
-import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
+import type {ChatPart, ToolCallPart} from '@conciv/ai'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {
   defaultGrouper,
@@ -14,7 +14,7 @@ import {
   type Grouping,
 } from './grouping.js'
 
-export type PageSessionThinkingPart = Extract<MessagePart, {type: 'thinking'}>
+export type PageSessionThinkingPart = Extract<ChatPart, {type: 'thinking'}>
 
 export type PageSessionConfig = {
   entry: GroupEntry
@@ -26,7 +26,7 @@ export type PageSessionGrouperConfig = {actNames: ReadonlySet<string>; toolPrefi
 
 type SessionState = {openCallIds: Set<string>; open: boolean}
 
-function replyPrefixCounts(parts: ReadonlyArray<MessagePart>): number[] {
+function replyPrefixCounts(parts: ReadonlyArray<ChatPart>): number[] {
   return parts.reduce<number[]>(
     (counts, part) => {
       counts.push((counts.at(-1) ?? 0) + (isReplyText(part) ? 1 : 0))
@@ -36,7 +36,7 @@ function replyPrefixCounts(parts: ReadonlyArray<MessagePart>): number[] {
   )
 }
 
-function foldableParentIds(parts: ReadonlyArray<MessagePart>, actNames: ReadonlySet<string>): ReadonlySet<string> {
+function foldableParentIds(parts: ReadonlyArray<ChatPart>, actNames: ReadonlySet<string>): ReadonlySet<string> {
   const repliesBefore = replyPrefixCounts(parts)
   const calls = parts.flatMap((part, index) => (part.type === 'tool-call' ? [{call: part, index}] : []))
   const firstIndexByCallId = new Map(
@@ -60,7 +60,7 @@ function foldableParentIds(parts: ReadonlyArray<MessagePart>, actNames: Readonly
 function sessionMemberCall(
   config: PageSessionGrouperConfig,
   actParentIds: ReadonlySet<string>,
-  part: MessagePart,
+  part: ChatPart,
 ): ToolCallPart | undefined {
   if (part.type !== 'tool-call' || part.state === 'approval-requested') return undefined
   return config.actNames.has(part.name) || actParentIds.has(part.id) ? part : undefined
@@ -73,7 +73,7 @@ function toolCallFolds(state: SessionState, config: PageSessionGrouperConfig, pa
   return part.name.startsWith(config.toolPrefix)
 }
 
-function foldsIntoOpenSession(state: SessionState, config: PageSessionGrouperConfig, part: MessagePart): boolean {
+function foldsIntoOpenSession(state: SessionState, config: PageSessionGrouperConfig, part: ChatPart): boolean {
   if (part.type === 'text' || part.type === 'thinking') return true
   if (part.type === 'tool-call') return toolCallFolds(state, config, part)
   if (part.type === 'tool-result') return state.openCallIds.has(part.toolCallId)
@@ -89,7 +89,7 @@ function claimSessionPath(
   state: SessionState,
   config: PageSessionGrouperConfig,
   actParentIds: ReadonlySet<string>,
-  part: MessagePart,
+  part: ChatPart,
 ): boolean {
   const member = sessionMemberCall(config, actParentIds, part)
   if (member) {
@@ -107,7 +107,7 @@ function sessionPath(
   config: PageSessionGrouperConfig,
   actParentIds: ReadonlySet<string>,
   basePath: GroupPath | null,
-  part: MessagePart,
+  part: ChatPart,
 ): GroupPath | null {
   if (basePath?.length === 0) {
     closeSession(state)
@@ -128,7 +128,7 @@ type SessionRun = {start: number; end: number; hasAct: boolean}
 type SessionRunFold = {runs: SessionRun[]; open: boolean}
 
 function sessionRuns(
-  parts: ReadonlyArray<MessagePart>,
+  parts: ReadonlyArray<ChatPart>,
   paths: ReadonlyArray<GroupPath | null>,
   actNames: ReadonlySet<string>,
 ): readonly SessionRun[] {
@@ -152,7 +152,7 @@ function sessionRuns(
 }
 
 function dropActlessSessions(
-  parts: ReadonlyArray<MessagePart>,
+  parts: ReadonlyArray<ChatPart>,
   paths: ReadonlyArray<GroupPath | null>,
   basePaths: ReadonlyArray<GroupPath | null>,
   actNames: ReadonlySet<string>,
@@ -185,10 +185,7 @@ export function createGrouping(
   return {grouper, context: {toolEntries}}
 }
 
-export function pageSessionCallParts(
-  parts: ReadonlyArray<MessagePart>,
-  indices: ReadonlyArray<number>,
-): ToolCallPart[] {
+export function pageSessionCallParts(parts: ReadonlyArray<ChatPart>, indices: ReadonlyArray<number>): ToolCallPart[] {
   return indices.flatMap((index) => {
     const part = parts[index]
     return part?.type === 'tool-call' ? [part] : []
@@ -196,7 +193,7 @@ export function pageSessionCallParts(
 }
 
 export function pageSessionThinkingParts(
-  parts: ReadonlyArray<MessagePart>,
+  parts: ReadonlyArray<ChatPart>,
   indices: ReadonlyArray<number>,
 ): PageSessionThinkingPart[] {
   return indices.flatMap((index) => {

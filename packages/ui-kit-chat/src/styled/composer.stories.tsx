@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, userEvent, waitFor, within} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
 import {ChatProvider} from '../store/chat-context.js'
-import {createTextChunks, storyConnection} from '../store/story-connection.js'
+import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {Composer} from './composer.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/Composer'}
@@ -11,7 +11,10 @@ export default meta
 type Story = StoryObj
 
 function IdleComposer(): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000})})
+  const chat = useChat({
+    threadId: 'composer',
+    connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000}),
+  })
   return (
     <ChatProvider chat={chat}>
       <Composer inputLabel="Message" />
@@ -21,6 +24,7 @@ function IdleComposer(): JSX.Element {
 
 function BusyComposer(): JSX.Element {
   const chat = useChat({
+    threadId: 'composer',
     connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000}),
     queue: {whenBusy: 'queue', drain: 'fifo'},
   })

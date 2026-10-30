@@ -1,11 +1,11 @@
-import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
-import {approvalAskOf} from '@conciv/protocol/approval-types'
+import {ChatEventType, type ChatEvent, approvalAskOf} from '@conciv/ai'
+import {StreamProcessor} from '@tanstack/ai'
 import {z} from 'zod'
 
 export type SeenToolCall = {toolCallId: string; name: string; input: unknown}
 
 export type RunEvents = {
-  all: StreamChunk[]
+  all: ChatEvent[]
   text: () => string
   toolCalls: (name?: string) => SeenToolCall[]
   errors: () => string[]
@@ -27,13 +27,13 @@ function parseArgs(raw: string): unknown {
   }
 }
 
-function renderedMessages(all: StreamChunk[]): unknown[] {
+function renderedMessages(all: ChatEvent[]): unknown[] {
   const processor = new StreamProcessor({})
   for (const chunk of all) processor.processChunk(chunk)
   return processor.getMessages()
 }
 
-function partsOf(all: StreamChunk[], role?: string): unknown[] {
+function partsOf(all: ChatEvent[], role?: string): unknown[] {
   return renderedMessages(all).flatMap((message) => {
     const parsed = MessageSchema.safeParse(message)
     if (!parsed.success) return []
@@ -42,12 +42,12 @@ function partsOf(all: StreamChunk[], role?: string): unknown[] {
   })
 }
 
-export function approvalIds(chunk: StreamChunk): string[] {
+export function approvalIds(chunk: ChatEvent): string[] {
   const ask = approvalAskOf(chunk)
   return ask ? [ask.approvalId] : []
 }
 
-export function collectToolCalls(all: StreamChunk[], name?: string): SeenToolCall[] {
+export function collectToolCalls(all: ChatEvent[], name?: string): SeenToolCall[] {
   return partsOf(all)
     .flatMap((part) => {
       const parsed = ToolCallPartSchema.safeParse(part)
@@ -57,7 +57,7 @@ export function collectToolCalls(all: StreamChunk[], name?: string): SeenToolCal
     .map((part) => ({toolCallId: part.id, name: part.name, input: parseArgs(part.arguments)}))
 }
 
-function snapshotText(all: StreamChunk[]): string {
+function snapshotText(all: ChatEvent[]): string {
   return partsOf(all, 'assistant')
     .flatMap((part) => {
       const parsed = TextPartSchema.safeParse(part)
@@ -66,14 +66,14 @@ function snapshotText(all: StreamChunk[]): string {
     .join('')
 }
 
-export function makeRunEvents(all: StreamChunk[]): RunEvents {
+export function makeRunEvents(all: ChatEvent[]): RunEvents {
   return {
     all,
     text: () => snapshotText(all),
     toolCalls: (name) => collectToolCalls(all, name),
-    errors: () => all.flatMap((chunk) => (chunk.type === EventType.RUN_ERROR ? [chunk.message] : [])),
-    runs: () => all.filter((chunk) => chunk.type === EventType.RUN_FINISHED).length,
+    errors: () => all.flatMap((chunk) => (chunk.type === ChatEventType.RUN_ERROR ? [chunk.message] : [])),
+    runs: () => all.filter((chunk) => chunk.type === ChatEventType.RUN_FINISHED).length,
     custom: (name) =>
-      all.flatMap((chunk) => (chunk.type === EventType.CUSTOM && chunk.name === name ? [chunk.value] : [])),
+      all.flatMap((chunk) => (chunk.type === ChatEventType.CUSTOM && chunk.name === name ? [chunk.value] : [])),
   }
 }

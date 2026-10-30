@@ -3,11 +3,11 @@ import {onMount, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
+import type {ChatMessage} from '@conciv/ai'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {ToolProvider} from '../src/store/tool-context.js'
-import {createTextChunks, storyConnection} from '../src/store/story-connection.js'
+import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 import {haltRun, startRun, streamingThread} from './run-harness.js'
@@ -40,7 +40,7 @@ it('shows a blinking caret on the streaming answer and removes it once the run s
 
 const LONG_PROMPT = `${'the stack trace points at the wrong file, '.repeat(6)}can you check the retry path too?`
 
-function messagesWithPrompts(): UIMessage[] {
+function messagesWithPrompts(): ChatMessage[] {
   return [
     {id: 'u1', role: 'user', parts: [{type: 'text', content: 'quick question'}]},
     {id: 'u2', role: 'user', parts: [{type: 'text', content: LONG_PROMPT}]},
@@ -48,7 +48,7 @@ function messagesWithPrompts(): UIMessage[] {
 }
 
 function StaticPromptsThread(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithPrompts()))
   return (
     <ChatProvider chat={chat}>
@@ -82,7 +82,7 @@ it('keeps every prompt in the one mono terminal face however long it runs', asyn
   await page.screenshot({path: '__screenshots__/thread-session-log/prompt-line-faces.png'})
 })
 
-function messagesWithSettledTrace(): UIMessage[] {
+function messagesWithSettledTrace(): ChatMessage[] {
   return [
     {id: 'u1', role: 'user', parts: [{type: 'text', content: 'find the leak'}]},
     {
@@ -108,7 +108,7 @@ function messagesWithSettledTrace(): UIMessage[] {
 }
 
 function SettledTraceThread(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithSettledTrace()))
   return (
     <ChatProvider chat={chat}>
@@ -166,7 +166,7 @@ it('leaves every settled trace row free of the running ring once the run is over
   expect(document.querySelectorAll('[role="img"][aria-label="running"]')).toHaveLength(0)
 })
 
-function messagesWithoutTools(): UIMessage[] {
+function messagesWithoutTools(): ChatMessage[] {
   return [
     {id: 'u1', role: 'user', parts: [{type: 'text', content: 'what does this module do'}]},
     {
@@ -178,7 +178,7 @@ function messagesWithoutTools(): UIMessage[] {
 }
 
 function ToollessThread(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithoutTools()))
   return (
     <ChatProvider chat={chat}>
@@ -200,7 +200,7 @@ it('renders no trace at all for a turn segment that neither reasoned nor ran too
   await expect.element(page.getByRole('button', {name: /trace/i})).not.toBeInTheDocument()
 })
 
-function messagesWithTwoSegments(): UIMessage[] {
+function messagesWithTwoSegments(): ChatMessage[] {
   return [
     {id: 'u1', role: 'user', parts: [{type: 'text', content: 'ship the fix'}]},
     {
@@ -233,7 +233,7 @@ function messagesWithTwoSegments(): UIMessage[] {
 }
 
 function TwoSegmentThread(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithTwoSegments()))
   return (
     <ChatProvider chat={chat}>
@@ -258,7 +258,7 @@ it('gives each trace segment of one turn its own summary line', async () => {
   await expect.element(triggers.nth(1), {timeout: 3000}).toMatchTextContent('1 bash')
 })
 
-function messagesWithInterleavedTurn(): UIMessage[] {
+function messagesWithInterleavedTurn(): ChatMessage[] {
   return [
     {id: 'u1', role: 'user', parts: [{type: 'text', content: 'why is the build red'}]},
     {
@@ -282,7 +282,7 @@ function messagesWithInterleavedTurn(): UIMessage[] {
 }
 
 function InterleavedTurnThread(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithInterleavedTurn()))
   return (
     <ChatProvider chat={chat}>

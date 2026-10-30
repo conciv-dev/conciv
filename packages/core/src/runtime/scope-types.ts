@@ -1,4 +1,4 @@
-import type {StreamChunk, UIMessage} from '@tanstack/ai'
+import type {ChatEvent, ChatMessage} from '@conciv/ai'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageOutcome} from '@conciv/protocol/page-types'
 import type {PageCaptureBundle, SessionCaptures} from '@conciv/protocol/element-capture-types'
@@ -10,7 +10,6 @@ import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ToolRequest} from '@conciv/extension'
 import type {ChangeEntry} from '../page-bus.js'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
-import type {PendingApproval} from '../chat/ask.js'
 
 export type ToolCatalog = ToolRegistry['catalog']
 
@@ -32,20 +31,12 @@ export type SessionPage = {
 }
 
 export type SessionStream = {
-  publish: (chunk: StreamChunk) => void
-  listen: (onChunk: (chunk: StreamChunk) => void) => () => void
-  listening: () => boolean
-  events: (signal: AbortSignal) => AsyncGenerator<StreamChunk>
+  publish: (chunk: ChatEvent) => void
+  listen: (onChunk: (chunk: ChatEvent) => void) => () => void
+  events: (signal: AbortSignal) => AsyncGenerator<ChatEvent>
 }
 
 export type SessionAsks = {
-  open: (key: string, approval?: PendingApproval) => void
-  pending: () => string[]
-  reply: (key: string, value: unknown) => boolean
-  waitFor: (key: string, timeoutMs: number) => Promise<unknown>
-  cancel: () => void
-  noteToolCall: (toolCallId: string, toolName: string) => void
-  nextUiCall: (timeoutMs: number) => Promise<string | null>
   ui: () => Promise<UiAnswer>
 }
 
@@ -55,7 +46,7 @@ export type SessionCapturesScope = {
 }
 
 export type SessionHistory = {
-  messages: () => Promise<UIMessage[]>
+  messages: () => Promise<ChatMessage[]>
   hydrate: () => Promise<ChatHydration>
 }
 

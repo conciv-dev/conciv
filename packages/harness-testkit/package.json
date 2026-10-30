@@ -21,6 +21,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/ai": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",

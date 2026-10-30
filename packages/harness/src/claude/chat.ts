@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import type {ModelMessage} from '@tanstack/ai'
-import {claudeCodeText} from '@tanstack/ai-claude-code'
+import type {ModelMessage} from '@conciv/ai'
+import {claudeCode} from '@conciv/ai/server'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {
   FILE_REF_PREFIX,
@@ -15,6 +15,8 @@ import {lastUserImages} from '../_shared/text-adapter.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 
 const MCP_TOOL_TIMEOUT_MS = 150_000
+
+const BRIDGED_CONCIV_TOOLS = ['mcp__tanstack']
 
 const IMAGE_EXT: Record<string, string> = {
   'image/png': 'png',
@@ -70,12 +72,13 @@ function withImageRefs(messages: ModelMessage[], cwd: string): ModelMessage[] {
 }
 
 export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: claudeCodeText(deps.model ?? 'sonnet', {
+  adapter: claudeCode(deps.model ?? 'sonnet', {
     permissionMode: 'default',
     addDirs: [deps.cwd],
     claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR),
     systemPromptMode: 'append',
     emitDiff: false,
+    allowedTools: BRIDGED_CONCIV_TOOLS,
     disallowedTools: ['AskUserQuestion'],
     env: definedEntries({MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), ENABLE_TOOL_SEARCH: 'false', ...deps.env}),
   }),

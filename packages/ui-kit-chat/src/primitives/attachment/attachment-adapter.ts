@@ -1,7 +1,7 @@
-import type {MultimodalContent} from '@tanstack/ai-client'
+import type {SendContent} from '@conciv/ai'
 import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/protocol/chat-types'
 
-type ContentParts = Exclude<MultimodalContent['content'], string>
+type ContentParts = Exclude<SendContent['content'], string>
 
 export type AttachmentContentPart = ContentParts[number]
 

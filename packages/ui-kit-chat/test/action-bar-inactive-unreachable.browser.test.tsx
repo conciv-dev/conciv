@@ -3,7 +3,7 @@ import type {JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
-import {EventType} from '@tanstack/ai'
+import {ChatEventType} from '@conciv/ai'
 import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {Thread} from '../src/styled/thread.js'
@@ -17,17 +17,17 @@ function twoDistinctRepliesConnection(): ConnectConnectionAdapter {
       const messageId = `reply-${call}`
       const threadId = runContext?.threadId ?? 'story-thread'
       const runId = runContext?.runId ?? `story-run-${call}`
-      yield {type: EventType.RUN_STARTED, threadId, runId}
-      yield {type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant'}
-      yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: 'reply'}
-      yield {type: EventType.TEXT_MESSAGE_END, messageId}
-      yield {type: EventType.RUN_FINISHED, threadId, runId}
+      yield {type: ChatEventType.RUN_STARTED, threadId, runId}
+      yield {type: ChatEventType.TEXT_MESSAGE_START, messageId, role: 'assistant'}
+      yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId, delta: 'reply'}
+      yield {type: ChatEventType.TEXT_MESSAGE_END, messageId}
+      yield {type: ChatEventType.RUN_FINISHED, threadId, runId}
     },
   }
 }
 
 function ComposedThread(): JSX.Element {
-  const chat = useChat({connection: twoDistinctRepliesConnection()})
+  const chat = useChat({threadId: 'action-bar-inactive-unreachable', connection: twoDistinctRepliesConnection()})
   return (
     <ChatProvider chat={chat}>
       <button type="button" onClick={() => void chat.sendMessage('one')}>

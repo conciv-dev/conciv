@@ -15,7 +15,7 @@ import {
 import {Dynamic} from 'solid-js/web'
 import {createStore} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
-import type {UIMessage} from '@tanstack/ai-client'
+import type {ChatMessage} from '@conciv/ai'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useComposer, useThread} from '../../store/chat-context.js'
 import {pairResults, type Turn} from '../../store/grouping.js'
@@ -94,7 +94,7 @@ export type MessagesComponents = {UserMessage?: Component; AssistantMessage?: Co
 
 type MessagesProps =
   | {components: MessagesComponents; children?: never}
-  | {children: (message: () => UIMessage) => JSX.Element; components?: never}
+  | {children: (message: () => ChatMessage) => JSX.Element; components?: never}
 
 function componentForRole(role: Turn['role'], components: MessagesComponents): Component | undefined {
   if (role === 'user') return components.UserMessage
@@ -284,7 +284,7 @@ function Messages(props: MessagesProps): JSX.Element {
   )
 }
 
-function toMessage(turn: Turn): UIMessage {
+function toMessage(turn: Turn): ChatMessage {
   return {id: turn.key, role: turn.role, parts: turn.parts}
 }
 

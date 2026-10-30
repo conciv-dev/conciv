@@ -2,16 +2,19 @@ import type {JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
-import type {StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai'
 import {ChatProvider, useThread} from '../src/store/chat-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 
 const RUN_TIMEOUT_MS = 3000
 
-export function streamingThread(chunks: StreamChunk[], chunkDelay: number): () => JSX.Element {
+export function streamingThread(chunks: ChatEvent[], chunkDelay: number): () => JSX.Element {
   return function StreamingThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection({chunks, chunkDelay, runsUntilStopped: true})})
+    const chat = useChat({
+      threadId: 'run-harness',
+      connection: storyConnection({chunks, chunkDelay, runsUntilStopped: true}),
+    })
     return (
       <ChatProvider chat={chat}>
         <button type="button" onClick={() => void chat.sendMessage('think')}>

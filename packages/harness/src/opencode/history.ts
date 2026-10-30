@@ -4,7 +4,7 @@ import {join} from 'node:path'
 import {DatabaseSync, type StatementSync} from 'node:sqlite'
 import {z} from 'zod'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
-import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
+import type {ChatPart, ChatMessage} from '@conciv/ai'
 import type {
   HarnessHistory,
   HarnessSessionMeta,
@@ -80,10 +80,10 @@ const ToolPartSchema = z
   })
   .loose()
 
-function toolParts(data: unknown): MessagePart[] {
+function toolParts(data: unknown): ChatPart[] {
   const tool = ToolPartSchema.safeParse(data)
   if (!tool.success) return []
-  const call: MessagePart = {
+  const call: ChatPart = {
     type: 'tool-call',
     id: tool.data.callID,
     name: tool.data.tool,
@@ -96,7 +96,7 @@ function toolParts(data: unknown): MessagePart[] {
   return [call, {type: 'tool-result', toolCallId: tool.data.callID, content, state: failed ? 'error' : 'complete'}]
 }
 
-function partsFrom(data: unknown): MessagePart[] {
+function partsFrom(data: unknown): ChatPart[] {
   const text = TextPartSchema.safeParse(data)
   if (text.success) return text.data.text ? [{type: 'text', content: text.data.text}] : []
 
@@ -124,8 +124,8 @@ function condense(value: string | null | undefined, max: number): string {
 export function buildMessages(
   messageRows: {id: string; data: string}[],
   partRows: {message_id: string; data: string}[],
-): UIMessage[] {
-  const partsByMessage = new Map<string, MessagePart[]>()
+): ChatMessage[] {
+  const partsByMessage = new Map<string, ChatPart[]>()
   for (const row of partRows) {
     const parts = partsFrom(parseJsonOrNull(row.data))
     if (parts.length === 0) continue
@@ -139,8 +139,8 @@ export function buildMessages(
   })
 }
 
-async function transcriptMessages(cwd: string, sessionId: string, home: string = homedir()): Promise<UIMessage[]> {
-  return withDatabase<UIMessage[]>(home, [], (db) => {
+async function transcriptMessages(cwd: string, sessionId: string, home: string = homedir()): Promise<ChatMessage[]> {
+  return withDatabase<ChatMessage[]>(home, [], (db) => {
     const session = sessionRow(db, sessionId)
     if (!session || !sameCwd(session.directory, cwd)) return []
     const messageRows = rowsOf(DataRowSchema, db.prepare(MESSAGES_OF).all(sessionId))

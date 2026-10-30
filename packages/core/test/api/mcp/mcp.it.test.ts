@@ -1,11 +1,11 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {getHarness} from '@conciv/harness'
 import {createTestHarness} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
 import {requireClaude} from '../../helpers/adapters.js'
+import {connectMcpClient} from '../../helpers/mcp-client.js'
 
 const draw = defineTool({
   name: 'acme_draw',
@@ -20,7 +20,7 @@ const acme = defineExtension({name: 'acme', tools: [draw]})
 const ExecuteReplySchema = z.object({result: z.unknown(), logs: z.array(z.string())})
 
 async function executeCode(base: string, typescriptCode: string): Promise<z.infer<typeof ExecuteReplySchema>> {
-  const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+  const mcp = await connectMcpClient(`${base}/api/mcp`)
   try {
     const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
     if (!tool?.execute) throw new Error('execute_typescript not on /api/mcp')
@@ -32,11 +32,13 @@ async function executeCode(base: string, typescriptCode: string): Promise<z.infe
 }
 
 describe('/api/mcp single code-mode surface', () => {
-  it('lists exactly one tool whatever the registry holds', async () => {
+  it('lists code mode and discovery, never a capability, whatever the registry holds', async () => {
     const kit = await bootKit({extensions: [acme]})
-    const mcp = await createMCPClient({transport: {type: 'http', url: `${kit.base}/api/mcp`}})
+    const mcp = await connectMcpClient(`${kit.base}/api/mcp`)
     try {
-      expect((await mcp.tools()).map((tool) => tool.name)).toEqual(['execute_typescript'])
+      const names = (await mcp.tools()).map((tool) => tool.name)
+      expect(names).toEqual(expect.arrayContaining(['execute_typescript', 'discover_tools']))
+      expect(names).not.toContain('acme_draw')
     } finally {
       await mcp.close()
       await kit.cleanup()
@@ -66,30 +68,33 @@ describe('/api/mcp single code-mode surface', () => {
     }
   }, 30_000)
 
-  it('exposes the identical single-tool shape on more than one harness', async () => {
+  it('exposes the identical tool shape on more than one harness', async () => {
     const codex = getHarness('codex')
     if (!codex) throw new Error('codex adapter not registered')
+    const shapes: string[][] = []
     for (const harness of [requireClaude(), codex]) {
       const kit = await bootKit({extensions: [acme]}, createTestHarness(harness))
-      const mcp = await createMCPClient({transport: {type: 'http', url: `${kit.base}/api/mcp`}})
+      const mcp = await connectMcpClient(`${kit.base}/api/mcp`)
       try {
-        expect((await mcp.tools()).map((tool) => tool.name)).toEqual(['execute_typescript'])
+        shapes.push((await mcp.tools()).map((tool) => tool.name))
       } finally {
         await mcp.close()
         await kit.cleanup()
       }
     }
+    expect(shapes[1]).toEqual(shapes[0])
+    expect(shapes[0]).toEqual(expect.arrayContaining(['execute_typescript', 'discover_tools']))
   }, 60_000)
 
   it('never enumerates capabilities in the tool description beyond a bounded category sample', async () => {
     const kit = await bootKit({extensions: [acme]})
-    const mcp = await createMCPClient({transport: {type: 'http', url: `${kit.base}/api/mcp`}})
+    const mcp = await connectMcpClient(`${kit.base}/api/mcp`)
     try {
       const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
       expect(tool?.description).toBeDefined()
       expect(tool?.description).not.toContain('acme_draw')
       expect(tool?.description).not.toContain('page_snapshot')
-      expect(tool?.description).toContain('catalog')
+      expect(tool?.description).toContain('discover_tools')
     } finally {
       await mcp.close()
       await kit.cleanup()

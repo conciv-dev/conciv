@@ -2,7 +2,7 @@ import {createSignal, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {expect, test} from 'vitest'
 import {page} from 'vitest/browser'
-import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/ai'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
 import {SessionCard} from '../src/client/cards/session-card.js'
 
@@ -10,7 +10,7 @@ function mount(view: () => JSX.Element): void {
   render(view)
 }
 
-function sessionNode(parts: readonly MessagePart[]): GroupNodeGroup {
+function sessionNode(parts: readonly ChatPart[]): GroupNodeGroup {
   return {
     type: 'group',
     key: PAGE_SESSION_GROUP_KEY,
@@ -47,7 +47,7 @@ function lookup(results: Record<string, ToolResultPart>): (id: string) => ToolRe
 }
 
 async function mountSettled(
-  parts: readonly MessagePart[],
+  parts: readonly ChatPart[],
   results: Record<string, ToolResultPart>,
   title: RegExp,
 ): Promise<void> {
@@ -94,7 +94,7 @@ const THINKING: PageSessionThinkingPart[] = [{type: 'thinking', content: 'choose
 
 test('a settled session shows its folded reasoning and script in a collapsed flat section', async () => {
   const results = {p1: okResult('p1'), f1: okResult('f1')}
-  const parts: MessagePart[] = [
+  const parts: ChatPart[] = [
     ...THINKING,
     codeRun('p1'),
     toolCall('f1', 'page_fill', {selector: '#prose', value: 'better prose'}, 'complete'),

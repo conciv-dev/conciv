@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ToolResultPart} from '@tanstack/ai-client'
+import type {ToolResultPart} from '@conciv/ai'
 import {resultText} from './tool-util.js'
 
 const ImagePartSchema = z

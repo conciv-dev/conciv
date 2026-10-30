@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {MessagePart} from '@tanstack/ai-client'
+import type {ChatPart} from '@conciv/ai'
 import {PAGE_SESSION_GROUP_KEY, type ToolCallPartWithParent} from '../src/store/grouping.js'
 import {createPageSessionGrouper} from '../src/store/page-session.js'
 
@@ -21,7 +21,7 @@ function actChildOf(index: number): ToolCallPartWithParent {
   }
 }
 
-function unitParts(index: number): MessagePart[] {
+function unitParts(index: number): ChatPart[] {
   return [
     {type: 'tool-call', id: `p${index}`, name: 'execute_typescript', arguments: '{}', state: 'complete'},
     {type: 'tool-call', id: `b${index}`, name: 'grep', arguments: '{}', state: 'complete'},
@@ -31,11 +31,11 @@ function unitParts(index: number): MessagePart[] {
   ]
 }
 
-function sessionShapedParts(units: number): MessagePart[] {
+function sessionShapedParts(units: number): ChatPart[] {
   return Array.from({length: units}, (_, index) => index).flatMap(unitParts)
 }
 
-function typeVisitCountingParts(units: number): {parts: MessagePart[]; visits: () => number} {
+function typeVisitCountingParts(units: number): {parts: ChatPart[]; visits: () => number} {
   const raw = sessionShapedParts(units)
   let visits = 0
   const parts = raw.map(

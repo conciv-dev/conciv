@@ -81,6 +81,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/ai": "workspace:*",
     "@conciv/core": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/protocol": "workspace:^",
@@ -88,7 +89,6 @@
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "catalog:",
     "@solidjs/testing-library": "catalog:",
-    "@tanstack/ai-client": "catalog:",
     "@types/node": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "@vitest/coverage-v8": "catalog:",

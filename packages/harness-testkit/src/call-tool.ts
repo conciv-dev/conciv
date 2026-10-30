@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
-import type {StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {approvalIds} from './run-events.js'
 import {makeRpcClient} from './session.js'
@@ -16,13 +16,8 @@ const TruncatedReplySchema = z
   .object({'conciv:truncated': z.literal(true), reason: z.string(), head: z.string()})
   .loose()
 
-function callThroughCatalog(name: string, input: unknown): string {
-  return `
-    const found = await external_catalog({name: ${JSON.stringify(name)}})
-    const call = globalThis[found.call]
-    if (typeof call !== 'function') throw new Error('binding missing: ' + found.call)
-    return await call(${JSON.stringify(input ?? {})})
-  `
+function directCall(name: string, input: unknown): string {
+  return `return await external_${name}(${JSON.stringify(input ?? {})})`
 }
 
 function decodeReply(raw: string): unknown {
@@ -35,6 +30,15 @@ function decodeReply(raw: string): unknown {
     return raw
   }
 }
+
+const DiscoveredToolsSchema = z.object({
+  tools: z.array(z.object({name: z.string(), description: z.string(), typeStub: z.string()})),
+  errors: z.array(z.string()).optional(),
+})
+
+export type DiscoveredTools = z.infer<typeof DiscoveredToolsSchema>
+
+export type DiscoverTools = (toolNames: string[]) => Promise<DiscoveredTools>
 
 export type McpCallOptions = {deadlineMs?: number; label?: string}
 
@@ -76,10 +80,26 @@ export function makeRunTypescript(apiBase: string, session: string, options: Mcp
   }
 }
 
+export function makeDiscoverTools(apiBase: string, session: string): DiscoverTools {
+  return async (toolNames) => {
+    const mcp = await createMCPClient({
+      transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
+    })
+    try {
+      const discover = (await mcp.tools()).find((entry) => entry.name === 'discover_tools')
+      if (!discover?.execute) throw new Error('discover_tools not on /api/mcp')
+      const raw = await discover.execute({toolNames})
+      return DiscoveredToolsSchema.parse(typeof raw === 'string' ? JSON.parse(raw) : raw)
+    } finally {
+      await mcp.close()
+    }
+  }
+}
+
 export function makeCallTool(apiBase: string, session: string, options: McpCallOptions = {}): CallTool {
   return async (name, input) => {
     const runTypescript = makeRunTypescript(apiBase, session, {...options, label: options.label ?? name})
-    const reply = await runTypescript(callThroughCatalog(name, input))
+    const reply = await runTypescript(directCall(name, input))
     const truncated = TruncatedReplySchema.safeParse(reply)
     if (!truncated.success) return reply
     throw new Error(
@@ -94,7 +114,7 @@ function abortSignalPromise(signal: AbortSignal): Promise<'aborted'> {
 }
 
 async function pumpApprovals(
-  stream: AsyncIterable<StreamChunk>,
+  stream: AsyncIterable<ChatEvent>,
   signal: AbortSignal,
   decide: (approvalId: string) => Promise<void>,
 ): Promise<void> {

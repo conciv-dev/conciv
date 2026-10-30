@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import type {ToolCaptureView} from '@conciv/protocol/element-capture-types'
 import {pageVerbOfTool} from '../../shared/defs.js'
 

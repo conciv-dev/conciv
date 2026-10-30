@@ -3,7 +3,7 @@ import {mkdtempSync, realpathSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
-import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {createTestHarness, makeRpcClient, withAutoApproval, type Kit, type TestHarness} from '@conciv/harness-testkit'
@@ -13,6 +13,7 @@ import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
 import {hydratedSnapshot} from '../helpers/fake-session.js'
 import {userTexts} from '../helpers/snapshots.js'
+import {foldChatEvents} from '@conciv/ai/testkit'
 
 type WireContext = {kit: Kit; harness: TestHarness}
 
@@ -23,17 +24,15 @@ function partsOf(message: unknown): unknown[] {
   return message.parts
 }
 
-function runIdsOf(chunks: StreamChunk[], type: StreamChunk['type']): string[] {
+function runIdsOf(chunks: ChatEvent[], type: ChatEvent['type']): string[] {
   return chunks.flatMap((chunk) => {
     if (chunk.type !== type || !('runId' in chunk)) return []
     return typeof chunk.runId === 'string' ? [chunk.runId] : []
   })
 }
 
-function renderedMessages(chunks: StreamChunk[]): unknown[] {
-  const processor = new StreamProcessor({})
-  for (const chunk of chunks) processor.processChunk(chunk)
-  return processor.getMessages()
+function renderedMessages(chunks: ChatEvent[]): unknown[] {
+  return foldChatEvents(chunks)
 }
 
 async function snapshotMessages(kit: Kit, sessionId: string): Promise<unknown[]> {
@@ -58,7 +57,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const sessionId = await kit.session()
     const turn = await kit.turn('hello', {session: sessionId, runId: 'wire-1'})
     const events = await turn.done({hangGuardMs: 10_000})
-    expect(runIdsOf(events.all, EventType.RUN_FINISHED)).toEqual(['wire-1'])
+    expect(runIdsOf(events.all, ChatEventType.RUN_FINISHED)).toEqual(['wire-1'])
     expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['hello'])
   })
 
@@ -72,7 +71,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     await late.waitForRunStart({runId: 'wire-2'})
     harness.script.release()
     const events = await late.done({hangGuardMs: 10_000})
-    expect(runIdsOf(events.all, EventType.RUN_STARTED)).toEqual(['wire-2'])
+    expect(runIdsOf(events.all, ChatEventType.RUN_STARTED)).toEqual(['wire-2'])
     expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['hello'])
   })
 

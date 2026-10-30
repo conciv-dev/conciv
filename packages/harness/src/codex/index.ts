@@ -1,4 +1,4 @@
-import {codexText} from '@tanstack/ai-codex'
+import {codex as codexAdapter} from '@conciv/ai/server'
 import {defineHarness, type HarnessChatConfig, type HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {definedEntries} from '../_shared/env.js'
 import {codexMcpArgs} from './args.js'
@@ -10,7 +10,7 @@ const BRIDGED_MCP_SERVER_NAME = 'tanstack'
 const bridgeApproveConfig = {[`mcp_servers.${BRIDGED_MCP_SERVER_NAME}.default_tools_approval_mode`]: '"approve"'}
 
 const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: codexText(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
+  adapter: codexAdapter(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
     sandboxMode: 'workspace-write',
     approvalPolicy: 'never',
     ...(deps.hasTools ? {config: bridgeApproveConfig} : {}),

@@ -2,9 +2,9 @@ import {onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, fn, within, userEvent, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
-import type {MultimodalContent} from '@tanstack/ai-client'
+import type {SendContent} from '@conciv/ai'
 import {ChatProvider} from '../../store/chat-context.js'
-import {createTextChunks, storyConnection} from '../../store/story-connection.js'
+import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {ComposerHandlersProvider} from '../composer/composer-handlers.js'
 import {Composer} from '../composer/composer.js'
 import {QueueItem} from './queue-item.js'
@@ -13,18 +13,19 @@ const meta: Meta = {title: 'ui-kit-chat/primitives/QueueItem'}
 export default meta
 type Story = StoryObj
 
-const selectedContent: MultimodalContent = {
+const selectedContent: SendContent = {
   content: [
     {type: 'text', content: 'also add a visual test'},
     {type: 'image', source: {type: 'url', value: 'https://example.com/queue.png'}},
   ],
 }
-const attachmentOnlyContent: MultimodalContent = {
+const attachmentOnlyContent: SendContent = {
   content: [{type: 'image', source: {type: 'url', value: 'https://example.com/only.png'}}],
 }
 
 function Queue(props: {onSteer: () => Promise<void>}): JSX.Element {
   const chat = useChat({
+    threadId: 'queue-item',
     connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000}),
     queue: {whenBusy: 'queue', drain: 'fifo'},
   })

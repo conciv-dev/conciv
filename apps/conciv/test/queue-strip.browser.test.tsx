@@ -4,11 +4,13 @@ import {onMount, type JSX} from 'solid-js'
 import {describe, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {useChat} from '@tanstack/ai-solid'
-import {ChatProvider, createTextChunks, storyConnection} from '@conciv/ui-kit-chat'
+import {ChatProvider} from '@conciv/ui-kit-chat'
+import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {QueueStrip} from '../src/pane/queue-strip.jsx'
 
 function Harness(props: {count: number}): JSX.Element {
   const chat = useChat({
+    threadId: 'queue-strip',
     connection: storyConnection({chunks: createTextChunks('working'), runsUntilStopped: true}),
     queue: {whenBusy: 'queue', drain: 'fifo'},
   })

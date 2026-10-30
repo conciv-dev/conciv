@@ -1,6 +1,5 @@
 import {createSignal} from 'solid-js'
 import {describe, expect, it} from 'vitest'
-import type {ChatClientState} from '@tanstack/ai-client'
 import {chatBusy} from '../src/chat-busy.js'
 import {
   SessionId,
@@ -13,8 +12,8 @@ import {
   MAX_ATTACHMENT_RAW_BYTES,
 } from '../src/chat-types.js'
 import {defineFrameworkAdapter, type FrameworkClientCore, type FrameworkServerCore} from '../src/framework-types.js'
-import {EventType} from '@tanstack/ai'
-import type {AnyTextAdapter} from '@tanstack/ai'
+import {ChatEventType} from '@conciv/ai'
+import type {TextAdapter} from '@conciv/ai/server'
 import {defineHarness, type TranscriptHandle} from '../src/harness-types.js'
 import {
   decodeEntities,
@@ -34,12 +33,11 @@ import {
 import {PageQuerySchema} from '../src/page-types.js'
 import {TtyClientControlSchema, TtyServerControlSchema} from '../src/terminal-types.js'
 import {aguiSnapshotFor, UiAnswerSchema, UiAnswerValueSchema, UiInputSchema} from '../src/ui-types.js'
-import {UsageSnapshotSchema, contextUsedTokens} from '../src/usage-types.js'
 
 describe('chat busy', () => {
   describe('chatBusy', () => {
     it('includes local and shared generation state', () => {
-      const [status, setStatus] = createSignal<ChatClientState>('ready')
+      const [status, setStatus] = createSignal('ready')
       const [sessionGenerating, setSessionGenerating] = createSignal(false)
       const chat = {status, sessionGenerating}
 
@@ -287,7 +285,7 @@ describe('define harness', () => {
     close: () => {},
   }
 
-  const fakeAdapter: AnyTextAdapter = {
+  const fakeAdapter: TextAdapter = {
     kind: 'text',
     name: 'fake',
     model: 'fake',
@@ -765,8 +763,8 @@ describe('ui types', () => {
     it('snapshot is a native MESSAGES_SNAPSHOT chunk carrying UIMessages verbatim', () => {
       const messages = [{id: 'm1', role: 'user' as const, parts: [{type: 'text' as const, content: 'hi'}]}]
       const chunk = aguiSnapshotFor(messages)
-      expect(chunk.type).toBe(EventType.MESSAGES_SNAPSHOT)
-      if (chunk.type === EventType.MESSAGES_SNAPSHOT) expect(chunk.messages).toEqual(messages)
+      expect(chunk.type).toBe(ChatEventType.MESSAGES_SNAPSHOT)
+      if (chunk.type === ChatEventType.MESSAGES_SNAPSHOT) expect(chunk.messages).toEqual(messages)
     })
   })
 
@@ -814,26 +812,4 @@ describe('ui types', () => {
   })
 })
 
-describe('usage types', () => {
-  describe('usage-types', () => {
-    it('parses a partial snapshot (all fields optional)', () => {
-      expect(UsageSnapshotSchema.safeParse({}).success).toBe(true)
-      const r = UsageSnapshotSchema.safeParse({inputTokens: 10, contextWindow: 200000})
-      expect(r.success && r.data.inputTokens).toBe(10)
-    })
-
-    it('rejects negative tokens', () => {
-      expect(UsageSnapshotSchema.safeParse({inputTokens: -1}).success).toBe(false)
-    })
-
-    it('reports occupancy from contextTokens, never the billing sum', () => {
-      expect(
-        contextUsedTokens({contextTokens: 92000, inputTokens: 100, cacheReadTokens: 50, cacheWriteTokens: 10}),
-      ).toBe(92000)
-    })
-
-    it('returns undefined when no occupancy is present (billing totals are not occupancy)', () => {
-      expect(contextUsedTokens({inputTokens: 773000, cacheReadTokens: 700000, totalCostUsd: 1})).toBeUndefined()
-    })
-  })
-})
+describe('usage types', () => {})

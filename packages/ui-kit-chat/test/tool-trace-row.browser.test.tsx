@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ToolTraceRow} from '../src/tools/styled/tool-call-card.js'
 import {TraceOutputBlock} from '../src/styled/trace/output-block.js'

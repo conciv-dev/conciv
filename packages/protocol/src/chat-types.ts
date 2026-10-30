@@ -1,8 +1,6 @@
 import {z} from 'zod'
-import type {UIMessage} from '@tanstack/ai'
-import {UsageSnapshotSchema} from './usage-types.js'
+import {type ChatMessage, UsageSnapshotSchema} from '@conciv/ai'
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from './rpc-types.js'
-export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
 export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
@@ -170,7 +168,7 @@ export const ChatToolsSchema = z.object({tools: z.array(ChatToolSchema)})
 export type ChatTool = z.infer<typeof ChatToolSchema>
 export type ChatTools = z.infer<typeof ChatToolsSchema>
 
-export const ChatHistorySchema = z.array(z.custom<UIMessage>((v) => v !== null && typeof v === 'object'))
+export const ChatHistorySchema = z.array(z.custom<ChatMessage>((v) => v !== null && typeof v === 'object'))
 export type ChatHistory = z.infer<typeof ChatHistorySchema>
 
 export const ChatSessionMetaSchema = z.object({

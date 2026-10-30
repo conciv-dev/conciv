@@ -5,19 +5,29 @@ import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import type {EngineStaleness} from '@conciv/contract'
 import type {CompositeRpcRouter as CompositeRouterOf} from '@conciv/extension/rpc-mount'
-import type {ChatDeps} from '../../chat/runtime.js'
+import type {ChatPlane} from '@conciv/chat'
+import type {ConcivDb} from '@conciv/db'
+import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
 import {runWithSession} from '../../runtime/session-context.js'
 import type {makeRpcRouter} from './router.js'
 
+export type ChatContext = {
+  harness: HarnessAdapter
+  cwd: string
+  basePath: string
+  claudeHome?: string
+  db: ConcivDb
+  plane: ChatPlane
+}
+
 export type RpcDeps = {
-  chat: ChatDeps
+  chat: ChatContext
   tools: ChatTool[]
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   runtime: CoreRuntime
   staleness: () => EngineStaleness
-  askTimeoutMs?: number
 }
 
 export const os = implement(contract).$context<RpcContext>()

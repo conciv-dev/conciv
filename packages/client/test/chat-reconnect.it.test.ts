@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/ai'
+import {EventType} from '@tanstack/ai'
 import {makeRpcClient} from '@conciv/contract'
 import {chatConnection} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
@@ -46,8 +47,8 @@ describe('chatConnection reconnect', () => {
   }, 90_000)
 })
 
-async function collect(stream: AsyncIterable<StreamChunk>): Promise<StreamChunk[]> {
-  const seen: StreamChunk[] = []
+async function collect(stream: AsyncIterable<ChatEvent>): Promise<ChatEvent[]> {
+  const seen: ChatEvent[] = []
   for await (const chunk of stream) {
     seen.push(chunk)
     if (chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR) return seen

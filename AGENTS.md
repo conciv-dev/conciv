@@ -77,7 +77,7 @@ README.md; this file is the non-obvious operational rules.
 ## Code style
 
 - Functions, not classes. (Sole exception: `DelegatingTextAdapter` behind `makeTextAdapter`
-  in `packages/harness/src/_shared/text-adapter.ts`, which the library's typing forces.)
+  in `packages/ai/src/adapters.ts`, which the library's typing forces.)
 - No IIFEs unless explicitly required.
 - Zero code comments in TS/JS (only tool directives like `@ts-`/`eslint-` survive). The
   `conciv/no-comments` lint rule autofix-DELETES anything else, so don't write comments and let lint

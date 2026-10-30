@@ -1,7 +1,7 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import {toolStatus, type ToolStatus} from '../primitives/tool-status.js'
 import {formatDuration} from '../primitives/tool-util.js'
 import {useToolCallDuration} from '../primitives/tool-duration.js'

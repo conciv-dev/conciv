@@ -31,7 +31,7 @@ export function agentsSection(consented: HarnessId[]): string {
     '',
     '### MCP sandbox',
     '',
-    'conciv is also connected via MCP. Capabilities are discovered inside the sandbox with `await external_catalog({})`, never a static list.',
+    'conciv is also connected via MCP. Capabilities are discovered with the `discover_tools` tool, never a static list.',
     ...setUpFor,
     ...notes,
     '',
