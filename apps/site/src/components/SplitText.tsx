@@ -47,13 +47,7 @@ const SplitText: React.FC<SplitTextProps> = ({
   }, [onLetterAnimationComplete])
 
   useEffect(() => {
-    if (document.fonts.status === 'loaded') {
-      setFontsLoaded(true)
-    } else {
-      document.fonts.ready.then(() => {
-        setFontsLoaded(true)
-      })
-    }
+    document.fonts.ready.then(() => setFontsLoaded(true))
   }, [])
 
   useGSAP(

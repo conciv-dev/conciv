@@ -189,7 +189,7 @@ describe('canvas drag batching', () => {
     ((await api.callTool('canvas_read', {})) as {elements: CanvasElement[]}).elements
 
   const readXs = async (api: ExtensionTestApi): Promise<number[]> =>
-    (await readElements(api)).map((element) => element.x).sort((left, right) => left - right)
+    (await readElements(api)).map((element) => element.x).toSorted((left, right) => left - right)
 
   const drawRectangle = async (page: Page, x1: number, y1: number, x2: number, y2: number): Promise<void> => {
     await page.getByRole('radio', {name: 'Rectangle'}).click({force: true})

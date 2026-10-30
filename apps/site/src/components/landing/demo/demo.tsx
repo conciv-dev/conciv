@@ -111,12 +111,13 @@ export function Demo() {
 
   const {contextSafe} = useGSAP({scope})
 
-  const onRestart = contextSafe(() => {
-    scope.current?.querySelectorAll('[data-pickable] > *').forEach((el) => gsap.set(el, {clearProps: 'all'}))
-    active.current = null
-    setInput('')
-    dispatch({type: 'reset'})
-  })
+  const onRestart = () =>
+    contextSafe(() => {
+      scope.current?.querySelectorAll('[data-pickable] > *').forEach((el) => gsap.set(el, {clearProps: 'all'}))
+      active.current = null
+      setInput('')
+      dispatch({type: 'reset'})
+    })()
 
   const onUngrab = () => {
     active.current = null

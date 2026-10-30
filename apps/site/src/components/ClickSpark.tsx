@@ -134,7 +134,7 @@ const ClickSpark: React.FC<ClickSparkProps> = ({
       if (animationRef.current != null) cancelAnimationFrame(animationRef.current)
       animationRef.current = null
     }
-  }, [sparkColor, sparkSize, sparkRadius, sparkCount, duration, easeFunc, extraScale])
+  }, [sparkColor, sparkSize, sparkRadius, duration, easeFunc, extraScale])
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>): void => {
     const canvas = canvasRef.current

@@ -68,40 +68,6 @@ const observeResize = (callback: () => void, elements: Array<React.RefObject<Ele
   }
 }
 
-const watchImages = (seqRef: React.RefObject<HTMLUListElement | null>, onLoad: () => void) => {
-  const images = seqRef.current?.querySelectorAll('img') ?? []
-
-  if (images.length === 0) {
-    onLoad()
-    return
-  }
-
-  let remainingImages = images.length
-  const handleImageLoad = () => {
-    remainingImages -= 1
-    if (remainingImages === 0) {
-      onLoad()
-    }
-  }
-
-  images.forEach((img) => {
-    const htmlImg = img as HTMLImageElement
-    if (htmlImg.complete) {
-      handleImageLoad()
-    } else {
-      htmlImg.addEventListener('load', handleImageLoad, {once: true})
-      htmlImg.addEventListener('error', handleImageLoad, {once: true})
-    }
-  })
-
-  return () => {
-    images.forEach((img) => {
-      img.removeEventListener('load', handleImageLoad)
-      img.removeEventListener('error', handleImageLoad)
-    })
-  }
-}
-
 const useAnimationLoop = (
   trackRef: React.RefObject<HTMLDivElement | null>,
   targetVelocity: number,
@@ -233,12 +199,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
       }
     }, [isVertical])
 
-    useEffect(
-      () => observeResize(updateDimensions, [containerRef, seqRef]),
-      [updateDimensions, logos, gap, logoHeight, isVertical],
-    )
-
-    useEffect(() => watchImages(seqRef, updateDimensions), [updateDimensions, logos, gap, logoHeight, isVertical])
+    useEffect(() => observeResize(updateDimensions, [containerRef, seqRef]), [updateDimensions])
 
     useAnimationLoop(trackRef, targetVelocity, seqWidth, seqHeight, isHovered, effectiveHoverSpeed, isVertical)
 
