@@ -51,7 +51,7 @@
   "scripts": {
     "build": "tsdown && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint --ignore-pattern 'test/fixtures/host/**'",
+    "lint": "oxlint --ignore-pattern 'test/fixtures/host/**' --ignore-pattern 'test/fixtures/provenance/**'",
     "test": "vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
