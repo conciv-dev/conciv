@@ -193,7 +193,7 @@ async function applySyncPlan(cwd: string, run: Run, turbo: Turbo, unhealthy: Syn
     }
     await wireTrust(run, name)
   }
-  await run('pnpm', ['exec', 'changeset', 'tag'])
+  await run('pnpm', ['exec', 'changeset', 'git-tag'])
   await run('git', ['push', 'origin', '--tags'])
 }
 

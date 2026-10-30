@@ -20,7 +20,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@changesets/parse": "^0.4.3",
+    "@changesets/parse": "^1.0.0",
     "citty": "catalog:",
     "execa": "^9.5.0",
     "js-yaml": "4.3.1",

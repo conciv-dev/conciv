@@ -223,7 +223,7 @@ test('assertChangesetsResolve rejects a changeset that lists the same package tw
   const root = await workspaceWithChangesets(['@conciv/core'], {
     'double-entry.md': `---\n'@conciv/core': patch\n'@conciv/core': minor\n---\n\nDouble entry.\n`,
   })
-  await expect(assertChangesetsResolve(root)).rejects.toThrow(/double-entry\.md.*duplicated mapping key/s)
+  await expect(assertChangesetsResolve(root)).rejects.toThrow(/double-entry\.md.*Map keys must be unique/s)
 })
 
 test('assertChangesetsResolve rejects a changeset with malformed frontmatter, naming the file', async () => {
