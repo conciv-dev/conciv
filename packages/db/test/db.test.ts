@@ -10,10 +10,35 @@ import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {runMessagesFor, clearRunState, modelOf} from '../src/run-queries.js'
 import {DatabaseSync} from 'node:sqlite'
 import {fileURLToPath} from 'node:url'
-import {eq} from 'drizzle-orm'
-import {runMessages, sessionHistory, runs} from '../src/run-schema.js'
+import {and, eq} from 'drizzle-orm'
+import {chatMetadata, runMessages, sessionHistory, runs} from '../src/run-schema.js'
+import {migrations} from '../src/migrations.gen.js'
+import {CODE_MODE_SYNTHETIC_PART_MARKER} from '@conciv/protocol/chat-types'
 import {sessions} from '../src/schema.js'
 import {readThread, updateThread, deleteThread, pendingThreadIds, threadMessages} from '../src/thread-queries.js'
+import {
+  FOLDED_WITHOUT_ANCHOR_SESSION_ID,
+  LAST_PRE_CHAT_STORE_MIGRATION,
+  LEGACY_ANCHOR_NATIVE_ID,
+  LEGACY_SESSION_ID,
+  PRE_CHAT_STORE_MIGRATION_COUNT,
+  seedLegacyDb,
+} from './fixtures/legacy-db.js'
+
+const CHAT_MIGRATION_NAMESPACE = 'conciv.migration'
+const CHAT_IMPORT_KEY = 'chatThreads.importedAt'
+
+function legacyHistoryRows(db: ConcivDb, sessionId: string) {
+  return db.select().from(sessionHistory).where(eq(sessionHistory.sessionId, sessionId)).all()
+}
+
+function importStamp(db: ConcivDb): unknown {
+  return db
+    .select({valueJson: chatMetadata.valueJson})
+    .from(chatMetadata)
+    .where(and(eq(chatMetadata.namespace, CHAT_MIGRATION_NAMESPACE), eq(chatMetadata.key, CHAT_IMPORT_KEY)))
+    .all()[0]?.valueJson
+}
 
 describe('capture queries', () => {
   function side(kind: ElementCaptureKind, name: string, cssBundleId = 'cssabc'): ElementCapture {
@@ -123,6 +148,100 @@ describe('capture queries', () => {
       const stored = await sessionCaptures(db, 's1')
       expect(stored.captures).toEqual([])
       expect(stored.cssBundles).toEqual({})
+    })
+  })
+})
+
+describe('chat thread upgrade', () => {
+  function upgradedRoot(): string {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-legacy-upgrade-'))
+    seedLegacyDb(root)
+    return root
+  }
+
+  describe('upgrading a pre-message-store database', () => {
+    it('pins the migration the fixture is built from', () => {
+      expect(migrations[PRE_CHAT_STORE_MIGRATION_COUNT - 1]?.name).toBe(LAST_PRE_CHAT_STORE_MIGRATION)
+    })
+
+    it('imports the whole legacy conversation into the thread', async () => {
+      const db = openDb(upgradedRoot())
+      const {messages} = readThread(db, LEGACY_SESSION_ID)
+
+      expect(messages.filter((message) => message.role === 'user')).toEqual([
+        {
+          id: 'u1',
+          role: 'user',
+          content: [
+            {type: 'text', content: 'look at this'},
+            {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'aGk='}},
+          ],
+        },
+        {id: 'u2', role: 'user', content: 'run the code'},
+        {
+          id: 'u3',
+          role: 'user',
+          content: [
+            {type: 'text', content: 'and now the docs'},
+            {
+              type: 'document',
+              source: {type: 'data', mimeType: 'application/pdf', value: 'JVBE'},
+              metadata: {modelOnly: true},
+            },
+          ],
+        },
+      ])
+      await expect(createRunStore(db).findActiveRun(LEGACY_SESSION_ID)).resolves.toMatchObject({
+        runId: 'legacy-run-live',
+      })
+    })
+
+    it('keeps the synthetic code-mode marker and the tool result across the boundary conversion', () => {
+      const {messages} = readThread(openDb(upgradedRoot()), LEGACY_SESSION_ID)
+
+      expect(messages.flatMap((message) => message.toolCalls ?? [])).toMatchObject([
+        {
+          id: 'call-1',
+          function: {name: 'conciv_code', arguments: '{"source":"return 1 + 1"}'},
+          metadata: {[CODE_MODE_SYNTHETIC_PART_MARKER]: true},
+        },
+      ])
+      expect(messages.filter((message) => message.role === 'tool')).toMatchObject([
+        {toolCallId: 'call-1', content: '2'},
+      ])
+    })
+
+    it('moves the anchor id into thread metadata, wrapped so "folded, no anchor" survives', () => {
+      const db = openDb(upgradedRoot())
+
+      expect(readThread(db, LEGACY_SESSION_ID).anchor).toEqual({nativeId: LEGACY_ANCHOR_NATIVE_ID})
+      expect(readThread(db, FOLDED_WITHOUT_ANCHOR_SESSION_ID).anchor).toEqual({nativeId: null})
+      expect(readThread(db, 's-never-folded').anchor).toBeNull()
+    })
+
+    it('records where the still-pending turn starts in the imported thread', () => {
+      const thread = readThread(openDb(upgradedRoot()), LEGACY_SESSION_ID)
+
+      expect(thread.pendingFrom).toBe(thread.messages.length - 1)
+    })
+
+    it('imports once: reopening the database neither duplicates nor restamps', () => {
+      const root = upgradedRoot()
+      const first = openDb(root)
+      const importedAt = importStamp(first)
+      const thread = readThread(first, LEGACY_SESSION_ID)
+
+      const second = openDb(root)
+      expect(importedAt).toEqual(expect.any(Number))
+      expect(readThread(second, LEGACY_SESSION_ID)).toEqual(thread)
+      expect(importStamp(second)).toEqual(importedAt)
+    })
+
+    it('leaves the legacy rows in place so a downgrade still reads them', () => {
+      const db = openDb(upgradedRoot())
+
+      expect(legacyHistoryRows(db, LEGACY_SESSION_ID)[0]?.messages).toHaveLength(4)
+      expect(runMessagesFor(db, LEGACY_SESSION_ID)?.messages).toHaveLength(1)
     })
   })
 })
@@ -299,6 +418,8 @@ describe('db', () => {
       const second = openDb(stateRoot)
       expect(runMessagesFor(second, 'conciv_img')?.messages).toEqual(imageTurn)
       expect(runMessagesFor(second, 'conciv_txt')?.messages).toEqual(textTurn)
+      expect(legacyHistoryRows(second, 'conciv_img')).toEqual([])
+      expect(legacyHistoryRows(second, 'conciv_txt')).toEqual([])
     })
 
     it('two connections on one stateRoot interleave writes (WAL + busy timeout)', () => {
@@ -334,6 +455,7 @@ describe('run queries', () => {
       const db = fresh()
       expect(modelOf(db, 'missing')).toBeNull()
       expect(runMessagesFor(db, 'missing')).toBeNull()
+      expect(legacyHistoryRows(db, 'missing')).toEqual([])
     })
 
     it('modelOf reads the sessions row', () => {
@@ -378,6 +500,7 @@ describe('run queries', () => {
 
       expect(readThread(db, 's5')).toEqual({messages: [], pendingFrom: null, anchor: null})
       expect(runMessagesFor(db, 's5')).toBeNull()
+      expect(legacyHistoryRows(db, 's5')).toEqual([])
       expect(readThread(db, 'other').messages).toEqual([{role: 'user', content: 'kept'}])
     })
   })
