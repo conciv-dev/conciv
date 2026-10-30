@@ -84,10 +84,16 @@
     "unplugin": "^3.6.0"
   },
   "devDependencies": {
+    "@conciv/extension-ios": "workspace:^",
+    "@conciv/extension-recorder": "workspace:^",
+    "@conciv/extension-terminal": "workspace:^",
+    "@conciv/extension-test-runner": "workspace:^",
+    "@conciv/extension-whiteboard": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "get-port": "catalog:",
+    "playwright": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

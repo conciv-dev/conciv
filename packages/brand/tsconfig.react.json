@@ -13,7 +13,6 @@
     "src/react/**/*.ts",
     "src/react/**/*.tsx",
     "tests/browser/lockup-dom.ts",
-    "tests/browser/react-lockup.browser.test.tsx",
-    "tests/browser/react-lockup-reduced-motion.browser.test.tsx"
+    "tests/browser/react-lockup.browser.test.tsx"
   ]
 }

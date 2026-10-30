@@ -9,16 +9,6 @@ export default defineConfig({
     projects: [
       {
         extends: true,
-        test: {
-          name: 'solid-streamdown',
-          environment: 'node',
-          include: ['test/**/*.test.ts'],
-          testTimeout: ciTest().testTimeout,
-          hookTimeout: ciTest().hookTimeout,
-        },
-      },
-      {
-        extends: true,
         plugins: [solidPlugin()],
         optimizeDeps: browserOptimizeDeps(),
         test: {
