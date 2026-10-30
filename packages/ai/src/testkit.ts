@@ -1,4 +1,7 @@
+import {chat} from '@tanstack/ai'
 import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
+import type {TextAdapter} from './adapters.js'
+import type {ModelMessage} from './messages.js'
 import {approvalRequestedEvent, ChatEventType, type ChatCustomEvent, type ChatEvent} from './events.js'
 
 export type StoryConnectionOptions = {
@@ -147,4 +150,10 @@ export function createApprovalChunk(
     input,
     approval: {id: options?.approvalId ?? `story-${name}-approval`, needsApproval: true},
   })
+}
+
+export async function runAdapterTurn(adapter: TextAdapter, messages: ModelMessage[]): Promise<ChatEvent[]> {
+  const events: ChatEvent[] = []
+  for await (const event of chat({adapter, threadId: 'testkit', messages})) events.push(event)
+  return events
 }

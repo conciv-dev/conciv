@@ -1,5 +1,5 @@
 import type {ModelMessage, ChatMessage} from '@conciv/ai/messages'
-import type {AnyTextAdapter} from '@tanstack/ai'
+import type {TextAdapter} from '@conciv/ai/adapters'
 import type {HarnessSessionId, SessionId} from './chat-types.js'
 import type {TtyCommand} from './terminal-types.js'
 
@@ -109,7 +109,7 @@ export type HarnessChatDeps = {
 }
 
 export type HarnessChatConfig = {
-  adapter: AnyTextAdapter
+  adapter: TextAdapter
   modelOptions?: Record<string, unknown>
   prepareMessages?: (messages: ModelMessage[]) => ModelMessage[]
 }

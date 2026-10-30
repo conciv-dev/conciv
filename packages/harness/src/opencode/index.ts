@@ -1,4 +1,4 @@
-import {opencodeText, OPENCODE_MODELS, type OpencodePermissionRequest} from '@tanstack/ai-opencode'
+import {opencode as opencodeAdapter, opencodeModels, type OpencodePermissionRequest} from '@conciv/ai/adapters'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {defineHarness, type HarnessChatConfig, type HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {opencodeHistory} from './history.js'
@@ -27,7 +27,7 @@ export function opencodePermissionHandler(decide: HarnessChatDeps['decide']) {
 }
 
 const opencodeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: opencodeText(deps.model ?? 'opencode/claude-sonnet-4-5', {
+  adapter: opencodeAdapter(deps.model ?? 'opencode/claude-sonnet-4-5', {
     onPermissionRequest: opencodePermissionHandler(deps.decide),
   }),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
@@ -49,7 +49,7 @@ export const opencode = defineHarness({
     init: 'none',
   },
   chatConfig: opencodeChatConfig,
-  models: OPENCODE_MODELS.map((id) => ({id, name: id, group: 'OpenCode'})),
+  models: opencodeModels.map((id) => ({id, name: id, group: 'OpenCode'})),
   defaultModel: 'opencode/claude-sonnet-4-5',
   history: opencodeHistory,
   connect: {

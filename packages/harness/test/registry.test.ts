@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {registerHarness, getHarness, listHarnesses} from '../src/registry.js'
-import {makeTextAdapter} from '../src/_shared/text-adapter.js'
+import {makeTextAdapter} from '@conciv/ai/adapters'
 
 function stub(id: string): HarnessAdapter {
   return defineHarness({

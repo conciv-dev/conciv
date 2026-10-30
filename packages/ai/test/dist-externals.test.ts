@@ -44,7 +44,7 @@ const sources = chunks.flatMap(moduleSources)
 
 const importsPackage = (name: string) => sources.some((source) => source === name || source.startsWith(`${name}/`))
 
-describe('harness dist keeps @tanstack/ai-sandbox free of peer edges (#107)', () => {
+describe('@conciv/ai dist keeps @tanstack/ai-sandbox free of peer edges (#107)', () => {
   it('bundles the @tanstack/ai-* adapters instead of importing them', () => {
     for (const adapter of [
       '@tanstack/ai-acp',

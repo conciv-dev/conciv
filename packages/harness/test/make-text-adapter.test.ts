@@ -1,17 +1,16 @@
 import {expect, test} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {chat, EventType} from '@tanstack/ai'
-import {lastUserModelText, makeTextAdapter} from '../src/_shared/text-adapter.js'
+import {makeTextAdapter} from '@conciv/ai/adapters'
+import {ChatEventType} from '@conciv/ai/events'
+import {runAdapterTurn} from '@conciv/ai/testkit'
+import {lastUserModelText} from '../src/_shared/text-adapter.js'
 import {scriptedRunChunks} from './helpers/scripted-chunks.js'
 
 test('makeTextAdapter drives chat() with the provided stream fn', async () => {
   const adapter = makeTextAdapter('scripted', async function* (options) {
     yield* scriptedRunChunks(`echo:${lastUserModelText(options.messages)}`)
   })
-  const chunks: ChatEvent[] = []
-  for await (const chunk of chat({adapter, threadId: 'make-text-adapter', messages: [{role: 'user', content: 'hi'}]}))
-    chunks.push(chunk)
-  const content = chunks.find((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+  const chunks = await runAdapterTurn(adapter, [{role: 'user', content: 'hi'}])
+  const content = chunks.find((chunk) => chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT)
   expect(content && 'delta' in content ? content.delta : undefined).toBe('echo:hi')
-  expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+  expect(chunks.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
 })

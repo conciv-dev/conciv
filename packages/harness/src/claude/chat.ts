@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {ModelMessage} from '@conciv/ai/messages'
-import {claudeCodeText} from '@tanstack/ai-claude-code'
+import {claudeCode} from '@conciv/ai/adapters'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {
   FILE_REF_PREFIX,
@@ -70,7 +70,7 @@ function withImageRefs(messages: ModelMessage[], cwd: string): ModelMessage[] {
 }
 
 export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: claudeCodeText(deps.model ?? 'sonnet', {
+  adapter: claudeCode(deps.model ?? 'sonnet', {
     permissionMode: 'default',
     addDirs: [deps.cwd],
     claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR),

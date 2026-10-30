@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {chat, EventType} from '@tanstack/ai'
+import {ChatEventType} from '@conciv/ai/events'
+import {runAdapterTurn} from '@conciv/ai/testkit'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {pi} from '../src/pi/index.js'
 
@@ -18,16 +18,9 @@ describe.each([['pi', pi]])('%s stub', (id, adapter) => {
       kind: 'chat',
       decide: async () => 'allow',
     })
-    const chunks: ChatEvent[] = []
-    for await (const chunk of chat({
-      adapter: config.adapter,
-      threadId: 'stubs',
-      messages: [{role: 'user', content: 'hi'}],
-    })) {
-      chunks.push(chunk)
-    }
+    const chunks = await runAdapterTurn(config.adapter, [{role: 'user', content: 'hi'}])
     const last = chunks.at(-1)
-    expect(last?.type).toBe(EventType.RUN_ERROR)
+    expect(last?.type).toBe(ChatEventType.RUN_ERROR)
     expect(last && 'message' in last ? last.message : '').toContain(adapter.binName)
   })
 })
