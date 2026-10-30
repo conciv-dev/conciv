@@ -1,5 +1,17 @@
 # @conciv/ui-kit-tap
 
+## 0.0.20
+
+### Patch Changes
+
+- [#597](https://github.com/conciv-dev/conciv/pull/597) [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6) Thanks [@omridevk](https://github.com/omridevk)! - An external write to a rich text field no longer throws the caret to the end. The controlled value now
+  arrives as a ProseMirror transaction that replaces only the differing span, so the editor's own position
+  mapping carries the selection through it; a restore into an empty field still lands the caret at the end,
+  a write that spans a trigger chip still flattens it to plain text, and the write still resets the undo
+  history, so one undo after a restore cannot empty the field.
+- Updated dependencies [[`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`9549d4a`](https://github.com/conciv-dev/conciv/commit/9549d4a6b484da8e40135eb8abd676ade23ba1b2), [`e1a0c8b`](https://github.com/conciv-dev/conciv/commit/e1a0c8b982297279cc8ac4cab0c2d8d26a139dd1), [`6699828`](https://github.com/conciv-dev/conciv/commit/669982843b265d397771ca9bfd607aa5976a8ff3), [`478c83b`](https://github.com/conciv-dev/conciv/commit/478c83bdee4d5d7c5e7a27c3586d030907ccf80c), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6)]:
+  - @conciv/ui-kit-system@0.0.20
+
 ## 0.0.19
 
 ### Patch Changes

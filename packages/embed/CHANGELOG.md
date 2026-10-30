@@ -1,5 +1,120 @@
 # @conciv/embed
 
+## 0.0.20
+
+### Patch Changes
+
+- [#538](https://github.com/conciv-dev/conciv/pull/538) [`258fe9a`](https://github.com/conciv-dev/conciv/commit/258fe9a39f93eaf2f258f0f87efa9b2e3878fa01) Thanks [@omridevk](https://github.com/omridevk)! - Keystrokes typed into the widget composer no longer trigger host-page hotkeys: keyboard events originating from an editable element inside the widget stop at the shadow host, so a `/` in a prompt no longer opens a docs site's search modal mid-sentence.
+
+- [#597](https://github.com/conciv-dev/conciv/pull/597) [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6) Thanks [@omridevk](https://github.com/omridevk)! - Highlight tool-result code and diffs in a worker pool instead of on the main thread. `SolidCodeBlock`, `SolidFileDiff` and `SolidPatchDiff` now hand `@pierre/diffs` a shared worker pool built from its portable worker entry, so that grammar compilation and tokenization run off the main thread while the block keeps rendering plain text until the highlighted result arrives.
+
+- [#490](https://github.com/conciv-dev/conciv/pull/490) [`d796d1e`](https://github.com/conciv-dev/conciv/commit/d796d1e8a08f86ed9593cadff9748b5d57772cf2) Thanks [@omridevk](https://github.com/omridevk)! - Dragging the closed launcher no longer jitters outside the viewport and no longer snaps back from a valid drop. The live drag position is clamped so the button never renders past a viewport edge, the drag offset rides a single owner (an inline transform relative to the button's own resting anchor instead of competing `left`/`top` writes), and the release glides to the snap point through one Web Animations pass whose end state is the resting state — so the hand-off back to CSS moves nothing. A drop that is already at the resting spot skips the animation entirely.
+
+- [#513](https://github.com/conciv-dev/conciv/pull/513) [`6020d52`](https://github.com/conciv-dev/conciv/commit/6020d52d60bc6c824118d10787d557beeac1fc3f) Thanks [@omridevk](https://github.com/omridevk)! - Grabs are attachments: the snapshot survives a panel reload, sent grabs render as a card in the transcript instead of raw HTML text, and composer attachments now persist in the session draft.
+
+- [#481](https://github.com/conciv-dev/conciv/pull/481) [`f3bea6c`](https://github.com/conciv-dev/conciv/commit/f3bea6c3656a282dc193b86f9835bfa80ba135d7) Thanks [@omridevk](https://github.com/omridevk)! - Grab reference cards clear the moment a message is sent and are restored if the send fails. The staged-grabs strip
+  sizes to its content by default and resizes via a pill grabber on its top edge (the shared createResizable, which
+  gained an optional max bound and no longer requires a storage key); previews scale to the card like images through
+  an svg viewBox, capped at 40% of the panel height. The panel minimum height rises to 400px and the composer keeps
+  priority at any panel size.
+
+- [#570](https://github.com/conciv-dev/conciv/pull/570) [`e1a0c8b`](https://github.com/conciv-dev/conciv/commit/e1a0c8b982297279cc8ac4cab0c2d8d26a139dd1) Thanks [@omridevk](https://github.com/omridevk)! - The widget now adapts to the host page's color scheme instead of always rendering dark. It resolves
+  the scheme at mount, before first paint, from a computed `color-scheme` on the host root, then a
+  `.light`/`.dark` class or `data-theme` attribute, then `prefers-color-scheme`, and re-resolves live
+  when the host page toggles its theme. Every color token is declared once as a `light-dark()` pair,
+  so a scheme is a single `color-scheme` flip: scrollbars, native controls, Shiki code blocks, the
+  diffs component, popped-out windows, and the terminal pane all follow. UnoCSS `dark:`/`light:`
+  variants key off the widget's own scheme classes. Extension `chat-accent` / `chat-hue` overrides keep
+  working in both schemes.
+
+- [#544](https://github.com/conciv-dev/conciv/pull/544) [`84905d3`](https://github.com/conciv-dev/conciv/commit/84905d36e10b9cbc0dd54736e3f8c6e84b38e3b6) Thanks [@omridevk](https://github.com/omridevk)! - Fix [#532](https://github.com/conciv-dev/conciv/issues/532): an idle widget on the fetch transport now notices the engine refusing new connections. `engineProbeRefetchInterval` takes a `heartbeat` condition alongside `reachable`; while reachable and the heartbeat condition holds (fetch transport, panel open) the existing engine-meta query polls every 30s instead of going silent, so a refused connection surfaces the standing offline notice without requiring the user to attempt an action first.
+
+- [#591](https://github.com/conciv-dev/conciv/pull/591) [`1ff8988`](https://github.com/conciv-dev/conciv/commit/1ff89883697627cf4d9c108a602607a0af921bc6) Thanks [@omridevk](https://github.com/omridevk)! - Host marker strings renamed off the dead `pw` prefix to `conciv`: the `pw-widget` / `pw-api-base` meta tags, every `data-pw-*` attribute, the `pw-chat-panel` id (and its `aria-controls` references), the `pw-session-` id prefix, the `pw-conciv-model` localStorage key (now `conciv-model`, saved preference intentionally dropped), `pw-grab-pseudo-` capture-clone classes, and the `.pw-fab-*` / `.pw-rig-*` mascot rig classes. Breaking for any host or tooling still targeting the old meta names, data attributes, ids, or storage key.
+
+- [#542](https://github.com/conciv-dev/conciv/pull/542) [`c5015fe`](https://github.com/conciv-dev/conciv/commit/c5015fe3ec89327975fabf814f0d6eaadcada1fb) Thanks [@omridevk](https://github.com/omridevk)! - The panel's composer-focus effect no longer steals focus from the host page. A restored open panel (page load, session switch, or FAB open) now checks whether a host-page element currently holds focus and skips the composer focus claim when it does, so a host input with `autofocus` keeps focus across widget boot. Opening the panel while focus is inside the widget itself (for example clicking the FAB) still focuses the composer as before.
+
+- [#568](https://github.com/conciv-dev/conciv/pull/568) [`d03af7f`](https://github.com/conciv-dev/conciv/commit/d03af7f7cac4267f9b573f0cadcd69e74c019f89) Thanks [@omridevk](https://github.com/omridevk)! - The widget now paints once its restored navigation state is known, instead of painting a closed launcher and then reopening the panel a moment later when the restore RPC returns. Reopening the panel after a reload or a remount is unchanged; only the visible jump is gone. A restore that arrives after the user has already navigated is now ignored rather than replacing the route they just moved to.
+
+- [#573](https://github.com/conciv-dev/conciv/pull/573) [`2991888`](https://github.com/conciv-dev/conciv/commit/2991888b1c4baf1d290d39330faf23084959632e) Thanks [@omridevk](https://github.com/omridevk)! - The session title in the panel header now reads the session list inside its own Suspense boundary. Previously that read sat directly under the route-level boundary, so every time the session-list resource was unresolved the router swapped the whole live panel for the full-pane loading indicator and swapped it straight back. That detached and re-attached the header, chat pane, and status bar as the same DOM nodes, which silently blurred a focused composer and left focus on `document.body`. The title now falls back to a skeleton on its own while the rest of the panel stays mounted, so opening the panel reliably lands focus in the composer.
+
+- [#612](https://github.com/conciv-dev/conciv/pull/612) [`413bc87`](https://github.com/conciv-dev/conciv/commit/413bc87ccfd2cc445f0a5b05e039a92d952c29b9) Thanks [@omridevk](https://github.com/omridevk)! - Workspace manifests now take every shared dependency from the single pnpm catalog in `pnpm-workspace.yaml`
+  (published manifests still carry concrete versions), and the catalog is upgraded to the newest releases outside the
+  48h `minimumReleaseAge` window. Notable upgrades: `@types/node` unified on 26, TypeScript 6 for the Next.js apps,
+  preact 10 to 11, p-timeout 7 to 8, oxc-parser 0.127 to 0.156, lucide 1.18 to 1.62, `@orpc/*` 1.14 to 1.16.
+  Held back: the `@tanstack/ai*` family (1.0 is a migration), TypeScript 6 (7 ships no compiler API), vitest 4
+  (5 changes locator and text-matcher semantics), motion 12, the TanStack router/start set at react-start 1.168.61
+  (1.169 removed `useSession`), bippy 0.5 and react-grab 0.1.48 (API removals), and oxlint 1.73 (1.90 adds new
+  failing rules).
+
+- [#509](https://github.com/conciv-dev/conciv/pull/509) [`163cfd5`](https://github.com/conciv-dev/conciv/commit/163cfd5f844a2c8b97a97c8ceb1440076ff69a21) Thanks [@omridevk](https://github.com/omridevk)! - Scope widget session invalidation to the session list, so adding, closing or creating a pane no longer re-resolves the warm session over the wire.
+
+- [#597](https://github.com/conciv-dev/conciv/pull/597) [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6) Thanks [@omridevk](https://github.com/omridevk)! - Selecting text in the chat and dragging past the edge of the panel no longer highlights the host page behind it. The selection stays inside the chat in Chromium and Firefox whatever styles the host page uses, so copying or quoting it picks up only chat text. In Firefox, moving the pointer out of the panel sideways can stretch the selection up to the top of the panel. Selecting text on the host page works as before.
+
+- [#593](https://github.com/conciv-dev/conciv/pull/593) [`6699828`](https://github.com/conciv-dev/conciv/commit/669982843b265d397771ca9bfd607aa5976a8ff3) Thanks [@omridevk](https://github.com/omridevk)! - Skin axis: named looks over a 37-anchor token contract, selected with `--conciv-skin`.
+
+  A host page picks the widget's look by declaring one CSS custom property on `html` or `body`:
+
+  ```css
+  html {
+    --conciv-skin: terminal;
+  }
+  ```
+
+  Two skins ship in-repo: `conciv` (the default) and `terminal`. Each is a typed object in
+  `@conciv/ui-kit-system` that sets only the anchors — surfaces, ink, overlays, accent, status, type,
+  radii, shadows, easing and a density unit — as `{light, dark}` pairs or single values, so a skin is
+  complete for both colour schemes by construction and omitting anything is a compile error. Every
+  other `--chat-*` custom property stays internal and is derived once from the anchors, so hand-tuned
+  semantics stay consistent across skins.
+
+  The resolved skin is stamped on every render root the widget owns, including the shadow host (so
+  Ark portals follow), the body-level effects overlay and popped-out windows, which now carry both the
+  scheme and the skin. An unknown value falls back to `conciv` with one console warning. The skin's
+  `--chat-space` scales the spacing base of the thread and composer only; frame geometry does not
+  follow it.
+
+  Two contract documents are generated from the same typed source and committed, with a CI drift
+  check: `docs/skin-anchors.md` (what a skin may write) and `docs/extension-tokens.md` (what an
+  extension may read). Every skin's colour pairs are checked for WCAG contrast in CI.
+
+  BREAKING: the per-extension theme map is removed. `defineExtension({theme})`, the `ThemeTokens` type,
+  the runtime theme applier and its injected `style[data-conciv-theme]` element, the catalog's theme
+  validation and `overridable` token flag, and the `theme` scaffold kind are all gone. Extensions style
+  exclusively through the public `--chat-*` tokens and utilities; derive a bespoke colour locally with
+  `color-mix` over a public token instead.
+
+- [#597](https://github.com/conciv-dev/conciv/pull/597) [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6) Thanks [@omridevk](https://github.com/omridevk)! - The launcher now reflects only the session it targets: a run in any other session no longer leaves the mascot glowing.
+
+- [#516](https://github.com/conciv-dev/conciv/pull/516) [`70614e8`](https://github.com/conciv-dev/conciv/commit/70614e8f2b415145bfb8f9198bd8818307d15478) Thanks [@omridevk](https://github.com/omridevk)! - The notifications region no longer reserves a padded strip above the widget header while empty — zag inlines `display: flex` on the toast group, so the `empty:hidden` class never applied and its padding rendered as a permanent 20px gap.
+
+- [#521](https://github.com/conciv-dev/conciv/pull/521) [`d23d7c8`](https://github.com/conciv-dev/conciv/commit/d23d7c820af745fd87c4048a2d089c9d995f664a) Thanks [@omridevk](https://github.com/omridevk)! - `mount(el)` now resolves only once the widget can actually honor `open()` — previously the returned promise settled as soon as the app's boot sequence finished computing, which raced ahead of the root route's `onMount` (where the open-panel listener registers). Any embedder that opens the panel immediately after `mount()` resolves — including a landing page's "Try it live" button that dispatches an early click before the widget bundle finishes loading — no longer has that open silently dropped.
+
+  `mountConciv(extensions)` now returns the underlying `mount()` promise instead of `void`, so a caller can `await` it (or observe a rejection) instead of the widget's readiness being unobservable outside `createConciv`. Existing fire-and-forget call sites keep working unchanged; they just ignore the returned promise.
+
+  New `@conciv/protocol/event-bus` export: `createEventBus`/`createEventBusClient`, a faithful port of the TanStack Devtools in-page event-bus protocol. It eliminates the whole "sender fires before receiver is listening" class of races, not just the one above. Every emit is wrapped as an envelope (`{type: '<pluginId>:<suffix>', payload, pluginId}`) and dispatched on one fixed bus event (`conciv-dispatch-event`); the running bus re-dispatches it as both a specific `<pluginId>:<suffix>` event and a global `conciv-global` event, and answers the fixed `conciv-connect` handshake with `conciv-connect-success`. Clients queue emits until connected, retry on a bounded loop, and flush in order on ack.
+
+  Panel commands moved onto that protocol under the `panel` plugin id, so the wire events are now `panel:open`, `panel:close` and `panel:toggle` instead of `conciv:open-panel`, `conciv:close-panel` and `conciv:toggle-panel`, and they are spoken through a bus client rather than a bare `window.dispatchEvent`. `createConciv().open()`/`close()`/`toggle()`, the landing page's "Try it live" button, and the iOS bridge's panel open/close all emit through a client; the widget's root route subscribes with `client.on()` and starts the bus once its listeners are registered. Status events (`conciv:connection-changed`, `conciv:panel-toggled`) are unchanged raw window events.
+
+- [#530](https://github.com/conciv-dev/conciv/pull/530) [`7a95ab8`](https://github.com/conciv-dev/conciv/commit/7a95ab8e0cf959d75fb0b47977325b02d90c4718) Thanks [@omridevk](https://github.com/omridevk)! - Restoring a persisted panel route whose extension view is no longer mounted now lands on the chat view instead of rendering an empty pane. The `/panel/$sessionId/$view` route canonicalizes an unknown view id in `beforeLoad` with a replacing redirect to `/panel/$sessionId`, mirroring how `/panel/$sessionId` already canonicalizes an unadopted harness session id.
+
+- [#531](https://github.com/conciv-dev/conciv/pull/531) [`152a7bd`](https://github.com/conciv-dev/conciv/commit/152a7bdf788399e72e20ddb3c780217940faa632) Thanks [@omridevk](https://github.com/omridevk)! - Clear a draft the moment the composer empties, so a sent message can never come back as a stale draft after a reload or remount.
+- Updated dependencies [[`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`ec28181`](https://github.com/conciv-dev/conciv/commit/ec28181dc8b49c979e6bd36284eb7148bee092f3), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`9549d4a`](https://github.com/conciv-dev/conciv/commit/9549d4a6b484da8e40135eb8abd676ade23ba1b2), [`fd6d4ce`](https://github.com/conciv-dev/conciv/commit/fd6d4ce64ab6a3350406c02e462f5b0bc14dd5f1), [`958dde7`](https://github.com/conciv-dev/conciv/commit/958dde7a862c8cfd735c2232ca13cef659b301f3), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`4e1e430`](https://github.com/conciv-dev/conciv/commit/4e1e430dd7e67e8f817d0bcfc0c3132782537767), [`efef98a`](https://github.com/conciv-dev/conciv/commit/efef98ab991cd2ce4aca49d7696a135ec0894bec), [`bf64cd8`](https://github.com/conciv-dev/conciv/commit/bf64cd840bb9be69201d7a78b33a7fe3338ac79a), [`e1a0c8b`](https://github.com/conciv-dev/conciv/commit/e1a0c8b982297279cc8ac4cab0c2d8d26a139dd1), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`84905d3`](https://github.com/conciv-dev/conciv/commit/84905d36e10b9cbc0dd54736e3f8c6e84b38e3b6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`e74ef75`](https://github.com/conciv-dev/conciv/commit/e74ef75b8635457db259b32bbad61e08f57f582e), [`1ff8988`](https://github.com/conciv-dev/conciv/commit/1ff89883697627cf4d9c108a602607a0af921bc6), [`d796d1e`](https://github.com/conciv-dev/conciv/commit/d796d1e8a08f86ed9593cadff9748b5d57772cf2), [`4538432`](https://github.com/conciv-dev/conciv/commit/45384329144c3d7f66a41bc8296702ff6cd548f5), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`ee779f0`](https://github.com/conciv-dev/conciv/commit/ee779f0456f0c4aedb5c00d8c2d69229de7598a1), [`a3e61ec`](https://github.com/conciv-dev/conciv/commit/a3e61ec0c47879314362b8b9656bc708b675d313), [`436aff0`](https://github.com/conciv-dev/conciv/commit/436aff0ae80ab2d33d06b50128b48e5404dc7b23), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`5bf76b9`](https://github.com/conciv-dev/conciv/commit/5bf76b9869374877e54ffcde85556d4bfbe2615f), [`09f620a`](https://github.com/conciv-dev/conciv/commit/09f620a62d8d65e5721dd16eeaf7f2651225975e), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`f178ec8`](https://github.com/conciv-dev/conciv/commit/f178ec87227ebdb60c10b21426e972083f9a1d05), [`6699828`](https://github.com/conciv-dev/conciv/commit/669982843b265d397771ca9bfd607aa5976a8ff3), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`2054a18`](https://github.com/conciv-dev/conciv/commit/2054a1840c680cfaddd07f721cb09591b69d5b51), [`2054a18`](https://github.com/conciv-dev/conciv/commit/2054a1840c680cfaddd07f721cb09591b69d5b51), [`2054a18`](https://github.com/conciv-dev/conciv/commit/2054a1840c680cfaddd07f721cb09591b69d5b51), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`478c83b`](https://github.com/conciv-dev/conciv/commit/478c83bdee4d5d7c5e7a27c3586d030907ccf80c), [`5b79c2a`](https://github.com/conciv-dev/conciv/commit/5b79c2ac9dc82e91f7ff67bc927f36c575086688), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d23d7c8`](https://github.com/conciv-dev/conciv/commit/d23d7c820af745fd87c4048a2d089c9d995f664a), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`ac969c5`](https://github.com/conciv-dev/conciv/commit/ac969c50f746645d5a5b3bbf51547ed49317c7c3), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`1cb8a51`](https://github.com/conciv-dev/conciv/commit/1cb8a51610a59d764ce064216a50b5209d28bde0)]:
+  - @conciv/ui-kit-chat@0.0.20
+  - @conciv/client@0.0.20
+  - @conciv/protocol@0.0.20
+  - @conciv/extension@0.0.20
+  - @conciv/contract@0.0.20
+  - @conciv/ui-kit-chat-tools@0.0.20
+  - @conciv/extension-page@0.0.20
+  - @conciv/ui-kit-system@0.0.20
+  - @conciv/solid-streamdown@0.0.20
+  - @conciv/solid-diffs@0.0.20
+  - @conciv/mascot@0.0.20
+  - @conciv/ui-kit-tap@0.0.20
+  - @conciv/extension-ios@0.0.20
+  - @conciv/grab@0.0.20
+  - @conciv/storage-history@0.0.20
+
 ## 0.0.19
 
 ### Patch Changes

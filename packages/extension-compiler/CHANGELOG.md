@@ -1,5 +1,17 @@
 # @conciv/extension-compiler
 
+## 0.0.20
+
+### Patch Changes
+
+- [#539](https://github.com/conciv-dev/conciv/pull/539) [`04a35ca`](https://github.com/conciv-dev/conciv/commit/04a35cafed78ae6f03b509d4d8d74d545c574923) Thanks [@omridevk](https://github.com/omridevk)! - The vite dev hot-serve remaps a workspace `dist` entry to its `src` sibling and Solid-compiles the TSX it finds there. That remap used to key off a `react/` folder-name convention, which turned `@conciv/mascot/react` into Solid output inside a React host and crashed server rendering with `Comp is not a function`. The decision is now derived from the found source file's nearest `tsconfig.json` (following its `extends` chain): a subtree whose effective `compilerOptions.jsxImportSource` is set to something other than `solid-js`, or whose `compilerOptions.jsx` is `react-jsx`/`react-jsxdev` without a `solid-js` `jsxImportSource`, is classified non-Solid and stays on `dist`. Everything else — an explicit `jsxImportSource: "solid-js"`, or no JSX config in the chain at all (pure-TS subtrees) — keeps the existing remap-to-`src` behavior.
+
+  `@conciv/mascot`'s React wrapper subtree carried its JSX config in a sibling file (`tsconfig.react.json` at the package root) rather than in a tsconfig local to `src/react/`, which the nearest-tsconfig directory walk can't discover. It has been relocated to `src/react/tsconfig.json` so the declaration lives with the code it governs; `tsdown.react.config.ts` and the package's `typecheck` script now point at the new path.
+
+- [#554](https://github.com/conciv-dev/conciv/pull/554) [`cef1f05`](https://github.com/conciv-dev/conciv/commit/cef1f0553911fcf02e3db8660b48d540062966ad) Thanks [@omridevk](https://github.com/omridevk)! - Dev hosts running behind an AI agent (`CLAUDECODE`, `AI_AGENT`, etc.) no longer hit an unbounded browser console echo loop. Vite 8 auto-enables `server.forwardConsole` when it detects an agent env, and `@tanstack/devtools-vite`'s console pipe re-injects forwarded server logs into the page as `[Server] ...` entries; a page-side `console.error` (e.g. the widget's virtualizer `ResizeObserver` warning) could round-trip forever, growing on every hop. `concivSolidConfig` now explicitly sets `server.forwardConsole: false`, so every host wired through the conciv vite plugin is immune regardless of environment variables.
+- Updated dependencies [[`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`4e1e430`](https://github.com/conciv-dev/conciv/commit/4e1e430dd7e67e8f817d0bcfc0c3132782537767), [`e1a0c8b`](https://github.com/conciv-dev/conciv/commit/e1a0c8b982297279cc8ac4cab0c2d8d26a139dd1), [`6699828`](https://github.com/conciv-dev/conciv/commit/669982843b265d397771ca9bfd607aa5976a8ff3)]:
+  - @conciv/extension@0.0.20
+
 ## 0.0.19
 
 ### Patch Changes
