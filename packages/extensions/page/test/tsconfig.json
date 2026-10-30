@@ -7,6 +7,6 @@
     "types": ["node"],
     "jsx": "react-jsx"
   },
-  "include": ["fixtures/react-app.tsx", "page-tools.browser.test.tsx"],
+  "include": ["fixtures/react-app.tsx", "page.browser.test.tsx"],
   "references": [{"path": "../tsconfig.refs.json"}]
 }
