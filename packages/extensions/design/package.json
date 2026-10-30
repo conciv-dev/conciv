@@ -43,6 +43,13 @@
       "types": "./dist/shared/defs.d.ts",
       "import": "./dist/shared/defs.js"
     },
+    "./provenance": {
+      "types": "./dist/server/provenance/mappers.d.ts",
+      "import": "./dist/server/provenance/mappers.js"
+    },
+    "./types": {
+      "types": "./dist/shared/types.d.ts"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -51,8 +58,7 @@
   "scripts": {
     "build": "tsdown && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint --ignore-pattern 'test/fixtures/host/**' --ignore-pattern 'test/fixtures/provenance/**'",
-    "test": "vitest run",
+    "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -70,24 +76,11 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/contract": "workspace:^",
-    "@conciv/embed": "workspace:^",
-    "@conciv/extension-compiler": "workspace:^",
-    "@conciv/extension-testkit": "workspace:^",
-    "@conciv/plugin": "workspace:^",
-    "@conciv/vitest-config": "workspace:*",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
     "@types/pngjs": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
-    "@vitejs/plugin-react": "catalog:",
-    "playwright": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:",
-    "vitest": "catalog:"
+    "vite": "catalog:"
   }
 }

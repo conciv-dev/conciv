@@ -60,7 +60,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
+    "lint": "oxlint --ignore-pattern 'test/fixtures/design/host/**' --ignore-pattern 'test/fixtures/design/provenance/**'",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "test": "vitest run"
@@ -77,13 +77,25 @@
     "@conciv/plugin": "workspace:^"
   },
   "devDependencies": {
+    "@conciv/contract": "workspace:^",
+    "@conciv/extension-testkit": "workspace:^",
+    "@conciv/protocol": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
+    "@types/pngjs": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "playwright": "catalog:",
+    "pngjs": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zod": "catalog:"
   },
   "peerDependencies": {
     "next": "^15.3.0 || ^16.0.0",

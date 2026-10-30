@@ -2,20 +2,20 @@
 import {existsSync, readFileSync} from 'node:fs'
 import {mkdtemp, readdir, readFile, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {dirname, isAbsolute, join} from 'node:path'
+import {isAbsolute, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
 import {chromium, type Page} from 'playwright'
+import {PNG} from 'pngjs'
 import {createServer} from 'vite'
 import {afterAll, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient, ToolCommandSignatureSchema, type RpcClient} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
-import {createConcivUnplugin} from '@conciv/plugin'
-import designServer from '../src/server.js'
-import type {DesignConfig} from '../src/shared/config.js'
+import type {} from '@conciv/extension-design/client'
 import {
   CaptureInputSchema,
   ClearInputSchema,
@@ -32,29 +32,25 @@ import {
   type StatusReport,
   type TargetResult,
   type WinnerResult,
-} from '../src/shared/defs.js'
-import type {LiveComponent, Provenance, Winner} from '../src/shared/types.js'
-import {decodePng} from '../src/server/raster.js'
-import {mapDeclaration} from '../src/server/provenance/mappers.js'
+} from '@conciv/extension-design/defs'
+import {mapDeclaration} from '@conciv/extension-design/provenance'
+import type {LiveComponent, Provenance, Winner} from '@conciv/extension-design/types'
+import {unplugin} from '../src/plugin-instance.js'
 
-const HOST_ROOT = fileURLToPath(new URL('fixtures/host/', import.meta.url))
-const TARGETS_DIR = fileURLToPath(new URL('fixtures/targets/', import.meta.url))
-const PROVENANCE_DIR = fileURLToPath(new URL('fixtures/provenance/', import.meta.url))
+const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
+const TARGETS_DIR = fileURLToPath(new URL('fixtures/design/targets/', import.meta.url))
+const PROVENANCE_DIR = fileURLToPath(new URL('fixtures/design/provenance/', import.meta.url))
 const ENDPOINT_FILE = 'dev-endpoint.json'
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 
 const CatalogSchema = z.array(ToolCommandSignatureSchema)
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
 
-const embedEntry = fileURLToPath(import.meta.resolve('@conciv/embed'))
+type DesignConfigInput = NonNullable<ConcivConfig['extensions']>['design']
 
-const concivUnplugin = createConcivUnplugin({
-  serverExtensions: [designServer],
-  clientEntries: [fileURLToPath(import.meta.resolve('@conciv/extension-design/client'))],
-  embedEntry,
-  nativePageDir: dirname(embedEntry),
-  dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
-})
+function decodePng(bytes: Buffer): PNG {
+  return PNG.sync.read(bytes)
+}
 
 type Call = {
   (name: 'design_target', input: z.input<typeof TargetInputSchema>): Promise<TargetResult>
@@ -111,7 +107,7 @@ async function injectWidget(page: Page, apiBase: string): Promise<void> {
   )
 }
 
-async function boot(options: {config?: Partial<DesignConfig>} = {}): Promise<Kit> {
+async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
   const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-state-'))
   const devEndpointDir = await mkdtemp(join(tmpdir(), 'conciv-design-endpoint-'))
   const server = await createServer({
@@ -121,7 +117,7 @@ async function boot(options: {config?: Partial<DesignConfig>} = {}): Promise<Kit
     server: {host: '127.0.0.1', port: 0},
     plugins: [
       react(),
-      concivUnplugin.vite({
+      unplugin.vite({
         stateRoot,
         harnessBin: 'true',
         systemPrompt: false,
