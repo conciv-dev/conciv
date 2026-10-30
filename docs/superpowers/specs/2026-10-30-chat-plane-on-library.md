@@ -85,3 +85,18 @@ persistence, locks, sandbox, code mode, delivery, stop, hydrate) plus its types 
 only names a consumer imports.
 
 Tests go through the public entries only: no export, flag or relative `src/` import that exists for a test. `./testkit` holds fixtures, not backdoors.
+
+## Decisions after the first build (user, 2026-10-30)
+
+- Code-mode child calls: the library's `code_mode:external_*` events carry no call id and
+  `aroundCalls` cannot add one. APPROVED: a small local `pnpm patch` of `@tanstack/ai-code-mode`
+  that adds a `callId` to the `external_call` / `external_result` / `external_error` payloads.
+  Cards pair by it; no parallel emitter.
+- External MCP: register the library's `discover_tools` as an MCP tool beside
+  `execute_typescript`; it replaces `external_catalog`.
+- The 50k result cap still applies to the `execute_typescript` result (feature kept, through a
+  library hook).
+- `withPersistence` settles the run record only after the stream ends (proof 1), so the conciv
+  middleware emits the terminal run lifecycle before `RUN_FINISHED` / `RUN_ERROR`.
+- `minimumReleaseAgeExclude` shrinks to `@tanstack/*` only: drop the unused jazz entries and every
+  entry whose locked version is older than 48h; pin `nitro-nightly` to a nightly at least 48h old.
