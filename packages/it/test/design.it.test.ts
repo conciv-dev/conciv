@@ -510,6 +510,7 @@ describe('x-ray page', () => {
   })
 
   it('renders the rail from the last run and opens the inspector on the first component', async () => {
+    await goto('/')
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
     await xray.goto(report.xray)
