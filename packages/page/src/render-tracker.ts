@@ -1,4 +1,4 @@
-import {instrument, traverseRenderedFibers, getFiberId, getDisplayName, isCompositeFiber} from 'bippy'
+import {instrument, traverseRenderedFibers, getFiberId, getDisplayName, isCompositeFiber, getTimings} from 'bippy'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
 type Fiber = any
@@ -47,20 +47,9 @@ function statFor(fiber: Fiber): Stat {
 const renderReason = (mount: boolean, cp: string[]): string =>
   mount ? 'mount' : cp.length > 0 ? 'props' : 'state/hooks/parent'
 
-function* childFibers(fiber: Fiber): Generator<Fiber> {
-  for (let child = fiber.child; child; child = child.sibling) yield child
-}
-
-const durationOf = (fiber: Fiber): number => (typeof fiber?.actualDuration === 'number' ? fiber.actualDuration : 0)
-
-function selfTimeOf(fiber: Fiber): number {
-  const total = durationOf(fiber)
-  if (total <= 0) return 0
-  return Array.from(childFibers(fiber)).reduce((rest: number, child: Fiber) => rest - durationOf(child), total)
-}
-
 function bumpSelfTime(cur: Stat, fiber: Fiber): void {
-  const self = selfTimeOf(fiber)
+  const timings = getTimings(fiber)
+  const self = typeof timings?.selfTime === 'number' ? timings.selfTime : 0
   if (self > cur.selfTimeMaxMs) cur.selfTimeMaxMs = self
 }
 

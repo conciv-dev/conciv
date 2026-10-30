@@ -187,8 +187,8 @@ catalogs:
       specifier: 3.3.3
       version: 3.3.3
     bippy:
-      specifier: 0.7.3
-      version: 0.7.3
+      specifier: 0.6.1
+      version: 0.6.1
     citty:
       specifier: ^0.2.2
       version: 0.2.2
@@ -2274,7 +2274,7 @@ importers:
         version: 1.170.43(solid-js@1.9.17)
       bippy:
         specifier: 'catalog:'
-        version: 0.7.3(@types/react@19.3.0)(react@19.3.1)
+        version: 0.6.1(react@19.3.1)
       react-grab:
         specifier: 'catalog:'
         version: 0.2.0(react@19.3.1)
@@ -3600,7 +3600,7 @@ importers:
         version: link:../protocol
       bippy:
         specifier: 'catalog:'
-        version: 0.7.3(@types/react@19.3.0)(react@19.3.1)
+        version: 0.6.1(react@19.3.1)
       react-grab:
         specifier: 'catalog:'
         version: 0.2.0(react@19.3.1)
@@ -10778,11 +10778,6 @@ packages:
     peerDependencies:
       '@types/react': ^19.3.0
 
-  '@types/react-reconciler@0.33.1':
-    resolution: {integrity: sha512-0kF59ji2mKuHUd5wytHSpmORybMYVerJvq0K10pz9ZFoOlJ3e+w1LBjLshWpCrokeyQOioRodNbO4PH4ddvRfg==}
-    peerDependencies:
-      '@types/react': '*'
-
   '@types/react@19.3.0':
     resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
 
@@ -12024,11 +12019,6 @@ packages:
     resolution: {integrity: sha512-ky4m94Y/KfsddjGkKTsV4uFjZqkJjpOjQ2t5gKPdX6XH1MNxMNX5FrVefsxV4lpjemEmEdwe0e0YbzAMNs3oUQ==}
     peerDependencies:
       react: '>=17.0.1'
-
-  bippy@0.7.3:
-    resolution: {integrity: sha512-C3yYBkcthd9kMXJwwwR69+ICGruw+R/Mcoq1LqsoscEoPe1OshyhYjMtYmtpoDSiJX40a867qhG4TT7g4mMIdQ==}
-    peerDependencies:
-      react: '>=16.0.0'
 
   blake3-wasm@2.1.5:
     resolution: {integrity: sha512-F1+K8EbfOZE49dtoPtmxUQrpXaBIl3ICvasLh+nJta0xkz+9kF/7uet9fLnwKqhDrmj6g+6K3Tw9yQPUg2ka5g==}
@@ -23466,10 +23456,6 @@ snapshots:
     dependencies:
       '@types/react': 19.3.0
 
-  '@types/react-reconciler@0.33.1(@types/react@19.3.0)':
-    dependencies:
-      '@types/react': 19.3.0
-
   '@types/react@19.3.0':
     dependencies:
       csstype: 3.2.3
@@ -25226,13 +25212,6 @@ snapshots:
   bippy@0.6.1(react@19.3.1):
     dependencies:
       react: 19.3.1
-
-  bippy@0.7.3(@types/react@19.3.0)(react@19.3.1):
-    dependencies:
-      '@types/react-reconciler': 0.33.1(@types/react@19.3.0)
-      react: 19.3.1
-    transitivePeerDependencies:
-      - '@types/react'
 
   blake3-wasm@2.1.5: {}
 

@@ -1,14 +1,15 @@
 import {
   getFiberFromHostInstance,
+  getFiberStack,
   getDisplayName,
   isCompositeFiber,
-  isHostFiber,
+  getNearestHostFiber,
   getLatestFiber,
   getRDTHook,
   traverseFiber,
   _fiberRoots,
 } from 'bippy'
-import {parseStack, hasDebugStack, getFallbackParentStack, formatOwnerStack} from 'bippy/source'
+import {parseStack, hasDebugStack, getParentStack, formatOwnerStack} from 'bippy/source'
 import {installTracker} from './render-tracker.js'
 import {sourceFromAttr} from './source-attr.js'
 import type {RefAdder} from './page-snapshot.js'
@@ -79,19 +80,16 @@ async function fiberForEl(el: Element, tries = 20): Promise<Fiber | null> {
   return null
 }
 
-function* fiberStack(fiber: Fiber): Generator<Fiber> {
-  for (let node = fiber; node.return; node = node.return) yield node
-}
-
 function compositeNames(fiber: Fiber): string[] {
-  return Array.from(fiberStack(fiber))
+  return getFiberStack(fiber)
     .filter((f: Fiber) => isCompositeFiber(f))
     .map((f: Fiber) => getDisplayName(f) || '?')
 }
 
-function rawFrames(fiber: Fiber): RawFrame[] {
-  const stack = (hasDebugStack(fiber) ? fiber._debugStack.stack : undefined) ?? getFallbackParentStack(fiber)
-  return parseStack(formatOwnerStack(stack)).map((fr) => ({
+async function rawFrames(fiber: Fiber): Promise<RawFrame[]> {
+  const stack = hasDebugStack(fiber) ? fiber._debugStack.stack : undefined
+  const frames = stack ? parseStack(formatOwnerStack(stack)) : await getParentStack(fiber)
+  return frames.map((fr) => ({
     ...(fr.fileName === undefined ? {} : {fileName: fr.fileName}),
     ...(fr.lineNumber === undefined ? {} : {line: fr.lineNumber}),
     ...(fr.columnNumber === undefined ? {} : {column: fr.columnNumber}),
@@ -99,17 +97,17 @@ function rawFrames(fiber: Fiber): RawFrame[] {
   }))
 }
 
-export function framesForElement(el: Element): RawFrame[] {
-  try {
-    const fiber = getFiberFromHostInstance(el)
-    return fiber ? rawFrames(fiber) : []
-  } catch {
+export async function framesForElement(el: Element): Promise<RawFrame[]> {
+  const fiber = getFiberFromHostInstance(el)
+  if (!fiber) return []
+  return rawFrames(fiber).catch((error: unknown) => {
+    console.warn('[conciv] react source frames unavailable', error)
     return []
-  }
+  })
 }
 
 function hostElementOf(composite: Fiber): Element | null {
-  const host = traverseFiber(composite, isHostFiber) ?? traverseFiber(composite, isHostFiber, true)
+  const host = getNearestHostFiber(composite)
   return host?.stateNode instanceof Element ? host.stateNode : null
 }
 
@@ -119,7 +117,7 @@ function ownerOf(f: Fiber, addRef: RefAdder): Owner {
 }
 
 function ownerChain(fiber: Fiber, addRef: RefAdder, limit = 12): Owner[] {
-  return Array.from(fiberStack(fiber))
+  return getFiberStack(fiber)
     .filter((f: Fiber) => isCompositeFiber(f))
     .slice(0, limit)
     .map((f: Fiber) => ownerOf(f, addRef))
@@ -129,7 +127,7 @@ export async function locate(el: Element, addRef: RefAdder): Promise<LocateResul
   const fiber = await fiberForEl(el)
   if (!fiber) return null
   const names = compositeNames(fiber)
-  const frames = rawFrames(fiber)
+  const frames = await rawFrames(fiber)
   const owners = ownerChain(fiber, addRef)
   const source = sourceFromAttr(el)
 
@@ -195,7 +193,7 @@ function setInPlace(obj: Record<string, unknown>, path: (string | number)[], val
 }
 
 function composedFiber(fiber: Fiber): Fiber | undefined {
-  return traverseFiber(fiber, isCompositeFiber, true) ?? undefined
+  return isCompositeFiber(fiber) ? fiber : getFiberStack(fiber).find((f: Fiber) => isCompositeFiber(f))
 }
 
 const REACT_PROVIDER = Symbol.for('react.provider')
@@ -346,7 +344,7 @@ function scannedRootFibers(): Fiber[] {
   for (const el of Array.from(document.querySelectorAll('*'))) {
     const key = Object.keys(el).find(isReactDomKey)
     if (!key) continue
-    const stack = Array.from(fiberStack((el as unknown as Record<string, Fiber>)[key]))
+    const stack = getFiberStack((el as unknown as Record<string, Fiber>)[key])
     const top = stack[stack.length - 1]
     if (top) return [top]
   }

@@ -18,16 +18,17 @@ function fromSourceLoc(source: SourceLoc): ElementSource {
   return {componentName: null, filePath: source.file, lineNumber: source.line}
 }
 
-function grabFrames(element: Element): GrabFrame[] {
-  return framesForElement(element).flatMap((frame) => {
+async function grabFrames(element: Element): Promise<GrabFrame[]> {
+  const frames = await framesForElement(element)
+  return frames.flatMap((frame) => {
     if (!frame.fileName || typeof frame.line !== 'number') return []
     return [{fileName: frame.fileName, line: frame.line, ...(frame.column === undefined ? {} : {column: frame.column})}]
   })
 }
 
-function unresolvedFrames(element: Element, source: SourceLoc | null): {frames?: GrabFrame[]} {
+async function unresolvedFrames(element: Element, source: SourceLoc | null): Promise<{frames?: GrabFrame[]}> {
   if (source) return {}
-  const frames = grabFrames(element)
+  const frames = await grabFrames(element)
   return frames.length > 0 ? {frames} : {}
 }
 
@@ -57,13 +58,14 @@ async function create(): Promise<ReactGrabAdapter> {
     const box = element.getBoundingClientRect()
     const [preview, info] = await Promise.all([captureElement(element), api.getSource(element)])
     const {snippet, source, text} = groundGrabText(element, fallback)
+    const unresolved = await unresolvedFrames(element, source)
     sink?.({
       text,
       preview,
       source: source ? fromSourceLoc(source) : toElementSource(info),
       rect: {x: box.x, y: box.y, width: box.width, height: box.height},
       snippet,
-      ...unresolvedFrames(element, source),
+      ...unresolved,
     })
   }
   const hooks = {
