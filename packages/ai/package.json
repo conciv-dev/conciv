@@ -1,7 +1,7 @@
 {
   "name": "@conciv/ai",
   "version": "0.0.19",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The chat primitives conciv is built from: messages, events, tools, usage, the CLI text adapters and a testkit.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The chat primitives conciv is built from: messages, events, tools, usage, the CLI text adapters, the server primitives and testkits.",
   "keywords": [
     "ag-ui",
     "ai",
@@ -43,6 +43,14 @@
     "./adapters": {
       "types": "./dist/adapters.d.ts",
       "import": "./dist/adapters.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./server-testkit": {
+      "types": "./dist/server-testkit.d.ts",
+      "import": "./dist/server-testkit.js"
     }
   },
   "publishConfig": {
@@ -61,6 +69,11 @@
     "@opencode-ai/sdk": "^1.19.4",
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-client": "catalog:",
+    "@tanstack/ai-code-mode": "catalog:",
+    "@tanstack/ai-isolate-node": "catalog:",
+    "@tanstack/ai-isolate-quickjs": "catalog:",
+    "@tanstack/ai-mcp": "catalog:",
+    "@tanstack/ai-persistence": "catalog:",
     "@tanstack/ai-sandbox": "catalog:",
     "zod": "catalog:"
   },
@@ -70,6 +83,7 @@
     "@tanstack/ai-claude-code": "catalog:",
     "@tanstack/ai-codex": "catalog:",
     "@tanstack/ai-opencode": "catalog:",
+    "@tanstack/ai-sandbox-local-process": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "oxc-parser": "catalog:",

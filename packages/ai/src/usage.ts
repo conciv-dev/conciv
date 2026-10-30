@@ -1,7 +1,13 @@
 import {z} from 'zod'
-import type {TokenUsage as LibraryTokenUsage} from '@tanstack/ai'
+import {fromSpecTokenUsage, type SpecTokenUsage, type TokenUsage as LibraryTokenUsage} from '@tanstack/ai'
 
 export type TokenUsage = LibraryTokenUsage
+
+export type ReportedUsage = TokenUsage | SpecTokenUsage[] | undefined
+
+export function toTokenUsage(usage: ReportedUsage): TokenUsage | undefined {
+  return Array.isArray(usage) ? fromSpecTokenUsage(usage) : usage
+}
 
 export const UsageSnapshotSchema = z.object({
   modelId: z.string().optional(),

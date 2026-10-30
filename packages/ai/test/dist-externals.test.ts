@@ -56,7 +56,11 @@ describe('@conciv/ai dist keeps @tanstack/ai-sandbox free of peer edges (#107)',
     }
   })
 
-  it('externalizes @tanstack/ai-sandbox so capability-handle identity is shared with core', () => {
+  it('bundles the patched @tanstack/ai-sandbox-local-process so no peer edge on ai-sandbox reaches consumers', () => {
+    expect(importsPackage('@tanstack/ai-sandbox-local-process')).toBe(false)
+  })
+
+  it('externalizes @tanstack/ai-sandbox so capability-handle identity is shared with the plane', () => {
     expect(importsPackage('@tanstack/ai-sandbox')).toBe(true)
   })
 
