@@ -143,7 +143,15 @@
       }
     },
     {
-      "files": ["apps/site/**", "packages/react/**", "packages/preact/**", "packages/brand/src/react/**"],
+      "files": [
+        "apps/site/**",
+        "packages/react/**",
+        "packages/preact/**",
+        "packages/brand/src/react/**",
+        "packages/page/test/**",
+        "packages/extensions/page/test/fixtures/**",
+        "packages/extensions/page/test/page.browser.test.tsx"
+      ],
       "rules": {
         "solid/jsx-no-duplicate-props": "off",
         "solid/jsx-no-undef": "off",
