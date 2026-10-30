@@ -17,8 +17,8 @@ flag wrong and TypeScript rejects the adapter, not a runtime check.
 
 The one documented failure mode this skill exists to prevent: an adapter that spawns or decodes the
 CLI itself, or special-cases the harness id in core/widget code, instead of returning a
-`@conciv/ai/server` text adapter from `chatConfig()` and letting `chat()` (with the conciv sandbox +
-permission-gate middleware) own the process lifecycle. Every existing adapter (`claude`, `codex`) goes
+`@conciv/ai/server` text adapter from `chatConfig()` and letting `chat()` (with the conciv sandbox
+and its approval policy) own the process lifecycle. Every existing adapter (`claude`, `codex`) goes
 through that one seam — a new harness that bypasses it duplicates process management, loses abort
 handling, and loses the sandbox's `dir`-scoped filesystem.
 
@@ -81,10 +81,10 @@ checker — `HarnessAdapter` is an intersection of three conditional pairs
 - `capabilities.init: 'files'` ⇒ `init: HarnessInit` is REQUIRED. `'none'` ⇒ omit `init`.
 
 There is no matching compile-time link for `resume`, `permissionGate`, `compaction`, `systemPrompt`,
-`mcp`, or `imageInput` — those are read at runtime by `packages/core/src/chat/run.ts` (e.g.
-`deps.harness.capabilities.resume` gates whether a resume token is looked up,
-`packages/core/src/chat/run.ts:173-174`; `deps.harness.capabilities.compaction` picks `/compact` vs a
-fallback prompt, `packages/core/src/chat/run.ts:112-114`). Declare them honestly: `resume: false` when
+`mcp`, or `imageInput` — those are read at runtime by `packages/chat/src/turn.ts` (e.g.
+`deps.harness.capabilities.resume` gates whether a resume token is used,
+`packages/chat/src/turn.ts:72-80`; `deps.harness.capabilities.compaction` picks `/compact` vs a
+fallback prompt, `packages/chat/src/turn.ts:115-117`). Declare them honestly: `resume: false` when
 your CLI has no session-resume flag, `mcp: 'none'` when it can't accept an MCP server URL, and so on —
 core branches on these values to decide what to even attempt.
 
@@ -104,7 +104,6 @@ export type HarnessChatDeps = {
   env: Record<string, string | undefined>
   kind: 'chat' | 'compact'
   hasTools?: boolean
-  decide(toolName: string, input: unknown, toolUseId: string): Promise<'allow' | 'deny'>
 }
 
 export type HarnessChatConfig = {
@@ -114,14 +113,14 @@ export type HarnessChatConfig = {
 }
 ```
 
-(`packages/protocol/src/harness-types.ts:99-114`.) `chatConfig` is a plain function, `deps =>
+(`packages/protocol/src/harness-types.ts:100-114`.) `chatConfig` is a plain function, `deps =>
 HarnessChatConfig` — no async, no side effects at call time. Its `adapter` comes from a
 `@conciv/ai/server` factory for CLIs that have one (`codex`, `claudeCode`, `opencode`, `acp`, thin
 typed wrappers over the published `@tanstack/ai-*` adapters); if none exists for your CLI, build one
-with `makeTextAdapter(name, stream)` from `packages/ai/src/adapters.ts`, where `stream` is your own
+with `makeTextAdapter(name, stream)` from `packages/ai/src/adapters/adapters.ts`, where `stream` is your own
 `AsyncIterable<ChatEvent>` producer. Harness code never imports `@tanstack/ai*` directly. Prefer **declaring** the launch command and letting the adapter
-run it, the way `acpChatConfig` hands `acp` a `command` string plus a permission handler
-built from `deps.decide` (`packages/harness/src/_shared/acp.ts:15-24`): everything launched that way
+run it, the way `acpChatConfig` hands `acp` a `command` builder and
+`permissions: 'interactive'` (`packages/harness/src/_shared/acp.ts:4-13`): everything launched that way
 runs under `withSandbox`'s lifecycle. Reaching for `node:child_process` inside your `stream` steps
 outside the sandbox and its abort handling (see the sandbox-virtual workdir section below).
 
@@ -151,53 +150,52 @@ translation; most adapters omit it.
 
 ## `chat()` owns the turn — you never spawn or decode the CLI in core/widget
 
-`packages/core/src/chat/run.ts:177-215` is the only call site that invokes `chatConfig` and hands the
-result to `chat()`:
+`packages/chat/src/turn.ts:186-194` is the only call site that invokes `chatConfig`; the plan it
+returns reaches `chat()` in `run` (`packages/ai/src/server/chat-server.ts:400-443`):
 
 ```ts
-const config = deps.harness.chatConfig({cwd: deps.cwd, sessionId, resumeSessionId, model, env, kind, hasTools, decide})
 return chat({
-  adapter: config.adapter,
+  adapter: guardedAdapter(plan.adapter, guard),
   messages,
-  systemPrompts: extras.systemPrompts,
-  threadId: sessionId,
-  runId: req.runId,
-  tools: extras.tools,
+  threadId: turn.threadId,
+  runId: turn.runId,
+  systemPrompts,
+  tools,
   lazyToolsConfig: {includeDescription: 'first-sentence'},
-  modelOptions: config.modelOptions,
+  modelOptions: plan.modelOptions,
+  abortController: controller,
+  debug,
   middleware: [
-    withSandbox(deps.sandbox, {
-      runs: deps.runs,
-      durability: {
-        adapter: deps.durability(req.runId),
-        journal: runJournalDir(deps.stateRoot),
-        detachOnDisconnect: true,
-      },
+    steer,
+    withPersistence(persistence, {snapshotStreaming: true}),
+    withLocks(locks),
+    threadView,
+    childCards(config.codeModeResult),
+    withSandbox(sandbox, {
+      runs: stores.runs,
+      locks,
+      durability: {adapter: durability, journal: config.sandbox.journalDir, detachOnDisconnect: true},
     }),
-    withConcivGate(gate),
+    concivTurn(turn, plan, granted, view, entry),
   ],
-  abortController: abort,
-  debug: harnessDebug,
 })
 ```
 
-Both middleware are generic `@tanstack/ai` middleware that apply to every adapter equally; neither has
-a per-harness variant. `withSandbox` is the published one from `@tanstack/ai-sandbox`, and conciv hands
-it a `SandboxDefinition` built once at engine start — `localProcessSandbox({dir: opts.cwd})` behind a
-`default: 'ask'` policy, reused per thread (`packages/core/src/app.ts:449-455`) — together with the
+The middleware is generic `@tanstack/ai` middleware that applies to every adapter equally; none of it
+has a per-harness variant. `withSandbox` is the published one from `@tanstack/ai-sandbox`, and conciv
+hands it a sandbox built once at engine start — `localProcessSandbox({dir})` behind a `default: 'ask'`
+policy, reused per thread (`packages/ai/src/server/chat-server.ts:265-278`) — together with the
 durability options that make a run recoverable: the same event-log adapter the transport replays from,
 a journal directory under the conciv state dir, and `detachOnDisconnect: true`, which leaves the agent
-running when a client disconnects instead of destroying its sandbox. `withConcivGate`
-(`packages/core/src/chat/gate.ts:276-284`) publishes a tool-bridge provisioner that wraps every bridged
-tool in `gate.decide(...)` before it executes (`gateProvisioner`,
-`packages/core/src/chat/gate.ts:255-274`). The `decide` callback your `chatConfig` receives is that
-same gate narrowed to `'allow' | 'deny'` (`packages/core/src/chat/run.ts:185-186`). If your adapter
-needs a CLI-specific "is this command risky" check, that's a sign the check belongs in `deps.decide`
-(via `permissionGate: 'callback'`), not a special case bolted onto core or the widget.
+running when a client disconnects instead of destroying its sandbox. Tools that need approval are
+wrapped by `gatedTools` (`packages/ai/src/server/chat-server.ts:181-195`). An adapter neither sees nor
+makes those decisions, and `chatConfig` receives no approval callback: if your adapter needs a
+CLI-specific "is this command risky" check, that check belongs in the sandbox's command rules
+(`packages/core/src/command-policy.ts`), not a special case bolted onto core or the widget.
 
 ## Sandbox-virtual workdir: `chatConfig` never passes a host `cwd`; `connect.plan()` legitimately does
 
-`localProcessSandbox({dir: opts.cwd})` (`packages/core/src/app.ts:449-455`) roots every process
+`localProcessSandbox({dir})` (`packages/ai/src/server/chat-server.ts:265-278`, `dir` is the engine cwd) roots every process
 spawned **through the sandbox** at `deps.cwd` already — the sandbox root IS `deps.cwd`, not a
 subdirectory of it (AGENTS.md, "Harness & runner
 adapters": "the local-process sandbox root IS the cwd... adapters default to `/workspace`"). Because of
@@ -307,7 +305,7 @@ for streaming updates into an open chat pane, and enumerate past sessions for a 
 `transcriptPath` and `transcriptRoot` or neither, because core resolves one against the other and
 rejects a transcript that escapes the root (`transcriptPathWithin`,
 `packages/harness/src/_shared/contained-path.ts:30-40`, reached for resume liveness by
-`resumableToken` in `packages/core/src/chat/run.ts:51-64`). Build `observe()` with the shared
+`resumableToken` in `packages/chat/src/turn.ts:72-80`). Build `observe()` with the shared
 `makeJsonlHandle()` helper if your CLI's transcript is JSONL-per-line (both `claude`
 and `codex` do this: `packages/harness/src/codex/history.ts:347-360`). See
 [transcript-history](references/transcript-history.md) for the full worked walkthrough (event folding, `verifyHead`
@@ -346,14 +344,14 @@ fit in this file's budget.
 - `packages/harness/src/claude/chat.ts`
 - `packages/harness/src/claude/sdk.ts`
 - `packages/harness/src/pi/index.ts`
-- `packages/ai/src/adapters.ts`
+- `packages/ai/src/adapters/adapters.ts`
 - `packages/harness/src/_shared/text-adapter.ts`
 - `packages/harness/src/_shared/env.ts`
 - `packages/harness/src/_shared/acp.ts`
 - `packages/harness/src/_shared/jsonl-handle.ts`
 - `packages/harness/src/_shared/contained-path.ts`
-- `packages/core/src/chat/run.ts`
-- `packages/core/src/app.ts`
-- `packages/core/src/chat/gate.ts`
+- `packages/ai/src/server/chat-server.ts`
+- `packages/chat/src/turn.ts`
+- `packages/core/src/command-policy.ts`
 - `apps/site/content/docs/harnesses.mdx`
 - `AGENTS.md`
