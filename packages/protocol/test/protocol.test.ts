@@ -811,5 +811,3 @@ describe('ui types', () => {
     })
   })
 })
-
-describe('usage types', () => {})
