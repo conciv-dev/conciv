@@ -43,7 +43,7 @@ type ToolMeta = {
 A `ToolBuilder` starts unbound. `.server(execute)` and `.client(execute?)` each claim the binding
 exactly once — calling either a second time (including calling `.client()` again after
 `.client(fn)`) throws `tool "<name>" already has a <binding> binding` (`define-tool.ts:215-217`,
-verified by `packages/extension/test/extension.test.ts:320-328`). `.render(renderer)` is
+verified by `packages/extension/test/extension.test.ts:303-312`). `.render(renderer)` is
 independent of binding and can be chained before or after `.server`/`.client`.
 
 Derivations never leak into siblings: calling `.server(...)` on a base builder returns a _new_
