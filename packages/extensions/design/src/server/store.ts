@@ -9,7 +9,7 @@ import {TOLERANCES} from '../shared/tolerances.js'
 import type {TargetModel, TargetNode, TargetRecord, TargetStore} from '../shared/types.js'
 import {decodePng, encodePng} from './raster.js'
 
-const TARGET_FILE = 'target.png'
+export const TARGET_FILE = 'target.png'
 const MODEL_FILE = 'model.json'
 const RECORD_FILE = 'record.json'
 const CAPTURES_DIR = 'captures'

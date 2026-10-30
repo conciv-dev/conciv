@@ -6,6 +6,7 @@ import {getMimeType} from 'hono/utils/mime'
 import {z} from 'zod'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import type {TargetStore} from '../shared/types.js'
+import {TARGET_FILE} from './store.js'
 
 const PAGE_FILE = 'index.html'
 const FALLBACK_PAGE = '<!doctype html><title>design x-ray</title><div data-design-xray></div>'
@@ -14,8 +15,8 @@ const PAGE_PREFIX = '/xray/'
 
 const xrayOs = os.$context<RpcContext>()
 
-export function makeXrayRouter(input: {store: TargetStore}) {
-  const {store} = input
+export function makeXrayRouter(input: {store: TargetStore; designDir: string}) {
+  const {store, designDir} = input
   return xrayOs.router({
     xray: {
       targets: xrayOs
@@ -24,7 +25,11 @@ export function makeXrayRouter(input: {store: TargetStore}) {
       report: xrayOs.input(z.object({id: z.string()})).handler(async ({input: query}) => {
         const target = await store.find({id: query.id})
         if (target === null) throw new ORPCError('NOT_FOUND', {message: `no design target with id ${query.id}`})
-        return {target, report: await store.lastResult(target.id)}
+        return {
+          target,
+          report: await store.lastResult(target.id),
+          targetImage: store.reportPath(join(designDir, target.id, TARGET_FILE)),
+        }
       }),
     },
   })
@@ -72,3 +77,4 @@ export function makeXrayApp(input: {store: TargetStore; pageDir: string; designD
       return fileResponse(path)
     })
 }
+export type XrayRouter = ReturnType<typeof makeXrayRouter>

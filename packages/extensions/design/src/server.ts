@@ -54,7 +54,7 @@ export const design = defineExtension({
   }
   return {
     context: {design: runtime},
-    router: makeXrayRouter({store}),
+    router: makeXrayRouter({store, designDir}),
     app: makeXrayApp({store, pageDir: fileURLToPath(new URL('xray/', import.meta.url)), designDir, cwd: server.cwd}),
     dispose: css.dispose,
   }
