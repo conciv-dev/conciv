@@ -70,19 +70,14 @@ jobs:
       # would be a registry-compromise straight into the publish path.
       - run: sfw npm i -g npm@12.0.1
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      # commitMode: github-api pushes the version commit/tags through the GitHub API
-      # instead of the git CLI: commits and tags come back GPG-signed and attributed
-      # to the token's identity, and this job never needs a persisted git credential
-      # (setupGitUser: false skips configuring a local git user that would otherwise
-      # go unused). Checkout above sets persist-credentials: false accordingly.
+      # changesets/action v2 pushes the version commit and tags through the GitHub API by default:
+      # they come back signed and attributed to the token, so no git credential is ever persisted.
       - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          version: pnpm release:version
-          publish: pnpm release
-          commit: 'chore: version packages'
-          title: 'chore: version packages'
-          commitMode: 'github-api'
-          setupGitUser: false
+          version-script: pnpm release:version
+          publish-script: pnpm release
+          commit-message: 'chore: version packages'
+          pr-title: 'chore: version packages'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           NPM_CONFIG_PROVENANCE: 'true' # npm CLI
