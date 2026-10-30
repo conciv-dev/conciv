@@ -19,16 +19,14 @@ function answerFor(index: number): string {
 }
 
 function seedTranscript(turns: number): ChatMessage[] {
-  return Array.from(
-    {length: turns},
-    (_unused, index): ChatMessage =>
-      index % 2 === 0
-        ? {id: `m${index}`, role: 'user', parts: [{type: 'text', content: `seeded question ${index}`}]}
-        : {
-            id: `m${index}`,
-            role: 'assistant',
-            parts: [{type: 'text', content: `${answerFor(index)}\n${PROSE.repeat(3)}`}],
-          },
+  return Array.from({length: turns}, (_unused, index): ChatMessage =>
+    index % 2 === 0
+      ? {id: `m${index}`, role: 'user', parts: [{type: 'text', content: `seeded question ${index}`}]}
+      : {
+          id: `m${index}`,
+          role: 'assistant',
+          parts: [{type: 'text', content: `${answerFor(index)}\n${PROSE.repeat(3)}`}],
+        },
   )
 }
 

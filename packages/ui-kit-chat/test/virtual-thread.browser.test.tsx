@@ -386,13 +386,11 @@ function streamedReply(lines: number): ChatEvent[] {
   const messageId = 'streamed-reply'
   return [
     {type: ChatEventType.TEXT_MESSAGE_START, messageId, role: 'assistant'},
-    ...range(0, lines).map(
-      (line): ChatEvent => ({
-        type: ChatEventType.TEXT_MESSAGE_CONTENT,
-        messageId,
-        delta: `streamed line ${line}. ${'more streamed prose. '.repeat(4)}\n\n`,
-      }),
-    ),
+    ...range(0, lines).map((line): ChatEvent => ({
+      type: ChatEventType.TEXT_MESSAGE_CONTENT,
+      messageId,
+      delta: `streamed line ${line}. ${'more streamed prose. '.repeat(4)}\n\n`,
+    })),
     {type: ChatEventType.TEXT_MESSAGE_END, messageId},
   ]
 }
