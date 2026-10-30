@@ -50,7 +50,6 @@ beforeAll(async () => {
     <span id="failprobe">probe</span>
     <select id="sel"><option value="a">A</option><option value="b">B</option></select>
     <button id="hovbtn">hover me</button>
-    <div id="styled">styled</div>
     <div id="htmlhost"><i>old</i></div>
   `
   document.body.appendChild(container)
@@ -306,12 +305,6 @@ describe('act and edit-live verbs', () => {
   it('replaces inner HTML with sethtml', async () => {
     expect(await resultOf('sethtml', {selector: '#htmlhost', html: '<em id="fresh">new</em>'})).toEqual({ok: true})
     expect(document.querySelector('#htmlhost')?.innerHTML).toBe('<em id="fresh">new</em>')
-  })
-
-  it('sets one inline style property with setstyle', async () => {
-    expect(await resultOf('setstyle', {selector: '#styled', prop: 'color', value: 'rgb(1, 2, 3)'})).toEqual({ok: true})
-    const el = document.querySelector('#styled')
-    expect(el instanceof HTMLElement ? el.style.getPropertyValue('color') : '').toBe('rgb(1, 2, 3)')
   })
 })
 

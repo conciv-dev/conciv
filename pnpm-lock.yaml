@@ -4423,9 +4423,6 @@ importers:
         specifier: 'catalog:'
         version: 1.64.0(solid-js@1.9.17)
     devDependencies:
-      '@conciv/browser-fixture':
-        specifier: workspace:*
-        version: link:../browser-fixture
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset

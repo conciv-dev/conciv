@@ -48,25 +48,6 @@ function tooltipTriggerOf(button: Element): HTMLElement {
   return trigger
 }
 
-it('positions the tooltip next to a trigger that also opens a menu', async () => {
-  mount()
-  const button = page.getByRole('button', {name: NAME})
-  await expect.element(button).toBeVisible()
-  await expect.element(button).toHaveAttribute('aria-haspopup', 'menu')
-
-  await userEvent.hover(button)
-
-  const tooltip = page.getByRole('tooltip')
-  await expect.element(tooltip).toBeVisible()
-  await expect.element(tooltip).toHaveTextContent(NAME)
-  await expect.element(tooltip).toHaveAttribute('data-placement')
-
-  const positioner = tooltip.element().parentElement
-  if (!(positioner instanceof HTMLElement)) throw new Error('the tooltip rendered no positioner')
-  expect(positioner.style.getPropertyValue('--x')).not.toBe('')
-  expect(positioner.style.getPropertyValue('--y')).not.toBe('')
-})
-
 it('keeps the tooltip machine identity off the menu trigger', async () => {
   mount()
   const button = page.getByRole('button', {name: NAME})

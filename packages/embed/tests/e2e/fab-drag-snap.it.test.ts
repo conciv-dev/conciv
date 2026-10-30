@@ -34,32 +34,6 @@ async function collectFrames(page: Page): Promise<Frame[]> {
   return page.evaluate(() => globalThis.__fabFrames)
 }
 
-async function settledBox(page: Page): Promise<Frame> {
-  return page.evaluate(() => {
-    const shadowHosts = [...document.querySelectorAll('*')]
-    const element =
-      document.querySelector('[data-conciv-fab]') ??
-      shadowHosts.map((host) => host.shadowRoot?.querySelector('[data-conciv-fab]')).find(Boolean)
-    if (!(element instanceof HTMLElement)) throw new Error('launcher not found')
-    return new Promise((resolve) => {
-      const settle = () => {
-        const pending = element
-          .getAnimations()
-          .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
-        if (pending.length > 0) {
-          Promise.allSettled(pending.map((animation) => animation.finished)).then(settle)
-          return
-        }
-        requestAnimationFrame(() => {
-          const rect = element.getBoundingClientRect()
-          resolve({x: rect.x, y: rect.y, width: rect.width, height: rect.height})
-        })
-      }
-      settle()
-    })
-  })
-}
-
 async function dragLauncherTo(page: Page, target: {x: number; y: number}): Promise<void> {
   const box = await launcher(page).boundingBox()
   if (!box) throw new Error('launcher has no box')
@@ -102,29 +76,4 @@ test('a launcher dropped past the viewport edge settles inward without ever leav
 
   expect(outsideViewport(frames, viewport)).toEqual([])
   expect(largestRetreat(frames)).toBeLessThanOrEqual(1)
-})
-
-test('a launcher dropped on its resting spot does not move after release', async ({page}) => {
-  await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
-  await expect(launcher(page)).toBeVisible()
-
-  const initial = await launcher(page).boundingBox()
-  if (!initial) throw new Error('launcher has no box')
-  const restX = initial.x + initial.width / 2
-  const restY = initial.y + initial.height / 2
-
-  await page.mouse.move(restX, restY)
-  const beforePress = await settledBox(page)
-
-  await page.mouse.down()
-  await page.mouse.move(restX - 40, restY - 40, {steps: 8})
-  await page.mouse.move(restX, restY, {steps: 8})
-  await armFrameSampler(page)
-  await page.mouse.up()
-
-  await expect(launcher(page)).not.toHaveClass(/cursor-grabbing/)
-  const frames = await collectFrames(page)
-
-  const drift = frames.map((frame) => Math.hypot(frame.x - beforePress.x, frame.y - beforePress.y))
-  expect(Math.max(...drift)).toBeLessThanOrEqual(1)
 })

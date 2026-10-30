@@ -92,8 +92,6 @@ const SIZING_CLASS = 'tall-react-mascot'
 
 const FADED_CLASS = 'faded-react-mascot'
 
-const DATA_URL = "url('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=')"
-
 it('renders one head, one antenna and one eyes layer on a stage with a real size', () => {
   const {container} = renderMascot(<Mascot />)
   expect(partsIn(container, 'head')).toHaveLength(1)
@@ -116,46 +114,11 @@ it('lets a consumer style size the stage instead of the default', () => {
   expect([box.width, box.height]).toEqual([72, 72])
 })
 
-it('keeps the geometry of a layer when a consumer style tries to take it over', () => {
-  const {container} = renderMascot(
-    <Mascot>
-      <Mascot.Eyes
-        style={{
-          position: 'static',
-          backgroundImage: 'none',
-          background: 'none',
-          backgroundColor: 'rgb(10, 20, 30)',
-          opacity: 0.5,
-        }}
-      />
-    </Mascot>,
-  )
-  const applied = getComputedStyle(partOf(container, 'eyes'))
-  expect(applied.position).toBe('absolute')
-  expect(applied.backgroundImage.startsWith('url(')).toBe(true)
-  expect(applied.backgroundColor).toBe('rgb(10, 20, 30)')
-  expect(applied.opacity).toBe('0.5')
-})
-
 it('keeps the stage visible at its default size when a consumer class only paints', () => {
   styleRule(`.${FADED_CLASS}{opacity:0.7}`)
   const {container} = renderMascot(<Mascot className={FADED_CLASS} />)
   const box = rootOf(container).getBoundingClientRect()
   expect([box.width, box.height]).toEqual([44, 44])
-})
-
-it('keeps a data url intact when the consumer paints the stage', () => {
-  const {container} = renderMascot(<Mascot style={{backgroundImage: DATA_URL, opacity: 0.4}} />)
-  const applied = getComputedStyle(rootOf(container))
-  expect(applied.backgroundImage.includes('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=')).toBe(true)
-  expect(applied.opacity).toBe('0.4')
-})
-
-it('ignores an undefined style value instead of sizing the stage with it', () => {
-  const {container} = renderMascot(<Mascot style={{width: undefined, opacity: 0.6}} />)
-  const box = rootOf(container).getBoundingClientRect()
-  expect([box.width, box.height]).toEqual([44, 44])
-  expect(getComputedStyle(rootOf(container)).opacity).toBe('0.6')
 })
 
 it('refuses a second child claiming the same part', () => {

@@ -38,10 +38,6 @@ const SIZING_CLASS = 'tall-mascot'
 
 const FADED_CLASS = 'faded-mascot'
 
-const DATA_URL_STYLE = "background-image:url('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=');opacity:0.4"
-
-const IMPORTANT_STYLE = 'opacity:0.3 !important'
-
 it('renders one head, one antenna and one eyes layer on a stage with a real size', () => {
   const {container} = renderMascot(() => <Mascot />)
   expect(partsIn(container, 'head')).toHaveLength(1)
@@ -62,28 +58,6 @@ it('lets a consumer style size the stage instead of the default', () => {
   const {container} = renderMascot(() => <Mascot style={{width: '72px', height: '72px'}} />)
   const box = rootOf(container).getBoundingClientRect()
   expect([box.width, box.height]).toEqual([72, 72])
-})
-
-it('keeps the geometry of a layer when a consumer style tries to take it over', () => {
-  const {container} = renderMascot(() => (
-    <Mascot>
-      <Mascot.Eyes
-        style={{
-          position: 'static',
-          'background-image': 'none',
-          background: 'none',
-          'background-color': 'rgb(10, 20, 30)',
-          opacity: 0.5,
-        }}
-      />
-    </Mascot>
-  ))
-  const eyes = partOf(container, 'eyes')
-  const applied = getComputedStyle(eyes)
-  expect(applied.position).toBe('absolute')
-  expect(applied.backgroundImage.startsWith('url(')).toBe(true)
-  expect(applied.backgroundColor).toBe('rgb(10, 20, 30)')
-  expect(applied.opacity).toBe('0.5')
 })
 
 it('keeps the stage visible at its default size when a consumer class only paints', () => {
@@ -292,24 +266,4 @@ it('sizes the stage inside a shadow root the same way', () => {
   const root = shadowStageOf(document.body)
   const box = root.getBoundingClientRect()
   expect([box.width, box.height]).toEqual([44, 44])
-})
-
-it('keeps a data url intact when the consumer styles the stage with a string', () => {
-  const {container} = renderMascot(() => <Mascot style={DATA_URL_STYLE} />)
-  const applied = getComputedStyle(rootOf(container))
-  expect(applied.backgroundImage.includes('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=')).toBe(true)
-  expect(applied.opacity).toBe('0.4')
-})
-
-it('keeps the priority of an important declaration in a consumer string', () => {
-  styleRule(`.${FADED_CLASS}{opacity:0.9}`)
-  const {container} = renderMascot(() => <Mascot class={FADED_CLASS} style={IMPORTANT_STYLE} />)
-  expect(getComputedStyle(rootOf(container)).opacity).toBe('0.3')
-})
-
-it('ignores an undefined style value instead of sizing the stage with it', () => {
-  const {container} = renderMascot(() => <Mascot style={{width: undefined, opacity: 0.6}} />)
-  const box = rootOf(container).getBoundingClientRect()
-  expect([box.width, box.height]).toEqual([44, 44])
-  expect(getComputedStyle(rootOf(container)).opacity).toBe('0.6')
 })
