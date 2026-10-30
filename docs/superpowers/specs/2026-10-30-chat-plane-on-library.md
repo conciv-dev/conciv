@@ -37,9 +37,9 @@ once. A reused runId resumes the run. Run events travel on the run log only; the
 session-level events only. Errors are never swallowed: a failure ends the run as `RUN_ERROR` and
 the run record settles.
 
-## Decisions (library way, taken 2026-10-30)
+## Decisions (user, 2026-10-30, each asked and answered)
 
-1. Persistence: `withPersistence` replaces option D's write-time fold; the CLI transcript importer
+1. Persistence: `withPersistence` with `snapshotStreaming: true` replaces option D's write-time fold; the CLI transcript importer
    stays and merges by message id (1.0 `chat-persistence-advanced.md` merge-by-id).
 2. Stop returns immediately; the UI's stopping phase reads the run record.
 3. Same runId resumes.
@@ -48,7 +48,8 @@ the run record settles.
 5. Code-mode child calls use the library's `code_mode:external_*` events. If they carry no id to
    pair parallel calls into cards, fill it through the library's event extension point; do not
    keep our parallel emitter.
-6. Compaction keeps the stored thread and writes a boundary marker; it never deletes history.
+6. Run events travel on the run log only; the push bus carries session-level events only.
+7. Compaction keeps the stored thread and writes a boundary marker; it never deletes history.
 
 ## Package
 
