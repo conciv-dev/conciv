@@ -21,6 +21,8 @@ const mascotOf = (fab: Locator): Locator => fab.locator('[data-scope="mascot"][d
 
 const emitterOf = (fab: Locator): Locator => fab.locator('[data-scope="mascot"][data-part="effect"] > span')
 
+const robotStep = (page: Page): Locator => page.locator('div').filter({hasText: /^3Meet the robot/})
+
 test.describe('the landing robot fab rides the mascot compound api', () => {
   test('renders the default mascot parts on a 44px stage and emits nothing at rest', async ({browser}) => {
     const page = await browser.newPage()
@@ -59,6 +61,8 @@ test.describe('the landing robot fab rides the mascot compound api', () => {
     const eyes = mascotOf(fab).locator('[data-part="eyes"]')
     await expectLocator(eyes).not.toHaveCSS('transform', AWAKE_EYE_SCALE)
 
+    await fab.scrollIntoViewIfNeeded()
+    await expectLocator(robotStep(page)).toHaveCSS('opacity', '1')
     await fab.hover()
     await expectLocator(eyes).toHaveCSS('transform', AWAKE_EYE_SCALE)
 
