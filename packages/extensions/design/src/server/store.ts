@@ -13,7 +13,6 @@ const TARGET_FILE = 'target.png'
 const MODEL_FILE = 'model.json'
 const RECORD_FILE = 'record.json'
 const CAPTURES_DIR = 'captures'
-const RUNS_DIR = 'runs'
 
 const RecordSchema = z.object({
   id: z.string(),
@@ -70,8 +69,8 @@ async function readJson<T>(input: {path: string; schema: z.ZodType<T>}): Promise
   return input.schema.parse(JSON.parse(await readFile(input.path, 'utf8')))
 }
 
-async function prune(input: {dir: string; suffix: string}): Promise<void> {
-  const names = (await readdir(input.dir)).filter((name) => name.endsWith(input.suffix)).toSorted()
+async function prune(input: {dir: string; prefix: string}): Promise<void> {
+  const names = (await readdir(input.dir)).filter((name) => name.startsWith(input.prefix)).toSorted()
   const stale = names.slice(0, Math.max(0, names.length - TOLERANCES.runsKept))
   await Promise.all(stale.map((name) => rm(join(input.dir, name), {force: true})))
 }
@@ -141,29 +140,33 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       await mkdir(captures, {recursive: true})
       const path = join(captures, `capture-${stamp()}.png`)
       await writeFile(path, png)
-      await prune({dir: captures, suffix: '.png'})
+      await prune({dir: captures, prefix: 'capture-'})
       return path
     },
     writeRun: async ({id, live, diff, result}) => {
-      const runs = join(dir, id, RUNS_DIR)
-      await mkdir(runs, {recursive: true})
-      const base = join(runs, stamp())
-      const paths = {livePath: `${base}-live.png`, diffPath: `${base}-diff.png`, resultPath: `${base}-result.json`}
+      const home = join(dir, id)
+      await mkdir(home, {recursive: true})
+      const at = stamp()
+      const paths = {
+        livePath: join(home, `live-${at}.png`),
+        diffPath: join(home, `diff-${at}.png`),
+        resultPath: join(home, `result-${at}.json`),
+      }
       await writeFile(paths.livePath, encodePng(live))
       await writeFile(paths.diffPath, encodePng(diff))
       await writeFile(paths.resultPath, JSON.stringify(result))
-      await Promise.all(['-live.png', '-diff.png', '-result.json'].map((suffix) => prune({dir: runs, suffix})))
+      await Promise.all(['live-', 'diff-', 'result-'].map((prefix) => prune({dir: home, prefix})))
       return paths
     },
     lastResult: async (id): Promise<DiffReport | null> => {
-      const runs = join(dir, id, RUNS_DIR)
-      if (!existsSync(runs)) return null
-      const last = (await readdir(runs))
-        .filter((name) => name.endsWith('-result.json'))
+      const home = join(dir, id)
+      if (!existsSync(home)) return null
+      const last = (await readdir(home))
+        .filter((name) => name.startsWith('result-'))
         .toSorted()
         .at(-1)
       if (last === undefined) return null
-      return readJson({path: join(runs, last), schema: DiffReportSchema})
+      return readJson({path: join(home, last), schema: DiffReportSchema})
     },
     reportPath: (path) => (path.startsWith(cwd) ? relative(cwd, path) : path),
   }

@@ -13,6 +13,10 @@ function pngBase64(ref: string): Uint8Array | null {
   return PNG_SIGNATURE.every((byte, index) => bytes[index] === byte) ? bytes : null
 }
 
+export function unreadableMessage(ref: string): string {
+  return `image is neither a PNG file nor PNG base64: ${ref.slice(0, 80)}`
+}
+
 function isFile(path: string): boolean {
   return existsSync(path) && statSync(path).isFile()
 }
@@ -22,12 +26,12 @@ async function readImage(input: {ref: string; cwd: string}): Promise<Uint8Array>
   if (isFile(path)) return new Uint8Array(await readFile(path))
   const bytes = pngBase64(input.ref)
   if (bytes !== null) return bytes
-  throw toolError('no-target', {message: `image is neither a PNG file nor PNG base64: ${input.ref.slice(0, 80)}`})
+  throw toolError('image-unreadable', {message: unreadableMessage(input.ref)})
 }
 
 export const imageAdapter: TargetAdapter = {
   kind: 'image',
-  accepts: (ref) => isFile(resolve(ref)) || pngBase64(ref) !== null,
+  accepts: ({ref, cwd}) => isFile(resolve(cwd, ref)) || pngBase64(ref) !== null,
   load: async ({ref, width, cwd}) => {
     const decoded = decodePng(await readImage({ref, cwd}))
     const {raster, scale} = scaleToWidth({raster: decoded, width: width ?? decoded.width})

@@ -1,6 +1,7 @@
 import {toolError} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {z} from 'zod'
+import {unreadableMessage} from '../../server/adapters/image.js'
 import type {TargetInput, TargetResult} from '../../shared/defs.js'
 import type {Enricher, Raster, ServerStep, TargetNode} from '../../shared/types.js'
 
@@ -27,9 +28,9 @@ export const targetStep: ServerStep<TargetInput, TargetResult> = async (input, c
   const {width} = input
   if (width === undefined) throw toolError('width-required')
   const route = input.route ?? (await liveRoute(page))
-  const adapter = design.adapters.find((candidate) => candidate.accepts(input.image))
+  const adapter = design.adapters.find((candidate) => candidate.accepts({ref: input.image, cwd: design.cwd}))
   if (adapter === undefined) {
-    throw toolError('no-target', {message: 'image is neither a PNG file nor PNG base64'})
+    throw toolError('image-unreadable', {message: unreadableMessage(input.image)})
   }
   const model = await adapter.load({ref: input.image, width, cwd: design.cwd})
   const root = await enrich({node: model.root, raster: model.raster, enrichers: design.enrichers})

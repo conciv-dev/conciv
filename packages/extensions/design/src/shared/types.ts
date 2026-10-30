@@ -30,7 +30,7 @@ export type TargetModel = {
 }
 export type TargetAdapter = {
   kind: string
-  accepts(ref: string): boolean
+  accepts(input: {ref: string; cwd: string}): boolean
   load(input: {ref: string; width?: number; cwd: string}): Promise<TargetModel>
 }
 export type Enricher = {
