@@ -1,9 +1,17 @@
 import {toolError} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import type {ComponentReport, DiffInput, DiffReport} from '../../shared/defs.js'
+import {
+  winnerDef,
+  WinnerResultSchema,
+  type ComponentReport,
+  type DiffInput,
+  type DiffReport,
+} from '../../shared/defs.js'
 import {TOLERANCES} from '../../shared/tolerances.js'
-import type {DesignRuntime, Pair, Raster, ServerStep, TargetRecord} from '../../shared/types.js'
+import type {CssMap, Delta, DesignRuntime, Pair, Raster, ServerStep, TargetRecord} from '../../shared/types.js'
 import {sideFrom} from '../../server/deltas.js'
+import {DELTA_PROPERTIES} from '../../server/provenance/delta-properties.js'
+import {mapDeclaration} from '../../server/provenance/mappers.js'
 import {unmatchedRegions} from '../../server/unmatched.js'
 import {liveRoute, targetWidth} from './target.js'
 
@@ -51,6 +59,53 @@ function area(pair: Pair): number {
   return pair.liveBox.w * pair.liveBox.h
 }
 
+type Ranked = {pair: Pair; report: ComponentReport}
+
+function candidates(input: {delta: Delta; pair: Pair}): string[] {
+  return DELTA_PROPERTIES[input.delta.kind]({delta: input.delta, axis: input.pair.live.axis})
+}
+
+async function attribute(input: {
+  ranked: Ranked
+  design: DesignRuntime
+  page: ServerToolPageAccess
+  cssMap: CssMap
+}): Promise<ComponentReport> {
+  const {ranked, design, page, cssMap} = input
+  const {pair, report} = ranked
+  const properties = [...new Set(report.deltas.flatMap((delta) => candidates({delta, pair})))]
+  const winners = WinnerResultSchema.parse(await page.call(winnerDef.name, {selector: pair.selector, properties}))
+  const deltas = await Promise.all(
+    report.deltas.map(async (delta) => {
+      const [found] = candidates({delta, pair}).flatMap((property) => {
+        const winner = winners[property]
+        return winner === null || winner === undefined || winner.inherited ? [] : [{property, winner}]
+      })
+      if (found === undefined) return delta
+      const provenance = await mapDeclaration({
+        ...found,
+        component: pair.live,
+        target: delta.target,
+        cwd: design.cwd,
+        cssMap,
+      })
+      return {...delta, ...provenance}
+    }),
+  )
+  return {...report, deltas}
+}
+
+async function withProvenance(input: {
+  ranked: Ranked[]
+  design: DesignRuntime
+  page: ServerToolPageAccess
+}): Promise<ComponentReport[]> {
+  const {ranked, design, page} = input
+  if (ranked.length === 0) return []
+  const cssMap = await design.cssMap()
+  return Promise.all(ranked.map((entry) => attribute({ranked: entry, design, page, cssMap})))
+}
+
 export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, _request, page) => {
   const {design} = ctx
   const record = await findTarget({query: input, design, page})
@@ -59,8 +114,8 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, _r
   const matched = design.matcher.match({live, target, comparators: design.comparators, depth: input.depth})
   const pageBox = {x: 0, y: 0, w: live.viewport.width, h: live.viewport.height}
   const reported = matched.pairs.filter((pair) => pair.mismatch >= TOLERANCES.tileGate)
-  const components = reported
-    .map((pair): {pair: Pair; report: ComponentReport} => {
+  const ranked = reported
+    .map((pair): Ranked => {
       const children = matched.pairs.filter((child) => child.parent === pair)
       const liveSide = sideFrom({pair, from: 'live', children, page: pageBox, raster: live.raster})
       const targetSide = sideFrom({pair, from: 'target', children, page: pageBox, raster: target.raster})
@@ -87,7 +142,7 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, _r
     .filter(({report}) => report.deltas.length > 0)
     .toSorted((a, b) => b.pair.mismatch * area(b.pair) - a.pair.mismatch * area(a.pair))
     .slice(0, input.limit)
-    .map(({report}) => report)
+  const components = await withProvenance({ranked, design, page})
   return design.store.writeRun({
     id: record.id,
     live: live.raster,
