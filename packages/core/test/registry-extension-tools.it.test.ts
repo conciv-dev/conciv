@@ -4,7 +4,7 @@ import {defineExtension, defineTool, toolError} from '@conciv/extension'
 import {makeRunTypescript, type Kit} from '@conciv/harness-testkit'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {bootKit} from './helpers/boot.js'
-import {connectMcpClient} from './helpers/mcp-client.js'
+import {connectMcpClient} from '@conciv/harness-testkit'
 
 const lens = defineTool({
   name: 'acme_lens',

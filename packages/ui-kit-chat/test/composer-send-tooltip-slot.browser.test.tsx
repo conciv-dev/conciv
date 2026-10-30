@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {untrack, type JSX, type ParentProps} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection, type StoryConnectionOptions} from '@conciv/ai/testkit'
@@ -11,7 +11,7 @@ import {ComposerHandlersProvider, type ComposerHandlers} from '../src/primitives
 import {mountView} from './mount-view.js'
 
 function ChatHost(props: ParentProps<{connection?: StoryConnectionOptions; handlers?: ComposerHandlers}>): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'composer-send-tooltip-slot',
     connection: storyConnection(untrack(() => props.connection)),
   })

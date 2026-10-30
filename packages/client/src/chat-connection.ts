@@ -3,8 +3,6 @@ import {
   webSocket,
   type ResumableConnectConnectionAdapter,
   type SubscribeConnectionAdapter,
-} from '@tanstack/ai-client'
-import {
   type ModelMessage,
   type ChatMessage,
   type ChatEvent,

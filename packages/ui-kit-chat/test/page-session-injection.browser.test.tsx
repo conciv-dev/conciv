@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {onMount, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import {type ChatPart, type ToolCallPart, type ChatMessage, ChatEventType} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {createTextChunks, createToolCallChunks, storyConnection} from '@conciv/ai/testkit'
@@ -49,7 +49,7 @@ function threadHarness(
   pageSession?: PageSessionConfig,
 ): () => JSX.Element {
   return function ThreadHarness(): JSX.Element {
-    const chat = useChat({threadId: 'page-session-injection', connection: storyConnection(options)})
+    const chat = createChat({threadId: 'page-session-injection', connection: storyConnection(options)})
     return (
       <ChatProvider chat={chat}>
         <button type="button" onClick={() => void chat.sendMessage('drive the page')}>

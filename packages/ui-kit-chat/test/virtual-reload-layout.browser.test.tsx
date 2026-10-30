@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {createSignal, onMount, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatMessage} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection} from '@conciv/ai/testkit'
@@ -33,7 +33,7 @@ function seedTranscript(turns: number): ChatMessage[] {
 }
 
 function ReloadedThread(props: {initial: ChatMessage[]; ref?: (element: HTMLElement) => void}): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'virtual-reload-layout',
     connection: storyConnection({chunks: []}),
     initialMessages: props.initial,
@@ -181,7 +181,7 @@ function GrowingTail(): JSX.Element {
 }
 
 function LateTailThread(props: {initial: ChatMessage[]; ref?: (element: HTMLElement) => void}): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'virtual-reload-layout',
     connection: storyConnection({chunks: []}),
     initialMessages: props.initial,

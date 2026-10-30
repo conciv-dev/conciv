@@ -1,3 +1,9 @@
+export {fetchServerSentEvents, webSocket} from '@tanstack/ai-client'
+export type {
+  ConnectConnectionAdapter,
+  ResumableConnectConnectionAdapter,
+  SubscribeConnectionAdapter,
+} from '@tanstack/ai-client'
 export {generateMessageId} from '@tanstack/ai'
 export type {
   ChatMessage,

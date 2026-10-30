@@ -1,7 +1,7 @@
 import {onMount, Show, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, waitFor} from 'storybook/test'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatMessage} from '@conciv/ai'
 import {ChatProvider} from '../../store/chat-context.js'
 import {storyConnection} from '@conciv/ai/testkit'
@@ -28,7 +28,7 @@ function UserMessage(): JSX.Element {
 
 export const ImagePart: Story = {
   render: () => {
-    const chat = useChat({threadId: 'message-part', connection: storyConnection()})
+    const chat = createChat({threadId: 'message-part', connection: storyConnection()})
     const message: ChatMessage = {
       id: 'u-img',
       role: 'user',
@@ -73,7 +73,7 @@ function InProgressUser(): JSX.Element {
 
 export const InProgressWhileToolRuns: Story = {
   render: () => {
-    const chat = useChat({threadId: 'message-part', connection: storyConnection()})
+    const chat = createChat({threadId: 'message-part', connection: storyConnection()})
     const message: ChatMessage = {
       id: 'a-run',
       role: 'assistant',
@@ -125,7 +125,7 @@ function ProbeAssistant(): JSX.Element {
 
 export const PartAccessors: Story = {
   render: () => {
-    const chat = useChat({threadId: 'message-part', connection: storyConnection()})
+    const chat = createChat({threadId: 'message-part', connection: storyConnection()})
     const message: ChatMessage = {
       id: 'a-parts',
       role: 'assistant',

@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import type {JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {SendContent} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection} from '@conciv/ai/testkit'
@@ -20,7 +20,7 @@ function withText(): SendContent {
 }
 
 function ThreadHost(props: {content: () => SendContent}): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'attachment-only-user-message',
     connection: storyConnection({chunks: [], chunkDelay: 2}),
   })

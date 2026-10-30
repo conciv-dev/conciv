@@ -1,5 +1,5 @@
 import {ChatEventType, type ChatEvent} from '@conciv/ai'
-import {fetchServerSentEvents} from '@tanstack/ai-client'
+import {fetchServerSentEvents} from '@conciv/ai'
 import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type PersistedAttachment, type RpcClient} from '@conciv/contract'
 

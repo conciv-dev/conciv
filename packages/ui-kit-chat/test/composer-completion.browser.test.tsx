@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {createSignal, untrack, type Accessor, type JSX, type ParentProps} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {WebStorage} from '@conciv/storage-history'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection, type StoryConnectionOptions} from '@conciv/ai/testkit'
@@ -25,7 +25,10 @@ function createProbeStorage(seed?: string): {storage: WebStorage; written: Acces
 }
 
 function ChatHost(props: ParentProps<{connection?: StoryConnectionOptions; handlers?: ComposerHandlers}>): JSX.Element {
-  const chat = useChat({threadId: 'composer-completion', connection: storyConnection(untrack(() => props.connection))})
+  const chat = createChat({
+    threadId: 'composer-completion',
+    connection: storyConnection(untrack(() => props.connection)),
+  })
   const handlers = untrack(() => props.handlers ?? {})
   return (
     <ChatProvider chat={chat}>

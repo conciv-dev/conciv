@@ -3,7 +3,7 @@ import {onMount, type JSX} from 'solid-js'
 import {page, type Locator} from 'vitest/browser'
 import {expect, it, onTestFinished} from 'vitest'
 import {keyBy, range, uniq} from 'es-toolkit'
-import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
+import {createChat, type Chat} from '@conciv/ai/client'
 import {type ChatMessage, ChatEventType, type ChatEvent} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection, type StoryConnectionOptions} from '@conciv/ai/testkit'
@@ -62,12 +62,16 @@ function mountThread(
   host: HTMLElement
   viewport: () => HTMLElement
   transcript: Locator
-  chat: () => UseChatReturn
+  chat: () => Chat
 } {
   let viewport: HTMLElement | undefined
-  let chat: UseChatReturn | undefined
+  let chat: Chat | undefined
   function VirtualThread(): JSX.Element {
-    const value = useChat({threadId: 'virtual-thread', connection: storyConnection(stream), initialMessages: initial})
+    const value = createChat({
+      threadId: 'virtual-thread',
+      connection: storyConnection(stream),
+      initialMessages: initial,
+    })
     onMount(() => {
       chat = value
     })
@@ -179,7 +183,7 @@ function holdSteady(host: HTMLElement, label: string, read: () => string): void 
   requestAnimationFrame(sample)
 }
 
-function appendTurnsEvery(chat: UseChatReturn, from: number, added: number, everyMs: number): () => void {
+function appendTurnsEvery(chat: Chat, from: number, added: number, everyMs: number): () => void {
   let count = from
   const timer = setInterval(() => {
     if (count >= from + added) {

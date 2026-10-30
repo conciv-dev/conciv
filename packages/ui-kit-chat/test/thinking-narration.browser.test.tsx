@@ -4,7 +4,7 @@ import '@conciv/ui-kit-chat/theme/tokens.css'
 import {onMount, type JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatPart, ChatMessage} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {createReasoningChunks, createToolCallChunks, storyConnection} from '@conciv/ai/testkit'
@@ -20,7 +20,7 @@ function staticThread(parts: ChatPart[]): () => JSX.Element {
     {id: 'a1', role: 'assistant', parts},
   ]
   return function StaticThread(): JSX.Element {
-    const chat = useChat({threadId: 'thinking-narration', connection: storyConnection()})
+    const chat = createChat({threadId: 'thinking-narration', connection: storyConnection()})
     onMount(() => chat.setMessages(messages))
     return (
       <ChatProvider chat={chat}>

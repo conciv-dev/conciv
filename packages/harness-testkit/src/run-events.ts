@@ -1,5 +1,5 @@
 import {ChatEventType, type ChatEvent, approvalAskOf} from '@conciv/ai'
-import {StreamProcessor} from '@tanstack/ai'
+import {foldChatEvents} from '@conciv/ai/testkit'
 import {z} from 'zod'
 
 export type SeenToolCall = {toolCallId: string; name: string; input: unknown}
@@ -28,9 +28,7 @@ function parseArgs(raw: string): unknown {
 }
 
 function renderedMessages(all: ChatEvent[]): unknown[] {
-  const processor = new StreamProcessor({})
-  for (const chunk of all) processor.processChunk(chunk)
-  return processor.getMessages()
+  return foldChatEvents(all)
 }
 
 function partsOf(all: ChatEvent[], role?: string): unknown[] {

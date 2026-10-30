@@ -28,6 +28,10 @@
       "types": "./dist/server.d.ts",
       "import": "./dist/server.js"
     },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
     "./testkit": {
       "types": "./dist/testkit.d.ts",
       "import": "./dist/testkit.js"
@@ -54,7 +58,9 @@
     "@tanstack/ai-isolate-quickjs": "catalog:",
     "@tanstack/ai-persistence": "catalog:",
     "@tanstack/ai-sandbox": "catalog:",
+    "@tanstack/ai-solid": "catalog:",
     "drizzle-orm": "catalog:",
+    "solid-js": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

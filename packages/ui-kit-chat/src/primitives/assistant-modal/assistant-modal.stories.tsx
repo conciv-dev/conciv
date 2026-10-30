@@ -1,7 +1,7 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import {ChatProvider} from '../../store/chat-context.js'
 import {storyConnection, createTextChunks} from '@conciv/ai/testkit'
 import {AssistantModal} from './assistant-modal.js'
@@ -29,7 +29,7 @@ export const TriggerOpensPanel: Story = {
 }
 
 function RunStartFrame(): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'assistant-modal',
     connection: storyConnection({chunks: createTextChunks('Working on it.'), chunkDelay: 5}),
   })

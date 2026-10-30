@@ -1,7 +1,7 @@
 import {onMount, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
+import {createChat, type Chat} from '@conciv/ai/client'
 import {ChatProvider} from '../store/chat-context.js'
 import {storyConnection, createTextChunks, createReasoningChunks, createToolCallChunks} from '@conciv/ai/testkit'
 import {Thread} from './thread.js'
@@ -18,8 +18,8 @@ function Welcome(): JSX.Element {
   return <div class="text-[0.8125rem] text-chat-text-3 m-auto">Ask anything to begin.</div>
 }
 
-function ThreadApp(props: {expose: (chat: UseChatReturn) => void}): JSX.Element {
-  const chat = useChat({
+function ThreadApp(props: {expose: (chat: Chat) => void}): JSX.Element {
+  const chat = createChat({
     threadId: 'thread',
     connection: storyConnection({
       chunks: [
@@ -53,7 +53,7 @@ function ThreadApp(props: {expose: (chat: UseChatReturn) => void}): JSX.Element 
 function play(): Story {
   return {
     render: () => {
-      let chat: UseChatReturn | undefined
+      let chat: Chat | undefined
       return (
         <div>
           <button type="button" onClick={() => void chat?.sendMessage('search for the symbol')}>
@@ -104,7 +104,7 @@ function Divider(): JSX.Element {
 const renderDivider = (): JSX.Element => <Divider />
 
 function SlotsApp(): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'thread',
     connection: storyConnection({
       chunks: [...createTextChunks('On it.')],
@@ -129,7 +129,7 @@ function SlotsApp(): JSX.Element {
 }
 
 function ShiftApp(): JSX.Element {
-  const chat = useChat({threadId: 'thread', connection: storyConnection()})
+  const chat = createChat({threadId: 'thread', connection: storyConnection()})
   onMount(() =>
     chat.setMessages([
       {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'First reply, older.'}]},

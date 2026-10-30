@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {onMount, type JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatPart, ChatMessage} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {PAGE_SESSION_GROUP_KEY, type GroupEntry, type GroupRenderProps} from '../src/store/grouping.js'
@@ -35,7 +35,7 @@ function staticThread(parts: ChatPart[], pageSession?: PageSessionConfig): () =>
     {id: 'a1', role: 'assistant', parts},
   ]
   return function StaticThread(): JSX.Element {
-    const chat = useChat({threadId: 'empty-group-suppression', connection: storyConnection()})
+    const chat = createChat({threadId: 'empty-group-suppression', connection: storyConnection()})
     onMount(() => chat.setMessages(messages))
     return (
       <ChatProvider chat={chat}>

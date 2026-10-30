@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import type {ChatMessage} from '@conciv/ai'
-import {ChatClient} from '@tanstack/ai-client'
+import {ChatClient} from '@conciv/ai/testkit'
 import {makeRpcClient} from '@conciv/contract'
 import {chatConnection} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'

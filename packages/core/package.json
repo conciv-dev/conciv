@@ -81,7 +81,7 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@hono/node-server": "catalog:",
     "@jridgewell/trace-mapping": "0.3.31",
-    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@modelcontextprotocol/sdk": "catalog:",
     "@orpc/server": "catalog:",
     "drizzle-orm": "catalog:",
     "hono": "catalog:",

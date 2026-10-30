@@ -1,7 +1,7 @@
 import {onMount, type JSX, type ParentProps} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, waitFor} from 'storybook/test'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatMessage} from '@conciv/ai'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../../store/chat-context.js'
@@ -43,7 +43,7 @@ function AttachmentsUser(): JSX.Element {
 
 function attachmentsApp(component: () => JSX.Element): () => JSX.Element {
   return () => {
-    const chat = useChat({threadId: 'message', connection: storyConnection()})
+    const chat = createChat({threadId: 'message', connection: storyConnection()})
     onMount(() => chat.setMessages([WITH_ATTACHMENTS]))
     return (
       <ChatProvider chat={chat}>
@@ -113,7 +113,7 @@ function GroupedAssistant(): JSX.Element {
 
 export const PartsGrouped: Story = {
   render: () => {
-    const chat = useChat({threadId: 'message', connection: storyConnection()})
+    const chat = createChat({threadId: 'message', connection: storyConnection()})
     onMount(() => chat.setMessages([CHAIN_THEN_REPLY]))
     return (
       <ChatProvider chat={chat}>
@@ -175,7 +175,7 @@ function GroupedWithGrouping(): JSX.Element {
 
 export const PartsGroupedWithGrouping: Story = {
   render: () => {
-    const chat = useChat({threadId: 'message', connection: storyConnection()})
+    const chat = createChat({threadId: 'message', connection: storyConnection()})
     onMount(() => chat.setMessages([GROUPED_WITH_STANDALONE]))
     return (
       <ChatProvider chat={chat}>

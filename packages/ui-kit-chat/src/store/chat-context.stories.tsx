@@ -1,7 +1,7 @@
 import {For, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import {ChatProvider, useThread, useComposer} from './chat-context.js'
 import {storyConnection, createTextChunks, createReasoningChunks, createToolCallChunks} from '@conciv/ai/testkit'
 import type {ChatPart} from '@conciv/ai'
@@ -48,7 +48,7 @@ function ThreadDump(): JSX.Element {
 
 export const StreamsTextThroughRealUseChat: Story = {
   render: () => {
-    const chat = useChat({
+    const chat = createChat({
       threadId: 'chat-context',
       connection: storyConnection({
         chunks: [

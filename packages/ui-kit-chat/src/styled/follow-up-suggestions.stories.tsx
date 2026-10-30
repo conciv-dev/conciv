@@ -1,7 +1,7 @@
 import {onMount, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatMessage} from '@conciv/ai'
 import {ChatProvider} from '../store/chat-context.js'
 import {storyConnection, createTextChunks} from '@conciv/ai/testkit'
@@ -20,7 +20,7 @@ const SUGGESTIONS: SuggestionData[] = [
 const REPLY: ChatMessage = {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'Done.'}]}
 
 function Frame(): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'follow-up-suggestions',
     connection: storyConnection({chunks: createTextChunks('On it.'), chunkDelay: 3}),
   })

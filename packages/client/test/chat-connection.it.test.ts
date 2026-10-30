@@ -1,9 +1,9 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {ChatClient} from '@tanstack/ai-client'
+import {ChatClient} from '@conciv/ai/testkit'
 import {createServer, type Server} from 'node:http'
 import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import type {ChatEvent, ChatMessage} from '@conciv/ai'
-import {EventType} from '@tanstack/ai'
+import {ChatEventType} from '@conciv/ai'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {chatConnection, type ChatConnection, type ChatTransport} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
@@ -18,7 +18,7 @@ async function drainRun(connection: ChatConnection, abort: AbortController): Pro
   const seen: ChatEvent[] = []
   for await (const chunk of connection.subscribe(abort.signal)) {
     seen.push(chunk)
-    if (chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR) return seen
+    if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) return seen
   }
   return seen
 }
@@ -60,7 +60,7 @@ describe('chatConnection', () => {
   it('carries the run it starts and leaves the assistant reply on the thread', async () => {
     const {seen, thread} = await turnOf('chat-connection-1', [{type: 'text', content: 'hello'}])
 
-    expect(seen.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    expect(seen.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
     expect(thread).toContain('"role":"assistant"')
   }, 60_000)
 
@@ -165,9 +165,9 @@ describe('chatConnection streams', () => {
 async function breakingEventsServer(): Promise<{base: string; close: () => Promise<void>}> {
   const run = {threadId: 'conciv_breaking', runId: 'breaking-run'}
   const frames = [
-    {type: EventType.RUN_STARTED, ...run},
-    {type: EventType.TEXT_MESSAGE_START, messageId: 'broken-reply', role: 'assistant'},
-    {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'broken-reply', delta: 'half a rep'},
+    {type: ChatEventType.RUN_STARTED, ...run},
+    {type: ChatEventType.TEXT_MESSAGE_START, messageId: 'broken-reply', role: 'assistant'},
+    {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: 'broken-reply', delta: 'half a rep'},
   ]
   const server: Server = createServer((request, response) => {
     if (request.method !== 'POST' || !request.url?.endsWith(CHAT_SSE_PATH)) {
@@ -193,7 +193,7 @@ function watch(connection: ChatConnection) {
   const ended = (async () => {
     for await (const chunk of connection.subscribe(abort.signal)) {
       seen.push(chunk)
-      if (chunk.type === EventType.RUN_FINISHED) finished.resolve()
+      if (chunk.type === ChatEventType.RUN_FINISHED) finished.resolve()
     }
   })()
   return {seen, finished: finished.promise, ended, abort: () => abort.abort()}

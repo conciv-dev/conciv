@@ -71,14 +71,13 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/ai": "workspace:*",
     "@conciv/core": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@solidjs/testing-library": "catalog:",
-    "@tanstack/ai-client": "catalog:",
-    "@tanstack/ai-mcp": "catalog:",
     "@types/node": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "solid-js": "catalog:",

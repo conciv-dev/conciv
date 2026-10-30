@@ -15,6 +15,9 @@ catalogs:
     '@hono/node-server':
       specifier: ^2.1.5
       version: 2.1.5
+    '@modelcontextprotocol/sdk':
+      specifier: ^1.32.2
+      version: 1.32.2
     '@orpc/client':
       specifier: 1.16.1
       version: 1.16.1
@@ -73,9 +76,6 @@ catalogs:
       specifier: 1.0.0
       version: 1.0.0
     '@tanstack/ai-isolate-quickjs':
-      specifier: 1.0.0
-      version: 1.0.0
-    '@tanstack/ai-mcp':
       specifier: 1.0.0
       version: 1.0.0
     '@tanstack/ai-opencode':
@@ -478,9 +478,6 @@ importers:
       '@solid-primitives/mutation-observer':
         specifier: ^1.2.4
         version: 1.2.4(solid-js@1.9.17)
-      '@tanstack/ai-client':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@tanstack/hotkeys':
         specifier: ^0.18.0
         version: 0.18.0
@@ -533,12 +530,6 @@ importers:
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
-      '@tanstack/ai':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
-      '@tanstack/ai-solid':
-        specifier: 'catalog:'
-        version: 1.0.0(@opentelemetry/api@1.9.1)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.17)(zod@4.6.7)
       '@tanstack/query-core':
         specifier: 'catalog:'
         version: 5.105.0
@@ -942,15 +933,6 @@ importers:
       '@storybook/addon-vitest':
         specifier: ^10.6.4
         version: 10.6.5(@vitest/browser-playwright@5.0.5)(@vitest/browser@5.0.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(vitest@5.0.5)
-      '@tanstack/ai':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
-      '@tanstack/ai-client':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
-      '@tanstack/ai-solid':
-        specifier: 'catalog:'
-        version: 1.0.0(@opentelemetry/api@1.9.1)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.17)(zod@4.6.7)
       '@tanstack/solid-virtual':
         specifier: 'catalog:'
         version: 3.13.51(solid-js@1.9.17)
@@ -1149,6 +1131,9 @@ importers:
       '@conciv/it':
         specifier: workspace:*
         version: file:packages/it(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1))
+      '@modelcontextprotocol/sdk':
+        specifier: 'catalog:'
+        version: 1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7)
       next:
         specifier: 'catalog:'
         version: 16.4.3(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0)
@@ -1158,6 +1143,9 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     dependenciesMeta:
       '@conciv/it':
         injected: true
@@ -1174,9 +1162,6 @@ importers:
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
-      '@tanstack/ai-mcp':
-        specifier: 'catalog:'
-        version: 1.0.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -1687,9 +1672,15 @@ importers:
       '@tanstack/ai-sandbox':
         specifier: 'catalog:'
         version: 1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7)
+      '@tanstack/ai-solid':
+        specifier: 'catalog:'
+        version: 1.0.0(@opentelemetry/api@1.9.1)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.17)(zod@4.6.7)
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
+      solid-js:
+        specifier: 'catalog:'
+        version: 1.9.17
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -1971,15 +1962,6 @@ importers:
       '@orpc/tanstack-query':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(@orpc/client@1.16.1(@opentelemetry/api@1.9.1))(@tanstack/query-core@5.105.0)
-      '@tanstack/ai':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
-      '@tanstack/ai-client':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
-      '@tanstack/ai-solid':
-        specifier: 'catalog:'
-        version: 1.0.0(@opentelemetry/api@1.9.1)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.17)(zod@4.6.7)
       '@tanstack/pacer':
         specifier: 'catalog:'
         version: 0.23.1
@@ -2106,7 +2088,7 @@ importers:
         specifier: 0.3.31
         version: 0.3.31
       '@modelcontextprotocol/sdk':
-        specifier: ^1.32.2
+        specifier: 'catalog:'
         version: 1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7)
       '@orpc/server':
         specifier: 'catalog:'
@@ -2744,6 +2726,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/ai':
+        specifier: workspace:*
+        version: link:../../ai
       '@conciv/core':
         specifier: workspace:^
         version: link:../../core
@@ -2762,12 +2747,6 @@ importers:
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
-      '@tanstack/ai-client':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
-      '@tanstack/ai-mcp':
-        specifier: 'catalog:'
-        version: 1.0.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -2983,9 +2962,6 @@ importers:
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
-      '@tanstack/ai-client':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -3430,21 +3406,15 @@ importers:
       '@conciv/serve':
         specifier: workspace:^
         version: link:../serve
+      '@modelcontextprotocol/sdk':
+        specifier: 'catalog:'
+        version: 1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7)
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
-      '@tanstack/ai':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
-      '@tanstack/ai-client':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
-      '@tanstack/ai-mcp':
-        specifier: 'catalog:'
-        version: 1.0.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       hono:
         specifier: 'catalog:'
         version: 4.13.14
@@ -4353,15 +4323,6 @@ importers:
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
-      '@tanstack/ai':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
-      '@tanstack/ai-client':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
-      '@tanstack/ai-solid':
-        specifier: 'catalog:'
-        version: 1.0.0(@opentelemetry/api@1.9.1)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.17)(zod@4.6.7)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -6828,23 +6789,9 @@ packages:
     resolution: {integrity: sha512-j37dj/h6p6pots1L7pLPPNuABEEu9WP4OYg9pW1g+nYG331j0+3canE9OagtYdytYvdSAMG+2fKU5cxep6LgjA==}
     engines: {node: '>=22.12.0'}
 
-  '@modelcontextprotocol/client@2.4.0':
-    resolution: {integrity: sha512-LgrD2OphHuG12vfKFKz6SOnq7bKHQmhGJIAYdD+MZBn2npHEyry6uD8zvktodtl5CQM85MO0anUyD9JwmUmxww==}
-    engines: {node: '>=20'}
-
   '@modelcontextprotocol/core@2.4.0':
     resolution: {integrity: sha512-z8QBKqdfXLPzkLQuG4xp8hrVEMm1PZ1IgxMN2sMbJiFiAKOWXnAzogXn2W4aqIBlP1ea6U5yiqVquvUNM1Cj6Q==}
     engines: {node: '>=20'}
-
-  '@modelcontextprotocol/sdk@1.30.0':
-    resolution: {integrity: sha512-xKd8OIzlqNzcqcNumGAa6g+PW2kjD5vrpcKOnfldAUPP3j7lnqMPwlTXQm8gF+UwH72z0lqaRbjr9hqGz0eITA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@cfworker/json-schema': ^4.1.1
-      zod: ^3.25 || ^4.0
-    peerDependenciesMeta:
-      '@cfworker/json-schema':
-        optional: true
 
   '@modelcontextprotocol/sdk@1.32.2':
     resolution: {integrity: sha512-SWsVtH/0vULSQStoZ6xxH2K09Li8fXYTMC64ZeogCdpZ3XSi1eCPOByV1OpuJxuI3OcmHhosDWYyii07tpPsLw==}
@@ -10125,15 +10072,6 @@ packages:
     resolution: {integrity: sha512-/62KNZYPYlvCIWwpNlRkuh2CxYr8EWuUcB30GQi9BRUV2bM6ooD1HnHwZ4aefKXee7WIjFN+l98UktycXyQ7Ug==}
     peerDependencies:
       '@tanstack/ai-code-mode': ^1.0.0
-
-  '@tanstack/ai-mcp@1.0.0':
-    resolution: {integrity: sha512-HPjtpK1nb7WKaAr5cE1/DlcDR/BJyLYeYoMcuS64V7ZefCJvF/6Dj0yb+Elt9B4dZpJ85SWRBzNyf7qGjJI1hQ==}
-    hasBin: true
-    peerDependencies:
-      '@tanstack/ai-harness': ^0.1.0
-    peerDependenciesMeta:
-      '@tanstack/ai-harness':
-        optional: true
 
   '@tanstack/ai-opencode@1.0.0':
     resolution: {integrity: sha512-OfgvswdMixZiB5qBW2yJm67tCpiG4i3o4O/7ADHkEIt3TYUoyepdasQQOlpl4O27ebVKPTUQZK8rNeY3AlenYw==}
@@ -14560,9 +14498,6 @@ packages:
 
   jose@6.2.13:
     resolution: {integrity: sha512-7TIg10ZE1x82YediN+lcrPNvGMKge9yFHQD+Qho/b8y2adfugU3AsvvHfxV0fzyFllT6l9xCjf4RWY9g/Z9PJQ==}
-
-  jose@6.2.7:
-    resolution: {integrity: sha512-hq1OB1bALKfydZNoViyg6hPVGV4i93ny9Op+n4zP5RSf7SCZEXa/TsG2O3IEr7+WlHRTPnpqDmHfMH6qXAD60w==}
 
   jotai-scope@0.7.2:
     resolution: {integrity: sha512-Gwed97f3dDObrO43++2lRcgOqw4O2sdr4JCjP/7eHK1oPACDJ7xKHGScpJX9XaflU+KBHXF+VhwECnzcaQiShg==}
@@ -19778,43 +19713,9 @@ snapshots:
     dependencies:
       '@chevrotain/types': 13.2.0
 
-  '@modelcontextprotocol/client@2.4.0':
-    dependencies:
-      '@modelcontextprotocol/core': 2.4.0
-      cross-spawn: 7.0.6
-      eventsource: 3.0.7
-      eventsource-parser: 3.1.0
-      jose: 6.2.7
-      pkce-challenge: 5.0.1
-      zod: 4.6.7
-
   '@modelcontextprotocol/core@2.4.0':
     dependencies:
       zod: 4.6.7
-
-  '@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.6.7)':
-    dependencies:
-      '@hono/node-server': 2.1.5(hono@4.13.14)
-      ajv: 8.20.0
-      ajv-formats: 3.0.1(ajv@8.20.0)
-      content-type: 1.0.5
-      cors: 2.8.6
-      cross-spawn: 7.0.6
-      eventsource: 3.0.7
-      eventsource-parser: 3.1.0
-      express: 5.2.1
-      express-rate-limit: 8.6.1(express@5.2.1)
-      hono: 4.13.14
-      jose: 6.2.7
-      json-schema-typed: 8.0.2
-      pkce-challenge: 5.0.1
-      raw-body: 3.0.2
-      zod: 4.6.7
-      zod-to-json-schema: 3.25.2(zod@4.6.7)
-    optionalDependencies:
-      '@cfworker/json-schema': 4.1.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7)':
     dependencies:
@@ -19829,7 +19730,7 @@ snapshots:
       express: 5.2.1
       express-rate-limit: 8.6.1(express@5.2.1)
       hono: 4.13.14
-      jose: 6.2.7
+      jose: 6.2.13
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
@@ -22613,16 +22514,6 @@ snapshots:
       '@tanstack/ai-code-mode': 1.0.1(patch_hash=67fa66593de46ba7fca60c6b608ff707853e0eaf4827256fdade2be9a042b55e)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
       quickjs-emscripten: 0.31.0
 
-  '@tanstack/ai-mcp@1.0.0(@opentelemetry/api@1.9.1)(zod@4.6.7)':
-    dependencies:
-      '@modelcontextprotocol/client': 2.4.0
-      '@modelcontextprotocol/server': 2.4.0
-      '@tanstack/ai': 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
-      jose: 6.2.13
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-      - zod
-
   '@tanstack/ai-opencode@1.0.0(@tanstack/ai-sandbox@1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))':
     dependencies:
       '@opencode-ai/sdk': 1.18.3
@@ -22643,7 +22534,7 @@ snapshots:
 
   '@tanstack/ai-sandbox@1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7)':
     dependencies:
-      '@modelcontextprotocol/sdk': 1.30.0(@cfworker/json-schema@4.1.1)(zod@4.6.7)
+      '@modelcontextprotocol/sdk': 1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7)
       '@tanstack/ai': 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@tanstack/ai-skills': 1.0.0(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7)
       '@tanstack/ai-utils': 1.0.0
@@ -27797,8 +27688,6 @@ snapshots:
   jju@1.4.0: {}
 
   jose@6.2.13: {}
-
-  jose@6.2.7: {}
 
   jotai-scope@0.7.2(jotai@2.11.0(@types/react@19.3.0)(react@19.3.1))(react@19.3.1):
     dependencies:

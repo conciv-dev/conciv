@@ -106,8 +106,6 @@
     "jazz-napi",
     "@oxlint/plugins",
     "@ark-ui/solid",
-    "@tanstack/ai-client",
-    "@tanstack/ai-solid",
     "@tanstack/solid-virtual",
     "@tiptap/core",
     "@tiptap/extension-document",

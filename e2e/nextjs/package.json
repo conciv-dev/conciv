@@ -11,16 +11,17 @@
   },
   "dependencies": {
     "@conciv/it": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
     "next": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/contract": "workspace:*",
     "@conciv/e2e-utils": "workspace:*",
     "@conciv/protocol": "workspace:*",
     "@playwright/test": "catalog:",
-    "@tanstack/ai-mcp": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

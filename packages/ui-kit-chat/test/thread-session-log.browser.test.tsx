@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {onMount, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatMessage} from '@conciv/ai'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../src/store/chat-context.js'
@@ -48,7 +48,7 @@ function messagesWithPrompts(): ChatMessage[] {
 }
 
 function StaticPromptsThread(): JSX.Element {
-  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
+  const chat = createChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithPrompts()))
   return (
     <ChatProvider chat={chat}>
@@ -108,7 +108,7 @@ function messagesWithSettledTrace(): ChatMessage[] {
 }
 
 function SettledTraceThread(): JSX.Element {
-  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
+  const chat = createChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithSettledTrace()))
   return (
     <ChatProvider chat={chat}>
@@ -178,7 +178,7 @@ function messagesWithoutTools(): ChatMessage[] {
 }
 
 function ToollessThread(): JSX.Element {
-  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
+  const chat = createChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithoutTools()))
   return (
     <ChatProvider chat={chat}>
@@ -233,7 +233,7 @@ function messagesWithTwoSegments(): ChatMessage[] {
 }
 
 function TwoSegmentThread(): JSX.Element {
-  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
+  const chat = createChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithTwoSegments()))
   return (
     <ChatProvider chat={chat}>
@@ -282,7 +282,7 @@ function messagesWithInterleavedTurn(): ChatMessage[] {
 }
 
 function InterleavedTurnThread(): JSX.Element {
-  const chat = useChat({threadId: 'thread-session-log', connection: storyConnection()})
+  const chat = createChat({threadId: 'thread-session-log', connection: storyConnection()})
   onMount(() => chat.setMessages(messagesWithInterleavedTurn()))
   return (
     <ChatProvider chat={chat}>

@@ -2,9 +2,9 @@ import 'virtual:uno.css'
 import type {JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import {ChatEventType} from '@conciv/ai'
-import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
+import type {ConnectConnectionAdapter} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
@@ -27,7 +27,7 @@ function twoDistinctRepliesConnection(): ConnectConnectionAdapter {
 }
 
 function ComposedThread(): JSX.Element {
-  const chat = useChat({threadId: 'action-bar-inactive-unreachable', connection: twoDistinctRepliesConnection()})
+  const chat = createChat({threadId: 'action-bar-inactive-unreachable', connection: twoDistinctRepliesConnection()})
   return (
     <ChatProvider chat={chat}>
       <button type="button" onClick={() => void chat.sendMessage('one')}>

@@ -7,12 +7,11 @@ import {expect as expectLocator} from 'playwright/test'
 import type {Page} from 'playwright-core'
 import {z} from 'zod'
 import {call, type RouterClient} from '@orpc/server'
-import {fetchServerSentEvents} from '@tanstack/ai-client'
-import {createMCPClient} from '@tanstack/ai-mcp'
+import {fetchServerSentEvents} from '@conciv/ai'
 import {start, type Engine} from '@conciv/core'
 import {makeExtRpcClient, type AnyExtension} from '@conciv/extension'
 import {rpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
-import {createFakeHarness, makeDiscoverTools} from '@conciv/harness-testkit'
+import {connectMcpClient, createFakeHarness, makeDiscoverTools} from '@conciv/harness-testkit'
 import {until} from '@conciv/harness-testkit/until'
 import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import recorderExtension, {makeRecorderRouter, type RecorderRouter} from '../src/server.js'
@@ -247,10 +246,10 @@ describe('extension', () => {
   }
 
   async function callViaSandbox(base: string, name: string, input: unknown): Promise<unknown> {
-    const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+    const mcp = await connectMcpClient(`${base}/api/mcp`)
     try {
       const execute = (await mcp.tools()).find((tool) => tool.name === 'execute_typescript')
-      if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
+      if (!execute) throw new Error('execute_typescript not on /api/mcp')
       return await execute.execute({typescriptCode: `return await external_${name}(${JSON.stringify(input)})`})
     } finally {
       await mcp.close()

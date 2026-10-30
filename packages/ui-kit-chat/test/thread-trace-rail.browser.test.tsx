@@ -4,7 +4,7 @@ import '@conciv/ui-kit-chat/theme/tokens.css'
 import {onMount, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatMessage} from '@conciv/ai'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../src/store/chat-context.js'
@@ -46,38 +46,8 @@ function tracedMessages(): ChatMessage[] {
   ]
 }
 
-function runningStepMessages(): ChatMessage[] {
-  return [
-    {id: 'u1', role: 'user', parts: [{type: 'text', content: 'ship it'}]},
-    {
-      id: 'a1',
-      role: 'assistant',
-      parts: [
-        {
-          type: 'tool-call',
-          id: 'call1',
-          name: 'bash',
-          arguments: '{"command":"pnpm lint"}',
-          input: {command: 'pnpm lint'},
-          state: 'complete',
-          output: 'no problems',
-        },
-        {
-          type: 'tool-call',
-          id: 'call2',
-          name: 'bash',
-          arguments: '{"command":"pnpm test"}',
-          input: {command: 'pnpm test'},
-          state: 'input-complete',
-        },
-        {type: 'text', content: 'Running the suite.'},
-      ],
-    },
-  ]
-}
-
 function TracedThread(props: {messages: ChatMessage[]}): JSX.Element {
-  const chat = useChat({threadId: 'thread-trace-rail', connection: storyConnection()})
+  const chat = createChat({threadId: 'thread-trace-rail', connection: storyConnection()})
   onMount(() => chat.setMessages(props.messages))
   return (
     <ChatProvider chat={chat}>

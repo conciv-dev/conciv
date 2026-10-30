@@ -9,7 +9,7 @@ export type McpContentPart =
 export type McpTool = {
   name: string
   description: string
-  execute: (input: Record<string, unknown>) => Promise<string | McpContentPart[]>
+  execute: (input: Record<string, unknown>, options?: {signal?: AbortSignal}) => Promise<string | McpContentPart[]>
 }
 
 export type McpClient = {tools: () => Promise<McpTool[]>; close: () => Promise<void>}
@@ -45,8 +45,10 @@ export async function connectMcpClient(url: string, headers?: Record<string, str
       (await client.listTools()).tools.map((tool) => ({
         name: tool.name,
         description: tool.description ?? '',
-        execute: async (input) => {
-          const result = CallResultSchema.parse(await client.callTool({name: tool.name, arguments: input}))
+        execute: async (input, options) => {
+          const result = CallResultSchema.parse(
+            await client.callTool({name: tool.name, arguments: input}, undefined, options),
+          )
           if (result.isError === true) throw new Error(textOf(result.content))
           return contentOf(result.content)
         },

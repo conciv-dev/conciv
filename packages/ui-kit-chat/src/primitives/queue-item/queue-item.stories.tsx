@@ -1,7 +1,7 @@
 import {onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, fn, within, userEvent, waitFor} from 'storybook/test'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {SendContent} from '@conciv/ai'
 import {ChatProvider} from '../../store/chat-context.js'
 import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
@@ -24,7 +24,7 @@ const attachmentOnlyContent: SendContent = {
 }
 
 function Queue(props: {onSteer: () => Promise<void>}): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'queue-item',
     connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000}),
     queue: {whenBusy: 'queue', drain: 'fifo'},

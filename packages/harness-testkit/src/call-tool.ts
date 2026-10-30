@@ -1,7 +1,7 @@
 import {z} from 'zod'
-import {createMCPClient} from '@tanstack/ai-mcp'
 import type {ChatEvent} from '@conciv/ai'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {connectMcpClient} from './mcp-client.js'
 import {approvalIds} from './run-events.js'
 import {makeRpcClient} from './session.js'
 import type {RunStream} from './run-stream.js'
@@ -58,20 +58,18 @@ export function makeRunTypescript(apiBase: string, session: string, options: Mcp
   const deadlineMs = options.deadlineMs ?? DEFAULT_DEADLINE_MS
   const label = options.label ?? DEFAULT_LABEL
   return async (typescriptCode) => {
-    const mcp = await createMCPClient({
-      transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
-    })
+    const mcp = await connectMcpClient(`${apiBase}/api/mcp`, {[CONCIV_SESSION_HEADER]: session})
     const deadline = AbortSignal.timeout(deadlineMs)
     try {
       const execute = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
-      if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
+      if (!execute) throw new Error('execute_typescript not on /api/mcp')
       if (deadline.aborted) throw new Error(toolsDeadlineMessage(label, deadlineMs))
-      const raw = await Promise.resolve(
-        execute.execute({typescriptCode}, {abortSignal: deadline, emitCustomEvent: () => {}}),
-      ).catch((error: unknown) => {
-        if (!deadline.aborted) throw error
-        throw new Error(deadlineMessage(label, deadlineMs), {cause: error})
-      })
+      const raw = await Promise.resolve(execute.execute({typescriptCode}, {signal: deadline})).catch(
+        (error: unknown) => {
+          if (!deadline.aborted) throw error
+          throw new Error(deadlineMessage(label, deadlineMs), {cause: error})
+        },
+      )
       if (typeof raw !== 'string') return raw
       return decodeReply(raw)
     } finally {
@@ -82,12 +80,10 @@ export function makeRunTypescript(apiBase: string, session: string, options: Mcp
 
 export function makeDiscoverTools(apiBase: string, session: string): DiscoverTools {
   return async (toolNames) => {
-    const mcp = await createMCPClient({
-      transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
-    })
+    const mcp = await connectMcpClient(`${apiBase}/api/mcp`, {[CONCIV_SESSION_HEADER]: session})
     try {
       const discover = (await mcp.tools()).find((entry) => entry.name === 'discover_tools')
-      if (!discover?.execute) throw new Error('discover_tools not on /api/mcp')
+      if (!discover) throw new Error('discover_tools not on /api/mcp')
       const raw = await discover.execute({toolNames})
       return DiscoveredToolsSchema.parse(typeof raw === 'string' ? JSON.parse(raw) : raw)
     } finally {

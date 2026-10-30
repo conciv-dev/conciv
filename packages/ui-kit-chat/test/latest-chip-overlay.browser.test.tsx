@@ -4,7 +4,7 @@ import '@conciv/ui-kit-chat/theme/tokens.css'
 import {onMount, type JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatMessage} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection} from '@conciv/ai/testkit'
@@ -24,7 +24,7 @@ function longThread(): ChatMessage[] {
 }
 
 function TallThread(): JSX.Element {
-  const chat = useChat({threadId: 'latest-chip-overlay', connection: storyConnection()})
+  const chat = createChat({threadId: 'latest-chip-overlay', connection: storyConnection()})
   onMount(() => chat.setMessages(longThread()))
   return (
     <ChatProvider chat={chat}>

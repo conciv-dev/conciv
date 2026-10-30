@@ -5,7 +5,7 @@ import {onMount, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
+import {createChat, type Chat} from '@conciv/ai/client'
 import type {ChatMessage} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection} from '@conciv/ai/testkit'
@@ -34,13 +34,13 @@ type MountedThread = {
   container: HTMLElement
   unmount: () => void
   viewport: () => HTMLElement
-  chat: () => UseChatReturn
+  chat: () => Chat
 }
 
 function mountThread(initial: ChatMessage[]): MountedThread {
-  let chat: UseChatReturn | undefined
+  let chat: Chat | undefined
   function View(): JSX.Element {
-    const value = useChat({
+    const value = createChat({
       threadId: 'thread-follow-machine',
       connection: storyConnection({chunks: []}),
       initialMessages: initial,

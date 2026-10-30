@@ -5,6 +5,8 @@ import type {TextAdapter} from './adapters/adapters.js'
 import type {ChatMessage, ModelMessage} from './messages/messages.js'
 import {approvalRequestedEvent, ChatEventType, type ChatCustomEvent, type ChatEvent} from './events/events.js'
 
+export {ChatClient} from '@tanstack/ai-client'
+
 export type StoryConnectionOptions = {
   chunks?: ChatEvent[]
   chunkDelay?: number

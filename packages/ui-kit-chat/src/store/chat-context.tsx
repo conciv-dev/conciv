@@ -9,7 +9,7 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {createStore, type SetStoreFunction} from 'solid-js/store'
-import type {UseChatReturn} from '@tanstack/ai-solid'
+import type {Chat} from '@conciv/ai/client'
 import type {ChatMessage} from '@conciv/ai'
 import {chatBusy} from '@conciv/protocol/chat-busy'
 import {diffTurns, type Turn} from './grouping.js'
@@ -21,9 +21,9 @@ export type ViewState = {
   hovering: string | null
 }
 
-export type StoppableChat = UseChatReturn & {stopping?: Accessor<boolean>}
+export type StoppableChat = Chat & {stopping?: Accessor<boolean>}
 
-export type ChatContextValue = UseChatReturn & {
+export type ChatContextValue = Chat & {
   view: ViewState
   setView: SetStoreFunction<ViewState>
   stopping: Accessor<boolean>

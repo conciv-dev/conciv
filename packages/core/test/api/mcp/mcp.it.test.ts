@@ -5,7 +5,7 @@ import {getHarness} from '@conciv/harness'
 import {createTestHarness} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
 import {requireClaude} from '../../helpers/adapters.js'
-import {connectMcpClient} from '../../helpers/mcp-client.js'
+import {connectMcpClient} from '@conciv/harness-testkit'
 
 const draw = defineTool({
   name: 'acme_draw',

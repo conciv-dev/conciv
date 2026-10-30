@@ -1,7 +1,7 @@
 import {onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, fn, within, userEvent, waitFor} from 'storybook/test'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {SendContent} from '@conciv/ai'
 import {ChatProvider} from '../../store/chat-context.js'
 import {storyConnection, createTextChunks} from '@conciv/ai/testkit'
@@ -34,7 +34,7 @@ function AssistantMessage(): JSX.Element {
 }
 
 function ComposerApp(): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'composer',
     connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2}),
   })
@@ -81,7 +81,7 @@ export const EnterSubmits: Story = {
 }
 
 function CancelApp(props: {onCancel: () => void}): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'composer',
     connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2000}),
   })
@@ -134,7 +134,7 @@ export const EscapeRoutesThroughHandler: Story = {
 }
 
 function QueueApp(): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'composer',
     connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000}),
     queue: {whenBusy: 'queue', drain: 'fifo'},
@@ -186,7 +186,7 @@ function AttachmentComposerApp(props: {
   adapter: AttachmentAdapter
   onSend: (content: string | SendContent) => void
 }): JSX.Element {
-  const chat = useChat({threadId: 'composer', connection: storyConnection({chunks: createTextChunks('unused')})})
+  const chat = createChat({threadId: 'composer', connection: storyConnection({chunks: createTextChunks('unused')})})
   const handlers = untrack(() => ({onSend: props.onSend}))
   return (
     <ChatProvider chat={chat}>

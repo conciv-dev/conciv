@@ -1,7 +1,7 @@
 import {onMount, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatMessage} from '@conciv/ai'
 import {ChatProvider} from '../store/chat-context.js'
 import {storyConnection} from '@conciv/ai/testkit'
@@ -29,7 +29,7 @@ function AssistantMessage(): JSX.Element {
 }
 
 function Frame(): JSX.Element {
-  const chat = useChat({threadId: 'action-bar', connection: storyConnection()})
+  const chat = createChat({threadId: 'action-bar', connection: storyConnection()})
   onMount(() => chat.setMessages([REPLY]))
   return (
     <div class="p-3 w-96 [background:var(--chat-bg)]">

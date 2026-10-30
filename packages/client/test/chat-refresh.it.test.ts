@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import type {ChatEvent} from '@conciv/ai'
-import {EventType} from '@tanstack/ai'
+import {ChatEventType} from '@conciv/ai'
 import {makeRpcClient} from '@conciv/contract'
 import {chatConnection} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
@@ -42,7 +42,7 @@ describe('chatConnection refresh', () => {
     const hydration = await connection.refresh()
 
     expect(hydration.activeRun).toBeNull()
-    expect(seen.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)).toEqual([])
+    expect(seen.filter((chunk) => chunk.type === ChatEventType.MESSAGES_SNAPSHOT)).toEqual([])
     abort.abort()
   }, 60_000)
 })

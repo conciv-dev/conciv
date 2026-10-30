@@ -14,7 +14,7 @@ import {type HarnessConnectContext, type HarnessChatDeps} from '@conciv/protocol
 import {createTestHarness} from '../src/create-test-harness.js'
 import {harnessModes} from '../src/harness-modes.js'
 import {ChatEventType, type ChatEvent, type ChatPart} from '@conciv/ai'
-import {StreamProcessor} from '@tanstack/ai'
+import {foldChatEvents} from '@conciv/ai/testkit'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {makeRunStream} from '../src/run-stream.js'
 import {makeScriptedRun, type ScriptedRun} from '../src/scripted-run.js'
@@ -565,9 +565,8 @@ describe('scripted run', () => {
     return {deltas, times, drained: drain()}
   }
 
-  function assistantIds(processor: StreamProcessor): string[] {
-    return processor
-      .getMessages()
+  function assistantIds(events: ChatEvent[]): string[] {
+    return foldChatEvents(events)
       .filter((message) => message.role === 'assistant')
       .map((message) => message.id)
   }
@@ -780,16 +779,16 @@ describe('scripted run', () => {
         text: PACED_TEXT,
         textPace: {chunk: TEXT_CHUNK_SIZE, everyMs: 0},
       })
-      const processor = new StreamProcessor()
+      const events: ChatEvent[] = []
       const toolCallMessageIds: string[] = []
       for await (const chunk of scripted.chatStream(deps())) {
-        processor.processChunk(chunk)
-        if (chunk.type === ChatEventType.TOOL_CALL_START) toolCallMessageIds.push(...assistantIds(processor))
+        events.push(chunk)
+        if (chunk.type === ChatEventType.TOOL_CALL_START) toolCallMessageIds.push(...assistantIds(events))
       }
-      const texts = processor
-        .getMessages()
-        .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])))
-      expect(assistantIds(processor)).toEqual(toolCallMessageIds)
+      const texts = foldChatEvents(events).flatMap((message) =>
+        message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])),
+      )
+      expect(assistantIds(events)).toEqual(toolCallMessageIds)
       expect(texts).toEqual([PACED_TEXT])
     })
 

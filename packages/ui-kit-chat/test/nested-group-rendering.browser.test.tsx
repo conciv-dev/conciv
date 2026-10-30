@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {onMount, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatPart, ChatMessage} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
 import type {GroupEntry, Grouper, GroupKey, GroupRenderProps, Grouping} from '../src/store/grouping.js'
@@ -45,7 +45,7 @@ function messagesWith(parts: ChatPart[]): ChatMessage[] {
 
 function staticThread(parts: ChatPart[], grouping: Grouping, groupEntries: readonly GroupEntry[]): () => JSX.Element {
   return function StaticThread(): JSX.Element {
-    const chat = useChat({threadId: 'nested-group-rendering', connection: storyConnection()})
+    const chat = createChat({threadId: 'nested-group-rendering', connection: storyConnection()})
     onMount(() => chat.setMessages(messagesWith(parts)))
     return (
       <ChatProvider chat={chat}>
@@ -135,7 +135,7 @@ function groupedPartsThread(parts: ChatPart[], grouping: Grouping): () => JSX.El
     <Message.Unstable_PartsGrouped grouping={grouping} components={{Group: GroupWrapper}} />
   )
   return function GroupedPartsThread(): JSX.Element {
-    const chat = useChat({threadId: 'nested-group-rendering', connection: storyConnection()})
+    const chat = createChat({threadId: 'nested-group-rendering', connection: storyConnection()})
     onMount(() => chat.setMessages(messagesWith(parts)))
     return (
       <ChatProvider chat={chat}>

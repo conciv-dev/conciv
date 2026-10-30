@@ -5,7 +5,7 @@ import {createResource, createSignal, onMount, Suspense, type JSX} from 'solid-j
 import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
+import {createChat, type Chat} from '@conciv/ai/client'
 import type {ChatMessage} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection} from '@conciv/ai/testkit'
@@ -32,13 +32,13 @@ type MountedThread = {
   unmount: () => void
   viewport: () => HTMLElement
   branch: () => HTMLElement
-  chat: () => UseChatReturn
+  chat: () => Chat
 }
 
-type ThreadBodyProps = {initial: ChatMessage[]; onChat: (chat: UseChatReturn) => void; ref: (node: HTMLElement) => void}
+type ThreadBodyProps = {initial: ChatMessage[]; onChat: (chat: Chat) => void; ref: (node: HTMLElement) => void}
 
 function ThreadBody(props: ThreadBodyProps): JSX.Element {
-  const value = useChat({
+  const value = createChat({
     threadId: 'viewport-reinsert-recovery',
     connection: storyConnection({chunks: []}),
     initialMessages: props.initial,
@@ -62,7 +62,7 @@ function ThreadBody(props: ThreadBodyProps): JSX.Element {
 function mountedThreadFrom(
   result: {container: HTMLElement; unmount: () => void},
   branch: () => HTMLElement,
-  chat: () => UseChatReturn,
+  chat: () => Chat,
 ): MountedThread {
   return {
     container: result.container,
@@ -78,7 +78,7 @@ function mountedThreadFrom(
 }
 
 function mountThread(initial: ChatMessage[]): MountedThread {
-  let chat: UseChatReturn | undefined
+  let chat: Chat | undefined
   let branch: HTMLElement | undefined
   const result = render(() => (
     <ThreadBody
@@ -252,7 +252,7 @@ function mountSuspendableThread(initial: ChatMessage[]): {
   suspend: () => void
   resume: () => void
 } {
-  let chat: UseChatReturn | undefined
+  let chat: Chat | undefined
   let branch: HTMLElement | undefined
   let release: (() => void) | undefined
   const [gate, setGate] = createSignal(0)

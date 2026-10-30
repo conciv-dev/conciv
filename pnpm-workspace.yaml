@@ -13,6 +13,7 @@ syncInjectedDepsAfterScripts:
 # it can resolve two different @orpc releases and split the pair. Single-sourcing the
 # version here means every manifest's "catalog:" resolves to the same exact release.
 catalog:
+  '@modelcontextprotocol/sdk': ^1.32.2
   '@orpc/client': 1.16.1
   '@orpc/contract': 1.16.1
   '@orpc/server': 1.16.1
@@ -28,7 +29,6 @@ catalog:
   '@tanstack/ai-code-mode': 1.0.1
   '@tanstack/ai-isolate-node': 1.0.0
   '@tanstack/ai-isolate-quickjs': 1.0.0
-  '@tanstack/ai-mcp': 1.0.0
   '@tanstack/ai-solid': 1.0.0
   '@tanstack/ai-sandbox': 1.0.0
   '@tanstack/ai-sandbox-local-process': 1.0.0

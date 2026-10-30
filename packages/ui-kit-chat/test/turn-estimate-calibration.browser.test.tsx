@@ -4,7 +4,7 @@ import '@conciv/ui-kit-chat/theme/tokens.css'
 import type {JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatPart, ChatMessage} from '@conciv/ai'
 import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../src/store/chat-context.js'
@@ -99,7 +99,7 @@ function baseToolCtx(): ToolViewCtx {
 function mountThread(messages: ChatMessage[]): () => HTMLElement {
   let viewport: HTMLElement | undefined
   function CalibrationThread(): JSX.Element {
-    const chat = useChat({
+    const chat = createChat({
       threadId: 'turn-estimate-calibration',
       connection: storyConnection({chunks: []}),
       initialMessages: messages,

@@ -60,9 +60,9 @@ export function ciTestSolidBrowser(): {
 }
 
 export const TANSTACK_AI_SOLID_DEPS = [
-  '@tanstack/ai-solid > @tanstack/ai-client',
-  '@tanstack/ai-solid > @tanstack/ai-client/byok',
-  '@tanstack/ai-solid > @tanstack/ai-client/devtools',
+  '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client',
+  '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client/byok',
+  '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client/devtools',
 ]
 
 export function browserOptimizeDeps(alsoInclude: string[] = []): {

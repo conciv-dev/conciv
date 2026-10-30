@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {untrack, type JSX, type ParentProps} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatPart} from '@conciv/ai'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection} from '@conciv/ai/testkit'
@@ -34,7 +34,7 @@ function turnOf(parts: ChatPart[]): Turn {
 }
 
 function Host(props: ParentProps<{parts: ChatPart[]}>): JSX.Element {
-  const chat = useChat({threadId: 'message-if-has-text', connection: storyConnection(untrack(() => undefined))})
+  const chat = createChat({threadId: 'message-if-has-text', connection: storyConnection(untrack(() => undefined))})
   const turn = untrack(() => turnOf(props.parts))
   return (
     <ChatProvider chat={chat}>

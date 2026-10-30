@@ -3,7 +3,7 @@ import {render} from '@solidjs/testing-library'
 import {onMount, type JSX} from 'solid-js'
 import {describe, expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import {ChatProvider, ComposerHandlersProvider} from '@conciv/ui-kit-chat'
 import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
@@ -11,7 +11,7 @@ import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {memoryStorage} from './helpers/memory-storage.js'
 
 function Harness(): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'pane-composer-stop-send',
     connection: storyConnection({chunks: createTextChunks('working on it'), runsUntilStopped: true}),
   })

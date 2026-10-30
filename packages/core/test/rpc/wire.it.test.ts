@@ -41,7 +41,7 @@ import {makeTextAdapter} from '@conciv/ai/server'
 import {defineAttachment, defineExtension, defineTool, toolError} from '@conciv/extension'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {connectWidget, type FakeWidget} from '../helpers/fake-widget.js'
-import {connectMcpClient, type McpClient, type McpTool} from '../helpers/mcp-client.js'
+import {connectMcpClient, type McpClient, type McpTool} from '@conciv/harness-testkit'
 
 type WireContext = {kit: Kit; harness: TestHarness}
 

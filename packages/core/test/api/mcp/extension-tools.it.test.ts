@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from '../../helpers/boot.js'
-import {connectMcpClient} from '../../helpers/mcp-client.js'
+import {connectMcpClient} from '@conciv/harness-testkit'
 
 const draw = defineTool({
   name: 'acme_draw',

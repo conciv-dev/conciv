@@ -1,3 +1,10 @@
+import {z} from 'zod'
+
+const ReplySchema = z.object({
+  content: z.array(z.object({text: z.string()}).loose()),
+  isError: z.boolean().optional(),
+})
+
 export type CallTool = (name: string, input: unknown) => Promise<unknown>
 
 export async function resolveSession(apiBase: string): Promise<string> {
@@ -7,27 +14,24 @@ export async function resolveSession(apiBase: string): Promise<string> {
   return sessionId
 }
 
-function callThroughCatalog(name: string, input: unknown): string {
-  return [
-    `const found = await external_catalog({name: ${JSON.stringify(name)}})`,
-    `return await globalThis[found.call](${JSON.stringify(input ?? {})})`,
-  ].join('\n')
-}
-
 export function makeCallTool(apiBase: string, session: string): CallTool {
   return async (name, input) => {
-    const [{createMCPClient}, {CONCIV_SESSION_HEADER}] = await Promise.all([
-      import('@tanstack/ai-mcp'),
+    const [{Client}, {StreamableHTTPClientTransport}, {CONCIV_SESSION_HEADER}] = await Promise.all([
+      import('@modelcontextprotocol/sdk/client/index.js'),
+      import('@modelcontextprotocol/sdk/client/streamableHttp.js'),
       import('@conciv/protocol/chat-types'),
     ])
-    const mcp = await createMCPClient({
-      transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
-    })
+    const mcp = new Client({name: 'conciv-e2e', version: '0.0.0'})
+    await mcp.connect(
+      new StreamableHTTPClientTransport(new URL(`${apiBase}/api/mcp`), {
+        requestInit: {headers: {[CONCIV_SESSION_HEADER]: session}},
+      }),
+    )
     try {
-      const execute = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
-      if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
-      const raw = await execute.execute({typescriptCode: callThroughCatalog(name, input)})
-      if (typeof raw !== 'string') return raw
+      const typescriptCode = `return await external_${name}(${JSON.stringify(input ?? {})})`
+      const reply = ReplySchema.parse(await mcp.callTool({name: 'execute_typescript', arguments: {typescriptCode}}))
+      const raw = reply.content.map((part) => part.text).join('\n')
+      if (reply.isError === true) throw new Error(raw)
       const parsed: unknown = JSON.parse(raw)
       if (typeof parsed === 'object' && parsed !== null && 'result' in parsed) return parsed.result
       return parsed

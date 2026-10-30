@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {createSignal, onMount, type Component, type JSX, type ParentProps} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection} from '@conciv/ai/testkit'
 import {Composer} from '../src/styled/composer.js'
@@ -24,7 +24,7 @@ function createSlotProbe(label: string): Component {
 }
 
 function ChatHost(props: ParentProps): JSX.Element {
-  const chat = useChat({threadId: 'slot-instances', connection: storyConnection()})
+  const chat = createChat({threadId: 'slot-instances', connection: storyConnection()})
   return <ChatProvider chat={chat}>{props.children}</ChatProvider>
 }
 

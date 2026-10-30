@@ -110,6 +110,10 @@
         ],
         "patterns": [
           {
+            "group": ["@tanstack/ai", "@tanstack/ai-*", "@tanstack/ai/**", "@tanstack/ai-*/**"],
+            "message": "Only packages/ai may import @tanstack/ai*; use @conciv/ai and its entries."
+          },
+          {
             "group": ["@ark-ui", "@ark-ui/**"],
             "allowImportNames": ["useListCollection", "useFilter"],
             "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly \u2014 only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
@@ -134,6 +138,30 @@
       "files": ["packages/ui-kit-system/**"],
       "rules": {
         "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": ["packages/ai/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@hono/node-server",
+                "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
+                "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["@ark-ui", "@ark-ui/**"],
+                "allowImportNames": ["useListCollection", "useFilter"],
+                "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly \u2014 only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
+              }
+            ]
+          }
+        ]
       }
     },
     {

@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import type {ChatEvent} from '@conciv/ai'
-import {EventType} from '@tanstack/ai'
+import {ChatEventType} from '@conciv/ai'
 import {makeRpcClient} from '@conciv/contract'
 import {chatConnection} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
@@ -29,7 +29,7 @@ describe('chatConnection reconnect', () => {
         runId: 'reconnect-1',
       },
     )
-    expect((await firstRun).at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    expect((await firstRun).at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
     before.abort()
 
     await clientKit.restartServer()
@@ -40,7 +40,7 @@ describe('chatConnection reconnect', () => {
       threadId: sessionId,
       runId: 'reconnect-2',
     })
-    expect((await secondRun).at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    expect((await secondRun).at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
     after.abort()
 
     expect(JSON.stringify((await connection.hydrate(sessionId)).messages)).toContain('after')
@@ -51,7 +51,7 @@ async function collect(stream: AsyncIterable<ChatEvent>): Promise<ChatEvent[]> {
   const seen: ChatEvent[] = []
   for await (const chunk of stream) {
     seen.push(chunk)
-    if (chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR) return seen
+    if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) return seen
   }
   return seen
 }

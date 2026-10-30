@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import type {JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {ToolProvider} from '../src/store/tool-context.js'
@@ -30,7 +30,7 @@ function approvalToolCtx(): ToolViewCtx {
 }
 
 function ApprovalThread(): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
     threadId: 'chain-approval-collapse',
     connection: storyConnection({
       chunks: [

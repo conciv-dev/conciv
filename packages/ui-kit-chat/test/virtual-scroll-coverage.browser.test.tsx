@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import type {JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {beforeEach, expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ChatMessage} from '@conciv/ai'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../src/store/chat-context.js'
@@ -101,7 +101,7 @@ function baseToolCtx(): ToolViewCtx {
 function mountThread(initial: ChatMessage[]): () => HTMLElement {
   let viewport: HTMLElement | undefined
   function VirtualThread(): JSX.Element {
-    const chat = useChat({
+    const chat = createChat({
       threadId: 'virtual-scroll-coverage',
       connection: storyConnection({chunks: []}),
       initialMessages: initial,

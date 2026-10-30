@@ -4,7 +4,7 @@ import {z} from 'zod'
 import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from '../../helpers/boot.js'
-import {connectMcpClient} from '../../helpers/mcp-client.js'
+import {connectMcpClient} from '@conciv/harness-testkit'
 
 const echo = defineTool({
   name: 'acme_echo_session',
