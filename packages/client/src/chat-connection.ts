@@ -236,7 +236,7 @@ export function chatConnection(
       }
       await adapter.send(messages, data, abortSignal, runContext)
     },
-    joinRun: (runId, abortSignal) => joining(selected, runId, abortSignal),
+    joinRun: (runId, abortSignal) => noticing(joining(selected, runId, abortSignal), options),
     hydrate,
     transport: () => chosen.transport,
     refresh: () => hydrate(sessionId),
