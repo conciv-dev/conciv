@@ -216,7 +216,8 @@ patchedDependencies:
   # createEventAwareBindings (dist/esm/bindings/tool-to-binding.js:73-115 in 1.0.1) emits
   # code_mode:external_call / external_result / external_error with no call id, so parallel child calls
   # cannot be paired into cards and aroundCalls cannot add one. The patch mints one callId per call and
-  # stamps it on the call and on its result or error. Drop it once upstream carries a call id there.
+  # stamps it on the call and on its result or error, and hands it to the binding as toolCallId so a
+  # tool knows which call it is answering. Drop it once upstream carries a call id there.
   '@tanstack/ai-code-mode@1.0.1': patches/@tanstack__ai-code-mode@1.0.1.patch
   # LocalProcessProvider.destroy(id) only retries the dir (src/provider.ts:129-133 in 1.0.0); it never
   # reaches the handle that spawned the CLI, so a stopped turn leaves the agent running. The patch tracks

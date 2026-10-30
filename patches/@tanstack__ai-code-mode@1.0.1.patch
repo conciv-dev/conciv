@@ -1,5 +1,5 @@
 diff --git a/dist/esm/bindings/tool-to-binding.js b/dist/esm/bindings/tool-to-binding.js
-index 8d09f6427ac2df557a27f99f8535d852426746a3..b68bd8faa8c1ffaa739ab528f439c12bb5e2884b 100644
+index 8d09f64..45f82d1 100644
 --- a/dist/esm/bindings/tool-to-binding.js
 +++ b/dist/esm/bindings/tool-to-binding.js
 @@ -83,7 +83,9 @@ function createEventAwareBindings(bindings, emitCustomEvent, parentContext, hook
@@ -12,7 +12,14 @@ index 8d09f6427ac2df557a27f99f8535d852426746a3..b68bd8faa8c1ffaa739ab528f439c12b
  					function: name,
  					args,
  					timestamp: Date.now()
-@@ -97,6 +99,7 @@ function createEventAwareBindings(bindings, emitCustomEvent, parentContext, hook
+@@ -91,12 +93,13 @@ function createEventAwareBindings(bindings, emitCustomEvent, parentContext, hook
+ 				const startTime = Date.now();
+ 				try {
+ 					toolContext.abortSignal?.throwIfAborted();
+-					const run = () => binding.execute(args, toolContext);
++					const run = () => binding.execute(args, { ...toolContext, toolCallId: callId });
+ 					const result = await (hook ? hook({
+ 						name: toolName,
  						args
  					}, run) : run());
  					emitCustomEvent("code_mode:external_result", {

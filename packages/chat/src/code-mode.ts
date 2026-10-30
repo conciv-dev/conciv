@@ -134,9 +134,10 @@ function chatTool(capability: CodeCapability, request: ToolRequest, lazy: boolea
     inputSchema: capability.inputSchema,
     outputSchema: z.unknown(),
     lazy,
-  }).server(async (args) => {
+  }).server(async (args, context) => {
     try {
-      const value = await capability.execute(args, request)
+      const toolCallId = context?.toolCallId
+      const value = await capability.execute(args, toolCallId === undefined ? request : {...request, toolCallId})
       return lazy ? value : cappedValue(value)
     } catch (error) {
       throw withDeclaredCode(error)

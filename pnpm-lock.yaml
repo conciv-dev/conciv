@@ -355,7 +355,7 @@ overrides:
 packageExtensionsChecksum: sha256-dVhKvsWIVuG9nPr1LtcuSzZV8oO+dNO4ylE3TdR8UyE=
 
 patchedDependencies:
-  '@tanstack/ai-code-mode@1.0.1': 67fa66593de46ba7fca60c6b608ff707853e0eaf4827256fdade2be9a042b55e
+  '@tanstack/ai-code-mode@1.0.1': a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed
   '@tanstack/ai-sandbox-local-process@1.0.0': 59897914bf1cea1cc05631c16c4eb474c839117c39f5e2f6494904b72f7d168f
   '@tanstack/ai-sandbox@1.0.0': 392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804
   vitest@5.0.5: 7189da9e8689d861418382a9ed5eb375dff9411258170717551be5f672ece1cd
@@ -1665,13 +1665,13 @@ importers:
         version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@tanstack/ai-code-mode':
         specifier: 'catalog:'
-        version: 1.0.1(patch_hash=67fa66593de46ba7fca60c6b608ff707853e0eaf4827256fdade2be9a042b55e)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
+        version: 1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
       '@tanstack/ai-isolate-node':
         specifier: 'catalog:'
-        version: 1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=67fa66593de46ba7fca60c6b608ff707853e0eaf4827256fdade2be9a042b55e)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))
+        version: 1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))
       '@tanstack/ai-isolate-quickjs':
         specifier: 'catalog:'
-        version: 1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=67fa66593de46ba7fca60c6b608ff707853e0eaf4827256fdade2be9a042b55e)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))
+        version: 1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))
       '@tanstack/ai-persistence':
         specifier: 'catalog:'
         version: 1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)
@@ -22494,7 +22494,7 @@ snapshots:
       - '@opentelemetry/api'
       - zod
 
-  '@tanstack/ai-code-mode@1.0.1(patch_hash=67fa66593de46ba7fca60c6b608ff707853e0eaf4827256fdade2be9a042b55e)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)':
+  '@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)':
     dependencies:
       '@tanstack/ai': 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
       sucrase: 3.35.1
@@ -22509,14 +22509,14 @@ snapshots:
     dependencies:
       '@tanstack/devtools-event-client': 0.4.4
 
-  '@tanstack/ai-isolate-node@1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=67fa66593de46ba7fca60c6b608ff707853e0eaf4827256fdade2be9a042b55e)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))':
+  '@tanstack/ai-isolate-node@1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))':
     dependencies:
-      '@tanstack/ai-code-mode': 1.0.1(patch_hash=67fa66593de46ba7fca60c6b608ff707853e0eaf4827256fdade2be9a042b55e)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-code-mode': 1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
       isolated-vm: 6.1.2
 
-  '@tanstack/ai-isolate-quickjs@1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=67fa66593de46ba7fca60c6b608ff707853e0eaf4827256fdade2be9a042b55e)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))':
+  '@tanstack/ai-isolate-quickjs@1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))':
     dependencies:
-      '@tanstack/ai-code-mode': 1.0.1(patch_hash=67fa66593de46ba7fca60c6b608ff707853e0eaf4827256fdade2be9a042b55e)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-code-mode': 1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
       quickjs-emscripten: 0.31.0
 
   '@tanstack/ai-opencode@1.0.0(@tanstack/ai-sandbox@1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))':
