@@ -93,6 +93,26 @@ Steps 1 to 3 run in parallel lanes. Step 4 depends on 1. Step 5 is last.
   browser tests, and the calm contract and perf gates, which move to `@conciv/ai/testkit`.
 - `@conciv/ai` passes publint and attw; `PUBLIC_PACKAGES` lists it.
 
+## Package shape (user, 2026-10-30, supersedes the subpath table above)
+
+A package has one entry file, or two or three when needed: the runtime entry, a backend entry, a
+test entry. The `src/` root holds those entry files and nothing else; internals live in folders
+named by concern. Exports are an explicit list, never `"./*"`.
+
+- `@conciv/ai`: `.` (isomorphic: messages, events, tools, usage), `./server` (node: the turn runner,
+  gate, delivery, run control, code mode, sandbox helpers, and the CLI adapters), `./testkit`
+  (browser-safe: fake session, scripted connection, chunk builders). Internals in
+  `src/messages/`, `src/events/`, `src/server/`, `src/adapters/` and so on.
+- `@conciv/chat`: `.` (`createChatPlane` and the named functions core needs), `./testkit` (the node
+  turn helpers: `socketTurn`, `serverSentEventsTurn`, `serverSentEventsJoin`, `toolTurn`,
+  `connectMcpClient`, `foldChatEvents`, `reconstructThread`). Internals in `turn/`, `approvals/`,
+  `code-mode/`, `history/`, `stores/`, `delivery/`, `runtime/`.
+- Tests that exercise chat internals live in `packages/chat/test`, not in core. The persistence
+  conformance suite (imports vitest) lives in `packages/chat/test`, not in a testkit.
+- No hand-rolled primitives where the platform has one: `ReadableStream` replaces the async queue.
+- `@conciv/ai`'s `session` (step 2) is browser-only Solid; where it lands is decided at step 2
+  without adding a fourth entry unless the user agrees.
+
 ## Decisions (user, 2026-10-30)
 
 1. The chat plane moves out of core. Superseded in shape by the layering above: it lands in
