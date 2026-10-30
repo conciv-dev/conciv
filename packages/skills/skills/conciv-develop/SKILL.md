@@ -192,7 +192,7 @@ const tool = defineTool({
   as `context` (unknown unless you annotate the handler's `ctx` parameter — the generic
   `server<HandlerCtx>` signature lets you write `ctx: YourCtxType`, as
   `packages/extensions/tanstack/src/tool/server.ts:8` does with a `type ToolCtx =
-{makeAdapter: (tools: ServerToolRegistryAccess) => FrameworkAdapter}` annotation); `request` is `{sessionId: string; model: string | null}`
+  {makeAdapter: (tools: ServerToolRegistryAccess) => FrameworkAdapter}` annotation); `request` is `{sessionId: string; model: string | null}`
   for the calling chat turn.
 - `.client(execute?)` binds the tool to run in the browser instead (a DOM inspection tool, for
   example) — its handler receives `ClientToolCtx` (`document`, `target`, `resolve`, `addRef`,
@@ -251,7 +251,7 @@ tool `.server` handlers get typed context.
   a persistent overlay (the whiteboard canvas) that coexists with whatever `Component` currently
   renders. Mounted via `MountedSurface`.
 - **`views`** is an array of full panels the host can route to (`ExtensionView = {id, label, icon?,
-Component, actions?}`), mounted via `MountedView` when the user navigates to that view's route:
+  Component, actions?}`), mounted via `MountedView` when the user navigates to that view's route:
 
 ```tsx title="packages/extensions/terminal/src/client.tsx:8-19"
 export const terminal = defineExtension({

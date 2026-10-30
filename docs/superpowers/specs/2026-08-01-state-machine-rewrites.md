@@ -24,7 +24,7 @@ dependent on callback ordering.
   state, never hand-counted.
 - Timers/subscriptions created by the state that needs them, die with it. No always-on
   intervals. MANDATORY mechanism (user-approved install 2026-08-01): `@solid-primitives/
-event-listener` (makeEventListener) and `@solid-primitives/timer` for every DOM
+  event-listener` (makeEventListener) and `@solid-primitives/timer` for every DOM
   listener/interval these rewrites touch — these self-register onCleanup, making the
   leak class unrepresentable. Debounce/throttle/rate-shaping use `@tanstack/solid-pacer`
   (the house pacing primitive — Pacer's AsyncRetryer is already the mandated retry
@@ -104,7 +104,7 @@ Target: ~80-line composition. Extractions, each killing a named hack:
 - 3c `use-tool-cards.tsx`: toolCtx, durations (move `startedAt` Map inside the memo
   closure — no external mutation from a memo), tools(), streamTitles, uiReply.
 - 3d `use-composer-bridge.ts`: `composerApi.current` → `createSignal<ComposerStateApi |
-null>`; draft-restore + attachment-drain become effects on composer-ready; focus mgmt.
+  null>`; draft-restore + attachment-drain become effects on composer-ready; focus mgmt.
 - 3e `use-session-maintenance.ts`: markers/dividers, compact mutation, newSession,
   nav blocker.
 - 3f view split: `<ThreadView>` + `<ComposerView>` with narrow props.

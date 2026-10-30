@@ -145,10 +145,10 @@ existence of a web-only union arm.
   identical. Verified by the existing `packages/page` browser tests (updated for the rename) plus a
   manual pick in `pnpm dev`.
 - **AC2 — no DOM types cross the boundary.** `git grep -n "HTMLElement\|Node\b\|Element\b"
-packages/grab/src` shows `HTMLElement` only inside `DomPreview`. No native-constructible value
+  packages/grab/src` shows `HTMLElement` only inside `DomPreview`. No native-constructible value
   (`ImagePreview`, `StagedGrab` built from it, `Grab.text/rect/source`) references any DOM type. A native
   producer can emit a valid `Grab` using only `{kind:'image', dataUrl, width, height}` + primitives.
 - **AC3 — typecheck + build + test green** across the workspace (`pnpm typecheck && pnpm build &&
-pnpm test`), and `fallow audit --changed-since main` introduces nothing.
+  pnpm test`), and `fallow audit --changed-since main` introduces nothing.
 - **AC4 — testkit fake still constructs a valid `Grab`** and terminal `grab.stage/staged` still compile
   and pass unchanged.

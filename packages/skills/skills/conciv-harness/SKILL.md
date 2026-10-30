@@ -270,7 +270,7 @@ harness advertised `mcp !== 'none'`; branch on them rather than assuming they're
 ## Sidecars
 
 - **`models?: HarnessModels`** — either a plain `HarnessModel[]` or a `() => HarnessModel[] |
-Promise<HarnessModel[]>` for CLIs whose model list must be fetched
+  Promise<HarnessModel[]>` for CLIs whose model list must be fetched
   (`packages/protocol/src/harness-types.ts:25-34`). Read it through
   `resolveHarnessModels(adapter)` (`packages/harness/src/registry.ts:25-29`), never by branching on
   `typeof adapter.models` yourself elsewhere.

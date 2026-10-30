@@ -62,7 +62,7 @@ packages/mascot/src/
 ```
 
 - Parts are framework-rendered: `getRootProps() / getHeadProps() / getEyesProps() /
-getAntennaProps() / getEffectHostProps(id)` return style/attr bags (layer data-URI backgrounds,
+  getAntennaProps() / getEffectHostProps(id)` return style/attr bags (layer data-URI backgrounds,
   positioning, image-rendering). Part components spread them and register their element refs back to
   the core, which uses them as gsap targets. Consumers gain class/style hooks and DevTools presence.
 - Effect interiors are core-imperative: the effect's host span is framework-rendered, everything

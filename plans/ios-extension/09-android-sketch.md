@@ -2,7 +2,7 @@
 
 > **Review fixes (review-01-codex): B4 coherence.** iOS **cut `viewHierarchy`** in v1 (no `simctl`
 > hierarchy dump; no server→WebView push — `03`/`10` Q3). Android is different: `adb shell uiautomator
-dump` (and the Compose semantics tree) **is** a real server-side hierarchy source, so Android may keep a
+> dump` (and the Compose semantics tree) **is** a real server-side hierarchy source, so Android may keep a
 > `*.viewHierarchy` tool where iOS cannot. The tool-name table below lists it as an Android capability, not
 > a shared v1 tool.
 

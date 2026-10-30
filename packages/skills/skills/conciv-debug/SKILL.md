@@ -39,7 +39,7 @@ running engine, or the engine rejects the origin.
 - **Port mismatch.** The engine's actual bound port can differ from the one you configured. Pin it
   with `conciv({port: 7378})`. On the Vite integration a taken port is just a preference — the
   engine falls back to an OS-assigned port and logs `port ${preferred} is already in use, the engine
-is listening on http://127.0.0.1:${serving.port} instead` (`packages/core/src/start.ts:84-92`), and
+  is listening on http://127.0.0.1:${serving.port} instead` (`packages/core/src/start.ts:84-92`), and
   the page picks up the port it actually bound. On Next.js and the generic webpack/Rspack plugin
   there is no such fallback path for the client: the client learns the port before the engine boots
   (Next inlines it into `next.config`'s env; webpack/Rspack never inject the widget at all, so you
@@ -66,13 +66,13 @@ tells you whether "hangs" means seconds or two minutes:
   an approval-requested chunk into the run log (so it survives a reload), and waits up to
   `ASK_TIMEOUT_MS` — **120 seconds** (`packages/core/src/chat/ask-constants.ts:1`) — before treating
   it as a timeout and refusing the tool with `Tool "<name>" received no approval decision (the ask
-timed out)` (`approvalRefusal`, `packages/core/src/chat/gate.ts:100-104`). If the widget tab was
+  timed out)` (`approvalRefusal`, `packages/core/src/chat/gate.ts:100-104`). If the widget tab was
   closed when the tool call fired, this is exactly what you'll see: a two-minute hang, then a
   refusal — not an infinite hang, but not fast either.
 - **Code-mode tools** (the QuickJS-isolate sandboxed path, `packages/core/src/chat/code-mode.ts`)
   check `listening(sessionId)` **first**, before ever opening an ask. If nothing is attached to that
   session it fails immediately with `Tool "<name>" requires approval but nothing is attached to
-session "<id>" to answer; open the widget on that session and retry`
+  session "<id>" to answer; open the widget on that session and retry`
   (`noListenerRefusal`, `packages/core/src/chat/gate.ts:106-108`, thrown by `gatedToolRun` in
   `packages/core/src/chat/code-mode.ts:125-141`). "Attached" means the session has at least one
   watcher registered on the in-process stream registry: `listening` is wired to
