@@ -276,7 +276,7 @@
       }
     },
     {
-      "files": ["packages/extensions/terminal/test/reload-replay.browser.test.tsx"],
+      "files": ["packages/extensions/terminal/test/terminal.browser.test.tsx"],
       "rules": {
         "conciv/solid-test-render": "off"
       }
