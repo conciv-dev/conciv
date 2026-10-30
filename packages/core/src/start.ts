@@ -13,6 +13,7 @@ import {statePaths} from './lib/state-paths.js'
 import {writeText} from './lib/fs.js'
 import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/server-port.js'
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint} from './lib/dev-endpoint.js'
+import {claudeConnectEndpointFile} from '@conciv/harness-init/claude/endpoint'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 export type PortRequest = {exact: number} | {preferred: number}
@@ -202,6 +203,10 @@ export async function start(opts: StartOpts): Promise<Engine> {
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const base = tokenScopedBase()
+  if (base) {
+    const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: `${base}/api/mcp`})
+    writeText(endpoint.path, endpoint.contents)
+  }
   if (opts.nativePageDir && base) {
     try {
       writeDevEndpoint(endpointDir, {apiBase: base, token: opts.accessToken ?? null, pid: process.pid})
