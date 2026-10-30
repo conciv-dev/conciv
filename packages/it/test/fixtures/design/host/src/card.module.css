@@ -5,6 +5,7 @@
 
 .card {
   flex: 1;
+  gap: 12px;
   min-width: 0;
   padding: 16px;
   border-radius: 8px;

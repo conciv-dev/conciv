@@ -279,7 +279,7 @@ describe('cli', () => {
 
     const FailureSchema = z.object({ok: z.literal(false), error: z.object({kind: z.enum(['user', 'unexpected'])})})
 
-    async function helpFor(argv: string[]): Promise<string> {
+    async function helpText(argv: string[]): Promise<string> {
       const logged: string[] = []
       vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
         logged.push(String(line))
@@ -311,7 +311,7 @@ describe('cli', () => {
     describe('the CLI reads its commands from the tool declarations', () => {
       it('derives design verbs from the design tool declarations online', async () => {
         await bootCli(cleanups, {extensions: [design]})
-        expect(await helpFor(['tools', 'design', '--help'])).toContain('compare the live page with its design target')
+        expect(await helpText(['tools', 'design', '--help'])).toContain('compare the live page with its design target')
       })
 
       it('sends design diff flags to the server as the tool input', async () => {
@@ -357,15 +357,13 @@ describe('cli', () => {
           process.chdir(home)
           rmSync(dir, {recursive: true, force: true})
         })
-        expect(
-          await runCli(cliMain, ['tools', 'design', 'target', '--image', './u1.png', '--route', '/', '--width', '1']),
-        ).toBe(0)
+        expect(await runCli(cliMain, ['tools', 'design', 'target', './u1.png', '--route', '/', '--width', '1'])).toBe(0)
         expect(onlyDocument(written)).toMatchObject({ok: true, data: {route: '/', width: 1}})
       })
 
       it('derives a page verb whose declaration carries card cosmetics the CLI itself ignores', async () => {
         await bootCli(cleanups, {extensions: [beaconExtension]})
-        const help = await helpFor(['tools', 'page', '--help'])
+        const help = await helpText(['tools', 'page', '--help'])
         expect(help).toContain('raise the acme beacon over the page')
       })
 
@@ -418,28 +416,28 @@ describe('cli', () => {
 
       it("describes a verb by what it does, never by the verb's own command path", async () => {
         await bootCli(cleanups)
-        const help = await helpFor(['tools', 'page', '--help'])
+        const help = await helpText(['tools', 'page', '--help'])
         expect(help).not.toMatch(/page fill/)
         expect(help).toContain('type a value into a form field')
       })
 
       it('offers the screenshot verb under page, derived from its declaration', async () => {
         await bootCli(cleanups)
-        const help = await helpFor(['tools', 'page', '--help'])
+        const help = await helpText(['tools', 'page', '--help'])
         expect(help).toContain('screenshot')
         expect(help).toContain('capture the visible viewport as a webp image')
       })
 
       it('offers the hot update wait under page, derived from its declaration', async () => {
         await bootCli(cleanups)
-        const help = await helpFor(['tools', 'page', '--help'])
+        const help = await helpText(['tools', 'page', '--help'])
         expect(help).toMatch(/^\s+hmr\s/m)
         expect(help).toContain('after editing a file, wait for the hot update to land before reading the page')
       })
 
       it('offers the react verbs under react and leaves the page-only ones out', async () => {
         await bootCli(cleanups)
-        const help = await helpFor(['tools', 'react', '--help'])
+        const help = await helpText(['tools', 'react', '--help'])
         expect(help).toContain('inspect')
         expect(help).toContain('override')
         expect(help).not.toContain('sethtml')

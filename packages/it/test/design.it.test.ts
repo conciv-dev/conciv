@@ -1,11 +1,13 @@
 /* oxlint-disable playwright/no-raw-locators, playwright/prefer-web-first-assertions -- the Task 7 cases read the hidden capture frame and the tab field directly */
 import {existsSync, readFileSync} from 'node:fs'
 import {mkdtemp, readdir, readFile, rm} from 'node:fs/promises'
+import {request as httpRequest} from 'node:http'
 import {tmpdir} from 'node:os'
 import {isAbsolute, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
 import {chromium, type Browser, type Page} from 'playwright'
+import {expect as expectLocator} from 'playwright/test'
 import {PNG} from 'pngjs'
 import {createServer} from 'vite'
 import {afterAll, describe, expect, it} from 'vitest'
@@ -172,6 +174,18 @@ function fileUnder(root: string, relative: string): string {
   return isAbsolute(relative) ? relative : join(root, relative)
 }
 
+function rawStatus(input: {origin: string; path: string}): Promise<number> {
+  const url = new URL(input.origin)
+  return new Promise((resolve, reject) => {
+    const sent = httpRequest({host: url.hostname, port: url.port, path: input.path}, (response) => {
+      response.resume()
+      resolve(response.statusCode ?? 0)
+    })
+    sent.on('error', reject)
+    sent.end()
+  })
+}
+
 const NO_STYLES = {background: '', color: '', fontSize: 0, lineHeight: 0, fontWeight: 0, radius: 0}
 
 function mapFixture(input: {
@@ -202,6 +216,7 @@ function mapFixture(input: {
     textBox: null,
     axis: null,
     styles: NO_STYLES,
+    index: 1,
     children: [],
   }
   return mapDeclaration({
@@ -300,11 +315,11 @@ it('ranks the toolbar first with an inset delta and reports the missing card, ne
 
 it('a recolored toolbar is a background delta and a wider one a fill delta', async () => {
   await goto('recolor')
-  expect((await call('design_diff', {})).components[0]?.deltas).toContainEqual(
-    expect.objectContaining({kind: 'background', live: '#f5f5f5', target: '#ffffff'}),
-  )
+  const recolored = (await call('design_diff', {})).components[0]?.deltas
+  expect(recolored).toContainEqual(expect.objectContaining({kind: 'background', live: '#f5f5f5', target: '#ffffff'}))
+  expect(recolored?.map((d) => d.kind).toSorted()).toEqual(['background'])
   await goto('wide')
-  expect((await call('design_diff', {})).components[0]?.deltas.map((d) => d.kind)).toContain('fill')
+  expect((await call('design_diff', {})).components[0]?.deltas.map((d) => d.kind).toSorted()).toEqual(['fill'])
 })
 
 it('an identical page yields no components and no unmatched', async () => {
@@ -323,8 +338,20 @@ it('a page without source attributes returns a hint and no components', async ()
 })
 
 it('names the route and width when no target exists', async () => {
-  await expect(rpc.registry.call({name: 'design_diff', input: {width: 1024}})).rejects.toMatchObject({
-    message: expect.stringContaining('design_target'),
+  const message = await rpc.registry.call({name: 'design_diff', input: {width: 1024}}).then(
+    () => '',
+    (error: unknown) => String(error),
+  )
+  expect(message).toContain('design_target')
+  expect(message).toContain('/plain.html')
+  expect(message).toContain('1024')
+})
+
+it('refuses to diff a target while the tab shows another route', async () => {
+  const registered = await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+  await expect(rpc.registry.call({name: 'design_diff', input: {target: registered.id}})).rejects.toMatchObject({
+    code: 'route-mismatch',
+    message: expect.stringContaining('/plain.html'),
   })
 })
 
@@ -364,7 +391,9 @@ it('names the winning declaration per property with media, inline, inherited and
 
 it('deltas carry provenance: a CSS line, a className token, a library default', async () => {
   const report = await call('design_diff', {})
-  const toolbar = report.components[0]!
+  const toolbar = report.components[0]
+  expect(toolbar).toBeDefined()
+  if (toolbar === undefined) return
   expect(toolbar.deltas).toContainEqual(
     expect.objectContaining({
       kind: 'inset-right',
@@ -429,10 +458,13 @@ it('status flips to done when every width matches', async () => {
 
 it('keeps twenty runs per target', async () => {
   for (const _ of Array.from({length: 22})) await call('design_diff', {})
-  const id = (await call('design_status', {route: '/'})).targets[0]!.id
-  expect(
-    (await readdir(fileUnder(stateRoot, `.conciv/design/${id}`))).filter((name) => name.startsWith('live-')),
-  ).toHaveLength(20)
+  const first = (await call('design_status', {route: '/'})).targets[0]
+  expect(first).toBeDefined()
+  if (first === undefined) return
+  const names = await readdir(fileUnder(stateRoot, `.conciv/design/${first.id}`))
+  expect(['live-', 'diff-', 'result-'].map((prefix) => names.filter((name) => name.startsWith(prefix)).length)).toEqual(
+    [20, 20, 20],
+  )
 })
 
 it('diffs at 390 through an inert hidden frame and leaves the tab untouched', async () => {
@@ -449,7 +481,8 @@ it('diffs at 390 through an inert hidden frame and leaves the tab untouched', as
   expect(await frame.getAttribute('tabindex')).toBe('-1')
   expect(
     await frame.evaluate(
-      (el) => (el as HTMLIFrameElement).contentDocument?.querySelector('[data-conciv-script-root]') === null,
+      (el) =>
+        el instanceof HTMLIFrameElement && el.contentDocument?.querySelector('[data-conciv-script-root]') === null,
     ),
   ).toBe(true)
   expect(await page.inputValue('#field')).toBe('typed')
@@ -461,9 +494,9 @@ it('a delta present only at 390 is flagged as a breakpoint delta', async () => {
   await goto('mobile-gap')
   await call('design_diff', {width: 1280})
   const mobile = await call('design_diff', {width: 390})
-  expect(mobile.components.flatMap((c) => c.deltas).find((d) => d.kind === 'gap-before')).toMatchObject({
-    breakpoint: true,
-  })
+  const gap = mobile.components.flatMap((c) => c.deltas).find((d) => d.kind === 'gap-before')
+  expect(gap).toMatchObject({breakpoint: true, file: 'src/card.module.css'})
+  expect(['gap: 8px', 'gap: 16px']).toContain(gap?.declaration)
 })
 
 it('clear removes the frame', async () => {
@@ -481,9 +514,11 @@ it('fails inside the cap with the fallback options when the frame is blocked', a
   )
   await goto('/blocked')
   await call('design_target', {image: target('plain-1280'), route: '/blocked', width: 390})
+  const start = Date.now()
   await expect(rpc.registry.call({name: 'design_diff', input: {width: 390}})).rejects.toMatchObject({
     message: expect.stringContaining('chromium'),
   })
+  expect(Date.now() - start).toBeLessThan(6_000)
   await page.unroute('**/blocked')
 })
 
@@ -495,7 +530,7 @@ describe('x-ray page', () => {
     expect(report.xray).toContain(`/api/ext/design/xray?target=${registered.id}`)
     const html = await fetch(report.xray)
     expect(html.status).toBe(200)
-    expect(await html.text()).toContain('<div data-design-xray')
+    expect(await html.text()).toContain('<script type="module"')
     expect((await fetch(report.xray.replace(registered.id, 'nope'))).status).toBe(404)
   })
 
@@ -505,23 +540,28 @@ describe('x-ray page', () => {
     expect((await fetch(`${base}/api/ext/design/files/${report.livePath}`)).headers.get('content-type')).toBe(
       'image/png',
     )
-    expect((await fetch(`${base}/api/ext/design/files/../../package.json`)).status).toBe(404)
+    expect(await rawStatus({origin: base, path: '/api/ext/design/files/../../package.json'})).toBe(404)
+    expect(await rawStatus({origin: base, path: '/api/ext/design/files//etc/hosts'})).toBe(404)
   })
 
   it('renders the rail from the last run and opens the inspector on the first component', async () => {
     await goto('/')
     const report = await call('design_diff', {width: 1280})
+    const [first, second] = report.components
+    expect(first?.source).toBeDefined()
+    expect(second?.source).toBeDefined()
+    if (first?.source === undefined || first.source === null) return
+    if (second?.source === undefined || second.source === null) return
     const xray = await browser.newPage()
     await xray.goto(report.xray)
-    const first = xray.getByRole('listitem').first()
-    await first.waitFor()
-    expect(await first.textContent()).toContain(report.components[0].source.file)
+    const row = xray.getByRole('listitem').first()
+    await row.waitFor()
+    expect(await row.textContent()).toContain(first.source.file)
     const inspector = xray.getByRole('region', {name: 'component'})
     await inspector.waitFor()
-    expect(await inspector.textContent()).toContain(report.components[0].source.file)
+    expect(await inspector.textContent()).toContain(first.source.file)
     await xray.keyboard.press('j')
-    await inspector.waitFor()
-    expect(await inspector.textContent()).toContain(report.components[1].source.file)
+    await expectLocator(inspector).toContainText(second.source.file)
     await xray.close()
   })
 })
