@@ -1,6 +1,6 @@
 import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {CONCIV_COMMAND_GUIDE, CONCIV_RANKING_SENTENCE} from '@conciv/harness-init/agent-guide'
+import {CONCIV_BIN, CONCIV_COMMAND_GUIDE, CONCIV_RANKING_SENTENCE} from '@conciv/harness-init/agent-guide'
 import {harnessAgentsMdNote, type HarnessId} from '../../harness-detect.js'
 import {captureFile} from '../../interrupt.js'
 import type {ManualCard} from '../../ledger.js'
@@ -13,7 +13,7 @@ export function agentsSection(consented: HarnessId[]): string {
   const setUpFor =
     consented.length > 0
       ? ['', `Set up for: ${consented.join(', ')}.`]
-      : ['', 'No harness was connected; install one and re-run `conciv init` to finish setup.']
+      : ['', 'No harness was connected; install one and re-run `npx @conciv/cli@latest init` to finish setup.']
   const notes = consented.flatMap((id) => {
     const note = harnessAgentsMdNote(id)
     return note === undefined ? [] : ['', note]
@@ -27,7 +27,7 @@ export function agentsSection(consented: HarnessId[]): string {
     '',
     CONCIV_COMMAND_GUIDE,
     '',
-    "Run `conciv tools --help` for every command. Every command needs the project's conciv dev server running.",
+    `Run \`${CONCIV_BIN} tools --help\` for every command. Every command needs the project's conciv dev server running; it puts \`${CONCIV_BIN}\` in place when it starts.`,
     '',
     '### MCP sandbox',
     '',
@@ -84,20 +84,41 @@ function mismatchedTargets(cwd: string): string[] {
   return targets(cwd).filter((file) => existsSync(file) && markerSpan(readFileSync(file, 'utf8')).kind === 'mismatched')
 }
 
+const CLAUDE_IMPORT = '@AGENTS.md'
+
+function claudeFileOf(cwd: string): string {
+  return join(cwd, 'CLAUDE.md')
+}
+
+function importsAgents(file: string): boolean {
+  return readFileSync(file, 'utf8')
+    .split('\n')
+    .some((line) => line.trim() === CLAUDE_IMPORT)
+}
+
 function targets(cwd: string): string[] {
   const agentsFile = join(cwd, 'AGENTS.md')
-  const claudeFile = join(cwd, 'CLAUDE.md')
-  if (existsSync(claudeFile)) return [agentsFile, claudeFile]
+  const claudeFile = claudeFileOf(cwd)
+  if (existsSync(claudeFile) && !importsAgents(claudeFile)) return [agentsFile, claudeFile]
   return [agentsFile]
 }
 
-function sectionCurrent(cwd: string, section: string): boolean {
-  return targets(cwd).every((file) => currentSpan(file) === section)
+function needsClaudeImport(cwd: string, consented: HarnessId[]): boolean {
+  return consented.includes('claude') && !existsSync(claudeFileOf(cwd))
+}
+
+function sectionCurrent(cwd: string, section: string, consented: HarnessId[]): boolean {
+  return !needsClaudeImport(cwd, consented) && targets(cwd).every((file) => currentSpan(file) === section)
+}
+
+function wouldEdit(cwd: string, consented: HarnessId[]): string[] {
+  const files = needsClaudeImport(cwd, consented) ? [...targets(cwd), claudeFileOf(cwd)] : targets(cwd)
+  return files.map((file) => file.slice(cwd.length + 1))
 }
 
 export function agentsMdStep(consented: () => HarnessId[]): InitStep {
   const detect = async (ctx: InitContext): Promise<'missing' | 'present'> =>
-    sectionCurrent(ctx.cwd, agentsSection(consented())) ? 'present' : 'missing'
+    sectionCurrent(ctx.cwd, agentsSection(consented()), consented()) ? 'present' : 'missing'
   return {
     id: 'agents',
     title: 'Teach agents the conciv CLI',
@@ -106,7 +127,7 @@ export function agentsMdStep(consented: () => HarnessId[]): InitStep {
     detect,
     plan: async (ctx) => ({
       summary: 'add a marked conciv section to AGENTS.md teaching the conciv tools CLI',
-      wouldEdit: targets(ctx.cwd).map((file) => file.slice(ctx.cwd.length + 1)),
+      wouldEdit: wouldEdit(ctx.cwd, consented()),
     }),
     apply: async (ctx) => {
       const mismatched = mismatchedTargets(ctx.cwd)
@@ -121,6 +142,11 @@ export function agentsMdStep(consented: () => HarnessId[]): InitStep {
       for (const file of targets(ctx.cwd)) {
         ctx.backup(captureFile(file))
         upsertSection(file, section)
+      }
+      if (needsClaudeImport(ctx.cwd, consented())) {
+        const claudeFile = claudeFileOf(ctx.cwd)
+        ctx.backup(captureFile(claudeFile))
+        writeFileSync(claudeFile, `${CLAUDE_IMPORT}\n`)
       }
       return {status: 'done'}
     },

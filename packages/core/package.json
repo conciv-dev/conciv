@@ -71,6 +71,7 @@
     "@conciv/extension": "workspace:^",
     "@conciv/extension-page": "workspace:^",
     "@conciv/harness": "workspace:^",
+    "@conciv/harness-init": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",

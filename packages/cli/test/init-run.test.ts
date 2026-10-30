@@ -71,7 +71,7 @@ describe('runInit', () => {
     expect(plans[0]).toContain('○ codex (not found)')
     const output = run.events.join('\n')
     expect(output).toContain('pnpm dev')
-    expect(output).toContain('conciv tools --help')
+    expect(output).toContain('.conciv/bin/conciv tools --help')
   })
 
   it('returns the completed steps and the next lines as data', async () => {
@@ -80,7 +80,7 @@ describe('runInit', () => {
     expect(result.outcome).toBe('completed')
     expect(result.outcome === 'completed' ? result.next : []).toEqual([
       'start your app: pnpm dev',
-      'ask your agent to run conciv tools --help',
+      'ask your agent to run .conciv/bin/conciv tools --help',
     ])
   })
 

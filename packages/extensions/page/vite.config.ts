@@ -4,6 +4,7 @@ import solid from 'vite-plugin-solid'
 
 export default defineConfig({
   plugins: [solid()],
+  define: {'import.meta.hot': 'import.meta.hot'},
   build: {
     lib: {
       entry: fileURLToPath(new URL('src/client.tsx', import.meta.url)),

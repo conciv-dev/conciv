@@ -1,8 +1,13 @@
-import {mkdtempSync, rmSync, statSync, utimesSync, writeFileSync} from 'node:fs'
+import {mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync} from 'node:fs'
+import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
 import {basename, join} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
+import getPort from 'get-port'
+import {z} from 'zod'
 import {engineStaleness, loadedModules, makeStalenessProbe} from '../src/lib/engine-stamp.js'
+import {statePaths} from '../src/lib/state-paths.js'
+import {start} from '../src/start.js'
 
 const dirs: string[] = []
 
@@ -154,5 +159,62 @@ describe('the running engine stamp', () => {
     expect(now.tracked).toContain('@conciv/tools')
     expect(now.stale).toBe(false)
     expect(now.changed).toEqual([])
+  })
+})
+
+const EndpointSchema = z.object({mcpUrl: z.string()})
+
+function recordedEndpoint(root: string): z.infer<typeof EndpointSchema> {
+  return EndpointSchema.parse(JSON.parse(readFileSync(join(statePaths(root).dir, 'mcp-endpoint.json'), 'utf8')))
+}
+
+const initialize = {
+  jsonrpc: '2.0',
+  id: 1,
+  method: 'initialize',
+  params: {protocolVersion: '2025-06-18', capabilities: {}, clientInfo: {name: 'endpoint-test', version: '0.0.0'}},
+}
+
+describe('boot writes .conciv/mcp-endpoint.json', () => {
+  it('start records the MCP endpoint a headless stdio bridge reads, and the endpoint answers', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-engine-mcp-'))
+    try {
+      const engine = await start({options: {harnessBin: 'true', stateRoot: root}, root, launchEditor: () => {}})
+      try {
+        const {mcpUrl} = recordedEndpoint(root)
+        expect(mcpUrl).toBe(`http://127.0.0.1:${engine.port}/api/mcp`)
+        expect(statSync(join(statePaths(root).dir, 'mcp-endpoint.json')).mode & 0o777).toBe(0o600)
+        const response = await fetch(mcpUrl, {
+          method: 'POST',
+          headers: {'content-type': 'application/json', accept: 'application/json, text/event-stream'},
+          body: JSON.stringify(initialize),
+        })
+        expect(response.status).toBe(200)
+        await response.body?.cancel()
+      } finally {
+        await engine.stop()
+      }
+    } finally {
+      rmSync(root, {recursive: true, force: true})
+    }
+  })
+
+  it('releases the port when the endpoint file cannot be written', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-engine-mcp-'))
+    const port = await getPort()
+    try {
+      mkdirSync(join(statePaths(root).dir, 'mcp-endpoint.json'), {recursive: true})
+      await expect(
+        start({options: {harnessBin: 'true', stateRoot: root}, root, launchEditor: () => {}, port: {exact: port}}),
+      ).rejects.toThrow()
+      const probe = createServer()
+      await new Promise<void>((resolve, reject) => {
+        probe.once('error', reject)
+        probe.listen(port, '127.0.0.1', () => resolve())
+      })
+      await new Promise<void>((resolve) => probe.close(() => resolve()))
+    } finally {
+      rmSync(root, {recursive: true, force: true})
+    }
   })
 })

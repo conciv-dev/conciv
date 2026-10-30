@@ -49,8 +49,9 @@ describe('claude connect plugin files', () => {
     expect(body.trimStart().startsWith('This project has conciv installed.')).toBe(true)
     expect(body).toContain('Use browser MCP tools only when a conciv command cannot do what you need.')
     expect(body).toContain('### When to use conciv instead of the browser MCP')
-    expect(body).toContain('`conciv tools react locate <selector>`')
-    expect(body).toContain('`conciv tools server graph|transform|reload`')
+    expect(body).toContain('`.conciv/bin/conciv tools react locate <selector>`')
+    expect(body).toContain('`.conciv/bin/conciv tools server graph|transform|reload`')
+    expect(body).not.toMatch(/`conciv /)
   })
 
   it('keeps every generated file free of dev server urls', () => {
