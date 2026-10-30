@@ -34,7 +34,7 @@ needs them (if it still does, report; re-patching needs approval). Harness SDKs 
 `@agentclientprotocol/sdk` 2.0.2, `@anthropic-ai/claude-agent-sdk` 0.3.312, `@opencode-ai/sdk`
 1.19.4, `@modelcontextprotocol/sdk` 1.32.2.
 
-### Lane `deps-site` (apps/site, apps/examples/*, e2e/tanstack-start*)
+### Lane `deps-site` (apps/site, apps/examples/_, e2e/tanstack-start_)
 
 TanStack router/start set to latest including `@tanstack/react-start` 1.169.x (`useSession` gone
 from `@tanstack/react-start/server`: find the TanStack-sanctioned replacement; a non-TanStack
