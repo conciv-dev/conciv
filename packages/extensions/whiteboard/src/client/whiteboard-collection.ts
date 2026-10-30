@@ -11,7 +11,7 @@ import {elementRowToInsert, type ElementRow} from '../shared/rows.js'
 import type {WhiteboardRouter} from '../server/router.js'
 import type {ChangeFeed, ChangeMessage} from './change-feed.js'
 
-export const ELEMENT_WRITE_THROTTLE_MS = 50
+const ELEMENT_WRITE_THROTTLE_MS = 50
 
 export type WhiteboardClient = RouterClient<WhiteboardRouter>
 

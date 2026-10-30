@@ -15,7 +15,6 @@ import {until} from '@conciv/harness-testkit'
 import {serveExtensionRpc, type ServedRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
 import {CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
-import {ELEMENT_WRITE_THROTTLE_MS} from '../src/client/whiteboard-collection.js'
 import whiteboard from '../src/server.js'
 import {autoCommitDraft} from '../src/server/auto-commit.js'
 import {comments} from '../src/server/db/schema.js'
@@ -23,6 +22,7 @@ import {createStore, type Store, type WhiteboardEvent} from '../src/server/db/st
 import {makeWhiteboardRouter, type WhiteboardRouter} from '../src/server/router.js'
 import {
   bootWhiteboard,
+  ELEMENT_WRITE_THROTTLE_MS,
   createFloatingComment,
   openCanvas,
   openThreadPin,
