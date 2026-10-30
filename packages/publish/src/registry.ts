@@ -11,18 +11,23 @@ const registryDocumentSchema = z.object({
 
 type RegistryDocument = z.infer<typeof registryDocumentSchema>
 
-export function stateFromDocument(value: unknown): RegistryState {
+export type RegistryRecord = {state: RegistryState; versions: string[]}
+
+export function recordFromDocument(value: unknown): RegistryRecord {
   const document = registryDocumentSchema.parse(value)
-  return latestViaTrustedPublisher(document) ? 'trusted' : 'untrusted'
+  return {
+    state: latestViaTrustedPublisher(document) ? 'trusted' : 'untrusted',
+    versions: Object.keys(document.versions ?? {}),
+  }
 }
 
-export async function registryState(name: string): Promise<RegistryState> {
+export async function registryRecord(name: string): Promise<RegistryRecord> {
   const response = await fetch(`https://registry.npmjs.org/${name.replace('/', '%2f')}`)
-  if (response.status === 404) return 'missing'
+  if (response.status === 404) return {state: 'missing', versions: []}
   if (!response.ok) {
     throw new Error(`registry lookup for ${name} failed with ${response.status}`)
   }
-  return stateFromDocument(await response.json())
+  return recordFromDocument(await response.json())
 }
 
 function latestViaTrustedPublisher(document: RegistryDocument): boolean {

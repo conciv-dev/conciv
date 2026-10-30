@@ -1,5 +1,7 @@
-import {test, expect} from 'vitest'
-import {stateFromDocument} from '../src/registry.ts'
+import {describe, test, expect} from 'vitest'
+import {recordFromDocument} from '../src/registry.ts'
+
+const stateFromDocument = (value: unknown) => recordFromDocument(value).state
 
 const trustedUser = {
   name: 'GitHub Actions',
@@ -48,4 +50,18 @@ test('documents without dist-tags or versions read as untrusted, not a crash', (
 test('non-object registry responses throw a parse error', () => {
   expect(() => stateFromDocument('nope')).toThrow()
   expect(() => stateFromDocument(null)).toThrow()
+})
+
+describe('recordFromDocument versions', () => {
+  test('lists every published version from the document', () => {
+    const document = {
+      'dist-tags': {latest: '0.0.20'},
+      versions: {'0.0.19': {}, '0.0.20': {_npmUser: trustedUser}},
+    }
+    expect(recordFromDocument(document)).toEqual({state: 'trusted', versions: ['0.0.19', '0.0.20']})
+  })
+
+  test('a document without versions lists none', () => {
+    expect(recordFromDocument({'dist-tags': {latest: '1.0.0'}}).versions).toEqual([])
+  })
 })
