@@ -162,6 +162,14 @@ export async function openInEditor(source: SourceLoc): Promise<void> {
   await rpc.editor.open({file: source.file, line: source.line})
 }
 
+const STATE_DIR = '.conciv/'
+
+export function projectPath(path: string): string {
+  const start = path.indexOf(STATE_DIR)
+  if (start >= 0) return path.slice(start)
+  return path.split('/').at(-1) ?? path
+}
+
 export function diffCommand(target: TargetRecord): string {
   return `conciv tools design diff --target ${target.id} --width ${target.width}`
 }

@@ -25,6 +25,7 @@ import {
   diffCommand,
   loadXray,
   openInEditor,
+  projectPath,
   reportRows,
   runDiff,
   sourceLabel,
@@ -92,42 +93,35 @@ function failure(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function Toggle(props: {label: string; shortcut?: string; checked: boolean; onChange: (checked: boolean) => void}) {
+function Toggle(props: {label: string; checked: boolean; onChange: (checked: boolean) => void}) {
   return (
     <Switch.Root checked={props.checked} onCheckedChange={(details) => props.onChange(details.checked)}>
       <Switch.Control>
         <Switch.Thumb />
       </Switch.Control>
-      <Switch.Label class="text-[0.75rem] inline-flex gap-1.5 items-center">
-        {props.label}
-        <Show when={props.shortcut}>{(shortcut) => <Kbd>{shortcut()}</Kbd>}</Show>
-      </Switch.Label>
+      <Switch.Label class="text-[0.75rem]">{props.label}</Switch.Label>
       <Switch.HiddenInput />
     </Switch.Root>
   )
 }
 
-function Range(props: {label: string; start: string; end: string; value: number; onChange: (value: number) => void}) {
+function Range(props: {label: string; value: number; onChange: (value: number) => void}) {
   return (
-    <div class="text-[0.75rem] text-chat-text-2 flex gap-2 items-center">
-      <span>{props.start}</span>
-      <div class="shrink-0 w-30">
-        <Slider.Root
-          aria-label={[props.label]}
-          value={[props.value]}
-          onValueChange={(details) => props.onChange(details.value[0] ?? props.value)}
-        >
-          <Slider.Control>
-            <Slider.Track>
-              <Slider.Range />
-            </Slider.Track>
-            <Slider.Thumb index={0}>
-              <Slider.HiddenInput />
-            </Slider.Thumb>
-          </Slider.Control>
-        </Slider.Root>
-      </div>
-      <span>{props.end}</span>
+    <div class="shrink-0 w-20">
+      <Slider.Root
+        aria-label={[props.label]}
+        value={[props.value]}
+        onValueChange={(details) => props.onChange(details.value[0] ?? props.value)}
+      >
+        <Slider.Control>
+          <Slider.Track>
+            <Slider.Range />
+          </Slider.Track>
+          <Slider.Thumb index={0}>
+            <Slider.HiddenInput />
+          </Slider.Thumb>
+        </Slider.Control>
+      </Slider.Root>
     </div>
   )
 }
@@ -264,7 +258,7 @@ function XrayPage(): JSX.Element {
               onAll={() => patch({filter: 'all'})}
               onRun={run}
             />
-            <div class="grid grid-cols-[17.5rem_minmax(0,1fr)_21.25rem] min-h-0 lt-lg:grid-cols-[15rem_minmax(0,1fr)]">
+            <div class="grid grid-cols-[17.5rem_minmax(0,1fr)_21.25rem] min-h-0 min-w-0 lt-lg:grid-cols-[15rem_minmax(0,1fr)] max-[89.99rem]:grid-cols-[17rem_minmax(0,1fr)_18rem]">
               <Rail
                 rows={rows()}
                 visible={visible()}
@@ -285,7 +279,7 @@ function XrayPage(): JSX.Element {
                   if (next !== undefined) chooseMode(next)
                 }}
               >
-                <div class="px-3.5 border-b border-chat-line bg-chat-panel flex flex-wrap gap-x-3 min-h-14 items-center">
+                <div class="px-3.5 border-b border-chat-line bg-chat-panel flex flex-wrap gap-x-2.5 min-h-14 items-center">
                   <Tabs.List aria-label="view" class="border-b-transparent self-stretch -mb-px">
                     <For each={MODES}>
                       {(item, index) => (
@@ -298,30 +292,20 @@ function XrayPage(): JSX.Element {
                   </Tabs.List>
                   <Show when={mode() === 'swipe'}>
                     <Range
-                      label="swipe position"
-                      start="live"
-                      end="target"
+                      label="swipe position, live to target"
                       value={view.swipe}
                       onChange={(value) => setView('swipe', value)}
                     />
                   </Show>
                   <Show when={mode() === 'onion'}>
                     <Range
-                      label="onion opacity"
-                      start="live"
-                      end="target"
+                      label="onion opacity, live to target"
                       value={view.onion}
                       onChange={(value) => setView('onion', value)}
                     />
                   </Show>
                   <Show when={mode() === 'diff'}>
-                    <Range
-                      label="mask opacity"
-                      start="mask"
-                      end=""
-                      value={view.mask}
-                      onChange={(value) => setView('mask', value)}
-                    />
+                    <Range label="mask opacity" value={view.mask} onChange={(value) => setView('mask', value)} />
                   </Show>
                   <Show when={mode() === 'toggle'}>
                     <span class="text-[0.75rem] text-chat-text-2">
@@ -339,7 +323,7 @@ function XrayPage(): JSX.Element {
                     </Switch.Root>
                   </Show>
                   <span class="flex-1" />
-                  <Toggle label="boxes" shortcut="B" checked={view.boxes} onChange={(on) => setView('boxes', on)} />
+                  <Toggle label="boxes" checked={view.boxes} onChange={(on) => setView('boxes', on)} />
                   <Toggle label="rulers" checked={view.rulers} onChange={(on) => setView('rulers', on)} />
                 </div>
                 <Tabs.Content value={mode()} class="p-0 flex-1 min-h-0 relative">
@@ -384,7 +368,7 @@ function XrayPage(): JSX.Element {
                   </p>
                 </Tabs.Content>
               </Tabs.Root>
-              <aside class="border-l border-chat-line bg-chat-panel flex flex-col min-h-0 lt-lg:hidden">
+              <aside class="border-l border-chat-line bg-chat-panel flex flex-col min-h-0 min-w-0 lt-lg:hidden">
                 <Inspector row={selected()} onOpen={open} opening={activity.opening} />
               </aside>
             </div>
@@ -397,7 +381,7 @@ function XrayPage(): JSX.Element {
               </span>
               <span>captured through the hidden frame · scale {loaded().target.scale}</span>
               <Show when={loaded().report}>
-                {(report) => <span class="font-chat-mono truncate">{report().diffImage}</span>}
+                {(report) => <span class="font-chat-mono min-w-0 truncate">{projectPath(report().diffImage)}</span>}
               </Show>
               <div class="ms-auto flex gap-2 items-center">
                 <Select.Root

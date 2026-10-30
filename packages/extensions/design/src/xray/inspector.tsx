@@ -78,7 +78,7 @@ export function Inspector(props: {row: Row | null; onOpen: () => void; opening: 
                   </Show>
                 </div>
                 <Show when={row().tag !== ''}>
-                  <span class="text-[0.75rem] text-chat-text-2 font-chat-mono">
+                  <span class="text-[0.75rem] text-chat-text-2 font-chat-mono [overflow-wrap:anywhere]">
                     &lt;{row().tag}&gt; {row().selector}
                   </span>
                 </Show>
@@ -120,12 +120,12 @@ export function Inspector(props: {row: Row | null; onOpen: () => void; opening: 
                   <For each={traces()}>
                     {(delta) => (
                       <div class="text-[0.75rem] flex flex-col gap-1">
-                        <span class="text-chat-text-2 inline-flex gap-1.5 items-center">
+                        <span class="text-chat-text-2 flex flex-wrap gap-1.5 items-center">
                           via
                           <span class="text-[0.625rem] text-chat-text font-chat-mono px-1.5 border border-chat-accent-line rounded-chat-pill bg-chat-accent-08">
                             {delta.via}
                           </span>
-                          <span class="font-chat-mono">{where(delta)}</span>
+                          <span class="font-chat-mono min-w-0 [overflow-wrap:anywhere]">{where(delta)}</span>
                         </span>
                         <Show when={delta.suggest}>
                           {(suggest) => <span class="text-chat-text-2">{suggest()}</span>}
