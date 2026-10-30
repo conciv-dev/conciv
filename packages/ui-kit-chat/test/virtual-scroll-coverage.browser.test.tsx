@@ -217,9 +217,9 @@ async function settledThread(): Promise<HTMLElement> {
   return viewport()
 }
 
-async function escapeFollow(viewport: HTMLElement): Promise<void> {
-  await userEvent.wheel(viewport, {delta: {y: -200}})
-  await expect.element(page.elementLocator(viewport)).not.toHaveAttribute('data-at-bottom')
+async function wheelToFirstTurn(): Promise<void> {
+  await userEvent.wheel(page.getByRole('log'), {delta: {y: -1_000_000}})
+  await expect.element(page.getByText('question 0', {exact: false}).first()).toBeVisible()
 }
 
 function resizeLoopErrors(): string[] {
@@ -239,18 +239,14 @@ it('keeps the viewport covered by mounted turns while scrolling up at a moderate
 it('scrolling a card-heavy thread never trips a ResizeObserver notification loop', async () => {
   const element = await settledThread()
   await sweepUpwards(element, FAST_STEP_PX)
-  await escapeFollow(element)
-  element.scrollTop = 0
-  await expect.element(page.getByText('question 0', {exact: false}).first()).toBeVisible()
+  await wheelToFirstTurn()
   await sweepUpwards(element, MODERATE_STEP_PX)
 
   expect(resizeLoopErrors()).toEqual([])
 })
 
 it('a deep jump re-windows onto the target turn within the overscan', async () => {
-  const element = await settledThread()
-  await escapeFollow(element)
-  element.scrollTop = 0
-  await expect.element(page.getByText('question 0', {exact: false}).first()).toBeVisible()
+  await settledThread()
+  await wheelToFirstTurn()
   await expect.element(page.getByText(`answer ${TURN_COUNT - 1}`, {exact: false})).not.toBeInTheDocument()
 })
