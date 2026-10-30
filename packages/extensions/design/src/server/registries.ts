@@ -44,7 +44,7 @@ const MISSING_MATCHER: Matcher = {name: 'missing', match: notImplemented}
 export function pickRuntime(input: {
   config: DesignConfig
   server: ServerApi<DesignConfig>
-}): Omit<DesignRuntime, 'store' | 'cssMap'> {
+}): Omit<DesignRuntime, 'store' | 'cssMap' | 'xrayUrl'> {
   const {config} = input
   return {
     cwd: input.server.cwd,

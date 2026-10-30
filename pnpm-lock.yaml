@@ -2485,12 +2485,18 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
+      '@orpc/server':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 3.3.3
       culori:
         specifier: 'catalog:'
         version: 4.0.2
+      hono:
+        specifier: 'catalog:'
+        version: 4.13.14
       oxc-parser:
         specifier: 'catalog:'
         version: 0.156.0

@@ -153,6 +153,7 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, _r
       store: design.store,
       result: {
         target: {id: record.id, route: record.route, width: record.width},
+        xray: design.xrayUrl(record.id),
         mismatch: rounded(matched.mismatch),
         components,
         unmatched: unmatchedRegions({target, matched: matched.matchedTargetBoxes, pairs: matched.pairs, live}),
