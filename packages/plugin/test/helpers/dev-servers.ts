@@ -1,6 +1,8 @@
-import {mkdtempSync, rmSync} from 'node:fs'
+import {cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync} from 'node:fs'
+import {findPackageJSON} from 'node:module'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
+import {pathToFileURL} from 'node:url'
 import {createServer, type ViteDevServer} from 'vite'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
@@ -11,7 +13,7 @@ const PORT_RELEASE_MS = 300
 export type StartedDevServer = {server: ViteDevServer; root: string}
 
 export type DevServers = {
-  start: (options?: Omit<ConcivConfig, 'stateRoot'>, builtins?: Builtins) => Promise<StartedDevServer>
+  start: (options?: Omit<ConcivConfig, 'stateRoot'>, builtins?: Builtins, root?: string) => Promise<StartedDevServer>
   tempDir: (prefix: string) => string
   stopAll: () => Promise<void>
 }
@@ -26,8 +28,11 @@ export function devServers(): DevServers {
     return dir
   }
 
-  const start = async (options: Omit<ConcivConfig, 'stateRoot'> = {}, builtins = NO_BUILTINS) => {
-    const root = tempDir('conciv-vite-root-')
+  const start = async (
+    options: Omit<ConcivConfig, 'stateRoot'> = {},
+    builtins = NO_BUILTINS,
+    root = tempDir('conciv-vite-root-'),
+  ) => {
     const server = await createServer({
       root,
       configFile: false,
@@ -54,4 +59,62 @@ export async function pageApiBase(server: ViteDevServer, url = '/'): Promise<str
   const apiBase = html.match(/name="conciv-api-base"[^>]*content="([^"]+)"/)?.[1]
   if (!apiBase) throw new Error(`no api base injected, got ${html}`)
   return apiBase
+}
+
+function dependencyNames(manifest: unknown, field: string): string[] {
+  if (typeof manifest !== 'object' || manifest === null) return []
+  const value: unknown = Reflect.get(manifest, field)
+  return typeof value === 'object' && value !== null ? Object.keys(value) : []
+}
+
+function publishedFiles(manifest: unknown): string[] {
+  if (typeof manifest !== 'object' || manifest === null) return ['dist']
+  const files: unknown = Reflect.get(manifest, 'files')
+  return Array.isArray(files) ? files.filter((entry) => typeof entry === 'string') : ['dist']
+}
+
+function packageDirFrom(name: string, fromDir: string): string | null {
+  try {
+    const manifest = findPackageJSON(name, pathToFileURL(join(fromDir, 'package.json')))
+    return manifest === undefined ? null : realpathSync(dirname(manifest))
+  } catch {
+    return null
+  }
+}
+
+function installPackage(nodeModules: string, name: string, sourceDir: string, installed: Set<string>): void {
+  if (installed.has(name)) return
+  installed.add(name)
+  const manifest: unknown = JSON.parse(readFileSync(join(sourceDir, 'package.json'), 'utf8'))
+  const target = join(nodeModules, name)
+  mkdirSync(target, {recursive: true})
+  cpSync(join(sourceDir, 'package.json'), join(target, 'package.json'))
+  for (const entry of publishedFiles(manifest)) {
+    cpSync(join(sourceDir, entry), join(target, entry), {
+      recursive: true,
+      filter: (path) => !path.includes('.global.js'),
+    })
+  }
+  for (const dependency of [
+    ...dependencyNames(manifest, 'dependencies'),
+    ...dependencyNames(manifest, 'peerDependencies'),
+  ]) {
+    const dependencyDir = packageDirFrom(dependency, sourceDir)
+    if (dependencyDir === null) continue
+    if (dependency.startsWith('@conciv/')) {
+      installPackage(nodeModules, dependency, dependencyDir, installed)
+      continue
+    }
+    const link = join(nodeModules, dependency)
+    if (existsSync(link)) continue
+    mkdirSync(dirname(link), {recursive: true})
+    symlinkSync(dependencyDir, link)
+  }
+}
+
+export function installConcivPackage(root: string, name: string): string {
+  const sourceDir = packageDirFrom(name, dirname(import.meta.dirname))
+  if (sourceDir === null) throw new Error(`${name} is not resolvable from @conciv/plugin`)
+  installPackage(join(root, 'node_modules'), name, sourceDir, new Set())
+  return join(root, 'node_modules', name)
 }

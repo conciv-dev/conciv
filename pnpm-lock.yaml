@@ -3623,6 +3623,21 @@ importers:
         specifier: ^3.0.0
         version: 3.3.0(esbuild@0.28.1)(rolldown@1.2.15)(rollup@4.62.2)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
     devDependencies:
+      '@conciv/extension-ios':
+        specifier: workspace:^
+        version: link:../extensions/ios
+      '@conciv/extension-recorder':
+        specifier: workspace:^
+        version: link:../extensions/recorder
+      '@conciv/extension-terminal':
+        specifier: workspace:^
+        version: link:../extensions/terminal
+      '@conciv/extension-test-runner':
+        specifier: workspace:^
+        version: link:../extensions/test-runner
+      '@conciv/extension-whiteboard':
+        specifier: workspace:^
+        version: link:../extensions/whiteboard
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -3635,6 +3650,9 @@ importers:
       get-port:
         specifier: 'catalog:'
         version: 7.2.0
+      playwright:
+        specifier: 'catalog:'
+        version: 1.64.1
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.3)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
