@@ -1,12 +1,9 @@
 import styles from './card.module.css'
 
 const TITLES = ['Revenue', 'Invoices', 'Customers']
-
+const TARGET_TITLES = TITLES.filter((title) => title !== 'Invoices')
 export function Cards(props: {variant: string | null}) {
-  const titles =
-    props.variant === 'target' || props.variant === 'mobile-gap'
-      ? TITLES.filter((title) => title !== 'Invoices')
-      : TITLES
+  const titles = props.variant === 'target' || props.variant === 'mobile-gap' ? TARGET_TITLES : TITLES
   function card(title: string) {
     return (
       <article key={title} className={styles.card}>
