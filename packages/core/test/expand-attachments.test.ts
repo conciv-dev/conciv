@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {expandUserParts} from '../src/chat/run.js'
+import {expandUserParts} from '@conciv/chat/run'
 
 const doc = {type: 'document', source: {type: 'data', mimeType: 'application/x-test', value: 'eyJpZCI6MX0='}} as const
 

@@ -1,12 +1,12 @@
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, it, vi} from 'vitest'
-import {requestRunCancel} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {startTurn} from '../helpers/detached-turn.js'
 import {bootMadeApp} from '../helpers/boot.js'
 import {useMadeApps} from '../helpers/made-apps.js'
 import {requireClaude} from '../helpers/adapters.js'
+import {requestCancel} from '@conciv/ai/server'
 
 const claude = requireClaude()
 
@@ -42,7 +42,7 @@ describe('a run cancels itself off its own record (IT)', () => {
       {timeout: 10_000, interval: 50},
     )
 
-    await requestRunCancel(made.chat.runs, runId)
+    await requestCancel(made.chat.runs, runId)
 
     await vi.waitFor(() => expect(isAlive(harnessPid.value)).toBe(false), {timeout: 10_000, interval: 50})
     await vi.waitFor(async () => expect(await made.chat.runs.findActiveRun(sessionId)).toBeNull(), {

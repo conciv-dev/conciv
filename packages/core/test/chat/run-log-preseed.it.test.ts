@@ -1,6 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/ai/adapters'
 import {createTestkit} from '@conciv/harness-testkit'
@@ -59,7 +58,7 @@ describe('run log pre-seeding on the slow-finish deadline path (IT)', () => {
       try {
         const id = await kit.session()
         const stream = await kit.turn('hi', {session: id, runId: 'run-log-preseed-1'})
-        const runError = await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 8_500})
+        const runError = await stream.waitFor((chunk) => chunk.type === ChatEventType.RUN_ERROR, {hangGuardMs: 8_500})
         expect('message' in runError ? runError.message : '').toContain('no output')
       } finally {
         await kit.cleanup()

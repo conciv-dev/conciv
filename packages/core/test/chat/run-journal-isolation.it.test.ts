@@ -2,13 +2,12 @@ import {randomUUID} from 'node:crypto'
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, it, vi} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {MadeApp} from '../../src/app.js'
-import {makeTurn, mintedSessionId} from '../../src/chat/run.js'
+import {makeTurn, mintedSessionId} from '@conciv/chat/run'
 import {startTurn} from '../helpers/detached-turn.js'
-import {awaitRunSettled} from '../../src/chat/run-settled.js'
+import {awaitRunSettled} from '@conciv/chat/run-settled'
 import {bootMadeApp} from '../helpers/boot.js'
 import {useMadeApps} from '../helpers/made-apps.js'
 import {requireClaude} from '../helpers/adapters.js'
@@ -23,8 +22,8 @@ async function drain(stream: AsyncIterable<ChatEvent>): Promise<void> {
 
 function textOf(chunks: readonly ChatEvent[]): string {
   return chunks
-    .filter((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
-    .map((chunk) => (chunk.type === EventType.TEXT_MESSAGE_CONTENT ? chunk.delta : ''))
+    .filter((chunk) => chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT)
+    .map((chunk) => (chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT ? chunk.delta : ''))
     .join('')
 }
 

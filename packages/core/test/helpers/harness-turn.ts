@@ -2,13 +2,12 @@ import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {expect} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {chat, EventType} from '@tanstack/ai'
-import {withSandbox} from '@tanstack/ai-sandbox'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import type {HarnessAdapter, HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
-import {withConcivGate} from '../../src/chat/gate.js'
+import {withConcivGate} from '@conciv/chat/gate'
 import {bootMadeApp} from './boot.js'
+import {runTurn} from '@conciv/ai/server'
 
 const autoAllowGate = {decide: async () => 'allow' as const}
 
@@ -36,11 +35,12 @@ export async function runHarnessTurn(opts: HarnessTurnOpts): Promise<ChatEvent[]
   const made = await bootMadeApp({stateRoot, cwd: opts.dir, harness: opts.harness})
   const chunks: ChatEvent[] = []
   try {
-    const stream = chat({
+    const stream = runTurn({
       adapter: config.adapter,
       messages: [{role: 'user', content: opts.prompt}],
       threadId: `${opts.sessionId}-thread`,
-      middleware: [withSandbox(made.chat.sandbox), withConcivGate(autoAllowGate)],
+      sandbox: made.chat.sandbox,
+      middleware: [withConcivGate(autoAllowGate)],
       modelOptions: config.modelOptions,
     })
     for await (const chunk of stream) chunks.push(chunk)
@@ -52,7 +52,7 @@ export async function runHarnessTurn(opts: HarnessTurnOpts): Promise<ChatEvent[]
 
 export function sessionIdFrom(chunks: ChatEvent[], eventName: string): HarnessSessionId | null {
   for (const chunk of chunks) {
-    if (chunk.type !== EventType.CUSTOM || chunk.name !== eventName) continue
+    if (chunk.type !== ChatEventType.CUSTOM || chunk.name !== eventName) continue
     const value = chunk.value
     if (typeof value === 'object' && value !== null && 'sessionId' in value && typeof value.sessionId === 'string') {
       return HarnessSessionId.parse(value.sessionId)
@@ -62,7 +62,7 @@ export function sessionIdFrom(chunks: ChatEvent[], eventName: string): HarnessSe
 }
 
 export function textOf(chunks: ChatEvent[]): string {
-  return chunks.flatMap((chunk) => (chunk.type === EventType.TEXT_MESSAGE_CONTENT ? [chunk.delta] : [])).join('')
+  return chunks.flatMap((chunk) => (chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT ? [chunk.delta] : [])).join('')
 }
 
 export type ResumeScenarioOpts = {
@@ -84,12 +84,12 @@ export async function assertTurnAndResume(opts: ResumeScenarioOpts): Promise<voi
       ...(opts.model ? {model: opts.model} : {}),
     })
   const first = await turn('Remember the token PLUM42. Reply with exactly OK.', null)
-  expect(first.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+  expect(first.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
   expect(textOf(first).length).toBeGreaterThan(0)
   const sessionId = sessionIdFrom(first, opts.sessionEvent)
   expect(sessionId).toBeTruthy()
 
   const second = await turn('What was the token I asked you to remember? Reply with the token only.', sessionId)
-  expect(second.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+  expect(second.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
   expect(textOf(second)).toContain('PLUM42')
 }

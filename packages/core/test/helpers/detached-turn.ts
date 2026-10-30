@@ -1,8 +1,8 @@
 import type {ChatEvent} from '@conciv/ai/events'
-import type {StreamDurability} from '@tanstack/ai'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import {makeTurn, type UserContent} from '../../src/chat/run.js'
-import type {ChatDeps} from '../../src/chat/runtime.js'
+import {makeTurn, type UserContent} from '@conciv/chat/run'
+import type {ChatDeps} from '@conciv/chat/runtime'
+import type {StreamDurability} from '@conciv/ai/server'
 
 export type DetachedTurn = {
   runId: string

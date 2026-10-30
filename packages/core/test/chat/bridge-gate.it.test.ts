@@ -2,11 +2,11 @@ import {expect, test} from 'vitest'
 import {z} from 'zod'
 import {Client} from '@modelcontextprotocol/sdk/client/index.js'
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import {toolDefinition} from '@tanstack/ai'
-import type {ProvisionedBridge} from '@tanstack/ai-sandbox'
-import {gateProvisioner} from '../../src/chat/gate.js'
+import {gateProvisioner} from '@conciv/chat/gate'
+import {defineTool} from '@conciv/ai/tools'
+import type {ProvisionedTools} from '@conciv/ai/server'
 
-async function callBridgeTool(bridge: ProvisionedBridge, name: string, args: unknown): Promise<string> {
+async function callBridgeTool(bridge: ProvisionedTools, name: string, args: unknown): Promise<string> {
   const client = new Client({name: 'bridge-gate-test', version: '0.0.0'})
   const transport = new StreamableHTTPClientTransport(new URL(bridge.url), {
     requestInit: {headers: {authorization: `Bearer ${bridge.token}`}},
@@ -63,7 +63,7 @@ test('permission tool denies when the gate denies', async () => {
 
 test('a gate timeout on a bridged tool reads as no decision, not a user denial', async () => {
   const gate = {decide: async () => 'timeout' as const}
-  const slow = toolDefinition({
+  const slow = defineTool({
     name: 'slow_tool',
     description: 'never gets an answer',
     inputSchema: z.object({}),
@@ -87,7 +87,7 @@ test('bridged tool calls route through the gate before executing', async () => {
       return toolName === 'blocked_tool' ? ('deny' as const) : ('allow' as const)
     },
   }
-  const echo = toolDefinition({
+  const echo = defineTool({
     name: 'echo_tool',
     description: 'echoes',
     inputSchema: z.object({value: z.string()}),
@@ -95,7 +95,7 @@ test('bridged tool calls route through the gate before executing', async () => {
     ran += 1
     return {echoed: args.value}
   })
-  const blocked = toolDefinition({
+  const blocked = defineTool({
     name: 'blocked_tool',
     description: 'never runs',
     inputSchema: z.object({}),

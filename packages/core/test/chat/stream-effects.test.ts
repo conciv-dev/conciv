@@ -1,6 +1,6 @@
 import {expect, test} from 'vitest'
-import {EventType} from '@tanstack/ai'
-import {mintedSessionId} from '../../src/chat/run.js'
+import {mintedSessionId} from '@conciv/chat/run'
+import {ChatEventType} from '@conciv/ai/events'
 
 test('captures session-id custom events from any adapter', () => {
   const adapters = [
@@ -9,7 +9,7 @@ test('captures session-id custom events from any adapter', () => {
   ]
   const named = adapters.map((adapter) =>
     mintedSessionId({
-      type: EventType.CUSTOM,
+      type: ChatEventType.CUSTOM,
       name: adapter.name,
       value: {sessionId: adapter.token},
       timestamp: 1,
@@ -17,14 +17,14 @@ test('captures session-id custom events from any adapter', () => {
   )
   expect(named).toEqual(adapters.map((adapter) => adapter.token))
   const text = mintedSessionId({
-    type: EventType.TEXT_MESSAGE_CONTENT,
+    type: ChatEventType.TEXT_MESSAGE_CONTENT,
     messageId: 'm',
     delta: 'x',
     timestamp: 1,
   })
   expect(text).toBeNull()
   const unrelated = mintedSessionId({
-    type: EventType.CUSTOM,
+    type: ChatEventType.CUSTOM,
     name: 'file_changed',
     value: {sessionId: 'nope'},
     timestamp: 1,

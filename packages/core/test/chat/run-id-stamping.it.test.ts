@@ -1,6 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/ai/adapters'
 import {createTestkit} from '@conciv/harness-testkit'
@@ -19,9 +18,9 @@ const baseCaps = {
 } as const
 
 async function* innerIdGenerator(): AsyncGenerator<ChatEvent> {
-  yield {type: EventType.RUN_STARTED, threadId: 'inner', runId: 'inner'}
-  yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'inner-msg', delta: 'ok'}
-  yield {type: EventType.RUN_FINISHED, threadId: 'inner', runId: 'inner'}
+  yield {type: ChatEventType.RUN_STARTED, threadId: 'inner', runId: 'inner'}
+  yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: 'inner-msg', delta: 'ok'}
+  yield {type: ChatEventType.RUN_FINISHED, threadId: 'inner', runId: 'inner'}
 }
 
 const innerIdHarness = defineHarness({
@@ -42,7 +41,7 @@ describe('lifecycle runId stamping (the wire identity of a run is the client-min
       const id = await kit.session()
       const stream = await kit.turn('hi', {session: id, runId: 'stamp-1'})
       const started = await stream.waitForRunStart()
-      const finished = await stream.waitFor((chunk) => chunk.type === EventType.RUN_FINISHED, {hangGuardMs: 5000})
+      const finished = await stream.waitFor((chunk) => chunk.type === ChatEventType.RUN_FINISHED, {hangGuardMs: 5000})
       expect(runIdOf(started)).toBe('stamp-1')
       expect(runIdOf(finished)).toBe('stamp-1')
     } finally {

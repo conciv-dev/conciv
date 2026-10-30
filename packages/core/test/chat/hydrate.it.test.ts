@@ -1,8 +1,8 @@
 import {describe, it, expect} from 'vitest'
-import {EventType} from '@tanstack/ai'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {asSnapshot, assistantTexts, userTexts} from '../helpers/snapshots.js'
 import {SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
+import {ChatEventType} from '@conciv/ai/events'
 
 describe('chat.hydrate serves a thread and the run still generating on it (IT)', () => {
   const sessions = useFakeSessions()
@@ -36,7 +36,7 @@ describe('chat.hydrate serves a thread and the run still generating on it (IT)',
 
     harness.script.hold()
     const turn = await kit.turn('turn one', {session: sessionId, runId: 'hydrate-live'})
-    await turn.waitFor((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 15_000})
+    await turn.waitFor((chunk) => chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 15_000})
 
     expect(await kit.rpc.chat.hydrate({sessionId})).toMatchObject({activeRun: {runId: 'hydrate-live'}})
 

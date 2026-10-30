@@ -1,6 +1,6 @@
 import {z} from 'zod'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType, StreamProcessor} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
+import {foldChatEvents} from '@conciv/ai/server-testkit'
 
 const MessageSchema = z
   .object({
@@ -10,7 +10,7 @@ const MessageSchema = z
   })
   .loose()
 
-const SnapshotSchema = z.object({type: z.literal(EventType.MESSAGES_SNAPSHOT), messages: z.array(MessageSchema)})
+const SnapshotSchema = z.object({type: z.literal(ChatEventType.MESSAGES_SNAPSHOT), messages: z.array(MessageSchema)})
 
 type SnapshotMessage = z.infer<typeof MessageSchema>
 export type SnapshotView = z.infer<typeof SnapshotSchema>
@@ -45,13 +45,11 @@ export function partTypes(snapshot: SnapshotView): string[] {
 }
 
 function rendered(chunks: ChatEvent[]): SnapshotMessage[] {
-  const processor = new StreamProcessor({})
-  for (const chunk of chunks) processor.processChunk(chunk)
-  return z.array(MessageSchema).parse(processor.getMessages())
+  return z.array(MessageSchema).parse(foldChatEvents(chunks))
 }
 
 export function reconstructSnapshot(chunks: ChatEvent[]): SnapshotView {
-  return {type: EventType.MESSAGES_SNAPSHOT, messages: rendered(chunks)}
+  return {type: ChatEventType.MESSAGES_SNAPSHOT, messages: rendered(chunks)}
 }
 
 export function reconstructTranscript(chunks: ChatEvent[]): string[] {

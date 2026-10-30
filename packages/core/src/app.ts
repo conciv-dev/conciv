@@ -32,17 +32,16 @@ import {
   recordNativeId,
   sweepEmptyRows,
   type RowScope,
-} from './chat/session-rows.js'
-import {makeRunControl, type ChatDeps} from './chat/runtime.js'
-import {chatDeliveryRoutes} from './chat/delivery.js'
+} from '@conciv/chat/session-rows'
+import {makeRunControl, type ChatDeps} from '@conciv/chat/runtime'
+import {createChatPlane, type ChatPlane} from '@conciv/chat'
 import {pushRoutes, type PushDeps} from './api/push.js'
-import {asksFor, makeAskGate, requiresApproval} from './chat/gate.js'
-import {defineSandbox, defineSandboxPolicy} from '@tanstack/ai-sandbox'
-import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
-import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
-import {reclaimAbandonedRuns} from './chat/reclaim.js'
-import {recoverInterruptedRuns, syncedSnapshot} from './chat/transcript-import.js'
-import {makeCompactor, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
+import {requiresApproval} from '@conciv/chat/gate'
+import {assistCapabilities, registryCapabilities, type CodeCapability} from '@conciv/chat/capabilities'
+import {reclaimAbandonedRuns} from '@conciv/chat/reclaim'
+import {recoverInterruptedRuns} from '@conciv/chat/transcript-import'
+import type {AttachmentExpanders} from '@conciv/chat/run'
+import {readOnlyCommandAllows} from './command-policy.js'
 import {modelOf, openDb, writeToolCapture} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
@@ -226,7 +225,7 @@ export type CoreVars = CorsVars & {chat: ChatDeps} & McpVars
 function composeRoutes(
   vars: CoreVars,
   rpc: CompositeRpcRouter,
-  deps: {staleness: () => EngineStaleness; onShutdown?: () => void; push: PushDeps},
+  deps: {staleness: () => EngineStaleness; onShutdown?: () => void; push: PushDeps; plane: ChatPlane},
 ) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
@@ -249,7 +248,7 @@ function composeRoutes(
       setTimeout(deps.onShutdown, 50)
       return c.json({ok: true})
     })
-    .route('/', chatDeliveryRoutes(vars.chat, upgradeWebSocket))
+    .route('/', deps.plane.routes(upgradeWebSocket))
     .route('/', pushRoutes(deps.push, upgradeWebSocket))
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
@@ -260,6 +259,7 @@ export type AppType = ReturnType<typeof composeRoutes>
 export type MadeApp = {
   app: AppType
   chat: ChatDeps
+  plane: ChatPlane
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
@@ -435,24 +435,17 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
   )
 
-  const chatDeps: ChatDeps = {
+  const plane = createChatPlane({
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
     basePath: opts.basePath ?? '',
     harness,
     harnessEnv: opts.harnessEnv,
     claudeHome: opts.claudeHome,
-    systemText: resolveSystemText(
-      {systemPromptFile: opts.systemPromptFile, systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt},
-      harness.capabilities.systemPrompt,
-    ),
-    sandbox: defineSandbox({
-      id: 'conciv',
-      provider: localProcessSandbox({dir: opts.cwd}),
-      policy: defineSandboxPolicy({default: 'ask'}),
-      fileEvents: false,
-      lifecycle: {reuse: 'thread', destroyOnComplete: false},
-    }),
+    systemPrompt: {
+      systemPromptFile: opts.systemPromptFile,
+      systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
+    },
     db,
     asks,
     commandMemory,
@@ -462,16 +455,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     claimStartedAt,
     sessionLocks,
     stream,
-    snapshot: (sessionId) => syncedSnapshot(chatDeps, sessionId),
     risky,
-    commandAllows: askFreeCommandAllows,
+    commandAllows: () => [...readOnlyCommandAllows, ...askFreeCommandAllows()],
     toolNames: new Set(toolList.map((tool) => tool.name)),
     codeModeCapabilities,
     attachmentExpanders,
     onRunStart: (sessionId) => runStartListeners.forEach((listener) => listener(sessionId)),
     onRunEnd,
     firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
-  }
+  })
+  const chatDeps = plane.deps
 
   if (opts.cfg.harnessSessionId !== undefined) {
     void ensureAgentRow(rows, opts.cfg.harnessSessionId).catch((error: unknown) =>
@@ -487,9 +480,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     logError(`[core] the empty session row sweep failed: ${String(error)}`),
   )
 
-  const compactor = makeCompactor(chatDeps)
-
-  const runtime = makeCoreRuntime({primitives, chat: chatDeps, compactor, model: sessionModel, staleness})
+  const runtime = makeCoreRuntime({primitives, plane, model: sessionModel, staleness})
 
   const rpc = makeRpcRouter({
     chat: chatDeps,
@@ -513,12 +504,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       chat: chatDeps,
       mcp: {
         capabilities: codeModeCapabilities,
-        askGate: (sessionId) =>
-          makeAskGate({
-            asks: asksFor(asks, sessionId),
-            emit: (chunk) => stream.publish(sessionId, chunk),
-            ...(opts.askTimeoutMs === undefined ? {} : {timeoutMs: opts.askTimeoutMs}),
-          }),
+        askGate: (sessionId) => plane.askGate(sessionId, opts.askTimeoutMs),
         listening: (sessionId) => stream.watched(sessionId),
         resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
         staleness,
@@ -528,10 +514,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       staleness,
       onShutdown: opts.onShutdown,
+      plane,
       push: {
         queries: (sessionId, signal) => runtime.forSession(sessionId).page.queries(signal),
         events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
-        pendingApprovals: (sessionId) => asks.pendingApprovals(sessionId),
+        approvalReplay: plane.approvalReplay,
       },
     },
   )
@@ -547,5 +534,5 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     db.$client.close()
   }
 
-  return {app, chat: chatDeps, dispose, extensionContexts, runtime}
+  return {app, chat: chatDeps, plane, dispose, extensionContexts, runtime}
 }

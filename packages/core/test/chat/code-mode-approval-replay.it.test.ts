@@ -1,8 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {tmpdir} from 'node:os'
 import {z} from 'zod'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {approvalIds, createTestHarness} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'
@@ -47,7 +46,7 @@ function callThroughCatalog(name: string, input: unknown): string {
 }
 
 function startsCall(chunk: ChatEvent, name: string): boolean {
-  if (chunk.type !== EventType.TOOL_CALL_START) return false
+  if (chunk.type !== ChatEventType.TOOL_CALL_START) return false
   return chunk.toolCallName === name
 }
 

@@ -1,6 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/ai/adapters'
 import {createTestkit} from '@conciv/harness-testkit'
@@ -43,7 +42,7 @@ async function failingTurn(harness: HarnessAdapter): Promise<{seedCalls: string[
   try {
     const id = await kit.session()
     const stream = await kit.turn('hi', {session: id, runId: 'turn-error-flood-1'})
-    const runError = await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 5000})
+    const runError = await stream.waitFor((chunk) => chunk.type === ChatEventType.RUN_ERROR, {hangGuardMs: 5000})
     expect(await runEnded).toBe(id)
     const seedCalls = calls.filter((c) => c.includes('chat run failed') || c.includes('tanstack-ai'))
     return {seedCalls, runError}
@@ -63,6 +62,6 @@ describe('a failed turn must not seed the dev-server console flood', () => {
   it('a chatStream failure does not call console.error', async () => {
     const {seedCalls, runError} = await failingTurn(failingHarness)
     expect(seedCalls).toEqual([])
-    expect(runError.type).toBe(EventType.RUN_ERROR)
+    expect(runError.type).toBe(ChatEventType.RUN_ERROR)
   })
 })

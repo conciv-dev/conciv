@@ -3,7 +3,7 @@ import {z} from 'zod'
 import type {ConcivServerTool} from '@conciv/tools'
 import {defineTool} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
-import {assistCapabilities, registryCapabilities} from '../../src/chat/capabilities.js'
+import {assistCapabilities, registryCapabilities} from '@conciv/chat/capabilities'
 
 function assistTool(description: string): ConcivServerTool {
   return {

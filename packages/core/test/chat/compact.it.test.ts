@@ -1,9 +1,9 @@
 import {asc, eq} from 'drizzle-orm'
 import {describe, expect, it} from 'vitest'
-import type {RunRecord} from '@tanstack/ai'
 import {markers} from '@conciv/db'
 import {makeChatFixture} from '../helpers/chat-fixture.js'
-import {makeCompactor} from '../../src/chat/run.js'
+import {makeCompactor} from '@conciv/chat/run'
+import type {RunRecord} from '@conciv/ai/server'
 
 function overlapping(records: readonly RunRecord[]): boolean {
   const spans = records

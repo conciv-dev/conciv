@@ -11,7 +11,7 @@ import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ToolRequest} from '@conciv/extension'
 import type {ChangeEntry} from '../page-bus.js'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
-import type {PendingApproval} from '../chat/ask.js'
+import type {PendingApproval} from '@conciv/chat/ask'
 
 export type ToolCatalog = ToolRegistry['catalog']
 

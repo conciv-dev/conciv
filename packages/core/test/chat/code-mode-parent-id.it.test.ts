@@ -1,13 +1,15 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import type {ChatEvent} from '@conciv/ai/events'
-import {chat, EventType, StreamProcessor, type TextOptions} from '@tanstack/ai'
-import {makeTextAdapter} from '@conciv/ai/adapters'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
+import {makeTextAdapter, type TextAdapterOptions} from '@conciv/ai/adapters'
 import type {ToolRequest} from '@conciv/extension'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {makeCodeMode} from '../../src/chat/code-mode.js'
-import {codeModeToolChunks} from '../../src/chat/code-mode-parts.js'
-import type {CodeCapability} from '../../src/chat/capabilities.js'
+import {makeCodeMode} from '@conciv/chat/code-mode'
+import {codeModeToolChunks} from '@conciv/chat/code-mode-parts'
+import type {CodeCapability} from '@conciv/chat/capabilities'
+import {createMessageFold} from '@conciv/ai/server'
+import type {ChatMessage} from '@conciv/ai/messages'
+import {toolTurn} from '@conciv/ai/server-testkit'
 
 const request: ToolRequest = {sessionId: SessionId.parse('conciv_x'), model: null}
 const allowGate = {decide: async () => 'allow' as const}
@@ -32,7 +34,7 @@ const ToolCallValueSchema = z.object({callId: z.string(), name: z.string(), tool
 
 function parentIdsOfToolCalls(chunks: ChatEvent[]): (string | undefined)[] {
   return chunks.flatMap((chunk) => {
-    if (chunk.type !== EventType.CUSTOM || chunk.name !== 'conciv:tool_call') return []
+    if (chunk.type !== ChatEventType.CUSTOM || chunk.name !== 'conciv:tool_call') return []
     const parsed = ToolCallValueSchema.safeParse(chunk.value)
     return parsed.success ? [parsed.data.toolCallId] : []
   })
@@ -40,43 +42,43 @@ function parentIdsOfToolCalls(chunks: ChatEvent[]): (string | undefined)[] {
 
 function scriptedAdapter(typescriptCode: string): ReturnType<typeof makeTextAdapter> {
   const rounds = {value: 0}
-  async function* stream(options: TextOptions<Record<string, never>>): AsyncGenerator<ChatEvent> {
+  async function* stream(options: TextAdapterOptions): AsyncGenerator<ChatEvent> {
     void options
     const round = rounds.value
     rounds.value += 1
-    yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'}
+    yield {type: ChatEventType.RUN_STARTED, threadId: 't', runId: 'r'}
     if (round === 0) {
       yield {
-        type: EventType.TOOL_CALL_START,
+        type: ChatEventType.TOOL_CALL_START,
         toolCallId: PARENT_CALL_ID,
         toolCallName: 'execute_typescript',
       }
       yield {
-        type: EventType.TOOL_CALL_ARGS,
+        type: ChatEventType.TOOL_CALL_ARGS,
         toolCallId: PARENT_CALL_ID,
         delta: JSON.stringify({typescriptCode}),
       }
-      yield {type: EventType.TOOL_CALL_END, toolCallId: PARENT_CALL_ID}
-      yield {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r', finishReason: 'tool_calls'}
+      yield {type: ChatEventType.TOOL_CALL_END, toolCallId: PARENT_CALL_ID}
+      yield {type: ChatEventType.RUN_FINISHED, threadId: 't', runId: 'r', finishReason: 'tool_calls'}
       return
     }
-    yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'done'}
-    yield {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r', finishReason: 'stop'}
+    yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'done'}
+    yield {type: ChatEventType.RUN_FINISHED, threadId: 't', runId: 'r', finishReason: 'stop'}
   }
   return makeTextAdapter('scripted', stream)
 }
 
-function foldedMessages(chunks: ChatEvent[]): ReturnType<StreamProcessor['getMessages']> {
-  const processor = new StreamProcessor({events: {}})
+function foldedMessages(chunks: ChatEvent[]): ChatMessage[] {
+  const processor = createMessageFold()
   for (const chunk of chunks) {
     const synthesized = codeModeToolChunks(chunk)
     if (synthesized) {
-      synthesized.forEach((entry) => processor.processChunk(entry))
+      synthesized.forEach((entry) => processor.fold(entry))
       continue
     }
-    processor.processChunk(chunk)
+    processor.fold(chunk)
   }
-  return processor.getMessages()
+  return processor.messages()
 }
 
 describe('code-mode nested-call parent id from real execution (IT, real chat + real isolate + real fold)', () => {
@@ -85,12 +87,11 @@ describe('code-mode nested-call parent id from real execution (IT, real chat + r
     if (!codeMode) throw new Error('code mode unavailable: isolated-vm probe reported incompatible')
 
     const chunks: ChatEvent[] = []
-    for await (const chunk of chat({
+    for await (const chunk of toolTurn({
       adapter: scriptedAdapter('return await external_canvas_svg({})'),
       messages: [{role: 'user', content: 'draw a circle'}],
       threadId: 't',
       tools: codeMode.tools,
-      lazyToolsConfig: {includeDescription: 'first-sentence'},
     })) {
       chunks.push(chunk)
     }
@@ -111,12 +112,11 @@ describe('code-mode nested-call parent id from real execution (IT, real chat + r
     if (!codeMode) throw new Error('code mode unavailable: isolated-vm probe reported incompatible')
 
     const chunks: ChatEvent[] = []
-    for await (const chunk of chat({
+    for await (const chunk of toolTurn({
       adapter: scriptedAdapter("return await external_catalog({search: 'canvas'})"),
       messages: [{role: 'user', content: 'what can you do'}],
       threadId: 't',
       tools: codeMode.tools,
-      lazyToolsConfig: {includeDescription: 'first-sentence'},
     })) {
       chunks.push(chunk)
     }

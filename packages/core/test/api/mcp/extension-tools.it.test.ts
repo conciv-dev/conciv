@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from '../../helpers/boot.js'
+import {connectMcpClient} from '@conciv/ai/server-testkit'
 
 const draw = defineTool({
   name: 'acme_draw',
@@ -15,7 +15,7 @@ const draw = defineTool({
 const acme = defineExtension({name: 'acme', tools: [draw]})
 
 async function execute(base: string, typescriptCode: string): Promise<unknown> {
-  const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+  const mcp = await connectMcpClient(`${base}/api/mcp`)
   try {
     const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
     if (!tool?.execute) throw new Error('execute_typescript not on /api/mcp')

@@ -1,6 +1,11 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {type ChatEvent, isRunPhaseTerminal, runLifecycleEvent, type RunLifecycle} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {
+  type ChatEvent,
+  ChatEventType,
+  isRunPhaseTerminal,
+  type RunLifecycle,
+  runLifecycleEvent,
+} from '@conciv/ai/events'
 import {createTestkit, type Kit, type RunStream} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
@@ -89,7 +94,7 @@ describe('run lifecycle on the wire (IT)', () => {
     state.kit = kit
     const sessionId = await kit.session()
     const stream = await kit.turn('never answers', {session: sessionId, runId: 'lifecycle-fail'})
-    await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 20_000})
+    await stream.waitFor((chunk) => chunk.type === ChatEventType.RUN_ERROR, {hangGuardMs: 20_000})
 
     const replayed = (await kit.hydrate(sessionId)).lastRun
     expect(replayed?.phase).toBe('failed')

@@ -4,8 +4,8 @@ import {join} from 'node:path'
 import {eq} from 'drizzle-orm'
 import {afterEach, describe, expect, it} from 'vitest'
 import {sessions} from '@conciv/db'
-import {sessionSnapshot} from '../../src/chat/thread.js'
-import {syncTranscript} from '../../src/chat/transcript-import.js'
+import {sessionSnapshot} from '@conciv/chat/thread'
+import {syncTranscript} from '@conciv/chat/transcript-import'
 import {makeChatFixture} from '../helpers/chat-fixture.js'
 
 const scratch: string[] = []

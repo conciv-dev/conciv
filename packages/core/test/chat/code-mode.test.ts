@@ -1,16 +1,16 @@
 import {describe, expect, test} from 'vitest'
 import {z} from 'zod'
 import type {ChatEvent} from '@conciv/ai/events'
-import type {AnyTool} from '@tanstack/ai'
 import {approvalIds} from '@conciv/harness-testkit'
 import {toolError, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {createAskRegistry, type AskRegistry} from '../../src/chat/ask.js'
-import {asksFor, makeAskGate, type PermissionGate} from '../../src/chat/gate.js'
-import {gatedToolRun, makeCodeMode, type CodeMode} from '../../src/chat/code-mode.js'
-import {registryCapabilities, type CodeCapability} from '../../src/chat/capabilities.js'
+import {createAskRegistry, type AskRegistry} from '@conciv/chat/ask'
+import {asksFor, makeAskGate, type PermissionGate} from '@conciv/chat/gate'
+import {gatedToolRun, makeCodeMode, type CodeMode} from '@conciv/chat/code-mode'
+import {registryCapabilities, type CodeCapability} from '@conciv/chat/capabilities'
+import type {ChatTool} from '@conciv/ai/tools'
 
 const SESSION = SessionId.parse('conciv_x')
 
@@ -65,7 +65,7 @@ const CodeResultSchema = z.object({
 
 type CodeResult = z.infer<typeof CodeResultSchema>
 
-async function runSandbox(tools: AnyTool[], typescriptCode: string): Promise<CodeResult> {
+async function runSandbox(tools: ChatTool[], typescriptCode: string): Promise<CodeResult> {
   const entry = tools.find((candidate) => candidate.name === 'execute_typescript')
   if (!entry?.execute) throw new Error('no execute_typescript tool')
   return CodeResultSchema.parse(await entry.execute({typescriptCode}, {}))

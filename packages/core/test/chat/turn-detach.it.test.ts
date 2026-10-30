@@ -2,11 +2,11 @@ import {describe, it, expect, afterEach} from 'vitest'
 import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {EventType} from '@tanstack/ai'
 import {createTestkit, type Kit, type RunStream} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 import {makeRunEndProbe} from '../helpers/run-end-probe.js'
+import {ChatEventType} from '@conciv/ai/events'
 
 const claude = requireClaude()
 const dirs: string[] = []
@@ -58,10 +58,10 @@ describe('detached turns (IT)', () => {
     const second = await kit.turn('again', {session: id, runId: 'turn-detach-3'})
     await second.waitForRunStart()
     writeFileSync(releaseFile, '')
-    await first.waitFor((c) => c.type === EventType.RUN_ERROR || c.type === EventType.RUN_FINISHED, {
+    await first.waitFor((c) => c.type === ChatEventType.RUN_ERROR || c.type === ChatEventType.RUN_FINISHED, {
       hangGuardMs: 10_000,
     })
-    await second.waitFor((c) => c.type === EventType.RUN_FINISHED && runIdOf(c) === 'turn-detach-3', {
+    await second.waitFor((c) => c.type === ChatEventType.RUN_FINISHED && runIdOf(c) === 'turn-detach-3', {
       hangGuardMs: 10_000,
     })
     expect((await kit.hydrate(id)).activeRun).toBeNull()
@@ -88,7 +88,7 @@ describe('detached turns (IT)', () => {
     expect(await hydratedText(kit, id)).toContain('first-half')
     writeFileSync(releaseFile, '')
     const events = await late.done()
-    expect(events.all.some((c) => c.type === EventType.RUN_STARTED)).toBe(true)
+    expect(events.all.some((c) => c.type === ChatEventType.RUN_STARTED)).toBe(true)
     expect(events.text()).toContain('first-half')
     expect(events.text()).toContain('second-half')
     expect(events.runs()).toBe(1)

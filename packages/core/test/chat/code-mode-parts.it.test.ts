@@ -1,10 +1,10 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {StreamProcessor} from '@tanstack/ai'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
+import {foldChatEvents} from '@conciv/ai/server-testkit'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -63,9 +63,7 @@ describe('code-mode per-tool parts on the wire (IT)', () => {
     })
     const stream = await kit.turn('draw a circle', {session: sessionId, runId: 'code-mode-parts-1'})
     const events = await stream.done({hangGuardMs: 15_000})
-    const processor = new StreamProcessor({})
-    for (const chunk of events.all) processor.processChunk(chunk)
-    const messages = processor.getMessages()
+    const messages = foldChatEvents(events.all)
     const children = childParts(messages)
     expect(children.map((child) => child.name)).toEqual(['catalog', 'canvas_svg'])
     expect(children.every((child) => child.metadata.parentToolCallId === parentId)).toBe(true)

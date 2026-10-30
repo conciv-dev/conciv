@@ -3,18 +3,10 @@ import {eq} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {resolveHarnessModels} from '@conciv/harness'
-import {
-  clearPageChanges,
-  clearRunState,
-  deleteSessionCaptures,
-  drafts,
-  markers,
-  modelOf,
-  runningThreadIds,
-  sessions,
-} from '@conciv/db'
-import type {ChatDeps} from '../../chat/runtime.js'
-import {stopSession} from '../../chat/stop.js'
+import {clearPageChanges, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
+import {clearRunState, runningThreadIds} from '@conciv/chat/run-store'
+import type {ChatDeps} from '@conciv/chat/runtime'
+import {stopSession} from '@conciv/chat/stop'
 import {
   createRow,
   listSessionMetas,
@@ -23,7 +15,7 @@ import {
   restoreRow,
   rowById,
   tombstoneRow,
-} from '../../chat/session-rows.js'
+} from '@conciv/chat/session-rows'
 import {os, type RpcDeps} from './mount.js'
 
 export async function rpcSessionList(chat: ChatDeps, includeHidden: boolean): Promise<SessionMeta[]> {

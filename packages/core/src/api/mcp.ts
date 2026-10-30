@@ -3,9 +3,8 @@ import {Hono} from 'hono'
 import {z} from 'zod'
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import type {ContentPart} from '@conciv/ai/messages'
-import {type ChatEvent, codeModeToolCallEvent} from '@conciv/ai/events'
-import {EventType, isContentPartArray} from '@tanstack/ai'
+import {ChatEventType, type ChatEvent, codeModeToolCallEvent} from '@conciv/ai/events'
+import {isContentParts, type ContentPart} from '@conciv/ai/messages'
 import type {ToolRequest} from '@conciv/extension'
 import type {EngineStaleness} from '@conciv/contract'
 import {HTTPException} from 'hono/http-exception'
@@ -19,12 +18,12 @@ import {
 } from '@conciv/protocol/chat-types'
 import type {SessionScope} from '../runtime/scope-types.js'
 import {logError} from '../lib/debug.js'
-import {cappedText, RESULT_CAP_CHARS, safeStringify, truncationEnvelope} from '../lib/result-cap.js'
+import {cappedText, RESULT_CAP_CHARS, safeStringify, truncationEnvelope} from '@conciv/chat/result-cap'
 import {loopbackHostAllowlist} from '../lib/cors.js'
-import type {CodeCapability} from '../chat/capabilities.js'
-import type {PermissionGate} from '../chat/gate.js'
-import {makeCodeMode, type CodeMode} from '../chat/code-mode.js'
-import {codeModeEventPublisher} from '../chat/code-mode-parts.js'
+import type {CodeCapability} from '@conciv/chat/capabilities'
+import type {PermissionGate} from '@conciv/chat/gate'
+import {makeCodeMode, type CodeMode} from '@conciv/chat/code-mode'
+import {codeModeEventPublisher} from '@conciv/chat/code-mode-parts'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema} from './execute-schemas.js'
 
 export function sessionIdFromHeaders(headers: Headers): SessionId | null {
@@ -144,7 +143,7 @@ function logsPart(logs: string[]): TextContent[] {
 }
 
 function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply {
-  if (isContentPartArray(result.result)) {
+  if (isContentParts(result.result)) {
     return {content: cappedParts([...result.result.map(partToContent), ...logsPart(result.logs ?? [])])}
   }
   const body = safeStringify({result: result.result ?? null, logs: result.logs ?? []}, 'execution result')
@@ -156,19 +155,19 @@ type PublishChunks = (chunks: ChatEvent[]) => void
 function executeStartChunks(executionId: string, typescriptCode: string): ChatEvent[] {
   return [
     {
-      type: EventType.TOOL_CALL_START,
+      type: ChatEventType.TOOL_CALL_START,
       toolCallId: executionId,
       toolCallName: EXECUTE_TOOL_NAME,
     },
-    {type: EventType.TOOL_CALL_ARGS, toolCallId: executionId, delta: JSON.stringify({typescriptCode})},
-    {type: EventType.TOOL_CALL_END, toolCallId: executionId},
+    {type: ChatEventType.TOOL_CALL_ARGS, toolCallId: executionId, delta: JSON.stringify({typescriptCode})},
+    {type: ChatEventType.TOOL_CALL_END, toolCallId: executionId},
   ]
 }
 
 function executeResultChunk(executionId: string, reply: ExecuteReply): ChatEvent {
   const text = reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
   return {
-    type: EventType.TOOL_CALL_RESULT,
+    type: ChatEventType.TOOL_CALL_RESULT,
     messageId: `${executionId}-result`,
     toolCallId: executionId,
     content: text || JSON.stringify({result: 'non-text content'}),

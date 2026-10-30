@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {createAskRegistry} from '../../src/chat/ask.js'
+import {createAskRegistry} from '@conciv/chat/ask'
 
 const SESSION = SessionId.parse('conciv_s')
 

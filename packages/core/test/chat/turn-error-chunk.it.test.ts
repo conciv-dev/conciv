@@ -1,6 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/ai/adapters'
 import {createTestkit} from '@conciv/harness-testkit'
@@ -22,8 +21,8 @@ const baseCaps = {
 } as const
 
 async function* erroringGenerator(): AsyncGenerator<ChatEvent> {
-  yield {type: EventType.RUN_STARTED, threadId: 'stub', runId: 'stub'}
-  yield {type: EventType.RUN_ERROR, message: CHUNK_FAIL}
+  yield {type: ChatEventType.RUN_STARTED, threadId: 'stub', runId: 'stub'}
+  yield {type: ChatEventType.RUN_ERROR, message: CHUNK_FAIL}
 }
 
 const erroringHarness = defineHarness({
@@ -40,8 +39,8 @@ describe('an adapter that yields RUN_ERROR as a chunk (stub harnesses, acp adapt
     try {
       const id = await kit.session()
       const stream = await kit.turn('hi', {session: id, runId: 'turn-error-chunk-1'})
-      const runError = await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 5000})
-      expect(runError.type).toBe(EventType.RUN_ERROR)
+      const runError = await stream.waitFor((chunk) => chunk.type === ChatEventType.RUN_ERROR, {hangGuardMs: 5000})
+      expect(runError.type).toBe(ChatEventType.RUN_ERROR)
       expect('message' in runError ? runError.message : '').toContain(CHUNK_FAIL)
       expect(await runEnded).toBe(id)
     } finally {

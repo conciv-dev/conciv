@@ -5,9 +5,9 @@ import {join} from 'node:path'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/ai/adapters'
 import {openDb} from '@conciv/db'
-import {recoverInterruptedRuns} from '../../src/chat/transcript-import.js'
-import {writeRunMessages} from '../../src/chat/thread.js'
-import {createRow} from '../../src/chat/session-rows.js'
+import {recoverInterruptedRuns} from '@conciv/chat/transcript-import'
+import {writeRunMessages} from '@conciv/chat/thread'
+import {createRow} from '@conciv/chat/session-rows'
 import {threadPendingFrom, threadUserTexts} from '../helpers/thread.js'
 
 function harnessThrowingSynchronously(): HarnessAdapter {

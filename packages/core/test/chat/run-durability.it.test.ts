@@ -1,17 +1,16 @@
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, it, vi} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {MadeApp} from '../../src/app.js'
-import {makeTurn} from '../../src/chat/run.js'
+import {makeTurn} from '@conciv/chat/run'
 import {startTurn} from '../helpers/detached-turn.js'
-import {stopSession} from '../../src/chat/stop.js'
+import {stopSession} from '@conciv/chat/stop'
 import {bootMadeApp} from '../helpers/boot.js'
 import {useMadeApps} from '../helpers/made-apps.js'
 import {requireClaude} from '../helpers/adapters.js'
-import {awaitRunSettled} from '../../src/chat/run-settled.js'
+import {awaitRunSettled} from '@conciv/chat/run-settled'
 
 const claude = requireClaude()
 
@@ -108,10 +107,10 @@ describe('run durability is owned by withSandbox (IT)', () => {
 
     const chunks = await loggedChunks(made, runId)
     const text = chunks
-      .filter((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
-      .map((chunk) => (chunk.type === EventType.TEXT_MESSAGE_CONTENT ? chunk.delta : ''))
+      .filter((chunk) => chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT)
+      .map((chunk) => (chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT ? chunk.delta : ''))
       .join('')
-    expect(chunks.filter((chunk) => chunk.type === EventType.RUN_STARTED)).toHaveLength(1)
+    expect(chunks.filter((chunk) => chunk.type === ChatEventType.RUN_STARTED)).toHaveLength(1)
     expect(text).toBe('hello from fake')
   })
 })

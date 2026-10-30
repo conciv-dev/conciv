@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {cappedValue, RESULT_CAP_CHARS} from '../../src/lib/result-cap.js'
+import {cappedValue, RESULT_CAP_CHARS} from '@conciv/chat/result-cap'
 
 describe('cappedValue', () => {
   test('returns the fallback object instead of a value containing a bigint', () => {

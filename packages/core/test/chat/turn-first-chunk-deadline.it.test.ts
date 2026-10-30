@@ -1,6 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/ai/adapters'
 import {createTestkit} from '@conciv/harness-testkit'
@@ -49,7 +48,7 @@ describe('an adapter that never produces a first chunk', () => {
     try {
       const id = await kit.session()
       const stream = await kit.turn('hi', {session: id, runId: 'turn-first-chunk-deadline-1'})
-      const runError = await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 5000})
+      const runError = await stream.waitFor((chunk) => chunk.type === ChatEventType.RUN_ERROR, {hangGuardMs: 5000})
       expect('message' in runError ? runError.message : '').toContain('no output')
       expect(await runEnded).toBe(id)
     } finally {

@@ -1,9 +1,9 @@
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ConcivDb} from '@conciv/db'
-import {createAskRegistry, type AskRegistry} from '../chat/ask.js'
-import {createCommandMemory, type CommandMemory} from '../chat/command-memory.js'
-import {createSessionStreams, type SessionStreams} from '../chat/session-events.js'
+import {createAskRegistry, type AskRegistry} from '@conciv/chat/ask'
+import {createCommandMemory, type CommandMemory} from '@conciv/chat/command-memory'
+import {createSessionStreams, type SessionStreams} from '@conciv/chat/session-events'
 import {makeJournal, makePageBus, type CaptureSink, type PageEnv} from '../page-bus.js'
 import {makeBuiltinRegistry} from '../tool-registry.js'
 

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {createSessionLocks} from '../../src/chat/session-locks.js'
+import {createSessionLocks} from '@conciv/chat/session-locks'
 
 const SESSION_A = SessionId.parse('conciv_a')
 const SESSION_B = SessionId.parse('conciv_b')

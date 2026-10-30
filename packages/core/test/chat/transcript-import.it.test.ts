@@ -10,7 +10,7 @@ import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {userTexts} from '../helpers/snapshots.js'
 import {hydratedSnapshot} from '../helpers/fake-session.js'
 import {freshSnapshot, useTranscriptFixture} from '../helpers/transcript-fixture.js'
-import {createRow} from '../../src/chat/session-rows.js'
+import {createRow} from '@conciv/chat/session-rows'
 
 const TERMINAL_NATIVE_ID = 'sess-terminal'
 

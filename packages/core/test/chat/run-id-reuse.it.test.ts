@@ -2,19 +2,18 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/ai/adapters'
 import {createTestHarness, createTestkit} from '@conciv/harness-testkit'
 import {openDb} from '@conciv/db'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {ensureRow} from '../../src/chat/session-rows.js'
+import {ensureRow} from '@conciv/chat/session-rows'
 import {bootMadeApp} from '../helpers/boot.js'
 import {startTurn} from '../helpers/detached-turn.js'
-import {makeRunControl} from '../../src/chat/runtime.js'
+import {makeRunControl} from '@conciv/chat/runtime'
 import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
-import {awaitRunSettled} from '../../src/chat/run-settled.js'
+import {awaitRunSettled} from '@conciv/chat/run-settled'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 
@@ -31,9 +30,9 @@ const baseCaps = {
 } as const
 
 async function* instantGenerator(): AsyncGenerator<ChatEvent> {
-  yield {type: EventType.RUN_STARTED, threadId: 'instant', runId: 'instant'}
-  yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'instant-msg', delta: 'ok'}
-  yield {type: EventType.RUN_FINISHED, threadId: 'instant', runId: 'instant'}
+  yield {type: ChatEventType.RUN_STARTED, threadId: 'instant', runId: 'instant'}
+  yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: 'instant-msg', delta: 'ok'}
+  yield {type: ChatEventType.RUN_FINISHED, threadId: 'instant', runId: 'instant'}
 }
 
 const instantHarness = defineHarness({
@@ -77,8 +76,8 @@ describe('runId reuse (IT)', () => {
     expect(rejection?.reason).toMatchObject({name: 'RunIdTakenError'})
     await awaitRunSettled(fixture.chat.runs, runId)
     const chunks = await replayRunLog(fixture.chat, runId)
-    const started = chunks.filter((chunk) => chunk.type === EventType.RUN_STARTED)
-    const finished = chunks.filter((chunk) => chunk.type === EventType.RUN_FINISHED)
+    const started = chunks.filter((chunk) => chunk.type === ChatEventType.RUN_STARTED)
+    const finished = chunks.filter((chunk) => chunk.type === ChatEventType.RUN_FINISHED)
     expect(started).toHaveLength(1)
     expect(finished).toHaveLength(1)
   })

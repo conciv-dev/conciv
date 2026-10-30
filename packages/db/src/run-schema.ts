@@ -1,7 +1,7 @@
 import {index, integer, primaryKey, sqliteTable, text} from 'drizzle-orm/sqlite-core'
 import type {ModelMessage} from '@conciv/ai/messages'
 import type {TokenUsage} from '@conciv/ai/usage'
-import type {RunStatus} from '@tanstack/ai'
+import type {RunStatus} from '@conciv/ai/server'
 import type {RunPhase} from '@conciv/ai/events'
 
 export const RUN_PHASES: readonly [RunPhase, ...RunPhase[]] = ['running', 'stopping', 'completed', 'failed', 'aborted']

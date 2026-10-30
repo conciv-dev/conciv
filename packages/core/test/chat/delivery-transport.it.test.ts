@@ -1,16 +1,13 @@
 import {describe, it, expect} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType, StreamProcessor} from '@tanstack/ai'
-import {fetchServerSentEvents, webSocket} from '@tanstack/ai-client'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {hydratedSnapshot, SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
 import {assistantTexts, userTexts} from '../helpers/snapshots.js'
 import type {Kit} from '@conciv/harness-testkit'
+import {foldChatEvents, serverSentEventsJoin, serverSentEventsTurn, socketTurn} from '@conciv/ai/server-testkit'
 
 function foldedTranscript(chunks: ChatEvent[]): Array<{role: string; text: string}> {
-  const processor = new StreamProcessor({})
-  for (const chunk of chunks) processor.processChunk(chunk)
-  return processor.getMessages().map((message) => ({
+  return foldChatEvents(chunks).map((message) => ({
     role: message.role,
     text: message.parts
       .flatMap((part) => (part.type === 'text' ? [part.content] : []))
@@ -29,18 +26,16 @@ async function collect(stream: AsyncIterable<ChatEvent>, until: (chunk: ChatEven
 }
 
 const isTerminal = (chunk: ChatEvent): boolean =>
-  chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR
+  chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR
 
 async function overWebSocket(kit: Kit, sessionId: string, runId: string, text: string): Promise<ChatEvent[]> {
-  const connection = webSocket(`${kit.wsBase}${CHAT_WS_PATH}`)
   const abort = new AbortController()
-  const stream = connection.subscribe(abort.signal)
-  await connection.send(
-    [{id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: text}]}],
-    {},
-    abort.signal,
-    {threadId: sessionId, runId},
-  )
+  const stream = await socketTurn(`${kit.wsBase}${CHAT_WS_PATH}`, {
+    threadId: sessionId,
+    runId,
+    messages: [{id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: text}]}],
+    signal: abort.signal,
+  })
   const chunks = await collect(stream, isTerminal)
   abort.abort()
   return chunks
@@ -69,14 +64,13 @@ describe('the chat delivery endpoints carry the same run whichever one drives it
     const {kit} = await sessions.open()
     const {sessionId} = await kit.rpc.sessions.create()
 
-    const connection = fetchServerSentEvents(`${kit.base}${CHAT_SSE_PATH}`)
     const abort = new AbortController()
-    const stream = connection.connect(
-      [{id: 'sse-user', role: 'user', parts: [{type: 'text', content: 'over sse'}]}],
-      {},
-      abort.signal,
-      {threadId: sessionId, runId: 'equivalence-sse'},
-    )
+    const stream = serverSentEventsTurn(`${kit.base}${CHAT_SSE_PATH}`, {
+      threadId: sessionId,
+      runId: 'equivalence-sse',
+      messages: [{id: 'sse-user', role: 'user', parts: [{type: 'text', content: 'over sse'}]}],
+      signal: abort.signal,
+    })
     const chunks = await collect(stream, isTerminal)
 
     expect(foldedTranscript(chunks).map((message) => message.text)).toEqual([SCRIPTED_REPLY])
@@ -90,16 +84,14 @@ describe('the chat delivery endpoints carry the same run whichever one drives it
     const {sessionId} = await kit.rpc.sessions.create()
     harness.script.hold()
 
-    const connection = webSocket(`${kit.wsBase}${CHAT_WS_PATH}`)
     const abort = new AbortController()
-    const stream = connection.subscribe(abort.signal)
-    await connection.send(
-      [{id: 'abort-user', role: 'user', parts: [{type: 'text', content: 'hang on'}]}],
-      {},
-      abort.signal,
-      {threadId: sessionId, runId: 'ws-abort'},
-    )
-    await collect(stream, (chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+    const stream = await socketTurn(`${kit.wsBase}${CHAT_WS_PATH}`, {
+      threadId: sessionId,
+      runId: 'ws-abort',
+      messages: [{id: 'abort-user', role: 'user', parts: [{type: 'text', content: 'hang on'}]}],
+      signal: abort.signal,
+    })
+    await collect(stream, (chunk) => chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT)
 
     abort.abort()
     harness.script.release()
@@ -115,11 +107,10 @@ describe('the chat delivery endpoints carry the same run whichever one drives it
     const first = await overWebSocket(kit, sessionId, 'replay-run', 'say it once')
     expect(foldedTranscript(first).map((message) => message.text)).toEqual([SCRIPTED_REPLY])
 
-    const rejoin = fetchServerSentEvents(`${kit.base}${CHAT_SSE_PATH}`)
-    const replayed = await collect(rejoin.joinRun('replay-run'), isTerminal)
+    const replayed = await collect(serverSentEventsJoin(`${kit.base}${CHAT_SSE_PATH}`, 'replay-run'), isTerminal)
 
     expect(foldedTranscript(replayed).map((message) => message.text)).toEqual([SCRIPTED_REPLY])
     expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['say it once'])
-    expect(replayed.filter((chunk) => chunk.type === EventType.RUN_STARTED)).toHaveLength(1)
+    expect(replayed.filter((chunk) => chunk.type === ChatEventType.RUN_STARTED)).toHaveLength(1)
   })
 })

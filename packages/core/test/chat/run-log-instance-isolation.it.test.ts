@@ -1,9 +1,8 @@
 import {describe, expect, it} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {startTurn} from '../helpers/detached-turn.js'
 import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
-import {awaitRunSettled} from '../../src/chat/run-settled.js'
+import {awaitRunSettled} from '@conciv/chat/run-settled'
 
 const PROBE_EVENT = 'isolation-probe'
 
@@ -20,7 +19,7 @@ async function replayRunLog(fixture: ChatFixture, runId: string): Promise<ChatEv
 
 function probeOrigins(chunks: ChatEvent[]): string[] {
   return chunks.flatMap((chunk) => {
-    if (chunk.type !== EventType.CUSTOM || chunk.name !== PROBE_EVENT) return []
+    if (chunk.type !== ChatEventType.CUSTOM || chunk.name !== PROBE_EVENT) return []
     const value = chunk.value
     if (typeof value !== 'object' || value === null || !('origin' in value)) return []
     return typeof value.origin === 'string' ? [value.origin] : []

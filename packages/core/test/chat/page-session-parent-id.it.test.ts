@@ -1,7 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import type {PageOutcome} from '@conciv/protocol/page-types'
 import {
   autoApprove,
@@ -59,7 +58,7 @@ async function bootWidget(kit: Kit): Promise<FakeWidget> {
 }
 
 function isStartOf(toolName: string): (chunk: ChatEvent) => boolean {
-  return (chunk) => chunk.type === EventType.TOOL_CALL_START && chunk.toolCallName === toolName
+  return (chunk) => chunk.type === ChatEventType.TOOL_CALL_START && chunk.toolCallName === toolName
 }
 
 const StartChunkSchema = z.object({

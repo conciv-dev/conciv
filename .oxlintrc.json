@@ -226,7 +226,7 @@
       }
     },
     {
-      "files": ["packages/core/src/**"],
+      "files": ["packages/core/src/**", "packages/chat/src/**"],
       "rules": {
         "conciv/core-purity": "error"
       }

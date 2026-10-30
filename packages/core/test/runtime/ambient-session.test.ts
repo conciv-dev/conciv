@@ -7,7 +7,6 @@ import {makeSessionPrimitives, type SessionPrimitives} from '../../src/runtime/p
 import {makeCoreRuntime} from '../../src/runtime/core-runtime.js'
 import {runWithSession} from '../../src/runtime/session-context.js'
 import type {CoreRuntime} from '../../src/runtime/scope-types.js'
-import {makeCompactor} from '../../src/chat/run.js'
 import {makeChatFixture} from '../helpers/chat-fixture.js'
 
 const SESSION_A = SessionId.parse('conciv_ambient_a')
@@ -35,8 +34,7 @@ async function madeRuntime(): Promise<{runtime: CoreRuntime; primitives: Session
   primitives.registry.register(clicker, {owner: 'a fixture'})
   const runtime = makeCoreRuntime({
     primitives,
-    chat: fixture.chat,
-    compactor: makeCompactor(fixture.chat),
+    plane: fixture.plane,
     model: () => null,
     staleness: () => FRESH,
   })

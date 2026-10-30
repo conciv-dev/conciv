@@ -11,7 +11,7 @@ import {
   resolveRow,
   rowById,
   sweepEmptyRows,
-} from '../../src/chat/session-rows.js'
+} from '@conciv/chat/session-rows'
 
 const MINTED = SessionId.parse('conciv_minted')
 const OTHER = SessionId.parse('conciv_other')

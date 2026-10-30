@@ -2,9 +2,10 @@ import {describe, expect, it} from 'vitest'
 import type {ChatEvent} from '@conciv/ai/events'
 import {approvalIds} from '@conciv/harness-testkit'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {createAskRegistry} from '../../src/chat/ask.js'
-import {createCommandMemory} from '../../src/chat/command-memory.js'
-import {asksFor, commandMemoryFor, makeRunGate} from '../../src/chat/gate.js'
+import {createAskRegistry} from '@conciv/chat/ask'
+import {createCommandMemory} from '@conciv/chat/command-memory'
+import {asksFor, commandMemoryFor, makeRunGate} from '@conciv/chat/gate'
+import {readOnlyCommandAllows} from '../../src/command-policy.js'
 
 const SESSION = SessionId.parse('conciv_x')
 
@@ -18,6 +19,7 @@ const fixture = (timeoutMs?: number) => {
     memory: commandMemoryFor(memory, SESSION),
     emit: (chunk) => emitted.push(chunk),
     risky,
+    commandAllows: () => readOnlyCommandAllows,
     timeoutMs: timeoutMs ?? 100,
   })
   const approvalId = (): string | undefined => emitted.flatMap(approvalIds)[0]

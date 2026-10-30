@@ -1,9 +1,8 @@
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {EngineStaleness} from '@conciv/contract'
-import {createAskRegistry} from '../../src/chat/ask.js'
-import {createCommandMemory} from '../../src/chat/command-memory.js'
-import {createSessionStreams} from '../../src/chat/session-events.js'
-import {makeCompactor} from '../../src/chat/run.js'
+import {createAskRegistry} from '@conciv/chat/ask'
+import {createCommandMemory} from '@conciv/chat/command-memory'
+import {createSessionStreams} from '@conciv/chat/session-events'
 import {makeCoreRuntime} from '../../src/runtime/core-runtime.js'
 import type {CoreRuntime, ScopedToolCall} from '../../src/runtime/scope-types.js'
 import type {SessionPrimitives} from '../../src/runtime/primitives.js'
@@ -23,8 +22,7 @@ export async function pageRuntime(page: PageEnv, registry: ToolRegistry): Promis
   }
   return makeCoreRuntime({
     primitives,
-    chat: fixture.chat,
-    compactor: makeCompactor(fixture.chat),
+    plane: fixture.plane,
     model: () => null,
     staleness: () => FRESH,
   })

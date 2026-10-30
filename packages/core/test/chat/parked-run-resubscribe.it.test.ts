@@ -1,11 +1,10 @@
 import {describe, it, expect} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
 
 function textDeltas(chunks: readonly ChatEvent[]): string[] {
   return chunks.flatMap((chunk) =>
-    chunk.type === EventType.TEXT_MESSAGE_CONTENT && typeof chunk.delta === 'string' ? [chunk.delta] : [],
+    chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT && typeof chunk.delta === 'string' ? [chunk.delta] : [],
   )
 }
 
@@ -17,7 +16,7 @@ describe('joining a run that is parked mid-turn (IT)', () => {
 
     harness.script.hold()
     const owner = await kit.turn('turn one', {session: sessionId, runId: 'parked-1'})
-    await owner.waitFor((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 15_000})
+    await owner.waitFor((chunk) => chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 15_000})
 
     const latecomer = kit.join('parked-1')
     await latecomer.waitForRunStart()

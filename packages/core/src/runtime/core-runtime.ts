@@ -5,14 +5,9 @@ import type {EngineStaleness, ToolCommandSignature} from '@conciv/contract'
 import type {ToolRequest} from '@conciv/extension'
 import {navigation, sessionCaptures, writeToolCapture} from '@conciv/db'
 import {symbolicateFrames} from '../editor/symbolicate.js'
-import {syncedSnapshot} from '../chat/transcript-import.js'
-import {hydrateSession} from '../chat/hydrate.js'
-import {stopSession} from '../chat/stop.js'
-import type {ChatDeps} from '../chat/runtime.js'
-import type {Compactor} from '../chat/run.js'
+import type {ChatPlane} from '@conciv/chat'
+import {askUi} from '@conciv/chat/ask'
 import {pageQueryStream} from '../page-bus.js'
-import {askUi} from '../chat/ask.js'
-import {sessionEvents} from '../chat/session-events.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
 import type {CoreRuntime, EngineScope, SessionScope, ToolCatalog} from './scope-types.js'
@@ -21,8 +16,7 @@ const MAX_NAVIGATION_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000
 
 export type CoreRuntimeDeps = {
   primitives: SessionPrimitives
-  chat: ChatDeps
-  compactor: Compactor
+  plane: ChatPlane
   model: (sessionId: SessionId) => string | null
   staleness: () => EngineStaleness
 }
@@ -52,7 +46,7 @@ function catalogSignatures(catalog: ToolCatalog): ToolCommandSignature[] {
 }
 
 function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
-  const db = deps.chat.db
+  const db = deps.plane.deps.db
   return {
     catalog: () => catalogSignatures(deps.primitives.registry.catalog),
     staleness: deps.staleness,
@@ -102,7 +96,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       publish: (chunk) => stream.publish(id, chunk),
       listen: (onChunk) => stream.listen(id, onChunk),
       listening: () => stream.watched(id),
-      events: (signal) => sessionEvents(deps.chat, id, signal),
+      events: (signal) => deps.plane.events(id, signal),
     },
     asks: {
       open: (key, approval) => asks.open(id, key, approval),
@@ -115,17 +109,17 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       ui: () => askUi(asks, id),
     },
     captures: {
-      list: () => sessionCaptures(deps.chat.db, id),
-      store: (toolCallId, bundle) => writeToolCapture(deps.chat.db, {sessionId: id, toolCallId, bundle}),
+      list: () => sessionCaptures(deps.plane.deps.db, id),
+      store: (toolCallId, bundle) => writeToolCapture(deps.plane.deps.db, {sessionId: id, toolCallId, bundle}),
     },
     history: {
-      messages: () => syncedSnapshot(deps.chat, id),
-      hydrate: () => hydrateSession(deps.chat, id),
+      messages: () => deps.plane.history(id),
+      hydrate: () => deps.plane.hydrate(id),
     },
     run: {
-      stop: () => stopSession(deps.chat, id),
-      compact: () => deps.compactor.run(id),
-      live: async () => (await deps.chat.runs.findActiveRun(id)) !== null,
+      stop: () => deps.plane.stop(id),
+      compact: () => deps.plane.compact(id),
+      live: async () => (await deps.plane.deps.runs.findActiveRun(id)) !== null,
     },
   }
 }

@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest'
 import type {ChatMessage} from '@conciv/ai/messages'
-import {makeToolNameNormalizer, normalizeHistoryToolNames} from '../../src/chat/tool-names.js'
+import {makeToolNameNormalizer, normalizeHistoryToolNames} from '@conciv/chat/tool-names'
 
 const REGISTERED = new Set(['canvas_read', 'probe_ping', 'conciv_ui', 'recording_start'])
 

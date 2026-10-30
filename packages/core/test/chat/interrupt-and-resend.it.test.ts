@@ -1,6 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import {createTestkit, createFakeHarness, type FakeHarness, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 
@@ -14,8 +13,8 @@ async function bootFakeKit(): Promise<LifecycleKit> {
 
 function runBoundaries(chunks: readonly ChatEvent[]): string[] {
   return chunks.flatMap((chunk) => {
-    if (chunk.type === EventType.RUN_STARTED) return [`start:${'runId' in chunk ? chunk.runId : ''}`]
-    if (chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR)
+    if (chunk.type === ChatEventType.RUN_STARTED) return [`start:${'runId' in chunk ? chunk.runId : ''}`]
+    if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR)
       return [`end:${'runId' in chunk ? chunk.runId : ''}`]
     return []
   })

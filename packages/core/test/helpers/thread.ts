@@ -1,9 +1,9 @@
-import {modelMessagesToUIMessages} from '@tanstack/ai'
-import type {ChatMessage} from '@conciv/ai/messages'
-import {readThread, type ConcivDb} from '@conciv/db'
+import {type ChatMessage, toChatMessages} from '@conciv/ai/messages'
+import type {ConcivDb} from '@conciv/db'
+import {readThread} from '@conciv/chat/thread-queries'
 
 export function threadUiMessages(db: ConcivDb, sessionId: string): ChatMessage[] {
-  return modelMessagesToUIMessages(readThread(db, sessionId).messages)
+  return toChatMessages(readThread(db, sessionId).messages)
 }
 
 export function threadUserTexts(db: ConcivDb, sessionId: string): string[] {

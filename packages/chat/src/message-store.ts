@@ -1,0 +1,23 @@
+import {eq} from 'drizzle-orm'
+import type {MessageStore} from '@conciv/ai/server'
+import {chatThreads, type ConcivDb} from '@conciv/db'
+
+export function createMessageStore(db: ConcivDb): MessageStore {
+  return {
+    loadThread: async (threadId) => {
+      const rows = await db
+        .select({messagesJson: chatThreads.messagesJson})
+        .from(chatThreads)
+        .where(eq(chatThreads.threadId, threadId))
+        .limit(1)
+      return rows[0]?.messagesJson ?? []
+    },
+    saveThread: async (threadId, messages) => {
+      const updatedAt = Date.now()
+      await db
+        .insert(chatThreads)
+        .values({threadId, messagesJson: messages, updatedAt})
+        .onConflictDoUpdate({target: chatThreads.threadId, set: {messagesJson: messages, updatedAt}})
+    },
+  }
+}

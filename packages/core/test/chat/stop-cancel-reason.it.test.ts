@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {startTurn} from '../helpers/detached-turn.js'
-import {stopSession} from '../../src/chat/stop.js'
+import {stopSession} from '@conciv/chat/stop'
 import {bootMadeApp} from '../helpers/boot.js'
 import {useMadeApps} from '../helpers/made-apps.js'
 import {requireClaude} from '../helpers/adapters.js'

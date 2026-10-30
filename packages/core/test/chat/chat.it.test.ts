@@ -3,12 +3,12 @@ import {z} from 'zod'
 import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
-import {EventType} from '@tanstack/ai'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {countType, runTurn} from '../helpers/turns.js'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
+import {ChatEventType} from '@conciv/ai/events'
 
 const claude = requireClaude()
 
@@ -61,7 +61,7 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
   it('streams TanStack AG-UI chunks from a real claude child', async () => {
     const kit = await setup()
     const events = await runTurn(kit, 'hi', await kit.session())
-    expect(countType(events, EventType.RUN_STARTED)).toBe(1)
+    expect(countType(events, ChatEventType.RUN_STARTED)).toBe(1)
     expect(events.text()).toContain('hello from fake')
     expect(events.runs()).toBe(1)
   })
@@ -70,7 +70,7 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     const kit = await setup({partial: true})
     const id = await kit.session()
     const events = await runTurn(kit, 'hi', id)
-    expect(countType(events, EventType.RUN_STARTED)).toBe(1)
+    expect(countType(events, ChatEventType.RUN_STARTED)).toBe(1)
     expect(events.text()).toContain('hello from fake')
     expect(events.runs()).toBe(1)
     expect((await metaFor(kit, id))?.usage?.inputTokens).toBeGreaterThan(0)
@@ -89,15 +89,15 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
   it('streams exactly one run lifecycle pair through chat()', async () => {
     const kit = await setup()
     const events = await runTurn(kit, 'hi', await kit.session())
-    expect(countType(events, EventType.RUN_STARTED)).toBe(1)
-    expect(countType(events, EventType.RUN_FINISHED)).toBe(1)
+    expect(countType(events, ChatEventType.RUN_STARTED)).toBe(1)
+    expect(countType(events, ChatEventType.RUN_FINISHED)).toBe(1)
   })
 
   it('streams a multi-block turn (empty thinking + text + tool call + text) without dropping text', async () => {
     const kit = await setup({rich: true})
     const events = await runTurn(kit, 'hi', await kit.session())
-    expect(countType(events, EventType.RUN_STARTED)).toBe(1)
-    expect(countType(events, EventType.RUN_FINISHED)).toBe(1)
+    expect(countType(events, ChatEventType.RUN_STARTED)).toBe(1)
+    expect(countType(events, ChatEventType.RUN_FINISHED)).toBe(1)
     expect(events.text()).toContain('Proving it.')
     expect(events.text()).toContain('RICH_REPLY_VISIBLE')
   })

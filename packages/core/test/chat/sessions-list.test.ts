@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {createRow, listSessionMetas, rowByNativeId, sweepEmptyRows} from '../../src/chat/session-rows.js'
+import {createRow, listSessionMetas, rowByNativeId, sweepEmptyRows} from '@conciv/chat/session-rows'
 import {sessions} from '@conciv/db'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {testDb} from '../helpers/memory-store.js'

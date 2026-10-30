@@ -1,9 +1,7 @@
 import {eq} from 'drizzle-orm'
 import type {ConcivDb} from './db.js'
 import {sessions} from './schema.js'
-import {runMessages, runs, sessionHistory} from './run-schema.js'
-import {deleteThreadRuns} from './run-store.js'
-import {deleteThread} from './thread-queries.js'
+import {runMessages, sessionHistory} from './run-schema.js'
 
 type QueryHandle = Pick<ConcivDb, 'select' | 'insert' | 'delete'>
 
@@ -28,10 +26,4 @@ export function sessionHistoryFor(db: QueryHandle, id: string): {messages: unkno
     .where(eq(sessionHistory.sessionId, id))
     .all()
   return rows[0] ?? null
-}
-
-export function clearRunState(db: ConcivDb, id: string): void {
-  db.delete(runs).where(eq(runs.sessionId, id)).run()
-  deleteThreadRuns(db, id)
-  deleteThread(db, id)
 }

@@ -6,9 +6,9 @@ import {getHarness} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {testDb} from '../helpers/memory-store.js'
-import {createRow, ensureRow, nativeIdFor, recordNativeId, rowById} from '../../src/chat/session-rows.js'
+import {createRow, ensureRow, nativeIdFor, recordNativeId, rowById} from '@conciv/chat/session-rows'
 import {requireClaude} from '../helpers/adapters.js'
-import {resumableToken} from '../../src/chat/run.js'
+import {resumableToken} from '@conciv/chat/run'
 
 const SESSION_A = SessionId.parse('conciv_a')
 const SESSION_B = SessionId.parse('conciv_b')

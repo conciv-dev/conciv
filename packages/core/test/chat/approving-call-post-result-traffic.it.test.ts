@@ -1,9 +1,8 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import type {ChatEvent} from '@conciv/ai/events'
-import {EventType, type TextOptions} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {makeTextAdapter} from '@conciv/ai/adapters'
+import {makeTextAdapter, type TextAdapterOptions} from '@conciv/ai/adapters'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {makeApprovingCallTool} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'
@@ -23,14 +22,14 @@ const whiteboardish = defineExtension({name: 'whiteboardish', tools: [canvasDele
 const NOISE_CHUNK_COUNT = 60
 const NOISE_INTERVAL_MS = 15
 
-async function* noisyStream(options: TextOptions<Record<string, never>>): AsyncGenerator<ChatEvent> {
+async function* noisyStream(options: TextAdapterOptions): AsyncGenerator<ChatEvent> {
   void options
-  yield {type: EventType.RUN_STARTED, threadId: 'noisy', runId: 'noisy'}
+  yield {type: ChatEventType.RUN_STARTED, threadId: 'noisy', runId: 'noisy'}
   for (let index = 0; index < NOISE_CHUNK_COUNT; index += 1) {
     await new Promise<void>((resolve) => setTimeout(resolve, NOISE_INTERVAL_MS))
-    yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'noisy-msg', delta: `chunk-${index} `}
+    yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: 'noisy-msg', delta: `chunk-${index} `}
   }
-  yield {type: EventType.RUN_FINISHED, threadId: 'noisy', runId: 'noisy'}
+  yield {type: ChatEventType.RUN_FINISHED, threadId: 'noisy', runId: 'noisy'}
 }
 
 function noisyHarness(): HarnessAdapter {

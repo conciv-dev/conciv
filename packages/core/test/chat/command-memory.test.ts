@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {createCommandMemory} from '../../src/chat/command-memory.js'
+import {createCommandMemory} from '@conciv/chat/command-memory'
 
 const SESSION = SessionId.parse('conciv_a')
 const OTHER = SessionId.parse('conciv_b')

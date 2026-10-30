@@ -1,10 +1,10 @@
 import {randomUUID} from 'node:crypto'
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {createMCPClient} from '@tanstack/ai-mcp'
 import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from '../../helpers/boot.js'
+import {connectMcpClient} from '@conciv/ai/server-testkit'
 
 const echo = defineTool({
   name: 'acme_echo_session',
@@ -17,7 +17,7 @@ const echo = defineTool({
 const acme = defineExtension({name: 'acme', tools: [echo]})
 
 async function echoedSession(base: string, headers: Record<string, string>): Promise<string> {
-  const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`, headers}})
+  const mcp = await connectMcpClient(`${base}/api/mcp`, headers)
   try {
     const tool = (await mcp.tools()).find((candidate) => candidate.name === 'execute_typescript')
     if (!tool?.execute) throw new Error('execute_typescript not registered on /api/mcp')

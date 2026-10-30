@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {testDb} from '../helpers/memory-store.js'
-import {createRow, resolveRow, rowById} from '../../src/chat/session-rows.js'
+import {createRow, resolveRow, rowById} from '@conciv/chat/session-rows'
 
 const SESSION_NEW = SessionId.parse('conciv_new')
 const SESSION_A = SessionId.parse('conciv_a')

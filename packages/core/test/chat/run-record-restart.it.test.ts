@@ -2,8 +2,13 @@ import {afterEach, describe, expect, it} from 'vitest'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {type ChatEvent, isRunPhaseTerminal, runLifecycleEvent, type RunLifecycle} from '@conciv/ai/events'
-import {EventType} from '@tanstack/ai'
+import {
+  type ChatEvent,
+  ChatEventType,
+  isRunPhaseTerminal,
+  type RunLifecycle,
+  runLifecycleEvent,
+} from '@conciv/ai/events'
 import {createTestkit, type Kit, type RunStream} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
@@ -72,7 +77,7 @@ describe('run records survive a server restart (IT)', () => {
     const first = await boot(root, 300)
     const sessionId = await first.session()
     const stream = await first.turn('never answers', {session: sessionId, runId: 'restart-failed'})
-    await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 20_000})
+    await stream.waitFor((chunk) => chunk.type === ChatEventType.RUN_ERROR, {hangGuardMs: 20_000})
     const original = await nextLifecycle(stream, isTerminalLifecycle)
     expect(original.phase).toBe('failed')
 

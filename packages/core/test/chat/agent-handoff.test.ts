@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {testDb} from '../helpers/memory-store.js'
-import {ensureAgentRow} from '../../src/chat/session-rows.js'
+import {ensureAgentRow} from '@conciv/chat/session-rows'
 
 const TOKEN = HarnessSessionId.parse('tok-init')
 
