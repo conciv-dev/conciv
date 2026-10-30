@@ -67,6 +67,12 @@ function dependencyNames(manifest: unknown, field: string): string[] {
   return typeof value === 'object' && value !== null ? Object.keys(value) : []
 }
 
+function publishedFiles(manifest: unknown): string[] {
+  if (typeof manifest !== 'object' || manifest === null) return ['dist']
+  const files: unknown = Reflect.get(manifest, 'files')
+  return Array.isArray(files) ? files.filter((entry) => typeof entry === 'string') : ['dist']
+}
+
 function packageDirFrom(name: string, fromDir: string): string | null {
   try {
     const manifest = findPackageJSON(name, pathToFileURL(join(fromDir, 'package.json')))
@@ -83,10 +89,12 @@ function installPackage(nodeModules: string, name: string, sourceDir: string, in
   const target = join(nodeModules, name)
   mkdirSync(target, {recursive: true})
   cpSync(join(sourceDir, 'package.json'), join(target, 'package.json'))
-  cpSync(join(sourceDir, 'dist'), join(target, 'dist'), {
-    recursive: true,
-    filter: (path) => !path.includes('.global.js'),
-  })
+  for (const entry of publishedFiles(manifest)) {
+    cpSync(join(sourceDir, entry), join(target, entry), {
+      recursive: true,
+      filter: (path) => !path.includes('.global.js'),
+    })
+  }
   for (const dependency of [
     ...dependencyNames(manifest, 'dependencies'),
     ...dependencyNames(manifest, 'peerDependencies'),
@@ -104,9 +112,9 @@ function installPackage(nodeModules: string, name: string, sourceDir: string, in
   }
 }
 
-export function installConcivPackage(root: string, name: string): string {
-  const sourceDir = packageDirFrom(name, dirname(import.meta.dirname))
-  if (sourceDir === null) throw new Error(`${name} is not resolvable from @conciv/plugin`)
+export function installConcivPackage(root: string, name: string, fromDir = dirname(import.meta.dirname)): string {
+  const sourceDir = packageDirFrom(name, fromDir)
+  if (sourceDir === null) throw new Error(`${name} is not resolvable from ${fromDir}`)
   installPackage(join(root, 'node_modules'), name, sourceDir, new Set())
   return join(root, 'node_modules', name)
 }

@@ -1,12 +1,26 @@
 import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
 import {existsSync, writeFileSync} from 'node:fs'
-import {join} from 'node:path'
-import {fileURLToPath} from 'node:url'
+import {dirname, join} from 'node:path'
+import {fileURLToPath, pathToFileURL} from 'node:url'
 import {chromium, type Browser, type Page} from 'playwright'
+import {dedupeExtensions, type ExtensionEntry} from '@conciv/extension-compiler/dedupe'
 import {devServers, installConcivPackage, pageApiBase, type StartedDevServer} from './helpers/dev-servers.js'
 
 const NATIVE_BUNDLE = 'conciv-widget-native.global.js'
+const BUILTIN_EXTENSIONS = [
+  '@conciv/extension-terminal',
+  '@conciv/extension-test-runner',
+  '@conciv/extension-whiteboard',
+  '@conciv/extension-recorder',
+  '@conciv/extension-ios',
+]
 const INTEROP_ERROR = /SyntaxError|does not provide an export named/
+
+async function serverExtensionEntry(packageDir: string): Promise<ExtensionEntry> {
+  const module: unknown = await import(pathToFileURL(join(packageDir, 'dist', 'server.js')).href)
+  const extension = typeof module === 'object' && module !== null ? Reflect.get(module, 'default') : undefined
+  return {extension, source: packageDir}
+}
 
 describe('dev core booted through the vite plugin', () => {
   const servers = devServers()
@@ -37,7 +51,7 @@ describe('dev core booted through the vite plugin', () => {
   }, 30_000)
 })
 
-describe('widget boot in a host that installs conciv under node_modules, with no optimizeDeps.include', () => {
+describe('widget boot in a host that installs conciv and its builtin extensions under node_modules, with no optimizeDeps.include', () => {
   const servers = devServers()
   const state: {started?: StartedDevServer; browser?: Browser; page?: Page; errors: string[]} = {errors: []}
 
@@ -48,11 +62,14 @@ describe('widget boot in a host that installs conciv under node_modules, with no
       '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>',
     )
     const embedDir = installConcivPackage(root, '@conciv/embed')
+    const itDir = join(dirname(dirname(import.meta.dirname)), 'it')
+    const extensionDirs = BUILTIN_EXTENSIONS.map((name) => installConcivPackage(root, name, itDir))
+    const serverExtensions = dedupeExtensions(await Promise.all(extensionDirs.map(serverExtensionEntry))).extensions
     state.started = await servers.start(
       {devEndpointDir: servers.tempDir('conciv-vite-endpoint-')},
       {
-        serverExtensions: [],
-        clientEntries: [],
+        serverExtensions,
+        clientEntries: extensionDirs.map((dir) => join(dir, 'dist', 'client.js')),
         embedEntry: join(embedDir, 'dist', 'mount.js'),
         dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
       },
@@ -91,4 +108,13 @@ describe('widget boot in a host that installs conciv under node_modules, with no
     expect(outcome).toBe('mounted')
     expect(state.errors.filter((error) => INTEROP_ERROR.test(error))).toEqual([])
   }, 60_000)
+
+  it('opens the panel with the composer, so the embed shares the host Solid and extension singletons', async () => {
+    const page = state.page
+    if (page === undefined) throw new Error('dev server did not start')
+    await page.getByRole('button', {name: /conciv chat$/}).click()
+    await page.getByRole('dialog', {name: 'conciv chat agent'}).waitFor({timeout: 15_000})
+    await page.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
+    expect(state.errors).toEqual([])
+  }, 30_000)
 })
