@@ -5,10 +5,10 @@ import {tmpdir} from 'node:os'
 import {isAbsolute, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
-import {chromium, type Page} from 'playwright'
+import {chromium, type Browser, type Page} from 'playwright'
 import {PNG} from 'pngjs'
 import {createServer} from 'vite'
-import {afterAll, expect, it} from 'vitest'
+import {afterAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient, ToolCommandSignatureSchema, type RpcClient} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
@@ -63,6 +63,7 @@ type Call = {
 
 type Kit = {
   rpc: RpcClient
+  browser: Browser
   page: Page
   origin: string
   stateRoot: string
@@ -148,6 +149,7 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
   await goto('/')
   return {
     rpc,
+    browser,
     page,
     origin,
     stateRoot,
@@ -213,7 +215,7 @@ function mapFixture(input: {
 }
 
 const kit = await boot()
-const {rpc, page, stateRoot, call, goto} = kit
+const {rpc, browser, page, stateRoot, call, goto} = kit
 
 afterAll(() => kit.dispose())
 
@@ -483,4 +485,43 @@ it('fails inside the cap with the fallback options when the frame is blocked', a
     message: expect.stringContaining('chromium'),
   })
   await page.unroute('**/blocked')
+})
+
+describe('x-ray page', () => {
+  it('a diff report links the x-ray page of its target and the page serves', async () => {
+    await goto('target')
+    const registered = await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    const report = await call('design_diff', {width: 1280})
+    expect(report.xray).toContain(`/api/ext/design/xray?target=${registered.id}`)
+    const html = await fetch(report.xray)
+    expect(html.status).toBe(200)
+    expect(await html.text()).toContain('<div data-design-xray')
+    expect((await fetch(report.xray.replace(registered.id, 'nope'))).status).toBe(404)
+  })
+
+  it('serves the run images and refuses paths outside the design dir', async () => {
+    const report = await call('design_diff', {width: 1280})
+    const base = new URL(report.xray).origin
+    expect((await fetch(`${base}/api/ext/design/files/${report.livePath}`)).headers.get('content-type')).toBe(
+      'image/png',
+    )
+    expect((await fetch(`${base}/api/ext/design/files/../../package.json`)).status).toBe(404)
+  })
+
+  it('renders the rail from the last run and opens the inspector on the first component', async () => {
+    await goto('/')
+    const report = await call('design_diff', {width: 1280})
+    const xray = await browser.newPage()
+    await xray.goto(report.xray)
+    const first = xray.getByRole('listitem').first()
+    await first.waitFor()
+    expect(await first.textContent()).toContain(report.components[0].source.file)
+    const inspector = xray.getByRole('region', {name: 'component'})
+    await inspector.waitFor()
+    expect(await inspector.textContent()).toContain(report.components[0].source.file)
+    await xray.keyboard.press('j')
+    await inspector.waitFor()
+    expect(await inspector.textContent()).toContain(report.components[1].source.file)
+    await xray.close()
+  })
 })

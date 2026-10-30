@@ -125,6 +125,7 @@ export const DiffReportSchema = z.object({
   mismatch: z.number(),
   diffImage: z.string(),
   livePath: z.string(),
+  xray: z.string(),
   components: z.array(ComponentReportSchema),
   unmatched: z.array(UnmatchedSchema),
   hint: z.string().optional(),

@@ -212,6 +212,7 @@ export type DesignRuntime = {
   deltaKinds: DeltaKind[]
   mappers: ProvenanceMapper[]
   cssMap: () => Promise<CssMap>
+  xrayUrl: (id: string) => string
 }
 
 export type DesignContext = {design: DesignRuntime}

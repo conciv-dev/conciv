@@ -6,7 +6,9 @@
     "rootDir": ".",
     "noEmit": true,
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "types": ["node"]
+    "types": ["node", "vite/client"],
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

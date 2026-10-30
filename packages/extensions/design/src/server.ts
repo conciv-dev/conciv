@@ -1,5 +1,6 @@
 import {readdir} from 'node:fs/promises'
 import {join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {defineExtension} from '@conciv/extension'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {designConfig} from './shared/config.js'
@@ -8,6 +9,7 @@ import type {CssMap, DesignRuntime} from './shared/types.js'
 import {buildCssMap} from './server/provenance/css-map.js'
 import {pickRuntime} from './server/registries.js'
 import {createTargetStore} from './server/store.js'
+import {makeXrayApp, makeXrayRouter} from './server/xray-routes.js'
 import {SERVER_STEPS} from './tool/server.js'
 
 async function cssFiles(cwd: string): Promise<string[]> {
@@ -41,12 +43,21 @@ export const design = defineExtension({
   tools: SERVER_STEPS,
 }).server((server) => {
   const css = lazyCssMap({cwd: server.cwd, bundler: server.bundler})
+  const designDir = join(server.stateDir, 'design')
+  const store = createTargetStore({dir: designDir, cwd: server.cwd})
   const runtime: DesignRuntime = {
     ...pickRuntime({config: server.config, server}),
-    store: createTargetStore({dir: join(server.stateDir, 'design'), cwd: server.cwd}),
+    store,
     cssMap: css.cssMap,
+    xrayUrl: (id) =>
+      `${server.nativeUrl() ?? server.basePath}/api/ext/${DESIGN_EXTENSION_NAME}/xray?target=${encodeURIComponent(id)}`,
   }
-  return {context: {design: runtime}, dispose: css.dispose}
+  return {
+    context: {design: runtime},
+    router: makeXrayRouter({store, designDir}),
+    app: makeXrayApp({store, pageDir: fileURLToPath(new URL('xray/', import.meta.url)), designDir, cwd: server.cwd}),
+    dispose: css.dispose,
+  }
 })
 
 export default design

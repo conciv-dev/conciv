@@ -56,19 +56,22 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "build": "tsdown && vite build && vite build --config vite.xray.config.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "dev:xray": "vite --config vite.xray.config.ts"
   },
   "dependencies": {
     "@blazediff/core": "catalog:",
     "@bramus/specificity": "catalog:",
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@orpc/server": "catalog:",
     "@zumer/snapdom": "catalog:",
     "culori": "catalog:",
+    "hono": "catalog:",
     "oxc-parser": "catalog:",
     "pixelmatch": "catalog:",
     "pngjs": "catalog:",
@@ -76,11 +79,21 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/contract": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
+    "@conciv/uno-preset": "workspace:*",
+    "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/timer": "catalog:",
+    "@tanstack/solid-router": "catalog:",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
     "@types/pngjs": "catalog:",
+    "@unocss/reset": "catalog:",
+    "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "unocss": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:"
   }
 }
