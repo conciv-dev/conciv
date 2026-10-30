@@ -13,8 +13,19 @@ const SETTLED = 'settled'
 
 const RECENT_SETTLE_MS = 1000
 
-function nextFrame(): Promise<void> {
-  return new Promise((resolve) => requestAnimationFrame(() => resolve()))
+function nextFrameWithin(timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    const deadline = AbortSignal.timeout(Math.max(timeoutMs, 0))
+    const frame = requestAnimationFrame(() => resolve())
+    deadline.addEventListener(
+      'abort',
+      () => {
+        cancelAnimationFrame(frame)
+        resolve()
+      },
+      {once: true},
+    )
+  })
 }
 
 function nextSettle(settled: EventTarget, timeoutMs: number): Promise<boolean> {
@@ -37,6 +48,9 @@ export function watchHotUpdates(hot: HotSurface | undefined): (timeoutMs: number
     state.last = {at: performance.now(), error}
     settled.dispatchEvent(new Event(SETTLED))
   }
+  hot.on('vite:beforeUpdate', () => {
+    state.last = null
+  })
   hot.on('vite:afterUpdate', () => settle(null))
   hot.on('vite:error', (payload) => {
     const parsed = ErrorPayloadSchema.safeParse(payload)
@@ -52,7 +66,7 @@ export function watchHotUpdates(hot: HotSurface | undefined): (timeoutMs: number
       const waitedMs = Math.round(performance.now() - startedAt)
       return {supported: true, applied: false, waitedMs, error: `the hot update did not land within ${timeoutMs}ms`}
     }
-    if (last.error === null) await nextFrame()
+    if (last.error === null) await nextFrameWithin(timeoutMs - (performance.now() - startedAt))
     return outcome(last, Math.round(performance.now() - startedAt))
   }
 }

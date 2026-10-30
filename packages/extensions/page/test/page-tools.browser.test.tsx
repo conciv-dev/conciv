@@ -546,6 +546,19 @@ describe('page_hmr', () => {
     expect(await wait(500)).toEqual({supported: true, applied: true, waitedMs: 0, error: null})
   })
 
+  it('waits for an update already in flight instead of reporting the one before it', async () => {
+    const {hot, fire} = fakeHot()
+    const wait = watchHotUpdates(hot)
+    fire('vite:beforeUpdate', {type: 'update', updates: []})
+    fire('vite:afterUpdate', {type: 'update', updates: []})
+    fire('vite:beforeUpdate', {type: 'update', updates: []})
+    const waited = wait(500)
+    setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 40)
+    const result = await waited
+    expect(result).toMatchObject({supported: true, applied: true, error: null})
+    expect(result.waitedMs).toBeGreaterThanOrEqual(30)
+  })
+
   it('resolves once a pending update is applied', async () => {
     const {hot, fire} = fakeHot()
     const wait = watchHotUpdates(hot)
