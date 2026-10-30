@@ -40,7 +40,6 @@
   "dependencies": {
     "@conciv/protocol": "workspace:^",
     "@tanstack/ai": "catalog:",
-    "@tanstack/ai-persistence": "catalog:",
     "drizzle-orm": "catalog:"
   },
   "devDependencies": {
