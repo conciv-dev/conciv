@@ -28,19 +28,19 @@ function base64(blob: Blob): Promise<string> {
 
 type Size = {width: number; height: number}
 
-function routeOf(where: Location): string {
+function locationRoute(where: Location): string {
   return where.pathname + where.search
 }
 
 function frameRoute(frame: HTMLIFrameElement): string | null {
   const where = frame.contentDocument?.location
-  return where ? routeOf(where) : null
+  return where ? locationRoute(where) : null
 }
 
 async function frameAtRoute(size: Size): Promise<HTMLIFrameElement> {
   const input = {url: location.href, ...size}
   const frame = await ensureCaptureFrame(input)
-  if (frameRoute(frame) === routeOf(location)) return frame
+  if (frameRoute(frame) === locationRoute(location)) return frame
   removeCaptureFrame()
   return ensureCaptureFrame(input)
 }
@@ -79,7 +79,7 @@ async function captureInFrame(size: Size): Promise<ClientCapture> {
   if (doc === null) throw toolError('frame-blocked', {message: DESIGN_ERRORS['frame-blocked'].message})
   const components = collectComponents({root: doc})
   const blob = await composited({blob: await requestFrameCapture(frame), doc, ...size})
-  return {image: await base64(blob), ...size, route: routeOf(location), components}
+  return {image: await base64(blob), ...size, route: locationRoute(location), components}
 }
 
 export async function captureStep(input: CaptureInput): Promise<ClientCapture | ViewportResult> {
@@ -103,7 +103,7 @@ export async function captureStep(input: CaptureInput): Promise<ClientCapture | 
     image: await base64(blob),
     width: viewport.width,
     height: viewport.height,
-    route: routeOf(location),
+    route: locationRoute(location),
     components,
   }
 }

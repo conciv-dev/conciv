@@ -143,7 +143,7 @@ export function foregroundColor(input: {raster: Raster; edges: Uint8Array}): str
   return medianColor({raster: input.raster, exclude: input.edges.map((value) => 1 - value)})
 }
 
-export function regionsOf(input: {mask: Uint8Array; width: number; height: number; minSize: number}): Box[] {
+export function findRegions(input: {mask: Uint8Array; width: number; height: number; minSize: number}): Box[] {
   const {mask, width, height, minSize} = input
   const seen = new Uint8Array(width * height)
   const regions: Box[] = []
@@ -182,7 +182,7 @@ export function regionsOf(input: {mask: Uint8Array; width: number; height: numbe
   return regions
 }
 
-export function maskOfDiffOutput(input: {output: Uint8Array; width: number; height: number}): Uint8Array {
+export function diffMask(input: {output: Uint8Array; width: number; height: number}): Uint8Array {
   const {output, width, height} = input
   const mask = new Uint8Array(width * height)
   for (let i = 0; i < mask.length; i += 1) {

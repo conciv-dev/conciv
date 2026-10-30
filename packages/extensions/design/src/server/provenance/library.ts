@@ -4,7 +4,7 @@ import {Visitor, type Expression, type ObjectExpression, type ObjectProperty} fr
 import {declares} from '../../shared/properties.js'
 import {LIBRARY_SHEET_MARKER} from '../../shared/tolerances.js'
 import type {ProvenanceMapper, Winner} from '../../shared/types.js'
-import {camelToKebab, parseFile, positionOf, UNKNOWN} from './jsx.js'
+import {camelToKebab, parseFile, positionAt, UNKNOWN} from './jsx.js'
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx']
 
@@ -22,30 +22,30 @@ function isLibrary(input: {winner: Winner; cwd: string}): boolean {
   return relative(input.cwd, path).startsWith('..')
 }
 
-function keyOf(property: ObjectProperty): string | null {
+function propertyKey(property: ObjectProperty): string | null {
   if (property.computed) return null
   if (property.key.type === 'Identifier') return property.key.name
   if (property.key.type === 'Literal' && typeof property.key.value === 'string') return property.key.value
   return null
 }
 
-function entriesOf(object: ObjectExpression): {key: string; property: ObjectProperty}[] {
+function objectEntries(object: ObjectExpression): {key: string; property: ObjectProperty}[] {
   return object.properties.flatMap((property) => {
     if (property.type !== 'Property') return []
-    const key = keyOf(property)
+    const key = propertyKey(property)
     return key === null ? [] : [{key, property}]
   })
 }
 
 function child(input: {node: Expression | undefined; key: string}): Expression | undefined {
   if (input.node?.type !== 'ObjectExpression') return undefined
-  return entriesOf(input.node).find((entry) => entry.key === input.key)?.property.value
+  return objectEntries(input.node).find((entry) => entry.key === input.key)?.property.value
 }
 
 function overrideIn(input: {node: Expression | undefined; path: string[]; property: string}): ObjectProperty | null {
   const object = input.path.reduce((node, key) => child({node, key}), input.node)
   if (object?.type !== 'ObjectExpression') return null
-  const matched = entriesOf(object)
+  const matched = objectEntries(object)
     .filter((entry) => declares({declared: camelToKebab(entry.key), property: input.property}))
     .at(-1)
   return matched?.property ?? null
@@ -79,7 +79,7 @@ async function themeOverride(input: {cwd: string; selector: string | null; prope
     }).visit(parsed.program)
     const override = found[0]
     if (override === undefined) continue
-    const {line, column} = positionOf({code: parsed.code, offset: override.start})
+    const {line, column} = positionAt({code: parsed.code, offset: override.start})
     return `${parsed.code.slice(override.start, override.end)} (${relative(input.cwd, file)}:${line}:${column})`
   }
   return null

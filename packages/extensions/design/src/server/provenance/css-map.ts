@@ -16,9 +16,9 @@ export type CssEntry = {
 
 type Parent = Container | Document | undefined
 
-function mediaOf(parent: Parent): string[] {
+function mediaConditions(parent: Parent): string[] {
   if (parent === undefined || parent.type === 'root' || parent.type === 'document') return []
-  const outer = mediaOf(parent.parent)
+  const outer = mediaConditions(parent.parent)
   if (!(parent instanceof AtRule) || parent.name !== 'media') return outer
   return [...outer, `@media ${parent.params}`]
 }
@@ -33,7 +33,7 @@ async function parseCss(path: string): Promise<Root | null> {
   }
 }
 
-function entriesOf(input: {root: Root; file: string}): CssEntry[] {
+function cssEntries(input: {root: Root; file: string}): CssEntry[] {
   const entries: CssEntry[] = []
   input.root.walkDecls((decl) => {
     const {parent} = decl
@@ -45,7 +45,7 @@ function entriesOf(input: {root: Root; file: string}): CssEntry[] {
         line: start.line,
         column: start.column,
         selector: selector.trim(),
-        media: mediaOf(parent.parent),
+        media: mediaConditions(parent.parent),
         prop: decl.prop,
         value: decl.value,
       })
@@ -72,7 +72,7 @@ export async function buildCssMap(input: {cwd: string; files: string[]}): Promis
       const path = isAbsolute(file) ? file : join(input.cwd, file)
       const root = await parseCss(path)
       if (root === null) return []
-      return entriesOf({root, file: relative(input.cwd, path)})
+      return cssEntries({root, file: relative(input.cwd, path)})
     }),
   )
   const entries = parsed.flat()
@@ -85,7 +85,7 @@ export async function buildCssMap(input: {cwd: string; files: string[]}): Promis
   }
 }
 
-export async function declarationsOf(input: {cwd: string; file: string; selector: string}): Promise<number> {
+export async function countDeclarations(input: {cwd: string; file: string; selector: string}): Promise<number> {
   const root = await parseCss(join(input.cwd, input.file))
   if (root === null) return 0
   const counts: number[] = []

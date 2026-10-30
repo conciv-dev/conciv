@@ -1,7 +1,7 @@
 import {Visitor, type Argument, type Expression, type JSXExpression} from 'oxc-parser'
 import type {ProvenanceMapper} from '../../shared/types.js'
-import {declarationsOf} from './css-map.js'
-import {attributeOf, located, siteOf, UNKNOWN, type Site} from './jsx.js'
+import {countDeclarations} from './css-map.js'
+import {findAttribute, located, readSite, UNKNOWN, type Site} from './jsx.js'
 
 type Piece = {text: string; start: number}
 
@@ -18,7 +18,7 @@ function classToken(selector: string | null): string | null {
   return token
 }
 
-function piecesOf(input: Walk & {node: Argument | JSXExpression}): Piece[] {
+function pieces(input: Walk & {node: Argument | JSXExpression}): Piece[] {
   const {node} = input
   switch (node.type) {
     case 'Literal':
@@ -26,17 +26,17 @@ function piecesOf(input: Walk & {node: Argument | JSXExpression}): Piece[] {
     case 'TemplateLiteral':
       return [
         ...node.quasis.map((quasi) => ({text: quasi.value.cooked ?? quasi.value.raw, start: quasi.start + 1})),
-        ...node.expressions.flatMap((expression) => piecesOf({...input, node: expression})),
+        ...node.expressions.flatMap((expression) => pieces({...input, node: expression})),
       ]
     case 'CallExpression':
       if (node.callee.type !== 'Identifier' || !CLASS_HELPERS.includes(node.callee.name)) return []
-      return node.arguments.flatMap((argument) => piecesOf({...input, node: argument}))
+      return node.arguments.flatMap((argument) => pieces({...input, node: argument}))
     case 'SpreadElement':
-      return piecesOf({...input, node: node.argument})
+      return pieces({...input, node: node.argument})
     case 'ConditionalExpression':
-      return [node.consequent, node.alternate].flatMap((branch) => piecesOf({...input, node: branch}))
+      return [node.consequent, node.alternate].flatMap((branch) => pieces({...input, node: branch}))
     case 'LogicalExpression':
-      return [node.left, node.right].flatMap((side) => piecesOf({...input, node: side}))
+      return [node.left, node.right].flatMap((side) => pieces({...input, node: side}))
     case 'Identifier':
       return constPieces({...input, name: node.name})
     default:
@@ -47,10 +47,10 @@ function piecesOf(input: Walk & {node: Argument | JSXExpression}): Piece[] {
 function constPieces(input: Walk & {name: string}): Piece[] {
   const init = input.consts.get(input.name)
   if (init === undefined || input.seen.has(input.name)) return []
-  return piecesOf({consts: input.consts, seen: new Set([...input.seen, input.name]), node: init})
+  return pieces({consts: input.consts, seen: new Set([...input.seen, input.name]), node: init})
 }
 
-function constsOf(site: Site): Map<string, Expression> {
+function siteConsts(site: Site): Map<string, Expression> {
   const consts = new Map<string, Expression>()
   new Visitor({
     VariableDeclaration(node) {
@@ -65,12 +65,12 @@ function constsOf(site: Site): Map<string, Expression> {
 }
 
 function classPieces(site: Site): Piece[] {
-  const attribute = attributeOf({element: site.element, name: 'className'})
+  const attribute = findAttribute({element: site.element, name: 'className'})
   if (attribute === null || attribute.value === null) return []
   const {value} = attribute
   if (value.type === 'Literal') return [{text: value.value, start: value.start + 1}]
   if (value.type !== 'JSXExpressionContainer') return []
-  return piecesOf({consts: constsOf(site), seen: new Set(), node: value.expression})
+  return pieces({consts: siteConsts(site), seen: new Set(), node: value.expression})
 }
 
 function tokenOffset(input: {piece: Piece; token: string}): number | null {
@@ -87,7 +87,7 @@ export const classNameMapper: ProvenanceMapper = {
     const token = classToken(input.winner.selector)
     const {source} = input.component
     if (token === null || source === null) return UNKNOWN
-    const site = await siteOf({cwd: input.cwd, source})
+    const site = await readSite({cwd: input.cwd, source})
     if (site === null) return UNKNOWN
     const offset = classPieces(site)
       .map((piece) => tokenOffset({piece, token}))
@@ -95,7 +95,7 @@ export const classNameMapper: ProvenanceMapper = {
     if (offset === undefined || offset === null) return UNKNOWN
     const selector = `.${token}`
     const hit = input.cssMap.find({selector, property: input.property})
-    if (hit !== null && (await declarationsOf({cwd: input.cwd, file: hit.file, selector})) > 1) return UNKNOWN
+    if (hit !== null && (await countDeclarations({cwd: input.cwd, file: hit.file, selector})) > 1) return UNKNOWN
     const {line, column} = located({site, offset})
     return {via: 'className', file: source.file, line, column, declaration: token, selector}
   },

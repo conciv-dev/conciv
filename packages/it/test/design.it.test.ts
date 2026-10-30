@@ -20,7 +20,7 @@ import {
   CaptureInputSchema,
   ClearInputSchema,
   DESIGN_TOOL_DEFS,
-  designVerbOfTool,
+  designVerb,
   diffDef,
   DiffInputSchema,
   StatusInputSchema,
@@ -231,7 +231,7 @@ it('declares six design tools with the flags from the spec', async () => {
   ])
   expect(catalog.map((entry) => entry.mutating)).toEqual([true, false, false, false, false, true])
   expect(catalog.every((entry) => entry.category === 'design' && entry.approval === undefined)).toBe(true)
-  expect(designVerbOfTool('design_diff')).toBe('diff')
+  expect(designVerb('design_diff')).toBe('diff')
   expect(diffDef.inputSchema.parse({})).toEqual({depth: 3, limit: 12})
 })
 

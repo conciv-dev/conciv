@@ -18,21 +18,21 @@ export async function parseFile(path: string): Promise<Parsed | null> {
   return {code, program}
 }
 
-export function positionOf(input: {code: string; offset: number}): {line: number; column: number} {
+export function positionAt(input: {code: string; offset: number}): {line: number; column: number} {
   const before = input.code.slice(0, input.offset)
   return {line: before.split('\n').length, column: input.offset - before.lastIndexOf('\n')}
 }
 
-function offsetOf(input: {code: string; line: number; column: number}): number {
+function offsetAt(input: {code: string; line: number; column: number}): number {
   const lines = input.code.split('\n').slice(0, input.line - 1)
   return lines.reduce((sum, line) => sum + line.length + 1, 0) + input.column - 1
 }
 
-export async function siteOf(input: {cwd: string; source: SourceLoc | null}): Promise<Site | null> {
+export async function readSite(input: {cwd: string; source: SourceLoc | null}): Promise<Site | null> {
   if (input.source === null) return null
   const parsed = await parseFile(join(input.cwd, input.source.file))
   if (parsed === null) return null
-  const offset = offsetOf({code: parsed.code, line: input.source.line, column: input.source.column})
+  const offset = offsetAt({code: parsed.code, line: input.source.line, column: input.source.column})
   const found: JSXOpeningElement[] = []
   new Visitor({
     JSXOpeningElement(node) {
@@ -44,7 +44,7 @@ export async function siteOf(input: {cwd: string; source: SourceLoc | null}): Pr
   return {...parsed, element}
 }
 
-export function attributeOf(input: {element: JSXOpeningElement; name: string}): JSXAttribute | null {
+export function findAttribute(input: {element: JSXOpeningElement; name: string}): JSXAttribute | null {
   const found = input.element.attributes.find(
     (attribute) =>
       attribute.type === 'JSXAttribute' &&
@@ -56,7 +56,7 @@ export function attributeOf(input: {element: JSXOpeningElement; name: string}): 
 }
 
 export function located(input: {site: Site; offset: number}): {line: number; column: number} {
-  return positionOf({code: input.site.code, offset: input.offset})
+  return positionAt({code: input.site.code, offset: input.offset})
 }
 
 export function camelToKebab(key: string): string {

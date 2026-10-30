@@ -6,7 +6,7 @@ const NORMAL_LINE_HEIGHT = 1.2
 
 type Viewport = {width: number; height: number}
 
-function sourceOf(el: Element): SourceLoc | null {
+function readSource(el: Element): SourceLoc | null {
   const raw = el.getAttribute(SOURCE_ATTR)
   if (!raw) return null
   const parts = raw.split(':')
@@ -26,19 +26,19 @@ function clipped(input: {rect: DOMRect; viewport: Viewport}): Box {
   return {x: left, y: top, w: Math.max(0, right - left), h: Math.max(0, bottom - top)}
 }
 
-function hexOf(color: string): string {
+function toHex(color: string): string {
   const parsed = parse(color)
   if (parsed === undefined) return color
   if (parsed.alpha !== undefined && parsed.alpha < 1) return formatHex8(parsed)
   return formatHex(parsed)
 }
 
-function stylesOf(style: CSSStyleDeclaration): LiveStyles {
+function readStyles(style: CSSStyleDeclaration): LiveStyles {
   const fontSize = Number.parseFloat(style.fontSize)
   const lineHeight = Number.parseFloat(style.lineHeight)
   return {
-    background: hexOf(style.backgroundColor),
-    color: hexOf(style.color),
+    background: toHex(style.backgroundColor),
+    color: toHex(style.color),
     fontSize,
     lineHeight: Number.isFinite(lineHeight) ? lineHeight : fontSize * NORMAL_LINE_HEIGHT,
     fontWeight: Number(style.fontWeight),
@@ -46,7 +46,7 @@ function stylesOf(style: CSSStyleDeclaration): LiveStyles {
   }
 }
 
-function axisOf(el: Element): LiveComponent['axis'] {
+function readAxis(el: Element): LiveComponent['axis'] {
   const parent = el.parentElement
   const view = el.ownerDocument.defaultView
   if (parent === null || view === null) return null
@@ -62,7 +62,7 @@ function ownTextNodes(el: Element): Text[] {
   )
 }
 
-function textBoxOf(input: {nodes: Text[]; viewport: Viewport}): Box | null {
+function measureTextBox(input: {nodes: Text[]; viewport: Viewport}): Box | null {
   const first = input.nodes[0]
   if (first === undefined) return null
   const rects = input.nodes.map((node) => {
@@ -77,20 +77,20 @@ function textBoxOf(input: {nodes: Text[]; viewport: Viewport}): Box | null {
   return clipped({rect: new DOMRect(left, top, right - left, bottom - top), viewport: input.viewport})
 }
 
-function componentOf(input: {el: Element; viewport: Viewport; view: Window}): LiveComponent {
+function componentTree(input: {el: Element; viewport: Viewport; view: Window}): LiveComponent {
   const {el, viewport} = input
   const nodes = ownTextNodes(el)
   return {
-    source: sourceOf(el),
+    source: readSource(el),
     tag: el.tagName.toLowerCase(),
     text: nodes
       .map((node) => node.textContent ?? '')
       .join('')
       .trim(),
     box: clipped({rect: el.getBoundingClientRect(), viewport}),
-    textBox: textBoxOf({nodes, viewport}),
-    axis: axisOf(el),
-    styles: stylesOf(input.view.getComputedStyle(el)),
+    textBox: measureTextBox({nodes, viewport}),
+    axis: readAxis(el),
+    styles: readStyles(input.view.getComputedStyle(el)),
     children: collectUnder({el, viewport, view: input.view}),
   }
 }
@@ -98,7 +98,7 @@ function componentOf(input: {el: Element; viewport: Viewport; view: Window}): Li
 function collectUnder(input: {el: Element; viewport: Viewport; view: Window}): LiveComponent[] {
   return [...input.el.children].flatMap((child) =>
     child.hasAttribute(SOURCE_ATTR)
-      ? [componentOf({el: child, viewport: input.viewport, view: input.view})]
+      ? [componentTree({el: child, viewport: input.viewport, view: input.view})]
       : collectUnder({el: child, viewport: input.viewport, view: input.view}),
   )
 }

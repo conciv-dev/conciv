@@ -1,7 +1,7 @@
 import type {Expression, JSXAttribute, ObjectExpression, ObjectProperty} from 'oxc-parser'
 import {declares} from '../../shared/properties.js'
 import type {Provenance, ProvenanceMapper} from '../../shared/types.js'
-import {attributeOf, camelToKebab, located, siteOf, UNKNOWN, type Site} from './jsx.js'
+import {findAttribute, camelToKebab, located, readSite, UNKNOWN, type Site} from './jsx.js'
 
 const SX_KEYS: Record<string, string[]> = {
   p: ['padding'],
@@ -45,7 +45,7 @@ function suggestion(input: {key: string; value: Expression; target: number | str
   return `${input.key}: ${target / SPACING_UNIT}`
 }
 
-function objectOf(attribute: JSXAttribute): ObjectExpression | null {
+function styleObject(attribute: JSXAttribute): ObjectExpression | null {
   const {value} = attribute
   if (value === null || value.type !== 'JSXExpressionContainer') return null
   if (value.expression.type !== 'ObjectExpression') return null
@@ -83,15 +83,15 @@ export const styleMapper: ProvenanceMapper = {
   applies: ({winner}) => winner.inline || winner.sheet.emotion,
   async map(input) {
     const {source} = input.component
-    const site = await siteOf({cwd: input.cwd, source})
+    const site = await readSite({cwd: input.cwd, source})
     if (site === null || source === null) return UNKNOWN
     const names: ('style' | 'sx')[] = input.winner.inline ? ['style', 'sx'] : ['sx']
     const found = names
-      .map((via) => ({via, attribute: attributeOf({element: site.element, name: via})}))
+      .map((via) => ({via, attribute: findAttribute({element: site.element, name: via})}))
       .find((item) => item.attribute !== null)
     if (found === undefined || found.attribute === null) return UNKNOWN
     const {via, attribute} = found
-    const object = objectOf(attribute)
+    const object = styleObject(attribute)
     if (object !== null) {
       return fromObject({site, object, via, property: input.property, target: input.target, file: source.file})
     }

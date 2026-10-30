@@ -1,7 +1,7 @@
 import {TOLERANCES} from '../shared/tolerances.js'
 import type {Box, LiveCapture, Pair, Raster, TargetModel, Unmatched} from '../shared/types.js'
 import {expand} from './matchers/tile.js'
-import {crop, edgeDensity, edgeMap, regionsOf} from './raster.js'
+import {crop, edgeDensity, edgeMap, findRegions} from './raster.js'
 
 const BLANK_DENSITY = 0.01
 
@@ -31,7 +31,7 @@ export function unmatchedRegions(input: {
   const {target, matched, pairs, live} = input
   const {width, height} = target.raster
   const minimum = TOLERANCES.unmatchedMinimum
-  const missing = regionsOf({
+  const missing = findRegions({
     mask: zeroed({edges: edgeMap(target.raster), width, height, boxes: matched}),
     width,
     height,

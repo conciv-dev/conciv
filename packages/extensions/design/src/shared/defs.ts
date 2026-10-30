@@ -7,7 +7,7 @@ export const DESIGN_EXTENSION_NAME = 'design'
 
 export const DESIGN_TOOL_PREFIX = 'design_'
 
-export function designVerbOfTool(name: string): string {
+export function designVerb(name: string): string {
   if (!name.startsWith(DESIGN_TOOL_PREFIX)) throw new Error(`"${name}" is not a design tool`)
   return name.slice(DESIGN_TOOL_PREFIX.length)
 }

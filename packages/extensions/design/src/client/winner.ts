@@ -26,15 +26,15 @@ function readRules(sheet: CSSStyleSheet | null): CSSRuleList | null {
   }
 }
 
-function ownerOf(sheet: CSSStyleSheet): Element | null {
+function sheetOwner(sheet: CSSStyleSheet): Element | null {
   const owner = sheet.ownerNode
   if (owner instanceof Element) return owner
   if (sheet.parentStyleSheet === null) return null
-  return ownerOf(sheet.parentStyleSheet)
+  return sheetOwner(sheet.parentStyleSheet)
 }
 
-function sheetOf(input: {sheet: CSSStyleSheet; adopted: boolean}): Sheet {
-  const owner = ownerOf(input.sheet)
+function describeSheet(input: {sheet: CSSStyleSheet; adopted: boolean}): Sheet {
+  const owner = sheetOwner(input.sheet)
   return {
     href: input.sheet.href,
     viteDevId: owner?.getAttribute('data-vite-dev-id') ?? null,
@@ -124,7 +124,7 @@ function scanSheets(): Scan {
   for (const {sheet, adopted} of sheets) {
     const rules = readRules(sheet)
     if (rules === null) continue
-    walk({rules, origin: {sheet: sheetOf({sheet, adopted}), conditions: [], layer: null, parent: null}, scan})
+    walk({rules, origin: {sheet: describeSheet({sheet, adopted}), conditions: [], layer: null, parent: null}, scan})
   }
   return scan
 }
@@ -137,7 +137,7 @@ function matches(input: {element: Element; part: string}): boolean {
   }
 }
 
-function specificityOf(part: string): SpecificityObject {
+function partSpecificity(part: string): SpecificityObject {
   try {
     return Specificity.calculate(part)[0]?.toObject() ?? ZERO
   } catch {
@@ -150,7 +150,7 @@ function bestPart(input: {element: Element; selector: string}): {part: string; s
     .split(',')
     .map((part) => part.trim())
     .filter((part) => matches({element: input.element, part}))
-    .map((part) => ({part, specificity: specificityOf(part)}))
+    .map((part) => ({part, specificity: partSpecificity(part)}))
   return parts.reduce<{part: string; specificity: SpecificityObject} | null>((best, next) => {
     if (best === null || Specificity.compare(next.specificity, best.specificity) > 0) return next
     return best
