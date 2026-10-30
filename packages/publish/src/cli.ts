@@ -17,6 +17,7 @@ import {
   assertWorkspaceRoot,
 } from './guards.ts'
 import {registryState, type RegistryState} from './registry.ts'
+import {pushFirstPublishedTags} from './sync.ts'
 import {
   assembleMirrorTree,
   extractCommitSubtree,
@@ -193,8 +194,8 @@ async function applySyncPlan(cwd: string, run: Run, turbo: Turbo, unhealthy: Syn
     }
     await wireTrust(run, name)
   }
-  await run('pnpm', ['exec', 'changeset', 'git-tag'])
-  await run('git', ['push', 'origin', '--tags'])
+  const firstPublished = unhealthy.filter(({state}) => state === 'missing').map(({name}) => name)
+  await pushFirstPublishedTags(cwd, firstPublished)
 }
 
 const sync = defineCommand({
