@@ -101,3 +101,21 @@ Tests go through the public entries only: no export, flag or relative `src/` imp
 - `minimumReleaseAgeExclude` shrinks to `@tanstack/*` only: drop the unused jazz entries and every
   entry whose locked version is older than 48h; pin `nitro-nightly` to a nightly at least 48h old.
 - Tools that require approval (`approval: 'ask'`) never go through code mode: one filter where the code-mode tool set is built. They stay normal tool calls (separate MCP tools on the external MCP), gated by deny-and-retry. The library refuses `needsApproval` both in code mode and on CLI bridges. `discover_tools` works in turns and on the external MCP, with `includeDescription: 'first-sentence'`.
+
+## Decisions after the second build (user, 2026-10-30)
+
+- Code-mode child cards survive a reload: a wrapper around the adapter streams them as adapter
+  chunks, so `withPersistence` saves them like any part. One wrapper in `@conciv/ai/server`.
+- Stop with a CLI that ignores SIGTERM: extend the existing approved
+  `@tanstack/ai-sandbox-local-process` patch to escalate to SIGKILL for THAT run's process tree a
+  few seconds after abort. Not `destroyOnComplete`: with one shared project dir, provider destroy
+  retires the oldest run's handle (`provider.js:72-89`) and would kill another session's CLI.
+- Reused runIds: accepted as the library keys them. Run ids are client UUIDs; reuse means a retry
+  of the same run. The two tests that pinned two-instances-in-one-process are dropped.
+- Store contract: the Drizzle stores move into `@conciv/ai/server` (they depend on db's schema
+  only) and are proven in `packages/ai`'s tests with the library's `runPersistenceConformance`. No
+  lint exception.
+- Claude's allowed tools include the bridged ask tools (approvals spec), so the CLI does not ask a
+  second time before our gate.
+- On abort the middleware emits the terminal `aborted` lifecycle so the widget shows it without
+  waiting for the next hydrate.
