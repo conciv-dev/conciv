@@ -4,11 +4,25 @@ on:
   workflow_call: {}
   pull_request: {}
   # Standalone run on main keeps the Actions caches (turbo/playwright/pnpm) warm
-  # for PRs, which can only restore from their own merge ref or main. Release.yml
-  # also calls this workflow, but its concurrency group cancels superseded runs on
-  # fast merge trains, so main's cache would otherwise go stale after every merge.
+  # for PRs, which can only restore from their own merge ref or main, and publishes
+  # the ci-test-timings artifact the planner reads. Release.yml also calls this
+  # workflow, but its concurrency group cancels superseded runs on fast merge
+  # trains, so main needs its own run. Superseded standalone main runs are
+  # cancelled too (see concurrency below): the newest one still lands the caches
+  # and the timings for the latest main commit.
   push:
     branches: [main]
+
+# One live run per PR and one per main push: a newer push cancels the older run so
+# the 20-job org cap goes to current work. Inside a reusable workflow the github
+# context is the caller's, so github.workflow reads "Release" when release.yml
+# calls this file and "CI" on a standalone run. The ci- prefix keeps the called
+# run's group apart from release.yml's own group (Release-<ref>), which would
+# otherwise collide and cancel the caller, and the workflow name keeps a release
+# call and a standalone main push from cancelling each other.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
