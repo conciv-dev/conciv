@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {defineTool, toolError} from '@conciv/extension/tool'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import {HOT_UPDATE_WAIT_MS, HotUpdateWaitSchema, waitHmrDef} from '@conciv/extension-page/defs'
+import {HOT_UPDATE_WAIT_MS, HotUpdateWaitSchema, hmrDef} from '@conciv/extension-page/defs'
 import {BundlerConfigSchema, ModuleNodeSchema, type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {OkResult, type BuiltinCategory} from './shared.js'
 import {OpenInput} from './open-input.js'
@@ -108,7 +108,7 @@ const transformTool = serverTool({
 const NOT_WAITED = {applied: false, waitedMs: 0}
 
 async function waitForHotUpdate(page: ServerToolPageAccess): Promise<{applied: boolean; waitedMs: number}> {
-  const answer = await page.call(waitHmrDef.name, {timeout: HOT_UPDATE_WAIT_MS}).catch(() => null)
+  const answer = await page.call(hmrDef.name, {timeout: HOT_UPDATE_WAIT_MS}).catch(() => null)
   if (answer === null) return NOT_WAITED
   const {applied, waitedMs} = HotUpdateWaitSchema.parse(answer)
   return {applied, waitedMs}

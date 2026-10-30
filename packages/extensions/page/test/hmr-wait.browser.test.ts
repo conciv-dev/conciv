@@ -21,28 +21,46 @@ describe('the hot update wait', () => {
     expect(await watchHotUpdates(undefined)(1000)).toEqual({supported: false, applied: false, waitedMs: 0, error: null})
   })
 
-  it('returns at once when no update is pending', async () => {
+  it('gives up with an explanation when no update ever arrives', async () => {
     const {hot} = fakeHot()
-    expect(await watchHotUpdates(hot)(1000)).toEqual({supported: true, applied: false, waitedMs: 0, error: null})
+    const result = await watchHotUpdates(hot)(60)
+    expect(result).toMatchObject({supported: true, applied: false, error: 'the hot update did not land within 60ms'})
+    expect(result.waitedMs).toBeGreaterThanOrEqual(50)
+  })
+
+  it('reports applied when the wait is called before the update even starts', async () => {
+    const {hot, fire} = fakeHot()
+    const waited = watchHotUpdates(hot)(500)
+    setTimeout(() => fire('vite:beforeUpdate', {type: 'update', updates: []}), 20)
+    setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 40)
+    expect(await waited).toMatchObject({supported: true, applied: true, error: null})
+  })
+
+  it('reports applied at once when the update landed just before the call', async () => {
+    const {hot, fire} = fakeHot()
+    const wait = watchHotUpdates(hot)
+    fire('vite:beforeUpdate', {type: 'update', updates: []})
+    fire('vite:afterUpdate', {type: 'update', updates: []})
+    expect(await wait(500)).toEqual({supported: true, applied: true, waitedMs: 0, error: null})
   })
 
   it('resolves once a pending update is applied', async () => {
     const {hot, fire} = fakeHot()
     const wait = watchHotUpdates(hot)
     fire('vite:beforeUpdate', {type: 'update', updates: []})
-    const waited = wait(2000)
+    const waited = wait(500)
     setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 50)
     const result = await waited
     expect(result).toMatchObject({supported: true, applied: true, error: null})
     expect(result.waitedMs).toBeGreaterThanOrEqual(40)
-    expect(result.waitedMs).toBeLessThan(1000)
+    expect(result.waitedMs).toBeLessThan(400)
   })
 
   it('reports the error when the pending update fails to build', async () => {
     const {hot, fire} = fakeHot()
     const wait = watchHotUpdates(hot)
     fire('vite:beforeUpdate', {type: 'update', updates: []})
-    const waited = wait(2000)
+    const waited = wait(500)
     fire('vite:error', {type: 'error', err: {message: 'Unexpected token', stack: ''}})
     expect(await waited).toMatchObject({supported: true, applied: false, error: 'Unexpected token'})
   })
@@ -51,12 +69,12 @@ describe('the hot update wait', () => {
     const {hot, fire} = fakeHot()
     const wait = watchHotUpdates(hot)
     fire('vite:beforeUpdate', {type: 'update', updates: []})
-    const result = await wait(120)
+    const result = await wait(60)
     expect(result).toMatchObject({
       supported: true,
       applied: false,
-      error: 'the hot update did not land within 120ms',
+      error: 'the hot update did not land within 60ms',
     })
-    expect(result.waitedMs).toBeGreaterThanOrEqual(100)
+    expect(result.waitedMs).toBeGreaterThanOrEqual(50)
   })
 })

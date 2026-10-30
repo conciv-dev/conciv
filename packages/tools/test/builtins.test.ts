@@ -91,7 +91,7 @@ describe('built-in tool declarations', () => {
       applied: true,
       waitedMs: 42,
     })
-    expect(asked).toEqual([{name: 'page_wait_hmr', input: {timeout: 5000}}])
+    expect(asked).toEqual([{name: 'page_hmr', input: {timeout: 5000}}])
   })
 
   it('still reloads when no page is connected to wait on', async () => {

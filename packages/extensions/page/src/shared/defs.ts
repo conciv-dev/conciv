@@ -231,13 +231,13 @@ export const HotUpdateWaitSchema = z.object({
 
 export type HotUpdateWait = z.infer<typeof HotUpdateWaitSchema>
 
-export const waitHmrDef = pageTool({
-  verb: 'wait_hmr',
+export const hmrDef = pageTool({
+  verb: 'hmr',
   summary: 'after editing a file, wait for the hot update to land before reading the page',
   category: 'read',
   icon: 'wait',
   label: {running: 'Waiting for the hot update', done: 'Waited for the hot update'},
-  hint: 'returns at once when no update is pending; supported is false when the page has no vite hot client',
+  hint: 'waits for the next hot update to apply, or reports one that applied within the last second; supported is false when the page has no vite hot client',
   keywords: ['hmr', 'hot', 'update', 'vite', 'edit', 'settle'],
   input: z.object({
     timeout: z.coerce
@@ -671,7 +671,7 @@ export const PAGE_TOOL_DEFS = [
   existsDef,
   snapshotDef,
   screenshotDef,
-  waitHmrDef,
+  hmrDef,
   locateDef,
   treeDef,
   inspectDef,

@@ -185,8 +185,8 @@ describe('dom verbs', () => {
     })
   })
 
-  it('returns at once from the hot update wait when no update is pending', async () => {
-    expect(await resultOf('wait_hmr')).toMatchObject({applied: false, waitedMs: 0, error: null})
+  it('reports the hot update wait as not applied when no update lands in time', async () => {
+    expect(await resultOf('hmr', {timeout: 50})).toMatchObject({applied: false})
   })
 
   it('evaluates code and serializes element results', async () => {

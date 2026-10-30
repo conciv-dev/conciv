@@ -54,7 +54,7 @@ import {
   uncheckDef,
   valueDef,
   waitDef,
-  waitHmrDef,
+  hmrDef,
 } from '../shared/defs.js'
 import {actCard} from './cards/act-card.js'
 import {consoleCard} from './cards/console-card.js'
@@ -179,7 +179,7 @@ const screenshotTool = screenshotDef.client(screenshot).render(readValueCard)
 
 const waitForHotUpdate = watchHotUpdates(import.meta.hot)
 
-const waitHmrTool = waitHmrDef.client((input) => waitForHotUpdate(input.timeout)).render(readValueCard)
+const hmrTool = hmrDef.client((input) => waitForHotUpdate(input.timeout)).render(readValueCard)
 
 const locateTool = locateDef
   .client(async (input, ctx) => {
@@ -484,7 +484,7 @@ export const PAGE_CLIENT_TOOLS: readonly AnyToolBuilder[] = [
   existsTool,
   snapshotTool,
   screenshotTool,
-  waitHmrTool,
+  hmrTool,
   locateTool,
   treeTool,
   inspectTool,

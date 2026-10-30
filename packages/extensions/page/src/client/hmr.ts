@@ -5,50 +5,54 @@ type HotEvent = 'vite:beforeUpdate' | 'vite:afterUpdate' | 'vite:error'
 
 export type HotSurface = {on: (event: HotEvent, listener: (payload: unknown) => void) => void}
 
+type Settled = {at: number; error: string | null}
+
 const ErrorPayloadSchema = z.object({err: z.object({message: z.string()})})
 
 const SETTLED = 'settled'
+
+const RECENT_SETTLE_MS = 1000
 
 function nextFrame(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()))
 }
 
-function settledOrTimeout(settled: EventTarget, timeoutMs: number): Promise<'settled' | 'timeout'> {
+function nextSettle(settled: EventTarget, timeoutMs: number): Promise<boolean> {
   return new Promise((resolve) => {
     const timeout = AbortSignal.timeout(timeoutMs)
-    timeout.addEventListener('abort', () => resolve('timeout'), {once: true})
-    settled.addEventListener(SETTLED, () => resolve('settled'), {once: true, signal: timeout})
+    timeout.addEventListener('abort', () => resolve(false), {once: true})
+    settled.addEventListener(SETTLED, () => resolve(true), {once: true, signal: timeout})
   })
+}
+
+function outcome(last: Settled, waitedMs: number): HotUpdateWait {
+  return {supported: true, applied: last.error === null, waitedMs, error: last.error}
 }
 
 export function watchHotUpdates(hot: HotSurface | undefined): (timeoutMs: number) => Promise<HotUpdateWait> {
   if (hot === undefined) return async () => ({supported: false, applied: false, waitedMs: 0, error: null})
-  const state: {pending: boolean; error: string | null} = {pending: false, error: null}
+  const state: {last: Settled | null} = {last: null}
   const settled = new EventTarget()
-  hot.on('vite:beforeUpdate', () => {
-    state.pending = true
-  })
-  hot.on('vite:afterUpdate', () => {
-    state.pending = false
-    state.error = null
+  const settle = (error: string | null): void => {
+    state.last = {at: performance.now(), error}
     settled.dispatchEvent(new Event(SETTLED))
-  })
+  }
+  hot.on('vite:afterUpdate', () => settle(null))
   hot.on('vite:error', (payload) => {
     const parsed = ErrorPayloadSchema.safeParse(payload)
-    state.pending = false
-    state.error = parsed.success ? parsed.data.err.message : 'the hot update failed'
-    settled.dispatchEvent(new Event(SETTLED))
+    settle(parsed.success ? parsed.data.err.message : 'the hot update failed')
   })
   return async (timeoutMs) => {
-    if (!state.pending) return {supported: true, applied: false, waitedMs: 0, error: state.error}
     const startedAt = performance.now()
-    const outcome = await settledOrTimeout(settled, timeoutMs)
-    if (outcome === 'timeout') {
+    const recent = state.last
+    if (recent !== null && startedAt - recent.at <= RECENT_SETTLE_MS) return outcome(recent, 0)
+    const landed = await nextSettle(settled, timeoutMs)
+    const last = state.last
+    if (!landed || last === null) {
       const waitedMs = Math.round(performance.now() - startedAt)
       return {supported: true, applied: false, waitedMs, error: `the hot update did not land within ${timeoutMs}ms`}
     }
-    if (state.error === null) await nextFrame()
-    const waitedMs = Math.round(performance.now() - startedAt)
-    return {supported: true, applied: state.error === null, waitedMs, error: state.error}
+    if (last.error === null) await nextFrame()
+    return outcome(last, Math.round(performance.now() - startedAt))
   }
 }

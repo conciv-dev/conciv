@@ -108,7 +108,7 @@ describe('the CLI reads its commands from the tool declarations', () => {
   it('offers the hot update wait under page, derived from its declaration', async () => {
     await bootCli(cleanups)
     const help = await helpFor(['tools', 'page', '--help'])
-    expect(help).toContain('wait_hmr')
+    expect(help).toMatch(/^\s+hmr\s/m)
     expect(help).toContain('after editing a file, wait for the hot update to land before reading the page')
   })
 
