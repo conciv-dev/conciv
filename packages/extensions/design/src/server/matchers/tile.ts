@@ -25,11 +25,21 @@ function sameGeometry(input: {a: Box; b: Box}): boolean {
   return edges.every((edge) => Math.abs(edge) <= TOLERANCES.geometryPx)
 }
 
-export function componentSelector(input: {component: LiveComponent; parent: Pair | null}): string {
-  const {component, parent} = input
-  const {source, tag} = component
-  if (source !== null) return `[data-conciv-source="${source.file}:${source.line}:${source.column}"]`
-  return parent === null ? tag : `${parent.selector} > ${tag}`
+function sourceKey(component: LiveComponent): string | null {
+  const {source} = component
+  return source === null ? null : `${source.file}:${source.line}:${source.column}`
+}
+
+export function componentSelector(input: {
+  component: LiveComponent
+  parent: Pair | null
+  index: number | null
+}): string {
+  const {component, parent, index} = input
+  const key = sourceKey(component)
+  if (key === null) return parent === null ? component.tag : `${parent.selector} > ${component.tag}`
+  const selector = `[data-conciv-source="${key}"]`
+  return index === null ? selector : `${selector}:nth-child(${index})`
 }
 
 type Pages = {live: Raster; target: Raster; blurredLive: Raster; blurredTarget: Raster; page: Box}
@@ -73,15 +83,18 @@ function matchPairs(input: {
   comparators: Comparators
 }): Pair[] {
   const {components, parent, depth, maxDepth, pages, comparators} = input
-  const siblings = components.flatMap((component): Pair[] => {
+  const keys = components.map(sourceKey)
+  const siblings = components.flatMap((component, position): Pair[] => {
     const liveBox = clip({box: component.box, to: pages.page})
     if (liveBox.w <= 0 || liveBox.h <= 0) return []
     const mismatch = tileMismatch({pages, box: liveBox, comparators})
     const equal = mismatch < TOLERANCES.tileGate
+    const key = keys[position] ?? null
+    const shared = key !== null && keys.indexOf(key) !== keys.lastIndexOf(key)
     return [
       {
         live: component,
-        selector: componentSelector({component, parent}),
+        selector: componentSelector({component, parent, index: shared ? position + 1 : null}),
         liveBox,
         targetBox: equal ? liveBox : estimateTarget({pages, box: liveBox, parent, comparators}),
         mismatch,
