@@ -100,3 +100,4 @@ Tests go through the public entries only: no export, flag or relative `src/` imp
   middleware emits the terminal run lifecycle before `RUN_FINISHED` / `RUN_ERROR`.
 - `minimumReleaseAgeExclude` shrinks to `@tanstack/*` only: drop the unused jazz entries and every
   entry whose locked version is older than 48h; pin `nitro-nightly` to a nightly at least 48h old.
+- Tools that require approval (`approval: 'ask'`) never go through code mode: one filter where the code-mode tool set is built. They stay normal tool calls (separate MCP tools on the external MCP), gated by deny-and-retry. The library refuses `needsApproval` both in code mode and on CLI bridges. `discover_tools` works in turns and on the external MCP, with `includeDescription: 'first-sentence'`.
