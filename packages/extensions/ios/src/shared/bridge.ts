@@ -210,22 +210,6 @@ export const BridgeMessageSchema = z.discriminatedUnion('type', [
   GrabCapabilitySchema,
 ])
 
-export const bridgeMessageSchemasByType = {
-  'bridge.ready': BridgeReadySchema,
-  'handshake.hello': HandshakeHelloSchema,
-  'grab.pick': GrabPickSchema,
-  'grab.cancel': GrabCancelSchema,
-  'bridge.ack': BridgeAckSchema,
-  'host.panelToggled': HostPanelToggledSchema,
-  'host.log': HostLogSchema,
-  handshake: HandshakeSchema,
-  'bridge.incompatible': BridgeIncompatibleSchema,
-  open: OpenSchema,
-  close: CloseSchema,
-  grabResult: GrabResultSchema,
-  grabCapability: GrabCapabilitySchema,
-}
-
 export type PageToNativeMessage = z.infer<typeof PageToNativeSchema>
 export type NativeToPageMessage = z.infer<typeof NativeToPageSchema>
 export type BridgeMessage = z.infer<typeof BridgeMessageSchema>

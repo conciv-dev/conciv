@@ -16,13 +16,7 @@ import {initCommand, runInitCommand} from '../src/init.js'
 import {type Detected, detectFramework, detectProject, type Framework} from '../src/init/detect.js'
 import {execFileOutcome} from '../src/init/exec.js'
 import {detectHarnesses, type HarnessId} from '../src/init/harness-detect.js'
-import {
-  type ConfirmedSelections,
-  type FoundSelections,
-  type InitOutput,
-  interactiveTerminal,
-  type PlanPrompts,
-} from '../src/init/wizard.js'
+import {type ConfirmedSelections, type InitOutput, interactiveTerminal, type PlanPrompts} from '../src/init/wizard.js'
 import {captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
 import {writeOutcome} from '../src/envelope.js'
 import type {LedgerEntry} from '../src/init/ledger.js'
@@ -59,6 +53,7 @@ import {
   cliSession,
   commitAll,
   fixture as initFixture,
+  type FoundSelections,
   onlyDocument,
   pendingChanges,
   recorderOutput,

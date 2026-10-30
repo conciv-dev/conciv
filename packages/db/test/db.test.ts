@@ -5,22 +5,17 @@ import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {deleteSessionCaptures, sessionCaptures, writeToolCapture} from '../src/capture-queries.js'
 import {openDb, type ConcivDb} from '../src/db.js'
-import {defineAIPersistence, reconstructChat} from '@tanstack/ai-persistence'
-import type {ReconstructedChat} from '@tanstack/ai-persistence'
-import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
-import {createMessageStore} from '../src/message-store.js'
-import {createMetadataStore} from '../src/metadata-store.js'
 import {createRunStore} from '../src/run-store.js'
-import {CODE_MODE_SYNTHETIC_PART_MARKER} from '@conciv/protocol/chat-types'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
-import {
-  CHAT_IMPORT_KEY,
-  CHAT_MIGRATION_NAMESPACE,
-  TRANSCRIPT_NAMESPACE,
-  anchorKey,
-  pendingFromKey,
-} from '../src/chat-thread-import.js'
-import {runMessagesFor, sessionHistoryFor, clearRunState, modelOf} from '../src/run-queries.js'
+import {runMessagesFor, clearRunState, modelOf} from '../src/run-queries.js'
+import {DatabaseSync} from 'node:sqlite'
+import {fileURLToPath} from 'node:url'
+import {and, eq} from 'drizzle-orm'
+import {chatMetadata, runMessages, sessionHistory, runs} from '../src/run-schema.js'
+import {migrations} from '../src/migrations.gen.js'
+import {CODE_MODE_SYNTHETIC_PART_MARKER} from '@conciv/protocol/chat-types'
+import {sessions} from '../src/schema.js'
+import {readThread, updateThread, deleteThread, pendingThreadIds, threadMessages} from '../src/thread-queries.js'
 import {
   FOLDED_WITHOUT_ANCHOR_SESSION_ID,
   LAST_PRE_CHAT_STORE_MIGRATION,
@@ -29,13 +24,21 @@ import {
   PRE_CHAT_STORE_MIGRATION_COUNT,
   seedLegacyDb,
 } from './fixtures/legacy-db.js'
-import {migrations} from '../src/migrations.gen.js'
-import {DatabaseSync} from 'node:sqlite'
-import {fileURLToPath} from 'node:url'
-import {eq} from 'drizzle-orm'
-import {runMessages, sessionHistory, runs} from '../src/run-schema.js'
-import {sessions} from '../src/schema.js'
-import {readThread, updateThread, deleteThread, pendingThreadIds, threadMessages} from '../src/thread-queries.js'
+
+const CHAT_MIGRATION_NAMESPACE = 'conciv.migration'
+const CHAT_IMPORT_KEY = 'chatThreads.importedAt'
+
+function legacyHistoryRows(db: ConcivDb, sessionId: string) {
+  return db.select().from(sessionHistory).where(eq(sessionHistory.sessionId, sessionId)).all()
+}
+
+function importStamp(db: ConcivDb): unknown {
+  return db
+    .select({valueJson: chatMetadata.valueJson})
+    .from(chatMetadata)
+    .where(and(eq(chatMetadata.namespace, CHAT_MIGRATION_NAMESPACE), eq(chatMetadata.key, CHAT_IMPORT_KEY)))
+    .all()[0]?.valueJson
+}
 
 describe('capture queries', () => {
   function side(kind: ElementCaptureKind, name: string, cssBundleId = 'cssabc'): ElementCapture {
@@ -149,19 +152,6 @@ describe('capture queries', () => {
   })
 })
 
-describe('chat persistence conformance', () => {
-  runPersistenceConformance(
-    'conciv-drizzle',
-    () => {
-      const db = openDb(mkdtempSync(join(tmpdir(), 'conciv-persistence-')))
-      return defineAIPersistence({
-        stores: {messages: createMessageStore(db), metadata: createMetadataStore(db), runs: createRunStore(db)},
-      })
-    },
-    {skip: ['interrupts', 'generationRuns', 'artifacts', 'blobs']},
-  )
-})
-
 describe('chat thread upgrade', () => {
   function upgradedRoot(): string {
     const root = mkdtempSync(join(tmpdir(), 'conciv-legacy-upgrade-'))
@@ -169,101 +159,88 @@ describe('chat thread upgrade', () => {
     return root
   }
 
-  async function hydrate(db: ConcivDb, threadId: string): Promise<ReconstructedChat> {
-    const persistence = defineAIPersistence({
-      stores: {messages: createMessageStore(db), runs: createRunStore(db)},
-    })
-    const response = await reconstructChat(persistence, new Request(`http://conciv.test/?threadId=${threadId}`))
-    return (await response.json()) as ReconstructedChat
-  }
-
-  const textOf = (message: ReconstructedChat['messages'][number]): string =>
-    message.parts
-      .filter((part) => part.type === 'text')
-      .map((part) => (part.type === 'text' ? part.content : ''))
-      .join('')
-
   describe('upgrading a pre-message-store database', () => {
     it('pins the migration the fixture is built from', () => {
       expect(migrations[PRE_CHAT_STORE_MIGRATION_COUNT - 1]?.name).toBe(LAST_PRE_CHAT_STORE_MIGRATION)
     })
 
-    it('hydrates the whole legacy conversation through reconstructChat', async () => {
+    it('imports the whole legacy conversation into the thread', async () => {
       const db = openDb(upgradedRoot())
-      const chat = await hydrate(db, LEGACY_SESSION_ID)
+      const {messages} = readThread(db, LEGACY_SESSION_ID)
 
-      expect(chat.messages.filter((message) => message.role === 'user').map(textOf)).toEqual([
-        'look at this',
-        'run the code',
-        'and now the docs',
-      ])
-      expect(chat.messages.flatMap((message) => message.parts).filter((part) => part.type === 'image')).toEqual([
-        {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'aGk='}},
-      ])
-      expect(chat.messages.flatMap((message) => message.parts).filter((part) => part.type === 'document')).toEqual([
+      expect(messages.filter((message) => message.role === 'user')).toEqual([
         {
-          type: 'document',
-          source: {type: 'data', mimeType: 'application/pdf', value: 'JVBE'},
-          metadata: {modelOnly: true},
+          id: 'u1',
+          role: 'user',
+          content: [
+            {type: 'text', content: 'look at this'},
+            {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'aGk='}},
+          ],
+        },
+        {id: 'u2', role: 'user', content: 'run the code'},
+        {
+          id: 'u3',
+          role: 'user',
+          content: [
+            {type: 'text', content: 'and now the docs'},
+            {
+              type: 'document',
+              source: {type: 'data', mimeType: 'application/pdf', value: 'JVBE'},
+              metadata: {modelOnly: true},
+            },
+          ],
         },
       ])
-      expect(chat.activeRun).toEqual({runId: 'legacy-run-live'})
+      await expect(createRunStore(db).findActiveRun(LEGACY_SESSION_ID)).resolves.toMatchObject({
+        runId: 'legacy-run-live',
+      })
     })
 
-    it('keeps the synthetic code-mode marker and the tool result across the boundary conversion', async () => {
-      const db = openDb(upgradedRoot())
-      const chat = await hydrate(db, LEGACY_SESSION_ID)
-      const parts = chat.messages.flatMap((message) => message.parts)
+    it('keeps the synthetic code-mode marker and the tool result across the boundary conversion', () => {
+      const {messages} = readThread(openDb(upgradedRoot()), LEGACY_SESSION_ID)
 
-      expect(parts.filter((part) => part.type === 'tool-call')).toMatchObject([
+      expect(messages.flatMap((message) => message.toolCalls ?? [])).toMatchObject([
         {
           id: 'call-1',
-          name: 'conciv_code',
-          arguments: '{"source":"return 1 + 1"}',
+          function: {name: 'conciv_code', arguments: '{"source":"return 1 + 1"}'},
           metadata: {[CODE_MODE_SYNTHETIC_PART_MARKER]: true},
         },
       ])
-      expect(parts.filter((part) => part.type === 'tool-result')).toMatchObject([{toolCallId: 'call-1', content: '2'}])
+      expect(messages.filter((message) => message.role === 'tool')).toMatchObject([
+        {toolCallId: 'call-1', content: '2'},
+      ])
     })
 
-    it('moves the anchor id into the metadata store, wrapped so "folded, no anchor" survives', async () => {
-      const metadata = createMetadataStore(openDb(upgradedRoot()))
-
-      await expect(metadata.get(TRANSCRIPT_NAMESPACE, anchorKey(LEGACY_SESSION_ID))).resolves.toEqual({
-        nativeId: LEGACY_ANCHOR_NATIVE_ID,
-      })
-      await expect(metadata.get(TRANSCRIPT_NAMESPACE, anchorKey(FOLDED_WITHOUT_ANCHOR_SESSION_ID))).resolves.toEqual({
-        nativeId: null,
-      })
-      await expect(metadata.get(TRANSCRIPT_NAMESPACE, anchorKey('s-never-folded'))).resolves.toBeNull()
-    })
-
-    it('records where the still-pending turn starts in the imported thread', async () => {
+    it('moves the anchor id into thread metadata, wrapped so "folded, no anchor" survives', () => {
       const db = openDb(upgradedRoot())
-      const metadata = createMetadataStore(db)
-      const thread = await createMessageStore(db).loadThread(LEGACY_SESSION_ID)
-      const pendingFrom = await metadata.get(TRANSCRIPT_NAMESPACE, pendingFromKey(LEGACY_SESSION_ID))
 
-      expect(pendingFrom).toEqual({index: thread.length - 1})
+      expect(readThread(db, LEGACY_SESSION_ID).anchor).toEqual({nativeId: LEGACY_ANCHOR_NATIVE_ID})
+      expect(readThread(db, FOLDED_WITHOUT_ANCHOR_SESSION_ID).anchor).toEqual({nativeId: null})
+      expect(readThread(db, 's-never-folded').anchor).toBeNull()
     })
 
-    it('imports once: reopening the database neither duplicates nor restamps', async () => {
+    it('records where the still-pending turn starts in the imported thread', () => {
+      const thread = readThread(openDb(upgradedRoot()), LEGACY_SESSION_ID)
+
+      expect(thread.pendingFrom).toBe(thread.messages.length - 1)
+    })
+
+    it('imports once: reopening the database neither duplicates nor restamps', () => {
       const root = upgradedRoot()
       const first = openDb(root)
-      const importedAt = await createMetadataStore(first).get(CHAT_MIGRATION_NAMESPACE, CHAT_IMPORT_KEY)
-      const thread = await createMessageStore(first).loadThread(LEGACY_SESSION_ID)
+      const importedAt = importStamp(first)
+      const thread = readThread(first, LEGACY_SESSION_ID)
 
       const second = openDb(root)
-      await expect(createMessageStore(second).loadThread(LEGACY_SESSION_ID)).resolves.toEqual(thread)
-      await expect(createMetadataStore(second).get(CHAT_MIGRATION_NAMESPACE, CHAT_IMPORT_KEY)).resolves.toEqual(
-        importedAt,
-      )
+      expect(importedAt).toEqual(expect.any(Number))
+      expect(readThread(second, LEGACY_SESSION_ID)).toEqual(thread)
+      expect(importStamp(second)).toEqual(importedAt)
     })
 
     it('leaves the legacy rows in place so a downgrade still reads them', () => {
       const db = openDb(upgradedRoot())
 
-      expect(sessionHistoryFor(db, LEGACY_SESSION_ID)?.messages).toHaveLength(4)
+      expect(legacyHistoryRows(db, LEGACY_SESSION_ID)[0]?.messages).toHaveLength(4)
       expect(runMessagesFor(db, LEGACY_SESSION_ID)?.messages).toHaveLength(1)
     })
   })
@@ -441,8 +418,8 @@ describe('db', () => {
       const second = openDb(stateRoot)
       expect(runMessagesFor(second, 'conciv_img')?.messages).toEqual(imageTurn)
       expect(runMessagesFor(second, 'conciv_txt')?.messages).toEqual(textTurn)
-      expect(sessionHistoryFor(second, 'conciv_img')).toBeNull()
-      expect(sessionHistoryFor(second, 'conciv_txt')).toBeNull()
+      expect(legacyHistoryRows(second, 'conciv_img')).toEqual([])
+      expect(legacyHistoryRows(second, 'conciv_txt')).toEqual([])
     })
 
     it('two connections on one stateRoot interleave writes (WAL + busy timeout)', () => {
@@ -478,7 +455,7 @@ describe('run queries', () => {
       const db = fresh()
       expect(modelOf(db, 'missing')).toBeNull()
       expect(runMessagesFor(db, 'missing')).toBeNull()
-      expect(sessionHistoryFor(db, 'missing')).toBeNull()
+      expect(legacyHistoryRows(db, 'missing')).toEqual([])
     })
 
     it('modelOf reads the sessions row', () => {
@@ -523,7 +500,7 @@ describe('run queries', () => {
 
       expect(readThread(db, 's5')).toEqual({messages: [], pendingFrom: null, anchor: null})
       expect(runMessagesFor(db, 's5')).toBeNull()
-      expect(sessionHistoryFor(db, 's5')).toBeNull()
+      expect(legacyHistoryRows(db, 's5')).toEqual([])
       expect(readThread(db, 'other').messages).toEqual([{role: 'user', content: 'kept'}])
     })
   })

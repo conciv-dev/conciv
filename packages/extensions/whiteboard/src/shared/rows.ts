@@ -83,12 +83,6 @@ export const cursorEvent = z.object({
   lastSeen: z.number().int(),
 })
 
-export const changeOf = <Row extends z.ZodType>(row: Row) =>
-  z.discriminatedUnion('type', [
-    z.object({type: z.literal('upsert'), row}),
-    z.object({type: z.literal('delete'), key: z.string()}),
-  ])
-
 export type ElementRow = z.infer<typeof elementRow>
 export type PendingRow = z.infer<typeof pendingRow>
 export type ReplyRow = z.infer<typeof replyRow>

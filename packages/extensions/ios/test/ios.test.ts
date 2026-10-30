@@ -9,9 +9,21 @@ import {makeRunTypescript} from '@conciv/harness-testkit'
 import {start, type Engine} from '@conciv/core'
 import type {AnyExtension} from '@conciv/extension'
 import {
+  BridgeAckSchema,
+  BridgeIncompatibleSchema,
   BridgeMessageSchema,
-  bridgeMessageSchemasByType,
+  BridgeReadySchema,
+  CloseSchema,
+  GrabCancelSchema,
+  GrabCapabilitySchema,
+  GrabPickSchema,
+  GrabResultSchema,
+  HandshakeHelloSchema,
+  HandshakeSchema,
+  HostLogSchema,
+  HostPanelToggledSchema,
   NativeToPageSchema,
+  OpenSchema,
   type NeutralGrabAsGrab,
   SUBTREE_MAX_DEPTH,
   SUBTREE_MAX_NODES,
@@ -30,8 +42,26 @@ import {
   type LogsFailure,
   type RunFailure,
 } from '../src/server/tools.js'
-import type {RunOptions, RunResult, SimctlRunner} from '../src/server/simctl-runner.js'
+import type {RunResult, SimctlRunner} from '../src/server/simctl-runner.js'
 import iosExtension from '../src/server.js'
+
+type RunOptions = NonNullable<Parameters<SimctlRunner['run']>[2]>
+
+const bridgeMessageSchemasByType = {
+  'bridge.ready': BridgeReadySchema,
+  'handshake.hello': HandshakeHelloSchema,
+  'grab.pick': GrabPickSchema,
+  'grab.cancel': GrabCancelSchema,
+  'bridge.ack': BridgeAckSchema,
+  'host.panelToggled': HostPanelToggledSchema,
+  'host.log': HostLogSchema,
+  handshake: HandshakeSchema,
+  'bridge.incompatible': BridgeIncompatibleSchema,
+  open: OpenSchema,
+  close: CloseSchema,
+  grabResult: GrabResultSchema,
+  grabCapability: GrabCapabilitySchema,
+}
 
 describe('bridge conformance', () => {
   const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'bridge')

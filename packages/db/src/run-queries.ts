@@ -1,7 +1,7 @@
 import {eq} from 'drizzle-orm'
 import type {ConcivDb} from './db.js'
 import {sessions} from './schema.js'
-import {runMessages, runs, sessionHistory} from './run-schema.js'
+import {runMessages, runs} from './run-schema.js'
 import {deleteThreadRuns} from './run-store.js'
 import {deleteThread} from './thread-queries.js'
 
@@ -17,15 +17,6 @@ export function runMessagesFor(db: QueryHandle, id: string): {messages: unknown[
     .select({messages: runMessages.messages, updatedAt: runMessages.updatedAt})
     .from(runMessages)
     .where(eq(runMessages.sessionId, id))
-    .all()
-  return rows[0] ?? null
-}
-
-export function sessionHistoryFor(db: QueryHandle, id: string): {messages: unknown[]; updatedAt: number} | null {
-  const rows = db
-    .select({messages: sessionHistory.messages, updatedAt: sessionHistory.updatedAt})
-    .from(sessionHistory)
-    .where(eq(sessionHistory.sessionId, id))
     .all()
   return rows[0] ?? null
 }
