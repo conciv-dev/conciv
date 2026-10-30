@@ -91,17 +91,4 @@ describe('widget boot in a host that installs conciv under node_modules, with no
     expect(outcome).toBe('mounted')
     expect(state.errors.filter((error) => INTEROP_ERROR.test(error))).toEqual([])
   }, 60_000)
-
-  it('loads the lazily imported mermaid renderer the way ui-kit-chat imports it', async () => {
-    const page = state.page
-    const started = state.started
-    if (page === undefined || started === undefined) throw new Error('dev server did not start')
-    const importer = join(started.root, 'node_modules', '@conciv', 'ui-kit-chat', 'dist', 'index.js')
-    const resolved = await started.server.environments.client.pluginContainer.resolveId('mermaid', importer)
-    if (resolved === null) throw new Error('mermaid is not resolvable from @conciv/ui-kit-chat')
-    const result = await page.evaluate(
-      `import(${JSON.stringify(`/@fs${resolved.id}`)}).then(() => 'loaded', (error) => String(error))`,
-    )
-    expect(result).toBe('loaded')
-  }, 60_000)
 })

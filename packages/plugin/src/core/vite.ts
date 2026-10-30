@@ -186,7 +186,10 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       })
       base.optimizeDeps.exclude.push('@conciv/embed')
       managedExcludes = [...base.optimizeDeps.exclude]
-      return {...base, optimizeDeps: {...base.optimizeDeps, include: [...EMBED_COMMONJS_DEPENDENCIES]}}
+      return {
+        ...base,
+        optimizeDeps: {...base.optimizeDeps, include: [...base.optimizeDeps.include, ...EMBED_COMMONJS_DEPENDENCIES]},
+      }
     },
     configEnvironment(_name, environmentConfig) {
       dropIncludedFromExcludes(environmentConfig.optimizeDeps, managedExcludes)
