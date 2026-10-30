@@ -43,12 +43,12 @@ type ToolMeta = {
 A `ToolBuilder` starts unbound. `.server(execute)` and `.client(execute?)` each claim the binding
 exactly once — calling either a second time (including calling `.client()` again after
 `.client(fn)`) throws `tool "<name>" already has a <binding> binding` (`define-tool.ts:215-217`,
-verified by `packages/extension/test/define-tool.test.ts:56-64`). `.render(renderer)` is
+verified by `packages/extension/test/extension.test.ts:303-311`). `.render(renderer)` is
 independent of binding and can be chained before or after `.server`/`.client`.
 
 Derivations never leak into siblings: calling `.server(...)` on a base builder returns a _new_
 builder; the base stays unbound and can still be `.client(...)`'d separately
-(`packages/extension/test/define-tool.test.ts:33-49`) — this is how the split
+(`packages/extension/test/extension.test.ts:280-296`) — this is how the split
 `def.ts`/`server.ts`/`client.ts` pattern below works: one `toolDefinition(...)` feeds an independent
 `defineTool(def)` call per build target.
 
