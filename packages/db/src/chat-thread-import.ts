@@ -6,8 +6,8 @@ import type {ConcivDb} from './db.js'
 import {chatMetadata, chatThreads, runMessages, sessionHistory} from './run-schema.js'
 
 export const TRANSCRIPT_NAMESPACE = 'conciv.transcript'
-export const CHAT_MIGRATION_NAMESPACE = 'conciv.migration'
-export const CHAT_IMPORT_KEY = 'chatThreads.importedAt'
+const CHAT_MIGRATION_NAMESPACE = 'conciv.migration'
+const CHAT_IMPORT_KEY = 'chatThreads.importedAt'
 
 export const anchorKey = (threadId: string): string => `${threadId}:anchorNativeId`
 export const pendingFromKey = (threadId: string): string => `${threadId}:pendingFrom`

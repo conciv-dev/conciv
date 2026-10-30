@@ -3,6 +3,8 @@ import type {Page} from 'playwright'
 import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 import whiteboard from '../src/server.js'
 
+export const ELEMENT_WRITE_THROTTLE_MS = 50
+
 export const testHost = fixtureHost(fileURLToPath(new URL('../dist/test-host', import.meta.url)))
 
 export function bootWhiteboard(): Promise<ExtensionTestApi> {

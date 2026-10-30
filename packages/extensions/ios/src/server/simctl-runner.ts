@@ -1,6 +1,6 @@
 import {execFile} from 'node:child_process'
 
-export type RunOptions = {cwd?: string; env?: Record<string, string>}
+type RunOptions = {cwd?: string; env?: Record<string, string>}
 
 export type RunResult = {code: number; stdout: Buffer; stderr: string}
 
