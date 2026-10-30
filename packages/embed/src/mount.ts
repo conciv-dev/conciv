@@ -114,8 +114,17 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
   return {mount, unmount, open, close, toggle, rebind}
 }
 
+function insideCaptureFrame(): boolean {
+  try {
+    return window.frameElement?.hasAttribute('data-conciv-capture') === true
+  } catch {
+    return false
+  }
+}
+
 export function mountConciv(extensions: AnyExtension[]): Promise<void> {
   if (typeof document === 'undefined') return Promise.resolve()
+  if (insideCaptureFrame()) return Promise.resolve()
   if (document.querySelector('[data-conciv-script-root]')) return Promise.resolve()
   const el = document.createElement('div')
   el.setAttribute('data-conciv-script-root', '')
