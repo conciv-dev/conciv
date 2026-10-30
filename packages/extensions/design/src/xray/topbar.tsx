@@ -19,7 +19,13 @@ export function RunButton(props: {data: XrayData; running: boolean; onRun: () =>
     <Tooltip.Root positioning={{placement: 'bottom-end'}}>
       <Tooltip.Trigger
         asChild={(trigger) => (
-          <Button {...trigger()} size={props.size ?? 'md'} disabled={props.running} onClick={() => props.onRun()}>
+          <Button
+            {...trigger()}
+            class="shrink-0"
+            size={props.size ?? 'md'}
+            disabled={props.running}
+            onClick={() => props.onRun()}
+          >
             {props.running ? 'Running…' : 'Run diff'} <Kbd>R</Kbd>
           </Button>
         )}
@@ -34,7 +40,7 @@ export function RunButton(props: {data: XrayData; running: boolean; onRun: () =>
 export function Topbar(props: TopbarProps): JSX.Element {
   const ran = () => props.data.report !== null
   return (
-    <header class="pe-4 ps-4 border-b border-chat-line bg-chat-panel flex gap-5 h-11.25 items-center">
+    <header class="pe-4 ps-4 border-b border-chat-line bg-chat-panel flex gap-5 h-11.25 min-w-0 items-center lt-xl:gap-3">
       <div class="flex gap-2 min-w-0 items-baseline">
         <h1 class="text-[0.8125rem] text-chat-text-hi tracking-[-0.01em] font-chat-display font-semibold m-0">
           design
@@ -42,7 +48,7 @@ export function Topbar(props: TopbarProps): JSX.Element {
         <span class="text-[0.75rem] text-chat-text-2 font-chat-mono truncate">{props.data.target.route}</span>
       </div>
       <Tabs.Root
-        class="self-stretch"
+        class="shrink-0 self-stretch"
         value={props.data.target.id}
         onValueChange={(details) => props.onTarget(details.value)}
       >
@@ -66,7 +72,7 @@ export function Topbar(props: TopbarProps): JSX.Element {
           {props.above === 0 ? 'done' : 'not done'}
         </Button>
       </Show>
-      <div class="ms-auto flex gap-2 items-baseline">
+      <div class="ms-auto flex shrink-0 gap-2 items-baseline">
         <span class="text-[0.6875rem] text-chat-text-3 tracking-wider uppercase">mismatch</span>
         <span
           class={`text-xl leading-none tracking-tight font-chat-display font-semibold tabular-nums ${props.above > 0 ? 'text-chat-danger' : 'text-chat-text-hi'}`}

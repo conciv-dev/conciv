@@ -1,6 +1,6 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import type {StatusDotTone} from '@conciv/ui-kit-system'
-import type {TargetRecord} from '../shared/types.js'
+import type {Box, TargetRecord} from '../shared/types.js'
 import type {Delta, Row, XrayImages} from './data.js'
 
 export const MODES = ['side', 'swipe', 'onion', 'toggle', 'diff'] as const
@@ -44,6 +44,8 @@ const CAPTION =
 const LAYER = 'absolute inset-0 block size-full max-w-none'
 const LABEL_CHAR_PX = 7.2
 const LABEL_PAD_PX = 12
+const LABEL_H = 18
+const CAPTION_CLEAR = 30
 const RULER_LABEL_W = 68
 const HORIZONTAL_SIDES = ['left', 'right', 'x']
 const DASH = '6 4'
@@ -83,6 +85,12 @@ function measure(row: Row): Ruler | null {
   const [y1, y2] = span({live: {start: live.y, size: live.h}, target: {start: target.y, size: target.h}, far, distance})
   const x = live.x + live.w / 2
   return {x1: x, x2: x, y1, y2, text}
+}
+
+function labelTop(box: Box): number {
+  const above = box.y - LABEL_H - 2
+  if (above >= CAPTION_CLEAR) return above
+  return Math.max(box.y + 2, CAPTION_CLEAR)
 }
 
 function Overlay(props: {rows: Row[]; selected: Row | null; view: StageView; target: TargetRecord}): JSX.Element {
@@ -133,12 +141,16 @@ function Overlay(props: {rows: Row[]; selected: Row | null; view: StageView; tar
                       <rect
                         class="fill-chat-accent"
                         x={box().x}
-                        y={box().y - 20}
+                        y={labelTop(box())}
                         width={row.label.length * LABEL_CHAR_PX + LABEL_PAD_PX}
-                        height={18}
+                        height={LABEL_H}
                         rx={3}
                       />
-                      <text class="text-[11px] font-chat-mono fill-chat-on-accent" x={box().x + 6} y={box().y - 7}>
+                      <text
+                        class="text-[11px] font-chat-mono fill-chat-on-accent"
+                        x={box().x + 6}
+                        y={labelTop(box()) + LABEL_H - 5}
+                      >
                         {row.label}
                       </text>
                     </>
