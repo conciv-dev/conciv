@@ -1,14 +1,6 @@
-import {toolError, type ServerApi} from '@conciv/extension'
+import type {ServerApi} from '@conciv/extension'
 import type {DesignConfig} from '../shared/config.js'
-import type {
-  Capture,
-  ColorMetric,
-  DesignRuntime,
-  GeometryEstimator,
-  Matcher,
-  PixelComparator,
-  Registries,
-} from '../shared/types.js'
+import type {DesignRuntime, Registries} from '../shared/types.js'
 import {adapters} from './registries/adapters.js'
 import {captures} from './registries/captures.js'
 import {color} from './registries/color.js'
@@ -31,16 +23,6 @@ export const REGISTRIES: Registries = {
   mappers,
 }
 
-function notImplemented(): never {
-  throw toolError('not-implemented')
-}
-
-const MISSING_CAPTURE: Capture = {name: 'missing', capture: notImplemented, clear: notImplemented}
-const MISSING_PIXEL: PixelComparator = {name: 'missing', compare: notImplemented}
-const MISSING_GEOMETRY: GeometryEstimator = {name: 'missing', estimate: notImplemented}
-const MISSING_COLOR: ColorMetric = {name: 'missing', distance: notImplemented}
-const MISSING_MATCHER: Matcher = {name: 'missing', match: notImplemented}
-
 export function pickRuntime(input: {
   config: DesignConfig
   server: ServerApi<DesignConfig>
@@ -48,14 +30,14 @@ export function pickRuntime(input: {
   const {config} = input
   return {
     cwd: input.server.cwd,
-    capture: REGISTRIES.captures[config.capture] ?? MISSING_CAPTURE,
+    capture: REGISTRIES.captures[config.capture],
     comparators: {
-      pixel: REGISTRIES.pixel[config.comparator] ?? MISSING_PIXEL,
-      geometry: REGISTRIES.geometry[config.geometry] ?? MISSING_GEOMETRY,
-      color: REGISTRIES.color[config.color] ?? MISSING_COLOR,
+      pixel: REGISTRIES.pixel[config.comparator],
+      geometry: REGISTRIES.geometry[config.geometry],
+      color: REGISTRIES.color[config.color],
       text: null,
     },
-    matcher: REGISTRIES.matchers[config.matcher] ?? MISSING_MATCHER,
+    matcher: REGISTRIES.matchers[config.matcher],
     adapters: REGISTRIES.adapters,
     enrichers: REGISTRIES.enrichers,
     deltaKinds: REGISTRIES.deltaKinds,

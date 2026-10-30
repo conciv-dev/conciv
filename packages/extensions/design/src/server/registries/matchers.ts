@@ -1,4 +1,4 @@
-import type {Matcher} from '../../shared/types.js'
+import type {Registries} from '../../shared/types.js'
 import {tileMatcher} from '../matchers/tile.js'
 
-export const matchers: Record<string, Matcher> = {[tileMatcher.name]: tileMatcher}
+export const matchers: Registries['matchers'] = {tile: tileMatcher}

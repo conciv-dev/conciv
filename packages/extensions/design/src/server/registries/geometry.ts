@@ -1,4 +1,4 @@
-import type {GeometryEstimator} from '../../shared/types.js'
+import type {Registries} from '../../shared/types.js'
 import {edgeProjection} from '../comparators/edge-projection.js'
 
-export const geometry: Record<string, GeometryEstimator> = {[edgeProjection.name]: edgeProjection}
+export const geometry: Registries['geometry'] = {'edge-projection': edgeProjection}

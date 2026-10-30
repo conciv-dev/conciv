@@ -196,11 +196,9 @@ export const ClearInputSchema = z.object({
 })
 
 export const DESIGN_ERRORS = {
-  'not-implemented': {message: 'this design verb is not implemented yet'},
   'image-unreadable': {message: 'image is neither a PNG file nor PNG base64'},
   'width-required': {message: 'pass a width: the live tab width could not be read'},
   'no-target': {message: 'no design target for this route and width; register one with design_target'},
-  'frame-unsupported': {message: 'capturing at a width other than the tab width is not supported yet'},
   'frame-blocked': {
     message:
       'the app did not render inside the capture frame (frame-ancestors or X-Frame-Options); capture through cdp or chromium is not available yet',

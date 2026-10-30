@@ -1,5 +1,6 @@
 import type {ToolRequest} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
+import type {DesignConfig} from './config.js'
 import type {DeltaKindName, DiffReport} from './defs.js'
 
 export type {DeltaKindName, DiffReport}
@@ -192,11 +193,11 @@ export type TargetStore = {
 export type Registries = {
   adapters: TargetAdapter[]
   enrichers: Enricher[]
-  captures: Record<string, Capture>
-  pixel: Record<string, PixelComparator>
-  geometry: Record<string, GeometryEstimator>
-  color: Record<string, ColorMetric>
-  matchers: Record<string, Matcher>
+  captures: Record<DesignConfig['capture'], Capture>
+  pixel: Record<DesignConfig['comparator'], PixelComparator>
+  geometry: Record<DesignConfig['geometry'], GeometryEstimator>
+  color: Record<DesignConfig['color'], ColorMetric>
+  matchers: Record<DesignConfig['matcher'], Matcher>
   deltaKinds: DeltaKind[]
   mappers: ProvenanceMapper[]
 }
