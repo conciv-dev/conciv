@@ -38,6 +38,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/ai": "workspace:^",
     "@conciv/extension-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
@@ -48,7 +49,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/ai": "workspace:*",
     "@conciv/extension": "workspace:^",
     "@conciv/tools": "workspace:^",
     "@conciv/uno-preset": "workspace:*",

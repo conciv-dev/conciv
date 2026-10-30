@@ -58,6 +58,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/ai": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/page": "workspace:^",
@@ -69,7 +70,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/ai": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
