@@ -105,6 +105,10 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
     return doomed.length
   }
 
+  function reportPath(path: string): string {
+    return path.startsWith(cwd) ? relative(cwd, path) : path
+  }
+
   return {
     list,
     remove,
@@ -147,16 +151,14 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       const home = join(dir, id)
       await mkdir(home, {recursive: true})
       const at = stamp()
-      const paths = {
-        livePath: join(home, `live-${at}.png`),
-        diffPath: join(home, `diff-${at}.png`),
-        resultPath: join(home, `result-${at}.json`),
-      }
-      await writeFile(paths.livePath, encodePng(live))
-      await writeFile(paths.diffPath, encodePng(diff))
-      await writeFile(paths.resultPath, JSON.stringify(result))
+      const livePath = join(home, `live-${at}.png`)
+      const diffPath = join(home, `diff-${at}.png`)
+      const report: DiffReport = {...result, diffImage: reportPath(diffPath), livePath: reportPath(livePath)}
+      await writeFile(livePath, encodePng(live))
+      await writeFile(diffPath, encodePng(diff))
+      await writeFile(join(home, `result-${at}.json`), JSON.stringify(report))
       await Promise.all(['live-', 'diff-', 'result-'].map((prefix) => prune({dir: home, prefix})))
-      return paths
+      return report
     },
     lastResult: async (id): Promise<DiffReport | null> => {
       const home = join(dir, id)
@@ -168,6 +170,6 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       if (last === undefined) return null
       return readJson({path: join(home, last), schema: DiffReportSchema})
     },
-    reportPath: (path) => (path.startsWith(cwd) ? relative(cwd, path) : path),
+    reportPath,
   }
 }

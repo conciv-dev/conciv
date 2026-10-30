@@ -184,8 +184,8 @@ export type TargetStore = {
     id: string
     live: Raster
     diff: Raster
-    result: DiffReport
-  }): Promise<{livePath: string; diffPath: string; resultPath: string}>
+    result: Omit<DiffReport, 'diffImage' | 'livePath'>
+  }): Promise<DiffReport>
   lastResult(id: string): Promise<DiffReport | null>
   reportPath(path: string): string
 }

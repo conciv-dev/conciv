@@ -2,7 +2,6 @@ import {TOLERANCES} from '../../shared/tolerances.js'
 import type {Box, DeltaKind, Raster} from '../../shared/types.js'
 import {crop, edgeMap, foregroundColor, medianColor} from '../raster.js'
 
-export const DECLARED_COLOR_DELTA_E = 1
 const OPAQUE_HEX_LENGTH = 7
 
 export function isOpaqueHex(color: string): boolean {
@@ -29,5 +28,5 @@ function colorKind(input: {kind: 'background' | 'foreground'; tolerance: number}
   }
 }
 
-export const background = colorKind({kind: 'background', tolerance: DECLARED_COLOR_DELTA_E})
+export const background = colorKind({kind: 'background', tolerance: TOLERANCES.declaredColorDeltaE})
 export const foreground = colorKind({kind: 'foreground', tolerance: TOLERANCES.colorDeltaE})

@@ -1,6 +1,7 @@
 export const TOLERANCES = {
   geometryPx: 2,
   colorDeltaE: 3,
+  declaredColorDeltaE: 1,
   tileGate: 0.005,
   unmatchedMinimum: 24,
   tileMargin: 8,

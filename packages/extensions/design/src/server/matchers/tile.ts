@@ -1,6 +1,6 @@
 import {TOLERANCES} from '../../shared/tolerances.js'
 import type {Box, Comparators, LiveComponent, Matcher, Pair, Raster} from '../../shared/types.js'
-import {DECLARED_COLOR_DELTA_E, isOpaqueHex, sampledFills} from '../deltas/colors.js'
+import {isOpaqueHex, sampledFills} from '../deltas/colors.js'
 import {boxBlur, crop} from '../raster.js'
 
 export function expand(input: {box: Box; by: number}): Box {
@@ -61,7 +61,7 @@ function colorAgrees(input: {pages: Pages; pair: Pair; comparators: Comparators}
   const declared = pair.live.styles.background
   if (pair.targetBox === null || !isOpaqueHex(declared)) return true
   const sampled = sampledFills({raster: pages.target, box: pair.targetBox}).background
-  return comparators.color.distance({a: declared, b: sampled}) <= DECLARED_COLOR_DELTA_E
+  return comparators.color.distance({a: declared, b: sampled}) <= TOLERANCES.declaredColorDeltaE
 }
 
 function matchPairs(input: {

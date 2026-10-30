@@ -11,19 +11,17 @@ const HINT = 'no element carries data-conciv-source; the page is not a dev build
 const MISMATCH_PRECISION = 10_000
 
 async function findTarget(input: {
-  input: DiffInput
+  query: DiffInput
   design: DesignRuntime
   page: ServerToolPageAccess
 }): Promise<TargetRecord> {
-  const {design, page} = input
-  if (input.input.target !== undefined) {
-    const byId = await design.store.find({id: input.input.target})
+  const {query, design, page} = input
+  if (query.target !== undefined) {
+    const byId = await design.store.find({id: query.target})
     if (byId !== null) return byId
-    throw toolError('no-target', {
-      message: `no design target with id ${input.input.target}; register one with design_target`,
-    })
+    throw toolError('no-target', {message: `no design target with id ${query.target}; register one with design_target`})
   }
-  const width = await targetWidth({width: input.input.width, page})
+  const width = await targetWidth({width: query.width, page})
   const route = await liveRoute(page)
   const pathname = route.split('?')[0] ?? route
   const record = (await design.store.find({route, width})) ?? (await design.store.find({route: pathname, width}))
@@ -55,7 +53,7 @@ function area(pair: Pair): number {
 
 export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, _request, page) => {
   const {design} = ctx
-  const record = await findTarget({input, design, page})
+  const record = await findTarget({query: input, design, page})
   const target = await design.store.model(record.id)
   const live = await design.capture.capture({route: record.route, width: record.width, height: record.height, page})
   const matched = design.matcher.match({live, target, comparators: design.comparators, depth: input.depth})
@@ -90,24 +88,16 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, _r
     .toSorted((a, b) => b.pair.mismatch * area(b.pair) - a.pair.mismatch * area(a.pair))
     .slice(0, input.limit)
     .map(({report}) => report)
-  const report: DiffReport = {
-    target: {id: record.id, route: record.route, width: record.width},
-    mismatch: rounded(matched.mismatch),
-    diffImage: '',
-    livePath: '',
-    components,
-    unmatched: unmatchedRegions({target, matched: matched.matchedTargetBoxes, pairs: matched.pairs, live}),
-    ...(live.components.length === 0 ? {hint: HINT} : {}),
-  }
-  const paths = await design.store.writeRun({
+  return design.store.writeRun({
     id: record.id,
     live: live.raster,
     diff: paintDiff({live: live.raster, mask: matched.mask, width: Math.min(live.raster.width, target.raster.width)}),
-    result: report,
+    result: {
+      target: {id: record.id, route: record.route, width: record.width},
+      mismatch: rounded(matched.mismatch),
+      components,
+      unmatched: unmatchedRegions({target, matched: matched.matchedTargetBoxes, pairs: matched.pairs, live}),
+      ...(live.components.length === 0 ? {hint: HINT} : {}),
+    },
   })
-  return {
-    ...report,
-    diffImage: design.store.reportPath(paths.diffPath),
-    livePath: design.store.reportPath(paths.livePath),
-  }
 }

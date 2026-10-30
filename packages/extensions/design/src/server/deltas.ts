@@ -55,6 +55,13 @@ function sideStyles(input: {pair: Pair; from: From; box: Box; raster: Raster}): 
   return {...rest, ...(isOpaqueHex(declared) ? {background: declared} : {}), ...color}
 }
 
+function neighbourBox(input: {pair: Pair; from: From; step: 'prev' | 'next'}): Box | null {
+  const {pair, from, step} = input
+  const near = pair[step]
+  if (from === 'live' || near === null || near.targetBox !== null) return pickBox({pair: near, from})
+  return neighbourBox({pair: near, from, step})
+}
+
 export function sideFrom(input: {pair: Pair; from: From; children: Pair[]; page: Box; raster: Raster}): Side | null {
   const {pair, from, children, page, raster} = input
   const box = pickBox({pair, from})
@@ -62,8 +69,8 @@ export function sideFrom(input: {pair: Pair; from: From; children: Pair[]; page:
   return {
     box,
     parent: pair.parent === null ? page : pickBox({pair: pair.parent, from}),
-    prev: pickBox({pair: pair.prev, from}),
-    next: pickBox({pair: pair.next, from}),
+    prev: neighbourBox({pair, from, step: 'prev'}),
+    next: neighbourBox({pair, from, step: 'next'}),
     axis: pair.live.axis,
     textBox: contentBox({children, from}),
     styles: sideStyles({pair, from, box, raster}),
