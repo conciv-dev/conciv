@@ -121,3 +121,17 @@ Tests go through the public entries only: no export, flag or relative `src/` imp
   second time before our gate.
 - On abort the middleware emits the terminal `aborted` lifecycle so the widget shows it without
   waiting for the next hydrate.
+
+## Decisions after the third build (user, 2026-10-30)
+
+- Child cards after reload keep nesting and error state: extend the existing approved
+  `@tanstack/ai-sandbox` patch so its tool-history recorder keeps TOOL_CALL_START metadata
+  (`parentToolCallId`) and the result's error state.
+- Aborted runs: the library sends nothing after a cancel, so the widget marks the run stopped
+  itself when the stream it stopped ends without RUN_FINISHED; the saved record confirms on next
+  hydrate. No engine patch.
+- Stop always cancels: the widget's Stop goes through `ChatPlane.stop` (cancel reason), never only
+  the WebSocket abort frame, which the library treats as a detach.
+- Stop kill: the sandbox-local-process patch destroys the handle whose run signal carries
+  `RUN_CANCEL_REASON` (SIGTERM, then SIGKILL after 5s via the library's `killTree`), never another
+  session's.
