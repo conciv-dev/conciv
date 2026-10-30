@@ -93,7 +93,7 @@ catalog:
   mermaid: '^12.2.0'
   motion: '^14.7.1'
   next: 16.4.3
-  nitro: npm:nitro-nightly@3.0.1-20261029-122457-3f1c8af0
+  nitro: npm:nitro-nightly@3.0.1-20261028-065025-1a9a371c
   oxc-parser: '^0.156.0'
   oxlint: 1.73.0
   p-timeout: '^8.0.0'
@@ -199,44 +199,14 @@ allowBuilds:
 # enters the lockfile. CI runs --frozen-lockfile and never re-resolves, so there the
 # real controls are the reviewed lockfile + Socket Firewall, not this cooldown.
 minimumReleaseAge: 2880
-# @publint/pack is a fresh third-party transitive dep (publint/tsdown); excluded only
-# to unblock dev lockfile updates while it ages past the window. Build-script-blocked
-# regardless. Remove once it has aged out.
 minimumReleaseAgeExclude:
-  - '@publint/pack'
-  # jazz-tools alpha moves faster than the 48h window; the whiteboard extension pins an exact
-  # alpha (reviewed in the migration plan). Drop these once Jazz reaches a stable cadence.
-  - 'jazz-tools'
-  - 'jazz-napi'
-  - 'jazz-wasm'
-  - '@garden-co/jazz-napi-darwin-arm64'
-  - '@garden-co/jazz-napi-darwin-x64'
-  - '@garden-co/jazz-napi-linux-x64-gnu'
-  - '@garden-co/jazz-napi-win32-x64-msvc'
   # TanStack releases in lockstep trains (the @tanstack/ai family, router/start, virtual) that
   # publish faster than the 48h window; the whole scope is exempt and reviewed on each bump.
   - '@tanstack/*'
-  # Added 2026-10-29 for the catalog upgrade: these release more often than the 48h window
-  # allows (storybook, tiptap, lucide and @types/node weekly, tsdown and the nitro nightly
-  # alias daily), so the window always blocks their latest. Reviewed on each bump.
-  - 'storybook'
-  - '@storybook/addon-docs'
-  - '@tiptap/core'
-  - '@tiptap/extension-document'
-  - '@tiptap/extension-hard-break'
-  - '@tiptap/extension-mention'
-  - '@tiptap/extension-paragraph'
-  - '@tiptap/extension-text'
-  - '@tiptap/pm'
-  - '@types/node'
+  # Locked versions still inside the 48h window. Remove each once it has aged out.
   - 'lucide-react'
   - 'lucide-solid'
   - 'tsdown'
-  - 'nitro-nightly'
-  # Transitive members of the families above, published in the same release trains.
-  - '@storybook/react-dom-shim'
-  - '@tiptap/suggestion'
-  - 'env-runner'
 patchedDependencies:
   # createEventAwareBindings (dist/esm/bindings/tool-to-binding.js:73-115 in 1.0.1) emits
   # code_mode:external_call / external_result / external_error with no call id, so parallel child calls

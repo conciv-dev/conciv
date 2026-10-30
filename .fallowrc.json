@@ -103,7 +103,6 @@
     "collections",
     "@conciv/app-extensions",
     "conciv",
-    "jazz-napi",
     "@oxlint/plugins",
     "@ark-ui/solid",
     "@tanstack/solid-virtual",
