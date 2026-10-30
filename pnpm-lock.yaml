@@ -9,6 +9,12 @@ catalogs:
     '@ark-ui/solid':
       specifier: ^5.39.3
       version: 5.39.3
+    '@blazediff/core':
+      specifier: ^1.10.0
+      version: 1.10.0
+    '@bramus/specificity':
+      specifier: ^2.4.3
+      version: 2.4.3
     '@clack/prompts':
       specifier: ^1.8.1
       version: 1.8.1
@@ -153,9 +159,15 @@ catalogs:
     '@tiptap/pm':
       specifier: ^3.32.1
       version: 3.32.1
+    '@types/culori':
+      specifier: ^4.0.1
+      version: 4.0.1
     '@types/node':
       specifier: ^26.6.6
       version: 26.6.6
+    '@types/pngjs':
+      specifier: ^6.0.5
+      version: 6.0.5
     '@types/react':
       specifier: ^19.3.0
       version: 19.3.0
@@ -192,6 +204,9 @@ catalogs:
     class-variance-authority:
       specifier: ^0.7.1
       version: 0.7.1
+    culori:
+      specifier: ^4.0.2
+      version: 4.0.2
     drizzle-kit:
       specifier: 1.0.0-rc.5
       version: 1.0.0-rc.5
@@ -240,9 +255,15 @@ catalogs:
     p-timeout:
       specifier: ^8.0.0
       version: 8.0.0
+    pixelmatch:
+      specifier: ^8.0.0
+      version: 8.0.0
     playwright:
       specifier: ^1.64.1
       version: 1.64.1
+    pngjs:
+      specifier: ^7.0.0
+      version: 7.0.0
     postcss:
       specifier: ^8.5.32
       version: 8.5.32
@@ -2446,6 +2467,100 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+
+  packages/extensions/design:
+    dependencies:
+      '@blazediff/core':
+        specifier: 'catalog:'
+        version: 1.10.0
+      '@bramus/specificity':
+        specifier: 'catalog:'
+        version: 2.4.3
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../../extension
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../../protocol
+      '@zumer/snapdom':
+        specifier: 'catalog:'
+        version: 3.3.3
+      culori:
+        specifier: 'catalog:'
+        version: 4.0.2
+      oxc-parser:
+        specifier: 'catalog:'
+        version: 0.156.0
+      pixelmatch:
+        specifier: 'catalog:'
+        version: 8.0.0
+      pngjs:
+        specifier: 'catalog:'
+        version: 7.0.0
+      postcss:
+        specifier: 'catalog:'
+        version: 8.5.32
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../../contract
+      '@conciv/embed':
+        specifier: workspace:^
+        version: link:../../embed
+      '@conciv/extension-compiler':
+        specifier: workspace:^
+        version: link:../../extension-compiler
+      '@conciv/extension-testkit':
+        specifier: workspace:^
+        version: link:../../extension-testkit
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../../plugin
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../../vitest-config
+      '@types/culori':
+        specifier: 'catalog:'
+        version: 4.0.1
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      '@types/pngjs':
+        specifier: 'catalog:'
+        version: 6.0.5
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitejs/plugin-react':
+        specifier: 'catalog:'
+        version: 6.1.2(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
+      playwright:
+        specifier: 'catalog:'
+        version: 1.64.1
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.1(react@19.3.1)
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(@arethetypeswrong/core@0.18.3)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
 
   packages/extensions/ios:
     dependencies:
@@ -5087,6 +5202,9 @@ packages:
     resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
     engines: {node: '>=18'}
 
+  '@blazediff/core@1.10.0':
+    resolution: {integrity: sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ==}
+
   '@blazediff/core@1.9.1':
     resolution: {integrity: sha512-ehg3jIkYKulZh+8om/O25vkvSsXXwC+skXmyA87FFx6A/45eqOkZsBltMw/TVteb0mloiGT8oGRTcjRAz66zaA==}
 
@@ -5101,6 +5219,10 @@ packages:
 
   '@bramus/specificity@2.4.2':
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
+    hasBin: true
+
+  '@bramus/specificity@2.4.3':
+    resolution: {integrity: sha512-0GEz8qJWokkUVYQYRukmkSHIFNoBH8QTreeHrAFbvz1XFYc3Y+puhMs8PQ5x8GNugiC2l5jvDBXKLbBIByeSBw==}
     hasBin: true
 
   '@bruits/satteri-darwin-arm64@0.9.5':
@@ -10528,6 +10650,9 @@ packages:
   '@types/css-font-loading-module@0.0.7':
     resolution: {integrity: sha512-nl09VhutdjINdWyXxHWN/w9zlNCfr60JUqJbd24YXUuCwgeL0TpFSdElCwb6cxfB6ybE19Gjj4g0jsgkXxKv1Q==}
 
+  '@types/culori@4.0.1':
+    resolution: {integrity: sha512-43M51r/22CjhbOXyGT361GZ9vncSVQ39u62x5eJdBQFviI8zWp2X5jzqg7k4M6PVgDQAClpy2bUe2dtwEgEDVQ==}
+
   '@types/d3-array@3.2.2':
     resolution: {integrity: sha512-hOLWVbm7uRza0BYXpIIW5pxfrKe0W+D5lrFiAEYR+pb6w3N2SwSMaJbXdUfSEv+dT4MfHBLtn5js0LAWaO6otw==}
 
@@ -10668,6 +10793,9 @@ packages:
 
   '@types/node@26.6.6':
     resolution: {integrity: sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog==}
+
+  '@types/pngjs@6.0.5':
+    resolution: {integrity: sha512-0k5eKfrA83JOZPppLtS2C7OUtyNAl2wKNxfyYl9Q5g9lPkgBl/9hNyAu6HuEH2J4XmIv2znEpkDd0SaZVxW6iQ==}
 
   '@types/react-dom@19.3.0':
     resolution: {integrity: sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q==}
@@ -12361,6 +12489,10 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  culori@4.0.2:
+    resolution: {integrity: sha512-1+BhOB8ahCn4O0cep0Sh2l9KCOfOdY+BXJnKMHFFzDEouSr/el18QwXEMRlOj9UY5nCeA8UN3a/82rUWRBeyBw==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   cytoscape-cose-bilkent@4.1.0:
     resolution: {integrity: sha512-wgQlVIUJF13Quxiv5e1gstZ08rnZj2XaLHGoFMYXz7SkNfCDOOteKBE6SYRfA9WxxI/iBc3ajfDoc6hb/MRAHQ==}
@@ -15720,6 +15852,10 @@ packages:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
     engines: {node: '>= 6'}
 
+  pixelmatch@8.0.0:
+    resolution: {integrity: sha512-cIqOLfh5k52us715qf3B3+kTOxZv+WDv77HN7xokLScYQGYQHi4m/ynoDIPpvF2LvCyUJGyvzY64i0QCXtzu1g==}
+    hasBin: true
+
   pkce-challenge@5.0.1:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
@@ -18313,6 +18449,8 @@ snapshots:
 
   '@bcoe/v8-coverage@1.0.2': {}
 
+  '@blazediff/core@1.10.0': {}
+
   '@blazediff/core@1.9.1': {}
 
   '@braidai/lang@1.1.2': {}
@@ -18325,6 +18463,10 @@ snapshots:
     dependencies:
       css-tree: 3.2.1
     optional: true
+
+  '@bramus/specificity@2.4.3':
+    dependencies:
+      css-tree: 3.2.1
 
   '@bruits/satteri-darwin-arm64@0.9.5':
     optional: true
@@ -23466,6 +23608,8 @@ snapshots:
 
   '@types/css-font-loading-module@0.0.7': {}
 
+  '@types/culori@4.0.1': {}
+
   '@types/d3-array@3.2.2': {}
 
   '@types/d3-axis@3.0.6':
@@ -23628,6 +23772,10 @@ snapshots:
   '@types/node@26.6.6':
     dependencies:
       undici-types: 8.9.0
+
+  '@types/pngjs@6.0.5':
+    dependencies:
+      '@types/node': 26.6.6
 
   '@types/react-dom@19.3.0(@types/react@19.3.0)':
     dependencies:
@@ -25815,6 +25963,8 @@ snapshots:
     optional: true
 
   csstype@3.2.3: {}
+
+  culori@4.0.2: {}
 
   cytoscape-cose-bilkent@4.1.0(cytoscape@3.34.0):
     dependencies:
@@ -29636,6 +29786,10 @@ snapshots:
   picomatch@4.0.7: {}
 
   pirates@4.0.7: {}
+
+  pixelmatch@8.0.0:
+    dependencies:
+      pngjs: 7.0.0
 
   pkce-challenge@5.0.1: {}
 
