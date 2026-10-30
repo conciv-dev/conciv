@@ -5,6 +5,6 @@ export default defineConfig({
   test: {
     ...ciTest(),
     environment: 'node',
-    exclude: [...configDefaults.exclude, 'fixtures/**'],
+    exclude: [...configDefaults.exclude, 'fixtures/**', 'test/fixtures/**'],
   },
 })

@@ -8,6 +8,7 @@ import noSignalRef from './no-signal-ref.js'
 import noTimersInTests from './no-timers-in-tests.js'
 import routerIdioms from './router-idioms.js'
 import solidTestRender from './solid-test-render.js'
+import testFileBudget from './test-file-budget.js'
 import toolCardShell from './tool-card-shell.js'
 
 export default {
@@ -23,6 +24,7 @@ export default {
     'no-timers-in-tests': noTimersInTests,
     'router-idioms': routerIdioms,
     'solid-test-render': solidTestRender,
+    'test-file-budget': testFileBudget,
     'tool-card-shell': toolCardShell,
   },
 }
