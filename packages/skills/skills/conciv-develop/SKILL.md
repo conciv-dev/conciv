@@ -334,7 +334,7 @@ export function bootWhiteboard(): Promise<ExtensionTestApi> {
 `fixtureHost(distDir)` serves a directory your build already produced (build the extension's client
 bundle first — testing against source is testing stale code, the same rule as the widget's own
 prebuilt-bundle tests); `host` can also be a hand-written `async ({apiBase, session}) => {origin,
-close}` for a custom fixture app, as `packages/extensions/tanstack/test/helpers/tanstack-test-api.ts`
+close}` for a custom fixture app, as `packages/extensions/tanstack/test/helpers.ts`
 does with `serveDir`. `callToolApproved` is the variant that also answers the Approve/Deny prompt for
 tools with `approval: 'ask'`. Full API and the two-client (`secondClient`) pattern for realtime
 features: [rpc-and-testing](references/rpc-and-testing.md).
@@ -395,7 +395,7 @@ block and the Next.js-specific JSX constraint on local, non-installed extensions
 - `packages/extensions/terminal/src/client/terminal-context.ts`
 - `packages/extensions/tanstack/src/tool/server.ts`
 - `packages/extensions/tanstack/src/tool/client.ts`
-- `packages/extensions/tanstack/test/helpers/tanstack-test-api.ts`
+- `packages/extensions/tanstack/test/helpers.ts`
 - `packages/extensions/recorder/src/shared/attachment.ts`
 - `packages/extensions/recorder/src/server.ts`
 - `packages/extensions/whiteboard/test/canvas-it-helpers.ts`

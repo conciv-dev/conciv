@@ -1,0 +1,702 @@
+import {afterAll, beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest'
+import {page} from 'vitest/browser'
+import {collectClientEffects, collectClientTools, type ClientEffect, type ClientToolCtx} from '@conciv/extension'
+import {makeDomPageDriver, type PageDriver, installReactBridge} from '@conciv/page'
+import type {PageError} from '@conciv/protocol/page-types'
+import pageExtension from '../src/client.js'
+import {PAGE_TOOL_PREFIX, PAGE_TOOL_DEFS} from '../src/shared/defs.js'
+import {z} from 'zod'
+import {createRoot, type Root} from 'react-dom/client'
+import {watchHotUpdates, type HotSurface} from '../src/client/hmr.js'
+import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
+
+describe('effects', () => {
+  function installBanner(): ClientEffect {
+    let banner: HTMLElement | null = null
+    return {
+      name: 'banner',
+      description: 'shows the fixture banner',
+      enabled: () => banner !== null,
+      set: (enabled) => {
+        if (enabled === (banner !== null)) return
+        if (!enabled) {
+          banner?.remove()
+          banner = null
+          return
+        }
+        banner = document.createElement('div')
+        banner.setAttribute('role', 'note')
+        banner.textContent = 'fixture banner shown'
+        document.body.appendChild(banner)
+      },
+    }
+  }
+
+  let driver: PageDriver
+
+  const banner = () => page.getByText('fixture banner shown')
+
+  const effectResult = async (input: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}effect`, input})
+    if (!outcome.ok) throw new Error(`expected a result, got ${outcome.error.code}: ${outcome.error.message}`)
+    return outcome.result
+  }
+
+  const effectFailure = async (input: Record<string, unknown>): Promise<PageError> => {
+    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}effect`, input})
+    if (outcome.ok) throw new Error('expected a failure, got a result')
+    return outcome.error
+  }
+
+  beforeAll(() => {
+    driver = makeDomPageDriver({
+      tools: collectClientTools([pageExtension]),
+      effects: collectClientEffects([
+        {name: 'fixture-a', effects: [installBanner()]},
+        {name: 'fixture-b', effects: [installBanner()]},
+      ]),
+    })
+  })
+
+  afterAll(() => {
+    driver.dispose()
+  })
+
+  describe('the page_effect verb drives registered host effects', () => {
+    it('lists what exists exactly once per name, with its current state', async () => {
+      expect(await effectResult({action: 'list'})).toEqual({
+        effects: [{name: 'banner', description: 'shows the fixture banner', enabled: false}],
+      })
+    })
+
+    it('enabling visibly changes the page and disabling reverts it', async () => {
+      expect(await effectResult({action: 'enable', effect: 'banner'})).toEqual({effect: 'banner', enabled: true})
+      await expect.element(banner()).toBeVisible()
+      expect(await effectResult({action: 'report', effect: 'banner'})).toEqual({effect: 'banner', enabled: true})
+      expect(await effectResult({action: 'disable', effect: 'banner'})).toEqual({effect: 'banner', enabled: false})
+      await expect.element(banner()).not.toBeInTheDocument()
+    })
+
+    it('toggle flips the effect each call', async () => {
+      expect(await effectResult({action: 'toggle', effect: 'banner'})).toEqual({effect: 'banner', enabled: true})
+      await expect.element(banner()).toBeVisible()
+      expect(await effectResult({action: 'toggle', effect: 'banner'})).toEqual({effect: 'banner', enabled: false})
+      await expect.element(banner()).not.toBeInTheDocument()
+    })
+
+    it('start and stop drive the effect like enable and disable', async () => {
+      expect(await effectResult({action: 'start', effect: 'banner'})).toEqual({effect: 'banner', enabled: true})
+      await expect.element(banner()).toBeVisible()
+      expect(await effectResult({action: 'stop', effect: 'banner'})).toEqual({effect: 'banner', enabled: false})
+      await expect.element(banner()).not.toBeInTheDocument()
+    })
+
+    it('an unknown effect name fails with the declared error naming what exists', async () => {
+      const failure = await effectFailure({action: 'enable', effect: 'confetti'})
+      expect(failure.raised?.code).toBe('UNKNOWN_EFFECT')
+      expect(failure.message).toContain('confetti')
+      expect(failure.message).toContain('banner')
+    })
+
+    it('a driving action without an effect name fails as invalid args', async () => {
+      const failure = await effectFailure({action: 'enable'})
+      expect(failure.code).toBe('invalid-args')
+      expect(failure.message).toContain('list')
+    })
+
+    it('list rejects a passed effect name as invalid args instead of ignoring it', async () => {
+      const failure = await effectFailure({action: 'list', effect: 'banner'})
+      expect(failure.code).toBe('invalid-args')
+      expect(failure.message).toContain('list')
+    })
+
+    it('report on a disabled effect truthfully returns enabled: false', async () => {
+      expect(await effectResult({action: 'report', effect: 'banner'})).toEqual({effect: 'banner', enabled: false})
+      await expect.element(banner()).not.toBeInTheDocument()
+    })
+  })
+})
+
+describe('page tools', () => {
+  let container: HTMLElement
+  let reactRoot: Root
+  let driver: PageDriver
+
+  const leaf = () => page.getByRole('button', {name: /^A:/})
+  const counter = () => page.getByRole('status')
+  const formState = () => page.getByText(/^subscribed:/)
+
+  const declaredOutputOf = (verb: string) => {
+    const tool = PAGE_TOOL_DEFS.find((candidate) => candidate.name === `${PAGE_TOOL_PREFIX}${verb}`)
+    const output = tool?.outputSchema
+    if (!output) throw new Error(`no page tool declares an output for page_${verb}`)
+    return output
+  }
+
+  const resultOf = async (verb: string, input: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
+    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}${verb}`, input})
+    if (!outcome.ok) throw new Error(`expected a result for ${verb}, got ${outcome.error.code}`)
+    const result = {...outcome.result}
+    expect(declaredOutputOf(verb).parse(result)).toEqual(result)
+    return result
+  }
+
+  const failureOf = async (verb: string, input: Record<string, unknown> = {}): Promise<PageError> => {
+    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}${verb}`, input})
+    if (outcome.ok) throw new Error(`expected a failure for ${verb}, got a result`)
+    return outcome.error
+  }
+
+  beforeAll(async () => {
+    installReactBridge()
+    container = document.createElement('div')
+    container.innerHTML = `
+    <input id="field" type="text" />
+    <input id="secret" type="password" />
+    <form id="frm"><button id="inner" type="button">inner</button></form>
+    <p id="prose">hello page</p>
+    <span id="failprobe">probe</span>
+    <select id="sel"><option value="a">A</option><option value="b">B</option></select>
+    <button id="hovbtn">hover me</button>
+    <div id="htmlhost"><i>old</i></div>
+  `
+    document.body.appendChild(container)
+    const mount = document.createElement('div')
+    container.appendChild(mount)
+    reactRoot = createRoot(mount)
+    reactRoot.render(
+      <>
+        <FixtureApp />
+        <ControlledForm />
+      </>,
+    )
+    driver = makeDomPageDriver({tools: collectClientTools([pageExtension])})
+    await vi.waitFor(() => {
+      if (!document.querySelector('[data-fixture="leaf"]')) throw new Error('fixture not rendered yet')
+    })
+  })
+
+  afterAll(() => {
+    reactRoot.unmount()
+    container.remove()
+  })
+
+  describe('target resolution', () => {
+    it('resolves selector, snapshot ref, and React component name targets', async () => {
+      expect(await resultOf('text', {selector: '#prose'})).toEqual({text: 'hello page'})
+      const snapshot = await resultOf('snapshot')
+      const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : []
+      expect(nodes.length).toBeGreaterThan(0)
+      const first = nodes[0] && typeof nodes[0] === 'object' ? {...nodes[0]} : {}
+      const viaRef = await resultOf('text', {ref: String(first.ref)})
+      expect(typeof viaRef.text).toBe('string')
+      const viaName = await resultOf('text', {name: 'Leaf'})
+      expect(String(viaName.text)).toContain('A:')
+    })
+
+    it('explains each way a target can be missing, as an invalid-args failure', async () => {
+      expect(await failureOf('click', {ref: 'v999'})).toEqual({
+        code: 'invalid-args',
+        message: 'stale ref v999; re-run page snapshot',
+      })
+      expect(await failureOf('click', {name: 'Nope'})).toEqual({
+        code: 'invalid-args',
+        message: 'no React component named "Nope" found',
+      })
+      expect(await failureOf('click', {selector: '#missing'})).toEqual({
+        code: 'invalid-args',
+        message: 'no element for selector #missing',
+      })
+      expect(await failureOf('click')).toEqual({
+        code: 'invalid-args',
+        message: 'no target: pass ref, selector, or name',
+      })
+    })
+  })
+
+  describe('dom verbs', () => {
+    it('clicks through React handlers and mirrors the action', async () => {
+      expect(await resultOf('click', {selector: '[data-fixture="leaf"]'})).toEqual({ok: true})
+      await expect.element(leaf()).toMatchTextContent(':1:')
+      expect(document.querySelector('[data-conciv-cursor]')).not.toBeNull()
+    })
+
+    it('fills form fields with native events', async () => {
+      expect(await resultOf('fill', {selector: '#field', value: 'typed'})).toEqual({ok: true, value: 'typed'})
+      expect(await resultOf('value', {selector: '#field'})).toEqual({value: 'typed'})
+      expect(await failureOf('fill', {selector: '#prose', value: 'x'})).toEqual({
+        code: 'invalid-args',
+        message: 'fill target is not an input/textarea/select',
+      })
+    })
+
+    it('masks a password value in the fill and value tool results', async () => {
+      expect(await resultOf('fill', {selector: '#secret', value: 'hunter2'})).toEqual({ok: true, value: '***'})
+      expect(await resultOf('value', {selector: '#secret'})).toEqual({value: '***'})
+    })
+
+    it('drives React-controlled checkboxes and radios so component state follows', async () => {
+      expect(await resultOf('check', {selector: '#subscribe'})).toEqual({ok: true, checked: true})
+      await expect.element(formState()).toMatchTextContent('subscribed: true')
+
+      expect(await resultOf('check', {selector: '#subscribe'})).toEqual({ok: true, checked: true})
+      await expect.element(formState()).toMatchTextContent('subscribed: true')
+
+      expect(await resultOf('uncheck', {selector: '#subscribe'})).toEqual({ok: true, checked: false})
+      await expect.element(formState()).toMatchTextContent('subscribed: false')
+
+      expect(await resultOf('check', {selector: '#plan-pro'})).toEqual({ok: true, checked: true})
+      await expect.element(formState()).toMatchTextContent('plan: pro')
+
+      expect(await failureOf('uncheck', {selector: '#plan-pro'})).toEqual({
+        code: 'invalid-args',
+        message: 'cannot uncheck a radio; check another radio in the same group instead',
+      })
+      await expect.element(formState()).toMatchTextContent('plan: pro')
+
+      expect(await resultOf('check', {selector: '#plan-free'})).toEqual({ok: true, checked: true})
+      await expect.element(formState()).toMatchTextContent('plan: free')
+    })
+
+    it('mutates attributes, classes, styles, text, and structure', async () => {
+      await resultOf('setattr', {selector: '#prose', attribute: 'data-mark', value: 'on'})
+      expect(document.querySelector('#prose')?.getAttribute('data-mark')).toBe('on')
+      expect((await failureOf('setattr', {selector: '#prose', value: 'on'})).code).toBe('invalid-args')
+      await resultOf('removeattr', {selector: '#prose', attribute: 'data-mark'})
+      expect(document.querySelector('#prose')?.hasAttribute('data-mark')).toBe(false)
+      await resultOf('addclass', {selector: '#prose', class: 'hot'})
+      expect(document.querySelector('#prose')?.classList.contains('hot')).toBe(true)
+      await resultOf('settext', {selector: '#prose', text: 'rewritten'})
+      expect(document.querySelector('#prose')?.textContent).toBe('rewritten')
+      await resultOf('insert', {selector: '#prose', html: '<em id="added">x</em>', position: 'after'})
+      expect(document.querySelector('#added')).not.toBeNull()
+      await resultOf('remove', {selector: '#added'})
+      expect(document.querySelector('#added')).toBeNull()
+    })
+
+    it('reports route, existence, and query matches', async () => {
+      const route = await resultOf('route')
+      expect(route.pathname).toBe(location.pathname)
+      expect(await resultOf('exists', {selector: '#frm'})).toEqual({exists: true, count: 1})
+      const query = await resultOf('query', {selector: 'input'})
+      expect(query.count).toBe(5)
+    })
+
+    it('waits for visibility and times out with an explanation', async () => {
+      expect(await resultOf('wait', {selector: '#prose', state: 'visible', timeout: 500})).toEqual({
+        ok: true,
+        state: 'visible',
+      })
+      expect(await failureOf('wait', {selector: '#missing', state: 'visible', timeout: 150})).toEqual({
+        code: 'handler-error',
+        message: 'wait timed out for #missing (visible)',
+      })
+    })
+
+    it('evaluates code and serializes element results', async () => {
+      const value = await resultOf('eval', {code: 'return 2 + 3'})
+      expect(value).toEqual({result: 5})
+      const element = await resultOf('eval', {code: 'return document.querySelector("#frm")'})
+      expect(element.result).toMatchObject({tagName: 'form'})
+    })
+
+    it('returns the value of a bare expression and still runs a statement body', async () => {
+      expect(await resultOf('eval', {code: '2 + 3'})).toEqual({result: 5})
+      expect(await resultOf('eval', {code: 'document.querySelector("#frm").tagName'})).toEqual({result: 'FORM'})
+      expect(await resultOf('eval', {code: 'const a = 1; return a + 1'})).toEqual({result: 2})
+    })
+
+    it('injects css stylesheets', async () => {
+      expect(await resultOf('css', {text: '#prose{letter-spacing:3px}'})).toEqual({ok: true})
+      expect(document.querySelector('style[data-vibe-css]')?.textContent).toContain('letter-spacing')
+    })
+  })
+
+  describe('react verbs through the dispatcher', () => {
+    it('inspects a component and navigates into its props by path', async () => {
+      const full = await resultOf('inspect', {name: 'Leaf'})
+      expect(full.component).toBe('Leaf')
+      const byPath = await resultOf('inspect', {name: 'Leaf', path: 'props.label'})
+      expect(byPath.value).toBe('A')
+      expect(await failureOf('inspect', {name: 'Leaf', path: 'props.missing.deep'})).toEqual({
+        code: 'invalid-args',
+        message: 'path not found: props.missing.deep',
+      })
+    })
+
+    it('overrides props and validates its inputs', async () => {
+      expect((await failureOf('override', {name: 'Counter'})).code).toBe('invalid-args')
+      expect(await failureOf('override', {name: 'Counter', target: 'state', json: '{nope'})).toEqual({
+        code: 'invalid-args',
+        message: '--json is not valid JSON: {nope',
+      })
+      const set = await resultOf('override', {name: 'Counter', target: 'state', path: 'value', json: '77'})
+      expect(set.ok).toBe(true)
+      await expect.element(counter()).toHaveTextContent('77')
+    })
+
+    it('tracks renders between start and stop', async () => {
+      await resultOf('track', {action: 'start'})
+      await resultOf('click', {name: 'Leaf'})
+      await expect.element(leaf()).toMatchTextContent(':2:')
+      const report = await resultOf('track', {action: 'report'})
+      const components = Array.isArray(report.components) ? report.components : []
+      expect(
+        components.some(
+          (entry) => typeof entry === 'object' && entry !== null && 'component' in entry && entry.component === 'Leaf',
+        ),
+      ).toBe(true)
+      const stopped = await resultOf('track', {action: 'stop'})
+      expect(stopped.tracking).toBe(false)
+    })
+  })
+
+  describe('act and edit-live verbs', () => {
+    it('selects an option with native change events', async () => {
+      const changes: string[] = []
+      document.querySelector('#sel')?.addEventListener('change', (event) => {
+        const el = event.target
+        if (el instanceof HTMLSelectElement) changes.push(el.value)
+      })
+      expect(await resultOf('select', {selector: '#sel', value: 'b'})).toEqual({ok: true, value: 'b'})
+      expect(changes).toEqual(['b'])
+      expect(await resultOf('value', {selector: '#sel'})).toEqual({value: 'b'})
+    })
+
+    it('submits the form owning the target without navigating', async () => {
+      const submitted: string[] = []
+      document.querySelector('#frm')?.addEventListener('submit', (event) => {
+        event.preventDefault()
+        submitted.push('submitted')
+      })
+      expect(await resultOf('submit', {selector: '#inner'})).toEqual({ok: true})
+      expect(submitted).toEqual(['submitted'])
+    })
+
+    it('presses a key so keydown and keyup both reach the element', async () => {
+      const keys: string[] = []
+      document.querySelector('#field')?.addEventListener('keydown', (event) => {
+        if (event instanceof KeyboardEvent) keys.push(`down:${event.key}`)
+      })
+      document.querySelector('#field')?.addEventListener('keyup', (event) => {
+        if (event instanceof KeyboardEvent) keys.push(`up:${event.key}`)
+      })
+      expect(await resultOf('press', {selector: '#field', key: 'Enter'})).toEqual({ok: true})
+      expect(keys).toEqual(['down:Enter', 'up:Enter'])
+    })
+
+    it('hovers with bubbling mouseover and mouseenter', async () => {
+      const seen: string[] = []
+      document.querySelector('#hovbtn')?.addEventListener('mouseover', () => seen.push('over'))
+      document.querySelector('#hovbtn')?.addEventListener('mouseenter', () => seen.push('enter'))
+      expect(await resultOf('hover', {selector: '#hovbtn'})).toEqual({ok: true})
+      expect(seen).toEqual(['over', 'enter'])
+    })
+
+    it('scrolls a far-away element into view', async () => {
+      const spacer = document.createElement('div')
+      spacer.style.height = '3000px'
+      const landmark = document.createElement('p')
+      landmark.id = 'far-down'
+      landmark.textContent = 'down here'
+      document.body.append(spacer, landmark)
+      expect(window.scrollY).toBe(0)
+      expect(await resultOf('scroll', {selector: '#far-down'})).toEqual({ok: true})
+      await vi.waitFor(() => {
+        if (window.scrollY === 0) throw new Error('the page has not scrolled yet')
+      })
+      window.scrollTo(0, 0)
+      spacer.remove()
+      landmark.remove()
+    })
+
+    it('replaces inner HTML with sethtml', async () => {
+      expect(await resultOf('sethtml', {selector: '#htmlhost', html: '<em id="fresh">new</em>'})).toEqual({ok: true})
+      expect(document.querySelector('#htmlhost')?.innerHTML).toBe('<em id="fresh">new</em>')
+    })
+  })
+
+  describe('console reads', () => {
+    it('since is inclusive: an entry stamped exactly at since is returned, one past it is not', async () => {
+      console.log('console-marker-inclusive')
+      const all = await resultOf('console')
+      const entries = Array.isArray(all.entries) ? all.entries : []
+      const marker = entries.flatMap((entry) =>
+        typeof entry === 'object' && entry !== null && 'text' in entry && entry.text === 'console-marker-inclusive'
+          ? [entry]
+          : [],
+      )[0]
+      const ts = marker && 'ts' in marker && typeof marker.ts === 'number' ? marker.ts : Number.NaN
+      expect(Number.isNaN(ts)).toBe(false)
+      const atSince = await resultOf('console', {since: ts})
+      const atEntries = Array.isArray(atSince.entries) ? atSince.entries : []
+      expect(
+        atEntries.some(
+          (entry) =>
+            typeof entry === 'object' && entry !== null && 'text' in entry && entry.text === 'console-marker-inclusive',
+        ),
+      ).toBe(true)
+      const pastSince = await resultOf('console', {since: ts + 1})
+      const pastEntries = Array.isArray(pastSince.entries) ? pastSince.entries : []
+      expect(
+        pastEntries.some(
+          (entry) =>
+            typeof entry === 'object' && entry !== null && 'text' in entry && entry.text === 'console-marker-inclusive',
+        ),
+      ).toBe(false)
+    })
+  })
+
+  describe('stale refs', () => {
+    it('a snapshot ref whose element React removed fails as stale instead of acting on a detached node', async () => {
+      const ephemeral = document.createElement('button')
+      ephemeral.id = 'ephemeral-btn'
+      ephemeral.textContent = 'Ephemeral target'
+      container.appendChild(ephemeral)
+      const snapshot = await resultOf('snapshot')
+      const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : []
+      const entry = nodes.flatMap((node) =>
+        typeof node === 'object' && node !== null && 'name' in node && node.name === 'Ephemeral target' ? [node] : [],
+      )[0]
+      const ref = entry && 'ref' in entry ? String(entry.ref) : ''
+      expect(ref).not.toBe('')
+      expect(await resultOf('text', {ref})).toEqual({text: 'Ephemeral target'})
+      ephemeral.remove()
+      expect(await failureOf('text', {ref})).toEqual({
+        code: 'invalid-args',
+        message: `stale ref ${ref}; re-run page snapshot`,
+      })
+    })
+  })
+
+  describe('refs across snapshots', () => {
+    const refOfRole = (snapshot: Record<string, unknown>, role: string): string => {
+      const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : []
+      const entry = nodes.find(
+        (node) => typeof node === 'object' && node !== null && 'role' in node && node.role === role,
+      )
+      return entry && typeof entry === 'object' && 'ref' in entry ? String(entry.ref) : ''
+    }
+
+    it('a ref from an earlier snapshot fails as stale after the page changed instead of aliasing a new element', async () => {
+      const host = document.createElement('div')
+      host.id = 'login-host'
+      host.innerHTML = `
+      <form>
+        <div class="MuiFormControl-root MuiTextField-root">
+          <label for="login-username">Username *</label>
+          <div class="MuiInputBase-root MuiFilledInput-root"><input id="login-username" name="username" type="text" /></div>
+        </div>
+      </form>
+    `
+      container.appendChild(host)
+      const username = refOfRole(await resultOf('snapshot', {selector: '#login-host'}), 'textbox')
+      expect(username).not.toBe('')
+      expect(await resultOf('fill', {ref: username, value: 'demo'})).toEqual({ok: true, value: 'demo'})
+      host.innerHTML = `
+      <nav><a href="#/a">Dashboard</a><a href="#/b">Orders</a><a href="#/c">Invoices</a><a href="#/d">Reviews</a></nav>
+    `
+      await resultOf('snapshot', {selector: '#login-host'})
+      expect(await failureOf('fill', {ref: username, value: 'demo'})).toEqual({
+        code: 'invalid-args',
+        message: `stale ref ${username}; re-run page snapshot`,
+      })
+      host.remove()
+    })
+  })
+
+  describe('page reload', () => {
+    const documentOnly = (): never => {
+      throw new Error('page_reload must read nothing but the document it was handed')
+    }
+
+    const ctxOver = (target: Document): ClientToolCtx => ({
+      document: target,
+      target: documentOnly,
+      resolve: documentOnly,
+      addRef: documentOnly,
+      resetRefs: documentOnly,
+      consoleEntries: documentOnly,
+      effects: [],
+    })
+
+    const nextLoad = (frame: HTMLIFrameElement): Promise<void> =>
+      new Promise((resolve) => frame.addEventListener('load', () => resolve(), {once: true}))
+
+    it('resolves on initiation and the handed-in page really navigates', async () => {
+      const reload = collectClientTools([pageExtension]).find((entry) => entry.name === 'page_reload')
+      if (!reload) throw new Error('no page_reload client tool is mounted')
+      const frame = document.createElement('iframe')
+      frame.srcdoc = '<p id="kept">kept</p>'
+      const firstLoad = nextLoad(frame)
+      document.body.appendChild(frame)
+      await firstLoad
+      const framed = frame.contentDocument
+      if (!framed) throw new Error('the fixture frame has no document')
+      framed.body.appendChild(Object.assign(framed.createElement('span'), {id: 'scribbled'}))
+      expect(framed.getElementById('scribbled')).not.toBeNull()
+
+      const reloaded = nextLoad(frame)
+      const result = await reload.execute({}, ctxOver(framed))
+      expect(declaredOutputOf('reload').parse(result)).toEqual({ok: true, initiated: true})
+
+      await reloaded
+      const after = frame.contentDocument
+      expect(after?.getElementById('kept')).not.toBeNull()
+      expect(after?.getElementById('scribbled')).toBeNull()
+      frame.remove()
+    }, 10_000)
+  })
+
+  describe('screenshot', () => {
+    const CapturedShape = z.object({image: z.string().min(1), width: z.number(), height: z.number()})
+
+    const screenshotOf = async () => {
+      const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
+      if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
+      return CapturedShape.parse(outcome.result)
+    }
+
+    const decoded = async (image: string): Promise<ImageBitmap> => {
+      const response = await fetch(`data:image/webp;base64,${image}`)
+      return createImageBitmap(await response.blob())
+    }
+
+    const centrePixel = (bitmap: ImageBitmap): number[] => {
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('no 2d context to sample the screenshot')
+      context.drawImage(bitmap, 0, 0)
+      return Array.from(context.getImageData(Math.floor(bitmap.width / 2), Math.floor(bitmap.height / 2), 1, 1).data)
+    }
+
+    const isRed = ([red = 0, green = 0, blue = 0]: number[]): boolean => red > 200 && green < 60 && blue < 60
+
+    const coverViewport = (marker?: string): HTMLElement => {
+      const cover = document.createElement('div')
+      if (marker) cover.setAttribute(marker, '')
+      cover.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgb(255,0,0)'
+      document.body.appendChild(cover)
+      onTestFinished(() => cover.remove())
+      return cover
+    }
+
+    it('captures the visible viewport as a webp the size of the window', async () => {
+      const shot = await screenshotOf()
+      expect({width: shot.width, height: shot.height}).toEqual({width: window.innerWidth, height: window.innerHeight})
+      expect(atob(shot.image).slice(8, 12)).toBe('WEBP')
+      const bitmap = await decoded(shot.image)
+      expect({width: bitmap.width, height: bitmap.height}).toEqual({width: shot.width, height: shot.height})
+    }, 10_000)
+
+    it('leaves the conciv widget host out of the capture', async () => {
+      const plain = coverViewport()
+      const covered = centrePixel(await decoded((await screenshotOf()).image))
+      plain.remove()
+      coverViewport('data-conciv-root')
+      const excluded = centrePixel(await decoded((await screenshotOf()).image))
+      expect(isRed(covered)).toBe(true)
+      expect(isRed(excluded)).toBe(false)
+    }, 10_000)
+  })
+
+  describe('page_hmr', () => {
+    type HotListener = (payload: unknown) => void
+
+    function fakeHot() {
+      const listeners = new Map<string, HotListener[]>()
+      const hot: HotSurface = {
+        on: (event, listener) => {
+          listeners.set(event, [...(listeners.get(event) ?? []), listener])
+        },
+      }
+      const fire = (event: string, payload: unknown = {}): void => {
+        for (const listener of listeners.get(event) ?? []) listener(payload)
+      }
+      return {hot, fire}
+    }
+
+    it('reports the hmr tool as not applied when no update lands in time', async () => {
+      expect(await resultOf('hmr', {timeout: 50})).toMatchObject({applied: false})
+    })
+
+    it('reports no hot surface as unsupported', async () => {
+      expect(await watchHotUpdates(undefined)(1000)).toEqual({
+        supported: false,
+        applied: false,
+        waitedMs: 0,
+        error: null,
+      })
+    })
+
+    it('gives up with an explanation when no update ever arrives', async () => {
+      const {hot} = fakeHot()
+      const result = await watchHotUpdates(hot)(60)
+      expect(result).toMatchObject({supported: true, applied: false, error: 'the hot update did not land within 60ms'})
+      expect(result.waitedMs).toBeGreaterThanOrEqual(50)
+    })
+
+    it('reports applied when the wait is called before the update even starts', async () => {
+      const {hot, fire} = fakeHot()
+      const waited = watchHotUpdates(hot)(500)
+      setTimeout(() => fire('vite:beforeUpdate', {type: 'update', updates: []}), 20)
+      setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 40)
+      expect(await waited).toMatchObject({supported: true, applied: true, error: null})
+    })
+
+    it('reports applied at once when the update landed just before the call', async () => {
+      const {hot, fire} = fakeHot()
+      const wait = watchHotUpdates(hot)
+      fire('vite:beforeUpdate', {type: 'update', updates: []})
+      fire('vite:afterUpdate', {type: 'update', updates: []})
+      expect(await wait(500)).toEqual({supported: true, applied: true, waitedMs: 0, error: null})
+    })
+
+    it('waits for an update already in flight instead of reporting the one before it', async () => {
+      const {hot, fire} = fakeHot()
+      const wait = watchHotUpdates(hot)
+      fire('vite:beforeUpdate', {type: 'update', updates: []})
+      fire('vite:afterUpdate', {type: 'update', updates: []})
+      fire('vite:beforeUpdate', {type: 'update', updates: []})
+      const waited = wait(500)
+      setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 40)
+      const result = await waited
+      expect(result).toMatchObject({supported: true, applied: true, error: null})
+      expect(result.waitedMs).toBeGreaterThanOrEqual(30)
+    })
+
+    it('resolves once a pending update is applied', async () => {
+      const {hot, fire} = fakeHot()
+      const wait = watchHotUpdates(hot)
+      fire('vite:beforeUpdate', {type: 'update', updates: []})
+      const waited = wait(500)
+      setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 50)
+      const result = await waited
+      expect(result).toMatchObject({supported: true, applied: true, error: null})
+      expect(result.waitedMs).toBeGreaterThanOrEqual(40)
+      expect(result.waitedMs).toBeLessThan(400)
+    })
+
+    it('reports the error when the pending update fails to build', async () => {
+      const {hot, fire} = fakeHot()
+      const wait = watchHotUpdates(hot)
+      fire('vite:beforeUpdate', {type: 'update', updates: []})
+      const waited = wait(500)
+      fire('vite:error', {type: 'error', err: {message: 'Unexpected token', stack: ''}})
+      expect(await waited).toMatchObject({supported: true, applied: false, error: 'Unexpected token'})
+    })
+
+    it('gives up with an explanation when the pending update never lands', async () => {
+      const {hot, fire} = fakeHot()
+      const wait = watchHotUpdates(hot)
+      fire('vite:beforeUpdate', {type: 'update', updates: []})
+      const result = await wait(60)
+      expect(result).toMatchObject({
+        supported: true,
+        applied: false,
+        error: 'the hot update did not land within 60ms',
+      })
+      expect(result.waitedMs).toBeGreaterThanOrEqual(50)
+    })
+  })
+})

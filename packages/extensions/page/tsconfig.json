@@ -11,5 +11,5 @@
     "jsxImportSource": "solid-js"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "vitest.config.ts"],
-  "exclude": ["test/fixtures/react-app.tsx", "test/page-tools.browser.test.tsx"]
+  "exclude": ["test/fixtures/react-app.tsx", "test/page.browser.test.tsx"]
 }
