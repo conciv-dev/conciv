@@ -1,6 +1,6 @@
 import {createMemo, Index, Show, splitProps, type Component, type JSX, type ParentProps} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {ChatPart as Part, ThinkingPart, ToolCallPart} from '@conciv/ai'
+import type {ChatPart as Part, ThinkingPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry, ToolUIComponent} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import {Primitive, type Slottable} from '../util/primitive.js'

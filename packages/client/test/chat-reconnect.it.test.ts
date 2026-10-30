@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import type {ChatEvent} from '@conciv/ai'
-import {ChatEventType} from '@conciv/ai'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
+import {ChatEventType} from '@conciv/protocol/chat-event-types'
 import {makeRpcClient} from '@conciv/contract'
 import {chatConnection} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'

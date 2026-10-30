@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {InlineShell, parseInput, parseResultPayload, toolStatus} from '@conciv/ui-kit-chat/tools'
 

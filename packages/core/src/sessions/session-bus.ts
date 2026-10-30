@@ -1,4 +1,4 @@
-import type {ChatEvent} from '@conciv/ai'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 type Listener = (chunk: ChatEvent) => void

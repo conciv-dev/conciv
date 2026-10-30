@@ -1,5 +1,5 @@
 import {keyBy} from 'es-toolkit'
-import type {ChatPart, ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/ai'
+import type {ChatPart, ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import {coalesceTurns} from './grouping.js'
 import {toolStatus} from '../tools/primitives/tool-status.js'
 

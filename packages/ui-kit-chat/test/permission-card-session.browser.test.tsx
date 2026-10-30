@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {expect, it} from 'vitest'
 import {page} from 'vitest/browser'
-import type {ToolCallPart} from '@conciv/ai'
+import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import type {PermissionScope} from '@conciv/protocol/chat-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {INERT_TOOL_CTX} from '../src/store/tool-context.js'

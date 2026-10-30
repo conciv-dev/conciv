@@ -1,4 +1,4 @@
-import type {ModelMessage} from '@conciv/ai'
+import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {HarnessImage} from '@conciv/protocol/harness-types'
 
 export function lastUserModelText(messages: ModelMessage[]): string {

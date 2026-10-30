@@ -6,7 +6,7 @@ import {
   type PreparedTextWithSegments,
 } from '@chenglou/pretext'
 import type {Accessor} from 'solid-js'
-import type {ChatPart} from '@conciv/ai'
+import type {ChatPart} from '@conciv/protocol/chat-message-types'
 import {defaultGrouper, groupParts, type GroupNode, type Grouping, type Turn} from '../store/grouping.js'
 import type {TurnEstimate, TurnEstimator} from '../primitives/thread/turn-estimate.js'
 import {

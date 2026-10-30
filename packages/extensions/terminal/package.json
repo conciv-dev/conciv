@@ -72,6 +72,7 @@
     "@conciv/ai": "workspace:*",
     "@conciv/core": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
+    "@conciv/harness": "workspace:*",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

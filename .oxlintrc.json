@@ -119,7 +119,7 @@
         "patterns": [
           {
             "group": ["@tanstack/ai", "@tanstack/ai-*", "@tanstack/ai/**", "@tanstack/ai-*/**"],
-            "message": "Only packages/ai may import @tanstack/ai*; use @conciv/ai and its entries."
+            "message": "Only packages/ai and packages/protocol may import @tanstack/ai*; use @conciv/protocol and the @conciv/ai entries."
           },
           {
             "group": ["@ark-ui", "@ark-ui/**"],
@@ -149,7 +149,7 @@
       }
     },
     {
-      "files": ["packages/ai/**"],
+      "files": ["packages/ai/**", "packages/protocol/**"],
       "rules": {
         "no-restricted-imports": [
           "error",

@@ -1,4 +1,4 @@
-import {defineTool} from '@conciv/ai'
+import {defineTool} from '@conciv/protocol/chat-tool-types'
 import {UiAnswerSchema, UiInputSchema} from '@conciv/protocol/ui-types'
 
 export const concivUiToolDef = defineTool({

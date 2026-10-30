@@ -5,7 +5,7 @@ import ChevronDown from 'lucide-solid/icons/chevron-down'
 import LayoutTemplate from 'lucide-solid/icons/layout-template'
 import MessageCircleOff from 'lucide-solid/icons/message-circle-off'
 import {Button, createListCollection, Select, TextField, TruncatedText} from '@conciv/ui-kit-system'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {
   UiAnswerSchema,
   UiInputSchema,

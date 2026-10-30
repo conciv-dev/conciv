@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {defineTool} from '@conciv/ai'
+import {defineTool} from '@conciv/protocol/chat-tool-types'
 
 export const ExtensionsInput = z.object({
   verb: z.enum(['catalog', 'scaffold', 'validate']),

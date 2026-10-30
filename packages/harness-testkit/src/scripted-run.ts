@@ -1,4 +1,4 @@
-import {ChatEventType, type ChatEvent} from '@conciv/ai'
+import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {createReasoningChunks, createToolCallChunks, createToolResultChunk} from '@conciv/ai/testkit'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 

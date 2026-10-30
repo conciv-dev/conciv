@@ -1,6 +1,6 @@
 import type {Page} from 'playwright'
 import type {AnyExtension} from '@conciv/extension'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 import {bootExtensionServer} from './boot-server.js'
 import {
   makeApprovingCallTool,

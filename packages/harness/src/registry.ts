@@ -1,4 +1,7 @@
-import type {HarnessAdapter, HarnessModel} from '@conciv/protocol/harness-types'
+export {defineHarness} from './_shared/contract.js'
+export type {HarnessAdapter, HarnessChatConfig} from './_shared/contract.js'
+import type {HarnessModel} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from './_shared/contract.js'
 import {claude} from './claude/index.js'
 import {codex} from './codex/index.js'
 import {geminiCli} from './gemini-cli/index.js'

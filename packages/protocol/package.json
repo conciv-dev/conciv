@@ -33,6 +33,22 @@
       "types": "./dist/chat-busy.d.ts",
       "import": "./dist/chat-busy.js"
     },
+    "./chat-message-types": {
+      "types": "./dist/chat-message-types.d.ts",
+      "import": "./dist/chat-message-types.js"
+    },
+    "./chat-event-types": {
+      "types": "./dist/chat-event-types.d.ts",
+      "import": "./dist/chat-event-types.js"
+    },
+    "./chat-tool-types": {
+      "types": "./dist/chat-tool-types.d.ts",
+      "import": "./dist/chat-tool-types.js"
+    },
+    "./usage-types": {
+      "types": "./dist/usage-types.d.ts",
+      "import": "./dist/usage-types.js"
+    },
     "./ui-types": {
       "types": "./dist/ui-types.d.ts",
       "import": "./dist/ui-types.js"
@@ -114,7 +130,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/ai": "workspace:^",
+    "@tanstack/ai": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

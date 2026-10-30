@@ -1,6 +1,6 @@
 import {expect} from 'vitest'
-import {ChatEventType} from '@conciv/ai'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import {ChatEventType} from '@conciv/protocol/chat-event-types'
+import type {HarnessAdapter} from '@conciv/harness'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {bootKit} from './boot.js'
 

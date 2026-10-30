@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {type ChatEvent, ChatEventType} from '@conciv/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {foldChatEvents} from '@conciv/ai/testkit'
 
 const MessageSchema = z

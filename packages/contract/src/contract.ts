@@ -1,6 +1,6 @@
 import {eventIterator, oc} from '@orpc/contract'
 import {z} from 'zod'
-import {type ChatEvent, RunLifecycleSchema} from '@conciv/ai'
+import {type ChatEvent, RunLifecycleSchema} from '@conciv/protocol/chat-event-types'
 import {
   ChatCommandsSchema,
   ChatHistorySchema,

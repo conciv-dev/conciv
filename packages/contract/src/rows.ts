@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {NativeSessionRefSchema, SessionId} from '@conciv/protocol/chat-types'
-import {UsageSnapshotSchema} from '@conciv/ai'
+import {UsageSnapshotSchema} from '@conciv/protocol/usage-types'
 
 export {UsageSnapshotSchema}
 export type UsageSnapshot = z.infer<typeof UsageSnapshotSchema>

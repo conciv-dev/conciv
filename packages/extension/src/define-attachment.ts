@@ -1,5 +1,5 @@
 import type {Component} from 'solid-js'
-import type {ContentPart} from '@conciv/ai'
+import type {ContentPart} from '@conciv/protocol/chat-message-types'
 import type {AttachmentCardProps, AttachmentDocumentPart, AttachmentExpand, ExtensionAttachment} from './types.js'
 
 export type AttachmentBuilder<Ctx = unknown> = ExtensionAttachment & {

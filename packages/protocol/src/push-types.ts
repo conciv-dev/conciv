@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ChatEvent} from '@conciv/ai'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 
 export const PUSH_WS_PATH = '/push-ws'
 export const PUSH_SESSION_PARAM = 'sessionId'

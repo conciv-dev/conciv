@@ -1,5 +1,5 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX} from 'solid-js'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
 export type BashOutput = {stdout?: string; stderr?: string; exitCode?: number}
 

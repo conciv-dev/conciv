@@ -3,15 +3,16 @@ import {
   webSocket,
   type ResumableConnectConnectionAdapter,
   type SubscribeConnectionAdapter,
-  type ModelMessage,
-  type ChatMessage,
+} from '@conciv/ai/client'
+import {type ModelMessage, type ChatMessage} from '@conciv/protocol/chat-message-types'
+import {
   type ChatEvent,
   ChatEventType,
   runLifecycleEvent,
   type RunLifecycle,
   approvalAskOf,
   type ApprovalAsk,
-} from '@conciv/ai'
+} from '@conciv/protocol/chat-event-types'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import type {ChatHydration, RpcClient} from '@conciv/contract'
 import {acquirePushChannel} from './push-channel.js'

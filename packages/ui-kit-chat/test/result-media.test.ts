@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ToolResultPart} from '@conciv/ai'
+import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {parseResultMedia} from '../src/tools/primitives/result-media.js'
 
 function resultOf(content: string): ToolResultPart {

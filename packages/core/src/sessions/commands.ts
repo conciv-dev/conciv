@@ -1,5 +1,5 @@
 import type {ChatCommand, ChatCommands, SessionId} from '@conciv/protocol/chat-types'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 
 export type CommandSource = {harness: HarnessAdapter; cwd: string; basePath: string}
 

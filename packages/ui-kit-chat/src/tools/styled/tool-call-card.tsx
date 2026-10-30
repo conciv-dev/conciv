@@ -1,6 +1,6 @@
 import {createMemo, createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {
   ToolCardEntry,
   ToolCardProps,

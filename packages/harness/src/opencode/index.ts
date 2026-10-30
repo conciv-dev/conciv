@@ -1,6 +1,7 @@
 import {opencode as opencodeAdapter, opencodeModels} from '@conciv/ai/server'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import {defineHarness, type HarnessChatConfig, type HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {type HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {defineHarness, type HarnessChatConfig} from '../_shared/contract.js'
 import {opencodeHistory} from './history.js'
 
 function opencodeMcpEnv(mcpUrl: string, concivSessionId: string): Record<string, string> {

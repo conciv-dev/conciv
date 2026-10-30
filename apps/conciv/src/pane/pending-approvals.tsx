@@ -1,5 +1,6 @@
 import {For, splitProps, type JSX} from 'solid-js'
-import type {ToolCallPart, ApprovalAsk} from '@conciv/ai'
+import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
+import type {ApprovalAsk} from '@conciv/protocol/chat-event-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {genericRowProjection, TracePermissionBlock} from '@conciv/ui-kit-chat/tools'
 

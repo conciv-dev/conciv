@@ -336,10 +336,7 @@ describe('resolution matrix', () => {
     }
     writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest, null, 2))
     const overrideLines = packed.map((entry) => `  '${entry.name}': 'file:${entry.tarball}'`)
-    writeFileSync(
-      join(dir, 'pnpm-workspace.yaml'),
-      ['allowBuilds:', '  isolated-vm: false', 'overrides:', ...overrideLines, ''].join('\n'),
-    )
+    writeFileSync(join(dir, 'pnpm-workspace.yaml'), ['overrides:', ...overrideLines, ''].join('\n'))
   }
 
   function buildFixture(): Fixture {

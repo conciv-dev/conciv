@@ -1,6 +1,6 @@
 import {EventType} from '@tanstack/ai'
 import type {TextAdapter} from '../adapters/adapters.js'
-import type {ChatEvent} from '../events/events.js'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 
 export type RunGuard = {
   ended: Promise<ChatEvent>

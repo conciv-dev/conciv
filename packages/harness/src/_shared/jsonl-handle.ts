@@ -1,6 +1,6 @@
 import {open, stat} from 'node:fs/promises'
 import type {Stats} from 'node:fs'
-import type {ChatMessage} from '@conciv/ai'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {
   TranscriptChunk,
   TranscriptFailure,

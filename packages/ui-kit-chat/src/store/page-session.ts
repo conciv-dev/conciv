@@ -1,5 +1,5 @@
 import {range, uniqBy} from 'es-toolkit'
-import type {ChatPart, ToolCallPart} from '@conciv/ai'
+import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {
   defaultGrouper,

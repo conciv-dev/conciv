@@ -1,6 +1,6 @@
 import {and, eq, isNull} from 'drizzle-orm'
-import type {RunStatus} from '@conciv/ai'
-import type {RunPhase} from '@conciv/ai'
+import type {RunStatus} from '@conciv/protocol/chat-event-types'
+import type {RunPhase} from '@conciv/protocol/chat-event-types'
 import type {ConcivDb} from './db.js'
 import {chatRuns, runs} from './run-schema.js'
 

@@ -1,4 +1,4 @@
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCatalogView, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {INERT_TOOL_CTX} from '../src/store/tool-context.js'
 

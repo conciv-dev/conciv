@@ -1,9 +1,10 @@
 import {z} from 'zod'
-import {ChatEventType, toModelMessages, type ChatEvent, type ChatMessage} from '@conciv/ai'
+import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {toModelMessages, type ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {ChatStores} from '@conciv/ai/server'
 import {anchorKey, TRANSCRIPT_NAMESPACE} from '@conciv/db'
 import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 
 const MCP_PREFIX = /^mcp__.+?__/
 

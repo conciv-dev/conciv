@@ -1,12 +1,7 @@
 import {makeTextAdapter} from '@conciv/ai/server'
-import {ChatEventType, type ChatEvent} from '@conciv/ai'
-import {
-  defineHarness,
-  type HarnessAdapter,
-  type HarnessCapabilities,
-  type HarnessChatConfig,
-  type HarnessChatDeps,
-} from '@conciv/protocol/harness-types'
+import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {type HarnessCapabilities, type HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {defineHarness, type HarnessAdapter, type HarnessChatConfig} from './contract.js'
 
 export function unsupportedChatConfig(id: string, binName: string): (deps: HarnessChatDeps) => HarnessChatConfig {
   return () => ({

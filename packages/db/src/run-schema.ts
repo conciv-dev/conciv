@@ -1,5 +1,5 @@
 import {index, integer, sqliteTable, text} from 'drizzle-orm/sqlite-core'
-import type {RunPhase} from '@conciv/ai'
+import type {RunPhase} from '@conciv/protocol/chat-event-types'
 
 export {chatMetadata, chatRuns, chatThreads} from '@conciv/ai/server'
 

@@ -1,5 +1,5 @@
 import type {z} from 'zod'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 
 export function parseInput<TSchema extends z.ZodType>(
   schema: TSchema,

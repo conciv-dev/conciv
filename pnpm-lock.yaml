@@ -1657,6 +1657,15 @@ importers:
 
   packages/ai:
     dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ~1.8.0
+        version: 1.8.0(zod@4.6.7)
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      '@opencode-ai/sdk':
+        specifier: ^1.19.4
+        version: 1.19.5
       '@tanstack/ai':
         specifier: 'catalog:'
         version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
@@ -1666,15 +1675,15 @@ importers:
       '@tanstack/ai-code-mode':
         specifier: 'catalog:'
         version: 1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
-      '@tanstack/ai-isolate-node':
-        specifier: 'catalog:'
-        version: 1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))
       '@tanstack/ai-isolate-quickjs':
         specifier: 'catalog:'
         version: 1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))
       '@tanstack/ai-persistence':
         specifier: 'catalog:'
         version: 1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)
+      '@tanstack/ai-sandbox':
+        specifier: 'catalog:'
+        version: 1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7)
       '@tanstack/ai-solid':
         specifier: 'catalog:'
         version: 1.0.0(@opentelemetry/api@1.9.1)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.17)(zod@4.6.7)
@@ -1688,15 +1697,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@agentclientprotocol/sdk':
-        specifier: ~1.8.0
-        version: 1.8.0(zod@4.6.7)
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
-      '@opencode-ai/sdk':
-        specifier: ^1.19.4
-        version: 1.19.5
       '@tanstack/ai-acp':
         specifier: 'catalog:'
         version: 1.0.0(@tanstack/ai-sandbox@1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
@@ -1709,9 +1712,6 @@ importers:
       '@tanstack/ai-opencode':
         specifier: 'catalog:'
         version: 1.0.0(@tanstack/ai-sandbox@1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))
-      '@tanstack/ai-sandbox':
-        specifier: 'catalog:'
-        version: 1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7)
       '@tanstack/ai-sandbox-local-process':
         specifier: 'catalog:'
         version: 1.0.0(patch_hash=59897914bf1cea1cc05631c16c4eb474c839117c39f5e2f6494904b72f7d168f)(@tanstack/ai-sandbox@1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7))
@@ -1733,6 +1733,10 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 5.0.5(patch_hash=7189da9e8689d861418382a9ed5eb375dff9411258170717551be5f672ece1cd)(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.0.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1))
+    optionalDependencies:
+      '@tanstack/ai-isolate-node':
+        specifier: 'catalog:'
+        version: 1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))
 
   packages/brand:
     dependencies:
@@ -2017,9 +2021,6 @@ importers:
 
   packages/contract:
     dependencies:
-      '@conciv/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2054,9 +2055,6 @@ importers:
 
   packages/core:
     dependencies:
-      '@conciv/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@conciv/chat':
         specifier: workspace:^
         version: link:../chat
@@ -2118,6 +2116,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/ai':
+        specifier: workspace:^
+        version: link:../ai
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
@@ -2218,9 +2219,6 @@ importers:
       '@ark-ui/solid':
         specifier: 'catalog:'
         version: 5.39.3(solid-js@1.9.17)
-      '@conciv/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@conciv/client':
         specifier: workspace:^
         version: link:../client
@@ -2354,9 +2352,6 @@ importers:
 
   packages/extension:
     dependencies:
-      '@conciv/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
@@ -2485,6 +2480,9 @@ importers:
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
+      '@conciv/harness':
+        specifier: workspace:^
+        version: link:../harness
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
@@ -2595,9 +2593,6 @@ importers:
 
   packages/extensions/page:
     dependencies:
-      '@conciv/ai':
-        specifier: workspace:^
-        version: link:../../ai
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
@@ -2747,6 +2742,9 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../../extension-testkit
+      '@conciv/harness':
+        specifier: workspace:*
+        version: link:../../harness
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
@@ -2959,6 +2957,9 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../../extension-testkit
+      '@conciv/harness':
+        specifier: workspace:*
+        version: link:../../harness
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
@@ -3038,9 +3039,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/ai':
-        specifier: workspace:*
-        version: link:../../ai
       '@conciv/core':
         specifier: workspace:^
         version: link:../../core
@@ -3250,9 +3248,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/ai':
-        specifier: workspace:*
-        version: link:../../ai
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../../extension-testkit
@@ -3778,9 +3773,9 @@ importers:
 
   packages/protocol:
     dependencies:
-      '@conciv/ai':
-        specifier: workspace:^
-        version: link:../ai
+      '@tanstack/ai':
+        specifier: 'catalog:'
+        version: 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4131,9 +4126,6 @@ importers:
 
   packages/tools:
     dependencies:
-      '@conciv/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
@@ -4380,9 +4372,6 @@ importers:
 
   packages/ui-kit-chat-tools:
     dependencies:
-      '@conciv/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@conciv/extension-page':
         specifier: workspace:^
         version: link:../extensions/page
@@ -22513,6 +22502,7 @@ snapshots:
     dependencies:
       '@tanstack/ai-code-mode': 1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
       isolated-vm: 6.1.2
+    optional: true
 
   '@tanstack/ai-isolate-quickjs@1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))':
     dependencies:
@@ -27661,6 +27651,7 @@ snapshots:
   isolated-vm@6.1.2:
     dependencies:
       node-gyp-build: 4.8.4
+    optional: true
 
   iterator.prototype@1.1.5:
     dependencies:

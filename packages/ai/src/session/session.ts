@@ -2,8 +2,14 @@ import type {SubscribeConnectionAdapter} from '@tanstack/ai-client'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
-import {isRunPhaseTerminal, type ApprovalAsk, type RunClockSource, type RunLifecycle} from '../events/events.js'
-import type {ChatMessage, QueuedMessage} from '../messages/messages.js'
+import {
+  isRunPhaseTerminal,
+  type ApprovalAsk,
+  type RunClockSource,
+  type RunLifecycle,
+} from '@conciv/protocol/chat-event-types'
+import type {QueuedMessage} from '@tanstack/ai-client'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 
 export type Chat = UseChatReturn
 

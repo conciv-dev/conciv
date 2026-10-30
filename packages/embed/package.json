@@ -41,7 +41,6 @@
   },
   "dependencies": {
     "@ark-ui/solid": "catalog:",
-    "@conciv/ai": "workspace:^",
     "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",

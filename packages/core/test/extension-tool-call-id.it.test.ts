@@ -5,7 +5,7 @@ import {defineExtension, defineTool} from '@conciv/extension'
 import {createTestHarness} from '@conciv/harness-testkit'
 import {requireClaude} from './helpers/adapters.js'
 import {bootKit} from './helpers/boot.js'
-import {ChatEventType} from '@conciv/ai'
+import {ChatEventType} from '@conciv/protocol/chat-event-types'
 
 const echoCallId = defineTool({
   name: 'acme_echo_call_id',

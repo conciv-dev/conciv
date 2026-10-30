@@ -3,18 +3,16 @@ import {
   modelMessagesToUIMessages,
   uiMessageToModelMessages,
   type ContentPart as LibraryContentPart,
+  type MessagePart,
   type ModelMessage as LibraryModelMessage,
+  type ThinkingPart as LibraryThinkingPart,
+  type ToolCallPart as LibraryToolCallPart,
+  type ToolResultPart as LibraryToolResultPart,
+  type UIMessage,
 } from '@tanstack/ai'
-import type {
-  MessagePart,
-  MultimodalContent,
-  QueuedMessage as LibraryQueuedMessage,
-  ThinkingPart as LibraryThinkingPart,
-  ToolCallPart as LibraryToolCallPart,
-  ToolCallState as LibraryToolCallState,
-  ToolResultPart as LibraryToolResultPart,
-  UIMessage,
-} from '@tanstack/ai-client'
+import type {ToolCallState as LibraryToolCallState} from '@tanstack/ai/client'
+
+export {generateMessageId} from '@tanstack/ai'
 
 export type ChatMessage = UIMessage
 
@@ -31,10 +29,6 @@ export type ToolCallState = LibraryToolCallState
 export type ModelMessage = LibraryModelMessage
 
 export type ContentPart = LibraryContentPart
-
-export type SendContent = MultimodalContent
-
-export type QueuedMessage = LibraryQueuedMessage
 
 export function toModelMessages(messages: readonly ChatMessage[]): ModelMessage[] {
   return messages.flatMap(uiMessageToModelMessages)

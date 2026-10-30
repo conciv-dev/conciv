@@ -4,7 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createChat} from '@conciv/ai/client'
 import {ChatProvider, useThread, useComposer} from './chat-context.js'
 import {storyConnection, createTextChunks, createReasoningChunks, createToolCallChunks} from '@conciv/ai/testkit'
-import type {ChatPart} from '@conciv/ai'
+import type {ChatPart} from '@conciv/protocol/chat-message-types'
 
 const meta: Meta = {title: 'ui-kit-chat/store/ChatProvider'}
 export default meta

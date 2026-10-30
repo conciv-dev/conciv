@@ -4,7 +4,7 @@ import {join} from 'node:path'
 import {DatabaseSync, type StatementSync} from 'node:sqlite'
 import {z} from 'zod'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
-import type {ChatPart, ChatMessage} from '@conciv/ai'
+import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {
   HarnessHistory,
   HarnessSessionMeta,

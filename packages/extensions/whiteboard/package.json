@@ -85,7 +85,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/ai": "workspace:*",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/uno-preset": "workspace:*",

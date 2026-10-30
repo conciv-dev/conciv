@@ -10,7 +10,7 @@ import {
 } from 'solid-js'
 import {createStore, type SetStoreFunction} from 'solid-js/store'
 import type {Chat} from '@conciv/ai/client'
-import type {ChatMessage} from '@conciv/ai'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {chatBusy} from '@conciv/protocol/chat-busy'
 import {diffTurns, type Turn} from './grouping.js'
 

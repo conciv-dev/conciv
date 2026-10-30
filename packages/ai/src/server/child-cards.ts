@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {defineChatMiddleware, generateMessageId} from '@tanstack/ai'
-import {ChatEventType, defineChatEvent, type ChatEvent} from '../events/events.js'
+import {ChatEventType, defineChatEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 
 type ShapeResult = (value: unknown) => unknown
 

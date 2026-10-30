@@ -1,7 +1,7 @@
 import {render} from '@solidjs/testing-library'
 import {expect, it} from 'vitest'
 import {page as browserPage} from 'vitest/browser'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {CardChromeProvider, INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'

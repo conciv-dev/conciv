@@ -1,5 +1,6 @@
 import {codex as codexAdapter} from '@conciv/ai/server'
-import {defineHarness, type HarnessChatConfig, type HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {type HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {defineHarness, type HarnessChatConfig} from '../_shared/contract.js'
 import {definedEntries} from '../_shared/env.js'
 import {codexMcpArgs} from './args.js'
 import {codexHistory} from './history.js'

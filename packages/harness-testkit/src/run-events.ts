@@ -1,4 +1,4 @@
-import {ChatEventType, type ChatEvent, approvalAskOf} from '@conciv/ai'
+import {ChatEventType, type ChatEvent, approvalAskOf} from '@conciv/protocol/chat-event-types'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {z} from 'zod'
 

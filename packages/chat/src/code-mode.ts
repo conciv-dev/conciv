@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {defineTool, type ChatTool} from '@conciv/ai'
+import {defineTool, type ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {ToolRequest} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
 import type {ConcivServerTool} from '@conciv/tools'

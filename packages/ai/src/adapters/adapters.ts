@@ -4,7 +4,7 @@ import {acpCompatible, type AcpCompatibleConfig} from '@tanstack/ai-acp'
 import {claudeCodeText, type ClaudeCodeTextConfig} from '@tanstack/ai-claude-code'
 import {codexText, CODEX_MODELS, type CodexTextConfig} from '@tanstack/ai-codex'
 import {opencodeText, OPENCODE_MODELS, type OpencodeTextConfig} from '@tanstack/ai-opencode'
-import type {ChatEvent} from '../events/events.js'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 
 export type TextAdapter = AnyTextAdapter
 

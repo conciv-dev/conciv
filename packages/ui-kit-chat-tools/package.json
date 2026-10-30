@@ -38,7 +38,6 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/ai": "workspace:^",
     "@conciv/extension-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",

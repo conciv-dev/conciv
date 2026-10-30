@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ChatEvent} from '@conciv/ai'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {connectMcpClient} from './mcp-client.js'
 import {approvalIds} from './run-events.js'

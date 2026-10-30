@@ -1,4 +1,5 @@
-import type {HarnessAdapter, HarnessChatDeps} from '@conciv/protocol/harness-types'
+import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {makeScriptedRun, type ScriptedRun} from './scripted-run.js'
 

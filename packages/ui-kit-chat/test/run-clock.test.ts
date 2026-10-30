@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {RunLifecycle} from '@conciv/ai'
+import type {RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {formatElapsed, runClock, type RunClockSource} from '../src/store/run-clock.js'
 
 function lifecycle(overrides: Partial<RunLifecycle> = {}): RunLifecycle {

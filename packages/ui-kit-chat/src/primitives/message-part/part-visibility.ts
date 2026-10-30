@@ -1,4 +1,4 @@
-import type {ChatPart} from '@conciv/ai'
+import type {ChatPart} from '@conciv/protocol/chat-message-types'
 
 export function partIsModelOnly(part: ChatPart & {metadata?: unknown}): boolean {
   const metadata = part.metadata

@@ -1,6 +1,6 @@
 import {expect, test} from 'vitest'
 import {makeTextAdapter} from '@conciv/ai/server'
-import {ChatEventType} from '@conciv/ai'
+import {ChatEventType} from '@conciv/protocol/chat-event-types'
 import {runAdapterTurn} from '@conciv/ai/testkit'
 import {lastUserModelText} from '../src/_shared/text-adapter.js'
 import {scriptedRunChunks} from './helpers/scripted-chunks.js'

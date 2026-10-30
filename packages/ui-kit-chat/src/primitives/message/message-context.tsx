@@ -1,5 +1,5 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import type {ChatPart} from '@conciv/ai'
+import type {ChatPart} from '@conciv/protocol/chat-message-types'
 import type {ResultPairing, Turn} from '../../store/grouping.js'
 
 export type MessageContextValue = {

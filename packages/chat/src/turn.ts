@@ -1,20 +1,13 @@
 import {existsSync, readFileSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
-import {
-  approvalAskOf,
-  ChatEventType,
-  tokenUsageToSnapshot,
-  toTokenUsage,
-  type ChatEvent,
-  type ContentPart,
-  type ModelMessage,
-  type UsageSnapshot,
-} from '@conciv/ai'
+import {approvalAskOf, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
+import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {TurnHooks} from '@conciv/ai/server'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
 import {isHarnessSessionId, SessionId, type HarnessSessionId} from '@conciv/protocol/chat-types'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 import type {ApprovalStore, UiChannel} from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {normalizedChunk, toolNameNormalizer, type TranscriptImporter} from './transcript.js'

@@ -2,8 +2,13 @@ import {generateMessageId} from '@tanstack/ai'
 import {chat, StreamProcessor} from '@tanstack/ai'
 import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
 import type {TextAdapter} from './adapters/adapters.js'
-import type {ChatMessage, ModelMessage} from './messages/messages.js'
-import {approvalRequestedEvent, ChatEventType, type ChatCustomEvent, type ChatEvent} from './events/events.js'
+import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
+import {
+  approvalRequestedEvent,
+  ChatEventType,
+  type ChatCustomEvent,
+  type ChatEvent,
+} from '@conciv/protocol/chat-event-types'
 
 export {ChatClient} from '@tanstack/ai-client'
 

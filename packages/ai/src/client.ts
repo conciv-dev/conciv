@@ -9,3 +9,11 @@ export type {
   CreateChatOptions,
   CreateChatSessionOptions,
 } from './session/session.js'
+export {fetchServerSentEvents, webSocket} from '@tanstack/ai-client'
+export type {
+  ConnectConnectionAdapter,
+  MultimodalContent as SendContent,
+  QueuedMessage,
+  ResumableConnectConnectionAdapter,
+  SubscribeConnectionAdapter,
+} from '@tanstack/ai-client'

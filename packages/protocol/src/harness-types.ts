@@ -1,5 +1,4 @@
-import type {ModelMessage, ChatMessage} from '@conciv/ai'
-import type {TextAdapter} from '@conciv/ai/server'
+import type {ChatMessage} from './chat-message-types.js'
 import type {HarnessSessionId, SessionId} from './chat-types.js'
 import type {TtyCommand} from './terminal-types.js'
 
@@ -107,12 +106,6 @@ export type HarnessChatDeps = {
   hasTools?: boolean
 }
 
-export type HarnessChatConfig = {
-  adapter: TextAdapter
-  modelOptions?: Record<string, unknown>
-  prepareMessages?: (messages: ModelMessage[]) => ModelMessage[]
-}
-
 export type HarnessSessionMeta = {
   id: HarnessSessionId
   derivedTitle: string
@@ -171,37 +164,4 @@ export type HarnessHistory = HarnessTranscriptPaths & {
   meta?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null>
 
   summary?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionSummary | null>
-}
-
-type HarnessAdapterBase = {
-  id: string
-  binName: string
-
-  displayName?: string
-
-  connect?: HarnessConnect
-  chatConfig: (deps: HarnessChatDeps) => HarnessChatConfig
-
-  models?: HarnessModels
-  defaultModel?: string
-
-  tty?: {command(ctx: HarnessConnectContext): TtyCommand}
-}
-
-export type HarnessAdapter = HarnessAdapterBase &
-  (
-    | {capabilities: HarnessCapabilities & {transcriptHistory: true}; history: HarnessHistory}
-    | {capabilities: HarnessCapabilities & {transcriptHistory: false}; history?: undefined}
-  ) &
-  (
-    | {capabilities: HarnessCapabilities & {slashCommands: 'live' | 'files'}; commands: HarnessCommands}
-    | {capabilities: HarnessCapabilities & {slashCommands: 'none'}; commands?: undefined}
-  ) &
-  (
-    | {capabilities: HarnessCapabilities & {init: 'files'}; init: HarnessInit}
-    | {capabilities: HarnessCapabilities & {init: 'none'}; init?: undefined}
-  )
-
-export function defineHarness<T extends HarnessAdapter>(adapter: T): T {
-  return adapter
 }

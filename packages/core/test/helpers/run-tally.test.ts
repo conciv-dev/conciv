@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {type ChatEvent, runLifecycleEvent} from '@conciv/ai'
+import {type ChatEvent, runLifecycleEvent} from '@conciv/protocol/chat-event-types'
 import {peakLiveRuns} from './run-tally.js'
 
 function lifecycle(runId: string, phase: 'running' | 'completed'): ChatEvent {

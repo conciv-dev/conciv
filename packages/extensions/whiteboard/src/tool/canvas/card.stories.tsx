@@ -1,6 +1,6 @@
 import type {JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {Trace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
 import {storyCtx, storyPart, storyResult, storyResultParts, TRACE_FRAME_CLASS, traceTools} from '../story.fixtures.js'
 

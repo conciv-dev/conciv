@@ -58,7 +58,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@conciv/ai": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/page": "workspace:^",

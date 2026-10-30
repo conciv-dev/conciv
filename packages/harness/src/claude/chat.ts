@@ -1,15 +1,11 @@
 import {randomUUID} from 'node:crypto'
 import {mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import type {ModelMessage} from '@conciv/ai'
+import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {claudeCode} from '@conciv/ai/server'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {
-  FILE_REF_PREFIX,
-  type HarnessChatConfig,
-  type HarnessChatDeps,
-  type HarnessImage,
-} from '@conciv/protocol/harness-types'
+import {FILE_REF_PREFIX, type HarnessChatDeps, type HarnessImage} from '@conciv/protocol/harness-types'
+import {type HarnessChatConfig} from '../_shared/contract.js'
 import {definedEntries} from '../_shared/env.js'
 import {lastUserImages} from '../_shared/text-adapter.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'

@@ -11,7 +11,9 @@ import {
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterEach, describe, expect, it, afterAll, beforeAll, beforeEach} from 'vitest'
-import {type ChatEvent, ChatEventType, type ChatMessage, type TokenUsage} from '@conciv/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
+import {type ChatMessage} from '@conciv/protocol/chat-message-types'
+import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {PAGE_TRANSPORT_ERROR_CODES, type PageOutcome} from '@conciv/protocol/page-types'
 import {

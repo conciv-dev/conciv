@@ -1,5 +1,6 @@
 import {acp} from '@conciv/ai/server'
-import type {HarnessChatConfig, HarnessChatDeps} from '@conciv/protocol/harness-types'
+import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
+import type {HarnessChatConfig} from './contract.js'
 
 export function acpChatConfig(name: string, commandOf: (model: string) => string, defaultModel: string) {
   return (deps: HarnessChatDeps): HarnessChatConfig => ({

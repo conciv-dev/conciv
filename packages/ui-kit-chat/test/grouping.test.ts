@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ChatPart, ChatMessage} from '@conciv/ai'
+import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {
   childCallsFor,

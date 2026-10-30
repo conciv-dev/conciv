@@ -1,7 +1,7 @@
 import {createSignal, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolCallPart} from '@conciv/ai'
+import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {INERT_TOOL_CTX} from '../../store/tool-context.js'
 import {PermissionCard} from './permission-card.js'

@@ -1,4 +1,4 @@
-import {ChatEventType, type ChatEvent} from '@conciv/ai'
+import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {collectToolCalls, makeRunEvents, type RunEvents, type SeenToolCall} from './run-events.js'
 
 export type RunStream = {

@@ -1,7 +1,7 @@
 import {expect, it, test, describe} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
-import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/ai'
+import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ActCard} from '../src/client/cards/act-card.js'
 import {storyAddResult, storyCtx, storyPart, storyResult} from '../src/client/cards/story.fixtures.js'
@@ -278,7 +278,7 @@ describe('grab snapshot frame', () => {
 
   test('the snapshot frame renders the markup in its own document', async () => {
     render(() => (
-      <GrabSnapshotFrame html="<p>Payroll Deposit clone</p>" width={200} height={40} class="block max-w-full" />
+      <GrabSnapshotFrame html="<p>Payroll Deposit clone</p>" width={200} height={40} class="max-w-full block" />
     ))
 
     await expect.element(page.getByTitle('Grabbed element snapshot')).toBeVisible()
@@ -288,7 +288,7 @@ describe('grab snapshot frame', () => {
     render(() => (
       <>
         <iframe title="Unsandboxed control" srcdoc={hostileMarkup('control escaped')} />
-        <GrabSnapshotFrame html={hostileMarkup('snapshot escaped')} width={200} height={40} class="block max-w-full" />
+        <GrabSnapshotFrame html={hostileMarkup('snapshot escaped')} width={200} height={40} class="max-w-full block" />
       </>
     ))
 

@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ToolCallPart} from '@conciv/ai'
+import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import {parseInput} from './tool-util.js'
 

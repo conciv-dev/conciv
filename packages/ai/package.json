@@ -20,10 +20,6 @@
   ],
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
     "./server": {
       "types": "./dist/server.d.ts",
       "import": "./dist/server.js"
@@ -49,26 +45,26 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "~1.8.0",
+    "@conciv/protocol": "workspace:^",
+    "@opencode-ai/sdk": "^1.19.4",
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-client": "catalog:",
     "@tanstack/ai-code-mode": "catalog:",
-    "@tanstack/ai-isolate-node": "catalog:",
     "@tanstack/ai-isolate-quickjs": "catalog:",
     "@tanstack/ai-persistence": "catalog:",
+    "@tanstack/ai-sandbox": "catalog:",
     "@tanstack/ai-solid": "catalog:",
     "drizzle-orm": "catalog:",
     "solid-js": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@agentclientprotocol/sdk": "~1.8.0",
     "@conciv/vitest-config": "workspace:*",
-    "@opencode-ai/sdk": "^1.19.4",
     "@tanstack/ai-acp": "catalog:",
     "@tanstack/ai-claude-code": "catalog:",
     "@tanstack/ai-codex": "catalog:",
     "@tanstack/ai-opencode": "catalog:",
-    "@tanstack/ai-sandbox": "catalog:",
     "@tanstack/ai-sandbox-local-process": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
@@ -76,5 +72,8 @@
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "optionalDependencies": {
+    "@tanstack/ai-isolate-node": "catalog:"
   }
 }

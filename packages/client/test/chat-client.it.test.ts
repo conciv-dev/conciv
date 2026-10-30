@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import type {ChatMessage} from '@conciv/ai'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {ChatClient} from '@conciv/ai/testkit'
 import {makeRpcClient} from '@conciv/contract'
 import {chatConnection} from '../src/chat-connection.js'

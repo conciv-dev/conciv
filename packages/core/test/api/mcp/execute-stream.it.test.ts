@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {type ChatEvent, ChatEventType} from '@conciv/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from '../../helpers/boot.js'

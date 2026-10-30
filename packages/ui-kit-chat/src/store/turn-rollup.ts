@@ -1,7 +1,7 @@
 import {createMemo, type Accessor} from 'solid-js'
 import {countBy} from 'es-toolkit'
 import {z} from 'zod'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {Turn} from './grouping.js'
 import {pairResults} from './grouping.js'
 import {toolStatus} from '../tools/primitives/tool-status.js'

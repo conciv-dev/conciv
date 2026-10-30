@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import type {DebugConfig} from '@tanstack/ai'
 import {createCodeMode, type CodeModeTool, type IsolateDriver} from '@tanstack/ai-code-mode'
-import type {ChatTool} from '../tools/tools.js'
+import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 
 const CODE_MODE_TIMEOUT_MS = 150_000
 

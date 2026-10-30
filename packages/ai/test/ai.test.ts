@@ -13,9 +13,8 @@ import {
   isRunPhaseTerminal,
   runLifecycleEvent,
   type ChatEvent,
-  UsageSnapshotSchema,
-  contextUsedTokens,
-} from '@conciv/ai'
+} from '@conciv/protocol/chat-event-types'
+import {UsageSnapshotSchema, contextUsedTokens} from '@conciv/protocol/usage-types'
 import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {readdirSync, readFileSync, statSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
