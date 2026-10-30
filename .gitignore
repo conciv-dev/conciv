@@ -56,3 +56,6 @@ e2e/*/src/routeTree.gen.ts
 
 
 .scratch/
+
+# written by the next 16.4 dev server
+e2e/nextjs/AGENTS.md
