@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import {ChatEventType, type ChatEvent} from '@conciv/ai/events'
+import {ChatEventType, type ChatEvent} from '@conciv/ai'
 import {StreamProcessor} from '@tanstack/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'

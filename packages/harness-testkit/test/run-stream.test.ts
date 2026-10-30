@@ -1,6 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {ChatEventType, type ChatEvent} from '@conciv/ai/events'
-import type {ChatPart} from '@conciv/ai/messages'
+import {ChatEventType, type ChatEvent, type ChatPart} from '@conciv/ai'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {makeRunStream} from '../src/run-stream.js'
 

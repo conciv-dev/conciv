@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
+import {type ChatEvent, ChatEventType} from '@conciv/ai'
 import type {PageOutcome} from '@conciv/protocol/page-types'
 import {
   autoApprove,

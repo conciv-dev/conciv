@@ -1,5 +1,4 @@
-import type {ChatEvent} from '@conciv/ai/events'
-import type {ChatMessage} from '@conciv/ai/messages'
+import type {ChatEvent, ChatMessage} from '@conciv/ai'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageOutcome} from '@conciv/protocol/page-types'
 import type {PageCaptureBundle, SessionCaptures} from '@conciv/protocol/element-capture-types'

@@ -1,4 +1,4 @@
-import {ChatEventType, type ChatEvent, approvalAskOf} from '@conciv/ai/events'
+import {ChatEventType, type ChatEvent, approvalAskOf} from '@conciv/ai'
 import {StreamProcessor} from '@tanstack/ai'
 import {z} from 'zod'
 

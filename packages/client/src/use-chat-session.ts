@@ -1,9 +1,8 @@
-import type {QueuedMessage} from '@conciv/ai/messages'
+import {type QueuedMessage, type ApprovalAsk, isRunPhaseTerminal, type RunClockSource} from '@conciv/ai'
 import {useChat} from '@tanstack/ai-solid'
 import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import type {ChatPendingApproval, RpcClient} from '@conciv/contract'
-import {type ApprovalAsk, isRunPhaseTerminal, type RunClockSource} from '@conciv/ai/events'
 import {chatConnection, type ChatConnectionOptions} from './chat-connection.js'
 
 export type UseChatSessionOptions = {

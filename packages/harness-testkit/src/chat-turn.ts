@@ -1,5 +1,5 @@
 import {webSocket} from '@tanstack/ai-client'
-import type {ChatMessage} from '@conciv/ai/messages'
+import type {ChatMessage} from '@conciv/ai'
 import {CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {makeRunStream, type RunStream} from './run-stream.js'
 

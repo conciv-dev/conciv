@@ -1,14 +1,12 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
-import {makeTextAdapter, type TextAdapterOptions} from '@conciv/ai/adapters'
+import {type ChatEvent, ChatEventType, type ChatMessage} from '@conciv/ai'
+import {makeTextAdapter, type TextAdapterOptions, createMessageFold} from '@conciv/ai/server'
 import type {ToolRequest} from '@conciv/extension'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {makeCodeMode} from '@conciv/chat/code-mode'
 import {codeModeToolChunks} from '@conciv/chat/code-mode-parts'
 import type {CodeCapability} from '@conciv/chat/capabilities'
-import {createMessageFold} from '@conciv/ai/server'
-import type {ChatMessage} from '@conciv/ai/messages'
 import {toolTurn} from '@conciv/ai/server-testkit'
 
 const request: ToolRequest = {sessionId: SessionId.parse('conciv_x'), model: null}

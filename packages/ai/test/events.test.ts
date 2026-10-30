@@ -11,7 +11,7 @@ import {
   defineChatEvent,
   isRunPhaseTerminal,
   runLifecycleEvent,
-} from '../src/events.js'
+} from '../src/index.js'
 
 const lifecycle = {
   runId: 'r1',

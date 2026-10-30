@@ -2,7 +2,7 @@ import {readdir, stat, readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
-import type {ChatPart, ChatMessage} from '@conciv/ai/messages'
+import type {ChatPart, ChatMessage} from '@conciv/ai'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {
   HarnessHistory,

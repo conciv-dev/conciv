@@ -1,5 +1,4 @@
-import {ChatEventType, type ChatEvent} from '@conciv/ai/events'
-import type {ChatMessage} from '@conciv/ai/messages'
+import {ChatEventType, type ChatEvent, type ChatMessage} from '@conciv/ai'
 import type {ChatHistory} from '@conciv/protocol/chat-types'
 
 const MCP_PREFIX = /^mcp__.+?__/

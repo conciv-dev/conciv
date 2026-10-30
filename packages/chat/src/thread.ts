@@ -1,4 +1,4 @@
-import {toChatMessages, toModelMessages, type ChatMessage} from '@conciv/ai/messages'
+import {toChatMessages, toModelMessages, type ChatMessage} from '@conciv/ai'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ConcivDb} from '@conciv/db'
 import {readThread, threadMessages, updateThread} from './thread-queries.js'

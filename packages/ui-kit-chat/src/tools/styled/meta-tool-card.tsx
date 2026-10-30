@@ -1,7 +1,7 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import {z} from 'zod'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai/messages'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import type {ToolCardProps, ToolViewCtx, ToolViewError, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {parseInput, parseResultPayload, resultText} from '../primitives/tool-util.js'

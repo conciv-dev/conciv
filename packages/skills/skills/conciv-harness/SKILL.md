@@ -17,7 +17,7 @@ flag wrong and TypeScript rejects the adapter, not a runtime check.
 
 The one documented failure mode this skill exists to prevent: an adapter that spawns or decodes the
 CLI itself, or special-cases the harness id in core/widget code, instead of returning a
-`@conciv/ai/adapters` text adapter from `chatConfig()` and letting `chat()` (with the conciv sandbox +
+`@conciv/ai/server` text adapter from `chatConfig()` and letting `chat()` (with the conciv sandbox +
 permission-gate middleware) own the process lifecycle. Every existing adapter (`claude`, `codex`) goes
 through that one seam — a new harness that bypasses it duplicates process management, loses abort
 handling, and loses the sandbox's `dir`-scoped filesystem.
@@ -116,7 +116,7 @@ export type HarnessChatConfig = {
 
 (`packages/protocol/src/harness-types.ts:99-114`.) `chatConfig` is a plain function, `deps =>
 HarnessChatConfig` — no async, no side effects at call time. Its `adapter` comes from a
-`@conciv/ai/adapters` factory for CLIs that have one (`codex`, `claudeCode`, `opencode`, `acp`, thin
+`@conciv/ai/server` factory for CLIs that have one (`codex`, `claudeCode`, `opencode`, `acp`, thin
 typed wrappers over the published `@tanstack/ai-*` adapters); if none exists for your CLI, build one
 with `makeTextAdapter(name, stream)` from `packages/ai/src/adapters.ts`, where `stream` is your own
 `AsyncIterable<ChatEvent>` producer. Harness code never imports `@tanstack/ai*` directly. Prefer **declaring** the launch command and letting the adapter

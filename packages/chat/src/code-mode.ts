@@ -9,12 +9,17 @@ import {
   type IsolateDriver,
   type ToolBinding,
 } from '@conciv/ai/server'
-import {defineTool, type ChatTool} from '@conciv/ai/tools'
+import {
+  defineTool,
+  type ChatTool,
+  codeModeToolCallEvent,
+  codeModeToolErrorEvent,
+  codeModeToolResultEvent,
+} from '@conciv/ai'
 import type {ToolRequest} from '@conciv/extension'
 import type {CodeCapability} from './capabilities.js'
 import type {ToolRunContext} from './runtime.js'
 import {approvalRefusal, noListenerRefusal, requiresApproval, type PermissionGate} from './gate.js'
-import {codeModeToolCallEvent, codeModeToolErrorEvent, codeModeToolResultEvent} from '@conciv/ai/events'
 import {logError} from './debug.js'
 import {cappedValue} from './result-cap.js'
 import type {SessionId} from '@conciv/protocol/chat-types'

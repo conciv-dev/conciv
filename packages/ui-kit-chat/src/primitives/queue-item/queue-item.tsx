@@ -2,10 +2,10 @@ import {createContext, useContext, type JSX} from 'solid-js'
 import {Primitive} from '../util/primitive.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useChatContext} from '../../store/chat-context.js'
-import type {SendContent, QueuedMessage} from '@conciv/ai/messages'
+import type {SendContent, QueuedMessage} from '@conciv/ai'
 import {useComposerHandlers} from '../composer/composer-handlers.js'
 
-export type {QueuedMessage} from '@conciv/ai/messages'
+export type {QueuedMessage} from '@conciv/ai'
 
 const QueueItemContext = createContext<QueuedMessage>()
 

@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {ChatEventType} from '@conciv/ai/events'
+import {ChatEventType} from '@conciv/ai'
 import {aguiSnapshotFor, UiAnswerSchema, UiAnswerValueSchema, UiInputSchema} from '../src/ui-types.js'
 
 describe('snapshot event', () => {

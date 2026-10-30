@@ -1,6 +1,6 @@
 import {isEqual} from 'es-toolkit'
 import type {JSX} from 'solid-js'
-import type {ChatPart, ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/ai/messages'
+import type {ChatPart, ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/ai'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 

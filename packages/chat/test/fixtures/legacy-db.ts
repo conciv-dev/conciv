@@ -1,7 +1,7 @@
 import {mkdirSync} from 'node:fs'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
-import type {ChatMessage} from '@conciv/ai/messages'
+import type {ChatMessage} from '@conciv/ai'
 import {CODE_MODE_SYNTHETIC_PART_MARKER} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {drizzle} from 'drizzle-orm/node-sqlite'

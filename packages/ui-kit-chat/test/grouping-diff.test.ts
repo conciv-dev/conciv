@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ChatPart, ChatMessage} from '@conciv/ai/messages'
+import type {ChatPart, ChatMessage} from '@conciv/ai'
 import {coalesceTurns, defaultGrouper, diffTurns, groupParts, type GroupNode} from '../src/store/grouping.js'
 
 function user(id: string, text: string): ChatMessage {

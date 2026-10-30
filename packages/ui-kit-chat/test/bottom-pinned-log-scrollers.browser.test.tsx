@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {createSignal, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import type {ChatMessage} from '@conciv/ai/messages'
+import type {ChatMessage} from '@conciv/ai'
 import {Activity} from '../src/styled/activity.js'
 import {mountView} from './mount-view.js'
 

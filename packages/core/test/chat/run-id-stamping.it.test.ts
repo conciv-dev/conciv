@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
-import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
+import {type ChatEvent, ChatEventType} from '@conciv/ai'
 import {defineHarness} from '@conciv/protocol/harness-types'
-import {makeTextAdapter} from '@conciv/ai/adapters'
+import {makeTextAdapter} from '@conciv/ai/server'
 import {createTestkit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 

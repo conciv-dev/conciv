@@ -1,5 +1,5 @@
-import {makeTextAdapter} from '@conciv/ai/adapters'
-import {ChatEventType, type ChatEvent} from '@conciv/ai/events'
+import {makeTextAdapter} from '@conciv/ai/server'
+import {ChatEventType, type ChatEvent} from '@conciv/ai'
 import {
   defineHarness,
   type HarnessAdapter,

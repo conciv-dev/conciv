@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
+import {type ChatEvent, ChatEventType} from '@conciv/ai'
 import {codeModeToolChunks} from '@conciv/chat/code-mode-parts'
 import {createMessageFold} from '@conciv/ai/server'
 

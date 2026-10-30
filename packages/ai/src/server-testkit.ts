@@ -4,11 +4,11 @@ import {fetchServerSentEvents, webSocket} from '@tanstack/ai-client'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineAIPersistence, reconstructChat} from '@tanstack/ai-persistence'
 import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
-import type {ChatEvent} from './events.js'
-import type {TextAdapter} from './adapters.js'
-import type {ChatMessage, ModelMessage} from './messages.js'
-import type {ChatTool} from './tools.js'
-import {createMessageFold, type MessageStore, type MetadataStore, type RunStore} from './server.js'
+import type {ChatEvent} from './events/events.js'
+import type {TextAdapter} from './adapters/adapters.js'
+import type {ChatMessage, ModelMessage} from './messages/messages.js'
+import type {ChatTool} from './tools/tools.js'
+import {createMessageFold, type MessageStore, type MetadataStore, type RunStore} from './server/server.js'
 
 export function foldChatEvents(events: Iterable<ChatEvent>): ChatMessage[] {
   const fold = createMessageFold()

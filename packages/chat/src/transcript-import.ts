@@ -1,4 +1,4 @@
-import {toModelMessages, type ChatMessage} from '@conciv/ai/messages'
+import {toModelMessages, type ChatMessage} from '@conciv/ai'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'

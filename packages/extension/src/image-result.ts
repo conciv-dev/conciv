@@ -1,4 +1,4 @@
-import type {ContentPart} from '@conciv/ai/messages'
+import type {ContentPart} from '@conciv/ai'
 
 function stringifyDetail(detail: unknown): string {
   try {

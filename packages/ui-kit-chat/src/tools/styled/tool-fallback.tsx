@@ -1,7 +1,7 @@
 import {createSignal, Show, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible} from '@conciv/ui-kit-system'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai/messages'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import type {ToolCardProps, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {fallbackErrorText, ToolFallback as ToolFallbackPrimitive, useToolFallback} from '../primitives/tool-fallback.js'
 import {Permission, usePermission} from '../primitives/permission.js'

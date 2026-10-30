@@ -4,7 +4,7 @@ import {bootKit} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 import {hydratedSnapshot} from '../helpers/fake-session.js'
 import {userTexts} from '../helpers/snapshots.js'
-import {ChatEventType} from '@conciv/ai/events'
+import {ChatEventType} from '@conciv/ai'
 
 const SESSIONS = 4
 const WARMUP_RUNS = 8

@@ -1,4 +1,4 @@
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai/messages'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 
 export type ToolStatus = 'running' | 'complete' | 'error' | 'approval'
 

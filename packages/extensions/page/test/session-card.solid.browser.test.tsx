@@ -2,7 +2,7 @@ import {createSignal, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {expect, test} from 'vitest'
 import {page} from 'vitest/browser'
-import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/ai/messages'
+import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/ai'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
 import {SessionCard} from '../src/client/cards/session-card.js'
 

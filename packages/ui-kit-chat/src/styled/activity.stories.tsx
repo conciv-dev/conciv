@@ -1,7 +1,7 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, waitFor, within, userEvent} from 'storybook/test'
 import type {JSX} from 'solid-js'
-import type {ChatPart, ToolCallPart, ChatMessage} from '@conciv/ai/messages'
+import type {ChatPart, ToolCallPart, ChatMessage} from '@conciv/ai'
 import {Activity} from './activity.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/Activity'}

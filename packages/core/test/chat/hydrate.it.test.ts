@@ -2,7 +2,7 @@ import {describe, it, expect} from 'vitest'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {asSnapshot, assistantTexts, userTexts} from '../helpers/snapshots.js'
 import {SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
-import {ChatEventType} from '@conciv/ai/events'
+import {ChatEventType} from '@conciv/ai'
 
 describe('chat.hydrate serves a thread and the run still generating on it (IT)', () => {
   const sessions = useFakeSessions()

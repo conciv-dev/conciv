@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatEvent} from '@conciv/ai'
 import {approvalIds} from '@conciv/harness-testkit'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {createAskRegistry} from '@conciv/chat/ask'

@@ -2,7 +2,7 @@ import {render} from '@solidjs/testing-library'
 import {expect, it} from 'vitest'
 import {page as browserPage} from 'vitest/browser'
 import type {JSX} from 'solid-js'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai/messages'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
 import {CodeRunCard, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 

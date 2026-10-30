@@ -1,5 +1,5 @@
 import {createAsyncQueue, type AsyncQueue} from '@conciv/ai/server'
-import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatEvent} from '@conciv/ai'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ChatDeps} from './runtime.js'
 

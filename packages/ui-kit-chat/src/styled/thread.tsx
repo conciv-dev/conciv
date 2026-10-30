@@ -14,7 +14,7 @@ import {
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
-import type {ChatPart, ToolCallPart} from '@conciv/ai/messages'
+import type {ChatPart, ToolCallPart} from '@conciv/ai'
 import type {ToolCardEntry, ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {useChatContext, useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'

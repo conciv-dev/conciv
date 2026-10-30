@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ChatPart} from '@conciv/ai/messages'
+import type {ChatPart} from '@conciv/ai'
 import {PAGE_SESSION_GROUP_KEY, type ToolCallPartWithParent} from '../src/store/grouping.js'
 import {createPageSessionGrouper} from '../src/store/page-session.js'
 

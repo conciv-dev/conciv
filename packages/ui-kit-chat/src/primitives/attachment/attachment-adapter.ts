@@ -1,4 +1,4 @@
-import type {SendContent} from '@conciv/ai/messages'
+import type {SendContent} from '@conciv/ai'
 import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/protocol/chat-types'
 
 type ContentParts = Exclude<SendContent['content'], string>

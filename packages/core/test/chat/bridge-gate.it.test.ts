@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {Client} from '@modelcontextprotocol/sdk/client/index.js'
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {gateProvisioner} from '@conciv/chat/gate'
-import {defineTool} from '@conciv/ai/tools'
+import {defineTool} from '@conciv/ai'
 import type {ProvisionedTools} from '@conciv/ai/server'
 
 async function callBridgeTool(bridge: ProvisionedTools, name: string, args: unknown): Promise<string> {

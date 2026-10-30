@@ -1,5 +1,5 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai/messages'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {
   clip,

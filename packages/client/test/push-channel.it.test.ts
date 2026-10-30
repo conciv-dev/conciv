@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {approvalIds} from '@conciv/harness-testkit'
-import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatEvent} from '@conciv/ai'
 import {PushFrameSchema, type PushFrame} from '@conciv/protocol/push-types'
 import {acquirePushChannel, livePushChannelCount, pushSocketUrl, type PageQueryFrame} from '../src/push-channel.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'

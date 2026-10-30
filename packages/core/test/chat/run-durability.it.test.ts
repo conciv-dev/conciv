@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, it, vi} from 'vitest'
-import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
+import {type ChatEvent, ChatEventType} from '@conciv/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {MadeApp} from '../../src/app.js'
 import {makeTurn} from '@conciv/chat/run'

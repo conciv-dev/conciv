@@ -1,4 +1,4 @@
-import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatEvent} from '@conciv/ai'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {makeTurn, type UserContent} from '@conciv/chat/run'
 import type {ChatDeps} from '@conciv/chat/runtime'

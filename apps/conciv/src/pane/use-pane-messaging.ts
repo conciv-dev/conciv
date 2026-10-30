@@ -1,7 +1,7 @@
 import {useMutation, type CreateMutationResult} from '@tanstack/solid-query'
 import type {ChatSession} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
-import type {SendContent} from '@conciv/ai/messages'
+import type {SendContent} from '@conciv/ai'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {AppData} from '../data/app-data.js'
 import type {EngineNotices} from '../shell/notice-context.js'

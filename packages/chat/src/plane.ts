@@ -1,6 +1,5 @@
 import {defineLocalSandbox} from '@conciv/ai/server'
-import type {ChatEvent} from '@conciv/ai/events'
-import type {ChatMessage} from '@conciv/ai/messages'
+import type {ChatEvent, ChatMessage} from '@conciv/ai'
 import type {ChatHydration} from '@conciv/contract'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PendingApproval} from './ask.js'

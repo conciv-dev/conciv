@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ToolResultPart} from '@conciv/ai/messages'
+import type {ToolResultPart} from '@conciv/ai'
 import {resultText} from './tool-util.js'
 
 const ImagePartSchema = z

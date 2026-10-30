@@ -1,4 +1,4 @@
-import {acp, type AcpPermissionOutcome, type AcpPermissionRequest} from '@conciv/ai/adapters'
+import {acp, type AcpPermissionOutcome, type AcpPermissionRequest} from '@conciv/ai/server'
 import type {HarnessChatConfig, HarnessChatDeps} from '@conciv/protocol/harness-types'
 
 export function acpPermissionHandler(decide: HarnessChatDeps['decide']) {

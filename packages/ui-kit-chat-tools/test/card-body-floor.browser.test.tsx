@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {expect, it} from 'vitest'
 import {page} from 'vitest/browser'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai/messages'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
 import {SearchCard} from '../src/styled/tools/search-card.js'
 import {ToolLookupCard} from '../src/styled/tools/tool-lookup-card.js'

@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
-import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatEvent} from '@conciv/ai'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {approvalIds} from './run-events.js'
 import {makeRpcClient} from './session.js'

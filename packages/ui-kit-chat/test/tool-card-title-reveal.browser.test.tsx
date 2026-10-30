@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {expect, it} from 'vitest'
 import {page} from 'vitest/browser'
-import type {ToolCallPart} from '@conciv/ai/messages'
+import type {ToolCallPart} from '@conciv/ai'
 import {ToolCard} from '../src/tools/styled/tool-card.js'
 import {mountView} from './mount-view.js'
 

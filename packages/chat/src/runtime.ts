@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {memoryDurability, type RunStore, type SandboxDefinition, type StreamDurability} from '@conciv/ai/server'
-import type {ChatMessage} from '@conciv/ai/messages'
+import type {ChatMessage} from '@conciv/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {ConcivDb} from '@conciv/db'
 import {createRunStore} from './run-store.js'

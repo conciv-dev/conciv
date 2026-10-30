@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import type {ToolCallPart} from '@conciv/ai/messages'
+import type {ToolCallPart} from '@conciv/ai'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {PermissionScope} from '@conciv/protocol/chat-types'
 import {TracePermissionBlock} from '../src/styled/trace/permission-block.js'

@@ -14,7 +14,7 @@ import {
   type OpencodePermissionRequest as LibraryOpencodePermissionRequest,
   type OpencodeTextConfig,
 } from '@tanstack/ai-opencode'
-import type {ChatEvent} from './events.js'
+import type {ChatEvent} from '../events/events.js'
 
 export type TextAdapter = AnyTextAdapter
 

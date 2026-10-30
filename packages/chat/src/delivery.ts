@@ -1,7 +1,6 @@
 import {Hono} from 'hono'
 import {z} from 'zod'
-import type {ModelMessage, ChatMessage} from '@conciv/ai/messages'
-import type {ChatEvent} from '@conciv/ai/events'
+import type {ModelMessage, ChatMessage, ChatEvent} from '@conciv/ai'
 import {
   resumeTurnEvents,
   serveTurnEvents,

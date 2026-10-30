@@ -1,6 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
-import type {ChatMessage} from '@conciv/ai/messages'
+import type {ChatEvent, ChatMessage} from '@conciv/ai'
 import {EventType} from '@tanstack/ai'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {chatConnection, type ChatConnection, type ChatTransport} from '../src/chat-connection.js'

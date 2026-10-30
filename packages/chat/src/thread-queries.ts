@@ -1,5 +1,5 @@
 import {and, eq, like} from 'drizzle-orm'
-import type {ModelMessage} from '@conciv/ai/messages'
+import type {ModelMessage} from '@conciv/ai'
 import {
   anchorKey,
   chatMetadata,

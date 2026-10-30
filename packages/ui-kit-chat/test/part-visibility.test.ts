@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {partIsModelOnly} from '../src/primitives/message-part/part-visibility.js'
-import type {ChatPart} from '@conciv/ai/messages'
+import type {ChatPart} from '@conciv/ai'
 import {defaultGrouper, groupParts} from '../src/store/grouping.js'
 
 function modelOnlyText(content: string): ChatPart {

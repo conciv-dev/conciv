@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import type {TextAdapter} from '@conciv/ai/adapters'
+import type {TextAdapter} from '@conciv/ai/server'
 import {defineHarness, type TranscriptHandle} from '../src/harness-types.js'
 
 const stubHandle: TranscriptHandle = {

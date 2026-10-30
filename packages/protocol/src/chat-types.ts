@@ -1,6 +1,5 @@
 import {z} from 'zod'
-import type {ChatMessage} from '@conciv/ai/messages'
-import {UsageSnapshotSchema} from '@conciv/ai/usage'
+import {type ChatMessage, UsageSnapshotSchema} from '@conciv/ai'
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from './rpc-types.js'
 
 export const CONCIV_SESSION_HEADER = 'conciv-session-id'

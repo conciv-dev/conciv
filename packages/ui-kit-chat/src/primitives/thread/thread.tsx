@@ -15,7 +15,7 @@ import {
 import {Dynamic} from 'solid-js/web'
 import {createStore} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
-import type {ChatMessage} from '@conciv/ai/messages'
+import type {ChatMessage} from '@conciv/ai'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useComposer, useThread} from '../../store/chat-context.js'
 import {pairResults, type Turn} from '../../store/grouping.js'

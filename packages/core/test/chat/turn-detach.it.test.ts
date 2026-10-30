@@ -6,7 +6,7 @@ import {createTestkit, type Kit, type RunStream} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 import {makeRunEndProbe} from '../helpers/run-end-probe.js'
-import {ChatEventType} from '@conciv/ai/events'
+import {ChatEventType} from '@conciv/ai'
 
 const claude = requireClaude()
 const dirs: string[] = []

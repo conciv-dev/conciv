@@ -1,5 +1,5 @@
 import {Hono} from 'hono'
-import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatEvent} from '@conciv/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PushFrame} from '@conciv/protocol/push-types'
 import type {SocketSink, UpgradeWebSocket} from '@conciv/chat/socket-upgrade'

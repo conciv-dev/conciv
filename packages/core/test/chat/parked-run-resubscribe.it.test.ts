@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
+import {type ChatEvent, ChatEventType} from '@conciv/ai'
 import {SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
 
 function textDeltas(chunks: readonly ChatEvent[]): string[] {

@@ -1,4 +1,4 @@
-import {opencode as opencodeAdapter, opencodeModels, type OpencodePermissionRequest} from '@conciv/ai/adapters'
+import {opencode as opencodeAdapter, opencodeModels, type OpencodePermissionRequest} from '@conciv/ai/server'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {defineHarness, type HarnessChatConfig, type HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {opencodeHistory} from './history.js'

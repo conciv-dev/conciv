@@ -11,7 +11,7 @@ import {
 } from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
-import type {SendContent} from '@conciv/ai/messages'
+import type {SendContent} from '@conciv/ai'
 import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
 import {useChatContext, useComposer} from '../../store/chat-context.js'

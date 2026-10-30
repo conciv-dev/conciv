@@ -8,7 +8,7 @@ import {bootCoreApp} from '../helpers/boot.js'
 import {countType, runTurn} from '../helpers/turns.js'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
-import {ChatEventType} from '@conciv/ai/events'
+import {ChatEventType} from '@conciv/ai'
 
 const claude = requireClaude()
 

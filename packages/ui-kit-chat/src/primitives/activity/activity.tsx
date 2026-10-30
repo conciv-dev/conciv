@@ -1,5 +1,5 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
-import type {ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/ai/messages'
+import type {ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/ai'
 import {keyBy} from 'es-toolkit'
 import {coalesceTurns, type Turn} from '../../store/grouping.js'
 import {activeCallInParts} from '../../store/active-call.js'

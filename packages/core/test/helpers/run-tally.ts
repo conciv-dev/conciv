@@ -1,4 +1,4 @@
-import {type ChatEvent, isRunPhaseTerminal, runLifecycleEvent, type RunPhase} from '@conciv/ai/events'
+import {type ChatEvent, isRunPhaseTerminal, runLifecycleEvent, type RunPhase} from '@conciv/ai'
 
 export async function collectChunks(source: AsyncIterable<ChatEvent>, into: ChatEvent[]): Promise<void> {
   try {

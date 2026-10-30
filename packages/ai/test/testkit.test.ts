@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {ChatEventType, type ChatEvent} from '../src/events.js'
+import {ChatEventType, type ChatEvent} from '../src/index.js'
 import {createTextChunks, storyConnection} from '../src/testkit.js'
 
 async function drainUntilLastChunk(iterator: AsyncIterator<ChatEvent>, expected: number): Promise<ChatEvent[]> {

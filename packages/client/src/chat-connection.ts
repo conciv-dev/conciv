@@ -4,15 +4,16 @@ import {
   type ResumableConnectConnectionAdapter,
   type SubscribeConnectionAdapter,
 } from '@tanstack/ai-client'
-import type {ModelMessage, ChatMessage} from '@conciv/ai/messages'
 import {
+  type ModelMessage,
+  type ChatMessage,
   type ChatEvent,
   runLifecycleEvent,
   type RunLifecycle,
   approvalAskOf,
   approvalSettledEvent,
   type ApprovalAsk,
-} from '@conciv/ai/events'
+} from '@conciv/ai'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import type {ChatHydration, RpcClient} from '@conciv/contract'
 import {acquirePushChannel} from './push-channel.js'

@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import {type ChatEvent, approvalRequestedEvent, approvalSettledEvent} from '@conciv/ai/events'
+import {type ChatEvent, approvalRequestedEvent, approvalSettledEvent} from '@conciv/ai'
 import {
   decideCommand,
   defineCommandPolicy,

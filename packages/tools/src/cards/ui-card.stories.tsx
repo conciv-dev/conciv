@@ -1,7 +1,7 @@
 import {createSignal, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent} from 'storybook/test'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai/messages'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
 import {UiCard} from './ui-card.js'

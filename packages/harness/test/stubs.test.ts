@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {ChatEventType} from '@conciv/ai/events'
+import {ChatEventType} from '@conciv/ai'
 import {runAdapterTurn} from '@conciv/ai/testkit'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {pi} from '../src/pi/index.js'

@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
+import {type ChatEvent, ChatEventType} from '@conciv/ai'
 import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../helpers/boot.js'
 import {hydratedSnapshot} from '../helpers/fake-session.js'

@@ -1,4 +1,4 @@
-import {type ChatMessage, toChatMessages} from '@conciv/ai/messages'
+import {type ChatMessage, toChatMessages} from '@conciv/ai'
 import type {ConcivDb} from '@conciv/db'
 import {readThread} from '@conciv/chat/thread-queries'
 

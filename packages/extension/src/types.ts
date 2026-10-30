@@ -1,6 +1,6 @@
 import type {Component, JSX} from 'solid-js'
 import type {z} from 'zod'
-import type {ContentPart, ChatMessage} from '@conciv/ai/messages'
+import type {ContentPart, ChatMessage} from '@conciv/ai'
 import type {AnyRouter} from '@orpc/server'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'

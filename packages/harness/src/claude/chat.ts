@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import type {ModelMessage} from '@conciv/ai/messages'
-import {claudeCode} from '@conciv/ai/adapters'
+import type {ModelMessage} from '@conciv/ai'
+import {claudeCode} from '@conciv/ai/server'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {
   FILE_REF_PREFIX,

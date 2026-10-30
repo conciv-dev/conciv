@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatEvent} from '@conciv/ai'
 import {until} from '@conciv/harness-testkit'
 import {userTexts} from '../helpers/snapshots.js'
 import {collectChunks, peakLiveRuns, runsFinished, runsStarted} from '../helpers/run-tally.js'

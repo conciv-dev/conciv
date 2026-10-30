@@ -1,8 +1,8 @@
 import {chat} from '@tanstack/ai'
 import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
-import type {TextAdapter} from './adapters.js'
-import type {ModelMessage} from './messages.js'
-import {approvalRequestedEvent, ChatEventType, type ChatCustomEvent, type ChatEvent} from './events.js'
+import type {TextAdapter} from './adapters/adapters.js'
+import type {ModelMessage} from './messages/messages.js'
+import {approvalRequestedEvent, ChatEventType, type ChatCustomEvent, type ChatEvent} from './events/events.js'
 
 export type StoryConnectionOptions = {
   chunks?: ChatEvent[]

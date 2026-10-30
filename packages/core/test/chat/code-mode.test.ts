@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest'
 import {z} from 'zod'
-import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatEvent, ChatTool} from '@conciv/ai'
 import {approvalIds} from '@conciv/harness-testkit'
 import {toolError, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
@@ -10,7 +10,6 @@ import {createAskRegistry, type AskRegistry} from '@conciv/chat/ask'
 import {asksFor, makeAskGate, type PermissionGate} from '@conciv/chat/gate'
 import {gatedToolRun, makeCodeMode, type CodeMode} from '@conciv/chat/code-mode'
 import {registryCapabilities, type CodeCapability} from '@conciv/chat/capabilities'
-import type {ChatTool} from '@conciv/ai/tools'
 
 const SESSION = SessionId.parse('conciv_x')
 

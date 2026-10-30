@@ -1,6 +1,6 @@
 import {describe, it, expect, afterEach} from 'vitest'
 import {defineHarness} from '@conciv/protocol/harness-types'
-import {makeTextAdapter} from '@conciv/ai/adapters'
+import {makeTextAdapter} from '@conciv/ai/server'
 import type {Kit} from '@conciv/harness-testkit'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {bootKit} from '../helpers/boot.js'

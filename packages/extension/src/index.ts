@@ -25,7 +25,7 @@ export type {
 export {defineAttachment} from './define-attachment.js'
 export type {AnyAttachmentBuilder, AttachmentBuilder} from './define-attachment.js'
 export {imageResult} from './image-result.js'
-export type {ContentPart} from '@conciv/ai/messages'
+export type {ContentPart} from '@conciv/ai'
 export {
   collectAttachmentCards,
   collectClientEffects,

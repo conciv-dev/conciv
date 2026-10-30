@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
+import {type ChatEvent, ChatEventType} from '@conciv/ai'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {hydratedSnapshot, SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
 import {assistantTexts, userTexts} from '../helpers/snapshots.js'

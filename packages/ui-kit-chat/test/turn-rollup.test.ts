@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {createRoot} from 'solid-js'
-import type {ChatPart} from '@conciv/ai/messages'
+import type {ChatPart} from '@conciv/ai'
 import type {Turn} from '../src/store/grouping.js'
 import {sessionTotals, summaryLine, turnRollup, type TurnRollup} from '../src/store/turn-rollup.js'
 

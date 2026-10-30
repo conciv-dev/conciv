@@ -1,5 +1,5 @@
 import ReconnectingWebSocket from 'partysocket/ws'
-import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatEvent} from '@conciv/ai'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema, type PushFrame} from '@conciv/protocol/push-types'
 import {relayedValues} from './stream-relay.js'
 

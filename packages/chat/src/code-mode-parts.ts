@@ -4,7 +4,7 @@ import {
   codeModeToolErrorEvent,
   codeModeToolResultEvent,
   type ChatEvent,
-} from '@conciv/ai/events'
+} from '@conciv/ai'
 import {CODE_MODE_SYNTHETIC_PART_MARKER} from '@conciv/protocol/chat-types'
 
 function callChunks(chunk: ChatEvent): ChatEvent[] | null {

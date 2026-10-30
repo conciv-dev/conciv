@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ToolCallPart, ToolResultPart} from '@conciv/ai/messages'
+import type {ToolCallPart, ToolResultPart} from '@conciv/ai'
 import type {ElementDescriptor, ToolCaptureView} from '@conciv/protocol/element-capture-types'
 import {PAGE_ACT_TOOL_NAMES} from '../src/shared/defs.js'
 import {pageSessionScripted, pageSessionSteps} from '../src/client/cards/session-steps.js'

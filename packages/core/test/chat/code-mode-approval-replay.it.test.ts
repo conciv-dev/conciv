@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {tmpdir} from 'node:os'
 import {z} from 'zod'
-import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
+import {type ChatEvent, ChatEventType} from '@conciv/ai'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {approvalIds, createTestHarness} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'

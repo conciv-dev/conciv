@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
+import {type ChatEvent, ChatEventType} from '@conciv/ai'
 import {createTestkit, createFakeHarness, type FakeHarness, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 

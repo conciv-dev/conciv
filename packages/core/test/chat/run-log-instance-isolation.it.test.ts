@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {type ChatEvent, ChatEventType} from '@conciv/ai/events'
+import {type ChatEvent, ChatEventType} from '@conciv/ai'
 import {startTurn} from '../helpers/detached-turn.js'
 import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
 import {awaitRunSettled} from '@conciv/chat/run-settled'

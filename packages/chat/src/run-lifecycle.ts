@@ -1,5 +1,5 @@
 import type {RunRecord, RunStatus} from '@conciv/ai/server'
-import {runLifecycleEvent, type RunLifecycle, type RunPhase} from '@conciv/ai/events'
+import {runLifecycleEvent, type RunLifecycle, type RunPhase} from '@conciv/ai'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ChatDeps} from './runtime.js'
 

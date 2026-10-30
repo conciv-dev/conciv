@@ -1,4 +1,4 @@
-import {ChatEventType, type ChatEvent} from '@conciv/ai/events'
+import {ChatEventType, type ChatEvent} from '@conciv/ai'
 
 export function* scriptedRunChunks(text: string): Generator<ChatEvent> {
   yield {type: ChatEventType.RUN_STARTED, threadId: 'scripted', runId: 'scripted'}

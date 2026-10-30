@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import type {ChatEvent} from '@conciv/ai/events'
+import type {ChatEvent} from '@conciv/ai'
 import {createFakeHarness, until} from '@conciv/harness-testkit'
 import {defineAttachment, defineExtension} from '@conciv/extension'
 import type {ChatContentPart} from '@conciv/protocol/chat-types'

@@ -1,6 +1,6 @@
 import {expect, test} from 'vitest'
 import {mintedSessionId} from '@conciv/chat/run'
-import {ChatEventType} from '@conciv/ai/events'
+import {ChatEventType} from '@conciv/ai'
 
 test('captures session-id custom events from any adapter', () => {
   const adapters = [

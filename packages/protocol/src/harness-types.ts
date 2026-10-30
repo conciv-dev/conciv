@@ -1,5 +1,5 @@
-import type {ModelMessage, ChatMessage} from '@conciv/ai/messages'
-import type {TextAdapter} from '@conciv/ai/adapters'
+import type {ModelMessage, ChatMessage} from '@conciv/ai'
+import type {TextAdapter} from '@conciv/ai/server'
 import type {HarnessSessionId, SessionId} from './chat-types.js'
 import type {TtyCommand} from './terminal-types.js'
 
