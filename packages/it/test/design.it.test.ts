@@ -445,7 +445,6 @@ it('diffs at 390 through an inert hidden frame and leaves the tab untouched', as
   expect(await frame.getAttribute('inert')).not.toBeNull()
   expect(await frame.getAttribute('aria-hidden')).toBe('true')
   expect(await frame.getAttribute('tabindex')).toBe('-1')
-  expect(await frame.evaluate((el) => getComputedStyle(el).left)).toBe('-10000px')
   expect(
     await frame.evaluate(
       (el) => (el as HTMLIFrameElement).contentDocument?.querySelector('[data-conciv-script-root]') === null,

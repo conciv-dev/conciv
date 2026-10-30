@@ -163,7 +163,7 @@ export const ClearResultSchema = z.object({removed: z.number()})
 const Width = z.number().int().positive()
 
 export const TargetInputSchema = z.object({
-  image: z.string().describe('path of a PNG under the project, or the PNG as base64'),
+  image: z.string().meta({format: 'path'}).describe('path of a PNG under the project, or the PNG as base64'),
   route: z.string().optional().describe('route the image is the design of; defaults to the live route'),
   width: Width.optional().describe('viewport width in px; defaults to the live tab width'),
   name: z.string().optional().describe('a name for the target'),
