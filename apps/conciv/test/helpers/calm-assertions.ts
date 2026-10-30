@@ -13,7 +13,12 @@ const DESCRIPTION_LENGTH = 44
 const SETTLE_PASSES = 3
 const JANK_FRAME_MS = 33
 
-export type CalmAllowance = 'narration' | 'virtualization' | 'error-replacement' | 'user-collapsed-trace'
+export type CalmAllowance =
+  | 'narration'
+  | 'virtualization'
+  | 'error-replacement'
+  | 'user-collapsed-trace'
+  | 'answered-ask'
 
 type CalmSurface = {stamp: string; description: string}
 
@@ -234,6 +239,7 @@ function isPermitted(entry: Tracked, allowed: ReadonlySet<CalmAllowance>): boole
   if (allowed.has('virtualization') && !entry.visible) return true
   if (allowed.has('error-replacement') && errorReplaced()) return true
   if (allowed.has('user-collapsed-trace') && entry.insideTrace) return true
+  if (allowed.has('answered-ask') && entry.element.closest('[aria-label="Permission requests"]') !== null) return true
   return false
 }
 

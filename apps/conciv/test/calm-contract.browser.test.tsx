@@ -56,7 +56,7 @@ registerCalmCore('calm-contract')
 
 const sendButton = () => page.getByRole('button', {name: 'Send message'})
 const traceToggle = () => page.getByText(/^(Show|Hide) trace$/)
-const permissionRequest = () => page.getByRole('group', {name: 'Permission request'})
+const approvalStrip = () => page.getByRole('list', {name: 'Permission requests'})
 
 function expectCalm(watch: CalmWatch): void {
   expect(watch.removed()).toEqual([])
@@ -111,32 +111,30 @@ test('a second run leaves the first run untouched [mechanism B: wrong streaming 
   expectCalm(watch)
 })
 
-test('an approval pause and resume keeps every surface in place [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
+test('an approval pause and its retry keep every surface in place, the ask waiting in the strip', async () => {
   const {sessionId} = await newSession()
-  const ids = await coreControl.scriptTurn({
+  await coreControl.scriptTurn({
     toolCalls: [{name: 'Bash', input: {command: 'rm -rf build'}}],
-    text: 'Approved and finished.',
+    text: 'That needs your approval.',
   })
   await coreControl.scriptCustomEvent('approval-requested', {
-    toolCallId: ids[0],
-    toolName: 'Bash',
+    approvalId: 'calm-ask-1',
+    title: 'Bash',
     input: {command: 'rm -rf build'},
-    approval: {id: 'calm-ask-1', needsApproval: true},
   })
-  await coreControl.holdResults()
-  await coreControl.holdTurn()
   mountChatPane(sessionId)
 
   await promptWith('delete the build directory')
-  await expect.element(permissionRequest()).toBeVisible()
-  const watch = watchCalm()
+  await expect.element(page.getByText('That needs your approval.')).toBeVisible()
+  await expect.element(approvalStrip().getByRole('group', {name: 'Permission request'})).toBeVisible()
+  const watch = watchCalm({allow: ['answered-ask']})
   await watch.checkpoint()
   await page.screenshot({path: `${SHOTS}/approval-paused.png`})
 
+  await coreControl.scriptTurn({toolCalls: [], text: 'Approved and finished.'})
   await page.getByRole('button', {name: 'Approve'}).click()
-  await coreControl.releaseResults()
-  await coreControl.releaseTurn()
   await expect.element(page.getByText('Approved and finished.')).toBeVisible()
+  await expect.element(approvalStrip()).not.toBeInTheDocument()
   await watch.checkpoint()
   await page.screenshot({path: `${SHOTS}/approval-resumed.png`})
   expectCalm(watch)
