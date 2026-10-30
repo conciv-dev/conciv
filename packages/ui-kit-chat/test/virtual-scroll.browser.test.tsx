@@ -14,7 +14,7 @@ import {mountView} from './mount-view.js'
 const TURN_COUNT = 80
 const MODERATE_STEP_PX = 200
 const FAST_STEP_PX = 800
-const MAX_WHEEL_STEPS = 400
+const ESTIMATED_TURN_PX = 600
 
 const windowErrors: string[] = []
 window.addEventListener('error', (event) => {
@@ -108,21 +108,12 @@ function mountThread(initial: UIMessage[]): void {
   mountView(() => <VirtualThread />)
 }
 
-async function firstTurnVisible(): Promise<boolean> {
-  try {
-    await expect.element(page.getByText('question 0', {exact: false}).first(), {timeout: 50}).toBeVisible()
-    return true
-  } catch {
-    return false
-  }
-}
-
 async function sweepUpwards(stepPx: number): Promise<void> {
-  for (let step = 0; step < MAX_WHEEL_STEPS; step++) {
-    if (await firstTurnVisible()) return
+  const wheelSteps = Math.ceil((TURN_COUNT * ESTIMATED_TURN_PX) / stepPx)
+  for (let step = 0; step < wheelSteps; step++) {
     await userEvent.wheel(page.getByRole('log'), {delta: {y: -stepPx}})
   }
-  throw new Error(`question 0 not visible after ${MAX_WHEEL_STEPS} wheel steps of ${stepPx}px`)
+  await expect.element(page.getByText('question 0', {exact: false}).first()).toBeVisible()
 }
 
 async function lastTurnVisible(): Promise<void> {
