@@ -57,14 +57,16 @@ function watchPagePlane(page: Page): PagePlaneWatch {
   const held: {gate: ReadyGate} = {gate: readyGate()}
   const onSocket = (socket: PageWebSocket): void => {
     if (!isPushSocket(socket)) return
-    held.gate.open(readyOf(socket))
+    const gate = held.gate
+    gate.open(readyOf(socket))
     socket.on('close', () => {
-      held.gate = readyGate()
+      if (held.gate === gate) held.gate = readyGate()
     })
   }
   page.on('websocket', onSocket)
   return {
     subscribed: async () => {
+      held.gate = readyGate()
       const ready = await pTimeout(held.gate.ready, {
         milliseconds: SUBSCRIBE_TIMEOUT_MS,
         message: `no page plane push socket opened on ${PUSH_WS_PATH}`,
