@@ -1,3 +1,5 @@
+import type {SkinColorPairs} from '../src/skin-contract.js'
+
 export type Rgba = {red: number; green: number; blue: number; alpha: number}
 
 const HEX = /^#([0-9a-f]{6})$/i
@@ -57,3 +59,5 @@ export function contrastRatio(foreground: string, background: string): number {
   const darker = Math.min(first, second)
   return (lighter + 0.05) / (darker + 0.05)
 }
+
+export type SkinSchemeAnchorName = keyof SkinColorPairs
