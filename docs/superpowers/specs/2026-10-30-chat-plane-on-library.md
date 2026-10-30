@@ -83,3 +83,5 @@ persistence, locks, sandbox, code mode, delivery, stop, hydrate) plus its types 
 `ChatServer`, `ChatStores`, `TurnHooks`. Everything else is internal to `packages/ai/src/server/`.
 `@conciv/chat` is thin product logic on top. Every entry (`.`, `./server`, `./testkit`) exports
 only names a consumer imports.
+
+Tests go through the public entries only: no export, flag or relative `src/` import that exists for a test. `./testkit` holds fixtures, not backdoors.
