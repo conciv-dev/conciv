@@ -544,7 +544,6 @@ function Component() {
   })
 
   test('built-in wins over a folder file of the same name', async () => {
-    const {defineExtension} = await import('@conciv/extension')
     const builtin = defineExtension({name: 'terminal'})
     const root = fixture({'terminal.tsx': `${EXT}({name:'terminal'})`, 'a.tsx': `${EXT}({name:'a'})`})
     const out = await loadServerExtensions(root, [builtin])
@@ -553,7 +552,6 @@ function Component() {
   })
 
   test('the same-name winner is the built-in regardless of folder enumeration order', async () => {
-    const {defineExtension} = await import('@conciv/extension')
     const builtin = defineExtension({name: 'z'})
     const root = fixture({'z.tsx': `${EXT}({name:'z'})`, 'a.tsx': `${EXT}({name:'a'})`})
     const out = await loadServerExtensions(root, [builtin])
