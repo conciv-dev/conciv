@@ -62,5 +62,5 @@ jobs:
       # ship no release (docs, CI-only, internal tooling); read straight from
       # the PR event payload, never a GitHub API call from the guard itself.
       - name: check-changesets --require-coverage
-        if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-changeset') }}
+        if: ${{ !(github.head_ref == 'changeset-release/main' && github.event.pull_request.head.repo.full_name == github.repository) && !contains(github.event.pull_request.labels.*.name, 'no-changeset') }}
         run: pnpm exec conciv-publish check-changesets --require-coverage --base "${{ github.event.pull_request.base.sha }}"

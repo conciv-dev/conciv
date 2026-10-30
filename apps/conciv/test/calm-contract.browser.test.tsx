@@ -41,7 +41,6 @@ const MIN_CODE_GROWTH_STEPS = 10
 const BOUNDARY_EXCHANGES = Math.floor(VIRTUALIZE_THRESHOLD / 2)
 const VIEWPORT_HEIGHT_PX = 600
 const SCROLL_UP_PX = 600
-const SCROLL_DRIFT_TOLERANCE_PX = 1
 const STREAM_STEP_GROWTH_PX = 160
 const CATCH_UP_DISTANCE_BUDGET_PX = SCROLL_END_THRESHOLD_PX + STREAM_STEP_GROWTH_PX
 const MIN_SCROLL_SAMPLES = 20
@@ -399,7 +398,7 @@ test('a reader who scrolled up keeps their exact position for the whole stream [
     watch.stop()
 
     expect(watch.samples()).toBeGreaterThanOrEqual(MIN_SCROLL_SAMPLES)
-    expect(watch.maxDrift()).toBeLessThanOrEqual(SCROLL_DRIFT_TOLERANCE_PX)
+    expect(watch.maxDrift()).toBe(0)
     expect(watch.topEdgeRow()).toBe(rowBefore)
     await expect.element(page.elementLocator(gate.viewport)).not.toHaveAttribute('data-at-bottom')
     await page.screenshot({path: `${SHOTS}/released-reader-held.png`})
@@ -459,7 +458,7 @@ test('an appended turn never drags a reader who scrolls up while it streams [gat
 
     expect(watch.samples()).toBeGreaterThanOrEqual(MIN_SCROLL_SAMPLES)
     expect(watch.topEdgeRow()).toBe(rowBefore)
-    expect(watch.maxDrift()).toBeLessThanOrEqual(SCROLL_DRIFT_TOLERANCE_PX)
+    expect(watch.maxDrift()).toBe(0)
     expect(Math.abs(offsetBefore - topEdgeRowOffset(gate.viewport))).toBeLessThanOrEqual(ROW_ROUNDING_TOLERANCE_PX)
     await expect.element(page.elementLocator(gate.viewport)).not.toHaveAttribute('data-at-bottom')
     await page.screenshot({path: `${SHOTS}/appended-turn-holds-reader.png`})

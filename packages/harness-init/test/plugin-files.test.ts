@@ -39,6 +39,21 @@ describe('claude connect plugin files', () => {
     })
   })
 
+  it('ships a conciv skill whose frontmatter names it and whose body ranks the cli above a browser mcp', () => {
+    const skill = contentsAt('/first/.conciv', join('conciv-connect', 'skills', 'conciv', 'SKILL.md'))
+    const [, frontmatter = '', body = ''] = skill.split('---\n')
+
+    expect(skill.startsWith('---\n')).toBe(true)
+    expect(frontmatter).toMatch(/^name: conciv$/m)
+    expect(frontmatter).toMatch(/^description: \S.*browser.*$/m)
+    expect(body.trimStart().startsWith('This project has conciv installed.')).toBe(true)
+    expect(body).toContain('Use browser MCP tools only when a conciv command cannot do what you need.')
+    expect(body).toContain('### When to use conciv instead of the browser MCP')
+    expect(body).toContain('`.conciv/bin/conciv tools react locate <selector>`')
+    expect(body).toContain('`.conciv/bin/conciv tools server graph|transform|reload`')
+    expect(body).not.toMatch(/`conciv /)
+  })
+
   it('keeps every generated file free of dev server urls', () => {
     for (const [, contents] of treeOf('/first/.conciv')) {
       expect(contents).not.toContain('127.0.0.1')

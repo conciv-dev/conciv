@@ -1,6 +1,6 @@
 {
   "name": "@conciv/core",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv engine: a framework-free hono + @hono/node-server server exposing the /__pw HTTP surface, with a harness registry seam.",
   "keywords": [
     "ai",
@@ -71,6 +71,7 @@
     "@conciv/extension": "workspace:^",
     "@conciv/extension-page": "workspace:^",
     "@conciv/harness": "workspace:^",
+    "@conciv/harness-init": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",

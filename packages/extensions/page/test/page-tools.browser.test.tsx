@@ -1,10 +1,12 @@
 import type {PageError} from '@conciv/protocol/page-types'
 import {collectClientTools, type ClientToolCtx} from '@conciv/extension'
 import {installReactBridge, makeDomPageDriver, type PageDriver} from '@conciv/page'
-import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
+import {afterAll, beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest'
+import {z} from 'zod'
 import {page} from 'vitest/browser'
 import {createRoot, type Root} from 'react-dom/client'
 import pageExtension from '../src/client.js'
+import {watchHotUpdates, type HotSurface} from '../src/client/hmr.js'
 import {PAGE_TOOL_DEFS, PAGE_TOOL_PREFIX} from '../src/shared/defs.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 
@@ -191,6 +193,12 @@ describe('dom verbs', () => {
     expect(element.result).toMatchObject({tagName: 'form'})
   })
 
+  it('returns the value of a bare expression and still runs a statement body', async () => {
+    expect(await resultOf('eval', {code: '2 + 3'})).toEqual({result: 5})
+    expect(await resultOf('eval', {code: 'document.querySelector("#frm").tagName'})).toEqual({result: 'FORM'})
+    expect(await resultOf('eval', {code: 'const a = 1; return a + 1'})).toEqual({result: 2})
+  })
+
   it('injects css stylesheets', async () => {
     expect(await resultOf('css', {text: '#prose{letter-spacing:3px}'})).toEqual({ok: true})
     expect(document.querySelector('style[data-vibe-css]')?.textContent).toContain('letter-spacing')
@@ -360,6 +368,42 @@ describe('stale refs', () => {
   })
 })
 
+describe('refs across snapshots', () => {
+  const refOfRole = (snapshot: Record<string, unknown>, role: string): string => {
+    const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : []
+    const entry = nodes.find(
+      (node) => typeof node === 'object' && node !== null && 'role' in node && node.role === role,
+    )
+    return entry && typeof entry === 'object' && 'ref' in entry ? String(entry.ref) : ''
+  }
+
+  it('a ref from an earlier snapshot fails as stale after the page changed instead of aliasing a new element', async () => {
+    const host = document.createElement('div')
+    host.id = 'login-host'
+    host.innerHTML = `
+      <form>
+        <div class="MuiFormControl-root MuiTextField-root">
+          <label for="login-username">Username *</label>
+          <div class="MuiInputBase-root MuiFilledInput-root"><input id="login-username" name="username" type="text" /></div>
+        </div>
+      </form>
+    `
+    container.appendChild(host)
+    const username = refOfRole(await resultOf('snapshot', {selector: '#login-host'}), 'textbox')
+    expect(username).not.toBe('')
+    expect(await resultOf('fill', {ref: username, value: 'demo'})).toEqual({ok: true, value: 'demo'})
+    host.innerHTML = `
+      <nav><a href="#/a">Dashboard</a><a href="#/b">Orders</a><a href="#/c">Invoices</a><a href="#/d">Reviews</a></nav>
+    `
+    await resultOf('snapshot', {selector: '#login-host'})
+    expect(await failureOf('fill', {ref: username, value: 'demo'})).toEqual({
+      code: 'invalid-args',
+      message: `stale ref ${username}; re-run page snapshot`,
+    })
+    host.remove()
+  })
+})
+
 describe('page reload', () => {
   const documentOnly = (): never => {
     throw new Error('page_reload must read nothing but the document it was handed')
@@ -401,4 +445,151 @@ describe('page reload', () => {
     expect(after?.getElementById('scribbled')).toBeNull()
     frame.remove()
   }, 10_000)
+})
+
+describe('screenshot', () => {
+  const CapturedShape = z.object({image: z.string().min(1), width: z.number(), height: z.number()})
+
+  const screenshotOf = async () => {
+    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
+    if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
+    return CapturedShape.parse(outcome.result)
+  }
+
+  const decoded = async (image: string): Promise<ImageBitmap> => {
+    const response = await fetch(`data:image/webp;base64,${image}`)
+    return createImageBitmap(await response.blob())
+  }
+
+  const centrePixel = (bitmap: ImageBitmap): number[] => {
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('no 2d context to sample the screenshot')
+    context.drawImage(bitmap, 0, 0)
+    return Array.from(context.getImageData(Math.floor(bitmap.width / 2), Math.floor(bitmap.height / 2), 1, 1).data)
+  }
+
+  const isRed = ([red = 0, green = 0, blue = 0]: number[]): boolean => red > 200 && green < 60 && blue < 60
+
+  const coverViewport = (marker?: string): HTMLElement => {
+    const cover = document.createElement('div')
+    if (marker) cover.setAttribute(marker, '')
+    cover.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgb(255,0,0)'
+    document.body.appendChild(cover)
+    onTestFinished(() => cover.remove())
+    return cover
+  }
+
+  it('captures the visible viewport as a webp the size of the window', async () => {
+    const shot = await screenshotOf()
+    expect({width: shot.width, height: shot.height}).toEqual({width: window.innerWidth, height: window.innerHeight})
+    expect(atob(shot.image).slice(8, 12)).toBe('WEBP')
+    const bitmap = await decoded(shot.image)
+    expect({width: bitmap.width, height: bitmap.height}).toEqual({width: shot.width, height: shot.height})
+  }, 10_000)
+
+  it('leaves the conciv widget host out of the capture', async () => {
+    const plain = coverViewport()
+    const covered = centrePixel(await decoded((await screenshotOf()).image))
+    plain.remove()
+    coverViewport('data-conciv-root')
+    const excluded = centrePixel(await decoded((await screenshotOf()).image))
+    expect(isRed(covered)).toBe(true)
+    expect(isRed(excluded)).toBe(false)
+  }, 10_000)
+})
+
+describe('page_hmr', () => {
+  type HotListener = (payload: unknown) => void
+
+  function fakeHot() {
+    const listeners = new Map<string, HotListener[]>()
+    const hot: HotSurface = {
+      on: (event, listener) => {
+        listeners.set(event, [...(listeners.get(event) ?? []), listener])
+      },
+    }
+    const fire = (event: string, payload: unknown = {}): void => {
+      for (const listener of listeners.get(event) ?? []) listener(payload)
+    }
+    return {hot, fire}
+  }
+
+  it('reports the hmr tool as not applied when no update lands in time', async () => {
+    expect(await resultOf('hmr', {timeout: 50})).toMatchObject({applied: false})
+  })
+
+  it('reports no hot surface as unsupported', async () => {
+    expect(await watchHotUpdates(undefined)(1000)).toEqual({supported: false, applied: false, waitedMs: 0, error: null})
+  })
+
+  it('gives up with an explanation when no update ever arrives', async () => {
+    const {hot} = fakeHot()
+    const result = await watchHotUpdates(hot)(60)
+    expect(result).toMatchObject({supported: true, applied: false, error: 'the hot update did not land within 60ms'})
+    expect(result.waitedMs).toBeGreaterThanOrEqual(50)
+  })
+
+  it('reports applied when the wait is called before the update even starts', async () => {
+    const {hot, fire} = fakeHot()
+    const waited = watchHotUpdates(hot)(500)
+    setTimeout(() => fire('vite:beforeUpdate', {type: 'update', updates: []}), 20)
+    setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 40)
+    expect(await waited).toMatchObject({supported: true, applied: true, error: null})
+  })
+
+  it('reports applied at once when the update landed just before the call', async () => {
+    const {hot, fire} = fakeHot()
+    const wait = watchHotUpdates(hot)
+    fire('vite:beforeUpdate', {type: 'update', updates: []})
+    fire('vite:afterUpdate', {type: 'update', updates: []})
+    expect(await wait(500)).toEqual({supported: true, applied: true, waitedMs: 0, error: null})
+  })
+
+  it('waits for an update already in flight instead of reporting the one before it', async () => {
+    const {hot, fire} = fakeHot()
+    const wait = watchHotUpdates(hot)
+    fire('vite:beforeUpdate', {type: 'update', updates: []})
+    fire('vite:afterUpdate', {type: 'update', updates: []})
+    fire('vite:beforeUpdate', {type: 'update', updates: []})
+    const waited = wait(500)
+    setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 40)
+    const result = await waited
+    expect(result).toMatchObject({supported: true, applied: true, error: null})
+    expect(result.waitedMs).toBeGreaterThanOrEqual(30)
+  })
+
+  it('resolves once a pending update is applied', async () => {
+    const {hot, fire} = fakeHot()
+    const wait = watchHotUpdates(hot)
+    fire('vite:beforeUpdate', {type: 'update', updates: []})
+    const waited = wait(500)
+    setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 50)
+    const result = await waited
+    expect(result).toMatchObject({supported: true, applied: true, error: null})
+    expect(result.waitedMs).toBeGreaterThanOrEqual(40)
+    expect(result.waitedMs).toBeLessThan(400)
+  })
+
+  it('reports the error when the pending update fails to build', async () => {
+    const {hot, fire} = fakeHot()
+    const wait = watchHotUpdates(hot)
+    fire('vite:beforeUpdate', {type: 'update', updates: []})
+    const waited = wait(500)
+    fire('vite:error', {type: 'error', err: {message: 'Unexpected token', stack: ''}})
+    expect(await waited).toMatchObject({supported: true, applied: false, error: 'Unexpected token'})
+  })
+
+  it('gives up with an explanation when the pending update never lands', async () => {
+    const {hot, fire} = fakeHot()
+    const wait = watchHotUpdates(hot)
+    fire('vite:beforeUpdate', {type: 'update', updates: []})
+    const result = await wait(60)
+    expect(result).toMatchObject({
+      supported: true,
+      applied: false,
+      error: 'the hot update did not land within 60ms',
+    })
+    expect(result.waitedMs).toBeGreaterThanOrEqual(50)
+  })
 })

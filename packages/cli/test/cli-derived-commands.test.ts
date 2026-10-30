@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
-import {main} from '../src/bin.js'
+import {main} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {answerNextQuery, approvedSession, bootCli} from './support/cli-app.js'
 import {cliSession} from './support/cli-session.js'
@@ -96,6 +96,20 @@ describe('the CLI reads its commands from the tool declarations', () => {
     const help = await helpFor(['tools', 'page', '--help'])
     expect(help).not.toMatch(/page fill/)
     expect(help).toContain('type a value into a form field')
+  })
+
+  it('offers the screenshot verb under page, derived from its declaration', async () => {
+    await bootCli(cleanups)
+    const help = await helpFor(['tools', 'page', '--help'])
+    expect(help).toContain('screenshot')
+    expect(help).toContain('capture the visible viewport as a webp image')
+  })
+
+  it('offers the hot update wait under page, derived from its declaration', async () => {
+    await bootCli(cleanups)
+    const help = await helpFor(['tools', 'page', '--help'])
+    expect(help).toMatch(/^\s+hmr\s/m)
+    expect(help).toContain('after editing a file, wait for the hot update to land before reading the page')
   })
 
   it('offers the react verbs under react and leaves the page-only ones out', async () => {

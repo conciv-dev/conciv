@@ -1,6 +1,7 @@
 import {existsSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {claudeConnectPluginFiles} from '@conciv/harness-init/claude/files'
 import {describe, expect, it} from 'vitest'
 import type {HarnessId} from '../../../src/init/harness-detect.js'
 import {runSteps} from '../../../src/init/pipeline.js'
@@ -15,21 +16,40 @@ function project(): {cwd: string} & ReturnType<typeof stepContext> {
 }
 
 describe('agentsSection', () => {
-  it('teaches the MCP discovery workflow instead of a static command list', () => {
+  it('leads with the cli ranking and command table before the mcp sandbox path', () => {
     const section = agentsSection(consented)
-    expect(section).toContain('await external_catalog({})')
-    expect(section).toContain('connected via MCP')
-    expect(section).toContain('conciv tools --help')
-    expect(section).not.toContain('conciv tools page')
-    expect(section).not.toContain('conciv tools react')
-    expect(section).not.toContain('conciv tools server')
+    const ranking = section.indexOf('This project has conciv installed.')
+    const table = section.indexOf('### When to use conciv instead of the browser MCP')
+    const sandbox = section.indexOf('await external_catalog({})')
+    expect(ranking).toBeGreaterThan(section.indexOf('## conciv'))
+    expect(table).toBeGreaterThan(ranking)
+    expect(sandbox).toBeGreaterThan(table)
+    expect(section).toContain('`.conciv/bin/conciv tools page snapshot`')
+    expect(section).toContain('`.conciv/bin/conciv tools react inspect <selector>`')
+    expect(section).toContain('`.conciv/bin/conciv tools server graph|transform|reload`')
+    expect(section).toContain('`.conciv/bin/conciv tools --help`')
+  })
+
+  it('writes every command so it runs as written, without conciv on PATH', () => {
+    expect(agentsSection(consented)).not.toMatch(/`conciv /)
+    expect(agentsSection([])).not.toMatch(/`conciv /)
+  })
+
+  it('shares the command table text with the claude plugin skill', () => {
+    const skill = claudeConnectPluginFiles({stateDir: '/project/.conciv'}).find((file) =>
+      file.path.endsWith(join('skills', 'conciv', 'SKILL.md')),
+    )
+    const [, tail = ''] = agentsSection(consented).split('### When to use conciv instead of the browser MCP')
+    const table = tail.split('\n\n').slice(1, 3).join('\n\n')
+    expect(table).toContain('`.conciv/bin/conciv tools page console`')
+    expect(skill?.contents).toContain(table)
   })
 
   it('omits the "Set up for" line and explains no harness connected when consented is empty', () => {
     const section = agentsSection([])
     expect(section).not.toContain('Set up for:')
     expect(section).toContain('No harness was connected')
-    expect(section).toContain('re-run `conciv init`')
+    expect(section).toContain('re-run `npx @conciv/cli@latest init`')
   })
 })
 
@@ -41,7 +61,23 @@ describe('agentsMdStep', () => {
     const ledger = await runSteps([step], settings, output)
     expect(ledger.map((entry) => entry.status)).toEqual(['done'])
     expect(readFileSync(join(cwd, 'AGENTS.md'), 'utf8')).toBe(`${agentsSection(consented)}\n`)
+    expect(readFileSync(join(cwd, 'CLAUDE.md'), 'utf8')).toBe('@AGENTS.md\n')
+  })
+
+  it('creates no CLAUDE.md when the claude harness was not consented', async () => {
+    const {cwd, settings, output} = project()
+    const ledger = await runSteps([agentsMdStep(() => ['codex'])], settings, output)
+    expect(ledger.map((entry) => entry.status)).toEqual(['done'])
     expect(existsSync(join(cwd, 'CLAUDE.md'))).toBe(false)
+  })
+
+  it('keeps a CLAUDE.md that imports AGENTS.md as the bare import across runs', async () => {
+    const {cwd, settings, output} = project()
+    const first = await runSteps([agentsMdStep(() => consented)], settings, output)
+    expect(first.map((entry) => entry.status)).toEqual(['done'])
+    const second = await runSteps([agentsMdStep(() => consented)], settings, output)
+    expect(second.map((entry) => entry.status)).toEqual(['already'])
+    expect(readFileSync(join(cwd, 'CLAUDE.md'), 'utf8')).toBe('@AGENTS.md\n')
   })
 
   it('appends to an existing AGENTS.md keeping the surrounding text byte-identical', async () => {

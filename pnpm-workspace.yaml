@@ -80,6 +80,7 @@ catalog:
   '@vitejs/plugin-react': '^6.1.2'
   '@vitest/browser-playwright': 5.0.5
   '@vitest/coverage-v8': '^5.0.5'
+  '@zumer/snapdom': 3.3.3
   bippy: 0.7.3
   citty: '^0.2.2'
   class-variance-authority: '^0.7.1'

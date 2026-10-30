@@ -76,6 +76,33 @@ describe('built-in tool declarations', () => {
     expect(opened).toEqual(['src/app.ts'])
   })
 
+  it('waits for the page to apply the hot update after a reload', async () => {
+    const asked: unknown[] = []
+    const registry = createToolRegistry({
+      pageCaller: async (tool, input) => {
+        asked.push({name: tool.name, input})
+        return {supported: true, applied: true, waitedMs: 42, error: null}
+      },
+    })
+    for (const tool of BUILTIN_SERVER_TOOLS)
+      registry.register(tool, {owner: 'a test registrant', context: {bundler: () => fakeBundler()}})
+    await expect(registry.call('server_reload', {file: 'src/a.ts'}, {request: testRequest})).resolves.toEqual({
+      ok: true,
+      applied: true,
+      waitedMs: 42,
+    })
+    expect(asked).toEqual([{name: 'page_hmr', input: {timeout: 5000}}])
+  })
+
+  it('still reloads when no page is connected to wait on', async () => {
+    const registry = registryWith(fakeBundler())
+    await expect(registry.call('server_reload', {file: 'src/a.ts'}, {request: testRequest})).resolves.toEqual({
+      ok: true,
+      applied: false,
+      waitedMs: 0,
+    })
+  })
+
   it('raises its declared NO_BUNDLER error when no dev server is attached', async () => {
     const registry = registryWith(undefined)
     const failure = await registry.call('server_config', {}, {request: testRequest}).then(

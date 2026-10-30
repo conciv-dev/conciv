@@ -45,6 +45,7 @@ import {
   sethtmlDef,
   setstyleDef,
   settextDef,
+  screenshotDef,
   snapshotDef,
   submitDef,
   textDef,
@@ -53,6 +54,7 @@ import {
   uncheckDef,
   valueDef,
   waitDef,
+  hmrDef,
 } from '../shared/defs.js'
 import {actCard} from './cards/act-card.js'
 import {consoleCard} from './cards/console-card.js'
@@ -61,6 +63,8 @@ import {effectCard} from './cards/effect-card.js'
 import {reactCard} from './cards/react-card.js'
 import {readBulkCard} from './cards/read-bulk-card.js'
 import {readValueCard} from './cards/read-value-card.js'
+import {screenshot} from './screenshot.js'
+import {watchHotUpdates} from './hmr.js'
 
 function fail(message: string): never {
   throw pageFailure('handler-error', message)
@@ -170,6 +174,12 @@ const snapshotTool = snapshotDef
     return {nodes: buildSnapshot(root, ctx.addRef)}
   })
   .render(readBulkCard)
+
+const screenshotTool = screenshotDef.client(screenshot).render(readValueCard)
+
+const waitForHotUpdate = watchHotUpdates(import.meta.hot)
+
+const hmrTool = hmrDef.client((input) => waitForHotUpdate(input.timeout)).render(readValueCard)
 
 const locateTool = locateDef
   .client(async (input, ctx) => {
@@ -447,10 +457,18 @@ const cssTool = cssDef
   })
   .render(editLiveCard)
 
+function evaluate(code: string): unknown {
+  try {
+    return new Function(`return (async () => (${code}\n))()`)()
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    return new Function(`return (async () => { ${code}\n})()`)()
+  }
+}
+
 const evalTool = evalDef
   .client(async (input) => {
-    const fn = new Function(`return (async () => { ${input.code} })()`)
-    const result: unknown = await fn()
+    const result: unknown = await evaluate(input.code)
     return {result: serialize(result)}
   })
   .render(editLiveCard)
@@ -465,6 +483,8 @@ export const PAGE_CLIENT_TOOLS: readonly AnyToolBuilder[] = [
   attrTool,
   existsTool,
   snapshotTool,
+  screenshotTool,
+  hmrTool,
   locateTool,
   treeTool,
   inspectTool,

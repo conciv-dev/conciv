@@ -6,6 +6,7 @@ import type {HarnessApp} from '@conciv/e2e-utils/ports'
 
 export function harnessConfig(harness: HarnessApp) {
   return defineConfig({
+    cacheDir: `node_modules/.vite/${harness}`,
     plugins: [react(), conciv({harness, stateRoot: `.conciv-${harness}`, devEndpointDir: E2E_DEV_ENDPOINT_DIR})],
   })
 }

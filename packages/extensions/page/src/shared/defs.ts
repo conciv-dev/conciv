@@ -196,6 +196,60 @@ export const snapshotDef = pageTool({
   output: z.object({nodes: z.array(AnyRecord)}),
 })
 
+export const PageScreenshotSchema = z.object({
+  image: z.string(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+})
+
+export type PageScreenshot = z.infer<typeof PageScreenshotSchema>
+
+const ImagePart = z.object({type: z.literal('image')}).loose()
+
+const ImageDetailPart = z.object({type: z.literal('text'), content: z.string()}).loose()
+
+export const screenshotDef = pageTool({
+  verb: 'screenshot',
+  summary: 'capture the visible viewport as a webp image',
+  category: 'read',
+  icon: 'read',
+  label: {running: 'Taking a screenshot', done: 'Took a screenshot'},
+  hint: 'the one look at what the user sees: pixels, not DOM; for structure use page_snapshot or page_tree',
+  keywords: ['screenshot', 'image', 'viewport', 'pixels', 'visual'],
+  input: noInput,
+  output: z.array(z.union([ImagePart, ImageDetailPart])),
+})
+
+export const HOT_UPDATE_WAIT_MS = 5000
+
+export const HotUpdateWaitSchema = z.object({
+  supported: z.boolean(),
+  applied: z.boolean(),
+  waitedMs: z.number(),
+  error: z.string().nullable(),
+})
+
+export type HotUpdateWait = z.infer<typeof HotUpdateWaitSchema>
+
+export const hmrDef = pageTool({
+  verb: 'hmr',
+  summary: 'after editing a file, wait for the hot update to land before reading the page',
+  category: 'read',
+  icon: 'wait',
+  label: {running: 'Waiting for the hot update', done: 'Waited for the hot update'},
+  hint: 'waits for the next hot update to apply, or reports one that applied within the last second; supported is false when the page has no vite hot client',
+  keywords: ['hmr', 'hot', 'update', 'vite', 'edit', 'settle'],
+  input: z.object({
+    timeout: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(HOT_UPDATE_WAIT_MS)
+      .describe('max wait in ms for a pending update'),
+  }),
+  output: HotUpdateWaitSchema,
+})
+
 export const cssDef = pageTool({
   verb: 'css',
   summary: 'inject a stylesheet into the live page',
@@ -616,6 +670,8 @@ export const PAGE_TOOL_DEFS = [
   attrDef,
   existsDef,
   snapshotDef,
+  screenshotDef,
+  hmrDef,
   locateDef,
   treeDef,
   inspectDef,

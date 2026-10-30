@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
-import {main} from '../src/bin.js'
+import {main} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {answerNextQuery, approvedSession, bootCli} from './support/cli-app.js'
 import {captureStdout, onlyDocument} from './support/stdout.js'

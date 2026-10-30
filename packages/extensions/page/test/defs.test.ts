@@ -51,8 +51,8 @@ const MIRROR_VERBS = [
 ] as const
 
 describe('page tool declarations', () => {
-  it('declares 38 verbs, every one registry-grade with meta, output, icon and label', () => {
-    expect(PAGE_TOOL_DEFS).toHaveLength(38)
+  it('declares 40 verbs, every one registry-grade with meta, output, icon and label', () => {
+    expect(PAGE_TOOL_DEFS).toHaveLength(40)
     for (const def of PAGE_TOOL_DEFS) {
       expect(def.name.startsWith(PAGE_TOOL_PREFIX)).toBe(true)
       expect(def.meta?.summary).toBeTruthy()

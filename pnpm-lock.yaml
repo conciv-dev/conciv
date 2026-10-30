@@ -180,6 +180,9 @@ catalogs:
     '@vitest/coverage-v8':
       specifier: ^5.0.5
       version: 5.0.5
+    '@zumer/snapdom':
+      specifier: 3.3.3
+      version: 3.3.3
     bippy:
       specifier: 0.7.3
       version: 0.7.3
@@ -1769,6 +1772,9 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
+      '@conciv/extension-page':
+        specifier: workspace:^
+        version: link:../extensions/page
       '@conciv/harness-init':
         specifier: workspace:^
         version: link:../harness-init
@@ -1943,6 +1949,9 @@ importers:
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
+      '@conciv/harness-init':
+        specifier: workspace:^
+        version: link:../harness-init
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2505,6 +2514,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
+      '@zumer/snapdom':
+        specifier: 'catalog:'
+        version: 3.3.3
       js-beautify:
         specifier: ^2.0.3
         version: 2.0.3
@@ -11585,6 +11597,13 @@ packages:
   '@zag-js/utils@1.45.0':
     resolution: {integrity: sha512-LyeGfTEojjhDcajCCGxvjrgFuPoMia1HKefdP6KqvJpC78+1awahBoZpYYZlbab2WPawgCaprcDevBJFlOe6Ag==}
 
+  '@zumer/snapdom@3.3.3':
+    resolution: {integrity: sha512-yC6BYk1kfTu5+yOs8YN/DIjYxt7L0WVT61otI6aY+a/we9F2aJqIr1ngrks5kozmgiXg07TwKSTuteOOPwdGDQ==}
+
+  abbrev@2.0.0:
+    resolution: {integrity: sha512-6/mh1E2u2YgEsCHdY0Yx5oW+61gZU+1vXaoiHHrpKeuRNNgFvS+/jrwHiQhB5apAf5oB7UB7E19ol2R2LKH8hQ==}
+    engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
+
   abbrev@3.0.1:
     resolution: {integrity: sha512-AO2ac6pjRB3SJmGJo+v5/aK6Omggp6fsLrs6wN9bd35ulu4cCwaAU9+7ZhXjeqHVkaHThLuzH0nZr0YpCDhygg==}
     engines: {node: ^18.17.0 || >=20.5.0}
@@ -14765,6 +14784,9 @@ packages:
 
   lodash.debounce@4.0.8:
     resolution: {integrity: sha512-FT1yDzDYEoYWhnSGnpE/4Kj1fLZkDFyqRb7fNt6FdYOSxlUWAtp42Eh6Wb0rGIv/m9Bgo7x4GhQbm5Ys4SG5ow==}
+
+  lodash.merge@4.6.2:
+    resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
 
   lodash.throttle@4.1.1:
     resolution: {integrity: sha512-wIkUCfVKpVsWo3JSZlc+8MB5it+2AN5W8J7YVMST30UrvcQNZ1Okbj+rbVniijTWE6FGYy4XJq/rHkas8qJMLQ==}
@@ -24686,6 +24708,10 @@ snapshots:
 
   '@zag-js/utils@1.45.0': {}
 
+  '@zumer/snapdom@3.3.3': {}
+
+  abbrev@2.0.0: {}
+
   abbrev@3.0.1: {}
 
   abbrev@5.0.0: {}
@@ -27911,6 +27937,8 @@ snapshots:
   lodash-es@4.18.1: {}
 
   lodash.debounce@4.0.8: {}
+
+  lodash.merge@4.6.2: {}
 
   lodash.throttle@4.1.1: {}
 

@@ -181,7 +181,7 @@ function expectInstallCard(output: string): void {
 function expectClosingOutro(output: string): void {
   expect(output).toContain('2 wired · 1 manual step below · 1 skipped')
   expect(output).toContain('└  Next steps — start your app:')
-  expect(output).toContain('ask your agent to run conciv tools --help')
+  expect(output).toContain('ask your agent to run .conciv/bin/conciv tools --help')
   expect(output).toContain('docs: https://conciv.dev/docs/quick-start')
 }
 

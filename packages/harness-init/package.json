@@ -1,6 +1,6 @@
 {
   "name": "@conciv/harness-init",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "description": "Internal to conciv (installed automatically, do not install directly). Per-harness init contributions: detection markers, generated plugin files, and install state.",
   "keywords": [
     "conciv",
@@ -23,6 +23,10 @@
     "./registry": {
       "types": "./dist/registry.d.ts",
       "import": "./dist/registry.js"
+    },
+    "./agent-guide": {
+      "types": "./dist/agent-guide.d.ts",
+      "import": "./dist/agent-guide.js"
     },
     "./claude": {
       "types": "./dist/claude/init.d.ts",

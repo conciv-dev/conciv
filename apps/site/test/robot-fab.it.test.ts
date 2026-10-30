@@ -59,6 +59,7 @@ test.describe('the landing robot fab rides the mascot compound api', () => {
     const eyes = mascotOf(fab).locator('[data-part="eyes"]')
     await expectLocator(eyes).not.toHaveCSS('transform', AWAKE_EYE_SCALE)
 
+    await fab.scrollIntoViewIfNeeded()
     await fab.hover()
     await expectLocator(eyes).toHaveCSS('transform', AWAKE_EYE_SCALE)
 

@@ -1,5 +1,32 @@
 # @conciv/contract
 
+## 0.0.20
+
+### Patch Changes
+
+- [#597](https://github.com/conciv-dev/conciv/pull/597) [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6) Thanks [@omridevk](https://github.com/omridevk)! - Upgrade the @tanstack/ai family 0.43.1 → 0.48.0 in lockstep (ai-client 0.26.0, ai-solid 0.18.3,
+  ai-code-mode 0.4.3, ai-isolate-node 0.1.51, ai-isolate-quickjs 0.3.1, ai-mcp 0.3.4, ai-sandbox 0.5.0,
+  ai-sandbox-local-process 0.2.4, ai-claude-code/ai-codex 0.4.4, ai-opencode/ai-acp 0.3.4). Upstream
+  moved every sibling package's peer range from an exact pin to a caret range, so the pnpm catalog
+  comment explaining the old exact-pin poison is rewritten. Code Mode's dynamic binding hook was
+  renamed `getSkillBindings` → `getSnippetBindings` upstream; a per-turn `RUN_FINISHED` token-usage
+  chunk can now arrive as either the legacy `TokenUsage` shape or the new AG-UI spec `usage[]` array,
+  so the run-log fold rebuilds it with `fromSpecTokenUsage` before turning it into a usage snapshot.
+
+- [#485](https://github.com/conciv-dev/conciv/pull/485) [`958dde7`](https://github.com/conciv-dev/conciv/commit/958dde7a862c8cfd735c2232ca13cef659b301f3) Thanks [@omridevk](https://github.com/omridevk)! - Global engine-reachability handling: reachability seam + single rebindable rpc client factory in contract, router error boundary with /panel/latest sentinel, one standing offline notice per window context, composer send disabled while unreachable.
+
+- [#556](https://github.com/conciv-dev/conciv/pull/556) [`09f620a`](https://github.com/conciv-dev/conciv/commit/09f620a62d8d65e5721dd16eeaf7f2651225975e) Thanks [@omridevk](https://github.com/omridevk)! - Fix a JS event listener leak in the browser RPC websocket's reconnect path: partysocket's `ReconnectingWebSocket` registers a dangling `error` listener on each discarded socket during its internal auto-reconnect loop and never removes it, so a persistently unreachable engine accumulated listeners without bound. The websocket now makes a single bounded connection attempt per cycle and reconnection is driven externally with capped exponential backoff, cutting the per-outage reconnect rate (and the leak with it) by more than an order of magnitude while preserving automatic recovery once the engine comes back.
+
+- [#597](https://github.com/conciv-dev/conciv/pull/597) [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6) Thanks [@omridevk](https://github.com/omridevk)! - Bump the `@tanstack/ai` family from the 0.48 lockstep to 0.51 (catalog-only, see `pnpm-workspace.yaml`).
+  Picks up upstream fix [#1248](https://github.com/TanStack/ai/pull/1248): the client `StreamProcessor`
+  dropped the first `TEXT_MESSAGE_CONTENT` delta of an assistant turn that called a tool before
+  replying, so every answer that followed a tool call lost its opening text (an opening code fence,
+  most visibly).
+
+- [#523](https://github.com/conciv-dev/conciv/pull/523) [`1cb8a51`](https://github.com/conciv-dev/conciv/commit/1cb8a51610a59d764ce064216a50b5209d28bde0) Thanks [@omridevk](https://github.com/omridevk)! - Export `ChatSendInput` so the rpc wire watcher asserts against the real `chat.send` schema instead of a looser copy.
+- Updated dependencies [[`ec28181`](https://github.com/conciv-dev/conciv/commit/ec28181dc8b49c979e6bd36284eb7148bee092f3), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d23d7c8`](https://github.com/conciv-dev/conciv/commit/d23d7c820af745fd87c4048a2d089c9d995f664a), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6), [`d07737b`](https://github.com/conciv-dev/conciv/commit/d07737b093afd7e373ca7abd7c918cc572bd83d6)]:
+  - @conciv/protocol@0.0.20
+
 ## 0.0.19
 
 ### Patch Changes

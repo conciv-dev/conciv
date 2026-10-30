@@ -12,7 +12,8 @@ import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './con
 import {statePaths} from './lib/state-paths.js'
 import {writeText} from './lib/fs.js'
 import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/server-port.js'
-import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint} from './lib/dev-endpoint.js'
+import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint, writePrivateFile} from './lib/dev-endpoint.js'
+import {claudeConnectEndpointFile} from '@conciv/harness-init/claude/endpoint'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 export type PortRequest = {exact: number} | {preferred: number}
@@ -76,9 +77,7 @@ async function servePersistedPort(fetchHandler: FetchHandler, stateFile: string)
   const persisted = readPersistedPort(stateFile)
   const reused = persisted === undefined ? undefined : await reservePort(fetchHandler, persisted)
   if (reused) return reused
-  const serving = await serveHono({fetch: fetchHandler, port: 0})
-  writePersistedPort(stateFile, serving.port)
-  return serving
+  return serveHono({fetch: fetchHandler, port: 0})
 }
 
 async function servePreferredPort(fetchHandler: FetchHandler, preferred: number): Promise<Served> {
@@ -91,10 +90,24 @@ async function servePreferredPort(fetchHandler: FetchHandler, preferred: number)
   return serving
 }
 
-function servePort(fetchHandler: FetchHandler, request: PortRequest | undefined, stateFile: string): Promise<Served> {
+function serveRequestedPort(
+  fetchHandler: FetchHandler,
+  request: PortRequest | undefined,
+  stateFile: string,
+): Promise<Served> {
   if (request === undefined) return servePersistedPort(fetchHandler, stateFile)
   if ('exact' in request) return serveHono({fetch: fetchHandler, port: request.exact})
   return servePreferredPort(fetchHandler, request.preferred)
+}
+
+async function servePort(
+  fetchHandler: FetchHandler,
+  request: PortRequest | undefined,
+  stateFile: string,
+): Promise<Served> {
+  const serving = await serveRequestedPort(fetchHandler, request, stateFile)
+  writePersistedPort(stateFile, serving.port)
+  return serving
 }
 
 function onceNotifier(callback?: () => void): () => void {
@@ -190,14 +203,18 @@ export async function start(opts: StartOpts): Promise<Engine> {
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const base = tokenScopedBase()
-  if (opts.nativePageDir && base) {
-    try {
-      writeDevEndpoint(endpointDir, {apiBase: base, token: opts.accessToken ?? null, pid: process.pid})
-    } catch (error) {
-      await dispose()
-      await close()
-      throw error
+  try {
+    if (base) {
+      const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: `${base}/api/mcp`})
+      writePrivateFile(endpoint.path, endpoint.contents)
     }
+    if (opts.nativePageDir && base) {
+      writeDevEndpoint(endpointDir, {apiBase: base, token: opts.accessToken ?? null, pid: process.pid})
+    }
+  } catch (error) {
+    await dispose()
+    await close()
+    throw error
   }
   const clearEndpoint = (): void => {
     if (!opts.nativePageDir) return
