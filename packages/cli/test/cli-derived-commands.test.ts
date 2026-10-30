@@ -38,6 +38,10 @@ const beacon = defineTool({
 const beaconExtension = defineExtension({name: 'acme-beacon', tools: [beacon]})
 
 describe('the CLI reads its commands from the tool declarations', () => {
+  it('derives design verbs from the design tool declarations, offline and online', async () => {
+    expect(await helpFor(['tools', 'design', '--help'])).toContain('register a design image as the target')
+  })
+
   it('derives a page verb whose declaration carries card cosmetics the CLI itself ignores', async () => {
     await bootCli(cleanups, {extensions: [beaconExtension]})
     const help = await helpFor(['tools', 'page', '--help'])

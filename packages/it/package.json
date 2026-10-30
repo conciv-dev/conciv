@@ -68,6 +68,7 @@
   "dependencies": {
     "@conciv/embed": "workspace:^",
     "@conciv/extension-compiler": "workspace:^",
+    "@conciv/extension-design": "workspace:^",
     "@conciv/extension-ios": "workspace:^",
     "@conciv/extension-recorder": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
