@@ -6,6 +6,7 @@ import {describe, expect, it} from 'vitest'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {claudeChatConfig, claudeExecutable} from '../src/claude/chat.js'
+import {CHAT_SYSTEM_PROMPT} from '../src/claude/system-prompt.js'
 
 const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
   cwd: process.cwd(),
@@ -14,6 +15,13 @@ const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
   env: {},
   kind: 'chat',
   ...over,
+})
+
+describe('CHAT_SYSTEM_PROMPT', () => {
+  it('points the agent at discover_tools, the tool that exists', () => {
+    expect(CHAT_SYSTEM_PROMPT).toContain('`discover_tools`')
+    expect(CHAT_SYSTEM_PROMPT).not.toContain('external_catalog')
+  })
 })
 
 describe('claudeExecutable', () => {
