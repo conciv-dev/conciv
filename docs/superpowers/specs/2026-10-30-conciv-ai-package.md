@@ -38,7 +38,7 @@ our shapes.
 | `@conciv/ai/tools` | any | `defineTool` (on `toolDefinition`), the type extensions author against |
 | `@conciv/ai/usage` | any | `UsageSnapshot` and the token-usage mapping |
 | `@conciv/ai/session` | browser (Solid) | `createChatSession(...)` returning a `ChatSession`: messages, status, send (with interrupt), stop, queue, cancelQueued, reload, plus ours: pending approvals, stopping, session running, hydrated, refresh, interrupt-and-flush. Built on ai-solid `useChat` and the ai-client transports. ui-kit-chat binds to `ChatSession`, never to `useChat` |
-| `@conciv/ai/server` | node | the chat plane: `createChatPlane(deps)`, which runs a turn (`chat()` + `withSandbox` + gate middleware + code mode), delivery (WebSocket/SSE, resume), run control, persistence stores, MCP endpoint plumbing, approval grants. Moves out of `packages/core/src/chat/*` and the chat tables of `packages/db` |
+| `@conciv/ai/server` | node | server PRIMITIVES with no conciv dependencies: the turn runner (`chat()` + `withSandbox` + caller-supplied middleware), the gate middleware shape, delivery transports (WebSocket/SSE, resume), run control (run store interface, cancel, durability, locks, queues), code mode, the sandbox definition helpers, the debug logger types. Typed with `@conciv/ai` primitives and generic parameters only |
 | `@conciv/ai/adapters` | node | `TextAdapter`, `makeTextAdapter`, and one factory per CLI (`claudeCode`, `codex`, `opencode`, `acp`) with their model lists and permission types. `packages/harness` builds its `chatConfig` from these |
 | `@conciv/ai/testkit` | any | fake `ChatSession`, scripted connection, chunk builders (text, reasoning, tool call, approval), used by stories and tests |
 
@@ -51,8 +51,14 @@ us, so they can diverge later without touching consumers.
   drops them.
 - oxlint `no-restricted-imports` forbids `@tanstack/ai*` outside `packages/ai`, so a new import
   fails lint. Lands with the oxlint 1.90 lane.
-- `packages/core` keeps the app: sessions, extensions, RPC, the page bridge. It wires
-  `createChatPlane` and owns no chat internals.
+- Layering (decided 2026-10-30, after the first move attempt hit a cycle: the chat plane imports
+  db, harness, protocol, extension, tools and contract, which all depend on `@conciv/ai`):
+  `@conciv/ai` is the bottom layer and depends on nothing in conciv. A new package
+  `packages/chat` (`@conciv/chat`) holds the chat orchestration (turns, hydrate, transcript import,
+  stop, compaction, boot recovery, gate wiring, approvals, the session bus, the chat stores over
+  db's tables). It depends on `@conciv/ai`, db, harness, protocol, extension, tools and contract,
+  and imports no `@tanstack/ai*`. `packages/core` keeps the app (sessions, extensions, RPC, the page
+  bridge) and wires `createChatPlane` from `@conciv/chat`; it owns no chat internals.
 - `packages/protocol` keeps conciv-only vocabulary (session ids, harness capability types, RPC
   shapes) typed with `@conciv/ai` primitives.
 - The sandbox policy content (read-only command list, extra allows) is product and stays in core;
@@ -67,8 +73,10 @@ us, so they can diverge later without touching consumers.
    `UseChatReturn` onto it.
 3. `adapters`: move the CLI adapter construction; `packages/harness` keeps the per-CLI product
    knowledge (history, commands, connect, tty) and builds on `@conciv/ai/adapters`.
-4. `server`: move the chat plane out of core and db, and implement the approvals spec
-   (`2026-10-29-approvals-deny-and-retry.md`) inside it.
+4. `server` and `@conciv/chat`: (a) move the chat plane out of core and db into `@conciv/chat`,
+   behaviour unchanged, with every `@tanstack/ai` call it makes going through new
+   `@conciv/ai/server` primitives; (b) implement the approvals spec
+   (`2026-10-29-approvals-deny-and-retry.md`) in `@conciv/chat` on those primitives.
 5. Drop `@tanstack/ai*` from every other manifest; turn on the lint rule.
 
 Steps 1 to 3 run in parallel lanes. Step 4 depends on 1. Step 5 is last.
@@ -87,6 +95,6 @@ Steps 1 to 3 run in parallel lanes. Step 4 depends on 1. Step 5 is last.
 
 ## Decisions (user, 2026-10-30)
 
-1. The chat plane moves INTO `@conciv/ai/server`. Core keeps the app and only wires
-   `createChatPlane(deps)`.
+1. The chat plane moves out of core. Superseded in shape by the layering above: it lands in
+   `@conciv/chat` on `@conciv/ai/server` primitives, not inside `@conciv/ai`.
 2. `packages/harness` builds on `@conciv/ai/adapters`. No exception to the boundary rule.
