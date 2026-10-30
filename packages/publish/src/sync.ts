@@ -21,5 +21,5 @@ export async function pushFirstPublishedTags(cwd: string, names: readonly string
       await execa('git', ['tag', tag], {cwd})
     }
   }
-  await execa('git', ['push', 'origin', '--tags'], {cwd, stdio: 'inherit'})
+  await execa('git', ['push', 'origin', ...tags.map((tag) => `refs/tags/${tag}`)], {cwd, stdio: 'inherit'})
 }
