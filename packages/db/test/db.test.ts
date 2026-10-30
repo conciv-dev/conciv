@@ -9,9 +9,13 @@ import {eq} from 'drizzle-orm'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb, type ConcivDb} from '../src/db.js'
-import {runMessages} from '../src/run-schema.js'
+import {runMessages, sessionHistory} from '../src/run-schema.js'
 import {sessions} from '../src/schema.js'
-import {modelOf, runMessagesFor, sessionHistoryFor} from '../src/run-queries.js'
+import {modelOf, runMessagesFor} from '../src/run-queries.js'
+
+function legacyHistoryRows(db: ConcivDb, sessionId: string) {
+  return db.select().from(sessionHistory).where(eq(sessionHistory.sessionId, sessionId)).all()
+}
 
 describe('capture queries', () => {
   function side(kind: ElementCaptureKind, name: string, cssBundleId = 'cssabc'): ElementCapture {
@@ -281,8 +285,8 @@ describe('db', () => {
       const second = openDb(stateRoot)
       expect(runMessagesFor(second, 'conciv_img')?.messages).toEqual(imageTurn)
       expect(runMessagesFor(second, 'conciv_txt')?.messages).toEqual(textTurn)
-      expect(sessionHistoryFor(second, 'conciv_img')).toBeNull()
-      expect(sessionHistoryFor(second, 'conciv_txt')).toBeNull()
+      expect(legacyHistoryRows(second, 'conciv_img')).toEqual([])
+      expect(legacyHistoryRows(second, 'conciv_txt')).toEqual([])
     })
 
     it('two connections on one stateRoot interleave writes (WAL + busy timeout)', () => {
@@ -318,7 +322,7 @@ describe('run queries', () => {
       const db = fresh()
       expect(modelOf(db, 'missing')).toBeNull()
       expect(runMessagesFor(db, 'missing')).toBeNull()
-      expect(sessionHistoryFor(db, 'missing')).toBeNull()
+      expect(legacyHistoryRows(db, 'missing')).toEqual([])
     })
 
     it('modelOf reads the sessions row', () => {

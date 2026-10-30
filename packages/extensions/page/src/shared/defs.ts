@@ -716,11 +716,3 @@ export function pageVerbGerund(verb: string): string {
   const word = running.split(' ')[0] ?? ''
   return word.length > 0 ? word : verb
 }
-
-export function pageVerbMutates(verb: string): boolean {
-  return pageToolMetaOf(verb)?.mutating === true
-}
-
-export function pageVerbMirrors(verb: string): boolean {
-  return pageToolMetaOf(verb)?.mirrors === true
-}
