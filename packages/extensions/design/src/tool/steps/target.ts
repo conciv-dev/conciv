@@ -2,7 +2,7 @@ import {toolError} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {z} from 'zod'
 import {unreadableMessage} from '../../server/adapters/image.js'
-import type {TargetInput, TargetResult} from '../../shared/defs.js'
+import {captureDef, ViewportResultSchema, type TargetInput, type TargetResult} from '../../shared/defs.js'
 import type {Enricher, Raster, ServerStep, TargetNode} from '../../shared/types.js'
 
 const PageRouteSchema = z.object({pathname: z.string(), search: z.string()})
@@ -23,10 +23,14 @@ async function enrich(input: {node: TargetNode; raster: Raster; enrichers: Enric
   return {...own, children}
 }
 
+export async function targetWidth(input: {width: number | undefined; page: ServerToolPageAccess}): Promise<number> {
+  if (input.width !== undefined) return input.width
+  return ViewportResultSchema.parse(await input.page.call(captureDef.name, {probe: true})).width
+}
+
 export const targetStep: ServerStep<TargetInput, TargetResult> = async (input, ctx, _request, page) => {
   const {design} = ctx
-  const {width} = input
-  if (width === undefined) throw toolError('width-required')
+  const width = await targetWidth({width: input.width, page})
   const route = input.route ?? (await liveRoute(page))
   const adapter = design.adapters.find((candidate) => candidate.accepts({ref: input.image, cwd: design.cwd}))
   if (adapter === undefined) {

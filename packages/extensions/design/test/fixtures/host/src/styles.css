@@ -9,7 +9,7 @@ body {
   background: #eef1f5;
 }
 
-.app {
+#root {
   display: flex;
   flex-direction: column;
   gap: 16px;
