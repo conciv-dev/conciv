@@ -13,13 +13,7 @@ import {createMetadataStore} from '../src/metadata-store.js'
 import {createRunStore} from '../src/run-store.js'
 import {CODE_MODE_SYNTHETIC_PART_MARKER} from '@conciv/protocol/chat-types'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
-import {
-  CHAT_IMPORT_KEY,
-  CHAT_MIGRATION_NAMESPACE,
-  TRANSCRIPT_NAMESPACE,
-  anchorKey,
-  pendingFromKey,
-} from '../src/chat-thread-import.js'
+import {TRANSCRIPT_NAMESPACE, anchorKey, pendingFromKey} from '../src/chat-thread-import.js'
 import {runMessagesFor, sessionHistoryFor, clearRunState, modelOf} from '../src/run-queries.js'
 import {
   FOLDED_WITHOUT_ANCHOR_SESSION_ID,
@@ -36,6 +30,9 @@ import {eq} from 'drizzle-orm'
 import {runMessages, sessionHistory, runs} from '../src/run-schema.js'
 import {sessions} from '../src/schema.js'
 import {readThread, updateThread, deleteThread, pendingThreadIds, threadMessages} from '../src/thread-queries.js'
+
+const CHAT_MIGRATION_NAMESPACE = 'conciv.migration'
+const CHAT_IMPORT_KEY = 'chatThreads.importedAt'
 
 describe('capture queries', () => {
   function side(kind: ElementCaptureKind, name: string, cssBundleId = 'cssabc'): ElementCapture {
