@@ -27,12 +27,12 @@ tween's `onComplete`.
 
 **Wall clock** — assertions that do not read a tween's progress:
 
-- `gaze.it.test.ts`: the pointer-tracking channels. `page.mouse.move` has to travel the real event loop
+- the `gaze` describe: the pointer-tracking channels. `page.mouse.move` has to travel the real event loop
   before the follow driver sees it, and every assertion there is on the settled saturation value or on the
   `pointermove` listener count, not on a mid-flight sample. Stepping would only add a clock pump between
   each real event without making any assertion more exact.
-- `reduced-motion.it.test.ts`: reduced motion starts no tweens at all; the poses are `gsap.set` calls.
-- `registration.it.test.ts` (all but the rebind test) and `activity.it.test.ts`'s tip-tracking test: ref
+- the `reduced motion` describe: reduced motion starts no tweens at all; the poses are `gsap.set` calls.
+- the `registration` describe (all but the rebind test) and the `activity` describe's tip-tracking test: ref
   binding, teardown, listener counts and anchor geometry, none of which move with the timeline.
 
 ## Reading digit placement
