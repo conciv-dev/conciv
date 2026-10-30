@@ -16,8 +16,10 @@ export const MAPPERS: ProvenanceMapper[] = [
   styledMapper,
 ]
 
-export async function mapDeclaration(input: Parameters<ProvenanceMapper['map']>[0]): Promise<Provenance> {
-  for (const mapper of MAPPERS) {
+export async function mapDeclaration(
+  input: Parameters<ProvenanceMapper['map']>[0] & {mappers?: ProvenanceMapper[]},
+): Promise<Provenance> {
+  for (const mapper of input.mappers ?? MAPPERS) {
     if (!mapper.applies(input)) continue
     const provenance = await mapper.map(input)
     if (provenance.via !== 'unknown') return provenance

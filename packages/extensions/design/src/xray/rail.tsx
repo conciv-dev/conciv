@@ -8,7 +8,7 @@ import {
   TextField,
   type StatusDotTone,
 } from '@conciv/ui-kit-system'
-import {aboveTolerance, type Row} from './data.js'
+import {rowAboveTolerance, type Row} from './data.js'
 
 export const FILTERS = ['all', 'above', 'unmatched'] as const
 export type Filter = (typeof FILTERS)[number]
@@ -43,7 +43,7 @@ function rowSummary(row: Row): string {
 export function filterRows(input: {rows: Row[]; filter: Filter; query: string}): Row[] {
   const needle = input.query.trim().toLowerCase()
   return input.rows
-    .filter((row) => input.filter !== 'above' || aboveTolerance(row))
+    .filter((row) => input.filter !== 'above' || rowAboveTolerance(row))
     .filter((row) => input.filter !== 'unmatched' || row.unmatched !== null)
     .filter((row) => needle === '' || `${row.label} ${row.selector}`.toLowerCase().includes(needle))
 }

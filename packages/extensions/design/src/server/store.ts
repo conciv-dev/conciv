@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {existsSync} from 'node:fs'
-import {mkdir, readdir, readFile, rm, writeFile} from 'node:fs/promises'
+import {mkdir, readdir, readFile, rename, rm, writeFile} from 'node:fs/promises'
 import {join, relative} from 'node:path'
 import {toolError} from '@conciv/extension'
 import {z} from 'zod'
@@ -64,9 +64,19 @@ function stamp(): string {
   return `${Date.now()}-${randomUUID().slice(0, 4)}`
 }
 
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
 async function readJson<T>(input: {path: string; schema: z.ZodType<T>}): Promise<T | null> {
-  if (!existsSync(input.path)) return null
-  return input.schema.parse(JSON.parse(await readFile(input.path, 'utf8')))
+  const text = await readFile(input.path, 'utf8').catch(() => null)
+  if (text === null) return null
+  const parsed = input.schema.safeParse(parseJson(text))
+  return parsed.success ? parsed.data : null
 }
 
 async function prune(input: {dir: string; prefix: string}): Promise<void> {
@@ -156,7 +166,9 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       const report: DiffReport = {...result, diffImage: reportPath(diffPath), livePath: reportPath(livePath)}
       await writeFile(livePath, encodePng(live))
       await writeFile(diffPath, encodePng(diff))
-      await writeFile(join(home, `result-${at}.json`), JSON.stringify(report))
+      const pending = join(home, `pending-${at}.json`)
+      await writeFile(pending, JSON.stringify(report))
+      await rename(pending, join(home, `result-${at}.json`))
       await Promise.all(['live-', 'diff-', 'result-'].map((prefix) => prune({dir: home, prefix})))
       return report
     },

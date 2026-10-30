@@ -56,6 +56,7 @@ export type LiveComponent = {
   textBox: Box | null
   axis: 'row' | 'column' | null
   styles: LiveStyles
+  index: number
   children: LiveComponent[]
 }
 export type LiveCapture = {
@@ -212,8 +213,10 @@ export type DesignRuntime = {
   deltaKinds: DeltaKind[]
   mappers: ProvenanceMapper[]
   cssMap: () => Promise<CssMap>
-  xrayUrl: (id: string) => string
+  xrayUrl: (input: {id: string; session: string}) => XrayLink
 }
+
+export type XrayLink = {url: string; absolute: boolean}
 
 export type DesignContext = {design: DesignRuntime}
 

@@ -30,16 +30,12 @@ function sourceKey(component: LiveComponent): string | null {
   return source === null ? null : `${source.file}:${source.line}:${source.column}`
 }
 
-export function componentSelector(input: {
-  component: LiveComponent
-  parent: Pair | null
-  index: number | null
-}): string {
-  const {component, parent, index} = input
+export function componentSelector(input: {component: LiveComponent; parent: Pair | null; shared: boolean}): string {
+  const {component, parent, shared} = input
   const key = sourceKey(component)
   if (key === null) return parent === null ? component.tag : `${parent.selector} > ${component.tag}`
   const selector = `[data-conciv-source="${key}"]`
-  return index === null ? selector : `${selector}:nth-child(${index})`
+  return shared ? `${selector}:nth-child(${component.index})` : selector
 }
 
 type Pages = {live: Raster; target: Raster; blurredLive: Raster; blurredTarget: Raster; page: Box}
@@ -94,7 +90,7 @@ function matchPairs(input: {
     return [
       {
         live: component,
-        selector: componentSelector({component, parent, index: shared ? position + 1 : null}),
+        selector: componentSelector({component, parent, shared}),
         liveBox,
         targetBox: equal ? liveBox : estimateTarget({pages, box: liveBox, parent, comparators}),
         mismatch,

@@ -1,6 +1,9 @@
 import {snapdom} from '@zumer/snapdom'
 import {z} from 'zod'
-import {keepBodyMargins} from './body-margins.js'
+import {toolError} from '@conciv/extension'
+import {keepBodyMargins} from '@conciv/extension-page/body-margins'
+import {DESIGN_ERRORS} from '../shared/defs.js'
+import {TOLERANCES} from '../shared/tolerances.js'
 
 const CAPTURE_REQUEST = 'conciv-design:capture'
 
@@ -41,6 +44,11 @@ export function requestFrameCapture(frame: HTMLIFrameElement): Promise<Blob> {
     const target = frame.contentWindow
     if (target === null) return reject(new Error('The capture frame has no window.'))
     const channel = new MessageChannel()
+    const signal = AbortSignal.timeout(TOLERANCES.frameSettleMs)
+    signal.addEventListener('abort', () => {
+      channel.port1.close()
+      reject(toolError('frame-timeout', {message: DESIGN_ERRORS['frame-timeout'].message}))
+    })
     channel.port1.addEventListener('message', (event) => {
       channel.port1.close()
       const reply = captureReply.safeParse(event.data)

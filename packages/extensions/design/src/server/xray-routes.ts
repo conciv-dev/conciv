@@ -9,9 +9,8 @@ import type {TargetStore} from '../shared/types.js'
 import {TARGET_FILE} from './store.js'
 
 const PAGE_FILE = 'index.html'
-const FALLBACK_PAGE = '<!doctype html><title>design x-ray</title><div data-design-xray></div>'
-const FILES_PREFIX = '/files/'
-const PAGE_PREFIX = '/xray/'
+const NOT_BUILT = 'the x-ray page is not built; build @conciv/extension-design'
+const NonEmptySchema = z.string().min(1)
 
 const xrayOs = os.$context<RpcContext>()
 
@@ -39,10 +38,6 @@ function inside(input: {dir: string; path: string}): boolean {
   return input.path.startsWith(`${input.dir}${sep}`)
 }
 
-function tail(input: {path: string; prefix: string}): string {
-  return input.path.slice(input.path.indexOf(input.prefix) + input.prefix.length)
-}
-
 async function fileResponse(path: string): Promise<Response> {
   const body = await readFile(path).catch(() => null)
   if (body === null) return new Response('not found', {status: 404})
@@ -55,24 +50,30 @@ export function makeXrayApp(input: {store: TargetStore; pageDir: string; designD
   const {store, pageDir, cwd} = input
   const designDir = resolve(input.designDir)
   const root = resolve(pageDir)
-  const cache: {page: Promise<string> | null} = {page: null}
-  const page = (): Promise<string> => {
-    cache.page ??= readFile(join(root, PAGE_FILE), 'utf8').catch(() => FALLBACK_PAGE)
+  const cache: {page: string | null} = {page: null}
+  const page = async (): Promise<string | null> => {
+    cache.page ??= await readFile(join(root, PAGE_FILE), 'utf8').catch(() => null)
     return cache.page
   }
   return new Hono()
     .get('/xray', async (c) => {
-      const id = c.req.query('target')
-      if (id === undefined || (await store.find({id})) === null) return c.text('not found', 404)
-      return c.html(await page())
+      const id = NonEmptySchema.safeParse(c.req.query('target'))
+      if (!id.success || (await store.find({id: id.data})) === null) return c.text('not found', 404)
+      const html = await page()
+      if (html === null) return c.text(NOT_BUILT, 503)
+      return c.html(html)
     })
-    .get('/xray/*', (c) => {
-      const path = resolve(root, tail({path: c.req.path, prefix: PAGE_PREFIX}))
+    .get('/xray/:asset{.+}', (c) => {
+      const asset = NonEmptySchema.safeParse(c.req.param('asset'))
+      if (!asset.success) return c.text('not found', 404)
+      const path = resolve(root, asset.data)
       if (!inside({dir: root, path})) return c.text('not found', 404)
       return fileResponse(path)
     })
-    .get('/files/*', (c) => {
-      const path = resolve(cwd, tail({path: c.req.path, prefix: FILES_PREFIX}))
+    .get('/files/:file{.+}', (c) => {
+      const file = NonEmptySchema.safeParse(c.req.param('file'))
+      if (!file.success) return c.text('not found', 404)
+      const path = resolve(cwd, file.data)
       if (!inside({dir: designDir, path})) return c.text('not found', 404)
       return fileResponse(path)
     })

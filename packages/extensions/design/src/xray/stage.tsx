@@ -1,4 +1,4 @@
-import {For, Match, Show, Switch, type JSX} from 'solid-js'
+import {createMemo, For, Match, Show, Switch, type JSX} from 'solid-js'
 import type {StatusDotTone} from '@conciv/ui-kit-system'
 import type {Box, TargetRecord} from '../shared/types.js'
 import type {Delta, Row, XrayImages} from './data.js'
@@ -47,6 +47,9 @@ const LABEL_PAD_PX = 12
 const LABEL_H = 18
 const CAPTION_CLEAR = 30
 const RULER_LABEL_W = 68
+const RULER_LABEL_H = 20
+const RULER_LABEL_GAP = 10
+const RULER_TEXT_BASELINE = 14
 const HORIZONTAL_SIDES = ['left', 'right', 'x']
 const DASH = '6 4'
 
@@ -87,10 +90,27 @@ function measure(row: Row): Ruler | null {
   return {x1: x, x2: x, y1, y2, text}
 }
 
-function labelTop(box: Box): number {
+function within(input: {value: number; size: number; limit: number}): number {
+  return Math.max(0, Math.min(input.value, input.limit - input.size))
+}
+
+function labelTop(input: {box: Box; height: number}): number {
+  const {box} = input
   const above = box.y - LABEL_H - 2
   if (above >= CAPTION_CLEAR) return above
-  return Math.max(box.y + 2, CAPTION_CLEAR)
+  return within({value: Math.max(box.y + 2, CAPTION_CLEAR), size: LABEL_H, limit: input.height})
+}
+
+function labelWidth(text: string): number {
+  return text.length * LABEL_CHAR_PX + LABEL_PAD_PX
+}
+
+function rulerLabel(input: {line: Ruler; target: TargetRecord}): {x: number; y: number} {
+  const {line, target} = input
+  return {
+    x: within({value: (line.x1 + line.x2) / 2 - RULER_LABEL_W / 2, size: RULER_LABEL_W, limit: target.width}),
+    y: within({value: line.y2 + RULER_LABEL_GAP, size: RULER_LABEL_H, limit: target.height}),
+  }
 }
 
 function Overlay(props: {rows: Row[]; selected: Row | null; view: StageView; target: TargetRecord}): JSX.Element {
@@ -136,25 +156,29 @@ function Overlay(props: {rows: Row[]; selected: Row | null; view: StageView; tar
                   )}
                 </Show>
                 <Show when={chosen() && row.live}>
-                  {(box) => (
-                    <>
-                      <rect
-                        class="fill-chat-accent"
-                        x={box().x}
-                        y={labelTop(box())}
-                        width={row.label.length * LABEL_CHAR_PX + LABEL_PAD_PX}
-                        height={LABEL_H}
-                        rx={3}
-                      />
-                      <text
-                        class="text-[11px] font-chat-mono fill-chat-on-accent"
-                        x={box().x + 6}
-                        y={labelTop(box()) + LABEL_H - 5}
-                      >
-                        {row.label}
-                      </text>
-                    </>
-                  )}
+                  {(box) => {
+                    const left = () => within({value: box().x, size: labelWidth(row.label), limit: props.target.width})
+                    const top = () => labelTop({box: box(), height: props.target.height})
+                    return (
+                      <>
+                        <rect
+                          class="fill-chat-accent"
+                          x={left()}
+                          y={top()}
+                          width={labelWidth(row.label)}
+                          height={LABEL_H}
+                          rx={3}
+                        />
+                        <text
+                          class="text-[11px] font-chat-mono fill-chat-on-accent"
+                          x={left() + 6}
+                          y={top() + LABEL_H - 5}
+                        >
+                          {row.label}
+                        </text>
+                      </>
+                    )
+                  }}
                 </Show>
               </>
             )
@@ -162,27 +186,30 @@ function Overlay(props: {rows: Row[]; selected: Row | null; view: StageView; tar
         </For>
       </Show>
       <Show when={ruler()}>
-        {(line) => (
-          <g class="stroke-chat-danger">
-            <line x1={line().x1} y1={line().y1} x2={line().x2} y2={line().y2} vector-effect="non-scaling-stroke" />
-            <rect
-              class="fill-chat-danger stroke-none"
-              x={(line().x1 + line().x2) / 2 - RULER_LABEL_W / 2}
-              y={line().y2 + 10}
-              width={RULER_LABEL_W}
-              height={20}
-              rx={3}
-            />
-            <text
-              class="text-[12px] font-chat-mono fill-chat-on-accent stroke-none"
-              x={(line().x1 + line().x2) / 2}
-              y={line().y2 + 24}
-              text-anchor="middle"
-            >
-              {line().text}
-            </text>
-          </g>
-        )}
+        {(line) => {
+          const label = createMemo(() => rulerLabel({line: line(), target: props.target}))
+          return (
+            <g class="stroke-chat-danger">
+              <line x1={line().x1} y1={line().y1} x2={line().x2} y2={line().y2} vector-effect="non-scaling-stroke" />
+              <rect
+                class="fill-chat-danger stroke-none"
+                x={label().x}
+                y={label().y}
+                width={RULER_LABEL_W}
+                height={RULER_LABEL_H}
+                rx={3}
+              />
+              <text
+                class="text-[12px] font-chat-mono fill-chat-on-accent stroke-none"
+                x={label().x + RULER_LABEL_W / 2}
+                y={label().y + RULER_TEXT_BASELINE}
+                text-anchor="middle"
+              >
+                {line().text}
+              </text>
+            </g>
+          )
+        }}
       </Show>
     </svg>
   )
@@ -215,10 +242,17 @@ export function Stage(props: StageProps): JSX.Element {
   const layer = (input: {alt: string; src: string; style?: JSX.CSSProperties}) => (
     <img class={LAYER} src={input.src} alt={input.alt} style={input.style} onError={() => props.onMissing(input.src)} />
   )
-  const notice = () => {
-    if (props.images.live === null) return 'No diff has run for this width yet; the stage shows the target alone.'
-    return live() === null ? 'The live capture of this run was pruned; run the diff again to see it.' : null
-  }
+  const failed = (src: string | null) => src !== null && props.view.missing.includes(src)
+  const notices = (): [boolean, string][] => [
+    [failed(props.images.target), 'The target image could not be loaded; register the target again.'],
+    [props.images.live === null, 'No diff has run for this width yet; the stage shows the target alone.'],
+    [failed(props.images.live), 'The live capture of this run was pruned; run the diff again to see it.'],
+    [
+      props.mode === 'diff' && failed(props.images.diff),
+      'The diff image of this run was pruned; run the diff again to see it.',
+    ],
+  ]
+  const notice = () => notices().find(([shown]) => shown)?.[1] ?? null
   return (
     <div class="flex flex-col gap-3">
       <Show when={notice()}>

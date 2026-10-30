@@ -2476,6 +2476,9 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
+      '@conciv/extension-page':
+        specifier: workspace:^
+        version: link:../page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
@@ -2488,6 +2491,9 @@ importers:
       culori:
         specifier: 'catalog:'
         version: 4.0.2
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
       hono:
         specifier: 'catalog:'
         version: 4.13.14

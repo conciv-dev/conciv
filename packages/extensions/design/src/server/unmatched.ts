@@ -5,6 +5,10 @@ import {crop, edgeDensity, edgeMap, findRegions} from './raster.js'
 
 const BLANK_DENSITY = 0.01
 
+function large(box: Box): boolean {
+  return box.w >= TOLERANCES.unmatchedMinimum && box.h >= TOLERANCES.unmatchedMinimum
+}
+
 function blank(input: {raster: Raster; box: Box}): boolean {
   return edgeDensity(edgeMap(crop(input).raster)) < BLANK_DENSITY
 }
@@ -37,11 +41,12 @@ export function unmatchedRegions(input: {
     height,
     minSize: minimum,
   })
-    .filter((box) => box.w >= minimum && box.h >= minimum)
+    .filter(large)
     .map((box): Unmatched => ({kind: 'missing', target: box}))
   const extras = new Set<Pair>()
   pairs.forEach((pair) => {
     if (pair.parent !== null && extras.has(pair.parent)) return
+    if (!large(pair.liveBox)) return
     if (!blank({raster: target.raster, box: pair.liveBox}) || blank({raster: live.raster, box: pair.liveBox})) return
     extras.add(pair)
   })

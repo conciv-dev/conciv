@@ -52,8 +52,8 @@ function componentTone(component: ComponentReport): StatusDotTone {
 export function reportRows(report: DiffReport | null): Row[] {
   if (report === null) return []
   const components = report.components.map(
-    (component): Row => ({
-      key: component.selector,
+    (component, index): Row => ({
+      key: `${component.selector}#${index}`,
       label: sourceLabel(component.source),
       source: component.source,
       tag: component.tag,
@@ -84,7 +84,7 @@ export function reportRows(report: DiffReport | null): Row[] {
   return [...components, ...unmatched]
 }
 
-export function aboveTolerance(row: Row): boolean {
+export function rowAboveTolerance(row: Row): boolean {
   return row.unmatched !== null || row.deltas.length > 0
 }
 
@@ -146,20 +146,20 @@ export async function loadXray(input: {id: string}): Promise<XrayData> {
   return assemble({current, siblings, image: fileUrl})
 }
 
-async function sessionClient() {
+async function sessionClient(session: string | undefined) {
   const apiBase = engineApiBase()
-  const {sessionId} = await makeRpcClient(apiBase).sessions.resolve({})
+  const sessionId = session ?? (await makeRpcClient(apiBase).sessions.resolve({})).sessionId
   return makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
 }
 
-export async function runDiff(target: TargetRecord): Promise<void> {
-  const rpc = await sessionClient()
-  await rpc.registry.call({name: 'design_diff', input: {target: target.id, width: target.width}})
+export async function runDiff(input: {target: TargetRecord; session: string | undefined}): Promise<void> {
+  const rpc = await sessionClient(input.session)
+  await rpc.registry.call({name: 'design_diff', input: {target: input.target.id, width: input.target.width}})
 }
 
-export async function openInEditor(source: SourceLoc): Promise<void> {
-  const rpc = await sessionClient()
-  await rpc.editor.open({file: source.file, line: source.line})
+export async function openInEditor(input: {source: SourceLoc; session: string | undefined}): Promise<void> {
+  const rpc = await sessionClient(input.session)
+  await rpc.editor.open({file: input.source.file, line: input.source.line})
 }
 
 const STATE_DIR = '.conciv/'

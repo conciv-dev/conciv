@@ -254,19 +254,21 @@ function confirms(input: {element: Element; property: string; value: string}): b
   return expected !== '' && normalized({property: input.property, value}) === expected
 }
 
-function inherits(input: {element: Element; property: string}): Winner | null {
+type WinnerQuery = {element: Element; property: string; scan: Scan}
+
+function inherits(input: WinnerQuery): Winner | null {
   const parent = input.element.parentElement
   if (parent === null) return null
   const own = getComputedStyle(input.element).getPropertyValue(input.property)
   if (own !== getComputedStyle(parent).getPropertyValue(input.property)) return null
-  const winner = winningDeclaration({element: parent, property: input.property})
+  const winner = winningDeclaration({...input, element: parent})
   if (winner === null) return null
   return {...winner, inherited: true}
 }
 
-export function winningDeclaration(input: {element: Element; property: string}): Winner | null {
+function winningDeclaration(input: WinnerQuery): Winner | null {
+  const {scan} = input
   const aliases = propertyAliases(input.property)
-  const scan = scanSheets()
   const inline = inlineCandidate({element: input.element, aliases, layers: scan.layers.length})
   const candidates = [...ruleCandidates({element: input.element, aliases, scan}), ...(inline === null ? [] : [inline])]
   const best = candidates.reduce<Candidate | null>((top, next) => {
@@ -280,9 +282,9 @@ export function winningDeclaration(input: {element: Element; property: string}):
 
 export function winnerStep(input: WinnerInput): Promise<WinnerResult> {
   const element = document.querySelector(input.selector)
+  if (element === null) return Promise.resolve(Object.fromEntries(input.properties.map((property) => [property, null])))
+  const scan = scanSheets()
   return Promise.resolve(
-    Object.fromEntries(
-      input.properties.map((property) => [property, element === null ? null : winningDeclaration({element, property})]),
-    ),
+    Object.fromEntries(input.properties.map((property) => [property, winningDeclaration({element, property, scan})])),
   )
 }

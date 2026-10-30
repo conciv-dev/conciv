@@ -12,6 +12,7 @@ export const TOLERANCES = {
   limit: 12,
   runsKept: 20,
   frameSettleMs: 5000,
+  captureBudgetMs: 10_000,
 } as const
 
 export const LIBRARY_SHEET_MARKER = '/node_modules/'

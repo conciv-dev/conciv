@@ -55,6 +55,7 @@ export const LiveComponentSchema = z.object({
   textBox: BoxSchema.nullable(),
   axis: z.enum(['row', 'column']).nullable(),
   styles: LiveStylesSchema,
+  index: z.number().describe('position among the DOM siblings, 1-based'),
   children: z.array(z.record(z.string(), z.unknown())).describe('nested components of the same shape'),
 })
 
@@ -184,6 +185,7 @@ export const CaptureInputSchema = z.object({
   height: Width.optional().describe('viewport height in px'),
   probe: z.boolean().optional().describe('only report the live viewport size'),
   clear: z.boolean().optional().describe('remove the hidden capture frame'),
+  timeout: z.number().int().positive().optional().describe('how long the page may take to answer, in ms'),
 })
 
 export const WinnerInputSchema = z.object({
@@ -205,6 +207,7 @@ export const DESIGN_ERRORS = {
       'the app did not render inside the capture frame (frame-ancestors or X-Frame-Options); capture through cdp or chromium is not available yet',
   },
   'frame-timeout': {message: 'the capture frame did not settle in time'},
+  'route-mismatch': {message: 'the tab shows another route than the design target; navigate the tab there first'},
 } satisfies ToolErrors
 
 type DesignToolDef<Shape extends z.ZodRawShape, Out extends z.ZodType> = ToolBuilder<
@@ -227,6 +230,7 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   output: Out
   hint: string
   keywords: readonly string[]
+  positional?: string
 }): DesignToolDef<Shape, Out> {
   return defineTool({
     name: `${DESIGN_TOOL_PREFIX}${spec.verb}`,
@@ -244,6 +248,7 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
       mirrors: false,
       capture: 'none',
       keywords: spec.keywords,
+      ...(spec.positional === undefined ? {} : {positional: spec.positional}),
     },
   })
 }
@@ -259,6 +264,7 @@ export const targetDef = designTool({
   output: TargetResultSchema,
   hint: 'replaces an earlier target of the same route and width; then edit and run design_diff',
   keywords: ['design', 'mockup', 'image', 'figma', 'png'],
+  positional: 'image',
 })
 
 export const diffDef = designTool({

@@ -32,8 +32,18 @@ function typing(target: EventTarget | null): boolean {
   )
 }
 
+const OVERLAY_SELECTOR = '[role=dialog], [role=listbox]'
+
+function insideOverlay(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(OVERLAY_SELECTOR) !== null
+}
+
+function busyTarget(target: EventTarget | null): boolean {
+  return typing(target) || insideOverlay(target)
+}
+
 function ignored(event: KeyboardEvent): boolean {
-  return event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || typing(event.target)
+  return event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || busyTarget(event.target)
 }
 
 function bodyOnly(event: KeyboardEvent): boolean {

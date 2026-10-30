@@ -2,7 +2,6 @@ import {createRoute, stripSearchParams} from '@tanstack/solid-router'
 import {createEffect, createMemo, createResource, createSignal, For, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {createTimer} from '@solid-primitives/timer'
-import {z} from 'zod'
 import {
   Button,
   createListCollection,
@@ -20,8 +19,8 @@ import {
   writeStorage,
   type SkinName,
 } from '@conciv/ui-kit-system'
+import {aboveTolerance} from '../../shared/above.js'
 import {
-  aboveTolerance,
   diffCommand,
   loadXray,
   openInEditor,
@@ -35,22 +34,12 @@ import {
 import {loadFixture} from '../dev-fixture.js'
 import {Inspector} from '../inspector.js'
 import {Kbd} from '../kbd.js'
-import {FILTERS, filterRows, Rail, type Filter} from '../rail.js'
+import {filterRows, Rail, type Filter} from '../rail.js'
 import {createShortcuts, SHORTCUT_HELP} from '../shortcuts.js'
 import {MODES, Stage, type Mode, type StageView} from '../stage.js'
 import {RunButton, Topbar} from '../topbar.js'
+import {XraySearchSchema, type XraySearch} from '../xray-schemas.js'
 import {rootRoute} from './__root.js'
-
-const XraySearchSchema = z.object({
-  target: z.string().default('').catch(''),
-  mode: z.enum(MODES).optional().catch(undefined),
-  component: z.string().optional().catch(undefined),
-  filter: z.enum(FILTERS).default('all').catch('all'),
-  q: z.string().optional().catch(undefined),
-  fixture: z.number().optional().catch(undefined),
-})
-
-type XraySearch = z.infer<typeof XraySearchSchema>
 
 export const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -154,7 +143,10 @@ function XrayPage(): JSX.Element {
   const selected = createMemo<Row | null>(
     () => rows().find((row) => row.key === search().component) ?? visible()[0] ?? null,
   )
-  const above = () => rows().filter(aboveTolerance).length
+  const above = () => {
+    const report = current()?.report
+    return report === null || report === undefined ? 0 : aboveTolerance(report)
+  }
 
   createEffect(() => {
     const active = skin()
@@ -184,7 +176,7 @@ function XrayPage(): JSX.Element {
     const loaded = current()
     if (loaded === undefined || activity.running) return
     setActivity({running: true, failure: null, message: 'Running the diff'})
-    runDiff(loaded.target).then(
+    runDiff({target: loaded.target, session: search().session}).then(
       () => {
         setActivity({running: false, message: 'The diff finished'})
         setView('missing', [])
@@ -202,7 +194,7 @@ function XrayPage(): JSX.Element {
     const source = selected()?.source
     if (source === undefined || source === null || activity.opening) return
     setActivity({opening: true, message: `Opening ${sourceLabel(source)}`})
-    openInEditor(source).then(
+    openInEditor({source, session: search().session}).then(
       () => setActivity({opening: false, message: `Opened ${sourceLabel(source)} in the editor`}),
       (error: unknown) =>
         setActivity({opening: false, message: `Could not open ${sourceLabel(source)}: ${failure(error)}`}),

@@ -1,7 +1,10 @@
 import {z} from 'zod'
 import {BoxSchema, captureDef, LiveStylesSchema, SourceLocSchema} from '../../shared/defs.js'
 import type {Capture, LiveComponent} from '../../shared/types.js'
+import {TOLERANCES} from '../../shared/tolerances.js'
 import {decodePng} from '../raster.js'
+
+const CAPTURE_TIMEOUT_MS = TOLERANCES.frameSettleMs + TOLERANCES.captureBudgetMs
 
 const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
   source: SourceLocSchema.nullable(),
@@ -11,6 +14,7 @@ const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
   textBox: BoxSchema.nullable(),
   axis: z.enum(['row', 'column']).nullable(),
   styles: LiveStylesSchema,
+  index: z.number(),
   get children() {
     return z.array(LiveComponentTreeSchema)
   },
@@ -27,7 +31,9 @@ const ClientCaptureSchema = z.object({
 export const tabCapture: Capture = {
   name: 'tab',
   capture: async ({width, height, page}) => {
-    const shot = ClientCaptureSchema.parse(await page.call(captureDef.name, {width, height}))
+    const shot = ClientCaptureSchema.parse(
+      await page.call(captureDef.name, {width, height, timeout: CAPTURE_TIMEOUT_MS}),
+    )
     return {
       raster: decodePng(Buffer.from(shot.image, 'base64')),
       viewport: {width: shot.width, height: shot.height},

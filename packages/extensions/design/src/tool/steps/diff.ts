@@ -1,3 +1,4 @@
+import {groupBy, uniqBy} from 'es-toolkit'
 import {toolError} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {
@@ -6,17 +7,19 @@ import {
   type ComponentReport,
   type DiffInput,
   type DiffReport,
+  type WinnerResult,
 } from '../../shared/defs.js'
 import {TOLERANCES} from '../../shared/tolerances.js'
 import type {CssMap, Delta, DesignRuntime, Pair, Raster, ServerStep, TargetRecord} from '../../shared/types.js'
 import {withBreakpoints} from '../../server/breakpoints.js'
 import {sideFrom} from '../../server/deltas.js'
-import {DELTA_PROPERTIES} from '../../server/provenance/delta-properties.js'
+import {DELTA_PROPERTIES, PARENT_PROPERTIES} from '../../server/provenance/delta-properties.js'
 import {mapDeclaration} from '../../server/provenance/mappers.js'
 import {unmatchedRegions} from '../../server/unmatched.js'
 import {liveRoute, targetWidth} from './target.js'
 
 const HINT = 'no element carries data-conciv-source; the page is not a dev build compiled by the conciv plugin'
+const ORIGIN_HINT = 'the conciv engine origin is unknown, so xray is a path on the engine and not a full url'
 const MISMATCH_PRECISION = 10_000
 
 async function findTarget(input: {
@@ -27,8 +30,13 @@ async function findTarget(input: {
   const {query, design, page} = input
   if (query.target !== undefined) {
     const byId = await design.store.find({id: query.target})
-    if (byId !== null) return byId
-    throw toolError('no-target', {message: `no design target with id ${query.target}; register one with design_target`})
+    if (byId === null) {
+      throw toolError('no-target', {
+        message: `no design target with id ${query.target}; register one with design_target`,
+      })
+    }
+    await assertLiveRoute({record: byId, page})
+    return byId
   }
   const width = await targetWidth({width: query.width, page})
   const route = await liveRoute(page)
@@ -37,6 +45,16 @@ async function findTarget(input: {
   if (record !== null) return record
   throw toolError('no-target', {
     message: `no design target for ${route} at ${width}px; register one with design_target`,
+  })
+}
+
+async function assertLiveRoute(input: {record: TargetRecord; page: ServerToolPageAccess}): Promise<void> {
+  const {record} = input
+  const live = await liveRoute(input.page)
+  const compared = record.route.includes('?') ? live : (live.split('?')[0] ?? live)
+  if (compared === record.route) return
+  throw toolError('route-mismatch', {
+    message: `target ${record.id} is the design of ${record.route} but the tab shows ${live}; navigate the tab to ${record.route} first, then diff again`,
   })
 }
 
@@ -62,8 +80,29 @@ function area(pair: Pair): number {
 
 type Ranked = {pair: Pair; report: ComponentReport}
 
-function candidates(input: {delta: Delta; pair: Pair}): string[] {
-  return DELTA_PROPERTIES[input.delta.kind]({delta: input.delta, axis: input.pair.live.axis})
+type Lookup = {property: string; owner: Pair}
+
+function lookups(input: {delta: Delta; pair: Pair}): Lookup[] {
+  const {delta, pair} = input
+  return DELTA_PROPERTIES[delta.kind]({delta, axis: pair.live.axis}).flatMap((property) => {
+    const owner = PARENT_PROPERTIES.includes(property) ? pair.parent : pair
+    return owner === null ? [] : [{property, owner}]
+  })
+}
+
+async function resolveWinners(input: {wanted: Lookup[]; page: ServerToolPageAccess}): Promise<WinnerResult> {
+  const groups = groupBy(
+    uniqBy(input.wanted, (lookup) => lookup.property),
+    (lookup) => lookup.owner.selector,
+  )
+  const results = await Promise.all(
+    Object.entries(groups).map(async ([selector, group]) =>
+      WinnerResultSchema.parse(
+        await input.page.call(winnerDef.name, {selector, properties: group.map((lookup) => lookup.property)}),
+      ),
+    ),
+  )
+  return Object.fromEntries(results.flatMap((result) => Object.entries(result)))
 }
 
 async function attribute(input: {
@@ -74,21 +113,22 @@ async function attribute(input: {
 }): Promise<ComponentReport> {
   const {ranked, design, page, cssMap} = input
   const {pair, report} = ranked
-  const properties = [...new Set(report.deltas.flatMap((delta) => candidates({delta, pair})))]
-  const winners = WinnerResultSchema.parse(await page.call(winnerDef.name, {selector: pair.selector, properties}))
+  const winners = await resolveWinners({wanted: report.deltas.flatMap((delta) => lookups({delta, pair})), page})
   const deltas = await Promise.all(
     report.deltas.map(async (delta) => {
-      const [found] = candidates({delta, pair}).flatMap((property) => {
+      const [found] = lookups({delta, pair}).flatMap(({property, owner}) => {
         const winner = winners[property]
-        return winner === null || winner === undefined || winner.inherited ? [] : [{property, winner}]
+        return winner === null || winner === undefined || winner.inherited ? [] : [{property, winner, owner}]
       })
       if (found === undefined) return delta
       const provenance = await mapDeclaration({
-        ...found,
-        component: pair.live,
+        winner: found.winner,
+        property: found.property,
+        component: found.owner.live,
         target: delta.target,
         cwd: design.cwd,
         cssMap,
+        mappers: design.mappers,
       })
       return {...delta, ...provenance}
     }),
@@ -107,7 +147,12 @@ async function withProvenance(input: {
   return Promise.all(ranked.map((entry) => attribute({ranked: entry, design, page, cssMap})))
 }
 
-export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, _request, page) => {
+function reportHint(input: {attributed: boolean; absolute: boolean}): {hint?: string} {
+  const hints = [input.attributed ? null : HINT, input.absolute ? null : ORIGIN_HINT].filter((hint) => hint !== null)
+  return hints.length === 0 ? {} : {hint: hints.join('; ')}
+}
+
+export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, request, page) => {
   const {design} = ctx
   const record = await findTarget({query: input, design, page})
   const target = await design.store.model(record.id)
@@ -144,6 +189,7 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, _r
     .toSorted((a, b) => b.pair.mismatch * area(b.pair) - a.pair.mismatch * area(a.pair))
     .slice(0, input.limit)
   const components = await withProvenance({ranked, design, page})
+  const xray = design.xrayUrl({id: record.id, session: request.sessionId})
   return design.store.writeRun({
     id: record.id,
     live: live.raster,
@@ -153,11 +199,11 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, _r
       store: design.store,
       result: {
         target: {id: record.id, route: record.route, width: record.width},
-        xray: design.xrayUrl(record.id),
+        xray: xray.url,
         mismatch: rounded(matched.mismatch),
         components,
         unmatched: unmatchedRegions({target, matched: matched.matchedTargetBoxes, pairs: matched.pairs, live}),
-        ...(live.components.length === 0 ? {hint: HINT} : {}),
+        ...reportHint({attributed: live.components.length > 0, absolute: xray.absolute}),
       },
     }),
   })

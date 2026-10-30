@@ -5,6 +5,8 @@ type Candidates = (input: {delta: Delta; axis: LiveComponent['axis']}) => string
 
 const ALIGNMENT = ['justify-content', 'align-items']
 
+export const PARENT_PROPERTIES: readonly string[] = ['gap']
+
 function inset(side: 'left' | 'right' | 'top' | 'bottom'): Candidates {
   const size = side === 'top' || side === 'bottom' ? ['min-height', 'height'] : ['min-width', 'width']
   return () => [`padding-${side}`, ...size, ...ALIGNMENT]

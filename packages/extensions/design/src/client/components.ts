@@ -77,6 +77,12 @@ function measureTextBox(input: {nodes: Text[]; viewport: Viewport}): Box | null 
   return clipped({rect: new DOMRect(left, top, right - left, bottom - top), viewport: input.viewport})
 }
 
+function siblingIndex(el: Element): number {
+  const parent = el.parentElement
+  if (parent === null) return 1
+  return [...parent.children].indexOf(el) + 1
+}
+
 function componentTree(input: {el: Element; viewport: Viewport; view: Window}): LiveComponent {
   const {el, viewport} = input
   const nodes = ownTextNodes(el)
@@ -91,6 +97,7 @@ function componentTree(input: {el: Element; viewport: Viewport; view: Window}): 
     textBox: measureTextBox({nodes, viewport}),
     axis: readAxis(el),
     styles: readStyles(input.view.getComputedStyle(el)),
+    index: siblingIndex(el),
     children: collectUnder({el, viewport, view: input.view}),
   }
 }

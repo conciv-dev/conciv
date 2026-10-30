@@ -1,19 +1,8 @@
 import {basename} from 'node:path'
+import {aboveTolerance} from '../../shared/above.js'
 import type {DiffReport, StatusInput, StatusReport} from '../../shared/defs.js'
-import {TOLERANCES} from '../../shared/tolerances.js'
-import type {Box, ServerStep} from '../../shared/types.js'
+import type {ServerStep} from '../../shared/types.js'
 import {liveRoute} from './target.js'
-
-function large(box: Box | undefined): boolean {
-  if (box === undefined) return false
-  return box.w >= TOLERANCES.unmatchedMinimum && box.h >= TOLERANCES.unmatchedMinimum
-}
-
-function aboveCount(report: DiffReport): number {
-  const components = report.components.filter((component) => component.deltas.length > 0).length
-  const regions = report.unmatched.filter((region) => large(region.target ?? region.live)).length
-  return components + regions
-}
 
 function runTime(report: DiffReport): number | null {
   const at = Number(basename(report.livePath).split('-')[1])
@@ -31,7 +20,7 @@ export const statusStep: ServerStep<StatusInput, StatusReport> = async (input, c
         id: record.id,
         width: record.width,
         mismatch: report.mismatch,
-        above: aboveCount(report),
+        above: aboveTolerance(report),
         lastAt: runTime(report),
       }
     }),

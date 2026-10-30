@@ -49,8 +49,14 @@ export const design = defineExtension({
     ...pickRuntime({config: server.config, server}),
     store,
     cssMap: css.cssMap,
-    xrayUrl: (id) =>
-      `${server.nativeUrl() ?? server.basePath}/api/ext/${DESIGN_EXTENSION_NAME}/xray?target=${encodeURIComponent(id)}`,
+    xrayUrl: ({id, session}) => {
+      const origin = server.nativeUrl()
+      const query = `target=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}`
+      return {
+        url: `${origin ?? server.basePath}/api/ext/${DESIGN_EXTENSION_NAME}/xray?${query}`,
+        absolute: origin !== undefined,
+      }
+    },
   }
   return {
     context: {design: runtime},
