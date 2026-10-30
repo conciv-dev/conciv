@@ -8,7 +8,7 @@ type AppendSource = {
 
 const CAPTURE_TTL_MS = 10 * 60 * 1000
 const CAPTURE_SWEEP_MS = 5_000
-export const VIEWER_LEASE_MS = 20_000
+const VIEWER_LEASE_MS = 20_000
 
 export type CaptureControl = {
   subscribe(emit: (control: RecorderControl) => void): () => void

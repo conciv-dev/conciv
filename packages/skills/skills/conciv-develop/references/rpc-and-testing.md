@@ -136,7 +136,7 @@ export function bootWhiteboard(): Promise<ExtensionTestApi> {
   code (used when the extension needs to probe a router/query client that only exists inside a real
   app):
 
-```ts title="packages/extensions/tanstack/test/helpers/tanstack-test-api.ts:14-24"
+```ts title="packages/extensions/tanstack/test/helpers.ts:19-26"
 ctx.api = await getExtensionTestApi({
   server: tanstackExtension,
   host: async ({apiBase, session}) => {

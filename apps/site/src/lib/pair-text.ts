@@ -1,4 +1,4 @@
-export function pairText(token: string, origin: string): string {
+function pairText(token: string, origin: string): string {
   return [
     '# Pairing this machine with the conciv widget',
     '',

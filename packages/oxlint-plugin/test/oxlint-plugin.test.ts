@@ -382,3 +382,41 @@ describe('wait rules', () => {
     })
   })
 })
+
+describe('test file budget', () => {
+  type Finding = {message: string; filename: string}
+
+  async function lintPackage(fixture: string): Promise<Finding[]> {
+    const diagnostics = await lintDiagnostics(
+      'test/oxlintrc-test-file-budget.json',
+      `test/fixtures/test-file-budget/${fixture}`,
+    )
+    return diagnostics
+      .filter((diagnostic) => diagnostic.code === 'conciv(test-file-budget)')
+      .map((diagnostic) => ({message: String(diagnostic.message), filename: String(diagnostic.filename)}))
+  }
+
+  describe('conciv/test-file-budget', () => {
+    test('leaves a package with one node file and one browser file alone', async () => {
+      expect(await lintPackage('within')).toEqual([])
+    })
+
+    test('reports an over-budget package once, on its first test file', async () => {
+      const findings = await lintPackage('over')
+      expect(findings).toHaveLength(1)
+      expect(findings[0]?.filename).toContain('over/src/stray.test.ts')
+      expect(findings[0]?.message).toContain('test/fixtures/test-file-budget/over')
+      expect(findings[0]?.message).toContain('3 test files')
+      expect(findings[0]?.message).toContain('budget of 2')
+      expect(findings[0]?.message).toContain('describe')
+    })
+
+    test('ignores test files under fixtures, host, and screenshot directories', async () => {
+      expect(await lintPackage('ignored')).toEqual([])
+    })
+
+    test('honours a raised max from config', async () => {
+      expect(await lintPackage('raised')).toEqual([])
+    })
+  })
+})

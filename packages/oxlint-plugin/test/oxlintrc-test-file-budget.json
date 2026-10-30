@@ -1,0 +1,9 @@
+{
+  "plugins": [],
+  "jsPlugins": [{"name": "conciv", "specifier": "../src/plugin.js"}],
+  "categories": {},
+  "rules": {"conciv/test-file-budget": "error"},
+  "overrides": [
+    {"files": ["fixtures/test-file-budget/raised/**"], "rules": {"conciv/test-file-budget": ["error", {"max": 3}]}}
+  ]
+}

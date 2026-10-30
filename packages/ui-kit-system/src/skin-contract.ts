@@ -43,7 +43,7 @@ export const SKIN_SCALAR_ANCHORS = [
   'chat-space',
 ] as const
 
-export type SkinSchemeAnchorName = (typeof SKIN_SCHEME_ANCHORS)[number]
+type SkinSchemeAnchorName = (typeof SKIN_SCHEME_ANCHORS)[number]
 export type SkinScalarAnchorName = (typeof SKIN_SCALAR_ANCHORS)[number]
 export type SkinAnchorName = SkinSchemeAnchorName | SkinScalarAnchorName
 

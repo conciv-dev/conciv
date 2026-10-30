@@ -381,3 +381,5 @@ export function stepContext(cwd: string): StepHarness {
   const events: string[] = []
   return {reports, notes, backups, events, output: recorderOutput(events), ctx, settings}
 }
+
+export type FoundSelections = Parameters<PlanPrompts['selections']>[0]

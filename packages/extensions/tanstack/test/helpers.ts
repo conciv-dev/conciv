@@ -2,13 +2,14 @@ import {fileURLToPath} from 'node:url'
 import type {Page} from 'playwright'
 import {afterAll, beforeAll} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
+import {createServer, type ViteDevServer} from 'vite'
 import {getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
 import type {ServerToolRegistryAccess} from '@conciv/extension/registry'
-import tanstackExtension from '../../src/server.js'
+import tanstackExtension from '../src/server.js'
 
-const hostDist = fileURLToPath(new URL('../../dist/test-host', import.meta.url))
+const hostDist = fileURLToPath(new URL('../dist/test-host', import.meta.url))
 
 export type TanstackTestApi = {api: ExtensionTestApi; origin: string}
 
@@ -63,4 +64,17 @@ export async function gotoAbout(page: Page): Promise<void> {
 
 export async function waitForAboutQuery(page: Page): Promise<void> {
   await expectLocator(page.getByText('Query fetched: yes')).toBeVisible({timeout: 10_000})
+}
+
+export async function startViteFixtureServer(root: string): Promise<{vite: ViteDevServer; viteBase: string}> {
+  const vite = await createServer({
+    root,
+    configFile: false,
+    logLevel: 'silent',
+    server: {host: '127.0.0.1', port: 0},
+  })
+  await vite.listen()
+  const address = vite.httpServer?.address()
+  const port = typeof address === 'object' && address ? address.port : 0
+  return {vite, viteBase: `http://127.0.0.1:${port}`}
 }

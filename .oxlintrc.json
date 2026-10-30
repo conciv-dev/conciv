@@ -30,6 +30,7 @@
     "conciv/no-locator-poll": "error",
     "conciv/no-signal-ref": "error",
     "conciv/solid-test-render": "error",
+    "conciv/test-file-budget": "error",
     "conciv/tool-card-shell": "error",
     "unicorn/consistent-function-scoping": "off",
     "unicorn/require-module-specifiers": "off",
@@ -267,6 +268,26 @@
       "files": ["packages/cli/test/support/cli-app.ts"],
       "rules": {
         "conciv/no-timers-in-tests": "off"
+      }
+    },
+    {
+      "files": ["packages/mascot/**"],
+      "rules": {
+        "conciv/test-file-budget": ["error", {"max": 4}]
+      }
+    },
+    {
+      "files": [
+        "packages/core/**",
+        "packages/ui-kit-chat/**",
+        "apps/conciv/**",
+        "packages/embed/**",
+        "packages/harness/**",
+        "packages/client/**",
+        "packages/publish/**"
+      ],
+      "rules": {
+        "conciv/test-file-budget": "off"
       }
     },
     {
