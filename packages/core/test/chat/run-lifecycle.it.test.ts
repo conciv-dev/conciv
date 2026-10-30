@@ -69,7 +69,7 @@ describe('run lifecycle on the wire (IT)', () => {
     await stream.waitForRunStart()
 
     const stopping = nextLifecycle(stream, (chunk) => isLifecyclePhase(chunk, 'stopping'))
-    await kit.rpc.chat.stop({sessionId})
+    await kit.rpc.chat.stop({sessionId, runIds: ['lifecycle-stop']})
     const acked = await stopping
     expect(acked.runId).toBe('lifecycle-stop')
     expect(acked.phase).toBe('stopping')

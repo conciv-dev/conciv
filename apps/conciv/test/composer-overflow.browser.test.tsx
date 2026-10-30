@@ -97,7 +97,7 @@ test('the send button carries a discoverable name of its own, as a labeled contr
   await mountComposer(WIDE_PX)
 
   await expect.element(sendButton()).toBeVisible()
-  await expect.element(sendButton()).toHaveTextContent('Send')
+  await expect.element(sendButton()).toHaveTextContent('Send⏎')
 })
 
 test('a narrow composer keeps only the attach button and the overflow trigger inline', async () => {

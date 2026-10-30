@@ -276,7 +276,7 @@ it('keeps a multi-item action contiguous and ordered by priority in the overflow
 
   await userEvent.click(trigger())
 
-  await expect.element(overflowMenu()).toHaveTextContent(/Alpha one\s*Alpha two\s*Bravo one/)
+  await expect.element(overflowMenu()).toMatchTextContent(/Alpha one\s*Alpha two\s*Bravo one/)
 })
 
 it('disables both renderings of a disabled action and keeps its menu item out of reach', async () => {
@@ -370,7 +370,7 @@ it('keeps the overflow menu open when leading and trailing regions resize togeth
   setSwapped(true)
 
   await expect.element(page.getByRole('img', {name: 'Wide trailing marker'})).toBeVisible()
-  await expect.element(status()).toHaveTextContent(/^idle$/)
+  await expect.element(status()).toHaveTextContent('idle')
   await expect.element(compactItem()).toBeVisible()
 })
 

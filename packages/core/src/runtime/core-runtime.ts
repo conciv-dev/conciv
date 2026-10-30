@@ -7,7 +7,7 @@ import {navigation, sessionCaptures, writeToolCapture} from '@conciv/db'
 import {symbolicateFrames} from '../editor/symbolicate.js'
 import {syncedSnapshot} from '../chat/transcript-import.js'
 import {hydrateSession} from '../chat/hydrate.js'
-import {stopSession} from '../chat/stop.js'
+import {stopListedRuns} from '../chat/stop.js'
 import type {ChatDeps} from '../chat/runtime.js'
 import type {Compactor} from '../chat/run.js'
 import {pageQueryStream} from '../page-bus.js'
@@ -123,7 +123,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       hydrate: () => hydrateSession(deps.chat, id),
     },
     run: {
-      stop: () => stopSession(deps.chat, id),
+      stop: (runIds) => stopListedRuns(deps.chat, id, runIds),
       compact: () => deps.compactor.run(id),
       live: async () => (await deps.chat.runs.findActiveRun(id)) !== null,
     },

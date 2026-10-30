@@ -153,7 +153,7 @@ test('a script step reads its own first code line, with no duplicate value pill 
 
   await mountSettled(parts, results, /Ran script on the page/)
 
-  await expect.element(page.getByRole('listitem')).toHaveTextContent(SCRIPT_LINE)
+  await expect.element(page.getByRole('listitem')).toMatchTextContent(SCRIPT_LINE)
   expect(page.getByText('script', {exact: true}).query()).toBeNull()
   expect(document.body.textContent).not.toContain(`“${SCRIPT_LINE}”`)
 })

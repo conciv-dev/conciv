@@ -66,7 +66,7 @@ describe('Streamdown streamed words', () => {
     const root = container.querySelector('.sd-root')
     if (!root) throw new Error('expected the streamdown root')
     const rootLocator = page.elementLocator(root)
-    await expect.element(rootLocator).toHaveTextContent(trailingWord(first))
+    await expect.element(rootLocator).toMatchTextContent(trailingWord(first))
     expect([...root.querySelectorAll('[data-sd-animate]')].map((span) => span.textContent)).toEqual([])
 
     for (const end of ends.slice(1)) {
@@ -74,7 +74,7 @@ describe('Streamdown streamed words', () => {
       const previousLength = root.textContent.length
       const next = answer.slice(0, end)
       setText(next)
-      await expect.element(rootLocator).toHaveTextContent(trailingWord(next))
+      await expect.element(rootLocator).toMatchTextContent(trailingWord(next))
 
       const after = snapshot(root)
       const lost = [...before.keys()].filter((span) => !span.isConnected || !after.has(span))
@@ -94,7 +94,7 @@ describe('Streamdown streamed words', () => {
       expect(fresh.filter((span) => !span.hasAttribute('data-sd-animate')).map((span) => span.textContent)).toEqual([])
     }
 
-    await expect.element(rootLocator).toHaveTextContent(/finish the stream\.$/)
+    await expect.element(rootLocator).toMatchTextContent(/finish the stream\.$/)
     expect(root.querySelectorAll('p')).toHaveLength(2)
   })
 })

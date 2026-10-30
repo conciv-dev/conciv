@@ -6,7 +6,7 @@ import {SessionId} from '@conciv/protocol/chat-types'
 import type {MadeApp} from '../../src/app.js'
 import {makeTurn} from '../../src/chat/run.js'
 import {startTurn} from '../helpers/detached-turn.js'
-import {stopSession} from '../../src/chat/stop.js'
+import {stopListedRuns, stopSession} from '../../src/chat/stop.js'
 import {bootMadeApp} from '../helpers/boot.js'
 import {useMadeApps} from '../helpers/made-apps.js'
 import {requireClaude} from '../helpers/adapters.js'
@@ -96,6 +96,29 @@ describe('run durability is owned by withSandbox (IT)', () => {
     expect(record?.cancelRequested).toBe(true)
     expect(record?.detachedSince).toBeUndefined()
     await vi.waitFor(() => expect(isAlive(harnessPid)).toBe(false), {timeout: 10_000, interval: 50})
+  })
+
+  it('a stop still cancels a run whose viewer already left', {timeout: 30_000}, async () => {
+    const pidFile = join(tmp('conciv-durability-pid-'), 'pid')
+    const made = await boot({CONCIV_FAKE_HANG: '1', CONCIV_TEST_PID_FILE: pidFile})
+    const sessionId = SessionId.parse('conciv_durability-left-then-stop')
+    const runId = 'run-durability-left-then-stop-1'
+    const viewer = new AbortController()
+    const stream = await makeTurn(made.chat)(sessionId, runId, 'hang around', {signal: viewer.signal})
+    const reader = stream[Symbol.asyncIterator]()
+    await reader.next()
+    const harnessPid = await waitForHarnessPid(pidFile)
+
+    viewer.abort()
+    void reader.return?.()
+    await vi.waitFor(
+      async () => expect(await made.chat.runs.get(runId)).toMatchObject({detachedSince: expect.any(Number)}),
+      {timeout: 5_000, interval: 50},
+    )
+    await stopListedRuns(made.chat, sessionId, [runId])
+
+    expect((await made.chat.runs.get(runId))?.status).toBe('aborted')
+    await vi.waitFor(() => expect(isAlive(harnessPid)).toBe(false), {timeout: 5_000, interval: 50})
   })
 
   it('the run log holds every chunk exactly once', {timeout: 30_000}, async () => {

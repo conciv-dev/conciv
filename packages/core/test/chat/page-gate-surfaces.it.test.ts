@@ -334,7 +334,7 @@ describe('approval-declared tools gate at the RPC boundary (server_restart)', ()
       code: 'APPROVAL_DENIED',
       message: expect.stringContaining('no approval decision'),
     })
-    await kit.rpc.chat.stop({sessionId})
+    await kit.rpc.chat.stop({sessionId, runIds: []})
     await refused
   }, 40_000)
 

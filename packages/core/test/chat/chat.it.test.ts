@@ -208,7 +208,7 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     await kit.turn('hi', {session: a, runId: 'chat-3'})
     const stream = await kit.turn('hi', {session: b, runId: 'chat-4'})
     await stream.done()
-    await kit.rpc.chat.stop({sessionId: a})
+    await kit.rpc.chat.stop({sessionId: a, runIds: ['chat-3']})
   })
 
   it('persists usage onto each session record, not a shared pointer', async () => {

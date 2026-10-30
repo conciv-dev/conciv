@@ -135,7 +135,7 @@ export const contract = {
   chat: {
     events: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
     hydrate: oc.input(SessionIdInput).output(ChatHydrationSchema),
-    stop: oc.input(SessionIdInput).output(Ok),
+    stop: oc.input(SessionIdInput.extend({runIds: z.array(z.string().min(1))})).output(Ok),
     permissionDecision: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending approval'}})
       .input(PermissionDecisionSchema)

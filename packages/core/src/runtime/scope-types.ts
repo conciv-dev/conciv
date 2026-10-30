@@ -60,7 +60,7 @@ export type SessionHistory = {
 }
 
 export type SessionRun = {
-  stop: () => Promise<{ok: true}>
+  stop: (runIds: readonly string[]) => Promise<{ok: true}>
   compact: () => Promise<void>
   live: () => Promise<boolean>
 }

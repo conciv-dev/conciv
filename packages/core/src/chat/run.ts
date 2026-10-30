@@ -519,7 +519,6 @@ async function* runStream(
   try {
     for await (const chunk of outbound) yield chunk
   } finally {
-    stopCancelWatch()
     await pumped
   }
 }
