@@ -23,7 +23,7 @@ export function collectPendingCss(doc: Document): PendingCssText | null {
   return {css}
 }
 
-export async function hashCssText(css: string): Promise<string> {
+async function hashCssText(css: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(css))
   const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
   return `css${hex.slice(0, HASH_HEX_LENGTH)}`
