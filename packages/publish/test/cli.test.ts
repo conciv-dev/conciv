@@ -13,7 +13,7 @@ import {
   assertValidTag,
   assertWorkspaceRoot,
 } from '../src/guards.ts'
-import {pushFirstPublishedTags} from '../src/sync.ts'
+import {buildSyncPlan, pushMissingTags} from '../src/sync.ts'
 import {scaffoldWorkspaceRoot, writeManifest} from './fixtures.ts'
 
 test('accepts plain dist-tags', () => {
@@ -314,10 +314,10 @@ async function repoWithOrigin(): Promise<{root: string; origin: string}> {
   return {root, origin}
 }
 
-describe('pushFirstPublishedTags', () => {
+describe('pushMissingTags', () => {
   test('creates and pushes nothing when no package was first-published', async () => {
     const {root, origin} = await repoWithOrigin()
-    await pushFirstPublishedTags(root, [])
+    await pushMissingTags(root, [])
     expect(await originTags(origin)).toEqual([])
     const {stdout} = await git(root, ['tag', '-l'])
     expect(stdout).toBe('')
@@ -326,7 +326,38 @@ describe('pushFirstPublishedTags', () => {
   test('tags only the given packages at their manifest version, keeping a pre-existing tag', async () => {
     const {root, origin} = await repoWithOrigin()
     await git(root, ['tag', '@conciv/core@0.0.20'])
-    await pushFirstPublishedTags(root, ['@conciv/core', '@conciv/page'])
+    await pushMissingTags(root, ['@conciv/core', '@conciv/page'])
     expect(await originTags(origin)).toEqual(['@conciv/core@0.0.20', '@conciv/page@0.0.20'])
+  })
+})
+
+describe('buildSyncPlan', () => {
+  test('tags a trusted package whose manifest version is on npm but untagged locally', async () => {
+    const {root} = await repoWithOrigin()
+    const plan = await buildSyncPlan(root, [{name: '@conciv/core', state: 'trusted', versions: ['0.0.19', '0.0.20']}])
+    expect(plan).toEqual([{name: '@conciv/core', state: 'trusted', actions: ['tag']}])
+  })
+
+  test('regression: an untrusted package whose manifest version npm never had gets trust only', async () => {
+    const {root} = await repoWithOrigin()
+    const plan = await buildSyncPlan(root, [{name: '@conciv/page', state: 'untrusted', versions: ['0.0.19']}])
+    expect(plan).toEqual([{name: '@conciv/page', state: 'untrusted', actions: ['trust']}])
+  })
+
+  test('an existing local tag drops the tag action, leaving a healthy package out of the plan', async () => {
+    const {root} = await repoWithOrigin()
+    await git(root, ['tag', '@conciv/core@0.0.20'])
+    await git(root, ['tag', '@conciv/page@0.0.20'])
+    const plan = await buildSyncPlan(root, [
+      {name: '@conciv/core', state: 'trusted', versions: ['0.0.20']},
+      {name: '@conciv/page', state: 'untrusted', versions: ['0.0.20']},
+    ])
+    expect(plan).toEqual([{name: '@conciv/page', state: 'untrusted', actions: ['trust']}])
+  })
+
+  test('a package missing from npm plans publish, trust and tag', async () => {
+    const {root} = await repoWithOrigin()
+    const plan = await buildSyncPlan(root, [{name: '@conciv/grab', state: 'missing', versions: []}])
+    expect(plan).toEqual([{name: '@conciv/grab', state: 'missing', actions: ['publish', 'trust', 'tag']}])
   })
 })

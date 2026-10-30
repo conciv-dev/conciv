@@ -16,8 +16,8 @@ import {
   assertVersioned,
   assertWorkspaceRoot,
 } from './guards.ts'
-import {registryState, type RegistryState} from './registry.ts'
-import {pushFirstPublishedTags} from './sync.ts'
+import {registryRecord} from './registry.ts'
+import {buildSyncPlan, pushMissingTags, type SyncPackageState, type SyncPlanEntry} from './sync.ts'
 import {
   assembleMirrorTree,
   extractCommitSubtree,
@@ -153,19 +153,8 @@ async function wireTrust(run: Run, name: string): Promise<void> {
 type Run = Awaited<ReturnType<typeof atRoot>>['run']
 type Turbo = Awaited<ReturnType<typeof atRoot>>['turbo']
 
-type SyncPackageState = {name: string; state: RegistryState}
-type SyncPlanEntry = SyncPackageState & {actions: string[]}
-
 async function gatherSyncStates(): Promise<SyncPackageState[]> {
-  return Promise.all(PUBLIC_PACKAGES.map(async (name) => ({name, state: await registryState(name)})))
-}
-
-function buildSyncPlan(unhealthy: SyncPackageState[]): SyncPlanEntry[] {
-  return unhealthy.map(({name, state}) => ({
-    name,
-    state,
-    actions: state === 'missing' ? ['publish', 'trust', 'tag'] : ['trust'],
-  }))
+  return Promise.all(PUBLIC_PACKAGES.map(async (name) => ({name, ...(await registryRecord(name))})))
 }
 
 function printSyncPlan(states: SyncPackageState[], plan: SyncPlanEntry[], json: boolean): void {
@@ -186,16 +175,20 @@ async function bootstrapSyncPackage(cwd: string, run: Run, turbo: Turbo, name: s
   await firstPublish(run, name)
 }
 
-async function applySyncPlan(cwd: string, run: Run, turbo: Turbo, unhealthy: SyncPackageState[]): Promise<void> {
+async function applySyncPlan(cwd: string, run: Run, turbo: Turbo, plan: SyncPlanEntry[]): Promise<void> {
   await run('npm', ['whoami'])
-  for (const {name, state} of unhealthy) {
-    if (state === 'missing') {
+  for (const {name, actions} of plan) {
+    if (actions.includes('publish')) {
       await bootstrapSyncPackage(cwd, run, turbo, name)
     }
-    await wireTrust(run, name)
+    if (actions.includes('trust')) {
+      await wireTrust(run, name)
+    }
   }
-  const firstPublished = unhealthy.filter(({state}) => state === 'missing').map(({name}) => name)
-  await pushFirstPublishedTags(cwd, firstPublished)
+  await pushMissingTags(
+    cwd,
+    plan.filter(({actions}) => actions.includes('tag')).map(({name}) => name),
+  )
 }
 
 const sync = defineCommand({
@@ -216,11 +209,10 @@ const sync = defineCommand({
     const {cwd, run, turbo} = await atRoot()
     await assertPublicDepsPublic(cwd)
     const states = await gatherSyncStates()
-    const unhealthy = states.filter(({state}) => state !== 'trusted')
-    const plan = buildSyncPlan(unhealthy)
+    const plan = await buildSyncPlan(cwd, states)
     printSyncPlan(states, plan, args.json)
-    if (unhealthy.length === 0 || args['dry-run']) return
-    await applySyncPlan(cwd, run, turbo, unhealthy)
+    if (plan.length === 0 || args['dry-run']) return
+    await applySyncPlan(cwd, run, turbo, plan)
   },
 })
 
