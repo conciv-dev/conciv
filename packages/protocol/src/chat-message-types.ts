@@ -30,6 +30,10 @@ export type ModelMessage = LibraryModelMessage
 
 export type ContentPart = LibraryContentPart
 
+export type SendContent = {content: string | ContentPart[]; id?: string; metadata?: Record<string, unknown>}
+
+export type QueuedMessage = {id: string; content: string | SendContent; createdAt: number}
+
 export function toModelMessages(messages: readonly ChatMessage[]): ModelMessage[] {
   return messages.flatMap(uiMessageToModelMessages)
 }

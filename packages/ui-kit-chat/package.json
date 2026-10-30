@@ -56,7 +56,6 @@
   "dependencies": {
     "@ark-ui/solid": "catalog:",
     "@chenglou/pretext": "1.0.0",
-    "@conciv/ai": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
@@ -82,6 +81,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/ai": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",

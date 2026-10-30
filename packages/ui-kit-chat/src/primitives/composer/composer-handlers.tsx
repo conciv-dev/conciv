@@ -1,5 +1,5 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import type {SendContent} from '@conciv/ai/client'
+import type {SendContent} from '@conciv/protocol/chat-message-types'
 
 export type ComposerHandlers = {
   onSend?: (content: string | SendContent) => void | Promise<unknown>

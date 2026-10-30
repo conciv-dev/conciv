@@ -12,8 +12,6 @@ export type {
 export {fetchServerSentEvents, webSocket} from '@tanstack/ai-client'
 export type {
   ConnectConnectionAdapter,
-  MultimodalContent as SendContent,
-  QueuedMessage,
   ResumableConnectConnectionAdapter,
   SubscribeConnectionAdapter,
 } from '@tanstack/ai-client'
