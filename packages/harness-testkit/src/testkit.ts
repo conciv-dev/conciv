@@ -18,9 +18,11 @@ export {
   makeApprovingCallTool,
   makeApprovingRegistryCall,
   makeCallTool,
+  makeDiscoverTools,
   makeRunTypescript,
   withAutoApproval,
   type CallTool,
+  type DiscoverTools,
   type McpCallOptions,
   type RunTypescript,
 } from './call-tool.js'

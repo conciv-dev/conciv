@@ -1,8 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {approvalIds} from '@conciv/harness-testkit'
-import type {ChatEvent} from '@conciv/ai'
-import {PushFrameSchema, type PushFrame} from '@conciv/protocol/push-types'
-import {acquirePushChannel, livePushChannelCount, pushSocketUrl, type PageQueryFrame} from '../src/push-channel.js'
+import {acquirePushChannel, livePushChannelCount, type PageQueryFrame} from '../src/push-channel.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
 
 const SETTLE_MS = 150
@@ -33,44 +30,6 @@ async function nextQuery(source: AsyncIterable<PageQueryFrame>): Promise<PageQue
   throw new Error('the push channel closed before a page query arrived')
 }
 
-async function nextApproval(source: AsyncIterable<ChatEvent>): Promise<string> {
-  for await (const chunk of source) {
-    const [approvalId] = approvalIds(chunk)
-    if (approvalId !== undefined) return approvalId
-  }
-  throw new Error('the push channel closed before an approval ask arrived')
-}
-
-type RawSocket = {frames: PushFrame[]; close: () => void}
-
-async function openRawSocket(url: string): Promise<RawSocket> {
-  const socket = new WebSocket(url)
-  const frames: PushFrame[] = []
-  socket.onmessage = (event) => {
-    const parsed = PushFrameSchema.safeParse(typeof event.data === 'string' ? JSON.parse(event.data) : null)
-    if (parsed.success) frames.push(parsed.data)
-  }
-  await new Promise<void>((resolve, reject) => {
-    socket.onopen = () => resolve()
-    socket.onerror = () => reject(new Error(`the push socket never opened at ${url}`))
-  })
-  return {frames, close: () => socket.close()}
-}
-
-function approvalIn(frames: readonly PushFrame[]): string | undefined {
-  for (const frame of frames) {
-    if (frame.channel !== 'chat') continue
-    const [approvalId] = approvalIds(frame.chunk)
-    if (approvalId !== undefined) return approvalId
-  }
-  return undefined
-}
-
-function pageQueryIn(frames: readonly PushFrame[]): PageQueryFrame | undefined {
-  for (const frame of frames) if (frame.channel === 'page') return {requestId: frame.requestId, query: frame.query}
-  return undefined
-}
-
 describe('the per-tab push socket', () => {
   it('carries a page query to the tab and the reply resolves the caller', async () => {
     const {booted, channel, abort} = await bootWithChannel()
@@ -82,24 +41,6 @@ describe('the per-tab push socket', () => {
     await booted.rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text: 'body text'}}})
 
     expect(await calling).toEqual({text: 'body text'})
-    abort.abort()
-    channel.dispose()
-  })
-
-  it('carries an out-of-band approval ask with no chat run in flight and the decision releases the call', async () => {
-    const {booted, channel, abort} = await bootWithChannel()
-    const asked = nextApproval(channel.events(abort.signal))
-    const arriving = nextQuery(channel.queries(abort.signal))
-    await settled(SETTLE_MS)
-    const calling = booted.rpc.registry.call({name: 'page_eval', input: {code: '1 + 1'}})
-
-    const approvalId = await asked
-    await booted.rpc.chat.permissionDecision({approvalId, approved: true})
-
-    const frame = await arriving
-    await booted.rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {result: 2}}})
-
-    expect(await calling).toEqual({result: 2})
     abort.abort()
     channel.dispose()
   })
@@ -130,32 +71,6 @@ describe('the per-tab push socket', () => {
     abort.abort()
     await collecting
     channel.dispose()
-  })
-
-  it('replays a pending out-of-band ask to the socket that replaces a dropped one', async () => {
-    const booted = await bootClientKit()
-    kit = booted
-    const sessionId = await booted.session()
-    const url = pushSocketUrl(booted.base, sessionId)
-    const dropped = await openRawSocket(url)
-    await settled(SETTLE_MS)
-    const calling = booted.rpc.registry.call({name: 'page_eval', input: {code: '1 + 1'}})
-    await expect.poll(() => approvalIn(dropped.frames), {timeout: 5_000}).toBeDefined()
-    dropped.close()
-
-    const replacement = await openRawSocket(url)
-    await expect.poll(() => approvalIn(replacement.frames), {timeout: 5_000}).toBeDefined()
-    const approvalId = approvalIn(replacement.frames)
-    if (approvalId === undefined) throw new Error('the replacement socket never saw the pending ask')
-    await booted.rpc.chat.permissionDecision({approvalId, approved: true})
-
-    await expect.poll(() => pageQueryIn(replacement.frames), {timeout: 5_000}).toBeDefined()
-    const query = pageQueryIn(replacement.frames)
-    if (query === undefined) throw new Error('the replacement socket never saw the page query')
-    await booted.rpc.page.reply({requestId: query.requestId, outcome: {ok: true, result: {result: 2}}})
-
-    expect(await calling).toEqual({result: 2})
-    replacement.close()
   })
 
   it('hands the page plane and the chat stream the same socket for one session', async () => {

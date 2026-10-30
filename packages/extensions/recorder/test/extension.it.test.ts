@@ -4,6 +4,7 @@ import {join} from 'node:path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
+import {makeDiscoverTools} from '@conciv/harness-testkit'
 import {start, type Engine} from '@conciv/core'
 import {makeExtRpcClient, type AnyExtension} from '@conciv/extension'
 import recorderExtension, {type RecorderRouter} from '../src/server.js'
@@ -56,26 +57,9 @@ function fixtureStream(base: number): RrwebEvent[] {
 async function callViaSandbox(base: string, name: string, input: unknown): Promise<unknown> {
   const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
   try {
-    const tools = await mcp.tools()
-    expect(tools.map((tool) => tool.name)).toEqual(['execute_typescript'])
-    const execute = tools[0]
-    if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
-    const typescriptCode = [
-      `const found = await external_catalog({name: ${JSON.stringify(name)}})`,
-      `return await globalThis[found.call](${JSON.stringify(input)})`,
-    ].join('\n')
-    return await execute.execute({typescriptCode})
-  } finally {
-    await mcp.close()
-  }
-}
-
-async function runSandboxCode(base: string, typescriptCode: string): Promise<unknown> {
-  const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
-  try {
     const execute = (await mcp.tools()).find((tool) => tool.name === 'execute_typescript')
     if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
-    return await execute.execute({typescriptCode})
+    return await execute.execute({typescriptCode: `return await external_${name}(${JSON.stringify(input)})`})
   } finally {
     await mcp.close()
   }
@@ -147,7 +131,7 @@ describe('recorder extension booted in the real engine (IT)', () => {
     }
   }, 30_000)
 
-  it('exposes one execute tool on /api/mcp and recording_pull returns the action log as text', async () => {
+  it('recording_pull through the sandbox returns the action log as text', async () => {
     const {base, engine} = await boot()
     try {
       await recorderClient(base).flush({clientId: 'c1', events: fixtureStream(Date.now() - 2000)})
@@ -159,21 +143,12 @@ describe('recorder extension booted in the real engine (IT)', () => {
     }
   }, 30_000)
 
-  it('the sandbox catalog carries the recorder declaration: summary, category and output schema', async () => {
+  it('discover_tools carries the recorder declaration with its summary', async () => {
     const {base, engine} = await boot()
     try {
-      const listed = z
-        .object({tools: z.array(z.object({name: z.string(), summary: z.string(), category: z.string()}).loose())})
-        .loose()
-        .parse(envelopeResult(await runSandboxCode(base, "return await external_catalog({search: 'recording_pull'})")))
-      const entry = listed.tools.find((tool) => tool.name === 'recording_pull')
-      expect(entry?.category).toBe('recorder')
-      expect(entry?.summary.toLowerCase()).toContain('recording')
-      const detail = z
-        .object({output: z.unknown()})
-        .loose()
-        .parse(envelopeResult(await runSandboxCode(base, "return await external_catalog({name: 'recording_pull'})")))
-      expect(detail.output).toBeDefined()
+      const {tools} = await makeDiscoverTools(base, '')(['recording_pull'])
+      expect(tools.map((tool) => tool.name)).toEqual(['external_recording_pull'])
+      expect(tools[0]?.description.toLowerCase()).toContain('recording')
     } finally {
       await engine.stop()
     }

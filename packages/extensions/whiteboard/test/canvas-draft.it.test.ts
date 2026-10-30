@@ -11,8 +11,7 @@ const CAT_EAR =
 const readTypes = async (api: ExtensionTestApi, scope: string): Promise<string[]> =>
   z.array(z.string()).parse(
     await api.runTypescript(`
-      const found = await external_catalog({name: 'canvas_read'})
-      const reply = await globalThis[found.call]({scope: ${JSON.stringify(scope)}})
+      const reply = await external_canvas_read({scope: ${JSON.stringify(scope)}})
       return reply.elements.map((element) => element.type)
     `),
   )

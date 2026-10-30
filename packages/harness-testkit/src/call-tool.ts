@@ -31,6 +31,15 @@ function decodeReply(raw: string): unknown {
   }
 }
 
+const DiscoveredToolsSchema = z.object({
+  tools: z.array(z.object({name: z.string(), description: z.string(), typeStub: z.string()})),
+  errors: z.array(z.string()).optional(),
+})
+
+export type DiscoveredTools = z.infer<typeof DiscoveredToolsSchema>
+
+export type DiscoverTools = (toolNames: string[]) => Promise<DiscoveredTools>
+
 export type McpCallOptions = {deadlineMs?: number; label?: string}
 
 const DEFAULT_DEADLINE_MS = 60_000
@@ -67,6 +76,22 @@ export function makeRunTypescript(apiBase: string, session: string, options: Mcp
       return decodeReply(raw)
     } finally {
       await mcp.close().catch(() => {})
+    }
+  }
+}
+
+export function makeDiscoverTools(apiBase: string, session: string): DiscoverTools {
+  return async (toolNames) => {
+    const mcp = await createMCPClient({
+      transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
+    })
+    try {
+      const discover = (await mcp.tools()).find((entry) => entry.name === 'discover_tools')
+      if (!discover?.execute) throw new Error('discover_tools not on /api/mcp')
+      const raw = await discover.execute({toolNames})
+      return DiscoveredToolsSchema.parse(typeof raw === 'string' ? JSON.parse(raw) : raw)
+    } finally {
+      await mcp.close()
     }
   }
 }
