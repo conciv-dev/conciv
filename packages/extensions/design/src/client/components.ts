@@ -103,13 +103,9 @@ function collectUnder(input: {el: Element; viewport: Viewport; view: Window}): L
   )
 }
 
-function withDescendants(component: LiveComponent): LiveComponent[] {
-  return [component, ...component.children.flatMap(withDescendants)]
-}
-
 export function collectComponents({root}: {root: Document}): LiveComponent[] {
   const view = root.defaultView
   if (view === null) return []
   const viewport = {width: view.innerWidth, height: view.innerHeight}
-  return collectUnder({el: root.documentElement, viewport, view}).flatMap(withDescendants)
+  return collectUnder({el: root.documentElement, viewport, view})
 }
