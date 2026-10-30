@@ -112,8 +112,10 @@ Tests go through the public entries only: no export, flag or relative `src/` imp
   retires the oldest run's handle (`provider.js:72-89`) and would kill another session's CLI.
 - Reused runIds: accepted as the library keys them. Run ids are client UUIDs; reuse means a retry
   of the same run. The two tests that pinned two-instances-in-one-process are dropped.
-- Store contract: the Drizzle stores move into `@conciv/ai/server` (they depend on db's schema
-  only) and are proven in `packages/ai`'s tests with the library's `runPersistenceConformance`. No
+- Store contract: the chat run/message tables AND their Drizzle stores live in `@conciv/ai/server`
+  (bottom layer; db already depends on ai, so stores in ai importing db would cycle). `@conciv/db`
+  includes those tables in its migrations. Proven in `packages/ai` tests with the library's
+  `runPersistenceConformance`. No
   lint exception.
 - Claude's allowed tools include the bridged ask tools (approvals spec), so the CLI does not ask a
   second time before our gate.
