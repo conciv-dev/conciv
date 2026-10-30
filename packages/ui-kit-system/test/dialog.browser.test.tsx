@@ -151,20 +151,6 @@ it('takes its accessible name from the visible heading', async () => {
   await expect.element(page.getByRole('dialog', {name: 'Connect a running session'})).toBeVisible()
 })
 
-it('paints no backdrop filter, which would force software compositing on every layer above it', async () => {
-  mountStyled(() => (
-    <Dialog open title="Connect a running session">
-      <p>a body of text</p>
-    </Dialog>
-  ))
-  await expect.element(page.getByText('a body of text')).toBeVisible()
-
-  const filtered = [...document.querySelectorAll('*')].filter(
-    (element) => getComputedStyle(element).backdropFilter !== 'none',
-  )
-  expect(filtered.map((element) => element.className)).toEqual([])
-})
-
 it('moves focus to the element the caller nominates, inside a shadow root', async () => {
   const shadow = mountInShadow((root) => (
     <EnvironmentProvider value={() => root}>

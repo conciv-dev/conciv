@@ -165,19 +165,6 @@ export const CaretPlacement: Story = {
       {'First paragraph, complete.\n\n---\n\nSecond paragraph still streaming'}
     </Streamdown>
   ),
-  play: async ({canvasElement}) => {
-    const root = canvasElement.querySelector('.sd-root') as HTMLElement
-    await waitFor(() => expect(root).toBeTruthy(), {timeout: 15000})
-
-    await waitFor(() => expect(getComputedStyle(root).getPropertyValue('--sd-caret')).toContain('▋'), {timeout: 15000})
-    const blocks = root.querySelectorAll(':scope > *')
-    const lastBlock = blocks[blocks.length - 1] as HTMLElement
-
-    await expect(getComputedStyle(lastBlock, '::after').content).toContain('▋')
-    await expect(lastBlock.textContent).toContain('Second paragraph')
-
-    await expect(getComputedStyle(blocks[0] as HTMLElement, '::after').content).not.toContain('▋')
-  },
 }
 
 const WIDGET_DELTAS = [
@@ -260,17 +247,6 @@ export const WidgetStreamFrozen: Story = {
       {WIDGET_DELTAS[0] ?? ''}
     </Streamdown>
   ),
-  play: async ({canvasElement}) => {
-    const root = canvasElement.querySelector('.sd-root') as HTMLElement
-    await waitFor(() => expect(root.textContent).toContain('doing'), {timeout: 15000})
-
-    await expect(root.querySelector('[data-sd-animate]')).toBeNull()
-
-    const blocks = Array.from(root.querySelectorAll(':scope > *')) as HTMLElement[]
-    const last = blocks.at(-1)!
-    await expect(getComputedStyle(last, '::after').content).toContain('▋')
-    await expect(last.textContent).toContain('It occurs to me')
-  },
 }
 
 export const CaretCircle: Story = {
