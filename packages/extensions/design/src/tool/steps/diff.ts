@@ -3,6 +3,7 @@ import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {ComponentReport, DiffInput, DiffReport} from '../../shared/defs.js'
 import {TOLERANCES} from '../../shared/tolerances.js'
 import type {DesignRuntime, Pair, Raster, ServerStep, TargetRecord} from '../../shared/types.js'
+import {withBreakpoints} from '../../server/breakpoints.js'
 import {sideFrom} from '../../server/deltas.js'
 import {unmatchedRegions} from '../../server/unmatched.js'
 import {liveRoute, targetWidth} from './target.js'
@@ -92,12 +93,16 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, _r
     id: record.id,
     live: live.raster,
     diff: paintDiff({live: live.raster, mask: matched.mask, width: Math.min(live.raster.width, target.raster.width)}),
-    result: {
-      target: {id: record.id, route: record.route, width: record.width},
-      mismatch: rounded(matched.mismatch),
-      components,
-      unmatched: unmatchedRegions({target, matched: matched.matchedTargetBoxes, pairs: matched.pairs, live}),
-      ...(live.components.length === 0 ? {hint: HINT} : {}),
-    },
+    result: await withBreakpoints({
+      record,
+      store: design.store,
+      result: {
+        target: {id: record.id, route: record.route, width: record.width},
+        mismatch: rounded(matched.mismatch),
+        components,
+        unmatched: unmatchedRegions({target, matched: matched.matchedTargetBoxes, pairs: matched.pairs, live}),
+        ...(live.components.length === 0 ? {hint: HINT} : {}),
+      },
+    }),
   })
 }
