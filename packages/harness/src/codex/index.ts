@@ -3,14 +3,14 @@ import {defineHarness, type HarnessChatConfig, type HarnessChatDeps} from '@conc
 import {definedEntries} from '../_shared/env.js'
 import {codexMcpArgs} from './args.js'
 import {codexHistory} from './history.js'
-import {codexDefaultModel, codexModels} from './models.js'
+import {codexDefaultModel, codexHome, codexModels} from './models.js'
 
 const BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 const bridgeApproveConfig = {[`mcp_servers.${BRIDGED_MCP_SERVER_NAME}.default_tools_approval_mode`]: '"approve"'}
 
 const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: codexText(deps.model ?? codexDefaultModel(), {
+  adapter: codexText(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
     sandboxMode: 'workspace-write',
     approvalPolicy: 'never',
     ...(deps.hasTools ? {config: bridgeApproveConfig} : {}),

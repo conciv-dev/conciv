@@ -1,3 +1,6 @@
+import {mkdtempSync, writeFileSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps, HarnessConnectContext} from '@conciv/protocol/harness-types'
@@ -36,6 +39,12 @@ describe('codex chatConfig', () => {
 
   it('defaults to the model codex itself would choose when none is requested', () => {
     expect(codex.chatConfig(deps()).adapter.model).toBe(codexDefaultModel())
+  })
+
+  it('defaults to the model named in the CODEX_HOME the session env points at', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codex-chat-config-'))
+    writeFileSync(join(dir, 'config.toml'), 'model = "gpt-from-env-home"\n')
+    expect(codex.chatConfig(deps({env: {PATH: '/usr/bin', CODEX_HOME: dir}})).adapter.model).toBe('gpt-from-env-home')
   })
 
   it('threads the resume session id through modelOptions and leaves the workdir to the sandbox', () => {

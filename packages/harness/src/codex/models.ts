@@ -7,6 +7,8 @@ import type {HarnessModel} from '@conciv/protocol/harness-types'
 
 const CONFIG_MODEL = /^model\s*=\s*"([^"]+)"/m
 
+const TABLE_HEADER = /^\s*\[/m
+
 const ModelsCacheSchema = z
   .object({
     models: z.array(
@@ -33,8 +35,12 @@ const parseJson = (text: string): unknown => {
   }
 }
 
-export function codexModels(home: string = homedir()): HarnessModel[] {
-  const text = readText(join(home, '.codex', 'models_cache.json'))
+export function codexHome(env: Record<string, string | undefined> = process.env): string {
+  return env.CODEX_HOME ?? join(homedir(), '.codex')
+}
+
+export function codexModels(codexDir: string = codexHome()): HarnessModel[] {
+  const text = readText(join(codexDir, 'models_cache.json'))
   const parsed = ModelsCacheSchema.safeParse(text === null ? null : parseJson(text))
   if (!parsed.success) return fallbackModels()
   return parsed.data.models
@@ -43,8 +49,11 @@ export function codexModels(home: string = homedir()): HarnessModel[] {
     .map((model) => ({id: model.slug, name: model.display_name, group: 'Codex'}))
 }
 
-export function codexDefaultModel(home: string = homedir()): string {
-  const configured = readText(join(home, '.codex', 'config.toml'))?.match(CONFIG_MODEL)?.[1]
+export function codexDefaultModel(codexDir: string = codexHome()): string {
+  const config = readText(join(codexDir, 'config.toml')) ?? ''
+  const headerIndex = config.search(TABLE_HEADER)
+  const topLevel = headerIndex === -1 ? config : config.slice(0, headerIndex)
+  const configured = topLevel.match(CONFIG_MODEL)?.[1]
   if (configured) return configured
-  return codexModels(home)[0]?.id ?? CODEX_MODELS[0]
+  return codexModels(codexDir)[0]?.id ?? CODEX_MODELS[0]
 }
