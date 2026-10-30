@@ -1,9 +1,11 @@
 import {parse} from 'culori'
-import {snapdom, type SnapdomPlugin} from '@zumer/snapdom'
+import {snapdom} from '@zumer/snapdom'
 import {toolError} from '@conciv/extension'
 import {DESIGN_ERRORS, type CaptureInput, type ViewportResult} from '../shared/defs.js'
 import type {LiveComponent} from '../shared/types.js'
+import {keepBodyMargins} from './body-margins.js'
 import {collectComponents} from './components.js'
+import {requestFrameCapture} from './frame-capture.js'
 import {ensureCaptureFrame, removeCaptureFrame} from './frame.js'
 
 export type ClientCapture = {image: string; width: number; height: number; route: string; components: LiveComponent[]}
@@ -22,18 +24,6 @@ function base64(blob: Blob): Promise<string> {
     reader.addEventListener('error', () => reject(reader.error ?? new Error('The capture could not be read.')))
     reader.readAsDataURL(blob)
   })
-}
-
-const keepBodyMargins: SnapdomPlugin = {
-  name: 'keep-body-margins',
-  afterClone: (context) => {
-    const root = context.clone
-    const body = root?.querySelector(':scope > body')
-    if (!(root instanceof HTMLElement) || !(body instanceof HTMLElement)) return
-    body.style.removeProperty('margin-top')
-    body.style.removeProperty('margin-bottom')
-    root.style.display = 'flow-root'
-  },
 }
 
 type Size = {width: number; height: number}
@@ -88,8 +78,7 @@ async function captureInFrame(size: Size): Promise<ClientCapture> {
   const doc = frame.contentDocument
   if (doc === null) throw toolError('frame-blocked', {message: DESIGN_ERRORS['frame-blocked'].message})
   const components = collectComponents({root: doc})
-  const capture = await snapdom(doc.documentElement, {dpr: 1, embedFonts: true, plugins: [keepBodyMargins]})
-  const blob = await composited({blob: await capture.toBlob({format: 'png'}), doc, ...size})
+  const blob = await composited({blob: await requestFrameCapture(frame), doc, ...size})
   return {image: await base64(blob), ...size, route: routeOf(location), components}
 }
 

@@ -1,7 +1,10 @@
 import {defineExtension, type RegisterExtension} from '@conciv/extension'
 import {designConfig} from './shared/config.js'
 import {DESIGN_EXTENSION_NAME} from './shared/defs.js'
+import {answerCaptureRequests} from './client/frame-capture.js'
 import {CLIENT_TOOLS} from './tool/client.js'
+
+answerCaptureRequests()
 
 export const design = defineExtension({
   name: DESIGN_EXTENSION_NAME,
