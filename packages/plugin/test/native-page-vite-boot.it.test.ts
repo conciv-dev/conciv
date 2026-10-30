@@ -1,9 +1,13 @@
 import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
 import {existsSync, writeFileSync} from 'node:fs'
-import {dirname, join} from 'node:path'
-import {fileURLToPath, pathToFileURL} from 'node:url'
+import {join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {chromium, type Browser, type Page} from 'playwright'
-import {dedupeExtensions, type ExtensionEntry} from '@conciv/extension-compiler/dedupe'
+import terminal from '@conciv/extension-terminal'
+import testRunner from '@conciv/extension-test-runner'
+import whiteboard from '@conciv/extension-whiteboard'
+import recorder from '@conciv/extension-recorder'
+import ios from '@conciv/extension-ios'
 import {devServers, installConcivPackage, pageApiBase, type StartedDevServer} from './helpers/dev-servers.js'
 
 const NATIVE_BUNDLE = 'conciv-widget-native.global.js'
@@ -15,12 +19,6 @@ const BUILTIN_EXTENSIONS = [
   '@conciv/extension-ios',
 ]
 const INTEROP_ERROR = /SyntaxError|does not provide an export named/
-
-async function serverExtensionEntry(packageDir: string): Promise<ExtensionEntry> {
-  const module: unknown = await import(pathToFileURL(join(packageDir, 'dist', 'server.js')).href)
-  const extension = typeof module === 'object' && module !== null ? Reflect.get(module, 'default') : undefined
-  return {extension, source: packageDir}
-}
 
 describe('dev core booted through the vite plugin', () => {
   const servers = devServers()
@@ -62,13 +60,11 @@ describe('widget boot in a host that installs conciv and its builtin extensions 
       '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>',
     )
     const embedDir = installConcivPackage(root, '@conciv/embed')
-    const itDir = join(dirname(dirname(import.meta.dirname)), 'it')
-    const extensionDirs = BUILTIN_EXTENSIONS.map((name) => installConcivPackage(root, name, itDir))
-    const serverExtensions = dedupeExtensions(await Promise.all(extensionDirs.map(serverExtensionEntry))).extensions
+    const extensionDirs = BUILTIN_EXTENSIONS.map((name) => installConcivPackage(root, name))
     state.started = await servers.start(
       {devEndpointDir: servers.tempDir('conciv-vite-endpoint-')},
       {
-        serverExtensions,
+        serverExtensions: [terminal, testRunner, whiteboard, recorder, ios],
         clientEntries: extensionDirs.map((dir) => join(dir, 'dist', 'client.js')),
         embedEntry: join(embedDir, 'dist', 'mount.js'),
         dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
