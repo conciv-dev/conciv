@@ -23,10 +23,20 @@ export type CodeCapability = {
 
 export type CapabilityCall = (name: string, input: unknown, request: ToolRequest) => Promise<unknown>
 
+function discoverableDescription(tool: SandboxTool): string {
+  const summary = tool.hint === undefined ? tool.summary : `${tool.summary}. ${tool.hint}`
+  const errors = tool.errors.map(({code, message}) => `${code}: ${message}`).join('; ')
+  return [
+    /[.!?]$/.test(summary) ? summary : `${summary}.`,
+    `Returns JSON matching: ${JSON.stringify(tool.outputSchema)}`,
+    ...(errors === '' ? [] : [`Declared errors: ${errors}`]),
+  ].join('\n\n')
+}
+
 export function registryCapabilities(tools: readonly SandboxTool[], call: CapabilityCall): CodeCapability[] {
   return tools.map((tool) => ({
     name: tool.name,
-    description: tool.hint === undefined ? tool.summary : `${tool.summary}. ${tool.hint}`,
+    description: discoverableDescription(tool),
     ...(tool.approval === undefined ? {} : {approval: tool.approval}),
     errors: tool.errors.map(({code, message}) => ({code, message})),
     inputSchema: tool.schema,

@@ -1137,6 +1137,16 @@ describe('chat', () => {
       )
     })
 
+    it('discover_tools shows a tool output shape and declared error codes, the catalog only its summary', async () => {
+      const discover = await mcpTool('discover_tools')
+      const found = JSON.stringify(await discover.execute({toolNames: ['fixture_fail']}))
+      expect(found).toContain('Returns JSON matching')
+      expect(found).toContain('PROBE_BROKE: the probe broke')
+      expect(JSON.stringify(await discover.execute({toolNames: ['fixture_echo']}))).toContain('echoed')
+      expect(discover.description).toContain('fail with a declared error.')
+      expect(discover.description).not.toContain('PROBE_BROKE')
+    })
+
     it('errors keep their declared code, other failures stay plain errors, and huge results are capped', async () => {
       expect(await executeResult(catchMessage('external_fixture_fail({spaced: true})'))).toBe(DECLARED_MESSAGE)
       expect(await executeResult(catchMessage('external_fixture_fail({spaced: false})'))).toBe(DECLARED_MESSAGE)

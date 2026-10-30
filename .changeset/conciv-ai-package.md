@@ -37,4 +37,5 @@ error.
 
 The agent prompts and the `react-introspection` skill name `discover_tools`; `external_catalog` is
 gone. `@conciv/harness-testkit` builds on the `@conciv/ai` event types and chunk builders and reaches
-tools through `/api/mcp` with `discover_tools`.
+tools through `/api/mcp` with `discover_tools`. `discover_tools` carries each tool's
+output shape and declared error codes.
