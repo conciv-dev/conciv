@@ -237,13 +237,26 @@ minimumReleaseAgeExclude:
   - '@tiptap/suggestion'
   - 'env-runner'
 patchedDependencies:
+  # createEventAwareBindings (dist/esm/bindings/tool-to-binding.js:73-115 in 1.0.1) emits
+  # code_mode:external_call / external_result / external_error with no call id, so parallel child calls
+  # cannot be paired into cards and aroundCalls cannot add one. The patch mints one callId per call and
+  # stamps it on the call and on its result or error. Drop it once upstream carries a call id there.
+  '@tanstack/ai-code-mode@1.0.1': patches/@tanstack__ai-code-mode@1.0.1.patch
   # LocalProcessProvider.destroy(id) only retries the dir (src/provider.ts:129-133 in 1.0.0); it never
   # reaches the handle that spawned the CLI, so a stopped turn leaves the agent running. The patch tracks
-  # minted handles and destroys one through its own destroy. Drop it once upstream kills the tree there.
+  # minted handles and destroys one through its own destroy (SIGTERM, then SIGKILL after 5s): the handle
+  # whose run signal was aborted with RUN_CANCEL_REASON, so a stop never kills another session's CLI on the
+  # shared dir. Its teardown also waits for the whole process group, not just the sh wrapper, before
+  # deciding to escalate: a journaled agent outlives a wrapper that SIGTERM killed. Drop it once upstream
+  # kills the tree there.
   '@tanstack/ai-sandbox-local-process@1.0.0': patches/@tanstack__ai-sandbox-local-process@1.0.0.patch
   # withSandbox declares ProjectionCapability in provides unconditionally (src/middleware.ts:502 in 1.0.0)
   # but only provides it for a definition with a workspace (src/middleware.ts:891-892), so every
   # workspace-less run fails the engine's provides check; and it builds the projection root through
   # resolveHarnessCwd (src/middleware.ts:894), a host path where the sandbox expects a virtual one.
-  # Drop the patch once upstream fixes both lines.
+  # Its tool-history recorder (src/tool-history.ts) also drops each call's TOOL_CALL_START metadata and the
+  # result's output-error state, so a reload loses code-mode nesting (parentToolCallId) and shows failed
+  # calls as successes; the patch keeps both. It also records the assistant message with no id, so
+  # conversion mints a fresh one on every read; the patch stores one from generateMessageId. Drop the patch
+  # once upstream fixes all four.
   '@tanstack/ai-sandbox@1.0.0': patches/@tanstack__ai-sandbox@1.0.0.patch

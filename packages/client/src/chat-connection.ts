@@ -8,10 +8,10 @@ import {
   type ModelMessage,
   type ChatMessage,
   type ChatEvent,
+  ChatEventType,
   runLifecycleEvent,
   type RunLifecycle,
   approvalAskOf,
-  approvalSettledEvent,
   type ApprovalAsk,
 } from '@conciv/ai'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
@@ -30,7 +30,7 @@ export type ChatConnectionOptions = {
   onTransport?: (transport: ChatTransport) => void
   onHydrated?: (hydration: ChatHydration) => void
   onApprovalAsk?: (ask: ApprovalAsk) => void
-  onApprovalSettled?: (approvalId: string) => void
+  onRunError?: () => void
 }
 
 export type ChatConnection = SubscribeConnectionAdapter & {
@@ -99,22 +99,16 @@ function overSocket(apiBase: string, live: Set<WebSocket>): Selected {
 }
 
 function subscribeOver(adapter: ResumableConnectConnectionAdapter): SubscribeConnectionAdapter {
-  const listeners = new Set<WritableStreamDefaultWriter<ChatEvent>>()
+  const listeners = new Set<(chunk: ChatEvent) => void>()
   return {
-    subscribe: (abortSignal) => {
-      const relay = new TransformStream<ChatEvent, ChatEvent>()
-      const writer = relay.writable.getWriter()
-      listeners.add(writer)
-      const stop = (): void => {
-        listeners.delete(writer)
-        void writer.close().catch(() => undefined)
-      }
-      abortSignal?.addEventListener('abort', stop, {once: true})
-      return readingValues(relay.readable)
-    },
+    subscribe: (abortSignal) =>
+      relayedValues<ChatEvent>((emit) => {
+        listeners.add(emit)
+        return () => listeners.delete(emit)
+      }, abortSignal),
     send: async (messages, data, abortSignal, runContext) => {
       for await (const chunk of adapter.connect(messages, data, abortSignal, runContext)) {
-        for (const writer of listeners) void writer.write(chunk).catch(() => undefined)
+        for (const emit of listeners) emit(chunk)
       }
     },
   }
@@ -137,15 +131,33 @@ async function select(apiBase: string, options: ChatConnectionOptions, live: Set
   return opened ? overSocket(apiBase, live) : overEvents(apiBase)
 }
 
-async function pumpInto<T>(source: AsyncIterable<T>, emit: (value: T) => void): Promise<void> {
-  for await (const value of source) emit(value)
+type Source<T> = (abortSignal: AbortSignal) => AsyncIterable<T>
+
+async function pumpInto<T>(
+  source: AsyncIterable<T>,
+  controller: ReadableStreamDefaultController<T>,
+  scope: AbortSignal,
+): Promise<void> {
+  for await (const value of source) {
+    if (scope.aborted) return
+    controller.enqueue(value)
+  }
 }
 
-function merged<T>(sources: readonly AsyncIterable<T>[], abortSignal: AbortSignal | undefined): AsyncGenerator<T> {
-  return relayedValues<T>((emit) => {
-    for (const source of sources) void pumpInto(source, emit).catch(() => undefined)
-    return () => undefined
-  }, abortSignal)
+function merged<T>(sources: readonly Source<T>[], abortSignal: AbortSignal | undefined): AsyncGenerator<T> {
+  const scope = new AbortController()
+  const lifetime = AbortSignal.any(abortSignal ? [abortSignal, scope.signal] : [scope.signal])
+  const readable = new ReadableStream<T>({
+    start: async (controller) => {
+      try {
+        await Promise.all(sources.map((source) => pumpInto(source(lifetime), controller, lifetime)))
+      } finally {
+        scope.abort()
+      }
+      controller.close()
+    },
+  })
+  return readingValues(readable)
 }
 
 async function* watching(
@@ -157,7 +169,8 @@ async function* watching(
   const chosen = await selected
   const channel = push()
   try {
-    yield* noticing(merged([chosen.adapter.subscribe(abortSignal), channel.events(abortSignal)], abortSignal), options)
+    const sources: Source<ChatEvent>[] = [(scope) => chosen.adapter.subscribe(scope), (scope) => channel.events(scope)]
+    yield* noticing(merged(sources, abortSignal), options)
   } finally {
     channel.dispose()
   }
@@ -168,8 +181,7 @@ function notice(chunk: ChatEvent, options: ChatConnectionOptions): void {
   if (lifecycle) options.onLifecycle?.(lifecycle)
   const ask = approvalAskOf(chunk)
   if (ask) options.onApprovalAsk?.(ask)
-  const settled = approvalSettledEvent.parse(chunk)?.approvalId ?? null
-  if (settled !== null) options.onApprovalSettled?.(settled)
+  if (chunk.type === ChatEventType.RUN_ERROR) options.onRunError?.()
 }
 
 async function* noticing(source: AsyncIterable<ChatEvent>, options: ChatConnectionOptions): AsyncGenerator<ChatEvent> {
@@ -177,6 +189,15 @@ async function* noticing(source: AsyncIterable<ChatEvent>, options: ChatConnecti
     notice(chunk, options)
     yield chunk
   }
+}
+
+function lastTurn<Message extends {role: string}>(messages: Message[]): Message[] {
+  return messages.slice(
+    Math.max(
+      messages.findLastIndex((message) => message.role === 'user'),
+      0,
+    ),
+  )
 }
 
 async function* joining(
@@ -209,7 +230,12 @@ export function chatConnection(
   return {
     subscribe: (abortSignal) => watching(selected, push, options, abortSignal),
     send: async (messages: Array<ChatMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
-      await (await selected).adapter.send(messages, data, abortSignal, runContext)
+      const {adapter} = await selected
+      if (messages.every((message) => 'parts' in message)) {
+        await adapter.send(lastTurn(messages), data, abortSignal, runContext)
+        return
+      }
+      await adapter.send(messages, data, abortSignal, runContext)
     },
     joinRun: (runId, abortSignal) => joining(selected, runId, abortSignal),
     hydrate,

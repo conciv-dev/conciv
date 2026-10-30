@@ -1,26 +1,16 @@
 import type {AnyTextAdapter, TextOptions} from '@tanstack/ai'
 import {BaseTextAdapter, type StructuredOutputOptions, type StructuredOutputResult} from '@tanstack/ai/adapters'
-import {
-  acpCompatible,
-  type AcpCompatibleConfig,
-  type AcpPermissionOutcome as LibraryAcpPermissionOutcome,
-  type AcpPermissionRequest as LibraryAcpPermissionRequest,
-} from '@tanstack/ai-acp'
+import {acpCompatible, type AcpCompatibleConfig} from '@tanstack/ai-acp'
 import {claudeCodeText, type ClaudeCodeTextConfig} from '@tanstack/ai-claude-code'
 import {codexText, CODEX_MODELS, type CodexTextConfig} from '@tanstack/ai-codex'
-import {
-  opencodeText,
-  OPENCODE_MODELS,
-  type OpencodePermissionRequest as LibraryOpencodePermissionRequest,
-  type OpencodeTextConfig,
-} from '@tanstack/ai-opencode'
+import {opencodeText, OPENCODE_MODELS, type OpencodeTextConfig} from '@tanstack/ai-opencode'
 import type {ChatEvent} from '../events/events.js'
 
 export type TextAdapter = AnyTextAdapter
 
-export type TextAdapterOptions = TextOptions<Record<string, never>>
+type TextAdapterOptions = TextOptions<Record<string, never>>
 
-export type ChatStreamFn = (options: TextAdapterOptions) => AsyncIterable<ChatEvent>
+type ChatStreamFn = (options: TextAdapterOptions) => AsyncIterable<ChatEvent>
 
 type InputModalities = readonly ['text']
 type MessageMetadata = {text: unknown; image: unknown; audio: unknown; video: unknown; document: unknown}
@@ -64,8 +54,6 @@ export function codex(model: string, options: CodexOptions): TextAdapter {
 
 export type OpencodeOptions = OpencodeTextConfig
 
-export type OpencodePermissionRequest = LibraryOpencodePermissionRequest
-
 export const opencodeModels: readonly string[] = OPENCODE_MODELS
 
 export function opencode(model: string, options: OpencodeOptions): TextAdapter {
@@ -73,10 +61,6 @@ export function opencode(model: string, options: OpencodeOptions): TextAdapter {
 }
 
 export type AcpOptions = AcpCompatibleConfig
-
-export type AcpPermissionRequest = LibraryAcpPermissionRequest
-
-export type AcpPermissionOutcome = LibraryAcpPermissionOutcome
 
 export function acp(model: string, options: AcpOptions): TextAdapter {
   return acpCompatible(options)(model)

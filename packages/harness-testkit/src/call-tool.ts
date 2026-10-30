@@ -16,13 +16,8 @@ const TruncatedReplySchema = z
   .object({'conciv:truncated': z.literal(true), reason: z.string(), head: z.string()})
   .loose()
 
-function callThroughCatalog(name: string, input: unknown): string {
-  return `
-    const found = await external_catalog({name: ${JSON.stringify(name)}})
-    const call = globalThis[found.call]
-    if (typeof call !== 'function') throw new Error('binding missing: ' + found.call)
-    return await call(${JSON.stringify(input ?? {})})
-  `
+function directCall(name: string, input: unknown): string {
+  return `return await external_${name}(${JSON.stringify(input ?? {})})`
 }
 
 function decodeReply(raw: string): unknown {
@@ -79,7 +74,7 @@ export function makeRunTypescript(apiBase: string, session: string, options: Mcp
 export function makeCallTool(apiBase: string, session: string, options: McpCallOptions = {}): CallTool {
   return async (name, input) => {
     const runTypescript = makeRunTypescript(apiBase, session, {...options, label: options.label ?? name})
-    const reply = await runTypescript(callThroughCatalog(name, input))
+    const reply = await runTypescript(directCall(name, input))
     const truncated = TruncatedReplySchema.safeParse(reply)
     if (!truncated.success) return reply
     throw new Error(

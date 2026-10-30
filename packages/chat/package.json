@@ -21,12 +21,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/plane.d.ts",
-      "import": "./dist/plane.js"
-    },
-    "./*": {
-      "types": "./dist/*.d.ts",
-      "import": "./dist/*.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
   "publishConfig": {

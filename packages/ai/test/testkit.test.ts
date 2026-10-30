@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import {ChatEventType, type ChatEvent} from '../src/index.js'
-import {createTextChunks, storyConnection} from '../src/testkit.js'
+import {ChatEventType, type ChatEvent} from '@conciv/ai'
+import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 
 async function drainUntilLastChunk(iterator: AsyncIterator<ChatEvent>, expected: number): Promise<ChatEvent[]> {
   const seen: ChatEvent[] = []

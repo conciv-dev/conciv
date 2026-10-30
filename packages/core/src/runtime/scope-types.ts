@@ -10,7 +10,6 @@ import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ToolRequest} from '@conciv/extension'
 import type {ChangeEntry} from '../page-bus.js'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
-import type {PendingApproval} from '@conciv/chat/ask'
 
 export type ToolCatalog = ToolRegistry['catalog']
 
@@ -34,18 +33,10 @@ export type SessionPage = {
 export type SessionStream = {
   publish: (chunk: ChatEvent) => void
   listen: (onChunk: (chunk: ChatEvent) => void) => () => void
-  listening: () => boolean
   events: (signal: AbortSignal) => AsyncGenerator<ChatEvent>
 }
 
 export type SessionAsks = {
-  open: (key: string, approval?: PendingApproval) => void
-  pending: () => string[]
-  reply: (key: string, value: unknown) => boolean
-  waitFor: (key: string, timeoutMs: number) => Promise<unknown>
-  cancel: () => void
-  noteToolCall: (toolCallId: string, toolName: string) => void
-  nextUiCall: (timeoutMs: number) => Promise<string | null>
   ui: () => Promise<UiAnswer>
 }
 

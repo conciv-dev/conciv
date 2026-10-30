@@ -24,7 +24,7 @@ export function agentsSection(consented: HarnessId[]): string {
     '',
     'conciv is connected via MCP.',
     '',
-    'Capabilities are discovered inside the sandbox with `await external_catalog({})`, never a static list.',
+    'Capabilities are discovered with the `discover_tools` tool, never a static list.',
     '',
     "The project's conciv dev server must be running.",
     '',

@@ -105,7 +105,6 @@ export type HarnessChatDeps = {
   env: Record<string, string | undefined>
   kind: 'chat' | 'compact'
   hasTools?: boolean
-  decide(toolName: string, input: unknown, toolUseId: string): Promise<'allow' | 'deny'>
 }
 
 export type HarnessChatConfig = {

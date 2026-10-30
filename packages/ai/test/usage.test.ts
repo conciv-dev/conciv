@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {UsageSnapshotSchema, contextUsedTokens} from '../src/index.js'
+import {UsageSnapshotSchema, contextUsedTokens} from '@conciv/ai'
 
 describe('usage-types', () => {
   it('parses a partial snapshot (all fields optional)', () => {

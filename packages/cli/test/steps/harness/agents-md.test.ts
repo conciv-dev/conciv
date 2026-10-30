@@ -17,7 +17,7 @@ function project(): {cwd: string} & ReturnType<typeof stepContext> {
 describe('agentsSection', () => {
   it('teaches the MCP discovery workflow instead of a static command list', () => {
     const section = agentsSection(consented)
-    expect(section).toContain('await external_catalog({})')
+    expect(section).toContain('`discover_tools`')
     expect(section).toContain('connected via MCP')
     expect(section).toContain('conciv tools --help')
     expect(section).not.toContain('conciv tools page')

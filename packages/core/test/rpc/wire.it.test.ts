@@ -13,7 +13,7 @@ import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
 import {hydratedSnapshot} from '../helpers/fake-session.js'
 import {userTexts} from '../helpers/snapshots.js'
-import {foldChatEvents} from '@conciv/ai/server-testkit'
+import {foldChatEvents} from '@conciv/ai/testkit'
 
 type WireContext = {kit: Kit; harness: TestHarness}
 

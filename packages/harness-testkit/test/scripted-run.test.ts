@@ -11,7 +11,6 @@ const deps = (): HarnessChatDeps => ({
   resumeSessionId: null,
   env: {},
   kind: 'chat',
-  decide: async (): Promise<'allow' | 'deny'> => 'allow',
 })
 
 function drainUnderSignal(

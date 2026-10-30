@@ -3,10 +3,9 @@ import type {SessionId, NavigationWrite} from '@conciv/protocol/chat-types'
 import type {RawFrame} from '../editor/symbolicate.js'
 import type {EngineStaleness, ToolCommandSignature} from '@conciv/contract'
 import type {ToolRequest} from '@conciv/extension'
-import {navigation, sessionCaptures, writeToolCapture} from '@conciv/db'
+import {navigation, sessionCaptures, writeToolCapture, type ConcivDb} from '@conciv/db'
 import {symbolicateFrames} from '../editor/symbolicate.js'
 import type {ChatPlane} from '@conciv/chat'
-import {askUi} from '@conciv/chat/ask'
 import {pageQueryStream} from '../page-bus.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
@@ -17,6 +16,7 @@ const MAX_NAVIGATION_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000
 export type CoreRuntimeDeps = {
   primitives: SessionPrimitives
   plane: ChatPlane
+  db: ConcivDb
   model: (sessionId: SessionId) => string | null
   staleness: () => EngineStaleness
 }
@@ -46,7 +46,7 @@ function catalogSignatures(catalog: ToolCatalog): ToolCommandSignature[] {
 }
 
 function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
-  const db = deps.plane.deps.db
+  const db = deps.db
   return {
     catalog: () => catalogSignatures(deps.primitives.registry.catalog),
     staleness: deps.staleness,
@@ -71,7 +71,7 @@ function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
 }
 
 function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
-  const {asks, page, registry, stream} = deps.primitives
+  const {page, registry, stream} = deps.primitives
   const model = deps.model(id)
   const view = registry.whenPageConnected(() => page.bus.connected(id))
   const requestFor = (toolCallId: string | undefined): ToolRequest =>
@@ -95,22 +95,12 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     stream: {
       publish: (chunk) => stream.publish(id, chunk),
       listen: (onChunk) => stream.listen(id, onChunk),
-      listening: () => stream.watched(id),
-      events: (signal) => deps.plane.events(id, signal),
+      events: (signal) => stream.events(id, signal),
     },
-    asks: {
-      open: (key, approval) => asks.open(id, key, approval),
-      pending: () => asks.pending(id),
-      reply: (key, value) => asks.reply(id, key, value),
-      waitFor: (key, timeoutMs) => asks.waitFor(id, key, timeoutMs),
-      cancel: () => asks.cancel(id),
-      noteToolCall: (toolCallId, toolName) => asks.noteToolCall(id, toolCallId, toolName),
-      nextUiCall: (timeoutMs) => asks.nextUiCall(id, timeoutMs),
-      ui: () => askUi(asks, id),
-    },
+    asks: {ui: () => deps.plane.askUi(id)},
     captures: {
-      list: () => sessionCaptures(deps.plane.deps.db, id),
-      store: (toolCallId, bundle) => writeToolCapture(deps.plane.deps.db, {sessionId: id, toolCallId, bundle}),
+      list: () => sessionCaptures(deps.db, id),
+      store: (toolCallId, bundle) => writeToolCapture(deps.db, {sessionId: id, toolCallId, bundle}),
     },
     history: {
       messages: () => deps.plane.history(id),
@@ -119,7 +109,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     run: {
       stop: () => deps.plane.stop(id),
       compact: () => deps.plane.compact(id),
-      live: async () => (await deps.plane.deps.runs.findActiveRun(id)) !== null,
+      live: () => deps.plane.live(id),
     },
   }
 }
@@ -145,16 +135,7 @@ function established(raw: SessionScope): SessionScope {
       listen: inScope(raw.stream.listen),
       events: inScope(raw.stream.events),
     },
-    asks: {
-      ...raw.asks,
-      open: inScope(raw.asks.open),
-      reply: inScope(raw.asks.reply),
-      waitFor: inScope(raw.asks.waitFor),
-      cancel: inScope(raw.asks.cancel),
-      noteToolCall: inScope(raw.asks.noteToolCall),
-      nextUiCall: inScope(raw.asks.nextUiCall),
-      ui: inScope(raw.asks.ui),
-    },
+    asks: {ui: inScope(raw.asks.ui)},
     captures: {list: inScope(raw.captures.list), store: inScope(raw.captures.store)},
     history: {messages: inScope(raw.history.messages), hydrate: inScope(raw.history.hydrate)},
     run: {

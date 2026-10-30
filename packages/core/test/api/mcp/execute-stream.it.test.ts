@@ -4,7 +4,7 @@ import {type ChatEvent, ChatEventType} from '@conciv/ai'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from '../../helpers/boot.js'
-import {connectMcpClient} from '@conciv/ai/server-testkit'
+import {connectMcpClient} from '../../helpers/mcp-client.js'
 
 const draw = defineTool({
   name: 'canvas_svg',

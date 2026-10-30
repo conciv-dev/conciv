@@ -1,8 +1,15 @@
-import {type QueuedMessage, type ApprovalAsk, isRunPhaseTerminal, type RunClockSource} from '@conciv/ai'
+import {
+  type QueuedMessage,
+  type ApprovalAsk,
+  isRunPhaseTerminal,
+  type RunClockSource,
+  type RunLifecycle,
+} from '@conciv/ai'
 import {useChat} from '@tanstack/ai-solid'
 import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
-import type {ChatPendingApproval, RpcClient} from '@conciv/contract'
+import type {ChatHydration, ChatPendingApproval, RpcClient} from '@conciv/contract'
+import type {PermissionScope} from '@conciv/protocol/chat-types'
 import {chatConnection, type ChatConnectionOptions} from './chat-connection.js'
 
 export type UseChatSessionOptions = {
@@ -15,13 +22,14 @@ export type UseChatSessionOptions = {
 
 export type ChatSession = ReturnType<typeof useChat> & {
   refresh: () => Promise<void>
-  interruptAndFlush: () => void
+  interruptAndFlush: () => Promise<void>
   stopping: Accessor<boolean>
   runSource: Accessor<RunClockSource | null>
   runError: Accessor<string | null>
   sessionRunning: Accessor<boolean>
   hydrated: Accessor<boolean>
   pendingApprovals: Accessor<ApprovalAsk[]>
+  decide: (approvalId: string, approved: boolean, scope: PermissionScope) => Promise<void>
 }
 
 function askOf(approval: ChatPendingApproval): ApprovalAsk {
@@ -30,6 +38,32 @@ function askOf(approval: ChatPendingApproval): ApprovalAsk {
     toolCallId: approval.toolCallId,
     toolName: approval.toolName,
     input: approval.input,
+  }
+}
+
+function approvedText(title: string, scope: PermissionScope): string {
+  return scope === 'session' ? `Approved for this session: ${title}` : `Approved: ${title}`
+}
+
+function newerRun(current: RunClockSource | null, hydration: ChatHydration): RunClockSource | null {
+  const last = hydration.lastRun
+  if (last === null) return current
+  if (current !== null && current.lifecycle.startedAt > last.startedAt) return current
+  if (settledAhead(current, last)) return current
+  return {lifecycle: last, receivedAt: Date.now()}
+}
+
+function settledAhead(current: RunClockSource | null, last: RunLifecycle): boolean {
+  if (current === null || current.lifecycle.runId !== last.runId) return false
+  return isRunPhaseTerminal(current.lifecycle.phase) && !isRunPhaseTerminal(last.phase)
+}
+
+function stoppedRun(current: RunClockSource | null): RunClockSource | null {
+  if (current === null || isRunPhaseTerminal(current.lifecycle.phase)) return current
+  const now = Date.now()
+  return {
+    lifecycle: {...current.lifecycle, phase: 'aborted', finishedAt: now, serverNow: now, error: null},
+    receivedAt: now,
   }
 }
 
@@ -58,8 +92,13 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     },
     onHydrated: (hydration) => {
       options.connection?.onHydrated?.(hydration)
+      setRunSource((current) => newerRun(current, hydration))
       setAsks('pending', reconcile(hydration.pendingApprovals.map(askOf), {key: 'approvalId'}))
       setHydrated(true)
+    },
+    onRunError: () => {
+      options.connection?.onRunError?.()
+      void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
     onApprovalAsk: (ask) => {
       options.connection?.onApprovalAsk?.(ask)
@@ -67,11 +106,11 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
         pending.some((waiting) => waiting.approvalId === ask.approvalId) ? pending : [...pending, ask],
       )
     },
-    onApprovalSettled: (approvalId) => {
-      options.connection?.onApprovalSettled?.(approvalId)
-      setAsks('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
-    },
   })
+  const refresh = async (): Promise<void> => {
+    const hydration = await connection.refresh()
+    chat.setMessages(hydration.messages)
+  }
   const chat = useChat({
     threadId: options.sessionId,
     connection,
@@ -90,30 +129,32 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     const source = runSource()
     return source !== null && !isRunPhaseTerminal(source.lifecycle.phase)
   })
-  const stop = () => {
-    chat.stop()
-    void options.rpc.chat.stop({sessionId: options.sessionId}).catch((error) => options.onError?.(asError(error)))
+  const stopRun = async (): Promise<void> => {
+    try {
+      await options.rpc.chat.stop({sessionId: options.sessionId})
+    } finally {
+      chat.stop()
+    }
+    setRunSource(stoppedRun)
+    await refresh()
+  }
+  const stop = (): Promise<void> => stopRun().catch((error: unknown) => options.onError?.(asError(error)))
+  const decide = async (approvalId: string, approved: boolean, scope: PermissionScope): Promise<void> => {
+    const ask = asks.pending.find((waiting) => waiting.approvalId === approvalId)
+    await options.rpc.chat.permissionDecision({approvalId, approved, scope})
+    setAsks('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
+    if (approved && ask !== undefined) await chat.sendMessage(approvedText(ask.toolName, scope))
   }
   const sendQueuedSequentially = async (queued: readonly QueuedMessage[]): Promise<void> => {
     for (const item of queued) await chat.sendMessage(item.content)
   }
-  const interruptAndFlush = () => {
+  const interruptAndFlush = async (): Promise<void> => {
     const queued = chat.queue()
-    if (queued.length === 0) {
-      stop()
-      return
-    }
-    stop()
+    await stop()
+    if (queued.length === 0) return
     const joined = joinedQueueText(queued)
-    if (joined !== null) {
-      void chat.sendMessage(joined)
-      return
-    }
-    void sendQueuedSequentially(queued)
-  }
-  const refresh = async (): Promise<void> => {
-    const hydration = await connection.refresh()
-    chat.setMessages(hydration.messages)
+    const flushed = joined === null ? sendQueuedSequentially(queued) : chat.sendMessage(joined)
+    await flushed.catch((error: unknown) => options.onError?.(asError(error)))
   }
   return {
     ...chat,
@@ -126,5 +167,6 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     sessionRunning,
     hydrated,
     pendingApprovals: () => asks.pending,
+    decide,
   }
 }

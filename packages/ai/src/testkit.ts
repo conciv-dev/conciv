@@ -1,7 +1,8 @@
-import {chat} from '@tanstack/ai'
+import {generateMessageId} from '@tanstack/ai'
+import {chat, StreamProcessor} from '@tanstack/ai'
 import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
 import type {TextAdapter} from './adapters/adapters.js'
-import type {ModelMessage} from './messages/messages.js'
+import type {ChatMessage, ModelMessage} from './messages/messages.js'
 import {approvalRequestedEvent, ChatEventType, type ChatCustomEvent, type ChatEvent} from './events/events.js'
 
 export type StoryConnectionOptions = {
@@ -93,7 +94,7 @@ export function createReasoningChunks(text: string, messageId = 'story-reasoning
   return chunks.filter(present)
 }
 
-export type ToolResultChunkOptions = {
+type ToolResultChunkOptions = {
   messageId?: string
   state?: 'output-available' | 'output-error'
 }
@@ -105,14 +106,14 @@ export function createToolResultChunk(
 ): ChatEvent {
   return {
     type: ChatEventType.TOOL_CALL_RESULT,
-    messageId: options?.messageId ?? `${toolCallId}-result`,
+    messageId: options?.messageId ?? generateMessageId(),
     toolCallId,
     content,
     ...(options?.state === 'output-error' && {metadata: {tanstack: {state: 'output-error'}}}),
   }
 }
 
-export type ToolChunkOptions = ToolResultChunkOptions & {
+type ToolChunkOptions = ToolResultChunkOptions & {
   toolCallId?: string
   parentMessageId?: string
   result?: string
@@ -139,21 +140,18 @@ export function createToolCallChunks(name: string, input: unknown, options?: Too
   return chunks.filter(present)
 }
 
-export function createApprovalChunk(
-  name: string,
-  input: unknown,
-  options?: {toolCallId?: string; approvalId?: string},
-): ChatCustomEvent {
-  return approvalRequestedEvent.create({
-    toolCallId: options?.toolCallId ?? `story-${name}`,
-    toolName: name,
-    input,
-    approval: {id: options?.approvalId ?? `story-${name}-approval`, needsApproval: true},
-  })
+export function createApprovalChunk(name: string, input: unknown, options?: {approvalId?: string}): ChatCustomEvent {
+  return approvalRequestedEvent.create({approvalId: options?.approvalId ?? `conciv:tool:${name}`, title: name, input})
 }
 
 export async function runAdapterTurn(adapter: TextAdapter, messages: ModelMessage[]): Promise<ChatEvent[]> {
   const events: ChatEvent[] = []
   for await (const event of chat({adapter, threadId: 'testkit', messages})) events.push(event)
   return events
+}
+
+export function foldChatEvents(events: Iterable<ChatEvent>): ChatMessage[] {
+  const processor = new StreamProcessor({})
+  for (const event of events) processor.processChunk(event)
+  return processor.getMessages()
 }

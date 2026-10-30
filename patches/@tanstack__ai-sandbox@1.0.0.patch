@@ -36,3 +36,120 @@ index 15ee8157d3a3e4bef1567ffcbbe577d884c86c95..68fd7ed6f002d471c49c47c31b34cede
  					const workspaceHash = computeWorkspaceHash(workspace);
  					const secrets = workspace.secrets;
  					provideWorkspaceProjection(ctx, {
+diff --git a/dist/esm/tool-history.js b/dist/esm/tool-history.js
+index e662004ab478c6469900f6185a529d63e0f407ec..4fa89639160dafd9b5105ea96bf67e6b599fa4de 100644
+--- a/dist/esm/tool-history.js
++++ b/dist/esm/tool-history.js
+@@ -1,4 +1,4 @@
+-import { EventType } from "@tanstack/ai";
++import { EventType, generateMessageId } from "@tanstack/ai";
+ //#region src/tool-history.ts
+ /**
+ * Turn a harness's PASSTHROUGH tool-call chunks into transcript messages, so a
+@@ -58,8 +58,9 @@ function hasCall(messages, id) {
+ function hasResult(messages, id) {
+ 	return messages.some((message) => message.role === "tool" && message.toolCallId === id);
+ }
+-function callMessage(id, name, args) {
++function callMessage(id, name, args, metadata, messageId) {
+ 	return {
++		id: messageId,
+ 		role: "assistant",
+ 		content: null,
+ 		toolCalls: [{
+@@ -69,15 +70,27 @@ function callMessage(id, name, args) {
+ 				name,
+ 				arguments: args
+ 			},
+-			metadata: { [SANDBOX_OBSERVED]: true }
++			metadata: {
++				...metadata,
++				[SANDBOX_OBSERVED]: true
++			}
+ 		}]
+ 	};
+ }
+-function resultMessage(id, content) {
++/**
++* The recorded result keeps the chunk's error state (`state: 'output-error'`, top
++* level or under `metadata.tanstack`) as the tool message's `error`, which is what
++* `modelMessagesToUIMessages` reads to restore an errored card as an error.
++*/
++function isErrorResult(chunk) {
++	return chunk.state === "output-error" || chunk.metadata?.tanstack?.state === "output-error";
++}
++function resultMessage(id, content, failed) {
+ 	return {
+ 		role: "tool",
+ 		toolCallId: id,
+-		content
++		content,
++		...failed ? { error: content } : {}
+ 	};
+ }
+ function createToolHistoryRecorder() {
+@@ -85,13 +98,13 @@ function createToolHistoryRecorder() {
+ 	/** Completed calls in the order they ran — the order `reconcile` restores. */
+ 	const recorded = [];
+ 	const results = /* @__PURE__ */ new Map();
+-	function appendCall(target, id, name, args) {
++	function appendCall(target, id, name, args, metadata, messageId) {
+ 		if (hasCall(target.messages, id)) return;
+-		target.messages = [...target.messages, callMessage(id, name, args)];
++		target.messages = [...target.messages, callMessage(id, name, args, metadata, messageId)];
+ 	}
+-	function appendResult(target, id, content) {
++	function appendResult(target, id, result) {
+ 		if (hasResult(target.messages, id)) return;
+-		target.messages = [...target.messages, resultMessage(id, content)];
++		target.messages = [...target.messages, resultMessage(id, result.content, result.failed)];
+ 	}
+ 	return {
+ 		observe(chunk, target) {
+@@ -100,7 +113,8 @@ function createToolHistoryRecorder() {
+ 				if (!name) return;
+ 				open.set(chunk.toolCallId, {
+ 					name,
+-					args: ""
++					args: "",
++					metadata: chunk.metadata
+ 				});
+ 				return;
+ 			}
+@@ -114,23 +128,30 @@ function createToolHistoryRecorder() {
+ 				const call = open.get(chunk.toolCallId);
+ 				if (!call) return;
+ 				open.delete(chunk.toolCallId);
++				const messageId = generateMessageId();
+ 				recorded.push({
+ 					id: chunk.toolCallId,
+ 					name: call.name,
+-					args: call.args
++					args: call.args,
++					metadata: call.metadata,
++					messageId
+ 				});
+-				appendCall(target, chunk.toolCallId, call.name, call.args);
++				appendCall(target, chunk.toolCallId, call.name, call.args, call.metadata, messageId);
+ 				return;
+ 			}
+ 			if (chunk.type === EventType.TOOL_CALL_RESULT) {
+ 				if (typeof chunk.content !== "string") return;
+-				results.set(chunk.toolCallId, chunk.content);
+-				appendResult(target, chunk.toolCallId, chunk.content);
++				const result = {
++					content: chunk.content,
++					failed: isErrorResult(chunk)
++				};
++				results.set(chunk.toolCallId, result);
++				appendResult(target, chunk.toolCallId, result);
+ 			}
+ 		},
+ 		reconcile(target) {
+-			for (const { id, name, args } of recorded) {
+-				appendCall(target, id, name, args);
++			for (const { id, name, args, metadata, messageId } of recorded) {
++				appendCall(target, id, name, args, metadata, messageId);
+ 				const result = results.get(id);
+ 				if (result !== void 0) appendResult(target, id, result);
+ 			}

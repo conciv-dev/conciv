@@ -1,4 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
+import {ChatClient} from '@tanstack/ai-client'
+import {createServer, type Server} from 'node:http'
+import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import type {ChatEvent, ChatMessage} from '@conciv/ai'
 import {EventType} from '@tanstack/ai'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
@@ -109,3 +112,101 @@ describe('chatConnection', () => {
     expect(blocked.transport()).toBe('fetch')
   }, 60_000)
 })
+
+describe('chatConnection streams', () => {
+  it('a stream that breaks mid-turn ends the turn with an error and stops streaming', async () => {
+    const server = await breakingEventsServer()
+    const errors: Error[] = []
+    const client = new ChatClient({
+      connection: chatConnection(makeRpcClient(server.base), server.base, 'conciv_breaking', {transport: 'fetch'}),
+      threadId: 'conciv_breaking',
+      onError: (error) => errors.push(error),
+    })
+    client.subscribe()
+    try {
+      await client.sendMessage('hello').catch(() => undefined)
+      expect(errors.length).toBeGreaterThan(0)
+      expect(client.getIsLoading()).toBe(false)
+    } finally {
+      client.unsubscribe()
+      client.dispose()
+      await server.close()
+    }
+  }, 10_000)
+
+  it('aborting a live subscription ends it cleanly, with no error', async () => {
+    const {sessionId, connection} = await opened()
+    const watcher = watch(connection)
+    await sendTurn(connection, sessionId, 'abort-1')
+    await watcher.finished
+    watcher.abort()
+    await expect(watcher.ended).resolves.toBeUndefined()
+  }, 30_000)
+
+  it('on the fetch transport every subscriber gets each chunk, and one that aborts stops receiving', async () => {
+    const clientKit = await bootClientKit()
+    kit = clientKit
+    const sessionId = await clientKit.session()
+    const connection = chatConnection(makeRpcClient(clientKit.base), clientKit.base, sessionId, {transport: 'fetch'})
+    const [staying, leaving] = [watch(connection), watch(connection)]
+    await sendTurn(connection, sessionId, 'fan-out-1')
+    await Promise.all([staying.finished, leaving.finished])
+    expect(leaving.seen.map((chunk) => chunk.type)).toEqual(staying.seen.map((chunk) => chunk.type))
+    const before = leaving.seen.length
+    leaving.abort()
+    await leaving.ended
+    await sendTurn(connection, sessionId, 'fan-out-2')
+    expect(leaving.seen).toHaveLength(before)
+    expect(staying.seen.length).toBeGreaterThan(before)
+    staying.abort()
+  }, 30_000)
+})
+
+async function breakingEventsServer(): Promise<{base: string; close: () => Promise<void>}> {
+  const run = {threadId: 'conciv_breaking', runId: 'breaking-run'}
+  const frames = [
+    {type: EventType.RUN_STARTED, ...run},
+    {type: EventType.TEXT_MESSAGE_START, messageId: 'broken-reply', role: 'assistant'},
+    {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'broken-reply', delta: 'half a rep'},
+  ]
+  const server: Server = createServer((request, response) => {
+    if (request.method !== 'POST' || !request.url?.endsWith(CHAT_SSE_PATH)) {
+      response.writeHead(404).end()
+      return
+    }
+    response.writeHead(200, {'content-type': 'text/event-stream'})
+    response.write(frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join(''), () => response.destroy())
+  })
+  await new Promise<void>((listening) => server.listen(0, '127.0.0.1', listening))
+  const address = server.address()
+  const port = typeof address === 'object' && address !== null ? address.port : 0
+  return {
+    base: `http://127.0.0.1:${port}`,
+    close: () => new Promise((closed) => server.close(() => closed())),
+  }
+}
+
+function watch(connection: ChatConnection) {
+  const abort = new AbortController()
+  const seen: ChatEvent[] = []
+  const finished = Promise.withResolvers<void>()
+  const ended = (async () => {
+    for await (const chunk of connection.subscribe(abort.signal)) {
+      seen.push(chunk)
+      if (chunk.type === EventType.RUN_FINISHED) finished.resolve()
+    }
+  })()
+  return {seen, finished: finished.promise, ended, abort: () => abort.abort()}
+}
+
+function sendTurn(connection: ChatConnection, sessionId: string, runId: string): Promise<void> {
+  return connection.send(
+    [{id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: runId}]}],
+    undefined,
+    undefined,
+    {
+      threadId: sessionId,
+      runId,
+    },
+  )
+}

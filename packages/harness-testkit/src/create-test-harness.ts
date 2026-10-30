@@ -10,7 +10,7 @@ export function createTestHarness(real: HarnessAdapter): TestHarness {
   const scripted = makeScriptedRun()
   return Object.assign({}, real, {
     chatConfig: (deps: HarnessChatDeps) => ({
-      adapter: makeTextAdapter('scripted', () => scripted.chatStream(deps)),
+      adapter: makeTextAdapter('scripted', (options) => scripted.chatStream(deps, options)),
     }),
     script: scripted,
   })

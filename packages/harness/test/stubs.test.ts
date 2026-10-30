@@ -16,7 +16,6 @@ describe.each([['pi', pi]])('%s stub', (id, adapter) => {
       resumeSessionId: null,
       env: {},
       kind: 'chat',
-      decide: async () => 'allow',
     })
     const chunks = await runAdapterTurn(config.adapter, [{role: 'user', content: 'hi'}])
     const last = chunks.at(-1)

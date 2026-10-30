@@ -1,3 +1,0 @@
-export const FIRST_CHUNK_TIMEOUT_MS = 30_000
-
-export const READER_FIRST_APPEND_GRACE_MS = 5_000

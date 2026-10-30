@@ -31,10 +31,6 @@
     "./testkit": {
       "types": "./dist/testkit.d.ts",
       "import": "./dist/testkit.js"
-    },
-    "./server-testkit": {
-      "types": "./dist/server-testkit.d.ts",
-      "import": "./dist/server-testkit.js"
     }
   },
   "publishConfig": {
@@ -56,9 +52,9 @@
     "@tanstack/ai-code-mode": "catalog:",
     "@tanstack/ai-isolate-node": "catalog:",
     "@tanstack/ai-isolate-quickjs": "catalog:",
-    "@tanstack/ai-mcp": "catalog:",
     "@tanstack/ai-persistence": "catalog:",
     "@tanstack/ai-sandbox": "catalog:",
+    "drizzle-orm": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

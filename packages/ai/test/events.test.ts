@@ -3,15 +3,11 @@ import {z} from 'zod'
 import {
   approvalAskOf,
   approvalRequestedEvent,
-  approvalSettledEvent,
   ChatEventType,
-  codeModeToolCallEvent,
-  codeModeToolErrorEvent,
-  codeModeToolResultEvent,
   defineChatEvent,
   isRunPhaseTerminal,
   runLifecycleEvent,
-} from '../src/index.js'
+} from '@conciv/ai'
 
 const lifecycle = {
   runId: 'r1',
@@ -42,30 +38,23 @@ describe('defineChatEvent', () => {
 })
 
 describe('conciv events keep their wire shape', () => {
-  it('approval-requested', () => {
+  it('approval-requested, the shape the sandbox adapters emit', () => {
     const event = approvalRequestedEvent.create({
-      toolCallId: 'tc1',
-      toolName: 'Bash',
-      input: {command: 'ls'},
-      approval: {id: 'a1', needsApproval: true},
+      approvalId: 'claude-code:command:ls',
+      title: 'Bash: ls',
+      command: 'ls',
     })
     expect(event).toEqual({
       type: ChatEventType.CUSTOM,
       name: 'approval-requested',
-      value: {toolCallId: 'tc1', toolName: 'Bash', input: {command: 'ls'}, approval: {id: 'a1', needsApproval: true}},
+      value: {approvalId: 'claude-code:command:ls', title: 'Bash: ls', command: 'ls'},
     })
     expect(approvalAskOf({...event, timestamp: 1})).toEqual({
-      approvalId: 'a1',
-      toolCallId: 'tc1',
-      toolName: 'Bash',
+      approvalId: 'claude-code:command:ls',
+      toolCallId: 'claude-code:command:ls',
+      toolName: 'Bash: ls',
       input: {command: 'ls'},
     })
-  })
-
-  it('approval-settled', () => {
-    const event = approvalSettledEvent.create({approvalId: 'a1'})
-    expect(event).toEqual({type: ChatEventType.CUSTOM, name: 'conciv.approval-settled', value: {approvalId: 'a1'}})
-    expect(approvalSettledEvent.parse(event)?.approvalId).toBe('a1')
   })
 
   it('run lifecycle', () => {
@@ -74,18 +63,5 @@ describe('conciv events keep their wire shape', () => {
     expect(runLifecycleEvent.parse(event)).toEqual(lifecycle)
     expect(isRunPhaseTerminal('stopping')).toBe(false)
     expect(isRunPhaseTerminal('aborted')).toBe(true)
-  })
-
-  it('code-mode child tool events', () => {
-    expect(codeModeToolCallEvent.name).toBe('conciv:tool_call')
-    expect(codeModeToolResultEvent.name).toBe('conciv:tool_result')
-    expect(codeModeToolErrorEvent.name).toBe('conciv:tool_error')
-    expect(
-      codeModeToolCallEvent.parse({
-        type: ChatEventType.CUSTOM,
-        name: 'conciv:tool_call',
-        value: {callId: 'c1', name: 'canvas_svg', input: {x: 1}},
-      }),
-    ).toEqual({callId: 'c1', name: 'canvas_svg', input: {x: 1}})
   })
 })

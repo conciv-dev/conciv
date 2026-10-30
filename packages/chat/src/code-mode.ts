@@ -1,77 +1,104 @@
-import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import {
-  codeModeBindings,
-  codeModeTypeStubs,
-  createCodeModeTools,
-  isolateDriverCandidates,
-  type DriverCandidate,
-  type IsolateDriver,
-  type ToolBinding,
-} from '@conciv/ai/server'
-import {
-  defineTool,
-  type ChatTool,
-  codeModeToolCallEvent,
-  codeModeToolErrorEvent,
-  codeModeToolResultEvent,
-} from '@conciv/ai'
+import {defineTool, type ChatTool} from '@conciv/ai'
 import type {ToolRequest} from '@conciv/extension'
-import type {CodeCapability} from './capabilities.js'
-import type {ToolRunContext} from './runtime.js'
-import {approvalRefusal, noListenerRefusal, requiresApproval, type PermissionGate} from './gate.js'
-import {logError} from './debug.js'
-import {cappedValue} from './result-cap.js'
-import type {SessionId} from '@conciv/protocol/chat-types'
+import {type SandboxTool} from '@conciv/extension/registry'
+import type {ConcivServerTool} from '@conciv/tools'
 
-const CODE_MODE_TIMEOUT_MS = 150_000
+export const RESULT_CAP_CHARS = 50_000
 
-const CAPABILITY_BINDING_PREFIX = 'external_'
+const TRUNCATION_HEAD_CHARS = 4_000
 
-const CATALOG_TOOL_NAME = 'catalog'
+const TRUNCATION_MARKER = 'conciv:truncated'
 
-export const CATALOG_CALL_HINT = 'await external_catalog({})'
+const TRUNCATION_ADVICE = 'narrow the request or aggregate inside the sandbox and return less data'
 
-const CATEGORY_SAMPLE_LIMIT = 6
-
-const QUICKJS_MEMORY_LIMIT_MB = 256
-
-const QUICKJS_MAX_STACK_BYTES = 2 * 1024 * 1024
-
-export const driverCandidates: readonly DriverCandidate[] = isolateDriverCandidates({
-  timeoutMs: CODE_MODE_TIMEOUT_MS,
-  memoryLimitMb: QUICKJS_MEMORY_LIMIT_MB,
-  maxStackBytes: QUICKJS_MAX_STACK_BYTES,
-})
-
-let driverLoad: Promise<IsolateDriver | null> | null = null
-
-type DriverAttempt = {driver: IsolateDriver} | {reason: string}
-
-async function attemptDriver(candidate: DriverCandidate): Promise<DriverAttempt> {
-  const created = await candidate.create().catch((error: unknown) => ({reason: String(error)}))
-  if (created === null) return {reason: 'the platform probe reported it incompatible'}
-  if ('reason' in created) return created
-  return {driver: created}
+export type CodeCapability = {
+  name: string
+  description: string
+  approval?: 'ask'
+  errors: {code: string; message: string}[]
+  inputSchema: z.ZodObject<z.ZodRawShape>
+  execute: (input: unknown, request: ToolRequest) => Promise<unknown>
 }
 
-export async function firstUsableDriver(candidates: readonly DriverCandidate[]): Promise<IsolateDriver | null> {
-  for (const candidate of candidates) {
-    const attempt = await attemptDriver(candidate)
-    if ('reason' in attempt) {
-      logError(`[core] the code mode driver ${candidate.name} is unusable: ${attempt.reason}`)
-      continue
-    }
-    logError(`[core] code mode is running on ${candidate.name}`)
-    return attempt.driver
+export type CapabilityCall = (name: string, input: unknown, request: ToolRequest) => Promise<unknown>
+
+export function registryCapabilities(tools: readonly SandboxTool[], call: CapabilityCall): CodeCapability[] {
+  return tools.map((tool) => ({
+    name: tool.name,
+    description: tool.hint === undefined ? tool.summary : `${tool.summary}. ${tool.hint}`,
+    ...(tool.approval === undefined ? {} : {approval: tool.approval}),
+    errors: tool.errors.map(({code, message}) => ({code, message})),
+    inputSchema: tool.schema,
+    execute: (input, request) => call(tool.name, input, request),
+  }))
+}
+
+export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] {
+  return tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    errors: [],
+    inputSchema: tool.inputSchema,
+    execute: (input) => tool.execute(input),
+  }))
+}
+
+type StringifyAttempt = {body: string} | {failure: string}
+
+function attemptStringify(value: unknown): StringifyAttempt {
+  try {
+    return {body: JSON.stringify(value) ?? 'null'}
+  } catch (error) {
+    return {failure: String(error)}
   }
-  logError('[core] code mode found no usable isolate driver')
-  return null
 }
 
-function loadDriver(): Promise<IsolateDriver | null> {
-  driverLoad ??= firstUsableDriver(driverCandidates)
-  return driverLoad
+function serializationFailure(reason: string): Record<string, unknown> {
+  return {error: 'value could not be serialized', reason}
+}
+
+export function safeStringify(value: unknown): string {
+  const attempt = attemptStringify(value)
+  if ('body' in attempt) return attempt.body
+  return JSON.stringify(serializationFailure(attempt.failure))
+}
+
+function wellFormedSlice(text: string, length: number): string {
+  const sliced = text.slice(0, length)
+  const last = sliced.charCodeAt(sliced.length - 1)
+  if (last >= 0xd800 && last <= 0xdbff) return sliced.slice(0, -1)
+  return sliced
+}
+
+function truncationPayload(reason: string, headSource: string): Record<string, unknown> {
+  return {
+    [TRUNCATION_MARKER]: true,
+    truncated: true,
+    reason,
+    advice: TRUNCATION_ADVICE,
+    head: wellFormedSlice(headSource, TRUNCATION_HEAD_CHARS),
+  }
+}
+
+export function truncationEnvelope(reason: string, headSource: string): string {
+  return JSON.stringify(truncationPayload(reason, headSource))
+}
+
+function oversizeReason(length: number): string {
+  return `the serialized result is ${length} characters and the cap is ${RESULT_CAP_CHARS}`
+}
+
+export function cappedText(body: string): string {
+  if (body.length <= RESULT_CAP_CHARS) return body
+  return truncationEnvelope(oversizeReason(body.length), body)
+}
+
+export function cappedValue(value: unknown): unknown {
+  const attempt = attemptStringify(value)
+  if ('failure' in attempt) return serializationFailure(attempt.failure)
+  if (attempt.body.length <= RESULT_CAP_CHARS) return value
+  return truncationPayload(oversizeReason(attempt.body.length), attempt.body)
 }
 
 function declaredCodeOf(error: unknown): string | null {
@@ -80,229 +107,39 @@ function declaredCodeOf(error: unknown): string | null {
   return error.code
 }
 
-function encodeDeclaredError(error: unknown): Error {
+function withDeclaredCode(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error)
   const code = declaredCodeOf(error)
-  if (code === null) return error instanceof Error ? error : new Error(message)
-  if (message.startsWith(`${code}: `)) return error instanceof Error ? error : new Error(message)
+  if (code === null || message.startsWith(`${code}: `)) return error instanceof Error ? error : new Error(message)
   const bare = message.startsWith(`${code}:`) ? message.slice(code.length + 1).trimStart() : message
   return new Error(`${code}: ${bare}`)
 }
 
-export type SessionListening = (sessionId: SessionId) => boolean
+export type ChatToolSet = {codeMode: ChatTool[]; asking: ChatTool[]; asked: CodeCapability[]}
 
-async function emittingToolCall(
-  name: string,
-  args: unknown,
-  context: ToolRunContext | undefined,
-  execute: (callId: string) => Promise<unknown>,
-): Promise<unknown> {
-  const callId = randomUUID()
-  const emit = context?.emitCustomEvent ?? (() => {})
-  emit(codeModeToolCallEvent.name, {callId, name, input: args})
-  try {
-    const result = await execute(callId)
-    emit(codeModeToolResultEvent.name, {callId, result: cappedValue(result, `the ${name} result`)})
-    return result
-  } catch (error) {
-    const encoded = encodeDeclaredError(error)
-    emit(codeModeToolErrorEvent.name, {callId, error: encoded.message})
-    throw encoded
-  }
-}
-
-export function gatedToolRun(
-  capability: CodeCapability,
-  sessionId: SessionId,
-  request: ToolRequest,
-  gate: PermissionGate,
-  listening: SessionListening,
-): (args: unknown, context?: ToolRunContext) => Promise<unknown> {
-  return (args, context) =>
-    emittingToolCall(capability.name, args, context, async (callId) => {
-      if (requiresApproval(capability)) {
-        if (!listening(sessionId)) throw new Error(noListenerRefusal(capability.name, sessionId))
-        const decision = await gate.decide(capability.name, args, callId)
-        const refusal = approvalRefusal(capability.name, decision)
-        if (refusal !== null) throw new Error(refusal)
-      }
-      return capability.execute(args, {...request, toolCallId: callId})
-    })
-}
-
-type BoundCapability = {capability: CodeCapability; binding: ToolBinding}
-
-function bindCapabilities(
-  capabilities: CodeCapability[],
-  sessionId: SessionId,
-  request: ToolRequest,
-  gate: PermissionGate,
-  listening: SessionListening,
-): BoundCapability[] {
-  const record = codeModeBindings(
-    capabilities.map((capability) =>
-      defineTool({
-        name: capability.name,
-        description: capability.description,
-        inputSchema: capability.inputSchema,
-        outputSchema: z.unknown(),
-        lazy: true,
-      }).server(gatedToolRun(capability, sessionId, request, gate, listening)),
-    ),
-    CAPABILITY_BINDING_PREFIX,
-  )
-  const bindings = Object.values(record)
-  return capabilities.map((capability, index) => {
-    const binding = bindings[index]
-    if (binding === undefined) throw new Error('the built bindings drifted from the capability list')
-    return {capability, binding}
-  })
-}
-
-const JsonRecordSchema = z.record(z.string(), z.unknown())
-
-function jsonRecord(value: unknown, where: string): Record<string, unknown> {
-  const parsed = JsonRecordSchema.safeParse(value)
-  if (!parsed.success) throw new Error(`${where}: the schema did not serialize to an object`)
-  return parsed.data
-}
-
-const CatalogQuerySchema = z.object({
-  search: z.string().optional(),
-  name: z.string().optional(),
-})
-
-function catalogList(bound: BoundCapability[], search: string | undefined): unknown {
-  const term = search?.toLowerCase() ?? ''
-  const entries = bound.filter(({capability}) => {
-    if (term === '') return true
-    const haystack =
-      `${capability.name} ${capability.description} ${capability.category} ${capability.keywords.join(' ')}`.toLowerCase()
-    return haystack.includes(term)
-  })
-  return {
-    tools: entries.map(({capability, binding}) => ({
-      call: binding.name,
-      name: capability.name,
-      summary: capability.summary,
-      category: capability.category,
-      ...(capability.approval === undefined ? {} : {approval: capability.approval}),
-      mutating: capability.mutating,
-      reachable: capability.reachable,
-    })),
-  }
-}
-
-function capabilityDetail(bound: BoundCapability[], name: string): unknown {
-  const found = bound.find(({capability, binding}) => capability.name === name || binding.name === name)
-  if (!found) throw new Error(`unknown capability "${name}"; call catalog({}) to list what exists`)
-  const signature = found.capability.signature()
-  const output = signature.output === undefined ? undefined : jsonRecord(signature.output, `${name} output`)
-  return {
-    call: found.binding.name,
-    name: found.capability.name,
-    description: found.capability.description,
-    category: found.capability.category,
-    ...(found.capability.approval === undefined ? {} : {approval: found.capability.approval}),
-    mutating: found.capability.mutating,
-    reachable: found.capability.reachable,
-    input: signature.input,
-    output: signature.output,
-    errors: signature.errors,
-    typeStub: codeModeTypeStubs({
-      [found.binding.name]: {
-        name: found.binding.name,
-        description: found.capability.description,
-        inputSchema: jsonRecord(signature.input, `${name} input`),
-        outputSchema: output,
-        execute: async () => undefined,
-      },
-    }),
-  }
-}
-
-function catalogTool(current: () => BoundCapability[]) {
+function chatTool(capability: CodeCapability, request: ToolRequest, lazy: boolean): ChatTool {
   return defineTool({
-    name: CATALOG_TOOL_NAME,
-    description:
-      'List and inspect every capability in this sandbox: catalog({}) or catalog({search}) lists entries with the exact function name to call, catalog({name}) returns one full typed signature.',
-    inputSchema: CatalogQuerySchema,
+    name: capability.name,
+    description: capability.description,
+    inputSchema: capability.inputSchema,
     outputSchema: z.unknown(),
-  }).server((args, context: ToolRunContext | undefined) =>
-    emittingToolCall(CATALOG_TOOL_NAME, args, context, async () => {
-      const query = CatalogQuerySchema.parse(args ?? {})
-      const bound = current()
-      if (query.name !== undefined) return capabilityDetail(bound, query.name)
-      return catalogList(bound, query.search)
-    }),
-  )
-}
-
-function rankedCategories(capabilities: CodeCapability[]): string[] {
-  const counts = new Map<string, number>()
-  for (const capability of capabilities) {
-    counts.set(capability.category, (counts.get(capability.category) ?? 0) + 1)
-  }
-  return [...counts.entries()]
-    .toSorted(([leftName, left], [rightName, right]) => right - left || leftName.localeCompare(rightName))
-    .slice(0, CATEGORY_SAMPLE_LIMIT)
-    .map(([name]) => name)
-}
-
-const CATALOG_PROMPT = `### Capability catalog
-
-Inside execute_typescript, \`${CATALOG_CALL_HINT}\` lists every available capability with the exact function name to call, \`await external_catalog({search})\` filters that list, and \`await external_catalog({name})\` returns one full typed signature. Discover through the catalog instead of guessing a signature.`
-
-function cappedTool(tool: ChatTool): ChatTool {
-  const execute = tool.execute
-  if (!execute) return tool
-  return {
-    ...tool,
-    execute: async (args: unknown, context?: ToolRunContext) =>
-      cappedValue(await execute(args, context), `the ${tool.name} result`),
-  }
-}
-
-export type CodeMode = {
-  tool: ChatTool
-  tools: ChatTool[]
-  systemPrompt: string
-  categories: string[]
-  run: (typescriptCode: string, context?: ToolRunContext) => Promise<unknown>
-}
-
-export async function makeCodeMode(
-  capabilities: () => CodeCapability[],
-  sessionId: SessionId,
-  request: ToolRequest,
-  gate: PermissionGate,
-  options: {listening: SessionListening; timeoutMs?: number},
-): Promise<CodeMode | null> {
-  const snapshot = capabilities()
-  if (snapshot.length === 0) return null
-  const driver = await loadDriver()
-  if (driver === null) return null
-  const listening = options.listening
-  const codeMode = createCodeModeTools({
-    driver,
-    tools: [catalogTool(() => bindCapabilities(capabilities(), sessionId, request, gate, listening))],
-    timeout: options.timeoutMs ?? CODE_MODE_TIMEOUT_MS,
-    onSecretParameter: 'throw',
-    getSnippetBindings: async () => {
-      const bound = bindCapabilities(capabilities(), sessionId, request, gate, listening)
-      return Object.fromEntries(bound.map((entry) => [entry.binding.name, entry.binding]))
-    },
+    lazy,
+  }).server(async (args) => {
+    try {
+      const value = await capability.execute(args, request)
+      return lazy ? value : cappedValue(value)
+    } catch (error) {
+      throw withDeclaredCode(error)
+    }
   })
-  const tool: ChatTool = codeMode.tool
+}
+
+export function chatToolSet(capabilities: readonly CodeCapability[], request: ToolRequest): ChatToolSet {
+  const asked = capabilities.filter((capability) => capability.approval === 'ask')
+  const sandboxed = capabilities.filter((capability) => capability.approval !== 'ask')
   return {
-    tool,
-    tools: codeMode.tools.map(cappedTool),
-    systemPrompt: [codeMode.systemPrompt, CATALOG_PROMPT].join('\n\n'),
-    categories: rankedCategories(snapshot),
-    run: (typescriptCode, context) => {
-      const execute = tool.execute
-      if (!execute) throw new Error('the code mode tool has no execute')
-      return Promise.resolve(execute({typescriptCode}, context))
-    },
+    codeMode: sandboxed.map((capability) => chatTool(capability, request, true)),
+    asking: asked.map((capability) => chatTool(capability, request, false)),
+    asked,
   }
 }

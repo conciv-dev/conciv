@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {defineExtension, defineTool, imageResult, toolError} from '@conciv/extension'
 import {bootKit} from '../../helpers/boot.js'
-import {connectMcpClient} from '@conciv/ai/server-testkit'
+import {connectMcpClient} from '../../helpers/mcp-client.js'
 
 const PNG_RED_4x4 =
   'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg=='

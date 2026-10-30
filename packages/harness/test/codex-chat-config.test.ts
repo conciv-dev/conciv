@@ -22,7 +22,6 @@ const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
   resumeSessionId: null,
   env: {PATH: '/usr/bin'},
   kind: 'chat',
-  decide: async () => 'allow',
   ...over,
 })
 

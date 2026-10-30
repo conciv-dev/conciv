@@ -2,7 +2,7 @@ import {Hono} from 'hono'
 import type {ChatEvent} from '@conciv/ai'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PushFrame} from '@conciv/protocol/push-types'
-import type {SocketSink, UpgradeWebSocket} from '@conciv/chat/socket-upgrade'
+import type {UpgradeWebSocket, WSContext} from 'hono/ws'
 import {logError} from '../lib/debug.js'
 
 export type PageQuery = {requestId: string; query: unknown}
@@ -10,7 +10,6 @@ export type PageQuery = {requestId: string; query: unknown}
 export type PushDeps = {
   queries: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<PageQuery>
   events: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<ChatEvent>
-  approvalReplay: (sessionId: SessionId) => ChatEvent[]
 }
 
 const NO_SESSION_CLOSE_CODE = 1008
@@ -31,7 +30,7 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
     upgrade((c) => {
       const requested = SessionId.safeParse(new URL(c.req.raw.url).searchParams.get(PUSH_SESSION_PARAM))
       const abort = new AbortController()
-      const held: {sink: SocketSink | null} = {sink: null}
+      const held: {sink: WSContext | null} = {sink: null}
       const send = (frame: PushFrame): void => held.sink?.send(JSON.stringify(frame))
       return {
         onOpen: (_event, ws) => {
@@ -42,7 +41,6 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
           }
           const sessionId = requested.data
           send({channel: 'ready'})
-          for (const chunk of deps.approvalReplay(sessionId)) send({channel: 'chat', chunk})
           pump(
             deps.queries(sessionId, abort.signal),
             ({requestId, query}) => send({channel: 'page', requestId, query}),

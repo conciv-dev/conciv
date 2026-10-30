@@ -1,4 +1,4 @@
-import {opencode as opencodeAdapter, opencodeModels, type OpencodePermissionRequest} from '@conciv/ai/server'
+import {opencode as opencodeAdapter, opencodeModels} from '@conciv/ai/server'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {defineHarness, type HarnessChatConfig, type HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {opencodeHistory} from './history.js'
@@ -19,17 +19,8 @@ function opencodeMcpEnv(mcpUrl: string, concivSessionId: string): Record<string,
   }
 }
 
-export function opencodePermissionHandler(decide: HarnessChatDeps['decide']) {
-  return async (request: OpencodePermissionRequest): Promise<'once' | 'reject'> => {
-    const decision = await decide(request.type, {title: request.title}, request.callID ?? request.id)
-    return decision === 'allow' ? 'once' : 'reject'
-  }
-}
-
 const opencodeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: opencodeAdapter(deps.model ?? 'opencode/claude-sonnet-4-5', {
-    onPermissionRequest: opencodePermissionHandler(deps.decide),
-  }),
+  adapter: opencodeAdapter(deps.model ?? 'opencode/claude-sonnet-4-5', {}),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
 })
 

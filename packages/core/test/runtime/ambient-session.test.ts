@@ -35,6 +35,7 @@ async function madeRuntime(): Promise<{runtime: CoreRuntime; primitives: Session
   const runtime = makeCoreRuntime({
     primitives,
     plane: fixture.plane,
+    db: fixture.db,
     model: () => null,
     staleness: () => FRESH,
   })

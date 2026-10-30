@@ -1,69 +1,8 @@
-import {mkdtempSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
 import {expect} from 'vitest'
-import {type ChatEvent, ChatEventType} from '@conciv/ai'
-import type {HarnessAdapter, HarnessChatDeps} from '@conciv/protocol/harness-types'
-import {HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
-import {withConcivGate} from '@conciv/chat/gate'
-import {bootMadeApp} from './boot.js'
-import {runTurn} from '@conciv/ai/server'
-
-const autoAllowGate = {decide: async () => 'allow' as const}
-
-export type HarnessTurnOpts = {
-  harness: HarnessAdapter
-  dir: string
-  sessionId: SessionId
-  prompt: string
-  resumeSessionId: HarnessSessionId | null
-  model?: string
-}
-
-export async function runHarnessTurn(opts: HarnessTurnOpts): Promise<ChatEvent[]> {
-  const deps: HarnessChatDeps = {
-    cwd: opts.dir,
-    sessionId: opts.sessionId,
-    resumeSessionId: opts.resumeSessionId,
-    env: process.env,
-    kind: 'chat',
-    decide: autoAllowGate.decide,
-    ...(opts.model ? {model: opts.model} : {}),
-  }
-  const config = opts.harness.chatConfig(deps)
-  const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-harness-turn-'))
-  const made = await bootMadeApp({stateRoot, cwd: opts.dir, harness: opts.harness})
-  const chunks: ChatEvent[] = []
-  try {
-    const stream = runTurn({
-      adapter: config.adapter,
-      messages: [{role: 'user', content: opts.prompt}],
-      threadId: `${opts.sessionId}-thread`,
-      sandbox: made.chat.sandbox,
-      middleware: [withConcivGate(autoAllowGate)],
-      modelOptions: config.modelOptions,
-    })
-    for await (const chunk of stream) chunks.push(chunk)
-  } finally {
-    await made.dispose()
-  }
-  return chunks
-}
-
-export function sessionIdFrom(chunks: ChatEvent[], eventName: string): HarnessSessionId | null {
-  for (const chunk of chunks) {
-    if (chunk.type !== ChatEventType.CUSTOM || chunk.name !== eventName) continue
-    const value = chunk.value
-    if (typeof value === 'object' && value !== null && 'sessionId' in value && typeof value.sessionId === 'string') {
-      return HarnessSessionId.parse(value.sessionId)
-    }
-  }
-  return null
-}
-
-export function textOf(chunks: ChatEvent[]): string {
-  return chunks.flatMap((chunk) => (chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT ? [chunk.delta] : [])).join('')
-}
+import {ChatEventType} from '@conciv/ai'
+import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {SessionId} from '@conciv/protocol/chat-types'
+import {bootKit} from './boot.js'
 
 export type ResumeScenarioOpts = {
   harness: HarnessAdapter
@@ -74,22 +13,23 @@ export type ResumeScenarioOpts = {
 }
 
 export async function assertTurnAndResume(opts: ResumeScenarioOpts): Promise<void> {
-  const turn = (prompt: string, resumeSessionId: HarnessSessionId | null) =>
-    runHarnessTurn({
-      harness: opts.harness,
-      dir: opts.dir,
-      sessionId: opts.sessionId,
-      prompt,
-      resumeSessionId,
-      ...(opts.model ? {model: opts.model} : {}),
-    })
-  const first = await turn('Remember the token PLUM42. Reply with exactly OK.', null)
-  expect(first.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
-  expect(textOf(first).length).toBeGreaterThan(0)
-  const sessionId = sessionIdFrom(first, opts.sessionEvent)
-  expect(sessionId).toBeTruthy()
+  const kit = await bootKit({cwd: opts.dir}, opts.harness)
+  try {
+    const sessionId = (await kit.rpc.sessions.resolve({id: opts.sessionId})).sessionId
+    if (opts.model) await kit.rpc.sessions.model({sessionId, model: opts.model})
+    const first = await (
+      await kit.turn('Remember the token PLUM42. Reply with exactly OK.', {session: sessionId})
+    ).done()
+    expect(first.all.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
+    expect(first.text().length).toBeGreaterThan(0)
+    expect(first.custom(opts.sessionEvent).length).toBeGreaterThan(0)
 
-  const second = await turn('What was the token I asked you to remember? Reply with the token only.', sessionId)
-  expect(second.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
-  expect(textOf(second)).toContain('PLUM42')
+    const second = await (
+      await kit.turn('What was the token I asked you to remember? Reply with the token only.', {session: sessionId})
+    ).done()
+    expect(second.all.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
+    expect(second.text()).toContain('PLUM42')
+  } finally {
+    await kit.cleanup()
+  }
 }

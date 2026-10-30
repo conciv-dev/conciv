@@ -24,8 +24,7 @@ test('an oversized tool reply fails loud, and aggregating inside the sandbox sta
     await expect(callTool('ping_flood', {})).rejects.toThrow(/truncated/)
     const runTypescript = makeRunTypescript(apiBase, session)
     const length = await runTypescript(`
-      const found = await external_catalog({name: 'ping_flood'})
-      const reply = await globalThis[found.call]({})
+      const reply = await external_ping_flood({})
       return reply.payload.length
     `)
     expect(z.number().parse(length)).toBe(120_000)

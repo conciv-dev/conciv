@@ -16,6 +16,8 @@ import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 
 const MCP_TOOL_TIMEOUT_MS = 150_000
 
+const BRIDGED_CONCIV_TOOLS = ['mcp__tanstack']
+
 const IMAGE_EXT: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -76,6 +78,7 @@ export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
     claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR),
     systemPromptMode: 'append',
     emitDiff: false,
+    allowedTools: BRIDGED_CONCIV_TOOLS,
     disallowedTools: ['AskUserQuestion'],
     env: definedEntries({MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), ENABLE_TOOL_SEARCH: 'false', ...deps.env}),
   }),

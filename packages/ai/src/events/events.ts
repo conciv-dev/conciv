@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {EventType, type CustomEvent, type StreamChunk} from '@tanstack/ai'
+import {EventType, type CustomEvent, type RunStatus as LibraryRunStatus, type StreamChunk} from '@tanstack/ai'
 
 export type ChatEvent = StreamChunk
 
@@ -30,20 +30,10 @@ export function defineChatEvent<Name extends string, Schema extends z.ZodType>(
 
 export const approvalRequestedEvent = defineChatEvent(
   'approval-requested',
-  z.looseObject({
-    toolCallId: z.string().min(1),
-    toolName: z.string().min(1),
-    input: z.unknown(),
-    approval: z.looseObject({id: z.string().min(1), needsApproval: z.boolean().optional()}),
-  }),
+  z.looseObject({approvalId: z.string().min(1), title: z.string().min(1), toolCallId: z.string().min(1).optional()}),
 )
 
-export const approvalSettledEvent = defineChatEvent(
-  'conciv.approval-settled',
-  z.looseObject({approvalId: z.string().min(1)}),
-)
-
-export const ApprovalAskSchema = z.object({
+const ApprovalAskSchema = z.object({
   approvalId: z.string().min(1),
   toolCallId: z.string().min(1),
   toolName: z.string().min(1),
@@ -55,10 +45,18 @@ export type ApprovalAsk = z.infer<typeof ApprovalAskSchema>
 export function approvalAskOf(event: ChatEvent): ApprovalAsk | null {
   const value = approvalRequestedEvent.parse(event)
   if (value === null) return null
-  return {approvalId: value.approval.id, toolCallId: value.toolCallId, toolName: value.toolName, input: value.input}
+  const {approvalId, title, toolCallId, ...detail} = value
+  return {
+    approvalId,
+    toolCallId: toolCallId ?? approvalId,
+    toolName: title,
+    input: 'input' in detail ? detail.input : detail,
+  }
 }
 
-export const RunPhaseSchema = z.enum(['running', 'stopping', 'completed', 'failed', 'aborted'])
+export type RunStatus = LibraryRunStatus
+
+const RunPhaseSchema = z.enum(['running', 'stopping', 'completed', 'failed', 'aborted'])
 
 export type RunPhase = z.infer<typeof RunPhaseSchema>
 
@@ -80,18 +78,3 @@ export const runLifecycleEvent = defineChatEvent('conciv.run-lifecycle', RunLife
 export function isRunPhaseTerminal(phase: RunPhase): boolean {
   return phase === 'completed' || phase === 'failed' || phase === 'aborted'
 }
-
-export const codeModeToolCallEvent = defineChatEvent(
-  'conciv:tool_call',
-  z.object({callId: z.string(), name: z.string(), input: z.unknown(), toolCallId: z.string().optional()}),
-)
-
-export const codeModeToolResultEvent = defineChatEvent(
-  'conciv:tool_result',
-  z.object({callId: z.string(), result: z.unknown()}),
-)
-
-export const codeModeToolErrorEvent = defineChatEvent(
-  'conciv:tool_error',
-  z.object({callId: z.string(), error: z.string()}),
-)
