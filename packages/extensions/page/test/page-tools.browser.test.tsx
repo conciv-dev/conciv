@@ -185,6 +185,10 @@ describe('dom verbs', () => {
     })
   })
 
+  it('returns at once from the hot update wait when no update is pending', async () => {
+    expect(await resultOf('wait_hmr')).toMatchObject({applied: false, waitedMs: 0, error: null})
+  })
+
   it('evaluates code and serializes element results', async () => {
     const value = await resultOf('eval', {code: 'return 2 + 3'})
     expect(value).toEqual({result: 5})

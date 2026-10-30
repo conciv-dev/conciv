@@ -4,7 +4,7 @@
     "composite": true,
     "rootDir": ".",
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "types": ["node"],
+    "types": ["node", "vite/client"],
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "outDir": ".tsc-refs"

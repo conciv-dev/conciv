@@ -220,6 +220,36 @@ export const screenshotDef = pageTool({
   output: z.array(z.union([ImagePart, ImageDetailPart])),
 })
 
+export const HOT_UPDATE_WAIT_MS = 5000
+
+export const HotUpdateWaitSchema = z.object({
+  supported: z.boolean(),
+  applied: z.boolean(),
+  waitedMs: z.number(),
+  error: z.string().nullable(),
+})
+
+export type HotUpdateWait = z.infer<typeof HotUpdateWaitSchema>
+
+export const waitHmrDef = pageTool({
+  verb: 'wait_hmr',
+  summary: 'after editing a file, wait for the hot update to land before reading the page',
+  category: 'read',
+  icon: 'wait',
+  label: {running: 'Waiting for the hot update', done: 'Waited for the hot update'},
+  hint: 'returns at once when no update is pending; supported is false when the page has no vite hot client',
+  keywords: ['hmr', 'hot', 'update', 'vite', 'edit', 'settle'],
+  input: z.object({
+    timeout: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(HOT_UPDATE_WAIT_MS)
+      .describe('max wait in ms for a pending update'),
+  }),
+  output: HotUpdateWaitSchema,
+})
+
 export const cssDef = pageTool({
   verb: 'css',
   summary: 'inject a stylesheet into the live page',
@@ -641,6 +671,7 @@ export const PAGE_TOOL_DEFS = [
   existsDef,
   snapshotDef,
   screenshotDef,
+  waitHmrDef,
   locateDef,
   treeDef,
   inspectDef,

@@ -54,6 +54,7 @@ import {
   uncheckDef,
   valueDef,
   waitDef,
+  waitHmrDef,
 } from '../shared/defs.js'
 import {actCard} from './cards/act-card.js'
 import {consoleCard} from './cards/console-card.js'
@@ -63,6 +64,7 @@ import {reactCard} from './cards/react-card.js'
 import {readBulkCard} from './cards/read-bulk-card.js'
 import {readValueCard} from './cards/read-value-card.js'
 import {screenshot} from './screenshot.js'
+import {watchHotUpdates} from './hmr.js'
 
 function fail(message: string): never {
   throw pageFailure('handler-error', message)
@@ -174,6 +176,10 @@ const snapshotTool = snapshotDef
   .render(readBulkCard)
 
 const screenshotTool = screenshotDef.client(screenshot).render(readValueCard)
+
+const waitForHotUpdate = watchHotUpdates(import.meta.hot)
+
+const waitHmrTool = waitHmrDef.client((input) => waitForHotUpdate(input.timeout)).render(readValueCard)
 
 const locateTool = locateDef
   .client(async (input, ctx) => {
@@ -478,6 +484,7 @@ export const PAGE_CLIENT_TOOLS: readonly AnyToolBuilder[] = [
   existsTool,
   snapshotTool,
   screenshotTool,
+  waitHmrTool,
   locateTool,
   treeTool,
   inspectTool,

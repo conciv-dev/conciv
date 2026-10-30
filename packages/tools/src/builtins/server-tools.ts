@@ -1,5 +1,7 @@
 import {z} from 'zod'
 import {defineTool, toolError} from '@conciv/extension/tool'
+import type {ServerToolPageAccess} from '@conciv/extension/registry'
+import {HOT_UPDATE_WAIT_MS, HotUpdateWaitSchema, waitHmrDef} from '@conciv/extension-page/defs'
 import {BundlerConfigSchema, ModuleNodeSchema, type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {OkResult, type BuiltinCategory} from './shared.js'
 import {OpenInput} from './open-input.js'
@@ -27,7 +29,11 @@ function serverTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   approval?: 'ask'
   positional?: string
   keywords?: readonly string[]
-  run: (input: z.infer<z.ZodObject<Shape>>, bundler: BundlerBridge) => Promise<z.infer<Out>> | z.infer<Out>
+  run: (
+    input: z.infer<z.ZodObject<Shape>>,
+    bundler: BundlerBridge,
+    page: ServerToolPageAccess,
+  ) => Promise<z.infer<Out>> | z.infer<Out>
 }) {
   const category: BuiltinCategory = 'server'
   return defineTool({
@@ -45,7 +51,7 @@ function serverTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
       keywords: spec.keywords ?? [],
       positional: spec.positional,
     },
-  }).server((input, ctx: ServerToolContext) => spec.run(input, requireBundler(ctx)))
+  }).server((input, ctx: ServerToolContext, _request, page) => spec.run(input, requireBundler(ctx), page))
 }
 
 const configTool = serverTool({
@@ -99,6 +105,15 @@ const transformTool = serverTool({
   run: (input, bundler) => bundler.transform(input.url),
 })
 
+const NOT_WAITED = {applied: false, waitedMs: 0}
+
+async function waitForHotUpdate(page: ServerToolPageAccess): Promise<{applied: boolean; waitedMs: number}> {
+  const answer = await page.call(waitHmrDef.name, {timeout: HOT_UPDATE_WAIT_MS}).catch(() => null)
+  if (answer === null) return NOT_WAITED
+  const {applied, waitedMs} = HotUpdateWaitSchema.parse(answer)
+  return {applied, waitedMs}
+}
+
 const reloadTool = serverTool({
   operation: 'reload',
   summary: 'force a hot update of one module',
@@ -107,10 +122,14 @@ const reloadTool = serverTool({
   positional: 'file',
   keywords: ['hmr'],
   input: z.object({file: z.string().describe('the file to reload')}),
-  output: OkResult,
-  run: async (input, bundler): Promise<{ok: true}> => {
+  output: z.object({
+    ok: z.literal(true),
+    applied: z.boolean().describe('the page applied the hot update before this returned'),
+    waitedMs: z.number(),
+  }),
+  run: async (input, bundler, page): Promise<{ok: true; applied: boolean; waitedMs: number}> => {
     await bundler.reload(input.file)
-    return {ok: true}
+    return {ok: true, ...(await waitForHotUpdate(page))}
   },
 })
 
