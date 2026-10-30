@@ -24,10 +24,15 @@ describe('agentsSection', () => {
     expect(ranking).toBeGreaterThan(section.indexOf('## conciv'))
     expect(table).toBeGreaterThan(ranking)
     expect(sandbox).toBeGreaterThan(table)
-    expect(section).toContain('`conciv tools page snapshot`')
-    expect(section).toContain('`conciv tools react inspect <selector>`')
-    expect(section).toContain('`conciv tools server graph|transform|reload`')
-    expect(section).toContain('conciv tools --help')
+    expect(section).toContain('`.conciv/bin/conciv tools page snapshot`')
+    expect(section).toContain('`.conciv/bin/conciv tools react inspect <selector>`')
+    expect(section).toContain('`.conciv/bin/conciv tools server graph|transform|reload`')
+    expect(section).toContain('`.conciv/bin/conciv tools --help`')
+  })
+
+  it('writes every command so it runs as written, without conciv on PATH', () => {
+    expect(agentsSection(consented)).not.toMatch(/`conciv /)
+    expect(agentsSection([])).not.toMatch(/`conciv /)
   })
 
   it('shares the command table text with the claude plugin skill', () => {
@@ -36,7 +41,7 @@ describe('agentsSection', () => {
     )
     const [, tail = ''] = agentsSection(consented).split('### When to use conciv instead of the browser MCP')
     const table = tail.split('\n\n').slice(1, 3).join('\n\n')
-    expect(table).toContain('`conciv tools page console`')
+    expect(table).toContain('`.conciv/bin/conciv tools page console`')
     expect(skill?.contents).toContain(table)
   })
 
@@ -44,7 +49,7 @@ describe('agentsSection', () => {
     const section = agentsSection([])
     expect(section).not.toContain('Set up for:')
     expect(section).toContain('No harness was connected')
-    expect(section).toContain('re-run `conciv init`')
+    expect(section).toContain('re-run `npx @conciv/cli@latest init`')
   })
 })
 
@@ -56,7 +61,23 @@ describe('agentsMdStep', () => {
     const ledger = await runSteps([step], settings, output)
     expect(ledger.map((entry) => entry.status)).toEqual(['done'])
     expect(readFileSync(join(cwd, 'AGENTS.md'), 'utf8')).toBe(`${agentsSection(consented)}\n`)
+    expect(readFileSync(join(cwd, 'CLAUDE.md'), 'utf8')).toBe('@AGENTS.md\n')
+  })
+
+  it('creates no CLAUDE.md when the claude harness was not consented', async () => {
+    const {cwd, settings, output} = project()
+    const ledger = await runSteps([agentsMdStep(() => ['codex'])], settings, output)
+    expect(ledger.map((entry) => entry.status)).toEqual(['done'])
     expect(existsSync(join(cwd, 'CLAUDE.md'))).toBe(false)
+  })
+
+  it('keeps a CLAUDE.md that imports AGENTS.md as the bare import across runs', async () => {
+    const {cwd, settings, output} = project()
+    const first = await runSteps([agentsMdStep(() => consented)], settings, output)
+    expect(first.map((entry) => entry.status)).toEqual(['done'])
+    const second = await runSteps([agentsMdStep(() => consented)], settings, output)
+    expect(second.map((entry) => entry.status)).toEqual(['already'])
+    expect(readFileSync(join(cwd, 'CLAUDE.md'), 'utf8')).toBe('@AGENTS.md\n')
   })
 
   it('appends to an existing AGENTS.md keeping the surrounding text byte-identical', async () => {

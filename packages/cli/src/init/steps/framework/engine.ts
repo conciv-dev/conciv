@@ -237,12 +237,43 @@ function resolvedExpression(root: SgNode, expression: SgNode): SgNode | null {
   return declaredValue(root, expression.text())
 }
 
+function isConfigFunction(node: SgNode): boolean {
+  const kind = node.kind()
+  return kind === 'arrow_function' || kind === 'function_expression'
+}
+
+function unwrapParentheses(expression: SgNode): SgNode | null {
+  if (expression.kind() !== 'parenthesized_expression') return expression
+  const inner = expression.children().filter((child) => child.isNamed())
+  return inner.length === 1 ? (inner[0] ?? null) : null
+}
+
+function soleReturnedValue(block: SgNode): SgNode | null {
+  const returns = block.findAll({rule: {kind: 'return_statement'}})
+  const statement = block.children().find((child) => child.kind() === 'return_statement')
+  if (!statement || returns.length > 1) return null
+  return statement.children().find((child) => child.isNamed()) ?? null
+}
+
+function returnedExpression(configFunction: SgNode): SgNode | null {
+  const body = configFunction.field('body')
+  if (body === null) return null
+  const returned = body.kind() === 'statement_block' ? soleReturnedValue(body) : body
+  return returned === null ? null : unwrapParentheses(returned)
+}
+
+function configExpression(expression: SgNode): SgNode | null {
+  const unwrapped = expression.kind() === 'call_expression' ? wrapperArgument(expression) : expression
+  if (unwrapped === null || !isConfigFunction(unwrapped)) return unwrapped
+  return returnedExpression(unwrapped)
+}
+
 function exportedConfigObject(root: SgNode): SgNode | null {
   const exported = exportedExpression(root)
   if (exported === null) return null
   const expression = resolvedExpression(root, exported)
   if (expression === null) return null
-  const object = expression.kind() === 'call_expression' ? wrapperArgument(expression) : expression
+  const object = configExpression(expression)
   if (object === null || object.kind() !== 'object') return null
   return object
 }

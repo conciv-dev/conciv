@@ -47,6 +47,13 @@ const matchedViteFixtures = [
   {name: 'vite.config.tanstack-start.ts', appended: 'viteReact(),\n    conciv(),\n  ]'},
   {name: 'astro.config.mjs', appended: 'plugins: [conciv()]'},
   {name: 'vite.config.spread.ts', appended: 'plugins: [...base, react(), conciv()]'},
+  {name: 'vite.config.function.ts', appended: 'plugins: [react(), conciv()]'},
+  {name: 'vite.config.arrow.ts', appended: 'plugins: [react(), conciv()]'},
+  {name: 'vite.config.async-arrow.ts', appended: 'plugins: [react(), conciv()]'},
+  {name: 'vite.config.function-body.ts', appended: 'plugins: [react(), conciv()]'},
+  {name: 'vite.config.async-function-body.ts', appended: 'plugins: [react(), conciv()]'},
+  {name: 'vite.config.bare-object.ts', appended: 'plugins: [react(), conciv()]'},
+  {name: 'vite.config.bare-arrow.ts', appended: 'plugins: [react(), conciv()]'},
 ]
 
 describe('addToPluginsArray', () => {
@@ -75,8 +82,9 @@ describe('addToPluginsArray', () => {
     expect(addConciv(fixture('vite.config.no-plugins.ts'))).toEqual({matched: false, output: null})
   })
 
-  it('refuses the function-form defineConfig', () => {
-    expect(addConciv(fixture('vite.config.function.ts'))).toEqual({matched: false, output: null})
+  it('refuses a config function whose returned object it cannot prove', () => {
+    expect(addConciv(fixture('vite.config.function-conditional.ts'))).toEqual({matched: false, output: null})
+    expect(addConciv(fixture('vite.config.function-variable.ts'))).toEqual({matched: false, output: null})
   })
 
   it('refuses a plugins array that is not part of the exported config', () => {

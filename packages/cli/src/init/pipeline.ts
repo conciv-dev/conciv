@@ -1,4 +1,5 @@
 import {homedir} from 'node:os'
+import {CONCIV_BIN} from '@conciv/harness-init/agent-guide'
 import {detectProject, type Detected} from './detect.js'
 import {execFileOutcome, type CommandOutcome} from './exec.js'
 import {detectHarnesses, harnessFileInits, harnessIds, type FoundHarness} from './harness-detect.js'
@@ -106,7 +107,7 @@ function frameworkStep(detected: Detected): InitStep {
 
 function nextSteps(packageManager: string): string[] {
   const dev = packageManager === 'npm' ? 'npm run dev' : `${packageManager} dev`
-  return [`start your app: ${dev}`, 'ask your agent to run conciv tools --help']
+  return [`start your app: ${dev}`, `ask your agent to run ${CONCIV_BIN} tools --help`]
 }
 
 function stepList(detected: Detected, selections: ConfirmedSelections, runtime: InitRuntime): InitStep[] {
