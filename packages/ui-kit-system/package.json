@@ -58,7 +58,6 @@
     "lucide-solid": "catalog:"
   },
   "devDependencies": {
-    "@conciv/browser-fixture": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",

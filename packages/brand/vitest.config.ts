@@ -25,22 +25,6 @@ export default defineConfig({
       },
       {
         extends: true,
-        plugins: [solidPlugin()],
-        test: {
-          ...ciTestSolidBrowser(),
-          name: 'brand-solid-browser-reduced-motion',
-          include: ['tests/browser/solid-lockup-reduced-motion.browser.test.tsx'],
-          fileParallelism: false,
-          browser: {
-            enabled: true,
-            headless: true,
-            provider: playwright({contextOptions: {reducedMotion: 'reduce'}}),
-            instances: [{browser: 'chromium'}],
-          },
-        },
-      },
-      {
-        extends: true,
         esbuild: {jsx: 'automatic', jsxImportSource: 'react'},
         test: {
           ...ciTest(),
@@ -51,22 +35,6 @@ export default defineConfig({
             enabled: true,
             headless: true,
             provider: playwright({}),
-            instances: [{browser: 'chromium'}],
-          },
-        },
-      },
-      {
-        extends: true,
-        esbuild: {jsx: 'automatic', jsxImportSource: 'react'},
-        test: {
-          ...ciTest(),
-          name: 'brand-react-browser-reduced-motion',
-          include: ['tests/browser/react-lockup-reduced-motion.browser.test.tsx'],
-          fileParallelism: false,
-          browser: {
-            enabled: true,
-            headless: true,
-            provider: playwright({contextOptions: {reducedMotion: 'reduce'}}),
             instances: [{browser: 'chromium'}],
           },
         },

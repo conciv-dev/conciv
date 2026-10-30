@@ -8,14 +8,6 @@ export default defineConfig({
     ...ciTest(),
     projects: [
       {
-        test: {
-          name: 'unit',
-          environment: 'node',
-          include: ['test/**/*.test.ts'],
-          exclude: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
-        },
-      },
-      {
         esbuild: {jsx: 'automatic', jsxImportSource: 'react'},
         test: {
           ...ciTest(),

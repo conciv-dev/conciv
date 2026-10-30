@@ -1,0 +1,871 @@
+import {createServer, type IncomingMessage, type ServerResponse} from 'node:http'
+import {expect, it, afterEach, describe, vi} from 'vitest'
+import {z} from 'zod'
+import {getHarness} from '@conciv/harness'
+import {harnessAvailable} from '../src/harness-available.js'
+import {makeCallTool, makeRunTypescript} from '../src/call-tool.js'
+import {existsSync, mkdirSync, writeFileSync} from 'node:fs'
+import {join} from 'node:path'
+import {spawn, type ChildProcess} from 'node:child_process'
+import {createTestkit, type BootApp} from '../src/create-testkit.js'
+import {createFakeHarness} from '../src/create-fake-harness.js'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {type HarnessConnectContext, type HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {createTestHarness} from '../src/create-test-harness.js'
+import {harnessModes} from '../src/harness-modes.js'
+import {EventType, type MessagePart, type StreamChunk, StreamProcessor} from '@tanstack/ai'
+import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
+import {makeRunStream} from '../src/run-stream.js'
+import {makeScriptedRun, type ScriptedRun} from '../src/scripted-run.js'
+import {until as testkitUntil} from '../src/testkit.js'
+import {until} from '../src/until.js'
+
+describe('call tool', () => {
+  it('harnessAvailable returns a boolean for any adapter', () => {
+    const claude = getHarness('claude')
+    if (!claude) throw new Error('claude adapter not registered')
+    expect(typeof harnessAvailable(claude)).toBe('boolean')
+  })
+
+  it('makeCallTool returns a caller', () => {
+    expect(typeof makeCallTool('http://127.0.0.1:0', 's')).toBe('function')
+  })
+
+  const JsonRpcCallSchema = z.object({
+    id: z.union([z.string(), z.number()]).optional(),
+    method: z.string(),
+    params: z.object({protocolVersion: z.string().optional()}).loose().optional(),
+  })
+
+  const EXECUTE_TOOL = {
+    name: 'execute_typescript',
+    description: 'runs typescript in the sandbox',
+    inputSchema: {type: 'object', properties: {typescriptCode: {type: 'string'}}, required: ['typescriptCode']},
+  }
+
+  function hangMessage(method: string): string {
+    return `the fake MCP server hung ${method} past the deadline`
+  }
+
+  function readBody(request: IncomingMessage): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let body = ''
+      request.setEncoding('utf8')
+      request.on('data', (chunk: string) => {
+        body += chunk
+      })
+      request.on('end', () => resolve(body))
+      request.on('error', reject)
+    })
+  }
+
+  function sendJson(response: ServerResponse, payload: unknown): void {
+    response.writeHead(200, {'content-type': 'application/json'})
+    response.end(JSON.stringify(payload))
+  }
+
+  function resultFor(method: string, protocolVersion: string): unknown {
+    if (method === 'initialize') {
+      return {protocolVersion, capabilities: {tools: {}}, serverInfo: {name: 'stalling-mcp', version: '0.0.0'}}
+    }
+    if (method === 'tools/list') return {tools: [EXECUTE_TOOL]}
+    return {}
+  }
+
+  type StalledOutcome = 'error' | 'success'
+
+  async function answer(
+    request: IncomingMessage,
+    response: ServerResponse,
+    hung: string,
+    stallMs: number,
+    outcome: StalledOutcome,
+  ): Promise<void> {
+    if (request.method !== 'POST') {
+      response.writeHead(405)
+      response.end()
+      return
+    }
+    const call = JsonRpcCallSchema.safeParse(JSON.parse(await readBody(request)))
+    if (!call.success || call.data.id === undefined) {
+      response.writeHead(202)
+      response.end()
+      return
+    }
+    const {id, method, params} = call.data
+    if (method === hung) {
+      await new Promise((resolve) => setTimeout(resolve, stallMs))
+      if (outcome === 'error') {
+        sendJson(response, {jsonrpc: '2.0', id, error: {code: -32000, message: hangMessage(method)}})
+        return
+      }
+    }
+    sendJson(response, {jsonrpc: '2.0', id, result: resultFor(method, params?.protocolVersion ?? '2025-06-18')})
+  }
+
+  function startMcpServerHanging(
+    hung: string,
+    stallMs: number,
+    outcome: StalledOutcome = 'error',
+  ): Promise<{apiBase: string; stop: () => Promise<void>}> {
+    const server = createServer((request, response) => {
+      answer(request, response, hung, stallMs, outcome).catch(() => {
+        response.writeHead(500)
+        response.end()
+      })
+    })
+    return new Promise((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', () => {
+        const address = server.address()
+        if (address === null || typeof address === 'string') {
+          reject(new Error('server did not bind a port'))
+          return
+        }
+        resolve({
+          apiBase: `http://127.0.0.1:${address.port}`,
+          stop: () => new Promise<void>((done) => server.close(() => done())),
+        })
+      })
+    })
+  }
+
+  async function failureOf(apiBase: string): Promise<unknown> {
+    const runTypescript = makeRunTypescript(apiBase, 'session', {deadlineMs: 150, label: 'stage_probe'})
+    return runTypescript('return 1').then(
+      () => new Error('runTypescript resolved instead of failing'),
+      (error: unknown) => error,
+    )
+  }
+
+  it('a tools/list failure past the deadline is not reported as the execute stage', async () => {
+    const server = await startMcpServerHanging('tools/list', 400)
+    try {
+      const failure = await failureOf(server.apiBase)
+      expect(failure).toBeInstanceOf(Error)
+      expect(String(failure)).not.toContain('waiting on the MCP execute')
+      expect(String(failure)).toContain(hangMessage('tools/list'))
+    } finally {
+      await server.stop()
+    }
+  }, 10_000)
+
+  it('a tools/list that succeeds past the deadline is not reported as the execute stage', async () => {
+    const server = await startMcpServerHanging('tools/list', 400, 'success')
+    try {
+      const failure = await failureOf(server.apiBase)
+      expect(failure).toBeInstanceOf(Error)
+      expect(String(failure)).not.toContain('waiting on the MCP execute')
+      expect(String(failure)).toContain('tools/list')
+    } finally {
+      await server.stop()
+    }
+  }, 10_000)
+
+  it('an execute that outlives the deadline is reported as the execute stage', async () => {
+    const server = await startMcpServerHanging('tools/call', 2_000)
+    try {
+      const failure = await failureOf(server.apiBase)
+      expect(String(failure)).toContain('runTypescript(stage_probe) exceeded 150ms waiting on the MCP execute')
+    } finally {
+      await server.stop()
+    }
+  }, 10_000)
+})
+
+describe('cleanup concurrent writes', () => {
+  const lateWriterSource = `
+const {writeFileSync, unlinkSync, existsSync} = require('node:fs')
+const {join} = require('node:path')
+const root = process.argv[1]
+const temp = join(root, '.tanstack-mcp-bridge-late.json')
+writeFileSync(join(root, 'writer-live'), '')
+console.log('live')
+const stopAt = Date.now() + 150
+while (Date.now() < stopAt) writeFileSync(temp, '{}')
+if (existsSync(temp)) unlinkSync(temp)
+if (existsSync(join(root, 'writer-live'))) unlinkSync(join(root, 'writer-live'))
+`
+
+  function seedTree(root: string): void {
+    for (const dir of Array.from({length: 20}, (_, index) => join(root, `d${index}`))) {
+      mkdirSync(dir, {recursive: true})
+      for (const file of Array.from({length: 20}, (_, index) => join(dir, `f${index}`))) {
+        writeFileSync(file, 'x'.repeat(200))
+      }
+    }
+  }
+
+  function fakeRpcResponse(request: Request): unknown {
+    const path = new URL(request.url).pathname
+    if (path.endsWith('/sessions/resolve')) return {sessionId: 'conciv_cleanup_fixture'}
+    if (path.endsWith('/sessions/list')) return []
+    return {ok: true}
+  }
+
+  function lateWritingBoot(state: {writer: ChildProcess | null}): BootApp {
+    return async (env) => {
+      seedTree(env.stateRoot)
+      return {
+        fetch: (request) =>
+          new Response(JSON.stringify({json: fakeRpcResponse(request)}), {
+            headers: {'content-type': 'application/json'},
+          }),
+        dispose: async () => {
+          const writer = spawn(process.execPath, ['-e', lateWriterSource, env.stateRoot], {
+            stdio: ['ignore', 'pipe', 'ignore'],
+          })
+          state.writer = writer
+          await new Promise<void>((resolve) => writer.stdout?.once('data', () => resolve()))
+        },
+      }
+    }
+  }
+
+  const state = {writer: null as ChildProcess | null}
+
+  afterEach(() => {
+    state.writer?.kill('SIGKILL')
+    state.writer = null
+  })
+
+  it('removes the state root even when teardown drops a temp file into it mid-removal', async () => {
+    const kit = await createTestkit(createFakeHarness(), lateWritingBoot(state)).setup()
+    const stateRoot = kit.stateRoot
+
+    await kit.cleanup()
+
+    expect(existsSync(stateRoot)).toBe(false)
+  }, 30_000)
+})
+
+describe('create fake harness', () => {
+  const context: HarnessConnectContext = {
+    cwd: '/',
+    stateDir: '/state/.conciv',
+    concivSessionId: SessionId.parse('conciv_fake_harness'),
+    harnessSessionId: HarnessSessionId.parse('s'),
+    resume: false,
+    owned: true,
+    model: null,
+    mcpUrl: null,
+    hookUrl: null,
+  }
+
+  describe('createFakeHarness transcript history', () => {
+    it('declares no transcript history by default', () => {
+      const harness = createFakeHarness()
+      expect(harness.capabilities.transcriptHistory).toBe(false)
+      expect(harness.history).toBeUndefined()
+    })
+
+    it('serves the injected rows as the harness transcript list', async () => {
+      const rows = [
+        {
+          id: HarnessSessionId.parse('external-1'),
+          derivedTitle: 'An external session',
+          updatedAt: 1_700,
+          messageCount: 7,
+        },
+        {id: HarnessSessionId.parse('external-2'), derivedTitle: 'Another one', updatedAt: 1_800, messageCount: 2},
+      ]
+      const harness = createFakeHarness({history: rows})
+
+      expect(harness.capabilities.transcriptHistory).toBe(true)
+      expect(await harness.history?.list('/project')).toEqual(rows)
+      expect(await harness.history?.messages('/project', HarnessSessionId.parse('external-1'))).toEqual([])
+    })
+  })
+
+  describe('createFakeHarness tty', () => {
+    it('has no tty by default', () => {
+      expect(createFakeHarness().tty).toBeUndefined()
+    })
+
+    it('exposes an injected tty command', () => {
+      const command = () => ({bin: 'bash', args: ['-i'], env: {}})
+      const harness = createFakeHarness({tty: {command}})
+      expect(harness.tty?.command(context).bin).toBe('bash')
+    })
+  })
+})
+
+describe('create test harness', () => {
+  describe('createTestHarness', () => {
+    it('keeps the real capabilities but swaps chatConfig for a deterministic one', () => {
+      const real = getHarness('claude')
+      if (!real) throw new Error('claude adapter not registered')
+      const test = createTestHarness(real)
+      expect(test.id).toBe(real.id)
+      expect(test.capabilities).toEqual(real.capabilities)
+      expect(typeof test.chatConfig).toBe('function')
+      expect(test.chatConfig).not.toBe(real.chatConfig)
+    })
+  })
+})
+
+describe('harness modes', () => {
+  const claude = getHarness('claude')
+  if (!claude) throw new Error('claude adapter not registered')
+
+  const priorCI = process.env.CI
+
+  afterEach(() => {
+    if (priorCI === undefined) delete process.env.CI
+    else process.env.CI = priorCI
+  })
+
+  describe('harnessModes', () => {
+    it('always runs the fake leg', () => {
+      const fake = harnessModes(claude).find((mode) => mode.name === 'fake')
+      expect(fake?.run).toBe(true)
+    })
+
+    it('disables the real leg under CI regardless of the binary', () => {
+      process.env.CI = '1'
+      const real = harnessModes(claude).find((mode) => mode.name === 'real')
+      expect(real?.run).toBe(false)
+    })
+  })
+})
+
+describe('run stream', () => {
+  async function* scripted(chunks: StreamChunk[], gapMs = 5): AsyncGenerator<StreamChunk> {
+    for (const chunk of chunks) {
+      await new Promise((r) => setTimeout(r, gapMs))
+      yield chunk
+    }
+  }
+
+  async function* parked(chunks: StreamChunk[]): AsyncGenerator<StreamChunk> {
+    yield* scripted(chunks)
+    await new Promise(() => {})
+  }
+
+  async function* slowToStart(preamble: StreamChunk[], gapMs: number): AsyncGenerator<StreamChunk> {
+    yield* scripted(preamble, 0)
+    await new Promise((r) => setTimeout(r, gapMs))
+    yield started
+    yield finished
+  }
+
+  const text = (delta: string): StreamChunk =>
+    ({type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta}) as StreamChunk
+  const started = {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'} as StreamChunk
+  const finished = {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r'} as StreamChunk
+  const accepted = {type: EventType.CUSTOM, name: 'run.accepted', value: {}, timestamp: 0} as StreamChunk
+
+  const snapshot = (parts: MessagePart[]): StreamChunk => aguiSnapshotFor([{id: 'a1', role: 'assistant', parts}])
+
+  const textPart = (content: string): MessagePart => ({type: 'text', content})
+
+  const toolCallPart = (id: string, name: string, args: unknown): MessagePart => ({
+    type: 'tool-call',
+    id,
+    name,
+    arguments: JSON.stringify(args),
+    state: 'input-complete',
+  })
+
+  describe('makeRunStream', () => {
+    it('waitForToolCall resolves with parsed input when the call lands mid-stream', async () => {
+      const run = makeRunStream(
+        scripted([
+          started,
+          snapshot([textPart('thinking'), toolCallPart('tc-1', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'})]),
+          finished,
+        ]),
+      )
+      const call = await run.waitForToolCall('conciv_ui')
+      expect(call).toEqual({toolCallId: 'tc-1', name: 'conciv_ui', input: {kind: 'confirm', question: 'Proceed?'}})
+    })
+
+    it('waitForToolCall rejects fast when the run finishes without that tool', async () => {
+      const run = makeRunStream(scripted([started, snapshot([toolCallPart('tc-1', 'open', {file: 'a.ts'})]), finished]))
+      await expect(run.waitForToolCall('conciv_ui')).rejects.toThrow(/finished|without/i)
+    })
+
+    it('done().toolCalls filters by name and parses each call input', async () => {
+      const run = makeRunStream(
+        scripted([
+          started,
+          snapshot([
+            toolCallPart('tc-1', 'open', {file: 'a.ts'}),
+            toolCallPart('tc-2', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'}),
+          ]),
+          finished,
+        ]),
+      )
+      const events = await run.done()
+      expect(events.toolCalls().map((call) => call.name)).toEqual(['open', 'conciv_ui'])
+      expect(events.toolCalls('conciv_ui')).toEqual([
+        {toolCallId: 'tc-2', name: 'conciv_ui', input: {kind: 'confirm', question: 'Proceed?'}},
+      ])
+    })
+
+    it('done drains to RUN_FINISHED and exposes typed queries', async () => {
+      const run = makeRunStream(
+        scripted([started, snapshot([textPart('hello ')]), snapshot([textPart('hello world')]), finished]),
+      )
+      const events = await run.done()
+      expect(events.text()).toBe('hello world')
+      expect(events.runs()).toBe(1)
+    })
+
+    it('hang guard fires while the source is parked', async () => {
+      const run = makeRunStream(parked([started, text('still going')]))
+      await expect(run.waitFor((chunk) => chunk.type === EventType.RUN_FINISHED, {hangGuardMs: 80})).rejects.toThrow(
+        /stall.*seen:/s,
+      )
+    })
+
+    it('waitForRunStart outlives a producer that is slow to emit its first chunk', async () => {
+      const run = makeRunStream(slowToStart([snapshot([textPart('catch-up')]), accepted], 150))
+      const chunk = await run.waitForRunStart()
+      expect(chunk.type).toBe(EventType.RUN_STARTED)
+    })
+
+    it('a generic stall budget cannot cover the same slow start', async () => {
+      const run = makeRunStream(slowToStart([snapshot([textPart('catch-up')]), accepted], 150))
+      await expect(run.waitFor((chunk) => chunk.type === EventType.RUN_STARTED, {hangGuardMs: 40})).rejects.toThrow(
+        /stall.*MESSAGES_SNAPSHOT/s,
+      )
+    })
+
+    it('waitForRunStart rejects on the run signal when the run ends without starting', async () => {
+      const errored = {type: EventType.RUN_ERROR, threadId: 't', runId: 'r', message: 'no output'} as StreamChunk
+      const run = makeRunStream(parked([snapshot([textPart('catch-up')]), accepted, errored]))
+      await expect(run.waitForRunStart()).rejects.toThrow(/run finished without a matching event.*RUN_ERROR/s)
+    })
+
+    it('waitForRunStart matches the requested runId and ignores an earlier run', async () => {
+      const other = {type: EventType.RUN_STARTED, threadId: 't', runId: 'other'} as StreamChunk
+      const run = makeRunStream(parked([other, started]))
+      const chunk = await run.waitForRunStart({runId: 'r'})
+      expect('runId' in chunk ? chunk.runId : '').toBe('r')
+    })
+
+    it('parallel waiters each see every chunk', async () => {
+      const run = makeRunStream(scripted([started, text('alpha'), text('beta'), finished]))
+      const isDelta = (delta: string) => (chunk: StreamChunk) =>
+        chunk.type === EventType.TEXT_MESSAGE_CONTENT && chunk.delta === delta
+      const [alpha, beta] = await Promise.all([run.waitFor(isDelta('alpha')), run.waitFor(isDelta('beta'))])
+      expect(alpha.type).toBe(EventType.TEXT_MESSAGE_CONTENT)
+      expect(beta.type).toBe(EventType.TEXT_MESSAGE_CONTENT)
+    })
+
+    it('a late waiter replays chunks already collected', async () => {
+      const run = makeRunStream(scripted([started, text('early'), finished]))
+      await run.done()
+      const chunk = await run.waitFor((c) => c.type === EventType.TEXT_MESSAGE_CONTENT, {hangGuardMs: 100})
+      expect(chunk.type).toBe(EventType.TEXT_MESSAGE_CONTENT)
+    })
+
+    it('done resolves when RUN_FINISHED landed before the call', async () => {
+      const run = makeRunStream(
+        scripted([
+          started,
+          snapshot([toolCallPart('tc-1', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'})]),
+          text('tail'),
+          finished,
+        ]),
+      )
+      await run.waitForToolCall('conciv_ui')
+      await new Promise((r) => setTimeout(r, 50))
+      const events = await run.done({hangGuardMs: 500})
+      expect(events.runs()).toBe(1)
+    })
+
+    it('an intermediate tool_calls RUN_FINISHED does not end done()', async () => {
+      const intermediate = {
+        type: EventType.RUN_FINISHED,
+        threadId: 't',
+        runId: 'r',
+        finishReason: 'tool_calls',
+      } as StreamChunk
+      const run = makeRunStream(
+        scripted([
+          started,
+          snapshot([toolCallPart('tc-1', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'})]),
+          intermediate,
+          snapshot([textPart('after')]),
+          finished,
+        ]),
+      )
+      const events = await run.done({hangGuardMs: 1000})
+      expect(events.text()).toContain('after')
+    })
+
+    it('an old-turn RUN_FINISHED in history does not fail a new waiter', async () => {
+      const run = makeRunStream(
+        parked([
+          started,
+          finished,
+          started,
+          snapshot([toolCallPart('tc-2', 'conciv_ui', {kind: 'confirm', question: 'Again?'})]),
+        ]),
+      )
+      await run.done()
+      const call = await run.waitForToolCall('conciv_ui')
+      expect(call.input).toEqual({kind: 'confirm', question: 'Again?'})
+    })
+  })
+})
+
+describe('scripted run', () => {
+  const deps = (): HarnessChatDeps => ({
+    cwd: '.',
+    sessionId: SessionId.parse('conciv_s'),
+    resumeSessionId: null,
+    env: {},
+    kind: 'chat',
+    decide: async (): Promise<'allow' | 'deny'> => 'allow',
+  })
+
+  function drainUnderSignal(
+    scripted: ScriptedRun,
+    signal: AbortSignal,
+  ): {seen: {chunks: StreamChunk[]; ended: boolean}; drained: Promise<void>} {
+    const seen: {chunks: StreamChunk[]; ended: boolean} = {chunks: [], ended: false}
+    const drained = (async () => {
+      for await (const chunk of scripted.chatStream(deps(), {request: {signal}})) seen.chunks.push(chunk)
+      seen.ended = true
+    })()
+    return {seen, drained}
+  }
+
+  function drainInBackground(scripted: ScriptedRun): {chunks: StreamChunk[]; drained: Promise<void>} {
+    const chunks: StreamChunk[] = []
+    const drain = async (): Promise<void> => {
+      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+    }
+    return {chunks, drained: drain()}
+  }
+
+  function drainResultTimes(scripted: ScriptedRun): {times: number[]; drained: Promise<void>} {
+    const times: number[] = []
+    const drain = async (): Promise<void> => {
+      for await (const chunk of scripted.chatStream(deps())) {
+        if (chunk.type === EventType.TOOL_CALL_RESULT) times.push(performance.now())
+      }
+    }
+    return {times, drained: drain()}
+  }
+
+  function drainTextDeltas(scripted: ScriptedRun): {deltas: string[]; times: number[]; drained: Promise<void>} {
+    const deltas: string[] = []
+    const times: number[] = []
+    const drain = async (): Promise<void> => {
+      for await (const chunk of scripted.chatStream(deps())) {
+        if (chunk.type !== EventType.TEXT_MESSAGE_CONTENT) continue
+        deltas.push(chunk.delta)
+        times.push(performance.now())
+      }
+    }
+    return {deltas, times, drained: drain()}
+  }
+
+  function assistantIds(processor: StreamProcessor): string[] {
+    return processor
+      .getMessages()
+      .filter((message) => message.role === 'assistant')
+      .map((message) => message.id)
+  }
+
+  const PACED_STEPS = 4
+  const PACE_MS = 40
+  const PACE_TOLERANCE = 0.8
+  const TEXT_CHUNK_SIZE = 8
+  const PACED_TEXT = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  const PACED_TEXT_SLICES = Math.ceil(PACED_TEXT.length / TEXT_CHUNK_SIZE)
+
+  describe('makeScriptedRun', () => {
+    it('emits a full lifecycle with a session-id custom event', async () => {
+      const {chatStream} = makeScriptedRun({text: 'hello from fake'})
+      const out: StreamChunk[] = []
+      for await (const chunk of chatStream(deps())) out.push(chunk)
+      expect(out.at(0)?.type).toBe(EventType.RUN_STARTED)
+      expect(out.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+      expect(out.some((c) => c.type === EventType.TEXT_MESSAGE_CONTENT)).toBe(true)
+      expect(out.some((c) => c.type === EventType.CUSTOM && c.name === 'fake.session-id')).toBe(true)
+    })
+
+    it.each([
+      {
+        name: 'a held turn',
+        arrange: (scripted: ScriptedRun) => scripted.hold(),
+        parked: EventType.TEXT_MESSAGE_CONTENT,
+        withheld: EventType.RUN_FINISHED,
+      },
+      {
+        name: 'a turn held at its tool gate',
+        arrange: (scripted: ScriptedRun) => scripted.holdTools(),
+        parked: EventType.RUN_STARTED,
+        withheld: EventType.TOOL_CALL_START,
+      },
+      {
+        name: 'a turn held at its result gate',
+        arrange: (scripted: ScriptedRun) => scripted.holdResults(),
+        parked: EventType.TOOL_CALL_END,
+        withheld: EventType.TOOL_CALL_RESULT,
+      },
+    ])('ends $name when the caller aborts the request', async ({arrange, parked, withheld}) => {
+      const scripted = makeScriptedRun()
+      scripted.scriptTurn({toolCalls: [{name: 'first_tool', input: {a: 1}}], text: 'done'})
+      arrange(scripted)
+      const controller = new AbortController()
+      const run = drainUnderSignal(scripted, controller.signal)
+
+      await vi.waitFor(() => expect(run.seen.chunks.some((chunk) => chunk.type === parked)).toBe(true))
+      controller.abort()
+
+      await vi.waitFor(() => expect(run.seen.ended).toBe(true), {timeout: 1_000, interval: 10})
+      await run.drained
+      expect(run.seen.chunks.some((chunk) => chunk.type === withheld)).toBe(false)
+    })
+
+    it('gives each tool call in a session its own toolCallId, matching what scriptToolCall returned', async () => {
+      const scripted = makeScriptedRun()
+      const firstScriptedId = scripted.scriptToolCall('first_tool', {a: 1}, {blocking: false})
+      const secondScriptedId = scripted.scriptToolCall('second_tool', {b: 2}, {blocking: false})
+      const collectToolCallId = async (): Promise<string> => {
+        for await (const chunk of scripted.chatStream(deps())) {
+          if (chunk.type === EventType.TOOL_CALL_START) return chunk.toolCallId
+        }
+        throw new Error('no tool call start emitted')
+      }
+      const firstEmittedId = await collectToolCallId()
+      const secondEmittedId = await collectToolCallId()
+      expect(firstEmittedId).not.toBe(secondEmittedId)
+      expect(firstEmittedId).toBe(firstScriptedId)
+      expect(secondEmittedId).toBe(secondScriptedId)
+    })
+
+    it('keeps two independently queued tool calls in two separate turns', async () => {
+      const scripted = makeScriptedRun()
+      scripted.scriptToolCall('first_tool', {a: 1})
+      scripted.scriptToolCall('second_tool', {b: 2})
+      const drainTurn = async (): Promise<StreamChunk[]> => {
+        const chunks: StreamChunk[] = []
+        for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+        return chunks
+      }
+      const first = await drainTurn()
+      const second = await drainTurn()
+      const startsIn = (chunks: StreamChunk[]): string[] =>
+        chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_START ? [chunk.toolCallName] : []))
+      expect(startsIn(first)).toEqual(['first_tool'])
+      expect(startsIn(second)).toEqual(['second_tool'])
+    })
+
+    it('emits every tool call of a scripted turn, with its result, inside one turn', async () => {
+      const scripted = makeScriptedRun()
+      const ids = scripted.scriptTurn({
+        toolCalls: [
+          {name: 'first_tool', input: {a: 1}, result: {ok: 'one'}},
+          {name: 'second_tool', input: {b: 2}, result: {ok: 'two'}},
+        ],
+        text: 'both tools ran',
+      })
+      const chunks: StreamChunk[] = []
+      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+
+      const starts = chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_START ? [chunk.toolCallId] : []))
+      const results = chunks.flatMap((chunk) =>
+        chunk.type === EventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
+      )
+      const text = chunks.flatMap((chunk) => (chunk.type === EventType.TEXT_MESSAGE_CONTENT ? [chunk.delta] : []))
+      expect(starts).toEqual(ids)
+      expect(results).toEqual([
+        {id: ids[0], content: JSON.stringify({ok: 'one'})},
+        {id: ids[1], content: JSON.stringify({ok: 'two'})},
+      ])
+      expect(text).toEqual(['both tools ran'])
+      expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    })
+
+    it('passes a scripted string tool result through raw instead of JSON-quoting it', async () => {
+      const scripted = makeScriptedRun()
+      const multilineResult = 'line one\nline two\nline three'
+      const ids = scripted.scriptTurn({toolCalls: [{name: 'read_file', input: {a: 1}, result: multilineResult}]})
+      const chunks: StreamChunk[] = []
+      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+      const results = chunks.flatMap((chunk) =>
+        chunk.type === EventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
+      )
+      expect(results).toEqual([{id: ids[0], content: multilineResult}])
+    })
+
+    it('keeps a scripted null tool result as null instead of substituting the default', async () => {
+      const scripted = makeScriptedRun()
+      const ids = scripted.scriptTurn({toolCalls: [{name: 'nullish_tool', input: {a: 1}, result: null}]})
+      const chunks: StreamChunk[] = []
+      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+      const results = chunks.flatMap((chunk) =>
+        chunk.type === EventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
+      )
+      expect(results).toEqual([{id: ids[0], content: 'null'}])
+    })
+
+    it('streams a queued tool call and a queued turn in the order they were scripted', async () => {
+      const scripted = makeScriptedRun()
+      scripted.scriptToolCall('first_tool', {a: 1})
+      scripted.scriptTurn({toolCalls: [{name: 'second_tool', input: {b: 2}}], text: 'turn ran'})
+      const drainTurn = async (): Promise<StreamChunk[]> => {
+        const chunks: StreamChunk[] = []
+        for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+        return chunks
+      }
+      const first = await drainTurn()
+      const second = await drainTurn()
+      const startsIn = (chunks: StreamChunk[]): string[] =>
+        chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_START ? [chunk.toolCallName] : []))
+      expect(startsIn(first)).toEqual(['first_tool'])
+      expect(startsIn(second)).toEqual(['second_tool'])
+    })
+
+    it('holds every tool result until releaseResults(), leaving the tool call started and unresolved', async () => {
+      const scripted = makeScriptedRun()
+      const ids = scripted.scriptTurn({toolCalls: [{name: 'held_tool', input: {a: 1}}], text: 'done'})
+      scripted.holdResults()
+      const {chunks, drained} = drainInBackground(scripted)
+      await new Promise((r) => setTimeout(r, 30))
+      expect(chunks.some((c) => c.type === EventType.TOOL_CALL_START && c.toolCallId === ids[0])).toBe(true)
+      expect(chunks.some((c) => c.type === EventType.TOOL_CALL_RESULT)).toBe(false)
+      scripted.releaseResults()
+      await drained
+      const results = chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_RESULT ? [chunk.toolCallId] : []))
+      expect(results).toEqual(ids)
+      expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    })
+
+    it('releases held tool results one every everyMs instead of all at once', async () => {
+      const scripted = makeScriptedRun()
+      const ids = scripted.scriptTurn({
+        toolCalls: Array.from({length: PACED_STEPS}, (_, index) => ({name: 'paced_tool', input: {step: index}})),
+        text: 'done',
+      })
+      scripted.holdResults()
+      const {times, drained} = drainResultTimes(scripted)
+      await new Promise((r) => setTimeout(r, 20))
+      expect(times.length).toBe(0)
+      scripted.releaseResults({everyMs: PACE_MS})
+      await drained
+      expect(times.length).toBe(ids.length)
+      const span = (times.at(-1) ?? 0) - (times.at(0) ?? 0)
+      expect(span).toBeGreaterThanOrEqual(PACE_MS * (PACED_STEPS - 1) * PACE_TOLERANCE)
+    })
+
+    it('streams a paced turn text as several deltas spaced by everyMs instead of one delta', async () => {
+      const scripted = makeScriptedRun()
+      scripted.scriptTurn({
+        toolCalls: [],
+        text: PACED_TEXT,
+        textPace: {chunk: TEXT_CHUNK_SIZE, everyMs: PACE_MS},
+      })
+      const {deltas, times, drained} = drainTextDeltas(scripted)
+      await drained
+      expect(deltas.length).toBe(PACED_TEXT_SLICES)
+      expect(deltas.join('')).toBe(PACED_TEXT)
+      const span = (times.at(-1) ?? 0) - (times.at(0) ?? 0)
+      expect(span).toBeGreaterThanOrEqual(PACE_MS * (PACED_TEXT_SLICES - 1) * PACE_TOLERANCE)
+    })
+
+    it('folds a paced answer after tool calls into one text part of the message that already holds the tool calls, the way a chat processor reads the stream', async () => {
+      const scripted = makeScriptedRun()
+      scripted.scriptTurn({
+        toolCalls: [{name: 'first_tool', input: {a: 1}}],
+        text: PACED_TEXT,
+        textPace: {chunk: TEXT_CHUNK_SIZE, everyMs: 0},
+      })
+      const processor = new StreamProcessor()
+      const toolCallMessageIds: string[] = []
+      for await (const chunk of scripted.chatStream(deps())) {
+        processor.processChunk(chunk)
+        if (chunk.type === EventType.TOOL_CALL_START) toolCallMessageIds.push(...assistantIds(processor))
+      }
+      const texts = processor
+        .getMessages()
+        .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])))
+      expect(assistantIds(processor)).toEqual(toolCallMessageIds)
+      expect(texts).toEqual([PACED_TEXT])
+    })
+
+    it('streams an unpaced turn text as one delta', async () => {
+      const scripted = makeScriptedRun()
+      scripted.scriptTurn({toolCalls: [], text: PACED_TEXT})
+      const {deltas, drained} = drainTextDeltas(scripted)
+      await drained
+      expect(deltas).toEqual([PACED_TEXT])
+    })
+
+    it('emits a queued custom event while the tool call it names is still unresolved', async () => {
+      const scripted = makeScriptedRun()
+      const ids = scripted.scriptTurn({toolCalls: [{name: 'risky_tool', input: {command: 'rm -rf build'}}]})
+      scripted.scriptCustomEvent('approval-requested', {
+        toolCallId: ids[0],
+        toolName: 'risky_tool',
+        input: {command: 'rm -rf build'},
+        approval: {id: 'ask-1', needsApproval: true},
+      })
+      scripted.holdResults()
+      const {chunks, drained} = drainInBackground(scripted)
+      await new Promise((r) => setTimeout(r, 30))
+      expect(chunks.some((c) => c.type === EventType.CUSTOM && c.name === 'approval-requested')).toBe(true)
+      expect(chunks.some((c) => c.type === EventType.TOOL_CALL_RESULT)).toBe(false)
+      scripted.releaseResults()
+      await drained
+      const order = chunks.flatMap((chunk) => {
+        if (chunk.type === EventType.CUSTOM && chunk.name === 'approval-requested') return ['ask']
+        return chunk.type === EventType.TOOL_CALL_RESULT ? ['result'] : []
+      })
+      expect(order).toEqual(['ask', 'result'])
+    })
+
+    it('holds the turn open until release()', async () => {
+      const scripted = makeScriptedRun()
+      scripted.hold()
+      const {chunks, drained} = drainInBackground(scripted)
+      await new Promise((r) => setTimeout(r, 30))
+      expect(chunks.some((c) => c.type === EventType.RUN_FINISHED)).toBe(false)
+      scripted.release()
+      await drained
+      expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    })
+  })
+})
+
+describe('smoke', () => {
+  it('package resolves', () => {
+    expect(typeof testkitUntil).toBe('function')
+  })
+})
+
+describe('until', () => {
+  describe('until', () => {
+    it('resolves once the predicate turns true', async () => {
+      const state = {n: 0}
+      const tick = setInterval(() => (state.n += 1), 5)
+      await until(() => state.n >= 3)
+      clearInterval(tick)
+      expect(state.n).toBeGreaterThanOrEqual(3)
+    })
+
+    it('rejects fast via failWhen without waiting for the guard', async () => {
+      const started = performance.now()
+      await expect(until(() => false, {failWhen: () => true, hangGuardMs: 4000})).rejects.toThrow()
+      expect(performance.now() - started).toBeLessThan(500)
+    })
+
+    it('rejects with a stall error after the hang guard', async () => {
+      await expect(until(() => false, {hangGuardMs: 60})).rejects.toThrow(/stall|guard|timed out/i)
+    })
+
+    it('waits for the predicate to hold continuously when settleFor is set', async () => {
+      const state = {open: true}
+      setTimeout(() => (state.open = false), 20)
+      await until(() => !state.open, {settleFor: 40})
+      expect(state.open).toBe(false)
+    })
+  })
+})

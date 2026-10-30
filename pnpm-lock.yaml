@@ -3741,6 +3741,21 @@ importers:
         specifier: ^3.0.0
         version: 3.3.0(esbuild@0.28.1)(rolldown@1.2.15)(rollup@4.62.2)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
     devDependencies:
+      '@conciv/extension-ios':
+        specifier: workspace:^
+        version: link:../extensions/ios
+      '@conciv/extension-recorder':
+        specifier: workspace:^
+        version: link:../extensions/recorder
+      '@conciv/extension-terminal':
+        specifier: workspace:^
+        version: link:../extensions/terminal
+      '@conciv/extension-test-runner':
+        specifier: workspace:^
+        version: link:../extensions/test-runner
+      '@conciv/extension-whiteboard':
+        specifier: workspace:^
+        version: link:../extensions/whiteboard
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4544,9 +4559,6 @@ importers:
         specifier: 'catalog:'
         version: 1.64.0(solid-js@1.9.17)
     devDependencies:
-      '@conciv/browser-fixture':
-        specifier: workspace:*
-        version: link:../browser-fixture
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset

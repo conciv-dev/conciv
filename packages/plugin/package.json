@@ -84,6 +84,11 @@
     "unplugin": "^3.0.0"
   },
   "devDependencies": {
+    "@conciv/extension-ios": "workspace:^",
+    "@conciv/extension-recorder": "workspace:^",
+    "@conciv/extension-terminal": "workspace:^",
+    "@conciv/extension-test-runner": "workspace:^",
+    "@conciv/extension-whiteboard": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",

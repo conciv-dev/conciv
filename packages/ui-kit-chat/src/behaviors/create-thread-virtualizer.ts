@@ -189,7 +189,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
       const element = config.scrollElement()
       return element?.isConnected ? element : null
     },
-    estimateSize: config.estimateSizeAt,
+    estimateSize: (index) => Math.round(config.estimateSizeAt(index)),
     getItemKey: (index) => config.keyAt(index) ?? index,
     gap: config.gap(),
     scrollMargin: config.scrollMargin(),
