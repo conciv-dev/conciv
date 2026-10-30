@@ -2,7 +2,7 @@ import {DatabaseSync} from 'node:sqlite'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {defineAIPersistence} from '@tanstack/ai-persistence'
 import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
-import {drizzleChatStores} from '@conciv/ai/server'
+import {drizzleChatStores} from '../src/server.js'
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {
@@ -15,7 +15,7 @@ import {
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
 import {UsageSnapshotSchema, contextUsedTokens} from '@conciv/protocol/usage-types'
-import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
+import {createTextChunks, storyConnection} from '../src/testkit.js'
 import {readdirSync, readFileSync, statSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'

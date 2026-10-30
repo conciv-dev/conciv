@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ChatEvent} from '@conciv/protocol/chat-event-types'
+import type {ChatEvent} from './chat-event-types.js'
 
 export const PUSH_WS_PATH = '/push-ws'
 export const PUSH_SESSION_PARAM = 'sessionId'

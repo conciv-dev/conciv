@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, type ChatEvent} from './chat-event-types.js'
 import type {ChatHistory} from './chat-types.js'
 
 export const UiFormFieldSchema = z.object({

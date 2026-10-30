@@ -8,9 +8,9 @@ export type ToolCallPartWithParent = ToolCallPart & {metadata?: {parentToolCallI
 
 export function parentToolCallIdOf(part: ChatPart): string | null {
   if (part.type !== 'tool-call') return null
-  const withMeta: ToolCallPartWithParent = part
-  const parent = withMeta.metadata?.parentToolCallId
-  return typeof parent === 'string' ? parent : null
+  const {metadata} = part
+  if (typeof metadata !== 'object' || metadata === null || !('parentToolCallId' in metadata)) return null
+  return typeof metadata.parentToolCallId === 'string' ? metadata.parentToolCallId : null
 }
 
 export function childCallsFor(parts: ReadonlyArray<ChatPart>, parentId: string): ToolCallPart[] {
