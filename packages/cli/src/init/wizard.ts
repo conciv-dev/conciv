@@ -17,7 +17,7 @@ import type {Framework} from './detect.js'
 import type {FoundHarness, HarnessId} from './harness-detect.js'
 import type {StepNote, StepStatus} from './ledger.js'
 
-export type FoundSelections = {framework: Framework; harnesses: FoundHarness[]}
+type FoundSelections = {framework: Framework; harnesses: FoundHarness[]}
 export type ConfirmedSelections = {framework: boolean; harnesses: HarnessId[]; docsPack: boolean}
 
 export type PlanRow = {title: string; wouldEdit: string[]; already: boolean}
