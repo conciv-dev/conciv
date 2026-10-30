@@ -1,3 +1,4 @@
+import {parse} from 'culori'
 import {snapdom, type SnapdomPlugin} from '@zumer/snapdom'
 import {toolError} from '@conciv/extension'
 import {DESIGN_ERRORS, type CaptureInput, type ViewportResult} from '../shared/defs.js'
@@ -9,6 +10,7 @@ export type ClientCapture = {image: string; width: number; height: number; route
 
 const DATA_URL_COMMA = ','
 const WIDGET_ROOT_SELECTOR = '[data-conciv-root]'
+const CANVAS_FALLBACK = '#ffffff'
 
 function base64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -53,10 +55,30 @@ async function frameAtRoute(size: Size): Promise<HTMLIFrameElement> {
   return ensureCaptureFrame(input)
 }
 
-async function cropped(input: {blob: Blob} & Size): Promise<Blob> {
+function painted(color: string): boolean {
+  const parsed = parse(color)
+  return parsed !== undefined && (parsed.alpha ?? 1) > 0
+}
+
+function canvasBackground(doc: Document): string {
+  const view = doc.defaultView
+  if (view === null) return CANVAS_FALLBACK
+  const root = view.getComputedStyle(doc.documentElement).backgroundColor
+  if (painted(root)) return root
+  const body = doc.body ? view.getComputedStyle(doc.body).backgroundColor : ''
+  if (painted(body)) return body
+  return CANVAS_FALLBACK
+}
+
+async function composited(input: {blob: Blob; doc: Document} & Size): Promise<Blob> {
   const bitmap = await createImageBitmap(input.blob)
   const canvas = new OffscreenCanvas(input.width, input.height)
-  canvas.getContext('2d')?.drawImage(bitmap, 0, 0)
+  const context = canvas.getContext('2d')
+  if (context !== null) {
+    context.fillStyle = canvasBackground(input.doc)
+    context.fillRect(0, 0, input.width, input.height)
+    context.drawImage(bitmap, 0, 0)
+  }
   bitmap.close()
   return canvas.convertToBlob({type: 'image/png'})
 }
@@ -67,7 +89,7 @@ async function captureInFrame(size: Size): Promise<ClientCapture> {
   if (doc === null) throw toolError('frame-blocked', {message: DESIGN_ERRORS['frame-blocked'].message})
   const components = collectComponents({root: doc})
   const capture = await snapdom(doc.documentElement, {dpr: 1, embedFonts: true, plugins: [keepBodyMargins]})
-  const blob = await cropped({blob: await capture.toBlob({format: 'png'}), ...size})
+  const blob = await composited({blob: await capture.toBlob({format: 'png'}), doc, ...size})
   return {image: await base64(blob), ...size, route: routeOf(location), components}
 }
 
@@ -87,7 +109,7 @@ export async function captureStep(input: CaptureInput): Promise<ClientCapture | 
     embedFonts: true,
     plugins: [keepBodyMargins],
   })
-  const blob = await capture.toBlob({format: 'png'})
+  const blob = await composited({blob: await capture.toBlob({format: 'png'}), doc: document, ...viewport})
   return {
     image: await base64(blob),
     width: viewport.width,
