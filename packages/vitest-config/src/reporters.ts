@@ -59,8 +59,6 @@ export function ciTestSolidBrowser(): {
   }
 }
 
-const LATE_DISCOVERED_BROWSER_DEPS = ['lucide-solid']
-
 export const TANSTACK_AI_SOLID_DEPS = [
   '@tanstack/ai-solid > @tanstack/ai-client',
   '@tanstack/ai-solid > @tanstack/ai-client/byok',
@@ -71,6 +69,6 @@ export function browserOptimizeDeps(alsoInclude: string[] = []): {
   include: string[]
 } {
   return {
-    include: [...LATE_DISCOVERED_BROWSER_DEPS, ...alsoInclude],
+    include: alsoInclude,
   }
 }
