@@ -74,3 +74,12 @@ approvals spec. A future bug adds an `it`, never a file.
 - `emitCustomEvent` reaches the stream for tools bridged to a CLI.
 - Whether 1.0 adapters still need our message-id and run-id stamping.
 - The library's default log level (no noise in the dev server).
+
+## `@conciv/ai/server` is an abstraction, not a re-export layer (user, 2026-10-30)
+
+The first cut exported 54 names, nearly all 1:1 renames of library names. Consumers need none of
+that. `./server` exports one abstraction: `createChatServer(config): ChatServer` (owns `chat()`,
+persistence, locks, sandbox, code mode, delivery, stop, hydrate) plus its types `ChatServerConfig`,
+`ChatServer`, `ChatStores`, `TurnHooks`. Everything else is internal to `packages/ai/src/server/`.
+`@conciv/chat` is thin product logic on top. Every entry (`.`, `./server`, `./testkit`) exports
+only names a consumer imports.
