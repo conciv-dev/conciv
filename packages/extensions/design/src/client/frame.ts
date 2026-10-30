@@ -69,13 +69,13 @@ function quietFrames(input: {doc: Document; signal: AbortSignal}): Promise<void>
   })
 }
 
-async function settle(frame: HTMLIFrameElement): Promise<void> {
+async function settle(input: {frame: HTMLIFrameElement; fresh: boolean}): Promise<void> {
   const signal = AbortSignal.timeout(TOLERANCES.frameSettleMs)
-  const load = loaded(frame)
-  document.body.appendChild(frame)
+  const load = input.fresh ? loaded(input.frame) : Promise.resolve()
+  if (input.fresh) document.body.appendChild(input.frame)
   try {
     await untilAbort({promise: load, signal})
-    const doc = readDocument(frame)
+    const doc = readDocument(input.frame)
     if (!doc) throw toolError('frame-blocked', {message: DESIGN_ERRORS['frame-blocked'].message})
     await untilAbort({promise: doc.fonts.ready, signal})
     await untilAbort({promise: quietFrames({doc, signal}), signal})
@@ -91,7 +91,10 @@ export function removeCaptureFrame(): void {
 
 export async function ensureCaptureFrame(input: FrameInput): Promise<HTMLIFrameElement> {
   const existing = currentFrame()
-  if (existing && sameFrame({frame: existing, ...input})) return existing
+  if (existing && sameFrame({frame: existing, ...input})) {
+    await settle({frame: existing, fresh: false})
+    return existing
+  }
   removeCaptureFrame()
   const frame = document.createElement('iframe')
   frame.setAttribute('inert', '')
@@ -103,7 +106,7 @@ export async function ensureCaptureFrame(input: FrameInput): Promise<HTMLIFrameE
   frame.height = String(input.height)
   frame.src = input.url
   try {
-    await settle(frame)
+    await settle({frame, fresh: true})
     return frame
   } catch (error) {
     frame.remove()

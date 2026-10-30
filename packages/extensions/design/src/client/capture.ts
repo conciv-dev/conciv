@@ -1,8 +1,9 @@
 import {snapdom, type SnapdomPlugin} from '@zumer/snapdom'
 import {toolError} from '@conciv/extension'
-import type {CaptureInput, ViewportResult} from '../shared/defs.js'
+import {DESIGN_ERRORS, type CaptureInput, type ViewportResult} from '../shared/defs.js'
 import type {LiveComponent} from '../shared/types.js'
 import {collectComponents} from './components.js'
+import {ensureCaptureFrame, removeCaptureFrame} from './frame.js'
 
 export type ClientCapture = {image: string; width: number; height: number; route: string; components: LiveComponent[]}
 
@@ -33,10 +34,50 @@ const keepBodyMargins: SnapdomPlugin = {
   },
 }
 
+type Size = {width: number; height: number}
+
+function routeOf(where: Location): string {
+  return where.pathname + where.search
+}
+
+function frameRoute(frame: HTMLIFrameElement): string | null {
+  const where = frame.contentDocument?.location
+  return where ? routeOf(where) : null
+}
+
+async function frameAtRoute(size: Size): Promise<HTMLIFrameElement> {
+  const input = {url: location.href, ...size}
+  const frame = await ensureCaptureFrame(input)
+  if (frameRoute(frame) === routeOf(location)) return frame
+  removeCaptureFrame()
+  return ensureCaptureFrame(input)
+}
+
+async function cropped(input: {blob: Blob} & Size): Promise<Blob> {
+  const bitmap = await createImageBitmap(input.blob)
+  const canvas = new OffscreenCanvas(input.width, input.height)
+  canvas.getContext('2d')?.drawImage(bitmap, 0, 0)
+  bitmap.close()
+  return canvas.convertToBlob({type: 'image/png'})
+}
+
+async function captureInFrame(size: Size): Promise<ClientCapture> {
+  const frame = await frameAtRoute(size)
+  const doc = frame.contentDocument
+  if (doc === null) throw toolError('frame-blocked', {message: DESIGN_ERRORS['frame-blocked'].message})
+  const components = collectComponents({root: doc})
+  const capture = await snapdom(doc.documentElement, {dpr: 1, embedFonts: true, plugins: [keepBodyMargins]})
+  const blob = await cropped({blob: await capture.toBlob({format: 'png'}), ...size})
+  return {image: await base64(blob), ...size, route: routeOf(location), components}
+}
+
 export async function captureStep(input: CaptureInput): Promise<ClientCapture | ViewportResult> {
   const viewport = {width: innerWidth, height: innerHeight}
+  if (input.clear === true) removeCaptureFrame()
   if (input.probe === true || input.clear === true) return viewport
-  if (input.width !== undefined && input.width !== viewport.width) throw toolError('frame-unsupported')
+  if (input.width !== undefined && input.width !== viewport.width) {
+    return captureInFrame({width: input.width, height: input.height ?? viewport.height})
+  }
   const components = collectComponents({root: document})
   const capture = await snapdom(document.documentElement, {
     clip: 'viewport',
@@ -51,7 +92,7 @@ export async function captureStep(input: CaptureInput): Promise<ClientCapture | 
     image: await base64(blob),
     width: viewport.width,
     height: viewport.height,
-    route: location.pathname + location.search,
+    route: routeOf(location),
     components,
   }
 }
