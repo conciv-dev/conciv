@@ -33,7 +33,7 @@ export function percent(value: number): string {
   return PERCENT.format(value)
 }
 
-export function rowSummary(row: Row): string {
+function rowSummary(row: Row): string {
   if (row.unmatched === 'extra') return 'extra · not in the target'
   if (row.unmatched === 'missing') return 'missing · in the target, not rendered'
   if (row.deltas.length === 0) return 'matches within tolerance'

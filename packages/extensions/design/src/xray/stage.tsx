@@ -1,7 +1,7 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import type {StatusDotTone} from '@conciv/ui-kit-system'
 import type {TargetRecord} from '../shared/types.js'
-import type {Row, XrayImages} from './data.js'
+import type {Delta, Row, XrayImages} from './data.js'
 
 export const MODES = ['side', 'swipe', 'onion', 'toggle', 'diff'] as const
 export type Mode = (typeof MODES)[number]
@@ -48,29 +48,41 @@ const RULER_LABEL_W = 68
 const HORIZONTAL_SIDES = ['left', 'right', 'x']
 const DASH = '6 4'
 
+type Edge = {start: number; size: number}
+
+function span(input: {live: Edge; target: Edge; far: boolean; distance: number}): [number, number] {
+  const from = input.far ? input.live.start + input.live.size : input.live.start
+  const other = input.far ? input.target.start + input.target.size : input.target.start
+  const step = input.far ? -input.distance : input.distance
+  const to = other === from ? from + step : other
+  return [Math.min(from, to), Math.max(from, to)]
+}
+
+function measurable(delta: Delta): boolean {
+  return delta.side !== undefined && typeof delta.live === 'number' && typeof delta.target === 'number'
+}
+
 function measure(row: Row): Ruler | null {
-  const delta = row.deltas.find(
-    (candidate) =>
-      candidate.side !== undefined && typeof candidate.live === 'number' && typeof candidate.target === 'number',
-  )
+  const delta = row.deltas.find(measurable)
   const live = row.live
   if (delta === undefined || delta.side === undefined || live === null) return null
-  const span = Math.abs(Number(delta.live) - Number(delta.target))
-  const text = `${delta.live} → ${delta.target}`
   const target = row.target ?? live
   const far = delta.side === 'right' || delta.side === 'bottom'
+  const distance = Math.abs(Number(delta.live) - Number(delta.target))
+  const text = `${delta.live} → ${delta.target}`
   if (HORIZONTAL_SIDES.includes(delta.side)) {
-    const from = far ? live.x + live.w : live.x
-    const other = far ? target.x + target.w : target.x
-    const to = other === from ? from + (far ? -span : span) : other
+    const [x1, x2] = span({
+      live: {start: live.x, size: live.w},
+      target: {start: target.x, size: target.w},
+      far,
+      distance,
+    })
     const y = live.y + live.h / 2
-    return {x1: Math.min(from, to), x2: Math.max(from, to), y1: y, y2: y, text}
+    return {x1, x2, y1: y, y2: y, text}
   }
-  const from = far ? live.y + live.h : live.y
-  const other = far ? target.y + target.h : target.y
-  const to = other === from ? from + (far ? -span : span) : other
+  const [y1, y2] = span({live: {start: live.y, size: live.h}, target: {start: target.y, size: target.h}, far, distance})
   const x = live.x + live.w / 2
-  return {x1: x, x2: x, y1: Math.min(from, to), y2: Math.max(from, to), text}
+  return {x1: x, x2: x, y1, y2, text}
 }
 
 function Overlay(props: {rows: Row[]; selected: Row | null; view: StageView; target: TargetRecord}): JSX.Element {

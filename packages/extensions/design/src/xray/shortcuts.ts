@@ -32,6 +32,10 @@ function typing(target: EventTarget | null): boolean {
   )
 }
 
+function ignored(event: KeyboardEvent): boolean {
+  return event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || typing(event.target)
+}
+
 function bodyOnly(event: KeyboardEvent): boolean {
   return event.target === document.body || event.target === document.documentElement
 }
@@ -54,13 +58,10 @@ export function createShortcuts(actions: ShortcutActions): void {
       if (bodyOnly(event)) actions.flip()
     },
   }
+  const modes = Object.fromEntries(MODES.map((mode, index) => [String(index + 1), () => actions.mode(mode)]))
+  const handlers: Record<string, (event: KeyboardEvent) => void> = {...keys, ...modes}
   makeEventListener(window, 'keydown', (event) => {
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return
-    const mode = MODES[Number(event.key) - 1]
-    if (mode !== undefined && event.key.length === 1) {
-      actions.mode(mode)
-      return
-    }
-    keys[event.key.length === 1 ? event.key.toLowerCase() : event.key]?.(event)
+    if (ignored(event)) return
+    handlers[event.key.length === 1 ? event.key.toLowerCase() : event.key]?.(event)
   })
 }

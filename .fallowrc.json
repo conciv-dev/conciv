@@ -201,6 +201,7 @@
     "packages/ui-kit-chat/src/tools.tsx",
     "packages/extension-testkit/src/host/host-entry.tsx",
     "packages/embed/src/native-entry.ts",
+    "packages/extensions/design/src/xray/entry.tsx",
     "packages/extensions/tanstack/test/host/main.tsx",
     "packages/extensions/tanstack/test/host/conciv/extensions/connect-probe.tsx",
     "packages/extensions/try-it/test/fixture/connect-pane-fixture.tsx",

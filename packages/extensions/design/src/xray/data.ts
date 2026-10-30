@@ -88,25 +88,25 @@ export function aboveTolerance(row: Row): boolean {
   return row.unmatched !== null || row.deltas.length > 0
 }
 
-export function reportTone(report: DiffReport | null): StatusDotTone {
+function reportTone(report: DiffReport | null): StatusDotTone {
   const tones = reportRows(report).map((row) => row.tone)
   if (report === null) return 'idle'
   if (tones.includes('danger')) return 'danger'
   return tones.includes('warn') ? 'warn' : 'success'
 }
 
-export function runTime(report: DiffReport | null): number | null {
+function runTime(report: DiffReport | null): number | null {
   const name = report?.livePath.split('/').at(-1)
   if (name === undefined) return null
   const at = Number(name.split('-')[1])
   return Number.isFinite(at) ? at : null
 }
 
-export function engineApiBase(): string {
+function engineApiBase(): string {
   return new URL('../../../', window.location.href).href.slice(0, -1)
 }
 
-export function fileUrl(path: string): string {
+function fileUrl(path: string): string {
   return new URL(`files/${path}`, window.location.href).href
 }
 
