@@ -3635,6 +3635,9 @@ importers:
       get-port:
         specifier: 'catalog:'
         version: 7.2.0
+      playwright:
+        specifier: 'catalog:'
+        version: 1.64.1
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.3)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)

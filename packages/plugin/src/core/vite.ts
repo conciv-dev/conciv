@@ -142,6 +142,19 @@ async function bootEngine(
   })
 }
 
+const EMBED_COMMONJS_DEPENDENCIES = [
+  '@conciv/ui-kit-chat > @tanstack/ai > partial-json',
+  '@conciv/solid-diffs > @pierre/diffs > lru_map',
+  '@conciv/ui-kit-chat > mermaid > @braintree/sanitize-url',
+  '@conciv/ui-kit-chat > mermaid > cytoscape-cose-bilkent',
+  '@conciv/ui-kit-chat > mermaid > cytoscape-fcose',
+  '@conciv/ui-kit-chat > mermaid > dayjs',
+  '@conciv/ui-kit-chat > mermaid > dayjs/plugin/advancedFormat.js',
+  '@conciv/ui-kit-chat > mermaid > dayjs/plugin/customParseFormat.js',
+  '@conciv/ui-kit-chat > mermaid > dayjs/plugin/duration.js',
+  '@conciv/ui-kit-chat > mermaid > dayjs/plugin/isoWeek.js',
+].map((chain) => `@conciv/it > @conciv/embed > ${chain}`)
+
 function embedChunks(embedEntry: string): string[] {
   const dir = dirname(embedEntry)
   try {
@@ -173,7 +186,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       })
       base.optimizeDeps.exclude.push('@conciv/embed')
       managedExcludes = [...base.optimizeDeps.exclude]
-      return base
+      return {...base, optimizeDeps: {...base.optimizeDeps, include: [...EMBED_COMMONJS_DEPENDENCIES]}}
     },
     configEnvironment(_name, environmentConfig) {
       dropIncludedFromExcludes(environmentConfig.optimizeDeps, managedExcludes)
