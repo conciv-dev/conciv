@@ -13,8 +13,8 @@ export function Leaf(props: {label: string}): ReactNode {
 }
 
 export class Counter extends Component<{start: number}, {value: number}> {
-  state = {value: this.props.start}
-  render(): ReactNode {
+  override state = {value: this.props.start}
+  override render(): ReactNode {
     return <output data-fixture="class">{this.state.value}</output>
   }
 }
