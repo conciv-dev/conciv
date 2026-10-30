@@ -1,5 +1,7 @@
 import {PNG} from 'pngjs'
-import type {Raster} from '../shared/types.js'
+import type {Box, Raster} from '../shared/types.js'
+
+const EDGE_THRESHOLD = 48
 
 export function decodePng(bytes: Uint8Array): Raster {
   const png = PNG.sync.read(Buffer.from(bytes))
@@ -10,4 +12,182 @@ export function encodePng(raster: Raster): Uint8Array {
   const png = new PNG({width: raster.width, height: raster.height})
   png.data = Buffer.from(raster.data)
   return new Uint8Array(PNG.sync.write(png))
+}
+
+export function crop(input: {raster: Raster; box: Box; margin?: number}): {raster: Raster; box: Box} {
+  const {raster, box} = input
+  const margin = input.margin ?? 0
+  const x0 = Math.min(raster.width, Math.max(0, Math.floor(box.x - margin)))
+  const y0 = Math.min(raster.height, Math.max(0, Math.floor(box.y - margin)))
+  const x1 = Math.max(x0, Math.min(raster.width, Math.ceil(box.x + box.w + margin)))
+  const y1 = Math.max(y0, Math.min(raster.height, Math.ceil(box.y + box.h + margin)))
+  const width = x1 - x0
+  const height = y1 - y0
+  const data = new Uint8Array(width * height * 4)
+  for (let y = 0; y < height; y += 1) {
+    const start = ((y0 + y) * raster.width + x0) * 4
+    data.set(raster.data.subarray(start, start + width * 4), y * width * 4)
+  }
+  return {raster: {width, height, data}, box: {x: x0, y: y0, w: width, h: height}}
+}
+
+function blurPass(input: {raster: Raster; radius: number; horizontal: boolean}): Raster {
+  const {raster, radius, horizontal} = input
+  const {width, height} = raster
+  const data = new Uint8Array(raster.data.length)
+  const span = radius * 2 + 1
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      for (let c = 0; c < 4; c += 1) {
+        let sum = 0
+        for (let k = -radius; k <= radius; k += 1) {
+          const sx = horizontal ? Math.min(width - 1, Math.max(0, x + k)) : x
+          const sy = horizontal ? y : Math.min(height - 1, Math.max(0, y + k))
+          sum += raster.data[(sy * width + sx) * 4 + c] ?? 0
+        }
+        data[(y * width + x) * 4 + c] = Math.round(sum / span)
+      }
+    }
+  }
+  return {width, height, data}
+}
+
+export function boxBlur(input: {raster: Raster; radius: number}): Raster {
+  if (input.radius <= 0) return input.raster
+  const once = blurPass({raster: input.raster, radius: input.radius, horizontal: true})
+  return blurPass({raster: once, radius: input.radius, horizontal: false})
+}
+
+export function scaleToWidth(input: {raster: Raster; width: number}): {raster: Raster; scale: number} {
+  const {raster, width} = input
+  const scale = width / raster.width
+  if (width === raster.width) return {raster, scale}
+  const height = Math.max(1, Math.round(raster.height * scale))
+  const data = new Uint8Array(width * height * 4)
+  for (let y = 0; y < height; y += 1) {
+    const sy = Math.min(raster.height - 1, Math.floor(y / scale))
+    for (let x = 0; x < width; x += 1) {
+      const sx = Math.min(raster.width - 1, Math.floor(x / scale))
+      const from = (sy * raster.width + sx) * 4
+      data.set(raster.data.subarray(from, from + 4), (y * width + x) * 4)
+    }
+  }
+  return {raster: {width, height, data}, scale}
+}
+
+function luminance(raster: Raster): Float32Array {
+  const out = new Float32Array(raster.width * raster.height)
+  for (let i = 0; i < out.length; i += 1) {
+    const r = raster.data[i * 4] ?? 0
+    const g = raster.data[i * 4 + 1] ?? 0
+    const b = raster.data[i * 4 + 2] ?? 0
+    out[i] = 0.299 * r + 0.587 * g + 0.114 * b
+  }
+  return out
+}
+
+export function edgeMap(raster: Raster): Uint8Array {
+  const {width, height} = raster
+  const lum = luminance(raster)
+  const edges = new Uint8Array(width * height)
+  const at = (x: number, y: number): number => lum[y * width + x] ?? 0
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const gx =
+        at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2 * at(x - 1, y) - at(x - 1, y + 1)
+      const gy =
+        at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2 * at(x, y - 1) - at(x + 1, y - 1)
+      edges[y * width + x] = Math.hypot(gx, gy) > EDGE_THRESHOLD ? 1 : 0
+    }
+  }
+  return edges
+}
+
+export function edgeDensity(edges: Uint8Array): number {
+  if (edges.length === 0) return 0
+  return edges.reduce((sum, value) => sum + value, 0) / edges.length
+}
+
+function channelMedian(histogram: Uint32Array, count: number): number {
+  const half = count / 2
+  let seen = 0
+  for (let value = 0; value < histogram.length; value += 1) {
+    seen += histogram[value] ?? 0
+    if (seen >= half) return value
+  }
+  return 0
+}
+
+function hex(channels: number[]): string {
+  return `#${channels.map((value) => value.toString(16).padStart(2, '0')).join('')}`
+}
+
+export function medianColor(input: {raster: Raster; exclude: Uint8Array}): string {
+  const {raster, exclude} = input
+  const histograms = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)]
+  let count = 0
+  for (let i = 0; i < raster.width * raster.height; i += 1) {
+    if (exclude[i] === 1) continue
+    count += 1
+    histograms.forEach((histogram, c) => {
+      const value = raster.data[i * 4 + c] ?? 0
+      histogram[value] = (histogram[value] ?? 0) + 1
+    })
+  }
+  return hex(histograms.map((histogram) => channelMedian(histogram, count)))
+}
+
+export function foregroundColor(input: {raster: Raster; edges: Uint8Array}): string {
+  const background = medianColor({raster: input.raster, exclude: input.edges})
+  if (edgeDensity(input.edges) === 0) return background
+  return medianColor({raster: input.raster, exclude: input.edges.map((value) => 1 - value)})
+}
+
+export function regionsOf(input: {mask: Uint8Array; width: number; height: number; minSize: number}): Box[] {
+  const {mask, width, height, minSize} = input
+  const seen = new Uint8Array(width * height)
+  const regions: Box[] = []
+  for (let start = 0; start < width * height; start += 1) {
+    if (mask[start] !== 1 || seen[start] === 1) continue
+    seen[start] = 1
+    const stack = [start]
+    let size = 0
+    let minX = width
+    let minY = height
+    let maxX = 0
+    let maxY = 0
+    while (stack.length > 0) {
+      const index = stack.pop() ?? 0
+      const x = index % width
+      const y = (index - x) / width
+      size += 1
+      minX = Math.min(minX, x)
+      minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x)
+      maxY = Math.max(maxY, y)
+      const neighbours = [
+        x > 0 ? index - 1 : -1,
+        x < width - 1 ? index + 1 : -1,
+        y > 0 ? index - width : -1,
+        y < height - 1 ? index + width : -1,
+      ]
+      neighbours.forEach((next) => {
+        if (next < 0 || mask[next] !== 1 || seen[next] === 1) return
+        seen[next] = 1
+        stack.push(next)
+      })
+    }
+    if (size >= minSize) regions.push({x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1})
+  }
+  return regions
+}
+
+export function maskOfDiffOutput(input: {output: Uint8Array; width: number; height: number}): Uint8Array {
+  const {output, width, height} = input
+  const mask = new Uint8Array(width * height)
+  for (let i = 0; i < mask.length; i += 1) {
+    const red = output[i * 4] === 255 && output[i * 4 + 1] === 0 && output[i * 4 + 2] === 0
+    mask[i] = red && output[i * 4 + 3] === 255 ? 1 : 0
+  }
+  return mask
 }
