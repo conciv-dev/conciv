@@ -5,17 +5,17 @@ import {openPanel, switchToSessionByTitle} from './helpers/panel.js'
 const EXCHANGE_COUNT = 400
 const TOTAL_TURN_COUNT = EXCHANGE_COUNT * 2
 
-const CHAT_INGESTION_SCRIPTS = /DOMWebSocket\.onmessage|_handleMessage|Response\.text\.then/
-
 const suite = setupWidgetSuite()
 
-type ScriptEntry = {invoker?: string; sourceFunctionName?: string}
-type LoafEntry = {scripts?: ScriptEntry[]}
+type RemeasureProbe = {
+  textShapingCalls: number
+  textShapingInsideThreadViewportCallbacks: number
+  threadViewportCallbacks: number
+}
 
 declare global {
   interface Window {
-    __loafEntries?: PerformanceEntry[]
-    __resizeObserverCallbackCount?: number
+    remeasureProbe?: RemeasureProbe
   }
 }
 
@@ -27,16 +27,8 @@ async function seedTranscript(sessionId: string, exchanges: number): Promise<voi
   }
 }
 
-function scriptMatches(scripts: ScriptEntry[] | undefined, pattern: RegExp): boolean {
-  return (scripts ?? []).some(
-    (script) =>
-      (typeof script.invoker === 'string' && pattern.test(script.invoker)) ||
-      (typeof script.sourceFunctionName === 'string' && pattern.test(script.sourceFunctionName)),
-  )
-}
-
 test.describe('pane-open perf with a large restored transcript', () => {
-  test('the estimator/virtualizer remeasure never shares an animation frame with chat ingestion', async ({page}) => {
+  test('the estimator/virtualizer remeasure never runs inside the thread viewport resize observer', async ({page}) => {
     test.setTimeout(240_000)
     const {sessionId} = await suite.kit().rpc.sessions.create()
     const title = `big transcript ${sessionId.slice(-12)}`
@@ -44,19 +36,43 @@ test.describe('pane-open perf with a large restored transcript', () => {
     await seedTranscript(sessionId, EXCHANGE_COUNT)
 
     await page.addInitScript(() => {
-      window.__loafEntries = []
-      const observer = new PerformanceObserver((list) => {
-        window.__loafEntries?.push(...list.getEntries())
-      })
-      observer.observe({type: 'long-animation-frame', buffered: true})
+      const probe: RemeasureProbe = {
+        textShapingCalls: 0,
+        textShapingInsideThreadViewportCallbacks: 0,
+        threadViewportCallbacks: 0,
+      }
+      window.remeasureProbe = probe
+      const insideThreadViewportCallback = {active: false}
+      const countShaping = (): void => {
+        probe.textShapingCalls += 1
+        if (insideThreadViewportCallback.active) probe.textShapingInsideThreadViewportCallbacks += 1
+      }
+      const offscreenMeasureText = OffscreenCanvasRenderingContext2D.prototype.measureText
+      OffscreenCanvasRenderingContext2D.prototype.measureText = function measureText(text) {
+        countShaping()
+        return offscreenMeasureText.call(this, text)
+      }
+      const canvasMeasureText = CanvasRenderingContext2D.prototype.measureText
+      CanvasRenderingContext2D.prototype.measureText = function measureText(text) {
+        countShaping()
+        return canvasMeasureText.call(this, text)
+      }
 
-      window.__resizeObserverCallbackCount = 0
       const NativeResizeObserver = window.ResizeObserver
       window.ResizeObserver = class extends NativeResizeObserver {
         constructor(callback: ResizeObserverCallback) {
           super((observerEntries, observerInstance) => {
-            window.__resizeObserverCallbackCount = (window.__resizeObserverCallbackCount ?? 0) + 1
-            callback(observerEntries, observerInstance)
+            if (!observerEntries.some((entry) => entry.target.hasAttribute('data-thread-viewport'))) {
+              callback(observerEntries, observerInstance)
+              return
+            }
+            probe.threadViewportCallbacks += 1
+            insideThreadViewportCallback.active = true
+            try {
+              callback(observerEntries, observerInstance)
+            } finally {
+              insideThreadViewportCallback.active = false
+            }
           })
         }
       }
@@ -71,13 +87,17 @@ test.describe('pane-open perf with a large restored transcript', () => {
     expect(rowCount).toBeGreaterThan(0)
     expect(rowCount).toBeLessThan(TOTAL_TURN_COUNT)
 
-    const readCounters = () =>
-      page.evaluate(() => ({
-        entries: (window.__loafEntries ?? []).map((entry) => entry.toJSON()) as LoafEntry[],
-        resizeObserverCallbackCount: window.__resizeObserverCallbackCount ?? 0,
-      }))
+    const readProbe = () =>
+      page.evaluate(
+        (): RemeasureProbe => ({
+          textShapingCalls: window.remeasureProbe?.textShapingCalls ?? 0,
+          textShapingInsideThreadViewportCallbacks:
+            window.remeasureProbe?.textShapingInsideThreadViewportCallbacks ?? 0,
+          threadViewportCallbacks: window.remeasureProbe?.threadViewportCallbacks ?? 0,
+        }),
+      )
 
-    const beforeResize = await readCounters()
+    const beforeResize = await readProbe()
 
     const viewportSizeBeforeResize = page.viewportSize()
     await page.setViewportSize({
@@ -86,31 +106,21 @@ test.describe('pane-open perf with a large restored transcript', () => {
     })
 
     await expect
-      .poll(async () => (await readCounters()).resizeObserverCallbackCount, {
+      .poll(async () => (await readProbe()).textShapingCalls, {
         message:
-          'the viewport resize never made it through the width guard in the thread resize handler, so it never scheduled an estimate refresh',
+          'the viewport resize never re-ran the estimator, so this scenario never exercised the estimator/virtualizer remeasure path it claims to test',
       })
-      .toBeGreaterThan(beforeResize.resizeObserverCallbackCount)
+      .toBeGreaterThan(beforeResize.textShapingCalls)
 
-    const {entries, resizeObserverCallbackCount} = await readCounters()
+    const afterResize = await readProbe()
 
     expect(
-      resizeObserverCallbackCount,
-      'the viewport resize observer never fired, so this scenario never exercised the estimator/virtualizer remeasure path it claims to test',
-    ).toBeGreaterThan(0)
-
-    const ingestionAttributedEntries = entries.filter((entry) => scriptMatches(entry.scripts, CHAT_INGESTION_SCRIPTS))
+      afterResize.threadViewportCallbacks,
+      'the thread viewport resize observer never fired on the resize, so the remeasure was never triggered through it',
+    ).toBeGreaterThan(beforeResize.threadViewportCallbacks)
     expect(
-      ingestionAttributedEntries,
-      'no long-animation-frame entry was attributed to chat ingestion, so this scenario never generated the ingestion load it claims to test',
-    ).not.toHaveLength(0)
-
-    const ingestionEntriesMixingRemeasure = ingestionAttributedEntries.filter((entry) =>
-      scriptMatches(entry.scripts, /ResizeObserverCallback/),
-    )
-    expect(
-      ingestionEntriesMixingRemeasure,
-      'the estimator/virtualizer remeasure pass triggered by the viewport resize observer must run in its own frame (rAF-scheduled), never synchronously inside the same long-animation-frame as chat ingestion',
-    ).toHaveLength(0)
+      afterResize.textShapingInsideThreadViewportCallbacks,
+      'the estimator/virtualizer remeasure triggered by the viewport resize observer must run in its own frame (rAF-scheduled), never synchronously inside the resize observer callback, which shares the long-animation-frame of the chat ingestion that resized the viewport',
+    ).toBe(0)
   })
 })
