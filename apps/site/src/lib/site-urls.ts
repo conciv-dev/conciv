@@ -37,7 +37,7 @@ function canonicalPathFromPathname(pathname: string) {
   return pathname.replace(/\/$/, '')
 }
 
-export function canonicalUrlFromPathname(pathname: string) {
+function canonicalUrlFromPathname(pathname: string) {
   return `${SITE}${canonicalPathFromPathname(pathname)}`
 }
 
