@@ -96,7 +96,7 @@ const verticalAnchors = (room: EmitterRoom): EmitterPoint[] => [
   {x: 0, y: -room.rise},
 ]
 
-export function curveControlPoints(style: BentCurveStyle, room: EmitterRoom, index: number): EmitterPoint[] {
+function curveControlPoints(style: BentCurveStyle, room: EmitterRoom, index: number): EmitterPoint[] {
   if (room.bend === 0) return verticalAnchors(room)
   return CURVE_SHAPES[style].anchors(room, index)
 }
