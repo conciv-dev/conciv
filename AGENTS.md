@@ -173,7 +173,7 @@ README.md; this file is the non-obvious operational rules.
 
 - A harness is `chatConfig(deps)` returning a published `@tanstack/ai-*` text adapter (+ optional
   `modelOptions`/`prepareMessages`) plus sidecars (`models`, `history`, `connect`, `tty`, `commands`).
-  Turns run through `chat()` with the conciv sandbox + permission-gate middleware; never spawn or
+  Turns run through `chat()` with the conciv sandbox middleware; never spawn or
   decode a CLI yourself, and never special-case a CLI in core/widget.
 - `HarnessAdapter` is capability-typed (`packages/protocol/src/harness-types.ts`): `transcriptHistory:
   true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` required, enforced at compile
@@ -210,8 +210,9 @@ README.md; this file is the non-obvious operational rules.
 ## Security & safety
 
 - The core dev server binds `127.0.0.1` only. Never commit or log credentials/tokens.
-- Risky Bash from the agent is gated (`packages/core/src/chat/gate.ts`): read-only commands
-  auto-allow, everything else asks. Keep that policy conservative when editing it.
+- CLI commands are governed by each CLI's native permission mode (Claude Code runs `permissionMode: 'auto'`,
+  set in `packages/harness/src/claude/chat.ts`). conciv keeps no command rules; its own `approval: 'ask'` tools
+  use deny-and-retry.
 
 ## Project status
 

@@ -157,7 +157,8 @@ describe('canvas draft', () => {
         api.callToolApproved('canvas_draw', {elements: [{type: 'rectangle', x: 0, y: 0, width: 100, height: 50}]}),
       ).rejects.toThrow(/ask the user to open the canvas/i)
       await openCanvas(api.page)
-      const context = api.serverContext as {store: Store}
+      const context = api.serverContext
+      if (!hasStore(context)) throw new Error('whiteboard store missing from server context')
       expect(await context.store.db.select().from(canvasPending)).toEqual([])
       expect(await readTypes(api, 'draft')).toEqual([])
     } finally {
@@ -1265,3 +1266,7 @@ describe('tool catalog', () => {
     }
   })
 })
+
+function hasStore(context: unknown): context is {store: Store} {
+  return typeof context === 'object' && context !== null && 'store' in context
+}

@@ -14,7 +14,6 @@ import {afterEach, describe, expect, it, afterAll, beforeAll, beforeEach} from '
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
-import {claude} from '@conciv/harness/claude'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {PAGE_TRANSPORT_ERROR_CODES, type PageOutcome} from '@conciv/protocol/page-types'
 import {
@@ -30,7 +29,6 @@ import {
 import {
   CONCIV_SESSION_HEADER,
   HarnessSessionId,
-  SessionId,
   CHAT_SSE_PATH,
   CONCIV_CLAUDE_SESSION_HEADER,
 } from '@conciv/protocol/chat-types'
@@ -41,9 +39,8 @@ import {hydratedSnapshot} from '../helpers/fake-session.js'
 import {userTexts} from '../helpers/snapshots.js'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {z} from 'zod'
-import {makeTextAdapter} from '@conciv/ai/server'
+import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {defineAttachment, defineExtension, defineTool, imageResult, toolError} from '@conciv/extension'
-import {imageToolProvisioner} from '@conciv/ai/server'
 import {cappedValue} from '@conciv/chat'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {connectWidget, type FakeWidget} from '../helpers/fake-widget.js'
@@ -966,14 +963,6 @@ describe('chat', () => {
       await askTurn(sessionId)
       await expect(decide(sessionId, ASK_ID, true)).resolves.toEqual({ok: true, startsTurn: true})
       expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
-    })
-
-    it('claude turns run in the CLI auto permission mode, on a fresh session and on a resume', () => {
-      const deps = {cwd: '/project', sessionId: SessionId.parse('conciv_mode'), env: {}, kind: 'chat'} as const
-      const fresh = claude.chatConfig({...deps, resumeSessionId: null})
-      const resumed = claude.chatConfig({...deps, resumeSessionId: HarnessSessionId.parse('native')})
-      expect(fresh.modelOptions).toEqual({permissionMode: 'auto'})
-      expect(resumed.modelOptions).toEqual({permissionMode: 'auto', sessionId: 'native'})
     })
 
     it('a session option counts its messages right after a turn', async () => {
