@@ -60,20 +60,22 @@ function fromObject(input: {
   target: number | string
   file: string
 }): Provenance {
-  const matched = input.object.properties
-    .filter((entry): entry is ObjectProperty => entry.type === 'Property')
-    .map((entry) => ({entry, key: keyName(entry)}))
-    .filter((item) => item.key !== null && covers({key: item.key, property: input.property, sx: input.via === 'sx'}))
-    .at(-1)
-  if (matched === undefined || matched.key === null) return UNKNOWN
-  const {line, column} = located({site: input.site, offset: matched.entry.start})
-  const suggest = suggestion({key: matched.key, value: matched.entry.value, target: input.target})
+  const entries = input.object.properties
+  const keys = entries.map((entry) => (entry.type === 'Property' ? keyName(entry) : null))
+  const index = keys.findLastIndex(
+    (key) => key !== null && covers({key, property: input.property, sx: input.via === 'sx'}),
+  )
+  const entry = entries[index]
+  const key = keys[index]
+  if (entry === undefined || entry.type !== 'Property' || key === null || key === undefined) return UNKNOWN
+  const {line, column} = located({site: input.site, offset: entry.start})
+  const suggest = input.via === 'sx' ? suggestion({key, value: entry.value, target: input.target}) : null
   return {
     via: input.via,
     file: input.file,
     line,
     column,
-    declaration: input.site.code.slice(matched.entry.start, matched.entry.end),
+    declaration: input.site.code.slice(entry.start, entry.end),
     ...(suggest === null ? {} : {suggest}),
   }
 }

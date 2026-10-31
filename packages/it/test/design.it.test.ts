@@ -424,6 +424,15 @@ it('inline and sx keys map to the JSX attribute with a spacing suggestion only f
   expect(
     await mapFixture({file: 'Sx.tsx', line: 12, column: 9, property: 'padding-left', value: '16px', target: 24}),
   ).toEqual({via: 'sx', file: 'Sx.tsx', line: 14, column: 17, declaration: 'p: 2', suggest: 'p: 3'})
+  const inlineGap = await mapFixture({
+    file: 'Inline.tsx',
+    line: 21,
+    column: 7,
+    property: 'gap',
+    value: '8px',
+    target: 16,
+  })
+  expect(inlineGap).toEqual({via: 'style', file: 'Inline.tsx', line: 21, column: 21, declaration: 'gap: 8'})
   const fn = await mapFixture({
     file: 'Sx.tsx',
     line: 12,

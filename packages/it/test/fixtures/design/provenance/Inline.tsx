@@ -18,7 +18,7 @@ export function Inline(props: Props) {
   const spread = spreadStyle(props.dense)
   return (
     <div style={{paddingLeft: 24, ...spread}}>
-      <span>{props.label}</span>
+      <span style={{gap: 8}}>{props.label}</span>
     </div>
   )
 }
