@@ -4,6 +4,7 @@ import {z} from 'zod'
 import {collectClientTools, defineExtension, defineTool, toolError, type ClientEffect} from '@conciv/extension'
 import type {ElementCapture, PageCaptureBundle} from '@conciv/protocol/element-capture-types'
 import {makeDomPageDriver, type PageDriver} from '../src/page-driver.js'
+import {loadSnapshotLibrary} from '../src/element-capture.js'
 import pageFont from '@fontsource-variable/wix-madefor-text/files/wix-madefor-text-latin-wght-normal.woff2?inline'
 import {grabToFile, parseGrabPayload} from '@conciv/grab/grab-attachment'
 import type {Grab, ImagePreview} from '@conciv/grab'
@@ -240,7 +241,7 @@ describe('element capture', () => {
     host.querySelector('#hostile')?.appendChild(hostileTabLink)
     document.body.appendChild(host)
     driver = makeDomPageDriver({tools: collectClientTools([probes])})
-    await import('rrweb-snapshot')
+    await loadSnapshotLibrary()
   })
 
   afterEach(() => {
@@ -965,7 +966,7 @@ describe('page dispatcher', () => {
   `
     document.body.appendChild(host)
     driver = makeDomPageDriver({tools: collectClientTools([probes])})
-    await import('rrweb-snapshot')
+    await loadSnapshotLibrary()
   })
 
   afterAll(() => {
