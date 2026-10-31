@@ -156,7 +156,7 @@ test('removing a failed chip un-stages its attachment, so the next send carries 
   await expect.element(failedChip).not.toBeInTheDocument()
 
   await page.getByRole('textbox').fill('no attachment here')
-  await page.getByRole('button', {name: 'Send'}).click()
+  await page.getByRole('button', {name: 'Send message'}).click()
   await expect.element(page.getByText('sent "no attachment here"'), {timeout: 2000}).toBeVisible()
   crash.mockRestore()
 })
