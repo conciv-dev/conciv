@@ -55,6 +55,10 @@ function clamp(input: {from: number; to: number; size: number}): Run | null {
   return end < start ? null : {start, end}
 }
 
+function interior(run: Run): Run | null {
+  return run.end - 1 < run.start + 1 ? null : {start: run.start + 1, end: run.end - 1}
+}
+
 function density(input: {edges: Uint8Array; width: number; columns: Run; rows: Run}): number {
   const count = projection({...input, byColumn: true}).reduce((sum, value) => sum + value, 0)
   return count / ((input.columns.end - input.columns.start + 1) * (input.rows.end - input.rows.start + 1))
@@ -78,8 +82,10 @@ export const edgeProjection: GeometryEstimator = {
       to: liveBox.x + liveBox.w,
     })
     if (columns === null) return {targetBox: null}
+    const columnsInterior = interior(columns)
+    if (columnsInterior === null) return {targetBox: null}
     const rows = chooseSpan({
-      runs: findRuns(projection({edges, width, columns, rows: allRows, byColumn: false})),
+      runs: findRuns(projection({edges, width, columns: columnsInterior, rows: allRows, byColumn: false})),
       from: liveBox.y,
       to: liveBox.y + liveBox.h,
     })
