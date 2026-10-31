@@ -82,21 +82,68 @@ CREATE TABLE \`chat_threads\` (
         throw new Error('end hook failed')
       },
     }
-    const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
-    const server = await createChatServer({
-      stores: drizzleChatStores(chatDb()),
-      sandbox: {dir, journalDir: join(dir, 'runs')},
-      hooks,
-      codeModeResult: (value) => value,
-      firstOutputTimeoutMs: 30_000,
-      log: (message) => logged.push(message),
-    })
+    const server = await chatServer(hooks, (message) => logged.push(message))
     const driven = server.drive({threadId: 'thread', runId: 'run', kind: 'chat'}, [{role: 'user', content: 'hi'}])
     await started.promise
     await server.endRuns('thread')
     await driven
     expect(logged.join('\n')).toContain('end hook failed')
   })
+
+  it('a run ended by a newer run before it reaches the model never starts its CLI', {timeout: 15_000}, async () => {
+    const launched: string[] = []
+    const firstInSetup = Promise.withResolvers<void>()
+    const firstSetup = Promise.withResolvers<void>()
+    const secondLaunched = Promise.withResolvers<void>()
+    const hooks: TurnHooks = {
+      plan: (turn) => ({
+        adapter: makeTextAdapter('recorded', async function* () {
+          launched.push(turn.runId)
+          yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: 'thread', timestamp: Date.now()}
+          secondLaunched.resolve()
+          await new Promise(() => undefined)
+        }),
+        systemPrompts: [],
+        codeMode: [],
+        asking: [],
+        setup: async () => {
+          if (turn.runId === 'first') {
+            firstInSetup.resolve()
+            await firstSetup.promise
+          }
+          return new Map()
+        },
+        expand: async (messages) => messages,
+        providerMessages: async (messages) => messages,
+        chunk: async (chunk) => [chunk],
+      }),
+      usage: async () => undefined,
+      started: () => undefined,
+      end: async () => undefined,
+    }
+    const server = await chatServer(hooks, () => undefined)
+    const first = server.drive({threadId: 'thread', runId: 'first', kind: 'chat'}, [{role: 'user', content: 'one'}])
+    await firstInSetup.promise
+    const second = server.drive({threadId: 'thread', runId: 'second', kind: 'chat'}, [{role: 'user', content: 'two'}])
+    await secondLaunched.promise
+    firstSetup.resolve()
+    await first
+    await server.endRuns('thread')
+    await second
+    expect(launched).toEqual(['second'])
+  })
+
+  async function chatServer(hooks: TurnHooks, log: (message: string) => void) {
+    const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
+    return createChatServer({
+      stores: drizzleChatStores(chatDb()),
+      sandbox: {dir, journalDir: join(dir, 'runs')},
+      hooks,
+      codeModeResult: (value) => value,
+      firstOutputTimeoutMs: 30_000,
+      log,
+    })
+  }
 
   runPersistenceConformance(
     'conciv drizzle chat stores',
