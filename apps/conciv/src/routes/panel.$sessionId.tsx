@@ -17,16 +17,18 @@ import Ellipsis from 'lucide-solid/icons/ellipsis'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import Unplug from 'lucide-solid/icons/unplug'
-import {Show, Suspense, createMemo, createSignal, type JSX} from 'solid-js'
+import {Show, Suspense, createEffect, createMemo, createSignal, on, type JSX} from 'solid-js'
+import {z} from 'zod'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {
   useAnnounce,
   useAppData,
   useAppQueryClient,
+  useChatDeps,
   useDisconnect,
   useGrabProvider,
   useInstances,
-  useChatDeps,
+  useSettings,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
 import {usePaneChat} from '../app/use-pane-chat.js'
@@ -41,6 +43,8 @@ import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 import {SessionPillPending, SessionTitlePending, UsagePending, ViewTabsPending} from '../shell/pending.js'
 import {guardedComponent} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
+import {useNotices} from '../shell/notice-context.js'
+import {openPipTarget} from '../shell/pip.js'
 
 const RAIL =
   'flex h-15 shrink-0 box-border items-center gap-2.5 pe-3 ps-5 pt-[13px] pb-[13px] [border-block-end:1px_solid_var(--chat-line-soft)]'
@@ -64,7 +68,14 @@ const RAIL_MENU_SEPARATOR = 'w-full border-0 [border-block-start:1px_solid_var(-
 const RAIL_MENU_ROW =
   'flex items-center gap-2 px-1 py-1.5 rounded-[var(--chat-radius-sm)] text-[12.5px] [color:var(--chat-text-2)] bg-transparent [border:none] cursor-pointer w-full text-start [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[color:var(--chat-text-hi)] disabled:opacity-40 disabled:cursor-default'
 
+const POP_OUT_LOST_KEY = 'pop-out-lost'
+
+const panelSessionSearchSchema = z.object({
+  popOut: z.literal('lost').optional().catch(undefined),
+})
+
 export const Route = createFileRoute('/panel/$sessionId')({
+  validateSearch: panelSessionSearchSchema,
   beforeLoad: async ({context, params}) => {
     if (isSessionId(params.sessionId)) return
     const {sessionId} = await context.rpc.sessions.resolve({id: params.sessionId})
@@ -72,6 +83,18 @@ export const Route = createFileRoute('/panel/$sessionId')({
   },
   component: PanelSession,
 })
+
+function CloseChatButton(): JSX.Element {
+  const panelChrome = usePanelChrome()
+  const settings = useSettings()
+  return (
+    <Show when={settings.surface !== 'dock'}>
+      <TooltipIconButton tooltip="Close chat" class={GHOST} onClick={() => panelChrome.close()}>
+        <X class="size-3.5 block" strokeWidth={1.75} aria-hidden="true" />
+      </TooltipIconButton>
+    </Show>
+  )
+}
 
 function PanelSession(): JSX.Element {
   const params = Route.useParams()
@@ -83,9 +106,38 @@ function PanelSession(): JSX.Element {
   const {connectMode, disconnect} = useDisconnect()
   const grabProvider = useGrabProvider()
   const router = useRouter()
-  const panelChrome = usePanelChrome()
   const matchRoute = useMatchRoute()
   const viewMatch = matchRoute({to: '/panel/$sessionId/$view'})
+  const search = Route.useSearch()
+  const notices = useNotices()
+  const popOut = () => {
+    const sessionId = params().sessionId
+    if (openPipTarget()) {
+      void router.navigate({to: '/pip/$sessionId', params: {sessionId}})
+      return
+    }
+    void router.navigate({
+      to: '/panel/$sessionId',
+      params: {sessionId},
+      search: {popOut: 'lost', open: true},
+      replace: true,
+    })
+  }
+  createEffect(
+    on(
+      () => search().popOut,
+      (popOutState) => {
+        if (popOutState !== 'lost') {
+          notices.remove(POP_OUT_LOST_KEY)
+          return
+        }
+        notices.notify('The pop-out window could not be reopened.', {
+          key: POP_OUT_LOST_KEY,
+          action: {label: 'Pop out again', run: popOut},
+        })
+      },
+    ),
+  )
 
   const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
   const row = () => (sessions.data ?? []).find((session) => session.id === params().sessionId)
@@ -264,11 +316,7 @@ function PanelSession(): JSX.Element {
                   )}
                 />
               </Show>
-              <button
-                type="button"
-                class={RAIL_MENU_ROW}
-                onClick={() => void router.navigate({to: '/pip/$sessionId', params: {sessionId: params().sessionId}})}
-              >
+              <button type="button" class={RAIL_MENU_ROW} onClick={popOut}>
                 <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
                 Pop out to a window
               </button>
@@ -281,9 +329,7 @@ function PanelSession(): JSX.Element {
             </Popover.Content>
           </Popover.Positioner>
         </Popover.Root>
-        <TooltipIconButton tooltip="Close chat" class={GHOST} onClick={() => panelChrome.close()}>
-          <X class="size-3.5 block" strokeWidth={1.75} aria-hidden="true" />
-        </TooltipIconButton>
+        <CloseChatButton />
       </header>
       <ChatProvider chat={chat()}>
         <QueueStrip queue={queue()} />

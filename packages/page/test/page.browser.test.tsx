@@ -4,6 +4,7 @@ import {z} from 'zod'
 import {collectClientTools, defineExtension, defineTool, toolError, type ClientEffect} from '@conciv/extension'
 import type {ElementCapture, PageCaptureBundle} from '@conciv/protocol/element-capture-types'
 import {makeDomPageDriver, type PageDriver} from '../src/page-driver.js'
+import {loadSnapshotLibrary} from '../src/element-capture.js'
 import pageFont from '@fontsource-variable/wix-madefor-text/files/wix-madefor-text-latin-wght-normal.woff2?inline'
 import {grabToFile, parseGrabPayload} from '@conciv/grab/grab-attachment'
 import type {Grab, ImagePreview} from '@conciv/grab'
@@ -22,6 +23,37 @@ import {
 import {componentHostAt, describe as describeHost, find, inspect, locate, override, tree} from '../src/react-bridge.js'
 import {createRoot, type Root} from 'react-dom/client'
 import {FixtureApp} from './fixtures/react-app.js'
+
+describe('a tool that outlasts the preview library load', () => {
+  const editAfterLoad = defineTool({
+    name: 'probe_edit_after_load',
+    description: 'edits an element once the preview library has loaded',
+    inputSchema: z.object({selector: z.string()}),
+    outputSchema: z.object({ok: z.literal(true)}),
+    meta: {summary: 'edit after load', category: 'edit-live', mutating: true, capture: 'before-after'},
+  }).client(async (input, ctx) => {
+    const el = ctx.target(input)
+    await loadSnapshotLibrary()
+    el.textContent = 'edited'
+    return {ok: true}
+  })
+
+  const probes = defineExtension({name: 'probe-late-library', tools: [editAfterLoad]}).client(() => ({value: {}}))
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('previews the after state even though the before state was captured without the library', async () => {
+    document.body.innerHTML = '<p id="late-library">original</p>'
+    const driver = makeDomPageDriver({tools: collectClientTools([probes])})
+    const outcome = await driver.execute({name: 'probe_edit_after_load', input: {selector: '#late-library'}})
+    driver.dispose()
+    if (!outcome.ok) throw new Error(`the tool failed: ${outcome.error.message}`)
+    expect(outcome.capture?.before?.node).toBeUndefined()
+    expect(JSON.stringify(outcome.capture?.after?.node)).toContain('edited')
+  })
+})
 
 describe('capture element', () => {
   afterEach(() => {
@@ -201,7 +233,7 @@ describe('element capture', () => {
   let style: HTMLStyleElement
   let driver: PageDriver
 
-  beforeEach(() => {
+  beforeEach(async () => {
     style = document.createElement('style')
     style.textContent = '.capture-form .cta {color: rgb(1, 2, 3);}'
     document.head.appendChild(style)
@@ -240,6 +272,7 @@ describe('element capture', () => {
     host.querySelector('#hostile')?.appendChild(hostileTabLink)
     document.body.appendChild(host)
     driver = makeDomPageDriver({tools: collectClientTools([probes])})
+    await loadSnapshotLibrary()
   })
 
   afterEach(() => {
@@ -956,7 +989,7 @@ describe('page dispatcher', () => {
   let host: HTMLElement
   let driver: PageDriver
 
-  beforeAll(() => {
+  beforeAll(async () => {
     host = document.createElement('div')
     host.innerHTML = `
     <p id="prose">hello dispatcher</p>
@@ -964,6 +997,7 @@ describe('page dispatcher', () => {
   `
     document.body.appendChild(host)
     driver = makeDomPageDriver({tools: collectClientTools([probes])})
+    await loadSnapshotLibrary()
   })
 
   afterAll(() => {

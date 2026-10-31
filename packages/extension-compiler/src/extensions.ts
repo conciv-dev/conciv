@@ -3,6 +3,7 @@ import {join} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {createJiti, type Jiti, type JSXOptions, type TransformOptions, type TransformResult} from 'jiti'
 import type {AnyExtension} from '@conciv/extension'
+import {DOCK_REVEAL_EVENT} from '@conciv/protocol/event-bus'
 import {splitExtension} from './split-extension.js'
 import {dedupeExtensions, EXTENSION_GLOB, type ExtensionEntry} from './dedupe-extensions.js'
 
@@ -20,29 +21,66 @@ export type Builtins = {
 
 export const NO_BUILTINS: Builtins = {serverExtensions: [], clientEntries: []}
 
+export type ExtensionsSurface = 'page' | 'dock'
+
+const PAGE_MOUNT = [
+  `mountConciv(picked.extensions).catch((error) => console.error('[conciv] widget failed to start', error))`,
+]
+
+const DOCK_RENDERER = [
+  `function hostWidgetSettings() {`,
+  `  try {`,
+  `    return JSON.parse(document.querySelector('meta[name="conciv-widget"]')?.content ?? '{}')`,
+  `  } catch {`,
+  `    return {}`,
+  `  }`,
+  `}`,
+  `export default function concivDockRenderer(context) {`,
+  `  const entry = context.current`,
+  `  const settings = {...hostWidgetSettings(), launcher: false, defaultOpen: true, surface: 'dock'}`,
+  `  const conciv = createConciv({extensions: picked.extensions, settings})`,
+  `  const setInert = (inert) => {`,
+  `    if (entry.domElements.panel) entry.domElements.panel.inert = inert`,
+  `  }`,
+  `  const mount = (panel) => {`,
+  `    panel.inert = !entry.isActive`,
+  `    conciv.mount(panel).catch((error) => console.error('[conciv] widget failed to start', error))`,
+  `  }`,
+  `  entry.events.on('entry:activated', () => setInert(false))`,
+  `  entry.events.on('entry:deactivated', () => setInert(true))`,
+  `  window.addEventListener(${JSON.stringify(DOCK_REVEAL_EVENT)}, (event) => {`,
+  `    if (entry.isActive) return`,
+  `    event.preventDefault()`,
+  `    void context.docks.switchEntry(entry.entryMeta.id)`,
+  `  })`,
+  `  entry.events.on('dom:panel:mounted', mount)`,
+  `  if (entry.domElements.panel) mount(entry.domElements.panel)`,
+  `}`,
+]
+
 export function extensionsModuleSource(
   clientEntries: readonly string[],
   apiBase?: string,
   embedEntry?: string,
   dedupeEntry?: string,
+  surface: ExtensionsSurface = 'page',
 ): string {
-  const imports = clientEntries.map((entry, index) => `import builtin${index} from ${JSON.stringify(entry)}`)
-  const builtinNames = clientEntries.map((_, index) => `builtin${index}`)
+  const builtinLoaders = clientEntries.map(
+    (entry) => `{source: ${JSON.stringify(entry)}, load: () => import(${JSON.stringify(entry)})}`,
+  )
   const apiBaseLine =
     apiBase === undefined
       ? []
       : [`if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ = ${JSON.stringify(apiBase)}`]
   return [
-    `import {mountConciv} from ${JSON.stringify(embedEntry ?? '@conciv/embed')}`,
-    ...imports,
+    `import {${surface === 'dock' ? 'createConciv' : 'mountConciv'}} from ${JSON.stringify(embedEntry ?? '@conciv/embed')}`,
+    `import {loadExtensions, toSortedLoaders} from ${JSON.stringify(dedupeEntry ?? '@conciv/extension-compiler/dedupe')}`,
     ...apiBaseLine,
-    `import {dedupeExtensions, toSortedEntries} from ${JSON.stringify(dedupeEntry ?? '@conciv/extension-compiler/dedupe')}`,
-    `const mods = import.meta.glob(${JSON.stringify(EXTENSION_GLOB)}, {eager: true})`,
-    `const folderEntries = toSortedEntries(mods)`,
-    `const builtinEntries = [${builtinNames.map((n, i) => `{extension: ${n}, source: 'builtin:${i}'}`).join(', ')}]`,
-    `const picked = dedupeExtensions([...builtinEntries, ...folderEntries])`,
+    `const builtinLoaders = [${builtinLoaders.join(', ')}]`,
+    `const folderLoaders = toSortedLoaders(import.meta.glob(${JSON.stringify(EXTENSION_GLOB)}))`,
+    `const picked = await loadExtensions([...builtinLoaders, ...folderLoaders])`,
     `for (const d of picked.dropped) console.warn('conciv extension dropped:', d.source, d.reason)`,
-    `mountConciv(picked.extensions).catch((error) => console.error('[conciv] widget failed to start', error))`,
+    ...(surface === 'dock' ? DOCK_RENDERER : PAGE_MOUNT),
     '',
   ].join('\n')
 }

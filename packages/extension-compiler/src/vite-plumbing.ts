@@ -3,7 +3,13 @@ import {dirname, join} from 'node:path'
 import {addSourceToJsx} from './inject-source.js'
 import {compileExtensionSolid, isExtensionModule} from './compile-extension.js'
 import {splitExtension} from './split-extension.js'
-import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_ROUTE, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
+import {
+  EXTENSIONS_RESOLVED_ID,
+  EXTENSIONS_ROUTE,
+  EXTENSIONS_VIRTUAL_ID,
+  extensionsModuleSource,
+  type ExtensionsSurface,
+} from './extensions.js'
 
 const SOLID_SINGLETONS = ['solid-js', 'solid-js/web', 'solid-js/store', '@tanstack/solid-router', '@ark-ui/solid']
 
@@ -57,8 +63,11 @@ export function loadExtensionsModule(
   apiBase?: string,
   embedEntry?: string,
   dedupeEntry?: string,
+  surface?: ExtensionsSurface,
 ): string | null {
-  return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource(clientEntries, apiBase, embedEntry, dedupeEntry) : null
+  return id === EXTENSIONS_RESOLVED_ID
+    ? extensionsModuleSource(clientEntries, apiBase, embedEntry, dedupeEntry, surface)
+    : null
 }
 
 export function isClientEntry(id: string): boolean {

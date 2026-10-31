@@ -665,6 +665,57 @@ describe('panel empty', () => {
   })
 })
 
+describe('content blocker', () => {
+  const api = useRecorderTestApi()
+
+  describe('rrweb blocked by a content blocker (real browser)', () => {
+    it('keeps the widget running and explains the block in the Recorder tab', async () => {
+      const page = api().page
+      await page.route(/rrweb/, (route) => route.abort('blockedbyclient'))
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await page.getByRole('tab', {name: 'Recorder'}).click()
+      await expectLocator(page.getByRole('heading', {name: 'Recording is paused by your content blocker'})).toBeVisible(
+        {timeout: 30_000},
+      )
+      await expectLocator(page.getByRole('button', {name: 'Reload page'})).toBeVisible()
+      await expectLocator(page.getByRole('button', {name: 'Send to agent'})).toHaveCount(0)
+    }, 120_000)
+  })
+})
+
+describe('slow capture library', () => {
+  const api = useRecorderTestApi()
+
+  describe('rrweb outlasts the recording_start deadline (real browser)', () => {
+    it('drops the timed out start and still records a later one', async () => {
+      const page = api().page
+      const calls = rpcCallCursor(page)
+      const rrwebRelease = Promise.withResolvers<void>()
+      await page.route(/rrweb/, async (route) => {
+        await rrwebRelease.promise
+        await route.continue()
+      })
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await page.getByRole('tab', {name: 'Recorder'}).waitFor({state: 'visible', timeout: 30_000})
+
+      const rrwebRequested = page.waitForRequest(/rrweb/)
+      const timedOut = JSON.stringify(await api().callTool('recording_start', {}))
+      await rrwebRequested
+      expect(timedOut).toContain('no page client attached within 5s')
+
+      rrwebRelease.resolve()
+      const started = await startLiveCapture(api())
+
+      await addMarker(page)
+      const stopped = JSON.stringify(
+        await api().callTool('recording_stop', {captureId: started.captureId, keyframes: 0}),
+      )
+      expect(stopped).toContain('Add marker')
+      expect(calls.startedSince(['ext', 'recorder', 'config'])).toBe(1)
+    }, 120_000)
+  })
+})
+
 describe('panel store isolation', () => {
   const api = useRecorderTestApi()
 

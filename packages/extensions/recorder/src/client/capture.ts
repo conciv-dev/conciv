@@ -1,5 +1,5 @@
-import {record} from 'rrweb'
-import {getRecordConsolePlugin} from '@rrweb/rrweb-plugin-console-record'
+import type {record} from 'rrweb'
+import type {getRecordConsolePlugin} from '@rrweb/rrweb-plugin-console-record'
 import type {eventWithTime} from '@rrweb/types'
 import type {RecorderConfig, RrwebEvent} from '../shared/protocol.js'
 
@@ -17,8 +17,23 @@ function maskingOptions(masking: RecorderConfig['masking']): {
   return {maskAllInputs: false, maskInputOptions: {password: true}}
 }
 
-export function startCapture(config: RecorderConfig, emit: (event: RrwebEvent) => void): () => void {
-  const stop = record({
+export type CaptureLibrary = {record: typeof record; getRecordConsolePlugin: typeof getRecordConsolePlugin}
+
+let captureLibrary: Promise<CaptureLibrary> | undefined
+
+export function loadCaptureLibrary(): Promise<CaptureLibrary> {
+  captureLibrary ??= Promise.all([import('rrweb'), import('@rrweb/rrweb-plugin-console-record')]).then(
+    ([rrweb, consoleRecord]) => ({record: rrweb.record, getRecordConsolePlugin: consoleRecord.getRecordConsolePlugin}),
+  )
+  return captureLibrary
+}
+
+export function startCapture(
+  library: CaptureLibrary,
+  config: RecorderConfig,
+  emit: (event: RrwebEvent) => void,
+): () => void {
+  const stop = library.record({
     emit: (event: eventWithTime) => emit(event),
     checkoutEveryNms: CHECKOUT_MS,
     blockSelector: CONCIV_UI_SELECTOR,
@@ -26,7 +41,7 @@ export function startCapture(config: RecorderConfig, emit: (event: RrwebEvent) =
     ...maskingOptions(config.masking),
     plugins: config.console
       ? [
-          getRecordConsolePlugin({
+          library.getRecordConsolePlugin({
             level: ['error'],
             lengthThreshold: 200,
             stringifyOptions: {stringLengthLimit: 5000, numOfKeysLimit: 50, depthOfLimit: 4},
@@ -37,6 +52,6 @@ export function startCapture(config: RecorderConfig, emit: (event: RrwebEvent) =
   return () => stop?.()
 }
 
-export function takeFreshSnapshot(): void {
-  record.takeFullSnapshot(true)
+export function takeFreshSnapshot(library: CaptureLibrary): void {
+  library.record.takeFullSnapshot(true)
 }

@@ -35,26 +35,37 @@ function signalledScheme(element: Element): ColorScheme | null {
   return asScheme(element.getAttribute('data-theme'))
 }
 
-function themeRoots(doc: Document): Element[] {
-  return [doc.documentElement, doc.body].filter((element): element is HTMLElement => element !== null)
+function parentAcrossShadow(element: Element): Element | null {
+  if (element.parentElement) return element.parentElement
+  const root = element.getRootNode()
+  return root instanceof ShadowRoot ? root.host : null
 }
 
-function readHostScheme(doc: Document): ColorScheme | null {
-  const roots = themeRoots(doc)
+function ancestorsOf(element: Element): Element[] {
+  const parent = parentAcrossShadow(element)
+  return parent ? [parent, ...ancestorsOf(parent)] : []
+}
+
+function themeRoots(mountHost: Element | undefined): Element[] {
+  if (mountHost) return ancestorsOf(mountHost)
+  return [document.body, document.documentElement].filter((element): element is HTMLElement => element !== null)
+}
+
+function readHostScheme(roots: Element[]): ColorScheme | null {
   const declared = roots.map(declaredScheme).find((scheme) => scheme !== null)
   if (declared) return declared
   return roots.map(signalledScheme).find((scheme) => scheme !== null) ?? null
 }
 
-function readDeclaredSkin(doc: Document): string {
-  const declared = themeRoots(doc)
+function readDeclaredSkin(roots: Element[]): string {
+  const declared = roots
     .map((element) => computed(element)?.getPropertyValue(SKIN_PROPERTY).trim() ?? '')
     .find((value) => value.length > 0)
   return declared ?? ''
 }
 
-function readHostSignals(doc: Document): HostSignals {
-  return {scheme: readHostScheme(doc), declaredSkin: readDeclaredSkin(doc)}
+function readHostSignals(roots: Element[]): HostSignals {
+  return {scheme: readHostScheme(roots), declaredSkin: readDeclaredSkin(roots)}
 }
 
 export function applySchemeClass(element: Element, scheme: ColorScheme): void {
@@ -73,13 +84,14 @@ export function themeClasses(theme: HostTheme): string {
   return `${theme.scheme} ${skinClassName(theme.skin)}`
 }
 
-export function createHostTheme(doc: Document = document): Accessor<HostTheme> {
+export function createHostTheme(mountHost?: Element): Accessor<HostTheme> {
+  const roots = themeRoots(mountHost)
   const prefersDark = createMediaQuery(DARK_MEDIA_QUERY)
-  const [host, setHost] = createStore<HostSignals>(readHostSignals(doc))
+  const [host, setHost] = createStore<HostSignals>(readHostSignals(roots))
   createMutationObserver(
-    () => themeRoots(doc),
+    () => roots,
     {attributes: true, attributeFilter: THEME_ATTRIBUTES},
-    () => setHost(readHostSignals(doc)),
+    () => setHost(readHostSignals(roots)),
   )
   createEffect(() => {
     const declared = host.declaredSkin

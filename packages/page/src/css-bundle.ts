@@ -1,4 +1,4 @@
-import {stringifyStylesheet} from 'rrweb-snapshot'
+import type {stringifyStylesheet} from 'rrweb-snapshot'
 import type {CssBundle} from '@conciv/protocol/element-capture-types'
 
 const CSS_BUNDLE_CAP = 512 * 1024
@@ -7,18 +7,20 @@ const HASH_HEX_LENGTH = 16
 
 export type PendingCssText = {css: string}
 
-function collectCssText(doc: Document): string {
+type StylesheetText = typeof stringifyStylesheet
+
+function collectCssText(doc: Document, stylesheetText: StylesheetText): string {
   const sheets: string[] = []
   for (const sheet of Array.from(doc.styleSheets)) {
-    const text = stringifyStylesheet(sheet)
+    const text = stylesheetText(sheet)
     if (text === null || text === '') continue
     sheets.push(text)
   }
   return sheets.join('\n')
 }
 
-export function collectPendingCss(doc: Document): PendingCssText | null {
-  const css = collectCssText(doc)
+export function collectPendingCss(doc: Document, stylesheetText: StylesheetText): PendingCssText | null {
+  const css = collectCssText(doc, stylesheetText)
   if (css === '' || new TextEncoder().encode(css).byteLength > CSS_BUNDLE_CAP) return null
   return {css}
 }

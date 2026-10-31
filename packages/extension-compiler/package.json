@@ -60,6 +60,7 @@
     "@babel/core": "^7.29.7",
     "@babel/preset-typescript": "^7.29.7",
     "@conciv/extension": "workspace:^",
+    "@conciv/protocol": "workspace:^",
     "babel-dead-code-elimination": "^1.0.12",
     "babel-preset-solid": "^1.9.12",
     "jiti": "^2.7.0",
@@ -72,10 +73,14 @@
     "@types/babel__core": "^7.20.5",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
   }
 }
