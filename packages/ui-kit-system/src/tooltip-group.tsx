@@ -104,6 +104,7 @@ const ARROW: Record<TooltipSide, string> = {
   left: `${ARROW_BASE} right-px`,
   right: `${ARROW_BASE} left-px`,
 }
+const PROBE = 'fixed top-0 left-0 size-0 pointer-events-none invisible'
 const FUSE = 'fixed top-0 left-0 z-[2147483647] pointer-events-none rounded-full bg-chat-accent'
 
 const GroupContext = createContext<TooltipGroupApi>()
@@ -168,10 +169,26 @@ function arrowFrame(geometry: TooltipGeometry): Keyframe {
   return {top: `${geometry.arrow}px`}
 }
 
-function fuseStyle(arming: Arming): JSX.CSSProperties {
+type Origin = {left: number; top: number}
+
+function originOf(probe: HTMLElement | undefined): Origin {
+  const rect = probe?.getBoundingClientRect()
+  return {left: rect?.left ?? 0, top: rect?.top ?? 0}
+}
+
+function fuseStyle(options: {arming: Arming; origin: Origin}): JSX.CSSProperties {
+  const {arming, origin} = options
   const side = arming.member.side()
-  const rect = arming.member.trigger()?.getBoundingClientRect()
-  if (!rect) return {display: 'none'}
+  const viewportRect = arming.member.trigger()?.getBoundingClientRect()
+  if (!viewportRect) return {display: 'none'}
+  const rect = {
+    left: viewportRect.left - origin.left,
+    right: viewportRect.right - origin.left,
+    top: viewportRect.top - origin.top,
+    bottom: viewportRect.bottom - origin.top,
+    width: viewportRect.width,
+    height: viewportRect.height,
+  }
   if (alongX(side))
     return {
       translate: `${rect.left + FUSE_INSET}px ${side === 'top' ? rect.top - FUSE_OFFSET : rect.bottom + FUSE_OFFSET - FUSE_THICKNESS}px`,
@@ -187,7 +204,7 @@ function fuseStyle(arming: Arming): JSX.CSSProperties {
   }
 }
 
-function Fuse(props: {arming: Arming}): JSX.Element {
+function Fuse(props: {arming: Arming; origin: Origin}): JSX.Element {
   const [element, setElement] = createSignal<HTMLElement>()
   onMount(() => {
     const horizontal = alongX(props.arming.member.side())
@@ -196,7 +213,14 @@ function Fuse(props: {arming: Arming}): JSX.Element {
       easing: 'linear',
     })
   })
-  return <span ref={setElement} aria-hidden="true" class={FUSE} style={fuseStyle(props.arming)} />
+  return (
+    <span
+      ref={setElement}
+      aria-hidden="true"
+      class={FUSE}
+      style={fuseStyle({arming: props.arming, origin: props.origin})}
+    />
+  )
 }
 
 function LayerView(props: {
@@ -229,6 +253,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
   const [label, setLabel] = createSignal<HTMLElement>()
   const [box, setBox] = createSignal<HTMLElement>()
   const [arrow, setArrow] = createSignal<HTMLElement>()
+  const [probe, setProbe] = createSignal<HTMLElement>()
   const [state, setState] = createStore<GroupState>({
     phase: 'idle',
     active: null,
@@ -324,8 +349,8 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     trigger: HTMLElement
     width: number
     height: number
-  }): TooltipGeometry =>
-    labelGeometry({
+  }): TooltipGeometry => {
+    const viewportGeometry = labelGeometry({
       rect: options.trigger.getBoundingClientRect(),
       side: options.member.side(),
       gap: options.member.gap(),
@@ -333,6 +358,9 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
       height: options.height,
       viewport: {width: window.innerWidth, height: window.innerHeight},
     })
+    const origin = originOf(probe())
+    return {...viewportGeometry, x: viewportGeometry.x - origin.left, y: viewportGeometry.y - origin.top}
+  }
 
   const measure = (options: {member: TooltipGroupMember; trigger: HTMLElement; text: HTMLElement}): TooltipGeometry =>
     place({
@@ -520,11 +548,12 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
   return (
     <GroupContext.Provider value={group}>
       {props.children}
+      <span ref={setProbe} aria-hidden="true" class={PROBE} />
       <Show when={visible()}>
         <Label />
       </Show>
       <Show when={config.fuse && !prefersReducedMotion() && state.arming} keyed>
-        {(arming) => <Fuse arming={arming} />}
+        {(arming) => <Fuse arming={arming} origin={originOf(probe())} />}
       </Show>
       <Show when={cooling()}>
         <Timer
