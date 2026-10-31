@@ -42,7 +42,9 @@ import {userTexts} from '../helpers/snapshots.js'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {z} from 'zod'
 import {makeTextAdapter} from '@conciv/ai/server'
-import {defineAttachment, defineExtension, defineTool, toolError} from '@conciv/extension'
+import {defineAttachment, defineExtension, defineTool, imageResult, toolError} from '@conciv/extension'
+import {imageToolProvisioner} from '@conciv/ai/server'
+import {cappedValue} from '@conciv/chat'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {connectWidget, type FakeWidget} from '../helpers/fake-widget.js'
 import {connectMcpClient, type McpClient, type McpTool} from '@conciv/harness-testkit'
@@ -1273,6 +1275,54 @@ describe('chat', () => {
     })
   })
 
+  describe('images out of code mode', () => {
+    it('a program returning a big image keeps every byte on its card, also after reload, and text stays capped', async () => {
+      const sessionId = await newSession()
+      codeTurn('const shot = await external_fixture_image({}); return {shot, note: "z".repeat(200000)}')
+      await finished(sessionId, 'look')
+      await finished(sessionId, 'a later turn')
+      const results = resultsOf(await thread(sessionId))
+      expect(results).toContain(BIG_IMAGE_BYTES)
+      expect(results).not.toContain('z'.repeat(60_000))
+    })
+
+    it('a page screenshot lands in a gitignored project file, and the result names it beside the image', async () => {
+      const sessionId = await chatKit().session()
+      codeTurn('return await external_page_screenshot({})')
+      await finished(sessionId, 'shoot')
+      const results = resultsOf(await thread(sessionId))
+      expect(results).toContain(SCREENSHOT_BYTES)
+      const saved = /\.conciv\/tmp\/screenshots\/[\w-]+\.webp/.exec(results)?.[0]
+      if (saved === undefined) throw new Error(`no screenshot path in: ${results.slice(0, 300)}`)
+      expect(readFileSync(join(chatKit().stateRoot, saved)).toString('base64')).toBe(SCREENSHOT_BYTES)
+    })
+
+    it('the tool bridge hands the CLI an image block, with the text capped apart from it', async () => {
+      const bridge = await imageToolProvisioner.provision(
+        [{name: 'shot', description: 'shot', execute: async () => cappedValue({path: 'a.webp', image: BIG_IMAGE})}],
+        {threadId: 'thread', provider: 'local-process'},
+      )
+      try {
+        const response = await fetch(bridge.url, {
+          method: 'POST',
+          headers: {authorization: `Bearer ${bridge.token}`, 'content-type': 'application/json'},
+          body: JSON.stringify({jsonrpc: '2.0', id: 1, method: 'tools/call', params: {name: 'shot', arguments: {}}}),
+        })
+        const {result} = BridgeReplySchema.parse(await response.json())
+        expect(result.content.find((part) => part.type === 'image')).toEqual({
+          type: 'image',
+          data: BIG_IMAGE_BYTES,
+          mimeType: 'image/png',
+        })
+        const text = result.content.find((part) => part.type === 'text')
+        expect(text?.text).toContain('a.webp')
+        expect(text?.text).not.toContain(BIG_IMAGE_BYTES)
+      } finally {
+        await bridge.close()
+      }
+    })
+  })
+
   describe('questions to the user', () => {
     it('a question waits for the widget answer, a late viewer sees it, and an unknown answer is refused', async () => {
       script().holdResults()
@@ -1340,6 +1390,12 @@ const ECHO_DESCRIPTION = 'Echo the text back.\n\nUse it to echo.\n\nNever echo s
 const EXPANSION_PART = {type: 'text', content: 'fixture-expanded', metadata: {modelOnly: true}}
 const ONE_PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 const IMAGE = {type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}}
+const SCREENSHOT_BYTES = 'UklGRg=='
+const BIG_IMAGE_BYTES = ONE_PIXEL_PNG.repeat(1_000)
+const BIG_IMAGE = {type: 'image', source: {type: 'data', mimeType: 'image/png', value: BIG_IMAGE_BYTES}}
+const BridgeReplySchema = z.object({
+  result: z.object({content: z.array(z.looseObject({type: z.string(), text: z.string().optional()}))}),
+})
 const TOOL_NAME_FORMS: [string, string][] = [
   ['mcp__conciv__fixture_echo', 'fixture_echo'],
   ['tanstack_fixture_echo', 'fixture_echo'],
@@ -1406,7 +1462,7 @@ const turnEndWaiters: {sessionId: string; settle: () => void}[] = []
 function fixtureExtension() {
   return defineExtension({
     name: 'fixture',
-    tools: [echoTool(), readTool(), askTool(), failTool(), hugeTool()],
+    tools: [echoTool(), readTool(), askTool(), failTool(), hugeTool(), imageTool()],
     attachments: fixtureAttachments(),
   }).server(() => ({context: {}, turnEnd: noteTurnEnd}))
 }
@@ -1471,6 +1527,16 @@ function hugeTool() {
     outputSchema: z.object({blob: z.string()}),
     meta: {summary: 'return a huge value', category: 'fixture', mutating: false},
   }).server(() => ({blob: 'x'.repeat(120_000)}))
+}
+
+function imageTool() {
+  return defineTool({
+    name: 'fixture_image',
+    description: 'Return a big image.',
+    inputSchema: z.object({}),
+    outputSchema: z.unknown(),
+    meta: {summary: 'return a big image', category: 'fixture', mutating: false},
+  }).server(() => imageResult('image/png', BIG_IMAGE_BYTES, {width: 1}))
 }
 
 function fixtureAttachments() {
@@ -1759,6 +1825,7 @@ function attachmentParts() {
 
 function answerFor(name: string): PageOutcome {
   if (name === 'page_click') return {ok: true, result: {ok: true}}
+  if (name === 'page_screenshot') return {ok: true, result: {image: SCREENSHOT_BYTES, width: 8, height: 6}}
   return {ok: true, result: {text: 'page-ok'}}
 }
 

@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {imagesIn, withoutImages} from '@conciv/ai/server'
 import {defineTool, type ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {ToolRequest} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
@@ -107,8 +108,10 @@ export function cappedText(body: string): string {
 export function cappedValue(value: unknown): unknown {
   const attempt = attemptStringify(value)
   if ('failure' in attempt) return serializationFailure(attempt.failure)
-  if (attempt.body.length <= RESULT_CAP_CHARS) return value
-  return truncationPayload(oversizeReason(attempt.body.length), attempt.body)
+  const body = safeStringify(withoutImages(value))
+  if (body.length <= RESULT_CAP_CHARS) return value
+  const images = imagesIn(value)
+  return {...truncationPayload(oversizeReason(body.length), body), ...(images.length === 0 ? {} : {images})}
 }
 
 function declaredCodeOf(error: unknown): string | null {

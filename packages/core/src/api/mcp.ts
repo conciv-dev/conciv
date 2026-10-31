@@ -26,6 +26,7 @@ import {
   type CodeRunner,
   type CodeTool,
 } from '@conciv/chat'
+import {imageBlocks, imagesIn, withoutImages} from '@conciv/ai/server'
 import {loopbackHostAllowlist} from '../lib/cors.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema} from './execute-schemas.js'
 
@@ -140,8 +141,8 @@ function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply
   if (isContentParts(result.result)) {
     return {content: cappedParts([...result.result.map(partToContent), ...logsPart(result.logs ?? [])])}
   }
-  const body = safeStringify({result: result.result ?? null, logs: result.logs ?? []})
-  return {content: [{type: 'text', text: cappedText(body)}]}
+  const body = safeStringify({result: withoutImages(result.result ?? null), logs: result.logs ?? []})
+  return {content: [{type: 'text', text: cappedText(body)}, ...imageBlocks(imagesIn(result.result))]}
 }
 
 type PublishChunks = (chunks: ChatEvent[]) => void

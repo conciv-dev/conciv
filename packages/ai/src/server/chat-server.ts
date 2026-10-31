@@ -20,6 +20,8 @@ import {
   approvalId,
   defineSandbox,
   defineSandboxPolicy,
+  provideToolBridgeProvisioner,
+  ToolBridgeProvisionerCapability,
   withSandbox,
 } from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
@@ -27,6 +29,7 @@ import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
 import {runLifecycleEvent, type ChatEvent, type RunLifecycle, type RunPhase} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
+import {imageToolProvisioner} from './image-tool-results.js'
 import {childCards} from './child-cards.js'
 import {codeModeTools, loadIsolateDriver, secretRefusalOf} from './code-mode.js'
 import {createDelivery, type ChatDelivery, type Turn} from './delivery.js'
@@ -420,6 +423,11 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         defineChatMiddleware({
           name: 'conciv-steer',
           setup: () => endRuns(turn.threadId, turn.runId),
+        }),
+        defineChatMiddleware({
+          name: 'conciv-image-tools',
+          provides: [ToolBridgeProvisionerCapability],
+          setup: (ctx) => provideToolBridgeProvisioner(ctx, imageToolProvisioner),
         }),
         withPersistence(persistence, {snapshotStreaming: true}),
         withLocks(locks),
