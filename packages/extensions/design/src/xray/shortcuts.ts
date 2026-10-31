@@ -31,9 +31,11 @@ export const SHORTCUT_HELP: [string, string][] = [
 
 const MODE_KEY_START = 3
 
+const NON_TEXT_INPUTS = new Set(['radio', 'checkbox', 'button', 'submit', 'reset', 'range'])
+
 function typing(target: EventTarget | null): boolean {
   return (
-    target instanceof HTMLInputElement ||
+    (target instanceof HTMLInputElement && !NON_TEXT_INPUTS.has(target.type)) ||
     target instanceof HTMLTextAreaElement ||
     target instanceof HTMLSelectElement ||
     (target instanceof HTMLElement && target.isContentEditable)
