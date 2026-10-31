@@ -52,6 +52,6 @@
     "vitest": "catalog:"
   },
   "engines": {
-    "node": ">=22.23.4"
+    "node": ">=22.13"
   }
 }
