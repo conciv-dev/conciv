@@ -1,12 +1,12 @@
 import {readFile, writeFile} from 'node:fs/promises'
+import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
-import {chromium} from 'playwright'
+import type {Browser} from 'playwright'
 import {PNG} from 'pngjs'
 import {createServer} from 'vite'
 
 const HOST_ROOT = fileURLToPath(new URL('host/', import.meta.url))
-const TARGETS_DIR = new URL('targets/', import.meta.url)
 
 const SHOTS = [
   {name: 'u1-1280', path: '/?variant=target', ready: 'header.toolbar', width: 1280, height: 720},
@@ -26,33 +26,30 @@ function upscale2x(source: PNG): PNG {
   return out
 }
 
-async function renderTargets(): Promise<void> {
+export async function renderTargets(input: {browser: Browser; dir: string}): Promise<void> {
   const server = await createServer({
     root: HOST_ROOT,
+    cacheDir: join(input.dir, 'vite'),
     configFile: false,
     logLevel: 'silent',
     server: {host: '127.0.0.1', port: 0},
     plugins: [react()],
   })
   await server.listen()
-  const origin = server.resolvedUrls?.local[0]
-  if (origin === undefined) throw new Error('the fixture dev server has no local url')
-  const browser = await chromium.launch()
   try {
+    const origin = server.resolvedUrls?.local[0]
+    if (origin === undefined) throw new Error('the fixture dev server has no local url')
     for (const shot of SHOTS) {
-      const page = await browser.newPage({viewport: {width: shot.width, height: shot.height}})
+      const page = await input.browser.newPage({viewport: {width: shot.width, height: shot.height}})
       await page.goto(new URL(shot.path, origin).href)
       await page.locator(shot.ready).waitFor()
       await page.evaluate(() => document.fonts.ready)
-      await writeFile(new URL(`${shot.name}.png`, TARGETS_DIR), await page.screenshot({fullPage: false}))
+      await writeFile(join(input.dir, `${shot.name}.png`), await page.screenshot({fullPage: false}))
       await page.close()
     }
   } finally {
-    await browser.close()
     await server.close()
   }
-  const retina = upscale2x(PNG.sync.read(await readFile(new URL('u1-1280.png', TARGETS_DIR))))
-  await writeFile(new URL('u1-2560.png', TARGETS_DIR), PNG.sync.write(retina))
+  const retina = upscale2x(PNG.sync.read(await readFile(join(input.dir, 'u1-1280.png'))))
+  await writeFile(join(input.dir, 'u1-2560.png'), PNG.sync.write(retina))
 }
-
-await renderTargets()

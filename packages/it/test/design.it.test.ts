@@ -38,9 +38,9 @@ import {
 import {mapDeclaration} from '@conciv/extension-design/provenance'
 import type {LiveComponent, Provenance, Winner} from '@conciv/extension-design/types'
 import {unplugin} from '../src/plugin-instance.js'
+import {renderTargets} from './fixtures/design/render-targets.js'
 
 const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
-const TARGETS_DIR = fileURLToPath(new URL('fixtures/design/targets/', import.meta.url))
 const PROVENANCE_DIR = fileURLToPath(new URL('fixtures/design/provenance/', import.meta.url))
 const ENDPOINT_FILE = 'dev-endpoint.json'
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
@@ -69,6 +69,7 @@ type Kit = {
   page: Page
   origin: string
   stateRoot: string
+  targetsDir: string
   call: Call
   goto: (to: string) => Promise<void>
   dispose: () => Promise<void>
@@ -137,6 +138,8 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
   const session = (await makeRpcClient(apiBase).sessions.resolve({})).sessionId
   const rpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
   const browser = await chromium.launch({args: ['--disable-features=LocalNetworkAccessChecks']})
+  const targetsDir = await mkdtemp(join(tmpdir(), 'conciv-design-targets-'))
+  await renderTargets({browser, dir: targetsDir})
   const page = await browser.newPage({viewport: {width: 1280, height: 720}})
   const goto = (to: string): Promise<void> =>
     awaitPagePlaneSubscribed(page, async () => {
@@ -155,6 +158,7 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
     page,
     origin,
     stateRoot,
+    targetsDir,
     call: makeCall(rpc),
     goto,
     dispose: async () => {
@@ -162,12 +166,13 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
       await server.close()
       await rm(stateRoot, {recursive: true, force: true})
       await rm(devEndpointDir, {recursive: true, force: true})
+      await rm(targetsDir, {recursive: true, force: true})
     },
   }
 }
 
 function target(name: string): string {
-  return join(TARGETS_DIR, `${name}.png`)
+  return join(kit.targetsDir, `${name}.png`)
 }
 
 function fileUnder(root: string, relative: string): string {
