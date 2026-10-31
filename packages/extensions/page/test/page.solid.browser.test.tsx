@@ -325,7 +325,7 @@ describe('read value card image', () => {
         part={storyPart('page_screenshot', {})}
         result={storyResult([
           {type: 'image', source: {type: 'data', value: image, mimeType: 'image/webp'}},
-          {type: 'text', content: JSON.stringify({width: 8, height: 6})},
+          {type: 'text', content: JSON.stringify({width: 8, height: 6, path: 'tmp/screenshots/shot.webp'})},
         ])}
         ctx={storyCtx({page_screenshot: SCREENSHOT_META})}
         addResult={storyAddResult}
@@ -412,7 +412,7 @@ describe('read value card image', () => {
           part={storyPart('page_screenshot', {})}
           result={storyResult([
             {type: 'image', source: {type: 'data', value: image, mimeType: 'image/webp'}},
-            {type: 'text', content: JSON.stringify({width: 8, height: 6})},
+            {type: 'text', content: JSON.stringify({width: 8, height: 6, path: 'tmp/screenshots/shot.webp'})},
           ])}
           ctx={storyCtx({page_screenshot: SCREENSHOT_META})}
           addResult={storyAddResult}
