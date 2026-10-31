@@ -137,6 +137,21 @@ it('holds the reading position when turns are appended while scrolled up', async
   await expect.element(page.getByText('Latest')).toBeVisible()
 })
 
+it('keeps a reader whose wheel scroll lands after a follow-on-append', async () => {
+  const settled = await mountSettledThread()
+
+  settled.viewport.dispatchEvent(new WheelEvent('wheel', {deltaY: -800, bubbles: true}))
+  settled.thread.chat().setMessages([...seed(TURN_COUNT), ...seed(TURN_COUNT + 3).slice(TURN_COUNT * 2)])
+  await expect.element(page.getByText(`answer ${TURN_COUNT + 2} tail marker ${TURN_COUNT + 2}`)).toBeVisible()
+
+  const scrolled = new Promise((settle) => settled.viewport.addEventListener('scroll', settle, {once: true}))
+  settled.viewport.scrollTop -= 800
+  await scrolled
+
+  expect(distanceFromEnd(settled.viewport)).toBeGreaterThan(400)
+  await expect.element(page.elementLocator(settled.viewport)).not.toHaveAttribute('data-at-bottom')
+})
+
 it('returns to the bottom and re-follows when Latest is pressed', async () => {
   const settled = await mountSettledThread()
 

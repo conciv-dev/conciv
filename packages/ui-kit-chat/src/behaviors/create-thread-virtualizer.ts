@@ -91,11 +91,15 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     const target = instance.getOffsetForIndex(lastIndex, 'end')
     if (!target) return
     writeScroll(target[0], 'auto')
-    if (readerInput !== 'holding') readerInput = 'untouched'
     landedOffset = element.scrollTop
     instance.scrollOffset = landedOffset
     restingAnchor = {mode: 'resume-following'}
     syncAtEnd()
+  }
+
+  const returnToEnd = (): void => {
+    if (readerInput !== 'holding') readerInput = 'untouched'
+    landOnEnd()
   }
 
   const stillOnTheLanding = (element: HTMLElement): boolean =>
@@ -301,11 +305,6 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     return lastKey !== undefined && landing.lastKey === lastKey
   }
 
-  const needsLanding = (element: HTMLElement, sameThread: boolean): boolean => {
-    if (!sameThread) return true
-    return followingReader()
-  }
-
   createEffect(() => {
     const element = config.scrollElement()
     const total = config.count()
@@ -316,7 +315,11 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     const lastKey = config.keyAt(total - 1)
     const sameThread = isSameThread(element, firstKey, lastKey)
     setLanding({element, firstKey, lastKey})
-    if (needsLanding(element, sameThread)) landOnEnd()
+    if (!sameThread) {
+      returnToEnd()
+      return
+    }
+    if (followingReader()) landOnEnd()
   })
 
   return {
@@ -324,7 +327,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     totalSize,
     measured,
     atEnd,
-    landOnEnd,
+    landOnEnd: returnToEnd,
     measureRow: (element) => instance.measureElement(element),
     remeasure: () => {
       instance.measureElement(null)
