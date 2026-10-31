@@ -1,17 +1,28 @@
-import {createServer, request as httpRequest, type IncomingMessage, type Server} from 'node:http'
+import {type Server, createServer, request as httpRequest, type IncomingMessage} from 'node:http'
 import type {Duplex} from 'node:stream'
-import {listenLocal} from './listen-local.js'
+import type {PersistedAttachment, RpcClient} from '@conciv/contract'
+
+async function listenLocal(server: Server): Promise<{base: string; port: number; close: () => Promise<void>}> {
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  const port = typeof address === 'object' && address !== null ? address.port : 0
+  return {
+    base: `http://127.0.0.1:${port}`,
+    port,
+    close: () =>
+      new Promise((resolve) => {
+        server.closeAllConnections?.()
+        server.close(() => resolve())
+      }),
+  }
+}
 
 const AWAIT_REQUEST_TIMEOUT_MS = 4000
 
-export type AwaitRequestOptions = {since?: number; timeout?: number}
+type AwaitRequestOptions = {since?: number; timeout?: number}
 
 export type ProxyCore = {
   base: string
-  port: number
-  requestCount: (pathname?: string) => number
-  wsConnectionCount: () => number
-  mark: () => number
   awaitRequest: (pathname: string, options?: AwaitRequestOptions) => Promise<void>
   fail: (pathname: string) => void
   repair: () => void
@@ -31,11 +42,9 @@ function handshakeResponse(upstream: IncomingMessage): string {
   return [statusLine, ...headers, '', ''].join('\r\n')
 }
 
-export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean} = {}): Promise<ProxyCore> {
+export async function proxyTo(targetBase: string): Promise<ProxyCore> {
   const target = new URL(targetBase)
-  const seen: string[] = []
   const refused = new Set<string>()
-  let upgrades = 0
   const piped = new Set<Duplex>()
   const completions: Completion[] = []
   const waiters = new Set<Waiter>()
@@ -53,7 +62,6 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
 
   const server: Server = createServer((req, res) => {
     const pathname = new URL(req.url ?? '/', target).pathname
-    seen.push(pathname)
     res.on('finish', () => settle(pathname))
     if (refused.has(pathname)) {
       res.writeHead(500, {'content-type': 'text/plain'})
@@ -80,11 +88,6 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
     req.pipe(proxyReq)
   })
   server.on('upgrade', (req, clientSocket: Duplex, head: Buffer) => {
-    upgrades += 1
-    if (opts.blockUpgrades) {
-      clientSocket.destroy()
-      return
-    }
     piped.add(clientSocket)
     clientSocket.on('close', () => piped.delete(clientSocket))
     const proxyReq = httpRequest({
@@ -108,14 +111,9 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
     proxyReq.on('error', () => clientSocket.destroy())
     proxyReq.end()
   })
-  const {base, port, close} = await listenLocal(server)
+  const {base, close} = await listenLocal(server)
   return {
     base,
-    port,
-    requestCount: (pathname) =>
-      pathname === undefined ? seen.length : seen.filter((entry) => entry === pathname).length,
-    wsConnectionCount: () => upgrades,
-    mark: () => sequence.next,
     awaitRequest: (pathname, options = {}) => {
       const since = options.since ?? sequence.next
       if (completions.some((entry) => entry.pathname === pathname && entry.at > since)) return Promise.resolve()
@@ -150,4 +148,22 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
       await close()
     },
   }
+}
+
+type SeededDraft = {text?: string; attachments?: PersistedAttachment[]}
+
+export async function createSession(rpc: RpcClient): Promise<string> {
+  const {sessionId} = await rpc.sessions.create()
+  return sessionId
+}
+
+export async function seedDraft(rpc: RpcClient, sessionId: string, draft: SeededDraft): Promise<void> {
+  const text = draft.text ?? ''
+  await rpc.drafts.set({
+    sessionId,
+    text,
+    selectionStart: text.length,
+    selectionEnd: text.length,
+    attachments: draft.attachments ?? [],
+  })
 }
