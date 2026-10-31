@@ -3,11 +3,11 @@ import {z} from 'zod'
 import {toolError} from '@conciv/extension'
 import {keepBodyMargins} from '@conciv/extension-page/body-margins'
 import {DESIGN_ERRORS} from '../shared/defs.js'
+import {CAPTURE_READY, CAPTURE_REQUEST} from '../shared/messages.js'
 import {TOLERANCES} from '../shared/tolerances.js'
 
-const CAPTURE_REQUEST = 'conciv-design:capture'
-
 const captureRequest = z.object({type: z.literal(CAPTURE_REQUEST)})
+const captureReady = z.object({type: z.literal(CAPTURE_READY)})
 const captureReply = z.union([z.object({blob: z.instanceof(Blob)}), z.object({error: z.string()})])
 
 function insideCaptureFrame(): boolean {
@@ -36,6 +36,19 @@ export function answerCaptureRequests(): void {
     if (event.source !== window.parent || port === undefined) return
     if (!captureRequest.safeParse(event.data).success) return
     void answer(port)
+  })
+  window.parent.postMessage({type: CAPTURE_READY}, location.origin)
+}
+
+export function frameAnswering(input: {frame: HTMLIFrameElement; signal: AbortSignal}): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const listen = (event: MessageEvent): void => {
+      if (event.source !== input.frame.contentWindow || !captureReady.safeParse(event.data).success) return
+      window.removeEventListener('message', listen)
+      resolve()
+    }
+    window.addEventListener('message', listen)
+    input.signal.addEventListener('abort', () => window.removeEventListener('message', listen), {once: true})
   })
 }
 

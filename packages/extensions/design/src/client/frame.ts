@@ -1,6 +1,7 @@
 import {toolError} from '@conciv/extension'
 import {DESIGN_ERRORS} from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
+import {frameAnswering} from './frame-capture.js'
 
 const FRAME_SELECTOR = 'iframe[data-conciv-capture]'
 
@@ -72,6 +73,7 @@ function quietFrames(input: {doc: Document; signal: AbortSignal}): Promise<void>
 async function settle(input: {frame: HTMLIFrameElement; fresh: boolean}): Promise<void> {
   const signal = AbortSignal.timeout(TOLERANCES.frameSettleMs)
   const load = input.fresh ? loaded(input.frame) : Promise.resolve()
+  const answering = input.fresh ? frameAnswering({frame: input.frame, signal}) : Promise.resolve()
   if (input.fresh) document.body.appendChild(input.frame)
   try {
     await untilAbort({promise: load, signal})
@@ -79,6 +81,7 @@ async function settle(input: {frame: HTMLIFrameElement; fresh: boolean}): Promis
     if (!doc) throw toolError('frame-blocked', {message: DESIGN_ERRORS['frame-blocked'].message})
     await untilAbort({promise: doc.fonts.ready, signal})
     await untilAbort({promise: quietFrames({doc, signal}), signal})
+    await untilAbort({promise: answering, signal})
   } catch (error) {
     if (!signal.aborted) throw error
     throw toolError('frame-timeout', {message: DESIGN_ERRORS['frame-timeout'].message})
