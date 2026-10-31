@@ -674,8 +674,10 @@ describe('content blocker', () => {
       await page.route(/rrweb/, (route) => route.abort('blockedbyclient'))
       await page.reload({waitUntil: 'domcontentloaded'})
       await page.getByRole('tab', {name: 'Recorder'}).click()
-      await expectLocator(page.getByText(/Recording is blocked/)).toBeVisible({timeout: 30_000})
-      await expectLocator(page.getByText(/content blocker/)).toBeVisible()
+      await expectLocator(page.getByRole('heading', {name: 'Recording is paused by your content blocker'})).toBeVisible(
+        {timeout: 30_000},
+      )
+      await expectLocator(page.getByRole('button', {name: 'Reload page'})).toBeVisible()
       await expectLocator(page.getByRole('button', {name: 'Send to agent'})).toHaveCount(0)
     }, 120_000)
   })

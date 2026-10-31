@@ -14,7 +14,7 @@ import {
 import type {RecorderRouter} from '../server.js'
 import {loadPlayerKit, mountPlayer, type PlayerKit} from './player.js'
 import {saveFileToDisk} from './download.js'
-import {RecorderBlockedNotice, RecorderErrorNotice, RecorderNotice} from './notices.js'
+import {RecorderBlockedCardNotice, RecorderErrorNotice, RecorderNotice} from './notices.js'
 
 type AttachmentState = ReturnType<typeof useAttachment>
 type AttachmentContentPart = Extract<AttachmentState, {content: unknown}>['content'][number]
@@ -112,7 +112,7 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
             </div>
             <Switch>
               <Match when={playerKit.state === 'errored'}>
-                <RecorderBlockedNotice />
+                <RecorderBlockedCardNotice />
               </Match>
               <Match when={recording.isPending}>
                 <RecorderNotice text="Loading recording…" />
