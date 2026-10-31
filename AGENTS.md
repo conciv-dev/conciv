@@ -54,15 +54,13 @@ README.md; this file is the non-obvious operational rules.
 - Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs oxfmt + oxlint on
   staged files. `pnpm install` auto-activates the hook via the `prepare` script; no per-clone step.
   Whole-project gates (typecheck/build/test) are not in hooks; run them manually.
-- Dev loop (`pnpm dev`): browser packages (ui-kits, solid libs, client/grab/page/storage-history)
-  hot-serve from source in vite hosts: edit and reload, no rebuild. Mechanism: the conciv plugin's
-  `resolveId` maps a workspace-resolved `@conciv/*` dist entry to its `src/` sibling
-  (`concivSrcEntry` in extension-compiler) and solid-compiles the TSX (`isConcivSrcTsx`); manifests
-  stay plain dist exports, so tsc, node, and non-vite bundlers (Turbopack in the nextjs example)
-  resolve dist. `@conciv/extension` (shared singleton) and node-side packages (core, harness,
-  tools, plugin) always resolve dist: rebuild embed for widget-shell edits, restart the dev server
-  for server-side edits. NEW UnoCSS utility classes added in ui-kit src need an embed rebuild to
-  appear (css is generated at embed build).
+- Dev loop: every host consumes workspace `@conciv/*` packages from `dist`, exactly like a consumer;
+  nothing is served from `src/`. `pnpm dev:watch` runs `turbo watch dev --filter=@conciv/app`: the
+  `apps/conciv` dev server plus a rebuild of each dependency's `build` when its sources change, so a
+  kit edit rebuilds that package's `dist` and Vite reloads the page. Outside that loop, rebuild a
+  package with `pnpm --filter <pkg> build`; restart the dev server for server-side edits. NEW
+  UnoCSS utility classes added in ui-kit src appear after the embed rebuild (css is generated at
+  embed build).
 - Vite 8 auto-enables `server.forwardConsole` when it detects an agent env (`AI_AGENT` checked first,
   then `CLAUDECODE` etc.); combined with `@tanstack/devtools-vite`'s server-to-browser console pipe,
   a single page `console.error` round-trips forever as growing `[Server] ...` entries (12+ GB tabs
