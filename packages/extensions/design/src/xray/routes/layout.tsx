@@ -287,7 +287,7 @@ function XrayLayout(): JSX.Element {
             </div>
             <Show when={activity.failure}>
               {(text) => (
-                <p role="alert" class="text-sm text-red-700 m-0 px-4 pt-4 text-pretty dark:text-red-300">
+                <p role="alert" class="text-sm text-red-700 m-0 px-8 pt-4 text-pretty dark:text-red-300">
                   {text()}
                 </p>
               )}
