@@ -125,36 +125,38 @@ function PropertyTable(props: {row: Row; onOpen: (source: SourceLoc) => void}): 
         </p>
       }
     >
-      <table class="flex-1 min-w-0 border-collapse">
-        <thead>
-          <tr>
-            <th class="font-semibold px-2 py-1 text-start border-b border-base">Property</th>
-            <th class="font-semibold px-2 py-1 text-start border-b border-base">Live</th>
-            <th class="font-semibold px-2 py-1 text-start border-b border-base">Design</th>
-            <th class="font-semibold px-2 py-1 text-start border-b border-base w-full">Set by</th>
-          </tr>
-        </thead>
-        <tbody class="text-sm font-mono">
-          <For each={props.row.deltas}>
-            {(delta) => (
-              <tr class="border-b border-base last:border-b-0">
-                <td class="p-2 whitespace-nowrap">{delta.kind}</td>
-                <td class="p-2 whitespace-nowrap">
-                  <Swatch delta={delta} value={delta.live} />
-                  {cellValue({delta, value: delta.live})}
-                </td>
-                <td class="color-active p-2 whitespace-nowrap">
-                  <Swatch delta={delta} value={delta.target} />
-                  {cellValue({delta, value: delta.target})}
-                </td>
-                <td class="p-2 whitespace-nowrap">
-                  <SetBy delta={delta} onOpen={props.onOpen} />
-                </td>
-              </tr>
-            )}
-          </For>
-        </tbody>
-      </table>
+      <div class="flex-1 max-w-full min-w-0 overflow-x-auto">
+        <table class="w-full border-collapse">
+          <thead>
+            <tr>
+              <th class="font-semibold px-2 py-1 text-start border-b border-base">Property</th>
+              <th class="font-semibold px-2 py-1 text-start border-b border-base">Live</th>
+              <th class="font-semibold px-2 py-1 text-start border-b border-base">Design</th>
+              <th class="font-semibold px-2 py-1 text-start border-b border-base w-full">Set by</th>
+            </tr>
+          </thead>
+          <tbody class="text-sm font-mono">
+            <For each={props.row.deltas}>
+              {(delta) => (
+                <tr class="border-b border-base last:border-b-0">
+                  <td class="p-2 whitespace-nowrap">{delta.kind}</td>
+                  <td class="p-2 whitespace-nowrap">
+                    <Swatch delta={delta} value={delta.live} />
+                    {cellValue({delta, value: delta.live})}
+                  </td>
+                  <td class="color-active p-2 whitespace-nowrap">
+                    <Swatch delta={delta} value={delta.target} />
+                    {cellValue({delta, value: delta.target})}
+                  </td>
+                  <td class="p-2 whitespace-nowrap">
+                    <SetBy delta={delta} onOpen={props.onOpen} />
+                  </td>
+                </tr>
+              )}
+            </For>
+          </tbody>
+        </table>
+      </div>
     </Show>
   )
 }
