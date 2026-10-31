@@ -30,6 +30,7 @@ import {
   CONCIV_SESSION_HEADER,
   HarnessSessionId,
   CHAT_SSE_PATH,
+  CHAT_WS_PATH,
   CONCIV_CLAUDE_SESSION_HEADER,
 } from '@conciv/protocol/chat-types'
 import {openSource} from '@conciv/extension/client'
@@ -789,6 +790,23 @@ describe('chat', () => {
       expect(assistantView(joined)).toEqual(assistantView(sent))
       expect((await chatKit().hydrate(sessionId)).activeRun).toBeNull()
       expect((await sessionMeta(sessionId)).running).toBe(false)
+    })
+
+    it('a reload that drops the socket mid-turn leaves the turn running to the end, and the reloaded page rejoins it', async () => {
+      const sessionId = await newSession()
+      script().hold()
+      const ended = nextTurnEnd(sessionId)
+      await dropSocketAfterFirstText(sessionId, 'reloaded-run')
+      expect((await chatKit().hydrate(sessionId)).activeRun).toEqual({runId: 'reloaded-run'})
+      const rejoin = chatKit().join('reloaded-run')
+      script().release()
+      await ended
+      expect((await rejoin.done(GUARD)).text()).toBe('ok')
+      expect(await chatKit().hydrate(sessionId)).toMatchObject({
+        activeRun: null,
+        lastRun: {runId: 'reloaded-run', phase: 'completed'},
+      })
+      expect(await assistantTexts(sessionId)).toEqual(['ok'])
     })
 
     it('joining a finished turn replays it exactly once', async () => {
@@ -1862,6 +1880,39 @@ async function leaveAfterFirstText(sessionId: string, runId: string): Promise<vo
   const viewer = new AbortController()
   await readSse(await sseTurn(sessionId, runId, 'nobody watches', viewer.signal), ChatEventType.TEXT_MESSAGE_CONTENT)
   viewer.abort()
+}
+
+const SocketFrameSchema = z.object({chunk: SseChunkSchema}).loose()
+
+async function dropSocketAfterFirstText(sessionId: string, runId: string): Promise<void> {
+  const socket = new WebSocket(`${chatKit().wsBase}${CHAT_WS_PATH}`)
+  const opened = Promise.withResolvers<void>()
+  const firstText = Promise.withResolvers<void>()
+  socket.addEventListener('open', () => opened.resolve(), {once: true})
+  socket.addEventListener('error', () => opened.reject(new Error('the chat socket did not open')), {once: true})
+  socket.addEventListener('message', (event) => {
+    const data: unknown = JSON.parse(String(event.data))
+    const frame = SocketFrameSchema.safeParse(data)
+    if (SseChunkSchema.safeParse(data).data?.type === ChatEventType.RUN_ERROR) {
+      firstText.reject(new Error(`the turn failed: ${String(event.data)}`))
+    }
+    if (frame.success && frame.data.chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT) firstText.resolve()
+  })
+  await opened.promise
+  socket.send(
+    JSON.stringify({
+      threadId: sessionId,
+      runId,
+      messages: [{id: `${runId}-user`, role: 'user', content: 'reload while I work'}],
+      tools: [],
+      context: [],
+    }),
+  )
+  await firstText.promise
+  const closed = Promise.withResolvers<void>()
+  socket.addEventListener('close', () => closed.resolve(), {once: true})
+  socket.close()
+  await closed.promise
 }
 
 async function readSse(response: Response, until: string): Promise<string[]> {

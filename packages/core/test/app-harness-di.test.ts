@@ -280,6 +280,21 @@ describe('chat plane', () => {
       cli.release()
       await ended
     })
+
+    it('a stopped turn keeps its tool call after the next turn answers', async () => {
+      const root = stateRoot()
+      const cli = fakeCli()
+      cli.steps.push('tooling', 'reply')
+      const chat = await plane({root, harness: cliHarness(cli)})
+      const id = SessionId.parse(sessionId('stopped-tool'))
+      await readUntil(await startTurn(chat, id, 'stopped-tool', 'run the tool'), ChatEventType.TOOL_CALL_END)
+      await chat.stop(id)
+      const stopped = partTypes(await chat.history(id))
+      await readUntil(await startTurn(chat, id, 'after-stop', 'follow up'), 'end')
+      expect(partTypes(await chat.history(id))).toEqual([...stopped, ['text'], ['text']])
+      expect(stopped.flat()).toContain('tool-call')
+      cli.release()
+    })
   })
 
   describe('transcript import', () => {
@@ -303,7 +318,7 @@ describe('chat plane', () => {
   })
 })
 
-type CliStep = 'reply' | 'silent' | 'partial' | 'split' | 'streaming' | 'stubborn'
+type CliStep = 'reply' | 'silent' | 'partial' | 'split' | 'streaming' | 'stubborn' | 'tooling'
 
 const STREAMED_TEXT = 'partial reply and the words after the last snapshot'
 
@@ -346,6 +361,7 @@ const STEP_TAIL: Record<CliStep, (runId: string) => ChatEvent[]> = {
   split: toolThenSecondSegment,
   streaming: () => [],
   stubborn: () => [],
+  tooling: () => [],
 }
 
 const FIRST_DELTA = 'partial reply'
@@ -382,6 +398,11 @@ async function* ignoreStop({cli}: StepRun): AsyncGenerator<ChatEvent> {
   yield* []
 }
 
+async function* stuckInTool({cli, run, signal}: StepRun): AsyncGenerator<ChatEvent> {
+  yield* createToolCallChunks('Read', {file_path: 'a.ts'}, {parentMessageId: `${run.runId}-a`})
+  await Promise.race([cli.gate, aborted(signal)])
+}
+
 const STEP_BODY: Record<CliStep, (stepRun: StepRun) => AsyncGenerator<ChatEvent>> = {
   reply: answer,
   silent: silence,
@@ -389,6 +410,7 @@ const STEP_BODY: Record<CliStep, (stepRun: StepRun) => AsyncGenerator<ChatEvent>
   split: answer,
   streaming: cutOffMidText,
   stubborn: ignoreStop,
+  tooling: stuckInTool,
 }
 
 function cliHarness(cli: FakeCli, history?: HarnessHistory): HarnessAdapter {
@@ -528,6 +550,10 @@ function streamedText(chunks: WireChunk[]): string {
 
 async function readText(response: Response, expected: string): Promise<string> {
   return streamedText(await readChunks(response, (chunks) => streamedText(chunks) === expected))
+}
+
+function partTypes(messages: ChatMessage[]): string[][] {
+  return messages.map((message) => message.parts.map((part) => part.type))
 }
 
 function sessionId(name: string): string {

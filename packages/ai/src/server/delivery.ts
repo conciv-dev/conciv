@@ -56,40 +56,32 @@ function socketLike(sink: SocketSink, handlers: {message: SocketHandler[]; close
 
 async function* noStream(): AsyncGenerator<ChatEvent> {}
 
-function linkedController(signal: AbortSignal): AbortController {
-  const controller = new AbortController()
-  signal.addEventListener('abort', () => controller.abort(signal.reason), {once: true, signal: controller.signal})
-  return controller
-}
-
 export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDelivery {
+  const drive = async (turn: Turn, messages: Array<ChatMessage | ModelMessage>): Promise<void> => {
+    const durability = memoryStream({runId: turn.runId})
+    const response = toServerSentEventsResponse(run(turn, messages, durability, new AbortController()), {
+      durability: {adapter: durability, batch: LIVE_BATCH},
+      debug,
+    })
+    await response.text()
+  }
+
   const serveSocket = (socket: WebSocketLike, request: Request): void => {
     const resumed = memoryStream(request)
     if (resolveResumeRunId(request) !== null && resumed.resumeFrom() !== null) {
       resumeWebSocketStream(socket, {adapter: resumed, debug})
       return
     }
-    const durabilities = new WeakMap<Request, StreamDurability>()
     toWebSocketStream(socket, request, {
       debug,
-      durability: (ctx) => {
-        const offset = seenRun(ctx.runId) ? {offset: FROM_START} : {}
-        const adapter = memoryStream({runId: ctx.runId, ...offset})
-        durabilities.set(ctx.request, adapter)
-        return adapter
-      },
+      durability: (ctx) => memoryStream({runId: ctx.runId, offset: FROM_START}),
       onRun: (ctx) => {
-        const durability = durabilities.get(ctx.request)
-        if (durability === undefined) throw new Error(`run ${ctx.runId} reached onRun without its durability log`)
-        if (durability.resumeFrom() !== null) return noStream()
-        return run(
-          {threadId: ctx.threadId, runId: ctx.runId, kind: 'chat'},
-          ctx.messages,
-          durability,
-          linkedController(ctx.signal),
+        if (seenRun(ctx.runId)) return noStream()
+        drive({threadId: ctx.threadId, runId: ctx.runId, kind: 'chat'}, ctx.messages).catch((error: unknown) =>
+          log(`[ai] run ${ctx.runId} failed outside its stream: ${String(error)}`),
         )
+        return noStream()
       },
-      batch: LIVE_BATCH,
     })
   }
 
@@ -141,15 +133,6 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
       if (durability.resumeFrom() === null) return null
       return resumeServerSentEventsResponse({adapter: durability})
     },
-    drive: async (turn, messages) => {
-      const durability = memoryStream({runId: turn.runId})
-      const controller = new AbortController()
-      const response = toServerSentEventsResponse(run(turn, messages, durability, controller), {
-        abortController: controller,
-        durability: {adapter: durability, batch: LIVE_BATCH},
-        debug,
-      })
-      await response.text()
-    },
+    drive,
   }
 }
