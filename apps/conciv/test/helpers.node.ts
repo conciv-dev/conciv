@@ -1,6 +1,24 @@
-import {createServer, request as httpRequest, type IncomingMessage, type Server} from 'node:http'
+import {type Server, createServer, request as httpRequest, type IncomingMessage} from 'node:http'
 import type {Duplex} from 'node:stream'
-import {listenLocal} from './listen-local.js'
+import {createReadStream, existsSync, statSync} from 'node:fs'
+import path from 'node:path'
+import {fileURLToPath} from 'node:url'
+import type {PersistedAttachment, RpcClient} from '@conciv/contract'
+
+async function listenLocal(server: Server): Promise<{base: string; port: number; close: () => Promise<void>}> {
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  const port = typeof address === 'object' && address !== null ? address.port : 0
+  return {
+    base: `http://127.0.0.1:${port}`,
+    port,
+    close: () =>
+      new Promise((resolve) => {
+        server.closeAllConnections?.()
+        server.close(() => resolve())
+      }),
+  }
+}
 
 const AWAIT_REQUEST_TIMEOUT_MS = 4000
 
@@ -150,4 +168,59 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
       await close()
     },
   }
+}
+
+const dirname = path.dirname(fileURLToPath(import.meta.url))
+const distRoot = path.join(dirname, '../dist')
+
+function isReadableFile(candidate: string): boolean {
+  try {
+    return statSync(candidate).isFile()
+  } catch {
+    return false
+  }
+}
+
+const CONTENT_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.json': 'application/json; charset=utf-8',
+}
+
+export async function serveStandaloneApp(): Promise<{base: string; close: () => Promise<void>}> {
+  if (!existsSync(path.join(distRoot, 'index.html'))) {
+    throw new Error(`apps/conciv dist is missing at ${distRoot}; build @conciv/app before running this test`)
+  }
+  const server: Server = createServer((req, res) => {
+    const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname
+    const requested = pathname === '/' ? '/index.html' : pathname
+    const candidate = path.join(distRoot, requested)
+    const filePath = isReadableFile(candidate) ? candidate : path.join(distRoot, 'index.html')
+    const ext = path.extname(filePath)
+    res.writeHead(200, {'content-type': CONTENT_TYPES[ext] ?? 'application/octet-stream'})
+    createReadStream(filePath).pipe(res)
+  })
+  const {base, close} = await listenLocal(server)
+  return {base, close}
+}
+
+export type SeededDraft = {text?: string; attachments?: PersistedAttachment[]}
+
+export async function createSession(rpc: RpcClient): Promise<string> {
+  const {sessionId} = await rpc.sessions.create()
+  return sessionId
+}
+
+export async function seedDraft(rpc: RpcClient, sessionId: string, draft: SeededDraft): Promise<void> {
+  const text = draft.text ?? ''
+  await rpc.drafts.set({
+    sessionId,
+    text,
+    selectionStart: text.length,
+    selectionEnd: text.length,
+    attachments: draft.attachments ?? [],
+  })
 }

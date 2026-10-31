@@ -1,7 +1,12 @@
 import '../src/styles.css'
 import {expect, test} from 'vitest'
-import type {CalmWatch} from './helpers/calm-assertions.js'
-import {registerCalmCore, startBoundaryRun, startMultiToolRun, streamCodeAnswer} from './helpers/calm-session.js'
+import {
+  registerCalmCore,
+  startBoundaryRun,
+  startMultiToolRun,
+  streamCodeAnswer,
+  type CalmWatch,
+} from './helpers.browser.js'
 
 const FRAME_P95_BUDGET_MS = 20
 const FRAME_JANK_BUDGET = 2

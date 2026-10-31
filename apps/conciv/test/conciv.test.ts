@@ -1,0 +1,315 @@
+import {expect, test as baseTest, describe} from 'vitest'
+import {makeRpcClient, type RpcClient} from '@conciv/contract'
+import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
+import {appendDraft, makeDraftStorage} from '../src/pane/draft-storage.js'
+import {createSession, seedDraft, proxyTo, type ProxyCore, serveStandaloneApp} from './helpers.node.js'
+import {expect as expectLocator} from 'playwright/test'
+import type {Browser, Page} from 'playwright'
+import {test as browserTest} from '@conciv/browser-fixture'
+import {watchChatWire, type ChatWireWatch} from '@conciv/extension-testkit/chat-wire'
+import {httpRpcRequestUrls} from '@conciv/extension-testkit/rpc-counts'
+
+describe('draft storage', () => {
+  const DRAFTS_GET_PATH = '/rpc/drafts/get'
+  const DRAFTS_SET_PATH = '/rpc/drafts/set'
+
+  type StoredDraft = {sessionId: string; text: string; selectionStart: number; selectionEnd: number}
+
+  const test = baseTest.extend<{kit: CoreKit; core: ProxyCore; sessionId: string}>({
+    kit: [
+      // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
+      async ({}, use) => {
+        const kit = await bootCoreKit({id: 'draft-storage'})
+        await use(kit)
+        await kit.cleanup()
+      },
+      {scope: 'test'},
+    ],
+    core: async ({kit}, use) => {
+      const core = await proxyTo(kit.base)
+      await use(core)
+      await core.close()
+    },
+    sessionId: async ({kit}, use) => {
+      await use(await createSession(kit.rpc))
+    },
+  })
+
+  function composerDraft(text: string): string {
+    return JSON.stringify({text, quote: null, attachments: []})
+  }
+
+  async function storedDraft(rpc: RpcClient, sessionId: string): Promise<StoredDraft | null> {
+    const row = await rpc.drafts.get({sessionId})
+    if (!row) return null
+    return {
+      sessionId: row.sessionId,
+      text: row.text,
+      selectionStart: row.selectionStart,
+      selectionEnd: row.selectionEnd,
+    }
+  }
+
+  test('seeds the cache from the server draft row in the composer draft shape', async ({kit, core, sessionId}) => {
+    await seedDraft(kit.rpc, sessionId, {text: 'kept across the reload'})
+
+    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+    expect(JSON.parse(draftStorage.storage.getItem('any') ?? '')).toEqual({
+      text: 'kept across the reload',
+      quote: null,
+      attachments: [],
+    })
+  })
+
+  test('starts empty when the server has no draft', async ({core, sessionId}) => {
+    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+    expect(draftStorage.storage.getItem('any')).toBeNull()
+  })
+
+  test('writes the composer draft back to the server with the caret at the end', async ({kit, core, sessionId}) => {
+    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+    draftStorage.storage.setItem('any', composerDraft('a fresh draft'))
+
+    await core.awaitRequest(DRAFTS_SET_PATH)
+
+    expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+      sessionId,
+      text: 'a fresh draft',
+      selectionStart: 13,
+      selectionEnd: 13,
+    })
+  })
+
+  test('collapses a burst of writes into the last draft', async ({kit, core, sessionId}) => {
+    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+    draftStorage.storage.setItem('any', composerDraft('a'))
+    draftStorage.storage.setItem('any', composerDraft('ab'))
+    draftStorage.storage.setItem('any', composerDraft('abc'))
+
+    await core.awaitRequest(DRAFTS_SET_PATH)
+
+    expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+      sessionId,
+      text: 'abc',
+      selectionStart: 3,
+      selectionEnd: 3,
+    })
+    expect(core.requestCount(DRAFTS_SET_PATH)).toBe(1)
+  })
+
+  test('keeps the latest value readable even when the payload cannot be persisted', async ({kit, core, sessionId}) => {
+    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+    draftStorage.storage.setItem('any', 'not json at all')
+    expect(draftStorage.storage.getItem('any')).toBe('not json at all')
+
+    draftStorage.storage.setItem('any', composerDraft('a draft that parses'))
+
+    await core.awaitRequest(DRAFTS_SET_PATH)
+
+    expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+      sessionId,
+      text: 'a draft that parses',
+      selectionStart: 19,
+      selectionEnd: 19,
+    })
+    expect(core.requestCount(DRAFTS_SET_PATH)).toBe(1)
+  })
+
+  test('persists the noted caret offsets with the draft text', async ({kit, core, sessionId}) => {
+    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+    draftStorage.storage.setItem('any', composerDraft('say hello!'))
+    draftStorage.noteSelection({start: 4, end: 4})
+
+    await core.awaitRequest(DRAFTS_SET_PATH)
+
+    expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+      sessionId,
+      text: 'say hello!',
+      selectionStart: 4,
+      selectionEnd: 4,
+    })
+  })
+
+  test('clamps noted offsets that fall beyond the persisted text', async ({kit, core, sessionId}) => {
+    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+    draftStorage.noteSelection({start: 40, end: 44})
+    draftStorage.storage.setItem('any', composerDraft('short'))
+
+    await core.awaitRequest(DRAFTS_SET_PATH)
+
+    expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+      sessionId,
+      text: 'short',
+      selectionStart: 5,
+      selectionEnd: 5,
+    })
+  })
+
+  test('appends to the stored draft on a new line with the caret at the end', async ({kit, core, sessionId}) => {
+    await seedDraft(kit.rpc, sessionId, {text: 'a first line'})
+
+    await appendDraft(makeRpcClient(core.base), sessionId, 'a second line')
+
+    expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+      sessionId,
+      text: 'a first line\na second line',
+      selectionStart: 26,
+      selectionEnd: 26,
+    })
+  })
+
+  const PERSISTED = {
+    id: 'a1',
+    type: 'document',
+    name: 'Grabbed element',
+    contentType: 'application/vnd.conciv.grab+json',
+    data: 'eyJ4IjoxfQ==',
+  }
+
+  test('an attachment written to the draft comes back on the next mount', async ({kit, core, sessionId}) => {
+    const first = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+    first.storage.setItem(sessionId, JSON.stringify({text: 'look at this', quote: null, attachments: [PERSISTED]}))
+    await core.awaitRequest(DRAFTS_SET_PATH)
+
+    expect((await kit.rpc.drafts.get({sessionId}))?.attachments).toEqual([PERSISTED])
+
+    const second = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+    expect(JSON.parse(second.storage.getItem(sessionId) ?? '{}')).toMatchObject({attachments: [{id: 'a1'}]})
+  })
+
+  test('survives a failed initial read and still accepts writes', async ({kit, core, sessionId}) => {
+    await seedDraft(kit.rpc, sessionId, {text: 'unreachable at boot'})
+    core.fail(DRAFTS_GET_PATH)
+
+    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+    expect(draftStorage.storage.getItem('any')).toBeNull()
+
+    core.repair()
+    draftStorage.storage.setItem('any', composerDraft('after the outage'))
+
+    expect(draftStorage.storage.getItem('any')).toContain('after the outage')
+    await core.awaitRequest(DRAFTS_SET_PATH)
+
+    expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+      sessionId,
+      text: 'after the outage',
+      selectionStart: 16,
+      selectionEnd: 16,
+    })
+  })
+})
+
+describe('transport standalone', () => {
+  const ASSISTANT_TEXT = 'Hello from standalone conciv'
+  const MOUNT_TIMEOUT_MS = 30_000
+  const SUITE_SETUP_TIMEOUT_MS = 90_000
+
+  const test = browserTest.extend<{kit: CoreKit; openCore: ProxyCore; app: {base: string; close: () => Promise<void>}}>(
+    {
+      kit: [
+        // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
+        async ({}, use) => {
+          const kit = await bootCoreKit({id: 'standalone-transport', text: ASSISTANT_TEXT})
+          await use(kit)
+          await kit.cleanup()
+        },
+        {scope: 'test'},
+      ],
+      openCore: [
+        async ({kit}, use) => {
+          const openCore = await proxyTo(kit.base)
+          await use(openCore)
+          await openCore.close()
+        },
+        {scope: 'test'},
+      ],
+      app: [
+        // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
+        async ({}, use) => {
+          const app = await serveStandaloneApp()
+          await use(app)
+          await app.close()
+        },
+        {scope: 'test'},
+      ],
+    },
+  )
+
+  function pageUrl(appBase: string, coreBase: string, transport: 'websocket' | 'fetch'): string {
+    const settings = encodeURIComponent(JSON.stringify({transport}))
+    return `${appBase}/?core=${encodeURIComponent(coreBase)}&settings=${settings}`
+  }
+
+  type Tab = {
+    page: Page
+    chat: ChatWireWatch
+    chatSocketMark: number
+    httpRpcUrls: string[]
+    disposeHttpRpc: () => void
+  }
+
+  async function openTab(browser: Browser, url: string): Promise<Tab> {
+    const page = await browser.newPage()
+    const http = httpRpcRequestUrls(page)
+    const chat = watchChatWire(page)
+    const chatSocketMark = chat.socketMark()
+    await page.goto(url, {waitUntil: 'domcontentloaded'})
+    return {page, chat, chatSocketMark, httpRpcUrls: http.urls, disposeHttpRpc: http.dispose}
+  }
+
+  async function completeTurn(page: Page): Promise<void> {
+    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
+    await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill('hi there')
+    await page.keyboard.press('Enter')
+    await expectLocator(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
+  }
+
+  test.describe('the standalone entry threads settings.transport into the chat connection', () => {
+    test(
+      'pins the event stream and never opens a chat websocket when settings say transport: fetch',
+      async ({browser, app, openCore}) => {
+        const tab = await openTab(browser, pageUrl(app.base, openCore.base, 'fetch'))
+        try {
+          const sent = tab.chat.nextTurn()
+          await completeTurn(tab.page)
+          expect((await sent).transport).toBe('fetch')
+          expect(tab.chat.socketsOpenedSince(tab.chatSocketMark)).toBe(0)
+          expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
+        } finally {
+          tab.disposeHttpRpc()
+          await tab.page.close()
+        }
+      },
+      SUITE_SETUP_TIMEOUT_MS,
+    )
+
+    test(
+      'pins the chat websocket and never falls back to the event stream when settings say transport: websocket',
+      async ({browser, app, openCore}) => {
+        const tab = await openTab(browser, pageUrl(app.base, openCore.base, 'websocket'))
+        try {
+          const sent = tab.chat.nextTurn()
+          await completeTurn(tab.page)
+          expect((await sent).transport).toBe('websocket')
+          expect(tab.chat.socketsOpenedSince(tab.chatSocketMark)).toBe(1)
+          expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
+        } finally {
+          tab.disposeHttpRpc()
+          await tab.page.close()
+        }
+      },
+      SUITE_SETUP_TIMEOUT_MS,
+    )
+  })
+})
