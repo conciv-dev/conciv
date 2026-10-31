@@ -61,7 +61,9 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
 
   const consumeControl = (message: RecorderControl): void => {
     if (message.live !== undefined) store.setLive(message.live)
-    applying.tail = applying.tail.then(() => handleControl(message)).catch(() => undefined)
+    applying.tail = applying.tail
+      .then(() => handleControl(message))
+      .catch((error: unknown) => console.error('[conciv] recorder control failed', error))
   }
 
   const controlLoop = async (): Promise<void> => {
