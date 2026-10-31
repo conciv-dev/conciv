@@ -5,39 +5,40 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@conciv/cli': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-cli-0.0.19.tgz
-  '@conciv/client': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-client-0.0.19.tgz
-  '@conciv/contract': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-contract-0.0.19.tgz
-  '@conciv/core': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-core-0.0.19.tgz
-  '@conciv/db': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-db-0.0.19.tgz
-  '@conciv/embed': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-embed-0.0.19.tgz
-  '@conciv/extension': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz
-  '@conciv/extension-compiler': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-compiler-0.0.19.tgz
-  '@conciv/extension-ios': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-ios-0.0.19.tgz
-  '@conciv/extension-page': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-page-0.0.19.tgz
-  '@conciv/extension-recorder': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-recorder-0.0.19.tgz
-  '@conciv/extension-tanstack': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-tanstack-0.0.19.tgz
-  '@conciv/extension-terminal': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-terminal-0.0.19.tgz
-  '@conciv/extension-test-runner': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-test-runner-0.0.19.tgz
-  '@conciv/extension-whiteboard': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-whiteboard-0.0.19.tgz
-  '@conciv/grab': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-grab-0.0.19.tgz
-  '@conciv/harness': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-harness-0.0.19.tgz
-  '@conciv/harness-init': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-harness-init-0.0.19.tgz
-  '@conciv/it': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-it-0.0.19.tgz
-  '@conciv/mascot': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-mascot-0.0.19.tgz
-  '@conciv/page': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-page-0.0.19.tgz
-  '@conciv/plugin': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-plugin-0.0.19.tgz
-  '@conciv/protocol': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz
-  '@conciv/serve': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-serve-0.0.19.tgz
-  '@conciv/solid-diffs': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz
-  '@conciv/solid-streamdown': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-streamdown-0.0.19.tgz
-  '@conciv/storage-history': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-storage-history-0.0.19.tgz
-  '@conciv/tools': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-tools-0.0.19.tgz
-  '@conciv/ui-kit-chat': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz
-  '@conciv/ui-kit-chat-tools': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-tools-0.0.19.tgz
-  '@conciv/ui-kit-system': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz
-  '@conciv/ui-kit-tap': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-tap-0.0.19.tgz
-  '@conciv/ui-kit-terminal': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-terminal-0.0.19.tgz
+  '@conciv/cli': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-cli-0.0.20.tgz
+  '@conciv/client': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-client-0.0.20.tgz
+  '@conciv/contract': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-contract-0.0.20.tgz
+  '@conciv/core': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-core-0.0.20.tgz
+  '@conciv/db': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-db-0.0.20.tgz
+  '@conciv/embed': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-embed-0.0.20.tgz
+  '@conciv/extension': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz
+  '@conciv/extension-compiler': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-compiler-0.0.20.tgz
+  '@conciv/extension-design': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-design-0.0.20.tgz
+  '@conciv/extension-ios': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-ios-0.0.20.tgz
+  '@conciv/extension-page': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-page-0.0.20.tgz
+  '@conciv/extension-recorder': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-recorder-0.0.20.tgz
+  '@conciv/extension-tanstack': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-tanstack-0.0.20.tgz
+  '@conciv/extension-terminal': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-terminal-0.0.20.tgz
+  '@conciv/extension-test-runner': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-test-runner-0.0.20.tgz
+  '@conciv/extension-whiteboard': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-whiteboard-0.0.20.tgz
+  '@conciv/grab': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-grab-0.0.20.tgz
+  '@conciv/harness': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-harness-0.0.20.tgz
+  '@conciv/harness-init': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-harness-init-0.0.20.tgz
+  '@conciv/it': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-it-0.0.20.tgz
+  '@conciv/mascot': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-mascot-0.0.20.tgz
+  '@conciv/page': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-page-0.0.20.tgz
+  '@conciv/plugin': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-plugin-0.0.20.tgz
+  '@conciv/protocol': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz
+  '@conciv/serve': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-serve-0.0.20.tgz
+  '@conciv/solid-diffs': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz
+  '@conciv/solid-streamdown': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-streamdown-0.0.20.tgz
+  '@conciv/storage-history': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-storage-history-0.0.20.tgz
+  '@conciv/tools': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-tools-0.0.20.tgz
+  '@conciv/ui-kit-chat': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz
+  '@conciv/ui-kit-chat-tools': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-tools-0.0.20.tgz
+  '@conciv/ui-kit-system': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz
+  '@conciv/ui-kit-tap': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-tap-0.0.20.tgz
+  '@conciv/ui-kit-terminal': file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-terminal-0.0.20.tgz
 
 importers:
 
@@ -46,17 +47,17 @@ importers:
   packages/app:
     dependencies:
       '@conciv/extension':
-        specifier: file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz
-        version: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+        specifier: file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz
+        version: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
       '@conciv/extension-compiler':
-        specifier: file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-compiler-0.0.19.tgz
-        version: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-compiler-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+        specifier: file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-compiler-0.0.20.tgz
+        version: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-compiler-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
       '@conciv/extension-tanstack':
-        specifier: file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-tanstack-0.0.19.tgz
-        version: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-tanstack-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(@tanstack/react-router@1.170.46(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+        specifier: file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-tanstack-0.0.20.tgz
+        version: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-tanstack-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(@tanstack/react-router@1.170.46(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
       '@conciv/it':
-        specifier: file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-it-0.0.19.tgz
-        version: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-it-0.0.19.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(@orpc/client@1.16.1(@opentelemetry/api@1.10.0))(@rrweb/utils@2.2.0)(@shikijs/themes@4.5.0)(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/query-core@5.105.0)(@types/react@19.3.0)(next@16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(solid-js@1.9.17)(typescript@5.9.2)(ws@8.22.0)(zod@4.6.7)
+        specifier: file:/var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-it-0.0.20.tgz
+        version: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-it-0.0.20.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(@orpc/client@1.16.1(@opentelemetry/api@1.10.0))(@rrweb/utils@2.2.0)(@shikijs/themes@4.5.0)(@tanstack/query-core@5.105.0)(@types/react@19.3.0)(next@16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(solid-js@1.9.17)(typescript@5.9.2)(ws@8.22.0)(zod@4.6.7)
       next:
         specifier: 16.2.10
         version: 16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0)
@@ -363,11 +364,18 @@ packages:
     resolution: {integrity: sha512-WCsemW40Cpc6gouC1SrY6PBaZ+oLRlEVY9XBvZBI7il/HyUrb2nJ505wE1MHEFyDZNnrWDEuy4jL50WVHfTTSQ==}
     engines: {node: '>=6.9.0'}
 
+  '@blazediff/core@1.10.0':
+    resolution: {integrity: sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ==}
+
   '@braintree/sanitize-url@6.0.2':
     resolution: {integrity: sha512-Tbsj02wXCbqGmzdnXNk0SOF19ChhRU70BsroIi4Pm6Ehp56in6vch94mfbdQ17DozxkL3BAVjbZ4Qc1a0HFRAg==}
 
   '@braintree/sanitize-url@7.1.2':
     resolution: {integrity: sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA==}
+
+  '@bramus/specificity@2.4.3':
+    resolution: {integrity: sha512-0GEz8qJWokkUVYQYRukmkSHIFNoBH8QTreeHrAFbvz1XFYc3Y+puhMs8PQ5x8GNugiC2l5jvDBXKLbBIByeSBw==}
+    hasBin: true
 
   '@chenglou/pretext@0.0.8':
     resolution: {integrity: sha512-yqm2GMxnPI7VHcHwe84P8ZF0JK/2d2DMKPqMN+s95jQhwDMYYXKVFVJUMEaVWckQStdsjdLav/0Vu+d9YbtGxA==}
@@ -398,103 +406,107 @@ packages:
     resolution: {integrity: sha512-dlT1m5e/0yUL0kRNcQn7yGLVThkgbB0Ga/1AmfDDC/8ik6AIiSf2QLQO2zPYvefsHP0aFgxO93cVLCCfDp7kzQ==}
     engines: {node: '>= 20.12.0'}
 
-  '@conciv/cli@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-cli-0.0.19.tgz':
-    resolution: {integrity: sha512-P8v8d96GYlSlobK6Bxr30qd7D/hjzGR4R+7rtfmmxCypxLCP9pgd7pPzbc+FbDkwT1zuEgdzV184gqfeDZvdEw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-cli-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/cli@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-cli-0.0.20.tgz':
+    resolution: {integrity: sha512-97vb2JrfuYEIF4hRkhib7RlOWo6oXVVMF1+dImNleVLOkMcJacyH8vUfZ4AM8gjILdRwhOALs2qzk96kqGBR3Q==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-cli-0.0.20.tgz}
+    version: 0.0.20
     hasBin: true
 
-  '@conciv/client@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-client-0.0.19.tgz':
-    resolution: {integrity: sha512-9xsQ7U4DGqMd5sWw7mq8In9juQ1dfB6Bu45+rzhZBaqEQPHqAhGhdXlPnulWsYYo9MogBY2TTE1X3uGibX/7Sg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-client-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/client@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-client-0.0.20.tgz':
+    resolution: {integrity: sha512-VGBs6ARFbFJmHZ5QYcMJRlPqFMeCCWJtgXaGIobH6BkORneOE9G5W/pZ8Xa3V10Fei3DNJDK4smgH7vGsmJDnw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-client-0.0.20.tgz}
+    version: 0.0.20
 
-  '@conciv/contract@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-contract-0.0.19.tgz':
-    resolution: {integrity: sha512-spTWs1ohtKvOiscJYEQaeSppICCHLmj1PlNdf+vIQDPJ0663x+SP8coz2eN33Fk0Q0gFLD18rDDq/vP5IDUC0w==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-contract-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/contract@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-contract-0.0.20.tgz':
+    resolution: {integrity: sha512-E+KOwVHdgFaofqnDIhJ+2T7TYkBEMfko08pVtcjWiT+7GKnnUhZJpSYmzOiMPZftGvvYsnrPhgA2aeB82At8xg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-contract-0.0.20.tgz}
+    version: 0.0.20
 
-  '@conciv/core@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-core-0.0.19.tgz':
-    resolution: {integrity: sha512-kgU1Hy4kZplJffL0uaTM2+E3YS2VL7pdXhQHibQ6zXTx8Ap36bbnnxv9g4wa6brVcqnPTckYuUo2c6va5uGWGA==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-core-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/core@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-core-0.0.20.tgz':
+    resolution: {integrity: sha512-Hrzt2e02acLOIJiAEGf5IjWKjGsqkautzscjybW+d9UtbHLSTGevIWhWqa46+Zg0f33hdceCQgbiZfPqrbf0iQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-core-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/db@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-db-0.0.19.tgz':
-    resolution: {integrity: sha512-bQeS6I1v4F4zL3/gZgjck9d/Jn6OCbHejll1atP0Y+i6Qgo9QXQqGEnytgxF4fpASUx7pUIqe00B1uQZ7/0ddA==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-db-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/db@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-db-0.0.20.tgz':
+    resolution: {integrity: sha512-c2IORmoDPCWSa2iUXXAgnRI/gQ1hu6CqX1CK8WDT3kyYZtilV8wJ7VF4/GrwCYL2JVQH0ZhyP3ASqXqLkLZHww==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-db-0.0.20.tgz}
+    version: 0.0.20
     engines: {node: '>=22.13'}
 
-  '@conciv/embed@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-embed-0.0.19.tgz':
-    resolution: {integrity: sha512-wmnoCYul993VzT9MUjramAo8Cx5bwrCYFTxZhnh/SR8lbVC8G386+BilmRBV13u/QOAUcRZilNR2irR6X3RjSg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-embed-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/embed@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-embed-0.0.20.tgz':
+    resolution: {integrity: sha512-DDbwWlL7I9nRT8gG0CJZl/qNXd+Ie1GLMEFIbNpU/BiA0uOpuzd/nQiRjb6yIMwpWxMo+Sx0wsNkzPJydXBaEA==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-embed-0.0.20.tgz}
+    version: 0.0.20
     engines: {node: '>=22.13'}
 
-  '@conciv/extension-compiler@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-compiler-0.0.19.tgz':
-    resolution: {integrity: sha512-gRTj1zrPgz+f7bW+ISnF1HTUz5KlvhF0yY/U+z9F95R94hTWj9jrW7l6mTScH/f8hc07CzMj/uxVeQ+JBh2bqg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-compiler-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/extension-compiler@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-compiler-0.0.20.tgz':
+    resolution: {integrity: sha512-5Qw0Sg+LRy1ACBk0M5XglQgTSVCfzI1CKrPWP9rMhC+5OzbyJjKJCrRm28jrZYrg+VxV82nGNfEHouEuNqGqww==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-compiler-0.0.20.tgz}
+    version: 0.0.20
 
-  '@conciv/extension-ios@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-ios-0.0.19.tgz':
-    resolution: {integrity: sha512-Hfwg3GOlZxxWcrCaPfueleAdpA+irZ99NHsOa3M/0aSc7u4x/Ik1dCm6bip5m+M0QW/68LzurO5BiMhfPZqskw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-ios-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/extension-design@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-design-0.0.20.tgz':
+    resolution: {integrity: sha512-8ADDYTzmJGTluoXZHzbnzyLp1YEJOMrn7Oxu6i3tNvhPcztLjGjo6eIANSiozJJqVF5m//auHtNlbRZCahtpEw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-design-0.0.20.tgz}
+    version: 0.0.20
+
+  '@conciv/extension-ios@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-ios-0.0.20.tgz':
+    resolution: {integrity: sha512-mVUHeo9KgBl3XLuJl1d5OQ9D0MoL+usNflj8bQDDf+WHOLJs/DAyBCEHikZyUgqIfpUdRd3kCnLlzNpgmX8z9A==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-ios-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/extension-page@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-page-0.0.19.tgz':
-    resolution: {integrity: sha512-5TBdZueB0N4kiG21HWkxa4c5izcEa2Y/Y6VzSRr0EJ1I/vCNXediij0ncE1qatWNTLv58UakZzTsR6LlK/kt0w==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-page-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/extension-page@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-page-0.0.20.tgz':
+    resolution: {integrity: sha512-R/UJw9jq2hY1q/ZEHngCzUS7z6Yrp7wodzIfM9AquNoRNrlxVtVtVbVECCc5jBY8s0qXEqCzjPg/XFuIlJybDw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-page-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/extension-recorder@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-recorder-0.0.19.tgz':
-    resolution: {integrity: sha512-iDl1Jeo1t0/NYyb9Z/vcNI7CbgD4AR2/+3CZfSu1q2xLkoBPKGnVZyuliRtectoonfsYOtlnaVHGdMAINVBeIg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-recorder-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/extension-recorder@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-recorder-0.0.20.tgz':
+    resolution: {integrity: sha512-Yzp34X01Cf7WI4+W24Kqwb0y7qADS8fb8t2UqpNM7ZBnMJuknpVBTxEmiVI9ZM/G7njuFng8DuR9HEubWpFI9w==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-recorder-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/extension-tanstack@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-tanstack-0.0.19.tgz':
-    resolution: {integrity: sha512-iE+0IUSJhDFgXpKNBXUkbtub6x4Xkqi0FnXxr86h+BP1FBgvxarPz5ReCRXnDmnqM41SNVA3cBtVdqxVNmNehg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-tanstack-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/extension-tanstack@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-tanstack-0.0.20.tgz':
+    resolution: {integrity: sha512-sPfAHwzh7kZx1JuYX5DGynRlz/WacealdeoiXgWv8R+Eiwwm5N2x3A/n52BZxXnV/zSdQVfBxe3CKLOSFVwWbA==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-tanstack-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       '@tanstack/react-router': '>=1.170.0'
       solid-js: ^1.9.13
 
-  '@conciv/extension-terminal@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-terminal-0.0.19.tgz':
-    resolution: {integrity: sha512-1Nb58AK/Q7IfRW/FQ/f9xFfJRN+6BECCWFK7ua7+aLHd8PQddtYmK5UqZ1ZqtZ38mniPvnnjK8sU1HL1hiD7Lw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-terminal-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/extension-terminal@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-terminal-0.0.20.tgz':
+    resolution: {integrity: sha512-I1OU/Co/KKnOD88MlV3Z/GbDg3HZOiikNRGZ7O/nxfujTUbCUVlg60gwA1IURv0cUfCKgGTV4IP8eA8aUZ4OLQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-terminal-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/extension-test-runner@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-test-runner-0.0.19.tgz':
-    resolution: {integrity: sha512-gweKgr7makru1Xsia0Ss38AFfV1st/vgiMaRdCzI9g3tf8mvjc/iOpPU7JvJl5jH3geQwglHcHheAsQQlnZg2A==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-test-runner-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/extension-test-runner@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-test-runner-0.0.20.tgz':
+    resolution: {integrity: sha512-Y9ac+/ia9DOY0Ix1wF6jeAMuShHLftIEscO8Kv4K86FORWtL7P1qRgkI2BbDf5VtjDNKS9iSd02UElfE4d3A/A==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-test-runner-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/extension-whiteboard@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-whiteboard-0.0.19.tgz':
-    resolution: {integrity: sha512-PYHFEXqcIRSYQ78S0dvbsF/smcgIuIAPa0jZYxJj/ZA8Ss6jr9e2SiJbGs4n8fBeMLnpN+fVtDWZtIy5YysTMg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-whiteboard-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/extension-whiteboard@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-whiteboard-0.0.20.tgz':
+    resolution: {integrity: sha512-ve7dBptB0COx5E/iZpeO45ODG4YOjedYjssRYd1JhiD1xUA3SgFstx9jD+lIE+G9ftnsMLtBBSxJKoP12nkcWQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-whiteboard-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/extension@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz':
-    resolution: {integrity: sha512-tpS0wZeiFE93AorvhUirtjRdrMKeIGzMKEBiLuTdsiiV13vDRkxmLAe3dOejdIs6e1mMx+uvaHmZYidj8bwrNg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/extension@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz':
+    resolution: {integrity: sha512-m7iy1zsq1gaRud7d1afrvrGJnkrW3SNTmON7nkaBImmhTQpGjb+sbYbPlxzFzFvxphlTG0kGM/q0gUMZgaldKg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/grab@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-grab-0.0.19.tgz':
-    resolution: {integrity: sha512-o1uMtP1B8U7lEmBst+Ba7PF2KL/ekOgxcKyeHvwsynlX1uVJOXV/5Pg18KXaT+iMIZDVpbXnq9afAXAOrjg2gQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-grab-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/grab@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-grab-0.0.20.tgz':
+    resolution: {integrity: sha512-1Ba9KRJfDVcBwd6prZbkDvTQFfL0VZFwyYw3byEB6RZwqW+1uEHIq2E+CuJd2vj+SbeUliwlmEeVU5jjkZFdbQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-grab-0.0.20.tgz}
+    version: 0.0.20
 
-  '@conciv/harness-init@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-harness-init-0.0.19.tgz':
-    resolution: {integrity: sha512-QjMfU7IHsdBGL7W26EpXD21axLfq8l+AK3utUBRdBaU68F9MiWqAkDgU94oYZrVn3CFXOCdXQnoSTvXNRMTDDA==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-harness-init-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/harness-init@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-harness-init-0.0.20.tgz':
+    resolution: {integrity: sha512-CWPRKP7W3MeVq4yT+vL/uTFig+wU51zmPcnMet/t0roo0sS6HaFM1waPSMrBfvasL5ri0Jy57dKvhu5fd+QnnQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-harness-init-0.0.20.tgz}
+    version: 0.0.20
 
-  '@conciv/harness@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-harness-0.0.19.tgz':
-    resolution: {integrity: sha512-Ez3TGU6gxlkyLOAdkf8/TA431+Ag/im6SwlQsVhe1m5XhCLPBC8BA63YrOAtN97EL3rrQgGPRl+YskEvr89/9w==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-harness-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/harness@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-harness-0.0.20.tgz':
+    resolution: {integrity: sha512-1iOioy4QjbuGGFMu7Qb2ejYn5au6byz2eZfnSSIpOMTnmMVFlzx43GGizwMdFka6SNMfCzkkiphaJubIexehzQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-harness-0.0.20.tgz}
+    version: 0.0.20
 
-  '@conciv/it@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-it-0.0.19.tgz':
-    resolution: {integrity: sha512-Tdqy/G6p+cCdKgu5Jw8IjmcO9GoMPcAKtmDIMFJHbeOKl0o2gb7TeBm6U+YNDTYHOigNfTJ66Afnq8roeg2O+g==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-it-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/it@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-it-0.0.20.tgz':
+    resolution: {integrity: sha512-GpQRk5P4Obsl7BQX5FsH08/9Vr6frtg40gvAwR9f+x6hVnhDYPpjt/VNCP0mcRNvShVe37kLZB/o8PAXrXRVEg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-it-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       next: ^15.3.0 || ^16.0.0
       vite: ^6.0.0 || ^7.0.0 || ^8.0.0
@@ -504,9 +516,9 @@ packages:
       vite:
         optional: true
 
-  '@conciv/mascot@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-mascot-0.0.19.tgz':
-    resolution: {integrity: sha512-ruDWodB0VOCpf4VouHGV1c0veaePdiA3P08crI2JW4TMOS/uAjHiXOmCyqTfaIUbQnsnewiFJy3MapEYHZvAcQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-mascot-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/mascot@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-mascot-0.0.20.tgz':
+    resolution: {integrity: sha512-HYi6Uj9W3O0rdCcJ5haOQ0/sxUtr3UJaFQDgA+ja6LSx4EP+X3heqcSzWuGW6b8vcBG0MDT1ujXdaxsgartBGA==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-mascot-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -519,13 +531,13 @@ packages:
       solid-js:
         optional: true
 
-  '@conciv/page@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-page-0.0.19.tgz':
-    resolution: {integrity: sha512-EXIP6BcSzWpcsU/x3eCkQCGOlcsLGTfCqKw3+0VbtY3Fo9Y0dU/Ek4X+owomdJvrW49kiie1s4DEkhCMdU+QWg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-page-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/page@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-page-0.0.20.tgz':
+    resolution: {integrity: sha512-VWVfhaaZ0NencUBpxgUwbrZ2TMHZZtyFUe60Ruc4FfkrK/GaWZ+fUuEaN0cuLVRcXQIaFc2bl1iLt1IRxbG46A==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-page-0.0.20.tgz}
+    version: 0.0.20
 
-  '@conciv/plugin@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-plugin-0.0.19.tgz':
-    resolution: {integrity: sha512-zxMjds1BIhI/9ckl/uFXYsIhTVnVKmoXf+u4FKok6NYCBiFHFDexPnlVFqZUpNhvqJl8bpdF3cr8gDKyZb7IRw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-plugin-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/plugin@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-plugin-0.0.20.tgz':
+    resolution: {integrity: sha512-ahHShJw+hZc62xgebXk2suPqxS+gcGzZHBYXaO1+5U7Any46fUdFgti5ylsEFctgWL41+5tt6Mn3CHqHNjxpcw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-plugin-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       next: ^15.3.0 || ^16.0.0
       vite: ^6.0.0 || ^7.0.0 || ^8.0.0
@@ -535,64 +547,64 @@ packages:
       vite:
         optional: true
 
-  '@conciv/protocol@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz':
-    resolution: {integrity: sha512-XyReNOWAeNRtD5bT/fDneMbMIbny4k+4LWrXno3nnYVdn63jltGH1kqaO9gjr2wWqPJqGP9cs2T4Gd7EkB13RA==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/protocol@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz':
+    resolution: {integrity: sha512-AXOm1u3a9vF0R+aZSyJhdukCxBuU/YJxbQkgvixACadVOkyF+1XYElmU8o8oi3jvy3+Ulkk0E4WK5pDODl4h9w==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz}
+    version: 0.0.20
 
-  '@conciv/serve@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-serve-0.0.19.tgz':
-    resolution: {integrity: sha512-DD6Vx1wbISGHJMBo3Duqkhtu7Lsj1tvEkyYNou94RfyvnwOp4+9x7dLEHt1UvJhTHnjjzQD1l6NpjgAjURghyA==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-serve-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/serve@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-serve-0.0.20.tgz':
+    resolution: {integrity: sha512-f8KUYFINkh73L3iEsWwflMpcHM61OG9gCjg9i5NfFe/Mvub35SDuKwNa+f3VYASdpYZmqw0M6vQnoBU7uomDkQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-serve-0.0.20.tgz}
+    version: 0.0.20
 
-  '@conciv/solid-diffs@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz':
-    resolution: {integrity: sha512-LuWQOXVrZfIv19IMtlIy49F03Jp1cowh9o9aDkavDenIgamoFFDd5gpg8LgoCZsxK2IioqHkQroXvMygLdN9Iw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/solid-diffs@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz':
+    resolution: {integrity: sha512-ufIfqCwETExiZtBiqFXRaGVKQqsaGn9v2Q6pAleDfkn0JwNu4jhs44rF26ak22qg/6fFCgT22hSscLm1OCLA9Q==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/solid-streamdown@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-streamdown-0.0.19.tgz':
-    resolution: {integrity: sha512-IAj7f6dMbqfH/cL43cpkkMpulpqD2AsiJL3SS0xcvopfngGV+DF/8HXK6BUFW9Y5JPaN20MjsnR9J4b1HF0duQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-streamdown-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/solid-streamdown@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-streamdown-0.0.20.tgz':
+    resolution: {integrity: sha512-CuGGFks1EflVgOfYqZm82faEWja4MNTGjbjM5VNt2XeMcQ2b+8hmj1arRdrfqO8RLqQ2IBd8Gb+QANQQ1nJGMw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-streamdown-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       shiki: ^4.2.0
       solid-js: ^1.9.13
 
-  '@conciv/storage-history@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-storage-history-0.0.19.tgz':
-    resolution: {integrity: sha512-Ul0pfMOxUk1ojDwIdcVbGCTvhLspt0YiCAjHOOZTOIM3tbSqXdCmgGfGeIGt6w3gV/Cx1R/9AuQzABm9a5g8dw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-storage-history-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/storage-history@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-storage-history-0.0.20.tgz':
+    resolution: {integrity: sha512-7pUKCDuPgpJzhkHK6JuntUsetR+F2hPd5lib3jApeYxHDnXSM/saq/JZICM4Mdu/F8Ut1wW8DeXf3cg9jrZAMQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-storage-history-0.0.20.tgz}
+    version: 0.0.20
 
-  '@conciv/tools@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-tools-0.0.19.tgz':
-    resolution: {integrity: sha512-Ikv6u4I+iKAaCdNB2rPB3Di3LMZjAxUvJ//Hr9fHrrq831X242mEyhHYthjNJsfZ15Q2SPhTZib/Ns65UklJZg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-tools-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/tools@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-tools-0.0.20.tgz':
+    resolution: {integrity: sha512-EvsF4wn9U7rcyD+E06k+GMGmP+uPpkG31cxEn3qUwgRoc4TIomKmZvZhfaV938xM82/25LWVz/A6n2OQ2F34Tg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-tools-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/ui-kit-chat-tools@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-tools-0.0.19.tgz':
-    resolution: {integrity: sha512-u9LuP9JP9IvqnxAed/sqMxznkkRcqJbR/i0NBWhyj5iz3rqRJFVGfwIaSlvDLyGED7EMoGPm/KK7ohLoS7gPPg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-tools-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/ui-kit-chat-tools@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-tools-0.0.20.tgz':
+    resolution: {integrity: sha512-9kfqQdeniraHTVYpVIZkdeljVULtbBuo05ROGEc/wwQGXc8FvJ/PFH5fbTjQcrlFIfJkmYkA8Z3UdUkaHl9Hhw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-tools-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/ui-kit-chat@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz':
-    resolution: {integrity: sha512-etqDp0TZ2HsPtT+1qzNiOIK9QCrlc9QTtbgNc0OAdOHKpz0dVBtV3q2CS4WtZ7T524+gPN2ADa2i6l6TWeRgkw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/ui-kit-chat@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz':
+    resolution: {integrity: sha512-XJqUV/zBLy/3f/0PgqmNzpy9hLXFjQl2f9K27Pj205ybpa7PFL2QYU1mwtezyU+11qMT2B9wYZr/dH11ek1ulg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/ui-kit-system@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz':
-    resolution: {integrity: sha512-tnr5W39Z3j30gPHJ6SCyXrC8bOMvvvLkKyPHEkSQ1MngRbgYRda7YQ02G/42vBgnKduk3/HQCqzjuoUY7py55g==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/ui-kit-system@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz':
+    resolution: {integrity: sha512-dWk/y76r83yjIyVs8gfVDIwT6/KW3IckGy6B3iXJgYR+KC0fO7jTahIHchyk5ExCHXNskk/gHB+zF2CBeeGK6w==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/ui-kit-tap@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-tap-0.0.19.tgz':
-    resolution: {integrity: sha512-3D7GIDnTJLJ7SpVLbi+EseRw5UdsJ2Cl5G5th4zixVeTcSxU318QbS1o/rMyE0XO5nsHspYv/tTsrScD7F+cOQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-tap-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/ui-kit-tap@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-tap-0.0.20.tgz':
+    resolution: {integrity: sha512-r6ajhWhOVaLHxtGFwUjPXBDvNoporJxBXo4f5P6kxhjny/FDD/fDDyfOv1iYiGrdmZnLfGx7ZN2RpsKW/oLPBw==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-tap-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
-  '@conciv/ui-kit-terminal@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-terminal-0.0.19.tgz':
-    resolution: {integrity: sha512-ChWYL9jiFmRXPEFvVhTHEHtkWwqzNiXbNphMi8eHBcI5zKfXRurgeGWF3+2BoW7tX0ENZMbv9SxD2C1R/drElQ==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-terminal-0.0.19.tgz}
-    version: 0.0.19
+  '@conciv/ui-kit-terminal@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-terminal-0.0.20.tgz':
+    resolution: {integrity: sha512-Q6t14dqa2a9qNaXOcTmN174moq2fU4gkKKM7ZEjw0JO6CH9d/GtmD5MxdMDjuT1mMiExCyaqwzyPQ4Ikwo/Swg==, tarball: file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-terminal-0.0.20.tgz}
+    version: 0.0.20
     peerDependencies:
       solid-js: ^1.9.13
 
@@ -1018,8 +1030,8 @@ packages:
   '@one-ini/wasm@0.1.1':
     resolution: {integrity: sha512-XuySG1E38YScSJoMlqovLru4KTUNSjgVTIjyh7qMX6aNN5HY5Ct5LhRJdxO79JtTzKfzV/bnWpz+zquYrISsvw==}
 
-  '@opencode-ai/sdk@1.19.4':
-    resolution: {integrity: sha512-3Wuc4t8gEuWKHbX1Na9oDK6PgOveid70l4Ks5RCjRIo2RcP8FQN3NS6Mg3XWc2+WiUfpfrmvBWlh5u1zeQfDQw==}
+  '@opencode-ai/sdk@1.19.5':
+    resolution: {integrity: sha512-+bqu8gHiwmq96T9q5G34uLNHWCInIMsrE3hytCNHj1cVaxjY0AGJyNCT1rkeeZwgPU7A5TMTNwN+0XxCO2vqDg==}
 
   '@opentelemetry/api@1.10.0':
     resolution: {integrity: sha512-lMkyes8iHrG+mk6WH7X70MdCLI2RS0FwNBY1PyQ8UemaijE2m5mv5A0Niy3HtbYTFrgkUEQjFMXmSAk2hQDuPQ==}
@@ -1532,6 +1544,9 @@ packages:
     resolution: {integrity: sha512-Px/Hwhhyk2PubCA4ZaRFsfvwxhbxXsetJyvqC6aFFi8WhJhA+oVC33aTzuAeWmM3fhb4/8ce8YsHXI1d6ChcKg==}
     hasBin: true
 
+  '@rolldown/pluginutils@1.0.1':
+    resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
+
   '@rrweb/packer@2.2.0':
     resolution: {integrity: sha512-NgYYIaXf5sem/0JWsPLpaRBV70cqJKSFZkyvg1MG4wefzWUPtDxufFuWdprblPawg0RdPMSBEzkpQKzcir/sXg==}
 
@@ -1763,15 +1778,6 @@ packages:
     peerDependencies:
       '@tanstack/ai-code-mode': ^0.4.0
 
-  '@tanstack/ai-persistence@0.5.3':
-    resolution: {integrity: sha512-EUO2dasvaesrJTAxd4Ax21ijn9+HG0jkih9qKzesbQaWtLbgJIjnpkbO9ZmlGW4wVZOSZh+bFZicyxe7XDp1uQ==}
-    peerDependencies:
-      '@tanstack/ai': ^0.51.0
-      vitest: ^4.1.10
-    peerDependenciesMeta:
-      vitest:
-        optional: true
-
   '@tanstack/ai-sandbox-local-process@0.2.4':
     resolution: {integrity: sha512-B7NKa9F8kx4XKld9/svu6+udmNbm6fp8bPtHu/t338acpkTIMH+CZznM+MLfYYkbaW4R7/mxTCV1KeqNcyhn/A==}
     peerDependencies:
@@ -1919,53 +1925,53 @@ packages:
   '@tanstack/virtual-core@3.19.9':
     resolution: {integrity: sha512-Syiaf3w69dFyYv4o2mqJ1/2VtBJTNq5Hu5cVXfnzOuJKFpUojukQR13ZW+5NvdMJM7GFHeNPmveMNhoIubiFyA==}
 
-  '@tiptap/core@3.32.1':
-    resolution: {integrity: sha512-ImhEufkmqFK1mIbcYAZOhoBColsdy4sepB3Wd6vDPULbonGXL1LliLs79IiVY1hzmqkBksxwyqkyPxlcFMNTdQ==}
+  '@tiptap/core@3.32.2':
+    resolution: {integrity: sha512-EitM8KY3agYfnp/bqhfxcaReVq4CUqVzMqoSIl7xSfYABTGYoTDtVXUdYSGutcCBFjc86BbXjrOlDlqkgC8BsQ==}
     peerDependencies:
+      '@tiptap/pm': 3.32.2
+
+  '@tiptap/extension-document@3.32.2':
+    resolution: {integrity: sha512-zKWj8jh1kpckfSwle+kqFn0ZnYvkhb7nz89nrNvpnnsQMbbGU2/+bUAfYU3XSEKZr3VBvW176FtlMPD8ggC3Cg==}
+    peerDependencies:
+      '@tiptap/core': 3.32.2
+
+  '@tiptap/extension-hard-break@3.32.2':
+    resolution: {integrity: sha512-oIdXmya2XBzp3Cw9Nr36agPvr9ZXP3p2fQXaFflxYYBKOG3UUzw38CId7J6K1jYxBf8c1zodbiKFEL7rttJ6fQ==}
+    peerDependencies:
+      '@tiptap/core': 3.32.2
+
+  '@tiptap/extension-mention@3.32.2':
+    resolution: {integrity: sha512-q87HWG5iYV5jR8KxgU8shdXWjWgZmHIdnu0UkHE50NSRL88DZeiEt2ZU558P/R0JN85rVKf2z8i98MUR7lVTxQ==}
+    peerDependencies:
+      '@tiptap/core': 3.32.2
+      '@tiptap/pm': 3.32.2
+      '@tiptap/suggestion': 3.32.2
+
+  '@tiptap/extension-paragraph@3.32.2':
+    resolution: {integrity: sha512-3bqC//4GEhUiux3dhW/TJuveBp9ADv4nHlqBdVQa3A+USGbaBvE9YvXxA32wZL0leSRykxEnHbNHZ1J4KjIynQ==}
+    peerDependencies:
+      '@tiptap/core': 3.32.2
+
+  '@tiptap/extension-text@3.32.2':
+    resolution: {integrity: sha512-W6G7UbQ71TyvZvORDdj6u8By8B/Dymy8KoaKGaNHqB82SpM42ZK2TmeFBHI0Lo4wTkZJL3LuI+QthaDvh0USsA==}
+    peerDependencies:
+      '@tiptap/core': 3.32.2
+
+  '@tiptap/extensions@3.32.1':
+    resolution: {integrity: sha512-yjFOMinGm4CVTlJn9BqusW/HDR6iCyhZ/OJOeJAPwcTg0S4HudceCgyFFh1N3ulHfWtzh4BNGuK+lyPFrjIUOw==}
+    peerDependencies:
+      '@tiptap/core': 3.32.1
       '@tiptap/pm': 3.32.1
 
-  '@tiptap/extension-document@3.32.1':
-    resolution: {integrity: sha512-0BkKoRkKniaOLeMfqUGYSD+QIyQ2fa9Md0s77b6ofmGdcUw3Garo70uHKOjV8L0Y4wZZz61E3wvd41Efr9C8vw==}
-    peerDependencies:
-      '@tiptap/core': 3.32.1
+  '@tiptap/pm@3.32.2':
+    resolution: {integrity: sha512-4cuUbYf55NnYBIvDBK/K1VFVQ4pocKwAZC5TAy4s9dptvazxVHkQVMbiQsyhwfIbM4rxmHWkM/6omaFfTB++/g==}
 
-  '@tiptap/extension-hard-break@3.32.1':
-    resolution: {integrity: sha512-xx7E4pSwlsXRSxRpXh40SQp5/5Qz7k2efP7CYAWuHQC64DjknlVeGcmnuM7ZUYmT6aa1JFzstBU0Q6iDXlX4eQ==}
-    peerDependencies:
-      '@tiptap/core': 3.32.1
-
-  '@tiptap/extension-mention@3.32.1':
-    resolution: {integrity: sha512-2j3ruYfn2ftkw28xabgFyTMjbUBiGymkoJTxjbWsZcUhCif0uoh59P2O5yu0hR6NS/YdSLC+2t+w1XzvokizZg==}
-    peerDependencies:
-      '@tiptap/core': 3.32.1
-      '@tiptap/pm': 3.32.1
-      '@tiptap/suggestion': 3.32.1
-
-  '@tiptap/extension-paragraph@3.32.1':
-    resolution: {integrity: sha512-gRUUShNxeg9jUrct1x4npiI/wqgmqkO0lZoTbEXLJjxfU3NM46Q0hBO+tLB+lWvOo0SEo71eoy32uyPkZ11dzg==}
-    peerDependencies:
-      '@tiptap/core': 3.32.1
-
-  '@tiptap/extension-text@3.32.1':
-    resolution: {integrity: sha512-/cM+x4zHjNpceFX/K1nR/DoND5upYPcJnt7PkEyiLbkMKey1xzU86zbsxtKrgVtJpO9aLOnanN5O0d4DVNDDhg==}
-    peerDependencies:
-      '@tiptap/core': 3.32.1
-
-  '@tiptap/extensions@3.32.0':
-    resolution: {integrity: sha512-qO+ndNvlOjzU2MWCtQHoRg1tIortCXLvqPjDx58F1pUYFNCOVZegXi+jqLGDODUA31er+TVz66umzRbbN1bO1Q==}
-    peerDependencies:
-      '@tiptap/core': 3.32.0
-      '@tiptap/pm': 3.32.0
-
-  '@tiptap/pm@3.32.1':
-    resolution: {integrity: sha512-xgIcbATKQQiabqOntfTuN2jk+fDXL+zaCIdWfgQL2xpnIDx9rQRf60oljorYuYIEybJ5Uqo6PE7iu8Zq7LJbjQ==}
-
-  '@tiptap/suggestion@3.32.1':
-    resolution: {integrity: sha512-NQ1/LL12Pb3r2qQeOkPwssDGLM3cPHy4BWCbMEpuINLlgXqubdpeKiHe/Qkq99dQlRwJlJd5/WiP4KNtIyn1Fw==}
+  '@tiptap/suggestion@3.32.2':
+    resolution: {integrity: sha512-AD6WQ+mEFLok8svJv6Ibffyao+vXBGn3klQo4gCXH+UHwtgct5tF4goL9Rsz8J6zcDmYfx5W8AqYjBiQIyRNHA==}
     peerDependencies:
       '@floating-ui/dom': ^1.0.0
-      '@tiptap/core': 3.32.1
-      '@tiptap/pm': 3.32.1
+      '@tiptap/core': 3.32.2
+      '@tiptap/pm': 3.32.2
 
   '@tsconfig/svelte@1.0.13':
     resolution: {integrity: sha512-5lYJP45Xllo4yE/RUBccBT32eBlRDbqN8r1/MIvQbKxW3aFqaYPCNgm8D5V20X4ShHcwvYWNlKg3liDh1MlBoA==}
@@ -2478,8 +2484,8 @@ packages:
     resolution: {integrity: sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg==}
     engines: {node: '>= 0.4'}
 
-  caniuse-lite@1.0.30001819:
-    resolution: {integrity: sha512-LFUqIIAwpzsIuevnKnsR9qnStBcgzPShTX61lBwN9uFkkf8o8zLiebEjbW8AYtZiF+1YKDWfdt/pWDtMuG8Xwg==}
+  caniuse-lite@1.0.30001820:
+    resolution: {integrity: sha512-gfWD6MxqVCqAOwmODfZf7DchWvlrA+SRdNX7ceLfg3xRqe5ssjjpF7EgslC/0tiLiNTajdaNN/q8c/5u/7Gz8w==}
 
   canvas-roundrect-polyfill@0.0.1:
     resolution: {integrity: sha512-yWq+R3U3jE+coOeEb3a3GgE2j/0MMiDKM/QpLb6h9ihf5fGY9UXtvK9o4vNqjWXoZz7/3EaSVU3IX53TvFFUOw==}
@@ -2627,8 +2633,16 @@ packages:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
 
+  css-tree@3.2.1:
+    resolution: {integrity: sha512-X7sjQzceUhu1u7Y/ylrRZFU2FS6LRiFVp6rKLPg23y3x3c3DOKAwuXGDp+PAGjh6CSnCjYeAul8pcT8bAl+lSA==}
+    engines: {node: ^10 || ^12.20.0 || ^14.13.0 || >=15.0.0}
+
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  culori@4.0.2:
+    resolution: {integrity: sha512-1+BhOB8ahCn4O0cep0Sh2l9KCOfOdY+BXJnKMHFFzDEouSr/el18QwXEMRlOj9UY5nCeA8UN3a/82rUWRBeyBw==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   cytoscape-cose-bilkent@4.1.0:
     resolution: {integrity: sha512-wgQlVIUJF13Quxiv5e1gstZ08rnZj2XaLHGoFMYXz7SkNfCDOOteKBE6SYRfA9WxxI/iBc3ajfDoc6hb/MRAHQ==}
@@ -3102,8 +3116,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  electron-to-chromium@1.5.466:
-    resolution: {integrity: sha512-WkgFvScwZjvCPupYGfQr5qlKCv/Tu+GYELGMCGcoBOQbNb6nx/TqGwJyLMwcNAAy2kKJF2agjM7KZKest538JA==}
+  electron-to-chromium@1.5.467:
+    resolution: {integrity: sha512-Nw9X371rtZmYcBSnEijnCDONILjs93biCZO34juC7MBOmK8E+GFnyD4T/WvyrlJkppul7oxg6TwvtKst9SODTw==}
 
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
@@ -3111,8 +3125,8 @@ packages:
   emoji-regex@9.2.2:
     resolution: {integrity: sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==}
 
-  encodeurl@2.0.0:
-    resolution: {integrity: sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==}
+  encodeurl@2.0.1:
+    resolution: {integrity: sha512-Ev/hIyePLZtpL98x562lvPtenrUfGr0lfaf44HFZ+hDEwso7ccV9QAZrEVLg0hxNAzygaAFxy2dYaAKKM0G06A==}
     engines: {node: '>= 0.8'}
 
   entities@6.0.1:
@@ -3433,8 +3447,8 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
-  jose@6.2.13:
-    resolution: {integrity: sha512-7TIg10ZE1x82YediN+lcrPNvGMKge9yFHQD+Qho/b8y2adfugU3AsvvHfxV0fzyFllT6l9xCjf4RWY9g/Z9PJQ==}
+  jose@6.2.14:
+    resolution: {integrity: sha512-3JasLuki1NRLQvY4wCoC37KZk4qxoBx2k2aFqLxT84IezqW0bkJKnNtxnZj/Fu1xsQivoc/lytxaRHJoGLjJ1A==}
 
   jotai-scope@0.7.2:
     resolution: {integrity: sha512-Gwed97f3dDObrO43++2lRcgOqw4O2sdr4JCjP/7eHK1oPACDJ7xKHGScpJX9XaflU+KBHXF+VhwECnzcaQiShg==}
@@ -3554,8 +3568,8 @@ packages:
   lru_map@0.4.1:
     resolution: {integrity: sha512-I+lBvqMMFfqaV8CJCISjI3wbjmwVu/VyOoU7+qtu9d7ioW5klMgsTTiUOUp+DJvfTTzKXoPbyC6YfgkNcyPSOg==}
 
-  lucide-solid@1.64.0:
-    resolution: {integrity: sha512-xmSV5fzajjaL2woeMp3YRjzcTNxRl+rLf5eYbYX07epTCUhxiov6k3Ky70bOQSia3iTIMvs8uk2YFlbqmPLA2Q==}
+  lucide-solid@1.66.0:
+    resolution: {integrity: sha512-4XTuWxPFdUz2ADXgkqxI0qOm6LdNQimEax6vwkwWMaBlIR5DYnUcYZkaTieedSpnzsFGPn5nEma1KQfd7/hMlQ==}
     peerDependencies:
       solid-js: ^1.4.7
 
@@ -3614,6 +3628,9 @@ packages:
 
   mdast-util-to-string@4.0.0:
     resolution: {integrity: sha512-0H44vDimn51F0YwvxSJSm0eCDOJTRlmN0R1yBh4HLj9wiV1Dn0QoXGbvFAWj2hSItVTlCmBF1hqKlIyUBVFLPg==}
+
+  mdn-data@2.27.1:
+    resolution: {integrity: sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ==}
 
   media-typer@1.1.1:
     resolution: {integrity: sha512-yz3xRaG20c6/BOzvYoDaGtPmGscs7YivItZEEqe6GbwNfHuxu9YNmvnEkMzKldAGY4/80pRcQRZSEnhquk9XuQ==}
@@ -3789,8 +3806,8 @@ packages:
     resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
     hasBin: true
 
-  node-releases@2.0.60:
-    resolution: {integrity: sha512-OmO8+GM1JUZqXET720VrJCwkjUCXmCMQm0Z3UDDRbfNLHS4NEAvY60j5jiFv0tkKw2PNNlqOLhahVmwJIOLDIQ==}
+  node-releases@2.0.61:
+    resolution: {integrity: sha512-5NUN6QCxNFrS9oEA9RPS+d0AP+ooGBzzovY2JhIpDRHacPvOhHjXjUsUMX9qp4nLHZ+5jVgXB2jj/P4arGOE/g==}
     engines: {node: '>=18'}
 
   nopt@7.2.1:
@@ -3917,6 +3934,10 @@ packages:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
     engines: {node: '>= 6'}
 
+  pixelmatch@8.0.0:
+    resolution: {integrity: sha512-cIqOLfh5k52us715qf3B3+kTOxZv+WDv77HN7xokLScYQGYQHi4m/ynoDIPpvF2LvCyUJGyvzY64i0QCXtzu1g==}
+    hasBin: true
+
   pkce-challenge@5.0.1:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
@@ -3934,6 +3955,10 @@ packages:
 
   png-chunks-extract@1.0.0:
     resolution: {integrity: sha512-ZiVwF5EJ0DNZyzAqld8BP1qyJBaGOFaq9zl579qfbkcmOwWLLO4I9L8i2O4j3HkI6/35i0nKG2n+dZplxiT89Q==}
+
+  pngjs@7.0.0:
+    resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
+    engines: {node: '>=14.19.0'}
 
   points-on-curve@0.2.0:
     resolution: {integrity: sha512-0mYKnYYe9ZcqMCWhUjItv/oHjvgEsfKvnUTg8sAtnHr3GVy7rGkXCb6d5cSyqrWqL4k81b9CPg3urd+T7aop3A==}
@@ -4017,8 +4042,8 @@ packages:
   pwacompat@2.0.17:
     resolution: {integrity: sha512-6Du7IZdIy7cHiv7AhtDy4X2QRM8IAD5DII69mt5qWibC2d15ZU8DmBG1WdZKekG11cChSu4zkSUGPF9sweOl6w==}
 
-  qs@6.17.0:
-    resolution: {integrity: sha512-5LK5BZ2XDHMvcUJaf0CQ5HL3aVgKbpklvByC7qLSxYkfE8COEEbJg5xCHWCTqzqi0Gs4Jn5Mv5v3R38W6edscA==}
+  qs@6.17.1:
+    resolution: {integrity: sha512-jd3COkaKVgGUW+ZHyEHCG9bH7RoaaiWuMgzsIBjUMVjLAaWGWpoUAVwljVvBHxRu/2qEHnadLGZrkutYUBPQJA==}
     engines: {node: '>=0.6'}
 
   quickjs-emscripten-core@0.31.0:
@@ -4210,8 +4235,8 @@ packages:
     peerDependencies:
       seroval: ^1.0
 
-  seroval-plugins@1.7.2:
-    resolution: {integrity: sha512-ud8kMCGLHmGkW9YtVDluJtqTukSx/4YBqtmPAvAz/HxbIwhwMeZU52imxeyZ1zoAXtqBDiaLwSasbnK9DptrDg==}
+  seroval-plugins@1.7.3:
+    resolution: {integrity: sha512-gKP1jak0eor3KVHRGAyCAFJ9xKXkf97eWruYK5lcDHimsjr23RJGDuO0B8iOU6rvgYvACHpW+krmn3j2+2vxpQ==}
     engines: {node: '>=20'}
     peerDependencies:
       seroval: ^1.0
@@ -4220,8 +4245,8 @@ packages:
     resolution: {integrity: sha512-CqbIVfk/7GL3ITwZI55lcPbpQbjHZ2DD5cUj4iH7E9YsCfHNJV1mx7yNp86Z84w5IpmkZZS/2s5vPOWmVWSdQg==}
     engines: {node: '>=10'}
 
-  seroval@1.7.2:
-    resolution: {integrity: sha512-NPOYrDVbvtuTo5m9InqKE7O6wBASON46OabjyqLUGPvoXNDYp0pReuFYkqOQwGsoj1OpZVj6mIdnRRgt5O1/gQ==}
+  seroval@1.7.3:
+    resolution: {integrity: sha512-fYkZS/GrMJhj1CW+IDoPlILRmYl5/S9L/OYju/sA2K/HQ3G5JBWDZHxaUWVZV/0hfAC2n1+9ysBRDtqMbMXvzA==}
     engines: {node: '>=20'}
 
   serve-static@2.2.1:
@@ -4436,8 +4461,8 @@ packages:
     resolution: {integrity: sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==}
     engines: {node: '>= 0.8'}
 
-  unplugin@3.6.0:
-    resolution: {integrity: sha512-btGFb33KNAaqsu3/jFenhevLmaP9ZjYbkiVKd7OBAtsbdqG7oSJsA8RlHa7NY5kt765PnB37mlAI8a15iQAm+w==}
+  unplugin@3.7.0:
+    resolution: {integrity: sha512-GrM2uq3DQo3hvLU2FjeYhooJ8BY9N6j1Fbzgx7Pta3VVJevsD3VP4dPjZkZOS0mLvN8w9zzr9OlP+31bSMyuLw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
       '@farmfe/core': '*'
@@ -4987,9 +5012,15 @@ snapshots:
       '@babel/helper-string-parser': 7.29.11
       '@babel/helper-validator-identifier': 7.29.7
 
+  '@blazediff/core@1.10.0': {}
+
   '@braintree/sanitize-url@6.0.2': {}
 
   '@braintree/sanitize-url@7.1.2': {}
+
+  '@bramus/specificity@2.4.3':
+    dependencies:
+      css-tree: 3.2.1
 
   '@chenglou/pretext@0.0.8': {}
 
@@ -5024,14 +5055,16 @@ snapshots:
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
 
-  '@conciv/cli@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-cli-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/cli@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-cli-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
       '@ast-grep/napi': 0.45.3
       '@clack/prompts': 1.8.1
-      '@conciv/contract': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-contract-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/harness-init': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-harness-init-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/tools': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-tools-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/contract': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-contract-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/extension-design': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-design-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/harness-init': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-harness-init-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/tools': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-tools-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
       '@orpc/client': 1.16.1(@opentelemetry/api@1.10.0)
       citty: 0.2.2
       diff: 9.0.0
@@ -5049,10 +5082,10 @@ snapshots:
       - supports-color
       - ws
 
-  '@conciv/client@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-client-0.0.19.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(zod@4.6.7)':
+  '@conciv/client@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-client-0.0.20.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(zod@4.6.7)':
     dependencies:
-      '@conciv/contract': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-contract-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/contract': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-contract-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
       '@orpc/client': 1.16.1(@opentelemetry/api@1.10.0)
       '@orpc/tanstack-query': 1.16.1(@opentelemetry/api@1.10.0)(@orpc/client@1.16.1(@opentelemetry/api@1.10.0))(@tanstack/query-core@5.105.0)
       '@tanstack/ai': 0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
@@ -5067,9 +5100,9 @@ snapshots:
       - react
       - zod
 
-  '@conciv/contract@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-contract-0.0.19.tgz(@opentelemetry/api@1.10.0)':
+  '@conciv/contract@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-contract-0.0.20.tgz(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
       '@orpc/client': 1.16.1(@opentelemetry/api@1.10.0)
       '@orpc/contract': 1.16.1(@opentelemetry/api@1.10.0)
       '@tanstack/ai': 0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
@@ -5077,32 +5110,33 @@ snapshots:
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@conciv/core@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-core-0.0.19.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/core@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-core-0.0.20.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
-      '@conciv/contract': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-contract-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/db': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-db-0.0.19.tgz(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/extension-page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-page-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/harness': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-harness-0.0.19.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.7))(@opentelemetry/api@1.10.0)(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/serve': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-serve-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/tools': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-tools-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/contract': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-contract-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/db': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-db-0.0.20.tgz(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/harness': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-harness-0.0.20.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.7))(@opentelemetry/api@1.10.0)
+      '@conciv/harness-init': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-harness-init-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/serve': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-serve-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/tools': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-tools-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
       '@hono/node-server': 2.1.5(hono@4.13.14)
       '@jridgewell/trace-mapping': 0.3.31
       '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.7)
       '@orpc/server': 1.16.1(@opentelemetry/api@1.10.0)(ws@8.22.0)
       '@tanstack/ai': 0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@tanstack/ai-acp': 0.3.7(@tanstack/ai-sandbox@0.5.3(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-acp': 0.3.7(@tanstack/ai-sandbox@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
       '@tanstack/ai-code-mode': 0.4.6(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
       '@tanstack/ai-isolate-node': 0.1.51(@tanstack/ai-code-mode@0.4.6(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))
       '@tanstack/ai-isolate-quickjs': 0.3.1(@tanstack/ai-code-mode@0.4.6(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))
-      '@tanstack/ai-sandbox': 0.5.3(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
-      '@tanstack/ai-sandbox-local-process': 0.2.4(@tanstack/ai-sandbox@0.5.3(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))
+      '@tanstack/ai-sandbox': 0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-sandbox-local-process': 0.2.4(@tanstack/ai-sandbox@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))
       drizzle-orm: 1.0.0-rc.5(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(zod@4.6.7)
       hono: 4.13.14
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       solid-js: 1.9.17
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5170,11 +5204,10 @@ snapshots:
       - vitest
       - ws
 
-  '@conciv/db@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-db-0.0.19.tgz(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(zod@4.6.7)':
+  '@conciv/db@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-db-0.0.20.tgz(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(zod@4.6.7)':
     dependencies:
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
       '@tanstack/ai': 0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@tanstack/ai-persistence': 0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))
       drizzle-orm: 1.0.0-rc.5(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(zod@4.6.7)
     transitivePeerDependencies:
       - '@aws-sdk/client-rds-data'
@@ -5226,27 +5259,26 @@ snapshots:
       - sqlite3
       - typebox
       - valibot
-      - vitest
       - zod
 
-  '@conciv/embed@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-embed-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(ws@8.22.0)(zod@4.6.7)':
+  '@conciv/embed@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-embed-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(ws@8.22.0)(zod@4.6.7)':
     dependencies:
       '@ark-ui/solid': 5.39.3(solid-js@1.9.17)
-      '@conciv/client': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-client-0.0.19.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(zod@4.6.7)
-      '@conciv/contract': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-contract-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/extension-ios': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-ios-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/extension-page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-page-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-grab-0.0.19.tgz
-      '@conciv/mascot': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-mascot-0.0.19.tgz(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/solid-streamdown': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-streamdown-0.0.19.tgz(shiki@4.5.0)(solid-js@1.9.17)
-      '@conciv/storage-history': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-storage-history-0.0.19.tgz
-      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/ui-kit-chat-tools': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-tools-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
-      '@conciv/ui-kit-tap': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-tap-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/client': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-client-0.0.20.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(zod@4.6.7)
+      '@conciv/contract': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-contract-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-ios': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-ios-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-grab-0.0.20.tgz
+      '@conciv/mascot': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-mascot-0.0.20.tgz(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/solid-streamdown': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-streamdown-0.0.20.tgz(shiki@4.5.0)(solid-js@1.9.17)
+      '@conciv/storage-history': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-storage-history-0.0.20.tgz
+      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/ui-kit-chat-tools': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-tools-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
+      '@conciv/ui-kit-tap': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-tap-0.0.20.tgz(solid-js@1.9.17)
       '@tanstack/pacer': 0.23.1
       '@tanstack/solid-router': 1.170.39(solid-js@1.9.17)
       bippy: 0.5.41(react@19.2.4)
@@ -5264,11 +5296,11 @@ snapshots:
       - ws
       - zod
 
-  '@conciv/extension-compiler@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-compiler-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/extension-compiler@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-compiler-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/preset-typescript': 7.29.7(@babel/core@7.29.7)
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
       babel-dead-code-elimination: 1.0.12
       babel-preset-solid: 1.9.16(@babel/core@7.29.7)(solid-js@1.9.17)
       jiti: 2.7.0
@@ -5282,11 +5314,39 @@ snapshots:
       - supports-color
       - ws
 
-  '@conciv/extension-ios@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-ios-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/extension-design@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-design-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-grab-0.0.19.tgz
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
+      '@blazediff/core': 1.10.0
+      '@bramus/specificity': 2.4.3
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@orpc/server': 1.16.1(@opentelemetry/api@1.10.0)(ws@8.22.0)
+      '@zumer/snapdom': 3.3.3
+      culori: 4.0.2
+      es-toolkit: 1.53.0
+      hono: 4.13.14
+      oxc-parser: 0.156.0
+      pixelmatch: 8.0.0
+      pngjs: 7.0.0
+      postcss: 8.5.32
+      zod: 4.6.7
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - '@shikijs/themes'
+      - crossws
+      - fastify
+      - react
+      - react-dom
+      - solid-js
+      - supports-color
+      - ws
+
+  '@conciv/extension-ios@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-ios-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)':
+    dependencies:
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-grab-0.0.20.tgz
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
       solid-js: 1.9.17
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5295,17 +5355,17 @@ snapshots:
       - fastify
       - ws
 
-  '@conciv/extension-page@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-page-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/extension-page@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-grab-0.0.19.tgz
-      '@conciv/page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-page-0.0.19.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(ws@8.22.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-grab-0.0.20.tgz
+      '@conciv/page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(ws@8.22.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
       '@zumer/snapdom': 3.3.3
       js-beautify: 1.15.4
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       solid-js: 1.9.17
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5318,17 +5378,17 @@ snapshots:
       - supports-color
       - ws
 
-  '@conciv/extension-page@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-page-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/extension-page@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-grab-0.0.19.tgz
-      '@conciv/page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-page-0.0.19.tgz(@opentelemetry/api@1.10.0)(react@19.3.1)(ws@8.22.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-grab-0.0.20.tgz
+      '@conciv/page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(react@19.3.1)(ws@8.22.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
       '@zumer/snapdom': 3.3.3
       js-beautify: 1.15.4
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       solid-js: 1.9.17
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5341,19 +5401,19 @@ snapshots:
       - supports-color
       - ws
 
-  '@conciv/extension-recorder@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-recorder-0.0.19.tgz(@opentelemetry/api@1.10.0)(@orpc/client@1.16.1(@opentelemetry/api@1.10.0))(@rrweb/utils@2.2.0)(@shikijs/themes@4.5.0)(@tanstack/query-core@5.105.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/extension-recorder@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-recorder-0.0.20.tgz(@opentelemetry/api@1.10.0)(@orpc/client@1.16.1(@opentelemetry/api@1.10.0))(@rrweb/utils@2.2.0)(@shikijs/themes@4.5.0)(@tanstack/query-core@5.105.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
       '@orpc/server': 1.16.1(@opentelemetry/api@1.10.0)(ws@8.22.0)
       '@orpc/tanstack-query': 1.16.1(@opentelemetry/api@1.10.0)(@orpc/client@1.16.1(@opentelemetry/api@1.10.0))(@tanstack/query-core@5.105.0)
       '@rrweb/rrweb-plugin-console-record': 2.2.0(@rrweb/utils@2.2.0)(rrweb@2.2.0)
       '@rrweb/types': 2.2.0
       '@solid-primitives/timer': 1.4.4(solid-js@1.9.17)
       '@tanstack/solid-query': 5.105.0(solid-js@1.9.17)
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       playwright-core: 1.64.1
       rrweb: 2.2.0
       rrweb-player: 2.0.0-alpha.20
@@ -5372,16 +5432,16 @@ snapshots:
       - supports-color
       - ws
 
-  '@conciv/extension-tanstack@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-tanstack-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(@tanstack/react-router@1.170.46(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/extension-tanstack@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-tanstack-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(@tanstack/react-router@1.170.46(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-page-0.0.19.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(ws@8.22.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/ui-kit-chat-tools': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-tools-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(ws@8.22.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/ui-kit-chat-tools': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-tools-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
       '@tanstack/react-router': 1.170.46(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       solid-js: 1.9.17
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5394,20 +5454,20 @@ snapshots:
       - supports-color
       - ws
 
-  '@conciv/extension-terminal@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-terminal-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/extension-terminal@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-terminal-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
-      '@conciv/ui-kit-terminal': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-terminal-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
+      '@conciv/ui-kit-terminal': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-terminal-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)
       '@hono/node-server': 2.1.5(hono@4.13.14)
       '@lydell/node-pty': 1.1.0
       '@orpc/client': 1.16.1(@opentelemetry/api@1.10.0)
       '@orpc/server': 1.16.1(@opentelemetry/api@1.10.0)(ws@8.22.0)
       '@solid-primitives/event-listener': 2.4.6(solid-js@1.9.17)
       hono: 4.13.14
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       solid-js: 1.9.17
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5420,15 +5480,15 @@ snapshots:
       - supports-color
       - ws
 
-  '@conciv/extension-test-runner@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-test-runner-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/extension-test-runner@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-test-runner-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
       '@orpc/server': 1.16.1(@opentelemetry/api@1.10.0)(ws@8.22.0)
       es-toolkit: 1.53.0
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       solid-js: 1.9.17
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5441,16 +5501,16 @@ snapshots:
       - supports-color
       - ws
 
-  '@conciv/extension-whiteboard@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-whiteboard-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(@types/react@19.3.0)(solid-js@1.9.17)(typescript@5.9.2)(ws@8.22.0)':
+  '@conciv/extension-whiteboard@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-whiteboard-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(@types/react@19.3.0)(solid-js@1.9.17)(typescript@5.9.2)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-grab-0.0.19.tgz
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)
-      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)
-      '@conciv/ui-kit-chat-tools': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-tools-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
-      '@conciv/ui-kit-tap': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-tap-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-grab-0.0.20.tgz
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)
+      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)
+      '@conciv/ui-kit-chat-tools': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-tools-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
+      '@conciv/ui-kit-tap': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-tap-0.0.20.tgz(solid-js@1.9.17)
       '@excalidraw/excalidraw': 0.18.1(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@excalidraw/mermaid-to-excalidraw': 2.2.2
       '@libsql/client': 0.17.4
@@ -5464,7 +5524,7 @@ snapshots:
       cytoscape: 3.34.0
       drizzle-orm: 0.45.4(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)
       es-toolkit: 1.53.0
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       oxc-parser: 0.156.0
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
@@ -5512,12 +5572,12 @@ snapshots:
       - utf-8-validate
       - ws
 
-  '@conciv/extension@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/extension@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
-      '@conciv/contract': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-contract-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-grab-0.0.19.tgz
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/contract': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-contract-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-grab-0.0.20.tgz
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
       '@orpc/client': 1.16.1(@opentelemetry/api@1.10.0)
       '@orpc/server': 1.16.1(@opentelemetry/api@1.10.0)(ws@8.22.0)
       '@tanstack/ai': 0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
@@ -5530,26 +5590,26 @@ snapshots:
       - fastify
       - ws
 
-  '@conciv/grab@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-grab-0.0.19.tgz':
+  '@conciv/grab@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-grab-0.0.20.tgz':
     dependencies:
       zod: 4.6.7
 
-  '@conciv/harness-init@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-harness-init-0.0.19.tgz(@opentelemetry/api@1.10.0)':
+  '@conciv/harness-init@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-harness-init-0.0.20.tgz(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
       zod: 4.6.7
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@conciv/harness@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-harness-0.0.19.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.7))(@opentelemetry/api@1.10.0)(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))':
+  '@conciv/harness@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-harness-0.0.20.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.7))(@opentelemetry/api@1.10.0)':
     dependencies:
       '@agentclientprotocol/sdk': 0.25.1(zod@4.6.7)
       '@anthropic-ai/claude-agent-sdk': 0.3.312(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.7))(zod@4.6.7)
-      '@conciv/harness-init': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-harness-init-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@opencode-ai/sdk': 1.19.4
+      '@conciv/harness-init': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-harness-init-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@opencode-ai/sdk': 1.19.5
       '@tanstack/ai': 0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@tanstack/ai-sandbox': 0.5.3(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-sandbox': 0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
       zod: 4.6.7
     transitivePeerDependencies:
       - '@anthropic-ai/sdk'
@@ -5561,16 +5621,17 @@ snapshots:
       - supports-color
       - vitest
 
-  '@conciv/it@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-it-0.0.19.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(@orpc/client@1.16.1(@opentelemetry/api@1.10.0))(@rrweb/utils@2.2.0)(@shikijs/themes@4.5.0)(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/query-core@5.105.0)(@types/react@19.3.0)(next@16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(solid-js@1.9.17)(typescript@5.9.2)(ws@8.22.0)(zod@4.6.7)':
+  '@conciv/it@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-it-0.0.20.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(@orpc/client@1.16.1(@opentelemetry/api@1.10.0))(@rrweb/utils@2.2.0)(@shikijs/themes@4.5.0)(@tanstack/query-core@5.105.0)(@types/react@19.3.0)(next@16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(solid-js@1.9.17)(typescript@5.9.2)(ws@8.22.0)(zod@4.6.7)':
     dependencies:
-      '@conciv/embed': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-embed-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(ws@8.22.0)(zod@4.6.7)
-      '@conciv/extension-compiler': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-compiler-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/extension-ios': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-ios-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/extension-recorder': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-recorder-0.0.19.tgz(@opentelemetry/api@1.10.0)(@orpc/client@1.16.1(@opentelemetry/api@1.10.0))(@rrweb/utils@2.2.0)(@shikijs/themes@4.5.0)(@tanstack/query-core@5.105.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/extension-terminal': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-terminal-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/extension-test-runner': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-test-runner-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/extension-whiteboard': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-whiteboard-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(@types/react@19.3.0)(solid-js@1.9.17)(typescript@5.9.2)(ws@8.22.0)
-      '@conciv/plugin': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-plugin-0.0.19.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(next@16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(solid-js@1.9.17)(ws@8.22.0)(zod@4.6.7)
+      '@conciv/embed': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-embed-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(ws@8.22.0)(zod@4.6.7)
+      '@conciv/extension-compiler': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-compiler-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-design': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-design-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-ios': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-ios-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-recorder': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-recorder-0.0.20.tgz(@opentelemetry/api@1.10.0)(@orpc/client@1.16.1(@opentelemetry/api@1.10.0))(@rrweb/utils@2.2.0)(@shikijs/themes@4.5.0)(@tanstack/query-core@5.105.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-terminal': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-terminal-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-test-runner': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-test-runner-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-whiteboard': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-whiteboard-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(@types/react@19.3.0)(solid-js@1.9.17)(typescript@5.9.2)(ws@8.22.0)
+      '@conciv/plugin': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-plugin-0.0.20.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(next@16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(solid-js@1.9.17)(ws@8.22.0)(zod@4.6.7)
     optionalDependencies:
       next: 16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0)
     transitivePeerDependencies:
@@ -5663,7 +5724,7 @@ snapshots:
       - ws
       - zod
 
-  '@conciv/mascot@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-mascot-0.0.19.tgz(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)':
+  '@conciv/mascot@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-mascot-0.0.20.tgz(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)':
     dependencies:
       gsap: 3.15.0
     optionalDependencies:
@@ -5671,11 +5732,11 @@ snapshots:
       react-dom: 19.2.4(react@19.2.4)
       solid-js: 1.9.17
 
-  '@conciv/page@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-page-0.0.19.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(ws@8.22.0)':
+  '@conciv/page@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-grab-0.0.19.tgz
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-grab-0.0.20.tgz
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
       bippy: 0.5.41(react@19.2.4)
       react-grab: 0.1.50(react@19.2.4)
       rrweb-snapshot: 2.2.0
@@ -5687,11 +5748,11 @@ snapshots:
       - react
       - ws
 
-  '@conciv/page@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-page-0.0.19.tgz(@opentelemetry/api@1.10.0)(react@19.3.1)(ws@8.22.0)':
+  '@conciv/page@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(react@19.3.1)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-grab-0.0.19.tgz
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/grab': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-grab-0.0.20.tgz
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
       bippy: 0.5.41(react@19.3.1)
       react-grab: 0.1.50(react@19.3.1)
       rrweb-snapshot: 2.2.0
@@ -5703,18 +5764,18 @@ snapshots:
       - react
       - ws
 
-  '@conciv/plugin@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-plugin-0.0.19.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(next@16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(solid-js@1.9.17)(ws@8.22.0)(zod@4.6.7)':
+  '@conciv/plugin@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-plugin-0.0.20.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(next@16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(solid-js@1.9.17)(ws@8.22.0)(zod@4.6.7)':
     dependencies:
-      '@conciv/cli': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-cli-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/core': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-core-0.0.19.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/embed': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-embed-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(ws@8.22.0)(zod@4.6.7)
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/extension-compiler': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-compiler-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/cli': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-cli-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/core': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-core-0.0.20.tgz(@anthropic-ai/sdk@1.3.0(zod@4.6.7))(@libsql/client@0.17.4)(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/embed': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-embed-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.5.0)(ws@8.22.0)(zod@4.6.7)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-compiler': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-compiler-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
       chokidar: 5.0.0
       knitwork: 1.3.0
       launch-editor: 2.14.2
-      unplugin: 3.6.0
+      unplugin: 3.7.0
     optionalDependencies:
       next: 16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0)
     transitivePeerDependencies:
@@ -5794,7 +5855,7 @@ snapshots:
       - ws
       - zod
 
-  '@conciv/protocol@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)':
+  '@conciv/protocol@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)':
     dependencies:
       '@tanstack/ai': 0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
       '@tanstack/ai-client': 0.29.1(@opentelemetry/api@1.10.0)(zod@4.6.7)
@@ -5802,9 +5863,9 @@ snapshots:
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@conciv/serve@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-serve-0.0.19.tgz(@opentelemetry/api@1.10.0)':
+  '@conciv/serve@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-serve-0.0.20.tgz(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
       '@hono/node-server': 2.1.5(hono@4.13.14)
       hono: 4.13.14
       ws: 8.22.0
@@ -5813,7 +5874,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@conciv/solid-diffs@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)':
+  '@conciv/solid-diffs@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)':
     dependencies:
       '@pierre/diffs': 1.5.2(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@tanstack/solid-pacer': 0.22.0(solid-js@1.9.17)
@@ -5823,7 +5884,7 @@ snapshots:
       - react
       - react-dom
 
-  '@conciv/solid-diffs@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)':
+  '@conciv/solid-diffs@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)':
     dependencies:
       '@pierre/diffs': 1.5.2(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/solid-pacer': 0.22.0(solid-js@1.9.17)
@@ -5833,7 +5894,7 @@ snapshots:
       - react
       - react-dom
 
-  '@conciv/solid-streamdown@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-streamdown-0.0.19.tgz(shiki@4.5.0)(solid-js@1.9.17)':
+  '@conciv/solid-streamdown@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-streamdown-0.0.20.tgz(shiki@4.5.0)(solid-js@1.9.17)':
     dependencies:
       marked: 18.1.2
       rehype-harden: 1.1.8
@@ -5849,20 +5910,20 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@conciv/storage-history@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-storage-history-0.0.19.tgz':
+  '@conciv/storage-history@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-storage-history-0.0.20.tgz':
     dependencies:
       '@tanstack/history': 1.162.5
 
-  '@conciv/tools@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-tools-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/tools@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-tools-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/extension-page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-page-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/extension': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/extension-page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
       '@tanstack/ai': 0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       solid-js: 1.9.17
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5875,15 +5936,15 @@ snapshots:
       - supports-color
       - ws
 
-  '@conciv/ui-kit-chat-tools@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-tools-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/ui-kit-chat-tools@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-tools-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension-page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-page-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/extension-page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
       es-toolkit: 1.53.0
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       solid-js: 1.9.17
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5896,15 +5957,15 @@ snapshots:
       - supports-color
       - ws
 
-  '@conciv/ui-kit-chat-tools@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-tools-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/ui-kit-chat-tools@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-tools-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
-      '@conciv/extension-page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-extension-page-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)(ws@8.22.0)
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)
-      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/extension-page': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-extension-page-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)(ws@8.22.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)
+      '@conciv/ui-kit-chat': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
       es-toolkit: 1.53.0
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       solid-js: 1.9.17
       zod: 4.6.7
     transitivePeerDependencies:
@@ -5917,15 +5978,15 @@ snapshots:
       - supports-color
       - ws
 
-  '@conciv/ui-kit-chat@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)':
+  '@conciv/ui-kit-chat@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)':
     dependencies:
       '@ark-ui/solid': 5.39.3(solid-js@1.9.17)
       '@chenglou/pretext': 0.0.8
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
-      '@conciv/solid-streamdown': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-streamdown-0.0.19.tgz(shiki@4.5.0)(solid-js@1.9.17)
-      '@conciv/storage-history': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-storage-history-0.0.19.tgz
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz(@shikijs/themes@4.5.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.17)
+      '@conciv/solid-streamdown': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-streamdown-0.0.20.tgz(shiki@4.5.0)(solid-js@1.9.17)
+      '@conciv/storage-history': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-storage-history-0.0.20.tgz
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
       '@fontsource/archivo': 5.3.0
       '@fontsource/jetbrains-mono': 5.3.0
       '@fontsource/source-sans-3': 5.3.1
@@ -5940,7 +6001,7 @@ snapshots:
       '@tanstack/solid-virtual': 3.13.51(solid-js@1.9.17)
       class-variance-authority: 0.7.1
       es-toolkit: 1.53.0
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       mermaid: 11.17.2
       rrweb-snapshot: 2.2.0
       shiki: 4.5.0
@@ -5953,15 +6014,15 @@ snapshots:
       - react-dom
       - supports-color
 
-  '@conciv/ui-kit-chat@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-chat-0.0.19.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)':
+  '@conciv/ui-kit-chat@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-chat-0.0.20.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)':
     dependencies:
       '@ark-ui/solid': 5.39.3(solid-js@1.9.17)
       '@chenglou/pretext': 0.0.8
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
-      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-diffs-0.0.19.tgz(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)
-      '@conciv/solid-streamdown': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-solid-streamdown-0.0.19.tgz(shiki@4.5.0)(solid-js@1.9.17)
-      '@conciv/storage-history': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-storage-history-0.0.19.tgz
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/solid-diffs': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-diffs-0.0.20.tgz(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.17)
+      '@conciv/solid-streamdown': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-solid-streamdown-0.0.20.tgz(shiki@4.5.0)(solid-js@1.9.17)
+      '@conciv/storage-history': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-storage-history-0.0.20.tgz
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
       '@fontsource/archivo': 5.3.0
       '@fontsource/jetbrains-mono': 5.3.0
       '@fontsource/source-sans-3': 5.3.1
@@ -5976,7 +6037,7 @@ snapshots:
       '@tanstack/solid-virtual': 3.13.51(solid-js@1.9.17)
       class-variance-authority: 0.7.1
       es-toolkit: 1.53.0
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       mermaid: 11.17.2
       rrweb-snapshot: 2.2.0
       shiki: 4.5.0
@@ -5989,7 +6050,7 @@ snapshots:
       - react-dom
       - supports-color
 
-  '@conciv/ui-kit-system@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)':
+  '@conciv/ui-kit-system@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)':
     dependencies:
       '@ark-ui/solid': 5.39.3(solid-js@1.9.17)
       '@solid-primitives/clipboard': 1.6.6(solid-js@1.9.17)
@@ -5998,27 +6059,27 @@ snapshots:
       '@tanstack/solid-virtual': 3.13.51(solid-js@1.9.17)
       '@zag-js/json-tree-utils': 1.47.0
       class-variance-authority: 0.7.1
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       solid-js: 1.9.17
 
-  '@conciv/ui-kit-tap@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-tap-0.0.19.tgz(solid-js@1.9.17)':
+  '@conciv/ui-kit-tap@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-tap-0.0.20.tgz(solid-js@1.9.17)':
     dependencies:
-      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-system-0.0.19.tgz(solid-js@1.9.17)
+      '@conciv/ui-kit-system': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-system-0.0.20.tgz(solid-js@1.9.17)
       '@floating-ui/dom': 1.8.0
-      '@tiptap/core': 3.32.1(@tiptap/pm@3.32.1)
-      '@tiptap/extension-document': 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
-      '@tiptap/extension-hard-break': 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
-      '@tiptap/extension-mention': 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))(@tiptap/pm@3.32.1)(@tiptap/suggestion@3.32.1(@floating-ui/dom@1.8.0)(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))(@tiptap/pm@3.32.1))
-      '@tiptap/extension-paragraph': 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
-      '@tiptap/extension-text': 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
-      '@tiptap/extensions': 3.32.0(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))(@tiptap/pm@3.32.1)
-      '@tiptap/pm': 3.32.1
-      '@tiptap/suggestion': 3.32.1(@floating-ui/dom@1.8.0)(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))(@tiptap/pm@3.32.1)
+      '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
+      '@tiptap/extension-document': 3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))
+      '@tiptap/extension-hard-break': 3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))
+      '@tiptap/extension-mention': 3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)(@tiptap/suggestion@3.32.2(@floating-ui/dom@1.8.0)(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2))
+      '@tiptap/extension-paragraph': 3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))
+      '@tiptap/extension-text': 3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))
+      '@tiptap/extensions': 3.32.1(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)
+      '@tiptap/pm': 3.32.2
+      '@tiptap/suggestion': 3.32.2(@floating-ui/dom@1.8.0)(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)
       solid-js: 1.9.17
 
-  '@conciv/ui-kit-terminal@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-ui-kit-terminal-0.0.19.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)':
+  '@conciv/ui-kit-terminal@file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-ui-kit-terminal-0.0.20.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.17)':
     dependencies:
-      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-ktY0Cg/tgz/conciv-protocol-0.0.19.tgz(@opentelemetry/api@1.10.0)
+      '@conciv/protocol': file:../../../../../../../var/folders/p6/0yk2122j3nxbgyk45j2zl1kw0000gn/T/conciv-packed-fixture-1O9WAK/tgz/conciv-protocol-0.0.20.tgz(@opentelemetry/api@1.10.0)
       '@tanstack/pacer': 0.23.1
       '@xterm/addon-fit': 0.11.0
       '@xterm/xterm': 6.0.0
@@ -6378,7 +6439,7 @@ snapshots:
       express: 5.3.0
       express-rate-limit: 8.7.1(express@5.3.0)
       hono: 4.13.14
-      jose: 6.2.13
+      jose: 6.2.14
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
@@ -6417,7 +6478,7 @@ snapshots:
 
   '@one-ini/wasm@0.1.1': {}
 
-  '@opencode-ai/sdk@1.19.4':
+  '@opencode-ai/sdk@1.19.5':
     dependencies:
       cross-spawn: 7.0.6
 
@@ -6915,6 +6976,8 @@ snapshots:
       prompts: 2.4.2
       tinyexec: 1.3.1
 
+  '@rolldown/pluginutils@1.0.1': {}
+
   '@rrweb/packer@2.2.0':
     dependencies:
       '@rrweb/types': 2.2.0
@@ -7108,11 +7171,11 @@ snapshots:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
-  '@tanstack/ai-acp@0.3.7(@tanstack/ai-sandbox@0.5.3(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)':
+  '@tanstack/ai-acp@0.3.7(@tanstack/ai-sandbox@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)':
     dependencies:
       '@agentclientprotocol/sdk': 0.25.1(zod@4.6.7)
       '@tanstack/ai': 0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@tanstack/ai-sandbox': 0.5.3(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-sandbox': 0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
     transitivePeerDependencies:
       - zod
 
@@ -7145,22 +7208,15 @@ snapshots:
       '@tanstack/ai-code-mode': 0.4.6(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
       quickjs-emscripten: 0.31.0
 
-  '@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))':
+  '@tanstack/ai-sandbox-local-process@0.2.4(@tanstack/ai-sandbox@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))':
     dependencies:
-      '@tanstack/ai': 0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@tanstack/ai-utils': 0.4.2
+      '@tanstack/ai-sandbox': 0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
 
-  '@tanstack/ai-sandbox-local-process@0.2.4(@tanstack/ai-sandbox@0.5.3(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7))':
-    dependencies:
-      '@tanstack/ai-sandbox': 0.5.3(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
-
-  '@tanstack/ai-sandbox@0.5.3(@tanstack/ai-persistence@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)))(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)':
+  '@tanstack/ai-sandbox@0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)':
     dependencies:
       '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.7)
       '@tanstack/ai': 0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
       '@tanstack/ai-skills': 0.1.21(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(zod@4.6.7)
-    optionalDependencies:
-      '@tanstack/ai-persistence': 0.5.3(@tanstack/ai@0.51.0(@opentelemetry/api@1.10.0)(zod@4.6.7))
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - supports-color
@@ -7247,15 +7303,15 @@ snapshots:
     dependencies:
       '@tanstack/history': 1.162.5
       cookie-es: 3.1.1
-      seroval: 1.7.2
-      seroval-plugins: 1.7.2(seroval@1.7.2)
+      seroval: 1.7.3
+      seroval-plugins: 1.7.3(seroval@1.7.3)
 
   '@tanstack/router-core@1.171.39':
     dependencies:
       '@tanstack/history': 1.162.5
       cookie-es: 3.1.1
-      seroval: 1.7.2
-      seroval-plugins: 1.7.2(seroval@1.7.2)
+      seroval: 1.7.3
+      seroval-plugins: 1.7.3(seroval@1.7.3)
 
   '@tanstack/solid-db@0.2.45(solid-js@1.9.17)(typescript@5.9.2)':
     dependencies:
@@ -7299,38 +7355,38 @@ snapshots:
 
   '@tanstack/virtual-core@3.19.9': {}
 
-  '@tiptap/core@3.32.1(@tiptap/pm@3.32.1)':
+  '@tiptap/core@3.32.2(@tiptap/pm@3.32.2)':
     dependencies:
-      '@tiptap/pm': 3.32.1
+      '@tiptap/pm': 3.32.2
 
-  '@tiptap/extension-document@3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))':
+  '@tiptap/extension-document@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))':
     dependencies:
-      '@tiptap/core': 3.32.1(@tiptap/pm@3.32.1)
+      '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
 
-  '@tiptap/extension-hard-break@3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))':
+  '@tiptap/extension-hard-break@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))':
     dependencies:
-      '@tiptap/core': 3.32.1(@tiptap/pm@3.32.1)
+      '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
 
-  '@tiptap/extension-mention@3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))(@tiptap/pm@3.32.1)(@tiptap/suggestion@3.32.1(@floating-ui/dom@1.8.0)(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))(@tiptap/pm@3.32.1))':
+  '@tiptap/extension-mention@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)(@tiptap/suggestion@3.32.2(@floating-ui/dom@1.8.0)(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2))':
     dependencies:
-      '@tiptap/core': 3.32.1(@tiptap/pm@3.32.1)
-      '@tiptap/pm': 3.32.1
-      '@tiptap/suggestion': 3.32.1(@floating-ui/dom@1.8.0)(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))(@tiptap/pm@3.32.1)
+      '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
+      '@tiptap/pm': 3.32.2
+      '@tiptap/suggestion': 3.32.2(@floating-ui/dom@1.8.0)(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)
 
-  '@tiptap/extension-paragraph@3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))':
+  '@tiptap/extension-paragraph@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))':
     dependencies:
-      '@tiptap/core': 3.32.1(@tiptap/pm@3.32.1)
+      '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
 
-  '@tiptap/extension-text@3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))':
+  '@tiptap/extension-text@3.32.2(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))':
     dependencies:
-      '@tiptap/core': 3.32.1(@tiptap/pm@3.32.1)
+      '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
 
-  '@tiptap/extensions@3.32.0(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))(@tiptap/pm@3.32.1)':
+  '@tiptap/extensions@3.32.1(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)':
     dependencies:
-      '@tiptap/core': 3.32.1(@tiptap/pm@3.32.1)
-      '@tiptap/pm': 3.32.1
+      '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
+      '@tiptap/pm': 3.32.2
 
-  '@tiptap/pm@3.32.1':
+  '@tiptap/pm@3.32.2':
     dependencies:
       prosemirror-changeset: 2.4.4
       prosemirror-commands: 1.7.2
@@ -7346,11 +7402,11 @@ snapshots:
       prosemirror-transform: 1.12.4
       prosemirror-view: 1.42.8
 
-  '@tiptap/suggestion@3.32.1(@floating-ui/dom@1.8.0)(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))(@tiptap/pm@3.32.1)':
+  '@tiptap/suggestion@3.32.2(@floating-ui/dom@1.8.0)(@tiptap/core@3.32.2(@tiptap/pm@3.32.2))(@tiptap/pm@3.32.2)':
     dependencies:
       '@floating-ui/dom': 1.8.0
-      '@tiptap/core': 3.32.1(@tiptap/pm@3.32.1)
-      '@tiptap/pm': 3.32.1
+      '@tiptap/core': 3.32.2(@tiptap/pm@3.32.2)
+      '@tiptap/pm': 3.32.2
 
   '@tsconfig/svelte@1.0.13': {}
 
@@ -8207,7 +8263,7 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.7.3
       on-finished: 2.4.2
-      qs: 6.17.0
+      qs: 6.17.1
       raw-body: 3.0.2
       type-is: 2.1.0
     transitivePeerDependencies:
@@ -8226,9 +8282,9 @@ snapshots:
   browserslist@4.29.5:
     dependencies:
       baseline-browser-mapping: 2.11.34
-      caniuse-lite: 1.0.30001819
-      electron-to-chromium: 1.5.466
-      node-releases: 2.0.60
+      caniuse-lite: 1.0.30001820
+      electron-to-chromium: 1.5.467
+      node-releases: 2.0.61
       update-browserslist-db: 1.3.4(browserslist@4.29.5)
 
   bytes@3.1.2: {}
@@ -8243,7 +8299,7 @@ snapshots:
       call-bind-apply-helpers: 1.0.2
       get-intrinsic: 1.3.0
 
-  caniuse-lite@1.0.30001819: {}
+  caniuse-lite@1.0.30001820: {}
 
   canvas-roundrect-polyfill@0.0.1: {}
 
@@ -8369,7 +8425,14 @@ snapshots:
       shebang-command: 2.0.0
       which: 2.0.2
 
+  css-tree@3.2.1:
+    dependencies:
+      mdn-data: 2.27.1
+      source-map-js: 1.2.2
+
   csstype@3.2.3: {}
+
+  culori@4.0.2: {}
 
   cytoscape-cose-bilkent@4.1.0(cytoscape@3.34.4):
     dependencies:
@@ -8620,13 +8683,13 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  electron-to-chromium@1.5.466: {}
+  electron-to-chromium@1.5.467: {}
 
   emoji-regex@8.0.0: {}
 
   emoji-regex@9.2.2: {}
 
-  encodeurl@2.0.0: {}
+  encodeurl@2.0.1: {}
 
   entities@6.0.1: {}
 
@@ -8676,7 +8739,7 @@ snapshots:
       cookie-signature: 1.2.2
       debug: 4.4.3
       depd: 2.0.0
-      encodeurl: 2.0.0
+      encodeurl: 2.0.1
       escape-html: 1.0.3
       etag: 1.8.1
       finalhandler: 2.1.1
@@ -8688,7 +8751,7 @@ snapshots:
       once: 1.4.0
       parseurl: 1.3.3
       proxy-addr: 2.0.8
-      qs: 6.17.0
+      qs: 6.17.1
       range-parser: 1.3.0
       router: 2.2.0
       send: 1.2.1
@@ -8734,7 +8797,7 @@ snapshots:
   finalhandler@2.1.1:
     dependencies:
       debug: 4.4.3
-      encodeurl: 2.0.0
+      encodeurl: 2.0.1
       escape-html: 1.0.3
       on-finished: 2.4.2
       parseurl: 1.3.3
@@ -8968,7 +9031,7 @@ snapshots:
 
   jiti@2.7.0: {}
 
-  jose@6.2.13: {}
+  jose@6.2.14: {}
 
   jotai-scope@0.7.2(jotai@2.11.0(@types/react@19.3.0)(react@19.3.1))(react@19.3.1):
     dependencies:
@@ -9076,7 +9139,7 @@ snapshots:
 
   lru_map@0.4.1: {}
 
-  lucide-solid@1.64.0(solid-js@1.9.17):
+  lucide-solid@1.66.0(solid-js@1.9.17):
     dependencies:
       solid-js: 1.9.17
 
@@ -9207,6 +9270,8 @@ snapshots:
   mdast-util-to-string@4.0.0:
     dependencies:
       '@types/mdast': 4.0.4
+
+  mdn-data@2.27.1: {}
 
   media-typer@1.1.1: {}
 
@@ -9478,7 +9543,7 @@ snapshots:
       '@next/env': 16.2.10
       '@swc/helpers': 0.5.15
       baseline-browser-mapping: 2.11.34
-      caniuse-lite: 1.0.30001819
+      caniuse-lite: 1.0.30001820
       postcss: 8.4.31
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
@@ -9501,7 +9566,7 @@ snapshots:
 
   node-gyp-build@4.8.4: {}
 
-  node-releases@2.0.60: {}
+  node-releases@2.0.61: {}
 
   nopt@7.2.1:
     dependencies:
@@ -9633,6 +9698,10 @@ snapshots:
 
   pirates@4.0.7: {}
 
+  pixelmatch@8.0.0:
+    dependencies:
+      pngjs: 7.0.0
+
   pkce-challenge@5.0.1: {}
 
   playwright-core@1.64.1: {}
@@ -9647,6 +9716,8 @@ snapshots:
   png-chunks-extract@1.0.0:
     dependencies:
       crc-32: 0.3.0
+
+  pngjs@7.0.0: {}
 
   points-on-curve@0.2.0: {}
 
@@ -9767,7 +9838,7 @@ snapshots:
 
   pwacompat@2.0.17: {}
 
-  qs@6.17.0:
+  qs@6.17.1:
     dependencies:
       es-define-property: 1.0.1
       side-channel: 1.1.1
@@ -9998,7 +10069,7 @@ snapshots:
   send@1.2.1:
     dependencies:
       debug: 4.4.3
-      encodeurl: 2.0.0
+      encodeurl: 2.0.1
       escape-html: 1.0.3
       etag: 1.8.1
       fresh: 2.0.0
@@ -10015,17 +10086,17 @@ snapshots:
     dependencies:
       seroval: 1.6.12
 
-  seroval-plugins@1.7.2(seroval@1.7.2):
+  seroval-plugins@1.7.3(seroval@1.7.3):
     dependencies:
-      seroval: 1.7.2
+      seroval: 1.7.3
 
   seroval@1.6.12: {}
 
-  seroval@1.7.2: {}
+  seroval@1.7.3: {}
 
   serve-static@2.2.1:
     dependencies:
-      encodeurl: 2.0.0
+      encodeurl: 2.0.1
       escape-html: 1.0.3
       parseurl: 1.3.3
       send: 1.2.1
@@ -10283,9 +10354,10 @@ snapshots:
 
   unpipe@1.0.0: {}
 
-  unplugin@3.6.0:
+  unplugin@3.7.0:
     dependencies:
       '@jridgewell/remapping': 2.3.5
+      '@rolldown/pluginutils': 1.0.1
       picomatch: 4.0.7
       webpack-virtual-modules: 0.6.2
 
