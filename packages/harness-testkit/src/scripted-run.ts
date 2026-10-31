@@ -21,6 +21,8 @@ export type ScriptedRun = {
   chatStream: (deps: HarnessChatDeps, options?: ScriptedRequest) => AsyncGenerator<ChatEvent>
   hold: () => void
   release: () => void
+  holdStart: () => void
+  releaseStart: () => void
   holdTools: () => void
   releaseTools: () => void
   holdResults: () => void
@@ -187,6 +189,7 @@ function makeGate(): Gate {
 export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const defaultText = opts.text ?? 'ok'
   const gate = makeGate()
+  const startGate = makeGate()
   const toolGate = makeGate()
   const resultGate = makeGate()
   const toolCalls = {count: 0}
@@ -248,6 +251,8 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     const run = runIdentity(deps, options)
     const nextId = runScopedIds(run.runId)
     const drainCustomEvents = () => customEventChunks(queuedCustomEvents.splice(0), run)
+    await startGate.wait(signal)
+    if (isAborted(signal)) return
     yield {type: ChatEventType.RUN_STARTED, ...run}
     yield sessionIdChunk(deps, run)
     const turn = queuedTurns.shift()
@@ -263,6 +268,8 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     chatStream,
     hold: gate.hold,
     release: gate.release,
+    holdStart: startGate.hold,
+    releaseStart: startGate.release,
     holdTools: toolGate.hold,
     releaseTools: toolGate.release,
     holdResults: resultGate.hold,

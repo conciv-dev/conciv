@@ -152,7 +152,7 @@ function PanelSession(): JSX.Element {
     const turn = turns().at(-1)
     return turn ? turnRollup(turn) : undefined
   })
-  const isStreaming = createMemo(() => chatBusy(chat()))
+  const isStreaming = createMemo(() => chatBusy(chat()) || chat().sessionRunning())
   const queue = createMemo(() => chat().queue())
   const sessionStatus = createSessionStatus(() => ({
     latestRollup: latestRollup(),

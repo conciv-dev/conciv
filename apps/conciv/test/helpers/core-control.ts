@@ -13,6 +13,8 @@ declare module 'vitest/internal/browser' {
     outsideReload: (sessionId: string, file: string) => Promise<string>
     setStaleness: (value: EngineStaleness) => Promise<void>
     holdTurn: () => Promise<void>
+    holdStart: () => Promise<void>
+    releaseStart: () => Promise<void>
     holdTools: () => Promise<void>
     releaseTools: () => Promise<void>
     holdResults: () => Promise<void>

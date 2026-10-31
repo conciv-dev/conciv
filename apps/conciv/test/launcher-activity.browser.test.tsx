@@ -11,6 +11,7 @@ const harness = createShellHarness(coreBase)
 
 afterEach(async () => {
   await coreControl.releaseTurn()
+  await coreControl.releaseStart()
   harness.dispose()
 })
 
@@ -56,4 +57,24 @@ test('the launcher follows the targeted session from the start of a run to its s
   await coreControl.releaseTurn()
 
   await expect.element(launcher(), {timeout: 8000}).toHaveAttribute('aria-busy', 'false')
+}, 30_000)
+
+test('the status bar reads RUNNING while a compact run has not streamed its start yet, until it ends', async () => {
+  await page.viewport(1000, 900)
+  const sessionId = await createSession(coreRpc(coreBase()))
+
+  harness.mountShell(`/panel/${sessionId}?open=true`)
+  await expect.element(composer(), {timeout: 8000}).toBeVisible()
+  await expect.element(page.getByText('DONE', {exact: true})).toBeVisible()
+
+  await coreControl.holdStart()
+  await page.getByRole('button', {name: 'More composer actions'}).click()
+  await page.getByRole('menuitem', {name: 'Compress the conversation'}).click()
+
+  await expect.element(page.getByText('Responding…'), {timeout: 8000}).toBeVisible()
+  await expect.element(page.getByText('RUNNING', {exact: true})).toBeVisible()
+
+  await coreControl.releaseStart()
+
+  await expect.element(page.getByText('DONE', {exact: true}), {timeout: 8000}).toBeVisible()
 }, 30_000)
