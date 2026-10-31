@@ -6,7 +6,7 @@ import MoreHorizontal from 'lucide-solid/icons/ellipsis'
 import Pencil from 'lucide-solid/icons/pencil'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
-import {Swap, TooltipIconButton, TooltipIconButtonSlot, type ClipboardCopyStatus} from '@conciv/ui-kit-system'
+import {Swap, Tooltip, TooltipIconButton, TooltipIconButtonSlot, type ClipboardCopyStatus} from '@conciv/ui-kit-system'
 import {ActionBar, useCopyStatus, useExportMarkdown} from '../primitives/action-bar/action-bar.js'
 import {ActionBarMore} from '../primitives/action-bar-more/action-bar-more.js'
 import {FOCUS, HIGHLIGHT} from './classes.js'
@@ -81,30 +81,32 @@ export function AssistantActionBar(): JSX.Element {
       aria-label="Message actions"
       class={ASSISTANT_BAR_CLASS}
     >
-      <ActionBar.Copy render={(props) => <CopyButton buttonProps={props} />} />
-      <ActionBar.Reload
-        render={(props) => (
-          <TooltipIconButton {...props} tooltip="Refresh" class="size-6">
-            <RefreshCw size={ICON} />
-          </TooltipIconButton>
-        )}
-      />
-      <ActionBarMore.Root>
-        <TooltipIconButtonSlot tooltip={MORE_LABEL}>
-          {(buttonProps) => (
-            <ActionBarMore.Trigger
-              asChild={(triggerProps) => (
-                <button {...buttonProps()} {...triggerProps()} class={TRIGGER}>
-                  <MoreHorizontal size={ICON} />
-                </button>
-              )}
-            />
+      <Tooltip.Group>
+        <ActionBar.Copy render={(props) => <CopyButton buttonProps={props} />} />
+        <ActionBar.Reload
+          render={(props) => (
+            <TooltipIconButton {...props} tooltip="Refresh" class="size-6">
+              <RefreshCw size={ICON} />
+            </TooltipIconButton>
           )}
-        </TooltipIconButtonSlot>
-        <ActionBarMore.Content class={MENU}>
-          <ExportMarkdownItem />
-        </ActionBarMore.Content>
-      </ActionBarMore.Root>
+        />
+        <ActionBarMore.Root>
+          <TooltipIconButtonSlot tooltip={MORE_LABEL}>
+            {(buttonProps) => (
+              <ActionBarMore.Trigger
+                asChild={(triggerProps) => (
+                  <button {...buttonProps()} {...triggerProps()} class={TRIGGER}>
+                    <MoreHorizontal size={ICON} />
+                  </button>
+                )}
+              />
+            )}
+          </TooltipIconButtonSlot>
+          <ActionBarMore.Content class={MENU}>
+            <ExportMarkdownItem />
+          </ActionBarMore.Content>
+        </ActionBarMore.Root>
+      </Tooltip.Group>
     </ActionBar.Root>
   )
 }
