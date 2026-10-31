@@ -233,7 +233,7 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   positional?: string
 }): DesignToolDef<Shape, Out> {
   return defineTool({
-    name: `${DESIGN_TOOL_PREFIX}${spec.verb}`,
+    name: `design_${spec.verb}`,
     description: spec.summary,
     inputSchema: spec.input,
     outputSchema: spec.output,

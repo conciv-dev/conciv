@@ -9,7 +9,8 @@ function local(path: string): string {
 
 async function compiler(command: 'build' | 'serve'): Promise<PluginOption> {
   if (command === 'build') return solid()
-  const {default: conciv} = await import('../../it/dist/vite.js')
+  const plugin = new URL('../../it/dist/vite.js', import.meta.url).href
+  const {default: conciv} = await import(plugin)
   return conciv()
 }
 
