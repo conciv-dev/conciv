@@ -32,6 +32,7 @@ import {
   type TooltipSide,
 } from './tooltip-motion.js'
 import {createFrameLoop, prefersReducedMotion, type Spring} from './motion.js'
+import {isShadowRoot} from './realm.js'
 
 export type TooltipGroupMember = {
   id: string
@@ -516,6 +517,8 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     })
     makeEventListener(window, 'scroll', follow, {capture: true, passive: true})
     makeEventListener(window, 'resize', follow)
+    const triggerRoot = state.active?.trigger()?.getRootNode()
+    if (isShadowRoot(triggerRoot)) makeEventListener(triggerRoot, 'scroll', follow, {capture: true, passive: true})
     return (
       <div
         ref={setLabel}
