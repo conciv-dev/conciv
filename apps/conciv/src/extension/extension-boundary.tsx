@@ -89,15 +89,21 @@ export function guardedComponent<Props extends object>(
   )
 }
 
+function crashKey(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return typeof error
+}
+
 function guardedBodyPredicate(name: string, predicate: ToolBodyPredicate): ToolBodyPredicate {
   const reported = new Set<string>()
   return (part, result, ctx) => {
     try {
       return predicate(part, result, ctx)
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (!reported.has(message)) reportCrash(name, error)
-      reported.add(message)
+      const key = crashKey(error)
+      if (!reported.has(key)) reportCrash(name, error)
+      reported.add(key)
       return true
     }
   }

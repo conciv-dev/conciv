@@ -305,6 +305,26 @@ describe('a crashing extension', () => {
     expect(crashReports('declares-only')).toBe(0)
   })
 
+  test('a predicate that throws a value with no string form still reads as an embedded body and reports once', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const extension = defineExtension({
+      name: 'crash-opaque-predicate',
+      tools: [
+        defineTool({name: 'crash_streaming', ...TOOL_SHAPE}).render({
+          render: () => <p>{CALM_CARD_BODY}</p>,
+          hasEmbeddedBody: () => {
+            throw Object.create(null)
+          },
+        }),
+      ],
+    })
+    const evaluate = guardedToolCards([extension])[0]?.hasEmbeddedBody
+
+    expect(evaluate?.(predicatePart, undefined, predicateCtx)).toBe(true)
+    expect(evaluate?.(predicatePart, undefined, predicateCtx)).toBe(true)
+    expect(crashReports('crash-opaque-predicate')).toBe(1)
+  })
+
   test('a throwing embedded ToolCard header reads as the failed card and the thread stays up', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const throwingTitle = (): string => {
