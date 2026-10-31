@@ -3,15 +3,14 @@ import {upperFirst} from 'es-toolkit'
 import {Button, ClipboardCopyButton, Collapsible, ScrollArea, SegmentGroup, TextField} from '@conciv/ui-kit-system'
 import type {DeltaKindName} from '../shared/defs.js'
 import type {SourceLoc} from '../shared/types.js'
-import {rowAboveTolerance, type Delta, type Row} from './data.js'
+import {filterRows, rowAboveTolerance, type Delta, type Filter, type Row} from './data.js'
 import {fixPrompt, traced} from './fix-prompt.js'
 
 const FILTERS = ['all', 'above'] as const
-export type Filter = (typeof FILTERS)[number]
 
 export const SMALL_BUTTON = 'font-chat focus-ring text-[0.75rem] rounded-chat-surface-sm h-7 px-2.5'
 
-const FILTER_LABEL: Record<Filter, string> = {all: 'All', above: 'Off'}
+const FILTER_LABEL: Record<(typeof FILTERS)[number], string> = {all: 'All', above: 'Off'}
 
 const PAGE_PERCENT = new Intl.NumberFormat(undefined, {
   style: 'percent',
@@ -95,13 +94,6 @@ function unmatchedNote(row: Row): string {
   if (row.unmatched === 'extra')
     return 'The target has nothing under this box; the live tree renders an element the design does not have.'
   return 'The target has an element here that the live page does not render.'
-}
-
-export function filterRows(input: {rows: Row[]; filter: Filter; query: string}): Row[] {
-  const needle = input.query.trim().toLowerCase()
-  return input.rows
-    .filter((row) => input.filter !== 'above' || rowAboveTolerance(row))
-    .filter((row) => needle === '' || `${row.label} ${row.selector}`.toLowerCase().includes(needle))
 }
 
 function DeltaLine(props: {delta: Delta; onOpen: (source: SourceLoc) => void}): JSX.Element {

@@ -60,6 +60,7 @@ export default defineConfig({
       'bg-code': 'bg-gray-500/5',
       'bg-tooltip': 'bg-white/75 dark:bg-[#111]/75 backdrop-blur-[8px]',
       'bg-dots': 'bg-white dark:bg-black',
+      badge: 'text-[11px] leading-[1.6em] px-1.5 rounded whitespace-nowrap',
       'focus-base': 'outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40',
       'btn-action':
         'border border-base rounded flex gap-2 items-center px-2 py-1 op-75 hover:op-100 hover:bg-active transition focus-base active:scale-97 motion-reduce:active:scale-100 disabled:pointer-events-none disabled:op-30!',

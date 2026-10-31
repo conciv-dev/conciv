@@ -6,6 +6,7 @@ import {Button, Dialog, readStorage, writeStorage} from '@conciv/ui-kit-system'
 import type {SourceLoc} from '../../shared/types.js'
 import {
   diffCommand,
+  filterRows,
   loadXray,
   openInEditor,
   reportRows,
@@ -16,7 +17,7 @@ import {
   type XrayData,
 } from '../data.js'
 import {loadFixture} from '../dev-fixture.js'
-import {ComponentList, filterRows} from '../list.js'
+import {ComponentList} from '../list.js'
 import {createShortcuts, SHORTCUT_HELP} from '../shortcuts.js'
 import {clampZoom, fitScale, MODES, Stage, StageToolbar, zoomStep, type Mode, type StageView} from '../stage.js'
 import {RunButton, Topbar} from '../topbar.js'

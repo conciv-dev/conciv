@@ -160,3 +160,30 @@ export async function openInEditor(input: {source: SourceLoc; session: string | 
 export function diffCommand(target: TargetRecord): string {
   return `conciv tools design diff --target ${target.id} --width ${target.width}`
 }
+
+export const FILTERS = ['all', 'above', 'match', 'none'] as const
+export type Filter = (typeof FILTERS)[number]
+
+export type FilterChoice = {above: boolean; match: boolean}
+
+export function filterChoice(filter: Filter): FilterChoice {
+  return {above: filter === 'all' || filter === 'above', match: filter === 'all' || filter === 'match'}
+}
+
+export function choiceFilter(choice: FilterChoice): Filter {
+  if (choice.above && choice.match) return 'all'
+  if (choice.above) return 'above'
+  return choice.match ? 'match' : 'none'
+}
+
+function shown(input: {row: Row; filter: Filter}): boolean {
+  const choice = filterChoice(input.filter)
+  return rowAboveTolerance(input.row) ? choice.above : choice.match
+}
+
+export function filterRows(input: {rows: Row[]; filter: Filter; query: string}): Row[] {
+  const needle = input.query.trim().toLowerCase()
+  return input.rows
+    .filter((row) => shown({row, filter: input.filter}))
+    .filter((row) => needle === '' || `${row.label} ${row.selector} ${row.tag}`.toLowerCase().includes(needle))
+}
