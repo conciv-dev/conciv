@@ -84,6 +84,9 @@ README.md; this file is the non-obvious operational rules.
   strip them; write self-explanatory code.
 - TypeScript is strict (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`, NodeNext). Avoid
   `any`/`as`/`@ts-ignore`.
+- Solid: no raw `createSignal`/`createEffect` in new code; use `createMemo`, `createResource`, solid-query,
+  or `@solid-primitives/*`. React (`apps/site`): no `useEffect`/`useLayoutEffect`. Full review laws:
+  `.github/skills/code-review/SKILL.md`.
 - oxfmt: no semicolons, single quotes, no bracket spacing, trailing commas, printWidth 120.
 
 ## TanStack Router
@@ -106,6 +109,10 @@ README.md; this file is the non-obvious operational rules.
 
 ## Testing
 
+- Test file budget: one node test file plus one browser/e2e test file per package
+  (`conciv/test-file-budget`). Never add a test file; add a `describe` to the existing one.
+- No mocks or stubs (`vi.fn`, `vi.mock`, `vi.stubGlobal`, fake modules), and no CSS/DOM implementation
+  assertions (`toHaveCSS`, `getComputedStyle`, DOM reads via `page.evaluate`, class/id locators, test-ids).
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
 - The calm perf gate (frame-gap budgets) is `pnpm --filter @conciv/app test:perf`, kept out of `pnpm test`;
   run it locally in Chromium and Firefox before merging a chat-plane change.
