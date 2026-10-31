@@ -940,6 +940,26 @@ describe('vite devtools dock', () => {
     await firefoxBrowser.close()
   }, 60_000)
 
+  it('follows the color mode chosen in the DevTools settings', async () => {
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
+    const concivHost = page.locator('[data-conciv-root]')
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const chooseColorMode = async (mode: 'Light' | 'Dark'): Promise<void> => {
+      await page.getByRole('button', {name: 'Settings'}).dispatchEvent('click')
+      await page.getByRole('button', {name: mode, exact: true}).click()
+      await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
+      await composer.waitFor()
+    }
+    await chooseColorMode('Dark')
+    await expectLocator(concivHost).toHaveClass(/(^|\s)dark(\s|$)/)
+    await chooseColorMode('Light')
+    await expectLocator(concivHost).toHaveClass(/(^|\s)light(\s|$)/)
+    await chooseColorMode('Dark')
+    await expectLocator(concivHost).toHaveClass(/(^|\s)dark(\s|$)/)
+    await page.close()
+  }, 60_000)
+
   it('keeps the floating page widget when Vite DevTools is not enabled', async () => {
     const {server} = await dirs.start()
     servers.push(server)

@@ -100,7 +100,8 @@ function RootComponent() {
   )
   app.bindActiveSession?.(() => activeSession())
   const liveSessions = makeLiveSessions()
-  const theme = createHostTheme()
+  const rootNode = app.environment.rootNode
+  const theme = createHostTheme(rootNode instanceof ShadowRoot ? rootNode.host : undefined)
   const colorScheme = () => theme().scheme
 
   const value: AppContextValue = {
