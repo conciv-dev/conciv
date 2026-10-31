@@ -285,23 +285,37 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     swapOut({element, direction, across}).onfinish = () => dropLayer(outgoing.id)
   }
 
+  const openMode = (options: {instant: boolean; shown: boolean}): Mode => {
+    if (options.instant) return 'instant'
+    if (options.shown) return 'move'
+    if (state.phase === 'cooling') return 'warm'
+    return 'cold'
+  }
+
   const open = (member: TooltipGroupMember): void => {
     const trigger = member.trigger()
     const shown = visible()
     const instant = trigger !== undefined && focusVisibleWithin(trigger)
-    const previous = state.active
     if (shown) revive()
-    if (shown && previous?.id === member.id) {
+    if (shown && state.active?.id === member.id) {
       setState({phase: 'open', arming: null, instant})
       return
     }
-    const mode: Mode = instant ? 'instant' : shown ? 'move' : state.phase === 'cooling' ? 'warm' : 'cold'
-    const gliding = mode === 'move' && !prefersReducedMotion()
-    const swap = gliding ? swapDirection({from: previous, to: member}) : {direction: 0, across: false}
-    const layer: Layer = {id: createUniqueId(), member, mode, leaving: false, ...swap}
-    if (gliding) state.layers.filter((outgoing) => !outgoing.leaving).forEach((outgoing) => leave({outgoing, ...swap}))
+    const mode = openMode({instant, shown})
+    if (mode === 'move' && !prefersReducedMotion()) {
+      swapTo(member)
+      return
+    }
     setState({phase: 'open', active: member, instant, arming: null})
-    setState('layers', (layers) => (gliding ? [...layers.filter((item) => item.leaving), layer] : [layer]))
+    setState('layers', [{id: createUniqueId(), member, mode, leaving: false, direction: 0, across: false}])
+  }
+
+  const swapTo = (member: TooltipGroupMember): void => {
+    const swap = swapDirection({from: state.active, to: member})
+    const layer: Layer = {id: createUniqueId(), member, mode: 'move', leaving: false, ...swap}
+    state.layers.filter((outgoing) => !outgoing.leaving).forEach((outgoing) => leave({outgoing, ...swap}))
+    setState({phase: 'open', active: member, instant: false, arming: null})
+    setState('layers', (layers) => [...layers.filter((item) => item.leaving), layer])
   }
 
   const measure = (options: {member: TooltipGroupMember; trigger: HTMLElement; text: HTMLElement}): TooltipGeometry =>
@@ -324,6 +338,36 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     setState('geometry', next)
   }
 
+  const glide = (options: {
+    layer: Layer
+    element: HTMLElement
+    labelElement: HTMLElement
+    boxElement: HTMLElement
+    from: TooltipGeometry
+    next: TooltipGeometry
+  }): void => {
+    const {layer, element, labelElement, boxElement, from, next} = options
+    const easing = springEasing({duration: config.travel, bounce: GLIDE_BOUNCE})
+    labelElement.animate([geometryFrame(from), geometryFrame(next)], {duration: config.travel, easing})
+    arrow()?.animate([arrowFrame(from), arrowFrame(next)], {duration: config.travel, easing})
+    if (layer.direction !== 0) swapIn({element, direction: layer.direction, across: layer.across})
+    if (config.lean <= 0) return
+    const frames = leanFrames({
+      distance: alongX(next.side) ? next.x - from.x : next.y - from.y,
+      duration: config.travel,
+      bounce: GLIDE_BOUNCE,
+      lean: config.lean,
+      side: next.side,
+    })
+    boxElement.animate(frames, {duration: leanDuration(frames), easing: 'linear'})
+  }
+
+  const glides = (options: {layer: Layer; from: TooltipGeometry; next: TooltipGeometry}): boolean =>
+    options.layer.mode === 'move' &&
+    !prefersReducedMotion() &&
+    config.travel > 0 &&
+    options.from.side === options.next.side
+
   const settle = (options: {layer: Layer; element: HTMLElement; text: HTMLElement}): void => {
     const {layer, element, text} = options
     setState('layers', (item) => item.id === layer.id, 'element', element)
@@ -331,27 +375,13 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     const labelElement = label()
     const boxElement = box()
     if (!trigger || !labelElement || !boxElement) return
-    const side = layer.member.side()
     const next = measure({member: layer.member, trigger, text})
     const from = liveGeometry({label: labelElement, arrow: arrow(), settled: {...state.geometry}})
     cancelAnimations(labelElement)
     cancelAnimations(arrow())
     setState('geometry', next)
-    if (layer.mode === 'cold') popIn({element: boxElement, side})
-    if (layer.mode !== 'move' || prefersReducedMotion() || config.travel <= 0 || from.side !== next.side) return
-    const easing = springEasing({duration: config.travel, bounce: GLIDE_BOUNCE})
-    labelElement.animate([geometryFrame(from), geometryFrame(next)], {duration: config.travel, easing})
-    arrow()?.animate([arrowFrame(from), arrowFrame(next)], {duration: config.travel, easing})
-    if (layer.direction !== 0) swapIn({element, direction: layer.direction, across: layer.across})
-    if (config.lean <= 0) return
-    const frames = leanFrames({
-      distance: alongX(side) ? next.x - from.x : next.y - from.y,
-      duration: config.travel,
-      bounce: GLIDE_BOUNCE,
-      lean: config.lean,
-      side,
-    })
-    boxElement.animate(frames, {duration: leanDuration(frames), easing: 'linear'})
+    if (layer.mode === 'cold') popIn({element: boxElement, side: next.side})
+    if (glides({layer, from, next})) glide({layer, element, labelElement, boxElement, from, next})
   }
 
   const close = (member: TooltipGroupMember): void => {
