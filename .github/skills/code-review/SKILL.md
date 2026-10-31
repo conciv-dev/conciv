@@ -21,7 +21,7 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - TypeScript is strict. Flag `any`, `as` casts, `@ts-ignore`, and non-null assertions (`!`). Prefer
   generics; a type-only dependency import should become a generic parameter instead. Ad-hoc typed
   JSON reads (`const x: T = await res.json()`) belong in a generic helper.
-- Barrel files (an `index.ts` that only re-exports), abbreviated identifier names, `hub`/`manager`/
+- Internal barrel files (an `index.ts` that only re-exports; a public entry listed in `exports` may), abbreviated identifier names, `hub`/`manager`/
   `util` grab-bag naming, and `else` branches where an early return, ternary, or map works.
 - Functional style: `map`/`reduce`/`flatMap` over `forEach` plus mutation or push ladders. Collection
   shaping (group, key, partition, map values) uses `es-toolkit`, not hand-built accumulator loops.
@@ -59,7 +59,8 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - Raw `createSignal`/`createEffect` in new code is flagged. Expected alternatives: `createMemo` for
   derived values, `createResource` + `<Suspense>` for async, `<Show when={...}>` to gate on a value
   that may not exist yet, `@tanstack/solid-query` for server state, `@solid-primitives/*` for DOM
-  listeners and timers. A bare signal or effect needs a stated reason in the PR.
+  listeners and timers. A bare signal or effect is accepted only when the PR says why none of those
+  fit and the maintainer agrees.
 - Never fabricate fallback ids (`?? ''`, `|| 'local'`) or invent capability flags to work around
   async state; gate with `<Show>` / `createResource`.
 - Writes to stores, collections, or the db inside a subscription, effect, or render body cause
@@ -130,8 +131,9 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - No tests under `apps/examples/*` (example apps are demos), except the handful of demo tests in
   `apps/examples/tanstack-start`. Behaviour is verified by the owning package's tests,
   `@conciv/extension-testkit`, or an `e2e/` consumer app.
-- Every Solid package's `vitest.config.ts` pins `test: {environment: 'node'}`, or `vite-plugin-solid`
-  injects jsdom and the run exits 1 with all tests passing.
+- Every node test project in a Solid package's `vitest.config.ts` pins `test: {environment: 'node'}`, or
+  `vite-plugin-solid` injects jsdom and the run exits 1 with all tests passing. Browser projects keep
+  their browser config.
 - A bug fix ships with a regression test that fails without the fix.
 - A flaky-test "fix" that only bumps a timeout or adds a retry is not acceptable. The mechanism gets
   fixed, or named explicitly in the PR.

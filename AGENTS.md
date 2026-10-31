@@ -85,7 +85,7 @@ README.md; this file is the non-obvious operational rules.
 - TypeScript is strict (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`, NodeNext). Avoid
   `any`/`as`/`@ts-ignore`.
 - Solid: no raw `createSignal`/`createEffect` in new code; use `createMemo`, `createResource`, solid-query,
-  or `@solid-primitives/*`. React (`apps/site`): no `useEffect`/`useLayoutEffect`. Full review laws:
+  or `@solid-primitives/*`; if none fits, say why in the PR and get maintainer sign-off. React (`apps/site`): no `useEffect`/`useLayoutEffect`. Full review laws:
   `.github/skills/code-review/SKILL.md`.
 - oxfmt: no semicolons, single quotes, no bracket spacing, trailing commas, printWidth 120.
 
@@ -125,7 +125,7 @@ README.md; this file is the non-obvious operational rules.
   `apps/examples/tanstack-start` carries a handful of demo tests so the in-chat test runner has
   something to run out of the box; they are demo content, not behavior verification — behavior
   tests still live in the owning packages.
-- Every Solid package's `vitest.config.ts` must pin `test: {environment: 'node'}`.
+- Every node test project in a Solid package's `vitest.config.ts` must pin `test: {environment: 'node'}`.
   `vite-plugin-solid` otherwise injects a jsdom environment and the run exits 1 even with all tests
   passing.
 - Never wait for Playwright `networkidle` on a page with the live widget: its SSE stream keeps the

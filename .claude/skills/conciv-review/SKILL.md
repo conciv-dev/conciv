@@ -29,11 +29,12 @@ Solo single-pass review is acceptable only for a trivial mechanical diff (a rena
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | Typecheck    | `pnpm exec turbo run typecheck --filter=...[origin/main]` (dependents of every changed package; never unfiltered)                              |
 | Tests        | `TURBO_CONCURRENCY=1 VITEST_MAX_FORKS=1 pnpm exec turbo run test --filter=...<pkg-name>` per changed package (the package plus its dependents) |
+| Build        | `pnpm exec turbo run build --filter=<pkg-name>` for each changed package that has no `test` script                                             |
 | Lint         | `pnpm lint`                                                                                                                                    |
 | Format       | `pnpm format:check`                                                                                                                            |
 | Fallow audit | `pnpm exec fallow audit --changed-since main --format json`                                                                                    |
 
-`test` depends on `build`, so a green test gate already proves the build. Never pass `--force` and never run an unfiltered `turbo run test`/`typecheck` (`.claude/hooks/turbo-filter-gate.sh` blocks both); the cache hash covers source and deps. If a dist looks stale, delete that package's `dist` and rerun. A trailing `<pkg>...` filter means its dependencies, not dependents.
+`test` depends on `build`, so a green test gate proves the build of every package it ran in; packages with no `test` script need the build row. Never pass `--force` and never run an unfiltered `turbo run test`/`typecheck` (`.claude/hooks/turbo-filter-gate.sh` blocks both); the cache hash covers source and deps. If a dist looks stale, delete that package's `dist` and rerun. A trailing `<pkg>...` filter means its dependencies, not dependents.
 
 ## Step 1: mixture of experts (parallel fan-out)
 
