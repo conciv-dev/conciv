@@ -60,6 +60,7 @@
     "@babel/core": "^7.29.7",
     "@babel/preset-typescript": "^7.29.7",
     "@conciv/extension": "workspace:^",
+    "@conciv/protocol": "workspace:^",
     "babel-dead-code-elimination": "^1.0.12",
     "babel-preset-solid": "^1.9.12",
     "jiti": "^2.7.0",

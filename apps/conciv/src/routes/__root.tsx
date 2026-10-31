@@ -17,6 +17,7 @@ import {makeEventListener} from '@solid-primitives/event-listener'
 import {
   CONNECTION_CHANGED_EVENT,
   createEventBus,
+  DOCK_REVEAL_EVENT,
   createEventBusClient,
   PANEL_PLUGIN_ID,
   PANEL_TOGGLED_EVENT,
@@ -342,10 +343,13 @@ function RootChrome(props: {
     router.history.back()
   }
 
+  const revealDock = (): boolean =>
+    settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
   const toggleQuick = () => {
     if (!connected()) return
+    const revealed = revealDock()
     if (quickMatch()) {
-      router.history.back()
+      if (!revealed) router.history.back()
       return
     }
     void router.navigate({

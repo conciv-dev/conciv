@@ -3,6 +3,7 @@ import {join} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {createJiti, type Jiti, type JSXOptions, type TransformOptions, type TransformResult} from 'jiti'
 import type {AnyExtension} from '@conciv/extension'
+import {DOCK_REVEAL_EVENT} from '@conciv/protocol/event-bus'
 import {splitExtension} from './split-extension.js'
 import {dedupeExtensions, EXTENSION_GLOB, type ExtensionEntry} from './dedupe-extensions.js'
 
@@ -47,6 +48,11 @@ const DOCK_RENDERER = [
   `  }`,
   `  entry.events.on('entry:activated', () => setInert(false))`,
   `  entry.events.on('entry:deactivated', () => setInert(true))`,
+  `  window.addEventListener(${JSON.stringify(DOCK_REVEAL_EVENT)}, (event) => {`,
+  `    if (entry.isActive) return`,
+  `    event.preventDefault()`,
+  `    void context.docks.switchEntry(entry.entryMeta.id)`,
+  `  })`,
   `  entry.events.on('dom:panel:mounted', mount)`,
   `  if (entry.domElements.panel) mount(entry.domElements.panel)`,
   `}`,

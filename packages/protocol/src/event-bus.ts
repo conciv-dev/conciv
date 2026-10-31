@@ -264,6 +264,7 @@ export type PanelCommandEventMap = {
 
 export const CONNECTION_CHANGED_EVENT = 'conciv:connection-changed'
 export const PANEL_TOGGLED_EVENT = 'conciv:panel-toggled'
+export const DOCK_REVEAL_EVENT = 'conciv:dock-reveal'
 
 export type WidgetConnectionChangedDetail = {connected: boolean}
 

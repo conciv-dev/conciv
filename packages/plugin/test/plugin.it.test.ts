@@ -1086,6 +1086,44 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 90_000)
 
+  describe('quick terminal shortcut while the conciv dock entry is not showing', () => {
+    async function expectUsableQuickTerminal(page: Page): Promise<void> {
+      const input = page.getByRole('dialog', {name: 'conciv quick terminal'}).getByRole('textbox').first()
+      await input.click({timeout: 10_000})
+      await expectLocator(input).toBeFocused()
+    }
+
+    async function openDockThenHide(page: Page, hide: (page: Page) => Promise<void>): Promise<void> {
+      await page.goto(await dockServer(undefined, realBuiltins), {waitUntil: 'domcontentloaded'})
+      await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await composer.waitFor({timeout: 45_000})
+      await hide(page)
+    }
+
+    it('shows the quick terminal after the dock was closed', async () => {
+      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      await openDockThenHide(page, async (target) => {
+        await target.keyboard.press('Escape')
+        await target.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({state: 'hidden'})
+      })
+      await page.keyboard.press('ControlOrMeta+`')
+      await expectUsableQuickTerminal(page)
+      await page.close()
+    }, 90_000)
+
+    it('shows the quick terminal while another dock entry is selected', async () => {
+      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      await openDockThenHide(page, async (target) => {
+        await target.getByRole('button', {name: 'Settings'}).click()
+        await target.getByRole('combobox', {name: 'Language'}).waitFor()
+      })
+      await page.keyboard.press('ControlOrMeta+`')
+      await expectUsableQuickTerminal(page)
+      await page.close()
+    }, 90_000)
+  })
+
   it('shows the chat in the dock when a closed floating widget left its panel route behind', async () => {
     const root = realpathSync(dirs.tempDir('conciv-dock-'))
     writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')

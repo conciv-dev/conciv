@@ -17,3 +17,5 @@ rrweb-snapshot loads lazily: a content blocker no longer blanks the widget. Elem
 The Vite plugin pre-bundles the modules the widget loads late (highlighter languages, rrweb, the Recorder player and others), so a first open on a cold cache no longer re-optimizes and reloads the page.
 
 The dock keeps its settings when the host page already carries a conciv-widget meta tag, and closing a pop-out started from the quick terminal returns to a visible inline chat. A blocked replay player no longer hides a working recording: the Recorder tab keeps its actions and shows a replay notice.
+
+The quick terminal shortcut brings the conciv dock entry forward when the dock is closed or another entry is selected, so the terminal is never opened behind a hidden panel.
