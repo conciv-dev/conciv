@@ -999,6 +999,97 @@ describe('vite devtools dock', () => {
     expect(await page.getByRole('button', {name: 'conciv'}).count()).toBe(0)
     await page.close()
   }, 60_000)
+
+  describe('pop-out window', () => {
+    const composerName = 'Message the conciv agent'
+
+    async function openDockChat(page: Page): Promise<void> {
+      await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
+      await page.getByRole('dialog', {name: 'conciv chat agent'}).getByRole('textbox', {name: composerName}).waitFor()
+    }
+
+    async function popOut(page: Page): Promise<Page> {
+      await page.getByRole('button', {name: 'Session options'}).click()
+      const popup = page.waitForEvent('popup')
+      const persisted = page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/rpc/navigation/set') && (response.request().postData() ?? '').includes('/pip/'),
+      )
+      await page.getByRole('button', {name: 'Pop out to a window'}).click()
+      const popupPage = await popup
+      await persisted
+      await expectLocator(popupPage.getByRole('textbox', {name: composerName})).toBeVisible()
+      return popupPage
+    }
+
+    async function expectWorkingComposer(page: Page): Promise<void> {
+      const composer = page.getByRole('textbox', {name: composerName})
+      await composer.click()
+      await composer.pressSequentially('hello')
+      await expectLocator(page.getByRole('button', {name: 'Send message'})).toBeEnabled()
+    }
+
+    it('shows a popped-out state in the dock that brings the chat back', async () => {
+      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
+      await openDockChat(page)
+      const popupPage = await popOut(page)
+      await expectLocator(page.getByText('Chat is popped out')).toBeVisible()
+      const closed = popupPage.waitForEvent('close')
+      await page.getByRole('button', {name: 'Bring it back'}).click()
+      await closed
+      await expectLocator(page.getByRole('textbox', {name: composerName})).toBeVisible()
+      await page.close()
+    }, 60_000)
+
+    it('re-attaches to the still-open pop-out after the page reloads', async () => {
+      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
+      await openDockChat(page)
+      const popupPage = await popOut(page)
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await expectLocator(page.getByText('Chat is popped out')).toBeVisible({timeout: 20_000})
+      await expectWorkingComposer(popupPage)
+      await page.close()
+    }, 60_000)
+
+    it('returns to the inline chat when the user closes the pop-out after a reload', async () => {
+      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
+      await openDockChat(page)
+      const popupPage = await popOut(page)
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await expectLocator(page.getByText('Chat is popped out')).toBeVisible({timeout: 20_000})
+      await popupPage.close()
+      await expectLocator(page.getByRole('textbox', {name: composerName})).toBeVisible()
+      await expectLocator(page.getByText('Chat is popped out')).toBeHidden()
+      await page.close()
+    }, 60_000)
+
+    it('falls back to the inline chat with a pop out again action when the pop-out cannot be restored', async () => {
+      const url = await dockServer()
+      const first = await browser.newPage({viewport: {width: 1280, height: 800}})
+      await first.goto(url, {waitUntil: 'domcontentloaded'})
+      await openDockChat(first)
+      const stale = await popOut(first)
+      await first.close()
+      await stale.close()
+      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      await page.addInitScript(() => {
+        const open = window.open.bind(window)
+        window.open = (...args: Parameters<typeof window.open>) =>
+          Reflect.get(window, 'popupsAllowed') === true ? open(...args) : null
+      })
+      await page.goto(url, {waitUntil: 'domcontentloaded'})
+      await openDockChat(page)
+      await page.evaluate(() => Reflect.set(window, 'popupsAllowed', true))
+      const popup = page.waitForEvent('popup')
+      await page.getByRole('button', {name: 'Pop out again'}).click()
+      const popupPage = await popup
+      await expectWorkingComposer(popupPage)
+      await page.close()
+    }, 60_000)
+  })
 })
 
 describe('extension load isolation', () => {
