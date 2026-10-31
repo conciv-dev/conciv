@@ -266,6 +266,20 @@ describe('chat plane', () => {
       expect(texts).toEqual(['keep talking', STREAMED_TEXT])
       cli.release()
     })
+
+    it('Stop returns while the run is still winding down', async () => {
+      const root = stateRoot()
+      const cli = fakeCli()
+      cli.steps.push('stubborn')
+      const chat = await plane({root, harness: cliHarness(cli)})
+      const id = SessionId.parse(sessionId('stubborn'))
+      const ended = runEnded(id)
+      await readUntil(await startTurn(chat, id, 'stubborn-run', 'ignore stop'), ChatEventType.RUN_STARTED)
+      const first = await Promise.race([chat.stop(id).then(() => 'stop'), ended.then(() => 'run end')])
+      expect(first).toBe('stop')
+      cli.release()
+      await ended
+    })
   })
 
   describe('transcript import', () => {
@@ -277,12 +291,11 @@ describe('chat plane', () => {
       const chat = await plane({root, harness: cliHarness(cli, transcript.history), nativeId: transcript.nativeId})
       const id = SessionId.parse(sessionId('stopped'))
       await readUntil(await startTurn(chat, id, 'stopped-run', 'stop me'), ChatEventType.RUN_STARTED)
-      const stopped = chat.stop(id)
+      await chat.stop(id)
       await transcript.settling
       const hydrated = chat.hydrate(id)
       await Promise.race([hydrated, new Promise((resolve) => setTimeout(resolve, 200))])
       transcript.release()
-      await stopped
       const users = (await hydrated).messages.filter((message) => message.role === 'user')
       expect(users.map((message) => message.id)).toEqual(['stopped-run-user'])
       cli.release()
@@ -290,7 +303,7 @@ describe('chat plane', () => {
   })
 })
 
-type CliStep = 'reply' | 'silent' | 'partial' | 'split' | 'streaming'
+type CliStep = 'reply' | 'silent' | 'partial' | 'split' | 'streaming' | 'stubborn'
 
 const STREAMED_TEXT = 'partial reply and the words after the last snapshot'
 
@@ -332,6 +345,7 @@ const STEP_TAIL: Record<CliStep, (runId: string) => ChatEvent[]> = {
   partial: () => [],
   split: toolThenSecondSegment,
   streaming: () => [],
+  stubborn: () => [],
 }
 
 const FIRST_DELTA = 'partial reply'
@@ -363,12 +377,18 @@ async function* cutOffMidText({cli, run, signal}: StepRun): AsyncGenerator<ChatE
   await Promise.race([cli.gate, aborted(signal)])
 }
 
+async function* ignoreStop({cli}: StepRun): AsyncGenerator<ChatEvent> {
+  await cli.gate
+  yield* []
+}
+
 const STEP_BODY: Record<CliStep, (stepRun: StepRun) => AsyncGenerator<ChatEvent>> = {
   reply: answer,
   silent: silence,
   partial: answer,
   split: answer,
   streaming: cutOffMidText,
+  stubborn: ignoreStop,
 }
 
 function cliHarness(cli: FakeCli, history?: HarnessHistory): HarnessAdapter {

@@ -461,9 +461,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       if (active === null) return
       if (runIds !== undefined && !runIds.includes(active.runId)) return
       await requestRunCancel(stores.runs, active.runId)
-      const entry = live.get(active.runId)
-      entry?.controller.abort(RUN_CANCEL_REASON)
-      await entry?.settled.promise
+      live.get(active.runId)?.controller.abort(RUN_CANCEL_REASON)
     },
     endRuns: async (threadId) => {
       const ending = liveRunsOf(threadId).map(([, entry]) => entry.settled.promise)
@@ -474,6 +472,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       await Promise.all(liveRunsOf(threadId).map(([, entry]) => entry.settled.promise))
     },
     hydrate: async (threadId) => {
+      const stopping = liveRunsOf(threadId).filter(([, entry]) => entry.controller.signal.aborted)
+      await Promise.all(stopping.map(([, entry]) => entry.settled.promise))
       const response = await reconstructChat(
         persistence,
         new Request(`http://conciv.local/chat?threadId=${encodeURIComponent(threadId)}`),
