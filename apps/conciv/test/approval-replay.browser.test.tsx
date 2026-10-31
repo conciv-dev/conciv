@@ -61,6 +61,28 @@ test('an ask from a chat turn sits in the strip, and approving it posts the mess
   await expect.element(page.getByText('Deleted.')).toBeVisible()
 }, 120_000)
 
+test('a CLI ask names what it asks for in the strip, not the CLI that raised it', async () => {
+  const {sessionId} = await newSession()
+  keep(await attachedPane(sessionId))
+  await coreControl.scriptTurn({toolCalls: [], text: 'The CLI wants to run a command.'})
+  await coreControl.scriptCustomEvent('approval-requested', {
+    approvalId: 'cli-ask',
+    title: 'Approve Bash: touch qa-approval.txt',
+    provider: 'claude-code',
+    toolName: 'Bash',
+  })
+
+  await composer().fill('create the approval file')
+  await page.getByRole('button', {name: 'Send message'}).click()
+  await expect
+    .element(permissionRequest().getByText('Approve Bash: touch qa-approval.txt'), {timeout: 15_000})
+    .toBeVisible()
+  await expect.element(permissionRequest().getByText('claude-code')).not.toBeInTheDocument()
+
+  await page.getByRole('button', {name: 'Deny'}).click()
+  await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
+}, 120_000)
+
 test('an ask from outside a chat turn sits in the strip, and approving it lets the retry run with no message', async () => {
   const {rpc, sessionId} = await newSession()
   keep(await attachedPane(sessionId))
