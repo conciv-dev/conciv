@@ -239,7 +239,7 @@ function LayerView(props: {
     if (layerElement && textElement) props.onReady({layer: props.layer, element: layerElement, text: textElement})
   })
   return (
-    <span ref={setElement} class={LAYER}>
+    <span ref={setElement} class={LAYER} aria-hidden={props.layer.leaving ? 'true' : undefined}>
       <span ref={setText} class={TEXT}>
         {props.layer.member.label().children}
       </span>

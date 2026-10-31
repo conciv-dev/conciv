@@ -93,6 +93,7 @@ export const Toolbar: ToolbarStory = {
     await expect(c.getByRole('tooltip')).toBe(label)
     await expect(c.getAllByRole('tooltip', {hidden: true})).toHaveLength(1)
     await expect(italic).toHaveAttribute('aria-describedby', label.id)
+    await expect(italic).toHaveAccessibleDescription('Italic ⌘I')
 
     await userEvent.unhover(italic)
     await waitFor(() => expect(c.queryByRole('tooltip')).toBeNull())
