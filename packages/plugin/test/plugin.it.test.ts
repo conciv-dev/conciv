@@ -965,12 +965,19 @@ describe('vite devtools dock', () => {
     ].map((specifier) => fileURLToPath(import.meta.resolve(specifier))),
   }
 
+  function linkConcivIt(root: string): void {
+    const embedDir = dirname(dirname(realpathSync(fileURLToPath(import.meta.resolve('@conciv/embed')))))
+    mkdirSync(join(root, 'node_modules', '@conciv'), {recursive: true})
+    symlinkSync(join(dirname(embedDir), 'it'), join(root, 'node_modules', '@conciv', 'it'))
+  }
+
   async function dockServer(
     widget?: false,
     builtins: Builtins = NO_BUILTINS,
     root = realpathSync(dirs.tempDir('conciv-dock-')),
     hostHead = '',
   ): Promise<string> {
+    if (!existsSync(join(root, 'node_modules', '@conciv', 'it'))) linkConcivIt(root)
     writeFileSync(
       join(root, 'index.html'),
       `<!doctype html><html><head><meta charset="utf-8">${hostHead}<title>host</title></head><body><h1>host</h1></body></html>`,
@@ -1159,11 +1166,7 @@ describe('vite devtools dock', () => {
     const root = realpathSync(dirs.tempDir('conciv-cold-'))
     const embedEntry = fileURLToPath(import.meta.resolve('@conciv/embed'))
     writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
-    mkdirSync(join(root, 'node_modules', '@conciv'), {recursive: true})
-    symlinkSync(
-      join(dirname(dirname(dirname(realpathSync(embedEntry)))), 'it'),
-      join(root, 'node_modules', '@conciv', 'it'),
-    )
+    linkConcivIt(root)
     const logged: string[] = []
     const remember = (message: string): void => void logged.push(message)
     const server = await createServer({
