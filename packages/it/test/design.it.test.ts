@@ -1,6 +1,6 @@
 /* oxlint-disable playwright/no-raw-locators, playwright/prefer-web-first-assertions -- the Task 7 cases read the hidden capture frame and the tab field directly */
 import {existsSync, readFileSync} from 'node:fs'
-import {mkdtemp, readdir, readFile, rm} from 'node:fs/promises'
+import {mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {request as httpRequest} from 'node:http'
 import {tmpdir} from 'node:os'
 import {isAbsolute, join} from 'node:path'
@@ -49,6 +49,7 @@ const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const COLOR_DELTA_E = 3
 const TILE_GATE = 0.005
 const TILE_MARGIN = 8
+const HOST_STYLES = join(HOST_ROOT, 'src', 'styles.css')
 
 const CatalogSchema = z.array(ToolCommandSignatureSchema)
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
@@ -239,6 +240,8 @@ function mapFixture(input: {
     cssMap: {find: () => null},
   })
 }
+
+process.env.LAUNCH_EDITOR = 'true'
 
 const kit = await boot()
 const {rpc, browser, page, stateRoot, call, goto} = kit
@@ -622,6 +625,111 @@ describe('x-ray page', () => {
     expect(await inspector.textContent()).toContain(first.source.file)
     await xray.keyboard.press('j')
     await expectLocator(inspector).toContainText(second.source.file)
+    await xray.close()
+  })
+
+  it('renders one row per component with one badge per delta', async () => {
+    await goto('/')
+    const report = await call('design_diff', {width: 1280})
+    const [first] = report.components
+    expect(first?.deltas.length).toBeGreaterThan(0)
+    if (first === undefined) return
+    const xray = await browser.newPage()
+    await xray.goto(report.xray)
+    const rows = xray.getByRole('button', {expanded: true}).or(xray.getByRole('button', {expanded: false}))
+    await expectLocator(rows).toHaveCount(report.components.length + report.unmatched.length)
+    const badges = xray.getByRole('listitem').first().getByRole('list', {name: 'Deltas'}).getByRole('listitem')
+    await expectLocator(badges).toHaveCount(first.deltas.length)
+    await expectLocator(badges.first()).toContainText(`${first.deltas[0]?.kind} `)
+    await xray.close()
+  })
+
+  it('j expands the next row and Enter opens its source', async () => {
+    await goto('/')
+    const report = await call('design_diff', {width: 1280})
+    const second = report.components[1]?.source
+    expect(second).toBeDefined()
+    if (second === undefined || second === null) return
+    const xray = await browser.newPage()
+    await xray.goto(report.xray)
+    await expectLocator(xray.getByRole('region', {name: 'component'})).toBeVisible()
+    await xray.keyboard.press('j')
+    const name = second.file.split('/').at(-1)?.split('.')[0] ?? second.file
+    await expectLocator(xray.getByRole('region', {name})).toContainText(second.file)
+    await xray.keyboard.press('Enter')
+    await expectLocator(xray.getByRole('status').filter({hasText: 'in the editor'})).toHaveText(
+      `Opened ${second.file}:${second.line} in the editor`,
+    )
+    await xray.close()
+  })
+
+  it('copy fix prompt writes the prompt', async () => {
+    await goto('/')
+    const report = await call('design_diff', {width: 1280})
+    const kind = report.components[0]?.deltas[0]?.kind
+    expect(kind).toBeDefined()
+    const xray = await browser.newPage({permissions: ['clipboard-read', 'clipboard-write']})
+    await xray.goto(report.xray)
+    await xray.getByRole('button', {name: 'Copy fix prompt'}).click()
+    await expectLocator(xray.getByRole('status').filter({hasText: 'copied'})).toHaveText('Fix prompt copied')
+    expect(await xray.evaluate(() => navigator.clipboard.readText())).toContain(`${kind}`)
+    await xray.close()
+  })
+
+  it('viewport chip switches target and keeps the view', async () => {
+    await goto('/')
+    const narrow = await call('design_target', {image: target('u1-390'), route: '/', width: 390})
+    const report = await call('design_diff', {width: 1280})
+    const xray = await browser.newPage()
+    await xray.goto(`${report.xray}&view=capture`)
+    await xray.getByRole('radiogroup', {name: 'Viewport'}).getByText('390').click()
+    await expectLocator(xray.getByRole('radio', {name: '390'})).toBeChecked()
+    await expectLocator(xray).toHaveURL((url) => url.search.includes(narrow.id) && url.search.includes('view=capture'))
+    await expectLocator(xray.getByRole('radio', {name: 'Capture'})).toBeChecked()
+    await xray.close()
+  })
+
+  it('capture view shows the stage', async () => {
+    await goto('/')
+    const report = await call('design_diff', {width: 1280})
+    const xray = await browser.newPage()
+    await xray.goto(`${report.xray}&view=capture`)
+    await expectLocator(xray.getByRole('radio', {name: 'Capture'})).toBeChecked()
+    await expectLocator(xray.getByRole('radio', {name: 'Slider'})).toBeChecked()
+    await expectLocator(xray.getByRole('radio', {name: 'Side by side'})).toBeVisible()
+    await expectLocator(xray.getByRole('figure')).toContainText('Live over design')
+    await xray.close()
+  })
+
+  it('a region without a source falls back to its kind and cannot open', async () => {
+    await goto('missing')
+    const report = await call('design_diff', {width: 1280})
+    const region = report.unmatched.find((part) => part.source === undefined)
+    expect(region).toBeDefined()
+    if (region === undefined) return
+    const xray = await browser.newPage()
+    await xray.goto(report.xray)
+    await xray
+      .getByRole('button', {name: `${region.kind} region`})
+      .first()
+      .click()
+    const card = xray.getByRole('region', {name: `${region.kind} region`})
+    await expectLocator(card.getByRole('button', {name: 'Open source'})).toBeDisabled()
+    await xray.close()
+  })
+
+  it('shows the stale badge once the source changes after the diff', async () => {
+    await goto('/')
+    const report = await call('design_diff', {width: 1280})
+    const xray = await browser.newPage()
+    await xray.goto(report.xray)
+    await expectLocator(xray.getByRole('listitem').first()).toBeVisible()
+    await expectLocator(xray.getByText('stale: source changed')).toHaveCount(0)
+    await writeFile(HOST_STYLES, await readFile(HOST_STYLES))
+    await expectLocator(async () => {
+      await xray.reload()
+      await expectLocator(xray.getByText('stale: source changed')).toBeVisible({timeout: 1_000})
+    }).toPass({timeout: 10_000})
     await xray.close()
   })
 })
