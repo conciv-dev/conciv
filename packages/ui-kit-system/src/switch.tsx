@@ -1,4 +1,4 @@
-import {createContext, createSignal, splitProps, useContext, type ComponentProps} from 'solid-js'
+import {createContext, createSignal, splitProps, useContext, type ComponentProps, type JSX} from 'solid-js'
 import {Switch as Ark, useSwitchContext} from '@ark-ui/solid/switch'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {clamp, createFrameLoop, prefersReducedMotion, springSettled, springStep, type Spring} from './motion.js'
@@ -182,8 +182,26 @@ function emptyGrip(): Grip {
   }
 }
 
+type ControlEvent<E extends Event> = E & {currentTarget: HTMLSpanElement; target: Element}
+
+function callHandler<E extends Event>(options: {
+  handler: JSX.EventHandlerUnion<HTMLSpanElement, E> | undefined
+  event: ControlEvent<E>
+}): void {
+  const {handler, event} = options
+  if (typeof handler === 'function') {
+    handler(event)
+    return
+  }
+  if (handler) handler[0](handler[1], event)
+}
+
 function Control(props: ComponentProps<typeof Ark.Control>) {
-  const [local, rest] = splitProps(props, ['class', 'ref'])
+  const [local, handlers, rest] = splitProps(
+    props,
+    ['class', 'ref'],
+    ['onPointerDown', 'onPointerMove', 'onPointerUp', 'onPointerCancel', 'onPointerEnter', 'onPointerLeave', 'onClick'],
+  )
   const api = useSwitchContext()
   const motion = useContext(SwitchMotionContext)
   const grip: Grip = emptyGrip()
@@ -255,15 +273,35 @@ function Control(props: ComponentProps<typeof Ark.Control>) {
         if (typeof local.ref === 'function') local.ref(element)
       }}
       class={`${CONTROL}  ${local.class ?? ''}`}
-      onPointerDown={press}
-      onPointerMove={move}
-      onPointerUp={release}
-      onPointerCancel={(event) => cancel(event.currentTarget)}
+      onPointerDown={(event) => {
+        const prevented = event.defaultPrevented
+        callHandler({handler: handlers.onPointerDown, event})
+        if (prevented || !event.defaultPrevented) press(event)
+      }}
+      onPointerMove={(event) => {
+        callHandler({handler: handlers.onPointerMove, event})
+        move(event)
+      }}
+      onPointerUp={(event) => {
+        callHandler({handler: handlers.onPointerUp, event})
+        release(event)
+      }}
+      onPointerCancel={(event) => {
+        callHandler({handler: handlers.onPointerCancel, event})
+        cancel(event.currentTarget)
+      }}
       onPointerEnter={(event) => {
+        callHandler({handler: handlers.onPointerEnter, event})
         if (event.pointerType === 'mouse' && !api().disabled) motion?.hover(HOVER_SCALE)
       }}
-      onPointerLeave={() => motion?.hover(1)}
-      onClick={swallow}
+      onPointerLeave={(event) => {
+        callHandler({handler: handlers.onPointerLeave, event})
+        motion?.hover(1)
+      }}
+      onClick={(event) => {
+        callHandler({handler: handlers.onClick, event})
+        swallow(event)
+      }}
     />
   )
 }
