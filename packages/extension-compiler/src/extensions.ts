@@ -42,21 +42,20 @@ export function extensionsModuleSource(
   dedupeEntry?: string,
   surface: ExtensionsSurface = 'page',
 ): string {
-  const imports = clientEntries.map((entry, index) => `import builtin${index} from ${JSON.stringify(entry)}`)
-  const builtinNames = clientEntries.map((_, index) => `builtin${index}`)
+  const builtinLoaders = clientEntries.map(
+    (entry) => `{source: ${JSON.stringify(entry)}, load: () => import(${JSON.stringify(entry)})}`,
+  )
   const apiBaseLine =
     apiBase === undefined
       ? []
       : [`if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ = ${JSON.stringify(apiBase)}`]
   return [
     `import {${surface === 'dock' ? 'createConciv' : 'mountConciv'}} from ${JSON.stringify(embedEntry ?? '@conciv/embed')}`,
-    ...imports,
+    `import {loadExtensions, toSortedLoaders} from ${JSON.stringify(dedupeEntry ?? '@conciv/extension-compiler/dedupe')}`,
     ...apiBaseLine,
-    `import {dedupeExtensions, toSortedEntries} from ${JSON.stringify(dedupeEntry ?? '@conciv/extension-compiler/dedupe')}`,
-    `const mods = import.meta.glob(${JSON.stringify(EXTENSION_GLOB)}, {eager: true})`,
-    `const folderEntries = toSortedEntries(mods)`,
-    `const builtinEntries = [${builtinNames.map((n, i) => `{extension: ${n}, source: 'builtin:${i}'}`).join(', ')}]`,
-    `const picked = dedupeExtensions([...builtinEntries, ...folderEntries])`,
+    `const builtinLoaders = [${builtinLoaders.join(', ')}]`,
+    `const folderLoaders = toSortedLoaders(import.meta.glob(${JSON.stringify(EXTENSION_GLOB)}))`,
+    `const picked = await loadExtensions([...builtinLoaders, ...folderLoaders])`,
     `for (const d of picked.dropped) console.warn('conciv extension dropped:', d.source, d.reason)`,
     ...(surface === 'dock' ? DOCK_RENDERER : PAGE_MOUNT),
     '',

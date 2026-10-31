@@ -665,6 +665,22 @@ describe('panel empty', () => {
   })
 })
 
+describe('content blocker', () => {
+  const api = useRecorderTestApi()
+
+  describe('rrweb blocked by a content blocker (real browser)', () => {
+    it('keeps the widget running and explains the block in the Recorder tab', async () => {
+      const page = api().page
+      await page.route(/rrweb/, (route) => route.abort('blockedbyclient'))
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await page.getByRole('tab', {name: 'Recorder'}).click()
+      await expectLocator(page.getByText(/Recording is blocked/)).toBeVisible({timeout: 30_000})
+      await expectLocator(page.getByText(/content blocker/)).toBeVisible()
+      await expectLocator(page.getByRole('button', {name: 'Send to agent'})).toHaveCount(0)
+    }, 120_000)
+  })
+})
+
 describe('panel store isolation', () => {
   const api = useRecorderTestApi()
 

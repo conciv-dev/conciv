@@ -72,10 +72,14 @@
     "@types/babel__core": "^7.20.5",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
   }
 }

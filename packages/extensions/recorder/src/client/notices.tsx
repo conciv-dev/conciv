@@ -5,6 +5,14 @@ export function RecorderNotice(props: {text: string}): JSX.Element {
   return <div class="text-[0.8125rem] text-chat-text-2 font-chat">{props.text}</div>
 }
 
+export function RecorderBlockedNotice(): JSX.Element {
+  return (
+    <div role="status">
+      <RecorderNotice text="Recording is blocked: a content blocker such as uBlock Origin is stopping the recording library (rrweb) from loading. Allow this dev server in your blocker, then reload the page." />
+    </div>
+  )
+}
+
 export function RecorderErrorNotice(props: {retry: () => void; text?: string}): JSX.Element {
   return (
     <div class="flex flex-col gap-2 items-start">
