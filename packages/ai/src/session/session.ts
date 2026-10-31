@@ -10,6 +10,7 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import type {QueuedMessage} from '@tanstack/ai-client'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import {chatBusy} from '@conciv/protocol/chat-busy'
 
 export type Chat = UseChatReturn
 
@@ -52,6 +53,7 @@ export type ChatSession = Omit<Chat, 'stop'> & {
   runSource: Accessor<RunClockSource | null>
   runError: Accessor<string | null>
   sessionRunning: Accessor<boolean>
+  runInProgress: Accessor<boolean>
   hydrated: Accessor<boolean>
   pendingApprovals: Accessor<ApprovalAsk[]>
   decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<void>
@@ -171,6 +173,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     const source = runSource()
     return source !== null && !isRunPhaseTerminal(source.lifecycle.phase)
   })
+  const runInProgress = createMemo(() => chatBusy(chat) || sessionRunning())
   const seenRunIds = (): string[] => {
     const source = runSource()
     const lifecycleRunIds = source && !isRunPhaseTerminal(source.lifecycle.phase) ? [source.lifecycle.runId] : []
@@ -214,6 +217,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     runSource,
     runError,
     sessionRunning,
+    runInProgress,
     hydrated,
     pendingApprovals: () => asks.pending,
     decide,

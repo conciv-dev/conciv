@@ -3,7 +3,6 @@ import {useQuery} from '@tanstack/solid-query'
 import {Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
   ChatProvider,
-  chatBusy,
   coalesceTurns,
   createRunClock,
   createSessionStatus,
@@ -152,7 +151,7 @@ function PanelSession(): JSX.Element {
     const turn = turns().at(-1)
     return turn ? turnRollup(turn) : undefined
   })
-  const isStreaming = createMemo(() => chatBusy(chat()) || chat().sessionRunning())
+  const isStreaming = () => chat().runInProgress()
   const queue = createMemo(() => chat().queue())
   const sessionStatus = createSessionStatus(() => ({
     latestRollup: latestRollup(),
@@ -248,7 +247,7 @@ function PanelSession(): JSX.Element {
                         class: RAIL_MENU_ROW,
                         'aria-label': 'Refresh the conversation',
                         get disabled() {
-                          return chatBusy(chat()) || coordinator.isRefreshing()
+                          return chat().runInProgress() || coordinator.isRefreshing()
                         },
                         onClick: () => coordinator.refresh(),
                       })}
