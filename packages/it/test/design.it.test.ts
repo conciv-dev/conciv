@@ -463,6 +463,15 @@ it('status flips to done when every width matches', async () => {
   })
 })
 
+it('status without a route finds the targets registered for the pathname of the live route', async () => {
+  await goto('target')
+  const registered = await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+  expect(await call('design_status', {})).toMatchObject({
+    route: '/',
+    targets: [expect.objectContaining({id: registered.id})],
+  })
+})
+
 it('keeps twenty runs per target', async () => {
   for (const _ of Array.from({length: 21})) await call('design_diff', {})
   const first = (await call('design_status', {route: '/'})).targets[0]
