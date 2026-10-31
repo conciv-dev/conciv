@@ -8,7 +8,7 @@ import {RECORDER_MIME, RECORDER_NAME, recordingPoster, recordingRefJson, type Rr
 import type {RecorderRouter} from '../server.js'
 import {loadPlayerKit, mountStreamPlayer, type PlayerKit, type StreamPlayerHandle} from './player.js'
 import {saveFileToDisk} from './download.js'
-import {RecorderBlockedNotice, RecorderErrorNotice, RecorderNotice} from './notices.js'
+import {RecorderBlockedCardNotice, RecorderBlockedNotice, RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {useRecorderContext} from './recorder-context.js'
 
 const VIEWER_RENEW_MS = 7000
@@ -70,7 +70,7 @@ function RecorderPanel(): JSX.Element {
 
   const [playerKit] = createResource(loadPlayerKit)
   const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.state === 'ready' ? playerKit() : undefined)
-  const blocked = (): boolean => store.status() === 'blocked' || playerKit.state === 'errored'
+  const blocked = (): boolean => store.status() === 'blocked'
 
   const [live, setLive] = createSignal(true)
   let playerHandle: StreamPlayerHandle | undefined
@@ -140,7 +140,15 @@ function RecorderPanel(): JSX.Element {
               <Show keyed when={recordingWithEnoughEvents(recording.data)} fallback={<RecorderEmptyNotice />}>
                 {(source) => (
                   <>
-                    <Show keyed when={loadedPlayerKit()} fallback={<RecorderNotice text="Loading player…" />}>
+                    <Show
+                      keyed
+                      when={loadedPlayerKit()}
+                      fallback={
+                        <Show when={playerKit.state === 'errored'} fallback={<RecorderNotice text="Loading player…" />}>
+                          <RecorderBlockedCardNotice />
+                        </Show>
+                      }
+                    >
                       {(kit) => (
                         <div
                           ref={replayRef(kit, source)}

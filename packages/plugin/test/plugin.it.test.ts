@@ -611,6 +611,20 @@ describe('native page vite boot', () => {
       expect(outcome.capture.after.node).toBeUndefined()
       await blockedPage.close()
     }, 90_000)
+
+    it('keeps recording and its actions when only the replay player is blocked', async () => {
+      const url = state.started?.server.resolvedUrls?.local[0]
+      const blockedPage = await state.browser?.newPage()
+      if (blockedPage === undefined || url === undefined) throw new Error('dev server did not start')
+      await blockedPage.route(/rrweb-player/, (route) => route.abort('blockedbyclient'))
+      await blockedPage.goto(url, {waitUntil: 'domcontentloaded'})
+      const chat = blockedPage.getByRole('dialog', {name: 'conciv chat agent'})
+      await chat.getByRole('tab', {name: /Recorder/}).click({timeout: 45_000})
+      await expectLocator(chat.getByText('Replay is paused by your content blocker.')).toBeVisible({timeout: 15_000})
+      await expectLocator(chat.getByRole('button', {name: 'Send to agent'})).toBeVisible()
+      await expectLocator(chat.getByText('Recording is paused by your content blocker')).toBeHidden()
+      await blockedPage.close()
+    }, 90_000)
   })
 })
 
