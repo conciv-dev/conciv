@@ -84,6 +84,9 @@ README.md; this file is the non-obvious operational rules.
   strip them; write self-explanatory code.
 - TypeScript is strict (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`, NodeNext). Avoid
   `any`/`as`/`@ts-ignore`.
+- Solid: no raw `createSignal`/`createEffect` in new code; use `createMemo`, `createResource`, solid-query,
+  or `@solid-primitives/*`; if none fits, say why in the PR and get maintainer sign-off. React (`apps/site`): no `useEffect`/`useLayoutEffect`. Full review laws:
+  `.github/skills/code-review/SKILL.md`.
 - oxfmt: no semicolons, single quotes, no bracket spacing, trailing commas, printWidth 120.
 
 ## TanStack Router
@@ -106,6 +109,10 @@ README.md; this file is the non-obvious operational rules.
 
 ## Testing
 
+- Test file budget: one node test file plus one browser/e2e test file per package
+  (`conciv/test-file-budget`). Never add a test file; add a `describe` to the existing one.
+- No mocks or stubs (`vi.fn`, `vi.mock`, `vi.stubGlobal`, fake modules), and no CSS/DOM implementation
+  assertions (`toHaveCSS`, `getComputedStyle`, DOM reads via `page.evaluate`, class/id locators, test-ids).
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
 - The calm perf gate (frame-gap budgets) is `pnpm --filter @conciv/app test:perf`, kept out of `pnpm test`;
   run it locally in Chromium and Firefox before merging a chat-plane change.
@@ -118,7 +125,7 @@ README.md; this file is the non-obvious operational rules.
   `apps/examples/tanstack-start` carries a handful of demo tests so the in-chat test runner has
   something to run out of the box; they are demo content, not behavior verification — behavior
   tests still live in the owning packages.
-- Every Solid package's `vitest.config.ts` must pin `test: {environment: 'node'}`.
+- Every node test project in a Solid package's `vitest.config.ts` must pin `test: {environment: 'node'}`.
   `vite-plugin-solid` otherwise injects a jsdom environment and the run exits 1 even with all tests
   passing.
 - Never wait for Playwright `networkidle` on a page with the live widget: its SSE stream keeps the
