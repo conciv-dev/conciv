@@ -1,5 +1,6 @@
+import {compact} from 'es-toolkit'
 import type {DiffReport} from '../shared/defs.js'
-import type {TargetRecord} from '../shared/types.js'
+import type {Box, TargetRecord} from '../shared/types.js'
 import {assemble, type Delta, type ReportResponse, type XrayData} from './data.js'
 
 const ROUTE = '/?variant=target'
@@ -153,7 +154,51 @@ const NARROW = report({
   },
 })
 
-const BLANK_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"/%3E'
+const PAGE_FILL = '#f6f6f4'
+const BLOCK_FILL = '#d9dce3'
+const FADED_FILL = '#ececec'
+const CHANGED_FILL = '#ff3b30'
+const DIFF_BACKGROUND = '#ffffff'
+const PLACEHOLDER_BOX: Box = {x: 24, y: 24, w: 320, h: 56}
+
+type Shape = {box: Box; fill: string}
+
+function picture(input: {target: TargetRecord; background: string; shapes: Shape[]}): string {
+  const rects = input.shapes
+    .map(({box, fill}) => `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="6" fill="${fill}"/>`)
+    .join('')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${input.target.width}" height="${input.target.height}"><rect width="100%" height="100%" fill="${input.background}"/>${rects}</svg>`
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
+function images(response: ReportResponse): (path: string) => string {
+  const {target} = response
+  const run = response.report
+  const designBoxes =
+    run === null
+      ? [PLACEHOLDER_BOX]
+      : compact([...run.components.map((part) => part.target), ...run.unmatched.map((part) => part.target)])
+  const liveBoxes =
+    run === null ? [] : compact([...run.components.map((part) => part.live), ...run.unmatched.map((part) => part.live)])
+  const changed =
+    run === null
+      ? []
+      : compact([
+          ...run.components.filter((part) => part.deltas.length > 0).map((part) => part.live),
+          ...run.unmatched.map((part) => part.live ?? part.target),
+        ])
+  const shapes = (boxes: Box[], fill: string) => boxes.map((box) => ({box, fill}))
+  return (path) => {
+    if (path.includes('/live-')) return picture({target, background: PAGE_FILL, shapes: shapes(liveBoxes, BLOCK_FILL)})
+    if (path.includes('/diff-'))
+      return picture({
+        target,
+        background: DIFF_BACKGROUND,
+        shapes: [...shapes(liveBoxes, FADED_FILL), ...shapes(changed, CHANGED_FILL)],
+      })
+    return picture({target, background: PAGE_FILL, shapes: shapes(designBoxes, BLOCK_FILL)})
+  }
+}
 
 const DESKTOP_RESPONSE: ReportResponse = {target: TARGETS.desktop, report: DESKTOP, targetImage: ''}
 
@@ -165,5 +210,5 @@ const RESPONSES: ReportResponse[] = [
 
 export function loadFixture(input: {id: string}): XrayData {
   const current = RESPONSES.find((response) => response.target.id === input.id) ?? DESKTOP_RESPONSE
-  return assemble({current, siblings: RESPONSES, image: () => BLANK_IMAGE})
+  return assemble({current, siblings: RESPONSES, image: images(current)})
 }

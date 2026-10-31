@@ -1,7 +1,7 @@
 import {makeRpcClient} from '@conciv/contract'
 import {makeExtRpcClient} from '@conciv/extension'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import type {StatusDotTone} from '@conciv/ui-kit-system'
+import {aboveTolerance} from '../shared/above.js'
 import type {ComponentReport, DiffReport} from '../shared/defs.js'
 import type {Box, SourceLoc, TargetRecord} from '../shared/types.js'
 import type {XrayRouter} from '../server/xray-routes.js'
@@ -19,10 +19,9 @@ export type Row = {
   mismatch: number | null
   deltas: Delta[]
   unmatched: 'missing' | 'extra' | null
-  tone: StatusDotTone
 }
 
-export type WidthTab = {target: TargetRecord; tone: StatusDotTone}
+export type WidthTab = {target: TargetRecord; off: number | null}
 
 export type XrayImages = {target: string; live: string | null; diff: string | null}
 
@@ -36,17 +35,11 @@ export type XrayData = {
 
 export type ReportResponse = {target: TargetRecord; report: DiffReport | null; targetImage: string}
 
-const SEVERE_MISMATCH = 0.015
 const EXTENSION_SLUG = 'design'
 
 export function sourceLabel(source: SourceLoc | null): string {
   if (source === null) return 'no source'
-  return `${source.file}:${source.line}:${source.column}`
-}
-
-function componentTone(component: ComponentReport): StatusDotTone {
-  if (component.deltas.length === 0) return 'success'
-  return component.mismatch >= SEVERE_MISMATCH ? 'danger' : 'warn'
+  return `${source.file}:${source.line}`
 }
 
 export function reportRows(report: DiffReport | null): Row[] {
@@ -63,7 +56,6 @@ export function reportRows(report: DiffReport | null): Row[] {
       mismatch: component.mismatch,
       deltas: component.deltas,
       unmatched: null,
-      tone: componentTone(component),
     }),
   )
   const unmatched = report.unmatched.map(
@@ -78,7 +70,6 @@ export function reportRows(report: DiffReport | null): Row[] {
       mismatch: null,
       deltas: [],
       unmatched: region.kind,
-      tone: 'danger',
     }),
   )
   return [...components, ...unmatched]
@@ -86,13 +77,6 @@ export function reportRows(report: DiffReport | null): Row[] {
 
 export function rowAboveTolerance(row: Row): boolean {
   return row.unmatched !== null || row.deltas.length > 0
-}
-
-function reportTone(report: DiffReport | null): StatusDotTone {
-  const tones = reportRows(report).map((row) => row.tone)
-  if (report === null) return 'idle'
-  if (tones.includes('danger')) return 'danger'
-  return tones.includes('warn') ? 'warn' : 'success'
 }
 
 function runTime(report: DiffReport | null): number | null {
@@ -129,7 +113,10 @@ export function assemble(input: {
       diff: current.report === null ? null : image(current.report.diffImage),
     },
     widths: siblings
-      .map((sibling) => ({target: sibling.target, tone: reportTone(sibling.report)}))
+      .map((sibling) => ({
+        target: sibling.target,
+        off: sibling.report === null ? null : aboveTolerance(sibling.report),
+      }))
       .toSorted((a, b) => a.target.width - b.target.width),
     ranAt: runTime(current.report),
   }
@@ -160,14 +147,6 @@ export async function runDiff(input: {target: TargetRecord; session: string | un
 export async function openInEditor(input: {source: SourceLoc; session: string | undefined}): Promise<void> {
   const rpc = await sessionClient(input.session)
   await rpc.editor.open({file: input.source.file, line: input.source.line})
-}
-
-const STATE_DIR = '.conciv/'
-
-export function projectPath(path: string): string {
-  const start = path.indexOf(STATE_DIR)
-  if (start >= 0) return path.slice(start)
-  return path.split('/').at(-1) ?? path
 }
 
 export function diffCommand(target: TargetRecord): string {

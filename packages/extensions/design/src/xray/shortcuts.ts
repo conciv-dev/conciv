@@ -5,22 +5,22 @@ export type ShortcutActions = {
   step: (by: number) => void
   mode: (mode: Mode) => void
   boxes: () => void
-  rulers: () => void
   run: () => void
   open: () => void
-  flip: () => void
+  fit: () => void
+  zoom: (direction: 1 | -1) => void
   help: () => void
 }
 
 export const SHORTCUT_HELP: [string, string][] = [
-  ['J / K', 'next / previous component'],
-  ['1 – 5', '2-up, swipe, onion, toggle, diff'],
-  ['← / →', 'live or target, in toggle'],
-  ['B', 'component boxes'],
-  ['D', 'redline rulers'],
-  ['R', 'run the diff'],
-  ['↵', 'open the component in the editor'],
-  ['?', 'this list'],
+  ['J / K', 'Next or previous component'],
+  ['1-5', 'Live, design, diff, side by side, slider'],
+  ['B', 'Component boxes'],
+  ['R', 'Run the diff'],
+  ['↵', 'Open the component in the editor'],
+  ['0', 'Fit to view'],
+  ['= / -', 'Zoom in or out'],
+  ['?', 'This list'],
 ]
 
 function typing(target: EventTarget | null): boolean {
@@ -55,21 +55,18 @@ export function createShortcuts(actions: ShortcutActions): void {
     j: () => actions.step(1),
     k: () => actions.step(-1),
     b: () => actions.boxes(),
-    d: () => actions.rulers(),
     r: () => actions.run(),
+    '0': () => actions.fit(),
+    '=': () => actions.zoom(1),
+    '+': () => actions.zoom(1),
+    '-': () => actions.zoom(-1),
     '?': () => actions.help(),
     Enter: (event) => {
       if (bodyOnly(event)) actions.open()
     },
-    ArrowLeft: (event) => {
-      if (bodyOnly(event)) actions.flip()
-    },
-    ArrowRight: (event) => {
-      if (bodyOnly(event)) actions.flip()
-    },
   }
   const modes = Object.fromEntries(MODES.map((mode, index) => [String(index + 1), () => actions.mode(mode)]))
-  const handlers: Record<string, (event: KeyboardEvent) => void> = {...keys, ...modes}
+  const handlers: Record<string, (event: KeyboardEvent) => void> = {...modes, ...keys}
   makeEventListener(window, 'keydown', (event) => {
     if (ignored(event)) return
     handlers[event.key.length === 1 ? event.key.toLowerCase() : event.key]?.(event)
