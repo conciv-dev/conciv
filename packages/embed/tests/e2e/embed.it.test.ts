@@ -72,32 +72,19 @@ test.describe('embed boot', () => {
     {id: 'claude-opus-4-1', name: 'Claude Opus 4.1'},
   ]
   const PHONE_VIEWPORT = {width: 393, height: 800}
-  const HOST_HEADING = 'Deployment checklist'
-  const LONG_HOST_BODY = `<h1>Host site</h1>${Array.from(
-    {length: 60},
-    (_unused, index) => `<p>Host paragraph ${index} that the reader is scrolled through.</p>`,
-  ).join('')}<h2>${HOST_HEADING}</h2>${Array.from(
-    {length: 60},
-    (_unused, index) => `<p>Host paragraph ${index + 60} below the heading.</p>`,
-  ).join('')}`
 
   let kit: EmbedKit
   let host: {base: string; close: () => Promise<void>}
-  let longHost: {base: string; close: () => Promise<void>}
 
   test.beforeEach(async () => {
     kit = await bootEmbedKit({text: ASSISTANT_TEXT, models: HARNESS_MODELS})
     host = await serveHost((url) =>
       hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', backdrop: url.searchParams.get('backdrop')}),
     )
-    longHost = await serveHost(() =>
-      hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: LONG_HOST_BODY}),
-    )
   })
 
   test.afterEach(async () => {
     await host.close()
-    await longHost.close()
     await kit.cleanup()
   })
 
@@ -741,6 +728,7 @@ test.describe('composer trigger menu', () => {
 
 test.describe('connection pool', () => {
   const ASSISTANT_TEXT = 'Hello from conciv'
+  const SHARED_CONTEXT_TAB_COUNT = 6
   const MOUNT_TIMEOUT_MS = 20_000
 
   const suite = setupProxiedEmbedSuite({text: ASSISTANT_TEXT})
@@ -772,6 +760,26 @@ test.describe('connection pool', () => {
   }
 
   test.describe('six widget tabs sharing one browserContext connection pool (the per-test context fixture, not newPage, because the shared-context http connection limit is exactly what this gate measures)', () => {
+    test('holds one push socket per tab with rpc over http, and the sixth tab still chats', async ({context}) => {
+      test.setTimeout(180_000)
+      const tabs: Tab[] = []
+      for (let index = 0; index < SHARED_CONTEXT_TAB_COUNT; index += 1) tabs.push(await openTab(context))
+
+      const lastTab = tabs[SHARED_CONTEXT_TAB_COUNT - 1]
+      if (!lastTab) throw new Error('expected six tabs')
+      for (const tab of tabs) await expect.poll(() => tab.push.liveSockets(), {timeout: MOUNT_TIMEOUT_MS}).toBe(1)
+      for (const tab of tabs.slice(0, SHARED_CONTEXT_TAB_COUNT - 1)) expect(tab.wire.liveSockets()).toBe(0)
+
+      await openPanel(lastTab.page)
+      await sendTurn(lastTab.page, 'hi there', 1)
+
+      for (const tab of tabs) expect(tab.calls.socketsSince()).toBe(0)
+      for (const tab of tabs) expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
+      for (const tab of tabs) expect(tab.push.liveSockets()).toBe(1)
+      for (const tab of tabs) expect(tab.push.opened()).toBe(1)
+      expect(lastTab.wire.liveSockets()).toBe(1)
+    })
+
     test('settles the chatting tab on exactly one live chat socket beside its push socket', async ({context}) => {
       test.setTimeout(180_000)
       const tab = await openTab(context)
@@ -1044,6 +1052,32 @@ test.describe('draft send remount', () => {
       await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveText('', {timeout: 30_000})
       await expect(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
       expect(reappeared).toBe(false)
+    })
+  })
+})
+
+test.describe('draft write churn', () => {
+  const ASSISTANT_TEXT = 'Reply that no test waits for'
+  const TYPED_TEXT = 'the only draft this pane ever stores'
+  const DRAFT_WRITE_TIMEOUT_MS = 15_000
+
+  const suite = setupWidgetSuite({text: ASSISTANT_TEXT})
+
+  async function storedDraftText(widget: WidgetSuite, sessionId: string): Promise<string | null> {
+    const row = await widget.kit().rpc.drafts.get({sessionId})
+    return row?.text ?? null
+  }
+
+  test.describe('an empty composer stores nothing', () => {
+    test('writes the first draft only once the user types, never on mount', async ({page}) => {
+      test.setTimeout(120_000)
+      const drafts = rpcCallCursor(page)
+      const sessionId = await openPanelOnNewSession(page, suite)
+
+      await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill(TYPED_TEXT)
+      await expect.poll(() => storedDraftText(suite, sessionId), {timeout: DRAFT_WRITE_TIMEOUT_MS}).toBe(TYPED_TEXT)
+
+      expect(drafts.startedSince(['drafts', 'set'])).toBe(1)
     })
   })
 })

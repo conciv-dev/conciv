@@ -11,5 +11,4 @@ declare global {
     concivNativePost: (message: unknown) => Promise<void>
     concivNativeRebind: (detail: unknown) => Promise<void>
   }
-  var __fabFrames: Promise<Array<{x: number; y: number; width: number; height: number}>>
 }
