@@ -42,6 +42,8 @@ export {Avatar} from './avatar.js'
 export {RelativeTime} from './relative-time.js'
 export {Tabs, TabsPrimitive} from './tabs.js'
 export {Switch} from './switch.js'
+export {Slider} from './slider.js'
+export {SegmentGroup} from './segment-group.js'
 export {Swap} from './swap.js'
 export {
   createClipboardCopy,

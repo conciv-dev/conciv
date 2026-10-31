@@ -1,6 +1,6 @@
 import {splitProps, type JSX} from 'solid-js'
 
-export type StatusDotTone = 'idle' | 'working' | 'accent' | 'success' | 'danger'
+export type StatusDotTone = 'idle' | 'working' | 'accent' | 'success' | 'warn' | 'danger'
 
 const BASE = 'size-1.75 rounded-chat-pill shrink-0 inline-block'
 
@@ -9,6 +9,7 @@ const TONE: Record<StatusDotTone, string> = {
   working: 'bg-chat-success shadow-[0_0_0_0.1875rem] shadow-chat-success-18',
   accent: 'bg-chat-accent',
   success: 'bg-chat-success',
+  warn: 'bg-chat-warn',
   danger: 'bg-chat-danger',
 }
 
