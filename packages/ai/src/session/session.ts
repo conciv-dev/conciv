@@ -192,22 +192,34 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     setRunSource(stoppedRun)
     await refresh()
   }
-  const stop = (): Promise<void> => stopRun().catch((error: unknown) => options.onError?.(asError(error)))
+  let latestStop: Promise<void> | null = null
+  const stop = (): Promise<void> => {
+    const stopRequest = stopRun().catch((error: unknown) => options.onError?.(asError(error)))
+    latestStop = stopRequest
+    return stopRequest
+  }
   const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
     const ask = asks.pending.find((waiting) => waiting.approvalId === approvalId)
     const decision = await options.decide(approvalId, approved, scope)
     setAsks('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
     if (decision.startsTurn && ask !== undefined) await chat.sendMessage(approvedText(ask.toolName, scope))
   }
-  const sendQueuedSequentially = async (queued: readonly QueuedMessage[]): Promise<void> => {
-    for (const item of queued) await chat.sendMessage(item.content)
+  const sendQueuedSequentially = async (
+    queued: readonly QueuedMessage[],
+    stopRequest: Promise<void>,
+  ): Promise<void> => {
+    for (const item of queued) {
+      if (latestStop !== stopRequest) return
+      await chat.sendMessage(item.content)
+    }
   }
   const interruptAndFlush = async (): Promise<void> => {
     const queued = chat.queue()
-    await stop()
-    if (queued.length === 0) return
+    const stopRequest = stop()
+    await stopRequest
+    if (queued.length === 0 || latestStop !== stopRequest) return
     const joined = joinedQueueText(queued)
-    const flushed = joined === null ? sendQueuedSequentially(queued) : chat.sendMessage(joined)
+    const flushed = joined === null ? sendQueuedSequentially(queued, stopRequest) : chat.sendMessage(joined)
     await flushed.catch((error: unknown) => options.onError?.(asError(error)))
   }
   return {

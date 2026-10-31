@@ -344,9 +344,8 @@ function scannedRootFibers(): Fiber[] {
   for (const el of Array.from(document.querySelectorAll('*'))) {
     const key = Object.keys(el).find(isReactDomKey)
     if (!key) continue
-    const stack = getFiberStack((el as unknown as Record<string, Fiber>)[key])
-    const top = stack[stack.length - 1]
-    if (top) return [top]
+    const fiber = (el as unknown as Record<string, Fiber>)[key]
+    return [getLatestFiber(getFiberStack(fiber).at(-1)?.return ?? fiber)]
   }
   return []
 }

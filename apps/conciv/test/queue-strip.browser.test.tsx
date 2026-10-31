@@ -1,9 +1,15 @@
 import './helpers/utilities.css'
 import {render} from '@solidjs/testing-library'
-import {createSignal, onMount, type JSX} from 'solid-js'
-import {describe, expect, it} from 'vitest'
+import {createRoot, createSignal, onMount, type JSX} from 'solid-js'
+import {afterEach, describe, expect, it, vi} from 'vitest'
 import {page} from 'vitest/browser'
-import {createChat} from '@conciv/ai/client'
+import {
+  createChat,
+  createChatSession,
+  type ChatSession,
+  type ChatSessionConnection,
+  type ChatSessionHydration,
+} from '@conciv/ai/client'
 import {ChatProvider} from '@conciv/ui-kit-chat'
 import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {QueueStrip} from '../src/pane/queue-strip.jsx'
@@ -74,5 +80,94 @@ describe('QueueStrip', () => {
     await expect.element(page.getByText('queued instruction 3')).toBeVisible()
     await expect.element(page.getByText('+2 more')).toBeVisible()
     expect(page.getByText('queued instruction 4').elements()).toHaveLength(0)
+  })
+})
+
+const EMPTY_HYDRATION: ChatSessionHydration = {messages: [], lastRun: null, pendingApprovals: []}
+
+type SentMessages = Parameters<ChatSessionConnection['send']>[0]
+
+function lastUserText(messages: SentMessages): string {
+  const last = messages.at(-1)
+  if (!last || !('parts' in last)) return ''
+  return last.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(' ')
+}
+
+const abortOf = (signal: AbortSignal | undefined): Promise<void> =>
+  new Promise((resolve) => signal?.addEventListener('abort', () => resolve(), {once: true}))
+
+function sessionOverHeldRuns(refreshes: Array<() => Promise<ChatSessionHydration>>) {
+  const sent: string[] = []
+  const connection: ChatSessionConnection = {
+    subscribe: async function* (signal) {
+      await abortOf(signal)
+      yield* []
+    },
+    send: async (messages, _data, signal) => {
+      sent.push(lastUserText(messages))
+      await abortOf(signal)
+    },
+    refresh: () => refreshes.shift()?.() ?? Promise.resolve(EMPTY_HYDRATION),
+    close: () => undefined,
+  }
+  return {
+    sent,
+    session: (): ChatSession =>
+      createChatSession({
+        sessionId: 'queue-flush',
+        connect: () => connection,
+        stop: () => Promise.resolve(),
+        decide: () => Promise.resolve({startsTurn: false}),
+      }),
+  }
+}
+
+describe('a later Stop cancels a queued flush still waiting on an earlier one', () => {
+  const disposers: Array<() => void> = []
+  const mounted = (create: () => ChatSession): ChatSession =>
+    createRoot((dispose) => {
+      disposers.push(dispose)
+      return create()
+    })
+
+  afterEach(() => {
+    for (const dispose of disposers.splice(0)) dispose()
+  })
+
+  it('does not send the follow-up after a newer turn was started and stopped during the wait', async () => {
+    const heldRefresh = Promise.withResolvers<ChatSessionHydration>()
+    const refreshStarted = Promise.withResolvers<void>()
+    const held = () => {
+      refreshStarted.resolve()
+      return heldRefresh.promise
+    }
+    const {sent, session: create} = sessionOverHeldRuns([held])
+    const session = mounted(create)
+    void session.sendMessage('first turn')
+    await vi.waitFor(() => expect(sent).toEqual(['first turn']))
+    await session.sendMessage('queued follow-up')
+    const earlierFlush = session.interruptAndFlush()
+    await refreshStarted.promise
+    void session.sendMessage('second turn')
+    await vi.waitFor(() => expect(sent).toEqual(['first turn', 'second turn']))
+    await session.interruptAndFlush()
+    heldRefresh.resolve(EMPTY_HYDRATION)
+    await Promise.race([earlierFlush, vi.waitUntil(() => sent.length > 2)])
+    expect(sent).toEqual(['first turn', 'second turn'])
+  })
+
+  it('stops walking a multipart queue once a Stop lands mid-flush', async () => {
+    const {sent, session: create} = sessionOverHeldRuns([])
+    const session = mounted(create)
+    const multipart = (text: string) => [{type: 'text' as const, content: text}]
+    void session.sendMessage('first turn')
+    await vi.waitFor(() => expect(sent).toEqual(['first turn']))
+    await session.sendMessage({content: multipart('queued one')})
+    await session.sendMessage({content: multipart('queued two')})
+    const flush = session.interruptAndFlush()
+    await vi.waitFor(() => expect(sent).toEqual(['first turn', 'queued one']))
+    await session.stop()
+    await Promise.race([flush, vi.waitUntil(() => sent.length > 2)])
+    expect(sent).toEqual(['first turn', 'queued one'])
   })
 })
