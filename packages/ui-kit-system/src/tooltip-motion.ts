@@ -1,3 +1,5 @@
+import {clamp, prefersReducedMotion, springStep, springSettled, type Spring} from './motion.js'
+
 export type TooltipSide = 'top' | 'bottom' | 'left' | 'right'
 
 export type TooltipPoint = {x: number; y: number}
@@ -14,12 +16,9 @@ const SWAP_BLUR = 3
 const EDGE_MARGIN = 8
 const ARROW_INSET = 10
 const FULL_LEAN_SPEED = 1200
-const LEAN_STIFFNESS = 260
-const LEAN_DAMPING = 22
-const LEAN_MASS = 0.4
+const LEAN_SPRING = {stiffness: 260, damping: 22, mass: 0.4}
 const SPRING_SAMPLES = 40
 const SPRING_SETTLE = 6.2
-const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
 
 export const TRANSFORM_ORIGIN: Record<TooltipSide, string> = {
   top: 'center bottom',
@@ -37,10 +36,6 @@ const TOWARD_TRIGGER: Record<TooltipSide, TooltipPoint> = {
 
 const LEAN_SIGN: Record<TooltipSide, number> = {top: 1, bottom: -1, left: -1, right: 1}
 
-export function prefersReducedMotion(): boolean {
-  return window.matchMedia(REDUCED_MOTION).matches
-}
-
 export function sideFromPlacement(placement: string | undefined): TooltipSide {
   const [side] = (placement ?? 'top').split('-')
   if (side === 'bottom' || side === 'left' || side === 'right') return side
@@ -49,10 +44,6 @@ export function sideFromPlacement(placement: string | undefined): TooltipSide {
 
 export function alongX(side: TooltipSide): boolean {
   return side === 'top' || side === 'bottom'
-}
-
-function clamp(options: {value: number; min: number; max: number}): number {
-  return Math.min(options.max, Math.max(options.min, options.value))
 }
 
 function hiddenPop(side: TooltipSide): Keyframe {
@@ -172,19 +163,15 @@ export function springEasing(options: {duration: number; bounce: number}): strin
   return `linear(${points.map((point) => point.toFixed(4)).join(', ')})`
 }
 
-export type LeanSpring = {unit: number; velocity: number}
-
-export function leanStep(options: {spring: LeanSpring; speed: number; seconds: number}): LeanSpring {
+export function leanStep(options: {spring: Spring; speed: number; seconds: number}): Spring {
   const target = clamp({value: -options.speed / FULL_LEAN_SPEED, min: -1, max: 1})
-  const force = LEAN_STIFFNESS * (target - options.spring.unit) - LEAN_DAMPING * options.spring.velocity
-  const velocity = options.spring.velocity + (force / LEAN_MASS) * options.seconds
-  return {unit: options.spring.unit + velocity * options.seconds, velocity}
+  return springStep({spring: options.spring, target, config: LEAN_SPRING, seconds: options.seconds})
 }
 
-export function leanSettled(spring: LeanSpring): boolean {
-  return Math.abs(spring.unit) < 0.001 && Math.abs(spring.velocity) < 0.01
+export function leanSettled(spring: Spring): boolean {
+  return springSettled({spring, target: 0})
 }
 
-export function leanRotation(options: {spring: LeanSpring; lean: number; side: TooltipSide}): string {
-  return `${(options.spring.unit * options.lean * LEAN_SIGN[options.side]).toFixed(3)}deg`
+export function leanRotation(options: {spring: Spring; lean: number; side: TooltipSide}): string {
+  return `${(options.spring.value * options.lean * LEAN_SIGN[options.side]).toFixed(3)}deg`
 }

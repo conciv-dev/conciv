@@ -1,7 +1,6 @@
 import {
   createContext,
   createSignal,
-  onCleanup,
   createUniqueId,
   For,
   mergeProps,
@@ -25,15 +24,14 @@ import {
   leanStep,
   popIn,
   popOut,
-  prefersReducedMotion,
   springEasing,
   swapIn,
   swapOut,
   TRANSFORM_ORIGIN,
-  type LeanSpring,
   type TooltipGeometry,
   type TooltipSide,
 } from './tooltip-motion.js'
+import {createFrameLoop, prefersReducedMotion, type Spring} from './motion.js'
 
 export type TooltipGroupMember = {
   id: string
@@ -88,8 +86,6 @@ type GroupState = {
 const LABEL_PADDING_X = 10
 const LABEL_PADDING_Y = 6
 const LABEL_BORDER = 0
-const MAX_FRAME_SECONDS = 1 / 20
-const MIN_FRAME_SECONDS = 1 / 240
 const GLIDE_BOUNCE = 0.1
 const REVIVE_DURATION = 120
 const FUSE_INSET = 4
@@ -343,52 +339,32 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     setState('geometry', next)
   }
 
-  const lean: {frame: number; time: number; position: number | undefined; spring: LeanSpring} = {
-    frame: 0,
-    time: 0,
-    position: undefined,
-    spring: {unit: 0, velocity: 0},
-  }
+  const lean: {position: number | undefined; spring: Spring} = {position: undefined, spring: {value: 0, velocity: 0}}
 
-  const stopLean = (boxElement: HTMLElement | undefined): void => {
-    cancelAnimationFrame(lean.frame)
-    lean.frame = 0
-    lean.position = undefined
-    lean.spring = {unit: 0, velocity: 0}
-    boxElement?.style.removeProperty('rotate')
-  }
-
-  const leanTick = (time: number): void => {
+  const leanTick = (seconds: number): boolean => {
     const labelElement = label()
     const boxElement = box()
-    if (!labelElement?.isConnected || !boxElement) {
-      stopLean(boxElement)
-      return
-    }
+    if (!labelElement?.isConnected || !boxElement) return resetLean(boxElement)
     const side = state.geometry.side
     const [x = '0', y = '0'] = getComputedStyle(labelElement).translate.split(' ')
     const position = pixels(alongX(side) ? x : y)
-    const seconds = Math.min(MAX_FRAME_SECONDS, Math.max(MIN_FRAME_SECONDS, (time - lean.time) / 1000))
     const gliding = labelElement.getAnimations().length > 0
     const speed = gliding && lean.position !== undefined ? (position - lean.position) / seconds : 0
     lean.spring = leanStep({spring: lean.spring, speed, seconds})
     lean.position = position
-    lean.time = time
-    if (!gliding && leanSettled(lean.spring)) {
-      stopLean(boxElement)
-      return
-    }
+    if (!gliding && leanSettled(lean.spring)) return resetLean(boxElement)
     boxElement.style.rotate = leanRotation({spring: lean.spring, lean: config.lean, side})
-    lean.frame = requestAnimationFrame(leanTick)
+    return true
   }
 
-  const startLean = (): void => {
-    if (lean.frame !== 0) return
-    lean.time = performance.now()
-    lean.frame = requestAnimationFrame(leanTick)
+  const resetLean = (boxElement: HTMLElement | undefined): boolean => {
+    lean.position = undefined
+    lean.spring = {value: 0, velocity: 0}
+    boxElement?.style.removeProperty('rotate')
+    return false
   }
 
-  onCleanup(() => cancelAnimationFrame(lean.frame))
+  const leanLoop = createFrameLoop(leanTick)
 
   const glide = (options: {
     layer: Layer
@@ -402,7 +378,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     labelElement.animate([geometryFrame(from), geometryFrame(next)], {duration: config.travel, easing})
     arrow()?.animate([arrowFrame(from), arrowFrame(next)], {duration: config.travel, easing})
     if (layer.direction !== 0) swapIn({element, direction: layer.direction, across: layer.across})
-    if (config.lean > 0) startLean()
+    if (config.lean > 0) leanLoop.start()
   }
 
   const glides = (options: {layer: Layer; from: TooltipGeometry; next: TooltipGeometry}): boolean =>
