@@ -1,4 +1,5 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
+import {expect, userEvent, waitFor, within} from 'storybook/test'
 import {TruncatedText} from './truncated-text.js'
 
 const meta: Meta = {title: 'ui-kit-system/TruncatedText'}
@@ -25,4 +26,14 @@ export const Rows: Story = {
       </div>
     </div>
   ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    const clipped = c.getByText(CLIPPED)
+    await userEvent.hover(clipped)
+    await expect(await c.findByRole('tooltip')).toHaveTextContent(CLIPPED)
+    await userEvent.unhover(clipped)
+    await waitFor(() => expect(c.queryByRole('tooltip')).toBeNull())
+    await userEvent.hover(clipped)
+    await expect(await c.findByRole('tooltip')).toHaveTextContent(CLIPPED)
+  },
 }

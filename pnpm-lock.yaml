@@ -36,6 +36,9 @@ catalogs:
     '@solid-primitives/event-listener':
       specifier: ^2.4.6
       version: 2.4.6
+    '@solid-primitives/resize-observer':
+      specifier: ^2.2.0
+      version: 2.2.0
     '@solid-primitives/timer':
       specifier: ^1.4.4
       version: 1.4.4
@@ -4238,7 +4241,7 @@ importers:
         specifier: ^2.3.6
         version: 2.3.6(solid-js@1.9.17)
       '@solid-primitives/resize-observer':
-        specifier: ^2.2.0
+        specifier: 'catalog:'
         version: 2.2.0(solid-js@1.9.17)
       '@solid-primitives/timer':
         specifier: 'catalog:'
@@ -4431,6 +4434,9 @@ importers:
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
+      '@solid-primitives/resize-observer':
+        specifier: 'catalog:'
+        version: 2.2.0(solid-js@1.9.17)
       '@solid-primitives/timer':
         specifier: 'catalog:'
         version: 1.4.4(solid-js@1.9.17)
