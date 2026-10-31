@@ -521,7 +521,7 @@ describe('native page vite boot', () => {
       const root = servers.tempDir('conciv-vite-installed-')
       writeFileSync(
         join(root, 'index.html'),
-        '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>',
+        '<!doctype html><html><head><meta charset="utf-8"></head><body><p id="probe">probe</p></body></html>',
       )
       const embedDir = installConcivPackage(root, '@conciv/embed')
       const extensionDirs = BUILTIN_EXTENSIONS.map((name) => installConcivPackage(root, name))
@@ -577,6 +577,30 @@ describe('native page vite boot', () => {
       await page.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
       expect(state.errors).toEqual([])
     }, 30_000)
+
+    it('restores the open chat, keeps it usable and names the content blocker when every rrweb module is blocked', async () => {
+      const url = state.started?.server.resolvedUrls?.local[0]
+      const blockedPage = await state.browser?.newPage()
+      if (blockedPage === undefined || url === undefined) throw new Error('dev server did not start')
+      await blockedPage.route(/rrweb/, (route) => route.abort('blockedbyclient'))
+      await blockedPage.goto(url, {waitUntil: 'domcontentloaded'})
+      const chat = blockedPage.getByRole('dialog', {name: 'conciv chat agent'})
+      const composer = chat.getByRole('textbox', {name: 'Message the conciv agent'})
+      await composer.fill('still usable', {timeout: 45_000})
+      await expectLocator(composer).toHaveText('still usable')
+      await chat.getByRole('tab', {name: /Recorder/}).click()
+      await expectLocator(chat.getByText('Recording is paused by your content blocker')).toBeVisible()
+      const outcome = await blockedPage.evaluate(() =>
+        Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({
+          name: 'page_settext',
+          input: {selector: '#probe', text: 'rewritten'},
+        }),
+      )
+      await expectLocator(blockedPage.getByText(/content blocker.*rrweb-snapshot/)).toBeVisible()
+      expect(outcome).toMatchObject({ok: true, capture: {after: {descriptor: {accessibleName: 'rewritten'}}}})
+      expect(outcome.capture.after.node).toBeUndefined()
+      await blockedPage.close()
+    }, 90_000)
   })
 })
 

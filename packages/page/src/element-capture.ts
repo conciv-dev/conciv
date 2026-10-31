@@ -1,7 +1,8 @@
-import {createMirror, type Mirror, serializeNodeWithId} from 'rrweb-snapshot'
+import type {createMirror, Mirror, serializeNodeWithId, stringifyStylesheet} from 'rrweb-snapshot'
 import {isDangerousTag, neutralizeSubtree} from '@conciv/protocol/element-capture-sanitize'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {collectPendingCss, type PendingCssText} from './css-bundle.js'
+import {showToast} from './effect-toast.js'
 import {elementDescriptor} from './element-descriptor.js'
 
 const WIDGET_SELECTOR = '[data-conciv-root]'
@@ -22,9 +23,27 @@ const INLINE_IMAGE_QUALITY = 0.8
 
 const INLINE_IMAGE_JSON_OVERHEAD = INLINE_IMAGE_ATTRIBUTE.length + 6
 
+const SNAPSHOT_BLOCKED_MESSAGE = 'Element previews are off: a content blocker likely blocked rrweb-snapshot.'
+
 type SerializedNode = NonNullable<ReturnType<typeof serializeNodeWithId>>
 
 type SerializedElement = Extract<SerializedNode, {tagName: string}>
+
+export type SnapshotLibrary = {
+  createMirror: typeof createMirror
+  serializeNodeWithId: typeof serializeNodeWithId
+  stringifyStylesheet: typeof stringifyStylesheet
+}
+
+let snapshotLibrary: Promise<SnapshotLibrary | null> | undefined
+
+export function loadSnapshotLibrary(): Promise<SnapshotLibrary | null> {
+  snapshotLibrary ??= import('rrweb-snapshot').catch(() => {
+    showToast(SNAPSHOT_BLOCKED_MESSAGE, 'error')
+    return null
+  })
+  return snapshotLibrary
+}
 
 function serializeOptions(
   doc: Document,
@@ -131,9 +150,9 @@ function inlineRenderedImages(tree: SerializedNode, mirror: Mirror, budgetBytes:
   }
 }
 
-function serializeWithAncestors(el: Element, doc: Document): SerializedNode | null {
-  const mirror = createMirror()
-  const target = serializeNodeWithId(el, serializeOptions(doc, false, mirror))
+function serializeWithAncestors(el: Element, doc: Document, snapshot: SnapshotLibrary): SerializedNode | null {
+  const mirror = snapshot.createMirror()
+  const target = snapshot.serializeNodeWithId(el, serializeOptions(doc, false, mirror))
   if (target === null || isDangerousTag(target)) return null
   scrubSensitiveValues(target)
   markTarget(target)
@@ -141,7 +160,7 @@ function serializeWithAncestors(el: Element, doc: Document): SerializedNode | nu
   let ancestor = el.parentElement
   let depth = 0
   while (ancestor !== null && depth < ANCESTOR_CAP) {
-    const serialized = serializeNodeWithId(ancestor, serializeOptions(doc, true, mirror))
+    const serialized = snapshot.serializeNodeWithId(ancestor, serializeOptions(doc, true, mirror))
     if (serialized === null || isDangerousTag(serialized)) break
     const wrapped = withSingleChild(serialized, chained)
     if (wrapped === null) break
@@ -162,7 +181,7 @@ function containsWidget(el: Element): boolean {
   return el.querySelector(WIDGET_SELECTOR) !== null
 }
 
-export type CaptureDeps = {document: Document}
+export type CaptureDeps = {document: Document; snapshot: SnapshotLibrary | null}
 
 export type TakenCapture = {capture: ElementCapture; pendingCss: PendingCssText | null}
 
@@ -170,9 +189,9 @@ export function takeElementCapture(el: Element, kind: ElementCaptureKind, deps: 
   if (!el.isConnected) return null
   const descriptor = elementDescriptor(el)
   const ts = Date.now()
-  if (containsWidget(el)) return {capture: {kind, ts, descriptor}, pendingCss: null}
-  const node = serializeWithAncestors(el, deps.document)
-  const pendingCss = collectPendingCss(deps.document)
+  if (deps.snapshot === null || containsWidget(el)) return {capture: {kind, ts, descriptor}, pendingCss: null}
+  const node = serializeWithAncestors(el, deps.document, deps.snapshot)
+  const pendingCss = collectPendingCss(deps.document, deps.snapshot.stringifyStylesheet)
   return {
     capture: {kind, ts, descriptor, ...(node === null ? {} : {node})},
     pendingCss,
