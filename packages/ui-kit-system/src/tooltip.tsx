@@ -17,6 +17,7 @@ import {useEnvironmentContext} from '@ark-ui/solid/environment'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {Timer, TooltipGroup, useTooltipGroup, type TooltipGroupApi, type TooltipGroupMember} from './tooltip-group.js'
 import {popIn, sideFromPlacement} from './tooltip-motion.js'
+import {isDocument, isHTMLElement, isShadowRoot} from './realm.js'
 
 const CONTENT =
   'hidden data-[state=open]:block z-[2147483647] rounded-chat-surface-sm bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg py-1 px-2 text-[0.6875rem] max-w-60 focus-visible:outline-none'
@@ -111,8 +112,8 @@ function GroupRoot(props: RootProps & {group: TooltipGroupApi}) {
 
   onMount(() => {
     const root = environment().getRootNode()
-    const element = root instanceof Document || root instanceof ShadowRoot ? root.getElementById(triggerId) : null
-    if (!(element instanceof HTMLElement)) return
+    const element = isDocument(root) || isShadowRoot(root) ? root.getElementById(triggerId) : null
+    if (!isHTMLElement(element)) return
     setTrigger(element)
     makeEventListener(element, 'pointerenter', (event) => {
       if (event.pointerType === 'touch' || event.buttons !== 0 || api().open) return

@@ -32,7 +32,7 @@ import {
   type TooltipSide,
 } from './tooltip-motion.js'
 import {createFrameLoop, prefersReducedMotion, type Spring} from './motion.js'
-import {isShadowRoot} from './realm.js'
+import {activeElementIn, isHTMLElement, isShadowRoot, viewOf} from './realm.js'
 
 export type TooltipGroupMember = {
   id: string
@@ -124,8 +124,7 @@ export function Timer(props: {delay: number; onDone: () => void}): JSX.Element {
 }
 
 function focusVisibleWithin(element: HTMLElement): boolean {
-  const root = element.getRootNode()
-  const active = root instanceof Document || root instanceof ShadowRoot ? root.activeElement : null
+  const active = activeElementIn(element.getRootNode())
   return active !== null && element.contains(active) && active.matches(':focus-visible')
 }
 
@@ -147,9 +146,9 @@ function liveGeometry(options: {
   settled: TooltipGeometry
 }): TooltipGeometry {
   if (options.label.getAnimations().length === 0) return options.settled
-  const style = getComputedStyle(options.label)
+  const style = viewOf(options.label).getComputedStyle(options.label)
   const [x = '0', y = '0'] = style.translate.split(' ')
-  const arrowStyle = options.arrow ? getComputedStyle(options.arrow) : undefined
+  const arrowStyle = options.arrow ? viewOf(options.arrow).getComputedStyle(options.arrow) : undefined
   const arrowAt = alongX(options.settled.side) ? arrowStyle?.left : arrowStyle?.top
   return {
     ...options.settled,
@@ -232,7 +231,7 @@ function LayerView(props: {
   const [element, setElement] = createSignal<HTMLElement>()
   const [text, setText] = createSignal<HTMLElement>()
   createResizeObserver(text, (_, target) => {
-    if (target instanceof HTMLElement) props.onResize({layer: props.layer, text: target})
+    if (isHTMLElement(target)) props.onResize({layer: props.layer, text: target})
   })
   onMount(() => {
     const layerElement = element()
@@ -280,7 +279,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
   const revive = (): void => {
     const element = box()
     if (!element || element.getAnimations().length === 0) return
-    const opacity = getComputedStyle(element).opacity
+    const opacity = viewOf(element).getComputedStyle(element).opacity
     cancelAnimations(element)
     if (prefersReducedMotion()) return
     element.animate([{opacity}, {opacity: '1'}], {duration: REVIVE_DURATION, easing: EASE_OUT})
@@ -357,7 +356,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
       gap: options.member.gap(),
       width: options.width,
       height: options.height,
-      viewport: {width: window.innerWidth, height: window.innerHeight},
+      viewport: {width: viewOf(options.trigger).innerWidth, height: viewOf(options.trigger).innerHeight},
     })
     const origin = originOf(probe())
     return {...viewportGeometry, x: viewportGeometry.x - origin.left, y: viewportGeometry.y - origin.top}
@@ -386,7 +385,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     const boxElement = box()
     if (!labelElement?.isConnected || !boxElement) return resetLean(boxElement)
     const side = state.geometry.side
-    const [x = '0', y = '0'] = getComputedStyle(labelElement).translate.split(' ')
+    const [x = '0', y = '0'] = viewOf(labelElement).getComputedStyle(labelElement).translate.split(' ')
     const position = pixels(alongX(side) ? x : y)
     const gliding = labelElement.getAnimations().length > 0
     const speed = gliding && lean.position !== undefined ? (position - lean.position) / seconds : 0
@@ -483,8 +482,9 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
   }
 
   function Label(): JSX.Element {
+    const view = viewOf(state.active?.trigger())
     makeEventListener(
-      window,
+      view,
       'keydown',
       (event) => {
         if (event.key === 'Escape') closeNow()
@@ -492,7 +492,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
       {capture: true},
     )
     makeEventListener(
-      window,
+      view,
       'focusout',
       (event) => {
         if (pathHas({event, element: state.active?.trigger()})) closeNow()
@@ -500,7 +500,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
       {capture: true},
     )
     makeEventListener(
-      window,
+      view,
       'pointerdown',
       (event) => {
         const member = state.active
@@ -510,13 +510,13 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
       },
       {capture: true},
     )
-    makeEventListener(document, 'visibilitychange', () => {
-      if (document.visibilityState !== 'hidden') return
+    makeEventListener(view.document, 'visibilitychange', () => {
+      if (view.document.visibilityState !== 'hidden') return
       state.active?.close()
       closeNow()
     })
-    makeEventListener(window, 'scroll', follow, {capture: true, passive: true})
-    makeEventListener(window, 'resize', follow)
+    makeEventListener(view, 'scroll', follow, {capture: true, passive: true})
+    makeEventListener(view, 'resize', follow)
     const triggerRoot = state.active?.trigger()?.getRootNode()
     if (isShadowRoot(triggerRoot)) makeEventListener(triggerRoot, 'scroll', follow, {capture: true, passive: true})
     return (
