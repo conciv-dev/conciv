@@ -1,4 +1,4 @@
-import {createRouter} from '@tanstack/solid-router'
+import {createRouter, parseSearchWith, stringifySearchWith} from '@tanstack/solid-router'
 import {rootRoute} from './routes/__root.js'
 import {indexRoute} from './routes/index.js'
 
@@ -13,6 +13,8 @@ export function createXrayRouter() {
   return createRouter({
     routeTree,
     scrollRestoration: false,
+    parseSearch: parseSearchWith((value) => value),
+    stringifySearch: stringifySearchWith(JSON.stringify),
     rewrite: {
       input: ({url}) => pageUrl({url, path: '/'}),
       output: ({url}) => pageUrl({url, path: page}),
