@@ -250,6 +250,24 @@ describe('chat plane', () => {
     })
   })
 
+  describe('stop', () => {
+    it('a hydrate after Stop shows every word the client saw, not the last throttled snapshot', async () => {
+      const root = stateRoot()
+      const cli = fakeCli()
+      cli.steps.push('streaming')
+      const chat = await plane({root, harness: cliHarness(cli)})
+      const id = SessionId.parse(sessionId('stopped-mid-text'))
+      const seen = await readText(await startTurn(chat, id, 'stopped-mid-text', 'keep talking'), STREAMED_TEXT)
+      await chat.stop(id)
+      const texts = (await chat.hydrate(id)).messages.map((message) =>
+        message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''),
+      )
+      expect(seen).toBe(STREAMED_TEXT)
+      expect(texts).toEqual(['keep talking', STREAMED_TEXT])
+      cli.release()
+    })
+  })
+
   describe('transcript import', () => {
     it('a hydrate right after Stop does not import the stopped turn from the CLI transcript a second time', async () => {
       const root = stateRoot()
@@ -259,11 +277,12 @@ describe('chat plane', () => {
       const chat = await plane({root, harness: cliHarness(cli, transcript.history), nativeId: transcript.nativeId})
       const id = SessionId.parse(sessionId('stopped'))
       await readUntil(await startTurn(chat, id, 'stopped-run', 'stop me'), ChatEventType.RUN_STARTED)
-      await chat.stop(id)
+      const stopped = chat.stop(id)
       await transcript.settling
       const hydrated = chat.hydrate(id)
       await Promise.race([hydrated, new Promise((resolve) => setTimeout(resolve, 200))])
       transcript.release()
+      await stopped
       const users = (await hydrated).messages.filter((message) => message.role === 'user')
       expect(users.map((message) => message.id)).toEqual(['stopped-run-user'])
       cli.release()
@@ -271,7 +290,9 @@ describe('chat plane', () => {
   })
 })
 
-type CliStep = 'reply' | 'silent' | 'partial' | 'split'
+type CliStep = 'reply' | 'silent' | 'partial' | 'split' | 'streaming'
+
+const STREAMED_TEXT = 'partial reply and the words after the last snapshot'
 
 type FakeCli = {steps: CliStep[]; systemPrompts: string[][]; gate: Promise<void>; release: () => void}
 
@@ -310,6 +331,17 @@ const STEP_TAIL: Record<CliStep, (runId: string) => ChatEvent[]> = {
   silent: () => [],
   partial: () => [],
   split: toolThenSecondSegment,
+  streaming: () => [],
+}
+
+const FIRST_DELTA = 'partial reply'
+
+const HELD_REST: Record<CliStep, string> = {
+  reply: '',
+  silent: '',
+  partial: '',
+  split: '',
+  streaming: STREAMED_TEXT.slice(FIRST_DELTA.length),
 }
 
 function cliHarness(cli: FakeCli, history?: HarnessHistory): HarnessAdapter {
@@ -329,7 +361,12 @@ function cliHarness(cli: FakeCli, history?: HarnessHistory): HarnessAdapter {
           return
         }
         yield {type: ChatEventType.TEXT_MESSAGE_START, messageId: `${run.runId}-a`, role: 'assistant'}
-        yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: `${run.runId}-a`, delta: 'partial reply'}
+        yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: `${run.runId}-a`, delta: FIRST_DELTA}
+        if (HELD_REST[step] !== '') {
+          yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: `${run.runId}-a`, delta: HELD_REST[step]}
+          await Promise.race([cli.gate, aborted(options.request?.signal ?? undefined)])
+          return
+        }
         if (step === 'partial') await cli.gate
         yield {type: ChatEventType.TEXT_MESSAGE_END, messageId: `${run.runId}-a`}
         yield* STEP_TAIL[step](run.runId)
@@ -404,7 +441,9 @@ async function plane(options: PlaneOptions): Promise<ChatPlane> {
 
 const noUpgrade = defineWebSocketHelper(async () => undefined)
 
-const ChunkSchema = z.object({type: z.string()}).loose()
+const ChunkSchema = z.object({type: z.string(), delta: z.string().optional()}).loose()
+
+type WireChunk = z.infer<typeof ChunkSchema>
 
 async function startTurn(chat: ChatPlane, sessionId: string, runId: string, text: string): Promise<Response> {
   return chat.routes(noUpgrade).request(CHAT_SSE_PATH, {
@@ -420,11 +459,11 @@ async function startTurn(chat: ChatPlane, sessionId: string, runId: string, text
   })
 }
 
-async function readUntil(response: Response, type: ChatEvent['type'] | 'end'): Promise<string[]> {
+async function readChunks(response: Response, enough: (seen: WireChunk[]) => boolean): Promise<WireChunk[]> {
   const body = response.body
   if (body === null) throw new Error('the turn has no body')
   const reader = body.pipeThrough(new TextDecoderStream()).getReader()
-  const seen: string[] = []
+  const seen: WireChunk[] = []
   const buffer = {text: ''}
   for (;;) {
     const next = await reader.read()
@@ -432,16 +471,31 @@ async function readUntil(response: Response, type: ChatEvent['type'] | 'end'): P
     buffer.text += next.value
     const frames = buffer.text.split('\n\n')
     buffer.text = frames.pop() ?? ''
-    const types = frames
+    const chunks = frames
       .flatMap((frame) => frame.split('\n'))
       .flatMap((line) => (line.startsWith('data: ') ? [ChunkSchema.safeParse(JSON.parse(line.slice(6)))] : []))
-      .flatMap((parsed) => (parsed.success ? [parsed.data.type] : []))
-    seen.push(...types)
-    if (type !== 'end' && types.includes(type)) {
+      .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
+    seen.push(...chunks)
+    if (enough(seen)) {
       await reader.cancel()
       return seen
     }
   }
+}
+
+async function readUntil(response: Response, type: ChatEvent['type'] | 'end'): Promise<string[]> {
+  const seen = await readChunks(response, (chunks) => type !== 'end' && chunks.some((chunk) => chunk.type === type))
+  return seen.map((chunk) => chunk.type)
+}
+
+function streamedText(chunks: WireChunk[]): string {
+  return chunks
+    .flatMap((chunk) => (chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT && chunk.delta ? [chunk.delta] : []))
+    .join('')
+}
+
+async function readText(response: Response, expected: string): Promise<string> {
+  return streamedText(await readChunks(response, (chunks) => streamedText(chunks) === expected))
 }
 
 function sessionId(name: string): string {

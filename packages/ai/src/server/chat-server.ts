@@ -205,6 +205,30 @@ type LiveRun = {
 
 type RunMessages = {full: ModelMessage[]}
 
+type StreamedText = {messageId: string; text: string}
+
+function isSubagentChunk(chunk: ChatEvent): boolean {
+  return 'subagentRunId' in chunk && chunk.subagentRunId !== undefined
+}
+
+function followText(streamed: StreamedText, chunk: ChatEvent): void {
+  if (isSubagentChunk(chunk)) return
+  if (chunk.type === EventType.TEXT_MESSAGE_START) {
+    streamed.messageId = chunk.messageId
+    streamed.text = ''
+  }
+  if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) streamed.text += chunk.delta
+}
+
+async function flushStreamedText(messages: MessageStore, threadId: string, streamed: StreamedText): Promise<void> {
+  if (streamed.messageId === '' || streamed.text === '') return
+  const stored = await messages.loadThread(threadId)
+  const index = stored.findLastIndex((message) => message.role === 'assistant' && message.id === streamed.messageId)
+  const saved = stored[index]
+  if (saved === undefined || saved.content === streamed.text) return
+  await messages.saveThread(threadId, stored.with(index, {...saved, content: streamed.text}))
+}
+
 function silentCategories(logger: DebugConfig['logger']): DebugConfig {
   return {
     logger,
@@ -288,6 +312,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   function concivTurn(turn: Turn, plan: TurnPlan, granted: {approvals: Approvals}, view: RunMessages, entry: LiveRun) {
     const failure: {message: string | null} = {message: null}
     const prepared: {sent: number; provider: ModelMessage[]} = {sent: 0, provider: []}
+    const streamed: StreamedText = {messageId: '', text: ''}
     const settle = async (): Promise<void> => {
       try {
         const lifecycle = await recordLifecycle(turn.runId)
@@ -326,6 +351,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         }
       },
       onChunk: async (_ctx, chunk) => {
+        followText(streamed, chunk)
         const shaped = await plan.chunk(chunk)
         if (chunk.type === EventType.RUN_STARTED) {
           const lifecycle = await recordLifecycle(turn.runId)
@@ -343,6 +369,9 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       onFinish: () => settle(),
       onError: () => settle(),
       onAbort: async () => {
+        await flushStreamedText(stores.messages, turn.threadId, streamed).catch((error: unknown) =>
+          config.log(`[ai] saving the stopped text of run ${turn.runId} failed: ${String(error)}`),
+        )
         if (failure.message !== null) {
           await stores.runs.update(turn.runId, {
             status: 'failed',
@@ -432,7 +461,9 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       if (active === null) return
       if (runIds !== undefined && !runIds.includes(active.runId)) return
       await requestRunCancel(stores.runs, active.runId)
-      live.get(active.runId)?.controller.abort(RUN_CANCEL_REASON)
+      const entry = live.get(active.runId)
+      entry?.controller.abort(RUN_CANCEL_REASON)
+      await entry?.settled.promise
     },
     endRuns: async (threadId) => {
       const ending = liveRunsOf(threadId).map(([, entry]) => entry.settled.promise)
