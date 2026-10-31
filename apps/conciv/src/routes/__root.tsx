@@ -294,7 +294,8 @@ function RootChrome(props: {
   const panelCommands = createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID})
 
   onMount(() => {
-    if (settings.defaultOpen && closedMatch()) void openPanel()
+    const dockedShutterClosed = settings.surface === 'dock' && panelMatch() && !shutterOpen()
+    if (dockedShutterClosed || (settings.defaultOpen && closedMatch())) void openPanel()
     makeEventListener(window, 'resize', reportPanelState)
     const unsubscribes = [
       panelCommands.on('open', () => void openPanel()),

@@ -926,8 +926,11 @@ describe('vite devtools dock', () => {
     ].map((specifier) => fileURLToPath(import.meta.resolve(specifier))),
   }
 
-  async function dockServer(widget?: false, builtins: Builtins = NO_BUILTINS): Promise<string> {
-    const root = realpathSync(dirs.tempDir('conciv-dock-'))
+  async function dockServer(
+    widget?: false,
+    builtins: Builtins = NO_BUILTINS,
+    root = realpathSync(dirs.tempDir('conciv-dock-')),
+  ): Promise<string> {
     writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title><h1>host</h1>')
     const server = await createServer({
       root,
@@ -1029,6 +1032,42 @@ describe('vite devtools dock', () => {
     await expectLocator(panelComposer).toBeVisible({timeout: 3_000})
     await page.close()
   }, 90_000)
+
+  it('shows the chat in the dock when a closed floating widget left its panel route behind', async () => {
+    const root = realpathSync(dirs.tempDir('conciv-dock-'))
+    writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
+    const floating = await dirs.start(
+      {},
+      {
+        ...NO_BUILTINS,
+        embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
+        dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
+      },
+      root,
+    )
+    const floatingUrl = floating.server.resolvedUrls?.local[0]
+    if (floatingUrl === undefined) throw new Error('dev server did not start')
+    const floatingPage = await browser.newPage({viewport: {width: 1280, height: 800}})
+    await floatingPage.goto(floatingUrl, {waitUntil: 'domcontentloaded'})
+    await floatingPage.getByRole('button', {name: /conciv chat$/}).click({timeout: 45_000})
+    const floatingComposer = floatingPage.getByRole('textbox', {name: 'Message the conciv agent'})
+    await floatingComposer.waitFor()
+    const closedPanelPersisted = floatingPage.waitForResponse(
+      (response) =>
+        response.url().endsWith('/rpc/navigation/set') &&
+        /\/panel\/(?!latest)/.test(response.request().postData() ?? '') &&
+        !(response.request().postData() ?? '').includes('open=true'),
+    )
+    await floatingComposer.press('Escape')
+    await closedPanelPersisted
+    await floatingPage.close()
+    await floating.server.close()
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    await page.goto(await dockServer(undefined, NO_BUILTINS, root), {waitUntil: 'domcontentloaded'})
+    await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
+    await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
+    await page.close()
+  }, 120_000)
 
   it('opens the chat and the recorder on a cold cache without Vite re-optimizing dependencies', async () => {
     const root = realpathSync(dirs.tempDir('conciv-cold-'))
