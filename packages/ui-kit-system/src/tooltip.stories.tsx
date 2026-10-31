@@ -1,4 +1,5 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
+import {createSignal} from 'solid-js'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import Strikethrough from 'lucide-solid/icons/strikethrough'
 import Italic from 'lucide-solid/icons/italic'
@@ -16,18 +17,25 @@ type Story = StoryObj
 type ToolbarStory = StoryObj<ToolbarArgs>
 
 export const Default: Story = {
-  render: () => (
-    <Tooltip.Root openDelay={0} closeDelay={0}>
-      <Tooltip.Trigger class="text-chat-accent-link underline cursor-pointer">Reload</Tooltip.Trigger>
-      <Tooltip.Positioner>
-        <Tooltip.Content>Regenerate this response</Tooltip.Content>
-      </Tooltip.Positioner>
-    </Tooltip.Root>
-  ),
+  render: () => {
+    const [content, setContent] = createSignal<HTMLElement>()
+    return (
+      <>
+        <Tooltip.Root openDelay={0} closeDelay={0}>
+          <Tooltip.Trigger class="text-chat-accent-link underline cursor-pointer">Reload</Tooltip.Trigger>
+          <Tooltip.Positioner>
+            <Tooltip.Content ref={setContent}>Regenerate this response</Tooltip.Content>
+          </Tooltip.Positioner>
+        </Tooltip.Root>
+        <p>{content() ? 'Content ref attached' : 'Content ref missing'}</p>
+      </>
+    )
+  },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.hover(c.getByText('Reload'))
     await waitFor(() => expect(c.getByText('Regenerate this response')).toBeVisible())
+    await expect(c.getByText('Content ref attached')).toBeVisible()
   },
 }
 

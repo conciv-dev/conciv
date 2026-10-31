@@ -178,12 +178,16 @@ function GroupContent(props: {register: Setter<{children?: JSX.Element}>; childr
 
 function Content(props: ComponentProps<typeof Ark.Content>) {
   const setContent = useContext(ContentRefContext)
-  const [local, rest] = splitProps(props, ['class', 'children'])
+  const [local, rest] = splitProps(props, ['class', 'children', 'ref'])
+  const bindContent = (element: HTMLDivElement): void => {
+    setContent?.(element)
+    if (typeof local.ref === 'function') local.ref(element)
+  }
   return (
     <Show
       when={useContext(MemberContext)}
       fallback={
-        <Ark.Content {...rest} ref={setContent} class={`${CONTENT}  ${local.class ?? ''}`}>
+        <Ark.Content {...rest} ref={bindContent} class={`${CONTENT}  ${local.class ?? ''}`}>
           {local.children}
         </Ark.Content>
       }
