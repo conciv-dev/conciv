@@ -12,7 +12,7 @@ import {
   type JSX,
   type Setter,
 } from 'solid-js'
-import {Tooltip as Ark, useTooltip} from '@ark-ui/solid/tooltip'
+import {Tooltip as Ark, useTooltip, useTooltipContext} from '@ark-ui/solid/tooltip'
 import {useEnvironmentContext} from '@ark-ui/solid/environment'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {Timer, TooltipGroup, useTooltipGroup, type TooltipGroupApi, type TooltipGroupMember} from './tooltip-group.js'
@@ -28,18 +28,24 @@ const HOLD_SLOP = 10
 type RootProps = ComponentProps<typeof Ark.Root>
 type Hold = {phase: 'idle'} | {phase: 'holding'; x: number; y: number; pointerId: number} | {phase: 'held'}
 
-const ContentRefContext = createContext<Setter<HTMLElement | undefined>>()
+type ContentBinding = {bind: (element: HTMLElement) => void; pop: (element: HTMLElement) => void}
+
+const ContentRefContext = createContext<ContentBinding>()
 const MemberContext = createContext<Setter<{children?: JSX.Element}>>()
 
 function PlainRoot(props: RootProps) {
   const [local, rest] = splitProps(props, ['positioning', 'openDelay', 'closeDelay', 'onOpenChange', 'children'])
   const [content, setContent] = createSignal<HTMLElement>()
+  const pop = (element: HTMLElement): void => {
+    element.getAnimations().forEach((animation) => animation.cancel())
+    popIn({element, side: sideFromPlacement(element.dataset.placement ?? local.positioning?.placement)})
+  }
   const onOpenChange: RootProps['onOpenChange'] = (details) => {
     const element = content()
-    if (details.open && element)
-      popIn({element, side: sideFromPlacement(element.dataset.placement ?? local.positioning?.placement)})
+    if (details.open && element?.isConnected) pop(element)
     local.onOpenChange?.(details)
   }
+  const binding: ContentBinding = {bind: setContent, pop}
   return (
     <Ark.Root
       openDelay={local.openDelay ?? 300}
@@ -48,7 +54,7 @@ function PlainRoot(props: RootProps) {
       onOpenChange={onOpenChange}
       {...rest}
     >
-      <ContentRefContext.Provider value={setContent}>{local.children}</ContentRefContext.Provider>
+      <ContentRefContext.Provider value={binding}>{local.children}</ContentRefContext.Provider>
     </Ark.Root>
   )
 }
@@ -178,10 +184,12 @@ function GroupContent(props: {register: Setter<{children?: JSX.Element}>; childr
 }
 
 function Content(props: ComponentProps<typeof Ark.Content>) {
-  const setContent = useContext(ContentRefContext)
+  const binding = useContext(ContentRefContext)
+  const api = useTooltipContext()
   const [local, rest] = splitProps(props, ['class', 'children', 'ref'])
   const bindContent = (element: HTMLDivElement): void => {
-    setContent?.(element)
+    binding?.bind(element)
+    if (api().open) binding?.pop(element)
     if (typeof local.ref === 'function') local.ref(element)
   }
   return (
