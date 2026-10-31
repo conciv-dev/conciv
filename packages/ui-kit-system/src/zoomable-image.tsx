@@ -5,7 +5,8 @@ import {Dialog} from './dialog.js'
 
 type View = 'closed' | 'fit' | 'actual' | 'failed'
 
-const FOCUS_RING = 'focus-visible:[outline:var(--chat-focus)] focus-visible:[outline-offset:-0.125rem]'
+const FOCUS_RING =
+  'focus-visible:[outline:var(--chat-focus)] focus-visible:[outline-offset:-0.125rem] focus-visible:![box-shadow:none]'
 const THUMBNAIL_BUTTON = `self-start max-w-full min-w-11 min-h-11 overflow-hidden rounded-[var(--chat-radius-sm)] !border-chat-line !cursor-zoom-in ${FOCUS_RING}`
 const THUMBNAIL_IMAGE = 'block max-w-full max-h-40 w-auto h-auto'
 const FIT_BUTTON = `w-full align-top !cursor-zoom-in ${FOCUS_RING}`
