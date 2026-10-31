@@ -152,7 +152,7 @@ mountConciv([myExtension])
 For a framework component that owns mount/unmount through its own lifecycle, wrap `createConciv` —
 `@conciv/react`'s `ConcivWidget` is the reference shape: it mounts on a ref'd div in an effect, tears
 down on unmount, and remounts only when `apiBase`/`settings`/`extensions` actually change
-(`packages/react/src/index.ts:8-26`).
+(`packages/react/src/index.ts:8-23`).
 
 ## Connecting a harness
 

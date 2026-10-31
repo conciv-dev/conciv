@@ -192,7 +192,7 @@ const tool = defineTool({
   as `context` (unknown unless you annotate the handler's `ctx` parameter — the generic
   `server<HandlerCtx>` signature lets you write `ctx: YourCtxType`, as
   `packages/extensions/tanstack/src/tool/server.ts:8` does with a `type ToolCtx =
-{makeAdapter: (tools: ServerToolRegistryAccess) => FrameworkAdapter}` annotation); `request` is `{sessionId: string; model: string | null}`
+  {makeAdapter: (tools: ServerToolRegistryAccess) => FrameworkAdapter}` annotation); `request` is `{sessionId: string; model: string | null}`
   for the calling chat turn.
 - `.client(execute?)` binds the tool to run in the browser instead (a DOM inspection tool, for
   example) — its handler receives `ClientToolCtx` (`document`, `target`, `resolve`, `addRef`,
@@ -224,7 +224,7 @@ and `packages/extensions/whiteboard/src/tool/comment/def.ts:59` attaches it via
 `errors: COMMENT_NOT_FOUND` on a tool that can throw it.
 
 Full field-by-field reference and the split `def.ts`/`server.ts`/`client.ts` pattern for
-installable packages: `references/tool-contract.md`.
+installable packages: [tool-contract](references/tool-contract.md).
 
 ## Attachments
 
@@ -251,7 +251,7 @@ tool `.server` handlers get typed context.
   a persistent overlay (the whiteboard canvas) that coexists with whatever `Component` currently
   renders. Mounted via `MountedSurface`.
 - **`views`** is an array of full panels the host can route to (`ExtensionView = {id, label, icon?,
-Component, actions?}`), mounted via `MountedView` when the user navigates to that view's route:
+  Component, actions?}`), mounted via `MountedView` when the user navigates to that view's route:
 
 ```tsx title="packages/extensions/terminal/src/client.tsx:8-19"
 export const terminal = defineExtension({
@@ -312,7 +312,7 @@ import {subscriptionIterator} from '@conciv/extension'
 ```
 
 Deeper RPC and streaming patterns (custom Hono routes vs. an oRPC router, `subscriptionIterator`'s
-exact signature): `references/rpc-and-testing.md`.
+exact signature): [rpc-and-testing](references/rpc-and-testing.md).
 
 ## Testing
 
@@ -337,7 +337,7 @@ prebuilt-bundle tests); `host` can also be a hand-written `async ({apiBase, sess
 close}` for a custom fixture app, as `packages/extensions/tanstack/test/helpers.ts`
 does with `serveDir`. `callToolApproved` is the variant that also answers the Approve/Deny prompt for
 tools with `approval: 'ask'`. Full API and the two-client (`secondClient`) pattern for realtime
-features: `references/rpc-and-testing.md`.
+features: [rpc-and-testing](references/rpc-and-testing.md).
 
 ## Installing a published extension (someone else's, or your own)
 

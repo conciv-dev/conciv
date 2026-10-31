@@ -1,6 +1,6 @@
 import {access, lstat, readFile, readdir} from 'node:fs/promises'
 import {join, relative} from 'node:path'
-import parseChangesetFile from '@changesets/parse'
+import {parseChangesetFile} from '@changesets/parse'
 import {execa} from 'execa'
 import {qualifiesForCoverage} from './coverage-files.ts'
 import {parseManifest} from './manifest.ts'
@@ -51,6 +51,8 @@ export const PUBLIC_PACKAGES = [
   '@conciv/harness',
   '@conciv/harness-init',
   '@conciv/protocol',
+  '@conciv/ai',
+  '@conciv/chat',
   '@conciv/contract',
   '@conciv/db',
   '@conciv/storage-history',
@@ -283,7 +285,6 @@ export async function assertPublicDepsPublic(cwd: string): Promise<void> {
 }
 
 const CATALOG_EXEMPTIONS: Record<string, string[]> = {
-  'e2e/solid-start': ['vite'],
   'packages/extensions/whiteboard': ['drizzle-kit', 'drizzle-orm'],
 }
 

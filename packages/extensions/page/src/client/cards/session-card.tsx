@@ -11,7 +11,7 @@ import Sparkles from 'lucide-solid/icons/sparkles'
 import SquareCheck from 'lucide-solid/icons/square-check'
 import TextCursorInput from 'lucide-solid/icons/text-cursor-input'
 import type {LucideIcon} from 'lucide-solid'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {
   pageSessionCallParts,
   pageSessionThinkingParts,

@@ -11,7 +11,7 @@ import {
 } from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
-import type {MultimodalContent} from '@tanstack/ai-client'
+import type {SendContent} from '@conciv/protocol/chat-message-types'
 import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
 import {useChatContext, useComposer} from '../../store/chat-context.js'
@@ -51,7 +51,7 @@ const DEFAULT_DRAFT_KEY = 'conciv-composer-draft'
 
 type SubmitEvent = globalThis.SubmitEvent & {currentTarget: HTMLFormElement; target: Element}
 
-function buildContent(text: string, attachments: Attachment[]): string | MultimodalContent {
+function buildContent(text: string, attachments: Attachment[]): string | SendContent {
   if (attachments.length === 0) return text
   const parts = [
     ...(text ? [{type: 'text', content: text} as const] : []),
@@ -69,9 +69,9 @@ function canSubmit(canSend: boolean, attachmentCount: number, unavailable: boole
 }
 
 async function sendContent(
-  handler: ((content: string | MultimodalContent) => void | Promise<unknown>) | undefined,
-  fallback: (content: string | MultimodalContent) => Promise<unknown>,
-  content: string | MultimodalContent,
+  handler: ((content: string | SendContent) => void | Promise<unknown>) | undefined,
+  fallback: (content: string | SendContent) => Promise<unknown>,
+  content: string | SendContent,
 ): Promise<void> {
   if (handler) await handler(content)
   else await fallback(content)
@@ -283,7 +283,7 @@ function Root(props: FormProps): JSX.Element {
   const markSendFailed = (error: unknown) => {
     setState('attachments', (current) => restoredAttachments(current, error))
   }
-  const completedContent = async (original: ComposerDraft): Promise<string | MultimodalContent | null> => {
+  const completedContent = async (original: ComposerDraft): Promise<string | SendContent | null> => {
     try {
       const complete = await completeAll(attachmentAdapter(), original.attachments)
       return buildContent(original.draft.trim(), complete)
@@ -294,7 +294,7 @@ function Root(props: FormProps): JSX.Element {
       setState('sendingAttachments', false)
     }
   }
-  const runSend = async (content: string | MultimodalContent): Promise<unknown> => {
+  const runSend = async (content: string | SendContent): Promise<unknown> => {
     const before = chat.error()
     try {
       await sendContent(handlers.onSend, (value) => chat.sendMessage(value), content)

@@ -1,6 +1,6 @@
 import {createPolled} from '@solid-primitives/timer'
 import type {Accessor} from 'solid-js'
-import {isRunPhaseTerminal, type RunClockSource} from '@conciv/protocol/run-types'
+import {isRunPhaseTerminal, type RunClockSource} from '@conciv/protocol/chat-event-types'
 
 export type {RunClockSource}
 

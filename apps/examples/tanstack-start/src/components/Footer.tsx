@@ -1,6 +1,6 @@
-export default function Footer() {
-  const year = new Date().getFullYear()
+const year = new Date().getFullYear()
 
+export default function Footer() {
   return (
     <footer className="site-footer mt-16 px-4 pb-12 pt-9 text-[var(--sea-ink-soft)]">
       <div className="page-wrap flex flex-col items-center justify-between gap-5 text-center sm:flex-row sm:text-left">

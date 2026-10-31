@@ -2,7 +2,7 @@ import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
-import {browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
+import {TANSTACK_AI_SOLID_DEPS, browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
 const DIFFS_ENTRIES = ['@pierre/diffs', '@pierre/diffs/worker']
 
@@ -37,7 +37,7 @@ export default defineConfig({
       {
         extends: true,
         plugins: [solidPlugin(), UnoCSS({content: {filesystem: ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx}']}})],
-        optimizeDeps: browserOptimizeDeps([...DIFFS_ENTRIES, ...HIGHLIGHT_WORKER_LANGUAGES]),
+        optimizeDeps: browserOptimizeDeps([...DIFFS_ENTRIES, ...HIGHLIGHT_WORKER_LANGUAGES, ...TANSTACK_AI_SOLID_DEPS]),
         test: {
           ...ciTestSolidBrowser(),
           name: 'ui-kit-chat-browser',

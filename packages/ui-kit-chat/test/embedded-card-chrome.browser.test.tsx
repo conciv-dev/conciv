@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import {CardShell} from '../src/tools/styled/card-shell.js'
 import {InlineShell} from '../src/tools/styled/inline-row.js'
 import {CardChromeProvider} from '../src/tools/styled/card-chrome.js'

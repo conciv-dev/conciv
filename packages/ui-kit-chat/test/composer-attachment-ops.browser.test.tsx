@@ -2,9 +2,9 @@ import 'virtual:uno.css'
 import {render} from '@solidjs/testing-library'
 import {untrack, type JSX, type ParentProps} from 'solid-js'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Composer as ComposerPrimitive} from '../src/primitives/composer/composer.js'
 import {ComposerHandlersProvider} from '../src/primitives/composer/composer-handlers.js'
 import {useComposerContext, type ComposerContextValue} from '../src/primitives/composer/composer-context.js'
@@ -31,7 +31,7 @@ function trackedAdapter(onRemove?: (attachment: Attachment) => void): Attachment
 }
 
 function ChatHost(props: ParentProps): JSX.Element {
-  const chat = useChat({connection: storyConnection(untrack(() => undefined))})
+  const chat = createChat({threadId: 'composer-attachment-ops', connection: storyConnection(untrack(() => undefined))})
   return (
     <ChatProvider chat={chat}>
       <ComposerHandlersProvider value={{}}>{props.children}</ComposerHandlersProvider>

@@ -1,6 +1,6 @@
 import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
-import {page} from 'vitest/browser'
+import {page, userEvent} from 'vitest/browser'
 import {bootedCore} from './helpers/booted-core.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, sendTurn} from './helpers/core-session.js'
@@ -11,6 +11,7 @@ const harness = createShellHarness(coreBase)
 
 afterEach(async () => {
   await coreControl.releaseTurn()
+  await coreControl.releaseStart()
   harness.dispose()
 })
 
@@ -18,6 +19,7 @@ const launcher = () => page.getByRole('button', {name: 'Minimize conciv chat'})
 const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const sessionOptions = () => page.getByRole('button', {name: 'Session options'})
 const sessionPicker = () => page.getByRole('button', {name: 'Session: the session in front'})
+const refreshRow = () => page.getByRole('button', {name: 'Refresh the conversation'})
 const backgroundRow = () => page.getByRole('option', {name: /the session behind.*running/})
 
 test('a run in a session the launcher does not target leaves the launcher asleep', async () => {
@@ -56,4 +58,29 @@ test('the launcher follows the targeted session from the start of a run to its s
   await coreControl.releaseTurn()
 
   await expect.element(launcher(), {timeout: 8000}).toHaveAttribute('aria-busy', 'false')
+}, 30_000)
+
+test('the status bar reads RUNNING and Refresh stays off while a compact run has not streamed its start yet, until it ends', async () => {
+  await page.viewport(1000, 900)
+  const sessionId = await createSession(coreRpc(coreBase()))
+
+  harness.mountShell(`/panel/${sessionId}?open=true`)
+  await expect.element(composer(), {timeout: 8000}).toBeVisible()
+  await expect.element(page.getByText('DONE', {exact: true})).toBeVisible()
+
+  await coreControl.holdStart()
+  await page.getByRole('button', {name: 'More composer actions'}).click()
+  await page.getByRole('menuitem', {name: 'Compress the conversation'}).click()
+
+  await expect.element(page.getByText('Responding…'), {timeout: 8000}).toBeVisible()
+  await expect.element(page.getByText('RUNNING', {exact: true})).toBeVisible()
+  await sessionOptions().click()
+  await expect.element(refreshRow()).toBeDisabled()
+  await userEvent.keyboard('{Escape}')
+
+  await coreControl.releaseStart()
+
+  await expect.element(page.getByText('DONE', {exact: true}), {timeout: 8000}).toBeVisible()
+  await sessionOptions().click()
+  await expect.element(refreshRow()).toBeEnabled()
 }, 30_000)

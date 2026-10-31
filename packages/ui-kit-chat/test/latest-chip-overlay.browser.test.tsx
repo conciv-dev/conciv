@@ -4,26 +4,27 @@ import '@conciv/ui-kit-chat/theme/tokens.css'
 import {onMount, type JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
+import {createChat} from '@conciv/ai/client'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {VIRTUALIZE_THRESHOLD} from '../src/primitives/thread/virtualize-threshold.js'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 
 const exchangeCount = VIRTUALIZE_THRESHOLD
 const lastExchange = exchangeCount - 1
+const lastAnswer = Array.from({length: 6}, () => `answer number ${lastExchange}`).join(' ')
 
-function longThread(): UIMessage[] {
-  return Array.from({length: exchangeCount}, (_, index): UIMessage[] => [
+function longThread(): ChatMessage[] {
+  return Array.from({length: exchangeCount}, (_, index): ChatMessage[] => [
     {id: `u${index}`, role: 'user', parts: [{type: 'text', content: `question number ${index}`}]},
     {id: `a${index}`, role: 'assistant', parts: [{type: 'text', content: `answer number ${index}\n`.repeat(6)}]},
   ]).flat()
 }
 
 function TallThread(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = createChat({threadId: 'latest-chip-overlay', connection: storyConnection()})
   onMount(() => chat.setMessages(longThread()))
   return (
     <ChatProvider chat={chat}>
@@ -52,7 +53,7 @@ function chipWrapper(container: HTMLElement): HTMLElement {
 
 it('shows the Latest chip as an overlay outside the scroll content of a virtualized thread', async () => {
   const container = mountView(() => <TallThread />)
-  await expect.element(page.getByText(`answer number ${lastExchange}`).first()).toBeVisible()
+  await expect.element(page.getByText(lastAnswer)).toBeVisible()
   await expect.element(page.getByText('question number 0')).not.toBeInTheDocument()
 
   const viewport = viewportEl(container)
@@ -67,6 +68,6 @@ it('shows the Latest chip as an overlay outside the scroll content of a virtuali
 
   await page.getByText('Latest').click()
   await expect.element(page.elementLocator(viewport)).toHaveAttribute('data-at-bottom', '')
-  await expect.element(page.getByText(`answer number ${lastExchange}`).first()).toBeVisible()
+  await expect.element(page.getByText(lastAnswer)).toBeVisible()
   expect(chipWrapper(container).inert).toBe(true)
 })

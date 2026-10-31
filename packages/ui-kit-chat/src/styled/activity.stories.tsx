@@ -1,26 +1,26 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, waitFor, within, userEvent} from 'storybook/test'
 import type {JSX} from 'solid-js'
-import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
+import type {ChatPart, ToolCallPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import {Activity} from './activity.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/Activity'}
 export default meta
 type Story = StoryObj
 
-function user(id: string, text: string): UIMessage {
+function user(id: string, text: string): ChatMessage {
   return {id, role: 'user', parts: [{type: 'text', content: text}]}
 }
 
-function assistant(id: string, parts: MessagePart[]): UIMessage {
+function assistant(id: string, parts: ChatPart[]): ChatMessage {
   return {id, role: 'assistant', parts}
 }
 
-function call(id: string, name: string, state: ToolCallPart['state']): MessagePart {
+function call(id: string, name: string, state: ToolCallPart['state']): ChatPart {
   return {type: 'tool-call', id, name, arguments: '{}', state}
 }
 
-function result(toolCallId: string, state: 'complete' | 'error'): MessagePart {
+function result(toolCallId: string, state: 'complete' | 'error'): ChatPart {
   return {type: 'tool-result', toolCallId, content: 'ok', state}
 }
 
@@ -30,7 +30,7 @@ function frame(children: JSX.Element): JSX.Element {
   return <div class="p-3 flex flex-col h-96 w-96 [background:var(--chat-bg)]">{children}</div>
 }
 
-const settledMessages: UIMessage[] = [
+const settledMessages: ChatMessage[] = [
   user('u1', 'please draw an eagle'),
   assistant('a1', [
     {type: 'thinking', content: 'Sketch style, layered SVG paths.'},
@@ -63,7 +63,7 @@ export const SettledTurn: Story = {
   },
 }
 
-const liveMessages: UIMessage[] = [
+const liveMessages: ChatMessage[] = [
   user('u1', 'please draw an eagle'),
   assistant('a1', [
     call('t1', 'mcp__tanstack__canvas_svg', 'complete'),
@@ -86,7 +86,7 @@ export const LiveTurn: Story = {
   },
 }
 
-function subCall(id: string, name: string, parent: string, state: ToolCallPart['state']): MessagePart {
+function subCall(id: string, name: string, parent: string, state: ToolCallPart['state']): ChatPart {
   const part: ToolCallPart & {metadata?: {parentToolCallId?: string}} = {
     type: 'tool-call',
     id,
@@ -98,7 +98,7 @@ function subCall(id: string, name: string, parent: string, state: ToolCallPart['
   return part
 }
 
-const nestedMessages: UIMessage[] = [
+const nestedMessages: ChatMessage[] = [
   user('u1', 'draw and commit via script'),
   assistant('a1', [
     call('p1', 'execute_typescript', 'complete'),

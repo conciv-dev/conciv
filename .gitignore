@@ -22,9 +22,9 @@ coverage/
 *storybook.log
 storybook-static
 
-# vitest browser failure screenshots (regenerated on failure, never committed)
+# vitest artifacts and test-taken screenshots (regenerated per run, never committed)
 **/test/__screenshots__/
-**/.vitest-attachments/
+**/.vitest/
 
 # vitest json output for the CI test report (regenerated per run)
 **/test-results.json
@@ -56,3 +56,6 @@ e2e/*/src/routeTree.gen.ts
 
 
 .scratch/
+
+# written by the next 16.4 dev server
+e2e/nextjs/AGENTS.md

@@ -1,7 +1,7 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within} from 'storybook/test'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import {CardShell} from './card-shell.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/CardShell'}

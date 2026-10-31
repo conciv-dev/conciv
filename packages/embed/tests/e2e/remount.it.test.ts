@@ -3,7 +3,7 @@ import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {handleHostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {mountHandle, openHostWithHandle, remountHandle, unmountHandle} from './helpers/handle.js'
-import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
+import {chatBox, chatLog, openChatPanel, sendChatMessage} from './helpers/chat.js'
 
 const ASSISTANT_TEXT = 'Remounted reply'
 const USER_TEXT = 'first message before the remount'
@@ -42,13 +42,13 @@ test.describe('handle unmount and remount keeps delivering turns', () => {
 
     await remountHandle(page)
     await expect(chatBox(page)).toBeVisible({timeout: 30_000})
-    await expect(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
+    await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
     await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
 
     await sendChatMessage(page, SECOND_USER_TEXT)
     await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(2, {timeout: 30_000})
-    await expect(page.getByText(SECOND_USER_TEXT)).toHaveCount(1, {timeout: 30_000})
-    await expect(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
+    await expect(chatLog(page).getByText(SECOND_USER_TEXT)).toHaveCount(1, {timeout: 30_000})
+    await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
 
     expect(pageErrors).toEqual([])
   })
@@ -66,13 +66,13 @@ test.describe('handle unmount and remount keeps delivering turns', () => {
 
     await mountHandle(page, kit.base)
     await expect(chatBox(page)).toBeVisible({timeout: 30_000})
-    await expect(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
+    await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
     await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
 
     await sendChatMessage(page, SECOND_USER_TEXT)
     await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(2, {timeout: 30_000})
-    await expect(page.getByText(SECOND_USER_TEXT)).toHaveCount(1, {timeout: 30_000})
-    await expect(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
+    await expect(chatLog(page).getByText(SECOND_USER_TEXT)).toHaveCount(1, {timeout: 30_000})
+    await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
 
     expect(pageErrors).toEqual([])
   })

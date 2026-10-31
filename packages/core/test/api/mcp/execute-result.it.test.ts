@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, defineTool, imageResult, toolError} from '@conciv/extension'
 import {bootKit} from '../../helpers/boot.js'
+import {connectMcpClient} from '@conciv/harness-testkit'
 
 const PNG_RED_4x4 =
   'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg=='
@@ -80,7 +80,7 @@ const probe = defineExtension({name: 'probe', tools: [snap, flood, explode, grum
 type ExecuteOutcome = {ok: true; raw: unknown} | {ok: false; message: string}
 
 async function execute(base: string, typescriptCode: string): Promise<ExecuteOutcome> {
-  const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+  const mcp = await connectMcpClient(`${base}/api/mcp`)
   try {
     const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
     if (!tool?.execute) throw new Error('execute_typescript not on /api/mcp')

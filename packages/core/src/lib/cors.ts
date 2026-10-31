@@ -23,6 +23,10 @@ export function originAllowed(origin: string | null, extra: ReadonlySet<string>)
   return isLoopbackUrl(parseUrl(origin)) || extra.has(origin)
 }
 
+export function widgetCaller(origin: string | null, extra: ReadonlySet<string>): boolean {
+  return origin !== null && originAllowed(origin, extra)
+}
+
 function loopbackAuthority(host: string | null): URL | null {
   if (!host) return null
   const url = parseUrl(`http://${host}`)

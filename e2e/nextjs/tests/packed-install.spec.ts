@@ -151,6 +151,12 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
     await assertLiveAddRemove(page, true)
   })
 
+  test('webpack: the engine boots when the dev watcher reports instrumentation.ts after the server prepared', async () => {
+    test.setTimeout(CELL_TIMEOUT)
+    handle = startNext(fixture.appDir, {webpack: true, devPort: DEV_PORT, instrumentationStatDelayMs: 1000})
+    await waitReady(handle, ENGINE_PORT)
+  })
+
   test('turbopack build: the production "/" client graph is free of the conciv widget set (4a)', async () => {
     test.setTimeout(CELL_TIMEOUT)
     await buildProd(fixture.appDir)

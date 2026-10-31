@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {ChatClient, type UIMessage} from '@tanstack/ai-client'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import {ChatClient} from '@conciv/ai/testkit'
 import {makeRpcClient} from '@conciv/contract'
 import {chatConnection} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
@@ -10,9 +11,9 @@ afterEach(async () => {
   kit = undefined
 })
 
-type Observed = {messages: UIMessage[]; generating: boolean}
+type Observed = {messages: ChatMessage[]; generating: boolean}
 
-type ClientUpdate = {kind: 'messages'; messages: UIMessage[]} | {kind: 'generating'; generating: boolean}
+type ClientUpdate = {kind: 'messages'; messages: ChatMessage[]} | {kind: 'generating'; generating: boolean}
 
 function observeClient(
   base: string,
@@ -36,7 +37,7 @@ function observeClient(
   return {client, observed}
 }
 
-const textOf = (message: UIMessage): string =>
+const textOf = (message: ChatMessage): string =>
   message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
 
 describe('ChatClient over chatConnection (useChatSession composition, headless)', () => {
@@ -87,7 +88,7 @@ describe('ChatClient over chatConnection (useChatSession composition, headless)'
     const elsewhere = await clientKit.turn('started elsewhere', {session: sessionId, runId: 'chat-client-1'})
     await elsewhere.waitForRunStart()
 
-    const hydrated = Promise.withResolvers<UIMessage[]>()
+    const hydrated = Promise.withResolvers<ChatMessage[]>()
     const settled = Promise.withResolvers<void>()
     const {client} = observeClient(clientKit.base, sessionId, (update) => {
       if (update.kind === 'messages' && update.messages.length > 0) hydrated.resolve(update.messages)

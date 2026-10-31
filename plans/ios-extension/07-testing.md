@@ -123,7 +123,7 @@ encode across three serializers.
 - `BridgeConformanceTests` against the **committed fixture copy**
   (`native/swift/ConcivWidget/Tests/ConcivWidgetTests/Fixtures/bridge/`), which the gen command keeps in
   sync with the canonical dir; the CI `git diff --exit-code` after `pnpm --filter @conciv/extension-ios
-gen:fixtures` is the **in-repo drift gate** — the sync is a wired command, not left to the implementer,
+  gen:fixtures` is the **in-repo drift gate** — the sync is a wired command, not left to the implementer,
   and both trees live in one repo so a bridge change and its fixture sync land in the same PR (D2 hybrid).
 - `PickSelectionTests` (D5) — **UIKit** hit-test selection against a synthetic view tree **and a real
   SwiftUI screen using `.concivGrab(id:)`**: a picked anchored row returns the anchor `id`, its label text,

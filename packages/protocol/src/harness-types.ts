@@ -1,6 +1,5 @@
-import type {AnyTextAdapter, ModelMessage, UIMessage} from '@tanstack/ai'
+import type {ChatMessage} from './chat-message-types.js'
 import type {HarnessSessionId, SessionId} from './chat-types.js'
-import type {TtyCommand} from './terminal-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
@@ -104,13 +103,6 @@ export type HarnessChatDeps = {
   env: Record<string, string | undefined>
   kind: 'chat' | 'compact'
   hasTools?: boolean
-  decide(toolName: string, input: unknown, toolUseId: string): Promise<'allow' | 'deny'>
-}
-
-export type HarnessChatConfig = {
-  adapter: AnyTextAdapter
-  modelOptions?: Record<string, unknown>
-  prepareMessages?: (messages: ModelMessage[]) => ModelMessage[]
 }
 
 export type HarnessSessionMeta = {
@@ -124,7 +116,7 @@ export type HarnessSessionMeta = {
   createdAt?: number
 }
 
-export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: UIMessage[]}
+export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: ChatMessage[]}
 
 export const TRANSCRIPT_FAILURES = ['missing', 'unreadable', 'corrupt'] as const
 
@@ -138,7 +130,7 @@ export type TranscriptChunk = {
   ok: true
   rev: string
   changedAt: number
-  messages: UIMessage[]
+  messages: ChatMessage[]
   replaced: boolean
 }
 
@@ -157,7 +149,7 @@ export type HarnessTranscriptPaths =
     }
 
 export type HarnessHistory = HarnessTranscriptPaths & {
-  messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<UIMessage[]>
+  messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<ChatMessage[]>
   observe(cwd: string, sessionId: HarnessSessionId, home?: string): TranscriptHandle
 
   withinProject?(cwd: string, sessionId: HarnessSessionId, home?: string): boolean
@@ -171,37 +163,4 @@ export type HarnessHistory = HarnessTranscriptPaths & {
   meta?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null>
 
   summary?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionSummary | null>
-}
-
-type HarnessAdapterBase = {
-  id: string
-  binName: string
-
-  displayName?: string
-
-  connect?: HarnessConnect
-  chatConfig: (deps: HarnessChatDeps) => HarnessChatConfig
-
-  models?: HarnessModels
-  defaultModel?: string
-
-  tty?: {command(ctx: HarnessConnectContext): TtyCommand}
-}
-
-export type HarnessAdapter = HarnessAdapterBase &
-  (
-    | {capabilities: HarnessCapabilities & {transcriptHistory: true}; history: HarnessHistory}
-    | {capabilities: HarnessCapabilities & {transcriptHistory: false}; history?: undefined}
-  ) &
-  (
-    | {capabilities: HarnessCapabilities & {slashCommands: 'live' | 'files'}; commands: HarnessCommands}
-    | {capabilities: HarnessCapabilities & {slashCommands: 'none'}; commands?: undefined}
-  ) &
-  (
-    | {capabilities: HarnessCapabilities & {init: 'files'}; init: HarnessInit}
-    | {capabilities: HarnessCapabilities & {init: 'none'}; init?: undefined}
-  )
-
-export function defineHarness<T extends HarnessAdapter>(adapter: T): T {
-  return adapter
 }

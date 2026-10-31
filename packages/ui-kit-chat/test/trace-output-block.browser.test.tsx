@@ -37,7 +37,7 @@ it('copies the block text and announces that it landed on the clipboard', async 
 
   await page.getByRole('button', {name: 'Copy'}).click()
 
-  await expect.element(page.getByRole('status')).toHaveTextContent('Copied')
+  await expect.element(page.getByRole('status')).toHaveTextContent('Copied the output')
   expect(written).toEqual([STDOUT])
 })
 
@@ -51,7 +51,7 @@ it('announces a clipboard refusal instead of pretending the copy worked', async 
 
   await page.getByRole('button', {name: 'Copy'}).click()
 
-  await expect.element(page.getByRole('status')).toHaveTextContent('Could not copy')
+  await expect.element(page.getByRole('status')).toHaveTextContent('Could not copy the output')
 })
 
 it('announces a clipboard refusal when writeText throws synchronously instead of returning a rejected promise', async () => {
@@ -66,7 +66,7 @@ it('announces a clipboard refusal when writeText throws synchronously instead of
 
   await page.getByRole('button', {name: 'Copy'}).click()
 
-  await expect.element(page.getByRole('status')).toHaveTextContent('Could not copy')
+  await expect.element(page.getByRole('status')).toHaveTextContent('Could not copy the output')
 })
 
 it('reaches the block actions with the keyboard', async () => {

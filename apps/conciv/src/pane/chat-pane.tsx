@@ -12,6 +12,7 @@ import {
   type JSX,
 } from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
+import {z} from 'zod'
 import {
   activeToolCall,
   AttachmentByMime,
@@ -32,9 +33,10 @@ import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {MarkerRow} from '@conciv/contract'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments} from './pane-attachments.js'
+import {paneAttachments, returnUnsentToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../app/context.js'
 import {useHarnessMeta} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
@@ -103,6 +105,12 @@ function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Eleme
   onCleanup(() => pane.grabStaging.disconnect())
   createEffect(() => pane.grabStaging.reconcile(context.attachments()))
   return <></>
+}
+
+const StoppedMetadataSchema = z.object({tanstack: z.object({stopReason: z.literal('aborted')})})
+
+function isStoppedTurn(message: ChatMessage | undefined): boolean {
+  return message?.role === 'assistant' && StoppedMetadataSchema.safeParse(message.metadata).success
 }
 
 export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Element {
@@ -186,10 +194,11 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   })
 
   const toolCtx = makeToolViewCtx({
-    rpc,
     harnessId: () => harness()?.id ?? '',
     catalog,
     sendMessage: (text) => void chat.sendMessage(text),
+    decide: (approvalId, approved, scope) => chat.decide(approvalId, approved, scope),
+    onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
     durationFor: (toolCallId) => durations()[toolCallId],
     captureFor: captures.lookup,
@@ -256,8 +265,15 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
     (markers.data ?? []).filter((row) => row.afterTurn >= start && row.afterTurn <= end)
 
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
+  const stoppedBefore = (index: number): boolean => isStoppedTurn(chat.messages()[index - 1])
+  const lastTurnStopped = () => !narrating() && (chat.stopped() || stoppedBefore(chat.messages().length))
   const renderTurnPrefix = (turn: Turn): JSX.Element => (
-    <For each={dividersInRange(turn.start, turn.end)}>{renderDivider}</For>
+    <>
+      <Show when={stoppedBefore(turn.start)}>
+        <Divider kind="stopped" />
+      </Show>
+      <For each={dividersInRange(turn.start, turn.end)}>{renderDivider}</For>
+    </>
   )
 
   return (
@@ -274,7 +290,8 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
             value={{
               onSend: messaging.onSend,
               onSendError: messaging.onSendError,
-              onCancel: () => chat.interruptAndFlush(),
+              onCancel: () =>
+                void chat.interruptAndFlush().then((unsent) => returnUnsentToDraft(unsent, {insert, addFile: attach})),
             }}
           >
             <div class="contents">
@@ -302,6 +319,9 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                           turnPrefix={renderTurnPrefix}
                           pageSession={PAGE_SESSION}
                         />
+                        <Show when={lastTurnStopped()}>
+                          <Divider kind="stopped" />
+                        </Show>
                         <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
                         <Show when={compacting()}>
                           <Divider kind="compact" pending />

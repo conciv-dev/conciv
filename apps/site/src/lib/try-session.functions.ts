@@ -1,25 +1,24 @@
 import {createServerFn} from '@tanstack/react-start'
-import {useSession} from '@tanstack/react-start/server'
+import {getCookie, setCookie} from '@tanstack/react-start/server'
+import {z} from 'zod'
 
-type TrySession = {token?: string; dismissed?: boolean}
+const TOKEN_COOKIE = 'conciv-try-token'
+const DISMISSED_COOKIE = 'conciv-try-dismissed'
 
-const DEMO_PASSWORD = 'conciv-try-pairing-token-cookie-not-a-secret'
+const TokenCookieSchema = z.uuid()
 
-const SESSION_CONFIG = {
-  password: process.env.TRY_SESSION_SECRET ?? DEMO_PASSWORD,
-  name: 'conciv-try',
-  maxAge: 60 * 60 * 24,
+function writeTryCookie(name: string, value: string): void {
+  setCookie(name, value, {httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24})
 }
 
-export const getTrySession = createServerFn({method: 'GET'}).handler(async () => {
-  const session = await useSession<TrySession>(SESSION_CONFIG)
-  const token = session.data.token ?? crypto.randomUUID()
-  if (!session.data.token) await session.update({token})
-  return {token, dismissed: session.data.dismissed === true}
+export const getTrySession = createServerFn({method: 'GET'}).handler(() => {
+  const stored = TokenCookieSchema.safeParse(getCookie(TOKEN_COOKIE))
+  const token = stored.success ? stored.data : crypto.randomUUID()
+  if (!stored.success) writeTryCookie(TOKEN_COOKIE, token)
+  return {token, dismissed: getCookie(DISMISSED_COOKIE) === 'true'}
 })
 
-export const dismissTry = createServerFn({method: 'POST'}).handler(async () => {
-  const session = await useSession<TrySession>(SESSION_CONFIG)
-  await session.update({dismissed: true})
+export const dismissTry = createServerFn({method: 'POST'}).handler(() => {
+  writeTryCookie(DISMISSED_COOKIE, 'true')
   return {ok: true}
 })

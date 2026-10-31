@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url'
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import type {Grab} from '@conciv/grab'
-import {makeRunTypescript} from '@conciv/harness-testkit'
+import {makeDiscoverTools, makeRunTypescript} from '@conciv/harness-testkit'
 import {start, type Engine} from '@conciv/core'
 import type {AnyExtension} from '@conciv/extension'
 import {
@@ -946,59 +946,17 @@ describe('tool catalog', () => {
     return makeRunTypescript(base, '')(typescriptCode)
   }
 
-  const CatalogList = z.object({
-    tools: z.array(
-      z
-        .object({
-          call: z.string(),
-          name: z.string(),
-          summary: z.string(),
-          category: z.string(),
-          mutating: z.boolean(),
-          approval: z.literal('ask').optional(),
-        })
-        .loose(),
-    ),
-  })
-
-  const CatalogDetail = z
-    .object({call: z.string(), name: z.string(), output: z.unknown(), errors: z.array(z.unknown())})
-    .loose()
-
-  const DECLARED: Record<string, {mutating: boolean; approval: 'ask' | undefined}> = {
-    ios_build: {mutating: true, approval: 'ask'},
-    ios_run: {mutating: true, approval: 'ask'},
-    ios_screenshot: {mutating: false, approval: undefined},
-    ios_logs: {mutating: false, approval: undefined},
-  }
-
-  describe('the ios tools ride the tool registry into the catalog and the sandbox (IT)', () => {
-    it('lists all four declarations under the ios category with honest mutating and approval flags', async () => {
+  describe('the ios tools ride the tool registry into the sandbox and the approval path (IT)', () => {
+    it('offers the read tools to discover_tools and keeps the approval tools out of code mode', async () => {
       const {base, engine} = await boot()
       try {
-        const listed = CatalogList.parse(await runSandbox(base, "return await external_catalog({search: 'ios'})"))
-        const iosTools = listed.tools.filter((tool) => tool.category === 'ios')
-        expect(new Set(iosTools.map((tool) => tool.name))).toEqual(new Set(Object.keys(DECLARED)))
-        for (const [name, expected] of Object.entries(DECLARED)) {
-          const entry = iosTools.find((tool) => tool.name === name)
-          expect(entry?.mutating, name).toBe(expected.mutating)
-          expect(entry?.approval, name).toBe(expected.approval)
-          expect(entry?.summary, name).not.toBe('')
-        }
-      } finally {
-        await engine.stop()
-      }
-    }, 60_000)
-
-    it('carries an image-shaped output schema for ios_screenshot and a diagnostics-shaped one for ios_build', async () => {
-      const {base, engine} = await boot()
-      try {
-        const screenshot = CatalogDetail.parse(
-          await runSandbox(base, "return await external_catalog({name: 'ios_screenshot'})"),
-        )
-        expect(JSON.stringify(screenshot.output)).toContain('image')
-        const build = CatalogDetail.parse(await runSandbox(base, "return await external_catalog({name: 'ios_build'})"))
-        expect(JSON.stringify(build.output)).toContain('diagnostics')
+        const discover = makeDiscoverTools(base, '')
+        const read = await discover(['ios_screenshot', 'ios_logs'])
+        expect(read.tools.map((tool) => tool.name)).toEqual(['external_ios_screenshot', 'external_ios_logs'])
+        for (const tool of read.tools) expect(tool.description, tool.name).not.toBe('')
+        const asking = await discover(['ios_build', 'ios_run'])
+        expect(asking.tools).toEqual([])
+        expect(asking.errors).toHaveLength(2)
       } finally {
         await engine.stop()
       }
@@ -1008,19 +966,10 @@ describe('tool catalog', () => {
       const {base, engine} = await boot()
       try {
         const answered = z
-          .object({category: z.string(), answer: z.object({ok: z.literal(false), error: z.string()}).loose()})
-          .parse(
-            await runSandbox(
-              base,
-              [
-                "const found = await external_catalog({name: 'ios_logs'})",
-                'const answer = await globalThis[found.call]({})',
-                'return {category: found.category, answer}',
-              ].join('\n'),
-            ),
-          )
-        expect(answered.category).toBe('ios')
-        expect(answered.answer.error).toContain('not configured')
+          .object({ok: z.literal(false), error: z.string()})
+          .loose()
+          .parse(await runSandbox(base, 'return await external_ios_logs({})'))
+        expect(answered.error).toContain('not configured')
       } finally {
         await engine.stop()
       }

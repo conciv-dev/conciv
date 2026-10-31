@@ -12,7 +12,7 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 ## Code laws
 
 - Functions, not classes. Sole exception: the local `DelegatingTextAdapter` subclass behind
-  `makeTextAdapter` in `packages/harness/src/_shared/text-adapter.ts`, which the library's typing
+  `makeTextAdapter` in `packages/ai/src/adapters.ts`, which the library's typing
   forces (`BaseTextAdapter` is the imported base class it extends).
 - No IIFEs unless explicitly required.
 - ZERO code comments in TS/JS. The `conciv/no-comments` lint rule autofix-deletes them, so code must

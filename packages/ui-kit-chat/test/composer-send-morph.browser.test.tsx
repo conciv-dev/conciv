@@ -2,15 +2,18 @@ import 'virtual:uno.css'
 import {untrack, type JSX, type ParentProps} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {createTextChunks, storyConnection, type StoryConnectionOptions} from '../src/store/story-connection.js'
+import {createTextChunks, storyConnection, type StoryConnectionOptions} from '@conciv/ai/testkit'
 import {ComposerHandlersProvider} from '../src/primitives/composer/composer-handlers.js'
 import {Composer} from '../src/styled/composer.js'
 import {mountView} from './mount-view.js'
 
 function StyledHost(props: ParentProps<{connection?: StoryConnectionOptions}>): JSX.Element {
-  const chat = useChat({connection: storyConnection(untrack(() => props.connection))})
+  const chat = createChat({
+    threadId: 'composer-send-morph',
+    connection: storyConnection(untrack(() => props.connection)),
+  })
   return (
     <ChatProvider chat={chat}>
       <ComposerHandlersProvider value={{}}>{props.children}</ComposerHandlersProvider>

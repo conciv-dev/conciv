@@ -6,6 +6,7 @@ export type RpcHeaders = Readonly<Record<string, string | string[] | undefined>>
 
 export type RpcContext = {
   origin: string
+  callerOrigin: string | null
   headers: RpcHeaders
 }
 

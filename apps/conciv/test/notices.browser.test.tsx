@@ -38,8 +38,8 @@ test('a notice stands in the notifications region until it is dismissed by hand'
   notify('Command copied. Paste it in your terminal.')
 
   await expect
-    .element(page.getByRole('region', {name: /Notifications/}))
-    .toHaveTextContent('Command copied. Paste it in your terminal.')
+    .element(page.getByRole('region', {name: /Notifications/}).getByText('Command copied. Paste it in your terminal.'))
+    .toBeVisible()
 
   await page.getByRole('button', {name: 'Dismiss'}).click()
 
@@ -51,11 +51,11 @@ test('an alarming notice asks to be read at once, a plain one waits its turn', a
 
   notify('Still connected to your terminal.', {tone: 'danger'})
 
-  await expect.element(page.getByRole('alert')).toHaveTextContent('Still connected to your terminal.')
+  await expect.element(page.getByRole('alert').getByText('Still connected to your terminal.')).toBeVisible()
 
   notify('Command copied. Paste it in your terminal.')
 
-  await expect.element(page.getByRole('status')).toHaveTextContent('Command copied. Paste it in your terminal.')
+  await expect.element(page.getByRole('status').getByText('Command copied. Paste it in your terminal.')).toBeVisible()
 })
 
 test('the way out of a notice runs once and takes the notice with it', async () => {
@@ -106,7 +106,7 @@ test('an alarming notice that offers a way out shows both the way out and the wa
 
   notify('Still connected to your terminal.', {tone: 'danger', action: {label: 'Hand it back', run: () => {}}})
 
-  await expect.element(page.getByRole('alert')).toHaveTextContent('Still connected to your terminal.')
+  await expect.element(page.getByRole('alert').getByText('Still connected to your terminal.')).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Hand it back'})).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Dismiss'})).toBeVisible()
 })

@@ -10,8 +10,11 @@ declare module 'vitest/internal/browser' {
     restartCore: () => Promise<void>
     pushSocketsOpened: () => Promise<number>
     pushApprovalIds: () => Promise<readonly string[]>
+    outsideReload: (sessionId: string, file: string) => Promise<string>
     setStaleness: (value: EngineStaleness) => Promise<void>
     holdTurn: () => Promise<void>
+    holdStart: () => Promise<void>
+    releaseStart: () => Promise<void>
     holdTools: () => Promise<void>
     releaseTools: () => Promise<void>
     holdResults: () => Promise<void>

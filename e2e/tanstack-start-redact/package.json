@@ -19,7 +19,7 @@
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-devtools": "catalog:",
     "@tanstack/react-start": "catalog:",
-    "@tanstack/redact": "^0.0.18",
+    "@tanstack/redact": "^0.2.3",
     "@tanstack/router-plugin": "catalog:",
     "nitro": "catalog:",
     "react": "catalog:",

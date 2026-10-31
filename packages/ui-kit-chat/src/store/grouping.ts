@@ -1,27 +1,27 @@
 import {isEqual} from 'es-toolkit'
 import type {JSX} from 'solid-js'
-import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
+import type {ChatPart, ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 
 export type ToolCallPartWithParent = ToolCallPart & {metadata?: {parentToolCallId?: unknown}}
 
-export function parentToolCallIdOf(part: MessagePart): string | null {
+export function parentToolCallIdOf(part: ChatPart): string | null {
   if (part.type !== 'tool-call') return null
-  const withMeta: ToolCallPartWithParent = part
-  const parent = withMeta.metadata?.parentToolCallId
-  return typeof parent === 'string' ? parent : null
+  const {metadata} = part
+  if (typeof metadata !== 'object' || metadata === null || !('parentToolCallId' in metadata)) return null
+  return typeof metadata.parentToolCallId === 'string' ? metadata.parentToolCallId : null
 }
 
-export function childCallsFor(parts: ReadonlyArray<MessagePart>, parentId: string): ToolCallPart[] {
+export function childCallsFor(parts: ReadonlyArray<ChatPart>, parentId: string): ToolCallPart[] {
   return parts.filter(
     (part): part is ToolCallPart => part.type === 'tool-call' && parentToolCallIdOf(part) === parentId,
   )
 }
 
-export type Turn = {key: string; role: UIMessage['role']; parts: MessagePart[]; start: number; end: number}
+export type Turn = {key: string; role: ChatMessage['role']; parts: ChatPart[]; start: number; end: number}
 
-export function coalesceTurns(messages: ReadonlyArray<UIMessage>): Turn[] {
+export function coalesceTurns(messages: ReadonlyArray<ChatMessage>): Turn[] {
   return messages.reduce<Turn[]>((turns, message, index) => {
     const last = turns.at(-1)
     if (message.role === 'assistant' && last?.role === 'assistant') {
@@ -31,9 +31,9 @@ export function coalesceTurns(messages: ReadonlyArray<UIMessage>): Turn[] {
   }, [])
 }
 
-type TurnBounds = {first: UIMessage; start: number; end: number}
+type TurnBounds = {first: ChatMessage; start: number; end: number}
 
-function turnBounds(messages: ReadonlyArray<UIMessage>): TurnBounds[] {
+function turnBounds(messages: ReadonlyArray<ChatMessage>): TurnBounds[] {
   const bounds: TurnBounds[] = []
   messages.forEach((message, index) => {
     const last = bounds.at(-1)
@@ -46,7 +46,7 @@ function turnBounds(messages: ReadonlyArray<UIMessage>): TurnBounds[] {
   return bounds
 }
 
-function sameMessage(previous: UIMessage | undefined, message: UIMessage): boolean {
+function sameMessage(previous: ChatMessage | undefined, message: ChatMessage): boolean {
   if (previous === message) return true
   if (!previous || previous.role !== message.role) return false
   return isEqual(previous.parts, message.parts)
@@ -54,15 +54,15 @@ function sameMessage(previous: UIMessage | undefined, message: UIMessage): boole
 
 function sourceUnchanged(
   bound: TurnBounds,
-  prevMessages: ReadonlyArray<UIMessage>,
-  messages: ReadonlyArray<UIMessage>,
+  prevMessages: ReadonlyArray<ChatMessage>,
+  messages: ReadonlyArray<ChatMessage>,
 ): boolean {
   return messages
     .slice(bound.start, bound.end + 1)
     .every((message, offset) => sameMessage(prevMessages[bound.start + offset], message))
 }
 
-function buildTurn(messages: ReadonlyArray<UIMessage>, bound: TurnBounds): Turn {
+function buildTurn(messages: ReadonlyArray<ChatMessage>, bound: TurnBounds): Turn {
   return {
     key: bound.first.id,
     role: bound.first.role,
@@ -74,8 +74,8 @@ function buildTurn(messages: ReadonlyArray<UIMessage>, bound: TurnBounds): Turn 
 
 export function diffTurns(
   prevTurns: ReadonlyArray<Turn>,
-  prevMessages: ReadonlyArray<UIMessage>,
-  messages: ReadonlyArray<UIMessage>,
+  prevMessages: ReadonlyArray<ChatMessage>,
+  messages: ReadonlyArray<ChatMessage>,
 ): Turn[] {
   return turnBounds(messages).map((bound, index) => {
     const prev = prevTurns[index]
@@ -90,7 +90,7 @@ export type GroupPath = readonly GroupKey[]
 
 export type GroupByContext = {toolEntries?: ReadonlyArray<ToolCardEntry>; live?: boolean}
 
-export type Grouper = (parts: ReadonlyArray<MessagePart>, context: GroupByContext) => ReadonlyArray<GroupPath | null>
+export type Grouper = (parts: ReadonlyArray<ChatPart>, context: GroupByContext) => ReadonlyArray<GroupPath | null>
 
 export type Grouping = {grouper: Grouper; context: GroupByContext}
 
@@ -114,7 +114,7 @@ export type GroupNode = GroupNodeGroup | GroupNodePart
 
 export type GroupRenderProps = {
   node: GroupNodeGroup
-  parts: () => readonly MessagePart[]
+  parts: () => readonly ChatPart[]
   resultFor: (toolCallId: string) => ToolResultPart | undefined
   streaming: boolean
   folded?: boolean
@@ -130,7 +130,7 @@ export const ROOT_PATH: GroupPath = []
 export const CHAIN_PATH: GroupPath = [CHAIN_GROUP_KEY]
 export const PAGE_SESSION_PATH: GroupPath = [PAGE_SESSION_GROUP_KEY]
 
-type GroupPartType = MessagePart['type'] | 'standalone-tool-call'
+type GroupPartType = ChatPart['type'] | 'standalone-tool-call'
 
 export type PartTypePaths = Partial<Readonly<Record<GroupPartType, GroupPath>>>
 
@@ -140,17 +140,17 @@ export function standaloneToolNames(context: GroupByContext): ReadonlySet<string
   return new Set(names.filter((name) => entries.find((entry) => entry.names.includes(name))?.display === 'standalone'))
 }
 
-function isBlankTextual(part: MessagePart): boolean {
+function isBlankTextual(part: ChatPart): boolean {
   if (part.type === 'text' || part.type === 'thinking') return part.content.trim().length === 0
   return false
 }
 
-function partTypeKey(part: MessagePart, standalone: ReadonlySet<string>): GroupPartType {
+function partTypeKey(part: ChatPart, standalone: ReadonlySet<string>): GroupPartType {
   if (part.type === 'tool-call' && standalone.has(part.name)) return 'standalone-tool-call'
   return part.type
 }
 
-function typePath(map: PartTypePaths, part: MessagePart, standalone: ReadonlySet<string>): GroupPath | null {
+function typePath(map: PartTypePaths, part: ChatPart, standalone: ReadonlySet<string>): GroupPath | null {
   const key = partTypeKey(part, standalone)
   if (key === 'standalone-tool-call') return map[key] ?? map['tool-call'] ?? null
   return map[key] ?? null
@@ -253,12 +253,12 @@ export function buildGroupTree(
   return root.children
 }
 
-function partIdOf(part: MessagePart): string | undefined {
+function partIdOf(part: ChatPart): string | undefined {
   return part.type === 'tool-call' && part.id.length > 0 ? part.id : undefined
 }
 
 export function groupParts(
-  parts: ReadonlyArray<MessagePart>,
+  parts: ReadonlyArray<ChatPart>,
   grouper: Grouper,
   context: GroupByContext,
 ): readonly GroupNode[] {
@@ -266,7 +266,7 @@ export function groupParts(
 }
 
 type StickyMemo = {
-  parts: ReadonlyArray<MessagePart>
+  parts: ReadonlyArray<ChatPart>
   context: GroupByContext
   paths: ReadonlyArray<GroupPath | null>
 }
@@ -275,18 +275,14 @@ function sameGroupContext(left: GroupByContext, right: GroupByContext): boolean 
   return left.toolEntries === right.toolEntries && left.live === right.live
 }
 
-function sharedPrefixLength(previous: ReadonlyArray<MessagePart>, next: ReadonlyArray<MessagePart>): number {
+function sharedPrefixLength(previous: ReadonlyArray<ChatPart>, next: ReadonlyArray<ChatPart>): number {
   const limit = Math.min(previous.length, next.length)
   let shared = 0
   while (shared < limit && previous[shared] === next[shared]) shared += 1
   return shared
 }
 
-function reusableLength(
-  memo: StickyMemo | undefined,
-  parts: ReadonlyArray<MessagePart>,
-  context: GroupByContext,
-): number {
+function reusableLength(memo: StickyMemo | undefined, parts: ReadonlyArray<ChatPart>, context: GroupByContext): number {
   if (!memo || !sameGroupContext(memo.context, context)) return 0
   return sharedPrefixLength(memo.parts, parts)
 }
@@ -320,13 +316,13 @@ export function groupEntryFor(entries: ReadonlyArray<GroupEntry>, key: GroupKey)
   return entries.find((entry) => entry.key === key)
 }
 
-export function isReplyText(part: MessagePart): boolean {
+export function isReplyText(part: ChatPart): boolean {
   return part.type === 'text' && part.content.trim().length > 0
 }
 
 export type ResultPairing = {byCallId: Map<string, ToolResultPart>; hiddenResultIds: Set<string>}
 
-export function pairResults(parts: ReadonlyArray<MessagePart>): ResultPairing {
+export function pairResults(parts: ReadonlyArray<ChatPart>): ResultPairing {
   const callIds = new Set(parts.flatMap((part) => (part.type === 'tool-call' && part.id.length > 0 ? [part.id] : [])))
   const results = parts.filter(
     (part): part is ToolResultPart => part.type === 'tool-result' && part.toolCallId.length > 0,

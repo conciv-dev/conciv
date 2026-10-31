@@ -32,22 +32,20 @@ const accept =
 const refuse = (): Promise<void> => Promise.reject(new Error('the document is not focused'))
 
 function mountCopyAction(writeText: (text: string) => Promise<void>): void {
-  mountView(
-    (): JSX.Element => (
-      <MessageProvider
-        value={{
-          message: () => TURN,
-          index: () => 0,
-          pairing: () => ({byCallId: new Map(), hiddenResultIds: new Set()}),
-          isLast: () => true,
-        }}
-      >
-        <ActionBar.Copy copiedDuration={COPIED_MS} writeText={writeText}>
-          copy
-        </ActionBar.Copy>
-      </MessageProvider>
-    ),
-  )
+  mountView((): JSX.Element => (
+    <MessageProvider
+      value={{
+        message: () => TURN,
+        index: () => 0,
+        pairing: () => ({byCallId: new Map(), hiddenResultIds: new Set()}),
+        isLast: () => true,
+      }}
+    >
+      <ActionBar.Copy copiedDuration={COPIED_MS} writeText={writeText}>
+        copy
+      </ActionBar.Copy>
+    </MessageProvider>
+  ))
 }
 
 it('hands the message text to the clipboard', async () => {

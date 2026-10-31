@@ -4,12 +4,12 @@ import '@conciv/ui-kit-chat/theme/tokens.css'
 import {onMount, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
+import {createChat} from '@conciv/ai/client'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {ToolProvider} from '../src/store/tool-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 
@@ -23,7 +23,7 @@ function toolCtx(): ToolViewCtx {
   }
 }
 
-function tracedMessages(): UIMessage[] {
+function tracedMessages(): ChatMessage[] {
   return [
     {id: 'u1', role: 'user', parts: [{type: 'text', content: 'find the leak'}]},
     {
@@ -46,8 +46,8 @@ function tracedMessages(): UIMessage[] {
   ]
 }
 
-function TracedThread(props: {messages: UIMessage[]}): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+function TracedThread(props: {messages: ChatMessage[]}): JSX.Element {
+  const chat = createChat({threadId: 'thread-trace-rail', connection: storyConnection()})
   onMount(() => chat.setMessages(props.messages))
   return (
     <ChatProvider chat={chat}>

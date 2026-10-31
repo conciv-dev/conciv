@@ -3,7 +3,6 @@ import {useQuery} from '@tanstack/solid-query'
 import {Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
   ChatProvider,
-  chatBusy,
   coalesceTurns,
   createRunClock,
   createSessionStatus,
@@ -205,7 +204,7 @@ function PanelSession(): JSX.Element {
     const turn = turns().at(-1)
     return turn ? turnRollup(turn) : undefined
   })
-  const isStreaming = createMemo(() => chatBusy(chat()))
+  const isStreaming = () => chat().runInProgress()
   const queue = createMemo(() => chat().queue())
   const sessionStatus = createSessionStatus(() => ({
     latestRollup: latestRollup(),
@@ -213,6 +212,7 @@ function PanelSession(): JSX.Element {
     queueLength: queue().length,
     stopping: chat().stopping(),
     runError: chat().runError(),
+    stopped: chat().stopped(),
   }))
   // oxlint-disable-next-line solid/reactivity
   const diff = sessionTotals(() => turns())
@@ -221,7 +221,8 @@ function PanelSession(): JSX.Element {
     const state = clock()
     return state.elapsedMs === null ? '--' : formatElapsed(state.elapsedMs)
   }
-  const taskContext = () => (sessionStatus().kind === 'done' ? 'LAST TASK' : 'ACTIVE TASK')
+  const lastTask = () => sessionStatus().kind === 'done' || sessionStatus().kind === 'stopped'
+  const taskContext = () => (lastTask() ? 'LAST TASK' : 'ACTIVE TASK')
   const taskTitle = () => row()?.title || 'New session'
   const statusBarViews = createMemo<StatusBarView[]>(() => [
     {id: 'chat', label: 'Chat'},
@@ -256,7 +257,7 @@ function PanelSession(): JSX.Element {
             <span class="chat-rail-context-full">
               CONCIV <span class={RAIL_SEPARATOR}>/</span> {taskContext()}
             </span>
-            <span class="chat-rail-context-narrow">{sessionStatus().kind === 'done' ? 'LAST' : 'ACTIVE'}</span>
+            <span class="chat-rail-context-narrow">{lastTask() ? 'LAST' : 'ACTIVE'}</span>
           </span>
           <Suspense fallback={<SessionTitlePending />}>
             <TruncatedText class={RAIL_TITLE} text={taskTitle()} side="bottom" />
@@ -305,7 +306,7 @@ function PanelSession(): JSX.Element {
                         class: RAIL_MENU_ROW,
                         'aria-label': 'Refresh the conversation',
                         get disabled() {
-                          return chatBusy(chat()) || coordinator.isRefreshing()
+                          return chat().runInProgress() || coordinator.isRefreshing()
                         },
                         onClick: () => coordinator.refresh(),
                       })}

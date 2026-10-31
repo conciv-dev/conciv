@@ -2,17 +2,12 @@ import 'virtual:uno.css'
 import {onMount, type JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
-import type {MessagePart, UIMessage} from '@tanstack/ai-client'
+import {createChat} from '@conciv/ai/client'
+import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {PAGE_SESSION_GROUP_KEY, type GroupEntry, type GroupRenderProps} from '../src/store/grouping.js'
 import {pageSessionCallParts, type PageSessionConfig} from '../src/store/page-session.js'
-import {
-  createReasoningChunks,
-  createTextChunks,
-  createToolCallChunks,
-  storyConnection,
-} from '../src/store/story-connection.js'
+import {createReasoningChunks, createTextChunks, createToolCallChunks, storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 import {haltRun, startRun, streamingThread} from './run-harness.js'
@@ -30,17 +25,17 @@ const PAGE_SESSION: PageSessionConfig = {
   toolPrefix: 'page_',
 }
 
-function dataPart(): MessagePart {
-  return {type: 'structured-output', status: 'complete', raw: '{"done":true}'}
+function dataPart(): ChatPart {
+  return {type: 'structured-output', status: 'complete', raw: '{"done":true}', data: {done: true}}
 }
 
-function staticThread(parts: MessagePart[], pageSession?: PageSessionConfig): () => JSX.Element {
-  const messages: UIMessage[] = [
+function staticThread(parts: ChatPart[], pageSession?: PageSessionConfig): () => JSX.Element {
+  const messages: ChatMessage[] = [
     {id: 'u1', role: 'user', parts: [{type: 'text', content: 'go'}]},
     {id: 'a1', role: 'assistant', parts},
   ]
   return function StaticThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection()})
+    const chat = createChat({threadId: 'empty-group-suppression', connection: storyConnection()})
     onMount(() => chat.setMessages(messages))
     return (
       <ChatProvider chat={chat}>

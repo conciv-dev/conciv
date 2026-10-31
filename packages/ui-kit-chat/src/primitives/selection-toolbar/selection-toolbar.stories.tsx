@@ -1,9 +1,9 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import {ChatProvider, useComposer} from '../../store/chat-context.js'
-import {storyConnection} from '../../store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Composer} from '../composer/composer.js'
 import {SelectionToolbar} from './selection-toolbar.js'
 
@@ -17,7 +17,7 @@ function DraftEcho(): JSX.Element {
 }
 
 function App(): JSX.Element {
-  const chat = useChat({connection: storyConnection()})
+  const chat = createChat({threadId: 'selection-toolbar', connection: storyConnection()})
   let source: HTMLParagraphElement | undefined
   return (
     <ChatProvider chat={chat}>

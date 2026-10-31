@@ -1,16 +1,16 @@
 import {For, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import {ChatProvider, useThread, useComposer} from './chat-context.js'
-import {storyConnection, createTextChunks, createReasoningChunks, createToolCallChunks} from './story-connection.js'
-import type {MessagePart} from '@tanstack/ai-client'
+import {storyConnection, createTextChunks, createReasoningChunks, createToolCallChunks} from '@conciv/ai/testkit'
+import type {ChatPart} from '@conciv/protocol/chat-message-types'
 
 const meta: Meta = {title: 'ui-kit-chat/store/ChatProvider'}
 export default meta
 type Story = StoryObj
 
-function partLabel(part: MessagePart): string {
+function partLabel(part: ChatPart): string {
   if (part.type === 'text') return part.content
   if (part.type === 'thinking') return `thinking:${part.content}`
   if (part.type === 'tool-call') return `tool:${part.name}`
@@ -48,7 +48,8 @@ function ThreadDump(): JSX.Element {
 
 export const StreamsTextThroughRealUseChat: Story = {
   render: () => {
-    const chat = useChat({
+    const chat = createChat({
+      threadId: 'chat-context',
       connection: storyConnection({
         chunks: [
           ...createReasoningChunks('Looking at the stack trace'),

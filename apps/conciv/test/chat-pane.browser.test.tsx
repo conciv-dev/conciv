@@ -1,6 +1,6 @@
 import './helpers/utilities.css'
 import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
-import {page, userEvent} from 'vitest/browser'
+import {page, userEvent, type Locator} from 'vitest/browser'
 import {createMemo} from 'solid-js'
 import type {DraftRow, RpcClient} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
@@ -92,6 +92,7 @@ const grabItem = () => page.getByRole('menuitem', {name: 'Select an element from
 const snapshot = () => page.getByTitle('Grabbed element snapshot')
 const notifications = () => page.getByRole('region', {name: /Notifications/})
 const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+const stoppedLine = () => page.getByRole('separator', {name: 'Stopped'})
 const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
 const narration = () => page.getByText('Responding…', {exact: true})
 const FROZEN_GLYPH = '⠿'
@@ -107,7 +108,7 @@ async function stageGrabThroughComposer(): Promise<void> {
   await expect.element(input()).toBeVisible()
   await pickGrabFromOverflow()
   await expect.element(snapshot()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
 }
 
 async function sendWithStagedGrab(options: Pick<PaneMountOptions, 'transport'> = {}): Promise<void> {
@@ -139,7 +140,7 @@ test('restores the server-side draft text and staged grabs when the pane mounts'
 
   await expect.element(input()).toHaveTextContent('kept across the reload')
   await expect.element(snapshot()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
 })
 
 test('a staged grab keeps its snapshot and source label across a panel reload', async () => {
@@ -154,7 +155,7 @@ test('a staged grab keeps its snapshot and source label across a panel reload', 
   mountChatPane(sessionId, {extensions: [pageExtension]})
 
   await expect.element(snapshot()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
 })
 
 test('a rejected send keeps the draft in the composer and tells the user why', async () => {
@@ -166,7 +167,7 @@ test('a rejected send keeps the draft in the composer and tells the user why', a
   await input().fill('a message the server refuses')
   await userEvent.keyboard('{Enter}')
 
-  await expect.element(notifications()).toHaveTextContent(/Internal Server Error|could not be sent/)
+  await expect.element(notifications()).toMatchTextContent(/Internal Server Error|could not be sent/)
   await expect.element(input()).toHaveTextContent('a message the server refuses')
 })
 
@@ -182,18 +183,18 @@ test('a send the server refuses puts the staged grab card back', async () => {
   await faults.install({kind: 'chat-refused', status: 500})
   await sendWithStagedGrab({transport: 'fetch'})
 
-  await expect.element(notifications()).toHaveTextContent(/Internal Server Error|could not be sent/)
+  await expect.element(notifications()).toMatchTextContent(/Internal Server Error|could not be sent/)
   await expect.element(removeGrab()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL).last()).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`).last()).toBeVisible()
 })
 
 test('a send that throws at the transport puts the staged grab card back', async () => {
   await faults.install({kind: 'chat-dropped'})
   await sendWithStagedGrab({transport: 'fetch'})
 
-  await expect.element(notifications()).toHaveTextContent(/could not be sent|Stream response body read failed/)
+  await expect.element(notifications()).toMatchTextContent(/could not be sent|Stream response body read failed/)
   await expect.element(removeGrab()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL).last()).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`).last()).toBeVisible()
 })
 
 test('a queued second send cannot cross-restore the grabs of the turn that failed', async () => {
@@ -202,24 +203,24 @@ test('a queued second send cannot cross-restore the grabs of the turn that faile
   await coreControl.holdTurn()
   mountChatPane(sessionId, grabOptions(PRICING_GRAB))
 
-  await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
   await input().fill('turn A')
   await userEvent.keyboard('{Enter}')
   await expect.element(stopButton()).toBeVisible()
 
   await pickGrabFromOverflow()
-  await expect.element(page.getByText(PRICING_LABEL)).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${PRICING_LABEL}`)).toBeVisible()
   await input().fill('turn B')
   await userEvent.keyboard('{Enter}')
   await expect.element(page.getByRole('button', {name: 'Remove from queue'})).toBeVisible()
-  await expect.element(page.getByText(PRICING_LABEL)).not.toBeInTheDocument()
+  await expect.element(page.getByText(`↳ in ${PRICING_LABEL}`)).not.toBeInTheDocument()
 
   await coreControl.scriptError('turn A failed')
   await coreControl.releaseTurn()
 
   await expect.element(removeGrab()).toBeVisible()
-  await expect.element(page.getByText(HERO_LABEL).last()).toBeVisible()
-  await expect.element(page.getByText(PRICING_LABEL)).not.toBeInTheDocument()
+  await expect.element(page.getByText(`↳ in ${HERO_LABEL}`).last()).toBeVisible()
+  await expect.element(page.getByText(`↳ in ${PRICING_LABEL}`)).not.toBeInTheDocument()
 })
 
 test('sending announces the settled reply through the live region', async () => {
@@ -298,6 +299,28 @@ test('a pane that joins a run another client already started narrates it, and st
   await coreControl.releaseTurn()
 
   await expect.element(narration()).not.toBeInTheDocument()
+})
+
+test('an open pane streams a run another client starts, then settles it, without duplicating either turn', async () => {
+  const {sessionId} = await newSession()
+  mountChatPane(sessionId)
+  await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+
+  await coreControl.scriptTurn({toolCalls: [], text: 'streamed from the other client'})
+  await coreControl.holdTurn()
+  const turn = await sendTurn(core.base, sessionId, 'a prompt typed in the other client')
+
+  await expect.element(page.getByText('a prompt typed in the other client')).toBeVisible()
+  await expect.element(page.getByText('streamed from the other client')).toBeVisible()
+  await expect.element(narration()).toBeVisible()
+
+  await coreControl.releaseTurn()
+  await turn.awaitTurnEnd()
+  turn.close()
+
+  await expect.element(narration()).not.toBeInTheDocument()
+  expect(page.getByText('a prompt typed in the other client').elements()).toHaveLength(1)
+  expect(page.getByText('streamed from the other client').elements()).toHaveLength(1)
 })
 
 test('the refresh affordance re-subscribes and shows the transcript the server re-leads', async () => {
@@ -400,6 +423,49 @@ test('clicking stop with an empty queue just stops the run', async () => {
   await expect.element(page.getByRole('button', {name: 'Send message'})).toBeVisible()
 })
 
+test('a stopped turn ends with a Stopped line that a reload still shows', async () => {
+  const {sessionId} = await newSession()
+  await coreControl.holdTurn()
+  mountChatPane(sessionId)
+  await input().fill('stop this one')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(stopButton()).toBeVisible()
+  await expect.element(stoppedLine()).not.toBeInTheDocument()
+
+  await stopButton().click()
+
+  await expect.element(stoppedLine()).toBeVisible()
+  active.pane?.dispose()
+  mountChatPane(sessionId)
+  await expect.element(page.getByText('stop this one')).toBeVisible()
+  await expect.element(stoppedLine()).toBeVisible()
+})
+
+test('a stopped turn keeps its Stopped line under it once the next turn answers, and after a reload', async () => {
+  const {sessionId} = await newSession()
+  await coreControl.holdTurn()
+  mountChatPane(sessionId)
+  await input().fill('stop this one')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+  await stopButton().click()
+  await expect.element(stoppedLine()).toBeVisible()
+  await coreControl.releaseTurn()
+
+  await input().fill('answer this one')
+  await userEvent.keyboard('{Enter}')
+
+  await expect.element(page.getByRole('button', {name: 'Send message'})).toBeVisible()
+  await expect.element(stoppedLine()).toBeVisible()
+  expect(follows(stoppedLine(), page.getByText('answer this one'))).toBe(true)
+  active.pane?.dispose()
+  mountChatPane(sessionId)
+  await expect.element(page.getByText('answer this one')).toBeVisible()
+  await expect.element(stoppedLine()).toBeVisible()
+  expect(follows(page.getByText('stop this one'), stoppedLine())).toBe(true)
+  expect(follows(stoppedLine(), page.getByText('answer this one'))).toBe(true)
+})
+
 test('Escape in the focused composer does what the stop button does and leaves the draft untouched', async () => {
   await startStreamingRun()
 
@@ -441,3 +507,7 @@ test('a new-session divider does not flash before the transcript snapshot hydrat
   await expect.element(page.getByRole('separator', {name: 'New session'})).toBeVisible()
   await expect.element(skeleton()).not.toBeInTheDocument()
 })
+
+function follows(earlier: Locator, later: Locator): boolean {
+  return (earlier.element().compareDocumentPosition(later.element()) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+}

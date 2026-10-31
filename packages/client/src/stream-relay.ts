@@ -15,13 +15,22 @@ export function relayedValues<T>(
   subscribe: (emit: (value: T) => void) => () => void,
   abortSignal?: AbortSignal,
 ): AsyncGenerator<T> {
-  const relay = new TransformStream<T, T>()
-  const writer = relay.writable.getWriter()
-  const unsubscribe = subscribe((value) => void writer.write(value).catch(() => undefined))
-  const stop = (): void => {
-    unsubscribe()
-    void writer.close().catch(() => undefined)
-  }
-  abortSignal?.addEventListener('abort', stop, {once: true})
-  return readingValues(relay.readable)
+  const readable = new ReadableStream<T>({
+    start: (controller) => {
+      if (abortSignal?.aborted) {
+        controller.close()
+        return
+      }
+      const unsubscribe = subscribe((value) => controller.enqueue(value))
+      abortSignal?.addEventListener(
+        'abort',
+        () => {
+          unsubscribe()
+          controller.close()
+        },
+        {once: true},
+      )
+    },
+  })
+  return readingValues(readable)
 }

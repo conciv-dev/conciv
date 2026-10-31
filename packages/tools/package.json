@@ -62,14 +62,12 @@
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
-    "@tanstack/ai": "catalog:",
     "lucide-solid": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@tanstack/ai-client": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "solid-js": "catalog:",

@@ -24,7 +24,7 @@
     "@conciv/ui-kit-chat": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-devtools": "catalog:",
-    "@tanstack/react-form": "^1.33.0",
+    "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-devtools": "catalog:",
     "@tanstack/react-start": "catalog:",

@@ -1,5 +1,6 @@
 import {claudeInit} from '@conciv/harness-init/claude'
-import {defineHarness, type HarnessConnectContext, type HarnessConnectPlan} from '@conciv/protocol/harness-types'
+import {type HarnessConnectContext, type HarnessConnectPlan} from '@conciv/protocol/harness-types'
+import {defineHarness} from '../_shared/contract.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 import {claudeConnectArgs} from './args.js'
 import {claudeChatConfig} from './chat.js'

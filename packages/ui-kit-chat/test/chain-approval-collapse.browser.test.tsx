@@ -2,16 +2,11 @@ import 'virtual:uno.css'
 import type {JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {ToolProvider} from '../src/store/tool-context.js'
-import {
-  createApprovalChunk,
-  createReasoningChunks,
-  createToolCallChunks,
-  storyConnection,
-} from '../src/store/story-connection.js'
+import {createApprovalChunk, createReasoningChunks, createToolCallChunks, storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 import {RunSettledIndicator, startRun, waitForRunSettled} from './run-harness.js'
@@ -35,7 +30,8 @@ function approvalToolCtx(): ToolViewCtx {
 }
 
 function ApprovalThread(): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
+    threadId: 'chain-approval-collapse',
     connection: storyConnection({
       chunks: [
         ...createReasoningChunks('deciding what to run'),
@@ -62,7 +58,7 @@ function ApprovalThread(): JSX.Element {
   )
 }
 
-it('keeps the trace open once the run settles so a pending approval on the newest tool call stays visible', async () => {
+it('keeps an ask from the library event out of the trace, which stays open and collapses by hand', async () => {
   mountView(() => <ApprovalThread />)
 
   await startRun()
@@ -71,13 +67,10 @@ it('keeps the trace open once the run settles so a pending approval on the newes
   const trigger = page.getByRole('button', {name: /trace/i})
   const permissionBlock = page.getByRole('group', {name: 'Permission request'})
   await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
-  await expect.element(permissionBlock, {timeout: 3000}).toBeVisible()
-  await expect.element(permissionBlock.getByText('rm -rf tmp'), {timeout: 3000}).toBeVisible()
-  await expect.element(page.getByRole('button', {name: 'Approve'}), {timeout: 3000}).toBeVisible()
-  await expect.element(page.getByRole('button', {name: 'Deny'})).toBeVisible()
+  await expect.element(page.getByRole('list', {name: 'Execution trace'}).getByText('bash')).toBeVisible()
+  await expect.element(permissionBlock).not.toBeInTheDocument()
 
   await trigger.click()
 
   await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'closed')
-  await expect.element(permissionBlock, {timeout: 3000}).not.toBeInTheDocument()
 })

@@ -61,10 +61,10 @@
     "@babel/preset-typescript": "^7.29.7",
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "babel-dead-code-elimination": "^1.0.12",
-    "babel-preset-solid": "^1.9.12",
+    "babel-dead-code-elimination": "^2.0.0",
+    "babel-preset-solid": "^1.9.16",
     "jiti": "^2.7.0",
-    "magic-string": "^0.30.21",
+    "magic-string": "^1.4.5",
     "oxc-parser": "catalog:"
   },
   "devDependencies": {

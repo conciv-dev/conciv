@@ -497,7 +497,7 @@ harness-testkit fixture needs (it already has `holdTools`/`holdResults`/`release
    does not exist".
 8. **Re-verify against `@tanstack/ai@0.48.0` before implementing, or move Phase 1's pin to 0.51?**
    _Recommendation: re-verify at 0.48 first_ (`git diff '@tanstack/ai@0.48.0'..HEAD -- packages/ai/src
-packages/ai-persistence/src packages/ai-client/src` on the clone) and treat a pin bump as its own
+   packages/ai-persistence/src packages/ai-client/src` on the clone) and treat a pin bump as its own
    Phase 1 decision rather than smuggling it into 2.b.
 9. **`conciv_ui` in the same PR as approvals, or a follow-up?**
    _Recommendation: same PR._ They share creation, resolution, and parked paths; splitting means

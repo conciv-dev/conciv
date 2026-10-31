@@ -61,7 +61,7 @@ export function testHostConfig(options: TestHostConfigOptions): UserConfig {
       UnoCSS({
         configFile: false,
         presets: [presetConciv()],
-        content: {pipeline: {include: [/\.[jt]sx?($|\?)/]}},
+        content: {pipeline: {include: [/\.[jt]sx?($|\?)/], exclude: [/[\\/]node_modules[\\/]/]}},
       }),
       ...(options.plugins ?? [solid()]),
     ],

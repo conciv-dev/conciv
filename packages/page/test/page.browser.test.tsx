@@ -20,9 +20,19 @@ import {
   type SnapNode,
   addRef as addRefTo,
 } from '../src/page-snapshot.js'
-import {componentHostAt, describe as describeHost, find, inspect, locate, override, tree} from '../src/react-bridge.js'
+import {
+  componentHostAt,
+  describe as describeHost,
+  elementByName,
+  find,
+  inspect,
+  locate,
+  override,
+  tree,
+} from '../src/react-bridge.js'
+import {_fiberRoots} from 'bippy'
 import {createRoot, type Root} from 'react-dom/client'
-import {FixtureApp} from './fixtures/react-app.js'
+import {Counter, FixtureApp, Leaf} from './fixtures/react-app.js'
 
 describe('a tool that outlasts the preview library load', () => {
   const editAfterLoad = defineTool({
@@ -1353,7 +1363,7 @@ describe('react bridge', () => {
     it('overrides function-component props through the dev renderer', async () => {
       const result = await override(leaf(), 'props', ['label'], 'B')
       expect(result).toEqual({ok: true})
-      await expect.element(leafText()).toHaveTextContent('B:')
+      await expect.element(leafText()).toMatchTextContent('B:')
     })
 
     it('overrides hook state by hook id', async () => {
@@ -1362,13 +1372,13 @@ describe('react bridge', () => {
       expect(editable).toBeDefined()
       const result = await override(leaf(), 'hooks', [], 9, editable?.id)
       expect(result).toEqual({ok: true})
-      await expect.element(leafText()).toHaveTextContent(':9:')
+      await expect.element(leafText()).toMatchTextContent(':9:')
     })
 
     it('overrides the nearest context provider value', async () => {
       const result = await override(leaf(), 'context', [], 'contrast')
       expect(result).toEqual({ok: true})
-      await expect.element(leafText()).toHaveTextContent(':contrast')
+      await expect.element(leafText()).toMatchTextContent(':contrast')
     })
 
     it('reports actionable errors for unsupported targets', async () => {
@@ -1414,6 +1424,41 @@ describe('react bridge', () => {
       expect(result.matches[0]?.component).toBe('Leaf')
       const ref = result.matches[0]?.ref
       expect(ref ? refs.map.get(ref)?.deref() : null).toBe(leaf())
+    })
+  })
+
+  describe('root discovery with no recorded fiber roots', () => {
+    const recordedRoots: unknown[] = []
+    let siblingsContainer: HTMLElement
+    let siblingsRoot: Root
+
+    beforeAll(async () => {
+      siblingsContainer = document.createElement('div')
+      document.body.prepend(siblingsContainer)
+      siblingsRoot = createRoot(siblingsContainer)
+      siblingsRoot.render(
+        <>
+          <Leaf label="top branch" />
+          <Counter start={7} />
+        </>,
+      )
+      await vi.waitFor(() => {
+        if (!siblingsContainer.querySelector('output')) throw new Error('siblings not rendered yet')
+      })
+      recordedRoots.push(..._fiberRoots)
+      _fiberRoots.clear()
+    })
+
+    afterAll(() => {
+      for (const recorded of recordedRoots) _fiberRoots.add(recorded)
+      siblingsRoot.unmount()
+      siblingsContainer.remove()
+    })
+
+    it('reaches every top-level branch through the host root', () => {
+      expect(find('Counter', makeRefs().addRef).total).toBe(1)
+      expect(find('Leaf', makeRefs().addRef).total).toBe(1)
+      expect(elementByName('Counter')).toBe(siblingsContainer.querySelector('output'))
     })
   })
 })

@@ -2,14 +2,15 @@ import 'virtual:uno.css'
 import type {JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {createTextChunks, storyConnection} from '../src/store/story-connection.js'
+import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 
 function ComposedThread(): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
+    threadId: 'thread-composition',
     connection: storyConnection({chunks: [...createTextChunks('On it.')], chunkDelay: 2}),
   })
   return (

@@ -205,7 +205,7 @@ negative-control build failure.
 - **The real engine does not boot on GA 16.2 in this packed fixture** (flag for Task 6, NOT an alias
   issue): with the real `register()`, boot fails server-side with
   `Failed to load external module @conciv/it-…/plugin/nextjs: Cannot find package '@conciv/plugin'
-imported from .next/dev/node_modules/@conciv/it-…/dist/nextjs.js`. This is Next 16.2 relocating
+  imported from .next/dev/node_modules/@conciv/it-…/dist/nextjs.js`. This is Next 16.2 relocating
   `serverExternalPackages` into `.next/dev/node_modules/` with a shallow copy that breaks the nested
   `@conciv/plugin` resolution on the (unchanged) `@conciv/it` tarball. It is server-side and orthogonal
   to the client alias linchpin. Task 6/7 must resolve how `withConciv`'s `serverExternalPackages`

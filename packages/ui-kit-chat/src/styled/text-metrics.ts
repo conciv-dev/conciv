@@ -6,7 +6,7 @@ import {
   type PreparedTextWithSegments,
 } from '@chenglou/pretext'
 import type {Accessor} from 'solid-js'
-import type {MessagePart} from '@tanstack/ai-client'
+import type {ChatPart} from '@conciv/protocol/chat-message-types'
 import {defaultGrouper, groupParts, type GroupNode, type Grouping, type Turn} from '../store/grouping.js'
 import type {TurnEstimate, TurnEstimator} from '../primitives/thread/turn-estimate.js'
 import {
@@ -154,7 +154,7 @@ function stripMarkdown(content: string): string {
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
 }
 
-function textOf(part: MessagePart | undefined): string | undefined {
+function textOf(part: ChatPart | undefined): string | undefined {
   return part?.type === 'text' ? part.content : undefined
 }
 
@@ -213,7 +213,7 @@ export function createTurnEstimator(
     return {height, exact: bubbles.length === 1}
   }
 
-  const estimateNode = (node: GroupNode, parts: MessagePart[], resolved: Metrics, width: number): TurnEstimate => {
+  const estimateNode = (node: GroupNode, parts: ChatPart[], resolved: Metrics, width: number): TurnEstimate => {
     if (node.type !== 'part') return {height: COLLAPSED_TRACE_APPROX_PX, exact: false}
     const content = textOf(parts[node.index])
     if (content === undefined) return {height: COLLAPSED_CARD_APPROX_PX, exact: false}
@@ -244,7 +244,7 @@ export function createTurnEstimator(
 
   const resolveContainerWidth = (): number | undefined => {
     const element = viewport()
-    if (!element) return undefined
+    if (!element?.isConnected) return undefined
     metrics ??= resolveMetrics(element)
     const containerWidth = element.clientWidth - metrics.viewportPadX
     return containerWidth > 0 ? containerWidth : undefined

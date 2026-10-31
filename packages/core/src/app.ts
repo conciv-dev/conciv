@@ -4,7 +4,7 @@ import {z} from 'zod'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
 import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
@@ -26,24 +26,29 @@ import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from
 import type {ChatTool, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {
   anonymousExternalRow,
+  currentRow,
   ensureAgentRow,
   ensureRow,
   nativeIdFor,
+  recordFirstTitle,
   recordNativeId,
   sweepEmptyRows,
   type RowScope,
-} from './chat/session-rows.js'
-import {makeRunControl, type ChatDeps} from './chat/runtime.js'
-import {chatDeliveryRoutes} from './chat/delivery.js'
+} from './sessions/session-rows.js'
+import {
+  assistCapabilities,
+  createChatPlane,
+  registryCapabilities,
+  type AttachmentExpanders,
+  type ChatPlane,
+  type CodeCapability,
+  type SessionPort,
+} from '@conciv/chat'
+import {eq} from 'drizzle-orm'
 import {pushRoutes, type PushDeps} from './api/push.js'
-import {asksFor, makeAskGate, requiresApproval} from './chat/gate.js'
-import {defineSandbox, defineSandboxPolicy} from '@tanstack/ai-sandbox'
-import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
-import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
-import {reclaimAbandonedRuns} from './chat/reclaim.js'
-import {recoverInterruptedRuns, syncedSnapshot} from './chat/transcript-import.js'
-import {makeCompactor, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
-import {modelOf, openDb, writeToolCapture} from '@conciv/db'
+import type {ChatContext} from './api/rpc/mount.js'
+import {drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
@@ -55,9 +60,7 @@ import {makeRpcRouter} from './api/rpc/router.js'
 import {makeCompositeRpcRouter, RPC_PREFIX, rpcFetchMiddleware} from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
-import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {assertToolName} from '@conciv/extension/tool'
-import {BUILTIN_OPEN_TOOL, SERVER_TOOL_PREFIX} from '@conciv/tools/builtins'
 import {logError} from './lib/debug.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import type {OpenInEditor} from './editor/open.js'
@@ -86,8 +89,6 @@ export type MakeAppOpts = {
   onShutdown?: () => void
 
   firstChunkTimeoutMs?: number
-
-  askTimeoutMs?: number
 
   nativePageDir?: string
 
@@ -169,13 +170,36 @@ function registerExtensionTools(registry: ToolRegistry, sources: RegistryToolSou
   }
 }
 
-function approvalGatedNames(registry: ToolRegistry): Set<string> {
-  return new Set(
-    registry.catalog
-      .list()
-      .filter((entry) => requiresApproval(registry.catalog.get(entry.name)))
-      .map((entry) => entry.name),
-  )
+function requiresApproval(subject: {approval?: 'ask'}): boolean {
+  return subject.approval === 'ask'
+}
+
+async function recordSessionUsage(db: ConcivDb, sessionId: SessionId, usage: UsageSnapshot): Promise<void> {
+  await db.update(sessions).set({usage, updatedAt: Date.now()}).where(eq(sessions.id, sessionId))
+}
+
+function sessionPort(
+  db: ConcivDb,
+  rows: RowScope,
+  hooks: Pick<SessionPort, 'onRunStart' | 'onRunEnd' | 'publish'>,
+): SessionPort {
+  return {
+    row: (sessionId) => {
+      const row = currentRow(db, sessionId)
+      return row === null ? null : {model: row.model, nativeId: row.harnessSessionId, cwd: row.cwd}
+    },
+    ensure: (sessionId) => ensureRow(db, sessionId, rows.harnessKind, rows.cwd),
+    recordNativeId: (sessionId, nativeId) => recordNativeId(db, sessionId, nativeId),
+    recordUsage: (sessionId, usage) => recordSessionUsage(db, sessionId, usage),
+    recordContextTokens: async (sessionId, contextTokens) => {
+      const usage = currentRow(db, sessionId)?.usage
+      if (usage) await recordSessionUsage(db, sessionId, {...usage, contextTokens})
+    },
+    recordTitle: (sessionId, title) => recordFirstTitle(db, sessionId, title),
+    onRunStart: hooks.onRunStart,
+    onRunEnd: hooks.onRunEnd,
+    publish: hooks.publish,
+  }
 }
 
 function registryBackedTool(tool: AnyToolBuilder, call: ScopedToolCall): ExtensionServerTool {
@@ -204,29 +228,18 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
   }
 }
 
-const CLI_TOOL_GROUPS = [
-  {prefix: PAGE_TOOL_PREFIX, command: 'conciv tools page'},
-  {prefix: SERVER_TOOL_PREFIX, command: 'conciv tools server'},
-] as const
-
-function cliCommandOf(name: string): string | null {
-  if (name === BUILTIN_OPEN_TOOL.name) return 'conciv tools open'
-  const matched = CLI_TOOL_GROUPS.find(({prefix}) => name.startsWith(prefix))
-  return matched === undefined ? null : `${matched.command} ${name.slice(matched.prefix.length)}`
-}
-
 export const HealthSchema = z.object({
   ok: z.literal(true),
   harness: z.string(),
   engine: EngineStalenessSchema,
 })
 
-export type CoreVars = CorsVars & {chat: ChatDeps} & McpVars
+export type CoreVars = CorsVars & {harnessId: string} & McpVars
 
 function composeRoutes(
   vars: CoreVars,
   rpc: CompositeRpcRouter,
-  deps: {staleness: () => EngineStaleness; onShutdown?: () => void; push: PushDeps},
+  deps: {staleness: () => EngineStaleness; onShutdown?: () => void; push: PushDeps; plane: ChatPlane},
 ) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
@@ -236,20 +249,18 @@ function composeRoutes(
     })
     .use(async (c, next) => {
       c.set('cors', vars.cors)
-      c.set('chat', vars.chat)
+      c.set('harnessId', vars.harnessId)
       c.set('mcp', vars.mcp)
       await next()
     })
     .use(corsMiddleware())
-    .get('/health', (c) =>
-      c.json(HealthSchema.parse({ok: true, harness: vars.chat.harness.id, engine: deps.staleness()})),
-    )
+    .get('/health', (c) => c.json(HealthSchema.parse({ok: true, harness: vars.harnessId, engine: deps.staleness()})))
     .post('/api/shutdown', (c) => {
       if (!deps.onShutdown) return c.json({message: 'shutdown not supported'}, 404)
       setTimeout(deps.onShutdown, 50)
       return c.json({ok: true})
     })
-    .route('/', chatDeliveryRoutes(vars.chat, upgradeWebSocket))
+    .route('/', deps.plane.routes(upgradeWebSocket))
     .route('/', pushRoutes(deps.push, upgradeWebSocket))
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
@@ -259,7 +270,8 @@ export type AppType = ReturnType<typeof composeRoutes>
 
 export type MadeApp = {
   app: AppType
-  chat: ChatDeps
+  chat: ChatContext
+  plane: ChatPlane
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
@@ -303,9 +315,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
-  await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
-  const {claimStartedAt, durability, durabilityAt, runs, sessionLocks} = makeRunControl(db, opts.firstChunkTimeoutMs)
-  await reclaimAbandonedRuns(runs, Date.now())
+  const planeRef: {current: ChatPlane | null} = {current: null}
 
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
 
@@ -316,7 +326,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     bundler: () => opts.bridge,
     openInEditor: opts.openInEditor,
   })
-  const {asks, commandMemory, registry, stream} = primitives
+  const {registry, stream} = primitives
   const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
     runtime.forSession(request.sessionId).tools.call(name, input, {toolCallId: request.toolCallId})
@@ -327,7 +337,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       await ensureRow(db, sessionId, harness.id, opts.cwd)
       await recordNativeId(db, sessionId, token)
     },
-    chatBusy: async (sessionId) => (await runs.findActiveRun(sessionId)) !== null,
+    chatBusy: async (sessionId) => (await planeRef.current?.live(sessionId)) === true,
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
@@ -393,23 +403,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     askUi: () => runtime.forSession(sessionId).asks.ui(),
   })
 
-  const askFreeCommandAllows = (): string[] =>
-    registry.catalog
-      .list()
-      .flatMap((entry) => {
-        const signature = registry.catalog.get(entry.name)
-        if (requiresApproval(signature)) return []
-        const command = cliCommandOf(entry.name)
-        if (command === null) return []
-        const aliases = [command, `${command} *`]
-        if (entry.name.startsWith(PAGE_TOOL_PREFIX) && signature.category === 'react') {
-          const verb = entry.name.slice(PAGE_TOOL_PREFIX.length)
-          aliases.push(`conciv tools react ${verb}`, `conciv tools react ${verb} *`)
-        }
-        return aliases
-      })
-      .concat(['conciv tools page changes', 'conciv tools page changes *'])
-
   assertUniqueCapabilityNames([
     ['a built-in registry tool', registry.sandboxTools().map((tool) => tool.name)],
     ['a conciv assist tool', concivSandboxToolNames()],
@@ -420,8 +413,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   ])
 
   registerExtensionTools(registry, mounted)
-
-  const risky = approvalGatedNames(registry)
 
   const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] => [
     ...registryCapabilities(
@@ -435,42 +426,39 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
   )
 
-  const chatDeps: ChatDeps = {
+  const plane = await createChatPlane({
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
-    basePath: opts.basePath ?? '',
     harness,
     harnessEnv: opts.harnessEnv,
     claudeHome: opts.claudeHome,
-    systemText: resolveSystemText(
-      {systemPromptFile: opts.systemPromptFile, systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt},
-      harness.capabilities.systemPrompt,
-    ),
-    sandbox: defineSandbox({
-      id: 'conciv',
-      provider: localProcessSandbox({dir: opts.cwd}),
-      policy: defineSandboxPolicy({default: 'ask'}),
-      fileEvents: false,
-      lifecycle: {reuse: 'thread', destroyOnComplete: false},
-    }),
+    systemPrompt: {
+      systemPromptFile: opts.systemPromptFile,
+      systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
+    },
     db,
-    asks,
-    commandMemory,
-    durability,
-    durabilityAt,
-    runs,
-    claimStartedAt,
-    sessionLocks,
-    stream,
-    snapshot: (sessionId) => syncedSnapshot(chatDeps, sessionId),
-    risky,
-    commandAllows: askFreeCommandAllows,
-    toolNames: new Set(toolList.map((tool) => tool.name)),
-    codeModeCapabilities,
+    sessions: sessionPort(db, rows, {
+      onRunStart: async (sessionId) => {
+        runStartListeners.forEach((listener) => listener(sessionId))
+        await db.delete(drafts).where(eq(drafts.sessionId, sessionId))
+      },
+      onRunEnd,
+      publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
+    }),
+    toolNames: new Set([...toolList.map((tool) => tool.name), ...concivSandboxToolNames()]),
+    capabilities: codeModeCapabilities,
     attachmentExpanders,
-    onRunStart: (sessionId) => runStartListeners.forEach((listener) => listener(sessionId)),
-    onRunEnd,
-    firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
+    firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
+    log: logError,
+  })
+  planeRef.current = plane
+  const chatDeps: ChatContext = {
+    harness,
+    cwd: opts.cwd,
+    basePath: opts.basePath ?? '',
+    claudeHome: opts.claudeHome,
+    db,
+    plane,
   }
 
   if (opts.cfg.harnessSessionId !== undefined) {
@@ -487,17 +475,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     logError(`[core] the empty session row sweep failed: ${String(error)}`),
   )
 
-  const compactor = makeCompactor(chatDeps)
-
-  const runtime = makeCoreRuntime({primitives, chat: chatDeps, compactor, model: sessionModel, staleness})
+  const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
 
   const rpc = makeRpcRouter({
     chat: chatDeps,
     tools: toolList,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     runtime,
+    allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
-    ...(opts.askTimeoutMs === undefined ? {} : {askTimeoutMs: opts.askTimeoutMs}),
   })
 
   const compositeRpc = makeCompositeRpcRouter(
@@ -510,16 +496,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const app = composeRoutes(
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
-      chat: chatDeps,
+      harnessId: harness.id,
       mcp: {
-        capabilities: codeModeCapabilities,
-        askGate: (sessionId) =>
-          makeAskGate({
-            asks: asksFor(asks, sessionId),
-            emit: (chunk) => stream.publish(sessionId, chunk),
-            ...(opts.askTimeoutMs === undefined ? {} : {timeoutMs: opts.askTimeoutMs}),
-          }),
-        listening: (sessionId) => stream.watched(sessionId),
+        codeRunner: (sessionId) => plane.codeRunner(sessionId, (chunk) => stream.publish(sessionId, chunk)),
         resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
         staleness,
       },
@@ -528,10 +507,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       staleness,
       onShutdown: opts.onShutdown,
+      plane,
       push: {
         queries: (sessionId, signal) => runtime.forSession(sessionId).page.queries(signal),
         events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
-        pendingApprovals: (sessionId) => asks.pendingApprovals(sessionId),
       },
     },
   )
@@ -547,5 +526,5 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     db.$client.close()
   }
 
-  return {app, chat: chatDeps, dispose, extensionContexts, runtime}
+  return {app, chat: chatDeps, plane, dispose, extensionContexts, runtime}
 }

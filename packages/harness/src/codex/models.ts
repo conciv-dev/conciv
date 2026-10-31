@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
-import {CODEX_MODELS} from '@tanstack/ai-codex'
+import {codexModels as adapterCodexModels} from '@conciv/ai/server'
 import {z} from 'zod'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
 
@@ -17,7 +17,7 @@ const ModelsCacheSchema = z
   })
   .loose()
 
-const fallbackModels = (): HarnessModel[] => CODEX_MODELS.map((id) => ({id, name: id, group: 'Codex'}))
+const fallbackModels = (): HarnessModel[] => adapterCodexModels.map((id) => ({id, name: id, group: 'Codex'}))
 
 const readText = (path: string): string | null => {
   try {
@@ -55,5 +55,5 @@ export function codexDefaultModel(codexDir: string = codexHome()): string {
   const topLevel = headerIndex === -1 ? config : config.slice(0, headerIndex)
   const configured = topLevel.match(CONFIG_MODEL)?.[1]
   if (configured) return configured
-  return codexModels(codexDir)[0]?.id ?? CODEX_MODELS[0]
+  return codexModels(codexDir)[0]?.id ?? adapterCodexModels[0]
 }

@@ -1,5 +1,6 @@
 import {z} from 'zod'
-import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
+import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
+import {foldChatEvents} from '@conciv/ai/testkit'
 
 const MessageSchema = z
   .object({
@@ -9,7 +10,7 @@ const MessageSchema = z
   })
   .loose()
 
-const SnapshotSchema = z.object({type: z.literal(EventType.MESSAGES_SNAPSHOT), messages: z.array(MessageSchema)})
+const SnapshotSchema = z.object({type: z.literal(ChatEventType.MESSAGES_SNAPSHOT), messages: z.array(MessageSchema)})
 
 type SnapshotMessage = z.infer<typeof MessageSchema>
 export type SnapshotView = z.infer<typeof SnapshotSchema>
@@ -21,7 +22,7 @@ function textOf(message: SnapshotMessage): string {
     .join(' ')
 }
 
-export function asSnapshot(chunk: StreamChunk): SnapshotView {
+export function asSnapshot(chunk: ChatEvent): SnapshotView {
   const parsed = SnapshotSchema.safeParse(chunk)
   if (!parsed.success) throw new Error(`expected a MESSAGES_SNAPSHOT chunk, got ${chunk.type}`)
   return parsed.data
@@ -43,21 +44,19 @@ export function partTypes(snapshot: SnapshotView): string[] {
   return snapshot.messages.flatMap((message) => message.parts.map((part) => part.type))
 }
 
-function rendered(chunks: StreamChunk[]): SnapshotMessage[] {
-  const processor = new StreamProcessor({})
-  for (const chunk of chunks) processor.processChunk(chunk)
-  return z.array(MessageSchema).parse(processor.getMessages())
+function rendered(chunks: ChatEvent[]): SnapshotMessage[] {
+  return z.array(MessageSchema).parse(foldChatEvents(chunks))
 }
 
-export function reconstructSnapshot(chunks: StreamChunk[]): SnapshotView {
-  return {type: EventType.MESSAGES_SNAPSHOT, messages: rendered(chunks)}
+export function reconstructSnapshot(chunks: ChatEvent[]): SnapshotView {
+  return {type: ChatEventType.MESSAGES_SNAPSHOT, messages: rendered(chunks)}
 }
 
-export function reconstructTranscript(chunks: StreamChunk[]): string[] {
+export function reconstructTranscript(chunks: ChatEvent[]): string[] {
   return rendered(chunks).map((message) => `${message.role}: ${textOf(message)}`)
 }
 
-export function reconstructUserTexts(chunks: StreamChunk[]): string[] {
+export function reconstructUserTexts(chunks: ChatEvent[]): string[] {
   return rendered(chunks)
     .filter((message) => message.role === 'user')
     .map(textOf)

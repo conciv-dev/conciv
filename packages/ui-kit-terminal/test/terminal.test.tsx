@@ -52,7 +52,7 @@ function dropConnection(model: TerminalModel): void {
 }
 
 async function emit(model: TerminalModel, label: string, frame: TtyServerControl): Promise<void> {
-  await expect.element(region(label)).toHaveTextContent('status=open')
+  await expect.element(region(label)).toMatchTextContent('status=open')
   model.sendInput(JSON.stringify({emit: frame}))
 }
 
@@ -68,7 +68,7 @@ describe('terminal primitives', () => {
       </>
     ))
     model.terminal.write('\u001b[31mhello-term\u001b[0m')
-    await expect.element(region('written bytes log')).toHaveTextContent('hello-term')
+    await expect.element(region('written bytes log')).toMatchTextContent('hello-term')
     expect(translateBuffer(model.terminal)).toContain('hello-term')
     dispose()
   })
@@ -91,7 +91,7 @@ describe('terminal primitives', () => {
         <ModelState model={model} label="paste state" />
       </>
     ))
-    await expect.element(region('paste state')).toHaveTextContent('status=connecting')
+    await expect.element(region('paste state')).toMatchTextContent('status=connecting')
     model.paste('grab text')
     expect(received.join('')).toContain('grab text')
     dispose()
@@ -163,7 +163,7 @@ describe('terminal primitives', () => {
     const state = mount(() => <ModelState model={model} label="detached state" />)
     expect(shadow.querySelector('style[data-conciv-xterm]')).toBeNull()
     document.body.appendChild(host)
-    await expect.element(region('detached state')).toHaveTextContent('status=connecting')
+    await expect.element(region('detached state')).toMatchTextContent('status=connecting')
     expect(shadow.querySelector('style[data-conciv-xterm]')).not.toBeNull()
     state.dispose()
     dispose()
@@ -210,9 +210,9 @@ describe('terminal primitives', () => {
     expect(model.busy()).toBe(false)
     model.connect()
     await emit(model, 'busy state', {type: 'busy', busy: true})
-    await expect.element(region('busy state')).toHaveTextContent('busy=true')
+    await expect.element(region('busy state')).toMatchTextContent('busy=true')
     await emit(model, 'busy state', {type: 'busy', busy: false})
-    await expect.element(region('busy state')).toHaveTextContent('busy=false')
+    await expect.element(region('busy state')).toMatchTextContent('busy=false')
     model.disconnect()
     dispose()
   })
@@ -227,9 +227,9 @@ describe('terminal reconnection', () => {
         <SessionLog model={model} label="dropped log" />
       </>
     ))
-    await expect.element(region('dropped log')).toHaveTextContent('dropped-1')
+    await expect.element(region('dropped log')).toMatchTextContent('dropped-1')
     dropConnection(model)
-    await expect.element(region('dropped log')).toHaveTextContent('dropped-2')
+    await expect.element(region('dropped log')).toMatchTextContent('dropped-2')
     dispose()
   })
 
@@ -241,10 +241,10 @@ describe('terminal reconnection', () => {
         <SessionLog model={model} label="resilient log" />
       </>
     ))
-    await expect.element(region('resilient log')).toHaveTextContent('resilient-1')
+    await expect.element(region('resilient log')).toMatchTextContent('resilient-1')
     for (let ordinal = 2; ordinal <= 9; ordinal += 1) {
       dropConnection(model)
-      await expect.element(region('resilient log'), {timeout: 3000}).toHaveTextContent(`resilient-${ordinal}`)
+      await expect.element(region('resilient log'), {timeout: 3000}).toMatchTextContent(`resilient-${ordinal}`)
     }
     dispose()
   })
@@ -257,7 +257,7 @@ describe('terminal reconnection', () => {
         <SessionLog model={abandoned} label="abandoned log" />
       </>
     ))
-    await expect.element(region('abandoned log')).toHaveTextContent('solo-1')
+    await expect.element(region('abandoned log')).toMatchTextContent('solo-1')
     abandoned.disconnect()
     abandonedMount.dispose()
 
@@ -268,11 +268,11 @@ describe('terminal reconnection', () => {
         <SessionLog model={successor} label="successor log" />
       </>
     ))
-    await expect.element(region('successor log')).toHaveTextContent('solo-2')
+    await expect.element(region('successor log')).toMatchTextContent('solo-2')
     dropConnection(successor)
-    await expect.element(region('successor log')).toHaveTextContent('solo-3')
+    await expect.element(region('successor log')).toMatchTextContent('solo-3')
     dropConnection(successor)
-    await expect.element(region('successor log')).toHaveTextContent('solo-4')
+    await expect.element(region('successor log')).toMatchTextContent('solo-4')
     dispose()
   })
 })

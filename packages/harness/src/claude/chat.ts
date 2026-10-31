@@ -1,20 +1,19 @@
 import {randomUUID} from 'node:crypto'
 import {mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import type {ModelMessage} from '@tanstack/ai'
-import {claudeCodeText} from '@tanstack/ai-claude-code'
+import type {ModelMessage} from '@conciv/protocol/chat-message-types'
+import {claudeCode} from '@conciv/ai/server'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {
-  FILE_REF_PREFIX,
-  type HarnessChatConfig,
-  type HarnessChatDeps,
-  type HarnessImage,
-} from '@conciv/protocol/harness-types'
+import {FILE_REF_PREFIX, type HarnessChatDeps, type HarnessImage} from '@conciv/protocol/harness-types'
+import {type HarnessChatConfig} from '../_shared/contract.js'
 import {definedEntries} from '../_shared/env.js'
 import {lastUserImages} from '../_shared/text-adapter.js'
+import {claudeAskSettingsFile} from './ask-rules.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 
 const MCP_TOOL_TIMEOUT_MS = 150_000
+
+const BRIDGED_CONCIV_TOOLS = ['mcp__tanstack']
 
 const IMAGE_EXT: Record<string, string> = {
   'image/png': 'png',
@@ -36,16 +35,19 @@ export function imageRefs(images: HarnessImage[], cwd: string): string {
     .join(' ')
 }
 
-export function claudeExecutable(pluginDir: string | null): string {
-  const flags = ['claude', '--strict-mcp-config']
-  if (pluginDir) {
-    if (/\s/.test(pluginDir)) {
-      throw new Error(
-        `claudeExecutable: plugin dir "${pluginDir}" contains whitespace. The claude harness cannot receive a plugin directory containing whitespace because @tanstack/ai-claude-code splits its executable string on plain spaces before spawning. Move the plugin install to a space-free path.`,
-      )
-    }
-    flags.push('--plugin-dir', pluginDir)
+function spaceFreePath(flag: string, path: string): string {
+  if (/\s/.test(path)) {
+    throw new Error(
+      `claudeExecutable: ${flag} path "${path}" contains whitespace. The claude harness cannot pass a path containing whitespace because @tanstack/ai-claude-code splits its executable string on plain spaces before spawning. Move it to a space-free path.`,
+    )
   }
+  return path
+}
+
+export function claudeExecutable(pluginDir: string | null, settingsFile: string | null = null): string {
+  const flags = ['claude', '--strict-mcp-config']
+  if (pluginDir) flags.push('--plugin-dir', spaceFreePath('--plugin-dir', pluginDir))
+  if (settingsFile) flags.push('--settings', spaceFreePath('--settings', settingsFile))
   return flags.join(' ')
 }
 
@@ -70,16 +72,16 @@ function withImageRefs(messages: ModelMessage[], cwd: string): ModelMessage[] {
 }
 
 export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: claudeCodeText(deps.model ?? 'sonnet', {
-    permissionMode: 'default',
+  adapter: claudeCode(deps.model ?? 'sonnet', {
     addDirs: [deps.cwd],
-    claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR),
+    claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR, claudeAskSettingsFile()),
     systemPromptMode: 'append',
     emitDiff: false,
+    allowedTools: BRIDGED_CONCIV_TOOLS,
     disallowedTools: ['AskUserQuestion'],
     env: definedEntries({MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), ENABLE_TOOL_SEARCH: 'false', ...deps.env}),
   }),
-  modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
+  modelOptions: {permissionMode: 'auto', ...(deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {})},
   prepareMessages: (messages) =>
     deps.kind === 'compact' ? withLastUserText(messages, '/compact') : withImageRefs(messages, deps.cwd),
 })
