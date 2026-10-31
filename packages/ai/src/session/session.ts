@@ -69,8 +69,10 @@ function askOf(approval: ApprovalAsk): ApprovalAsk {
   }
 }
 
-function approvedText(title: string, scope: ChatApprovalScope): string {
-  return scope === 'session' ? `Approved for this session: ${title}` : `Approved: ${title}`
+function decisionText(title: string, approved: boolean, scope: ChatApprovalScope): string {
+  const action = title.replace(/^Approve /, '')
+  if (!approved) return `Denied: ${action}`
+  return scope === 'session' ? `Approved for this session: ${action}` : `Approved: ${action}`
 }
 
 function newerRun(current: RunClockSource | null, hydration: ChatSessionHydration): RunClockSource | null {
@@ -203,7 +205,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     const decision = await options.decide(approvalId, approved, scope)
     setAsks('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
     if (!decision.startsTurn || ask === undefined) return
-    await chat.sendMessage(approved ? approvedText(ask.toolName, scope) : `Denied: ${ask.toolName}`)
+    await chat.sendMessage(decisionText(ask.toolName, approved, scope))
   }
   const sendQueuedSequentially = async (
     queued: readonly QueuedMessage[],

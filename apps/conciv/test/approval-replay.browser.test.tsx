@@ -45,7 +45,7 @@ test('an ask from a chat turn sits in the strip, and approving it posts the mess
   await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
   await coreControl.scriptCustomEvent('approval-requested', {
     approvalId: 'turn-ask',
-    title: 'Bash',
+    title: 'Approve Bash: rm -rf build',
     input: {command: 'rm -rf build'},
   })
 
@@ -57,7 +57,7 @@ test('an ask from a chat turn sits in the strip, and approving it posts the mess
   await coreControl.scriptTurn({toolCalls: [], text: 'Deleted.'})
   await approveButton().click()
   await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
-  await expect.element(page.getByText('Approved: Bash')).toBeVisible()
+  await expect.element(page.getByText('Approved: Bash: rm -rf build', {exact: true})).toBeVisible()
   await expect.element(page.getByText('Deleted.')).toBeVisible()
 }, 120_000)
 
@@ -67,7 +67,7 @@ test('an ask from a chat turn sits in the strip, and denying it posts the messag
   await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
   await coreControl.scriptCustomEvent('approval-requested', {
     approvalId: 'turn-deny',
-    title: 'Bash',
+    title: 'Approve Bash: git push --force',
     input: {command: 'git push --force'},
   })
 
@@ -78,7 +78,7 @@ test('an ask from a chat turn sits in the strip, and denying it posts the messag
   await coreControl.scriptTurn({toolCalls: [], text: 'Understood, I will not force push.'})
   await page.getByRole('button', {name: 'Deny'}).click()
   await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
-  await expect.element(page.getByText('Denied: Bash')).toBeVisible()
+  await expect.element(page.getByText('Denied: Bash: git push --force', {exact: true})).toBeVisible()
   await expect.element(page.getByText('Understood, I will not force push.')).toBeVisible()
 }, 120_000)
 
