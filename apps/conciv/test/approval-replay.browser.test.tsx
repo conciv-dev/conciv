@@ -61,6 +61,27 @@ test('an ask from a chat turn sits in the strip, and approving it posts the mess
   await expect.element(page.getByText('Deleted.')).toBeVisible()
 }, 120_000)
 
+test('an ask from a chat turn sits in the strip, and denying it posts the message that re-runs the turn refused', async () => {
+  const {sessionId} = await newSession()
+  keep(await attachedPane(sessionId))
+  await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
+  await coreControl.scriptCustomEvent('approval-requested', {
+    approvalId: 'turn-deny',
+    title: 'Bash',
+    input: {command: 'git push --force'},
+  })
+
+  await composer().fill('force push main')
+  await page.getByRole('button', {name: 'Send message'}).click()
+  await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
+
+  await coreControl.scriptTurn({toolCalls: [], text: 'Understood, I will not force push.'})
+  await page.getByRole('button', {name: 'Deny'}).click()
+  await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
+  await expect.element(page.getByText('Denied: Bash')).toBeVisible()
+  await expect.element(page.getByText('Understood, I will not force push.')).toBeVisible()
+}, 120_000)
+
 test('a CLI ask names what it asks for in the strip, not the CLI that raised it', async () => {
   const {sessionId} = await newSession()
   keep(await attachedPane(sessionId))

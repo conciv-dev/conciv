@@ -851,7 +851,7 @@ describe('chat', () => {
       expect(lastRunOf(sessionId).tools).toContain('fixture_ask')
     })
 
-    it('a risky tool is refused until approved, a denial stays refused, and a one-time approval runs once', async () => {
+    it('a risky tool is refused until approved, a denial re-runs the turn refused once, and a one-time approval runs once', async () => {
       const sessionId = await newSession()
       const ran = toolRuns.ask
       const asked = await askTurn(sessionId, 'ask-run')
@@ -859,9 +859,16 @@ describe('chat', () => {
       expect(asked.all.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
       expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([pendingAsk('ask-run')])
       expect((await chatKit().join('ask-run').done(GUARD)).custom('approval-requested')).toHaveLength(1)
-      await decide(sessionId, ASK_ID, false)
-      await askTurn(sessionId)
+      await expect(decide(sessionId, ASK_ID, false)).resolves.toEqual({ok: true, startsTurn: true})
+      expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
+      const refused = await askTurn(sessionId)
+      expect(lastRunOf(sessionId).denials).toEqual([ASK_ID])
+      expect(refused.custom('approval-requested')).toEqual([])
+      expect(JSON.stringify(refused.all)).toContain('denied')
       expect(toolRuns.ask).toBe(ran)
+      expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
+      expect((await askTurn(sessionId)).custom('approval-requested')).toHaveLength(1)
+      expect(lastRunOf(sessionId).denials).toEqual([])
       await decide(sessionId, ASK_ID, true)
       expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
       await askTurn(sessionId)
@@ -1414,6 +1421,7 @@ type SeenRun = {
   messages: string
   tools: string[]
   approvals: string[]
+  denials: string[]
   startedAt: number
   endedAt: number | null
 }
@@ -1573,7 +1581,8 @@ function recordingHarness(base: TestHarness): TestHarness {
             resumeSessionId: deps.resumeSessionId,
             messages: JSON.stringify(options.messages),
             tools: (options.tools ?? []).map((tool) => tool.name),
-            approvals: [...(options.approvals?.keys() ?? [])],
+            approvals: [...(options.approvals ?? [])].flatMap(([id, granted]) => (granted ? [id] : [])),
+            denials: [...(options.approvals ?? [])].flatMap(([id, granted]) => (granted ? [] : [id])),
             startedAt: Date.now(),
             endedAt: null,
           }

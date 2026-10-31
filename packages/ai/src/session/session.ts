@@ -202,7 +202,8 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     const ask = asks.pending.find((waiting) => waiting.approvalId === approvalId)
     const decision = await options.decide(approvalId, approved, scope)
     setAsks('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
-    if (decision.startsTurn && ask !== undefined) await chat.sendMessage(approvedText(ask.toolName, scope))
+    if (!decision.startsTurn || ask === undefined) return
+    await chat.sendMessage(approved ? approvedText(ask.toolName, scope) : `Denied: ${ask.toolName}`)
   }
   const sendQueuedSequentially = async (
     queued: readonly QueuedMessage[],

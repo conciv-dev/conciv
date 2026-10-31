@@ -27,6 +27,7 @@ const GrantsSchema = z.object({
   session: z.array(z.string()),
   once: z.array(z.string()),
   outside: z.array(z.string()).default([]),
+  denied: z.array(z.string()).default([]),
 })
 
 type Grants = z.infer<typeof GrantsSchema>
@@ -74,7 +75,12 @@ export function createApprovalStore(metadata: ChatStores['metadata']): ApprovalS
     PendingSchema.parse((await metadata.get(APPROVALS_NAMESPACE, pendingKey(threadId))) ?? [])
   const grantsOf = async (threadId: string): Promise<Grants> =>
     GrantsSchema.parse(
-      (await metadata.get(APPROVALS_NAMESPACE, grantsKey(threadId))) ?? {session: [], once: [], outside: []},
+      (await metadata.get(APPROVALS_NAMESPACE, grantsKey(threadId))) ?? {
+        session: [],
+        once: [],
+        outside: [],
+        denied: [],
+      },
     )
   const writeGrants = (threadId: string, grants: Grants): Promise<void> =>
     metadata.set(APPROVALS_NAMESPACE, grantsKey(threadId), grants)
@@ -101,9 +107,12 @@ export function createApprovalStore(metadata: ChatStores['metadata']): ApprovalS
         pendingKey(threadId),
         pending.filter((entry) => entry.approvalId !== approvalId),
       )
-      if (!approved) return {startsTurn: false}
       const grants = await grantsOf(threadId)
       const inTurn = decided.runId !== null
+      if (!approved) {
+        if (inTurn) await writeGrants(threadId, {...grants, denied: [...new Set([...grants.denied, approvalId])]})
+        return {startsTurn: inTurn}
+      }
       const oneTime = inTurn ? 'once' : 'outside'
       const bucket = scope === 'session' && sessionGrantable(approvalId) ? 'session' : oneTime
       await writeGrants(threadId, {...grants, [bucket]: [...new Set([...grants[bucket], approvalId])]})
@@ -111,8 +120,12 @@ export function createApprovalStore(metadata: ChatStores['metadata']): ApprovalS
     },
     forRun: async (threadId) => {
       const grants = await grantsOf(threadId)
-      if (grants.once.length > 0) await writeGrants(threadId, {...grants, once: []})
-      return new Map([...grants.session, ...grants.once].map((id) => [id, true]))
+      if (grants.once.length > 0 || grants.denied.length > 0)
+        await writeGrants(threadId, {...grants, once: [], denied: []})
+      return new Map([
+        ...grants.denied.map((id): [string, boolean] => [id, false]),
+        ...[...grants.session, ...grants.once].map((id): [string, boolean] => [id, true]),
+      ])
     },
     admit: async (threadId, approvalId) => {
       const grants = await grantsOf(threadId)

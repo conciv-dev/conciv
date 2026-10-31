@@ -161,6 +161,10 @@ export function approvalNeeded(name: string): Error {
   )
 }
 
+function approvalDenied(name: string): Error {
+  return new Error(`The user denied running tool "${name}". Do not retry it; continue without it.`)
+}
+
 function gatedTools(tools: readonly ChatTool[], approvals: () => Approvals): ChatTool[] {
   return tools.map((tool) => {
     const execute = tool.execute
@@ -169,7 +173,9 @@ function gatedTools(tools: readonly ChatTool[], approvals: () => Approvals): Cha
     return {
       ...tool,
       execute: async (args: unknown, context?: {emitCustomEvent?: CustomEventSink}) => {
-        if (approvals().get(id) === true) return execute(args, context)
+        const granted = approvals().get(id)
+        if (granted === true) return execute(args, context)
+        if (granted === false) throw approvalDenied(tool.name)
         context?.emitCustomEvent?.(APPROVAL_REQUESTED_EVENT, {approvalId: id, title: tool.name, input: args})
         throw approvalNeeded(tool.name)
       },
