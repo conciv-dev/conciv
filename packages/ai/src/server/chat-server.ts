@@ -203,7 +203,7 @@ async function sweepAbandonedRuns(runs: ChatStores['runs'], hooks: TurnHooks): P
 type LiveRun = {
   threadId: string
   controller: AbortController
-  ending: PromiseWithResolvers<ChatEvent>
+  ending: AbortController
   settled: PromiseWithResolvers<void>
 }
 
@@ -317,7 +317,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   const endRuns = async (threadId: string, except?: string): Promise<void> => {
     for (const [runId, entry] of liveRunsOf(threadId, except)) {
       await requestRunCancel(stores.runs, runId)
-      entry.ending.resolve({
+      entry.ending.abort({
         type: EventType.RUN_FINISHED,
         threadId,
         runId,
@@ -411,7 +411,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const entry: LiveRun = {
       threadId: turn.threadId,
       controller,
-      ending: Promise.withResolvers(),
+      ending: new AbortController(),
       settled: Promise.withResolvers(),
     }
     live.set(turn.runId, entry)
@@ -423,10 +423,10 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const view: RunMessages = {full: []}
     return chat({
       adapter: guardedAdapter(plan.adapter, {
-        ended: entry.ending.promise,
+        ended: entry.ending.signal,
         firstOutputMs: config.firstOutputTimeoutMs,
         onSilence: () =>
-          entry.ending.resolve({
+          entry.ending.abort({
             type: EventType.RUN_ERROR,
             message: `the agent produced no output within ${seconds}s`,
             timestamp: Date.now(),
