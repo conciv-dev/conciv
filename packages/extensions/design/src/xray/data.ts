@@ -31,9 +31,15 @@ export type XrayData = {
   images: XrayImages
   widths: WidthTab[]
   ranAt: number | null
+  sourceChangedAt: number | null
 }
 
-export type ReportResponse = {target: TargetRecord; report: DiffReport | null; targetImage: string}
+export type ReportResponse = {
+  target: TargetRecord
+  report: DiffReport | null
+  targetImage: string
+  sourceChangedAt: number | null
+}
 
 const EXTENSION_SLUG = 'design'
 
@@ -44,34 +50,30 @@ export function sourceLabel(source: SourceLoc | null): string {
 
 export function reportRows(report: DiffReport | null): Row[] {
   if (report === null) return []
-  const components = report.components.map(
-    (component, index): Row => ({
-      key: `${component.selector}#${index}`,
-      label: sourceLabel(component.source),
-      source: component.source,
-      tag: component.tag,
-      selector: component.selector,
-      live: component.live,
-      target: component.target,
-      mismatch: component.mismatch,
-      deltas: component.deltas,
-      unmatched: null,
-    }),
-  )
-  const unmatched = report.unmatched.map(
-    (region, index): Row => ({
-      key: `unmatched-${index}`,
-      label: region.source === undefined ? `${region.kind} region` : sourceLabel(region.source),
-      source: region.source ?? null,
-      tag: '',
-      selector: '',
-      live: region.live ?? null,
-      target: region.target ?? null,
-      mismatch: null,
-      deltas: [],
-      unmatched: region.kind,
-    }),
-  )
+  const components = report.components.map((component, index): Row => ({
+    key: `${component.selector}#${index}`,
+    label: sourceLabel(component.source),
+    source: component.source,
+    tag: component.tag,
+    selector: component.selector,
+    live: component.live,
+    target: component.target,
+    mismatch: component.mismatch,
+    deltas: component.deltas,
+    unmatched: null,
+  }))
+  const unmatched = report.unmatched.map((region, index): Row => ({
+    key: `unmatched-${index}`,
+    label: region.source === undefined ? `${region.kind} region` : sourceLabel(region.source),
+    source: region.source ?? null,
+    tag: '',
+    selector: '',
+    live: region.live ?? null,
+    target: region.target ?? null,
+    mismatch: null,
+    deltas: [],
+    unmatched: region.kind,
+  }))
   return [...components, ...unmatched]
 }
 
@@ -120,8 +122,13 @@ export function assemble(input: {
       }))
       .toSorted((a, b) => a.target.width - b.target.width),
     ranAt: runTime(current.report),
+    sourceChangedAt: current.sourceChangedAt,
   }
   return data
+}
+
+export function stale(data: XrayData): boolean {
+  return data.sourceChangedAt !== null && data.ranAt !== null && data.sourceChangedAt > data.ranAt
 }
 
 export async function loadXray(input: {id: string}): Promise<XrayData> {

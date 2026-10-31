@@ -38,12 +38,24 @@ function lazyCssMap(input: {cwd: string; bundler: BundlerBridge | undefined}): {
   }
 }
 
+function sourceChanges(bundler: BundlerBridge | undefined): {
+  sourceChangedAt: () => number | null
+  dispose: () => void
+} {
+  const last: {at: number | null} = {at: null}
+  const unsubscribe = bundler?.subscribe?.((diagnostic) => {
+    if (diagnostic.kind === 'hmr-update') last.at = diagnostic.timestamp
+  })
+  return {sourceChangedAt: () => last.at, dispose: unsubscribe ?? (() => {})}
+}
+
 export const design = defineExtension({
   name: DESIGN_EXTENSION_NAME,
   configSchema: designConfig,
   tools: SERVER_STEPS,
 }).server((server) => {
   const css = lazyCssMap({cwd: server.cwd, bundler: server.bundler})
+  const changes = sourceChanges(server.bundler)
   const designDir = join(server.stateDir, 'design')
   const store = createTargetStore({dir: designDir, cwd: server.cwd})
   const runtime: DesignRuntime = {
@@ -61,11 +73,12 @@ export const design = defineExtension({
   }
   return {
     context: {design: runtime},
-    router: makeXrayRouter({store, designDir}),
+    router: makeXrayRouter({store, designDir, sourceChangedAt: changes.sourceChangedAt}),
     app: makeXrayApp({store, pageDir: fileURLToPath(new URL('xray/', import.meta.url)), designDir, cwd: server.cwd}),
     dispose: async () => {
       await destroyPaddle()
       css.dispose()
+      changes.dispose()
     },
   }
 })

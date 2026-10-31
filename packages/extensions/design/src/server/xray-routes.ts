@@ -14,8 +14,8 @@ const NonEmptySchema = z.string().min(1)
 
 const xrayOs = os.$context<RpcContext>()
 
-export function makeXrayRouter(input: {store: TargetStore; designDir: string}) {
-  const {store, designDir} = input
+export function makeXrayRouter(input: {store: TargetStore; designDir: string; sourceChangedAt: () => number | null}) {
+  const {store, designDir, sourceChangedAt} = input
   return xrayOs.router({
     xray: {
       targets: xrayOs
@@ -28,6 +28,7 @@ export function makeXrayRouter(input: {store: TargetStore; designDir: string}) {
           target,
           report: await store.lastResult(target.id),
           targetImage: store.reportPath(join(designDir, target.id, TARGET_FILE)),
+          sourceChangedAt: sourceChangedAt(),
         }
       }),
     },

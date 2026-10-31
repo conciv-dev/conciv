@@ -6,6 +6,7 @@ import {assemble, type Delta, type ReportResponse, type XrayData} from './data.j
 const ROUTE = '/?variant=target'
 const HOME = '.conciv/design'
 const RUN_AGE_MS = 22_000
+const SOURCE_CHANGE_AGE_MS = 4_000
 const RUN_SUFFIX = 'a1b2'
 
 function record(input: {id: string; width: number; name: string}): TargetRecord {
@@ -200,12 +201,17 @@ function images(response: ReportResponse): (path: string) => string {
   }
 }
 
-const DESKTOP_RESPONSE: ReportResponse = {target: TARGETS.desktop, report: DESKTOP, targetImage: ''}
+const DESKTOP_RESPONSE: ReportResponse = {
+  target: TARGETS.desktop,
+  report: DESKTOP,
+  targetImage: '',
+  sourceChangedAt: Date.now() - SOURCE_CHANGE_AGE_MS,
+}
 
 const RESPONSES: ReportResponse[] = [
-  {target: TARGETS.narrow, report: NARROW, targetImage: ''},
+  {target: TARGETS.narrow, report: NARROW, targetImage: '', sourceChangedAt: null},
   DESKTOP_RESPONSE,
-  {target: TARGETS.wide, report: null, targetImage: ''},
+  {target: TARGETS.wide, report: null, targetImage: '', sourceChangedAt: null},
 ]
 
 export function loadFixture(input: {id: string}): XrayData {
