@@ -898,6 +898,31 @@ describe('widget inject', () => {
       const occurrences = html.split(`src="${EXTENSIONS_ROUTE}"`).length - 1
       expect(occurrences).toBe(1)
     })
+
+    it('adds the missing settings meta when the html already references the client entry', async () => {
+      const preinjected = `<html><head>${ENTRY}</head><body>x</body></html>`
+      const {server, base} = await startServer(makeWidgetInject(API_BASE, {surface: 'dock'}), (res) => {
+        res.setHeader('content-type', 'text/html')
+        res.end(preinjected)
+      })
+      state.server = server
+      const html = await (await fetch(base)).text()
+      expect(html.split(`src="${EXTENSIONS_ROUTE}"`).length - 1).toBe(1)
+      expect(html).toContain('<meta name="conciv-widget" content="{&quot;surface&quot;:&quot;dock&quot;}">')
+    })
+
+    it('keeps a settings meta the html already carries', async () => {
+      const existing = '<meta name="conciv-widget" content="{}">'
+      const preinjected = `<html><head>${existing}${ENTRY}</head><body>x</body></html>`
+      const {server, base} = await startServer(makeWidgetInject(API_BASE, {surface: 'dock'}), (res) => {
+        res.setHeader('content-type', 'text/html')
+        res.end(preinjected)
+      })
+      state.server = server
+      const html = await (await fetch(base)).text()
+      expect(html.split('name="conciv-widget"').length - 1).toBe(1)
+      expect(html).toContain(existing)
+    })
   })
 })
 

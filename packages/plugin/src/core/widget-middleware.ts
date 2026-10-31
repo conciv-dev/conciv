@@ -24,14 +24,29 @@ export function htmlTags(corePort: number, opts: {widget?: ConcivSettingsInit | 
   ]
 }
 
-export function widgetTags(apiBase: string, widgetConfig?: ConcivSettingsInit | false): string {
-  const base = `<meta name="conciv-api-base" content="${escapeAttr(apiBase)}">`
-  if (widgetConfig === false) return base
-  return (
-    base +
-    `<meta name="conciv-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">` +
-    `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`
-  )
+type WidgetTag = {marker: string; html: string}
+
+function widgetTags(apiBase: string, widgetConfig?: ConcivSettingsInit | false): WidgetTag[] {
+  const base = {
+    marker: 'name="conciv-api-base"',
+    html: `<meta name="conciv-api-base" content="${escapeAttr(apiBase)}">`,
+  }
+  if (widgetConfig === false) return [base]
+  return [
+    base,
+    {
+      marker: 'name="conciv-widget"',
+      html: `<meta name="conciv-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">`,
+    },
+    {marker: EXTENSIONS_ROUTE, html: `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`},
+  ]
+}
+
+function missingTags(html: string, tags: readonly WidgetTag[]): string {
+  return tags
+    .filter((tag) => !html.includes(tag.marker))
+    .map((tag) => tag.html)
+    .join('')
 }
 
 function injectInto(html: string, tags: string): string {
@@ -135,9 +150,9 @@ export function makeWidgetInject(apiBase: string, widgetConfig?: ConcivSettingsI
       const cb = trailingCallback(args)
       const body = Buffer.concat(chunks).toString('utf8')
 
-      const shouldInject =
-        String(res.getHeader('content-type') ?? '').includes('text/html') && !body.includes(EXTENSIONS_ROUTE)
-      const out = shouldInject ? injectInto(body, tags) : body
+      const isHtml = String(res.getHeader('content-type') ?? '').includes('text/html')
+      const missing = isHtml ? missingTags(body, tags) : ''
+      const out = missing === '' ? body : injectInto(body, missing)
 
       res.write = realWrite
       res.end = realEnd
