@@ -43,7 +43,7 @@ jobs:
   # from the ci-test-timings artifact (published by the last main push; unknown
   # packages get a small default), and LPT-bin-packs into as many shards as the
   # total time warrants. New packages are picked up automatically; the split
-  # re-balances itself as timings drift. Node 22 strips types natively, so the
+  # re-balances itself as timings drift. Node 24 strips types natively, so the
   # planner runs from source with no install. First run ever (no timings
   # artifact yet) packs everything into two default-weight shards — one slow
   # bootstrap run on main, then it self-heals.
@@ -60,7 +60,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24
       # Baseline artifacts are NOT ref-scoped like caches: any PR run can upload an
       # artifact under any name, and a repo-wide latest-by-name lookup would let a
       # fork PR poison the baseline. Resolve from the latest successful main-push
@@ -100,7 +100,7 @@ jobs:
           version: 11.7.0 # keep in sync with packageManager in package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       # CI-gate caches. Safe ONLY while no workflow runs untrusted code on a trusted
       # ref (no pull_request_target): GitHub scopes cache writes per-ref, so fork PRs
@@ -222,7 +222,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: test-results-*
@@ -260,7 +260,7 @@ jobs:
           version: 11.7.0 # keep in sync with packageManager in package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -358,7 +358,7 @@ jobs:
           version: 11.7.0 # keep in sync with packageManager in package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: playwright-cache
@@ -440,7 +440,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24
       # Same artifact-poisoning posture as the package planner: artifacts are NOT
       # ref-scoped, so resolve the baseline from the latest successful main-push run
       # of this workflow instead of a repo-wide latest-by-name lookup, and bound the
@@ -479,7 +479,7 @@ jobs:
           version: 11.7.0 # keep in sync with packageManager in package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       # Same cache-poisoning posture as the build job: exact lockfile-hash key for
       # browsers, turbo cache scoped within a lockfile generation. matrix.shard is in
@@ -601,7 +601,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: e2e-results-*
