@@ -4,6 +4,7 @@ export {
   useThread,
   useComposer,
   type ViewState,
+  type Chat,
   type ChatContextValue,
 } from './store/chat-context.js'
 export {
@@ -57,15 +58,6 @@ export {createRunClock, formatElapsed, runClock, type RunClockSource, type RunCl
 export {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from './primitives/activity/activity.js'
 export {Activity, type ActivityProps} from './styled/activity.js'
 export {chatBusy} from '@conciv/protocol/chat-busy'
-export {
-  createApprovalChunk,
-  createReasoningChunks,
-  createTextChunks,
-  createToolCallChunks,
-  storyConnection,
-  type StoryConnectionOptions,
-  type ToolChunkOptions,
-} from './store/story-connection.js'
 
 export {Primitive, type Slottable} from './primitives/util/primitive.js'
 export {

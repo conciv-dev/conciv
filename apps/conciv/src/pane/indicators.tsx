@@ -2,6 +2,7 @@ import {type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import SquarePen from 'lucide-solid/icons/square-pen'
 import FoldVertical from 'lucide-solid/icons/fold-vertical'
+import Square from 'lucide-solid/icons/square'
 import {Progress} from '@conciv/ui-kit-system'
 
 const DIVIDER =
@@ -10,9 +11,15 @@ const DIVIDER_LABEL =
   'inline-flex items-center gap-1.25 text-[0.6875rem] font-medium tracking-[0.06em] [text-transform:uppercase]'
 const DOT = 'w-1.5 h-1.5 rounded-chat-pill bg-chat-text-2'
 
-export function Divider(props: {kind: 'new' | 'compact'; pending?: boolean}): JSX.Element {
-  const icon = () => (props.kind === 'new' ? SquarePen : FoldVertical)
-  const label = () => (props.kind === 'new' ? 'New session' : props.pending ? 'Compacting…' : 'Context compacted')
+type DividerKind = 'new' | 'compact' | 'stopped'
+
+const DIVIDER_ICON = {new: SquarePen, compact: FoldVertical, stopped: Square} satisfies Record<DividerKind, unknown>
+
+const DIVIDER_TEXT: Record<DividerKind, string> = {new: 'New session', compact: 'Context compacted', stopped: 'Stopped'}
+
+export function Divider(props: {kind: DividerKind; pending?: boolean}): JSX.Element {
+  const icon = () => DIVIDER_ICON[props.kind]
+  const label = () => (props.pending ? 'Compacting…' : DIVIDER_TEXT[props.kind])
   return (
     <div
       class={DIVIDER}

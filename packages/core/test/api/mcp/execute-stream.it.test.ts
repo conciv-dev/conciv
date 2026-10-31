@@ -1,10 +1,10 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {EventType, type StreamChunk} from '@tanstack/ai'
-import {createMCPClient} from '@tanstack/ai-mcp'
+import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from '../../helpers/boot.js'
+import {connectMcpClient} from '@conciv/harness-testkit'
 
 const draw = defineTool({
   name: 'canvas_svg',
@@ -17,9 +17,7 @@ const draw = defineTool({
 const acme = defineExtension({name: 'acme', tools: [draw]})
 
 async function executeRaw(base: string, session: string, typescriptCode: string): Promise<unknown> {
-  const mcp = await createMCPClient({
-    transport: {type: 'http', url: `${base}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
-  })
+  const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: session})
   try {
     const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
     if (!tool?.execute) throw new Error('execute_typescript not on /api/mcp')
@@ -29,11 +27,10 @@ async function executeRaw(base: string, session: string, typescriptCode: string)
   }
 }
 
-function toolCallStarts(chunks: StreamChunk[]): {toolCallId: string; name: string; parent?: string}[] {
+function toolCallStarts(chunks: ChatEvent[]): {toolCallId: string; name: string; parent?: string}[] {
   return chunks.flatMap((chunk) => {
-    if (chunk.type !== EventType.TOOL_CALL_START) return []
-    const name = chunk.toolCallName ?? chunk.toolName
-    if (typeof name !== 'string') return []
+    if (chunk.type !== ChatEventType.TOOL_CALL_START) return []
+    const name = chunk.toolCallName
     const meta = z
       .object({parentToolCallId: z.string().optional()})
       .loose()
@@ -63,7 +60,7 @@ describe('/api/mcp sandbox calls render as nested action cards on the session st
       const parent = toolCallStarts([parentStart])[0]
       expect(parent?.toolCallId).toBe(child.parent)
       const childResult = await stream.waitFor(
-        (chunk) => chunk.type === EventType.TOOL_CALL_RESULT && chunk.toolCallId === child.toolCallId,
+        (chunk) => chunk.type === ChatEventType.TOOL_CALL_RESULT && chunk.toolCallId === child.toolCallId,
         {hangGuardMs: 10_000},
       )
       expect(JSON.stringify(childResult)).toContain('circle')

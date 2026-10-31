@@ -36,6 +36,13 @@
     "unicorn/require-module-specifiers": "off",
     "react/react-in-jsx-scope": "off",
     "react/no-unstable-nested-components": "off",
+    "react/immutability": "off",
+    "react/refs": "off",
+    "react/purity": "off",
+    "react/globals": "off",
+    "react/static-components": "off",
+    "react/hooks": "off",
+    "react/capitalized-calls": "off",
     "no-underscore-dangle": [
       "warn",
       {
@@ -111,6 +118,10 @@
         ],
         "patterns": [
           {
+            "group": ["@tanstack/ai", "@tanstack/ai-*", "@tanstack/ai/**", "@tanstack/ai-*/**"],
+            "message": "Only packages/ai and packages/protocol may import @tanstack/ai*; use @conciv/protocol and the @conciv/ai entries."
+          },
+          {
             "group": ["@ark-ui", "@ark-ui/**"],
             "allowImportNames": ["useListCollection", "useFilter"],
             "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly \u2014 only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
@@ -138,6 +149,30 @@
       }
     },
     {
+      "files": ["packages/ai/**", "packages/protocol/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@hono/node-server",
+                "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
+                "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["@ark-ui", "@ark-ui/**"],
+                "allowImportNames": ["useListCollection", "useFilter"],
+                "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly \u2014 only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/serve/**"],
       "rules": {
         "no-restricted-imports": "off"
@@ -149,6 +184,7 @@
         "packages/react/**",
         "packages/preact/**",
         "packages/brand/src/react/**",
+        "apps/examples/tanstack-start/src/**",
         "packages/page/test/**",
         "packages/extensions/page/test/fixtures/**",
         "packages/extensions/page/test/page.browser.test.tsx"
@@ -169,6 +205,13 @@
         "solid/style-prop": "off",
         "solid/no-react-deps": "off",
         "solid/no-react-specific-props": "off",
+        "react/immutability": "error",
+        "react/refs": "error",
+        "react/purity": "error",
+        "react/globals": "error",
+        "react/static-components": "error",
+        "react/hooks": "warn",
+        "react/capitalized-calls": "warn",
         "solid/self-closing-comp": "off"
       }
     },
@@ -235,7 +278,7 @@
       }
     },
     {
-      "files": ["packages/core/src/**"],
+      "files": ["packages/core/src/**", "packages/chat/src/**"],
       "rules": {
         "conciv/core-purity": "error"
       }

@@ -106,13 +106,16 @@ function MenuPanel(props: {
   const dispatch = () => props.state.dispatch
   const activeCategory = () =>
     dispatch().categories.find((category) => category.id === props.state.categoryId) ?? undefined
-  const showsCategories = () =>
-    props.state.categoryId === null && dispatch().categories.length > 0 && dispatch().query === ''
-  const visibleItems = () => {
-    const categoryId = props.state.categoryId
-    if (categoryId === null) return dispatch().items
-    return dispatch().items.filter((item) => item.categoryId === categoryId)
-  }
+  const categoryId = createMemo(() => props.state.categoryId)
+  const items = createMemo(() => dispatch().items)
+  const showsCategories = createMemo(
+    () => categoryId() === null && dispatch().categories.length > 0 && dispatch().query === '',
+  )
+  const visibleItems = createMemo(() => {
+    const active = categoryId()
+    if (active === null) return items()
+    return items().filter((item) => item.categoryId === active)
+  })
   const groups = createMemo<MenuGroup[]>(() => {
     if (showsCategories()) return [{id: 'categories', rows: dispatch().categories.map(categoryRow)}]
     return itemGroups(visibleItems())

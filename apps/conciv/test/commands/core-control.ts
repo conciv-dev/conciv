@@ -1,7 +1,8 @@
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
-import type {EngineStaleness} from '@conciv/contract'
-import type {HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import {makeRpcClient, type EngineStaleness} from '@conciv/contract'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import type {HarnessCommand, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
@@ -16,6 +17,7 @@ export type BootCoreInput = {
   connect?: boolean
   terminal?: boolean
   history?: HarnessSessionMeta[]
+  commands?: HarnessCommand[]
   allowedOrigins?: string[]
 }
 
@@ -131,6 +133,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     resume: input.resume,
     displayName: input.displayName,
     history: input.history,
+    commands: input.commands,
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
     ...(input.terminal ? {extensions: [createTerminalExtension({openTerminal: openedTerminal})]} : {}),
@@ -176,6 +179,14 @@ const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => pushOf(ctx).opene
 
 const pushApprovalIds: BrowserCommand<[]> = (ctx): readonly string[] => pushOf(ctx).approvalIdsPushed()
 
+const outsideReload: BrowserCommand<[string, string]> = (ctx, sessionId, file): Promise<string> => {
+  const rpc = makeRpcClient(kitOf(ctx).base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+  return rpc.server.reload({file}).then(
+    () => 'resolved',
+    (error: unknown) => (typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : 'error'),
+  )
+}
+
 const setStaleness: BrowserCommand<[EngineStaleness]> = (ctx, value): void => {
   stateOf(ctx).staleness.value = value
 }
@@ -186,6 +197,14 @@ const holdTurn: BrowserCommand<[]> = (ctx): void => {
 
 const releaseTurn: BrowserCommand<[]> = (ctx): void => {
   kitOf(ctx).harness.script.release()
+}
+
+const holdStart: BrowserCommand<[]> = (ctx): void => {
+  kitOf(ctx).harness.script.holdStart()
+}
+
+const releaseStart: BrowserCommand<[]> = (ctx): void => {
+  kitOf(ctx).harness.script.releaseStart()
 }
 
 const holdTools: BrowserCommand<[]> = (ctx): void => {
@@ -320,8 +339,11 @@ export const coreCommands = {
   restartCore,
   pushSocketsOpened,
   pushApprovalIds,
+  outsideReload,
   setStaleness,
   holdTurn,
+  holdStart,
+  releaseStart,
   holdTools,
   releaseTools,
   holdResults,

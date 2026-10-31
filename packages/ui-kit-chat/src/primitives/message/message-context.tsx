@@ -1,5 +1,5 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import type {MessagePart} from '@tanstack/ai-client'
+import type {ChatPart} from '@conciv/protocol/chat-message-types'
 import type {ResultPairing, Turn} from '../../store/grouping.js'
 
 export type MessageContextValue = {
@@ -19,7 +19,7 @@ export function useMessage(): MessageContextValue {
   return context
 }
 
-export type PartContextValue = {part: Accessor<MessagePart>; index: Accessor<number>}
+export type PartContextValue = {part: Accessor<ChatPart>; index: Accessor<number>}
 
 const PartContext = createContext<PartContextValue>()
 

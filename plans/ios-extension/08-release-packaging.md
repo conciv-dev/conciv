@@ -121,7 +121,7 @@ arbitrary zod schemas) and are **copied** into the Swift test tree; the copy may
 `swift test`, `07`):
 
 - The canonical table lives at `packages/extensions/ios/fixtures/bridge/`; `pnpm --filter
-@conciv/extension-ios gen:fixtures` writes the `*.json` from the hand-authored table and copies them to
+  @conciv/extension-ios gen:fixtures` writes the `*.json` from the hand-authored table and copies them to
   `native/swift/ConcivWidget/Tests/ConcivWidgetTests/Fixtures/bridge/` (an **in-repo** path copy).
 - A CI step runs the command then `git diff --exit-code`, so an out-of-sync fixture fails the build —
   **in-repo, no cross-repo fetch** (D2 hybrid). The mirror publish (above) carries the already-synced copy.

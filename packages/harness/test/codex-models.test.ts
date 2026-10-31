@@ -1,7 +1,7 @@
 import {mkdirSync, mkdtempSync, writeFileSync} from 'node:fs'
 import {homedir, tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {CODEX_MODELS} from '@tanstack/ai-codex'
+import {codexModels as CODEX_MODELS} from '@conciv/ai/server'
 import {describe, expect, it} from 'vitest'
 import {codexDefaultModel, codexHome, codexModels} from '../src/codex/models.js'
 

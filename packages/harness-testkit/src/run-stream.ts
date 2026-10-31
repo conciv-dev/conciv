@@ -1,35 +1,35 @@
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {collectToolCalls, makeRunEvents, type RunEvents, type SeenToolCall} from './run-events.js'
 
 export type RunStream = {
-  tap: (listener: (chunk: StreamChunk) => void) => () => void
-  waitFor: (match: (e: StreamChunk) => boolean, opts?: {hangGuardMs?: number}) => Promise<StreamChunk>
-  waitForRunStart: (opts?: {runId?: string}) => Promise<StreamChunk>
+  tap: (listener: (chunk: ChatEvent) => void) => () => void
+  waitFor: (match: (e: ChatEvent) => boolean, opts?: {hangGuardMs?: number}) => Promise<ChatEvent>
+  waitForRunStart: (opts?: {runId?: string}) => Promise<ChatEvent>
   waitForToolCall: (name: string, opts?: {hangGuardMs?: number}) => Promise<SeenToolCall>
   waitForText: (substr: string) => Promise<void>
   done: (opts?: {hangGuardMs?: number}) => Promise<RunEvents>
 }
 
-function isRunStart(chunk: StreamChunk, runId: string | undefined): boolean {
-  if (chunk.type !== EventType.RUN_STARTED) return false
+function isRunStart(chunk: ChatEvent, runId: string | undefined): boolean {
+  if (chunk.type !== ChatEventType.RUN_STARTED) return false
   if (runId === undefined) return true
   return 'runId' in chunk && chunk.runId === runId
 }
 
-function isTerminal(chunk: StreamChunk): boolean {
-  if (chunk.type === EventType.RUN_ERROR) return true
-  return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
+function isTerminal(chunk: ChatEvent): boolean {
+  if (chunk.type === ChatEventType.RUN_ERROR) return true
+  return chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
 }
 
-function summarize(seen: StreamChunk[]): string {
+function summarize(seen: ChatEvent[]): string {
   const counts = new Map<string, number>()
   for (const chunk of seen) counts.set(chunk.type, (counts.get(chunk.type) ?? 0) + 1)
   if (counts.size === 0) return 'no events'
   return [...counts.entries()].map(([type, count]) => `${type}x${count}`).join(', ')
 }
 
-export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
-  const seen: StreamChunk[] = []
+export function makeRunStream(source: AsyncIterable<ChatEvent>): RunStream {
+  const seen: ChatEvent[] = []
   const collector = {ended: false, failure: ''}
   const listeners = new Set<() => void>()
 
@@ -56,9 +56,9 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
     return collector.failure === '' ? base : `${base} (source error: ${collector.failure})`
   }
 
-  function waitFor(match: (e: StreamChunk) => boolean, hangGuardMs: number | null): Promise<StreamChunk> {
+  function waitFor(match: (e: ChatEvent) => boolean, hangGuardMs: number | null): Promise<ChatEvent> {
     const liveStart = seen.length
-    return new Promise<StreamChunk>((resolve, reject) => {
+    return new Promise<ChatEvent>((resolve, reject) => {
       const settle = (finish: () => void): void => {
         listeners.delete(listener)
         if (guard !== null) clearTimeout(guard)

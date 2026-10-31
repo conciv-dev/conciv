@@ -23,6 +23,7 @@ function input(overrides: Partial<SessionStatusInput> = {}): SessionStatusInput 
     queueLength: 0,
     stopping: false,
     runError: null,
+    stopped: false,
     ...overrides,
   }
 }
@@ -91,5 +92,10 @@ describe('deriveSessionStatus', () => {
   it('leaves stopping once the run has settled and nothing is live', () => {
     const status = deriveSessionStatus(input({stopping: false, runError: null}))
     expect(status).toEqual({kind: 'done', label: 'DONE'})
+  })
+
+  it('reads stopped after a stopped run, and running once a new turn is live', () => {
+    expect(deriveSessionStatus(input({stopped: true}))).toEqual({kind: 'stopped', label: 'STOPPED'})
+    expect(deriveSessionStatus(input({stopped: true, isStreaming: true}))).toEqual({kind: 'running', label: 'RUNNING'})
   })
 })

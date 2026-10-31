@@ -1,9 +1,6 @@
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {EngineStaleness} from '@conciv/contract'
-import {createAskRegistry} from '../../src/chat/ask.js'
-import {createCommandMemory} from '../../src/chat/command-memory.js'
-import {createSessionStreams} from '../../src/chat/session-events.js'
-import {makeCompactor} from '../../src/chat/run.js'
+import {createSessionBus} from '../../src/sessions/session-bus.js'
 import {makeCoreRuntime} from '../../src/runtime/core-runtime.js'
 import type {CoreRuntime, ScopedToolCall} from '../../src/runtime/scope-types.js'
 import type {SessionPrimitives} from '../../src/runtime/primitives.js'
@@ -15,16 +12,14 @@ const FRESH: EngineStaleness = {stale: false, changed: [], tracked: [], bootedAt
 export async function pageRuntime(page: PageEnv, registry: ToolRegistry): Promise<CoreRuntime> {
   const fixture = await makeChatFixture()
   const primitives: SessionPrimitives = {
-    asks: createAskRegistry(),
-    commandMemory: createCommandMemory(),
-    stream: createSessionStreams(),
+    stream: createSessionBus(),
     page,
     registry,
   }
   return makeCoreRuntime({
     primitives,
-    chat: fixture.chat,
-    compactor: makeCompactor(fixture.chat),
+    plane: fixture.plane,
+    db: fixture.db,
     model: () => null,
     staleness: () => FRESH,
   })

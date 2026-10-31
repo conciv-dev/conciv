@@ -1,6 +1,7 @@
 import {
   createContext,
   createEffect,
+  createResource,
   createSignal,
   onCleanup,
   Show,
@@ -10,14 +11,20 @@ import {
   type JSX,
 } from 'solid-js'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
-import {createCache, createMirror, rebuildIntoSandboxedIframe} from 'rrweb-snapshot'
+import type {createCache, createMirror, rebuildIntoSandboxedIframe} from 'rrweb-snapshot'
 import {isDangerousTag, neutralizeSubtree} from '@conciv/protocol/element-capture-sanitize'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {Chip, ChipRow} from './chip.js'
 
 type SerializedNode = Parameters<typeof rebuildIntoSandboxedIframe>[0]
 
-type PreviewStatus = 'loading' | 'ready' | 'failed'
+type SnapshotLibrary = {
+  createCache: typeof createCache
+  createMirror: typeof createMirror
+  rebuildIntoSandboxedIframe: typeof rebuildIntoSandboxedIframe
+}
+
+type PreviewStatus = 'loading' | 'ready' | 'failed' | 'blocked'
 
 const TARGET_MARKER = 'data-rr-target'
 const FRAME_PADDING = 12
@@ -43,6 +50,15 @@ const FRAME_FAILED = `${FRAME_BASE} hidden`
 const REPLICA_HOST = 'block w-full h-full'
 const REPLICA_HOST_READY = `${REPLICA_HOST} visible`
 const REPLICA_HOST_PENDING = `${REPLICA_HOST} invisible`
+
+const BLOCKED_NOTICE = 'text-[0.8125rem] text-chat-text-2 m-0'
+
+let snapshotLibrary: Promise<SnapshotLibrary> | undefined
+
+function loadSnapshotLibrary(): Promise<SnapshotLibrary> {
+  snapshotLibrary ??= import('rrweb-snapshot')
+  return snapshotLibrary
+}
 
 type ElementPreviewContextValue = {
   capture: Accessor<ElementCapture | undefined>
@@ -153,14 +169,19 @@ function mountReplica(replicaDocument: Document, built: Node | null): Replica | 
   return target === null ? null : {built, target, replicaDocument}
 }
 
-function rebuildIntoSandbox(host: HTMLDivElement, node: SerializedNode, cssText: string | undefined): Replica | null {
+function rebuildIntoSandbox(
+  host: HTMLDivElement,
+  node: SerializedNode,
+  cssText: string | undefined,
+  snapshot: SnapshotLibrary,
+): Replica | null {
   if (!isElementNode(node) || isDangerousTag(node)) return null
   neutralizeSubtree(node)
   host.replaceChildren()
-  const {iframe, node: built} = rebuildIntoSandboxedIframe(node, {
+  const {iframe, node: built} = snapshot.rebuildIntoSandboxedIframe(node, {
     root: host,
-    mirror: createMirror(),
-    cache: createCache(),
+    mirror: snapshot.createMirror(),
+    cache: snapshot.createCache(),
     iframeAttributes: REPLICA_FRAME_ATTRIBUTES,
   })
   const replicaDocument = prepareReplicaDocument(iframe, cssText)
@@ -172,6 +193,7 @@ function rebuildIntoSandbox(host: HTMLDivElement, node: SerializedNode, cssText:
 function Frame(props: {class?: string}): JSX.Element {
   const ctx = useElementPreviewContext('ElementPreview.Frame')
   const [frameElement, setFrameElement] = createSignal<HTMLDivElement>()
+  const [snapshot] = createResource(() => isSerializedNode(ctx.capture()?.node), loadSnapshotLibrary)
   let replicaHost: HTMLDivElement | undefined
   let replica: Replica | undefined
   const label = (): string => {
@@ -194,12 +216,17 @@ function Frame(props: {class?: string}): JSX.Element {
       ctx.setStatus('failed')
       return
     }
+    if (snapshot.state === 'errored') {
+      ctx.setStatus('blocked')
+      return
+    }
+    if (snapshot.state !== 'ready') return
     const clonedNode = plainCopy(node)
     if (!isSerializedNode(clonedNode)) {
       ctx.setStatus('failed')
       return
     }
-    const built = rebuildIntoSandbox(replicaHost, clonedNode, cssText)
+    const built = rebuildIntoSandbox(replicaHost, clonedNode, cssText, snapshot())
     if (built === null) {
       ctx.setStatus('failed')
       return
@@ -226,27 +253,36 @@ function Frame(props: {class?: string}): JSX.Element {
     const base = status === 'ready' ? FRAME_READY : status === 'loading' ? FRAME_LOADING : FRAME_FAILED
     return `${base} ${props.class ?? ''}`
   }
+  const hidden = (): boolean => ctx.status() === 'failed' || ctx.status() === 'blocked'
   return (
-    <div
-      ref={setFrameElement}
-      role={ctx.status() === 'failed' ? undefined : 'img'}
-      aria-label={ctx.status() === 'failed' ? undefined : label()}
-      aria-busy={ctx.status() === 'loading' ? 'true' : undefined}
-      class={frameClass()}
-    >
+    <>
+      <Show when={ctx.status() === 'blocked'}>
+        <p role="status" class={BLOCKED_NOTICE}>
+          Preview unavailable: a content blocker likely blocked rrweb-snapshot.
+        </p>
+      </Show>
       <div
-        ref={(node) => {
-          replicaHost = node
-        }}
-        class={ctx.status() === 'ready' ? REPLICA_HOST_READY : REPLICA_HOST_PENDING}
-      />
-    </div>
+        ref={setFrameElement}
+        role={hidden() ? undefined : 'img'}
+        aria-label={hidden() ? undefined : label()}
+        aria-busy={ctx.status() === 'loading' ? 'true' : undefined}
+        class={frameClass()}
+      >
+        <div
+          ref={(node) => {
+            replicaHost = node
+          }}
+          class={ctx.status() === 'ready' ? REPLICA_HOST_READY : REPLICA_HOST_PENDING}
+        />
+      </div>
+    </>
   )
 }
 
 function Descriptor(props: {class?: string}): JSX.Element {
   const ctx = useElementPreviewContext('ElementPreview.Descriptor')
-  const descriptor = () => (ctx.status() === 'failed' ? ctx.capture()?.descriptor : undefined)
+  const descriptor = () =>
+    ctx.status() === 'failed' || ctx.status() === 'blocked' ? ctx.capture()?.descriptor : undefined
   return (
     <Show when={descriptor()}>
       {(value) => (

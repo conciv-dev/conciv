@@ -6,7 +6,7 @@ export const ExecuteInputSchema = z.object({
   typescriptCode: z
     .string()
     .describe(
-      'TypeScript to run in the sandbox. Call capabilities as async sandbox functions, discover them with `await external_catalog({})`, and return a value to pass results back.',
+      'TypeScript to run in the sandbox. Call capabilities as async sandbox functions, discover them with the `discover_tools` tool, and return a value to pass results back.',
     ),
 })
 

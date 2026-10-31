@@ -2,11 +2,11 @@ import 'virtual:uno.css'
 import {onMount, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
-import type {MessagePart, UIMessage} from '@tanstack/ai-client'
+import {createChat} from '@conciv/ai/client'
+import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import {ChatProvider} from '../src/store/chat-context.js'
 import type {GroupEntry, Grouper, GroupKey, GroupRenderProps, Grouping} from '../src/store/grouping.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Message} from '../src/primitives/message/message.js'
 import {Thread} from '../src/styled/thread.js'
 import {Activity} from '../src/styled/activity.js'
@@ -36,20 +36,16 @@ function wrapperEntry(key: GroupKey, label: string): GroupEntry {
   }
 }
 
-function messagesWith(parts: MessagePart[]): UIMessage[] {
+function messagesWith(parts: ChatPart[]): ChatMessage[] {
   return [
     {id: 'u1', role: 'user', parts: [{type: 'text', content: 'go'}]},
     {id: 'a1', role: 'assistant', parts},
   ]
 }
 
-function staticThread(
-  parts: MessagePart[],
-  grouping: Grouping,
-  groupEntries: readonly GroupEntry[],
-): () => JSX.Element {
+function staticThread(parts: ChatPart[], grouping: Grouping, groupEntries: readonly GroupEntry[]): () => JSX.Element {
   return function StaticThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection()})
+    const chat = createChat({threadId: 'nested-group-rendering', connection: storyConnection()})
     onMount(() => chat.setMessages(messagesWith(parts)))
     return (
       <ChatProvider chat={chat}>
@@ -94,11 +90,7 @@ it('flattens an unregistered top-level group key without a wrapper', async () =>
   await expect.element(page.getByText('top body'), {timeout: 3000}).toBeVisible()
 })
 
-function staticActivity(
-  parts: MessagePart[],
-  grouping: Grouping,
-  groupEntries: readonly GroupEntry[],
-): () => JSX.Element {
+function staticActivity(parts: ChatPart[], grouping: Grouping, groupEntries: readonly GroupEntry[]): () => JSX.Element {
   return function StaticActivity(): JSX.Element {
     return (
       <Activity messages={messagesWith(parts)} grouping={grouping} groupEntries={groupEntries}>
@@ -132,7 +124,7 @@ it('flattens an unregistered child group key in the activity timeline', async ()
   await expect.element(page.getByText('nested body'), {timeout: 3000}).toBeVisible()
 })
 
-function groupedPartsThread(parts: MessagePart[], grouping: Grouping): () => JSX.Element {
+function groupedPartsThread(parts: ChatPart[], grouping: Grouping): () => JSX.Element {
   const GroupWrapper = (props: {indices: readonly number[]; groupKey: GroupKey; children?: JSX.Element}) => (
     <div>
       <span>{`wrap ${props.groupKey}`}</span>
@@ -143,7 +135,7 @@ function groupedPartsThread(parts: MessagePart[], grouping: Grouping): () => JSX
     <Message.Unstable_PartsGrouped grouping={grouping} components={{Group: GroupWrapper}} />
   )
   return function GroupedPartsThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection()})
+    const chat = createChat({threadId: 'nested-group-rendering', connection: storyConnection()})
     onMount(() => chat.setMessages(messagesWith(parts)))
     return (
       <ChatProvider chat={chat}>
@@ -174,7 +166,7 @@ it('suppresses every wrapper of a nested group whose descendants render nothing'
   mountView(
     groupedPartsThread(
       [
-        {type: 'structured-output', status: 'complete', raw: '{}'},
+        {type: 'structured-output', status: 'complete', raw: '{}', data: {}},
         {type: 'text', content: 'visible reply'},
       ],
       grouping,

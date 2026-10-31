@@ -41,7 +41,7 @@
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@fontsource-variable/wix-madefor-text": "^5.2.8",
+    "@fontsource-variable/wix-madefor-text": "^5.3.0",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

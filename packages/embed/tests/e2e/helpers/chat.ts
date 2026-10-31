@@ -3,6 +3,10 @@ import type {WidgetSuite} from './suite.js'
 
 const PANEL_TIMEOUT_MS = 30_000
 
+export function chatLog(page: Page) {
+  return page.getByRole('log')
+}
+
 export function chatBox(page: Page) {
   return page.getByRole('textbox', {name: 'Message the conciv agent'})
 }

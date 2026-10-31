@@ -4,12 +4,12 @@ import '@conciv/ui-kit-chat/theme/tokens.css'
 import type {JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
-import type {MessagePart, UIMessage} from '@tanstack/ai-client'
+import {createChat} from '@conciv/ai/client'
+import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {ToolProvider} from '../src/store/tool-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {coalesceTurns} from '../src/store/grouping.js'
 import {createGrouping} from '../src/store/page-session.js'
@@ -31,7 +31,7 @@ function resultLines(index: number, count: number): string {
   ).join('\n')
 }
 
-function callPart(index: number, name: string, input: Record<string, unknown>, output: string): MessagePart {
+function callPart(index: number, name: string, input: Record<string, unknown>, output: string): ChatPart {
   return {
     type: 'tool-call',
     id: `call-${index}-${name}`,
@@ -43,7 +43,7 @@ function callPart(index: number, name: string, input: Record<string, unknown>, o
   }
 }
 
-function chainTurn(index: number): MessagePart[] {
+function chainTurn(index: number): ChatPart[] {
   const calls = 1 + (index % 5)
   return [
     {type: 'thinking', content: `Working out the ${index}th step.\nChecking the call sites before editing.`},
@@ -57,7 +57,7 @@ function chainTurn(index: number): MessagePart[] {
   ]
 }
 
-function standaloneTurn(index: number): MessagePart[] {
+function standaloneTurn(index: number): ChatPart[] {
   return [
     {type: 'text', content: `answer ${index}\n\nReading the module first.`},
     callPart(
@@ -70,19 +70,19 @@ function standaloneTurn(index: number): MessagePart[] {
   ]
 }
 
-function assistantParts(index: number): MessagePart[] {
+function assistantParts(index: number): ChatPart[] {
   return index % 3 === 0 ? standaloneTurn(index) : chainTurn(index)
 }
 
-function seedMessages(): UIMessage[] {
+function seedMessages(): ChatMessage[] {
   return Array.from({length: TURN_COUNT + 1}, (_, index) =>
     index % 2 === 0
       ? ({
           id: `m${index}`,
           role: 'user',
           parts: [{type: 'text', content: `question ${index}. ${'why does it stall? '.repeat(1 + (index % 5))}`}],
-        } satisfies UIMessage)
-      : ({id: `m${index}`, role: 'assistant', parts: assistantParts(index)} satisfies UIMessage),
+        } satisfies ChatMessage)
+      : ({id: `m${index}`, role: 'assistant', parts: assistantParts(index)} satisfies ChatMessage),
   )
 }
 
@@ -96,10 +96,14 @@ function baseToolCtx(): ToolViewCtx {
   }
 }
 
-function mountThread(messages: UIMessage[]): () => HTMLElement {
+function mountThread(messages: ChatMessage[]): () => HTMLElement {
   let viewport: HTMLElement | undefined
   function CalibrationThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection({chunks: []}), initialMessages: messages})
+    const chat = createChat({
+      threadId: 'turn-estimate-calibration',
+      connection: storyConnection({chunks: []}),
+      initialMessages: messages,
+    })
     return (
       <div class="flex flex-col h-[520px] w-[560px]">
         <ChatProvider chat={chat}>

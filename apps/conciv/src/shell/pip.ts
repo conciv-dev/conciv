@@ -1,5 +1,5 @@
 import {createEffect} from 'solid-js'
-import {delegateEvents} from 'solid-js/web'
+import {clearDelegatedEvents, delegateEvents} from 'solid-js/web'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import styles from '../styles.css?inline'
 import {registerFonts, registerWind4Properties} from '../lib/shadow.js'
@@ -24,13 +24,19 @@ const FALLBACK_THEME: HostTheme = {scheme: 'dark', skin: 'conciv'}
 
 export type PipWindow = {win: Window; wrap: HTMLElement; root: ShadowRoot; close: () => void}
 
-export function openPipWindow(
-  opts: {title?: string; width?: number; height?: number; theme?: () => HostTheme} = {},
-): PipWindow | null {
-  const win = window.open('', 'conciv-pip', `width=${opts.width ?? 480},height=${opts.height ?? 620},popup`)
+const PIP_WINDOW_NAME = 'conciv-pip'
+
+const PIP_WINDOW_FEATURES = 'width=480,height=620,popup'
+
+export function openPipTarget(): Window | null {
+  return window.open('', PIP_WINDOW_NAME, PIP_WINDOW_FEATURES)
+}
+
+export function openPipWindow(opts: {title?: string; theme?: () => HostTheme} = {}): PipWindow | null {
+  const win = openPipTarget()
   if (!win) return null
-  win.document.head.innerHTML = ''
-  win.document.body.innerHTML = ''
+  win.document.open()
+  win.document.close()
   win.document.title = opts.title ?? 'conciv'
   win.document.body.style.margin = '0'
 
@@ -56,6 +62,7 @@ export function openPipWindow(
     win.document.documentElement.style.colorScheme = theme.scheme
   })
 
+  clearDelegatedEvents(win.document)
   delegateEvents(DELEGATED, win.document)
   return {win, wrap, root, close: () => win.close()}
 }

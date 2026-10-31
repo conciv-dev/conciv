@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {createSignal} from 'solid-js'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import {ToolCard} from '../src/tools/styled/tool-card.js'
 import {mountView} from './mount-view.js'
 

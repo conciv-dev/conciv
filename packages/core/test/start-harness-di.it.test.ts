@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 import {createFakeHarness} from '@conciv/harness-testkit'
 import {start} from '../src/start.js'
 

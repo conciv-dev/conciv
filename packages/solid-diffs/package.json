@@ -38,8 +38,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@pierre/diffs": "1.5.2",
-    "@tanstack/solid-pacer": "0.22.0"
+    "@pierre/diffs": "1.6.2",
+    "@tanstack/solid-pacer": "0.24.0"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",

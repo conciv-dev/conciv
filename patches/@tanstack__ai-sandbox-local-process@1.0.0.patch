@@ -1,0 +1,155 @@
+diff --git a/dist/esm/handle.js b/dist/esm/handle.js
+index 94cf26ad921edc9d6ed6812ab4e68ffb2461ac42..1e43437659b3982ba18c61dc04ea0913b2fd44d2 100644
+--- a/dist/esm/handle.js
++++ b/dist/esm/handle.js
+@@ -196,6 +196,36 @@ function waitForExit(child, timeoutMs) {
+ 	});
+ }
+ /**
++* Whether any process in `pid`'s process group is still running. `killTree`
++* signals the whole group, but `waitForExit` only watches the `sh` wrapper: a
++* journaled agent runs under a wrapper that exits on SIGTERM while the agent
++* itself ignores it, so the wrapper's exit says nothing about the agent.
++*/
++function groupAlive(pid) {
++	try {
++		process.kill(-pid, 0);
++		return true;
++	} catch {
++		return false;
++	}
++}
++/**
++* `waitForExit`, then (POSIX) until the child's whole process group is gone,
++* within the same `timeoutMs`. `false` means something in the tree is still
++* running, which is what makes {@link LocalProcessHandle.terminateChildren}
++* escalate to SIGKILL.
++*/
++async function waitForTreeExit(child, timeoutMs) {
++	const deadline = Date.now() + timeoutMs;
++	if (!await waitForExit(child, timeoutMs)) return false;
++	if (process.platform === "win32" || child.pid === void 0) return true;
++	while (groupAlive(child.pid)) {
++		if (Date.now() >= deadline) return false;
++		await delay(100);
++	}
++	return true;
++}
++/**
+ * Parse MSYS/git-bash `ps` output. Columns are
+ * `PID PPID PGID WINPID TTY UID STIME COMMAND`; the header and any
+ * non-numeric row are skipped, as is any row with a `PPID` of `0` — that is how
+@@ -583,11 +613,11 @@ var LocalProcessHandle = class {
+ 		if (live.length === 0) return;
+ 		const rows = process.platform === "win32" ? msysProcessTable(this.options.logger) : void 0;
+ 		for (const child of live) killTree(child, void 0, this.options.logger, rows);
+-		const exited = await Promise.all(live.map((child) => waitForExit(child, CHILD_EXIT_TIMEOUT_MS)));
++		const exited = await Promise.all(live.map((child) => waitForTreeExit(child, CHILD_EXIT_TIMEOUT_MS)));
+ 		const survivors = live.filter((_, i) => exited[i] === false);
+ 		if (survivors.length > 0 && process.platform !== "win32") {
+ 			for (const child of survivors) killTree(child, "SIGKILL", this.options.logger);
+-			const killedAfterEscalation = await Promise.all(survivors.map((child) => waitForExit(child, CHILD_EXIT_TIMEOUT_MS)));
++			const killedAfterEscalation = await Promise.all(survivors.map((child) => waitForTreeExit(child, CHILD_EXIT_TIMEOUT_MS)));
+ 			const leaked = survivors.filter((_, i) => killedAfterEscalation[i] === false).map((child) => child.pid);
+ 			if (leaked.length > 0) this.options.logger?.warn("local-process: children survived SIGKILL; teardown continues", {
+ 				root: this.root,
+diff --git a/dist/esm/provider.js b/dist/esm/provider.js
+index 051dbf488e1057b4b4b50f9763df72fa0d01e9bd..85134bc9ddfdf59cefeff0aab7e92dd873f4df7e 100644
+--- a/dist/esm/provider.js
++++ b/dist/esm/provider.js
+@@ -7,6 +7,15 @@ import * as path from "node:path";
+ var LocalProcessProvider = class {
+ 	config;
+ 	name = "local-process";
++	/**
++	* Every handle this provider minted, keyed by its id (the backing dir). A
++	* `create`/`resume` hands the caller a handle the provider then forgets, so
++	* `destroy(id)` had no way to reach the process tree that handle spawned —
++	* it could only remove the dir, and only when the dir was ours. Under a
++	* journaled spawn the abort signal is deliberately dropped and `destroy` IS
++	* the kill, so forgetting the handle leaks the agent forever.
++	*/
++	minted = /* @__PURE__ */ new Map();
+ 	constructor(config) {
+ 		this.config = config;
+ 	}
+@@ -16,8 +25,21 @@ var LocalProcessProvider = class {
+ 	removeDefault() {
+ 		return this.config.removeOnDestroy ?? this.config.dir === void 0;
+ 	}
+-	makeHandle(root) {
+-		return new LocalProcessHandle({
++	/**
++	* The run signal each minted handle was created or resumed under. A stop
++	* aborts that signal with the cancel reason, which is how `destroy` finds
++	* the cancelled run's own handle among the handles sharing one `dir`.
++	*/
++	runSignals = /* @__PURE__ */ new WeakMap();
++	track(handle, signal) {
++		const forId = this.minted.get(handle.id) ?? [];
++		this.minted.set(handle.id, forId);
++		forId.push(handle);
++		if (signal) this.runSignals.set(handle, signal);
++		return handle;
++	}
++	makeHandle(root, signal) {
++		return this.track(new LocalProcessHandle({
+ 			root,
+ 			removeOnDestroy: this.removeDefault(),
+ 			scrubEnv: this.config.scrubEnv,
+@@ -36,15 +58,15 @@ var LocalProcessProvider = class {
+ 					forkFactory: () => Promise.reject(/* @__PURE__ */ new Error("nested fork unsupported"))
+ 				});
+ 			}
+-		});
++		}), signal);
+ 	}
+ 	baseDir() {
+ 		return this.config.baseDir ?? path.join(os.tmpdir(), "tanstack-ai-sandboxes");
+ 	}
+-	async create(_input) {
++	async create(input) {
+ 		const root = this.config.dir !== void 0 ? path.resolve(this.config.dir) : path.join(this.baseDir(), randomUUID());
+ 		await fsp.mkdir(root, { recursive: true });
+-		return this.makeHandle(root);
++		return this.makeHandle(root, input.signal);
+ 	}
+ 	async resume(input) {
+ 		try {
+@@ -52,16 +74,30 @@ var LocalProcessProvider = class {
+ 		} catch {
+ 			return null;
+ 		}
+-		return this.makeHandle(input.id);
++		return this.makeHandle(input.id, input.signal);
+ 	}
+ 	/**
+-	* Destroy by id (a dir path). Unlike `LocalProcessHandle.destroy` there is no
+-	* handle here, so no children can be killed first — a process spawned through
+-	* a handle we no longer hold may still own the dir as its CWD. The bounded
+-	* retry is all that is available, and a dir that never releases is reported
+-	* through the logger rather than silently left behind.
++	* Destroy by id (a dir path), tearing down ONE handle this provider minted
++	* for that id through the handle's own `destroy` — oldest first. A fixed
++	* `dir` makes every concurrent run share one id, so destroying every handle
++	* for that id tore down the process tree of a run that was still going.
++	* Each handle only kills the children IT spawned, so this retires exactly
++	* one run's tree per call. The handle whose run was cancelled (its signal
++	* aborted with `tanstack-ai:cancel-requested`, `RUN_CANCEL_REASON`) goes
++	* first: completed runs never destroy, so the oldest handle is usually a
++	* finished run and a stop would otherwise leave its own agent running.
++	* `handle.destroy` sends SIGTERM and escalates to SIGKILL after
++	* `CHILD_EXIT_TIMEOUT_MS`, so an agent that ignores SIGTERM still dies.
+ 	*/
+ 	async destroy(input) {
++		const forId = this.minted.get(input.id);
++		const cancelled = forId?.findIndex((minted) => this.runSignals.get(minted)?.reason === "tanstack-ai:cancel-requested") ?? -1;
++		const [handle] = forId?.splice(Math.max(cancelled, 0), 1) ?? [];
++		if (forId?.length === 0) this.minted.delete(input.id);
++		if (handle) {
++			await handle.destroy();
++			return;
++		}
+ 		if (this.removeDefault()) await removeDirWithRetry(input.id, this.config.logger);
+ 	}
+ };

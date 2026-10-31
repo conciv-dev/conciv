@@ -15,15 +15,19 @@ export type {PacedRelease, PacedText, ScriptedRun, ScriptedTurn, ScriptedTurnToo
 export {harnessAvailable} from './harness-available.js'
 export {
   autoApprove,
+  approvePending,
   makeApprovingCallTool,
   makeApprovingRegistryCall,
   makeCallTool,
+  makeDiscoverTools,
   makeRunTypescript,
   withAutoApproval,
   type CallTool,
+  type DiscoverTools,
   type McpCallOptions,
   type RunTypescript,
 } from './call-tool.js'
+export {connectMcpClient, type McpClient, type McpContentPart, type McpTool} from './mcp-client.js'
 export {approvalIds} from './run-events.js'
 export {makeRpcClient, resolveSession, type RpcClient} from './session.js'
 export {harnessModes, type HarnessMode} from './harness-modes.js'

@@ -1,4 +1,4 @@
-import {defineHarness} from '@conciv/protocol/harness-types'
+import {defineHarness} from '../_shared/contract.js'
 import {acpChatConfig} from '../_shared/acp.js'
 
 const GEMINI_MODELS = ['gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash']

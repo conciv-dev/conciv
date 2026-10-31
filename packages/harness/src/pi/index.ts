@@ -1,5 +1,5 @@
 import {join} from 'node:path'
-import {defineHarness} from '@conciv/protocol/harness-types'
+import {defineHarness} from '../_shared/contract.js'
 import {unsupportedChatConfig} from '../_shared/stub.js'
 import {piHistory, sessionsDir} from './history.js'
 

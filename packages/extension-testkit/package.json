@@ -44,6 +44,7 @@
     "@conciv/extension": "workspace:^",
     "@conciv/extension-compiler": "workspace:^",
     "@conciv/grab": "workspace:^",
+    "@conciv/harness": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",

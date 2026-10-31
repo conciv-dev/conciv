@@ -1,7 +1,7 @@
 import {m} from 'motion/react'
 import {Tabs as TabsPrimitive} from 'radix-ui'
 import {ShikiMagicMovePrecompiled} from '@shikijs/magic-move/react'
-import {createContext, useCallback, useContext, useRef, useState, type ReactNode} from 'react'
+import {createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ReactNode} from 'react'
 import '@shikijs/magic-move/style.css'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@/components/ui/hover-card'
 import {Select, SelectContent, SelectItem, SelectTrigger} from '@/components/ui/select'
@@ -296,12 +296,10 @@ function Code() {
   const {fade, watch, refresh} = useEdgeFade()
   const containerRef = useRef<HTMLDivElement>(null)
   const activeIdRef = useRef(active.id)
-  activeIdRef.current = active.id
   const step = Math.max(0, MAGIC_MOVE_STEP_IDS.indexOf(active.id))
   const completion = SNIPPET_TWOSLASH.find((entry) => entry.id === active.id)?.completion ?? null
 
   const twoslashRef = useRef(active.twoslash === true)
-  twoslashRef.current = active.twoslash === true
 
   const settle = () => {
     const container = containerRef.current
@@ -310,7 +308,11 @@ function Code() {
     refresh()
   }
   const settleRef = useRef(settle)
-  settleRef.current = settle
+  useLayoutEffect(() => {
+    activeIdRef.current = active.id
+    twoslashRef.current = active.twoslash === true
+    settleRef.current = settle
+  })
 
   const attach = useCallback(
     (el: HTMLDivElement | null) => {

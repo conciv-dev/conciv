@@ -459,10 +459,12 @@ describe('cli', () => {
             restart: async () => {},
           },
         })
-        const session = await approvedSession(kit, cleanups)
+        const session = await approvedSession(kit)
+        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/hot.ts'])).toBe(1)
+        expect(reloaded).toEqual([])
+        expect(await session.approve()).toHaveLength(1)
         expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/hot.ts'])).toBe(0)
         expect(reloaded).toEqual(['src/hot.ts'])
-        expect(session.approved()).toHaveLength(1)
       })
 
       it('takes the positional the dev-server declaration names and leaves its other fields as flags', async () => {
@@ -755,14 +757,22 @@ describe('cli', () => {
         expect(onlyDocument(written)).toMatchObject({ok: false, error: {kind: 'user', code: 'APPROVAL_DENIED'}})
       })
 
-      it('server restart prompts through the session and an approval lets it run', async () => {
+      it('server restart is refused through the session and an approval lets the retry run', async () => {
         const bridge = restartCapableBridge()
         const kit = await bootCli(cleanups, {bridge})
-        const session = await approvedSession(kit, cleanups)
-        const code = await runCli(cliMain, ['tools', 'server', 'restart'])
-        expect(code).toBe(0)
+        const session = await approvedSession(kit)
+        expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(1)
+        expect(onlyDocument(written)).toMatchObject({
+          ok: false,
+          error: {kind: 'user', code: 'APPROVAL_DENIED', message: expect.stringContaining('needs the user')},
+        })
+        written.length = 0
+        expect(await session.approve()).toEqual(['conciv:tool:server_restart'])
+        expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(0)
         expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
-        expect(session.approved()).toHaveLength(1)
+        written.length = 0
+        expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(1)
+        expect((await kit.rpc.chat.hydrate({sessionId: session.sessionId})).lastRun).toBeNull()
       })
 
       it('server graph round-trips a real bundler bridge inside the envelope', async () => {
@@ -3373,7 +3383,7 @@ export default defineConfig({plugins: [conciv()]})`)
           const section = agentsSection(consented)
           const ranking = section.indexOf('This project has conciv installed.')
           const table = section.indexOf('### When to use conciv instead of the browser MCP')
-          const sandbox = section.indexOf('await external_catalog({})')
+          const sandbox = section.indexOf('`discover_tools`')
           expect(ranking).toBeGreaterThan(section.indexOf('## conciv'))
           expect(table).toBeGreaterThan(ranking)
           expect(sandbox).toBeGreaterThan(table)

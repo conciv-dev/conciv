@@ -1,12 +1,11 @@
 import {execFile, execFileSync} from 'node:child_process'
 import {cpSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
-import {basename, join} from 'node:path'
+import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 
 const repoRoot = join(import.meta.dirname, '..', '..')
 const cliBin = join(repoRoot, 'packages', 'cli', 'dist', 'bin.js')
-const copySkips = new Set(['node_modules', 'dist', '.next', 'test-results', 'playwright-report'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -42,10 +41,11 @@ function withoutConcivDependencies(cloneDir: string): void {
 
 function cloneApp(appName: string): string {
   const cloneDir = mkdtempSync(join(tmpdir(), `conciv-init-${appName}-`))
-  cpSync(join(repoRoot, 'e2e', appName), cloneDir, {
-    recursive: true,
-    filter: (source) => !copySkips.has(basename(source)),
-  })
+  const appDir = join(repoRoot, 'e2e', appName)
+  const trackedPaths = execFileSync('git', ['ls-files'], {cwd: appDir, encoding: 'utf8'})
+    .split('\n')
+    .filter((path) => path.length > 0)
+  for (const path of trackedPaths) cpSync(join(appDir, path), join(cloneDir, path))
   withoutConcivDependencies(cloneDir)
   return cloneDir
 }

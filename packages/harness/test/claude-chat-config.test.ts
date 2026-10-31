@@ -6,6 +6,8 @@ import {describe, expect, it} from 'vitest'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {claudeChatConfig, claudeExecutable} from '../src/claude/chat.js'
+import {CLAUDE_ASK_RULES} from '../src/claude/ask-rules.js'
+import {CHAT_SYSTEM_PROMPT} from '../src/claude/system-prompt.js'
 
 const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
   cwd: process.cwd(),
@@ -13,8 +15,14 @@ const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
   resumeSessionId: null,
   env: {},
   kind: 'chat',
-  decide: async () => 'allow',
   ...over,
+})
+
+describe('CHAT_SYSTEM_PROMPT', () => {
+  it('points the agent at discover_tools, the tool that exists', () => {
+    expect(CHAT_SYSTEM_PROMPT).toContain('`discover_tools`')
+    expect(CHAT_SYSTEM_PROMPT).not.toContain('external_catalog')
+  })
 })
 
 describe('claudeExecutable', () => {
@@ -30,6 +38,13 @@ describe('claudeExecutable', () => {
     expect(() => claudeExecutable('/x/plug ins')).toThrow(/\/x\/plug ins/)
     expect(() => claudeExecutable('/x/plug ins')).toThrow(/whitespace/)
   })
+
+  it('adds --settings after the plugin dir and refuses a settings path with whitespace', () => {
+    expect(claudeExecutable('/x/plugins', '/t/s.json')).toBe(
+      'claude --strict-mcp-config --plugin-dir /x/plugins --settings /t/s.json',
+    )
+    expect(() => claudeExecutable(null, '/t/my s.json')).toThrow(/whitespace/)
+  })
 })
 
 describe('claudeChatConfig', () => {
@@ -39,9 +54,42 @@ describe('claudeChatConfig', () => {
     expect(config.adapter.model).toBe('opus')
   })
 
-  it('keeps permissionMode default so claude consults the approval_prompt bridge (acceptEdits silently runs write commands)', () => {
+  it('leaves command permissions to the auto mode of the CLI, which escalates through the approval_prompt bridge', () => {
     const config = claudeChatConfig(deps())
-    expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({permissionMode: 'default'})
+    expect(config.modelOptions).toMatchObject({permissionMode: 'auto'})
+    expect(Reflect.get(config.adapter, 'adapterConfig')).not.toHaveProperty('permissionMode')
+  })
+
+  it('hands claude native ask rules for risky commands through a --settings file, so auto mode escalates them', () => {
+    const executable: unknown = Reflect.get(
+      Reflect.get(claudeChatConfig(deps()).adapter, 'adapterConfig'),
+      'claudeExecutable',
+    )
+    const settingsPath = String(executable).split(' ').at(-1) ?? ''
+    expect(String(executable).split(' ').at(-2)).toBe('--settings')
+    const settings: unknown = JSON.parse(readFileSync(settingsPath, 'utf8'))
+    expect(settings).toEqual({permissions: {ask: [...CLAUDE_ASK_RULES]}})
+    expect(CLAUDE_ASK_RULES).toEqual(
+      expect.arrayContaining([
+        'Bash(git push * --force*)',
+        'Bash(git * push --force*)',
+        'Bash(git * push * --force*)',
+        'Bash(git * reset --hard*)',
+        'Bash(git * clean*)',
+        'Bash(git * branch -D*)',
+        'Bash(git * gc --prune*)',
+        'Bash(git push * --delete*)',
+        'Bash(git push * :**)',
+        'Bash(git reset --hard*)',
+        'Bash(git clean*)',
+        'Bash(git branch -D*)',
+        'Bash(git gc --prune*)',
+        'Bash(rm -r*)',
+        'Bash(chmod -R*)',
+        'Bash(chown -R*)',
+        'Bash(sudo *)',
+      ]),
+    )
   })
 
   it('disables the native AskUserQuestion, which has no channel back to the widget and self-answers as declined', () => {
@@ -49,9 +97,14 @@ describe('claudeChatConfig', () => {
     expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({disallowedTools: ['AskUserQuestion']})
   })
 
+  it('allows the bridged conciv tools so claude does not ask a second time before the conciv gate', () => {
+    const config = claudeChatConfig(deps())
+    expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({allowedTools: ['mcp__tanstack']})
+  })
+
   it('threads the resume session id through modelOptions and leaves the workdir to the sandbox', () => {
-    expect(claudeChatConfig(deps()).modelOptions).toEqual({})
-    expect(claudeChatConfig(deps({resumeSessionId: HarnessSessionId.parse('r-9')})).modelOptions).toEqual({
+    expect(claudeChatConfig(deps()).modelOptions).not.toHaveProperty('sessionId')
+    expect(claudeChatConfig(deps({resumeSessionId: HarnessSessionId.parse('r-9')})).modelOptions).toMatchObject({
       sessionId: 'r-9',
     })
   })

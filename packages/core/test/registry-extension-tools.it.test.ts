@@ -2,7 +2,9 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {defineExtension, defineTool, toolError} from '@conciv/extension'
 import {makeRunTypescript, type Kit} from '@conciv/harness-testkit'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {bootKit} from './helpers/boot.js'
+import {connectMcpClient} from '@conciv/harness-testkit'
 
 const lens = defineTool({
   name: 'acme_lens',
@@ -26,13 +28,16 @@ const halfDeclared = defineTool({
 
 const legacy = defineExtension({name: 'legacy-acme', tools: [halfDeclared]})
 
-const CatalogDetailSchema = z
-  .object({name: z.string(), category: z.string(), output: z.unknown(), errors: z.array(z.unknown())})
-  .loose()
-
-const CatalogListSchema = z
-  .object({tools: z.array(z.object({name: z.string(), summary: z.string(), category: z.string()}).loose())})
-  .loose()
+async function discover(kit: Kit, name: string): Promise<unknown> {
+  const client = await connectMcpClient(`${kit.base}/api/mcp`, {[CONCIV_SESSION_HEADER]: await kit.session()})
+  try {
+    const tool = (await client.tools()).find((entry) => entry.name === 'discover_tools')
+    if (tool === undefined) throw new Error('discover_tools is not on /api/mcp')
+    return await tool.execute({toolNames: [name]})
+  } finally {
+    await client.close()
+  }
+}
 
 async function runSandbox(kit: Kit, typescriptCode: string): Promise<unknown> {
   const session = await kit.session()
@@ -40,20 +45,12 @@ async function runSandbox(kit: Kit, typescriptCode: string): Promise<unknown> {
 }
 
 describe('registry-declared extension tools ride the tool registry into the sandbox', () => {
-  it('appears in the catalog with its declared summary, category and output schema', async () => {
+  it('appears in discover_tools with its declared summary and input', async () => {
     const kit = await bootKit({extensions: [acme]})
     try {
-      const listed = CatalogListSchema.parse(
-        await runSandbox(kit, "return await external_catalog({search: 'acme_lens'})"),
-      )
-      const entry = listed.tools.find((tool) => tool.name === 'acme_lens')
-      expect(entry?.summary).toBe('inspect the lens assembly')
-      expect(entry?.category).toBe('acme')
-      const detail = CatalogDetailSchema.parse(
-        await runSandbox(kit, "return await external_catalog({name: 'acme_lens'})"),
-      )
-      expect(JSON.stringify(detail.output)).toContain('focused')
-      expect(JSON.stringify(detail.errors)).toContain('LENS_JAMMED')
+      const found = JSON.stringify(await discover(kit, 'acme_lens'))
+      expect(found).toContain('inspect the lens assembly')
+      expect(found).toContain('zoom')
     } finally {
       await kit.cleanup()
     }
@@ -91,10 +88,8 @@ describe('registry-declared extension tools ride the tool registry into the sand
   it('surfaces the capability exactly once, never through two declaration paths', async () => {
     const kit = await bootKit({extensions: [acme]})
     try {
-      const listed = CatalogListSchema.parse(
-        await runSandbox(kit, "return await external_catalog({search: 'acme_lens'})"),
-      )
-      expect(listed.tools.filter((tool) => tool.name === 'acme_lens')).toHaveLength(1)
+      const found = JSON.stringify(await discover(kit, 'acme_lens'))
+      expect(found.split('external_acme_lens(').length - 1).toBe(1)
     } finally {
       await kit.cleanup()
     }

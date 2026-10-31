@@ -1,10 +1,10 @@
 import {onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, fn, within, userEvent, waitFor} from 'storybook/test'
-import {useChat} from '@tanstack/ai-solid'
-import type {MultimodalContent} from '@tanstack/ai-client'
+import {createChat} from '@conciv/ai/client'
+import type {SendContent} from '@conciv/protocol/chat-message-types'
 import {ChatProvider} from '../../store/chat-context.js'
-import {storyConnection, createTextChunks} from '../../store/story-connection.js'
+import {storyConnection, createTextChunks} from '@conciv/ai/testkit'
 import {Thread} from '../thread/thread.js'
 import {Message} from '../message/message.js'
 import {QueueItem} from '../queue-item/queue-item.js'
@@ -34,7 +34,10 @@ function AssistantMessage(): JSX.Element {
 }
 
 function ComposerApp(): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2})})
+  const chat = createChat({
+    threadId: 'composer',
+    connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2}),
+  })
   return (
     <ChatProvider chat={chat}>
       <Thread.Root class="flex flex-col gap-2">
@@ -78,7 +81,10 @@ export const EnterSubmits: Story = {
 }
 
 function CancelApp(props: {onCancel: () => void}): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2000})})
+  const chat = createChat({
+    threadId: 'composer',
+    connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2000}),
+  })
   const handlers = untrack(() => ({onCancel: props.onCancel}))
   return (
     <ChatProvider chat={chat}>
@@ -128,7 +134,8 @@ export const EscapeRoutesThroughHandler: Story = {
 }
 
 function QueueApp(): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
+    threadId: 'composer',
     connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000}),
     queue: {whenBusy: 'queue', drain: 'fifo'},
   })
@@ -177,9 +184,9 @@ function AttachmentChip(): JSX.Element {
 
 function AttachmentComposerApp(props: {
   adapter: AttachmentAdapter
-  onSend: (content: string | MultimodalContent) => void
+  onSend: (content: string | SendContent) => void
 }): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: createTextChunks('unused')})})
+  const chat = createChat({threadId: 'composer', connection: storyConnection({chunks: createTextChunks('unused')})})
   const handlers = untrack(() => ({onSend: props.onSend}))
   return (
     <ChatProvider chat={chat}>

@@ -7,12 +7,11 @@ import {expect as expectLocator} from 'playwright/test'
 import type {Page} from 'playwright-core'
 import {z} from 'zod'
 import {call, type RouterClient} from '@orpc/server'
-import {fetchServerSentEvents} from '@tanstack/ai-client'
-import {createMCPClient} from '@tanstack/ai-mcp'
+import {fetchServerSentEvents} from '@conciv/ai/client'
 import {start, type Engine} from '@conciv/core'
 import {makeExtRpcClient, type AnyExtension} from '@conciv/extension'
 import {rpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
-import {createFakeHarness} from '@conciv/harness-testkit'
+import {connectMcpClient, createFakeHarness, makeDiscoverTools} from '@conciv/harness-testkit'
 import {until} from '@conciv/harness-testkit/until'
 import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import recorderExtension, {makeRecorderRouter, type RecorderRouter} from '../src/server.js'
@@ -247,28 +246,11 @@ describe('extension', () => {
   }
 
   async function callViaSandbox(base: string, name: string, input: unknown): Promise<unknown> {
-    const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
-    try {
-      const tools = await mcp.tools()
-      expect(tools.map((tool) => tool.name)).toEqual(['execute_typescript'])
-      const execute = tools[0]
-      if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
-      const typescriptCode = [
-        `const found = await external_catalog({name: ${JSON.stringify(name)}})`,
-        `return await globalThis[found.call](${JSON.stringify(input)})`,
-      ].join('\n')
-      return await execute.execute({typescriptCode})
-    } finally {
-      await mcp.close()
-    }
-  }
-
-  async function runSandboxCode(base: string, typescriptCode: string): Promise<unknown> {
-    const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+    const mcp = await connectMcpClient(`${base}/api/mcp`)
     try {
       const execute = (await mcp.tools()).find((tool) => tool.name === 'execute_typescript')
-      if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
-      return await execute.execute({typescriptCode})
+      if (!execute) throw new Error('execute_typescript not on /api/mcp')
+      return await execute.execute({typescriptCode: `return await external_${name}(${JSON.stringify(input)})`})
     } finally {
       await mcp.close()
     }
@@ -314,11 +296,14 @@ describe('extension', () => {
         const resnapshot = Promise.withResolvers<unknown>()
         const abort = new AbortController()
         const control = await rpc.control(undefined, {signal: abort.signal})
+        const subscribed = Promise.withResolvers<void>()
         const pump = (async () => {
           for await (const message of control) {
+            subscribed.resolve()
             if (sawMessage([message], {snapshot: true, flush: true})) resnapshot.resolve(message)
           }
         })()
+        await subscribed.promise
         await rpc.reset(undefined)
         const {events} = await rpc.window({clientId: 'c1'})
         expect(events).toEqual([])
@@ -340,7 +325,7 @@ describe('extension', () => {
       }
     }, 30_000)
 
-    it('exposes one execute tool on /api/mcp and recording_pull returns the action log as text', async () => {
+    it('recording_pull through the sandbox returns the action log as text', async () => {
       const {base, engine} = await boot()
       try {
         await recorderClient(base).flush({clientId: 'c1', events: fixtureStream(Date.now() - 2000)})
@@ -352,23 +337,12 @@ describe('extension', () => {
       }
     }, 30_000)
 
-    it('the sandbox catalog carries the recorder declaration: summary, category and output schema', async () => {
+    it('discover_tools carries the recorder declaration with its summary', async () => {
       const {base, engine} = await boot()
       try {
-        const listed = z
-          .object({tools: z.array(z.object({name: z.string(), summary: z.string(), category: z.string()}).loose())})
-          .loose()
-          .parse(
-            envelopeResult(await runSandboxCode(base, "return await external_catalog({search: 'recording_pull'})")),
-          )
-        const entry = listed.tools.find((tool) => tool.name === 'recording_pull')
-        expect(entry?.category).toBe('recorder')
-        expect(entry?.summary.toLowerCase()).toContain('recording')
-        const detail = z
-          .object({output: z.unknown()})
-          .loose()
-          .parse(envelopeResult(await runSandboxCode(base, "return await external_catalog({name: 'recording_pull'})")))
-        expect(detail.output).toBeDefined()
+        const {tools} = await makeDiscoverTools(base, '')(['recording_pull'])
+        expect(tools.map((tool) => tool.name)).toEqual(['external_recording_pull'])
+        expect(tools[0]?.description.toLowerCase()).toContain('recording')
       } finally {
         await engine.stop()
       }
@@ -394,14 +368,17 @@ describe('extension', () => {
         const control = await rpc.control(undefined, {signal: abort.signal})
         mark('control')
         const wentLive = Promise.withResolvers<unknown>()
+        const subscribed = Promise.withResolvers<void>()
         const pump = (async () => {
           for await (const message of control) {
+            subscribed.resolve()
             if (sawMessage([message], {live: true, snapshot: true, flush: true})) {
               wentLive.resolve(message)
               break
             }
           }
         })()
+        await subscribed.promise
         const startReply = callViaSandbox(base, 'recording_start', {})
         await wentLive.promise
         mark('live-before-start-returns')
@@ -661,6 +638,57 @@ describe('panel empty', () => {
       })
       await api().page.getByText('LIVE', {exact: true}).waitFor({state: 'visible', timeout: 10_000})
       await api().page.getByRole('slider', {name: 'Timeline'}).waitFor({state: 'visible', timeout: 10_000})
+    }, 120_000)
+  })
+})
+
+describe('content blocker', () => {
+  const api = useRecorderTestApi()
+
+  describe('rrweb blocked by a content blocker (real browser)', () => {
+    it('keeps the widget running and explains the block in the Recorder tab', async () => {
+      const page = api().page
+      await page.route(/rrweb/, (route) => route.abort('blockedbyclient'))
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await page.getByRole('tab', {name: 'Recorder'}).click()
+      await expectLocator(page.getByRole('heading', {name: 'Recording is paused by your content blocker'})).toBeVisible(
+        {timeout: 30_000},
+      )
+      await expectLocator(page.getByRole('button', {name: 'Reload page'})).toBeVisible()
+      await expectLocator(page.getByRole('button', {name: 'Send to agent'})).toHaveCount(0)
+    }, 120_000)
+  })
+})
+
+describe('slow capture library', () => {
+  const api = useRecorderTestApi()
+
+  describe('rrweb outlasts the recording_start deadline (real browser)', () => {
+    it('drops the timed out start and still records a later one', async () => {
+      const page = api().page
+      const calls = rpcCallCursor(page)
+      const rrwebRelease = Promise.withResolvers<void>()
+      await page.route(/rrweb/, async (route) => {
+        await rrwebRelease.promise
+        await route.continue()
+      })
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await page.getByRole('tab', {name: 'Recorder'}).waitFor({state: 'visible', timeout: 30_000})
+
+      const rrwebRequested = page.waitForRequest(/rrweb/)
+      const timedOut = JSON.stringify(await api().callTool('recording_start', {}))
+      await rrwebRequested
+      expect(timedOut).toContain('no page client attached within 5s')
+
+      rrwebRelease.resolve()
+      const started = await startLiveCapture(api())
+
+      await addMarker(page)
+      const stopped = JSON.stringify(
+        await api().callTool('recording_stop', {captureId: started.captureId, keyframes: 0}),
+      )
+      expect(stopped).toContain('Add marker')
+      expect(calls.startedSince(['ext', 'recorder', 'config'])).toBe(1)
     }, 120_000)
   })
 })

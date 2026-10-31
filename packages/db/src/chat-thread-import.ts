@@ -1,6 +1,5 @@
 import {and, eq} from 'drizzle-orm'
-import {uiMessageToModelMessages} from '@tanstack/ai'
-import type {ModelMessage} from '@tanstack/ai'
+import {toModelMessages, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import {ChatHistorySchema} from '@conciv/protocol/chat-types'
 import type {ConcivDb} from './db.js'
 import {chatMetadata, chatThreads, runMessages, sessionHistory} from './run-schema.js'
@@ -14,8 +13,7 @@ export const pendingFromKey = (threadId: string): string => `${threadId}:pending
 
 type MetadataRow = {namespace: string; key: string; valueJson: unknown}
 
-const toModelMessages = (messages: unknown[]): ModelMessage[] =>
-  ChatHistorySchema.parse(messages).flatMap(uiMessageToModelMessages)
+const historyModelMessages = (messages: unknown[]): ModelMessage[] => toModelMessages(ChatHistorySchema.parse(messages))
 
 function alreadyImported(db: ConcivDb): boolean {
   const rows = db
@@ -41,8 +39,8 @@ export function importLegacyThreads(db: ConcivDb, now: number): void {
       threadId,
       history,
       pending,
-      settled: toModelMessages(history?.messages ?? []),
-      live: toModelMessages(pending?.messages ?? []),
+      settled: historyModelMessages(history?.messages ?? []),
+      live: historyModelMessages(pending?.messages ?? []),
     }
   })
 

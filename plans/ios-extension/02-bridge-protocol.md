@@ -258,7 +258,7 @@ still reads naturally as the first lines.
   root). The spike left `filePath` empty, which is exactly why the agent said "not in this repo"; `03`
   fixes the honest-minimum version.
 - `subtree` — **optional** structured `ViewNode` = `{class, a11yId: string | null, text: string | null,
-rect, children: ViewNode[]}`, bounded (depth + node cap). It is retained on `NeutralGrabSchema` for the
+  rect, children: ViewNode[]}`, bounded (depth + node cap). It is retained on `NeutralGrabSchema` for the
   SDK/tests and as the source the text renderer formats from; **it is not the model-transport in v1 — the
   formatted `grab.text` is.** A typed attachment/content part that carries the structured `subtree`
   directly is an **open question** (`10` Q12), deferred.
@@ -388,7 +388,7 @@ unknown-key/*.json            # extra key per variant (must DECODE, ignored, on 
 - **AC1** — `bridge.ts` exports a discriminated `BridgeMessage` union (by `type`) with a non-strict runtime
   zod schema per variant (unknown keys ignored), `BRIDGE_MIN_VERSION`/`BRIDGE_MAX_VERSION` (both `1`),
   `bridge.ready`/`bridge.ack`/`bridge.incompatible` included, `handshake.hello` carrying `{minV, maxV,
-clientId}`, and inferred TS types. The `Grab`-assignable subset of `NeutralGrabSchema` output is
+  clientId}`, and inferred TS types. The `Grab`-assignable subset of `NeutralGrabSchema` output is
   assignable to `@conciv/grab` `Grab`.
 - **AC2** — The fixture table is hand-maintained and checked in; the **union-exhaustiveness test** fails if
   any `BridgeMessage` variant lacks valid + invalid + unknown-key entries. Every valid/unknown-key fixture

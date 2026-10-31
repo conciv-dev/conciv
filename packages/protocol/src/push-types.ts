@@ -1,10 +1,10 @@
 import {z} from 'zod'
-import type {StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from './chat-event-types.js'
 
 export const PUSH_WS_PATH = '/push-ws'
 export const PUSH_SESSION_PARAM = 'sessionId'
 
-const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'object' && value !== null)
+const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
 export const PageQueryFrameSchema = z.object({
   channel: z.literal('page'),

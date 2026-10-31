@@ -1,3 +1,4 @@
+import type {ConcivSurface} from '@conciv/protocol/config-types'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {CHAT_FONTS, type ChatFontFace} from '@conciv/ui-kit-chat/theme/fonts'
 import styles from '../styles.css?inline'
@@ -82,14 +83,28 @@ function keepSelectionInsideTheWidget(host: HTMLElement, root: ShadowRoot): () =
   }
 }
 
-export function createShadowRoot(host: HTMLElement): {host: HTMLElement; root: ShadowRoot; dispose: () => void} {
+function placeHost(host: HTMLElement, surface: ConcivSurface): void {
+  host.style.pointerEvents = 'none'
+  if (surface === 'dock') {
+    host.style.position = 'relative'
+    host.style.width = '100%'
+    host.style.height = '100%'
+    host.style.contain = 'layout'
+    return
+  }
+  host.style.position = 'fixed'
+  host.style.inset = '0'
+  host.style.zIndex = '2147483000'
+}
+
+export function createShadowRoot(
+  host: HTMLElement,
+  surface: ConcivSurface = 'page',
+): {host: HTMLElement; root: ShadowRoot; dispose: () => void} {
   registerWind4Properties()
   registerFonts(CHAT_FONTS)
   registerSelectionContainment()
-  host.style.position = 'fixed'
-  host.style.inset = '0'
-  host.style.pointerEvents = 'none'
-  host.style.zIndex = '2147483000'
+  placeHost(host, surface)
   const root = host.attachShadow({mode: 'open'})
   const style = document.createElement('style')
   style.textContent = styles

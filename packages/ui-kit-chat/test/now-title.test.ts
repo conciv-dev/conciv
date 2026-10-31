@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import {INERT_TOOL_CATALOG} from '@conciv/protocol/tool-view-types'
 import {humanToolName, nowTitle} from '../src/tools/primitives/now-title.js'
 

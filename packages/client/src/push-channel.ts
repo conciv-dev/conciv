@@ -1,5 +1,5 @@
 import ReconnectingWebSocket from 'partysocket/ws'
-import type {StreamChunk} from '@tanstack/ai'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema, type PushFrame} from '@conciv/protocol/push-types'
 import {relayedValues} from './stream-relay.js'
 
@@ -7,7 +7,7 @@ export type PageQueryFrame = {requestId: string; query: unknown}
 
 export type PushChannel = {
   queries: (abortSignal?: AbortSignal) => AsyncGenerator<PageQueryFrame>
-  events: (abortSignal?: AbortSignal) => AsyncGenerator<StreamChunk>
+  events: (abortSignal?: AbortSignal) => AsyncGenerator<ChatEvent>
   dispose: () => void
 }
 
@@ -69,7 +69,7 @@ export function openPushChannel(options: PushChannelOptions): PushChannel {
         abortSignal,
       ),
     events: (abortSignal) =>
-      relayedValues<StreamChunk>(
+      relayedValues<ChatEvent>(
         (emit) =>
           subscribe((frame) => {
             if (frame.channel === 'chat') emit(frame.chunk)

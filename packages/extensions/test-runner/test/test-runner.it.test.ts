@@ -4,7 +4,7 @@ import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {makeCallTool, makeRunTypescript} from '@conciv/harness-testkit'
+import {makeCallTool, makeDiscoverTools, makeRunTypescript} from '@conciv/harness-testkit'
 import {serveExtensionRpc} from '@conciv/harness-testkit/rpc-mounts'
 import {start, type Engine} from '@conciv/core'
 import type {ConcivConfig} from '@conciv/core/config'
@@ -303,31 +303,13 @@ describe('tool catalog', () => {
     return makeRunTypescript(base, '')(typescriptCode)
   }
 
-  const CatalogList = z.object({
-    tools: z.array(
-      z
-        .object({call: z.string(), name: z.string(), summary: z.string(), category: z.string(), mutating: z.boolean()})
-        .loose(),
-    ),
-  })
-
-  const CatalogDetail = z.object({call: z.string(), name: z.string(), output: z.unknown()}).loose()
-
-  describe('the test-runner tool rides the tool registry into the catalog and the sandbox (IT)', () => {
-    it('appears in the catalog with its declared summary, category and test-result output schema', async () => {
+  describe('the test-runner tool rides the tool registry into the sandbox (IT)', () => {
+    it('appears in discover_tools with its declared summary', async () => {
       const {base, engine} = await boot()
       try {
-        const listed = CatalogList.parse(
-          await runSandbox(base, "return await external_catalog({search: 'test_runner'})"),
-        )
-        const entry = listed.tools.find((tool) => tool.name === 'test_runner')
-        expect(entry?.summary).not.toBe('')
-        expect(entry?.category).toBe('test-runner')
-        expect(entry?.mutating).toBe(false)
-        const detail = CatalogDetail.parse(
-          await runSandbox(base, "return await external_catalog({name: 'test_runner'})"),
-        )
-        expect(JSON.stringify(detail.output)).toContain('summary')
+        const {tools} = await makeDiscoverTools(base, '')(['test_runner'])
+        expect(tools.map((tool) => tool.name)).toEqual(['external_test_runner'])
+        expect(tools[0]?.description).not.toBe('')
       } finally {
         await engine.stop()
       }
@@ -336,23 +318,11 @@ describe('tool catalog', () => {
     it('is callable through code-mode and round-trips a status result from the real manager', async () => {
       const {base, engine} = await boot()
       try {
-        const answered = z
-          .object({
-            category: z.string(),
-            status: z.object({summary: z.object({passed: z.number()}).loose(), tests: z.array(z.unknown())}).loose(),
-          })
-          .parse(
-            await runSandbox(
-              base,
-              [
-                "const found = await external_catalog({name: 'test_runner'})",
-                "const status = await globalThis[found.call]({action: 'status'})",
-                'return {category: found.category, status}',
-              ].join('\n'),
-            ),
-          )
-        expect(answered.category).toBe('test-runner')
-        expect(Array.isArray(answered.status.tests)).toBe(true)
+        const status = z
+          .object({summary: z.object({passed: z.number()}).loose(), tests: z.array(z.unknown())})
+          .loose()
+          .parse(await runSandbox(base, "return await external_test_runner({action: 'status'})"))
+        expect(Array.isArray(status.tests)).toBe(true)
       } finally {
         await engine.stop()
       }

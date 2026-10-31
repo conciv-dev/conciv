@@ -37,7 +37,7 @@ section update their expected text.
 ### 2. CLI friction
 
 - **ANSI off when piped.** citty decides colour once at import (`NO_COLOR === '1' || TERM === 'dumb' || TEST ||
-CI`). `bin.ts` imports a tiny `color-env.ts` first that sets `process.env.NO_COLOR = '1'` when
+  CI`). `bin.ts` imports a tiny `color-env.ts` first that sets `process.env.NO_COLOR = '1'` when
   `process.stdout.isTTY !== true` and `FORCE_COLOR` is unset. Test: run the built CLI with `--help` through a pipe
   and assert the output has no `\u001b`.
 - **`--help` works offline for `page` and `react`.** `pageCommand`/`reactCommand` build their sub-commands from
@@ -66,8 +66,8 @@ CI`). `bin.ts` imports a tiny `color-env.ts` first that sets `process.env.NO_COL
   writes `server.json` in every port mode, not only the persisted-port mode (`packages/core/src/start.ts`
   `servePort`: write after a successful `exact`/`preferred` serve too; `writePersistedPort` in
   `packages/core/src/lib/server-port.ts`). The offline hint becomes: `Start your app (pnpm dev). conciv reads the
-engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port,
-not Vite's).`
+  engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port,
+  not Vite's).`
 
 ## Non-goals
 
@@ -79,7 +79,7 @@ not Vite's).`
 
 - `@conciv/cli` tests: piped `--help` has no escape codes; `conciv tools page --help` with no server lists the
   built-in verbs and the offline line; `defaultOrigin` order with a temp `.conciv/server.json`; `tools page
-snapshot` with no server still fails with the new hint.
+  snapshot` with no server still fails with the new hint.
 - `@conciv/core`: `start` with an exact port writes `server.json`.
 - `packages/extensions/page` browser tests: eval expression/statement; fill through a MUI-style wrapper ref.
 - `packages/harness-init`: plugin file list includes `skills/conciv/SKILL.md` with the ranking sentence; the init

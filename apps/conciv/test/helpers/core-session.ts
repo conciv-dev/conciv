@@ -1,5 +1,5 @@
-import {EventType, type StreamChunk} from '@tanstack/ai'
-import {fetchServerSentEvents} from '@tanstack/ai-client'
+import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {fetchServerSentEvents} from '@conciv/ai/client'
 import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type PersistedAttachment, type RpcClient} from '@conciv/contract'
 
@@ -29,15 +29,15 @@ export async function seedDraft(rpc: RpcClient, sessionId: string, draft: Seeded
 
 function isFinal(chunk: unknown): boolean {
   if (typeof chunk !== 'object' || chunk === null || !('type' in chunk)) return false
-  return chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR
+  return chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR
 }
 
 function isStart(chunk: unknown): boolean {
   if (typeof chunk !== 'object' || chunk === null || !('type' in chunk)) return false
-  return chunk.type === EventType.RUN_STARTED
+  return chunk.type === ChatEventType.RUN_STARTED
 }
 
-function turnStream(base: string, sessionId: string, text: string, signal: AbortSignal): AsyncIterable<StreamChunk> {
+function turnStream(base: string, sessionId: string, text: string, signal: AbortSignal): AsyncIterable<ChatEvent> {
   return fetchServerSentEvents(`${base}${CHAT_SSE_PATH}`).connect(
     [{id: crypto.randomUUID(), role: 'user', parts: [{type: 'text', content: text}]}],
     {},

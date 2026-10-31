@@ -34,31 +34,31 @@
     "release:sync": "conciv-publish sync"
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.18.3",
+    "@arethetypeswrong/cli": "^0.18.5",
     "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.3",
     "@conciv/bundle-size": "workspace:*",
     "@conciv/publish": "workspace:*",
     "@conciv/skills": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@j178/prek": "^0.4.5",
-    "@oxlint/plugins": "^1.69.0",
+    "@j178/prek": "^0.5.7",
+    "@oxlint/plugins": "catalog:",
     "@types/node": "catalog:",
     "@unocss/eslint-plugin": "66.12.0",
     "@vitest/coverage-v8": "catalog:",
-    "eslint-plugin-playwright": "2.10.4",
-    "eslint-plugin-solid": "0.14.5",
-    "fallow": "3.35.0",
-    "oxfmt": "^0.54.0",
+    "eslint-plugin-playwright": "catalog:",
+    "eslint-plugin-solid": "catalog:",
+    "fallow": "3.36.0",
+    "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "playwright": "catalog:",
     "publint": "catalog:",
-    "turbo": "^2.10.3",
+    "turbo": "^2.11.10",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
   "engines": {
-    "node": ">=22.13"
+    "node": ">=22.23.4"
   },
   "packageManager": "pnpm@11.7.0",
   "intent": {

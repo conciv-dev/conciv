@@ -2,12 +2,12 @@ import 'virtual:uno.css'
 import type {JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {beforeEach, expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
+import {createChat} from '@conciv/ai/client'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {ToolProvider} from '../src/store/tool-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 
@@ -39,7 +39,7 @@ function answerOf(index: number): string {
   return `answer ${index}\n\n${'Then the caller folds the result. '.repeat(6)}`
 }
 
-function assistantParts(index: number): UIMessage['parts'] {
+function assistantParts(index: number): ChatMessage['parts'] {
   if (index % 4 !== 3) return [{type: 'text', content: answerOf(index)}]
   return [
     {type: 'text', content: `answer ${index}\n\nReading the file first.`},
@@ -61,8 +61,8 @@ function assistantParts(index: number): UIMessage['parts'] {
   ]
 }
 
-function seedMessages(count: number): UIMessage[] {
-  const messages: UIMessage[] = []
+function seedMessages(count: number): ChatMessage[] {
+  const messages: ChatMessage[] = []
   for (let index = 0; index < count; index++) {
     const id = `m${index}`
     messages.push(
@@ -88,9 +88,13 @@ function baseToolCtx(): ToolViewCtx {
   }
 }
 
-function mountThread(initial: UIMessage[]): void {
+function mountThread(initial: ChatMessage[]): void {
   function VirtualThread(): JSX.Element {
-    const chat = useChat({connection: storyConnection({chunks: []}), initialMessages: initial})
+    const chat = createChat({
+      threadId: 'virtual-scroll',
+      connection: storyConnection({chunks: []}),
+      initialMessages: initial,
+    })
     return (
       <div class="flex flex-col h-[520px] w-[560px]">
         <ChatProvider chat={chat}>

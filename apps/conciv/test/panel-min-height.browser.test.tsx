@@ -43,7 +43,7 @@ test('the composer stays reachable when the viewport clamps the panel below its 
   await page.viewport(1000, 400)
   await openPanel()
 
-  await expect.element(page.getByText('Hero at src/routes/Hero.tsx:1')).toBeVisible()
+  await expect.element(page.getByText('↳ in Hero at src/routes/Hero.tsx:1')).toBeVisible()
   await expect.element(input()).toBeInViewport(FULLY_IN_VIEWPORT)
 
   await input().click()
@@ -57,8 +57,8 @@ test('staged grab cards never push the composer out of the viewport as they pile
   await page.viewport(1000, 900)
   await openPanel()
 
-  await expect.element(page.getByText('Hero at src/routes/Hero.tsx:1')).toBeVisible()
-  await expect.element(page.getByText('Nav at src/routes/Nav.tsx:1')).toBeVisible()
+  await expect.element(page.getByText('↳ in Hero at src/routes/Hero.tsx:1')).toBeVisible()
+  await expect.element(page.getByText('↳ in Nav at src/routes/Nav.tsx:1')).toBeVisible()
 
   await expect.element(input()).toBeInViewport(FULLY_IN_VIEWPORT)
   await expect.element(page.getByRole('button', {name: 'Send message'})).toBeInViewport(FULLY_IN_VIEWPORT)

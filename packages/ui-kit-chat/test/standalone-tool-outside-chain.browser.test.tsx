@@ -2,11 +2,11 @@ import 'virtual:uno.css'
 import type {JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
+import {createChat} from '@conciv/ai/client'
 import type {ToolCardEntry, ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {ToolProvider} from '../src/store/tool-context.js'
-import {createReasoningChunks, createToolCallChunks, storyConnection} from '../src/store/story-connection.js'
+import {createReasoningChunks, createToolCallChunks, storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 import {RunSettledIndicator, startRun, waitForRunSettled} from './run-harness.js'
@@ -30,7 +30,8 @@ const entries: ToolCardEntry[] = [
 ]
 
 function StandaloneThread(): JSX.Element {
-  const chat = useChat({
+  const chat = createChat({
+    threadId: 'standalone-tool-outside-chain',
     connection: storyConnection({
       chunks: [
         ...createReasoningChunks('deciding what to confirm'),
