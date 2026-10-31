@@ -6,6 +6,7 @@ import {describe, expect, it} from 'vitest'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {claudeChatConfig, claudeExecutable} from '../src/claude/chat.js'
+import {CLAUDE_ASK_RULES} from '../src/claude/ask-rules.js'
 import {CHAT_SYSTEM_PROMPT} from '../src/claude/system-prompt.js'
 
 const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
@@ -37,6 +38,13 @@ describe('claudeExecutable', () => {
     expect(() => claudeExecutable('/x/plug ins')).toThrow(/\/x\/plug ins/)
     expect(() => claudeExecutable('/x/plug ins')).toThrow(/whitespace/)
   })
+
+  it('adds --settings after the plugin dir and refuses a settings path with whitespace', () => {
+    expect(claudeExecutable('/x/plugins', '/t/s.json')).toBe(
+      'claude --strict-mcp-config --plugin-dir /x/plugins --settings /t/s.json',
+    )
+    expect(() => claudeExecutable(null, '/t/my s.json')).toThrow(/whitespace/)
+  })
 })
 
 describe('claudeChatConfig', () => {
@@ -50,6 +58,32 @@ describe('claudeChatConfig', () => {
     const config = claudeChatConfig(deps())
     expect(config.modelOptions).toMatchObject({permissionMode: 'auto'})
     expect(Reflect.get(config.adapter, 'adapterConfig')).not.toHaveProperty('permissionMode')
+  })
+
+  it('hands claude native ask rules for risky commands through a --settings file, so auto mode escalates them', () => {
+    const executable: unknown = Reflect.get(
+      Reflect.get(claudeChatConfig(deps()).adapter, 'adapterConfig'),
+      'claudeExecutable',
+    )
+    const settingsPath = String(executable).split(' ').at(-1) ?? ''
+    expect(String(executable).split(' ').at(-2)).toBe('--settings')
+    const settings: unknown = JSON.parse(readFileSync(settingsPath, 'utf8'))
+    expect(settings).toEqual({permissions: {ask: [...CLAUDE_ASK_RULES]}})
+    expect(CLAUDE_ASK_RULES).toEqual(
+      expect.arrayContaining([
+        'Bash(git push * --force*)',
+        'Bash(git push * --delete*)',
+        'Bash(git push * :**)',
+        'Bash(git reset --hard*)',
+        'Bash(git clean*)',
+        'Bash(git branch -D*)',
+        'Bash(git gc --prune*)',
+        'Bash(rm -r*)',
+        'Bash(chmod -R*)',
+        'Bash(chown -R*)',
+        'Bash(sudo *)',
+      ]),
+    )
   })
 
   it('disables the native AskUserQuestion, which has no channel back to the widget and self-answers as declined', () => {

@@ -8,6 +8,7 @@ import {FILE_REF_PREFIX, type HarnessChatDeps, type HarnessImage} from '@conciv/
 import {type HarnessChatConfig} from '../_shared/contract.js'
 import {definedEntries} from '../_shared/env.js'
 import {lastUserImages} from '../_shared/text-adapter.js'
+import {claudeAskSettingsFile} from './ask-rules.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 
 const MCP_TOOL_TIMEOUT_MS = 150_000
@@ -34,16 +35,19 @@ export function imageRefs(images: HarnessImage[], cwd: string): string {
     .join(' ')
 }
 
-export function claudeExecutable(pluginDir: string | null): string {
-  const flags = ['claude', '--strict-mcp-config']
-  if (pluginDir) {
-    if (/\s/.test(pluginDir)) {
-      throw new Error(
-        `claudeExecutable: plugin dir "${pluginDir}" contains whitespace. The claude harness cannot receive a plugin directory containing whitespace because @tanstack/ai-claude-code splits its executable string on plain spaces before spawning. Move the plugin install to a space-free path.`,
-      )
-    }
-    flags.push('--plugin-dir', pluginDir)
+function spaceFreePath(flag: string, path: string): string {
+  if (/\s/.test(path)) {
+    throw new Error(
+      `claudeExecutable: ${flag} path "${path}" contains whitespace. The claude harness cannot pass a path containing whitespace because @tanstack/ai-claude-code splits its executable string on plain spaces before spawning. Move it to a space-free path.`,
+    )
   }
+  return path
+}
+
+export function claudeExecutable(pluginDir: string | null, settingsFile: string | null = null): string {
+  const flags = ['claude', '--strict-mcp-config']
+  if (pluginDir) flags.push('--plugin-dir', spaceFreePath('--plugin-dir', pluginDir))
+  if (settingsFile) flags.push('--settings', spaceFreePath('--settings', settingsFile))
   return flags.join(' ')
 }
 
@@ -70,7 +74,7 @@ function withImageRefs(messages: ModelMessage[], cwd: string): ModelMessage[] {
 export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
   adapter: claudeCode(deps.model ?? 'sonnet', {
     addDirs: [deps.cwd],
-    claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR),
+    claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR, claudeAskSettingsFile()),
     systemPromptMode: 'append',
     emitDiff: false,
     allowedTools: BRIDGED_CONCIV_TOOLS,
