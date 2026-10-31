@@ -336,12 +336,39 @@ const STEP_TAIL: Record<CliStep, (runId: string) => ChatEvent[]> = {
 
 const FIRST_DELTA = 'partial reply'
 
-const HELD_REST: Record<CliStep, string> = {
-  reply: '',
-  silent: '',
-  partial: '',
-  split: '',
-  streaming: STREAMED_TEXT.slice(FIRST_DELTA.length),
+type StepRun = {cli: FakeCli; step: CliStep; run: {threadId: string; runId: string}; signal: AbortSignal | undefined}
+
+async function* answer({cli, step, run}: StepRun): AsyncGenerator<ChatEvent> {
+  yield {type: ChatEventType.TEXT_MESSAGE_START, messageId: `${run.runId}-a`, role: 'assistant'}
+  yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: `${run.runId}-a`, delta: FIRST_DELTA}
+  if (step === 'partial') await cli.gate
+  yield {type: ChatEventType.TEXT_MESSAGE_END, messageId: `${run.runId}-a`}
+  yield* STEP_TAIL[step](run.runId)
+  yield {type: ChatEventType.RUN_FINISHED, ...run}
+}
+
+async function* silence({cli, signal}: StepRun): AsyncGenerator<ChatEvent> {
+  await Promise.race([cli.gate, aborted(signal)])
+  yield* []
+}
+
+async function* cutOffMidText({cli, run, signal}: StepRun): AsyncGenerator<ChatEvent> {
+  yield {type: ChatEventType.TEXT_MESSAGE_START, messageId: `${run.runId}-a`, role: 'assistant'}
+  yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: `${run.runId}-a`, delta: FIRST_DELTA}
+  yield {
+    type: ChatEventType.TEXT_MESSAGE_CONTENT,
+    messageId: `${run.runId}-a`,
+    delta: STREAMED_TEXT.slice(FIRST_DELTA.length),
+  }
+  await Promise.race([cli.gate, aborted(signal)])
+}
+
+const STEP_BODY: Record<CliStep, (stepRun: StepRun) => AsyncGenerator<ChatEvent>> = {
+  reply: answer,
+  silent: silence,
+  partial: answer,
+  split: answer,
+  streaming: cutOffMidText,
 }
 
 function cliHarness(cli: FakeCli, history?: HarnessHistory): HarnessAdapter {
@@ -356,21 +383,7 @@ function cliHarness(cli: FakeCli, history?: HarnessHistory): HarnessAdapter {
         const step = cli.steps.shift() ?? 'reply'
         const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
         yield {type: ChatEventType.RUN_STARTED, ...run}
-        if (step === 'silent') {
-          await Promise.race([cli.gate, aborted(options.request?.signal ?? undefined)])
-          return
-        }
-        yield {type: ChatEventType.TEXT_MESSAGE_START, messageId: `${run.runId}-a`, role: 'assistant'}
-        yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: `${run.runId}-a`, delta: FIRST_DELTA}
-        if (HELD_REST[step] !== '') {
-          yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: `${run.runId}-a`, delta: HELD_REST[step]}
-          await Promise.race([cli.gate, aborted(options.request?.signal ?? undefined)])
-          return
-        }
-        if (step === 'partial') await cli.gate
-        yield {type: ChatEventType.TEXT_MESSAGE_END, messageId: `${run.runId}-a`}
-        yield* STEP_TAIL[step](run.runId)
-        yield {type: ChatEventType.RUN_FINISHED, ...run}
+        yield* STEP_BODY[step]({cli, step, run, signal: options.request?.signal ?? undefined})
       }),
     }),
   }
