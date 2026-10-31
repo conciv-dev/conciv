@@ -7,7 +7,7 @@ import {until} from '@conciv/harness-testkit/until'
 import {CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
 import {mountHandle, openHostWithHandle, rebindHandle} from './helpers/handle.js'
-import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
+import {chatBox, chatLog, openChatPanel, sendChatMessage} from './helpers/chat.js'
 
 const ASSISTANT_TEXT = 'Rebound reply'
 const USER_TEXT = 'first message before the drift'
@@ -83,13 +83,13 @@ test.describe('handle.rebind survives same-core port drift', () => {
 
     await expect(apiBaseProbe).toHaveText(proxyB.base, {timeout: 30_000})
 
-    await expect(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
+    await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
     await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
 
     await sendChatMessage(page, SECOND_USER_TEXT)
     await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(2, {timeout: 30_000})
-    await expect(page.getByText(SECOND_USER_TEXT)).toHaveCount(1, {timeout: 30_000})
-    await expect(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
+    await expect(chatLog(page).getByText(SECOND_USER_TEXT)).toHaveCount(1, {timeout: 30_000})
+    await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
 
     expect(proxyB.trafficCount()).toBeGreaterThan(beforeB)
     expect(await panelSession()).toBe(sessionBefore)
