@@ -10,6 +10,7 @@ import {
   Popover as PopoverKit,
   RelativeTime,
   ScrollArea,
+  TooltipGroup,
   TooltipIconButton,
 } from '@conciv/ui-kit-system'
 import {MentionField, type MentionFieldApi} from '@conciv/ui-kit-tap'
@@ -117,37 +118,39 @@ function ThreadHeader(props: {onRequestDelete: () => void}): JSX.Element {
   const model = useComments()
   return (
     <header class="px-2 py-1.5 border-b border-chat-line-soft flex gap-0.5 items-center">
-      <Tooltip
-        label="Previous thread"
-        placement="bottom"
-        triggerClass={model.canStep(1) ? HEADER_BTN : HEADER_BTN_OFF}
-        onClick={() => model.canStep(1) && model.stepThread(1)}
-      >
-        ‹
-      </Tooltip>
-      <Tooltip
-        label="Next thread"
-        placement="bottom"
-        triggerClass={model.canStep(-1) ? HEADER_BTN : HEADER_BTN_OFF}
-        onClick={() => model.canStep(-1) && model.stepThread(-1)}
-      >
-        ›
-      </Tooltip>
-      <span class="flex-1" />
-      <Tooltip label="Resolve thread" placement="bottom" triggerClass={HEADER_BTN} onClick={() => model.resolve()}>
-        ✓
-      </Tooltip>
-      <Tooltip
-        label="Delete thread"
-        placement="bottom"
-        triggerClass={`${HEADER_BTN} hover:text-chat-danger`}
-        onClick={() => props.onRequestDelete()}
-      >
-        🗑
-      </Tooltip>
-      <Tooltip label="Close thread" placement="bottom" triggerClass={HEADER_BTN} onClick={() => model.closeThread()}>
-        ✕
-      </Tooltip>
+      <TooltipGroup>
+        <Tooltip
+          label="Previous thread"
+          placement="bottom"
+          triggerClass={model.canStep(1) ? HEADER_BTN : HEADER_BTN_OFF}
+          onClick={() => model.canStep(1) && model.stepThread(1)}
+        >
+          ‹
+        </Tooltip>
+        <Tooltip
+          label="Next thread"
+          placement="bottom"
+          triggerClass={model.canStep(-1) ? HEADER_BTN : HEADER_BTN_OFF}
+          onClick={() => model.canStep(-1) && model.stepThread(-1)}
+        >
+          ›
+        </Tooltip>
+        <span class="flex-1" />
+        <Tooltip label="Resolve thread" placement="bottom" triggerClass={HEADER_BTN} onClick={() => model.resolve()}>
+          ✓
+        </Tooltip>
+        <Tooltip
+          label="Delete thread"
+          placement="bottom"
+          triggerClass={`${HEADER_BTN} hover:text-chat-danger`}
+          onClick={() => props.onRequestDelete()}
+        >
+          🗑
+        </Tooltip>
+        <Tooltip label="Close thread" placement="bottom" triggerClass={HEADER_BTN} onClick={() => model.closeThread()}>
+          ✕
+        </Tooltip>
+      </TooltipGroup>
     </header>
   )
 }
