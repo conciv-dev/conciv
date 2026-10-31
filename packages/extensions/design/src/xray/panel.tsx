@@ -121,7 +121,7 @@ export function XrayPanel(props: XrayPanelProps): JSX.Element {
           value={props.query}
           onInput={(event) => props.onQuery(event.currentTarget.value)}
         />
-        <div class="me-2 flex flex-wrap gap-2 min-h-10 items-center">
+        <div class="pe-2 ps-4 flex flex-wrap gap-2 min-h-10 items-center">
           <div role="radiogroup" aria-label="Viewport" class="flex gap-2 items-center">
             <span class="text-sm op-fade" aria-hidden="true">
               Viewport
