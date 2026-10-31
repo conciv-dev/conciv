@@ -1,3 +1,8 @@
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ToolCatalogView, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CTX} from '../src/store/tool-context.js'
+import type {ModelOption} from '../src/primitives/model-selector/model-selector.js'
+import {render} from '@solidjs/testing-library'
 import type {JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect} from 'vitest'
@@ -6,6 +11,36 @@ import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {ChatProvider, useThread} from '../src/store/chat-context.js'
 import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
+
+export function catalogOf(entries: Record<string, ToolViewMeta>): ToolCatalogView {
+  return {loaded: () => true, meta: (name) => entries[name]}
+}
+
+export function ctxWith(catalog: ToolCatalogView): ToolViewCtx {
+  return {...INERT_TOOL_CTX, catalog}
+}
+
+export function cardPart(
+  name: string,
+  input: Record<string, unknown>,
+  state: ToolCallPart['state'] = 'complete',
+): ToolCallPart {
+  return {type: 'tool-call', id: 'e1', name, arguments: JSON.stringify(input), input, state}
+}
+
+export function cardResult(content: string, state: ToolResultPart['state']): ToolResultPart {
+  return {type: 'tool-result', toolCallId: 'e1', content, state}
+}
+
+export const HARNESS_MODELS: readonly ModelOption[] = [
+  {id: 'claude-opus-4-8', name: 'Claude Opus 4.8', description: 'Most capable'},
+  {id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Balanced speed and depth'},
+  {id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', description: 'Fastest'},
+]
+
+export function mountView(view: () => JSX.Element): HTMLElement {
+  return render(view).container
+}
 
 const RUN_TIMEOUT_MS = 3000
 
