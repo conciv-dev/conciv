@@ -48,7 +48,7 @@ type SwitchMotion = {
   bounds: () => {min: number; max: number}
   current: () => number
   kick: (from?: number) => void
-  drag: (position: number | undefined) => void
+  drag: (options: {position: number | undefined; checked: boolean}) => void
   hover: (scale: number) => void
 }
 
@@ -129,15 +129,17 @@ function createSwitchMotion(): SwitchMotion {
     loop.start()
   }
 
-  const drag = (position: number | undefined): void => {
+  const drag = (options: {position: number | undefined; checked: boolean}): void => {
+    const {position, checked} = options
     motion.drag = position
     const element = thumb()
     if (!prefersReducedMotion() || !element) {
       kick()
       return
     }
+    const {min, max} = bounds()
     if (position === undefined) element.style.removeProperty('transform')
-    if (position !== undefined) element.style.transform = `translateX(${position - rest()}px)`
+    if (position !== undefined) element.style.transform = `translateX(${position - (checked ? max : min)}px)`
   }
 
   return {
@@ -212,7 +214,7 @@ function Control(props: ComponentProps<typeof Ark.Control>) {
   const end = (options: {element: HTMLElement; pointerId: number}): void => {
     if (options.element.hasPointerCapture(options.pointerId)) options.element.releasePointerCapture(options.pointerId)
     Object.assign(grip, {...emptyGrip(), swallow: grip.moved})
-    motion?.drag(undefined)
+    motion?.drag({position: undefined, checked: api().checked})
   }
 
   const cancel = (element: HTMLElement): void => {
@@ -244,9 +246,9 @@ function Control(props: ComponentProps<typeof Ark.Control>) {
     if (!grip.moved) return
     const {min, max} = motion.bounds()
     const position = clamp({value: pointer - grip.grab, min, max})
-    motion.drag(position)
     const next = position > (min + max) / 2
     if (next !== api().checked) api().setChecked(next)
+    motion.drag({position, checked: next})
   }
 
   const release = (event: PointerEvent & {currentTarget: HTMLElement}): void => {
