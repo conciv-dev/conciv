@@ -265,6 +265,8 @@ function RootChrome(props: {
     })
   }
   const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
+  const revealDock = (): boolean =>
+    settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
 
   createEffect(() => {
     panelOpen()
@@ -299,11 +301,17 @@ function RootChrome(props: {
     if (dockedShutterClosed || (settings.defaultOpen && closedMatch())) void openPanel()
     makeEventListener(window, 'resize', reportPanelState)
     const unsubscribes = [
-      panelCommands.on('open', () => void openPanel()),
+      panelCommands.on('open', () => {
+        revealDock()
+        void openPanel()
+      }),
       panelCommands.on('close', () => {
         if (panelOpen()) closePanel()
       }),
-      panelCommands.on('toggle', () => togglePanel()),
+      panelCommands.on('toggle', () => {
+        if (!revealDock()) return togglePanel()
+        void openPanel()
+      }),
     ]
     eventBus.start()
     notifyInteractive()
@@ -343,8 +351,6 @@ function RootChrome(props: {
     router.history.back()
   }
 
-  const revealDock = (): boolean =>
-    settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
   const toggleQuick = () => {
     if (!connected()) return
     const revealed = revealDock()

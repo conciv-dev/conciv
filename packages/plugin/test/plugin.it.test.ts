@@ -1086,7 +1086,7 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 90_000)
 
-  describe('quick terminal shortcut while the conciv dock entry is not showing', () => {
+  describe('while the conciv dock entry is not showing', () => {
     async function expectUsableQuickTerminal(page: Page): Promise<void> {
       const input = page.getByRole('dialog', {name: 'conciv quick terminal'}).getByRole('textbox').first()
       await input.click({timeout: 10_000})
@@ -1099,6 +1099,47 @@ describe('vite devtools dock', () => {
       const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
       await composer.waitFor({timeout: 45_000})
       await hide(page)
+    }
+
+    const closeDock = async (target: Page): Promise<void> => {
+      await target.keyboard.press('Escape')
+      await target.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({state: 'hidden'})
+    }
+
+    const selectSettings = async (target: Page): Promise<void> => {
+      await target.getByRole('button', {name: 'Settings'}).click()
+      await target.getByRole('combobox', {name: 'Language'}).waitFor()
+    }
+
+    async function sendPanelCommand(page: Page, command: 'open' | 'toggle'): Promise<void> {
+      await page.evaluate((name) => {
+        window.dispatchEvent(
+          new CustomEvent('conciv-dispatch-event', {detail: {type: `panel:${name}`, payload: null, pluginId: 'panel'}}),
+        )
+      }, command)
+    }
+
+    async function expectUsableChat(page: Page): Promise<void> {
+      const composer = page
+        .getByRole('dialog', {name: 'conciv chat agent'})
+        .getByRole('textbox', {name: 'Message the conciv agent'})
+      await composer.click({timeout: 10_000})
+      await expectLocator(composer).toBeFocused()
+    }
+
+    for (const [label, hide] of [
+      ['the dock was closed', closeDock],
+      ['another dock entry is selected', selectSettings],
+    ] as const) {
+      for (const command of ['open', 'toggle'] as const) {
+        it(`shows the chat on a panel ${command} command after ${label}`, async () => {
+          const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+          await openDockThenHide(page, hide)
+          await sendPanelCommand(page, command)
+          await expectUsableChat(page)
+          await page.close()
+        }, 90_000)
+      }
     }
 
     it('shows the quick terminal after the dock was closed', async () => {
