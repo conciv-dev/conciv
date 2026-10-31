@@ -1,4 +1,4 @@
-import {splitProps, type JSX} from 'solid-js'
+import {Show, splitProps, type JSX} from 'solid-js'
 import {Tooltip} from './tooltip.js'
 
 export type TooltipIconButtonVariant = 'ghost' | 'solid'
@@ -12,18 +12,31 @@ const VARIANT: Record<TooltipIconButtonVariant, string> = {
   solid: 'rounded-chat-surface-md bg-chat-accent text-chat-on-accent hover:bg-chat-accent-hi',
 }
 
+const KEYCAP =
+  'ms-1.5 inline-flex items-center h-[1.55em] px-[0.45em] rounded-[0.4em] text-[0.86em] font-medium tabular-nums tracking-[0.02em] [color:color-mix(in_oklch,currentColor_72%,transparent)] [background:color-mix(in_oklch,currentColor_9%,transparent)] [box-shadow:inset_0_-1px_0_color-mix(in_oklch,currentColor_12%,transparent)]'
+
+function TooltipLabel(props: {tooltip: string; shortcut: string | undefined}): JSX.Element {
+  return (
+    <>
+      {props.tooltip}
+      <Show when={props.shortcut}>{(shortcut) => <kbd class={KEYCAP}>{shortcut()}</kbd>}</Show>
+    </>
+  )
+}
+
 function iconButtonClass(variant: TooltipIconButtonVariant | undefined, size: string | undefined): string {
   return `${BASE}  ${VARIANT[variant ?? 'ghost']}  ${size ?? 'size-9'}`
 }
 
 export type TooltipIconButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
   tooltip: string
+  shortcut?: string
   side?: TooltipIconButtonSide
   variant?: TooltipIconButtonVariant
 }
 
 export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
-  const [local, rest] = splitProps(props, ['tooltip', 'side', 'variant', 'class'])
+  const [local, rest] = splitProps(props, ['tooltip', 'shortcut', 'side', 'variant', 'class'])
   return (
     <Tooltip.Root positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}}>
       <Tooltip.Trigger
@@ -33,7 +46,9 @@ export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
         aria-label={local.tooltip}
       />
       <Tooltip.Positioner>
-        <Tooltip.Content>{local.tooltip}</Tooltip.Content>
+        <Tooltip.Content>
+          <TooltipLabel tooltip={local.tooltip} shortcut={local.shortcut} />
+        </Tooltip.Content>
       </Tooltip.Positioner>
     </Tooltip.Root>
   )
@@ -41,6 +56,7 @@ export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
 
 export type TooltipIconButtonSlotProps = {
   tooltip: string
+  shortcut?: string
   side?: TooltipIconButtonSide
   variant?: TooltipIconButtonVariant
   class?: string
@@ -49,7 +65,7 @@ export type TooltipIconButtonSlotProps = {
 }
 
 export function TooltipIconButtonSlot(props: TooltipIconButtonSlotProps): JSX.Element {
-  const [local] = splitProps(props, ['tooltip', 'side', 'variant', 'class', 'wrapperClass', 'children'])
+  const [local] = splitProps(props, ['tooltip', 'shortcut', 'side', 'variant', 'class', 'wrapperClass', 'children'])
   const buttonProps = (describedBy: string | undefined): JSX.ButtonHTMLAttributes<HTMLButtonElement> => ({
     type: 'button',
     class: iconButtonClass(local.variant, local.class),
@@ -75,7 +91,9 @@ export function TooltipIconButtonSlot(props: TooltipIconButtonSlotProps): JSX.El
         )}
       </Tooltip.Context>
       <Tooltip.Positioner>
-        <Tooltip.Content>{local.tooltip}</Tooltip.Content>
+        <Tooltip.Content>
+          <TooltipLabel tooltip={local.tooltip} shortcut={local.shortcut} />
+        </Tooltip.Content>
       </Tooltip.Positioner>
     </Tooltip.Root>
   )

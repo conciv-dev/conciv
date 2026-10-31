@@ -4419,6 +4419,9 @@ importers:
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
+      '@solid-primitives/resize-observer':
+        specifier: ^2.2.0
+        version: 2.2.0(solid-js@1.9.17)
       '@solid-primitives/timer':
         specifier: 'catalog:'
         version: 1.4.4(solid-js@1.9.17)
