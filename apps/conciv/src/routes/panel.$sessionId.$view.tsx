@@ -1,9 +1,10 @@
 import {createFileRoute, redirect, useBlocker, useRouter} from '@tanstack/solid-router'
-import {Show, Suspense, createMemo, type JSX} from 'solid-js'
+import {Show, createMemo, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
 import {useAppData, useConnectionGeneration, useInstances, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
+import {ExtensionBoundary} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {appendDraft} from '../pane/draft-storage.js'
@@ -66,9 +67,9 @@ function PanelView(): JSX.Element {
             }}
             class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
           >
-            <Suspense>
+            <ExtensionBoundary name={mount.view.instance.extension.name} fallback="tab">
               <MountedView view={mount.view} clientValue={mount.view.instance.clientValue} />
-            </Suspense>
+            </ExtensionBoundary>
           </div>
         </HostApiProvider>
       )}

@@ -1,9 +1,10 @@
-import type {JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import AlertTriangle from 'lucide-solid/icons/triangle-alert'
 import {Button} from '@conciv/ui-kit-system'
 
 export type ErrorScreenProps = {
   message: string
+  detail?: string
   onRetry: () => void
 }
 
@@ -16,6 +17,9 @@ export function ErrorScreen(props: ErrorScreenProps): JSX.Element {
     >
       <AlertTriangle class="size-8 text-chat-danger" aria-hidden="true" />
       <p class="text-[0.875rem] leading-[1.45] text-chat-text-2 max-w-72">{props.message}</p>
+      <Show when={props.detail}>
+        <p class="text-[0.75rem] leading-[1.45] text-chat-text-3 max-w-72">{props.detail}</p>
+      </Show>
       <Button variant="outline-danger" onClick={props.onRetry}>
         Retry
       </Button>
