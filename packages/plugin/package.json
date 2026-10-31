@@ -8,7 +8,6 @@
     "nextjs",
     "rollup",
     "rspack",
-    "vite-plugin",
     "webpack"
   ],
   "homepage": "https://conciv.dev",
