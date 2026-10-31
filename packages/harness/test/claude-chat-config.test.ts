@@ -72,6 +72,12 @@ describe('claudeChatConfig', () => {
     expect(CLAUDE_ASK_RULES).toEqual(
       expect.arrayContaining([
         'Bash(git push * --force*)',
+        'Bash(git * push --force*)',
+        'Bash(git * push * --force*)',
+        'Bash(git * reset --hard*)',
+        'Bash(git * clean*)',
+        'Bash(git * branch -D*)',
+        'Bash(git * gc --prune*)',
         'Bash(git push * --delete*)',
         'Bash(git push * :**)',
         'Bash(git reset --hard*)',
