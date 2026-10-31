@@ -23,8 +23,6 @@ const SX_KEYS: Record<string, string[]> = {
 
 const SPACING_KEYS = ['p', 'px', 'py', 'pt', 'pr', 'pb', 'pl', 'm', 'mx', 'my', 'mt', 'mr', 'mb', 'ml', 'gap']
 
-const SPACING_UNIT = 8
-
 function keyName(property: ObjectProperty): string | null {
   if (property.computed) return null
   const {key} = property
@@ -38,11 +36,21 @@ function covers(input: {key: string; property: string; sx: boolean}): boolean {
   return declared.some((name) => declares({declared: name, property: input.property}))
 }
 
-function suggestion(input: {key: string; value: Expression; target: number | string}): string | null {
+function pixels(value: string): number | null {
+  if (!value.endsWith('px')) return null
+  const parsed = Number(value.slice(0, -2))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function suggestion(input: {key: string; value: Expression; target: number | string; live: string}): string | null {
   const {value, target} = input
   if (value.type !== 'Literal' || typeof value.value !== 'number') return null
-  if (!SPACING_KEYS.includes(input.key) || typeof target !== 'number' || target % SPACING_UNIT !== 0) return null
-  return `${input.key}: ${target / SPACING_UNIT}`
+  if (!SPACING_KEYS.includes(input.key) || typeof target !== 'number') return null
+  const live = pixels(input.live)
+  if (live === null) return null
+  const unit = live / value.value
+  if (!Number.isFinite(unit) || unit <= 0 || target % unit !== 0) return null
+  return `${input.key}: ${target / unit}`
 }
 
 function styleObject(attribute: JSXAttribute): ObjectExpression | null {
@@ -58,6 +66,7 @@ function fromObject(input: {
   via: 'sx' | 'style'
   property: string
   target: number | string
+  live: string
   file: string
 }): Provenance {
   const entries = input.object.properties
@@ -70,7 +79,8 @@ function fromObject(input: {
   if (entry === undefined || entry.type !== 'Property' || key === null || key === undefined) return UNKNOWN
   if (entries.slice(index + 1).some((later) => later.type === 'SpreadElement')) return UNKNOWN
   const {line, column} = located({site: input.site, offset: entry.start})
-  const suggest = input.via === 'sx' ? suggestion({key, value: entry.value, target: input.target}) : null
+  const suggest =
+    input.via === 'sx' ? suggestion({key, value: entry.value, target: input.target, live: input.live}) : null
   return {
     via: input.via,
     file: input.file,
@@ -96,7 +106,15 @@ export const styleMapper: ProvenanceMapper = {
     const {via, attribute} = found
     const object = styleObject(attribute)
     if (object !== null) {
-      return fromObject({site, object, via, property: input.property, target: input.target, file: source.file})
+      return fromObject({
+        site,
+        object,
+        via,
+        property: input.property,
+        target: input.target,
+        live: input.winner.value,
+        file: source.file,
+      })
     }
     const {line, column} = located({site, offset: attribute.start})
     return {via, file: source.file, line, column, declaration: site.code.slice(attribute.start, attribute.end)}
