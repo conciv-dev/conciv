@@ -69,7 +69,6 @@ function withImageRefs(messages: ModelMessage[], cwd: string): ModelMessage[] {
 
 export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
   adapter: claudeCode(deps.model ?? 'sonnet', {
-    permissionMode: 'default',
     addDirs: [deps.cwd],
     claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR),
     systemPromptMode: 'append',
@@ -78,7 +77,7 @@ export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
     disallowedTools: ['AskUserQuestion'],
     env: definedEntries({MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), ENABLE_TOOL_SEARCH: 'false', ...deps.env}),
   }),
-  modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
+  modelOptions: {permissionMode: 'auto', ...(deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {})},
   prepareMessages: (messages) =>
     deps.kind === 'compact' ? withLastUserText(messages, '/compact') : withImageRefs(messages, deps.cwd),
 })

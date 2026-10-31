@@ -42,8 +42,6 @@ export type ChatStores = {
   metadata: MetadataStore
 }
 
-export type CommandRules = {allow: readonly string[]; ask: readonly string[]; deny: readonly string[]}
-
 export type Approvals = ReadonlyMap<string, boolean>
 
 export type TurnPlan = {
@@ -67,7 +65,7 @@ export type TurnHooks = {
 
 export type ChatServerConfig = {
   stores: ChatStores
-  sandbox: {dir: string; journalDir: string; commands: CommandRules}
+  sandbox: {dir: string; journalDir: string}
   hooks: TurnHooks
   codeModeResult: (value: unknown) => unknown
   firstOutputTimeoutMs: number
@@ -259,14 +257,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   const sandbox = defineSandbox({
     id: 'conciv',
     provider: localProcessSandbox({dir: config.sandbox.dir}),
-    policy: defineSandboxPolicy({
-      default: 'ask',
-      commands: {
-        allow: [...config.sandbox.commands.allow],
-        ask: [...config.sandbox.commands.ask],
-        deny: [...config.sandbox.commands.deny],
-      },
-    }),
+    policy: defineSandboxPolicy({default: 'ask'}),
     fileEvents: false,
     lifecycle: {reuse: 'thread', destroyOnComplete: false},
   })

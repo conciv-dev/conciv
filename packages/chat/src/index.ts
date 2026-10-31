@@ -4,14 +4,7 @@ import {Hono} from 'hono'
 import type {UpgradeWebSocket} from 'hono/ws'
 import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
-import {
-  approvalNeeded,
-  childCardChunks,
-  createChatServer,
-  drizzleChatStores,
-  toolApprovalId,
-  type CommandRules,
-} from '@conciv/ai/server'
+import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
 import type {ChatHydration} from '@conciv/contract'
 import {markers, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, type SessionId} from '@conciv/protocol/chat-types'
@@ -40,7 +33,6 @@ const FIRST_OUTPUT_TIMEOUT_MS = 30_000
 type ChatPlaneDeps = TurnDeps & {
   db: ConcivDb
   stateRoot: string
-  commands: CommandRules
   firstOutputTimeoutMs?: number
 }
 
@@ -102,7 +94,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   })
   const server = await createChatServer({
     stores,
-    sandbox: {dir: deps.cwd, journalDir: join(concivStateDir(deps.stateRoot), 'runs'), commands: deps.commands},
+    sandbox: {dir: deps.cwd, journalDir: join(concivStateDir(deps.stateRoot), 'runs')},
     hooks: turnHooks(deps, {approvals, ui, transcripts}),
     codeModeResult: cappedValue,
     firstOutputTimeoutMs: deps.firstOutputTimeoutMs ?? FIRST_OUTPUT_TIMEOUT_MS,

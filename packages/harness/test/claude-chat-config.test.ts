@@ -46,9 +46,10 @@ describe('claudeChatConfig', () => {
     expect(config.adapter.model).toBe('opus')
   })
 
-  it('keeps permissionMode default so claude consults the approval_prompt bridge (acceptEdits silently runs write commands)', () => {
+  it('leaves command permissions to the auto mode of the CLI, which escalates through the approval_prompt bridge', () => {
     const config = claudeChatConfig(deps())
-    expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({permissionMode: 'default'})
+    expect(config.modelOptions).toMatchObject({permissionMode: 'auto'})
+    expect(Reflect.get(config.adapter, 'adapterConfig')).not.toHaveProperty('permissionMode')
   })
 
   it('disables the native AskUserQuestion, which has no channel back to the widget and self-answers as declined', () => {
@@ -62,8 +63,8 @@ describe('claudeChatConfig', () => {
   })
 
   it('threads the resume session id through modelOptions and leaves the workdir to the sandbox', () => {
-    expect(claudeChatConfig(deps()).modelOptions).toEqual({})
-    expect(claudeChatConfig(deps({resumeSessionId: HarnessSessionId.parse('r-9')})).modelOptions).toEqual({
+    expect(claudeChatConfig(deps()).modelOptions).not.toHaveProperty('sessionId')
+    expect(claudeChatConfig(deps({resumeSessionId: HarnessSessionId.parse('r-9')})).modelOptions).toMatchObject({
       sessionId: 'r-9',
     })
   })

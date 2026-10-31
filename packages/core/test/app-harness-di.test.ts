@@ -466,7 +466,6 @@ async function plane(options: PlaneOptions): Promise<ChatPlane> {
     toolNames: new Set(),
     capabilities: () => options.capabilities ?? [],
     attachmentExpanders: {},
-    commands: {allow: [], ask: [], deny: []},
     firstOutputTimeoutMs: options.firstOutputTimeoutMs ?? 30_000,
     log: (line) => options.log?.push(line),
   })

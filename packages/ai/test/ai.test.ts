@@ -85,7 +85,7 @@ CREATE TABLE \`chat_threads\` (
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
     const server = await createChatServer({
       stores: drizzleChatStores(chatDb()),
-      sandbox: {dir, journalDir: join(dir, 'runs'), commands: {allow: [], ask: [], deny: []}},
+      sandbox: {dir, journalDir: join(dir, 'runs')},
       hooks,
       codeModeResult: (value) => value,
       firstOutputTimeoutMs: 30_000,

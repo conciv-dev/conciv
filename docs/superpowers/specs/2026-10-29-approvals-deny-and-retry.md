@@ -79,3 +79,7 @@ Each gap is filled through a library extension point, never beside one.
 - Tests move to the new flow: `code-mode-approval-replay.it`, `bridge-gate.it`,
   `apps/conciv/test/approval-replay.browser`, `ui-kit-chat chain-approval-collapse.browser`.
 - No `waitFor`, no timeout constant, no `approval-settled` left (grep).
+
+## Superseded 2026-10-31: CLI tool calls use the CLI's native permission mode
+
+Claude Code runs with `permissionMode: 'auto'`, and the command policy this spec moved into `SandboxPolicy` (`commands.allow/ask/deny`, `readOnlyCommandAsks`, `askFreeCommandAllows`) is deleted. What the CLI escalates still reaches the widget's approval strip through `--permission-prompt-tool` and the `default: 'ask'` policy. Conciv's own `approval: 'ask'` tools keep the deny-and-retry flow described above.

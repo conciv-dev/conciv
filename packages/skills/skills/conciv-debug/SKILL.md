@@ -72,16 +72,12 @@ by two different paths.
   on the user, whether or not a widget is open. A call from outside a chat turn (external MCP, the
   `conciv` CLI, raw RPC) gets the same refusal from `admitCall` (`packages/chat/src/index.ts`): approving
   it stores a one-time grant only that caller's retry consumes, posts no message and starts no turn.
-- **Shell commands** run through the sandbox, whose policy is `default: 'ask'`
-  (`packages/ai/src/server/chat-server.ts:234-247`). The rules come from
-  `packages/core/src/command-policy.ts`, passed in at `packages/core/src/app.ts:479` together with the
-  CLI aliases of every tool that needs no approval. Precedence is deny, then ask, then allow.
-- **A command that should auto-allow is stuck on a card.** `readOnlyCommandAsks`
-  (`packages/core/src/command-policy.ts:64-68`) beats the allow list, so a read-only head still asks
-  when the line contains a shell metacharacter (`;`, `&`, `|`, a backtick, `$`, `>`, `<`) or a write or
-  execute flag on an allowlisted head: `git branch -D`, `git log --output`, `find -delete`/`-exec`,
-  `grep --pager`, `rg --pre`, `date -s`. So `ls foo | grep bar` asks, because the pipe alone matches
-  `*|*`. Check the command against those patterns before concluding the allow list is wrong.
+- **Shell commands and other CLI tool calls** belong to the CLI's own permission mode: Claude Code runs
+  with `permissionMode: 'auto'` (`modelOptions` in `packages/harness/src/claude/chat.ts`), so its
+  classifier decides. Only what it escalates reaches `--permission-prompt-tool` and the sandbox policy,
+  which is a bare `default: 'ask'` with no command rules (`packages/ai/src/server/chat-server.ts`), and
+  arrives in the widget as an ask. Conciv keeps no allow, ask or deny list. A command stuck on a card is
+  the CLI asking, so read the CLI's verdict rather than looking for a conciv rule.
 - **The same command asked twice.** A grant is remembered for the session only when the user answers
   with `scope: 'session'` (`packages/chat/src/approvals.ts:83-100`). A `once` grant is consumed by the
   next run (`forRun`, `packages/chat/src/approvals.ts:101-105`), and a command containing a shell
@@ -153,10 +149,6 @@ Two consequences:
   settled-then-clicked card reports `UNKNOWN_REQUEST`.
 - Reaching for `networkidle` in a new Playwright check against the live widget — it will hang, not
   flake occasionally.
-- Adding a command to `READ_ONLY_COMMANDS` to silence an approval prompt without first checking it
-  against `readOnlyCommandAsks` — a shell metacharacter or a write flag on an allowlisted head forces
-  the ask no matter what the allow list says, so the fix is almost never "the command needs to be
-  allowlisted."
 - Treating a multi-second hang as an approval wait — approvals never block a turn, so a hang points
   at the harness CLI.
 - Treating a stream that never goes idle as a bug — every long-lived surface here (the turn socket,
@@ -173,7 +165,6 @@ Two consequences:
 - `packages/chat/src/code-mode.ts`
 - `packages/chat/src/index.ts`
 - `packages/chat/src/turn.ts`
-- `packages/core/src/command-policy.ts`
 - `packages/core/src/sessions/session-bus.ts`
 - `packages/core/src/api/rpc/chat.ts`
 - `packages/contract/src/contract.ts`

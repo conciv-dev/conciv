@@ -145,7 +145,7 @@ rather than casting.
 
 `prepareMessages` is where you rewrite the turn before it reaches the adapter — e.g. claude's chat
 config swaps in image file references or a literal `/compact` prompt depending on `deps.kind`
-(`packages/harness/src/claude/chat.ts:70-84`). Only add it if your CLI needs message-shape
+(`packages/harness/src/claude/chat.ts:70-83`). Only add it if your CLI needs message-shape
 translation; most adapters omit it.
 
 ## `chat()` owns the turn — you never spawn or decode the CLI in core/widget
@@ -189,9 +189,9 @@ durability options that make a run recoverable: the same event-log adapter the t
 a journal directory under the conciv state dir, and `detachOnDisconnect: true`, which leaves the agent
 running when a client disconnects instead of destroying its sandbox. Tools that need approval are
 wrapped by `gatedTools` (`packages/ai/src/server/chat-server.ts:162-176`). An adapter neither sees nor
-makes those decisions, and `chatConfig` receives no approval callback: if your adapter needs a
-CLI-specific "is this command risky" check, that check belongs in the sandbox's command rules
-(`packages/core/src/command-policy.ts`), not a special case bolted onto core or the widget.
+makes those decisions, and `chatConfig` receives no approval callback: a CLI's own commands are governed
+by that CLI's native permission mode (`permissionMode: 'auto'` for Claude Code), set in `chatConfig`. Conciv
+keeps no command rules, so never add an "is this command risky" check to core or the widget.
 
 ## Sandbox-virtual workdir: `chatConfig` never passes a host `cwd`; `connect.plan()` legitimately does
 
@@ -353,6 +353,5 @@ fit in this file's budget.
 - `packages/harness/src/_shared/contained-path.ts`
 - `packages/ai/src/server/chat-server.ts`
 - `packages/chat/src/turn.ts`
-- `packages/core/src/command-policy.ts`
 - `apps/site/content/docs/harnesses.mdx`
 - `AGENTS.md`

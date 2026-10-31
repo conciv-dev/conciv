@@ -46,7 +46,6 @@ import {
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
 import {pushRoutes, type PushDeps} from './api/push.js'
-import {readOnlyCommandAllows, readOnlyCommandAsks} from './command-policy.js'
 import type {ChatContext} from './api/rpc/mount.js'
 import {drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
@@ -61,9 +60,7 @@ import {makeRpcRouter} from './api/rpc/router.js'
 import {makeCompositeRpcRouter, RPC_PREFIX, rpcFetchMiddleware} from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
-import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {assertToolName} from '@conciv/extension/tool'
-import {BUILTIN_OPEN_TOOL, SERVER_TOOL_PREFIX} from '@conciv/tools/builtins'
 import {logError} from './lib/debug.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import type {OpenInEditor} from './editor/open.js'
@@ -229,17 +226,6 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
       owners.set(name, source)
     }
   }
-}
-
-const CLI_TOOL_GROUPS = [
-  {prefix: PAGE_TOOL_PREFIX, command: 'conciv tools page'},
-  {prefix: SERVER_TOOL_PREFIX, command: 'conciv tools server'},
-] as const
-
-function cliCommandOf(name: string): string | null {
-  if (name === BUILTIN_OPEN_TOOL.name) return 'conciv tools open'
-  const matched = CLI_TOOL_GROUPS.find(({prefix}) => name.startsWith(prefix))
-  return matched === undefined ? null : `${matched.command} ${name.slice(matched.prefix.length)}`
 }
 
 export const HealthSchema = z.object({
@@ -417,23 +403,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     askUi: () => runtime.forSession(sessionId).asks.ui(),
   })
 
-  const askFreeCommandAllows = (): string[] =>
-    registry.catalog
-      .list()
-      .flatMap((entry) => {
-        const signature = registry.catalog.get(entry.name)
-        if (requiresApproval(signature)) return []
-        const command = cliCommandOf(entry.name)
-        if (command === null) return []
-        const aliases = [command, `${command} *`]
-        if (entry.name.startsWith(PAGE_TOOL_PREFIX) && signature.category === 'react') {
-          const verb = entry.name.slice(PAGE_TOOL_PREFIX.length)
-          aliases.push(`conciv tools react ${verb}`, `conciv tools react ${verb} *`)
-        }
-        return aliases
-      })
-      .concat(['conciv tools page changes', 'conciv tools page changes *'])
-
   assertUniqueCapabilityNames([
     ['a built-in registry tool', registry.sandboxTools().map((tool) => tool.name)],
     ['a conciv assist tool', concivSandboxToolNames()],
@@ -476,7 +445,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       onRunEnd,
       publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
     }),
-    commands: {allow: [...readOnlyCommandAllows, ...askFreeCommandAllows()], ask: readOnlyCommandAsks, deny: []},
     toolNames: new Set([...toolList.map((tool) => tool.name), ...concivSandboxToolNames()]),
     capabilities: codeModeCapabilities,
     attachmentExpanders,
