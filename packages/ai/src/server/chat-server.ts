@@ -172,7 +172,11 @@ function withLastUser(messages: ModelMessage[], user: ModelMessage | undefined):
 
 async function* noStream(): AsyncGenerator<ChatEvent> {}
 
-function approvalNeeded(name: string): Error {
+export function toolApprovalId(name: string): string {
+  return approvalId({provider: 'conciv', kind: 'tool', target: name})
+}
+
+export function approvalNeeded(name: string): Error {
   return new Error(
     `Tool "${name}" needs the user's approval. The request is shown to the user; retry once they approve it.`,
   )
@@ -182,7 +186,7 @@ function gatedTools(tools: readonly ChatTool[], approvals: () => Approvals): Cha
   return tools.map((tool) => {
     const execute = tool.execute
     if (!execute) return tool
-    const id = approvalId({provider: 'conciv', kind: 'tool', target: tool.name})
+    const id = toolApprovalId(tool.name)
     return {
       ...tool,
       execute: async (args: unknown, context?: {emitCustomEvent?: CustomEventSink}) => {

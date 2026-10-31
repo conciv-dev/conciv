@@ -15,6 +15,7 @@ export type {PacedRelease, PacedText, ScriptedRun, ScriptedTurn, ScriptedTurnToo
 export {harnessAvailable} from './harness-available.js'
 export {
   autoApprove,
+  approvePending,
   makeApprovingCallTool,
   makeApprovingRegistryCall,
   makeCallTool,

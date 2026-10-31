@@ -6,11 +6,14 @@ import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
 import type {RegistryCallErrorName} from '@conciv/contract'
+import {widgetCaller} from '../../lib/cors.js'
 import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
 import {makeSessionOs, os, type RpcDeps} from './mount.js'
+import type {SessionScope} from '../../runtime/scope-types.js'
+import type {RpcContext} from '@conciv/protocol/rpc-types'
 
 export const PAGE_ERROR_NAME = {
   'no-widget': 'NO_PAGE_CLIENT',
@@ -22,6 +25,8 @@ export const PAGE_ERROR_NAME = {
 
 type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string}) => Error>
 type BundlerErrors = {NO_BUNDLER: () => Error}
+type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
+type GatedCall = {context: RpcContext & {session: SessionScope}; errors: ApprovalErrors}
 
 function registryCallError(error: unknown, errors: RegistryErrors): Error {
   if (isPageVerbError(error)) return errors[PAGE_ERROR_NAME[error.code]]({message: error.message})
@@ -46,6 +51,15 @@ async function callTool<Output extends z.ZodType>(
     if (errors && hasErrorCode(error, 'NO_BUNDLER')) throw errors.NO_BUNDLER()
     throw error
   }
+}
+
+async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, call: GatedCall): Promise<void> {
+  if (widgetCaller(call.context.callerOrigin, deps.allowedOrigins)) return
+  const asks = deps.runtime.engine.catalog().find((tool) => tool.name === name)?.approval === 'ask'
+  if (!asks) return
+  const scope = call.context.session
+  const refusal = await deps.chat.plane.admitCall(scope.id, name, input, scope.stream.publish)
+  if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal})
 }
 
 export function makeRpcRouter(deps: RpcDeps) {
@@ -80,6 +94,7 @@ export function makeRpcRouter(deps: RpcDeps) {
       catalog: os.registry.catalog.handler(() => engine.catalog()),
       call: sessionOs.registry.call.handler(async ({input, context, errors}) => {
         if (!context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
+        await refuseUnapproved(deps, input.name, input.input, {context, errors})
         try {
           return await context.session.tools.call(input.name, input.input)
         } catch (error) {
@@ -117,10 +132,12 @@ export function makeRpcRouter(deps: RpcDeps) {
         callTool(BUILTIN_SERVER_TOOL.server_transform, input, errors),
       ),
       urls: sessionOs.server.urls.handler(({errors}) => callTool(BUILTIN_SERVER_TOOL.server_urls, {}, errors)),
-      reload: sessionOs.server.reload.handler(async ({input, errors}) => {
+      reload: sessionOs.server.reload.handler(async ({input, context, errors}) => {
+        await refuseUnapproved(deps, BUILTIN_SERVER_TOOL.server_reload.name, input, {context, errors})
         return callTool(BUILTIN_SERVER_TOOL.server_reload, input, errors)
       }),
-      restart: sessionOs.server.restart.handler(async ({input, errors}) => {
+      restart: sessionOs.server.restart.handler(async ({input, context, errors}) => {
+        await refuseUnapproved(deps, BUILTIN_SERVER_TOOL.server_restart.name, input, {context, errors})
         return callTool(BUILTIN_SERVER_TOOL.server_restart, input, errors)
       }),
     },

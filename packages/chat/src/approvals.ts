@@ -20,10 +20,15 @@ const PendingSchema = z.array(
     title: z.string(),
     input: z.unknown(),
     runId: z.string().nullable(),
+    caller: z.enum(['run', 'rpc']).default('run'),
   }),
 )
 
-const GrantsSchema = z.object({session: z.array(z.string()), once: z.array(z.string())})
+const GrantsSchema = z.object({
+  session: z.array(z.string()),
+  once: z.array(z.string()),
+  rpc: z.array(z.string()).default([]),
+})
 
 type Grants = z.infer<typeof GrantsSchema>
 
@@ -35,6 +40,7 @@ export type ApprovalAsked = {
   title: string
   input: unknown
   runId: string | null
+  caller?: 'run' | 'rpc'
 }
 
 export type ApprovalStore = {
@@ -43,6 +49,7 @@ export type ApprovalStore = {
   decide: (threadId: string, approvalId: string, approved: boolean, scope: ApprovalScope) => Promise<boolean>
   forRun: (threadId: string) => Promise<Approvals>
   granted: (threadId: string) => Promise<Approvals>
+  admit: (threadId: string, approvalId: string) => Promise<boolean>
 }
 
 const HIDDEN_COMMAND = /[;&|`$<>\n\\]/
@@ -54,6 +61,10 @@ function sessionGrantable(approvalId: string): boolean {
   return command === undefined || !HIDDEN_COMMAND.test(command)
 }
 
+function grantBucket(caller: 'run' | 'rpc'): 'once' | 'rpc' {
+  return caller === 'rpc' ? 'rpc' : 'once'
+}
+
 const pendingKey = (threadId: string): string => `${threadId}:pending-approvals`
 
 const grantsKey = (threadId: string): string => `${threadId}:grants`
@@ -62,7 +73,9 @@ export function createApprovalStore(metadata: ChatStores['metadata']): ApprovalS
   const pendingOf = async (threadId: string) =>
     PendingSchema.parse((await metadata.get(APPROVALS_NAMESPACE, pendingKey(threadId))) ?? [])
   const grantsOf = async (threadId: string): Promise<Grants> =>
-    GrantsSchema.parse((await metadata.get(APPROVALS_NAMESPACE, grantsKey(threadId))) ?? {session: [], once: []})
+    GrantsSchema.parse(
+      (await metadata.get(APPROVALS_NAMESPACE, grantsKey(threadId))) ?? {session: [], once: [], rpc: []},
+    )
   const writeGrants = (threadId: string, grants: Grants): Promise<void> =>
     metadata.set(APPROVALS_NAMESPACE, grantsKey(threadId), grants)
   const asMap = (ids: readonly string[]): Approvals => new Map(ids.map((id) => [id, true]))
@@ -70,7 +83,7 @@ export function createApprovalStore(metadata: ChatStores['metadata']): ApprovalS
     asked: async (threadId, ask) => {
       const pending = await pendingOf(threadId)
       if (pending.some((entry) => entry.approvalId === ask.approvalId)) return
-      await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), [...pending, ask])
+      await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), [...pending, {...ask, caller: ask.caller ?? 'run'}])
     },
     pending: async (threadId) =>
       (await pendingOf(threadId)).map((entry) => ({
@@ -82,7 +95,8 @@ export function createApprovalStore(metadata: ChatStores['metadata']): ApprovalS
       })),
     decide: async (threadId, approvalId, approved, scope) => {
       const pending = await pendingOf(threadId)
-      if (!pending.some((entry) => entry.approvalId === approvalId)) return false
+      const decided = pending.find((entry) => entry.approvalId === approvalId)
+      if (decided === undefined) return false
       await metadata.set(
         APPROVALS_NAMESPACE,
         pendingKey(threadId),
@@ -90,12 +104,8 @@ export function createApprovalStore(metadata: ChatStores['metadata']): ApprovalS
       )
       if (!approved) return true
       const grants = await grantsOf(threadId)
-      await writeGrants(
-        threadId,
-        scope === 'session' && sessionGrantable(approvalId)
-          ? {...grants, session: [...new Set([...grants.session, approvalId])]}
-          : {...grants, once: [...new Set([...grants.once, approvalId])]},
-      )
+      const bucket = scope === 'session' && sessionGrantable(approvalId) ? 'session' : grantBucket(decided.caller)
+      await writeGrants(threadId, {...grants, [bucket]: [...new Set([...grants[bucket], approvalId])]})
       return true
     },
     forRun: async (threadId) => {
@@ -106,6 +116,18 @@ export function createApprovalStore(metadata: ChatStores['metadata']): ApprovalS
     granted: async (threadId) => {
       const grants = await grantsOf(threadId)
       return asMap([...grants.session, ...grants.once])
+    },
+    admit: async (threadId, approvalId) => {
+      const grants = await grantsOf(threadId)
+      if (grants.session.includes(approvalId)) return true
+      const consumed = {
+        ...grants,
+        once: grants.once.filter((id) => id !== approvalId),
+        rpc: grants.rpc.filter((id) => id !== approvalId),
+      }
+      if (consumed.once.length === grants.once.length && consumed.rpc.length === grants.rpc.length) return false
+      await writeGrants(threadId, consumed)
+      return true
     },
   }
 }

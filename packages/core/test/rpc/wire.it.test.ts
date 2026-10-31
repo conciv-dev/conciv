@@ -19,7 +19,7 @@ import {PAGE_TRANSPORT_ERROR_CODES, type PageOutcome} from '@conciv/protocol/pag
 import {
   createTestHarness,
   makeRpcClient,
-  withAutoApproval,
+  approvePending,
   type Kit,
   type TestHarness,
   createTestkit,
@@ -453,10 +453,13 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(await kit.rpc.server.urls(undefined)).toEqual({local: ['http://localhost:3000'], network: []})
     const {sessionId} = await kit.rpc.sessions.create(undefined)
     const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-    await withAutoApproval(kit.base, sessionId, async () => {
-      expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
-      expect(await sessionRpc.server.restart({force: true})).toEqual({ok: true})
-    })
+    await expect(sessionRpc.server.reload({file: 'src/hot.ts'})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+    await expect(sessionRpc.server.restart({force: true})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+    expect(reloaded).toEqual([])
+    expect(restarted).toEqual([])
+    await approvePending(kit.base, sessionId)
+    expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
+    expect(await sessionRpc.server.restart({force: true})).toEqual({ok: true})
     expect(reloaded).toEqual(['src/hot.ts'])
     expect(restarted).toEqual([true])
   })
@@ -891,8 +894,9 @@ describe('chat', () => {
 
     it('the widget calling a tool is the approval, while agents and malformed callers are refused', async () => {
       const ran = toolRuns.ask
-      await expect(mcpRpc().registry.call({name: 'fixture_ask', input: {target: 'w'}})).resolves.toEqual({done: 'w'})
-      await expect(mcpRpc().server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
+      const browserRpc = widgetRpc(app.mcpSession)
+      await expect(browserRpc.registry.call({name: 'fixture_ask', input: {target: 'w'}})).resolves.toEqual({done: 'w'})
+      await expect(browserRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
       await expect((await mcpTool('fixture_ask')).execute({target: 'agent'})).rejects.toThrow(/needs the user/)
       expect(toolRuns.ask).toBe(ran + 1)
       await expect(callerWithout().registry.call({name: 'fixture_read', input: {}})).rejects.toMatchObject({
@@ -903,6 +907,43 @@ describe('chat', () => {
         message: expect.stringMatching(/malformed/),
       })
       expect((await mcpPost({[CONCIV_SESSION_HEADER]: 'nope'})).status).toBe(400)
+    })
+
+    it('a caller outside the widget is refused, shows the ask, and one approval runs one retry', async () => {
+      const sessionId = await newSession()
+      const ran = toolRuns.ask
+      const call = () => callerWith(sessionId).registry.call({name: 'fixture_ask', input: {target: 'x'}})
+      const abort = new AbortController()
+      const events = await chatKit().rpc.chat.events({sessionId}, {signal: abort.signal})
+      const firstEvent = events.next()
+      await expect(call()).rejects.toMatchObject({
+        code: 'APPROVAL_DENIED',
+        message: expect.stringMatching(/needs the user/),
+      })
+      expect((await firstEvent).value).toMatchObject({name: 'approval-requested', value: {approvalId: ASK_ID}})
+      abort.abort()
+      expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([
+        {approvalId: ASK_ID, toolCallId: ASK_ID, toolName: 'fixture_ask', input: {target: 'x'}, runId: null},
+      ])
+      expect(toolRuns.ask).toBe(ran)
+      await decide(sessionId, ASK_ID, true)
+      await finished(sessionId, 'Approved: fixture_ask')
+      await expect(call()).resolves.toEqual({done: 'x'})
+      expect(toolRuns.ask).toBe(ran + 1)
+      await expect(call()).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+    })
+
+    it('a browser page on a foreign origin never reaches the tool', async () => {
+      const response = await fetch(`${chatKit().base}/rpc/registry/call`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://evil.example',
+          [CONCIV_SESSION_HEADER]: app.mcpSession,
+        },
+        body: JSON.stringify({json: {name: 'fixture_ask', input: {target: 'evil'}}}),
+      })
+      expect(response.status).toBe(403)
     })
   })
 
@@ -1526,12 +1567,12 @@ function callerWith(sessionId: string) {
   return makeRpcClient(chatKit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
 }
 
-function callerWithout() {
-  return makeRpcClient(chatKit().base)
+function widgetRpc(sessionId: string) {
+  return makeRpcClient(chatKit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, origin: 'http://localhost:3000'}})
 }
 
-function mcpRpc() {
-  return callerWith(app.mcpSession)
+function callerWithout() {
+  return makeRpcClient(chatKit().base)
 }
 
 function codeTurn(code: string): string {

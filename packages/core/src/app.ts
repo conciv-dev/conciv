@@ -508,6 +508,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     tools: toolList,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     runtime,
+    allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
   })
 

@@ -2,9 +2,16 @@ import {randomUUID} from 'node:crypto'
 import {join} from 'node:path'
 import {Hono} from 'hono'
 import type {UpgradeWebSocket} from 'hono/ws'
-import {approvalAskOf, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {approvalAskOf, approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
-import {childCardChunks, createChatServer, drizzleChatStores, type CommandRules} from '@conciv/ai/server'
+import {
+  approvalNeeded,
+  childCardChunks,
+  createChatServer,
+  drizzleChatStores,
+  toolApprovalId,
+  type CommandRules,
+} from '@conciv/ai/server'
 import type {ChatHydration} from '@conciv/contract'
 import {markers, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, type SessionId} from '@conciv/protocol/chat-types'
@@ -65,6 +72,12 @@ export type ChatPlane = {
   answerUi: (sessionId: SessionId, toolCallId: string, value: unknown) => boolean
   askUi: (sessionId: SessionId) => Promise<UiAnswer>
   codeRunner: (sessionId: SessionId, publish: (chunk: ChatEvent) => void) => Promise<CodeRunner | null>
+  admitCall: (
+    sessionId: SessionId,
+    toolName: string,
+    input: unknown,
+    publish: (chunk: ChatEvent) => void,
+  ) => Promise<string | null>
 }
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
@@ -143,6 +156,21 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     decide: (sessionId, approvalId, approved, scope) => approvals.decide(sessionId, approvalId, approved, scope),
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),
     askUi: (sessionId) => ui.ask(sessionId),
+    admitCall: async (sessionId, toolName, input, publish) => {
+      if (deps.sessions.row(sessionId) === null) return `session "${sessionId}" does not exist`
+      const approvalId = toolApprovalId(toolName)
+      if (await approvals.admit(sessionId, approvalId)) return null
+      await approvals.asked(sessionId, {
+        approvalId,
+        toolCallId: approvalId,
+        title: toolName,
+        input,
+        runId: null,
+        caller: 'rpc',
+      })
+      publish({...approvalRequestedEvent.create({approvalId, title: toolName, input}), timestamp: Date.now()})
+      return approvalNeeded(toolName).message
+    },
     codeRunner: async (sessionId, publish) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = deps.capabilities(sessionId)

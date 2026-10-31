@@ -27,6 +27,7 @@ export type RpcDeps = {
   tools: ChatTool[]
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   runtime: CoreRuntime
+  allowedOrigins: ReadonlySet<string>
   staleness: () => EngineStaleness
 }
 
