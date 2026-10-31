@@ -4,6 +4,7 @@ export {
   useThread,
   useComposer,
   type ViewState,
+  type Chat,
   type ChatContextValue,
 } from './store/chat-context.js'
 export {

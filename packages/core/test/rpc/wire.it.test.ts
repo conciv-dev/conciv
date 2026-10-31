@@ -417,7 +417,9 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
   it('server reads and widget writes without a bundler bridge report NO_BUNDLER', async () => {
     const {kit} = await bootWire()
     await expect(kit.rpc.server.config(undefined)).rejects.toMatchObject({code: 'NO_BUNDLER'})
-    await expect(kit.rpc.server.reload({file: 'src/a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
+    const {sessionId} = await kit.rpc.sessions.create(undefined)
+    const widget = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, origin: kit.base}})
+    await expect(widget.server.reload({file: 'src/a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
   })
 
   it('server.* round-trips a real bundler bridge', async () => {

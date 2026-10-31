@@ -9,9 +9,8 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {createStore, type SetStoreFunction} from 'solid-js/store'
-import type {Chat} from '@conciv/ai/client'
-import type {ChatMessage} from '@conciv/protocol/chat-message-types'
-import {chatBusy} from '@conciv/protocol/chat-busy'
+import type {ChatMessage, QueuedMessage, SendContent} from '@conciv/protocol/chat-message-types'
+import {chatBusy, type ChatBusySource} from '@conciv/protocol/chat-busy'
 import {diffTurns, type Turn} from './grouping.js'
 
 export type ViewState = {
@@ -19,6 +18,16 @@ export type ViewState = {
   collapsed: Record<string, boolean>
   pinned: Record<string, boolean>
   hovering: string | null
+}
+
+export type Chat = ChatBusySource & {
+  messages: Accessor<readonly ChatMessage[]>
+  error: Accessor<Error | undefined>
+  queue: Accessor<readonly QueuedMessage[]>
+  cancelQueued: (id: string) => void
+  sendMessage: (content: string | SendContent, options?: {whenBusy?: 'interrupt'}) => Promise<void>
+  stop: () => void
+  reload: () => Promise<void>
 }
 
 export type StoppableChat = Chat & {stopping?: Accessor<boolean>}
