@@ -296,6 +296,22 @@ function aborted(signal: AbortSignal | undefined): Promise<void> {
   return new Promise((settle) => signal?.addEventListener('abort', () => settle(), {once: true}))
 }
 
+function toolThenSecondSegment(runId: string): ChatEvent[] {
+  return [
+    ...createToolCallChunks('Read', {file_path: 'a.ts'}, {parentMessageId: `${runId}-a`, result: 'ok'}),
+    {type: ChatEventType.TEXT_MESSAGE_START, messageId: `${runId}-b`, role: 'assistant'},
+    {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: `${runId}-b`, delta: 'second segment'},
+    {type: ChatEventType.TEXT_MESSAGE_END, messageId: `${runId}-b`},
+  ]
+}
+
+const STEP_TAIL: Record<CliStep, (runId: string) => ChatEvent[]> = {
+  reply: () => [],
+  silent: () => [],
+  partial: () => [],
+  split: toolThenSecondSegment,
+}
+
 function cliHarness(cli: FakeCli, history?: HarnessHistory): HarnessAdapter {
   const shared = {
     id: 'fake-cli',
@@ -316,12 +332,7 @@ function cliHarness(cli: FakeCli, history?: HarnessHistory): HarnessAdapter {
         yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: `${run.runId}-a`, delta: 'partial reply'}
         if (step === 'partial') await cli.gate
         yield {type: ChatEventType.TEXT_MESSAGE_END, messageId: `${run.runId}-a`}
-        if (step === 'split') {
-          yield* createToolCallChunks('Read', {file_path: 'a.ts'}, {parentMessageId: `${run.runId}-a`, result: 'ok'})
-          yield {type: ChatEventType.TEXT_MESSAGE_START, messageId: `${run.runId}-b`, role: 'assistant'}
-          yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: `${run.runId}-b`, delta: 'second segment'}
-          yield {type: ChatEventType.TEXT_MESSAGE_END, messageId: `${run.runId}-b`}
-        }
+        yield* STEP_TAIL[step](run.runId)
         yield {type: ChatEventType.RUN_FINISHED, ...run}
       }),
     }),
