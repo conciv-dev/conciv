@@ -26,9 +26,13 @@ export function htmlTags(corePort: number, opts: {widget?: ConcivSettingsInit | 
 
 type WidgetTag = {present: (html: string) => boolean; html: string}
 
+const NON_MARKUP = /<!--[\s\S]*?(?:-->|$)|<script\b[\s\S]*?(?:<\/script\s*>|$)/gi
+const OTHER_ATTRIBUTE = `[^\\s/>=]+(?:\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s"'>]+))?`
+
 function metaPresent(name: string): (html: string) => boolean {
-  const marker = new RegExp(`\\bname\\s*=\\s*["']?${name}(?=["'\\s/>])`, 'i')
-  return (html) => marker.test(html)
+  const value = `(?:"${name}"|'${name}'|${name}(?=[\\s/>]))`
+  const meta = new RegExp(`<meta(?:[\\s/]+${OTHER_ATTRIBUTE})*?[\\s/]+name\\s*=\\s*${value}`, 'i')
+  return (html) => meta.test(html.replace(NON_MARKUP, ''))
 }
 
 function widgetTags(apiBase: string, widgetConfig?: ConcivSettingsInit | false): WidgetTag[] {
