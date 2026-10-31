@@ -2,7 +2,7 @@ import {z} from 'zod'
 import {FILTERS, type Filter} from './data.js'
 import {MODES} from './stage.js'
 
-export const VIEWS = ['list', 'capture'] as const
+const VIEWS = ['list', 'capture'] as const
 export type View = (typeof VIEWS)[number]
 
 export const XraySearchSchema = z.object({
