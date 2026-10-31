@@ -1,6 +1,6 @@
 import type {IncomingMessage, OutgoingHttpHeader, ServerResponse} from 'node:http'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
-import type {WidgetConfig} from '@conciv/protocol/config-types'
+import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
 
@@ -12,7 +12,7 @@ function escapeAttr(value: string): string {
 
 export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; injectTo: 'head'}
 
-export function htmlTags(corePort: number, opts: {widget?: WidgetConfig | false}): HtmlTag[] {
+export function htmlTags(corePort: number, opts: {widget?: ConcivSettingsInit | false}): HtmlTag[] {
   const base: HtmlTag[] = [
     {tag: 'meta', attrs: {name: 'conciv-api-base', content: `http://127.0.0.1:${corePort}`}, injectTo: 'head'},
   ]
@@ -24,14 +24,29 @@ export function htmlTags(corePort: number, opts: {widget?: WidgetConfig | false}
   ]
 }
 
-export function widgetTags(apiBase: string, widgetConfig?: WidgetConfig | false): string {
-  const base = `<meta name="conciv-api-base" content="${escapeAttr(apiBase)}">`
-  if (widgetConfig === false) return base
-  return (
-    base +
-    `<meta name="conciv-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">` +
-    `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`
-  )
+type WidgetTag = {marker: string; html: string}
+
+function widgetTags(apiBase: string, widgetConfig?: ConcivSettingsInit | false): WidgetTag[] {
+  const base = {
+    marker: 'name="conciv-api-base"',
+    html: `<meta name="conciv-api-base" content="${escapeAttr(apiBase)}">`,
+  }
+  if (widgetConfig === false) return [base]
+  return [
+    base,
+    {
+      marker: 'name="conciv-widget"',
+      html: `<meta name="conciv-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">`,
+    },
+    {marker: EXTENSIONS_ROUTE, html: `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`},
+  ]
+}
+
+function missingTags(html: string, tags: readonly WidgetTag[]): string {
+  return tags
+    .filter((tag) => !html.includes(tag.marker))
+    .map((tag) => tag.html)
+    .join('')
 }
 
 function injectInto(html: string, tags: string): string {
@@ -83,7 +98,7 @@ function trailingCallback(args: ReadonlyArray<unknown>): (() => void) | undefine
 
 const NESTED_FETCH_DESTS = new Set(['iframe', 'frame', 'embed', 'object'])
 
-export function makeWidgetInject(apiBase: string, widgetConfig?: WidgetConfig | false): Middleware {
+export function makeWidgetInject(apiBase: string, widgetConfig?: ConcivSettingsInit | false): Middleware {
   const tags = widgetTags(apiBase, widgetConfig)
   return (req, res, next) => {
     const fetchDest = req.headers['sec-fetch-dest']
@@ -135,9 +150,9 @@ export function makeWidgetInject(apiBase: string, widgetConfig?: WidgetConfig | 
       const cb = trailingCallback(args)
       const body = Buffer.concat(chunks).toString('utf8')
 
-      const shouldInject =
-        String(res.getHeader('content-type') ?? '').includes('text/html') && !body.includes(EXTENSIONS_ROUTE)
-      const out = shouldInject ? injectInto(body, tags) : body
+      const isHtml = String(res.getHeader('content-type') ?? '').includes('text/html')
+      const missing = isHtml ? missingTags(body, tags) : ''
+      const out = missing === '' ? body : injectInto(body, missing)
 
       res.write = realWrite
       res.end = realEnd

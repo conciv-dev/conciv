@@ -6,7 +6,13 @@ import {isConcivSrcTsx} from './conciv-src.js'
 
 export {concivSrcEntry} from './conciv-src.js'
 import {splitExtension} from './split-extension.js'
-import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_ROUTE, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
+import {
+  EXTENSIONS_RESOLVED_ID,
+  EXTENSIONS_ROUTE,
+  EXTENSIONS_VIRTUAL_ID,
+  extensionsModuleSource,
+  type ExtensionsSurface,
+} from './extensions.js'
 
 const SOLID_SINGLETONS = ['solid-js', 'solid-js/web', 'solid-js/store', '@tanstack/solid-router', '@ark-ui/solid']
 
@@ -60,8 +66,11 @@ export function loadExtensionsModule(
   apiBase?: string,
   embedEntry?: string,
   dedupeEntry?: string,
+  surface?: ExtensionsSurface,
 ): string | null {
-  return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource(clientEntries, apiBase, embedEntry, dedupeEntry) : null
+  return id === EXTENSIONS_RESOLVED_ID
+    ? extensionsModuleSource(clientEntries, apiBase, embedEntry, dedupeEntry, surface)
+    : null
 }
 
 export function isClientEntry(id: string): boolean {

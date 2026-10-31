@@ -3,6 +3,7 @@ import {page} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
 import {mountToolCard} from '@conciv/extension-testkit/card-harness'
 import {CardChromeProvider, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
+import {loadCaptureLibrary} from '../src/client/capture.js'
 import {createCaptureSession} from '../src/client/capture-session.js'
 import type {RecorderConfig, RrwebEvent} from '../src/shared/protocol.js'
 import {RecordingToolCard} from '../src/tool/card.js'
@@ -32,6 +33,7 @@ describe('capture session', () => {
       let releaseConfig: (value: RecorderConfig) => void = () => {}
       const sentByStopped: RrwebEvent[][] = []
       const stoppedSession = createCaptureSession({
+        library: await loadCaptureLibrary(),
         config,
         reloadConfig: () =>
           new Promise((resolve) => {
@@ -50,6 +52,7 @@ describe('capture session', () => {
 
       const sentByNext: RrwebEvent[][] = []
       const nextSession = createCaptureSession({
+        library: await loadCaptureLibrary(),
         config,
         reloadConfig: () => Promise.resolve(config),
         send: async (events) => {
@@ -74,6 +77,7 @@ describe('capture session', () => {
       vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
       const sent: RrwebEvent[][] = []
       const session = createCaptureSession({
+        library: await loadCaptureLibrary(),
         config,
         reloadConfig: () => Promise.resolve(config),
         send: async (events) => {

@@ -1,6 +1,7 @@
 import {makeExtRpcClient} from '@conciv/extension'
 import {RECORDER_NAME, type RecorderControl} from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
+import {loadCaptureLibrary, type CaptureLibrary} from './capture.js'
 import {createCaptureSession, type CaptureSession} from './capture-session.js'
 import type {RecorderStore} from './recorder-store.js'
 
@@ -12,12 +13,12 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
 
   const sessionBlocked = (): boolean => session !== undefined || abort.signal.aborted
 
-  const startSession = async (): Promise<void> => {
-    if (sessionBlocked()) return
+  const startCaptureSession = async (library: CaptureLibrary): Promise<void> => {
     try {
       const config = await rpc.config(undefined)
       if (sessionBlocked()) return
       session = createCaptureSession({
+        library,
         config,
         reloadConfig: () => rpc.config(undefined),
         send: (events) => rpc.flush({clientId, events}).then(() => undefined),
@@ -27,6 +28,13 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
     } catch {
       store.setStatus('failed')
     }
+  }
+
+  const startSession = async (): Promise<void> => {
+    if (sessionBlocked()) return
+    const library = await loadCaptureLibrary().catch(() => undefined)
+    if (library) return startCaptureSession(library)
+    if (!abort.signal.aborted) store.setStatus('blocked')
   }
 
   const stopSession = async (): Promise<void> => {

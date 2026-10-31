@@ -17,6 +17,7 @@ import {makeEventListener} from '@solid-primitives/event-listener'
 import {
   CONNECTION_CHANGED_EVENT,
   createEventBus,
+  DOCK_REVEAL_EVENT,
   createEventBusClient,
   PANEL_PLUGIN_ID,
   PANEL_TOGGLED_EVENT,
@@ -100,7 +101,8 @@ function RootComponent() {
   )
   app.bindActiveSession?.(() => activeSession())
   const liveSessions = makeLiveSessions()
-  const theme = createHostTheme()
+  const rootNode = app.environment.rootNode
+  const theme = createHostTheme(rootNode instanceof ShadowRoot ? rootNode.host : undefined)
   const colorScheme = () => theme().scheme
 
   const value: AppContextValue = {
@@ -247,6 +249,7 @@ function RootChrome(props: {
     void router.navigate({to: '/panel/latest', search: {open: true}, replace: Boolean(quickMatch())})
   }
   const closePanel = () => {
+    if (settings.surface === 'dock') return
     const captured = hostRestoreTarget
     hostRestoreTarget = null
     void setShutter(router, false).then(() => {
@@ -262,6 +265,8 @@ function RootChrome(props: {
     })
   }
   const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
+  const revealDock = (): boolean =>
+    settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
 
   createEffect(() => {
     panelOpen()
@@ -292,14 +297,21 @@ function RootChrome(props: {
   const panelCommands = createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID})
 
   onMount(() => {
-    if (settings.defaultOpen && closedMatch()) void openPanel()
+    const dockedShutterClosed = settings.surface === 'dock' && panelMatch() && !shutterOpen()
+    if (dockedShutterClosed || (settings.defaultOpen && closedMatch())) void openPanel()
     makeEventListener(window, 'resize', reportPanelState)
     const unsubscribes = [
-      panelCommands.on('open', () => void openPanel()),
+      panelCommands.on('open', () => {
+        revealDock()
+        void openPanel()
+      }),
       panelCommands.on('close', () => {
         if (panelOpen()) closePanel()
       }),
-      panelCommands.on('toggle', () => togglePanel()),
+      panelCommands.on('toggle', () => {
+        if (!revealDock()) return togglePanel()
+        void openPanel()
+      }),
     ]
     eventBus.start()
     notifyInteractive()
@@ -341,8 +353,16 @@ function RootChrome(props: {
 
   const toggleQuick = () => {
     if (!connected()) return
-    if (quickMatch()) router.history.back()
-    else void router.navigate({to: '/quick', search: {panes: '', focus: 0}, replace: Boolean(panelMatch())})
+    const revealed = revealDock()
+    if (quickMatch()) {
+      if (!revealed) router.history.back()
+      return
+    }
+    void router.navigate({
+      to: '/quick',
+      search: {panes: '', focus: 0},
+      replace: settings.surface !== 'dock' && Boolean(panelMatch()),
+    })
   }
   if (settings.quickTerminal.enabled) {
     for (const binding of settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)

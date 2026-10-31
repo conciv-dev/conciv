@@ -1,9 +1,7 @@
 import {z} from 'zod'
 import type {eventWithTime} from '@rrweb/types'
-import playerCss from 'rrweb-player/dist/style.css?inline'
-import rrwebCss from 'rrweb/dist/style.css?inline'
 import themeCss from './player-theme.css?inline'
-import Player from 'rrweb-player'
+import type Player from 'rrweb-player'
 import {RrwebEventSchema, type RrwebEvent} from '../shared/protocol.js'
 
 const playerEvent = z.custom<eventWithTime>()
@@ -47,11 +45,31 @@ function demoteInjectedStyles(scope: Document | ShadowRoot, known: Set<Element>)
   }
 }
 
-function injectPlayerStyles(container: HTMLDivElement): {scope: Document | ShadowRoot; known: Set<Element>} {
+export type PlayerKit = {Player: typeof Player; playerCss: string; rrwebCss: string}
+
+let playerKit: Promise<PlayerKit> | undefined
+
+export function loadPlayerKit(): Promise<PlayerKit> {
+  playerKit ??= Promise.all([
+    import('rrweb-player'),
+    import('rrweb-player/dist/style.css?inline'),
+    import('rrweb/dist/style.css?inline'),
+  ]).then(([player, playerStyles, rrwebStyles]) => ({
+    Player: player.default,
+    playerCss: playerStyles.default,
+    rrwebCss: rrwebStyles.default,
+  }))
+  return playerKit
+}
+
+function injectPlayerStyles(
+  kit: PlayerKit,
+  container: HTMLDivElement,
+): {scope: Document | ShadowRoot; known: Set<Element>} {
   const scope = styleScope(container)
   const known = new Set<Element>(scope.querySelectorAll('style'))
   const style = document.createElement('style')
-  style.textContent = `@layer rrweb {\n${rrwebCss}\n${playerCss}\n}\n${themeCss}`
+  style.textContent = `@layer rrweb {\n${kit.rrwebCss}\n${kit.playerCss}\n}\n${themeCss}`
   container.appendChild(style)
   known.add(style)
   return {scope, known}
@@ -129,6 +147,7 @@ export type StreamPlayerHandle = {
 }
 
 export function mountStreamPlayer(
+  kit: PlayerKit,
   container: HTMLDivElement,
   initial: {events: RrwebEvent[]; cursor: number},
   hooks: {
@@ -136,7 +155,7 @@ export function mountStreamPlayer(
     onLive: (live: boolean) => void
   },
 ): StreamPlayerHandle {
-  const {scope, known} = injectPlayerStyles(container)
+  const {scope, known} = injectPlayerStyles(kit, container)
   const buffer = detachEvents(initial.events)
   let cursor = initial.cursor
   let lastTs = buffer.at(-1)?.timestamp ?? 0
@@ -158,7 +177,7 @@ export function mountStreamPlayer(
 
   const build = (): void => {
     aspect = recordedAspect(buffer)
-    player = new Player({
+    player = new kit.Player({
       target: container,
       props: {
         ...playerSize(container, aspect),
@@ -230,11 +249,11 @@ export function mountStreamPlayer(
   }
 }
 
-export function mountPlayer(container: HTMLDivElement, events: RrwebEvent[]): () => void {
-  const {scope, known} = injectPlayerStyles(container)
+export function mountPlayer(kit: PlayerKit, container: HTMLDivElement, events: RrwebEvent[]): () => void {
+  const {scope, known} = injectPlayerStyles(kit, container)
   const detached = detachEvents(events)
   const aspect = recordedAspect(detached)
-  const player = new Player({
+  const player = new kit.Player({
     target: container,
     props: {...playerSize(container, aspect), events: playerEvents.parse(detached), autoPlay: false},
   })

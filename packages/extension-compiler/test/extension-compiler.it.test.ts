@@ -65,6 +65,13 @@ describe('client entry inject', () => {
       expect(source).toContain('window.__CONCIV_API_BASE__ = "http://127.0.0.1:41700"')
     })
 
+    it('exports a dock renderer instead of mounting on the page when the surface is dock', () => {
+      const source = extensionsModuleSource(['/abs/a/client.js'], undefined, undefined, undefined, 'dock')
+      expect(source).toContain('export default function concivDockRenderer')
+      expect(source).toContain('createConciv')
+      expect(source).not.toContain('mountConciv')
+    })
+
     it('omits the window global when no api base is known (classic path uses the meta tag)', () => {
       const source = extensionsModuleSource(['/abs/a/client.js'])
       expect(source).not.toContain('__CONCIV_API_BASE__')
@@ -217,16 +224,25 @@ describe('dedupe extensions', () => {
     ])
   })
 
-  test('toSortedEntries sorts glob keys, reads default, drops .d.ts (client ordering)', async () => {
-    const {toSortedEntries} = await import('../src/dedupe-extensions.js')
-    const entries = toSortedEntries({
-      '/conciv/extensions/z.tsx': {default: {name: 'z'}},
-      '/conciv/extensions/a.tsx': {default: {name: 'a'}},
-      '/conciv/extensions/types.d.ts': {default: {name: 'skip'}},
+  test('toSortedLoaders sorts glob keys and drops .d.ts (client ordering)', async () => {
+    const {loadExtensions, toSortedLoaders} = await import('../src/dedupe-extensions.js')
+    const loaders = toSortedLoaders({
+      '/conciv/extensions/z.tsx': async () => ({default: {name: 'z'}}),
+      '/conciv/extensions/a.tsx': async () => ({default: {name: 'a'}}),
+      '/conciv/extensions/types.d.ts': async () => ({default: {name: 'skip'}}),
     })
-    expect(entries.map((e) => e.source)).toEqual(['/conciv/extensions/a.tsx', '/conciv/extensions/z.tsx'])
-    const picked = dedupeExtensions(entries)
-    expect(picked.extensions.map((e) => e.name)).toEqual(['a', 'z'])
+    expect(loaders.map((loader) => loader.source)).toEqual(['/conciv/extensions/a.tsx', '/conciv/extensions/z.tsx'])
+    const picked = await loadExtensions(loaders)
+    expect(picked.extensions.map((extension) => extension.name)).toEqual(['a', 'z'])
+  })
+
+  test('an extension module that fails to load is skipped and reported, the rest still load', async () => {
+    const {loadExtensions} = await import('../src/dedupe-extensions.js')
+    const picked = await loadExtensions([
+      {source: '/abs/extension-recorder/dist/client.js', load: () => Promise.reject(new TypeError('boom'))},
+      {source: '/conciv/extensions/notes.tsx', load: async () => ({default: {name: 'notes'}})},
+    ])
+    expect(picked.extensions.map((extension) => extension.name)).toEqual(['notes', 'conciv-load-failures'])
   })
 })
 
@@ -287,20 +303,19 @@ describe('extensions', () => {
       expect(builders.map((builder) => builder.name)).toEqual(['fixture-ext'])
     })
 
-    it('imports each client entry and hands them all to mountConciv', () => {
+    it('loads each client entry independently and hands them all to mountConciv', () => {
       const source = extensionsModuleSource(['/abs/a/client.js', '/abs/b/client.js'])
-      expect(source).toContain('import builtin0 from "/abs/a/client.js"')
-      expect(source).toContain('import builtin1 from "/abs/b/client.js"')
       expect(source).toContain(
-        "const builtinEntries = [{extension: builtin0, source: 'builtin:0'}, {extension: builtin1, source: 'builtin:1'}]",
+        'const builtinLoaders = [{source: "/abs/a/client.js", load: () => import("/abs/a/client.js")}, {source: "/abs/b/client.js", load: () => import("/abs/b/client.js")}]',
       )
-      expect(source).toContain('import.meta.glob("/conciv/extensions/*.{ts,tsx,js,jsx}", {eager: true})')
+      expect(source).toContain('toSortedLoaders(import.meta.glob("/conciv/extensions/*.{ts,tsx,js,jsx}"))')
+      expect(source).toContain('const picked = await loadExtensions([...builtinLoaders, ...folderLoaders])')
       expect(source).toContain('mountConciv(picked.extensions)')
     })
 
     it('imports dedupe from the bare specifier when no resolved entry is threaded', () => {
       const source = extensionsModuleSource(['/abs/a/client.js'])
-      expect(source).toContain('import {dedupeExtensions, toSortedEntries} from "@conciv/extension-compiler/dedupe"')
+      expect(source).toContain('import {loadExtensions, toSortedLoaders} from "@conciv/extension-compiler/dedupe"')
     })
 
     it('imports dedupe from the resolved absolute entry so consumer apps resolve it in dist mode', () => {
@@ -310,7 +325,7 @@ describe('extensions', () => {
         '/abs/embed/mount.js',
         '/abs/pkg/dist/dedupe-extensions.js',
       )
-      expect(source).toContain('import {dedupeExtensions, toSortedEntries} from "/abs/pkg/dist/dedupe-extensions.js"')
+      expect(source).toContain('import {loadExtensions, toSortedLoaders} from "/abs/pkg/dist/dedupe-extensions.js"')
       expect(source).not.toContain('@conciv/extension-compiler/dedupe')
     })
   })
