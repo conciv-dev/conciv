@@ -2,7 +2,6 @@ import {existsSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {addSourceToJsx} from './inject-source.js'
 import {compileExtensionSolid, isExtensionModule} from './compile-extension.js'
-import {isConcivSrcTsx} from './conciv-source-tsx.js'
 import {splitExtension} from './split-extension.js'
 import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_ROUTE, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
 
@@ -82,10 +81,6 @@ export function transformConcivModule(
     return {code: `${code}\nimport(${JSON.stringify(EXTENSIONS_VIRTUAL_ID)})\n`, map: null}
   }
   if (id.includes('node_modules')) return null
-  if (isConcivSrcTsx(id)) {
-    const stamped = addSourceToJsx(code, id, ctx.root)
-    return compileExtensionSolid(stamped?.code ?? code, id, ssr)
-  }
   if (isExtensionModule(id)) {
     const split = splitExtension(code, id, 'browser')
     return compileExtensionSolid(split?.code ?? code, id, ssr)

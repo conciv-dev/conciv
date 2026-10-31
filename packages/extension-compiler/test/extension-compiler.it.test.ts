@@ -8,8 +8,6 @@ import {
 } from '../src/extensions.js'
 import {isClientEntry, transformConcivModule, concivSolidConfig} from '../src/vite-plumbing.js'
 import {fileURLToPath} from 'node:url'
-import {isConcivSrcTsx} from '../src/conciv-source-tsx.js'
-import {createServer, defaultClientConditions} from 'vite'
 import {dedupeExtensions} from '../src/dedupe-extensions.js'
 import {isExtension} from '../src/extension-guard.js'
 import {dirname, join} from 'node:path'
@@ -69,110 +67,6 @@ describe('client entry inject', () => {
     it('omits the window global when no api base is known (classic path uses the meta tag)', () => {
       const source = extensionsModuleSource(['/abs/a/client.js'])
       expect(source).not.toContain('__CONCIV_API_BASE__')
-    })
-  })
-})
-
-describe('conciv src', () => {
-  const fixture = (rel: string) => fileURLToPath(new URL(`./fixtures/conciv-src/${rel}`, import.meta.url))
-
-  describe('isConcivSrcTsx', () => {
-    it('matches src tsx inside an @conciv-scoped package', () => {
-      expect(isConcivSrcTsx(fixture('scoped/src/button.tsx'))).toBe(true)
-    })
-
-    it('rejects src tsx inside a package named bare conciv (the CLI owns that name)', () => {
-      expect(isConcivSrcTsx(fixture('app/src/entry.tsx'))).toBe(false)
-    })
-
-    it('rejects src tsx belonging to a host package', () => {
-      expect(isConcivSrcTsx(fixture('other/src/button.tsx'))).toBe(false)
-    })
-
-    it('rejects non-tsx and non-src ids', () => {
-      expect(isConcivSrcTsx(fixture('scoped/src/button.tsx').replace('.tsx', '.ts'))).toBe(false)
-      expect(isConcivSrcTsx(fixture('scoped/package.json'))).toBe(false)
-    })
-
-    it('ignores vite query suffixes', () => {
-      expect(isConcivSrcTsx(`${fixture('scoped/src/button.tsx')}?v=abc123`)).toBe(true)
-    })
-
-    it('rejects anything under node_modules', () => {
-      expect(isConcivSrcTsx(`/repo/node_modules/@conciv/x/src/a.tsx`)).toBe(false)
-    })
-  })
-
-  describe('the conciv-source export condition', () => {
-    const resolveKit = async (conditions: string[]) => {
-      const server = await createServer({
-        root: fileURLToPath(new URL('..', import.meta.url)),
-        configFile: false,
-        logLevel: 'silent',
-        server: {middlewareMode: true, ws: false},
-        optimizeDeps: {noDiscovery: true},
-        resolve: {conditions},
-      })
-      const resolved = await server.environments.client.pluginContainer.resolveId('@conciv/ui-kit-chat')
-      await server.close()
-      return resolved?.id
-    }
-
-    it('resolves a workspace package to its source when the host sets conciv-source', async () => {
-      const id = await resolveKit([...defaultClientConditions, 'conciv-source'])
-      expect(id).toBe(fileURLToPath(new URL('../../ui-kit-chat/src/index.tsx', import.meta.url)))
-    })
-
-    it('resolves the same package to dist when the host leaves the condition out', async () => {
-      const id = await resolveKit([...defaultClientConditions])
-      expect(id).toBe(fileURLToPath(new URL('../../ui-kit-chat/dist/index.js', import.meta.url)))
-    })
-
-    it('solid-compiles the source the condition resolves to', async () => {
-      const id = await resolveKit([...defaultClientConditions, 'conciv-source'])
-      const result = await transformConcivModule(`export const Button = () => <button>ok</button>`, id ?? '', false, {
-        root: '/repo',
-        deferToTsd: false,
-      })
-      expect(result?.code).toContain('_$template')
-    })
-  })
-
-  describe('transformConcivModule routing', () => {
-    it('solid-compiles conciv src tsx', async () => {
-      const id = fixture('scoped/src/button.tsx')
-      const result = await transformConcivModule(`export const Button = () => <button>ok</button>`, id, false, {
-        root: '/repo',
-        deferToTsd: false,
-      })
-      expect(result?.code).toContain('_$template')
-    })
-
-    it('stamps jsx source onto conciv src tsx before compiling', async () => {
-      const id = fixture('scoped/src/button.tsx')
-      const result = await transformConcivModule(`export const Button = () => <button>ok</button>`, id, false, {
-        root: '/repo',
-        deferToTsd: false,
-      })
-      expect(result?.code).toContain('data-conciv-source')
-    })
-
-    it('stamps jsx source even when a devtools stamper is present downstream', async () => {
-      const id = fixture('scoped/src/button.tsx')
-      const result = await transformConcivModule(`export const Button = () => <button>ok</button>`, id, false, {
-        root: '/repo',
-        deferToTsd: true,
-      })
-      expect(result?.code).toContain('data-conciv-source')
-    })
-
-    it('leaves host src tsx alone (falls through to jsx source stamping)', async () => {
-      const id = fixture('other/src/button.tsx')
-      const result = await transformConcivModule(`export const Button = () => <button>host</button>`, id, false, {
-        root: '/repo',
-        deferToTsd: false,
-      })
-      expect(result?.code ?? '').not.toContain('_$template')
     })
   })
 })

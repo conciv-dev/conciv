@@ -26,43 +26,35 @@
     ".": {
       "browser": {
         "types": "./dist/client.d.ts",
-        "conciv-source": "./src/client.ts",
         "default": "./dist/client.js"
       },
       "import": {
         "types": "./dist/server.d.ts",
-        "conciv-source": "./src/server.ts",
         "default": "./dist/server.js"
       }
     },
     "./client": {
       "types": "./dist/client.d.ts",
-      "conciv-source": "./src/client.ts",
       "import": "./dist/client.js"
     },
     "./server": {
       "types": "./dist/server.d.ts",
-      "conciv-source": "./src/server.ts",
       "import": "./dist/server.js"
     },
     "./vitest": {
       "types": "./dist/runners/vitest/adapter.d.ts",
-      "conciv-source": "./src/runners/vitest/adapter.ts",
       "import": "./dist/runners/vitest/adapter.js"
     },
     "./jest": {
       "types": "./dist/runners/jest.d.ts",
-      "conciv-source": "./src/runners/jest.ts",
       "import": "./dist/runners/jest.js"
     },
     "./node-test": {
       "types": "./dist/runners/node-test.d.ts",
-      "conciv-source": "./src/runners/node-test.ts",
       "import": "./dist/runners/node-test.js"
     },
     "./playwright": {
       "types": "./dist/runners/playwright/adapter.d.ts",
-      "conciv-source": "./src/runners/playwright/adapter.ts",
       "import": "./dist/runners/playwright/adapter.js"
     },
     "./package.json": "./package.json"

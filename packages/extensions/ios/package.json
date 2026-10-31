@@ -25,22 +25,18 @@
   "exports": {
     ".": {
       "types": "./dist/server.d.ts",
-      "conciv-source": "./src/server.ts",
       "import": "./dist/server.js"
     },
     "./client": {
       "types": "./dist/client.d.ts",
-      "conciv-source": "./src/client.tsx",
       "import": "./dist/client.js"
     },
     "./bridge": {
       "types": "./dist/shared/bridge.d.ts",
-      "conciv-source": "./src/shared/bridge.ts",
       "import": "./dist/shared/bridge.js"
     },
     "./bridge-client": {
       "types": "./dist/shared/bridge-client.d.ts",
-      "conciv-source": "./src/shared/bridge-client.ts",
       "import": "./dist/shared/bridge-client.js"
     },
     "./package.json": "./package.json"

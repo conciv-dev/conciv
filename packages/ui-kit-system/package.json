@@ -26,12 +26,10 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "conciv-source": "./src/index.tsx",
       "import": "./dist/index.js"
     },
     "./tokens": {
       "types": "./dist/tokens.d.ts",
-      "conciv-source": "./src/tokens.ts",
       "import": "./dist/tokens.js"
     },
     "./tokens.css": "./src/tokens.css"

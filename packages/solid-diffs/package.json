@@ -23,7 +23,6 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "conciv-source": "./src/index.tsx",
       "import": "./dist/index.js"
     }
   },
