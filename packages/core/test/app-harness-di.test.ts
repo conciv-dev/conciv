@@ -25,7 +25,7 @@ import {
   type CodeCapability,
   type SessionPort,
 } from '@conciv/chat'
-import {markers, openDb, type ConcivDb} from '@conciv/db'
+import {chatMetadata, markers, openDb, type ConcivDb} from '@conciv/db'
 import {eq} from 'drizzle-orm'
 import type {SandboxTool} from '@conciv/extension/registry'
 import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
@@ -230,6 +230,24 @@ describe('chat plane', () => {
         phase: 'aborted',
       })
       cli.release()
+    })
+  })
+
+  describe('clearing a session', () => {
+    it('removes only its own metadata, never a session whose id differs by a wildcard character or case', async () => {
+      const chat = await plane({root: stateRoot(), harness: cliHarness(fakeCli())})
+      const db = opened.at(-1)
+      if (db === undefined) throw new Error('no db')
+      const owners = ['conciv_a_b', 'conciv_axb', 'conciv_A_B']
+      await db
+        .insert(chatMetadata)
+        .values(owners.map((owner) => ({namespace: 'conciv.approvals', key: `${owner}:grants`, valueJson: {owner}})))
+      await chat.clear(SessionId.parse('conciv_a_b'))
+      const kept = await db
+        .select({key: chatMetadata.key})
+        .from(chatMetadata)
+        .where(eq(chatMetadata.namespace, 'conciv.approvals'))
+      expect(kept.map((row) => row.key).toSorted()).toEqual(['conciv_A_B:grants', 'conciv_axb:grants'])
     })
   })
 

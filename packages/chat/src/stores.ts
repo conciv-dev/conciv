@@ -1,4 +1,4 @@
-import {eq, like} from 'drizzle-orm'
+import {eq, sql} from 'drizzle-orm'
 import {chatMetadata, chatRuns, chatThreads, runMessages, runs, sessionHistory, type ConcivDb} from '@conciv/db'
 
 export async function runningThreadIds(db: ConcivDb): Promise<ReadonlySet<string>> {
@@ -16,8 +16,9 @@ export function clearThread(db: ConcivDb, threadId: string): void {
     tx.delete(chatThreads).where(eq(chatThreads.threadId, threadId)).run()
     tx.delete(runMessages).where(eq(runMessages.sessionId, threadId)).run()
     tx.delete(sessionHistory).where(eq(sessionHistory.sessionId, threadId)).run()
+    const owned = `${threadId}:`
     tx.delete(chatMetadata)
-      .where(like(chatMetadata.key, `${threadId}:%`))
+      .where(sql`substr(${chatMetadata.key}, 1, ${owned.length}) = ${owned}`)
       .run()
   })
 }
