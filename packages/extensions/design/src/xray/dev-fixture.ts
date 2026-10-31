@@ -16,6 +16,7 @@ function record(input: {id: string; width: number; name: string}): TargetRecord 
 const TARGETS = {
   narrow: record({id: '7c1a', width: 390, name: 'u1-390'}),
   desktop: record({id: '2b9f', width: 1280, name: 'u1-1280'}),
+  large: record({id: '5d21', width: 1920, name: 'u1-1920'}),
   wide: record({id: '9e03', width: 2560, name: 'u1-2560'}),
 }
 
@@ -111,6 +112,16 @@ const DESKTOP = report({
         ],
       },
       {
+        source: null,
+        tag: 'div',
+        selector: 'div.banner',
+        live: {x: 24, y: 340, w: 1232, h: 40},
+        target: {x: 24, y: 340, w: 1232, h: 48},
+        mismatch: 0.004,
+        children: 0,
+        deltas: [{kind: 'lineHeight', live: 20, target: 24, via: 'unknown'}],
+      },
+      {
         source: {file: 'src/App.tsx', line: 10, column: 7},
         tag: 'input',
         selector: 'input#field',
@@ -149,6 +160,26 @@ const NARROW = report({
         mismatch: 0.006,
         children: 2,
         deltas: [{kind: 'padding', live: 16, target: 12}],
+      },
+    ],
+    unmatched: [],
+  },
+})
+
+const LARGE = report({
+  target: TARGETS.large,
+  body: {
+    mismatch: 0.0004,
+    components: [
+      {
+        source: {file: 'src/Table.tsx', line: 3, column: 5},
+        tag: 'table',
+        selector: 'table.table',
+        live: {x: 24, y: 216, w: 1872, h: 112},
+        target: {x: 24, y: 216, w: 1872, h: 112},
+        mismatch: 0.0004,
+        children: 3,
+        deltas: [],
       },
     ],
     unmatched: [],
@@ -211,6 +242,7 @@ const DESKTOP_RESPONSE: ReportResponse = {
 const RESPONSES: ReportResponse[] = [
   {target: TARGETS.narrow, report: NARROW, targetImage: '', sourceChangedAt: null},
   DESKTOP_RESPONSE,
+  {target: TARGETS.large, report: LARGE, targetImage: '', sourceChangedAt: null},
   {target: TARGETS.wide, report: null, targetImage: '', sourceChangedAt: null},
 ]
 

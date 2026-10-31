@@ -4,6 +4,7 @@ import {
   badgeText,
   rowAboveTolerance,
   rowName,
+  rowTitle,
   sourceLabel,
   type BadgeColor,
   type Delta,
@@ -80,7 +81,7 @@ function ComponentRow(props: ComponentRowProps): JSX.Element {
             onClick={() => props.onSelect(props.row.key)}
           >
             <span class="i-ph-file-duotone op-75" aria-hidden="true" />
-            {rowName(props.row)}
+            {rowTitle(props.row)}
           </button>
           <Show when={props.row.source !== null && props.row.selector !== ''}>
             <span class="color-meta shrink max-w-64 truncate">{props.row.selector}</span>

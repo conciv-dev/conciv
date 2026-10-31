@@ -1,13 +1,21 @@
 import {For, onCleanup, onMount, Show, type JSX} from 'solid-js'
 import {clamp} from 'es-toolkit'
-import {Button, ScrollArea, SegmentGroup, Switch, TooltipIconButton} from '@conciv/ui-kit-system'
+import {ScrollArea} from '@conciv/ui-kit-system'
 import type {TargetRecord} from '../shared/types.js'
 import type {Row, XrayImages} from './data.js'
 import {Frame} from './frame.js'
-import {SMALL_BUTTON} from './list.js'
+import {CheckChip, RadioChip} from './panel.js'
 
 export const MODES = ['live', 'design', 'diff', 'side', 'slider'] as const
 export type Mode = (typeof MODES)[number]
+
+const MODE_ICON: Record<Mode, string> = {
+  live: 'i-ph-browser-duotone',
+  design: 'i-ph-pen-nib-duotone',
+  diff: 'i-ph-git-diff-duotone',
+  side: 'i-ph-columns-duotone',
+  slider: 'i-ph-arrows-left-right-duotone',
+}
 
 const MODE_LABEL: Record<Mode, string> = {
   live: 'Live',
@@ -89,61 +97,58 @@ type ToolbarProps = {
 
 export function StageToolbar(props: ToolbarProps): JSX.Element {
   return (
-    <div class="px-3 border-b border-chat-line bg-chat-panel flex gap-4 h-10 min-w-0 items-center">
-      <SegmentGroup.Root
-        aria-label="View"
-        value={props.mode}
-        onValueChange={(details) => {
-          const next = MODES.find((mode) => mode === details.value)
-          if (next !== undefined) props.onMode(next)
-        }}
-      >
-        <SegmentGroup.Indicator />
+    <div class="p-2 border-b border-base flex flex-wrap gap-2 min-w-0 items-center">
+      <div role="radiogroup" aria-label="Mode" class="flex flex-wrap gap-2 items-center">
         <For each={MODES}>
           {(mode) => (
-            <SegmentGroup.Item value={mode} disabled={!props.ran && mode !== 'design'} class="whitespace-nowrap">
-              <SegmentGroup.ItemText>{MODE_LABEL[mode]}</SegmentGroup.ItemText>
-              <SegmentGroup.ItemControl />
-              <SegmentGroup.ItemHiddenInput />
-            </SegmentGroup.Item>
+            <RadioChip
+              group="mode"
+              small
+              checked={props.mode === mode}
+              disabled={!props.ran && mode !== 'design'}
+              icon={MODE_ICON[mode]}
+              onSelect={() => props.onMode(mode)}
+            >
+              {MODE_LABEL[mode]}
+            </RadioChip>
           )}
         </For>
-      </SegmentGroup.Root>
-      <div role="group" aria-label="Zoom" class="flex gap-0.5 items-center">
-        <TooltipIconButton
-          tooltip="Zoom out"
-          side="bottom"
-          class="text-[0.8125rem] size-7"
+      </div>
+      <div role="group" aria-label="Zoom" class="flex gap-1 items-center">
+        <button
+          type="button"
+          class="btn-icon-compact"
+          aria-label="Zoom out"
           disabled={props.scale <= MIN_ZOOM}
           onClick={() => props.onZoom(-1)}
         >
-          −
-        </TooltipIconButton>
-        <Button
-          variant="ghost"
-          size="none"
-          class={`${SMALL_BUTTON} min-w-13 tabular-nums`}
+          <span class="i-ph-magnifying-glass-minus-duotone" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          class="btn-action-sm min-w-14 justify-center tabular-nums"
           onClick={() => props.onToggleZoom()}
         >
           {props.fitted ? 'Fit' : ZOOM_PERCENT.format(props.scale)}
-        </Button>
-        <TooltipIconButton
-          tooltip="Zoom in"
-          side="bottom"
-          class="text-[0.8125rem] size-7"
+        </button>
+        <button
+          type="button"
+          class="btn-icon-compact"
+          aria-label="Zoom in"
           disabled={props.scale >= MAX_ZOOM}
           onClick={() => props.onZoom(1)}
         >
-          +
-        </TooltipIconButton>
+          <span class="i-ph-magnifying-glass-plus-duotone" aria-hidden="true" />
+        </button>
       </div>
-      <Switch.Root class="ms-auto" checked={props.boxes} onCheckedChange={(details) => props.onBoxes(details.checked)}>
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-        <Switch.Label>Boxes</Switch.Label>
-        <Switch.HiddenInput />
-      </Switch.Root>
+      <div class="ms-auto">
+        <CheckChip
+          checked={props.boxes}
+          icon="i-ph-bounding-box-duotone"
+          label="Boxes"
+          onToggle={(on) => props.onBoxes(on)}
+        />
+      </div>
     </div>
   )
 }
@@ -183,17 +188,17 @@ function Overlay(props: {
       aria-hidden="true"
     >
       <Show when={props.boxes}>
-        <For each={props.rows}>{(row) => <Outline row={row} class="opacity-50 stroke-chat-text-3" />}</For>
+        <For each={props.rows}>{(row) => <Outline row={row} class="opacity-50 stroke-neutral-400" />}</For>
       </Show>
       <For each={props.rows}>
         {(row) => (
           <Outline
             row={row}
-            class={`trans-tf-op stroke-[1.5] stroke-chat-accent ${hovering(row) ? 'opacity-100' : 'opacity-0'}`}
+            class={`transition-opacity stroke-[1.5] stroke-primary-500 motion-reduce:transition-none ${hovering(row) ? 'opacity-100' : 'opacity-0'}`}
           />
         )}
       </For>
-      <Show when={props.selected}>{(row) => <Outline row={row()} class="stroke-[1.5] stroke-chat-accent" />}</Show>
+      <Show when={props.selected}>{(row) => <Outline row={row()} class="stroke-[1.5] stroke-primary-500" />}</Show>
     </svg>
   )
 }
@@ -236,11 +241,11 @@ function Divider(props: {value: number; onChange: (value: number) => void}): JSX
       onKeyDown={nudge}
     >
       <span
-        class="outline-1 outline-chat-ground outline bg-chat-text-hi opacity-60 w-px inset-y-0 left-1/2 absolute"
+        class="outline-1 outline-white outline bg-neutral-800 opacity-60 w-px inset-y-0 left-1/2 absolute dark:outline-black dark:bg-neutral-200"
         aria-hidden="true"
       />
       <span
-        class="text-[0.75rem] text-chat-text-2 leading-none border border-chat-line rounded-chat-pill bg-chat-panel grid size-6 shadow-chat-lg left-1/2 top-1/2 place-items-center absolute -translate-1/2 group-focus-visible:[outline-offset:0.125rem] group-focus-visible:[outline:0.125rem_solid_var(--chat-accent)]"
+        class="text-xs leading-none border border-base rounded-full bg-base grid size-6 shadow left-1/2 top-1/2 place-items-center absolute group-focus-visible:ring-2 group-focus-visible:ring-primary-500/40 -translate-1/2"
         aria-hidden="true"
       >
         ‹ ›
@@ -356,7 +361,7 @@ export function Stage(props: StageProps): JSX.Element {
         ref={(element) => {
           held.viewport = element
         }}
-        class={`overscroll-contain bg-chat-sunken size-full select-none ${props.view.canvas.overflow ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        class={`overscroll-contain bg-secondary size-full select-none ${props.view.canvas.overflow ? 'cursor-grab active:cursor-grabbing' : ''}`}
         onWheel={(event) => {
           if (!event.ctrlKey && !event.metaKey) return
           event.preventDefault()

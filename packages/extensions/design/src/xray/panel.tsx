@@ -12,20 +12,27 @@ type RadioChipProps = {
   checked: boolean
   icon: string
   small?: boolean
+  disabled?: boolean
   onSelect: () => void
   children: JSX.Element
 }
 
-function RadioChip(props: RadioChipProps): JSX.Element {
+function chipState(state: {checked: boolean; disabled?: boolean}): string {
+  if (state.disabled) return 'op-30! pointer-events-none'
+  return state.checked ? 'bg-active op-100' : 'grayscale op-50 hover:op-100'
+}
+
+export function RadioChip(props: RadioChipProps): JSX.Element {
   return (
     <label
-      class={`btn-action cursor-pointer whitespace-nowrap ${CHIP_FOCUS}  ${props.small ? 'text-sm' : ''}  ${props.checked ? 'bg-active op-100' : 'grayscale op-50 hover:op-100'}`}
+      class={`btn-action cursor-pointer whitespace-nowrap ${CHIP_FOCUS}  ${props.small ? 'text-sm' : ''}  ${chipState(props)}`}
     >
       <input
         type="radio"
         class="sr-only"
         name={props.group}
         checked={props.checked}
+        disabled={props.disabled}
         onChange={() => props.onSelect()}
       />
       <span class={props.icon} aria-hidden="true" />
@@ -41,7 +48,7 @@ type CheckChipProps = {
   onToggle: (checked: boolean) => void
 }
 
-function CheckChip(props: CheckChipProps): JSX.Element {
+export function CheckChip(props: CheckChipProps): JSX.Element {
   return (
     <label
       class={`px-2 py-1 border border-base rounded-md flex gap-1 cursor-pointer select-none transition items-center ${CHIP_FOCUS}  ${props.checked ? 'bg-active' : 'grayscale op-50 hover:op-100'}`}

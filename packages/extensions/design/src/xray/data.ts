@@ -207,6 +207,10 @@ function baseName(file: string): string {
   return dot > 0 ? name.slice(0, dot) : name
 }
 
+export function rowTitle(row: Row): string {
+  return row.source === null ? rowName(row) : baseName(row.source.file)
+}
+
 export function rowName(row: Row): string {
   if (row.source !== null) return `${baseName(row.source.file)} ${row.tag}`.trim()
   if (row.selector !== '') return row.selector
