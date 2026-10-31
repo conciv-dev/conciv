@@ -6,6 +6,8 @@ const SUBSCRIBE_TIMEOUT_MS = 30_000
 const JOURNAL_LIMIT = 200
 const CONSOLE_TEXT_LIMIT = 200
 const SNAPSHOT_TIMEOUT_MS = 2_000
+const ERROR_SCREEN_TEXT_LIMIT = 300
+const FAILED_STATUS = 400
 
 export type PagePlaneWatch = {
   subscribed: () => Promise<void>
@@ -63,13 +65,29 @@ function failureReason(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function yesNo(value: boolean): string {
+  return value ? 'yes' : 'no'
+}
+
 async function pageState(page: Page): Promise<string> {
   try {
     const state = await pTimeout(
-      page.evaluate(() => ({url: location.href, readyState: document.readyState, visible: document.visibilityState})),
+      page.evaluate(() => {
+        const host = document.querySelector('[data-conciv-root]')
+        return {
+          url: location.href,
+          readyState: document.readyState,
+          visible: document.visibilityState,
+          root: host !== null,
+          driver: '__CONCIV_PAGE_DRIVER__' in window,
+          errorScreen: host?.shadowRoot?.querySelector('[data-conciv-error-screen]')?.textContent ?? null,
+        }
+      }),
       {milliseconds: SNAPSHOT_TIMEOUT_MS},
     )
-    return `page: ${state.url} readyState=${state.readyState} visible=${state.visible}`
+    const summary = `page: ${state.url} readyState=${state.readyState} visible=${state.visible} root=${yesNo(state.root)} driver=${yesNo(state.driver)}`
+    if (state.errorScreen === null) return summary
+    return `${summary}\nerror screen: ${state.errorScreen.slice(0, ERROR_SCREEN_TEXT_LIMIT)}`
   } catch (error) {
     return `page: unavailable (${failureReason(error)})`
   }
@@ -147,10 +165,11 @@ function watchPagePlane(page: Page): PagePlaneWatch {
   }
   const onResponse = (response: Response): void => {
     const request = response.request()
-    if (foreign({page, request})) note(`${describeRequest(request)} -> ${response.status()}`)
+    if (foreign({page, request}) || response.status() >= FAILED_STATUS) {
+      note(`${describeRequest(request)} -> ${response.status()}`)
+    }
   }
   const onRequestFailed = (request: Request): void => {
-    if (!foreign({page, request})) return
     note(`${describeRequest(request)} failed: ${request.failure()?.errorText ?? 'unknown error'}`)
   }
   const onFrameNavigated = (frame: Frame): void => {
@@ -173,6 +192,7 @@ function watchPagePlane(page: Page): PagePlaneWatch {
   page.on('crash', onCrash)
   return {
     subscribed: async () => {
+      note('subscribed() called')
       const ready = await pTimeout(held.gate.ready, {
         milliseconds: SUBSCRIBE_TIMEOUT_MS,
         fallback: async () => {
