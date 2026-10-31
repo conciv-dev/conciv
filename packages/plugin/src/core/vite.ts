@@ -146,7 +146,7 @@ async function bootEngine(
   })
 }
 
-const EMBED_COMMONJS_DEPENDENCIES = [
+const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
   '@conciv/ui-kit-chat > @tanstack/ai > partial-json',
   '@conciv/solid-diffs > @pierre/diffs > lru_map',
   '@conciv/ui-kit-chat > mermaid > @braintree/sanitize-url',
@@ -157,7 +157,31 @@ const EMBED_COMMONJS_DEPENDENCIES = [
   '@conciv/ui-kit-chat > mermaid > dayjs/plugin/customParseFormat.js',
   '@conciv/ui-kit-chat > mermaid > dayjs/plugin/duration.js',
   '@conciv/ui-kit-chat > mermaid > dayjs/plugin/isoWeek.js',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/css',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/html',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/javascript',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/json',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/jsx',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/markdown',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/tsx',
+  '@conciv/ui-kit-chat > @shikijs/langs-precompiled/typescript',
+  '@conciv/ui-kit-chat > shiki/engine/javascript',
+  '@conciv/ui-kit-chat > shiki/langs/bash.mjs',
+  '@conciv/ui-kit-chat > rrweb-snapshot',
+  '@conciv/ui-kit-chat > shiki/core',
+  '@conciv/solid-diffs > @pierre/diffs',
+  '@conciv/solid-diffs > @pierre/diffs/worker',
+  '@conciv/solid-diffs > @tanstack/solid-pacer',
+  '@conciv/mascot > gsap',
+  '@conciv/mascot > gsap/MotionPathPlugin',
+  'bippy',
+  'bippy/source',
+  'react-grab',
 ].map((chain) => `@conciv/it > @conciv/embed > ${chain}`)
+
+const RECORDER_LATE_DISCOVERED_DEPENDENCIES = ['rrweb', 'rrweb-player', '@rrweb/rrweb-plugin-console-record'].map(
+  (dependency) => `@conciv/it > @conciv/extension-recorder > ${dependency}`,
+)
 
 function embedChunks(embedEntry: string): string[] {
   const dir = dirname(embedEntry)
@@ -227,7 +251,14 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       managedExcludes = [...base.optimizeDeps.exclude]
       return {
         ...base,
-        optimizeDeps: {...base.optimizeDeps, include: [...base.optimizeDeps.include, ...EMBED_COMMONJS_DEPENDENCIES]},
+        optimizeDeps: {
+          ...base.optimizeDeps,
+          include: [
+            ...base.optimizeDeps.include,
+            ...EMBED_LATE_DISCOVERED_DEPENDENCIES,
+            ...RECORDER_LATE_DISCOVERED_DEPENDENCIES,
+          ],
+        },
       }
     },
     configEnvironment(_name, environmentConfig) {

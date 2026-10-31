@@ -1,6 +1,16 @@
 import {execFileSync} from 'node:child_process'
 import {cp, mkdtemp, realpath, writeFile} from 'node:fs/promises'
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync} from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import {createServer as createHttpServer, type Server, type ServerResponse} from 'node:http'
 import {createServer as createNetServer} from 'node:net'
 import {tmpdir} from 'node:os'
@@ -11,7 +21,7 @@ import getPort from 'get-port'
 import {chromium, firefox, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
 import {DevTools} from '@vitejs/devtools'
-import {createServer, type Plugin, type ViteDevServer} from 'vite'
+import {createLogger, createServer, type Plugin, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
 import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
 import ios from '@conciv/extension-ios'
@@ -1005,6 +1015,58 @@ describe('vite devtools dock', () => {
     await expectLocator(chat.getByRole('tab', {name: /Terminal/})).toBeVisible()
     await page.close()
   }, 90_000)
+
+  it('opens the chat and the recorder on a cold cache without Vite re-optimizing dependencies', async () => {
+    const root = realpathSync(dirs.tempDir('conciv-cold-'))
+    const embedEntry = fileURLToPath(import.meta.resolve('@conciv/embed'))
+    writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
+    mkdirSync(join(root, 'node_modules', '@conciv'), {recursive: true})
+    symlinkSync(
+      join(dirname(dirname(dirname(realpathSync(embedEntry)))), 'it'),
+      join(root, 'node_modules', '@conciv', 'it'),
+    )
+    const logged: string[] = []
+    const remember = (message: string): void => void logged.push(message)
+    const server = await createServer({
+      root,
+      configFile: false,
+      customLogger: {...createLogger('silent'), info: remember, warn: remember, warnOnce: remember},
+      server: {host: '127.0.0.1', port: 0},
+      plugins: [
+        makeViteHook(
+          {enabled: true, stateRoot: root},
+          {
+            ...realBuiltins,
+            embedEntry,
+            dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
+          },
+        ),
+      ],
+    })
+    servers.push(server)
+    await server.listen()
+    const url = server.resolvedUrls?.local[0]
+    if (url === undefined) throw new Error('dev server did not start')
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    const gatewayFailures: string[] = []
+    page.on('response', (response) => {
+      if (response.status() === 504) gatewayFailures.push(response.url())
+    })
+    const highlighterLanguages = page.waitForResponse(/langs-precompiled_markdown/, {timeout: 60_000})
+    const recorderPlayer = page.waitForResponse(/rrweb-player/, {timeout: 60_000})
+    await page.goto(url, {waitUntil: 'domcontentloaded'})
+    await page.getByRole('button', {name: /conciv chat$/}).click({timeout: 45_000})
+    const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
+    await chat.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
+    await chat.getByRole('tab', {name: /Recorder/}).click()
+    await highlighterLanguages
+    await recorderPlayer
+    expect(logged.filter((line) => /Failed to resolve dependency|optimized dependencies changed/.test(line))).toEqual(
+      [],
+    )
+    expect(gatewayFailures).toEqual([])
+    await page.close()
+  }, 120_000)
 
   it('keeps the floating page widget when Vite DevTools is not enabled', async () => {
     const {server} = await dirs.start()

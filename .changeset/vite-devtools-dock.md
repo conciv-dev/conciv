@@ -13,3 +13,5 @@ conciv follows the color scheme of the element it is mounted in, walking up from
 The pop-out window survives a page reload: conciv re-attaches to the still-open window. When the window is gone or the browser blocks it, the chat returns inline for the same session with a "Pop out again" action, and closing the window returns to the inline chat. While popped out, the Vite DevTools dock shows "Chat is popped out" with a "Bring it back" action instead of an empty panel.
 
 rrweb-snapshot loads lazily: a content blocker no longer blanks the widget. Element capture falls back to a descriptor, a toast names the likely blocker, and element previews explain the block in place.
+
+The Vite plugin pre-bundles the modules the widget loads late (highlighter languages, rrweb, the Recorder player and others), so a first open on a cold cache no longer re-optimizes and reloads the page.
