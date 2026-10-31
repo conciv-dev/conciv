@@ -16,7 +16,6 @@ import {type Builtins, NO_BUILTINS, loadServerExtensions} from '@conciv/extensio
 import {
   loadExtensionsModule,
   concivSolidConfig,
-  concivSrcEntry,
   dropIncludedFromExcludes,
   resolveExtensionsModule,
   transformConcivModule,
@@ -285,15 +284,8 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
         config.plugins.some((plugin) => plugin.name === 'vite:devtools')
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
-    async resolveId(id, importer) {
-      const virtual = resolveExtensionsModule(id)
-      if (virtual) return virtual
-      if (process.env.CONCIV_E2E) return null
-      if (!id.startsWith('@conciv/')) return null
-      if (id === '@conciv/extension' || id.startsWith('@conciv/extension/')) return null
-      const resolved = await this.resolve(id, importer, {skipSelf: true})
-      if (!resolved) return null
-      return concivSrcEntry(resolved.id)
+    resolveId(id) {
+      return resolveExtensionsModule(id)
     },
     load(id) {
       return loadExtensionsModule(
