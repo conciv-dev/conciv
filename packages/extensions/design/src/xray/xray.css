@@ -41,3 +41,20 @@ html.dark {
   border-radius: 1px;
   background: transparent;
 }
+
+@keyframes xray-rise {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.xray-rise {
+  animation: xray-rise 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-rise {
+    animation: none;
+  }
+}

@@ -2,7 +2,7 @@ import {makeRpcClient} from '@conciv/contract'
 import {makeExtRpcClient} from '@conciv/extension'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {aboveTolerance, componentAboveTolerance} from '../shared/above.js'
-import type {ComponentReport, DiffReport} from '../shared/defs.js'
+import type {ComponentReport, DeltaKindName, DiffReport} from '../shared/defs.js'
 import type {Box, SourceLoc, TargetRecord} from '../shared/types.js'
 import type {XrayRouter} from '../server/xray-routes.js'
 
@@ -186,4 +186,42 @@ export function filterRows(input: {rows: Row[]; filter: Filter; query: string}):
   return input.rows
     .filter((row) => shown({row, filter: input.filter}))
     .filter((row) => needle === '' || `${row.label} ${row.selector} ${row.tag}`.toLowerCase().includes(needle))
+}
+
+const SHARE = new Intl.NumberFormat(undefined, {style: 'percent', maximumFractionDigits: 1})
+const AMOUNT = new Intl.NumberFormat(undefined, {maximumFractionDigits: 1})
+
+export type BadgeColor = 'orange' | 'red' | 'amber'
+
+const BADGE_COLOR: Partial<Record<DeltaKindName, BadgeColor>> = {
+  background: 'red',
+  foreground: 'red',
+  fontSize: 'amber',
+  lineHeight: 'amber',
+  fontWeight: 'amber',
+}
+
+function baseName(file: string): string {
+  const name = file.split('/').at(-1) ?? file
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(0, dot) : name
+}
+
+export function rowName(row: Row): string {
+  if (row.source !== null) return `${baseName(row.source.file)} ${row.tag}`.trim()
+  if (row.selector !== '') return row.selector
+  return row.label
+}
+
+export function deltaValue(input: {delta: Delta; value: number | string}): string {
+  if (typeof input.value === 'string') return input.value
+  return input.delta.kind === 'fill' ? SHARE.format(input.value) : AMOUNT.format(input.value)
+}
+
+export function badgeText(delta: Delta): string {
+  return `${delta.kind} ${deltaValue({delta, value: delta.live})} → ${deltaValue({delta, value: delta.target})}`
+}
+
+export function badgeColor(delta: Delta): BadgeColor {
+  return BADGE_COLOR[delta.kind] ?? 'orange'
 }

@@ -56,6 +56,7 @@ export default defineConfig({
       'border-base': 'border-[#8882]',
       'color-active': 'text-primary-600 dark:text-primary-300',
       'border-active': 'border-primary-600/25 dark:border-primary-400/25',
+      'color-meta': 'text-neutral-500 dark:text-neutral-400',
       'op-fade': 'op-65 dark:op-55',
       'bg-code': 'bg-gray-500/5',
       'bg-tooltip': 'bg-white/75 dark:bg-[#111]/75 backdrop-blur-[8px]',
