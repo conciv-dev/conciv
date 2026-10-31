@@ -13,7 +13,7 @@ const VARIANT: Record<TooltipIconButtonVariant, string> = {
 }
 
 const KEYCAP =
-  'ms-1.5 inline-flex items-center h-[1.55em] px-[0.45em] rounded-[0.4em] text-[0.86em] font-medium tabular-nums tracking-[0.02em] [color:color-mix(in_oklch,currentColor_72%,transparent)] [background:color-mix(in_oklch,currentColor_9%,transparent)] [box-shadow:inset_0_-1px_0_color-mix(in_oklch,currentColor_12%,transparent)]'
+  'ms-[7px] inline-flex items-center h-[1.55em] px-[0.45em] rounded-[0.4em] text-[0.86em] font-medium tabular-nums tracking-[0.02em] [color:color-mix(in_oklch,currentColor_72%,transparent)] [background:color-mix(in_oklch,currentColor_9%,transparent)] [box-shadow:inset_0_-1px_0_color-mix(in_oklch,currentColor_12%,transparent)]'
 
 function TooltipLabel(props: {tooltip: string; shortcut: string | undefined}): JSX.Element {
   return (

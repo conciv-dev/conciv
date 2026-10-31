@@ -1,6 +1,7 @@
 import {
   createContext,
   createSignal,
+  onCleanup,
   createUniqueId,
   For,
   mergeProps,
@@ -19,8 +20,9 @@ import {
   anchorPoint,
   EASE_OUT,
   labelGeometry,
-  leanDuration,
-  leanFrames,
+  leanRotation,
+  leanSettled,
+  leanStep,
   popIn,
   popOut,
   prefersReducedMotion,
@@ -28,6 +30,7 @@ import {
   swapIn,
   swapOut,
   TRANSFORM_ORIGIN,
+  type LeanSpring,
   type TooltipGeometry,
   type TooltipSide,
 } from './tooltip-motion.js'
@@ -82,9 +85,11 @@ type GroupState = {
   geometry: TooltipGeometry
 }
 
-const LABEL_PADDING_X = 8
-const LABEL_PADDING_Y = 4
-const LABEL_BORDER = 1
+const LABEL_PADDING_X = 10
+const LABEL_PADDING_Y = 6
+const LABEL_BORDER = 0
+const MAX_FRAME_SECONDS = 1 / 20
+const MIN_FRAME_SECONDS = 1 / 240
 const GLIDE_BOUNCE = 0.1
 const REVIVE_DURATION = 120
 const FUSE_INSET = 4
@@ -93,15 +98,15 @@ const FUSE_THICKNESS = 2
 
 const LABEL = 'fixed top-0 left-0 z-[2147483647] pointer-events-none block'
 const BOX =
-  'absolute inset-0 rounded-chat-surface-sm bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg text-[0.6875rem]'
+  'absolute inset-0 rounded-[8px] bg-chat-panel text-chat-text text-[12.5px] font-medium leading-[1.2] tracking-[-0.01em] [box-shadow:0_1px_2px_rgba(0,0,0,0.12),0_8px_24px_-8px_rgba(0,0,0,0.45)]'
 const LAYER = 'absolute inset-0 flex items-center justify-center'
-const TEXT = 'block shrink-0 w-max max-w-56 text-center leading-tight font-medium'
-const ARROW_BASE = 'absolute size-2 rotate-45 rounded-[1px] bg-chat-panel border-chat-line'
+const TEXT = 'flex shrink-0 items-center justify-center w-max max-w-56 text-center'
+const ARROW_BASE = 'absolute size-2 -m-1 rotate-45 rounded-[2px] bg-chat-panel'
 const ARROW: Record<TooltipSide, string> = {
-  top: `${ARROW_BASE} -bottom-[5px] border-r border-b`,
-  bottom: `${ARROW_BASE} -top-[5px] border-l border-t`,
-  left: `${ARROW_BASE} -right-[5px] border-t border-r`,
-  right: `${ARROW_BASE} -left-[5px] border-b border-l`,
+  top: `${ARROW_BASE} bottom-px`,
+  bottom: `${ARROW_BASE} top-px`,
+  left: `${ARROW_BASE} right-px`,
+  right: `${ARROW_BASE} left-px`,
 }
 const FUSE = 'fixed top-0 left-0 z-[2147483647] pointer-events-none rounded-full bg-chat-accent'
 
@@ -154,7 +159,7 @@ function liveGeometry(options: {
     y: pixels(y),
     width: pixels(style.width),
     height: pixels(style.height),
-    arrow: arrowAt === undefined ? options.settled.arrow : pixels(arrowAt) + 5,
+    arrow: arrowAt === undefined ? options.settled.arrow : pixels(arrowAt),
   }
 }
 
@@ -163,8 +168,8 @@ function geometryFrame(geometry: TooltipGeometry): Keyframe {
 }
 
 function arrowFrame(geometry: TooltipGeometry): Keyframe {
-  if (alongX(geometry.side)) return {left: `${geometry.arrow - 5}px`}
-  return {top: `${geometry.arrow - 5}px`}
+  if (alongX(geometry.side)) return {left: `${geometry.arrow}px`}
+  return {top: `${geometry.arrow}px`}
 }
 
 function fuseStyle(arming: Arming): JSX.CSSProperties {
@@ -338,28 +343,66 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     setState('geometry', next)
   }
 
+  const lean: {frame: number; time: number; position: number | undefined; spring: LeanSpring} = {
+    frame: 0,
+    time: 0,
+    position: undefined,
+    spring: {unit: 0, velocity: 0},
+  }
+
+  const stopLean = (boxElement: HTMLElement | undefined): void => {
+    cancelAnimationFrame(lean.frame)
+    lean.frame = 0
+    lean.position = undefined
+    lean.spring = {unit: 0, velocity: 0}
+    boxElement?.style.removeProperty('rotate')
+  }
+
+  const leanTick = (time: number): void => {
+    const labelElement = label()
+    const boxElement = box()
+    if (!labelElement?.isConnected || !boxElement) {
+      stopLean(boxElement)
+      return
+    }
+    const side = state.geometry.side
+    const [x = '0', y = '0'] = getComputedStyle(labelElement).translate.split(' ')
+    const position = pixels(alongX(side) ? x : y)
+    const seconds = Math.min(MAX_FRAME_SECONDS, Math.max(MIN_FRAME_SECONDS, (time - lean.time) / 1000))
+    const gliding = labelElement.getAnimations().length > 0
+    const speed = gliding && lean.position !== undefined ? (position - lean.position) / seconds : 0
+    lean.spring = leanStep({spring: lean.spring, speed, seconds})
+    lean.position = position
+    lean.time = time
+    if (!gliding && leanSettled(lean.spring)) {
+      stopLean(boxElement)
+      return
+    }
+    boxElement.style.rotate = leanRotation({spring: lean.spring, lean: config.lean, side})
+    lean.frame = requestAnimationFrame(leanTick)
+  }
+
+  const startLean = (): void => {
+    if (lean.frame !== 0) return
+    lean.time = performance.now()
+    lean.frame = requestAnimationFrame(leanTick)
+  }
+
+  onCleanup(() => cancelAnimationFrame(lean.frame))
+
   const glide = (options: {
     layer: Layer
     element: HTMLElement
     labelElement: HTMLElement
-    boxElement: HTMLElement
     from: TooltipGeometry
     next: TooltipGeometry
   }): void => {
-    const {layer, element, labelElement, boxElement, from, next} = options
+    const {layer, element, labelElement, from, next} = options
     const easing = springEasing({duration: config.travel, bounce: GLIDE_BOUNCE})
     labelElement.animate([geometryFrame(from), geometryFrame(next)], {duration: config.travel, easing})
     arrow()?.animate([arrowFrame(from), arrowFrame(next)], {duration: config.travel, easing})
     if (layer.direction !== 0) swapIn({element, direction: layer.direction, across: layer.across})
-    if (config.lean <= 0) return
-    const frames = leanFrames({
-      distance: alongX(next.side) ? next.x - from.x : next.y - from.y,
-      duration: config.travel,
-      bounce: GLIDE_BOUNCE,
-      lean: config.lean,
-      side: next.side,
-    })
-    boxElement.animate(frames, {duration: leanDuration(frames), easing: 'linear'})
+    if (config.lean > 0) startLean()
   }
 
   const glides = (options: {layer: Layer; from: TooltipGeometry; next: TooltipGeometry}): boolean =>
@@ -381,7 +424,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     cancelAnimations(arrow())
     setState('geometry', next)
     if (layer.mode === 'cold') popIn({element: boxElement, side: next.side})
-    if (glides({layer, from, next})) glide({layer, element, labelElement, boxElement, from, next})
+    if (glides({layer, from, next})) glide({layer, element, labelElement, from, next})
   }
 
   const close = (member: TooltipGroupMember): void => {
@@ -489,9 +532,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
             aria-hidden="true"
             class={ARROW[state.geometry.side]}
             style={
-              alongX(state.geometry.side)
-                ? {left: `${state.geometry.arrow - 5}px`}
-                : {top: `${state.geometry.arrow - 5}px`}
+              alongX(state.geometry.side) ? {left: `${state.geometry.arrow}px`} : {top: `${state.geometry.arrow}px`}
             }
           />
         </div>

@@ -17,8 +17,6 @@ const FULL_LEAN_SPEED = 1200
 const LEAN_STIFFNESS = 260
 const LEAN_DAMPING = 22
 const LEAN_MASS = 0.4
-const FRAME_SECONDS = 1 / 60
-const LEAN_SETTLE_SECONDS = 0.45
 const SPRING_SAMPLES = 40
 const SPRING_SETTLE = 6.2
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
@@ -174,37 +172,19 @@ export function springEasing(options: {duration: number; bounce: number}): strin
   return `linear(${points.map((point) => point.toFixed(4)).join(', ')})`
 }
 
-type LeanStep = {unit: number; velocity: number; turns: number[]}
+export type LeanSpring = {unit: number; velocity: number}
 
-export function leanFrames(options: {
-  distance: number
-  duration: number
-  bounce: number
-  lean: number
-  side: TooltipSide
-}): Keyframe[] {
-  const seconds = options.duration / 1000
-  const count = Math.ceil((seconds + LEAN_SETTLE_SECONDS) / FRAME_SECONDS)
-  const speedAt = (time: number): number =>
-    time >= seconds
-      ? 0
-      : (options.distance *
-          (springAt({seconds: time + FRAME_SECONDS, duration: seconds, bounce: options.bounce}) -
-            springAt({seconds: time, duration: seconds, bounce: options.bounce}))) /
-        FRAME_SECONDS
-  const folded = Array.from({length: count}, (_, index) => index * FRAME_SECONDS).reduce<LeanStep>(
-    (step, time) => {
-      const target = clamp({value: -speedAt(time) / FULL_LEAN_SPEED, min: -1, max: 1})
-      const force = LEAN_STIFFNESS * (target - step.unit) - LEAN_DAMPING * step.velocity
-      const velocity = step.velocity + (force / LEAN_MASS) * FRAME_SECONDS
-      const unit = step.unit + velocity * FRAME_SECONDS
-      return {unit, velocity, turns: [...step.turns, unit * options.lean * LEAN_SIGN[options.side]]}
-    },
-    {unit: 0, velocity: 0, turns: []},
-  )
-  return [0, ...folded.turns, 0].map((turn) => ({rotate: `${turn.toFixed(3)}deg`}))
+export function leanStep(options: {spring: LeanSpring; speed: number; seconds: number}): LeanSpring {
+  const target = clamp({value: -options.speed / FULL_LEAN_SPEED, min: -1, max: 1})
+  const force = LEAN_STIFFNESS * (target - options.spring.unit) - LEAN_DAMPING * options.spring.velocity
+  const velocity = options.spring.velocity + (force / LEAN_MASS) * options.seconds
+  return {unit: options.spring.unit + velocity * options.seconds, velocity}
 }
 
-export function leanDuration(frames: Keyframe[]): number {
-  return Math.round(frames.length * FRAME_SECONDS * 1000)
+export function leanSettled(spring: LeanSpring): boolean {
+  return Math.abs(spring.unit) < 0.001 && Math.abs(spring.velocity) < 0.01
+}
+
+export function leanRotation(options: {spring: LeanSpring; lean: number; side: TooltipSide}): string {
+  return `${(options.spring.unit * options.lean * LEAN_SIGN[options.side]).toFixed(3)}deg`
 }
