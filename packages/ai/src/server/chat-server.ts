@@ -224,15 +224,38 @@ function followRun(processor: StreamProcessor, chunk: ChatEvent): void {
   processor.processChunk(chunk)
 }
 
+function storedToolCallIds(stored: readonly ModelMessage[]): Set<string> {
+  return new Set(
+    stored.flatMap((message) => [
+      ...(message.toolCalls ?? []).map((call) => call.id),
+      ...(message.toolCallId === undefined ? [] : [message.toolCallId]),
+    ]),
+  )
+}
+
+function unsavedParts(message: ChatMessage, saved: ReadonlySet<string>): ChatMessage {
+  return {
+    ...message,
+    parts: message.parts.filter((part) => {
+      if (part.type === 'tool-call') return !saved.has(part.id)
+      if (part.type === 'tool-result') return !saved.has(part.toolCallId)
+      return true
+    }),
+  }
+}
+
 async function saveStoppedTurn(messages: MessageStore, threadId: string, processor: StreamProcessor): Promise<void> {
+  const stored = await messages.loadThread(threadId)
+  const saved = storedToolCallIds(stored)
   const shown = processor
     .getMessages()
     .filter((message) => message.role === 'assistant')
+    .map((message) => unsavedParts(message, saved))
+    .filter((message) => message.parts.length > 0)
     .flatMap(uiMessageToModelMessages)
     .map((message) => withTanstackMetadata(message, {stopReason: 'aborted'}))
   if (shown.length === 0) return
   const replaced = new Set(shown.flatMap((message) => (message.id === undefined ? [] : [message.id])))
-  const stored = await messages.loadThread(threadId)
   const kept = stored.filter((message) => message.id === undefined || !replaced.has(message.id))
   await messages.saveThread(threadId, [...kept, ...shown])
 }
