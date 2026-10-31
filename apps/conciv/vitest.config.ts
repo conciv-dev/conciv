@@ -8,6 +8,7 @@ import {TANSTACK_AI_SOLID_DEPS, browserOptimizeDeps, ciTest, ciTestSolidBrowser}
 const SESSION_KILLER_SUITE = 'router-restore.browser.test.ts'
 const PERF_SUITE = 'test/calm-perf.browser.test.tsx'
 const PERF_MODE = 'perf'
+const MASCOT_DEPS = ['@conciv/mascot > gsap', '@conciv/mascot > gsap/MotionPathPlugin']
 const BROWSER_SUITES = ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx']
 
 class RunSessionKillerLastSequencer extends BaseSequencer {
@@ -36,7 +37,7 @@ export default defineConfig(({mode}) => ({
       },
       {
         plugins: [solidPlugin()],
-        optimizeDeps: browserOptimizeDeps(TANSTACK_AI_SOLID_DEPS),
+        optimizeDeps: browserOptimizeDeps([...TANSTACK_AI_SOLID_DEPS, ...MASCOT_DEPS]),
         test: {
           ...ciTestSolidBrowser(),
           name: 'browser',
