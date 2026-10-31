@@ -249,16 +249,23 @@ describe('dist externals', () => {
       expect(importsPackage('@tanstack/ai-sandbox-local-process')).toBe(false)
     })
 
-    it('externalizes @tanstack/ai-sandbox so capability-handle identity is shared with the plane', () => {
-      expect(importsPackage('@tanstack/ai-sandbox')).toBe(true)
+    it('bundles the patched @tanstack/ai-sandbox and @tanstack/ai-code-mode, patches included', () => {
+      expect(importsPackage('@tanstack/ai-sandbox')).toBe(false)
+      expect(importsPackage('@tanstack/ai-code-mode')).toBe(false)
+      const code = chunks.map((chunk) => chunk.code).join('\n')
+      expect(code).toContain('toolCallId: callId')
+      expect(code).toContain('chunk.metadata?.tanstack?.state === "output-error"')
+      expect(code).toContain('provides: [SandboxCapability],')
+      expect(code).not.toContain('provides: [SandboxCapability, ProjectionCapability]')
     })
 
     it('externalizes @tanstack/ai', () => {
       expect(importsPackage('@tanstack/ai')).toBe(true)
     })
 
-    it('bundles no private capability-handle copy (identity mismatch breaks chat() validate)', () => {
-      expect(chunks.some((chunk) => chunk.code.includes('createCapability()('))).toBe(false)
+    it('bundles one sandbox capability handle (a second copy breaks chat() validate)', () => {
+      const handles = chunks.flatMap((chunk) => chunk.code.match(/var SandboxCapability = createCapability\(\)/g) ?? [])
+      expect(handles).toHaveLength(1)
     })
   })
 })

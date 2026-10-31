@@ -5,5 +5,5 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   dts: true,
-  noExternal: [/^@tanstack\/ai-(acp|claude-code|codex|opencode|sandbox-local-process)(\/|$)/],
+  noExternal: [/^@tanstack\/ai-(acp|claude-code|code-mode|codex|opencode|sandbox|sandbox-local-process)(\/|$)/],
 })

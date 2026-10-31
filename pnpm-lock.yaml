@@ -1681,9 +1681,6 @@ importers:
       '@tanstack/ai-persistence':
         specifier: 'catalog:'
         version: 1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)
-      '@tanstack/ai-sandbox':
-        specifier: 'catalog:'
-        version: 1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7)
       '@tanstack/ai-solid':
         specifier: 'catalog:'
         version: 1.0.0(@opentelemetry/api@1.9.1)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.17)(zod@4.6.7)
@@ -1712,6 +1709,9 @@ importers:
       '@tanstack/ai-opencode':
         specifier: 'catalog:'
         version: 1.0.0(@tanstack/ai-sandbox@1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))
+      '@tanstack/ai-sandbox':
+        specifier: 'catalog:'
+        version: 1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7)
       '@tanstack/ai-sandbox-local-process':
         specifier: 'catalog:'
         version: 1.0.0(patch_hash=59897914bf1cea1cc05631c16c4eb474c839117c39f5e2f6494904b72f7d168f)(@tanstack/ai-sandbox@1.0.0(patch_hash=392d5090b77bcaf19ae1ef89f8016cf7404f76476eb4ebf5e669d00b47508804)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7))
