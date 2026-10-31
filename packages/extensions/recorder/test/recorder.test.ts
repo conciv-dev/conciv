@@ -26,6 +26,7 @@ import {
   RECORDER_MIME,
   RECORDER_NAME,
   recordingRefJson,
+  type RecorderControl,
   type RrwebEvent,
 } from '../src/shared/protocol.js'
 import {buttonFixture, pageFixture} from './fixtures/page.js'
@@ -666,7 +667,6 @@ describe('slow capture library', () => {
   describe('rrweb outlasts the recording_start deadline (real browser)', () => {
     it('drops the timed out start and still records a later one', async () => {
       const page = api().page
-      const calls = rpcCallCursor(page)
       const rrwebRelease = Promise.withResolvers<void>()
       await page.route(/rrweb/, async (route) => {
         await rrwebRelease.promise
@@ -688,7 +688,71 @@ describe('slow capture library', () => {
         await api().callTool('recording_stop', {captureId: started.captureId, keyframes: 0}),
       )
       expect(stopped).toContain('Add marker')
-      expect(calls.startedSince(['ext', 'recorder', 'config'])).toBe(1)
+    }, 120_000)
+  })
+})
+
+describe('recorder controls', () => {
+  const api = useRecorderTestApi()
+
+  const CONFIG_REQUEST = /\/ext\/recorder\/config/
+  const FLUSH_REQUEST = /\/ext\/recorder\/flush/
+
+  function recorderRpc(): RouterClient<RecorderRouter> {
+    return makeExtRpcClient<RecorderRouter>(api().apiBase, RECORDER_NAME)
+  }
+
+  async function reloadWidget(page: Page): Promise<void> {
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await page.getByRole('tab', {name: 'Recorder'}).waitFor({state: 'visible', timeout: 30_000})
+  }
+
+  function controlStream(messages: RecorderControl[]): string {
+    const events = messages.map((message) => `event: message\ndata: ${JSON.stringify({json: message})}\n\n`)
+    return `${events.join('')}event: done\ndata: {}\n\n`
+  }
+
+  async function expectMarkerRecorded(page: Page): Promise<void> {
+    const markerFlush = page.waitForRequest(
+      (request) => FLUSH_REQUEST.test(request.url()) && /Marker \d+/.test(request.postData() ?? ''),
+      {timeout: 10_000},
+    )
+    const label = await addMarker(page)
+    const flushed = await (await markerFlush).response()
+    await flushed?.finished()
+    const {clients} = await recorderRpc().clients()
+    const clientId = clients.at(-1)?.id
+    if (!clientId) throw new Error('no recorder client connected')
+    const {events} = await recorderRpc().window({clientId})
+    expect(JSON.stringify(events)).toContain(label)
+  }
+
+  describe('queued controls (real browser)', () => {
+    afterEach(() => api().page.unrouteAll())
+
+    it('finishes the session of a queued stop that a newer start overtook', async () => {
+      const page = api().page
+      const calls = rpcCallCursor(page)
+      await page.route(/\/ext\/recorder\/control/, (route) =>
+        route.fulfill({
+          contentType: 'text/event-stream',
+          body: controlStream([{live: true}, {live: false}, {live: true}]),
+        }),
+      )
+      const configRequests = {seen: 0}
+      const freshConfig = page.waitForRequest(
+        (request) => {
+          if (CONFIG_REQUEST.test(request.url())) configRequests.seen += 1
+          return configRequests.seen === 2
+        },
+        {timeout: 10_000},
+      )
+      await reloadWidget(page)
+      await freshConfig
+      await page.waitForRequest(FLUSH_REQUEST, {timeout: 10_000})
+
+      await expectMarkerRecorded(page)
+      expect(calls.startedSince(['ext', 'recorder', 'config'])).toBe(2)
     }, 120_000)
   })
 })

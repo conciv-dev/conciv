@@ -40,7 +40,7 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
 
   const stopSession = async (): Promise<void> => {
     const active = session
-    if (!active || store.live()) return
+    if (!active) return
     session = undefined
     store.setStatus('idle')
     await active.finish()
