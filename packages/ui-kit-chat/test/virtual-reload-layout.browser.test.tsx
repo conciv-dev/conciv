@@ -1,5 +1,5 @@
 import 'virtual:uno.css'
-import {createSignal, onMount, type JSX} from 'solid-js'
+import {createResource, createSignal, onMount, Suspense, type JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {createChat} from '@conciv/ai/client'
@@ -215,3 +215,93 @@ it('a fresh mount over a long transcript rests flush against the end of the thre
 
   await expect.element(page.getByRole('status', {name: REST_READOUT_LABEL})).toHaveTextContent(RESTS_AT_END)
 })
+
+it('a thread mounted while a suspense boundary is pending lays its trace summary below the prompt', async () => {
+  const host = mountView(() => <SuspendedThread />)
+
+  await expect.element(page.getByText(TOOL_ANSWER)).toBeVisible()
+  reportPromptClearOfTraceWhenSettled(host)
+
+  await expect.element(page.getByRole('status', {name: CLEARANCE_READOUT_LABEL})).toHaveTextContent(PROMPT_CLEAR)
+})
+
+const PREFIX_LINE = 'a divider above the turn'
+const PROMPT = 'run a slow command'
+const TOOL_ANSWER = 'the command finished'
+const CLEARANCE_READOUT_LABEL = 'prompt clearance readout'
+const PROMPT_CLEAR = 'the trace summary sits below the prompt'
+
+function toolTranscript(): ChatMessage[] {
+  return [
+    {id: 'ask', role: 'user', parts: [{type: 'text', content: PROMPT}]},
+    {
+      id: 'answer',
+      role: 'assistant',
+      parts: [
+        {type: 'tool-call', id: 'call-bash', name: 'Bash', arguments: '{"command":"sleep 1"}', state: 'input-complete'},
+        {type: 'tool-result', toolCallId: 'call-bash', content: 'done', state: 'complete'},
+        {type: 'text', content: TOOL_ANSWER},
+      ],
+    },
+  ]
+}
+
+function SuspendedThread(): JSX.Element {
+  const [divider] = createResource(
+    () =>
+      new Promise<string>((resolve) => {
+        requestAnimationFrame(() => resolve(PREFIX_LINE))
+      }),
+  )
+  const chat = createChat({
+    threadId: 'virtual-reload-suspended',
+    connection: storyConnection({chunks: []}),
+    initialMessages: toolTranscript(),
+  })
+  return (
+    <ChatProvider chat={chat}>
+      <Thread class="h-150 w-100">
+        <Thread.Viewport>
+          <Suspense>
+            <Thread.Messages turnPrefix={(turn) => (turn.start === 0 ? <p>{divider()}</p> : null)} />
+          </Suspense>
+        </Thread.Viewport>
+      </Thread>
+    </ChatProvider>
+  )
+}
+
+function promptClearance(): string | null {
+  const prompt = page.getByText(PROMPT).query()
+  const trace = page.getByRole('button', {name: /trace/}).query()
+  if (!prompt || !trace) return 'the prompt or the trace summary is not rendered'
+  const promptBox = prompt.getBoundingClientRect()
+  const traceBox = trace.getBoundingClientRect()
+  if (traceBox.top >= promptBox.bottom - OVERLAP_TOLERANCE_PX) return null
+  return `the trace summary starts at ${traceBox.top} while the prompt ends at ${promptBox.bottom}`
+}
+
+function reportPromptClearOfTraceWhenSettled(host: HTMLElement): void {
+  const readout = document.createElement('p')
+  readout.setAttribute('role', 'status')
+  readout.setAttribute('aria-label', CLEARANCE_READOUT_LABEL)
+  readout.textContent = 'prompt clearance sampling'
+  host.append(readout)
+  let cleanFrames = 0
+  let framesLeft = REST_SAMPLE_FRAMES
+  const sample = (): void => {
+    const overlap = promptClearance()
+    cleanFrames = overlap === null ? cleanFrames + 1 : 0
+    if (cleanFrames >= SETTLED_FRAMES) {
+      readout.textContent = PROMPT_CLEAR
+      return
+    }
+    framesLeft -= 1
+    if (framesLeft <= 0) {
+      readout.textContent = overlap ?? 'the layout never settled'
+      return
+    }
+    requestAnimationFrame(sample)
+  }
+  requestAnimationFrame(sample)
+}
