@@ -16,7 +16,15 @@ const COMPACT_PATH = ['sessions', 'compact']
 const NARROW_PX = 160
 const WIDE_PX = 460
 
-const core = bootedCore('composer-overflow')
+const PICKER_COMMANDS = [
+  {name: '21st-ui-build', description: 'Build UI with the context of a component registry'},
+  {name: 'show-context', description: 'Print the token budget'},
+  {name: 'deploy', description: 'Ship the branch'},
+  {name: 'context-summary', description: 'Summarize the conversation so far'},
+  {name: 'context', description: 'Show what fills the window'},
+]
+
+const core = bootedCore('composer-overflow', {commands: PICKER_COMMANDS})
 const keep = keptPane()
 const faults = trackedFaults()
 
@@ -29,6 +37,7 @@ const attachButton = () => page.getByRole('button', {name: 'Add an attachment'})
 const sendButton = () => page.getByRole('button', {name: 'Send message'})
 const newSessionItem = () => page.getByRole('menuitem', {name: 'Start a new session'})
 const compactItem = () => page.getByRole('menuitem', {name: 'Compress the conversation'})
+const commandOption = (position: number) => page.getByRole('option').nth(position)
 
 async function mountComposer(width?: number): Promise<PaneMount> {
   const sessionId = await createSession(coreRpc(core()))
@@ -127,4 +136,25 @@ test('a session that is already compacting cannot be compacted again from the ov
   await expect.element(page.getByText('the pane requested a new session')).toBeVisible()
   await expect.element(compactItem()).not.toBeInTheDocument()
   expect(await coreControl.faultPending(gate)).toBe(1)
+})
+
+test('the slash picker ranks an exact name first, then a name prefix, a name match, and a description match', async () => {
+  await mountComposer(WIDE_PX)
+
+  await userEvent.click(input())
+  await userEvent.keyboard('/context')
+
+  await expect.element(commandOption(0)).toHaveTextContent('/contextShow what fills the window')
+  await expect.element(commandOption(1)).toHaveTextContent('/context-summarySummarize the conversation so far')
+  await expect.element(commandOption(2)).toHaveTextContent('/show-contextPrint the token budget')
+  await expect
+    .element(commandOption(3))
+    .toHaveTextContent('/21st-ui-buildBuild UI with the context of a component registry')
+  await expect.element(page.getByRole('option', {name: /deploy/})).not.toBeInTheDocument()
+
+  await userEvent.keyboard('{Enter}')
+
+  await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
+  await expect.element(input().getByText('/context')).toBeVisible()
+  await expect.element(input().getByText('21st-ui-build')).not.toBeInTheDocument()
 })
