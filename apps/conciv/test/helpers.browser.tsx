@@ -48,31 +48,21 @@ declare module 'vitest/internal/browser' {
   interface BrowserCommands {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
     closeCore: () => Promise<void>
-    restartCore: () => Promise<void>
     pushSocketsOpened: () => Promise<number>
-    pushApprovalIds: () => Promise<readonly string[]>
     outsideReload: (sessionId: string, file: string) => Promise<string>
     setStaleness: (value: EngineStaleness) => Promise<void>
     holdTurn: () => Promise<void>
-    holdStart: () => Promise<void>
-    releaseStart: () => Promise<void>
     holdTools: () => Promise<void>
     releaseTools: () => Promise<void>
     holdResults: () => Promise<void>
     releaseResults: (paced?: PacedRelease) => Promise<void>
     releaseTurn: () => Promise<void>
-    scriptError: (message: string) => Promise<void>
     scriptTurn: (turn: ScriptedTurn) => Promise<string[]>
     clearScript: () => Promise<void>
-    scriptToolCall: (name: string, input: unknown) => Promise<string>
     scriptCustomEvent: (name: string, value: unknown) => Promise<void>
     setTerminalLaunch: (succeeds: boolean) => Promise<void>
     terminalLaunches: () => Promise<number>
     rpcCallCount: (path: string[]) => Promise<number>
-    rpcMark: () => Promise<number>
-    awaitFaultAnswered: (handle: string) => Promise<void>
-    awaitWarmSessionResolved: (since: number) => Promise<number | null>
-    awaitSessionsListed: (since: number) => Promise<number | null>
     installFault: (spec: FaultSpec) => Promise<string>
     releaseFault: (handle: string) => Promise<void>
     faultPending: (handle: string) => Promise<number>
@@ -82,9 +72,9 @@ declare module 'vitest/internal/browser' {
 
 export const coreControl = commands
 
-export type SeededDraft = {text?: string; attachments?: PersistedAttachment[]}
+type SeededDraft = {text?: string; attachments?: PersistedAttachment[]}
 
-export type TurnHandle = {awaitTurnEnd: () => Promise<void>; close: () => void}
+type TurnHandle = {awaitTurnEnd: () => Promise<void>; close: () => void}
 
 export function coreRpc(base: string): RpcClient {
   return makeRpcClient(base)
@@ -162,14 +152,14 @@ export function sendTurn(base: string, sessionId: string, text: string): Promise
   }))
 }
 
-export type AppContextValueOptions = {
+type AppContextValueOptions = {
   base: string
   sessionId?: string
   announce?: (message: string) => void
   instances?: ExtensionInstance[]
 }
 
-export function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
+function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
   const rpc = makeRpcClient(
     options.base,
     options.sessionId === undefined ? {} : {headers: {[CONCIV_SESSION_HEADER]: options.sessionId}},
@@ -215,7 +205,6 @@ export type PaneMountOptions = {
 
 export type PaneMount = {
   dispose: () => void
-  announced: () => string[]
   pane: PaneContextValue
   data: AppData
   queryClient: QueryClient
@@ -318,7 +307,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
       closeBrowserRpcConnection(options.base)
       delete window.__CONCIV_API_BASE__
     },
-    announced,
     pane,
     data,
     queryClient,
@@ -329,16 +317,13 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
 
 export type ShellMountOptions = {transport?: ChatTransportPreference}
 
-export type ShellHarness = {
+type ShellHarness = {
   mountShell: (entry: string, extensions?: AnyExtension[], options?: ShellMountOptions) => void
-  navigateToSession: (sessionId: string) => void
-  bumpConnectionGeneration: () => void
   dispose: () => void
 }
 
 export function createShellHarness(base: () => string): ShellHarness {
   const mounted: {router: ReturnType<typeof createConcivRouter> | null} = {router: null}
-  const [connectionGeneration, setConnectionGeneration] = createSignal(0)
 
   const mountShell = (entry: string, extensions: AnyExtension[] = [], options: ShellMountOptions = {}): void => {
     const apiBase = base()
@@ -349,19 +334,11 @@ export function createShellHarness(base: () => string): ShellHarness {
       environment: {rootNode: document, document},
       settings: parseConcivSettings(options.transport ? JSON.stringify({transport: options.transport}) : ''),
       apiBase: () => apiBase,
-      connectionGeneration,
+      connectionGeneration: () => 0,
       extensions,
     })
     mounted.router = router
     render(() => <RouterProvider router={router} />)
-  }
-
-  const navigateToSession = (sessionId: string): void => {
-    void mounted.router?.navigate({to: '/panel/$sessionId', params: {sessionId}})
-  }
-
-  const bumpConnectionGeneration = (): void => {
-    setConnectionGeneration((current) => current + 1)
   }
 
   const dispose = (): void => {
@@ -372,200 +349,27 @@ export function createShellHarness(base: () => string): ShellHarness {
     delete window.__CONCIV_API_BASE__
   }
 
-  return {mountShell, navigateToSession, bumpConnectionGeneration, dispose}
+  return {mountShell, dispose}
 }
 
 const VIEWPORT_SELECTOR = '[role="log"][aria-live="off"]'
-const TRACE_LIST_SELECTOR = '[aria-label="Execution trace"]'
-const SURFACE_SELECTOR = [
-  TRACE_LIST_SELECTOR,
-  `${TRACE_LIST_SELECTOR} > li`,
-  '[data-conciv-msg]',
-  '[role="group"]',
-  '[role="alert"]',
-].join(', ')
-const STAMP_ATTRIBUTE = 'data-calm-surface'
-const TOLERANCE_PX = 1
-const DESCRIPTION_LENGTH = 44
 const SETTLE_PASSES = 3
 const JANK_FRAME_MS = 33
 
-type CalmAllowance = 'narration' | 'virtualization' | 'error-replacement' | 'user-collapsed-trace'
-
-type CalmSurface = {stamp: string; description: string}
-
-type CalmDrift = CalmSurface & {deltaBlock: number; deltaInline: number}
-
-export type CalmCheckpoint = {rebaseline?: boolean}
-
-export type FrameGaps = {sampledMs: number; p50: number; p95: number; max: number; over33: number}
+type FrameGaps = {sampledMs: number; p50: number; p95: number; max: number; over33: number}
 
 export type CalmWatch = {
-  checkpoint: (options?: CalmCheckpoint) => Promise<void>
-  removed: () => string[]
-  drifted: () => string[]
-  shiftedAboveLiveRegion: () => string[]
-  narrationGlyphs: () => number
+  checkpoint: () => Promise<void>
   frameGaps: () => FrameGaps
   stop: () => void
 }
 
 type FrameGapSampler = {gaps: () => FrameGaps; pause: () => void; resume: () => void}
 
-type Anchor = {block: number; inline: number}
-
-type Tracked = {
-  stamp: string
-  element: Element
-  description: string
-  origin: Anchor
-  latest: Anchor
-  visible: boolean
-  insideTrace: boolean
-  gone: boolean
-}
-
-type LayoutShiftSource = {node?: Node | null}
-
-type LayoutShiftEntry = PerformanceEntry & {
-  hadRecentInput: boolean
-  sources: ReadonlyArray<LayoutShiftSource>
-}
-
-function isLayoutShiftEntry(entry: PerformanceEntry): entry is LayoutShiftEntry {
-  return 'hadRecentInput' in entry && 'sources' in entry
-}
-
 function threadViewport(): HTMLElement {
   const viewport = document.querySelector<HTMLElement>(VIEWPORT_SELECTOR)
   if (!viewport) throw new Error('the calm harness could not find the thread viewport')
   return viewport
-}
-
-export function threadViewportElement(): HTMLElement {
-  return threadViewport()
-}
-
-export type ScrollWatch = {
-  stop: () => void
-  maxDrift: () => number
-  maxDistanceFromEnd: () => number
-  distanceSeries: () => number[]
-  framesBeyond: (limit: number) => number
-  samples: () => number
-  topEdgeRow: () => string | null
-}
-
-function distanceFromEnd(viewport: HTMLElement): number {
-  return Math.max(0, viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop)
-}
-
-function topEdgeRowElement(viewport: HTMLElement): Element | null {
-  const frameTop = viewport.getBoundingClientRect().top
-  const crossing = [...viewport.querySelectorAll('[data-index]')]
-    .map((row) => ({row, box: row.getBoundingClientRect()}))
-    .filter(({box}) => box.bottom > frameTop)
-    .toSorted((first, second) => first.box.top - second.box.top)
-  return crossing[0]?.row ?? null
-}
-
-export function topEdgeRowIndex(viewport: HTMLElement): string | null {
-  return topEdgeRowElement(viewport)?.getAttribute('data-index') ?? null
-}
-
-function offsetWithinViewport(row: Element, viewport: HTMLElement): number {
-  return row.getBoundingClientRect().top - viewport.getBoundingClientRect().top
-}
-
-export function topEdgeRowOffset(viewport: HTMLElement): number {
-  const row = topEdgeRowElement(viewport)
-  return row ? offsetWithinViewport(row, viewport) : 0
-}
-
-export function watchViewportScroll(): ScrollWatch {
-  const viewport = threadViewport()
-  const anchorRow = topEdgeRowElement(viewport)
-  const anchorOffset = anchorRow ? offsetWithinViewport(anchorRow, viewport) : 0
-  const drifts: number[] = []
-  const distances: number[] = []
-  const rows: (string | null)[] = []
-  let handle = requestAnimationFrame(function tick() {
-    if (anchorRow?.isConnected === true) drifts.push(Math.abs(offsetWithinViewport(anchorRow, viewport) - anchorOffset))
-    distances.push(distanceFromEnd(viewport))
-    rows.push(topEdgeRowIndex(viewport))
-    handle = requestAnimationFrame(tick)
-  })
-  return {
-    stop: () => cancelAnimationFrame(handle),
-    maxDrift: () => Math.max(0, ...drifts),
-    maxDistanceFromEnd: () => Math.max(0, ...distances),
-    distanceSeries: () => distances.slice(),
-    framesBeyond: (limit: number) =>
-      distances.reduce(
-        (state, distance) => {
-          const run = distance > limit ? state.run + 1 : 0
-          return {run, longest: Math.max(state.longest, run)}
-        },
-        {run: 0, longest: 0},
-      ).longest,
-    samples: () => drifts.length,
-    topEdgeRow: () => {
-      const seen = new Set(rows.filter((row): row is string => row !== null))
-      return seen.size === 1 ? ([...seen][0] ?? null) : [...seen].join(',')
-    },
-  }
-}
-
-export function pinViewportToBottom(pixels: number): () => void {
-  const viewport = threadViewport()
-  const height = viewport.style.height
-  const flex = viewport.style.flex
-  viewport.style.height = `${pixels}px`
-  viewport.style.flex = 'none'
-  viewport.scrollTop = viewport.scrollHeight
-  return () => {
-    viewport.style.height = height
-    viewport.style.flex = flex
-  }
-}
-
-function narrationLines(viewport: HTMLElement): Element[] {
-  return [...viewport.querySelectorAll('[role="status"]')].filter((node) => node.closest('[data-conciv-msg]') === null)
-}
-
-function liveRegionOf(viewport: HTMLElement): Element | undefined {
-  return narrationLines(viewport).at(-1)
-}
-
-function isAboveLiveRegion(node: Element, region: Element | undefined): boolean {
-  if (!region) return true
-  if (node.contains(region)) return false
-  return (node.compareDocumentPosition(region) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
-}
-
-function isPseudoElement(node: Element): boolean {
-  return node.tagName.startsWith('::')
-}
-
-function describeSurface(node: Element): string {
-  const role = node.getAttribute('role') ?? node.tagName.toLowerCase()
-  const label = node.getAttribute('aria-label') ?? (node.textContent ?? '').replaceAll(/\s+/g, ' ').trim()
-  return `${role}: ${label.slice(0, DESCRIPTION_LENGTH)}`
-}
-
-function anchorOf(node: Element, viewport: HTMLElement): Anchor {
-  const box = node.getBoundingClientRect()
-  const frame = viewport.getBoundingClientRect()
-  return {
-    block: box.top - frame.top + viewport.scrollTop,
-    inline: box.left - frame.left + viewport.scrollLeft,
-  }
-}
-
-function isWithinViewport(node: Element, viewport: HTMLElement): boolean {
-  const box = node.getBoundingClientRect()
-  const frame = viewport.getBoundingClientRect()
-  return box.bottom > frame.top && box.top < frame.bottom
 }
 
 function hasFiniteIterations(animation: Animation): boolean {
@@ -583,35 +387,6 @@ async function settleMotion(viewport: HTMLElement): Promise<void> {
     if (running.length === 0) return
     await Promise.allSettled(running.map((animation) => animation.finished))
   }
-}
-
-function driftOf(entry: Tracked): CalmDrift {
-  return {
-    stamp: entry.stamp,
-    description: entry.description,
-    deltaBlock: Math.round(entry.latest.block - entry.origin.block),
-    deltaInline: Math.round(entry.latest.inline - entry.origin.inline),
-  }
-}
-
-function isDrifted(drift: CalmDrift): boolean {
-  return Math.abs(drift.deltaBlock) > TOLERANCE_PX || Math.abs(drift.deltaInline) > TOLERANCE_PX
-}
-
-function driftLine(drift: CalmDrift): string {
-  return `${drift.description} moved ${drift.deltaBlock}px block / ${drift.deltaInline}px inline`
-}
-
-function errorReplaced(): boolean {
-  return document.querySelector('[role="alert"]') !== null
-}
-
-function isPermitted(entry: Tracked, allowed: ReadonlySet<CalmAllowance>): boolean {
-  if (allowed.has('narration') && entry.description.startsWith('status')) return true
-  if (allowed.has('virtualization') && !entry.visible) return true
-  if (allowed.has('error-replacement') && errorReplaced()) return true
-  if (allowed.has('user-collapsed-trace') && entry.insideTrace) return true
-  return false
 }
 
 function percentileOf(sorted: ReadonlyArray<number>, fraction: number): number {
@@ -651,99 +426,19 @@ function startFrameGapSampler(): FrameGapSampler {
   return {gaps: () => summariseGaps(gaps), pause: () => cancelAnimationFrame(handle), resume}
 }
 
-function createCalmWatch(options: {allow?: ReadonlyArray<CalmAllowance>} = {}): CalmWatch {
-  const allowed = new Set<CalmAllowance>(options.allow ?? [])
-  const tracked = new Map<string, Tracked>()
-  const stamps = {count: 0}
-  const shifted = new Set<string>()
-  const collect = (entries: PerformanceEntryList) => {
-    const viewport = document.querySelector<HTMLElement>(VIEWPORT_SELECTOR)
-    if (!viewport) return
-    const region = liveRegionOf(viewport)
-    const isAboveSource = (node: Node | null | undefined): node is Element =>
-      node instanceof Element && !isPseudoElement(node) && viewport.contains(node) && isAboveLiveRegion(node, region)
-    for (const entry of entries) {
-      if (!isLayoutShiftEntry(entry)) continue
-      if (entry.hadRecentInput) continue
-      const above = entry.sources.map((source) => source.node).filter(isAboveSource)
-      for (const node of above) shifted.add(describeSurface(node))
-    }
-  }
-  const observer = new PerformanceObserver((list) => collect(list.getEntries()))
-  observer.observe({type: 'layout-shift', buffered: true})
+function createCalmWatch(): CalmWatch {
   const sampler = startFrameGapSampler()
-  const resample = (viewport: HTMLElement) => {
-    for (const entry of tracked.values()) {
-      if (entry.gone) continue
-      if (!entry.element.isConnected) {
-        entry.gone = true
-        continue
-      }
-      entry.latest = anchorOf(entry.element, viewport)
-      entry.visible = isWithinViewport(entry.element, viewport)
-    }
-  }
-  const adopt = (viewport: HTMLElement, region: Element | undefined) => {
-    for (const node of viewport.querySelectorAll(SURFACE_SELECTOR)) {
-      if (node.hasAttribute(STAMP_ATTRIBUTE)) continue
-      if (!isAboveLiveRegion(node, region)) continue
-      stamps.count += 1
-      const stamp = `calm-${stamps.count}`
-      node.setAttribute(STAMP_ATTRIBUTE, stamp)
-      const origin = anchorOf(node, viewport)
-      tracked.set(stamp, {
-        stamp,
-        element: node,
-        description: describeSurface(node),
-        origin,
-        latest: origin,
-        visible: isWithinViewport(node, viewport),
-        insideTrace: node.closest(TRACE_LIST_SELECTOR) !== null,
-        gone: false,
-      })
-    }
-  }
-  const drainShifts = async (): Promise<void> => {
-    await nextFrames()
-    collect(observer.takeRecords())
-  }
   return {
-    checkpoint: async (options: CalmCheckpoint = {}) => {
+    checkpoint: async () => {
       sampler.pause()
       try {
-        const viewport = threadViewport()
-        await settleMotion(viewport)
-        resample(viewport)
-        adopt(viewport, liveRegionOf(viewport))
-        if (options.rebaseline !== true) return
-        await drainShifts()
-        resample(viewport)
-        for (const [stamp, entry] of tracked) {
-          if (entry.gone) tracked.delete(stamp)
-          entry.origin = entry.latest
-        }
-        shifted.clear()
+        await settleMotion(threadViewport())
       } finally {
         sampler.resume()
       }
     },
-    removed: () =>
-      [...tracked.values()]
-        .filter((entry) => entry.gone && !isPermitted(entry, allowed))
-        .map((entry) => entry.description),
-    drifted: () =>
-      [...tracked.values()]
-        .filter((entry) => !entry.gone)
-        .map(driftOf)
-        .filter(isDrifted)
-        .map(driftLine),
-    shiftedAboveLiveRegion: () => [...shifted].toSorted(),
-    narrationGlyphs: () => narrationLines(threadViewport()).length,
     frameGaps: sampler.gaps,
-    stop: () => {
-      sampler.pause()
-      observer.disconnect()
-    },
+    stop: sampler.pause,
   }
 }
 
@@ -764,12 +459,12 @@ const DIFF_AFTER = [
   '}',
 ].join('\n')
 const STREAMED_CODE_LINES = 40
-export const STREAMED_TEXT_CHUNK = 56
-export const STREAMED_TEXT_PACE_MS = 30
-export const STREAMED_CODE_CLOSING = 'That is the whole helper.'
+const STREAMED_TEXT_CHUNK = 56
+const STREAMED_TEXT_PACE_MS = 30
+const STREAMED_CODE_CLOSING = 'That is the whole helper.'
 const SEEDED_EXCHANGES = Math.floor((VIRTUALIZE_THRESHOLD - 4) / 2)
 
-export const core = {base: ''}
+const core = {base: ''}
 const active: {pane: PaneMount | null; watch: CalmWatch | null} = {pane: null, watch: null}
 
 export function registerCalmCore(id: string): void {
@@ -794,40 +489,40 @@ export function registerCalmCore(id: string): void {
   })
 }
 
-export async function newSession(): Promise<{rpc: RpcClient; sessionId: string}> {
+async function newSession(): Promise<{rpc: RpcClient; sessionId: string}> {
   const rpc = coreRpc(core.base)
   return {rpc, sessionId: await createSession(rpc)}
 }
 
-export function mountChatPane(sessionId: string): PaneMount {
+function mountChatPane(sessionId: string): PaneMount {
   const mount = mountPane({base: core.base, sessionId}, () => <ChatPane sessionId={sessionId} />)
   active.pane = mount
   return mount
 }
 
-export function watchCalm(allow: Parameters<typeof createCalmWatch>[0] = {}): CalmWatch {
-  const watch = createCalmWatch(allow)
+function watchCalm(): CalmWatch {
+  const watch = createCalmWatch()
   active.watch = watch
   return watch
 }
 
-export const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-export const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
 
-export async function promptWith(text: string): Promise<void> {
+async function promptWith(text: string): Promise<void> {
   await expect.element(input()).toBeVisible()
   await input().fill(text)
   await userEvent.keyboard('{Enter}')
   await expect.element(page.getByText(text)).toBeVisible()
 }
 
-export type ScriptedToolStep = {name: string; input: Record<string, string>}
+type ScriptedToolStep = {name: string; input: Record<string, string>}
 
 function editStep(index: number): ScriptedToolStep {
   return {name: 'Edit', input: {file_path: `step-${index}.tsx`, old_string: DIFF_BEFORE, new_string: DIFF_AFTER}}
 }
 
-export function multiToolStep(index: number): ScriptedToolStep {
+function multiToolStep(index: number): ScriptedToolStep {
   if (index > 0 && index % EDIT_STEP_INTERVAL === 0) return editStep(index)
   if (index % 2 === 0) return {name: 'Bash', input: {command: `probe step ${index}`}}
   return {name: 'Read', input: {filePath: `step-${index}.tsx`}}
@@ -841,7 +536,7 @@ function streamedCodeLine(index: number): string {
   return `  const step${index} = await resolve(input.steps[${index}], {retries: ${index % 4}})`
 }
 
-export function streamedCodeAnswer(): string {
+function streamedCodeAnswer(): string {
   return [
     'Here is the helper you asked for.',
     '',
@@ -856,25 +551,24 @@ export function streamedCodeAnswer(): string {
   ].join('\n')
 }
 
-export async function seedThread(base: string, sessionId: string, exchanges: number): Promise<void> {
+async function seedThread(base: string, sessionId: string, exchanges: number): Promise<void> {
   for (let index = 0; index < exchanges; index += 1) {
     await runTurn(base, sessionId, `seeded exchange ${index}`)
   }
 }
 
-export async function startHeldToolRun(config: {
+async function startHeldToolRun(config: {
   prompt: string
   pending: string
   settled: string
   paceMs?: number
-  allow?: Parameters<typeof createCalmWatch>[0]
 }): Promise<CalmWatch> {
   await coreControl.holdTools()
   await coreControl.holdResults()
   await coreControl.holdTurn()
   await promptWith(config.prompt)
   await expect.element(stopButton()).toBeVisible()
-  const watch = watchCalm(config.allow)
+  const watch = watchCalm()
   await watch.checkpoint()
   await coreControl.releaseTools()
   await expect.element(page.getByText(config.pending, {exact: true})).toBeVisible()
@@ -915,7 +609,6 @@ export async function startBoundaryRun(): Promise<CalmWatch> {
     pending: '1 action',
     settled: '2 actions',
     paceMs: BOUNDARY_PACE_MS,
-    allow: {allow: ['virtualization']},
   })
 }
 
@@ -931,7 +624,7 @@ export async function streamCodeAnswer(): Promise<CalmWatch> {
   await promptWith('write the helper that resolves every step')
   await expect.element(stopButton()).toBeVisible()
   const watch = watchCalm()
-  await watch.checkpoint({rebaseline: true})
+  await watch.checkpoint()
   await coreControl.releaseTools()
   await expect.element(page.getByText(STREAMED_CODE_CLOSING, {exact: true})).toBeVisible()
   await watch.checkpoint()
@@ -950,7 +643,7 @@ export function bootedCore(id: string, extra: Omit<BootCoreInput, 'id' | 'allowe
   return () => core.base
 }
 
-export type KeptPane = (mount: PaneMount) => PaneMount
+type KeptPane = (mount: PaneMount) => PaneMount
 
 export function keptPane(): KeptPane {
   const active: {pane: PaneMount | null} = {pane: null}
@@ -964,7 +657,7 @@ export function keptPane(): KeptPane {
   }
 }
 
-export type TrackedFaults = {
+type TrackedFaults = {
   install: (spec: FaultSpec) => Promise<string>
   releaseAll: () => Promise<void>
 }
@@ -991,17 +684,7 @@ export const HERO_GRAB: Grab = {
   rect: {x: 0, y: 0, width: 200, height: 40},
 }
 
-export const PRICING_GRAB: Grab = {
-  text: '<table class="plans">Pricing</table> at src/routes/pricing.tsx:4:1',
-  snippet: '<table class="plans">Pricing</table>',
-  preview: {kind: 'dom', html: '<p>Pricing table clone</p>', width: 200, height: 40},
-  source: {componentName: 'Pricing', filePath: 'src/routes/pricing.tsx', lineNumber: 4},
-  rect: {x: 0, y: 0, width: 200, height: 40},
-}
-
 export const HERO_LABEL = 'Hero at src/routes/index.tsx:12'
-
-export const PRICING_LABEL = 'Pricing at src/routes/pricing.tsx:4'
 
 export function persistedGrab(id: string, grab: Grab): PersistedAttachment {
   const bytes = new TextEncoder().encode(JSON.stringify(grabToPayload(grab)))
@@ -1016,40 +699,11 @@ export function grabProviderFor(...grabs: Grab[]): GrabProvider {
   return () => ({pick: take, comment: take, cancel: () => {}, isActive: () => false})
 }
 
-export type GrowthWatch = {lengths: () => number[]; stop: () => void}
-
-export function watchTextGrowth(select: () => Element | null): GrowthWatch {
-  const lengths: number[] = []
-  const record = (): void => {
-    const node = select()
-    if (!node) return
-    const length = (node.textContent ?? '').length
-    if (lengths.at(-1) === length) return
-    lengths.push(length)
-  }
-  const observer = new MutationObserver(record)
-  observer.observe(document.body, {subtree: true, childList: true, characterData: true})
-  record()
-  return {lengths: () => lengths, stop: () => observer.disconnect()}
-}
-
 export function memoryStorage(): WebStorage {
   const map = new Map<string, string>()
   return {
     getItem: (key) => map.get(key) ?? null,
     setItem: (key, value) => void map.set(key, value),
-  }
-}
-
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
-
-export function forceReducedMotion(): () => void {
-  const original = window.matchMedia
-  const reduced = original(REDUCED_MOTION_QUERY)
-  Object.defineProperty(reduced, 'matches', {value: true})
-  window.matchMedia = (query: string) => (query === REDUCED_MOTION_QUERY ? reduced : original(query))
-  return () => {
-    window.matchMedia = original
   }
 }
 

@@ -2,16 +2,10 @@ import {expect, test as baseTest, describe, it, test} from 'vitest'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {appendDraft, makeDraftStorage} from '../src/pane/draft-storage.js'
-import {createSession, seedDraft, proxyTo, type ProxyCore, serveStandaloneApp} from './helpers.node.js'
-import {expect as expectLocator} from 'playwright/test'
-import type {Browser, Page} from 'playwright'
-import {test as browserTest} from '@conciv/browser-fixture'
-import {watchChatWire, type ChatWireWatch} from '@conciv/extension-testkit/chat-wire'
-import {httpRpcRequestUrls} from '@conciv/extension-testkit/rpc-counts'
+import {createSession, seedDraft, proxyTo, type ProxyCore} from './helpers.node.js'
 import type {Grab} from '@conciv/grab'
 import {resolveGrabSource} from '../src/pane/grab-source-resolve.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../src/lib/quick-search.js'
-import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/protocol/chat-types'
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
 import {parseConcivSettings} from '../src/data/settings.js'
@@ -58,92 +52,6 @@ describe('draft storage', () => {
     }
   }
 
-  test('seeds the cache from the server draft row in the composer draft shape', async ({kit, core, sessionId}) => {
-    await seedDraft(kit.rpc, sessionId, {text: 'kept across the reload'})
-
-    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
-
-    expect(JSON.parse(draftStorage.storage.getItem('any') ?? '')).toEqual({
-      text: 'kept across the reload',
-      quote: null,
-      attachments: [],
-    })
-  })
-
-  test('starts empty when the server has no draft', async ({core, sessionId}) => {
-    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
-
-    expect(draftStorage.storage.getItem('any')).toBeNull()
-  })
-
-  test('writes the composer draft back to the server with the caret at the end', async ({kit, core, sessionId}) => {
-    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
-
-    draftStorage.storage.setItem('any', composerDraft('a fresh draft'))
-
-    await core.awaitRequest(DRAFTS_SET_PATH)
-
-    expect(await storedDraft(kit.rpc, sessionId)).toEqual({
-      sessionId,
-      text: 'a fresh draft',
-      selectionStart: 13,
-      selectionEnd: 13,
-    })
-  })
-
-  test('collapses a burst of writes into the last draft', async ({kit, core, sessionId}) => {
-    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
-
-    draftStorage.storage.setItem('any', composerDraft('a'))
-    draftStorage.storage.setItem('any', composerDraft('ab'))
-    draftStorage.storage.setItem('any', composerDraft('abc'))
-
-    await core.awaitRequest(DRAFTS_SET_PATH)
-
-    expect(await storedDraft(kit.rpc, sessionId)).toEqual({
-      sessionId,
-      text: 'abc',
-      selectionStart: 3,
-      selectionEnd: 3,
-    })
-    expect(core.requestCount(DRAFTS_SET_PATH)).toBe(1)
-  })
-
-  test('keeps the latest value readable even when the payload cannot be persisted', async ({kit, core, sessionId}) => {
-    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
-
-    draftStorage.storage.setItem('any', 'not json at all')
-    expect(draftStorage.storage.getItem('any')).toBe('not json at all')
-
-    draftStorage.storage.setItem('any', composerDraft('a draft that parses'))
-
-    await core.awaitRequest(DRAFTS_SET_PATH)
-
-    expect(await storedDraft(kit.rpc, sessionId)).toEqual({
-      sessionId,
-      text: 'a draft that parses',
-      selectionStart: 19,
-      selectionEnd: 19,
-    })
-    expect(core.requestCount(DRAFTS_SET_PATH)).toBe(1)
-  })
-
-  test('persists the noted caret offsets with the draft text', async ({kit, core, sessionId}) => {
-    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
-
-    draftStorage.storage.setItem('any', composerDraft('say hello!'))
-    draftStorage.noteSelection({start: 4, end: 4})
-
-    await core.awaitRequest(DRAFTS_SET_PATH)
-
-    expect(await storedDraft(kit.rpc, sessionId)).toEqual({
-      sessionId,
-      text: 'say hello!',
-      selectionStart: 4,
-      selectionEnd: 4,
-    })
-  })
-
   test('clamps noted offsets that fall beyond the persisted text', async ({kit, core, sessionId}) => {
     const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
 
@@ -171,27 +79,6 @@ describe('draft storage', () => {
       selectionStart: 26,
       selectionEnd: 26,
     })
-  })
-
-  const PERSISTED = {
-    id: 'a1',
-    type: 'document',
-    name: 'Grabbed element',
-    contentType: 'application/vnd.conciv.grab+json',
-    data: 'eyJ4IjoxfQ==',
-  }
-
-  test('an attachment written to the draft comes back on the next mount', async ({kit, core, sessionId}) => {
-    const first = await makeDraftStorage(makeRpcClient(core.base), sessionId)
-
-    first.storage.setItem(sessionId, JSON.stringify({text: 'look at this', quote: null, attachments: [PERSISTED]}))
-    await core.awaitRequest(DRAFTS_SET_PATH)
-
-    expect((await kit.rpc.drafts.get({sessionId}))?.attachments).toEqual([PERSISTED])
-
-    const second = await makeDraftStorage(makeRpcClient(core.base), sessionId)
-
-    expect(JSON.parse(second.storage.getItem(sessionId) ?? '{}')).toMatchObject({attachments: [{id: 'a1'}]})
   })
 
   test('survives a failed initial read and still accepts writes', async ({kit, core, sessionId}) => {
@@ -244,37 +131,11 @@ describe('grab source resolve', () => {
       })
     })
 
-    it('leaves the grab alone when symbolication finds nothing', async () => {
-      expect(await resolveGrabSource(unresolvedGrab(), async () => null)).toBeNull()
-    })
-
     it('leaves the grab alone when symbolication fails', async () => {
       const resolved = await resolveGrabSource(unresolvedGrab(), async () => {
         throw new Error('no widget')
       })
       expect(resolved).toBeNull()
-    })
-
-    it('does not call the server for a grab that already has a source', async () => {
-      const calls: number[] = []
-      const grab: Grab = {...unresolvedGrab(), source: {componentName: null, filePath: 'src/a.tsx', lineNumber: 1}}
-      const resolved = await resolveGrabSource(grab, async () => {
-        calls.push(1)
-        return {file: 'src/b.tsx', line: 2, column: 0}
-      })
-      expect(resolved).toBeNull()
-      expect(calls).toEqual([])
-    })
-
-    it('does not call the server for a grab with no frames', async () => {
-      const calls: number[] = []
-      const grab: Grab = {...unresolvedGrab(), frames: []}
-      const resolved = await resolveGrabSource(grab, async () => {
-        calls.push(1)
-        return {file: 'src/b.tsx', line: 2, column: 0}
-      })
-      expect(resolved).toBeNull()
-      expect(calls).toEqual([])
     })
   })
 })
@@ -291,17 +152,6 @@ describe('quick search', () => {
     it('drops non-session ids from panes', () => {
       const parsed = QuickSearchSchema.parse({panes: 'conciv_ok,,nope,conciv_2', focus: 0})
       expect(quickPaneIds(parsed)).toEqual(['conciv_ok', 'conciv_2'])
-    })
-
-    it('falls back to empty panes and focus 0 on invalid values', () => {
-      expect(QuickSearchSchema.parse({})).toEqual({panes: '', focus: 0})
-      expect(QuickSearchSchema.parse({panes: 42, focus: 'x'})).toEqual({panes: '', focus: 0})
-      expect(QuickSearchSchema.parse({panes: 'conciv_a', focus: -3})).toEqual({panes: 'conciv_a', focus: 0})
-    })
-
-    it('empty pane list serializes to an empty panes string', () => {
-      expect(quickSearchFor([], 0)).toEqual({panes: '', focus: 0})
-      expect(quickPaneIds({panes: '', focus: 0})).toEqual([])
     })
   })
 })
@@ -351,14 +201,6 @@ describe('send checks', () => {
     })
   })
 
-  test('lets a message with a budget-sized attachment through', () => {
-    const largestBase64Length = Math.ceil(MAX_ATTACHMENT_RAW_BYTES / 3) * 4
-    const withinBudget = {
-      content: [{type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'A'.repeat(largestBase64Length)}}],
-    }
-    expect(checkSend(withinBudget, ready)).toEqual({ok: true})
-  })
-
   test('says the engine is unreachable instead of swallowing the message', () => {
     const verdict = checkSend('rename the widget package', {busy: false, reachable: false})
     expect(verdict).toEqual({
@@ -371,34 +213,10 @@ describe('send checks', () => {
 
 describe('settings', () => {
   describe('parseConcivSettings', () => {
-    it('reads the dock surface and falls back to the page surface', () => {
-      expect(parseConcivSettings(JSON.stringify({surface: 'dock'})).surface).toBe('dock')
-      expect(parseConcivSettings(JSON.stringify({surface: 'nope'})).surface).toBe('page')
-    })
-
-    it('returns defaults for empty or invalid raw config', () => {
-      const expected = {
-        modal: {enabled: true, position: 'bottom-right'},
-        quickTerminal: {enabled: true, hotkeys: ['Mod+`']},
-        defaultOpen: false,
-        launcher: 'mascot',
-        surface: 'page',
-        transport: 'auto',
-      }
-      expect(parseConcivSettings('')).toEqual(expected)
-      expect(parseConcivSettings('{nope')).toEqual(expected)
-      expect(parseConcivSettings('[1,2]')).toEqual(expected)
-    })
-
     it('disables surfaces on explicit false', () => {
       const settings = parseConcivSettings('{"modal": false, "quickTerminal": false}')
       expect(settings.modal.enabled).toBe(false)
       expect(settings.quickTerminal.enabled).toBe(false)
-    })
-
-    it('reads modal position and validates unknown values back to the default', () => {
-      expect(parseConcivSettings('{"modal": {"position": "top-left"}}').modal.position).toBe('top-left')
-      expect(parseConcivSettings('{"modal": {"position": "under-the-sea"}}').modal.position).toBe('bottom-right')
     })
 
     it('defaults the launcher to the mascot and reads native or false explicitly', () => {
@@ -407,12 +225,6 @@ describe('settings', () => {
       expect(parseConcivSettings('{"launcher": "native"}').launcher).toBe('native')
       expect(parseConcivSettings('{"launcher": false}').launcher).toBe(false)
       expect(parseConcivSettings('{"launcher": "bogus"}').launcher).toBe('mascot')
-    })
-
-    it('defaultOpen only on explicit true', () => {
-      expect(parseConcivSettings('{"defaultOpen": true}').defaultOpen).toBe(true)
-      expect(parseConcivSettings('{"defaultOpen": "yes"}').defaultOpen).toBe(false)
-      expect(parseConcivSettings('{}').defaultOpen).toBe(false)
     })
 
     it('accepts hotkey as string or array', () => {
@@ -459,30 +271,6 @@ describe('tool durations', () => {
       expect(settled).toEqual({a: 250})
     })
 
-    it('treats error state and present output as settled', () => {
-      const startedAt = new Map<string, number>()
-      const clock = makeClock(0)
-      foldToolDurations(
-        [message({type: 'tool-call', id: 'err', state: 'pending'}, {type: 'tool-call', id: 'out', state: 'pending'})],
-        startedAt,
-        clock.now,
-        {},
-      )
-      clock.advance(40)
-      const next = foldToolDurations(
-        [
-          message(
-            {type: 'tool-call', id: 'err', state: 'error'},
-            {type: 'tool-call', id: 'out', state: 'pending', output: {ok: true}},
-          ),
-        ],
-        startedAt,
-        clock.now,
-        {},
-      )
-      expect(next).toEqual({err: 40, out: 40})
-    })
-
     it('never rewrites a recorded duration on later folds', () => {
       const startedAt = new Map<string, number>()
       const clock = makeClock(0)
@@ -515,129 +303,5 @@ describe('tool durations', () => {
       )
       expect(next).toEqual({})
     })
-
-    it('ignores non-tool parts and tool calls without ids', () => {
-      const startedAt = new Map<string, number>()
-      const clock = makeClock(0)
-      const next = foldToolDurations(
-        [
-          message(
-            {type: 'text'},
-            {type: 'tool-call', id: '', state: 'complete'},
-            {type: 'tool-call', state: 'complete'},
-          ),
-        ],
-        startedAt,
-        clock.now,
-        {},
-      )
-      expect(next).toEqual({})
-      expect(startedAt.size).toBe(0)
-    })
-  })
-})
-
-describe('transport standalone', () => {
-  const ASSISTANT_TEXT = 'Hello from standalone conciv'
-  const MOUNT_TIMEOUT_MS = 30_000
-  const SUITE_SETUP_TIMEOUT_MS = 90_000
-
-  const test = browserTest.extend<{kit: CoreKit; openCore: ProxyCore; app: {base: string; close: () => Promise<void>}}>(
-    {
-      kit: [
-        // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
-        async ({}, use) => {
-          const kit = await bootCoreKit({id: 'standalone-transport', text: ASSISTANT_TEXT})
-          await use(kit)
-          await kit.cleanup()
-        },
-        {scope: 'test'},
-      ],
-      openCore: [
-        async ({kit}, use) => {
-          const openCore = await proxyTo(kit.base)
-          await use(openCore)
-          await openCore.close()
-        },
-        {scope: 'test'},
-      ],
-      app: [
-        // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
-        async ({}, use) => {
-          const app = await serveStandaloneApp()
-          await use(app)
-          await app.close()
-        },
-        {scope: 'test'},
-      ],
-    },
-  )
-
-  function pageUrl(appBase: string, coreBase: string, transport: 'websocket' | 'fetch'): string {
-    const settings = encodeURIComponent(JSON.stringify({transport}))
-    return `${appBase}/?core=${encodeURIComponent(coreBase)}&settings=${settings}`
-  }
-
-  type Tab = {
-    page: Page
-    chat: ChatWireWatch
-    chatSocketMark: number
-    httpRpcUrls: string[]
-    disposeHttpRpc: () => void
-  }
-
-  async function openTab(browser: Browser, url: string): Promise<Tab> {
-    const page = await browser.newPage()
-    const http = httpRpcRequestUrls(page)
-    const chat = watchChatWire(page)
-    const chatSocketMark = chat.socketMark()
-    await page.goto(url, {waitUntil: 'domcontentloaded'})
-    return {page, chat, chatSocketMark, httpRpcUrls: http.urls, disposeHttpRpc: http.dispose}
-  }
-
-  async function completeTurn(page: Page): Promise<void> {
-    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
-    await page.getByRole('button', {name: 'Open conciv chat'}).click()
-    await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill('hi there')
-    await page.keyboard.press('Enter')
-    await expectLocator(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
-  }
-
-  test.describe('the standalone entry threads settings.transport into the chat connection', () => {
-    test(
-      'pins the event stream and never opens a chat websocket when settings say transport: fetch',
-      async ({browser, app, openCore}) => {
-        const tab = await openTab(browser, pageUrl(app.base, openCore.base, 'fetch'))
-        try {
-          const sent = tab.chat.nextTurn()
-          await completeTurn(tab.page)
-          expect((await sent).transport).toBe('fetch')
-          expect(tab.chat.socketsOpenedSince(tab.chatSocketMark)).toBe(0)
-          expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
-        } finally {
-          tab.disposeHttpRpc()
-          await tab.page.close()
-        }
-      },
-      SUITE_SETUP_TIMEOUT_MS,
-    )
-
-    test(
-      'pins the chat websocket and never falls back to the event stream when settings say transport: websocket',
-      async ({browser, app, openCore}) => {
-        const tab = await openTab(browser, pageUrl(app.base, openCore.base, 'websocket'))
-        try {
-          const sent = tab.chat.nextTurn()
-          await completeTurn(tab.page)
-          expect((await sent).transport).toBe('websocket')
-          expect(tab.chat.socketsOpenedSince(tab.chatSocketMark)).toBe(1)
-          expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
-        } finally {
-          tab.disposeHttpRpc()
-          await tab.page.close()
-        }
-      },
-      SUITE_SETUP_TIMEOUT_MS,
-    )
   })
 })

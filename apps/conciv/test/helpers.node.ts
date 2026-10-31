@@ -1,8 +1,5 @@
 import {type Server, createServer, request as httpRequest, type IncomingMessage} from 'node:http'
 import type {Duplex} from 'node:stream'
-import {createReadStream, existsSync, statSync} from 'node:fs'
-import path from 'node:path'
-import {fileURLToPath} from 'node:url'
 import type {PersistedAttachment, RpcClient} from '@conciv/contract'
 
 async function listenLocal(server: Server): Promise<{base: string; port: number; close: () => Promise<void>}> {
@@ -22,14 +19,10 @@ async function listenLocal(server: Server): Promise<{base: string; port: number;
 
 const AWAIT_REQUEST_TIMEOUT_MS = 4000
 
-export type AwaitRequestOptions = {since?: number; timeout?: number}
+type AwaitRequestOptions = {since?: number; timeout?: number}
 
 export type ProxyCore = {
   base: string
-  port: number
-  requestCount: (pathname?: string) => number
-  wsConnectionCount: () => number
-  mark: () => number
   awaitRequest: (pathname: string, options?: AwaitRequestOptions) => Promise<void>
   fail: (pathname: string) => void
   repair: () => void
@@ -49,11 +42,9 @@ function handshakeResponse(upstream: IncomingMessage): string {
   return [statusLine, ...headers, '', ''].join('\r\n')
 }
 
-export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean} = {}): Promise<ProxyCore> {
+export async function proxyTo(targetBase: string): Promise<ProxyCore> {
   const target = new URL(targetBase)
-  const seen: string[] = []
   const refused = new Set<string>()
-  let upgrades = 0
   const piped = new Set<Duplex>()
   const completions: Completion[] = []
   const waiters = new Set<Waiter>()
@@ -71,7 +62,6 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
 
   const server: Server = createServer((req, res) => {
     const pathname = new URL(req.url ?? '/', target).pathname
-    seen.push(pathname)
     res.on('finish', () => settle(pathname))
     if (refused.has(pathname)) {
       res.writeHead(500, {'content-type': 'text/plain'})
@@ -98,11 +88,6 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
     req.pipe(proxyReq)
   })
   server.on('upgrade', (req, clientSocket: Duplex, head: Buffer) => {
-    upgrades += 1
-    if (opts.blockUpgrades) {
-      clientSocket.destroy()
-      return
-    }
     piped.add(clientSocket)
     clientSocket.on('close', () => piped.delete(clientSocket))
     const proxyReq = httpRequest({
@@ -126,14 +111,9 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
     proxyReq.on('error', () => clientSocket.destroy())
     proxyReq.end()
   })
-  const {base, port, close} = await listenLocal(server)
+  const {base, close} = await listenLocal(server)
   return {
     base,
-    port,
-    requestCount: (pathname) =>
-      pathname === undefined ? seen.length : seen.filter((entry) => entry === pathname).length,
-    wsConnectionCount: () => upgrades,
-    mark: () => sequence.next,
     awaitRequest: (pathname, options = {}) => {
       const since = options.since ?? sequence.next
       if (completions.some((entry) => entry.pathname === pathname && entry.at > since)) return Promise.resolve()
@@ -170,44 +150,7 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
   }
 }
 
-const dirname = path.dirname(fileURLToPath(import.meta.url))
-const distRoot = path.join(dirname, '../dist')
-
-function isReadableFile(candidate: string): boolean {
-  try {
-    return statSync(candidate).isFile()
-  } catch {
-    return false
-  }
-}
-
-const CONTENT_TYPES: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.json': 'application/json; charset=utf-8',
-}
-
-export async function serveStandaloneApp(): Promise<{base: string; close: () => Promise<void>}> {
-  if (!existsSync(path.join(distRoot, 'index.html'))) {
-    throw new Error(`apps/conciv dist is missing at ${distRoot}; build @conciv/app before running this test`)
-  }
-  const server: Server = createServer((req, res) => {
-    const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname
-    const requested = pathname === '/' ? '/index.html' : pathname
-    const candidate = path.join(distRoot, requested)
-    const filePath = isReadableFile(candidate) ? candidate : path.join(distRoot, 'index.html')
-    const ext = path.extname(filePath)
-    res.writeHead(200, {'content-type': CONTENT_TYPES[ext] ?? 'application/octet-stream'})
-    createReadStream(filePath).pipe(res)
-  })
-  const {base, close} = await listenLocal(server)
-  return {base, close}
-}
-
-export type SeededDraft = {text?: string; attachments?: PersistedAttachment[]}
+type SeededDraft = {text?: string; attachments?: PersistedAttachment[]}
 
 export async function createSession(rpc: RpcClient): Promise<string> {
   const {sessionId} = await rpc.sessions.create()
