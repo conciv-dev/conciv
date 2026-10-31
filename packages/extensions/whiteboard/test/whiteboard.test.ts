@@ -17,7 +17,7 @@ import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
 import {CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import whiteboard from '../src/server.js'
 import {autoCommitDraft} from '../src/server/auto-commit.js'
-import {comments} from '../src/server/db/schema.js'
+import {canvasPending, comments} from '../src/server/db/schema.js'
 import {createStore, type Store, type WhiteboardEvent} from '../src/server/db/store.js'
 import {makeWhiteboardRouter, type WhiteboardRouter} from '../src/server/router.js'
 import {
@@ -138,6 +138,32 @@ describe('canvas draft', () => {
       await api.dispose()
     }
   })
+
+  test('a draw returns once its elements are in the draft', async () => {
+    const api = await getExtensionTestApi({server: whiteboard, host: testHost})
+    try {
+      await openCanvas(api.page)
+      await api.callToolApproved('canvas_draw', {elements: [{type: 'rectangle', x: 0, y: 0, width: 100, height: 50}]})
+      expect(await readTypes(api, 'draft')).toEqual(['rectangle'])
+    } finally {
+      await api.dispose()
+    }
+  })
+
+  test('a draw with no canvas open fails, tells the agent to ask for the canvas, and leaves nothing queued', async () => {
+    const api = await getExtensionTestApi({server: whiteboard, host: testHost})
+    try {
+      await expect(
+        api.callToolApproved('canvas_draw', {elements: [{type: 'rectangle', x: 0, y: 0, width: 100, height: 50}]}),
+      ).rejects.toThrow(/ask the user to open the canvas/i)
+      await openCanvas(api.page)
+      const context = api.serverContext as {store: Store}
+      expect(await context.store.db.select().from(canvasPending)).toEqual([])
+      expect(await readTypes(api, 'draft')).toEqual([])
+    } finally {
+      await api.dispose()
+    }
+  }, 20_000)
 
   test('rejected svg never reaches the canvas', async () => {
     const api = await getExtensionTestApi({server: whiteboard, host: testHost})
