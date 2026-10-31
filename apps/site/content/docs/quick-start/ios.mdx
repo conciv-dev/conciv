@@ -147,7 +147,7 @@ launch booted dev.conciv.YourApp`.
   than the usual one.
 
 If discovery finds nothing, check that the dev server is still running, then that it is not running
-under a test environment. With `CONCIV_E2E` or `VITEST` set, the core writes the pairing file to a
+under a test environment. With `VITEST` set, the core writes the pairing file to a
 temporary directory instead of `~/.conciv`. The SDK only ever reads `~/.conciv/dev-endpoint.json`, so
 the app cannot see that core; it drops to the port probe, and if a different dev core left a healthy
 `~/.conciv/dev-endpoint.json` behind, the app pairs with that one instead. Set `CONCIV_URL` when you

@@ -64,7 +64,7 @@ With `CONCIV_URL` unset, `attach()` resolves the api base in this order:
    a stale file from a crashed core recovers.
 
 The SDK always reads `~/.conciv/dev-endpoint.json`; the path is fixed. A host that runs its dev server
-under a test environment (`CONCIV_E2E` or `VITEST`) writes the pairing file to a temporary directory
+under a test environment (`VITEST`) writes the pairing file to a temporary directory
 instead, so the SDK never sees that core's file. It then falls to the port probe, or pairs with a
 different dev core if that one left a healthy file at the global path. Pass `CONCIV_URL` to pin the
 core explicitly.
