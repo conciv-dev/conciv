@@ -2,6 +2,9 @@ import {randomUUID} from 'node:crypto'
 import {chmodSync, existsSync, mkdtempSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {setImmediate} from 'node:timers/promises'
+import {setFlagsFromString} from 'node:v8'
+import {runInNewContext} from 'node:vm'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import type {Page} from 'playwright-core'
@@ -220,6 +223,15 @@ describe('extension', () => {
     return {base: `http://127.0.0.1:${engine.port}`, engine}
   }
 
+  async function collectGarbage(): Promise<void> {
+    setFlagsFromString('--expose-gc')
+    const collect = z.custom<() => void>((value) => typeof value === 'function').parse(runInNewContext('gc'))
+    collect()
+    await setImmediate()
+    collect()
+    await setImmediate()
+  }
+
   const phases: {phase: string; ms: number}[] = []
   const clock = {startedAt: 0}
 
@@ -315,6 +327,21 @@ describe('extension', () => {
         await engine.stop()
       }
     }, 30_000)
+
+    it('ends an aborted control stream after the request behind it was collected', async () => {
+      const {base, engine} = await boot()
+      try {
+        const abort = new AbortController()
+        const control = await recorderClient(base).control(undefined, {signal: abort.signal})
+        await control.next()
+        await collectGarbage()
+        const ended = control.next()
+        abort.abort()
+        await expect(ended).rejects.toThrow()
+      } finally {
+        await engine.stop()
+      }
+    }, 10_000)
 
     it('serves parsed config defaults on the config route', async () => {
       const {base, engine} = await boot()
