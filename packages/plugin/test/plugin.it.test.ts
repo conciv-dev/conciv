@@ -955,8 +955,12 @@ describe('vite devtools dock', () => {
     widget?: false,
     builtins: Builtins = NO_BUILTINS,
     root = realpathSync(dirs.tempDir('conciv-dock-')),
+    hostHead = '',
   ): Promise<string> {
-    writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title><h1>host</h1>')
+    writeFileSync(
+      join(root, 'index.html'),
+      `<!doctype html><html><head><meta charset="utf-8">${hostHead}<title>host</title></head><body><h1>host</h1></body></html>`,
+    )
     const server = await createServer({
       root,
       configFile: false,
@@ -997,20 +1001,23 @@ describe('vite devtools dock', () => {
 
   it('keeps the hidden conciv pane out of the tab order while another dock entry is open', async () => {
     const firefoxBrowser = await firefox.launch({headless: true})
-    const page = await firefoxBrowser.newPage({viewport: {width: 1280, height: 800}})
-    await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
-    await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
-    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await composer.waitFor()
-    const hiddenComposer = page.getByRole('textbox', {name: 'Message the conciv agent', includeHidden: true})
-    await page.getByRole('button', {name: 'Settings'}).click()
-    await page.getByRole('combobox', {name: 'Language'}).waitFor()
-    await page.getByRole('button', {name: 'Advanced'}).focus()
-    for (let step = 0; step < 30; step += 1) {
-      await page.keyboard.press('Tab')
-      await expectLocator(hiddenComposer).not.toBeFocused()
+    try {
+      const page = await firefoxBrowser.newPage({viewport: {width: 1280, height: 800}})
+      await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
+      await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await composer.waitFor()
+      const hiddenComposer = page.getByRole('textbox', {name: 'Message the conciv agent', includeHidden: true})
+      await page.getByRole('button', {name: 'Settings'}).click()
+      await page.getByRole('combobox', {name: 'Language'}).waitFor()
+      await page.getByRole('button', {name: 'Advanced'}).focus()
+      for (let step = 0; step < 30; step += 1) {
+        await page.keyboard.press('Tab')
+        await expectLocator(hiddenComposer).not.toBeFocused()
+      }
+    } finally {
+      await firefoxBrowser.close()
     }
-    await firefoxBrowser.close()
   }, 60_000)
 
   it('follows the color mode chosen in the DevTools settings', async () => {
@@ -1093,6 +1100,16 @@ describe('vite devtools dock', () => {
     await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
     await page.close()
   }, 120_000)
+
+  it('runs as the dock when the host html already carries a conciv-widget meta', async () => {
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    const url = await dockServer(undefined, NO_BUILTINS, undefined, '<meta name="conciv-widget" content="{}">')
+    await page.goto(url, {waitUntil: 'domcontentloaded'})
+    await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
+    await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
+    expect(await page.getByRole('button', {name: /Open conciv chat|Close chat/}).count()).toBe(0)
+    await page.close()
+  }, 60_000)
 
   it('opens the chat and the recorder on a cold cache without Vite re-optimizing dependencies', async () => {
     const root = realpathSync(dirs.tempDir('conciv-cold-'))

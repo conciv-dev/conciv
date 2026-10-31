@@ -27,9 +27,17 @@ const PAGE_MOUNT = [
 ]
 
 const DOCK_RENDERER = [
+  `function hostWidgetSettings() {`,
+  `  try {`,
+  `    return JSON.parse(document.querySelector('meta[name="conciv-widget"]')?.content ?? '{}')`,
+  `  } catch {`,
+  `    return {}`,
+  `  }`,
+  `}`,
   `export default function concivDockRenderer(context) {`,
   `  const entry = context.current`,
-  `  const conciv = createConciv({extensions: picked.extensions})`,
+  `  const settings = {...hostWidgetSettings(), launcher: false, defaultOpen: true, surface: 'dock'}`,
+  `  const conciv = createConciv({extensions: picked.extensions, settings})`,
   `  const setInert = (inert) => {`,
   `    if (entry.domElements.panel) entry.domElements.panel.inert = inert`,
   `  }`,
