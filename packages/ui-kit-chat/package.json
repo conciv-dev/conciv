@@ -68,7 +68,7 @@
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/keyed": "^1.5.3",
     "@solid-primitives/media": "^2.3.6",
-    "@solid-primitives/resize-observer": "^2.2.0",
+    "@solid-primitives/resize-observer": "catalog:",
     "@solid-primitives/timer": "catalog:",
     "@tanstack/pacer": "catalog:",
     "@tanstack/solid-virtual": "catalog:",

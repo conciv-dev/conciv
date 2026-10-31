@@ -1,7 +1,7 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import Paperclip from 'lucide-solid/icons/paperclip'
-import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
+import {Tooltip, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {Composer as ComposerPrimitive} from '../primitives/composer/composer.js'
 import {useComposerContext} from '../primitives/composer/composer-context.js'
 import {useComposerHandlers} from '../primitives/composer/composer-handlers.js'
@@ -55,7 +55,7 @@ function TrailingControls(): JSX.Element {
       fallback={
         <button
           type="submit"
-          class={`${TRAILING_BTN} ${sendDisabled() ? TRAILING_SEND_IDLE : TRAILING_SEND_ACTIVE}`}
+          class={`${TRAILING_BTN}  ${sendDisabled() ? TRAILING_SEND_IDLE : TRAILING_SEND_ACTIVE}`}
           disabled={sendDisabled()}
           aria-label={SEND_LABEL}
         >
@@ -68,7 +68,7 @@ function TrailingControls(): JSX.Element {
     >
       <button
         type="button"
-        class={`${TRAILING_BTN} ${TRAILING_STOP}`}
+        class={`${TRAILING_BTN}  ${TRAILING_STOP}`}
         aria-label={STOP_LABEL}
         onClick={(event) => {
           event.preventDefault()
@@ -88,9 +88,9 @@ export function Composer(props: ComposerProps): JSX.Element {
   return (
     <ComposerPrimitive.Root
       attachmentAdapter={props.attachmentAdapter}
-      class="flex flex-col relative [background:var(--chat-rail-bg)] [border-block-start:1px_solid_var(--chat-line)]"
+      class="flex flex-col [background:var(--chat-rail-bg)] [border-block-start:1px_solid_var(--chat-line)] relative"
     >
-      <div class="flex flex-col empty:hidden [border-block-end:1px_solid_var(--chat-line-soft)]">
+      <div class="flex flex-col [border-block-end:1px_solid_var(--chat-line-soft)] empty:hidden">
         <ComposerPrimitive.Queue>
           {() => (
             <div class={QUEUE_ROW}>
@@ -103,7 +103,7 @@ export function Composer(props: ComposerProps): JSX.Element {
           )}
         </ComposerPrimitive.Queue>
       </div>
-      <div class="flex flex-wrap gap-1 px-3 pt-2 empty:hidden">
+      <div class="px-3 pt-2 flex flex-wrap gap-1 empty:hidden">
         <ComposerPrimitive.Attachments
           component={() => (
             <Show when={props.AttachmentComponent} fallback={<AttachmentUI removable />}>
@@ -112,29 +112,31 @@ export function Composer(props: ComposerProps): JSX.Element {
           )}
         />
       </div>
-      <div class="flex items-start gap-2 pt-2.25 pe-3 pb-2.25 ps-5">
-        <span class={GUTTER} aria-hidden="true">
-          ❯
-        </span>
-        <ComposerPrimitive.Input
-          unstyled
-          ref={props.inputRef}
-          placeholder={props.placeholder ?? 'Ask anything…'}
-          class={`${INPUT} flex-1 pt-1.5`}
-          aria-label={props.inputLabel ?? 'Message'}
-          addAttachmentOnPaste={props.attachmentAdapter !== undefined}
-        />
-        <Show when={props.attachmentAdapter}>
-          <TooltipIconButtonSlot tooltip={ATTACHMENT_LABEL} wrapperClass="shrink-0">
-            {(buttonProps) => (
-              <ComposerPrimitive.AddAttachment {...buttonProps()} class={GHOST}>
-                <Paperclip size={16} aria-hidden="true" />
-              </ComposerPrimitive.AddAttachment>
-            )}
-          </TooltipIconButtonSlot>
-        </Show>
-        <Slot>{props.children}</Slot>
-        <Slot fallback={<TrailingControls />}>{props.busy}</Slot>
+      <div class="pb-2.25 pe-3 ps-5 pt-2.25 flex gap-2 items-start">
+        <Tooltip.Group>
+          <span class={GUTTER} aria-hidden="true">
+            ❯
+          </span>
+          <ComposerPrimitive.Input
+            unstyled
+            ref={props.inputRef}
+            placeholder={props.placeholder ?? 'Ask anything…'}
+            class={`${INPUT} pt-1.5 flex-1`}
+            aria-label={props.inputLabel ?? 'Message'}
+            addAttachmentOnPaste={props.attachmentAdapter !== undefined}
+          />
+          <Show when={props.attachmentAdapter}>
+            <TooltipIconButtonSlot tooltip={ATTACHMENT_LABEL} wrapperClass="shrink-0">
+              {(buttonProps) => (
+                <ComposerPrimitive.AddAttachment {...buttonProps()} class={GHOST}>
+                  <Paperclip size={16} aria-hidden="true" />
+                </ComposerPrimitive.AddAttachment>
+              )}
+            </TooltipIconButtonSlot>
+          </Show>
+          <Slot>{props.children}</Slot>
+          <Slot fallback={<TrailingControls />}>{props.busy}</Slot>
+        </Tooltip.Group>
       </div>
     </ComposerPrimitive.Root>
   )
