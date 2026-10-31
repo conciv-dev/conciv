@@ -1,5 +1,5 @@
 import pTimeout from 'p-timeout'
-import type {Page, WebSocket as PageWebSocket} from 'playwright'
+import type {Frame, Page, WebSocket as PageWebSocket} from 'playwright'
 import {PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 
 const SUBSCRIBE_TIMEOUT_MS = 30_000
@@ -63,17 +63,23 @@ function watchPagePlane(page: Page): PagePlaneWatch {
       if (held.gate === gate) held.gate = readyGate()
     })
   }
+  const onNavigated = (frame: Frame): void => {
+    if (frame === page.mainFrame()) held.gate = readyGate()
+  }
   page.on('websocket', onSocket)
+  page.on('framenavigated', onNavigated)
   return {
     subscribed: async () => {
-      held.gate = readyGate()
       const ready = await pTimeout(held.gate.ready, {
         milliseconds: SUBSCRIBE_TIMEOUT_MS,
         message: `no page plane push socket opened on ${PUSH_WS_PATH}`,
       })
       if (!ready) throw new Error(`the page plane push socket on ${PUSH_WS_PATH} never sent its ready frame`)
     },
-    dispose: () => page.off('websocket', onSocket),
+    dispose: () => {
+      page.off('websocket', onSocket)
+      page.off('framenavigated', onNavigated)
+    },
   }
 }
 
@@ -86,6 +92,7 @@ export function pagePlaneWatchFor(page: Page): PagePlaneWatch {
 }
 
 export async function awaitPagePlaneSubscribed(page: Page, arrive: () => Promise<void>): Promise<void> {
-  const subscribed = pagePlaneWatchFor(page).subscribed()
-  await Promise.all([arrive(), subscribed])
+  const watch = pagePlaneWatchFor(page)
+  await arrive()
+  await watch.subscribed()
 }
