@@ -83,45 +83,6 @@ describe('QueueStrip', () => {
   })
 })
 
-const EMPTY_HYDRATION: ChatSessionHydration = {messages: [], lastRun: null, pendingApprovals: []}
-
-type SentMessages = Parameters<ChatSessionConnection['send']>[0]
-
-function lastUserText(messages: SentMessages): string {
-  const last = messages.at(-1)
-  if (!last || !('parts' in last)) return ''
-  return last.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(' ')
-}
-
-const abortOf = (signal: AbortSignal | undefined): Promise<void> =>
-  new Promise((resolve) => signal?.addEventListener('abort', () => resolve(), {once: true}))
-
-function sessionOverHeldRuns(refreshes: Array<() => Promise<ChatSessionHydration>>) {
-  const sent: string[] = []
-  const connection: ChatSessionConnection = {
-    subscribe: async function* (signal) {
-      await abortOf(signal)
-      yield* []
-    },
-    send: async (messages, _data, signal) => {
-      sent.push(lastUserText(messages))
-      await abortOf(signal)
-    },
-    refresh: () => refreshes.shift()?.() ?? Promise.resolve(EMPTY_HYDRATION),
-    close: () => undefined,
-  }
-  return {
-    sent,
-    session: (): ChatSession =>
-      createChatSession({
-        sessionId: 'queue-flush',
-        connect: () => connection,
-        stop: () => Promise.resolve(),
-        decide: () => Promise.resolve({startsTurn: false}),
-      }),
-  }
-}
-
 describe('a later Stop cancels a queued flush still waiting on an earlier one', () => {
   const disposers: Array<() => void> = []
   const mounted = (create: () => ChatSession): ChatSession =>
@@ -171,3 +132,42 @@ describe('a later Stop cancels a queued flush still waiting on an earlier one', 
     expect(sent).toEqual(['first turn', 'queued one'])
   })
 })
+
+const EMPTY_HYDRATION: ChatSessionHydration = {messages: [], lastRun: null, pendingApprovals: []}
+
+type SentMessages = Parameters<ChatSessionConnection['send']>[0]
+
+function lastUserText(messages: SentMessages): string {
+  const last = messages.at(-1)
+  if (!last || !('parts' in last)) return ''
+  return last.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(' ')
+}
+
+const abortOf = (signal: AbortSignal | undefined): Promise<void> =>
+  new Promise((resolve) => signal?.addEventListener('abort', () => resolve(), {once: true}))
+
+function sessionOverHeldRuns(refreshes: Array<() => Promise<ChatSessionHydration>>) {
+  const sent: string[] = []
+  const connection: ChatSessionConnection = {
+    subscribe: async function* (signal) {
+      await abortOf(signal)
+      yield* []
+    },
+    send: async (messages, _data, signal) => {
+      sent.push(lastUserText(messages))
+      await abortOf(signal)
+    },
+    refresh: () => refreshes.shift()?.() ?? Promise.resolve(EMPTY_HYDRATION),
+    close: () => undefined,
+  }
+  return {
+    sent,
+    session: (): ChatSession =>
+      createChatSession({
+        sessionId: 'queue-flush',
+        connect: () => connection,
+        stop: () => Promise.resolve(),
+        decide: () => Promise.resolve({startsTurn: false}),
+      }),
+  }
+}
