@@ -13,13 +13,15 @@ const preview: Preview = {
   },
   decorators: [
     withThemeByClassName({
-      themes: {light: 'light', dark: 'dark', system: ''},
+      themes: {
+        light: 'light',
+        dark: 'dark',
+        system: '',
+        'light terminal': 'light chat-skin-terminal',
+        'dark terminal': 'dark chat-skin-terminal',
+        'system terminal': 'chat-skin-terminal',
+      },
       defaultTheme: 'dark',
-    }),
-    withThemeByClassName({
-      themes: {conciv: '', terminal: 'chat-skin-terminal'},
-      defaultTheme: 'conciv',
-      attributeName: 'skin',
     }),
     (Story) => (
       <div

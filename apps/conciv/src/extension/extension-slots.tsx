@@ -1,6 +1,7 @@
-import {ErrorBoundary, For, Suspense, type JSX} from 'solid-js'
+import {For, type JSX} from 'solid-js'
 import {MountedExtension} from '@conciv/extension/client'
 import type {AnyExtension, ClientEffect, ExtensionSlot} from '@conciv/extension'
+import {ExtensionBoundary} from './extension-boundary.js'
 
 export type ExtensionInstance = {
   extension: AnyExtension
@@ -13,11 +14,9 @@ export function ExtensionSurface(props: {name: ExtensionSlot; instances: Extensi
   return (
     <For each={props.instances}>
       {(instance) => (
-        <ErrorBoundary fallback={null}>
-          <Suspense>
-            <MountedExtension extension={instance.extension} clientValue={instance.clientValue} slot={props.name} />
-          </Suspense>
-        </ErrorBoundary>
+        <ExtensionBoundary name={instance.extension.name} fallback="silent">
+          <MountedExtension extension={instance.extension} clientValue={instance.clientValue} slot={props.name} />
+        </ExtensionBoundary>
       )}
     </For>
   )
