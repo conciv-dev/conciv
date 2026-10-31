@@ -68,6 +68,7 @@ function fromObject(input: {
   const entry = entries[index]
   const key = keys[index]
   if (entry === undefined || entry.type !== 'Property' || key === null || key === undefined) return UNKNOWN
+  if (entries.slice(index + 1).some((later) => later.type === 'SpreadElement')) return UNKNOWN
   const {line, column} = located({site: input.site, offset: entry.start})
   const suggest = input.via === 'sx' ? suggestion({key, value: entry.value, target: input.target}) : null
   return {
