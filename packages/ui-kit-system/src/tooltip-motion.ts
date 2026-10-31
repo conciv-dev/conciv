@@ -116,29 +116,68 @@ export type TooltipGeometry = {
   side: TooltipSide
 }
 
-export function labelGeometry(options: {
-  anchor: TooltipPoint
+export type TooltipViewport = {width: number; height: number}
+
+const OPPOSITE: Record<TooltipSide, TooltipSide> = {top: 'bottom', bottom: 'top', left: 'right', right: 'left'}
+
+function sideFits(options: {
+  rect: DOMRect
+  side: TooltipSide
+  gap: number
   width: number
   height: number
+  viewport: TooltipViewport
+}): boolean {
+  const {rect, side, gap, width, height, viewport} = options
+  if (side === 'top') return rect.top - gap - height >= EDGE_MARGIN
+  if (side === 'bottom') return rect.bottom + gap + height <= viewport.height - EDGE_MARGIN
+  if (side === 'left') return rect.left - gap - width >= EDGE_MARGIN
+  return rect.right + gap + width <= viewport.width - EDGE_MARGIN
+}
+
+function fittingSide(options: {
+  rect: DOMRect
   side: TooltipSide
-}): TooltipGeometry {
-  const {anchor, width, height, side} = options
-  if (alongX(side)) {
-    const x = clamp({
-      value: anchor.x - width / 2,
-      min: EDGE_MARGIN,
-      max: Math.max(EDGE_MARGIN, window.innerWidth - EDGE_MARGIN - width),
-    })
-    const arrow = clamp({value: anchor.x - x, min: ARROW_INSET, max: width - ARROW_INSET})
-    return {x, y: side === 'top' ? anchor.y - height : anchor.y, width, height, arrow, side}
-  }
-  const y = clamp({
-    value: anchor.y - height / 2,
+  gap: number
+  width: number
+  height: number
+  viewport: TooltipViewport
+}): TooltipSide {
+  if (sideFits(options)) return options.side
+  const opposite = OPPOSITE[options.side]
+  if (sideFits({...options, side: opposite})) return opposite
+  return options.side
+}
+
+function within(options: {value: number; size: number; extent: number}): number {
+  return clamp({
+    value: options.value,
     min: EDGE_MARGIN,
-    max: Math.max(EDGE_MARGIN, window.innerHeight - EDGE_MARGIN - height),
+    max: Math.max(EDGE_MARGIN, options.extent - EDGE_MARGIN - options.size),
   })
+}
+
+export function labelGeometry(options: {
+  rect: DOMRect
+  side: TooltipSide
+  gap: number
+  width: number
+  height: number
+  viewport: TooltipViewport
+}): TooltipGeometry {
+  const {rect, gap, width, height, viewport} = options
+  const side = fittingSide(options)
+  const anchor = anchorPoint({rect, side, gap})
+  if (alongX(side)) {
+    const x = within({value: anchor.x - width / 2, size: width, extent: viewport.width})
+    const y = within({value: side === 'top' ? anchor.y - height : anchor.y, size: height, extent: viewport.height})
+    const arrow = clamp({value: anchor.x - x, min: ARROW_INSET, max: width - ARROW_INSET})
+    return {x, y, width, height, arrow, side}
+  }
+  const x = within({value: side === 'left' ? anchor.x - width : anchor.x, size: width, extent: viewport.width})
+  const y = within({value: anchor.y - height / 2, size: height, extent: viewport.height})
   const arrow = clamp({value: anchor.y - y, min: ARROW_INSET, max: height - ARROW_INSET})
-  return {x: side === 'left' ? anchor.x - width : anchor.x, y, width, height, arrow, side}
+  return {x, y, width, height, arrow, side}
 }
 
 function springAt(options: {seconds: number; duration: number; bounce: number}): number {

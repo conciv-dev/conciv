@@ -319,16 +319,27 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     setState('layers', (layers) => [...layers.filter((item) => item.leaving), layer])
   }
 
-  const measure = (options: {member: TooltipGroupMember; trigger: HTMLElement; text: HTMLElement}): TooltipGeometry =>
+  const place = (options: {
+    member: TooltipGroupMember
+    trigger: HTMLElement
+    width: number
+    height: number
+  }): TooltipGeometry =>
     labelGeometry({
-      anchor: anchorPoint({
-        rect: options.trigger.getBoundingClientRect(),
-        side: options.member.side(),
-        gap: options.member.gap(),
-      }),
+      rect: options.trigger.getBoundingClientRect(),
+      side: options.member.side(),
+      gap: options.member.gap(),
+      width: options.width,
+      height: options.height,
+      viewport: {width: window.innerWidth, height: window.innerHeight},
+    })
+
+  const measure = (options: {member: TooltipGroupMember; trigger: HTMLElement; text: HTMLElement}): TooltipGeometry =>
+    place({
+      member: options.member,
+      trigger: options.trigger,
       width: options.text.offsetWidth + (LABEL_PADDING_X + LABEL_BORDER) * 2,
       height: options.text.offsetHeight + (LABEL_PADDING_Y + LABEL_BORDER) * 2,
-      side: options.member.side(),
     })
 
   const resize = (options: {layer: Layer; text: HTMLElement}): void => {
@@ -417,21 +428,10 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
   }
 
   const follow = (): void => {
-    const trigger = state.active?.trigger()
-    if (!trigger || !state.active) return
-    setState(
-      'geometry',
-      labelGeometry({
-        anchor: anchorPoint({
-          rect: trigger.getBoundingClientRect(),
-          side: state.geometry.side,
-          gap: state.active.gap(),
-        }),
-        width: state.geometry.width,
-        height: state.geometry.height,
-        side: state.geometry.side,
-      }),
-    )
+    const member = state.active
+    const trigger = member?.trigger()
+    if (!member || !trigger) return
+    setState('geometry', place({member, trigger, width: state.geometry.width, height: state.geometry.height}))
   }
 
   const group: TooltipGroupApi = {
@@ -494,6 +494,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
         id={labelId}
         role="tooltip"
         data-side={state.geometry.side}
+        data-placement={state.geometry.side}
         class={LABEL}
         style={{
           translate: `${state.geometry.x}px ${state.geometry.y}px`,
