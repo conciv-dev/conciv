@@ -91,8 +91,11 @@ function matches(input: {record: TargetRecord; id?: string; route?: string; widt
   return input.width === undefined || input.record.width === input.width
 }
 
+type PutRequest = Parameters<TargetStore['put']>[0]
+
 export function createTargetStore(input: {dir: string; cwd: string}): TargetStore {
   const {dir, cwd} = input
+  const queue: {tail: Promise<unknown>} = {tail: Promise.resolve()}
 
   async function list(filter: {route?: string}): Promise<TargetRecord[]> {
     if (!existsSync(dir)) return []
@@ -115,6 +118,29 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
     return doomed.length
   }
 
+  async function replace(request: PutRequest): Promise<TargetRecord> {
+    const {model, route, width, name} = request
+    const stale = (await list({route})).filter((record) => record.width === width)
+    await Promise.all(stale.map((record) => rm(join(dir, record.id), {recursive: true, force: true})))
+    const id = randomUUID().slice(0, 8)
+    const record: TargetRecord = {
+      id,
+      route,
+      width,
+      height: model.viewport.height,
+      ...(name === undefined ? {} : {name}),
+      scale: model.scale,
+      createdAt: Date.now(),
+    }
+    const {raster, ...rest} = model
+    const home = join(dir, id)
+    await mkdir(home, {recursive: true})
+    await writeFile(join(home, TARGET_FILE), encodePng(raster))
+    await writeFile(join(home, MODEL_FILE), JSON.stringify({...rest, id}))
+    await writeFile(join(home, RECORD_FILE), JSON.stringify(record))
+    return record
+  }
+
   function reportPath(path: string): string {
     return path.startsWith(cwd) ? relative(cwd, path) : path
   }
@@ -122,26 +148,10 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
   return {
     list,
     remove,
-    put: async ({model, route, width, name}) => {
-      const stale = (await list({route})).filter((record) => record.width === width)
-      await Promise.all(stale.map((record) => rm(join(dir, record.id), {recursive: true, force: true})))
-      const id = randomUUID().slice(0, 8)
-      const record: TargetRecord = {
-        id,
-        route,
-        width,
-        height: model.viewport.height,
-        ...(name === undefined ? {} : {name}),
-        scale: model.scale,
-        createdAt: Date.now(),
-      }
-      const {raster, ...rest} = model
-      const home = join(dir, id)
-      await mkdir(home, {recursive: true})
-      await writeFile(join(home, TARGET_FILE), encodePng(raster))
-      await writeFile(join(home, MODEL_FILE), JSON.stringify({...rest, id}))
-      await writeFile(join(home, RECORD_FILE), JSON.stringify(record))
-      return record
+    put: (request) => {
+      const next = queue.tail.then(() => replace(request))
+      queue.tail = next.catch(() => undefined)
+      return next
     },
     find: async (filter) => (await list({})).findLast((record) => matches({record, ...filter})) ?? null,
     model: async (id): Promise<TargetModel> => {
