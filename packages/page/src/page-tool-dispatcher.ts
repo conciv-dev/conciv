@@ -13,12 +13,7 @@ import {mirrorPageAction} from './page-mirror.js'
 import {badArgs, fail, unknownVerb} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
 import {toCssBundle, type PendingCssText} from './css-bundle.js'
-import {
-  loadSnapshotLibrary,
-  loadedSnapshotLibrary,
-  takeElementCapture,
-  type SnapshotLibrary,
-} from './element-capture.js'
+import {loadSnapshotLibrary, loadedSnapshotLibrary, takeElementCapture} from './element-capture.js'
 
 export type PageToolAnswer = {result: PageResult; capture?: PageCaptureBundle}
 
@@ -85,14 +80,14 @@ type CaptureCollector = {
   entries: () => readonly PendingBundleEntry[]
 }
 
-function makeCaptureCollector(snapshot: SnapshotLibrary | null): CaptureCollector {
+function makeCaptureCollector(): CaptureCollector {
   const entries: PendingBundleEntry[] = []
   const seen = new Set<ElementCaptureKind>()
   return {
     take: (kind, el) => {
       if (el === null || seen.has(kind)) return
       try {
-        const taken = takeElementCapture(el, kind, {document, snapshot})
+        const taken = takeElementCapture(el, kind, {document, snapshot: loadedSnapshotLibrary()})
         if (taken === null) return
         seen.add(kind)
         entries.push({kind, capture: taken.capture, pendingCss: taken.pendingCss})
@@ -140,8 +135,9 @@ export function makePageToolDispatcher(
   return async (query) => {
     const tool = byName.get(query.name)
     if (!tool) unknownVerb(`no mounted extension declares a client tool named "${query.name}"`)
+    void loadSnapshotLibrary()
     const slot: TargetSlot = {el: null}
-    const captures = makeCaptureCollector(loadedSnapshotLibrary())
+    const captures = makeCaptureCollector()
     const ctx = callCtx(tool, refs, consoleBuf, effects, slot)
     try {
       const result = await tool.execute(query.input, capturingCtx(ctx, tool.capture, captures))

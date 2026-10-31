@@ -29,13 +29,17 @@ type SerializedNode = NonNullable<ReturnType<typeof serializeNodeWithId>>
 
 type SerializedElement = Extract<SerializedNode, {tagName: string}>
 
-export type SnapshotLibrary = {
+type SnapshotLibrary = {
   createMirror: typeof createMirror
   serializeNodeWithId: typeof serializeNodeWithId
   stringifyStylesheet: typeof stringifyStylesheet
 }
 
 const snapshotState: {load?: Promise<SnapshotLibrary | null>; loaded: SnapshotLibrary | null} = {loaded: null}
+
+const snapshotBlocked = Promise.withResolvers<void>()
+
+void snapshotBlocked.promise.then(() => showToast(SNAPSHOT_BLOCKED_MESSAGE, 'error'))
 
 export function loadSnapshotLibrary(): Promise<SnapshotLibrary | null> {
   snapshotState.load ??= import('rrweb-snapshot').then(
@@ -44,7 +48,8 @@ export function loadSnapshotLibrary(): Promise<SnapshotLibrary | null> {
       return library
     },
     () => {
-      showToast(SNAPSHOT_BLOCKED_MESSAGE, 'error')
+      snapshotState.load = undefined
+      snapshotBlocked.resolve()
       return null
     },
   )

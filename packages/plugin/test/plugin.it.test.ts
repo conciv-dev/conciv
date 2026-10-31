@@ -632,6 +632,44 @@ describe('native page vite boot', () => {
       await slowPage.close()
     }, 90_000)
 
+    it('retries a failed rrweb-snapshot load on the next page tool and names the content blocker once', async () => {
+      const url = state.started?.server.resolvedUrls?.local[0]
+      const blockedPage = await state.browser?.newPage()
+      if (blockedPage === undefined || url === undefined) throw new Error('dev server did not start')
+      const gate = {open: false}
+      await blockedPage.route(/rrweb-snapshot/, (route) =>
+        gate.open ? route.continue() : route.abort('blockedbyclient'),
+      )
+      await blockedPage.goto(url, {waitUntil: 'domcontentloaded'})
+      const blockerNotice = blockedPage.getByText(/content blocker.*rrweb-snapshot/)
+      await expectLocator(blockerNotice).toBeVisible({timeout: 45_000})
+      await expectLocator(blockerNotice).toBeHidden()
+      const rewrite = () =>
+        blockedPage.evaluate(() =>
+          Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({
+            name: 'page_settext',
+            input: {selector: '#probe', text: 'rewritten'},
+          }),
+        )
+
+      const importSettled = (href: string) =>
+        blockedPage.evaluate(`import(${JSON.stringify(href)}).then(() => null, () => null)`)
+
+      const stillBlocked = blockedPage.waitForEvent('requestfailed', (request) => /rrweb-snapshot/.test(request.url()))
+      expect((await rewrite()).capture.after.node).toBeUndefined()
+      const failedImport = (await stillBlocked).url()
+      await importSettled(failedImport)
+      expect(await blockerNotice.count()).toBe(0)
+
+      gate.open = true
+      const unblocked = blockedPage.waitForResponse(/rrweb-snapshot/)
+      await rewrite()
+      const loadedImport = (await unblocked).url()
+      await importSettled(loadedImport)
+      expect((await rewrite()).capture.after.node).toBeDefined()
+      await blockedPage.close()
+    }, 90_000)
+
     it('keeps recording and its actions when only the replay player is blocked', async () => {
       const url = state.started?.server.resolvedUrls?.local[0]
       const blockedPage = await state.browser?.newPage()

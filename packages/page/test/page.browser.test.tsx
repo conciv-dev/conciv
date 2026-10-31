@@ -24,6 +24,37 @@ import {componentHostAt, describe as describeHost, find, inspect, locate, overri
 import {createRoot, type Root} from 'react-dom/client'
 import {FixtureApp} from './fixtures/react-app.js'
 
+describe('a tool that outlasts the preview library load', () => {
+  const editAfterLoad = defineTool({
+    name: 'probe_edit_after_load',
+    description: 'edits an element once the preview library has loaded',
+    inputSchema: z.object({selector: z.string()}),
+    outputSchema: z.object({ok: z.literal(true)}),
+    meta: {summary: 'edit after load', category: 'edit-live', mutating: true, capture: 'before-after'},
+  }).client(async (input, ctx) => {
+    const el = ctx.target(input)
+    await loadSnapshotLibrary()
+    el.textContent = 'edited'
+    return {ok: true}
+  })
+
+  const probes = defineExtension({name: 'probe-late-library', tools: [editAfterLoad]}).client(() => ({value: {}}))
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('previews the after state even though the before state was captured without the library', async () => {
+    document.body.innerHTML = '<p id="late-library">original</p>'
+    const driver = makeDomPageDriver({tools: collectClientTools([probes])})
+    const outcome = await driver.execute({name: 'probe_edit_after_load', input: {selector: '#late-library'}})
+    driver.dispose()
+    if (!outcome.ok) throw new Error(`the tool failed: ${outcome.error.message}`)
+    expect(outcome.capture?.before?.node).toBeUndefined()
+    expect(JSON.stringify(outcome.capture?.after?.node)).toContain('edited')
+  })
+})
+
 describe('capture element', () => {
   afterEach(() => {
     document.body.innerHTML = ''
