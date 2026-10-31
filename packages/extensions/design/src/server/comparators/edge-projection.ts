@@ -4,6 +4,7 @@ import {edgeMap} from '../raster.js'
 
 const MIN_EDGE_DENSITY = 0.01
 const MIN_RUN_OVERLAP = 0.5
+const EDGE_WIDTH = 2
 
 type Run = {start: number; end: number}
 
@@ -56,7 +57,9 @@ function clamp(input: {from: number; to: number; size: number}): Run | null {
 }
 
 function interior(run: Run): Run | null {
-  return run.end - 1 < run.start + 1 ? null : {start: run.start + 1, end: run.end - 1}
+  return run.end - EDGE_WIDTH < run.start + EDGE_WIDTH
+    ? null
+    : {start: run.start + EDGE_WIDTH, end: run.end - EDGE_WIDTH}
 }
 
 function density(input: {edges: Uint8Array; width: number; columns: Run; rows: Run}): number {
