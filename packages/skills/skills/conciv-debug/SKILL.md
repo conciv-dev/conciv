@@ -63,16 +63,18 @@ widget: approvals are a stored request plus a stored grant, and tools and sandbo
 by two different paths.
 
 - **Tools declared `approval: 'ask'`** go through `gatedTools`
-  (`packages/ai/src/server/chat-server.ts:181-195`), whether the agent calls them directly or from
+  (`packages/ai/src/server/chat-server.ts:162-176`), whether the agent calls them directly or from
   code mode (`chatToolSet` splits them out, `packages/chat/src/code-mode.ts:147-149`). Without a grant
   the wrapper emits an `approval-requested` custom event and throws at once:
   `Tool "<name>" needs the user's approval. The request is shown to the user; retry once they approve
-  it.` (`approvalNeeded`, `packages/ai/src/server/chat-server.ts:175-179`). A tool result carrying that
+  it.` (`approvalNeeded`, `packages/ai/src/server/chat-server.ts:156-160`). A tool result carrying that
   text is the design working, not a hang: the model got its answer immediately and the card is waiting
-  on the user, whether or not a widget is open.
+  on the user, whether or not a widget is open. A call from outside a chat turn (external MCP, the
+  `conciv` CLI, raw RPC) gets the same refusal from `admitCall` (`packages/chat/src/index.ts`): approving
+  it stores a one-time grant only that caller's retry consumes, posts no message and starts no turn.
 - **Shell commands** run through the sandbox, whose policy is `default: 'ask'`
-  (`packages/ai/src/server/chat-server.ts:265-278`). The rules come from
-  `packages/core/src/command-policy.ts`, passed in at `packages/core/src/app.ts:473` together with the
+  (`packages/ai/src/server/chat-server.ts:234-247`). The rules come from
+  `packages/core/src/command-policy.ts`, passed in at `packages/core/src/app.ts:479` together with the
   CLI aliases of every tool that needs no approval. Precedence is deny, then ask, then allow.
 - **A command that should auto-allow is stuck on a card.** `readOnlyCommandAsks`
   (`packages/core/src/command-policy.ts:64-68`) beats the allow list, so a read-only head still asks
@@ -89,7 +91,7 @@ by two different paths.
 - **First-response hang with no tool call involved.** `guardedAdapter`
   (`packages/ai/src/server/run-guard.ts:44-49`) bounds the wait for the harness's first output,
   `FIRST_OUTPUT_TIMEOUT_MS` by default (`packages/chat/src/index.ts:30`), and fails the run with
-  `the agent produced no output within Ns` (`packages/ai/src/server/chat-server.ts:404-409`). That is
+  `the agent produced no output within Ns` (`packages/ai/src/server/chat-server.ts:381-386`). That is
   a harness/CLI problem (wrong binary, CLI stuck on its own prompt), not an approval; see the
   conciv-harness skill if you're debugging a specific adapter.
 
@@ -122,7 +124,7 @@ rather than one subscribe call:
 - **The turn itself streams over the delivery routes**, WebSocket at `CHAT_WS_PATH` and Server-Sent
   Events at `CHAT_SSE_PATH` (`packages/chat/src/index.ts:107-123`). A POST starts the turn and streams
   it; a GET with a resume offset REPLAYS a run from its durable log instead of starting one
-  (`resume`, `packages/ai/src/server/chat-server.ts:526-531`), which is how a reload rejoins a run
+  (`resume`, `packages/ai/src/server/delivery.ts:138-143`), which is how a reload rejoins a run
   already in flight.
 - **Out-of-band session events** ride the `chat.events` iterator, which is the session bus's `events`
   generator and lives until its `AbortSignal` fires
@@ -147,7 +149,7 @@ Two consequences:
   `'mounted'` state (`packages/embed/src/mount.ts`) — a widget stuck in `'mounting'` will retry
   forever against nothing.
 - Assuming any approval failure is a "denied by user" — the `needs the user's approval` tool result
-  (`packages/ai/src/server/chat-server.ts:175-179`) means nobody has answered yet, and a
+  (`packages/ai/src/server/chat-server.ts:156-160`) means nobody has answered yet, and a
   settled-then-clicked card reports `UNKNOWN_REQUEST`.
 - Reaching for `networkidle` in a new Playwright check against the live widget — it will hang, not
   flake occasionally.
