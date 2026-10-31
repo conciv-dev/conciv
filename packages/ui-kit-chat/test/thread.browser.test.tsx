@@ -2322,9 +2322,7 @@ describe('virtual scroll', () => {
 
   async function sweepUpwards(stepPx: number): Promise<void> {
     const wheelSteps = Math.ceil((TURN_COUNT * ESTIMATED_TURN_PX) / stepPx)
-    for (let step = 0; step < wheelSteps; step++) {
-      await userEvent.wheel(page.getByRole('log'), {delta: {y: -stepPx}})
-    }
+    await userEvent.wheel(page.getByRole('log'), {delta: {y: -stepPx}, times: wheelSteps})
     await expect.element(page.getByText('question 0', {exact: false}).first()).toBeVisible()
   }
 
