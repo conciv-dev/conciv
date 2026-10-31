@@ -1016,6 +1016,20 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 90_000)
 
+  it('returns to the chat when the quick terminal opened by hotkey from a freshly opened dock chat closes', async () => {
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    await page.goto(await dockServer(undefined, realBuiltins), {waitUntil: 'domcontentloaded'})
+    await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
+    const panelComposer = page
+      .getByRole('dialog', {name: 'conciv chat agent'})
+      .getByRole('textbox', {name: 'Message the conciv agent'})
+    await panelComposer.waitFor({timeout: 45_000})
+    await page.keyboard.press('ControlOrMeta+`')
+    await page.getByRole('button', {name: 'Close quick terminal'}).click()
+    await expectLocator(panelComposer).toBeVisible({timeout: 3_000})
+    await page.close()
+  }, 90_000)
+
   it('opens the chat and the recorder on a cold cache without Vite re-optimizing dependencies', async () => {
     const root = realpathSync(dirs.tempDir('conciv-cold-'))
     const embedEntry = fileURLToPath(import.meta.resolve('@conciv/embed'))

@@ -343,8 +343,15 @@ function RootChrome(props: {
 
   const toggleQuick = () => {
     if (!connected()) return
-    if (quickMatch()) router.history.back()
-    else void router.navigate({to: '/quick', search: {panes: '', focus: 0}, replace: Boolean(panelMatch())})
+    if (quickMatch()) {
+      router.history.back()
+      return
+    }
+    void router.navigate({
+      to: '/quick',
+      search: {panes: '', focus: 0},
+      replace: settings.surface !== 'dock' && Boolean(panelMatch()),
+    })
   }
   if (settings.quickTerminal.enabled) {
     for (const binding of settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
