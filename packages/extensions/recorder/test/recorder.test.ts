@@ -296,11 +296,14 @@ describe('extension', () => {
         const resnapshot = Promise.withResolvers<unknown>()
         const abort = new AbortController()
         const control = await rpc.control(undefined, {signal: abort.signal})
+        const subscribed = Promise.withResolvers<void>()
         const pump = (async () => {
           for await (const message of control) {
+            subscribed.resolve()
             if (sawMessage([message], {snapshot: true, flush: true})) resnapshot.resolve(message)
           }
         })()
+        await subscribed.promise
         await rpc.reset(undefined)
         const {events} = await rpc.window({clientId: 'c1'})
         expect(events).toEqual([])
@@ -365,14 +368,17 @@ describe('extension', () => {
         const control = await rpc.control(undefined, {signal: abort.signal})
         mark('control')
         const wentLive = Promise.withResolvers<unknown>()
+        const subscribed = Promise.withResolvers<void>()
         const pump = (async () => {
           for await (const message of control) {
+            subscribed.resolve()
             if (sawMessage([message], {live: true, snapshot: true, flush: true})) {
               wentLive.resolve(message)
               break
             }
           }
         })()
+        await subscribed.promise
         const startReply = callViaSandbox(base, 'recording_start', {})
         await wentLive.promise
         mark('live-before-start-returns')
