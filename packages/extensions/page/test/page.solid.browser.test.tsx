@@ -336,6 +336,91 @@ describe('read value card image', () => {
     await expect.element(page.getByRole('img', {name: 'Took a screenshot'})).toBeVisible()
     await expect.element(page.getByRole('tree')).not.toBeInTheDocument()
   })
+
+  describe('viewer', () => {
+    const THUMBNAIL = 'Open Took a screenshot'
+    const VIEWER = 'Took a screenshot'
+
+    it('clicking the thumbnail opens a dialog with the full image', async () => {
+      await mountExpandedCard()
+
+      await page.getByRole('button', {name: THUMBNAIL}).click()
+
+      const viewer = page.getByRole('dialog', {name: VIEWER})
+      await expect.element(viewer).toBeVisible()
+      await expect.element(viewer.getByRole('img', {name: VIEWER})).toBeVisible()
+    })
+
+    it('escape closes the viewer and puts a visible focus back on the thumbnail', async () => {
+      await mountExpandedCard()
+      const thumbnail = page.getByRole('button', {name: THUMBNAIL})
+      await thumbnail.click()
+      await expect.element(page.getByRole('dialog', {name: VIEWER})).toBeVisible()
+
+      await userEvent.keyboard('{Escape}')
+
+      await expect.element(page.getByRole('dialog', {name: VIEWER})).not.toBeInTheDocument()
+      await expect.element(thumbnail).toHaveFocus()
+      expect(document.activeElement?.matches(':focus-visible')).toBe(true)
+    })
+
+    it('enter on the focused thumbnail opens the viewer', async () => {
+      await mountExpandedCard()
+      const thumbnail = page.getByRole('button', {name: THUMBNAIL})
+      await userEvent.tab()
+      await expect.element(thumbnail).toHaveFocus()
+
+      await userEvent.keyboard('{Enter}')
+
+      await expect.element(page.getByRole('dialog', {name: VIEWER})).toBeVisible()
+    })
+
+    it('the close button closes the viewer', async () => {
+      await mountExpandedCard()
+      await page.getByRole('button', {name: THUMBNAIL}).click()
+
+      await page.getByRole('button', {name: 'Close'}).click()
+
+      await expect.element(page.getByRole('dialog', {name: VIEWER})).not.toBeInTheDocument()
+    })
+
+    it('clicking the image toggles actual size, and reopening starts fitted again', async () => {
+      await mountExpandedCard()
+      const thumbnail = page.getByRole('button', {name: THUMBNAIL})
+      await thumbnail.click()
+
+      await page.getByRole('button', {name: 'Show actual size'}).click()
+      await page.getByRole('button', {name: 'Fit to window'}).click()
+      await page.getByRole('button', {name: 'Show actual size'}).click()
+
+      await userEvent.keyboard('{Escape}')
+      await expect.element(page.getByRole('dialog', {name: VIEWER})).not.toBeInTheDocument()
+      await thumbnail.click()
+      await expect.element(page.getByRole('button', {name: 'Show actual size'})).toBeVisible()
+    })
+
+    it('an image that cannot load says so instead of offering a broken viewer', async () => {
+      await mountExpandedCard('QUJD')
+
+      await expect.element(page.getByText('Could not load Took a screenshot')).toBeVisible()
+      await expect.element(page.getByRole('button', {name: THUMBNAIL})).not.toBeInTheDocument()
+    })
+
+    async function mountExpandedCard(image: string = webpBase64()): Promise<void> {
+      render(() => (
+        <ReadValueCard
+          part={storyPart('page_screenshot', {})}
+          result={storyResult([
+            {type: 'image', source: {type: 'data', value: image, mimeType: 'image/webp'}},
+            {type: 'text', content: JSON.stringify({width: 8, height: 6})},
+          ])}
+          ctx={storyCtx({page_screenshot: SCREENSHOT_META})}
+          addResult={storyAddResult}
+        />
+      ))
+      await page.getByRole('button').first().click()
+    }
+  })
 })
 
 describe('session card', () => {
