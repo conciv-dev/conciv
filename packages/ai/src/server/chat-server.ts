@@ -62,7 +62,7 @@ export type TurnHooks = {
   plan: (turn: Turn) => TurnPlan
   usage: (turn: Turn, usage: TokenUsage) => Promise<void>
   end: (turn: Turn, run: RunLifecycle) => Promise<void>
-  broadcast: (turn: Turn, chunk: ChatEvent) => void
+  started: (turn: Turn) => void
 }
 
 export type ChatServerConfig = {
@@ -287,10 +287,9 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   function concivTurn(turn: Turn, plan: TurnPlan, granted: {approvals: Approvals}, view: RunMessages, entry: LiveRun) {
     const failure: {message: string | null} = {message: null}
     const prepared: {sent: number; provider: ModelMessage[]} = {sent: 0, provider: []}
-    const settle = async (phase: RunPhase): Promise<void> => {
+    const settle = async (): Promise<void> => {
       live.delete(turn.runId)
       try {
-        hooks.broadcast(turn, await terminalChunk(turn.runId, phase, failure.message))
         const lifecycle = await recordLifecycle(turn.runId)
         if (lifecycle !== null) await hooks.end(turn, lifecycle)
       } catch (error) {
@@ -330,7 +329,6 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         if (chunk.type === EventType.RUN_STARTED) {
           const lifecycle = await recordLifecycle(turn.runId)
           if (lifecycle === null) return shaped
-          hooks.broadcast(turn, lifecycleChunk(lifecycle))
           return [...shaped, lifecycleChunk(lifecycle)]
         }
         const phase = terminalPhaseOf(chunk)
@@ -339,9 +337,10 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         failure.message = error
         return [await terminalChunk(turn.runId, phase, error), ...shaped]
       },
+      onStart: () => hooks.started(turn),
       onUsage: (_ctx, usage) => hooks.usage(turn, usage),
-      onFinish: () => settle('completed'),
-      onError: () => settle('failed'),
+      onFinish: () => settle(),
+      onError: () => settle(),
       onAbort: async () => {
         if (failure.message !== null) {
           await stores.runs.update(turn.runId, {
@@ -350,7 +349,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             error: {message: failure.message},
           })
         }
-        await settle(failure.message === null ? 'aborted' : 'failed')
+        await settle()
       },
     })
   }

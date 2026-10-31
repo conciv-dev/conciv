@@ -77,7 +77,7 @@ CREATE TABLE \`chat_threads\` (
         chunk: async (chunk) => [chunk],
       }),
       usage: async () => undefined,
-      broadcast: () => undefined,
+      started: () => undefined,
       end: async () => {
         throw new Error('end hook failed')
       },

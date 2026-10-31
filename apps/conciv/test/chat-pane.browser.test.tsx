@@ -294,6 +294,28 @@ test('a pane that joins a run another client already started narrates it, and st
   await expect.element(narration()).not.toBeInTheDocument()
 })
 
+test('an open pane streams a run another client starts, then settles it, without duplicating either turn', async () => {
+  const {sessionId} = await newSession()
+  mountChatPane(sessionId)
+  await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+
+  await coreControl.scriptTurn({toolCalls: [], text: 'streamed from the other client'})
+  await coreControl.holdTurn()
+  const turn = await sendTurn(core.base, sessionId, 'a prompt typed in the other client')
+
+  await expect.element(page.getByText('a prompt typed in the other client')).toBeVisible()
+  await expect.element(page.getByText('streamed from the other client')).toBeVisible()
+  await expect.element(narration()).toBeVisible()
+
+  await coreControl.releaseTurn()
+  await turn.awaitTurnEnd()
+  turn.close()
+
+  await expect.element(narration()).not.toBeInTheDocument()
+  expect(page.getByText('a prompt typed in the other client').elements()).toHaveLength(1)
+  expect(page.getByText('streamed from the other client').elements()).toHaveLength(1)
+})
+
 test('the refresh affordance re-subscribes and shows the transcript the server re-leads', async () => {
   const {sessionId} = await newSession()
   mountChatPane(sessionId)

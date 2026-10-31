@@ -75,6 +75,8 @@ export type RunClockSource = {lifecycle: RunLifecycle; receivedAt: number}
 
 export const runLifecycleEvent = defineChatEvent('conciv.run-lifecycle', RunLifecycleSchema)
 
+export const sessionRunEvent = defineChatEvent('conciv.session-run', z.object({runId: z.string().min(1)}))
+
 export function isRunPhaseTerminal(phase: RunPhase): boolean {
   return phase === 'completed' || phase === 'failed' || phase === 'aborted'
 }

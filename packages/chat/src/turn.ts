@@ -1,6 +1,6 @@
 import {existsSync, readFileSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
-import {approvalAskOf, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {approvalAskOf, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {TurnHooks} from '@conciv/ai/server'
@@ -248,7 +248,8 @@ export function turnHooks(
         ...(contextWindow === undefined ? {} : {contextWindow}),
       })
     },
-    broadcast: (turn, chunk) => deps.sessions.publish(SessionId.parse(turn.threadId), chunk),
+    started: (turn) =>
+      deps.sessions.publish(SessionId.parse(turn.threadId), sessionRunEvent.create({runId: turn.runId})),
     end: async (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
       await context.transcripts.settle(sessionId)

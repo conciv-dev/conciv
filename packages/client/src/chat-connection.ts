@@ -9,6 +9,7 @@ import {
   type ChatEvent,
   ChatEventType,
   runLifecycleEvent,
+  sessionRunEvent,
   type RunLifecycle,
   approvalAskOf,
   type ApprovalAsk,
@@ -30,6 +31,7 @@ export type ChatConnectionOptions = {
   onHydrated?: (hydration: ChatHydration) => void
   onApprovalAsk?: (ask: ApprovalAsk) => void
   onRunError?: () => void
+  joinsRun?: (runId: string) => Promise<boolean>
 }
 
 export type ChatConnection = SubscribeConnectionAdapter & {
@@ -40,7 +42,9 @@ export type ChatConnection = SubscribeConnectionAdapter & {
   close: () => void
 }
 
-type PushSource = () => {events: (abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>; dispose: () => void}
+type PushEvents = {events: (abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>; dispose: () => void}
+
+type PushSource = () => PushEvents
 
 const PROBE_TIMEOUT_MS = 2_000
 
@@ -159,6 +163,19 @@ function merged<T>(sources: readonly Source<T>[], abortSignal: AbortSignal | und
   return readingValues(readable)
 }
 
+async function* announcedRuns(
+  chosen: Selected,
+  channel: PushEvents,
+  options: ChatConnectionOptions,
+  scope: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  for await (const chunk of channel.events(scope)) {
+    const announced = sessionRunEvent.parse(chunk)
+    if (announced === null || !(await options.joinsRun?.(announced.runId))) continue
+    yield* chosen.joinRun(announced.runId, scope)
+  }
+}
+
 async function* watching(
   selected: Promise<Selected>,
   push: PushSource,
@@ -168,7 +185,11 @@ async function* watching(
   const chosen = await selected
   const channel = push()
   try {
-    const sources: Source<ChatEvent>[] = [(scope) => chosen.adapter.subscribe(scope), (scope) => channel.events(scope)]
+    const sources: Source<ChatEvent>[] = [
+      (scope) => chosen.adapter.subscribe(scope),
+      (scope) => channel.events(scope),
+      (scope) => announcedRuns(chosen, channel, options, scope),
+    ]
     yield* noticing(merged(sources, abortSignal), options)
   } finally {
     channel.dispose()

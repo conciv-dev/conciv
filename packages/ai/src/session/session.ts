@@ -33,6 +33,7 @@ export type ChatSessionCallbacks = {
   onHydrated: (hydration: ChatSessionHydration) => void
   onRunError: () => void
   onApprovalAsk: (ask: ApprovalAsk) => void
+  joinsRun: (runId: string) => Promise<boolean>
 }
 
 export type CreateChatSessionOptions = {
@@ -134,10 +135,23 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
         pending.some((waiting) => waiting.approvalId === ask.approvalId) ? pending : [...pending, ask],
       )
     },
+    joinsRun: (runId) =>
+      joinedRun(runId).catch((error: unknown) => {
+        options.onError?.(asError(error))
+        return false
+      }),
   })
   const refresh = async (): Promise<void> => {
     const hydration = await connection.refresh()
     chat.setMessages(withRenderedIds(chat.messages(), hydration.messages))
+  }
+  const ownsRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId
+  const joinedRun = async (runId: string): Promise<boolean> => {
+    if (ownsRun(runId)) return false
+    const hydration = await connection.refresh()
+    if (ownsRun(runId)) return false
+    chat.setMessages(withRenderedIds(chat.messages(), hydration.messages))
+    return true
   }
   const chat = useChat({
     threadId: options.sessionId,

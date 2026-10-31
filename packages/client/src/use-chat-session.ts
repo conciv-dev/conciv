@@ -35,6 +35,7 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
           options.connection?.onApprovalAsk?.(ask)
           session.onApprovalAsk(ask)
         },
+        joinsRun: session.joinsRun,
       }),
     stop: (runIds) => options.rpc.chat.stop({sessionId: options.sessionId, runIds}),
     decide: (approvalId, approved, scope) => options.rpc.chat.permissionDecision({approvalId, approved, scope}),
