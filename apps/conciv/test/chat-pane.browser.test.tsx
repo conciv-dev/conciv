@@ -441,7 +441,7 @@ test('a stopped turn keeps its Stopped line under it once the next turn answers,
   mountChatPane(sessionId)
   await input().fill('stop this one')
   await userEvent.keyboard('{Enter}')
-  await expect.element(stopButton()).toBeVisible()
+  await expect.element(page.getByText('Hello from conciv')).toBeVisible()
   await stopButton().click()
   await expect.element(stoppedLine()).toBeVisible()
   await coreControl.releaseTurn()
