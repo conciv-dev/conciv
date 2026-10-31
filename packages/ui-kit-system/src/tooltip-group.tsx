@@ -522,7 +522,7 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
       <Show when={visible()}>
         <Label />
       </Show>
-      <Show when={config.fuse && state.arming} keyed>
+      <Show when={config.fuse && !prefersReducedMotion() && state.arming} keyed>
         {(arming) => <Fuse arming={arming} />}
       </Show>
       <Show when={cooling()}>
