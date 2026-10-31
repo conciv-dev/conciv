@@ -1,9 +1,9 @@
-import {For, onCleanup, Show, type JSX} from 'solid-js'
+import {For, onCleanup, onMount, Show, type JSX} from 'solid-js'
 import {clamp} from 'es-toolkit'
 import {Button, ScrollArea, SegmentGroup, Switch, TooltipIconButton} from '@conciv/ui-kit-system'
 import type {TargetRecord} from '../shared/types.js'
 import type {Row, XrayImages} from './data.js'
-import {Frame, FRAME_BAR_PX, FRAME_BORDER_PX} from './frame.js'
+import {Frame} from './frame.js'
 import {SMALL_BUTTON} from './list.js'
 
 export const MODES = ['live', 'design', 'diff', 'side', 'slider'] as const
@@ -17,13 +17,13 @@ const MODE_LABEL: Record<Mode, string> = {
   slider: 'Slider',
 }
 
-export type Size = {width: number; height: number}
+export type Canvas = {width: number; gap: number; border: number; overflow: boolean}
 
 export type StageView = {
   boxes: boolean
   zoom: number | null
   slider: number
-  canvas: Size
+  canvas: Canvas
   loaded: string[]
   failed: string[]
   hovered: string | null
@@ -32,13 +32,11 @@ export type StageView = {
 type StageActions = {
   zoom: (scale: number | null) => void
   slide: (value: number) => void
-  measure: (size: Size) => void
+  measure: (canvas: Canvas) => void
   loaded: (src: string) => void
   failed: (src: string) => void
 }
 
-const CANVAS_PADDING_PX = 24
-const FRAME_GAP_PX = 24
 const MIN_ZOOM = 0.25
 const MAX_ZOOM = 4
 const MIN_FIT = 0.05
@@ -62,13 +60,10 @@ function frameCount(mode: Mode): number {
   return mode === 'side' ? 2 : 1
 }
 
-export function fitScale(input: {canvas: Size; target: TargetRecord; mode: Mode}): number {
+export function fitScale(input: {canvas: Canvas; target: TargetRecord; mode: Mode}): number {
   const frames = frameCount(input.mode)
-  const chrome = frames * 2 * FRAME_BORDER_PX + (frames - 1) * FRAME_GAP_PX
-  const width = (input.canvas.width - 2 * CANVAS_PADDING_PX - chrome) / (frames * input.target.width)
-  const height =
-    (input.canvas.height - 2 * CANVAS_PADDING_PX - FRAME_BAR_PX - 2 * FRAME_BORDER_PX) / input.target.height
-  return clamp(Math.min(width, height), MIN_FIT, 1)
+  const chrome = frames * input.canvas.border + (frames - 1) * input.canvas.gap
+  return clamp((input.canvas.width - chrome) / (frames * input.target.width), MIN_FIT, 1)
 }
 
 export function clampZoom(scale: number): number {
@@ -269,24 +264,31 @@ type StageProps = {
 type Pan = {x: number; y: number; left: number; top: number}
 
 export function Stage(props: StageProps): JSX.Element {
-  const held: {pan: Pan | null; content?: HTMLDivElement} = {pan: null}
-  const frames = () => frameCount(props.mode)
-  const overflowing = () => {
-    const width = frames() * (props.target.width * props.scale + 2 * FRAME_BORDER_PX) + (frames() - 1) * FRAME_GAP_PX
-    const height = props.target.height * props.scale + FRAME_BAR_PX + 2 * FRAME_BORDER_PX
-    const room = 2 * CANVAS_PADDING_PX
-    return width + room > props.view.canvas.width || height + room > props.view.canvas.height
+  const held: {pan: Pan | null; viewport?: HTMLDivElement; padded?: HTMLDivElement; row?: HTMLDivElement} = {
+    pan: null,
   }
   const failed = (src: string | null) => src === null || props.view.failed.includes(src)
-  const observe = (element: HTMLDivElement) => {
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry !== undefined) props.actions.measure({width: entry.contentRect.width, height: entry.contentRect.height})
+  const measure = () => {
+    const {viewport, padded, row} = held
+    if (viewport === undefined || padded === undefined || row === undefined) return
+    const padding = getComputedStyle(padded)
+    const frame = row.firstElementChild
+    const edges = frame === null ? null : getComputedStyle(frame)
+    props.actions.measure({
+      width: viewport.clientWidth - Number.parseFloat(padding.paddingLeft) - Number.parseFloat(padding.paddingRight),
+      gap: Number.parseFloat(getComputedStyle(row).columnGap) || 0,
+      border: edges === null ? 0 : Number.parseFloat(edges.borderLeftWidth) + Number.parseFloat(edges.borderRightWidth),
+      overflow: padded.offsetWidth > viewport.clientWidth || padded.offsetHeight > viewport.clientHeight,
     })
-    observer.observe(element)
-    onCleanup(() => observer.disconnect())
   }
+  onMount(() => {
+    const observer = new ResizeObserver(measure)
+    if (held.viewport !== undefined) observer.observe(held.viewport)
+    if (held.padded !== undefined) observer.observe(held.padded)
+    onCleanup(() => observer.disconnect())
+  })
   const zoomAround = (input: {scale: number; x: number; y: number; viewport: HTMLElement}) => {
-    const content = held.content
+    const content = held.row
     if (content === undefined) {
       props.actions.zoom(input.scale)
       return
@@ -351,8 +353,10 @@ export function Stage(props: StageProps): JSX.Element {
   return (
     <ScrollArea.Root class="flex-1 min-h-0 relative">
       <ScrollArea.Viewport
-        ref={observe}
-        class={`overscroll-contain bg-chat-sunken size-full select-none ${overflowing() ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        ref={(element) => {
+          held.viewport = element
+        }}
+        class={`overscroll-contain bg-chat-sunken size-full select-none ${props.view.canvas.overflow ? 'cursor-grab active:cursor-grabbing' : ''}`}
         onWheel={(event) => {
           if (!event.ctrlKey && !event.metaKey) return
           event.preventDefault()
@@ -364,7 +368,7 @@ export function Stage(props: StageProps): JSX.Element {
           })
         }}
         onPointerDown={(event) => {
-          if (event.button !== 0 || !overflowing()) return
+          if (event.button !== 0 || !props.view.canvas.overflow) return
           event.currentTarget.setPointerCapture(event.pointerId)
           held.pan = {
             x: event.clientX,
@@ -387,10 +391,15 @@ export function Stage(props: StageProps): JSX.Element {
         }}
         onDblClick={() => props.actions.zoom(props.fitted ? 1 : null)}
       >
-        <ScrollArea.Content class="p-6 grid min-h-full w-full place-items-center">
+        <ScrollArea.Content
+          ref={(element) => {
+            held.padded = element
+          }}
+          class="p-4 grid min-h-full w-full place-items-center"
+        >
           <div
             ref={(element) => {
-              held.content = element
+              held.row = element
             }}
             class="flex gap-6 items-start"
           >

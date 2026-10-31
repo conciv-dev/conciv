@@ -1,8 +1,5 @@
 import {For, Show, type JSX} from 'solid-js'
 
-export const FRAME_BAR_PX = 28
-export const FRAME_BORDER_PX = 1
-
 const DOTS = [0, 1, 2]
 
 type FrameProps = {

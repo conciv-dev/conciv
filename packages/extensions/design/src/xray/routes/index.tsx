@@ -68,7 +68,7 @@ function XrayPage(): JSX.Element {
     boxes: readStorage<boolean>(BOXES_KEY, parseBoxes, false),
     zoom: null,
     slider: SLIDER_START,
-    canvas: {width: 0, height: 0},
+    canvas: {width: 0, gap: 0, border: 0, overflow: false},
     loaded: [],
     failed: [],
     hovered: null,
@@ -217,7 +217,7 @@ function XrayPage(): JSX.Element {
                   actions={{
                     zoom,
                     slide: (value) => setView('slider', value),
-                    measure: (size) => setView('canvas', size),
+                    measure: (canvas) => setView('canvas', canvas),
                     loaded: (src) => setView('loaded', (list) => uniq([...list, src])),
                     failed: (src) => setView('failed', (list) => uniq([...list, src])),
                   }}
