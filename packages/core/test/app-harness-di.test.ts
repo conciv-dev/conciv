@@ -10,6 +10,7 @@ import {execFileSync} from 'node:child_process'
 import {z} from 'zod'
 import {defineWebSocketHelper} from 'hono/ws'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {
   cappedText,
@@ -229,6 +230,26 @@ describe('chat plane', () => {
       cli.release()
     })
   })
+
+  describe('transcript import', () => {
+    it('a hydrate right after Stop does not import the stopped turn from the CLI transcript a second time', async () => {
+      const root = stateRoot()
+      const cli = fakeCli()
+      cli.steps.push('silent')
+      const transcript = growingHistory()
+      const chat = await plane({root, harness: cliHarness(cli, transcript.history), nativeId: transcript.nativeId})
+      const id = SessionId.parse(sessionId('stopped'))
+      await readUntil(await startTurn(chat, id, 'stopped-run', 'stop me'), ChatEventType.RUN_STARTED)
+      await chat.stop(id)
+      await transcript.settling
+      const hydrated = chat.hydrate(id)
+      await Promise.race([hydrated, new Promise((resolve) => setTimeout(resolve, 200))])
+      transcript.release()
+      const users = (await hydrated).messages.filter((message) => message.role === 'user')
+      expect(users.map((message) => message.id)).toEqual(['stopped-run-user'])
+      cli.release()
+    })
+  })
 })
 
 type CliStep = 'reply' | 'silent' | 'partial'
@@ -269,7 +290,7 @@ function cliHarness(cli: FakeCli, history?: HarnessHistory): HarnessAdapter {
         const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
         yield {type: ChatEventType.RUN_STARTED, ...run}
         if (step === 'silent') {
-          await Promise.race([cli.gate, aborted(options.abortController?.signal)])
+          await Promise.race([cli.gate, aborted(options.request?.signal ?? undefined)])
           return
         }
         yield {type: ChatEventType.TEXT_MESSAGE_START, messageId: `${run.runId}-a`, role: 'assistant'}
@@ -418,6 +439,37 @@ function sandboxTool(hint: string): SandboxTool {
     run: async () => null,
     keywords: [],
     hint,
+  }
+}
+
+function growingHistory() {
+  const settling = Promise.withResolvers<void>()
+  const gate = Promise.withResolvers<void>()
+  const reads = {count: 0}
+  const native: ChatMessage = {id: 'native-user', role: 'user', parts: [{type: 'text', content: 'stop me'}]}
+  const history: HarnessHistory = {
+    list: async () => [],
+    messages: async () => {
+      reads.count += 1
+      if (reads.count === 1) return []
+      if (reads.count === 2) {
+        settling.resolve()
+        await gate.promise
+      }
+      return [native]
+    },
+    meta: async () => null,
+    observe: () => ({
+      revision: async () => ({ok: false, reason: 'missing', detail: 'unused'}),
+      read: async () => ({ok: false, reason: 'missing', detail: 'unused'}),
+      close: () => undefined,
+    }),
+  }
+  return {
+    history,
+    nativeId: HarnessSessionId.parse('native-stopped'),
+    settling: settling.promise,
+    release: () => gate.resolve(),
   }
 }
 

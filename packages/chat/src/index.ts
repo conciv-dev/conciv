@@ -120,7 +120,10 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   }
 
   const hydrate = async (sessionId: SessionId): Promise<ChatHydration> => {
-    if ((await stores.runs.findActiveRun(sessionId)) === null) await transcripts.sync(sessionId)
+    if ((await stores.runs.findActiveRun(sessionId)) === null) {
+      await server.settled(sessionId)
+      await transcripts.sync(sessionId)
+    }
     const thread = await server.hydrate(sessionId)
     return {
       messages: normalizedMessages(thread.messages, normalize),

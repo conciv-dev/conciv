@@ -89,6 +89,7 @@ export type CustomEventSink = (name: string, value: Record<string, unknown>) => 
 export type ChatServer = ChatDelivery & {
   stop: (threadId: string, runIds?: readonly string[]) => Promise<void>
   endRuns: (threadId: string) => Promise<void>
+  settled: (threadId: string) => Promise<void>
   hydrate: (threadId: string) => Promise<ChatThread>
   codeRunner: (codeMode: readonly ChatTool[]) => CodeRunner | null
 }
@@ -288,13 +289,13 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const failure: {message: string | null} = {message: null}
     const prepared: {sent: number; provider: ModelMessage[]} = {sent: 0, provider: []}
     const settle = async (): Promise<void> => {
-      live.delete(turn.runId)
       try {
         const lifecycle = await recordLifecycle(turn.runId)
         if (lifecycle !== null) await hooks.end(turn, lifecycle)
       } catch (error) {
         config.log(`[ai] ending run ${turn.runId} failed: ${String(error)}`)
       } finally {
+        live.delete(turn.runId)
         entry.settled.resolve()
       }
     }
@@ -437,6 +438,9 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       const ending = liveRunsOf(threadId).map(([, entry]) => entry.settled.promise)
       await endRuns(threadId)
       await Promise.all(ending)
+    },
+    settled: async (threadId) => {
+      await Promise.all(liveRunsOf(threadId).map(([, entry]) => entry.settled.promise))
     },
     hydrate: async (threadId) => {
       const response = await reconstructChat(
