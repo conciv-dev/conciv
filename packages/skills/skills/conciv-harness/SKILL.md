@@ -11,7 +11,7 @@ metadata:
 
 A harness adapter is a plain object that tells conciv how to talk to one coding-agent CLI: what
 capabilities it has, how to launch it, and how to turn its output into `@tanstack/ai` stream chunks.
-`HarnessAdapter` (`packages/protocol/src/harness-types.ts`) is capability-typed: the `capabilities`
+`HarnessAdapter` (`packages/harness/src/_shared/contract.ts`) is capability-typed: the `capabilities`
 field you declare determines, at compile time, which sidecar fields become required. Get a capability
 flag wrong and TypeScript rejects the adapter, not a runtime check.
 
@@ -70,9 +70,9 @@ export type HarnessCapabilities = {
 }
 ```
 
-(`packages/protocol/src/harness-types.ts:5-19`.) Three of these flags are load-bearing for the type
+(`packages/protocol/src/harness-types.ts:4-18`.) Three of these flags are load-bearing for the type
 checker — `HarnessAdapter` is an intersection of three conditional pairs
-(`packages/protocol/src/harness-types.ts:191-203`):
+(`packages/harness/src/_shared/contract.ts:36-48`):
 
 - `capabilities.transcriptHistory: true` ⇒ `history: HarnessHistory` is REQUIRED. `false` ⇒ `history`
   must be `undefined` (omit the field entirely).
@@ -113,7 +113,7 @@ export type HarnessChatConfig = {
 }
 ```
 
-(`packages/protocol/src/harness-types.ts:100-114`.) `chatConfig` is a plain function, `deps =>
+(`packages/protocol/src/harness-types.ts:98-106`, `packages/harness/src/_shared/contract.ts:15-19`.) `chatConfig` is a plain function, `deps =>
 HarnessChatConfig` — no async, no side effects at call time. Its `adapter` comes from a
 `@conciv/ai/server` factory for CLIs that have one (`codex`, `claudeCode`, `opencode`, `acp`, thin
 typed wrappers over the published `@tanstack/ai-*` adapters); if none exists for your CLI, build one
@@ -145,7 +145,7 @@ rather than casting.
 
 `prepareMessages` is where you rewrite the turn before it reaches the adapter — e.g. claude's chat
 config swaps in image file references or a literal `/compact` prompt depending on `deps.kind`
-(`packages/harness/src/claude/chat.ts:72-85`). Only add it if your CLI needs message-shape
+(`packages/harness/src/claude/chat.ts:70-84`). Only add it if your CLI needs message-shape
 translation; most adapters omit it.
 
 ## `chat()` owns the turn — you never spawn or decode the CLI in core/widget
@@ -209,7 +209,7 @@ resolved _again_, relative to the sandbox root, and that's what nests a junk
 
 `deps.cwd` is still a legitimate value inside `chatConfig` for anything that isn't the process's
 working directory: claude's chat config threads it through as `addDirs: [deps.cwd]`
-(`packages/harness/src/claude/chat.ts:75`), an additional-directory permission grant for MCP/tool file
+(`packages/harness/src/claude/chat.ts:73`), an additional-directory permission grant for MCP/tool file
 access, not a `cwd` override.
 
 `connect.plan(ctx)` is a different seam — it builds the argv for the connected **host terminal**
@@ -240,8 +240,8 @@ export type HarnessConnectPlan = {argv: string[]; env: Record<string, string>; f
 export type HarnessConnect = {plan(ctx: HarnessConnectContext): HarnessConnectPlan}
 ```
 
-(`packages/protocol/src/harness-types.ts:42-62`.) `connect` is optional on `HarnessAdapterBase`
-(`packages/protocol/src/harness-types.ts:182`) but every full adapter has one — it's how the connected
+(`packages/protocol/src/harness-types.ts:41-61`.) `connect` is optional on `HarnessAdapterBase`
+(`packages/harness/src/_shared/contract.ts:27`) but every full adapter has one — it's how the connected
 terminal / attach flow launches the raw CLI process (as opposed to `chatConfig`, which drives the
 programmatic chat loop). `plan()` is synchronous and pure: given the context, return the argv, any env
 vars, and any files that must exist before spawn (`files` entries are `{path, contents, mode?}`).
@@ -269,25 +269,25 @@ harness advertised `mcp !== 'none'`; branch on them rather than assuming they're
 
 - **`models?: HarnessModels`** — either a plain `HarnessModel[]` or a `() => HarnessModel[] |
   Promise<HarnessModel[]>` for CLIs whose model list must be fetched
-  (`packages/protocol/src/harness-types.ts:25-34`). Read it through
+  (`packages/protocol/src/harness-types.ts:24-33`). Read it through
   `resolveHarnessModels(adapter)` (`packages/harness/src/registry.ts:25-29`), never by branching on
   `typeof adapter.models` yourself elsewhere.
 - **`tty?: {command(ctx: HarnessConnectContext): TtyCommand}`** — the argv/options for opening the CLI
   in the built-in terminal pane, separate from `connect.plan()`'s attach flow.
 - **`commands?: HarnessCommands`** — `(ctx: HarnessCommandsContext) => Promise<HarnessCommand[]>`
-  (`packages/protocol/src/harness-types.ts:36-40`), required whenever `slashCommands !== 'none'`. Each
+  (`packages/protocol/src/harness-types.ts:35-39`), required whenever `slashCommands !== 'none'`. Each
   `HarnessCommand` is `{name, description?, argumentHint?}`; `'live'` means query the running CLI for
   its commands, `'files'` means read them off disk.
 
 ## HarnessHistory: reading the CLI's own transcript
 
 Required whenever `capabilities.transcriptHistory: true`. The contract
-(`packages/protocol/src/harness-types.ts:159-174`) has three required methods, several optional
+(`packages/protocol/src/harness-types.ts:151-166`) has three required methods, several optional
 refinements, and one all-or-nothing pair:
 
 ```ts
 export type HarnessHistory = HarnessTranscriptPaths & {
-  messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<UIMessage[]>
+  messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<ChatMessage[]>
   observe(cwd: string, sessionId: HarnessSessionId, home?: string): TranscriptHandle
   withinProject?(cwd: string, sessionId: HarnessSessionId, home?: string): boolean
   nameFromTranscript?(raw: string): string | null
@@ -299,9 +299,9 @@ export type HarnessHistory = HarnessTranscriptPaths & {
 ```
 
 `messages()`, `observe()`, and `list()` are the required minimum: parse the CLI's own on-disk
-transcript into `UIMessage[]`, return a live-tailing `TranscriptHandle` (`revision()/read()/close()`)
+transcript into `ChatMessage[]`, return a live-tailing `TranscriptHandle` (`revision()/read()/close()`)
 for streaming updates into an open chat pane, and enumerate past sessions for a cwd. `HarnessTranscriptPaths`
-(`packages/protocol/src/harness-types.ts:151-157`) is a union, not two loose optionals: declare BOTH
+(`packages/protocol/src/harness-types.ts:143-149`) is a union, not two loose optionals: declare BOTH
 `transcriptPath` and `transcriptRoot` or neither, because core resolves one against the other and
 rejects a transcript that escapes the root (`transcriptPathWithin`,
 `packages/harness/src/_shared/contained-path.ts:30-40`, reached for resume liveness by
@@ -336,6 +336,7 @@ fit in this file's budget.
 ## Sources
 
 - `packages/protocol/src/harness-types.ts`
+- `packages/harness/src/_shared/contract.ts`
 - `packages/harness/src/registry.ts`
 - `packages/harness/src/codex/index.ts`
 - `packages/harness/src/codex/args.ts`
