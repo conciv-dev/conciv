@@ -20,6 +20,7 @@ function nodeFetchClient<TRouter extends AnyRouter>(
   const link = new RPCLink<ExtRpcContext>({
     url: `${apiBase}/rpc/ext/${extensionSlug}`,
     headers: () => sessionHeaders(session),
+    fetch: (request, init, options) => fetch(request, {...init, signal: options.signal}),
     plugins: [new ClientRetryPlugin<ExtRpcContext>()],
   })
   return createORPCClient(link)
