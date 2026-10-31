@@ -9,6 +9,8 @@
     "packages/aidx/**",
     "packages/contract/test/helpers/fake-native-socket.ts",
     "packages/extensions/tanstack/test/fixtures/**",
+    "packages/it/test/fixtures/design/**",
+    "packages/it/test/fixtures/lib/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/oxlint-plugin/fixtures/**",
     "packages/cli/test/fixtures/**",

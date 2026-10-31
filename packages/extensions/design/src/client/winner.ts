@@ -68,51 +68,63 @@ function walk(input: {rules: CSSRuleList; origin: Origin; scan: Scan}): void {
   for (const rule of Array.from(input.rules)) visit({rule, origin: input.origin, scan: input.scan})
 }
 
+function visitStyle(input: {rule: CSSStyleRule; origin: Origin; scan: Scan}): void {
+  const {rule, origin, scan} = input
+  const selector = origin.parent === null ? rule.selectorText : nest({parent: origin.parent, child: rule.selectorText})
+  scan.entries.push({rule, selector, origin})
+  walk({rules: rule.cssRules, origin: {...origin, parent: selector}, scan})
+}
+
+function visitMedia(input: {rule: CSSMediaRule; origin: Origin; scan: Scan}): void {
+  const {rule, origin, scan} = input
+  if (!window.matchMedia(rule.media.mediaText).matches) return
+  walk({
+    rules: rule.cssRules,
+    origin: {...origin, conditions: [...origin.conditions, `@media ${rule.conditionText}`]},
+    scan,
+  })
+}
+
+function visitSupports(input: {rule: CSSSupportsRule; origin: Origin; scan: Scan}): void {
+  const {rule, origin, scan} = input
+  if (!CSS.supports(rule.conditionText)) return
+  walk({
+    rules: rule.cssRules,
+    origin: {...origin, conditions: [...origin.conditions, `@supports ${rule.conditionText}`]},
+    scan,
+  })
+}
+
+function visitLayerBlock(input: {rule: CSSLayerBlockRule; origin: Origin; scan: Scan}): void {
+  const {rule, origin, scan} = input
+  const layer = layerName({origin, name: rule.name})
+  register({scan, name: layer})
+  walk({rules: rule.cssRules, origin: {...origin, layer}, scan})
+}
+
+function visitLayerStatement(input: {rule: CSSLayerStatementRule; origin: Origin; scan: Scan}): void {
+  const {rule, origin, scan} = input
+  for (const name of rule.nameList) register({scan, name: layerName({origin, name})})
+}
+
+function visitImport(input: {rule: CSSImportRule; origin: Origin; scan: Scan}): void {
+  const {rule, origin, scan} = input
+  const rules = readRules(rule.styleSheet)
+  if (rules === null) return
+  if (rule.media.mediaText !== '' && !window.matchMedia(rule.media.mediaText).matches) return
+  const layer = rule.layerName === null ? origin.layer : layerName({origin, name: rule.layerName})
+  if (layer !== null) register({scan, name: layer})
+  walk({rules, origin: {...origin, layer}, scan})
+}
+
 function visit(input: {rule: CSSRule; origin: Origin; scan: Scan}): void {
   const {rule, origin, scan} = input
-  if (rule instanceof CSSStyleRule) {
-    const selector =
-      origin.parent === null ? rule.selectorText : nest({parent: origin.parent, child: rule.selectorText})
-    scan.entries.push({rule, selector, origin})
-    walk({rules: rule.cssRules, origin: {...origin, parent: selector}, scan})
-    return
-  }
-  if (rule instanceof CSSMediaRule) {
-    if (!window.matchMedia(rule.media.mediaText).matches) return
-    walk({
-      rules: rule.cssRules,
-      origin: {...origin, conditions: [...origin.conditions, `@media ${rule.conditionText}`]},
-      scan,
-    })
-    return
-  }
-  if (rule instanceof CSSSupportsRule) {
-    if (!CSS.supports(rule.conditionText)) return
-    walk({
-      rules: rule.cssRules,
-      origin: {...origin, conditions: [...origin.conditions, `@supports ${rule.conditionText}`]},
-      scan,
-    })
-    return
-  }
-  if (rule instanceof CSSLayerBlockRule) {
-    const layer = layerName({origin, name: rule.name})
-    register({scan, name: layer})
-    walk({rules: rule.cssRules, origin: {...origin, layer}, scan})
-    return
-  }
-  if (rule instanceof CSSLayerStatementRule) {
-    for (const name of rule.nameList) register({scan, name: layerName({origin, name})})
-    return
-  }
-  if (rule instanceof CSSImportRule) {
-    const rules = readRules(rule.styleSheet)
-    if (rules === null) return
-    if (rule.media.mediaText !== '' && !window.matchMedia(rule.media.mediaText).matches) return
-    const layer = rule.layerName === null ? origin.layer : layerName({origin, name: rule.layerName})
-    if (layer !== null) register({scan, name: layer})
-    walk({rules, origin: {...origin, layer}, scan})
-  }
+  if (rule instanceof CSSStyleRule) return visitStyle({rule, origin, scan})
+  if (rule instanceof CSSMediaRule) return visitMedia({rule, origin, scan})
+  if (rule instanceof CSSSupportsRule) return visitSupports({rule, origin, scan})
+  if (rule instanceof CSSLayerBlockRule) return visitLayerBlock({rule, origin, scan})
+  if (rule instanceof CSSLayerStatementRule) return visitLayerStatement({rule, origin, scan})
+  if (rule instanceof CSSImportRule) return visitImport({rule, origin, scan})
 }
 
 function scanSheets(): Scan {

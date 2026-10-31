@@ -31,21 +31,32 @@ export function crop(input: {raster: Raster; box: Box; margin?: number}): {raste
   return {raster: {width, height, data}, box: {x: x0, y: y0, w: width, h: height}}
 }
 
+function blurredChannel(input: {
+  raster: Raster
+  radius: number
+  horizontal: boolean
+  x: number
+  y: number
+  channel: number
+}): number {
+  const {raster, radius, horizontal, x, y, channel} = input
+  const {width, height} = raster
+  const sum = Array.from({length: radius * 2 + 1}, (_, index) => index - radius).reduce((total, offset) => {
+    const sx = horizontal ? Math.min(width - 1, Math.max(0, x + offset)) : x
+    const sy = horizontal ? y : Math.min(height - 1, Math.max(0, y + offset))
+    return total + (raster.data[(sy * width + sx) * 4 + channel] ?? 0)
+  }, 0)
+  return Math.round(sum / (radius * 2 + 1))
+}
+
 function blurPass(input: {raster: Raster; radius: number; horizontal: boolean}): Raster {
   const {raster, radius, horizontal} = input
   const {width, height} = raster
   const data = new Uint8Array(raster.data.length)
-  const span = radius * 2 + 1
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      for (let c = 0; c < 4; c += 1) {
-        let sum = 0
-        for (let k = -radius; k <= radius; k += 1) {
-          const sx = horizontal ? Math.min(width - 1, Math.max(0, x + k)) : x
-          const sy = horizontal ? y : Math.min(height - 1, Math.max(0, y + k))
-          sum += raster.data[(sy * width + sx) * 4 + c] ?? 0
-        }
-        data[(y * width + x) * 4 + c] = Math.round(sum / span)
+      for (let channel = 0; channel < 4; channel += 1) {
+        data[(y * width + x) * 4 + channel] = blurredChannel({raster, radius, horizontal, x, y, channel})
       }
     }
   }
@@ -143,41 +154,49 @@ export function foregroundColor(input: {raster: Raster; edges: Uint8Array}): str
   return medianColor({raster: input.raster, exclude: input.edges.map((value) => 1 - value)})
 }
 
+function floodFill(input: {mask: Uint8Array; seen: Uint8Array; width: number; height: number; start: number}): {
+  size: number
+  box: Box
+} {
+  const {mask, seen, width, height, start} = input
+  const bounds = {size: 0, minX: width, minY: height, maxX: 0, maxY: 0}
+  const stack = [start]
+  seen[start] = 1
+  while (stack.length > 0) {
+    const index = stack.pop() ?? 0
+    const x = index % width
+    const y = (index - x) / width
+    bounds.size += 1
+    bounds.minX = Math.min(bounds.minX, x)
+    bounds.minY = Math.min(bounds.minY, y)
+    bounds.maxX = Math.max(bounds.maxX, x)
+    bounds.maxY = Math.max(bounds.maxY, y)
+    const neighbours = [
+      x > 0 ? index - 1 : -1,
+      x < width - 1 ? index + 1 : -1,
+      y > 0 ? index - width : -1,
+      y < height - 1 ? index + width : -1,
+    ]
+    neighbours.forEach((next) => {
+      if (next < 0 || mask[next] !== 1 || seen[next] === 1) return
+      seen[next] = 1
+      stack.push(next)
+    })
+  }
+  return {
+    size: bounds.size,
+    box: {x: bounds.minX, y: bounds.minY, w: bounds.maxX - bounds.minX + 1, h: bounds.maxY - bounds.minY + 1},
+  }
+}
+
 export function findRegions(input: {mask: Uint8Array; width: number; height: number; minSize: number}): Box[] {
   const {mask, width, height, minSize} = input
   const seen = new Uint8Array(width * height)
   const regions: Box[] = []
   for (let start = 0; start < width * height; start += 1) {
     if (mask[start] !== 1 || seen[start] === 1) continue
-    seen[start] = 1
-    const stack = [start]
-    let size = 0
-    let minX = width
-    let minY = height
-    let maxX = 0
-    let maxY = 0
-    while (stack.length > 0) {
-      const index = stack.pop() ?? 0
-      const x = index % width
-      const y = (index - x) / width
-      size += 1
-      minX = Math.min(minX, x)
-      minY = Math.min(minY, y)
-      maxX = Math.max(maxX, x)
-      maxY = Math.max(maxY, y)
-      const neighbours = [
-        x > 0 ? index - 1 : -1,
-        x < width - 1 ? index + 1 : -1,
-        y > 0 ? index - width : -1,
-        y < height - 1 ? index + width : -1,
-      ]
-      neighbours.forEach((next) => {
-        if (next < 0 || mask[next] !== 1 || seen[next] === 1) return
-        seen[next] = 1
-        stack.push(next)
-      })
-    }
-    if (size >= minSize) regions.push({x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1})
+    const region = floodFill({mask, seen, width, height, start})
+    if (region.size >= minSize) regions.push(region.box)
   }
   return regions
 }

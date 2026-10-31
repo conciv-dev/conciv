@@ -4,7 +4,7 @@ import postcss, {AtRule, type Container, type Document, type Root} from 'postcss
 import {declares} from '../../shared/properties.js'
 import type {CssMap} from '../../shared/types.js'
 
-export type CssEntry = {
+type CssEntry = {
   file: string
   line: number
   column: number
