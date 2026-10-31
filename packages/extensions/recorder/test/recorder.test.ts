@@ -303,28 +303,32 @@ describe('extension', () => {
 
     it('reset clears the ring and asks clients for a fresh snapshot', async () => {
       const {base, engine} = await boot()
+      mark('boot')
       try {
         const rpc = recorderClient(base)
         await rpc.flush({clientId: 'c1', events: fixtureStream(Date.now())})
-        const resnapshot = Promise.withResolvers<unknown>()
-        const abort = new AbortController()
-        const control = await rpc.control(undefined, {signal: abort.signal})
+        const control = await rpc.control(undefined)
+        mark('control')
         const subscribed = Promise.withResolvers<void>()
-        const pump = (async () => {
+        async function untilResnapshot(): Promise<unknown> {
           for await (const message of control) {
             subscribed.resolve()
-            if (sawMessage([message], {snapshot: true, flush: true})) resnapshot.resolve(message)
+            if (sawMessage([message], {snapshot: true, flush: true})) return message
           }
-        })()
+          return undefined
+        }
+        const resnapshot = untilResnapshot()
         await subscribed.promise
+        mark('subscribed')
         await rpc.reset(undefined)
+        mark('reset')
         const {events} = await rpc.window({clientId: 'c1'})
         expect(events).toEqual([])
-        expect(await resnapshot.promise).toEqual({snapshot: true, flush: true})
-        abort.abort()
-        await pump.catch(() => {})
+        expect(await resnapshot).toEqual({snapshot: true, flush: true})
+        mark('resnapshot')
       } finally {
         await engine.stop()
+        mark('engine.stop')
       }
     }, 30_000)
 
@@ -392,23 +396,20 @@ describe('extension', () => {
       mark('boot')
       try {
         const rpc = recorderClient(base)
-        const abort = new AbortController()
-        const control = await rpc.control(undefined, {signal: abort.signal})
+        const control = await rpc.control(undefined)
         mark('control')
-        const wentLive = Promise.withResolvers<unknown>()
         const subscribed = Promise.withResolvers<void>()
-        const pump = (async () => {
+        async function untilLive(): Promise<unknown> {
           for await (const message of control) {
             subscribed.resolve()
-            if (sawMessage([message], {live: true, snapshot: true, flush: true})) {
-              wentLive.resolve(message)
-              break
-            }
+            if (sawMessage([message], {live: true, snapshot: true, flush: true})) return message
           }
-        })()
+          return undefined
+        }
+        const wentLive = untilLive()
         await subscribed.promise
         const startReply = callViaSandbox(base, 'recording_start', {})
-        await wentLive.promise
+        await wentLive
         mark('live-before-start-returns')
         await rpc.flush({clientId: 'c1', events: fixtureStream(Date.now())})
         mark('flush')
@@ -422,11 +423,8 @@ describe('extension', () => {
           .parse(await callViaSandbox(base, 'recording_stop', {captureId: started.captureId, keyframes: 0}))
         mark('stop.execute')
         expect(stopped).toContain('click')
-        expect(await wentLive.promise).toEqual({live: true, snapshot: true, flush: true})
+        expect(await wentLive).toEqual({live: true, snapshot: true, flush: true})
         mark('live-event')
-        abort.abort()
-        await pump.catch(() => {})
-        mark('pump')
       } finally {
         await engine.stop()
         mark('engine.stop')
