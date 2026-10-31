@@ -51,7 +51,7 @@
     "@ark-ui/solid": "catalog:",
     "@solid-primitives/clipboard": "^1.6.6",
     "@solid-primitives/event-listener": "catalog:",
-    "@solid-primitives/resize-observer": "^2.2.0",
+    "@solid-primitives/resize-observer": "catalog:",
     "@solid-primitives/timer": "catalog:",
     "@tanstack/solid-virtual": "catalog:",
     "@zag-js/json-tree-utils": "^1.41.2",
