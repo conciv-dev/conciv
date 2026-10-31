@@ -192,8 +192,9 @@ export const WinnerInputSchema = z.object({
   selector: z.string().describe('CSS selector of the element'),
   properties: z.array(z.string()).describe('CSS properties to explain'),
   width: Width.optional().describe(
-    'viewport width the element was captured at; a width other than the tab width reads the hidden capture frame',
+    'viewport width the element was captured at; a capture frame of this width and height is read instead of the tab',
   ),
+  height: Width.optional().describe('viewport height the element was captured at'),
 })
 
 export const ClearInputSchema = z.object({

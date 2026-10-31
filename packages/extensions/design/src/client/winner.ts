@@ -306,19 +306,18 @@ function winningDeclaration(input: WinnerQuery): Winner | null {
   return best.winner
 }
 
-function frameRealm(width: number): Realm | null {
-  const view = captureFrameAt(width)?.contentDocument?.defaultView
+function frameRealm(size: {width: number; height: number}): Realm | null {
+  const view = captureFrameAt(size)?.contentDocument?.defaultView
   return view ? {doc: view.document, view} : null
 }
 
-function realmAt(width: number | undefined): Realm {
+function realmAt(size: {width?: number; height?: number}): Realm {
   const tab: Realm = {doc: document, view: window}
-  if (width === undefined || width === innerWidth) return tab
-  return frameRealm(width) ?? tab
+  return frameRealm({width: size.width ?? innerWidth, height: size.height ?? innerHeight}) ?? tab
 }
 
 export function winnerStep(input: WinnerInput): Promise<WinnerResult> {
-  const realm = realmAt(input.width)
+  const realm = realmAt({width: input.width, height: input.height})
   const element = realm.doc.querySelector(input.selector)
   if (element === null) return Promise.resolve(Object.fromEntries(input.properties.map((property) => [property, null])))
   const scan = scanSheets(realm)

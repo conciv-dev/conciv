@@ -97,6 +97,7 @@ function lookups(input: {delta: Delta; pair: Pair}): Lookup[] {
 async function resolveWinners(input: {
   wanted: Lookup[]
   width: number
+  height: number
   page: ServerToolPageAccess
 }): Promise<WinnerResult> {
   const groups = groupBy(
@@ -110,6 +111,7 @@ async function resolveWinners(input: {
           selector,
           properties: group.map((lookup) => lookup.property),
           width: input.width,
+          height: input.height,
         }),
       ),
     ),
@@ -123,12 +125,14 @@ async function attribute(input: {
   page: ServerToolPageAccess
   cssMap: CssMap
   width: number
+  height: number
 }): Promise<ComponentReport> {
   const {ranked, design, page, cssMap} = input
   const {pair, report} = ranked
   const winners = await resolveWinners({
     wanted: report.deltas.flatMap((delta) => lookups({delta, pair})),
     width: input.width,
+    height: input.height,
     page,
   })
   const deltas = await Promise.all(
@@ -158,11 +162,12 @@ async function withProvenance(input: {
   design: DesignRuntime
   page: ServerToolPageAccess
   width: number
+  height: number
 }): Promise<ComponentReport[]> {
-  const {ranked, design, page, width} = input
+  const {ranked, design, page, width, height} = input
   if (ranked.length === 0) return []
   const cssMap = await design.cssMap()
-  return Promise.all(ranked.map((entry) => attribute({ranked: entry, design, page, cssMap, width})))
+  return Promise.all(ranked.map((entry) => attribute({ranked: entry, design, page, cssMap, width, height})))
 }
 
 function reportHint(input: {attributed: boolean; absolute: boolean}): {hint?: string} {
@@ -206,7 +211,7 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, re
     .filter(({report}) => report.deltas.length > 0 || report.children === 0)
     .toSorted((a, b) => measured(b) - measured(a) || b.pair.mismatch * area(b.pair) - a.pair.mismatch * area(a.pair))
     .slice(0, input.limit)
-  const components = await withProvenance({ranked, design, page, width: record.width})
+  const components = await withProvenance({ranked, design, page, width: record.width, height: record.height})
   const xray = design.xrayUrl({id: record.id, session: request.sessionId})
   return design.store.writeRun({
     id: record.id,

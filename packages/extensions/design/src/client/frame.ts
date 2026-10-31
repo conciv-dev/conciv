@@ -85,9 +85,10 @@ async function settle(input: {frame: HTMLIFrameElement; fresh: boolean}): Promis
   }
 }
 
-export function captureFrameAt(width: number): HTMLIFrameElement | null {
+export function captureFrameAt(size: {width: number; height: number}): HTMLIFrameElement | null {
   const frame = currentFrame()
-  return frame !== null && frame.width === String(width) ? frame : null
+  if (frame === null) return null
+  return frame.width === String(size.width) && frame.height === String(size.height) ? frame : null
 }
 
 export function removeCaptureFrame(): void {
