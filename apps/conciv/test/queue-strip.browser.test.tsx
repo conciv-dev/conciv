@@ -1,6 +1,6 @@
 import './helpers/utilities.css'
 import {render} from '@solidjs/testing-library'
-import {onMount, type JSX} from 'solid-js'
+import {createSignal, onMount, type JSX} from 'solid-js'
 import {describe, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {createChat} from '@conciv/ai/client'
@@ -25,6 +25,28 @@ function Harness(props: {count: number}): JSX.Element {
   )
 }
 
+function SwitchingHarness(): JSX.Element {
+  const chatFor = (threadId: string) =>
+    createChat({
+      threadId,
+      connection: storyConnection({chunks: createTextChunks('working'), runsUntilStopped: true}),
+      queue: {whenBusy: 'queue', drain: 'fifo'},
+    })
+  const first = chatFor('queue-strip-first')
+  const second = chatFor('queue-strip-second')
+  const [current, setCurrent] = createSignal(first)
+  onMount(() => {
+    setCurrent(second)
+    void second.sendMessage('active request')
+    void second.sendMessage('queued after the switch')
+  })
+  return (
+    <ChatProvider chat={current()}>
+      <QueueStrip queue={current().queue()} />
+    </ChatProvider>
+  )
+}
+
 describe('QueueStrip', () => {
   it('renders no rows when the queue is empty', () => {
     const host = render(() => <QueueStrip queue={[]} />).container
@@ -37,6 +59,13 @@ describe('QueueStrip', () => {
     await expect.element(page.getByText('2 waiting · runs in order')).toBeVisible()
     await expect.element(page.getByText('queued instruction 1')).toBeVisible()
     await expect.element(page.getByText('queued instruction 2')).toBeVisible()
+  })
+
+  it('Remove drops the queued message of the chat the strip shows after a session switch', async () => {
+    render(() => <SwitchingHarness />)
+    await expect.element(page.getByText('queued after the switch')).toBeVisible()
+    await page.getByRole('button', {name: 'Remove from queue'}).click()
+    await expect.element(page.getByText('queued after the switch')).not.toBeInTheDocument()
   })
 
   it('collapses beyond three rows into a "+N more" line', async () => {

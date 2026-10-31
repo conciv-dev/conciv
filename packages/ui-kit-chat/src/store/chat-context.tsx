@@ -2,6 +2,7 @@ import {
   createContext,
   createEffect,
   createMemo,
+  Show,
   untrack,
   useContext,
   type Accessor,
@@ -45,6 +46,14 @@ function pickKeys(record: Record<string, boolean>, live: Set<string>): Record<st
 }
 
 export function ChatProvider(props: ParentProps<{chat: StoppableChat}>): JSX.Element {
+  return (
+    <Show when={props.chat} keyed>
+      {(chat) => <ChatScope chat={chat}>{props.children}</ChatScope>}
+    </Show>
+  )
+}
+
+function ChatScope(props: ParentProps<{chat: StoppableChat}>): JSX.Element {
   const [view, setView] = createStore<ViewState>({
     draft: '',
     collapsed: {},
