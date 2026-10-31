@@ -54,5 +54,13 @@ export const Default: Story = {
     await drag({from: box.width - 8, to: box.width - 13})
     await expect(toggle).toBeChecked()
     await expect(c.getByText('State: on')).toBeVisible()
+
+    await userEvent.pointer([
+      {keys: '[MouseLeft>]', target: control, coords: {clientX: box.left + box.width - 8, clientY: y}},
+      {target: control, coords: {clientX: box.left + 3, clientY: y}},
+      {keys: '[/MouseLeft]', target: control},
+    ])
+    await waitFor(() => expect(toggle).not.toBeChecked())
+    await expect(c.getByText('State: off')).toBeVisible()
   },
 }

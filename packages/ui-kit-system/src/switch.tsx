@@ -208,19 +208,20 @@ function Control(props: ComponentProps<typeof Ark.Control>) {
   const press = (event: PointerEvent & {currentTarget: HTMLElement}): void => {
     if (api().disabled || event.button !== 0 || grip.pointerId !== undefined) return
     event.currentTarget.setPointerCapture(event.pointerId)
+    const pointer = localX({element: event.currentTarget, clientX: event.clientX})
     Object.assign(grip, {
       ...emptyGrip(),
       pointerId: event.pointerId,
       startX: event.clientX,
+      grab: motion === undefined ? undefined : pointer - motion.current(),
       checkedAtPress: api().checked,
       slop: event.pointerType === 'touch' ? TAP_SLOP.coarse : TAP_SLOP.fine,
     })
   }
 
   const move = (event: PointerEvent & {currentTarget: HTMLElement}): void => {
-    if (!motion || grip.pointerId !== event.pointerId) return
+    if (!motion || grip.pointerId !== event.pointerId || grip.grab === undefined) return
     const pointer = localX({element: event.currentTarget, clientX: event.clientX})
-    if (grip.grab === undefined) grip.grab = pointer - motion.current()
     if (!grip.moved && Math.abs(event.clientX - grip.startX) > grip.slop) grip.moved = true
     if (!grip.moved) return
     const {min, max} = motion.bounds()
