@@ -13,7 +13,7 @@ import {expect as expectLocator} from 'playwright/test'
 import {DevTools} from '@vitejs/devtools'
 import {createServer, type Plugin, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
-import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS} from '@conciv/extension-compiler/extensions'
+import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
 import ios from '@conciv/extension-ios'
 import recorder from '@conciv/extension-recorder'
 import terminal from '@conciv/extension-terminal'
@@ -881,7 +881,18 @@ describe('vite devtools dock', () => {
     await dirs.stopAll()
   })
 
-  async function dockServer(widget?: false): Promise<string> {
+  const realBuiltins: Builtins = {
+    serverExtensions: [terminal, testRunner, whiteboard, recorder, ios],
+    clientEntries: [
+      '@conciv/extension-terminal/client',
+      '@conciv/extension-test-runner/client',
+      '@conciv/extension-whiteboard/client',
+      '@conciv/extension-recorder/client',
+      '@conciv/extension-ios/client',
+    ].map((specifier) => fileURLToPath(import.meta.resolve(specifier))),
+  }
+
+  async function dockServer(widget?: false, builtins: Builtins = NO_BUILTINS): Promise<string> {
     const root = realpathSync(dirs.tempDir('conciv-dock-'))
     writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title><h1>host</h1>')
     const server = await createServer({
@@ -893,7 +904,7 @@ describe('vite devtools dock', () => {
         makeViteHook(
           {enabled: true, stateRoot: root, ...(widget === false ? {widget} : {})},
           {
-            ...NO_BUILTINS,
+            ...builtins,
             embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
             dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
           },
@@ -959,6 +970,17 @@ describe('vite devtools dock', () => {
     await expectLocator(concivHost).toHaveClass(/(^|\s)dark(\s|$)/)
     await page.close()
   }, 60_000)
+
+  it('fills the dock panel with the chat and the builtin extension tabs on a host with the real builtins', async () => {
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    await page.goto(await dockServer(undefined, realBuiltins), {waitUntil: 'domcontentloaded'})
+    await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
+    const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
+    await chat.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 45_000})
+    await expectLocator(chat.getByRole('tab', {name: /Recorder/})).toBeVisible()
+    await expectLocator(chat.getByRole('tab', {name: /Terminal/})).toBeVisible()
+    await page.close()
+  }, 90_000)
 
   it('keeps the floating page widget when Vite DevTools is not enabled', async () => {
     const {server} = await dirs.start()
