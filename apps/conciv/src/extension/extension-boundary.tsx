@@ -105,7 +105,9 @@ function guardedBodyPredicate(name: string, predicate: ToolBodyPredicate): ToolB
 
 export function guardedToolCards(extensions: AnyExtension[]): ToolCardEntry[] {
   return collectToolRenderers(extensions).map((entry) => {
-    const owner = extensions.find((extension) => extension.tools?.some((tool) => entry.names.includes(tool.name)))
+    const owner = extensions.find((extension) =>
+      extension.tools?.some((tool) => entry.names.includes(tool.name) && tool.__render?.render === entry.render),
+    )
     const name = owner?.name ?? entry.names.join(', ')
     return {
       ...entry,
@@ -118,7 +120,7 @@ export function guardedToolCards(extensions: AnyExtension[]): ToolCardEntry[] {
 export function guardedAttachmentCards(extensions: AnyExtension[], fallback: 'card' | 'chip'): AttachmentCardSlot[] {
   return collectAttachmentCards(extensions).map((entry) => {
     const owner = extensions.find((extension) =>
-      extension.attachments?.some((attachment) => attachment.mime === entry.mime),
+      extension.attachments?.some((attachment) => attachment.mime === entry.mime && attachment.__card === entry.render),
     )
     const name = owner?.name ?? entry.mime
     return {

@@ -159,3 +159,31 @@ test('removing a failed chip un-stages its attachment, so the next send carries 
   await expect.element(page.getByText('sent "no attachment here"'), {timeout: 2000}).toBeVisible()
   crash.mockRestore()
 })
+
+test('a failed chip names the extension whose card was selected, not an earlier declaration of the mime', async () => {
+  const crash = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const declared = defineAttachment({mime: 'application/x-crashing'})
+  const carded = defineAttachment({mime: 'application/x-crashing'})
+  carded.card(() => {
+    throw new Error('fixture crash')
+  })
+  const {chips, adapter} = paneAttachments(
+    [
+      defineExtension({name: 'declares-only', attachments: [declared]}),
+      defineExtension({name: 'card-owner', attachments: [carded]}),
+    ],
+    false,
+  )
+  render(() => (
+    <ComposerFixture
+      adapter={adapter}
+      AttachmentComponent={(slotProps) => <AttachmentByMime cards={chips} removable={slotProps.removable} />}
+    >
+      <AttachmentFeeder file={new File(['{}'], 'crashing.bin', {type: 'application/x-crashing'})} />
+    </ComposerFixture>
+  ))
+
+  await expect.element(page.getByText('card-owner'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.getByText('declares-only')).not.toBeInTheDocument()
+  crash.mockRestore()
+})

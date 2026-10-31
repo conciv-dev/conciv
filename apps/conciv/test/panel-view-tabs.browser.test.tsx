@@ -238,6 +238,21 @@ describe('a crashing extension', () => {
     expect(viewContent().element().matches(':focus-visible'), 'the view content shows the focus ring').toBe(true)
   }, 30_000)
 
+  const predicatePart = {
+    type: 'tool-call',
+    id: 'call',
+    name: 'crash_streaming',
+    arguments: '{}',
+    state: 'input-complete',
+  } as const
+  const predicateCtx = {
+    apiBase: '',
+    harnessId: 'fixture',
+    sendMessage: () => {},
+    catalog: INERT_TOOL_CATALOG,
+    addResult: () => {},
+  }
+
   test('a throwing hasEmbeddedBody reports once per error message across evaluations', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const failure = {message: 'first failure'}
@@ -252,31 +267,41 @@ describe('a crashing extension', () => {
         }),
       ],
     })
-    const part = {
-      type: 'tool-call',
-      id: 'call',
-      name: 'crash_streaming',
-      arguments: '{}',
-      state: 'input-complete',
-    } as const
-    const ctx = {
-      apiBase: '',
-      harnessId: 'fixture',
-      sendMessage: () => {},
-      catalog: INERT_TOOL_CATALOG,
-      addResult: () => {},
-    }
     const evaluate = guardedToolCards([extension])[0]?.hasEmbeddedBody
 
-    expect(evaluate?.(part, undefined, ctx)).toBe(true)
-    expect(evaluate?.(part, undefined, ctx)).toBe(true)
-    expect(evaluate?.(part, undefined, ctx)).toBe(true)
+    expect(evaluate?.(predicatePart, undefined, predicateCtx)).toBe(true)
+    expect(evaluate?.(predicatePart, undefined, predicateCtx)).toBe(true)
+    expect(evaluate?.(predicatePart, undefined, predicateCtx)).toBe(true)
     expect(crashReports('crash-streaming-predicate')).toBe(1)
 
     failure.message = 'second failure'
-    expect(evaluate?.(part, undefined, ctx)).toBe(true)
-    expect(evaluate?.(part, undefined, ctx)).toBe(true)
+    expect(evaluate?.(predicatePart, undefined, predicateCtx)).toBe(true)
+    expect(evaluate?.(predicatePart, undefined, predicateCtx)).toBe(true)
     expect(crashReports('crash-streaming-predicate')).toBe(2)
+  })
+
+  test('a crash is reported against the extension whose renderer was selected, not an earlier declaration', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const declaresOnly = defineExtension({
+      name: 'declares-only',
+      tools: [defineTool({name: 'shared_tool', ...TOOL_SHAPE})],
+    })
+    const rendererOwner = defineExtension({
+      name: 'renderer-owner',
+      tools: [
+        defineTool({name: 'shared_tool', ...TOOL_SHAPE}).render({
+          render: () => <p>{CALM_CARD_BODY}</p>,
+          hasEmbeddedBody: () => {
+            throw new Error('fixture crash')
+          },
+        }),
+      ],
+    })
+
+    guardedToolCards([declaresOnly, rendererOwner])[0]?.hasEmbeddedBody(predicatePart, undefined, predicateCtx)
+
+    expect(crashReports('renderer-owner')).toBe(1)
+    expect(crashReports('declares-only')).toBe(0)
   })
 
   test('a throwing view icon leaves the status bar with its tab label', async () => {
