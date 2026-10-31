@@ -49,9 +49,10 @@ export function useEmbeddedRowLine(): () => string {
 
 export function publishCardHeader(read: () => EmbeddedCardHeader): void {
   const headerChannel = useEmbeddedHeaderChannel()
+  const header = createMemo(read)
   createEffect(() => {
     const publish = headerChannel()
     if (publish === undefined) return
-    onCleanup(publish(read))
+    onCleanup(publish(header))
   })
 }

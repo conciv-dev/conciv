@@ -11,6 +11,7 @@ import {coreRpc, createSession, runTurn} from './helpers/core-session.js'
 import {createShellHarness} from './helpers/shell-harness.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
+import {ToolCard} from '@conciv/ui-kit-chat/tools'
 import {guardedToolCards} from '../src/extension/extension-boundary.js'
 
 const SUBSCRIBE_PATH = ['chat', 'subscribe']
@@ -303,6 +304,28 @@ describe('a crashing extension', () => {
     expect(crashReports('renderer-owner')).toBe(1)
     expect(crashReports('declares-only')).toBe(0)
   })
+
+  test('a throwing embedded ToolCard header reads as the failed card and the thread stays up', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const throwingTitle = (): string => {
+      throw new Error('fixture crash')
+    }
+    const crashingHeader = defineExtension({
+      name: 'crash-header',
+      tools: [
+        defineTool({name: 'crash_header', ...TOOL_SHAPE}).render({
+          render: (props) => <ToolCard part={props.part} result={props.result} title={throwingTitle()} />,
+          hasEmbeddedBody: () => true,
+        }),
+      ],
+    })
+    await mountAfterTurn([{name: 'crash_header', input: {}}], [crashingHeader])
+
+    await expect.element(page.getByText(AFTER_TOOLS_TEXT), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByText(CARD_FAILED)).toBeVisible()
+    await expect.element(editor()).toBeVisible()
+    expect(crashReports('crash-header')).toBe(1)
+  }, 30_000)
 
   test('a throwing view icon leaves the status bar with its tab label', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
