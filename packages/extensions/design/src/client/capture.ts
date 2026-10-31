@@ -82,12 +82,18 @@ async function captureInFrame(size: Size): Promise<ClientCapture> {
   return {image: await base64(blob), ...size, route: locationRoute(location), components}
 }
 
+function needsFrame(input: {requested: CaptureInput; viewport: Size}): boolean {
+  const {requested, viewport} = input
+  if (requested.width !== undefined && requested.width !== viewport.width) return true
+  return requested.height !== undefined && requested.height !== viewport.height
+}
+
 export async function captureStep(input: CaptureInput): Promise<ClientCapture | ViewportResult> {
   const viewport = {width: innerWidth, height: innerHeight}
   if (input.clear === true) removeCaptureFrame()
   if (input.probe === true || input.clear === true) return viewport
-  if (input.width !== undefined && input.width !== viewport.width) {
-    return captureInFrame({width: input.width, height: input.height ?? viewport.height})
+  if (needsFrame({requested: input, viewport})) {
+    return captureInFrame({width: input.width ?? viewport.width, height: input.height ?? viewport.height})
   }
   const components = collectComponents({root: document})
   const capture = await snapdom(document.documentElement, {

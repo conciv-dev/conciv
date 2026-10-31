@@ -285,6 +285,13 @@ it('captures the live page at the tab width as a 1x PNG with the component tree'
   expect(toolbar?.styles.background).toBe('#ffffff')
 })
 
+it('captures at the requested height when the width equals the tab width', async () => {
+  await page.setViewportSize({width: 1280, height: 720})
+  const result = await call('design_capture', {width: 1280, height: 900})
+  const png = decodePng(readFileSync(fileUnder(stateRoot, result.path)))
+  expect([png.width, png.height]).toEqual([1280, 900])
+})
+
 it('stays 1x when the device pixel ratio is 2', async () => {
   const cdp = await page.context().newCDPSession(page)
   await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1280, height: 720, deviceScaleFactor: 2, mobile: false})
