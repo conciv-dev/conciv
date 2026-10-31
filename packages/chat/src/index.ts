@@ -160,7 +160,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     },
     compact: async (sessionId) => {
       await server.stop(sessionId)
-      const {messages} = await server.hydrate(sessionId)
+      const {messages} = await hydrate(sessionId)
       await deps.db.insert(markers).values({id: randomUUID(), sessionId, afterTurn: messages.length, kind: 'compact'})
       await server.drive({threadId: sessionId, runId: randomUUID(), kind: 'compact'}, [])
     },

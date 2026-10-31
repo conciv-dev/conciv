@@ -12,6 +12,7 @@ import {defineWebSocketHelper} from 'hono/ws'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {makeTextAdapter} from '@conciv/ai/server'
+import {createToolCallChunks} from '@conciv/ai/testkit'
 import {
   cappedText,
   cappedValue,
@@ -24,7 +25,8 @@ import {
   type CodeCapability,
   type SessionPort,
 } from '@conciv/chat'
-import {openDb, type ConcivDb} from '@conciv/db'
+import {markers, openDb, type ConcivDb} from '@conciv/db'
+import {eq} from 'drizzle-orm'
 import type {SandboxTool} from '@conciv/extension/registry'
 import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 
@@ -231,6 +233,23 @@ describe('chat plane', () => {
     })
   })
 
+  describe('compaction', () => {
+    it('the compact divider lands after the last message the widget shows when a turn streamed two segments', async () => {
+      const root = stateRoot()
+      const cli = fakeCli()
+      cli.steps.push('split')
+      const chat = await plane({root, harness: cliHarness(cli)})
+      const id = SessionId.parse(sessionId('split'))
+      await readUntil(await startTurn(chat, id, 'split-run', 'two segments'), 'end')
+      const shown = (await chat.hydrate(id)).messages
+      await chat.compact(id)
+      const db = opened.at(-1)
+      if (db === undefined) throw new Error('no db')
+      const rows = await db.select().from(markers).where(eq(markers.sessionId, id))
+      expect(rows.map((row) => row.afterTurn)).toEqual([shown.length])
+    })
+  })
+
   describe('transcript import', () => {
     it('a hydrate right after Stop does not import the stopped turn from the CLI transcript a second time', async () => {
       const root = stateRoot()
@@ -252,7 +271,7 @@ describe('chat plane', () => {
   })
 })
 
-type CliStep = 'reply' | 'silent' | 'partial'
+type CliStep = 'reply' | 'silent' | 'partial' | 'split'
 
 type FakeCli = {steps: CliStep[]; systemPrompts: string[][]; gate: Promise<void>; release: () => void}
 
@@ -297,6 +316,12 @@ function cliHarness(cli: FakeCli, history?: HarnessHistory): HarnessAdapter {
         yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: `${run.runId}-a`, delta: 'partial reply'}
         if (step === 'partial') await cli.gate
         yield {type: ChatEventType.TEXT_MESSAGE_END, messageId: `${run.runId}-a`}
+        if (step === 'split') {
+          yield* createToolCallChunks('Read', {file_path: 'a.ts'}, {parentMessageId: `${run.runId}-a`, result: 'ok'})
+          yield {type: ChatEventType.TEXT_MESSAGE_START, messageId: `${run.runId}-b`, role: 'assistant'}
+          yield {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: `${run.runId}-b`, delta: 'second segment'}
+          yield {type: ChatEventType.TEXT_MESSAGE_END, messageId: `${run.runId}-b`}
+        }
         yield {type: ChatEventType.RUN_FINISHED, ...run}
       }),
     }),
