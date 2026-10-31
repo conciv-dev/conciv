@@ -41,6 +41,7 @@ export default defineConfig({
         test: {
           ...ciTestSolidBrowser(),
           name: 'ui-kit-chat-browser',
+          environment: 'node',
           include: ['test/**/*.browser.test.tsx'],
           fileParallelism: false,
           browser: {
