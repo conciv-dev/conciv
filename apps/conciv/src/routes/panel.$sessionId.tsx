@@ -43,6 +43,7 @@ import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 import {SessionPillPending, SessionTitlePending, UsagePending, ViewTabsPending} from '../shell/pending.js'
 import {collectViews} from '../extension/extension-views.js'
 import {useNotices} from '../shell/notice-context.js'
+import {openPipTarget} from '../shell/pip.js'
 
 const RAIL =
   'flex h-15 shrink-0 box-border items-center gap-2.5 pe-3 ps-5 pt-[13px] pb-[13px] [border-block-end:1px_solid_var(--chat-line-soft)]'
@@ -108,7 +109,19 @@ function PanelSession(): JSX.Element {
   const viewMatch = matchRoute({to: '/panel/$sessionId/$view'})
   const search = Route.useSearch()
   const notices = useNotices()
-  const popOut = () => void router.navigate({to: '/pip/$sessionId', params: {sessionId: params().sessionId}})
+  const popOut = () => {
+    const sessionId = params().sessionId
+    if (openPipTarget()) {
+      void router.navigate({to: '/pip/$sessionId', params: {sessionId}})
+      return
+    }
+    void router.navigate({
+      to: '/panel/$sessionId',
+      params: {sessionId},
+      search: {popOut: 'lost', open: true},
+      replace: true,
+    })
+  }
   createEffect(
     on(
       () => search().popOut,

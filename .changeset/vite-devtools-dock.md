@@ -21,3 +21,5 @@ The dock keeps its settings when the host page already carries a conciv-widget m
 The quick terminal shortcut brings the conciv dock entry forward when the dock is closed or another entry is selected, so the terminal is never opened behind a hidden panel.
 
 Panel `open` and `toggle` commands bring the conciv dock entry forward when the dock is closed or another entry is selected.
+
+Pop out opens its window inside the click, so browsers that only allow popups during a user gesture no longer block it. A blocked pop-out shows the "could not be reopened" notice with a Pop out again action.

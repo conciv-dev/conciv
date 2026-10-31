@@ -1336,6 +1336,47 @@ describe('vite devtools dock', () => {
       await expectLocator(page.getByRole('button', {name: 'Send message'})).toBeEnabled()
     }
 
+    async function allowPopupsOnlyDuringAClick(page: Page): Promise<void> {
+      await page.addInitScript(() => {
+        const open = window.open.bind(window)
+        const opened: {popup: Window | null} = {popup: null}
+        window.open = (...args: Parameters<typeof window.open>) => {
+          if (opened.popup !== null && !opened.popup.closed) return opened.popup
+          const inClick = /eventHandler/.test(new Error('click stack').stack ?? '')
+          if (!inClick || Reflect.get(window, 'popupsBlocked') === true) return null
+          opened.popup = open(...args)
+          return opened.popup
+        }
+      })
+    }
+
+    it('opens the pop-out from the session menu while the click still allows popups', async () => {
+      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      await allowPopupsOnlyDuringAClick(page)
+      await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
+      await openDockChat(page)
+      const popupPage = await popOut(page)
+      await expectWorkingComposer(popupPage)
+      await page.close()
+    }, 60_000)
+
+    it('offers pop out again when the browser blocks the window, and opens it from that action', async () => {
+      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      await allowPopupsOnlyDuringAClick(page)
+      await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
+      await openDockChat(page)
+      await page.evaluate(() => Reflect.set(window, 'popupsBlocked', true))
+      await page.getByRole('button', {name: 'Session options'}).click()
+      await page.getByRole('button', {name: 'Pop out to a window'}).click()
+      const popOutAgain = page.getByRole('button', {name: 'Pop out again'})
+      await popOutAgain.waitFor()
+      await page.evaluate(() => Reflect.set(window, 'popupsBlocked', false))
+      const popup = page.waitForEvent('popup')
+      await popOutAgain.click()
+      await expectWorkingComposer(await popup)
+      await page.close()
+    }, 60_000)
+
     it('shows a popped-out state in the dock that brings the chat back', async () => {
       const page = await browser.newPage({viewport: {width: 1280, height: 800}})
       await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
