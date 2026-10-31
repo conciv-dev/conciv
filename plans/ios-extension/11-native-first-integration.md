@@ -105,7 +105,7 @@ another channel.
 collection:
 
 - Shape: `{version, entries: PairingEntry[]}`. `PairingEntry` = `{bundleId, apiBase, token, pid,
-startedAt, projectRoot?}`. `apiBase` carries the `/t/<token>` prefix when a token was minted.
+  startedAt, projectRoot?}`. `apiBase` carries the `/t/<token>` prefix when a token was minted.
 - **Primary key is `bundleId`.** It is the only identity both sides share: the SDK has
   `Bundle.main.bundleIdentifier`, but cannot reliably know the Mac-side `.xcodeproj` or workspace path
   at runtime. `projectRoot` is secondary metadata only, never the SDK's required matching input.

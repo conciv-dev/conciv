@@ -8,7 +8,6 @@ import {
 } from '../src/extensions.js'
 import {isClientEntry, transformConcivModule, concivSolidConfig} from '../src/vite-plumbing.js'
 import {fileURLToPath} from 'node:url'
-import {concivSrcEntry, isConcivSrcTsx} from '../src/conciv-src.js'
 import {dedupeExtensions} from '../src/dedupe-extensions.js'
 import {isExtension} from '../src/extension-guard.js'
 import {dirname, join} from 'node:path'
@@ -65,129 +64,16 @@ describe('client entry inject', () => {
       expect(source).toContain('window.__CONCIV_API_BASE__ = "http://127.0.0.1:41700"')
     })
 
+    it('exports a dock renderer instead of mounting on the page when the surface is dock', () => {
+      const source = extensionsModuleSource(['/abs/a/client.js'], undefined, undefined, undefined, 'dock')
+      expect(source).toContain('export default function concivDockRenderer')
+      expect(source).toContain('createConciv')
+      expect(source).not.toContain('mountConciv')
+    })
+
     it('omits the window global when no api base is known (classic path uses the meta tag)', () => {
       const source = extensionsModuleSource(['/abs/a/client.js'])
       expect(source).not.toContain('__CONCIV_API_BASE__')
-    })
-  })
-})
-
-describe('conciv src', () => {
-  const fixture = (rel: string) => fileURLToPath(new URL(`./fixtures/conciv-src/${rel}`, import.meta.url))
-
-  describe('isConcivSrcTsx', () => {
-    it('matches src tsx inside an @conciv-scoped package', () => {
-      expect(isConcivSrcTsx(fixture('scoped/src/button.tsx'))).toBe(true)
-    })
-
-    it('rejects src tsx inside a package named bare conciv (the CLI owns that name)', () => {
-      expect(isConcivSrcTsx(fixture('app/src/entry.tsx'))).toBe(false)
-    })
-
-    it('rejects src tsx belonging to a host package', () => {
-      expect(isConcivSrcTsx(fixture('other/src/button.tsx'))).toBe(false)
-    })
-
-    it('rejects non-tsx and non-src ids', () => {
-      expect(isConcivSrcTsx(fixture('scoped/src/button.tsx').replace('.tsx', '.ts'))).toBe(false)
-      expect(isConcivSrcTsx(fixture('scoped/package.json'))).toBe(false)
-    })
-
-    it('ignores vite query suffixes', () => {
-      expect(isConcivSrcTsx(`${fixture('scoped/src/button.tsx')}?v=abc123`)).toBe(true)
-    })
-
-    it('rejects anything under node_modules', () => {
-      expect(isConcivSrcTsx(`/repo/node_modules/@conciv/x/src/a.tsx`)).toBe(false)
-    })
-  })
-
-  describe('concivSrcEntry', () => {
-    it('maps a dist entry to its tsx source sibling', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/index.js'))).toBe(fixture('scoped/src/index.tsx'))
-    })
-
-    it('maps a dist entry to its ts source sibling', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/tokens.js'))).toBe(fixture('scoped/src/tokens.ts'))
-    })
-
-    it('maps a jsx dist entry to its ts source sibling', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/solid/index.jsx'))).toBe(fixture('scoped/src/solid/index.ts'))
-    })
-
-    it('keeps a react-jsx subtree on dist even though a ts source sibling exists, regardless of folder name', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/wrapper/index.js'))).toBeNull()
-    })
-
-    it('keeps a react-jsx subtree on dist even though a tsx source sibling exists, regardless of folder name', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/wrapper/mascot-root.js'))).toBeNull()
-    })
-
-    it('remaps the package root to src even when a sibling subtree carries its own react-jsx tsconfig', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/index.js'))).toBe(fixture('scoped/src/index.tsx'))
-    })
-
-    it('keeps a dist entry on dist when its own tsconfig sets an explicit non-solid jsxImportSource', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/explicit-react/index.js'))).toBeNull()
-    })
-
-    it('remaps a dist entry with no tsconfig of its own and no jsx anywhere in the chain (ts-only package)', () => {
-      expect(concivSrcEntry(fixture('plain/dist/index.js'))).toBe(fixture('plain/src/index.ts'))
-    })
-
-    it('remaps a dist entry whose own tsconfig is empty and inherits jsxImportSource solid-js via extends', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/inherited/index.js'))).toBe(fixture('scoped/src/inherited/index.tsx'))
-    })
-
-    it('returns null when no source sibling exists', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/nope.js'))).toBeNull()
-    })
-
-    it('returns null for paths outside dist', () => {
-      expect(concivSrcEntry(fixture('scoped/src/index.tsx'))).toBeNull()
-      expect(concivSrcEntry(fixture('scoped/package.json'))).toBeNull()
-    })
-
-    it('returns null under node_modules', () => {
-      expect(concivSrcEntry('/repo/node_modules/@conciv/x/dist/index.js')).toBeNull()
-    })
-  })
-
-  describe('transformConcivModule routing', () => {
-    it('solid-compiles conciv src tsx', async () => {
-      const id = fixture('scoped/src/button.tsx')
-      const result = await transformConcivModule(`export const Button = () => <button>ok</button>`, id, false, {
-        root: '/repo',
-        deferToTsd: false,
-      })
-      expect(result?.code).toContain('_$template')
-    })
-
-    it('stamps jsx source onto conciv src tsx before compiling', async () => {
-      const id = fixture('scoped/src/button.tsx')
-      const result = await transformConcivModule(`export const Button = () => <button>ok</button>`, id, false, {
-        root: '/repo',
-        deferToTsd: false,
-      })
-      expect(result?.code).toContain('data-conciv-source')
-    })
-
-    it('stamps jsx source even when a devtools stamper is present downstream', async () => {
-      const id = fixture('scoped/src/button.tsx')
-      const result = await transformConcivModule(`export const Button = () => <button>ok</button>`, id, false, {
-        root: '/repo',
-        deferToTsd: true,
-      })
-      expect(result?.code).toContain('data-conciv-source')
-    })
-
-    it('leaves host src tsx alone (falls through to jsx source stamping)', async () => {
-      const id = fixture('other/src/button.tsx')
-      const result = await transformConcivModule(`export const Button = () => <button>host</button>`, id, false, {
-        root: '/repo',
-        deferToTsd: false,
-      })
-      expect(result?.code ?? '').not.toContain('_$template')
     })
   })
 })
@@ -217,16 +103,25 @@ describe('dedupe extensions', () => {
     ])
   })
 
-  test('toSortedEntries sorts glob keys, reads default, drops .d.ts (client ordering)', async () => {
-    const {toSortedEntries} = await import('../src/dedupe-extensions.js')
-    const entries = toSortedEntries({
-      '/conciv/extensions/z.tsx': {default: {name: 'z'}},
-      '/conciv/extensions/a.tsx': {default: {name: 'a'}},
-      '/conciv/extensions/types.d.ts': {default: {name: 'skip'}},
+  test('toSortedLoaders sorts glob keys and drops .d.ts (client ordering)', async () => {
+    const {loadExtensions, toSortedLoaders} = await import('../src/dedupe-extensions.js')
+    const loaders = toSortedLoaders({
+      '/conciv/extensions/z.tsx': async () => ({default: {name: 'z'}}),
+      '/conciv/extensions/a.tsx': async () => ({default: {name: 'a'}}),
+      '/conciv/extensions/types.d.ts': async () => ({default: {name: 'skip'}}),
     })
-    expect(entries.map((e) => e.source)).toEqual(['/conciv/extensions/a.tsx', '/conciv/extensions/z.tsx'])
-    const picked = dedupeExtensions(entries)
-    expect(picked.extensions.map((e) => e.name)).toEqual(['a', 'z'])
+    expect(loaders.map((loader) => loader.source)).toEqual(['/conciv/extensions/a.tsx', '/conciv/extensions/z.tsx'])
+    const picked = await loadExtensions(loaders)
+    expect(picked.extensions.map((extension) => extension.name)).toEqual(['a', 'z'])
+  })
+
+  test('an extension module that fails to load is skipped and reported, the rest still load', async () => {
+    const {loadExtensions} = await import('../src/dedupe-extensions.js')
+    const picked = await loadExtensions([
+      {source: '/abs/extension-recorder/dist/client.js', load: () => Promise.reject(new TypeError('boom'))},
+      {source: '/conciv/extensions/notes.tsx', load: async () => ({default: {name: 'notes'}})},
+    ])
+    expect(picked.extensions.map((extension) => extension.name)).toEqual(['notes', 'conciv-load-failures'])
   })
 })
 
@@ -287,20 +182,19 @@ describe('extensions', () => {
       expect(builders.map((builder) => builder.name)).toEqual(['fixture-ext'])
     })
 
-    it('imports each client entry and hands them all to mountConciv', () => {
+    it('loads each client entry independently and hands them all to mountConciv', () => {
       const source = extensionsModuleSource(['/abs/a/client.js', '/abs/b/client.js'])
-      expect(source).toContain('import builtin0 from "/abs/a/client.js"')
-      expect(source).toContain('import builtin1 from "/abs/b/client.js"')
       expect(source).toContain(
-        "const builtinEntries = [{extension: builtin0, source: 'builtin:0'}, {extension: builtin1, source: 'builtin:1'}]",
+        'const builtinLoaders = [{source: "/abs/a/client.js", load: () => import("/abs/a/client.js")}, {source: "/abs/b/client.js", load: () => import("/abs/b/client.js")}]',
       )
-      expect(source).toContain('import.meta.glob("/conciv/extensions/*.{ts,tsx,js,jsx}", {eager: true})')
+      expect(source).toContain('toSortedLoaders(import.meta.glob("/conciv/extensions/*.{ts,tsx,js,jsx}"))')
+      expect(source).toContain('const picked = await loadExtensions([...builtinLoaders, ...folderLoaders])')
       expect(source).toContain('mountConciv(picked.extensions)')
     })
 
     it('imports dedupe from the bare specifier when no resolved entry is threaded', () => {
       const source = extensionsModuleSource(['/abs/a/client.js'])
-      expect(source).toContain('import {dedupeExtensions, toSortedEntries} from "@conciv/extension-compiler/dedupe"')
+      expect(source).toContain('import {loadExtensions, toSortedLoaders} from "@conciv/extension-compiler/dedupe"')
     })
 
     it('imports dedupe from the resolved absolute entry so consumer apps resolve it in dist mode', () => {
@@ -310,7 +204,7 @@ describe('extensions', () => {
         '/abs/embed/mount.js',
         '/abs/pkg/dist/dedupe-extensions.js',
       )
-      expect(source).toContain('import {dedupeExtensions, toSortedEntries} from "/abs/pkg/dist/dedupe-extensions.js"')
+      expect(source).toContain('import {loadExtensions, toSortedLoaders} from "/abs/pkg/dist/dedupe-extensions.js"')
       expect(source).not.toContain('@conciv/extension-compiler/dedupe')
     })
   })

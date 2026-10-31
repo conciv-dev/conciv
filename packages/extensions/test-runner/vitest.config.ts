@@ -98,7 +98,7 @@ const testRunnerStream: Plugin = {
       void handler
         .handle(req, res, {
           prefix: '/rpc',
-          context: rpcConnectionContext(new URL(req.url, FIXTURE_ORIGIN).toString()),
+          context: rpcConnectionContext(new URL(req.url, FIXTURE_ORIGIN).toString(), null),
         })
         .then((result) => {
           if (!result.matched) next()

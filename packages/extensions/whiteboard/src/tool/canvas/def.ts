@@ -13,6 +13,8 @@ const skeleton = z
 
 const PendingOutput = z.object({pending: z.string()})
 
+const NO_CANVAS = {message: 'no open canvas took the drawing; ask the user to open the canvas, then draw again'}
+
 const RenderedImagePart = z.object({type: z.literal('image')}).loose()
 
 const RenderedTextPart = z.object({type: z.literal('text'), content: z.string()}).loose()
@@ -48,7 +50,7 @@ export const canvasSvgDef = toolDefinition({
     roughness: z.number().min(0).max(2).default(1),
   }),
   outputSchema: PendingOutput,
-  errors: {INVALID_SVG: {message: 'the svg markup was rejected'}},
+  errors: {INVALID_SVG: {message: 'the svg markup was rejected'}, NO_CANVAS},
   meta: {
     summary: 'draw svg markup into the hidden draft',
     category: 'whiteboard',
@@ -67,6 +69,7 @@ export const canvasDrawDef = toolDefinition({
     'Add Excalidraw element skeletons (rectangle, ellipse, diamond, text, arrow, line) to the hidden draft; commit publishes them.',
   inputSchema: z.object({elements: z.array(skeleton)}),
   outputSchema: PendingOutput,
+  errors: {NO_CANVAS},
   meta: {
     summary: 'add element skeletons to the hidden draft',
     category: 'whiteboard',
@@ -82,7 +85,7 @@ export const canvasDiagramDef = toolDefinition({
   description: 'Render a Mermaid diagram (flowchart, sequence, class, ...) into the hidden draft; commit publishes it.',
   inputSchema: z.object({mermaid: z.string()}),
   outputSchema: PendingOutput,
-  errors: {DIAGRAM_TOO_LARGE: {message: 'the diagram exceeds the edge limit'}},
+  errors: {DIAGRAM_TOO_LARGE: {message: 'the diagram exceeds the edge limit'}, NO_CANVAS},
   meta: {
     summary: 'render a mermaid diagram into the hidden draft',
     category: 'whiteboard',
@@ -98,6 +101,7 @@ export const canvasConnectDef = toolDefinition({
   description: 'Draw a binding arrow from one element to another by elementId.',
   inputSchema: z.object({fromId: z.string(), toId: z.string()}),
   outputSchema: PendingOutput,
+  errors: {NO_CANVAS},
   meta: {
     summary: 'draw a binding arrow between two elements',
     category: 'whiteboard',

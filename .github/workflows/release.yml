@@ -59,7 +59,7 @@ jobs:
       # trusted-publish compromise. Fresh install only.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
       - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
         with:
@@ -70,8 +70,12 @@ jobs:
       # would be a registry-compromise straight into the publish path.
       - run: sfw npm i -g npm@12.0.1
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      # changesets/action v2 pushes the version commit and tags through the GitHub API by default:
-      # they come back signed and attributed to the token, so no git credential is ever persisted.
+      # changesets/action v2 pairs with @changesets/cli v3. push-with-git-cli stays at its
+      # false default: the version commit/tags go through the GitHub API, so they come back
+      # GPG-signed and attributed to the token's identity, and this job never needs a
+      # persisted git credential. Checkout above sets persist-credentials: false accordingly.
+      # GITHUB_TOKEN in env is for @changesets/changelog-github during the version script;
+      # the action itself authenticates through its github-token input (default github.token).
       - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           version-script: pnpm release:version
@@ -148,7 +152,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.detect.outputs.run == 'true'
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
         if: steps.detect.outputs.run == 'true'

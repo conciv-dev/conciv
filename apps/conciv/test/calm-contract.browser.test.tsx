@@ -56,7 +56,7 @@ registerCalmCore('calm-contract')
 
 const sendButton = () => page.getByRole('button', {name: 'Send message'})
 const traceToggle = () => page.getByText(/^(Show|Hide) trace$/)
-const permissionRequest = () => page.getByRole('group', {name: 'Permission request'})
+const approvalStrip = () => page.getByRole('list', {name: 'Permission requests'})
 
 function expectCalm(watch: CalmWatch): void {
   expect(watch.removed()).toEqual([])
@@ -111,35 +111,36 @@ test('a second run leaves the first run untouched [mechanism B: wrong streaming 
   expectCalm(watch)
 })
 
-test('an approval pause and resume keeps every surface in place [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
+test('an approval pause stays calm with the ask in the strip, and its retry keeps the turn rows', async () => {
   const {sessionId} = await newSession()
-  const ids = await coreControl.scriptTurn({
+  await coreControl.scriptTurn({
     toolCalls: [{name: 'Bash', input: {command: 'rm -rf build'}}],
-    text: 'Approved and finished.',
+    text: 'That needs your approval.',
   })
   await coreControl.scriptCustomEvent('approval-requested', {
-    toolCallId: ids[0],
-    toolName: 'Bash',
+    approvalId: 'calm-ask-1',
+    title: 'Bash',
     input: {command: 'rm -rf build'},
-    approval: {id: 'calm-ask-1', needsApproval: true},
   })
-  await coreControl.holdResults()
-  await coreControl.holdTurn()
   mountChatPane(sessionId)
 
   await promptWith('delete the build directory')
-  await expect.element(permissionRequest()).toBeVisible()
+  await expect.element(page.getByText('That needs your approval.')).toBeVisible()
+  await expect.element(approvalStrip().getByRole('group', {name: 'Permission request'})).toBeVisible()
+  await expect.element(sendButton()).toBeVisible()
   const watch = watchCalm()
+  await watch.checkpoint({rebaseline: true})
   await watch.checkpoint()
   await page.screenshot({path: `${SHOTS}/approval-paused.png`})
-
-  await page.getByRole('button', {name: 'Approve'}).click()
-  await coreControl.releaseResults()
-  await coreControl.releaseTurn()
-  await expect.element(page.getByText('Approved and finished.')).toBeVisible()
-  await watch.checkpoint()
-  await page.screenshot({path: `${SHOTS}/approval-resumed.png`})
   expectCalm(watch)
+  const rows = [...document.querySelectorAll('[data-conciv-msg]')]
+
+  await coreControl.scriptTurn({toolCalls: [], text: 'Approved and finished.'})
+  await page.getByRole('button', {name: 'Approve'}).click()
+  await expect.element(page.getByText('Approved and finished.')).toBeVisible()
+  await expect.element(approvalStrip()).not.toBeInTheDocument()
+  await page.screenshot({path: `${SHOTS}/approval-resumed.png`})
+  expect(rows.filter((row) => !row.isConnected)).toEqual([])
 })
 
 test('a run parked on an unresolved tool call settles in place when the next run starts [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {
@@ -506,10 +507,10 @@ test('folding a card leaves a released reader exactly where they were [gate e: s
     const rowBefore = topEdgeRowIndex(viewport)
     const offsetBefore = topEdgeRowOffset(viewport)
 
-    await traceToggle().click()
-    await expect.element(traceToggle()).toBeVisible()
-    await traceToggle().click()
-    await expect.element(traceToggle()).toBeVisible()
+    await traceToggle().click({scroll: 'none'})
+    await expect.element(page.getByText('Show trace', {exact: true})).toBeVisible()
+    await traceToggle().click({scroll: 'none'})
+    await expect.element(page.getByText('Hide trace', {exact: true})).toBeVisible()
 
     expect(topEdgeRowIndex(viewport)).toBe(rowBefore)
     expect(Math.abs(offsetBefore - topEdgeRowOffset(viewport))).toBeLessThanOrEqual(ROW_ROUNDING_TOLERANCE_PX)

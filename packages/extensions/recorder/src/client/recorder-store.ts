@@ -1,6 +1,6 @@
 import {createSignal} from 'solid-js'
 
-export type RecorderStatus = 'idle' | 'recording' | 'failed'
+export type RecorderStatus = 'idle' | 'recording' | 'failed' | 'blocked'
 
 export type RecorderStore = {
   status: () => RecorderStatus

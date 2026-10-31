@@ -1,6 +1,6 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {parseInput} from '@conciv/ui-kit-chat/tools'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
 const EditInput = z.object({

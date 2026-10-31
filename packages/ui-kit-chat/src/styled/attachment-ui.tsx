@@ -1,5 +1,6 @@
 import {onCleanup, Show, type JSX} from 'solid-js'
 import FileText from 'lucide-solid/icons/file-text'
+import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import X from 'lucide-solid/icons/x'
 import {Tooltip, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
@@ -49,20 +50,25 @@ function revokeOnCleanup(source: string | undefined): void {
   onCleanup(() => URL.revokeObjectURL(source))
 }
 
-export function AttachmentUI(props: {removable?: boolean}): JSX.Element {
+export function AttachmentUI(props: {removable?: boolean; failure?: string}): JSX.Element {
   const draft = useAttachment()
   const localSrc = localImageSrc(draft)
   const previewSrc = imageSrc(draft) ?? localSrc
   revokeOnCleanup(localSrc)
+  const label = () => props.failure ?? draft.name
   return (
     <Tooltip.Root positioning={{strategy: 'fixed', placement: 'top', gutter: 6}}>
       <Attachment.Root class={TILE}>
-        <Tooltip.Trigger type="button" class={`size-full block ${FOCUS_INSET}`} aria-label={draft.name}>
+        <Tooltip.Trigger type="button" class={`size-full block ${FOCUS_INSET}`} aria-label={label()}>
           <Show
-            when={previewSrc}
+            when={props.failure ? undefined : previewSrc}
             fallback={
-              <span class="flex size-full [color:var(--chat-text-3)] items-center justify-center">
-                <FileText size={28} />
+              <span
+                class={`flex size-full items-center justify-center ${props.failure ? '[color:var(--chat-danger)]' : '[color:var(--chat-text-3)]'}`}
+              >
+                <Show when={props.failure} fallback={<FileText size={28} />}>
+                  <TriangleAlert size={28} />
+                </Show>
               </span>
             }
           >
@@ -80,7 +86,7 @@ export function AttachmentUI(props: {removable?: boolean}): JSX.Element {
         </Show>
       </Attachment.Root>
       <Tooltip.Positioner>
-        <Tooltip.Content>{draft.name}</Tooltip.Content>
+        <Tooltip.Content>{label()}</Tooltip.Content>
       </Tooltip.Positioner>
     </Tooltip.Root>
   )

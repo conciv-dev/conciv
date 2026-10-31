@@ -2,6 +2,7 @@ import {
   createContext,
   createEffect,
   createMemo,
+  Show,
   untrack,
   useContext,
   type Accessor,
@@ -9,9 +10,8 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {createStore, type SetStoreFunction} from 'solid-js/store'
-import type {UseChatReturn} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
-import {chatBusy} from '@conciv/protocol/chat-busy'
+import type {ChatMessage, QueuedMessage, SendContent} from '@conciv/protocol/chat-message-types'
+import {chatBusy, type ChatBusySource} from '@conciv/protocol/chat-busy'
 import {diffTurns, type Turn} from './grouping.js'
 
 export type ViewState = {
@@ -21,9 +21,19 @@ export type ViewState = {
   hovering: string | null
 }
 
-export type StoppableChat = UseChatReturn & {stopping?: Accessor<boolean>}
+export type Chat = ChatBusySource & {
+  messages: Accessor<readonly ChatMessage[]>
+  error: Accessor<Error | undefined>
+  queue: Accessor<readonly QueuedMessage[]>
+  cancelQueued: (id: string) => void
+  sendMessage: (content: string | SendContent, options?: {whenBusy?: 'interrupt'}) => Promise<void>
+  stop: () => void
+  reload: () => Promise<void>
+}
 
-export type ChatContextValue = UseChatReturn & {
+export type StoppableChat = Chat & {stopping?: Accessor<boolean>}
+
+export type ChatContextValue = Chat & {
   view: ViewState
   setView: SetStoreFunction<ViewState>
   stopping: Accessor<boolean>
@@ -36,6 +46,14 @@ function pickKeys(record: Record<string, boolean>, live: Set<string>): Record<st
 }
 
 export function ChatProvider(props: ParentProps<{chat: StoppableChat}>): JSX.Element {
+  return (
+    <Show when={props.chat} keyed>
+      {(chat) => <ChatScope chat={chat}>{props.children}</ChatScope>}
+    </Show>
+  )
+}
+
+function ChatScope(props: ParentProps<{chat: StoppableChat}>): JSX.Element {
   const [view, setView] = createStore<ViewState>({
     draft: '',
     collapsed: {},
@@ -77,7 +95,7 @@ export function useThread(): {
   readonly turns: Turn[]
 } {
   const chat = useChatContext()
-  const grouped = createMemo<{messages: ReadonlyArray<UIMessage>; turns: Turn[]}>(
+  const grouped = createMemo<{messages: ReadonlyArray<ChatMessage>; turns: Turn[]}>(
     (prev) => {
       const messages = chat.messages()
       return {messages, turns: diffTurns(prev.turns, prev.messages, messages)}

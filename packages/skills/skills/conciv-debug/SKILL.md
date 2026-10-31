@@ -1,6 +1,6 @@
 ---
 name: conciv-debug
-description: Use when a conciv integration misbehaves at runtime — the conciv button/widget never appears, the widget loads but never connects to the engine, a tool call hangs or "hangs then fails after ~2 minutes", an approval/permission card never resolves or the agent gets silently denied, the engine reports a port already in use or the widget points at the wrong port, or an automated (Playwright/e2e) test against the live widget hangs. Covers the sandbox/gate/SSE runtime, not initial install (see conciv-setup) or extension authoring (see conciv-develop).
+description: Use when a conciv integration misbehaves at runtime — the conciv button/widget never appears, the widget loads but never connects to the engine, a tool call is refused pending approval or a command waits on an approval card, an approval/permission card never resolves or the agent gets silently denied, the engine reports a port already in use or the widget points at the wrong port, or an automated (Playwright/e2e) test against the live widget hangs. Covers the sandbox/approval/SSE runtime, not initial install (see conciv-setup) or extension authoring (see conciv-develop).
 metadata:
   package: '@conciv/skills'
 ---
@@ -11,7 +11,7 @@ metadata:
 
 You are looking at a conciv widget that is installed (see the conciv-setup skill if it is not) but
 misbehaving at runtime: it does not show up, it shows up but cannot reach the engine, a tool call
-never finishes, or an approval prompt never resolves. This skill is about the sandbox/gate/SSE
+never finishes, or an approval prompt never resolves. This skill is about the sandbox/approval/SSE
 runtime underneath the widget, not the install step or extension authoring — see conciv-setup and
 conciv-develop for those.
 
@@ -25,7 +25,7 @@ cause → fix:
 
 | Symptom                                                              | Cause                                                                                                                                                                                                                                                                                                                                                                                                         | Fix                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| No button in a Vite production build                                 | The Vite plugin only runs during `vite dev` — `apply: 'serve'` (`packages/plugin/src/core/vite.ts:165`) — so neither the engine boot nor the `<script>` injection ever happens at `vite build` time                                                                                                                                                                                                           | expected, not a bug: conciv is dev-only for Vite by construction and never ships to a Vite production build, `enabled` or not                                                                                                                                                                                                                                                                                                                                                                                      |
+| No button in a Vite production build                                 | The Vite plugin only runs during `vite dev` — `apply: 'serve'` (`packages/plugin/src/core/vite.ts:178`) — so neither the engine boot nor the `<script>` injection ever happens at `vite build` time                                                                                                                                                                                                           | expected, not a bug: conciv is dev-only for Vite by construction and never ships to a Vite production build, `enabled` or not                                                                                                                                                                                                                                                                                                                                                                                      |
 | Widget silently present in a webpack/Rspack/Next.js production build | Those plugins boot the engine whenever `enabled !== false`, with no build-mode check of their own (`packages/plugin/src/index.ts:19-24`)                                                                                                                                                                                                                                                                      | gate it explicitly: `conciv({enabled: process.env.NODE_ENV !== 'production'})` — `resolveConfig` defaults `enabled` to `true` (`packages/core/src/config.ts:50-53`), so an unguarded call really does ship                                                                                                                                                                                                                                                                                                         |
 | No button, webpack/Rspack                                            | Plugin boots the engine but never injects a `<script>` tag                                                                                                                                                                                                                                                                                                                                                    | set `widgetUrl` and serve the bundle yourself — see conciv-setup's webpack/Rspack section                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | No button, custom host (no bundler plugin)                           | `createConciv(...).mount(el)` never called, or called on an element removed before `impl.ready` resolves                                                                                                                                                                                                                                                                                                      | call `mount` on an element that stays in the DOM; `mount()` is a no-op if `state !== 'unmounted'` so a second call while `'mounting'` is silently dropped (`packages/embed/src/mount.ts:49-52`)                                                                                                                                                                                                                                                                                                                    |
@@ -39,7 +39,7 @@ running engine, or the engine rejects the origin.
 - **Port mismatch.** The engine's actual bound port can differ from the one you configured. Pin it
   with `conciv({port: 7378})`. On the Vite integration a taken port is just a preference — the
   engine falls back to an OS-assigned port and logs `port ${preferred} is already in use, the engine
-is listening on http://127.0.0.1:${serving.port} instead` (`packages/core/src/start.ts:84-92`), and
+  is listening on http://127.0.0.1:${serving.port} instead` (`packages/core/src/start.ts:84-92`), and
   the page picks up the port it actually bound. On Next.js and the generic webpack/Rspack plugin
   there is no such fallback path for the client: the client learns the port before the engine boots
   (Next inlines it into `next.config`'s env; webpack/Rspack never inject the widget at all, so you
@@ -56,98 +56,77 @@ is listening on http://127.0.0.1:${serving.port} instead` (`packages/core/src/st
   `state === 'mounted'` (`packages/embed/src/mount.ts:109-112`); calling it before `mount()` resolves,
   or after `unmount()`, is a silent no-op, not a queued reconnect.
 
-## Failure scenario 3: a tool call hangs, then fails
+## Failure scenario 3: a tool call is refused, or waits on a card
 
-Two different code paths gate tool calls, and they fail differently — knowing which one you're in
-tells you whether "hangs" means seconds or two minutes:
+Nothing in the engine blocks a turn on an approval. There is no ask timeout and no wait on an open
+widget: approvals are a stored request plus a stored grant, and tools and sandbox commands reach them
+by two different paths.
 
-- **Normal chat tools** go through `makeRunGate` (`packages/core/src/chat/gate.ts:209-224`), which
-  does **not** check whether anything is watching the session's stream. It opens the ask, emits
-  an approval-requested chunk into the run log (so it survives a reload), and waits up to
-  `ASK_TIMEOUT_MS` — **120 seconds** (`packages/core/src/chat/ask-constants.ts:1`) — before treating
-  it as a timeout and refusing the tool with `Tool "<name>" received no approval decision (the ask
-timed out)` (`approvalRefusal`, `packages/core/src/chat/gate.ts:100-104`). If the widget tab was
-  closed when the tool call fired, this is exactly what you'll see: a two-minute hang, then a
-  refusal — not an infinite hang, but not fast either.
-- **Code-mode tools** (the QuickJS-isolate sandboxed path, `packages/core/src/chat/code-mode.ts`)
-  check `listening(sessionId)` **first**, before ever opening an ask. If nothing is attached to that
-  session it fails immediately with `Tool "<name>" requires approval but nothing is attached to
-session "<id>" to answer; open the widget on that session and retry`
-  (`noListenerRefusal`, `packages/core/src/chat/gate.ts:106-108`, thrown by `gatedToolRun` in
-  `packages/core/src/chat/code-mode.ts:125-141`). "Attached" means the session has at least one
-  watcher registered on the in-process stream registry: `listening` is wired to
-  `deps.stream.watched` (`packages/core/src/chat/run.ts:142-148`), and a watcher is held both by an
-  open turn transport and by every `stream.listen` subscriber. If a code-mode tool call fails
-  instantly with that exact message, the fix is "open the widget on that session," not a timeout or
-  retry.
-- **A command that should auto-allow is stuck on an approval card instead.** For `Bash`, approval is
-  decided by `needsApproval` (`packages/core/src/chat/gate.ts:86-96`): a tool is risky if its name is
-  in the `risky` set, or if `classifyCommand` doesn't classify the command as `'allow'` and the
-  session hasn't already remembered it. `classifyCommand`
-  (`packages/core/src/chat/gate.ts:64-72`) first splits the command into pipeline segments and then
-  requires **every** segment to be allowlisted (`READ_ONLY_COMMANDS`/`GIT_READ_ONLY_SUBCOMMANDS`,
-  `packages/core/src/chat/gate.ts:28-46`, plus whatever the harness adds via `commandAllows`) and to
-  not escape read-only intent. So `ls foo | grep bar` **does** auto-allow: the pipe is a separator,
-  not a disqualifier.
-- **What actually forces an ask on a read-only-looking command** is one of two grammar rules, not the
-  allowlist. `commandSegments` (`packages/core/src/chat/command-grammar.ts:85-94`) returns `null` —
-  which `classifyCommand` treats as `'ask'` — for anything containing a character outside its plain
-  set: quotes, parentheses, `$`, backticks, `>`/`<` redirects, newlines (a trailing `2>/dev/null` is
-  the one tolerated redirect). And `escapesReadOnlyIntent`
-  (`packages/core/src/chat/command-grammar.ts:66-83`) re-asks for an allowlisted head used to write
-  or execute: `git branch -D`, `git --output`, `find -delete`/`-exec`, `grep --pager`, `rg --pre`,
-  `env FOO=1 cmd`, `date -s`. Check the command against those two rules before concluding the
-  allowlist is wrong.
-- **The same command asked twice.** An approval is only remembered when the user answers with
-  `scope: 'session'`; that path calls `commandMemory.remember`
-  (`packages/core/src/api/rpc/chat.ts:13`), which promotes the normalized command string into the
-  session's allowed set (`packages/core/src/chat/command-memory.ts:33-43`). A one-off approval is
-  noted and then discarded when the ask settles, so the next identical command asks again — that is
-  the design, not a lost decision.
-- **First-response hang with no tool call involved.** `run.ts` bounds how long it waits for the
-  harness CLI's _first_ output chunk (`FIRST_CHUNK_TIMEOUT_MS`, wired via `boundFirstChunk` in
-  `packages/core/src/chat/run.ts:501-505`) and aborts with `"<harness> produced no output within Ns"`
-  if the CLI process itself is wedged — that's a harness/CLI problem (wrong binary, CLI stuck on its
-  own prompt), not the approval gate; see the conciv-harness skill if you're debugging a specific
-  adapter.
+- **Tools declared `approval: 'ask'`** go through `gatedTools`
+  (`packages/ai/src/server/chat-server.ts:162-176`), whether the agent calls them directly or from
+  code mode (`chatToolSet` splits them out, `packages/chat/src/code-mode.ts:147-149`). Without a grant
+  the wrapper emits an `approval-requested` custom event and throws at once:
+  `Tool "<name>" needs the user's approval. The request is shown to the user; retry once they approve
+  it.` (`approvalNeeded`, `packages/ai/src/server/chat-server.ts:156-160`). A tool result carrying that
+  text is the design working, not a hang: the model got its answer immediately and the card is waiting
+  on the user, whether or not a widget is open. A call from outside a chat turn (external MCP, the
+  `conciv` CLI, raw RPC) gets the same refusal from `admitCall` (`packages/chat/src/index.ts`): approving
+  it stores a one-time grant only that caller's retry consumes, posts no message and starts no turn.
+- **Shell commands and other CLI tool calls** belong to the CLI's own permission mode: Claude Code runs
+  with `permissionMode: 'auto'` (`modelOptions` in `packages/harness/src/claude/chat.ts`), so its
+  classifier decides. Only what it escalates reaches `--permission-prompt-tool` and the sandbox policy,
+  which is a bare `default: 'ask'` with no command rules (`packages/ai/src/server/chat-server.ts`), and
+  arrives in the widget as an ask. Conciv keeps no allow, ask or deny list. A command stuck on a card is
+  the CLI asking, so read the CLI's verdict rather than looking for a conciv rule.
+- **The same command asked twice.** A grant is remembered for the session only when the user answers
+  with `scope: 'session'` (`packages/chat/src/approvals.ts:83-100`). A `once` grant is consumed by the
+  next run (`forRun`, `packages/chat/src/approvals.ts:101-105`), and a command containing a shell
+  metacharacter is never session-grantable: it falls back to `once`
+  (`sessionGrantable`, `packages/chat/src/approvals.ts:48-55`). Asking again is the design, not a lost
+  decision.
+- **First-response hang with no tool call involved.** `guardedAdapter`
+  (`packages/ai/src/server/run-guard.ts:44-49`) bounds the wait for the harness's first output,
+  `FIRST_OUTPUT_TIMEOUT_MS` by default (`packages/chat/src/index.ts:30`), and fails the run with
+  `the agent produced no output within Ns` (`packages/ai/src/server/chat-server.ts:381-386`). That is
+  a harness/CLI problem (wrong binary, CLI stuck on its own prompt), not an approval; see the
+  conciv-harness skill if you're debugging a specific adapter.
 
-## Failure scenario 4: an approval never resolves at all (not even a timeout)
+## Failure scenario 4: an approval never resolves
 
-- **The ask is already gone when the click lands.** `AskRegistry.reply` settles an ask only while it
-  is still open under that `sessionId`/`key` pair (`packages/core/src/chat/ask.ts:81-87`); a reply
-  arriving after the 120s timeout fired, or after the run ended, is dropped and `reply` returns
-  `false`. The RPC turns that `false` into an `UNKNOWN_REQUEST` error
-  (`packages/core/src/api/rpc/chat.ts:10-18`), so an Approve/Deny click on a stale card surfaces as
-  "no pending approval", not silence. The session is resolved from the approval id itself via
-  `asks.owner`, so a session-id mismatch on the client is not the explanation — a settled or
-  cancelled ask is.
-- **The run ended while the card was still up.** Finishing a run calls `deps.asks.cancel(sessionId)`
-  (`packages/core/src/chat/run.ts:408-421`), which settles every open ask for that session with
-  `null` and forgets the session's ask state (`packages/core/src/chat/ask.ts:106-113`). A card left
-  on screen after its run settled is therefore already answered as a non-decision server-side;
-  clicking it can only produce `UNKNOWN_REQUEST`.
-- **Timeout is a `null` decision, not a crash.** `waitFor` arms a timer that settles the ask with
-  `null` (`packages/core/src/chat/ask.ts:88-105`), which `approvalRefusal` maps to the `'timeout'`
-  branch, not `'deny'` — the wording differs (`"received no approval decision (the ask timed out)"`
-  vs `"was denied by the user"`), which is useful when reading logs to tell an actual user click from
-  a stale timeout.
+- **The request is already gone when the click lands.** `decide` settles only an id still in the
+  thread's pending list and returns `false` otherwise
+  (`packages/chat/src/approvals.ts:83-85`). The RPC turns that `false` into `UNKNOWN_REQUEST`
+  (`packages/core/src/api/rpc/chat.ts:10-15`), so a second click on an answered card surfaces as
+  "no pending approval", not silence.
+- **A card outlives its run on purpose.** Pending requests live in thread metadata, not in the run
+  (`asked`, `packages/chat/src/approvals.ts:70-74`), and `chat.hydrate` returns them after a reload
+  (`packages/chat/src/index.ts:101`). A card that survives a reload or a finished run is still
+  answerable.
+- **Approving records a grant; it does not run the tool.** `decide` only writes the grant
+  (`packages/chat/src/approvals.ts:92-98`). The server reads grants when a run starts, through
+  `forRun` in the turn's setup (`packages/chat/src/turn.ts:201-206`), so the tool executes when a run
+  retries it, not at the click.
+- **Deny writes nothing.** A denied request leaves the pending list and adds no grant
+  (`packages/chat/src/approvals.ts:91`), so a later retry asks again.
 
 ## Failure scenario 5: SSE stream never settles, tests hang
 
 The chat runtime deliberately has no single "settled" moment, and it is split across three surfaces
 rather than one subscribe call:
 
-- **The one-shot snapshot is `chat.hydrate`** (`packages/contract/src/contract.ts:135-137`), served by
-  `hydrateSession` (`packages/core/src/chat/hydrate.ts:6-19`). It resolves once with messages, the
-  active run, the last run lifecycle, and any pending approvals — it never streams.
+- **The one-shot snapshot is `chat.hydrate`** (`packages/contract/src/contract.ts:136`), served by
+  the plane's `hydrate` (`packages/chat/src/index.ts:114-127`). It resolves once with messages, the
+  active run, the last run lifecycle, and any pending approvals; it never streams.
 - **The turn itself streams over the delivery routes**, WebSocket at `CHAT_WS_PATH` and Server-Sent
-  Events at `CHAT_SSE_PATH` (`packages/core/src/chat/delivery.ts:126-169`). A POST starts the turn
-  and streams it; a GET with a `last-event-id`/`offset` REPLAYS a run from the durable log instead of
-  starting one (`resumeOffsetOf`, `packages/core/src/chat/delivery.ts:64-69`), which is how a reload
-  rejoins a run already in flight.
-- **Out-of-band session events** (approval cards, run lifecycle) ride the `chat.events` iterator,
-  which is `sessionEvents` over the in-process registry and lives until its `AbortSignal` fires
-  (`packages/core/src/chat/session-events.ts:46-56`).
+  Events at `CHAT_SSE_PATH` (`packages/chat/src/index.ts:130-146`). A socket frame or a POST starts
+  the turn; the run drains into its durable log on its own, so a closed socket or a cancelled
+  response never stops it (the socket only tails that log, `serveSocket`,
+  `packages/ai/src/server/delivery.ts:69-86`). A GET with a resume offset REPLAYS a run from its
+  durable log instead of starting one (`resume`, `packages/ai/src/server/delivery.ts:130-135`),
+  which is how a reload rejoins a run already in flight.
+- **Out-of-band session events** ride the `chat.events` iterator, which is the session bus's `events`
+  generator and lives until its `AbortSignal` fires
+  (`packages/core/src/sessions/session-bus.ts:24-46`).
 
 Two consequences:
 
@@ -158,48 +137,37 @@ Two consequences:
   (`AGENTS.md` — "Never wait for Playwright `networkidle`... its SSE stream keeps the network busy
   forever").
 - **A held-open browser context/page from a previous test run** keeps its subscription alive
-  server-side. `stream.listen` registers a listener AND a watcher, and both are released only by the
-  returned unsubscribe (`packages/core/src/chat/session-events.ts:32-42`), which for the events
-  iterator runs on abort or in the generator's `finally`. A test harness that doesn't tear pages down
-  can therefore leak watchers and make `stream.watched(sessionId)` report true for a session nothing
-  is really looking at — which then changes which gate path (scenario 3) a later approval takes.
-  Always `unmount()`/close the page, don't just navigate away.
+  server-side: a bus listener is released only on abort or in the generator's `finally`
+  (`packages/core/src/sessions/session-bus.ts:24-46`). Always `unmount()`/close the page, don't just
+  navigate away.
 
 ## Red flags — stop and check the mechanism, not the symptom
 
 - Increasing a client-side polling/retry loop instead of checking whether the widget ever reached
   `'mounted'` state (`packages/embed/src/mount.ts`) — a widget stuck in `'mounting'` will retry
   forever against nothing.
-- Assuming any approval failure is a "denied by user" — read whether the message says `denied` or
-  `timed out` (`packages/core/src/chat/gate.ts:100-104`); they mean different things operationally,
-  and a settled-then-clicked card reports `UNKNOWN_REQUEST` rather than either.
+- Assuming any approval failure is a "denied by user" — the `needs the user's approval` tool result
+  (`packages/ai/src/server/chat-server.ts:156-160`) means nobody has answered yet, and a
+  settled-then-clicked card reports `UNKNOWN_REQUEST`.
 - Reaching for `networkidle` in a new Playwright check against the live widget — it will hang, not
   flake occasionally.
-- Adding a command to `READ_ONLY_COMMANDS` to silence an approval prompt without first running it
-  past the command grammar — a quoted argument, a redirect, or a write flag on an allowlisted head
-  forces the ask no matter what the allowlist says, so the fix is almost never "the command needs to
-  be allowlisted."
-- Debugging a stuck code-mode tool call as if it were the 120s ask-timeout path — it fails in
-  milliseconds via `noListenerRefusal`, so a multi-second hang there points elsewhere (the harness
-  CLI, not the gate).
+- Treating a multi-second hang as an approval wait — approvals never block a turn, so a hang points
+  at the harness CLI.
 - Treating a stream that never goes idle as a bug — every long-lived surface here (the turn socket,
   the events iterator) is open by design; assert on a UI signal instead of on quiet.
 - Debugging extension-authoring behavior (tool contracts, `Component`/`Surface` wiring) instead of
   runtime plumbing — that's the conciv-develop skill's territory; this skill covers the
-  sandbox/gate/SSE runtime underneath, not how an extension is built.
+  sandbox/approval/SSE runtime underneath, not how an extension is built.
 
 ## Sources
 
-- `packages/core/src/chat/gate.ts`
-- `packages/core/src/chat/command-grammar.ts`
-- `packages/core/src/chat/command-memory.ts`
-- `packages/core/src/chat/ask.ts`
-- `packages/core/src/chat/ask-constants.ts`
-- `packages/core/src/chat/run.ts`
-- `packages/core/src/chat/code-mode.ts`
-- `packages/core/src/chat/delivery.ts`
-- `packages/core/src/chat/hydrate.ts`
-- `packages/core/src/chat/session-events.ts`
+- `packages/ai/src/server/chat-server.ts`
+- `packages/ai/src/server/run-guard.ts`
+- `packages/chat/src/approvals.ts`
+- `packages/chat/src/code-mode.ts`
+- `packages/chat/src/index.ts`
+- `packages/chat/src/turn.ts`
+- `packages/core/src/sessions/session-bus.ts`
 - `packages/core/src/api/rpc/chat.ts`
 - `packages/contract/src/contract.ts`
 - `packages/protocol/src/event-bus.ts`

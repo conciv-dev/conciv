@@ -1,6 +1,6 @@
 import {createContext, createSignal, useContext, type Accessor, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import type {PermissionScope} from '@conciv/protocol/chat-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {parseInput} from './tool-util.js'

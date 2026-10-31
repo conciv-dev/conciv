@@ -1,4 +1,4 @@
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 import {createTestHarness, type TestHarness} from './create-test-harness.js'
 import {harnessAvailable} from './harness-available.js'
 

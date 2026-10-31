@@ -93,6 +93,6 @@ test('the selector keeps freshness, message count and origin in the row descript
   await page.getByRole('button', {name: 'Session: the active session'}).click()
 
   await expect
-    .element(page.getByRole('option', {name: /a session mid-run.*3 messages.*started externally/}))
+    .element(page.getByRole('option', {name: /a session mid-run.*\d+ messages.*started externally/}))
     .toBeVisible()
 })

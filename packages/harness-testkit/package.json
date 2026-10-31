@@ -21,15 +21,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/ai": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
+    "@modelcontextprotocol/sdk": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
-    "@tanstack/ai": "catalog:",
-    "@tanstack/ai-client": "catalog:",
-    "@tanstack/ai-mcp": "catalog:",
     "hono": "catalog:",
     "p-timeout": "catalog:",
     "zod": "catalog:"

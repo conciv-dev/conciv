@@ -2,7 +2,7 @@ import {serveHono, type ServeFetch} from '@conciv/serve'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
 import {makeApp, withBuiltinExtensions, type MakeAppOpts} from './app.js'
 

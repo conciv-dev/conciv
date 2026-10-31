@@ -6,9 +6,9 @@ import {getExtensionApi, makeExtRpcClient} from '@conciv/extension'
 import {Button} from '@conciv/ui-kit-system'
 import {RECORDER_MIME, RECORDER_NAME, recordingPoster, recordingRefJson, type RrwebEvent} from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
-import {mountStreamPlayer, type StreamPlayerHandle} from './player.js'
+import {loadPlayerKit, mountStreamPlayer, type PlayerKit, type StreamPlayerHandle} from './player.js'
 import {saveFileToDisk} from './download.js'
-import {RecorderErrorNotice, RecorderNotice} from './notices.js'
+import {RecorderBlockedCardNotice, RecorderBlockedNotice, RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {useRecorderContext} from './recorder-context.js'
 
 const VIEWER_RENEW_MS = 7000
@@ -68,11 +68,15 @@ function RecorderPanel(): JSX.Element {
   )
   const retry = (): void => void queryClient.invalidateQueries()
 
+  const [playerKit] = createResource(loadPlayerKit)
+  const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.state === 'ready' ? playerKit() : undefined)
+  const blocked = (): boolean => store.status() === 'blocked'
+
   const [live, setLive] = createSignal(true)
   let playerHandle: StreamPlayerHandle | undefined
-  const replayRef = (source: ReplaySource) => (container: HTMLDivElement) => {
+  const replayRef = (kit: PlayerKit, source: ReplaySource) => (container: HTMLDivElement) => {
     if (source.events.length < 2) return
-    const mounted = mountStreamPlayer(container, source, {
+    const mounted = mountStreamPlayer(kit, container, source, {
       pull: (cursor) => rpc.events({cursor, ...pinned()}),
       onLive: setLive,
     })
@@ -129,55 +133,72 @@ function RecorderPanel(): JSX.Element {
 
   return (
     <div class="p-3 flex flex-1 flex-col gap-3 min-h-0 overflow-hidden">
-      <Show when={store.status() !== 'failed'} fallback={<RecorderFailedNotice />}>
-        <Show when={!recording.isError && !log.isError} fallback={<RecorderErrorNotice retry={retry} />}>
-          <Show when={!recording.isPending} fallback={<RecorderNotice text="Loading recording…" />}>
-            <Show keyed when={recordingWithEnoughEvents(recording.data)} fallback={<RecorderEmptyNotice />}>
-              {(source) => (
-                <>
-                  <div ref={replayRef(source)} class="flex flex-1 min-h-0 w-full items-start justify-center" />
-                  <div class="flex gap-2 items-center">
-                    <Button size="sm" disabled={!log.isSuccess} onClick={() => void sendToAgent()}>
-                      Send to agent
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={reset.isPending}
-                      onClick={() => reset.mutate(undefined)}
+      <Show when={!blocked()} fallback={<RecorderBlockedNotice />}>
+        <Show when={store.status() !== 'failed'} fallback={<RecorderFailedNotice />}>
+          <Show when={!recording.isError && !log.isError} fallback={<RecorderErrorNotice retry={retry} />}>
+            <Show when={!recording.isPending} fallback={<RecorderNotice text="Loading recording…" />}>
+              <Show keyed when={recordingWithEnoughEvents(recording.data)} fallback={<RecorderEmptyNotice />}>
+                {(source) => (
+                  <>
+                    <Show
+                      keyed
+                      when={loadedPlayerKit()}
+                      fallback={
+                        <Show when={playerKit.state === 'errored'} fallback={<RecorderNotice text="Loading player…" />}>
+                          <RecorderBlockedCardNotice />
+                        </Show>
+                      }
                     >
-                      New recording
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={exportVideo.isPending || save.isPending}
-                      onClick={() => void downloadVideo()}
-                    >
-                      {exportVideo.isPending ? 'Exporting…' : 'Export video'}
-                    </Button>
-                    <div class="ml-auto flex gap-2 items-center">
-                      <Show
-                        when={live()}
-                        fallback={
-                          <Button
-                            variant="outline"
-                            class="px-2.5 rounded-chat-pill h-6.5 select-none"
-                            onClick={() => playerHandle?.goLive()}
-                          >
-                            <span class="rounded-full bg-chat-text-3 size-1.5" aria-hidden="true" />
-                            <span class="text-[0.6875rem] text-chat-text-2 tracking-[0.1em] font-chat font-semibold">
-                              GO LIVE
-                            </span>
-                          </Button>
-                        }
+                      {(kit) => (
+                        <div
+                          ref={replayRef(kit, source)}
+                          class="flex flex-1 min-h-0 w-full items-start justify-center"
+                        />
+                      )}
+                    </Show>
+                    <div class="flex gap-2 items-center">
+                      <Button size="sm" disabled={!log.isSuccess} onClick={() => void sendToAgent()}>
+                        Send to agent
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={reset.isPending}
+                        onClick={() => reset.mutate(undefined)}
                       >
-                        <LiveBadge />
-                      </Show>
+                        New recording
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={exportVideo.isPending || save.isPending}
+                        onClick={() => void downloadVideo()}
+                      >
+                        {exportVideo.isPending ? 'Exporting…' : 'Export video'}
+                      </Button>
+                      <div class="ml-auto flex gap-2 items-center">
+                        <Show
+                          when={live()}
+                          fallback={
+                            <Button
+                              variant="outline"
+                              class="px-2.5 rounded-chat-pill h-6.5 select-none"
+                              onClick={() => playerHandle?.goLive()}
+                            >
+                              <span class="rounded-full bg-chat-text-3 size-1.5" aria-hidden="true" />
+                              <span class="text-[0.6875rem] text-chat-text-2 tracking-[0.1em] font-chat font-semibold">
+                                GO LIVE
+                              </span>
+                            </Button>
+                          }
+                        >
+                          <LiveBadge />
+                        </Show>
+                      </div>
                     </div>
-                  </div>
-                </>
-              )}
+                  </>
+                )}
+              </Show>
             </Show>
           </Show>
         </Show>

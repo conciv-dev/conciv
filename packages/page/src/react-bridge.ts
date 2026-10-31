@@ -9,7 +9,7 @@ import {
   traverseFiber,
   _fiberRoots,
 } from 'bippy'
-import {parseStack, hasDebugStack, getFallbackOwnerStack, formatOwnerStack} from 'bippy/source'
+import {parseStack, hasDebugStack, getParentStack, formatOwnerStack} from 'bippy/source'
 import {installTracker} from './render-tracker.js'
 import {sourceFromAttr} from './source-attr.js'
 import type {RefAdder} from './page-snapshot.js'
@@ -86,9 +86,10 @@ function compositeNames(fiber: Fiber): string[] {
     .map((f: Fiber) => getDisplayName(f) || '?')
 }
 
-function rawFrames(fiber: Fiber): RawFrame[] {
-  const stack = hasDebugStack(fiber) ? fiber._debugStack.stack : getFallbackOwnerStack(fiber)
-  return parseStack(formatOwnerStack(stack)).map((fr) => ({
+async function rawFrames(fiber: Fiber): Promise<RawFrame[]> {
+  const stack = hasDebugStack(fiber) ? fiber._debugStack.stack : undefined
+  const frames = stack ? parseStack(formatOwnerStack(stack)) : await getParentStack(fiber)
+  return frames.map((fr) => ({
     ...(fr.fileName === undefined ? {} : {fileName: fr.fileName}),
     ...(fr.lineNumber === undefined ? {} : {line: fr.lineNumber}),
     ...(fr.columnNumber === undefined ? {} : {column: fr.columnNumber}),
@@ -96,13 +97,13 @@ function rawFrames(fiber: Fiber): RawFrame[] {
   }))
 }
 
-export function framesForElement(el: Element): RawFrame[] {
-  try {
-    const fiber = getFiberFromHostInstance(el)
-    return fiber ? rawFrames(fiber) : []
-  } catch {
+export async function framesForElement(el: Element): Promise<RawFrame[]> {
+  const fiber = getFiberFromHostInstance(el)
+  if (!fiber) return []
+  return rawFrames(fiber).catch((error: unknown) => {
+    console.warn('[conciv] react source frames unavailable', error)
     return []
-  }
+  })
 }
 
 function hostElementOf(composite: Fiber): Element | null {
@@ -126,7 +127,7 @@ export async function locate(el: Element, addRef: RefAdder): Promise<LocateResul
   const fiber = await fiberForEl(el)
   if (!fiber) return null
   const names = compositeNames(fiber)
-  const frames = rawFrames(fiber)
+  const frames = await rawFrames(fiber)
   const owners = ownerChain(fiber, addRef)
   const source = sourceFromAttr(el)
 
@@ -343,9 +344,8 @@ function scannedRootFibers(): Fiber[] {
   for (const el of Array.from(document.querySelectorAll('*'))) {
     const key = Object.keys(el).find(isReactDomKey)
     if (!key) continue
-    const stack = getFiberStack((el as unknown as Record<string, Fiber>)[key])
-    const top = stack[stack.length - 1]
-    if (top) return [top]
+    const fiber = (el as unknown as Record<string, Fiber>)[key]
+    return [getLatestFiber(getFiberStack(fiber).at(-1)?.return ?? fiber)]
   }
   return []
 }

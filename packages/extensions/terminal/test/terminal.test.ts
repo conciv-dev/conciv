@@ -8,15 +8,16 @@ import WebSocket from 'ws'
 import {expect as expectLocator} from 'playwright/test'
 import type {Page} from 'playwright'
 import type {RouterClient} from '@orpc/server'
-import {fetchServerSentEvents} from '@tanstack/ai-client'
-import {EventType} from '@tanstack/ai'
+import {fetchServerSentEvents} from '@conciv/ai/client'
+import {ChatEventType} from '@conciv/protocol/chat-event-types'
 import {start as startEngine, type Engine} from '@conciv/core'
 import {createFakeHarness, makeRpcClient, until, type RpcClient} from '@conciv/harness-testkit'
 import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
 import {makeExtRpcClient} from '@conciv/extension'
 import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId} from '@conciv/protocol/chat-types'
-import type {HarnessAdapter, HarnessConnectContext} from '@conciv/protocol/harness-types'
+import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
 import terminalExtension, {default as terminal, type TerminalRouter} from '../src/server.js'
 import {createTtySessions, type TtySessions, type TtySink} from '../src/server/pty-sessions.js'
@@ -230,11 +231,11 @@ describe('prefixed serving', () => {
         {threadId: sessionId, runId: randomUUID()},
       )) {
         types.push(chunk.type)
-        if (chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR) break
+        if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) break
       }
       abort.abort()
 
-      expect(types).toContain(EventType.RUN_FINISHED)
+      expect(types).toContain(ChatEventType.RUN_FINISHED)
     })
 
     it('answers chat.permissionDecision through the prefixed route', {timeout: 15_000}, async () => {

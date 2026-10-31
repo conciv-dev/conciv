@@ -12,9 +12,9 @@ import {
   type RrwebEvent,
 } from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
-import {mountPlayer} from './player.js'
+import {loadPlayerKit, mountPlayer, type PlayerKit} from './player.js'
 import {saveFileToDisk} from './download.js'
-import {RecorderErrorNotice, RecorderNotice} from './notices.js'
+import {RecorderBlockedCardNotice, RecorderErrorNotice, RecorderNotice} from './notices.js'
 
 type AttachmentState = ReturnType<typeof useAttachment>
 type AttachmentContentPart = Extract<AttachmentState, {content: unknown}>['content'][number]
@@ -69,8 +69,10 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
   }
   const expired = (): boolean => Boolean(recording.data && 'expired' in recording.data)
   const poster = (): string => ref()?.poster ?? 'Screen recording'
-  const play = (playable: RrwebEvent[]) => (container: HTMLDivElement) => {
-    onCleanup(mountPlayer(container, playable))
+  const [playerKit] = createResource(open, () => loadPlayerKit())
+  const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.state === 'ready' ? playerKit() : undefined)
+  const play = (kit: PlayerKit, playable: RrwebEvent[]) => (container: HTMLDivElement) => {
+    onCleanup(mountPlayer(kit, container, playable))
   }
   const exportVideo = useMutation(() => utils.recordings.exportVideo.mutationOptions())
   const downloadVideo = async (): Promise<void> => {
@@ -109,6 +111,9 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
               </Button>
             </div>
             <Switch>
+              <Match when={playerKit.state === 'errored'}>
+                <RecorderBlockedCardNotice />
+              </Match>
               <Match when={recording.isPending}>
                 <RecorderNotice text="Loading recording…" />
               </Match>
@@ -124,7 +129,11 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
                     when={playable.length >= 2}
                     fallback={<RecorderNotice text="Nothing to replay in this recording." />}
                   >
-                    <div ref={play(playable)} class="flex h-[70vh] w-full items-start justify-center" />
+                    <Show keyed when={loadedPlayerKit()} fallback={<RecorderNotice text="Loading player…" />}>
+                      {(kit) => (
+                        <div ref={play(kit, playable)} class="flex h-[70vh] w-full items-start justify-center" />
+                      )}
+                    </Show>
                   </Show>
                 )}
               </Match>

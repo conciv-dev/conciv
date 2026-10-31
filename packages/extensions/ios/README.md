@@ -84,7 +84,7 @@ That last case is how a stale file from a crashed core recovers. It is the recov
 path, not the primary one: a core on any port is found through the file.
 
 The SDK reads the fixed path `SIMULATOR_HOST_HOME/.conciv/dev-endpoint.json`. A host
-that runs its dev server under a test environment (`CONCIV_E2E` or `VITEST`) writes to
+that runs its dev server under a test environment (`VITEST`) writes to
 a temporary directory instead, so the app never sees that core's file: it drops to the
 port probe, and it pairs with a different dev core if that one left a healthy file at
 the global path. Set `CONCIV_URL` to pin the core explicitly.

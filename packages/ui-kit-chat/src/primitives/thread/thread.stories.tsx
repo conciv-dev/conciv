@@ -1,7 +1,7 @@
 import {createSignal, onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
+import {createChat, type Chat} from '@conciv/ai/client'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../../store/chat-context.js'
 import {
@@ -10,7 +10,7 @@ import {
   createReasoningChunks,
   createToolCallChunks,
   type StoryConnectionOptions,
-} from '../../store/story-connection.js'
+} from '@conciv/ai/testkit'
 import {Thread} from './thread.js'
 import {Message} from '../message/message.js'
 import {Suggestion, type SuggestionData} from '../suggestion/suggestion.js'
@@ -44,8 +44,8 @@ function AssistantMessage(): JSX.Element {
   )
 }
 
-function ThreadHarness(props: {options: StoryConnectionOptions; expose: (chat: UseChatReturn) => void}): JSX.Element {
-  const chat = useChat({connection: storyConnection(untrack(() => props.options))})
+function ThreadHarness(props: {options: StoryConnectionOptions; expose: (chat: Chat) => void}): JSX.Element {
+  const chat = createChat({threadId: 'thread', connection: storyConnection(untrack(() => props.options))})
   onMount(() => props.expose(chat))
   return (
     <ChatProvider chat={chat}>
@@ -63,7 +63,7 @@ function ThreadHarness(props: {options: StoryConnectionOptions; expose: (chat: U
 
 export const StreamsAFullTurn: Story = {
   render: () => {
-    const [chat, setChat] = createSignal<UseChatReturn>()
+    const [chat, setChat] = createSignal<Chat>()
     const options: StoryConnectionOptions = {
       chunks: [
         ...createReasoningChunks('Checking the handler'),
@@ -117,7 +117,10 @@ function StarterChip(): JSX.Element {
 
 export const SuggestionsSendOnClick: Story = {
   render: () => {
-    const chat = useChat({connection: storyConnection({chunks: createTextChunks('On it.'), chunkDelay: 1})})
+    const chat = createChat({
+      threadId: 'thread',
+      connection: storyConnection({chunks: createTextChunks('On it.'), chunkDelay: 1}),
+    })
     return (
       <ChatProvider chat={chat}>
         <Thread.Root class="flex flex-col gap-2">

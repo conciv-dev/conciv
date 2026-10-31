@@ -60,5 +60,9 @@ export default async function setup(project: TestProject): Promise<() => Promise
   })
   await new Promise<void>((resolve) => server.listen(CONNECT_LAST_PORT, '127.0.0.1', resolve))
   project.provide('armBase', `http://127.0.0.1:${CONNECT_LAST_PORT}`)
-  return () => new Promise<void>((resolve) => server.close(() => resolve()))
+  return () =>
+    new Promise<void>((resolve) => {
+      server.close(() => resolve())
+      server.closeAllConnections()
+    })
 }

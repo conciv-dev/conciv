@@ -88,7 +88,6 @@
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "catalog:",
     "@solidjs/testing-library": "catalog:",
-    "@tanstack/ai-client": "catalog:",
     "@types/node": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "@vitest/coverage-v8": "catalog:",

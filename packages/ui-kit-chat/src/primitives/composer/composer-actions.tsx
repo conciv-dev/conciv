@@ -12,7 +12,7 @@ import {
 } from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {makeResizeObserver} from '@solid-primitives/resize-observer'
-import {Menu, TooltipIconButton, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
+import {Menu, Tooltip, TooltipIconButton, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {
   createActionsCoordinator,
   type ActionMenuEntry,
@@ -74,66 +74,68 @@ export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Elemen
 
   return (
     <CoordinatorContext.Provider value={coordinator}>
-      <div
-        ref={(element) => {
-          rowElement = element
-          observe(element)
-        }}
-        class="flex gap-1 items-center"
-      >
+      <Tooltip.Group>
         <div
           ref={(element) => {
-            leadingElement = element
+            rowElement = element
             observe(element)
           }}
-          class={REGION_CLASS}
+          class="flex gap-1 items-center"
         >
-          {coordinator.slotRender('leading')?.()}
-        </div>
-        {local.children}
-        <Show
-          when={coordinator.anyCollapsed()}
-          fallback={<span aria-hidden="true" class={`${ACTION_CLASS} shrink-0 invisible`} />}
-        >
-          <Menu.Root>
-            <TooltipIconButtonSlot tooltip={TRIGGER_TOOLTIP} class={TRIGGER_CLASS}>
-              {(buttonProps) => (
-                <Menu.Trigger
-                  asChild={(triggerProps) => (
-                    <button {...buttonProps()} {...triggerProps()}>
-                      {coordinator.slotRender('trigger')?.()}
-                    </button>
-                  )}
-                />
-              )}
-            </TooltipIconButtonSlot>
-            <Menu.Positioner>
-              <Menu.Content aria-label={TRIGGER_TOOLTIP}>
-                <For each={coordinator.menuActions()}>{(action) => <OverflowGroup action={action} />}</For>
-              </Menu.Content>
-            </Menu.Positioner>
-            <Menu.Context>
-              {(api) => (
-                <Show when={api().open}>
-                  <OverflowDismissal
-                    collapsed={coordinator.anyCollapsed}
-                    onDismissed={() => local.onOverflowDismissed?.()}
+          <div
+            ref={(element) => {
+              leadingElement = element
+              observe(element)
+            }}
+            class={REGION_CLASS}
+          >
+            {coordinator.slotRender('leading')?.()}
+          </div>
+          {local.children}
+          <Show
+            when={coordinator.anyCollapsed()}
+            fallback={<span aria-hidden="true" class={`${ACTION_CLASS} shrink-0 invisible`} />}
+          >
+            <Menu.Root>
+              <TooltipIconButtonSlot tooltip={TRIGGER_TOOLTIP} class={TRIGGER_CLASS}>
+                {(buttonProps) => (
+                  <Menu.Trigger
+                    asChild={(triggerProps) => (
+                      <button {...buttonProps()} {...triggerProps()}>
+                        {coordinator.slotRender('trigger')?.()}
+                      </button>
+                    )}
                   />
-                </Show>
-              )}
-            </Menu.Context>
-          </Menu.Root>
-        </Show>
-        <div
-          ref={(element) => {
-            trailingElement = element
-            observe(element)
-          }}
-          class={`ml-auto ps-2 [border-inline-start:1px_solid_var(--chat-line-soft)] ${REGION_CLASS}`}
-        >
-          {coordinator.slotRender('trailing')?.()}
+                )}
+              </TooltipIconButtonSlot>
+              <Menu.Positioner>
+                <Menu.Content aria-label={TRIGGER_TOOLTIP}>
+                  <For each={coordinator.menuActions()}>{(action) => <OverflowGroup action={action} />}</For>
+                </Menu.Content>
+              </Menu.Positioner>
+              <Menu.Context>
+                {(api) => (
+                  <Show when={api().open}>
+                    <OverflowDismissal
+                      collapsed={coordinator.anyCollapsed}
+                      onDismissed={() => local.onOverflowDismissed?.()}
+                    />
+                  </Show>
+                )}
+              </Menu.Context>
+            </Menu.Root>
+          </Show>
+          <div
+            ref={(element) => {
+              trailingElement = element
+              observe(element)
+            }}
+            class={`ml-auto ps-2 [border-inline-start:1px_solid_var(--chat-line-soft)] ${REGION_CLASS}`}
+          >
+            {coordinator.slotRender('trailing')?.()}
+          </div>
         </div>
-      </div>
+      </Tooltip.Group>
     </CoordinatorContext.Provider>
   )
 }

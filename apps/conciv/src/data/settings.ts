@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import type {ChatTransportPreference} from '@conciv/client'
-import type {TriggerPosition} from '@conciv/protocol/config-types'
+import type {ConcivSurface, TriggerPosition} from '@conciv/protocol/config-types'
 
 export type Launcher = 'native' | 'mascot' | false
 
@@ -9,6 +9,7 @@ export type ConcivSettings = {
   quickTerminal: {enabled: boolean; hotkeys: string[]}
   defaultOpen: boolean
   launcher: Launcher
+  surface: ConcivSurface
   transport: ChatTransportPreference
 }
 
@@ -64,6 +65,7 @@ export function parseConcivSettings(raw: string): ConcivSettings {
     quickTerminal: {enabled: quickTerminal !== false, hotkeys: hotkeysOf(quickTerminal)},
     defaultOpen: cfg.defaultOpen === true,
     launcher: launcherOf(cfg.launcher),
+    surface: cfg.surface === 'dock' ? 'dock' : 'page',
     transport: transportOf(cfg.transport),
   }
 }

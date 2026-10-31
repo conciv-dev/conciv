@@ -89,6 +89,8 @@ describe('connect', () => {
       expect(shared.cfg.systemPrompt).toContain('static')
       expect(shared.cfg.systemPrompt).toContain('page capabilities')
       expect(shared.cfg.systemPrompt).not.toContain('picked up instantly by HMR')
+      expect(shared.cfg.systemPrompt).toContain('`discover_tools`')
+      expect(shared.cfg.systemPrompt).not.toContain('external_catalog')
     })
 
     it('uses a throwaway workspace by default', () => {

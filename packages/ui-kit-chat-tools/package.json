@@ -53,7 +53,6 @@
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
-    "@tanstack/ai-client": "catalog:",
     "@types/node": "catalog:",
     "@unocss/postcss": "catalog:",
     "@vitest/browser-playwright": "catalog:",

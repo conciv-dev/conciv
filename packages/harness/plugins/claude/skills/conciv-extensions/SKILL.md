@@ -19,9 +19,7 @@ Extensions are TypeScript files in `conciv/extensions/*.{ts,tsx}`, committed to 
 ```ts
 export default defineExtension({name: 'acme'})
   .client(() => ({
-    value: {
-      /* browser-only state, merged into useContext */
-    },
+    value: {/* browser-only state, merged into useContext */},
   }))
   .server(() => ({tools: [], systemPrompt: 'node-only guidance'}))
 ```
@@ -83,7 +81,7 @@ menu. No ids, no separate menu-item JSX to author — one component, one registr
   but it has no menu form: unusable once collapsed, so reach for it only when the control cannot be
   represented as a menu item at all.
 - `Action({priority?, visible?, disabled?, children})` + `ActionMenuItem({label, onSelect,
-children?})` — the divergent case, when the inline and collapsed representations genuinely differ
+  children?})` — the divergent case, when the inline and collapsed representations genuinely differ
   (different icon, different label, extra menu-only rows). Wrap an `ActionButton` (or `Inline`)
   together with one or more explicit `ActionMenuItem` children in an `Action`; the wrapper's
   `priority`/`visible`/`disabled` govern the pairing as a unit.

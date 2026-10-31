@@ -33,17 +33,25 @@
       "types": "./dist/chat-busy.d.ts",
       "import": "./dist/chat-busy.js"
     },
+    "./chat-message-types": {
+      "types": "./dist/chat-message-types.d.ts",
+      "import": "./dist/chat-message-types.js"
+    },
+    "./chat-event-types": {
+      "types": "./dist/chat-event-types.d.ts",
+      "import": "./dist/chat-event-types.js"
+    },
+    "./chat-tool-types": {
+      "types": "./dist/chat-tool-types.d.ts",
+      "import": "./dist/chat-tool-types.js"
+    },
+    "./usage-types": {
+      "types": "./dist/usage-types.d.ts",
+      "import": "./dist/usage-types.js"
+    },
     "./ui-types": {
       "types": "./dist/ui-types.d.ts",
       "import": "./dist/ui-types.js"
-    },
-    "./run-types": {
-      "types": "./dist/run-types.d.ts",
-      "import": "./dist/run-types.js"
-    },
-    "./approval-types": {
-      "types": "./dist/approval-types.d.ts",
-      "import": "./dist/approval-types.js"
     },
     "./editor-types": {
       "types": "./dist/editor-types.d.ts",
@@ -89,10 +97,6 @@
       "types": "./dist/page-introspect-types.d.ts",
       "import": "./dist/page-introspect-types.js"
     },
-    "./usage-types": {
-      "types": "./dist/usage-types.d.ts",
-      "import": "./dist/usage-types.js"
-    },
     "./tool-icon-types": {
       "types": "./dist/tool-icon-types.d.ts",
       "import": "./dist/tool-icon-types.js"
@@ -127,7 +131,6 @@
   },
   "dependencies": {
     "@tanstack/ai": "catalog:",
-    "@tanstack/ai-client": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

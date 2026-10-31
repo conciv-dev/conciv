@@ -1,7 +1,7 @@
 import {expect, it, test, describe} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
-import type {ToolResultPart, MessagePart, ToolCallPart} from '@tanstack/ai-client'
+import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ActCard} from '../src/client/cards/act-card.js'
 import {storyAddResult, storyCtx, storyPart, storyResult} from '../src/client/cards/story.fixtures.js'
@@ -224,7 +224,7 @@ describe('grab card', () => {
     mount()
 
     await expect.element(page.getByTitle('Grabbed element snapshot')).toBeVisible()
-    await expect.element(page.getByText('Hero at src/routes/index.tsx:12')).toBeVisible()
+    await expect.element(page.getByText('Hero at src/routes/index.tsx:12', {exact: false})).toBeVisible()
   })
 
   test('clicking the card opens a dialog that can reveal the agent text', async () => {
@@ -278,7 +278,7 @@ describe('grab snapshot frame', () => {
 
   test('the snapshot frame renders the markup in its own document', async () => {
     render(() => (
-      <GrabSnapshotFrame html="<p>Payroll Deposit clone</p>" width={200} height={40} class="block max-w-full" />
+      <GrabSnapshotFrame html="<p>Payroll Deposit clone</p>" width={200} height={40} class="max-w-full block" />
     ))
 
     await expect.element(page.getByTitle('Grabbed element snapshot')).toBeVisible()
@@ -288,7 +288,7 @@ describe('grab snapshot frame', () => {
     render(() => (
       <>
         <iframe title="Unsandboxed control" srcdoc={hostileMarkup('control escaped')} />
-        <GrabSnapshotFrame html={hostileMarkup('snapshot escaped')} width={200} height={40} class="block max-w-full" />
+        <GrabSnapshotFrame html={hostileMarkup('snapshot escaped')} width={200} height={40} class="max-w-full block" />
       </>
     ))
 
@@ -428,7 +428,7 @@ describe('session card', () => {
     render(view)
   }
 
-  function sessionNode(parts: readonly MessagePart[]): GroupNodeGroup {
+  function sessionNode(parts: readonly ChatPart[]): GroupNodeGroup {
     return {
       type: 'group',
       key: PAGE_SESSION_GROUP_KEY,
@@ -465,7 +465,7 @@ describe('session card', () => {
   }
 
   async function mountSettled(
-    parts: readonly MessagePart[],
+    parts: readonly ChatPart[],
     results: Record<string, ToolResultPart>,
     title: RegExp,
   ): Promise<void> {
@@ -512,7 +512,7 @@ describe('session card', () => {
 
   test('a settled session shows its folded reasoning and script in a collapsed flat section', async () => {
     const results = {p1: okResult('p1'), f1: okResult('f1')}
-    const parts: MessagePart[] = [
+    const parts: ChatPart[] = [
       ...THINKING,
       codeRun('p1'),
       toolCall('f1', 'page_fill', {selector: '#prose', value: 'better prose'}, 'complete'),
@@ -573,7 +573,7 @@ describe('session card', () => {
 
     await mountSettled(parts, results, /Ran script on the page/)
 
-    await expect.element(page.getByRole('listitem')).toHaveTextContent(SCRIPT_LINE)
+    await expect.element(page.getByRole('listitem')).toMatchTextContent(SCRIPT_LINE)
     expect(page.getByText('script', {exact: true}).query()).toBeNull()
     expect(document.body.textContent).not.toContain(`“${SCRIPT_LINE}”`)
   })

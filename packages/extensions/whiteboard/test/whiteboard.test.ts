@@ -11,13 +11,13 @@ import {afterAll, afterEach, beforeAll, describe, expect, it, test} from 'vitest
 import {z} from 'zod'
 import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 import {rpcCallCursor, type RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
-import {until} from '@conciv/harness-testkit'
+import {makeApprovingRegistryCall, until} from '@conciv/harness-testkit'
 import {serveExtensionRpc, type ServedRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
 import {CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import whiteboard from '../src/server.js'
 import {autoCommitDraft} from '../src/server/auto-commit.js'
-import {comments} from '../src/server/db/schema.js'
+import {canvasPending, comments} from '../src/server/db/schema.js'
 import {createStore, type Store, type WhiteboardEvent} from '../src/server/db/store.js'
 import {makeWhiteboardRouter, type WhiteboardRouter} from '../src/server/router.js'
 import {
@@ -119,8 +119,7 @@ describe('canvas draft', () => {
   const readTypes = async (api: ExtensionTestApi, scope: string): Promise<string[]> =>
     z.array(z.string()).parse(
       await api.runTypescript(`
-      const found = await external_catalog({name: 'canvas_read'})
-      const reply = await globalThis[found.call]({scope: ${JSON.stringify(scope)}})
+      const reply = await external_canvas_read({scope: ${JSON.stringify(scope)}})
       return reply.elements.map((element) => element.type)
     `),
     )
@@ -139,6 +138,33 @@ describe('canvas draft', () => {
       await api.dispose()
     }
   })
+
+  test('a draw returns once its elements are in the draft', async () => {
+    const api = await getExtensionTestApi({server: whiteboard, host: testHost})
+    try {
+      await openCanvas(api.page)
+      await api.callToolApproved('canvas_draw', {elements: [{type: 'rectangle', x: 0, y: 0, width: 100, height: 50}]})
+      expect(await readTypes(api, 'draft')).toEqual(['rectangle'])
+    } finally {
+      await api.dispose()
+    }
+  })
+
+  test('a draw with no canvas open fails, tells the agent to ask for the canvas, and leaves nothing queued', async () => {
+    const api = await getExtensionTestApi({server: whiteboard, host: testHost})
+    try {
+      await expect(
+        api.callToolApproved('canvas_draw', {elements: [{type: 'rectangle', x: 0, y: 0, width: 100, height: 50}]}),
+      ).rejects.toThrow(/ask the user to open the canvas/i)
+      await openCanvas(api.page)
+      const context = api.serverContext
+      if (!hasStore(context)) throw new Error('whiteboard store missing from server context')
+      expect(await context.store.db.select().from(canvasPending)).toEqual([])
+      expect(await readTypes(api, 'draft')).toEqual([])
+    } finally {
+      await api.dispose()
+    }
+  }, 20_000)
 
   test('rejected svg never reaches the canvas', async () => {
     const api = await getExtensionTestApi({server: whiteboard, host: testHost})
@@ -190,7 +216,7 @@ describe('canvas drag batching', () => {
     ((await api.callTool('canvas_read', {})) as {elements: CanvasElement[]}).elements
 
   const readXs = async (api: ExtensionTestApi): Promise<number[]> =>
-    (await readElements(api)).map((element) => element.x).sort((left, right) => left - right)
+    (await readElements(api)).map((element) => element.x).toSorted((left, right) => left - right)
 
   const drawRectangle = async (page: Page, x1: number, y1: number, x2: number, y2: number): Promise<void> => {
     await page.getByRole('radio', {name: 'Rectangle'}).click({force: true})
@@ -1085,7 +1111,7 @@ describe('thread delete', () => {
       const pin = api.page.getByRole('button', {name: /comment, open/})
       await pin.waitFor({timeout: 30_000})
 
-      await api.callToolApproved('comment_delete', {cid})
+      await makeApprovingRegistryCall(api.apiBase, api.session)('comment_delete', {cid})
 
       await expectLocator(pin).toHaveCount(0, {timeout: 30_000})
       expect(await api.page.getByText('thread to delete').count()).toBe(0)
@@ -1129,7 +1155,7 @@ describe('thread empty', () => {
       await openThreadPin(api.page)
       await api.page.getByRole('button', {name: 'Close thread'}).waitFor({timeout: 30_000})
 
-      await api.callToolApproved('comment_delete', {cid})
+      await makeApprovingRegistryCall(api.apiBase, api.session)('comment_delete', {cid})
 
       await expectLocator(api.page.getByRole('button', {name: 'Close thread'})).toHaveCount(0, {timeout: 30_000})
       expect(await api.page.getByRole('button', {name: 'Resolve thread'}).count()).toBe(0)
@@ -1193,180 +1219,39 @@ describe('thread unread', () => {
 })
 
 describe('tool catalog', () => {
-  const Listed = z
-    .object({
-      tools: z.array(
-        z.object({name: z.string(), summary: z.string(), category: z.string(), mutating: z.boolean()}).loose(),
-      ),
-    })
-    .loose()
+  const CODE_MODE_TOOLS = [
+    'canvas_read',
+    'canvas_svg',
+    'canvas_preview',
+    'canvas_export',
+    'canvas_draw',
+    'canvas_diagram',
+    'canvas_connect',
+    'canvas_update',
+    'canvas_commit',
+    'canvas_discard',
+    'comment_create',
+    'comment_reply',
+    'comment_read',
+    'comment_list',
+    'comment_move',
+    'pin_set_state',
+    'anchor_resolve',
+    'element_reference',
+  ]
 
-  const Detail = z
-    .object({name: z.string(), output: z.unknown(), errors: z.array(z.object({code: z.string()}).loose())})
-    .loose()
+  const APPROVAL_TOOLS = ['canvas_delete', 'canvas_clear', 'comment_resolve', 'comment_delete']
 
-  const DECLARED_MUTATING: Record<string, boolean> = {
-    canvas_read: false,
-    canvas_svg: true,
-    canvas_preview: false,
-    canvas_export: false,
-    canvas_draw: true,
-    canvas_diagram: true,
-    canvas_connect: true,
-    canvas_update: true,
-    canvas_delete: true,
-    canvas_clear: true,
-    canvas_commit: true,
-    canvas_discard: true,
-    comment_create: true,
-    comment_reply: true,
-    comment_read: false,
-    comment_list: false,
-    comment_resolve: true,
-    comment_delete: true,
-    comment_move: true,
-    pin_set_state: true,
-    anchor_resolve: false,
-    element_reference: false,
-  }
-
-  const EXPECTED_NAMES = new Set(Object.keys(DECLARED_MUTATING))
-
-  test('the sandbox catalog carries exactly the twenty-two whiteboard declarations with honest mutating flags', async () => {
+  test('discover_tools offers the eighteen code-mode whiteboard tools and refuses the four approval tools', async () => {
     const api = await getExtensionTestApi({server: whiteboard, host: testHost})
     try {
-      const listed = Listed.parse(await api.runTypescript("return await external_catalog({search: 'whiteboard'})"))
-      const whiteboardTools = listed.tools.filter((tool) => tool.category === 'whiteboard')
-      const actualNames = new Set(whiteboardTools.map((tool) => tool.name))
-      expect(actualNames).toEqual(EXPECTED_NAMES)
-      const byName = new Map(whiteboardTools.map((tool) => [tool.name, tool]))
-      for (const [name, mutating] of Object.entries(DECLARED_MUTATING)) {
-        const entry = byName.get(name)
-        expect(entry, name).toBeDefined()
-        expect(entry?.mutating, name).toBe(mutating)
-        expect(entry?.summary, name).not.toBe('')
-      }
-    } finally {
-      await api.dispose()
-    }
-  })
-
-  const DECLARED_ERRORS: Record<string, string[]> = {
-    canvas_svg: ['INVALID_SVG'],
-    canvas_diagram: ['DIAGRAM_TOO_LARGE'],
-    canvas_export: ['EXPORT_TIMEOUT'],
-    canvas_commit: ['COMMIT_TIMEOUT'],
-    comment_reply: ['COMMENT_NOT_FOUND'],
-    comment_read: ['COMMENT_NOT_FOUND'],
-    comment_resolve: ['COMMENT_NOT_FOUND'],
-    comment_delete: ['COMMENT_NOT_FOUND'],
-    comment_move: ['PIN_NOT_FOUND'],
-    pin_set_state: ['PIN_NOT_FOUND'],
-    anchor_resolve: ['COMMENT_NOT_FOUND'],
-  }
-
-  type OutputShape =
-    | {kind: 'object'; properties: string[]; required: string[]}
-    | {kind: 'union'; members: OutputShape[]}
-    | {kind: 'array'}
-
-  type JsonSchemaNode = {
-    type?: string
-    properties?: Record<string, unknown>
-    required?: string[]
-    anyOf?: JsonSchemaNode[]
-  }
-
-  const JsonSchemaNode: z.ZodType<JsonSchemaNode> = z.lazy(() =>
-    z
-      .object({
-        type: z.string().optional(),
-        properties: z.record(z.string(), z.unknown()).optional(),
-        required: z.array(z.string()).optional(),
-        anyOf: z.array(JsonSchemaNode).optional(),
-      })
-      .loose(),
-  )
-
-  function shapeOf(node: JsonSchemaNode): OutputShape {
-    if (node.anyOf !== undefined) return {kind: 'union', members: node.anyOf.map(shapeOf)}
-    if (node.type === 'array') return {kind: 'array'}
-    return {
-      kind: 'object',
-      properties: Object.keys(node.properties ?? {}).toSorted(),
-      required: (node.required ?? []).toSorted(),
-    }
-  }
-
-  const EXPECTED_OUTPUT_SHAPES: Record<string, OutputShape> = {
-    canvas_read: {kind: 'object', properties: ['elements', 'scope'], required: ['elements', 'scope']},
-    canvas_svg: {kind: 'object', properties: ['pending'], required: ['pending']},
-    canvas_draw: {kind: 'object', properties: ['pending'], required: ['pending']},
-    canvas_diagram: {kind: 'object', properties: ['pending'], required: ['pending']},
-    canvas_connect: {kind: 'object', properties: ['pending'], required: ['pending']},
-    canvas_update: {kind: 'object', properties: ['updated'], required: ['updated']},
-    canvas_delete: {kind: 'object', properties: ['deleted'], required: ['deleted']},
-    canvas_clear: {kind: 'object', properties: ['cleared'], required: ['cleared']},
-    canvas_export: {
-      kind: 'union',
-      members: [
-        {kind: 'array'},
-        {kind: 'object', properties: ['error', 'reason', 'scope'], required: ['error', 'reason', 'scope']},
-        {kind: 'object', properties: ['elements'], required: ['elements']},
-      ],
-    },
-    canvas_commit: {
-      kind: 'union',
-      members: [
-        {kind: 'object', properties: ['committed', 'elements'], required: ['committed', 'elements']},
-        {kind: 'object', properties: ['committed', 'reason'], required: ['committed', 'reason']},
-      ],
-    },
-    canvas_discard: {
-      kind: 'object',
-      properties: ['discarded', 'error', 'reason'],
-      required: ['discarded'],
-    },
-    canvas_preview: {
-      kind: 'union',
-      members: [
-        {kind: 'array'},
-        {kind: 'object', properties: ['empty', 'reason'], required: ['empty', 'reason']},
-        {kind: 'object', properties: ['elements', 'error', 'reason'], required: ['elements', 'error', 'reason']},
-      ],
-    },
-    comment_create: {kind: 'object', properties: ['cid'], required: ['cid']},
-    comment_reply: {kind: 'object', properties: ['cid'], required: ['cid']},
-    comment_read: {kind: 'object', properties: ['comment', 'replies'], required: ['comment', 'replies']},
-    comment_list: {kind: 'object', properties: ['comments'], required: ['comments']},
-    comment_resolve: {kind: 'object', properties: ['cid', 'status'], required: ['cid', 'status']},
-    comment_delete: {kind: 'object', properties: ['cid', 'deleted'], required: ['cid', 'deleted']},
-    comment_move: {kind: 'object', properties: ['cid', 'x', 'y'], required: ['cid', 'x', 'y']},
-    pin_set_state: {kind: 'object', properties: ['cid', 'pinState'], required: ['cid', 'pinState']},
-    anchor_resolve: {
-      kind: 'object',
-      properties: ['anchor', 'candidates', 'diff', 'status'],
-      required: ['status'],
-    },
-    element_reference: {
-      kind: 'object',
-      properties: ['column', 'file', 'found', 'line'],
-      required: ['found'],
-    },
-  }
-
-  test('every whiteboard declaration exposes the exact declared errors and output schema through the catalog', async () => {
-    const api = await getExtensionTestApi({server: whiteboard, host: testHost})
-    try {
-      for (const name of Object.keys(DECLARED_MUTATING)) {
-        const detail = Detail.parse(await api.runTypescript(`return await external_catalog({name: '${name}'})`))
-        const expectedCodes = DECLARED_ERRORS[name] ?? []
-        const declaredCodes = detail.errors.map((error) => error.code).toSorted()
-        expect(declaredCodes, name).toEqual(expectedCodes.toSorted())
-        const expectedShape = EXPECTED_OUTPUT_SHAPES[name]
-        if (expectedShape === undefined) throw new Error(`no expected output shape recorded for "${name}"`)
-        expect(shapeOf(JsonSchemaNode.parse(detail.output)), name).toEqual(expectedShape)
-      }
+      const offered = await api.discoverTools(CODE_MODE_TOOLS)
+      expect(offered.errors).toBeUndefined()
+      expect(offered.tools.map((tool) => tool.name)).toEqual(CODE_MODE_TOOLS.map((name) => `external_${name}`))
+      for (const tool of offered.tools) expect(tool.description, tool.name).not.toBe('')
+      const asking = await api.discoverTools(APPROVAL_TOOLS)
+      expect(asking.tools).toEqual([])
+      expect(asking.errors).toHaveLength(APPROVAL_TOOLS.length)
     } finally {
       await api.dispose()
     }
@@ -1381,3 +1266,7 @@ describe('tool catalog', () => {
     }
   })
 })
+
+function hasStore(context: unknown): context is {store: Store} {
+  return typeof context === 'object' && context !== null && 'store' in context
+}

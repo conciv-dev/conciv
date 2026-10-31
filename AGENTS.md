@@ -8,6 +8,7 @@ Before substantial work:
 - Skill guidance: if one local skill clearly matches the task, run `pnpm dlx @tanstack/intent@latest load <package>#<skill>` and follow the returned `SKILL.md`.
 - Monorepos: when working across packages, run the skill check from the workspace root and prefer the local skill for the package being changed.
 - Multiple matches: prefer the most specific local skill for the package or concern you are changing; load additional skills only when the task spans multiple packages or concerns.
+
 <!-- intent-skills:end -->
 
 # AGENTS.md
@@ -54,15 +55,13 @@ README.md; this file is the non-obvious operational rules.
 - Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs oxfmt + oxlint on
   staged files. `pnpm install` auto-activates the hook via the `prepare` script; no per-clone step.
   Whole-project gates (typecheck/build/test) are not in hooks; run them manually.
-- Dev loop (`pnpm dev`): browser packages (ui-kits, solid libs, client/grab/page/storage-history)
-  hot-serve from source in vite hosts: edit and reload, no rebuild. Mechanism: the conciv plugin's
-  `resolveId` maps a workspace-resolved `@conciv/*` dist entry to its `src/` sibling
-  (`concivSrcEntry` in extension-compiler) and solid-compiles the TSX (`isConcivSrcTsx`); manifests
-  stay plain dist exports, so tsc, node, and non-vite bundlers (Turbopack in the nextjs example)
-  resolve dist. `@conciv/extension` (shared singleton) and node-side packages (core, harness,
-  tools, plugin) always resolve dist: rebuild embed for widget-shell edits, restart the dev server
-  for server-side edits. NEW UnoCSS utility classes added in ui-kit src need an embed rebuild to
-  appear (css is generated at embed build).
+- Dev loop: every host consumes workspace `@conciv/*` packages from `dist`, exactly like a consumer;
+  nothing is served from `src/`. `pnpm dev:watch` runs `turbo watch dev --filter=@conciv/app`: the
+  `apps/conciv` dev server plus a rebuild of each dependency's `build` when its sources change, so a
+  kit edit rebuilds that package's `dist` and Vite reloads the page. Outside that loop, rebuild a
+  package with `pnpm --filter <pkg> build`; restart the dev server for server-side edits. NEW
+  UnoCSS utility classes added in ui-kit src appear after the embed rebuild (css is generated at
+  embed build).
 - Vite 8 auto-enables `server.forwardConsole` when it detects an agent env (`AI_AGENT` checked first,
   then `CLAUDECODE` etc.); combined with `@tanstack/devtools-vite`'s server-to-browser console pipe,
   a single page `console.error` round-trips forever as growing `[Server] ...` entries (12+ GB tabs
@@ -77,13 +76,16 @@ README.md; this file is the non-obvious operational rules.
 ## Code style
 
 - Functions, not classes. (Sole exception: `DelegatingTextAdapter` behind `makeTextAdapter`
-  in `packages/harness/src/_shared/text-adapter.ts`, which the library's typing forces.)
+  in `packages/ai/src/adapters.ts`, which the library's typing forces.)
 - No IIFEs unless explicitly required.
 - Zero code comments in TS/JS (only tool directives like `@ts-`/`eslint-` survive). The
   `conciv/no-comments` lint rule autofix-DELETES anything else, so don't write comments and let lint
   strip them; write self-explanatory code.
 - TypeScript is strict (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`, NodeNext). Avoid
   `any`/`as`/`@ts-ignore`.
+- Solid: no raw `createSignal`/`createEffect` in new code; use `createMemo`, `createResource`, solid-query,
+  or `@solid-primitives/*`; if none fits, say why in the PR and get maintainer sign-off. React (`apps/site`): no `useEffect`/`useLayoutEffect`. Full review laws:
+  `.github/skills/code-review/SKILL.md`.
 - oxfmt: no semicolons, single quotes, no bracket spacing, trailing commas, printWidth 120.
 
 ## TanStack Router
@@ -106,6 +108,10 @@ README.md; this file is the non-obvious operational rules.
 
 ## Testing
 
+- Test file budget: one node test file plus one browser/e2e test file per package
+  (`conciv/test-file-budget`). Never add a test file; add a `describe` to the existing one.
+- No mocks or stubs (`vi.fn`, `vi.mock`, `vi.stubGlobal`, fake modules), and no CSS/DOM implementation
+  assertions (`toHaveCSS`, `getComputedStyle`, DOM reads via `page.evaluate`, class/id locators, test-ids).
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
 - The calm perf gate (frame-gap budgets) is `pnpm --filter @conciv/app test:perf`, kept out of `pnpm test`;
   run it locally in Chromium and Firefox before merging a chat-plane change.
@@ -118,7 +124,7 @@ README.md; this file is the non-obvious operational rules.
   `apps/examples/tanstack-start` carries a handful of demo tests so the in-chat test runner has
   something to run out of the box; they are demo content, not behavior verification — behavior
   tests still live in the owning packages.
-- Every Solid package's `vitest.config.ts` must pin `test: {environment: 'node'}`.
+- Every node test project in a Solid package's `vitest.config.ts` must pin `test: {environment: 'node'}`.
   `vite-plugin-solid` otherwise injects a jsdom environment and the run exits 1 even with all tests
   passing.
 - Never wait for Playwright `networkidle` on a page with the live widget: its SSE stream keeps the
@@ -172,10 +178,10 @@ README.md; this file is the non-obvious operational rules.
 
 - A harness is `chatConfig(deps)` returning a published `@tanstack/ai-*` text adapter (+ optional
   `modelOptions`/`prepareMessages`) plus sidecars (`models`, `history`, `connect`, `tty`, `commands`).
-  Turns run through `chat()` with the conciv sandbox + permission-gate middleware; never spawn or
+  Turns run through `chat()` with the conciv sandbox middleware; never spawn or
   decode a CLI yourself, and never special-case a CLI in core/widget.
 - `HarnessAdapter` is capability-typed (`packages/protocol/src/harness-types.ts`): `transcriptHistory:
-true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` required, enforced at compile
+  true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` required, enforced at compile
   time. Add a harness by satisfying the capability contract.
 - Harness workdirs are sandbox-virtual: the local-process sandbox root IS the cwd and adapters
   default to `/workspace`. Never pass a host-absolute cwd into an adapter config: it nests a junk
@@ -209,8 +215,9 @@ true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` requir
 ## Security & safety
 
 - The core dev server binds `127.0.0.1` only. Never commit or log credentials/tokens.
-- Risky Bash from the agent is gated (`packages/core/src/chat/gate.ts`): read-only commands
-  auto-allow, everything else asks. Keep that policy conservative when editing it.
+- CLI commands are governed by each CLI's native permission mode (Claude Code runs `permissionMode: 'auto'`,
+  set in `packages/harness/src/claude/chat.ts`). conciv keeps no command rules; its own `approval: 'ask'` tools
+  use deny-and-retry.
 
 ## Project status
 

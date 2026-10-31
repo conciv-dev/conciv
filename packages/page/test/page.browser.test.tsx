@@ -4,6 +4,7 @@ import {z} from 'zod'
 import {collectClientTools, defineExtension, defineTool, toolError, type ClientEffect} from '@conciv/extension'
 import type {ElementCapture, PageCaptureBundle} from '@conciv/protocol/element-capture-types'
 import {makeDomPageDriver, type PageDriver} from '../src/page-driver.js'
+import {loadSnapshotLibrary} from '../src/element-capture.js'
 import pageFont from '@fontsource-variable/wix-madefor-text/files/wix-madefor-text-latin-wght-normal.woff2?inline'
 import {grabToFile, parseGrabPayload} from '@conciv/grab/grab-attachment'
 import type {Grab, ImagePreview} from '@conciv/grab'
@@ -19,9 +20,50 @@ import {
   type SnapNode,
   addRef as addRefTo,
 } from '../src/page-snapshot.js'
-import {componentHostAt, describe as describeHost, find, inspect, locate, override, tree} from '../src/react-bridge.js'
+import {
+  componentHostAt,
+  describe as describeHost,
+  elementByName,
+  find,
+  inspect,
+  locate,
+  override,
+  tree,
+} from '../src/react-bridge.js'
+import {_fiberRoots} from 'bippy'
 import {createRoot, type Root} from 'react-dom/client'
-import {FixtureApp} from './fixtures/react-app.js'
+import {Counter, FixtureApp, Leaf} from './fixtures/react-app.js'
+
+describe('a tool that outlasts the preview library load', () => {
+  const editAfterLoad = defineTool({
+    name: 'probe_edit_after_load',
+    description: 'edits an element once the preview library has loaded',
+    inputSchema: z.object({selector: z.string()}),
+    outputSchema: z.object({ok: z.literal(true)}),
+    meta: {summary: 'edit after load', category: 'edit-live', mutating: true, capture: 'before-after'},
+  }).client(async (input, ctx) => {
+    const el = ctx.target(input)
+    await loadSnapshotLibrary()
+    el.textContent = 'edited'
+    return {ok: true}
+  })
+
+  const probes = defineExtension({name: 'probe-late-library', tools: [editAfterLoad]}).client(() => ({value: {}}))
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('previews the after state even though the before state was captured without the library', async () => {
+    document.body.innerHTML = '<p id="late-library">original</p>'
+    const driver = makeDomPageDriver({tools: collectClientTools([probes])})
+    const outcome = await driver.execute({name: 'probe_edit_after_load', input: {selector: '#late-library'}})
+    driver.dispose()
+    if (!outcome.ok) throw new Error(`the tool failed: ${outcome.error.message}`)
+    expect(outcome.capture?.before?.node).toBeUndefined()
+    expect(JSON.stringify(outcome.capture?.after?.node)).toContain('edited')
+  })
+})
 
 describe('capture element', () => {
   afterEach(() => {
@@ -201,7 +243,7 @@ describe('element capture', () => {
   let style: HTMLStyleElement
   let driver: PageDriver
 
-  beforeEach(() => {
+  beforeEach(async () => {
     style = document.createElement('style')
     style.textContent = '.capture-form .cta {color: rgb(1, 2, 3);}'
     document.head.appendChild(style)
@@ -240,6 +282,7 @@ describe('element capture', () => {
     host.querySelector('#hostile')?.appendChild(hostileTabLink)
     document.body.appendChild(host)
     driver = makeDomPageDriver({tools: collectClientTools([probes])})
+    await loadSnapshotLibrary()
   })
 
   afterEach(() => {
@@ -956,7 +999,7 @@ describe('page dispatcher', () => {
   let host: HTMLElement
   let driver: PageDriver
 
-  beforeAll(() => {
+  beforeAll(async () => {
     host = document.createElement('div')
     host.innerHTML = `
     <p id="prose">hello dispatcher</p>
@@ -964,6 +1007,7 @@ describe('page dispatcher', () => {
   `
     document.body.appendChild(host)
     driver = makeDomPageDriver({tools: collectClientTools([probes])})
+    await loadSnapshotLibrary()
   })
 
   afterAll(() => {
@@ -1319,7 +1363,7 @@ describe('react bridge', () => {
     it('overrides function-component props through the dev renderer', async () => {
       const result = await override(leaf(), 'props', ['label'], 'B')
       expect(result).toEqual({ok: true})
-      await expect.element(leafText()).toHaveTextContent('B:')
+      await expect.element(leafText()).toMatchTextContent('B:')
     })
 
     it('overrides hook state by hook id', async () => {
@@ -1328,13 +1372,13 @@ describe('react bridge', () => {
       expect(editable).toBeDefined()
       const result = await override(leaf(), 'hooks', [], 9, editable?.id)
       expect(result).toEqual({ok: true})
-      await expect.element(leafText()).toHaveTextContent(':9:')
+      await expect.element(leafText()).toMatchTextContent(':9:')
     })
 
     it('overrides the nearest context provider value', async () => {
       const result = await override(leaf(), 'context', [], 'contrast')
       expect(result).toEqual({ok: true})
-      await expect.element(leafText()).toHaveTextContent(':contrast')
+      await expect.element(leafText()).toMatchTextContent(':contrast')
     })
 
     it('reports actionable errors for unsupported targets', async () => {
@@ -1380,6 +1424,41 @@ describe('react bridge', () => {
       expect(result.matches[0]?.component).toBe('Leaf')
       const ref = result.matches[0]?.ref
       expect(ref ? refs.map.get(ref)?.deref() : null).toBe(leaf())
+    })
+  })
+
+  describe('root discovery with no recorded fiber roots', () => {
+    const recordedRoots: unknown[] = []
+    let siblingsContainer: HTMLElement
+    let siblingsRoot: Root
+
+    beforeAll(async () => {
+      siblingsContainer = document.createElement('div')
+      document.body.prepend(siblingsContainer)
+      siblingsRoot = createRoot(siblingsContainer)
+      siblingsRoot.render(
+        <>
+          <Leaf label="top branch" />
+          <Counter start={7} />
+        </>,
+      )
+      await vi.waitFor(() => {
+        if (!siblingsContainer.querySelector('output')) throw new Error('siblings not rendered yet')
+      })
+      recordedRoots.push(..._fiberRoots)
+      _fiberRoots.clear()
+    })
+
+    afterAll(() => {
+      for (const recorded of recordedRoots) _fiberRoots.add(recorded)
+      siblingsRoot.unmount()
+      siblingsContainer.remove()
+    })
+
+    it('reaches every top-level branch through the host root', () => {
+      expect(find('Counter', makeRefs().addRef).total).toBe(1)
+      expect(find('Leaf', makeRefs().addRef).total).toBe(1)
+      expect(elementByName('Counter')).toBe(siblingsContainer.querySelector('output'))
     })
   })
 })

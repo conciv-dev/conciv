@@ -8,7 +8,7 @@ export default defineConfig({
     ...ciTest(),
     projects: [
       {
-        esbuild: {jsx: 'automatic', jsxImportSource: 'react'},
+        oxc: {jsx: {runtime: 'automatic', importSource: 'react'}},
         test: {
           ...ciTest(),
           name: 'browser',

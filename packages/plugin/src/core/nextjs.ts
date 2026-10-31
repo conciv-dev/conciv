@@ -1,3 +1,5 @@
+import {existsSync} from 'node:fs'
+import {join} from 'node:path'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {Builtins} from '@conciv/extension-compiler/extensions'
 import {writeExtensionsEntry} from './extensions-entry.js'
@@ -8,8 +10,9 @@ const APP_EXTENSIONS_SPECIFIER = '@conciv/app-extensions'
 const ENTRY_RELATIVE = './.conciv/extensions-client.gen.tsx'
 
 type TurbopackConfig = {resolveAlias?: Record<string, unknown>; [key: string]: unknown}
-type WebpackConfig = {resolve?: {alias?: Record<string, string | false>}}
-type WebpackContext = {nextRuntime?: string}
+type WebpackEntry = () => Promise<Record<string, unknown>>
+type WebpackConfig = {entry?: WebpackEntry; resolve?: {alias?: Record<string, string | false>}}
+type WebpackContext = {nextRuntime?: string; dev?: boolean; dir?: string; config?: {pageExtensions?: string[]}}
 type WebpackHook = (config: WebpackConfig, context: WebpackContext) => WebpackConfig
 
 type ConfigWithEnv = {
@@ -28,6 +31,24 @@ type WithConcivResult<T> = Omit<T, 'env' | 'serverExternalPackages' | 'turbopack
 
 const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/plugin', '@conciv/core', '@conciv/db', '@conciv/harness']
 const EDGE_REGISTER_ENTRIES = ['@conciv/it/plugin/nextjs', '@conciv/plugin/nextjs']
+
+function findInstrumentationFile(dir: string, pageExtensions: string[]): string | undefined {
+  const hasRootRoutes = existsSync(join(dir, 'app')) || existsSync(join(dir, 'pages'))
+  const base = hasRootRoutes ? dir : join(dir, 'src')
+  return pageExtensions.map((extension) => join(base, `instrumentation.${extension}`)).find(existsSync)
+}
+
+function compileInstrumentationFirst(config: WebpackConfig, context: WebpackContext): void {
+  if (context.dev !== true || context.nextRuntime !== 'nodejs') return
+  const {entry} = config
+  if (entry === undefined || context.dir === undefined) return
+  const file = findInstrumentationFile(context.dir, context.config?.pageExtensions ?? [])
+  if (file === undefined) return
+  config.entry = async () => ({
+    ...(await entry()),
+    instrumentation: {import: file, filename: 'instrumentation.js', layer: 'instrument'},
+  })
+}
 
 export function withConciv<T extends object>(nextConfig: T = {} as T, options: ConcivConfig = {}): WithConcivResult<T> {
   const base = nextConfig as ConfigWithEnv
@@ -57,6 +78,7 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
     if (context.nextRuntime === 'edge') for (const entry of EDGE_REGISTER_ENTRIES) alias[entry] = false
     resolveConfig.alias = alias
     config.resolve = resolveConfig
+    compileInstrumentationFirst(config, context)
     return userWebpack ? userWebpack(config, context) : config
   }
   return {

@@ -76,7 +76,7 @@ agent comments, and for reading server state to assert against (e.g. element ver
 
 ## No mocks, no stubs, no fakes. Ever
 
-Real spawned server (real Jazz), real Chromium, real `grab`, real MCP. Do not mock a client, stub a
+Real spawned server (real libSQL), real Chromium, real `grab`, real MCP. Do not mock a client, stub a
 tool result, or fake a session. If something can't be exercised for real, that is a design problem to
 raise; never paper over it with a fake.
 

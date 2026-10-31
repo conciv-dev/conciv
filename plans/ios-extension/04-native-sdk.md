@@ -105,7 +105,7 @@ let package = Package(
   **hand-maintained example table** (`02` M11, D3).
 - A **committed copy** lives at `native/swift/ConcivWidget/Tests/ConcivWidgetTests/Fixtures/bridge/`.
 - A single deterministic command copies canonical → committed (e.g. `pnpm --filter @conciv/extension-ios
-gen:fixtures`, which writes the canonical dir and copies into the Swift test tree); CI runs it and asserts
+  gen:fixtures`, which writes the canonical dir and copies into the Swift test tree); CI runs it and asserts
   `git diff --exit-code` — an **in-repo path copy + diff gate**, no cross-repo fetch. Because both trees are
   in one repo, a bridge change and its fixture sync land in the same PR. The Swift tests do **decode +
   roundtrip** (decode-equivalence, not byte-equal, D3). The mirror inherits the already-synced committed
@@ -282,8 +282,8 @@ Replace the spike's demo FAB with an SDK-owned one (spike `configureFab`/`fabTap
 - FAB tap → `window.__concivNative.open()` / `close()` — **set-state** (ensure-open/ensure-closed, D4), so
   the widget owns panel visibility (`05`) and re-dispatch is idempotent.
 - The WebView stays present and transparent; only the widget's panel animates in/out. With `launcher:
-'native'` (SDK default, D17) the web mascot is suppressed so only the native FAB shows; with `launcher:
-'mascot'` the web mascot is the launcher instead (no native FAB) and native shrinks the touch region to
+  'native'` (SDK default, D17) the web mascot is suppressed so only the native FAB shows; with `launcher:
+  'mascot'` the web mascot is the launcher instead (no native FAB) and native shrinks the touch region to
   `mascotRect` when closed.
 
 ## Dev-only integration & build

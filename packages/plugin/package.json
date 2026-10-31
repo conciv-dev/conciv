@@ -8,7 +8,6 @@
     "nextjs",
     "rollup",
     "rspack",
-    "vite-plugin",
     "webpack"
   ],
   "homepage": "https://conciv.dev",
@@ -78,10 +77,10 @@
     "@conciv/extension": "workspace:^",
     "@conciv/extension-compiler": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "chokidar": "^5.0.0",
+    "chokidar": "^6.0.0",
     "knitwork": "^1.3.0",
-    "launch-editor": "^2.14.1",
-    "unplugin": "^3.0.0"
+    "launch-editor": "^2.14.2",
+    "unplugin": "^3.6.0"
   },
   "devDependencies": {
     "@conciv/extension-ios": "workspace:^",
@@ -91,6 +90,7 @@
     "@conciv/extension-whiteboard": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
+    "@vitejs/devtools": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "get-port": "catalog:",
     "playwright": "catalog:",

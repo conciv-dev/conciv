@@ -1,5 +1,5 @@
 import {and, eq} from 'drizzle-orm'
-import {defineTool, imageResult, toolError} from '@conciv/extension'
+import {defineTool, imageResult, toolError, type ToolRequest} from '@conciv/extension'
 import type {JsonValue} from '../../shared/rows.js'
 import {canvasPending, canvasReplies} from '../../server/db/schema.js'
 import type {WhiteboardToolContext} from '../../server/context.js'
@@ -24,6 +24,45 @@ import {
 const MAX_EDGES = 500
 const EDGE_PATTERN = /--+>|--+|-\.-+>|==+>|--[xo]/g
 
+const DRAIN_DEADLINE_MS = 8_000
+
+const NO_CANVAS_MESSAGE =
+  'no canvas is open to draw into, so nothing was drawn: ask the user to open the canvas panel in the widget, then draw again'
+
+const drained = (store: WhiteboardToolContext['store'], id: string): {done: Promise<boolean>; stop: () => void} => {
+  const settled = Promise.withResolvers<boolean>()
+  const timer = setTimeout(() => settled.resolve(false), DRAIN_DEADLINE_MS)
+  const unsubscribe = store.onEvent((event) => {
+    if (event.table === 'canvasPending' && event.type === 'delete' && event.key === id) settled.resolve(true)
+  })
+  return {
+    done: settled.promise,
+    stop: () => {
+      clearTimeout(timer)
+      unsubscribe()
+    },
+  }
+}
+
+const drawIntoDraft = async (
+  ctx: WhiteboardToolContext,
+  request: ToolRequest,
+  kind: 'skeletons' | 'mermaid' | 'svg',
+  payload: JsonValue,
+): Promise<{pending: string}> => {
+  const id = crypto.randomUUID()
+  const room = ctx.room(request)
+  const watch = drained(ctx.store, id)
+  try {
+    await ctx.store.insertPending({id, room, kind, stage: 'draft', payload})
+    if (await watch.done) return {pending: id}
+  } finally {
+    watch.stop()
+  }
+  await ctx.store.deletePending(id, room)
+  throw toolError('NO_CANVAS', {message: NO_CANVAS_MESSAGE})
+}
+
 const canvasReadTool = defineTool(canvasReadDef).server(async (input, ctx: WhiteboardToolContext, request) => {
   const rows = await ctx.store.listElements(input.scope, ctx.room(request))
   return {elements: rows.map((row) => row.data), scope: input.scope}
@@ -35,20 +74,13 @@ const canvasSvgTool = defineTool(canvasSvgDef).server(async (input, ctx: Whitebo
   } catch (error) {
     throw toolError('INVALID_SVG', {message: error instanceof Error ? error.message : String(error)})
   }
-  const pending = await ctx.store.insertPending({
-    id: crypto.randomUUID(),
-    room: ctx.room(request),
-    kind: 'svg',
-    stage: 'draft',
-    payload: {
-      svg: input.svg,
-      x: input.x,
-      y: input.y,
-      width: input.width ?? 400,
-      roughness: input.roughness,
-    } as JsonValue,
+  return drawIntoDraft(ctx, request, 'svg', {
+    svg: input.svg,
+    x: input.x,
+    y: input.y,
+    width: input.width ?? 400,
+    roughness: input.roughness,
   })
-  return {pending: pending.id}
 })
 
 const canvasExportTool = defineTool(canvasExportDef).server(async (input, ctx: WhiteboardToolContext, request) => {
@@ -85,38 +117,19 @@ const canvasExportTool = defineTool(canvasExportDef).server(async (input, ctx: W
 })
 
 const canvasDrawTool = defineTool(canvasDrawDef).server(async (input, ctx: WhiteboardToolContext, request) => {
-  const pending = await ctx.store.insertPending({
-    id: crypto.randomUUID(),
-    room: ctx.room(request),
-    kind: 'skeletons',
-    stage: 'draft',
-    payload: {elements: input.elements} as JsonValue,
-  })
-  return {pending: pending.id}
+  return drawIntoDraft(ctx, request, 'skeletons', {elements: input.elements} as JsonValue)
 })
 
 const canvasDiagramTool = defineTool(canvasDiagramDef).server(async (input, ctx: WhiteboardToolContext, request) => {
   const edges = (input.mermaid.match(EDGE_PATTERN) ?? []).length
   if (edges > MAX_EDGES) throw toolError('DIAGRAM_TOO_LARGE', {message: `diagram exceeds ${MAX_EDGES} edges`})
-  const pending = await ctx.store.insertPending({
-    id: crypto.randomUUID(),
-    room: ctx.room(request),
-    kind: 'mermaid',
-    stage: 'draft',
-    payload: {source: input.mermaid},
-  })
-  return {pending: pending.id}
+  return drawIntoDraft(ctx, request, 'mermaid', {source: input.mermaid})
 })
 
 const canvasConnectTool = defineTool(canvasConnectDef).server(async (input, ctx: WhiteboardToolContext, request) => {
-  const pending = await ctx.store.insertPending({
-    id: crypto.randomUUID(),
-    room: ctx.room(request),
-    kind: 'skeletons',
-    stage: 'draft',
-    payload: {elements: [{type: 'arrow', x: 0, y: 0, start: {id: input.fromId}, end: {id: input.toId}}]},
+  return drawIntoDraft(ctx, request, 'skeletons', {
+    elements: [{type: 'arrow', x: 0, y: 0, start: {id: input.fromId}, end: {id: input.toId}}],
   })
-  return {pending: pending.id}
 })
 
 const canvasUpdateTool = defineTool(canvasUpdateDef).server(async (input, ctx: WhiteboardToolContext, request) => {

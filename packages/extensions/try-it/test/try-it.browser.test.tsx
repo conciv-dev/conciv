@@ -75,7 +75,7 @@ describe('connect pane', () => {
       try {
         await expect.element(waitingLine()).toBeVisible()
         await startCore('cross-entry')
-        await expect.element(handOffLog('cross entry handoff')).toHaveTextContent('/t/cross-entry')
+        await expect.element(handOffLog('cross entry handoff')).toMatchTextContent('/t/cross-entry')
       } finally {
         pane.dispose()
       }
@@ -86,7 +86,7 @@ describe('connect pane', () => {
       try {
         await expect.element(waitingLine()).toBeVisible()
         await startCore('shipped')
-        await expect.element(handOffLog('shipped handoff')).toHaveTextContent('/t/shipped')
+        await expect.element(handOffLog('shipped handoff')).toMatchTextContent('/t/shipped')
       } finally {
         pane.dispose()
       }
@@ -98,7 +98,7 @@ describe('connect pane', () => {
         await expect.element(waitingLine()).toBeVisible()
         await startCore('appears')
         await expect.element(page.getByText('Agent connected')).toBeVisible()
-        await expect.element(handOffLog('appears handoff')).toHaveTextContent('/t/appears')
+        await expect.element(handOffLog('appears handoff')).toMatchTextContent('/t/appears')
       } finally {
         pane.dispose()
       }

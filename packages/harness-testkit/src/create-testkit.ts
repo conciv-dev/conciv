@@ -4,7 +4,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import pTimeout from 'p-timeout'
 import {serveApp} from './serve-app.js'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 import {ChatContentPartSchema, CONCIV_SESSION_HEADER, type ChatContentPart} from '@conciv/protocol/chat-types'
 import {makeChatSockets, type TurnMessage} from './chat-turn.js'
 import {makeRunStream, type RunStream} from './run-stream.js'
@@ -174,7 +174,11 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
           const stopLiveSessions = async () => {
             const sessions = (await rpc.sessions.list({includeHidden: true}).catch(() => [])) ?? []
             const runningSessions = sessions.filter((meta) => meta.running)
-            await Promise.all(runningSessions.map((meta) => rpc.chat.stop({sessionId: meta.id}).catch(() => {})))
+            const stopActiveRun = async (sessionId: string) => {
+              const {activeRun} = await rpc.chat.hydrate({sessionId})
+              await rpc.chat.stop({sessionId, runIds: activeRun ? [activeRun.runId] : []})
+            }
+            await Promise.all(runningSessions.map((meta) => stopActiveRun(meta.id).catch(() => {})))
           }
           await pTimeout(stopLiveSessions(), {milliseconds: 3_000, fallback: () => undefined})
           await app.dispose()

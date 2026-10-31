@@ -1,5 +1,5 @@
 import {execSync} from 'node:child_process'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 
 export function harnessAvailable(harness: HarnessAdapter): boolean {
   try {

@@ -14,20 +14,20 @@ export function SolidPatchDiff(props: SolidPatchDiffProps): JSX.Element {
   let instance: FileDiff<undefined> | null = null
   const singularPatch = createMemo(() => getSingularPatch(props.patch))
 
+  const requestRender = syncRender({
+    target: () => instance,
+    payload: () => ({fileDiff: singularPatch()}),
+    options: () => props.options,
+  })
+
   const setRef = (node: HTMLElement) => {
-    instance = new FileDiff(props.options, highlightWorkerPool(props.options), true)
+    instance = new FileDiff(props.options, highlightWorkerPool(props.options), requestRender)
     void instance.hydrate({fileDiff: singularPatch(), fileContainer: node})
     onCleanup(() => {
       instance?.cleanUp()
       instance = null
     })
   }
-
-  syncRender({
-    target: () => instance,
-    payload: () => ({fileDiff: singularPatch()}),
-    options: () => props.options,
-  })
 
   return <diffs-container ref={(node) => setRef(node)} class={props.class} style={props.style} />
 }
