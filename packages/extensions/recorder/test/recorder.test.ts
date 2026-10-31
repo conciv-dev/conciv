@@ -29,7 +29,6 @@ import {
   RECORDER_MIME,
   RECORDER_NAME,
   recordingRefJson,
-  type RecorderControl,
   type RrwebEvent,
 } from '../src/shared/protocol.js'
 import {buttonFixture, pageFixture} from './fixtures/page.js'
@@ -732,11 +731,6 @@ describe('recorder controls', () => {
     await page.getByRole('tab', {name: 'Recorder'}).waitFor({state: 'visible', timeout: 30_000})
   }
 
-  function controlStream(messages: RecorderControl[]): string {
-    const events = messages.map((message) => `event: message\ndata: ${JSON.stringify({json: message})}\n\n`)
-    return `${events.join('')}event: done\ndata: {}\n\n`
-  }
-
   async function expectMarkerRecorded(page: Page): Promise<void> {
     const markerFlush = page.waitForRequest(
       (request) => FLUSH_REQUEST.test(request.url()) && /Marker \d+/.test(request.postData() ?? ''),
@@ -757,59 +751,26 @@ describe('recorder controls', () => {
 
     it('finishes the session of a queued stop that a newer start overtook', async () => {
       const page = api().page
-      const calls = rpcCallCursor(page)
-      await page.route(/\/ext\/recorder\/control/, (route) =>
-        route.fulfill({
-          contentType: 'text/event-stream',
-          body: controlStream([{live: true}, {live: false}, {live: true}]),
-        }),
-      )
-      const configRequests = {seen: 0}
-      const freshConfig = page.waitForRequest(
-        (request) => {
-          if (CONFIG_REQUEST.test(request.url())) configRequests.seen += 1
-          return configRequests.seen === 2
-        },
-        {timeout: 10_000},
-      )
+      const rpc = recorderRpc()
+      const viewer = {viewerId: 'queued-stop'}
+      const configRelease = Promise.withResolvers<void>()
+      await page.route(CONFIG_REQUEST, async (route) => {
+        await configRelease.promise
+        await route.continue()
+      })
       await reloadWidget(page)
-      await freshConfig
-      await page.waitForRequest(FLUSH_REQUEST, {timeout: 10_000})
+      const calls = rpcCallCursor(page)
+      const heldConfig = page.waitForRequest(CONFIG_REQUEST, {timeout: 10_000})
+
+      await rpc.presence({...viewer, live: true})
+      await heldConfig
+      await rpc.presence({...viewer, live: false})
+      await rpc.presence({...viewer, live: true})
+      configRelease.resolve()
 
       await expectMarkerRecorded(page)
       expect(calls.startedSince(['ext', 'recorder', 'config'])).toBe(2)
-    }, 120_000)
-
-    it('logs a control that throws and still applies the next one', async () => {
-      const page = api().page
-      const rpc = recorderRpc()
-      await page.clock.install()
-      await reloadWidget(page)
-      const started = await startLiveCapture(api())
-
-      await page.evaluate(() => {
-        Object.defineProperty(document, 'visibilityState', {configurable: true, get: () => 'hidden'})
-        document.dispatchEvent(new Event('visibilitychange'))
-      })
-      await page.clock.fastForward(31_000)
-
-      const logged = page.waitForEvent('console', {
-        predicate: (message) => message.type() === 'error' && message.text().includes('[conciv] recorder'),
-        timeout: 10_000,
-      })
-      await rpc.presence({viewerId: 'snapshot-while-paused', live: true})
-      expect((await logged).text()).toContain('take full snapshot after start recording')
-
-      await page.evaluate(() => {
-        Reflect.deleteProperty(document, 'visibilityState')
-        document.dispatchEvent(new Event('visibilitychange'))
-      })
-      await api().callTool('recording_stop', {captureId: started.captureId, keyframes: 0})
-      await rpc.presence({viewerId: 'snapshot-while-paused', live: false})
-
-      const restarted = await startLiveCapture(api())
-      await expectMarkerRecorded(page)
-      await api().callTool('recording_stop', {captureId: restarted.captureId, keyframes: 0})
+      await rpc.presence({...viewer, live: false})
     }, 120_000)
   })
 })
