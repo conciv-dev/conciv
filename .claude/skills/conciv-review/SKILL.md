@@ -1,6 +1,6 @@
 ---
 name: conciv-review
-description: Use when reviewing code in the conciv monorepo, before merging a PR, after implementing a feature, or when asked to review a diff or branch. Orchestrates a multi-agent review (parallel expert reviewers plus adversarial verification) over the repo's hard style rules, test conventions, fallow audit, and architecture landmines.
+description: Claude Code orchestration skill (GitHub Copilot code review follows .github/skills/code-review instead). Use when reviewing code in the conciv monorepo, before merging a PR, after implementing a feature, or when asked to review a diff or branch. Orchestrates a multi-agent review (parallel expert reviewers plus adversarial verification) over the repo's hard style rules, test conventions, fallow audit, and architecture landmines.
 ---
 
 # Reviewing conciv code
@@ -25,29 +25,29 @@ Solo single-pass review is acceptable only for a trivial mechanical diff (a rena
 
 3. Run the gates. A gate failure is itself a blocking finding; do not wait for agents to rediscover it.
 
-| Gate         | Command                                                                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Typecheck    | `pnpm typecheck`                                                                                                                                 |
-| Build        | `pnpm build`                                                                                                                                     |
-| Tests        | `pnpm test`, then `pnpm exec turbo run test --filter=<pkg-name> --force` per changed package (package name, e.g. `--filter=@conciv/ui-kit-chat`) |
-| Lint         | `pnpm lint`                                                                                                                                      |
-| Format       | `pnpm format:check`                                                                                                                              |
-| Fallow audit | `pnpm exec fallow audit --changed-since main --format json`                                                                                      |
+| Gate         | Command                                                                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Typecheck    | `pnpm exec turbo run typecheck --filter=...[origin/main]` (dependents of every changed package; never unfiltered)                              |
+| Tests        | `TURBO_CONCURRENCY=1 VITEST_MAX_FORKS=1 pnpm exec turbo run test --filter=...<pkg-name>` per changed package (the package plus its dependents) |
+| Build        | `pnpm exec turbo run build --filter=<pkg-name>` for each changed package that has no `test` script                                             |
+| Lint         | `pnpm lint`                                                                                                                                    |
+| Format       | `pnpm format:check`                                                                                                                            |
+| Fallow audit | `pnpm exec fallow audit --changed-since main --format json`                                                                                    |
 
-Turbo caches test results; a cached green is a claim about old inputs, not current behavior. Final verdicts and any "fails in CI, passes locally" investigation require the `--force` reruns.
+`test` depends on `build`, so a green test gate proves the build of every package it ran in; packages with no `test` script need the build row. Never pass `--force` and never run an unfiltered `turbo run test`/`typecheck` (`.claude/hooks/turbo-filter-gate.sh` blocks both); the cache hash covers source and deps. If a dist looks stale, delete that package's `dist` and rerun. A trailing `<pkg>...` filter means its dependencies, not dependents.
 
 ## Step 1: mixture of experts (parallel fan-out)
 
-Launch ALL applicable experts concurrently (one message, multiple Agent calls). Models are tiered per hat: the architect (whole-system reasoning across package boundaries) runs `fable`, other deep-reasoning hats run `opus`, mechanical checklist hats run `sonnet`; never let a subagent silently inherit the session model. Every expert is read-only: it reads the full changed files (not just hunks) plus whatever context it needs, and returns structured findings only; it fixes nothing. Each expert prompt contains: the changed-file list, its single hat description plus the sections it owns from `.github/skills/code-review/SKILL.md`, and the required output shape: `{file, line, severity, claim, evidence, failure_scenario}` per finding, where `severity` is `'blocking' | 'minor'`.
+Launch ALL applicable experts concurrently (one message, multiple Agent calls). Models are tiered per hat: the architect and other deep-reasoning hats run `opus`, mechanical checklist hats run `sonnet`; never let a subagent silently inherit the session model. Every expert is read-only: it reads the full changed files (not just hunks) plus whatever context it needs, and returns structured findings only; it fixes nothing. Each expert prompt contains: the changed-file list, its single hat description plus the sections it owns from `.github/skills/code-review/SKILL.md`, and the required output shape: `{file, line, severity, claim, evidence, failure_scenario}` per finding, where `severity` is `'blocking' | 'minor'`.
 
-| Hat              | Model  | Mission                                                                                                                                                             |
-| ---------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| bug-hunter       | opus   | Correctness only: logic errors, edge cases, races, broken invariants. Every finding needs a concrete failure scenario (inputs/state leading to wrong output).       |
-| style-enforcer   | sonnet | The "Code laws" and "SolidJS" sections of the shared skill, nothing else. Every violation is blocking.                                                              |
-| test-engineer    | sonnet | The shared skill's "Testing" section plus coverage: does the diff change behavior that no test exercises?                                                           |
-| architect        | fable  | The shared skill's "Architecture", "Whiteboard landmine", "Widget bundle" and "TanStack Router" sections plus package-boundary and dependency-direction violations. |
-| security-auditor | opus   | The shared skill's "Boundaries and security" section: gate conservatism, localhost binding, secrets, zod on untrusted input, injection surfaces.                    |
-| simplifier       | sonnet | Fallow findings (INTRODUCED dead code, unused exports/deps, duplication, complexity, circular deps) plus needless abstraction the diff adds.                        |
+| Hat              | Model  | Mission                                                                                                                                                                              |
+| ---------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| bug-hunter       | opus   | Correctness only: logic errors, edge cases, races, broken invariants. Every finding needs a concrete failure scenario (inputs/state leading to wrong output).                        |
+| style-enforcer   | sonnet | The "Code laws", "SolidJS", "React" and "Styling" sections of the shared skill, nothing else. Every violation is blocking.                                                           |
+| test-engineer    | sonnet | The shared skill's "Testing" section plus coverage: does the diff change behavior that no test exercises?                                                                            |
+| architect        | opus   | The shared skill's "Architecture", "Package shape", "Whiteboard landmine", "Widget bundle" and "TanStack Router" sections plus package-boundary and dependency-direction violations. |
+| security-auditor | opus   | The shared skill's "Boundaries and security" section: gate conservatism, localhost binding, secrets, zod on untrusted input, injection surfaces.                                     |
+| simplifier       | sonnet | Fallow findings (INTRODUCED dead code, unused exports/deps, duplication, complexity, circular deps) plus needless abstraction the diff adds.                                         |
 
 Skip a hat only when it plainly cannot apply (e.g. no security surface touched). When the harness exposes specialized agent types (`code-reviewer`, `security-auditor`, `test-engineer`), map hats onto them; otherwise use general-purpose agents with the hat prompt.
 
@@ -99,8 +99,8 @@ Dedupe confirmed findings by file+line, rank blocking first, and report each wit
 
 The review laws are NOT restated here. They live in one shared source:
 `.github/skills/code-review/SKILL.md`, which the GitHub Copilot reviewer reads too. Read that file
-before Step 1 and paste the sections a hat owns straight into that hat's prompt: "Code laws" and
-"SolidJS" for the style-enforcer, "Testing" for the test-engineer, "Architecture", "Whiteboard
+before Step 1 and paste the sections a hat owns straight into that hat's prompt: "Code laws",
+"SolidJS", "React" and "Styling" for the style-enforcer, "Testing" for the test-engineer, "Architecture", "Package shape", "Whiteboard
 landmine", "Widget bundle" and "TanStack Router" for the architect, "Boundaries and security" for
 the security-auditor, "Fallow" for the simplifier, "Tone" and "Process" for every hat. A second copy
 of a rule drifts from the first, so a reviewer law that is missing gets ADDED to the shared file,
@@ -108,13 +108,13 @@ never added here.
 
 ## Common reviewer mistakes
 
-| Mistake                                          | Reality                                                                                                          |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| "This complex function needs a comment"          | No. It needs a better name or decomposition; lint deletes the comment anyway.                                    |
-| "Cached `pnpm test` was green, ship it"          | Turbo can replay stale greens. Force-run changed packages.                                                       |
-| "This export is unused, delete it"               | Trace it first; public package exports are API.                                                                  |
-| "Mock the harness/CLI for this test"             | Testkits share real plumbing; mocks of internals are rejected.                                                   |
-| "Keep the old signature for safety"              | v0. Break it, update call sites.                                                                                 |
-| "Example app is the natural place for this test" | Never. Owning package or e2e consumer app.                                                                       |
-| "One careful read-through is enough"             | Only for trivial mechanical diffs. Otherwise run the fan-out; a solo pass has one blind spot per hat it skipped. |
-| "The finding sounds right, report it"            | Unverified findings don't ship. Skeptics first.                                                                  |
+| Mistake                                          | Reality                                                                                                           |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| "This complex function needs a comment"          | No. It needs a better name or decomposition; lint deletes the comment anyway.                                     |
+| "The tests passed, ship it"                      | Tests passing is a gate, not acceptance. Read the full changed test files top to bottom against the Testing laws. |
+| "This export is unused, delete it"               | Trace it first; public package exports are API.                                                                   |
+| "Mock the harness/CLI for this test"             | Testkits share real plumbing; mocks of internals are rejected.                                                    |
+| "Keep the old signature for safety"              | v0. Break it, update call sites.                                                                                  |
+| "Example app is the natural place for this test" | Never. Owning package or e2e consumer app.                                                                        |
+| "One careful read-through is enough"             | Only for trivial mechanical diffs. Otherwise run the fan-out; a solo pass has one blind spot per hat it skipped.  |
+| "The finding sounds right, report it"            | Unverified findings don't ship. Skeptics first.                                                                   |

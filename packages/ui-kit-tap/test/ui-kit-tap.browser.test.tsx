@@ -52,12 +52,12 @@ describe('external value', () => {
 
   const undoChord = navigator.platform.includes('Mac') ? '{Meta>}z{/Meta}' : '{Control>}z{/Control}'
 
-  async function placeCaret(offset: number): Promise<void> {
+  async function placeCaret(text: string, offset: number): Promise<void> {
     await userEvent.click(editable())
     await expect.element(editable()).toHaveFocus()
-    await userEvent.keyboard('{Home}')
-    await expect.element(caret(0, 0)).toBeInTheDocument()
-    await userEvent.keyboard(`{ArrowRight>${offset}}`)
+    await userEvent.keyboard('{End}')
+    await expect.element(caret(text.length, text.length)).toBeInTheDocument()
+    await userEvent.keyboard(`{ArrowLeft>${text.length - offset}}`)
     await expect.element(caret(offset, offset)).toBeInTheDocument()
   }
 
@@ -74,7 +74,7 @@ describe('external value', () => {
   it('keeps the caret in place when an external write changes text after it', async () => {
     const setValue = mount('hello world')
     await expect.element(editable()).toHaveTextContent('hello world')
-    await placeCaret(5)
+    await placeCaret('hello world', 5)
 
     setValue('hello world!')
 
@@ -88,7 +88,7 @@ describe('external value', () => {
   it('maps the caret through an external write that changes text before it', async () => {
     const setValue = mount('hello world')
     await expect.element(editable()).toHaveTextContent('hello world')
-    await placeCaret(5)
+    await placeCaret('hello world', 5)
 
     setValue('Xhello world')
 
