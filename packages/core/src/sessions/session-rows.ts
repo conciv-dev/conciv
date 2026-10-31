@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {and, desc, eq, inArray, isNull} from 'drizzle-orm'
+import {and, desc, eq, inArray, isNull, sql} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
 import type {
   HarnessSessionId,
@@ -15,7 +15,7 @@ import {
   SessionRecordSchema,
 } from '@conciv/protocol/chat-types'
 import type {HarnessSessionMeta} from '@conciv/protocol/harness-types'
-import {sessions, type ConcivDb} from '@conciv/db'
+import {chatThreads, sessions, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {logError} from '../lib/debug.js'
 
@@ -238,6 +238,8 @@ export type SessionListInput = {
   includeHidden: boolean
 }
 
+type CountedListInput = SessionListInput & {storedCounts: ReadonlyMap<string, number>}
+
 function nativeRefOf(row: SessionRecord): NativeSessionRef | null {
   if (!row.harnessSessionId) return null
   return {harnessKind: row.harnessKind, cwd: row.cwd, nativeId: row.harnessSessionId}
@@ -245,18 +247,18 @@ function nativeRefOf(row: SessionRecord): NativeSessionRef | null {
 
 type RowFacts = {title: string; updatedAt: number; messageCount: number}
 
-function rowFacts(row: SessionRecord, native: HarnessSessionMeta | undefined): RowFacts {
-  if (!native) return {title: row.title ?? 'New session', updatedAt: row.updatedAt, messageCount: 0}
+function rowFacts(row: SessionRecord, native: HarnessSessionMeta | undefined, stored: number | undefined): RowFacts {
+  if (!native) return {title: row.title ?? 'New session', updatedAt: row.updatedAt, messageCount: stored ?? 0}
   return {
     title: row.title ?? native.derivedTitle,
     updatedAt: native.updatedAt,
-    messageCount: native.messageCount,
+    messageCount: stored ?? native.messageCount,
   }
 }
 
-function rowMeta(row: SessionRecord, native: HarnessSessionMeta | undefined, input: SessionListInput): SessionMeta {
+function rowMeta(row: SessionRecord, native: HarnessSessionMeta | undefined, input: CountedListInput): SessionMeta {
   return {
-    ...rowFacts(row, native),
+    ...rowFacts(row, native, input.storedCounts.get(row.id)),
     id: row.id,
     running: input.running.has(row.id),
     origin: row.origin === 'external' ? 'external' : 'conciv',
@@ -267,7 +269,7 @@ function rowMeta(row: SessionRecord, native: HarnessSessionMeta | undefined, inp
   }
 }
 
-async function materializeNative(native: HarnessSessionMeta, input: SessionListInput): Promise<SessionMeta> {
+async function materializeNative(native: HarnessSessionMeta, input: CountedListInput): Promise<SessionMeta> {
   const scope: RowScope = {db: input.db, harnessKind: input.harnessKind, cwd: input.cwd}
   const {sessionId} = await openNativeRow(scope, {
     harnessKind: input.harnessKind,
@@ -292,12 +294,16 @@ export async function listSessionMetas(input: SessionListInput): Promise<Session
     .filter((row) => sameCwd(row.cwd, input.cwd))
     .filter((row) => input.includeHidden || row.deletedAt === null)
   const nativeById = new Map(input.nativeList.map((native) => [native.id, native]))
+  const stored = await input.db
+    .select({threadId: chatThreads.threadId, count: sql<number>`json_array_length(${chatThreads.messagesJson})`})
+    .from(chatThreads)
+  const counted = {...input, storedCounts: new Map(stored.map((thread) => [thread.threadId, thread.count]))}
   const claimed = new Set(rows.flatMap((row) => (row.harnessSessionId ? [row.harnessSessionId] : [])))
   const ours = rows.map((row) =>
-    rowMeta(row, row.harnessSessionId ? nativeById.get(row.harnessSessionId) : undefined, input),
+    rowMeta(row, row.harnessSessionId ? nativeById.get(row.harnessSessionId) : undefined, counted),
   )
   const unmaterialized = await Promise.all(
-    input.nativeList.filter((native) => !claimed.has(native.id)).map((native) => materializeNative(native, input)),
+    input.nativeList.filter((native) => !claimed.has(native.id)).map((native) => materializeNative(native, counted)),
   )
   return [...ours, ...unmaterialized].toSorted((a, b) => b.updatedAt - a.updatedAt)
 }

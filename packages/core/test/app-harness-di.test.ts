@@ -99,7 +99,7 @@ describe('chat plane', () => {
   describe('code mode capabilities', () => {
     it('a tool description folds in its hint', () => {
       const [capability] = registryCapabilities([sandboxTool('Prefer small inputs')], async () => null)
-      expect(capability?.description).toBe('Do the unit thing. Prefer small inputs')
+      expect(capability?.description).toBe('Do the unit thing. Prefer small inputs.\n\nReturns JSON matching: {}')
     })
 
     it('no capabilities means no code-mode tool', async () => {

@@ -933,6 +933,13 @@ describe('chat', () => {
       await expect(call()).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
     })
 
+    it('a session option counts its messages right after a turn', async () => {
+      const sessionId = await newSession()
+      await finished(sessionId, 'count me')
+      const row = (await chatKit().rpc.sessions.list(undefined)).find((meta) => meta.id === sessionId)
+      expect(row?.messageCount).toBe(2)
+    })
+
     it('a browser page on a foreign origin never reaches the tool', async () => {
       const response = await fetch(`${chatKit().base}/rpc/registry/call`, {
         method: 'POST',

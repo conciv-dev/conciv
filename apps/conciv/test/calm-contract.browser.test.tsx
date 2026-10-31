@@ -129,10 +129,10 @@ test('an approval pause stays calm with the ask in the strip, and its retry keep
   await expect.element(approvalStrip().getByRole('group', {name: 'Permission request'})).toBeVisible()
   await expect.element(sendButton()).toBeVisible()
   const watch = watchCalm()
+  await watch.checkpoint({rebaseline: true})
   await watch.checkpoint()
   await page.screenshot({path: `${SHOTS}/approval-paused.png`})
-  expect(watch.removed()).toEqual([])
-  expect(watch.drifted()).toEqual([])
+  expectCalm(watch)
   const rows = [...document.querySelectorAll('[data-conciv-msg]')]
 
   await coreControl.scriptTurn({toolCalls: [], text: 'Approved and finished.'})
