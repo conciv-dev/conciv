@@ -91,6 +91,13 @@ function stoppedRun(current: RunClockSource | null): RunClockSource | null {
   }
 }
 
+function withRenderedIds(rendered: readonly ChatMessage[], stored: readonly ChatMessage[]): ChatMessage[] {
+  return stored.map((message, index) => {
+    const shown = rendered[index]
+    return shown?.role === message.role ? {...message, id: shown.id} : message
+  })
+}
+
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
 }
@@ -130,7 +137,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   })
   const refresh = async (): Promise<void> => {
     const hydration = await connection.refresh()
-    chat.setMessages(hydration.messages)
+    chat.setMessages(withRenderedIds(chat.messages(), hydration.messages))
   }
   const chat = useChat({
     threadId: options.sessionId,
