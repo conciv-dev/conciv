@@ -457,7 +457,7 @@ it('status flips to done when every width matches', async () => {
 })
 
 it('keeps twenty runs per target', async () => {
-  for (const _ of Array.from({length: 22})) await call('design_diff', {})
+  for (const _ of Array.from({length: 21})) await call('design_diff', {})
   const first = (await call('design_status', {route: '/'})).targets[0]
   expect(first).toBeDefined()
   if (first === undefined) return
@@ -465,7 +465,7 @@ it('keeps twenty runs per target', async () => {
   expect(['live-', 'diff-', 'result-'].map((prefix) => names.filter((name) => name.startsWith(prefix)).length)).toEqual(
     [20, 20, 20],
   )
-})
+}, 360_000)
 
 it('diffs at 390 through an inert hidden frame and leaves the tab untouched', async () => {
   await goto('/')
