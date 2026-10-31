@@ -619,10 +619,7 @@ describe('native page vite boot', () => {
       if (slowPage === undefined || url === undefined) throw new Error('dev server did not start')
       await slowPage.route(/rrweb-snapshot/, () => new Promise<void>(() => {}))
       await slowPage.goto(url, {waitUntil: 'domcontentloaded'})
-      await slowPage
-        .getByRole('dialog', {name: 'conciv chat agent'})
-        .getByRole('textbox', {name: 'Message the conciv agent'})
-        .waitFor({timeout: 45_000})
+      await slowPage.getByRole('button', {name: /conciv chat$/}).waitFor({timeout: 45_000})
       const outcome = await slowPage.evaluate(() =>
         Promise.race([
           Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({name: 'page_click', input: {selector: '#counter'}}),
