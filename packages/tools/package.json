@@ -22,23 +22,28 @@
   "exports": {
     ".": {
       "types": "./dist/tools.d.ts",
+      "conciv-source": "./src/tools.ts",
       "import": "./dist/tools.js"
     },
     "./defs": {
       "types": "./dist/defs.d.ts",
+      "conciv-source": "./src/defs.ts",
       "import": "./dist/defs.js"
     },
     "./builtins": {
       "types": "./dist/builtins.d.ts",
+      "conciv-source": "./src/builtins.ts",
       "import": "./dist/builtins.js"
     },
     "./cards": {
       "browser": {
         "types": "./dist/cards.d.ts",
+        "conciv-source": "./src/cards.tsx",
         "default": "./dist/cards.js"
       },
       "import": {
         "types": "./dist/cards.d.ts",
+        "conciv-source": "./src/cards.tsx",
         "default": "./dist/cards.js"
       }
     },

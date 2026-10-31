@@ -24,6 +24,7 @@
   "exports": {
     ".": {
       "types": "./dist/mount.d.ts",
+      "conciv-source": "./src/mount.ts",
       "import": "./dist/mount.js",
       "default": "./dist/mount.js"
     }

@@ -21,10 +21,12 @@
   "exports": {
     ".": {
       "types": "./dist/grab.d.ts",
+      "conciv-source": "./src/grab.ts",
       "import": "./dist/grab.js"
     },
     "./grab-attachment": {
       "types": "./dist/grab-attachment.d.ts",
+      "conciv-source": "./src/grab-attachment.ts",
       "import": "./dist/grab-attachment.js"
     }
   },

@@ -2,9 +2,7 @@ import {existsSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {addSourceToJsx} from './inject-source.js'
 import {compileExtensionSolid, isExtensionModule} from './compile-extension.js'
-import {isConcivSrcTsx} from './conciv-src.js'
-
-export {concivSrcEntry} from './conciv-src.js'
+import {isConcivSrcTsx} from './conciv-source-tsx.js'
 import {splitExtension} from './split-extension.js'
 import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_ROUTE, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
 

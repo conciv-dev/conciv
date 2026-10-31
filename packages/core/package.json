@@ -45,10 +45,12 @@
     "./cards": {
       "browser": {
         "types": "./dist/cards.d.ts",
+        "conciv-source": "./src/cards.tsx",
         "default": "./dist/cards.js"
       },
       "import": {
         "types": "./dist/cards.d.ts",
+        "conciv-source": "./src/cards.tsx",
         "default": "./dist/cards.js"
       }
     },

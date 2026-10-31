@@ -13,6 +13,7 @@
   "exports": {
     "./client": {
       "types": "./dist/client.d.ts",
+      "conciv-source": "./src/client.tsx",
       "import": "./dist/client.js"
     },
     "./package.json": "./package.json"

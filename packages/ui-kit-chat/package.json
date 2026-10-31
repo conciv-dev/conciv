@@ -26,19 +26,23 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "conciv-source": "./src/index.tsx",
       "import": "./dist/index.js"
     },
     "./tools": {
       "types": "./dist/tools.d.ts",
+      "conciv-source": "./src/tools.tsx",
       "import": "./dist/tools.js"
     },
     "./theme/tokens.css": "./src/theme/tokens.css",
     "./theme/fonts": {
       "types": "./dist/theme/fonts.d.ts",
+      "conciv-source": "./src/theme/fonts.ts",
       "import": "./dist/theme/fonts.js"
     },
     "./theme/code-theme": {
       "types": "./dist/theme/code-theme.d.ts",
+      "conciv-source": "./src/theme/code-theme.ts",
       "import": "./dist/theme/code-theme.js"
     }
   },

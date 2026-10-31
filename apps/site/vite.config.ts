@@ -1,7 +1,7 @@
 import react from '@vitejs/plugin-react'
 import {tanstackStart} from '@tanstack/react-start/plugin/vite'
 import {cloudflare} from '@cloudflare/vite-plugin'
-import {defineConfig, type Plugin} from 'vite'
+import {defaultClientConditions, defineConfig, type Plugin} from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import mdx from 'fumadocs-mdx/vite'
 import conciv from '@conciv/it/plugin/vite'
@@ -22,7 +22,7 @@ function dropOnnxRuntimeWasmFromServerBundle(): Plugin {
   }
 }
 
-export default defineConfig({
+export default defineConfig(({command}) => ({
   server: {
     port: 3001,
   },
@@ -41,6 +41,13 @@ export default defineConfig({
     react(),
     conciv({widget: {quickTerminal: {hotkey: ['Alt+k']}}}),
   ],
+  environments: {
+    client: {
+      resolve: {
+        conditions: command === 'serve' ? [...defaultClientConditions, 'conciv-source'] : [...defaultClientConditions],
+      },
+    },
+  },
   ssr: {
     noExternal: ['gsap', '@gsap/react'],
   },
@@ -51,4 +58,4 @@ export default defineConfig({
       ...brandAssetsAlias,
     },
   },
-})
+}))

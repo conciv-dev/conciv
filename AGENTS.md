@@ -55,12 +55,12 @@ README.md; this file is the non-obvious operational rules.
   staged files. `pnpm install` auto-activates the hook via the `prepare` script; no per-clone step.
   Whole-project gates (typecheck/build/test) are not in hooks; run them manually.
 - Dev loop (`pnpm dev`): browser packages (ui-kits, solid libs, client/grab/page/storage-history)
-  hot-serve from source in vite hosts: edit and reload, no rebuild. Mechanism: the conciv plugin's
-  `resolveId` maps a workspace-resolved `@conciv/*` dist entry to its `src/` sibling
-  (`concivSrcEntry` in extension-compiler) and solid-compiles the TSX (`isConcivSrcTsx`); manifests
-  stay plain dist exports, so tsc, node, and non-vite bundlers (Turbopack in the nextjs example)
-  resolve dist. `@conciv/extension` (shared singleton) and node-side packages (core, harness,
-  tools, plugin) always resolve dist: rebuild embed for widget-shell edits, restart the dev server
+  hot-serve from source in vite hosts that opt in: edit and reload, no rebuild. Mechanism: those
+  packages carry a `conciv-source` export condition pointing at `src/`, and a host that wants source
+  appends it to `resolve.conditions` (`apps/conciv`, `apps/site`); the conciv plugin solid-compiles
+  the `@conciv/*` source TSX it then sees. Every other resolver (tsc, node, consumer apps, the IT
+  hosts, non-vite bundlers) ignores the unknown condition and gets dist. `@conciv/extension` (shared
+  singleton) and node-side packages (core, harness, plugin) always resolve dist: rebuild embed for widget-shell edits, restart the dev server
   for server-side edits. NEW UnoCSS utility classes added in ui-kit src need an embed rebuild to
   appear (css is generated at embed build).
 - Vite 8 auto-enables `server.forwardConsole` when it detects an agent env (`AI_AGENT` checked first,

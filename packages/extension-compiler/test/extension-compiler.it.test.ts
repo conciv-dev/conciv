@@ -8,7 +8,8 @@ import {
 } from '../src/extensions.js'
 import {isClientEntry, transformConcivModule, concivSolidConfig} from '../src/vite-plumbing.js'
 import {fileURLToPath} from 'node:url'
-import {concivSrcEntry, isConcivSrcTsx} from '../src/conciv-src.js'
+import {isConcivSrcTsx} from '../src/conciv-source-tsx.js'
+import {createServer, defaultClientConditions} from 'vite'
 import {dedupeExtensions} from '../src/dedupe-extensions.js'
 import {isExtension} from '../src/extension-guard.js'
 import {dirname, join} from 'node:path'
@@ -102,54 +103,38 @@ describe('conciv src', () => {
     })
   })
 
-  describe('concivSrcEntry', () => {
-    it('maps a dist entry to its tsx source sibling', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/index.js'))).toBe(fixture('scoped/src/index.tsx'))
+  describe('the conciv-source export condition', () => {
+    const resolveKit = async (conditions: string[]) => {
+      const server = await createServer({
+        root: fileURLToPath(new URL('..', import.meta.url)),
+        configFile: false,
+        logLevel: 'silent',
+        server: {middlewareMode: true, ws: false},
+        optimizeDeps: {noDiscovery: true},
+        resolve: {conditions},
+      })
+      const resolved = await server.environments.client.pluginContainer.resolveId('@conciv/ui-kit-chat')
+      await server.close()
+      return resolved?.id
+    }
+
+    it('resolves a workspace package to its source when the host sets conciv-source', async () => {
+      const id = await resolveKit([...defaultClientConditions, 'conciv-source'])
+      expect(id).toBe(fileURLToPath(new URL('../../ui-kit-chat/src/index.tsx', import.meta.url)))
     })
 
-    it('maps a dist entry to its ts source sibling', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/tokens.js'))).toBe(fixture('scoped/src/tokens.ts'))
+    it('resolves the same package to dist when the host leaves the condition out', async () => {
+      const id = await resolveKit([...defaultClientConditions])
+      expect(id).toBe(fileURLToPath(new URL('../../ui-kit-chat/dist/index.js', import.meta.url)))
     })
 
-    it('maps a jsx dist entry to its ts source sibling', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/solid/index.jsx'))).toBe(fixture('scoped/src/solid/index.ts'))
-    })
-
-    it('keeps a react-jsx subtree on dist even though a ts source sibling exists, regardless of folder name', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/wrapper/index.js'))).toBeNull()
-    })
-
-    it('keeps a react-jsx subtree on dist even though a tsx source sibling exists, regardless of folder name', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/wrapper/mascot-root.js'))).toBeNull()
-    })
-
-    it('remaps the package root to src even when a sibling subtree carries its own react-jsx tsconfig', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/index.js'))).toBe(fixture('scoped/src/index.tsx'))
-    })
-
-    it('keeps a dist entry on dist when its own tsconfig sets an explicit non-solid jsxImportSource', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/explicit-react/index.js'))).toBeNull()
-    })
-
-    it('remaps a dist entry with no tsconfig of its own and no jsx anywhere in the chain (ts-only package)', () => {
-      expect(concivSrcEntry(fixture('plain/dist/index.js'))).toBe(fixture('plain/src/index.ts'))
-    })
-
-    it('remaps a dist entry whose own tsconfig is empty and inherits jsxImportSource solid-js via extends', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/inherited/index.js'))).toBe(fixture('scoped/src/inherited/index.tsx'))
-    })
-
-    it('returns null when no source sibling exists', () => {
-      expect(concivSrcEntry(fixture('scoped/dist/nope.js'))).toBeNull()
-    })
-
-    it('returns null for paths outside dist', () => {
-      expect(concivSrcEntry(fixture('scoped/src/index.tsx'))).toBeNull()
-      expect(concivSrcEntry(fixture('scoped/package.json'))).toBeNull()
-    })
-
-    it('returns null under node_modules', () => {
-      expect(concivSrcEntry('/repo/node_modules/@conciv/x/dist/index.js')).toBeNull()
+    it('solid-compiles the source the condition resolves to', async () => {
+      const id = await resolveKit([...defaultClientConditions, 'conciv-source'])
+      const result = await transformConcivModule(`export const Button = () => <button>ok</button>`, id ?? '', false, {
+        root: '/repo',
+        deferToTsd: false,
+      })
+      expect(result?.code).toContain('_$template')
     })
   })
 

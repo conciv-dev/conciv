@@ -23,94 +23,117 @@
   "exports": {
     "./chat-types": {
       "types": "./dist/chat-types.d.ts",
+      "conciv-source": "./src/chat-types.ts",
       "import": "./dist/chat-types.js"
     },
     "./push-types": {
       "types": "./dist/push-types.d.ts",
+      "conciv-source": "./src/push-types.ts",
       "import": "./dist/push-types.js"
     },
     "./chat-busy": {
       "types": "./dist/chat-busy.d.ts",
+      "conciv-source": "./src/chat-busy.ts",
       "import": "./dist/chat-busy.js"
     },
     "./ui-types": {
       "types": "./dist/ui-types.d.ts",
+      "conciv-source": "./src/ui-types.ts",
       "import": "./dist/ui-types.js"
     },
     "./run-types": {
       "types": "./dist/run-types.d.ts",
+      "conciv-source": "./src/run-types.ts",
       "import": "./dist/run-types.js"
     },
     "./approval-types": {
       "types": "./dist/approval-types.d.ts",
+      "conciv-source": "./src/approval-types.ts",
       "import": "./dist/approval-types.js"
     },
     "./editor-types": {
       "types": "./dist/editor-types.d.ts",
+      "conciv-source": "./src/editor-types.ts",
       "import": "./dist/editor-types.js"
     },
     "./harness-types": {
       "types": "./dist/harness-types.d.ts",
+      "conciv-source": "./src/harness-types.ts",
       "import": "./dist/harness-types.js"
     },
     "./framework-types": {
       "types": "./dist/framework-types.d.ts",
+      "conciv-source": "./src/framework-types.ts",
       "import": "./dist/framework-types.js"
     },
     "./rpc-types": {
       "types": "./dist/rpc-types.d.ts",
+      "conciv-source": "./src/rpc-types.ts",
       "import": "./dist/rpc-types.js"
     },
     "./terminal-types": {
       "types": "./dist/terminal-types.d.ts",
+      "conciv-source": "./src/terminal-types.ts",
       "import": "./dist/terminal-types.js"
     },
     "./bundler-types": {
       "types": "./dist/bundler-types.d.ts",
+      "conciv-source": "./src/bundler-types.ts",
       "import": "./dist/bundler-types.js"
     },
     "./config-types": {
       "types": "./dist/config-types.d.ts",
+      "conciv-source": "./src/config-types.ts",
       "import": "./dist/config-types.js"
     },
     "./page-types": {
       "types": "./dist/page-types.d.ts",
+      "conciv-source": "./src/page-types.ts",
       "import": "./dist/page-types.js"
     },
     "./element-capture-sanitize": {
       "types": "./dist/element-capture-sanitize.d.ts",
+      "conciv-source": "./src/element-capture-sanitize.ts",
       "import": "./dist/element-capture-sanitize.js"
     },
     "./element-capture-types": {
       "types": "./dist/element-capture-types.d.ts",
+      "conciv-source": "./src/element-capture-types.ts",
       "import": "./dist/element-capture-types.js"
     },
     "./page-introspect-types": {
       "types": "./dist/page-introspect-types.d.ts",
+      "conciv-source": "./src/page-introspect-types.ts",
       "import": "./dist/page-introspect-types.js"
     },
     "./usage-types": {
       "types": "./dist/usage-types.d.ts",
+      "conciv-source": "./src/usage-types.ts",
       "import": "./dist/usage-types.js"
     },
     "./tool-icon-types": {
       "types": "./dist/tool-icon-types.d.ts",
+      "conciv-source": "./src/tool-icon-types.ts",
       "import": "./dist/tool-icon-types.js"
     },
     "./tool-view-types": {
       "types": "./dist/tool-view-types.d.ts",
+      "conciv-source": "./src/tool-view-types.ts",
       "import": "./dist/tool-view-types.js"
     },
     "./connect-ports": {
       "types": "./dist/connect-ports.d.ts",
+      "conciv-source": "./src/connect-ports.ts",
       "import": "./dist/connect-ports.js"
     },
     "./state-types": {
       "types": "./dist/state-types.d.ts",
+      "conciv-source": "./src/state-types.ts",
       "import": "./dist/state-types.js"
     },
     "./event-bus": {
       "types": "./dist/event-bus.d.ts",
+      "conciv-source": "./src/event-bus.ts",
       "import": "./dist/event-bus.js"
     }
   },
