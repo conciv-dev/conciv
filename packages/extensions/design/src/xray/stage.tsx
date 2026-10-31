@@ -411,7 +411,7 @@ export function Stage(props: StageProps): JSX.Element {
           ref={(element) => {
             held.padded = element
           }}
-          class="p-4 grid min-h-full w-full place-items-center"
+          class="p-4 grid min-h-full w-full items-start justify-items-center"
         >
           <div
             ref={(element) => {
