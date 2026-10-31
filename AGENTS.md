@@ -8,6 +8,7 @@ Before substantial work:
 - Skill guidance: if one local skill clearly matches the task, run `pnpm dlx @tanstack/intent@latest load <package>#<skill>` and follow the returned `SKILL.md`.
 - Monorepos: when working across packages, run the skill check from the workspace root and prefer the local skill for the package being changed.
 - Multiple matches: prefer the most specific local skill for the package or concern you are changing; load additional skills only when the task spans multiple packages or concerns.
+
 <!-- intent-skills:end -->
 
 # AGENTS.md
@@ -77,7 +78,7 @@ README.md; this file is the non-obvious operational rules.
 ## Code style
 
 - Functions, not classes. (Sole exception: `DelegatingTextAdapter` behind `makeTextAdapter`
-  in `packages/harness/src/_shared/text-adapter.ts`, which the library's typing forces.)
+  in `packages/ai/src/adapters.ts`, which the library's typing forces.)
 - No IIFEs unless explicitly required.
 - Zero code comments in TS/JS (only tool directives like `@ts-`/`eslint-` survive). The
   `conciv/no-comments` lint rule autofix-DELETES anything else, so don't write comments and let lint
@@ -179,10 +180,10 @@ README.md; this file is the non-obvious operational rules.
 
 - A harness is `chatConfig(deps)` returning a published `@tanstack/ai-*` text adapter (+ optional
   `modelOptions`/`prepareMessages`) plus sidecars (`models`, `history`, `connect`, `tty`, `commands`).
-  Turns run through `chat()` with the conciv sandbox + permission-gate middleware; never spawn or
+  Turns run through `chat()` with the conciv sandbox middleware; never spawn or
   decode a CLI yourself, and never special-case a CLI in core/widget.
 - `HarnessAdapter` is capability-typed (`packages/protocol/src/harness-types.ts`): `transcriptHistory:
-true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` required, enforced at compile
+  true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` required, enforced at compile
   time. Add a harness by satisfying the capability contract.
 - Harness workdirs are sandbox-virtual: the local-process sandbox root IS the cwd and adapters
   default to `/workspace`. Never pass a host-absolute cwd into an adapter config: it nests a junk
@@ -216,8 +217,9 @@ true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` requir
 ## Security & safety
 
 - The core dev server binds `127.0.0.1` only. Never commit or log credentials/tokens.
-- Risky Bash from the agent is gated (`packages/core/src/chat/gate.ts`): read-only commands
-  auto-allow, everything else asks. Keep that policy conservative when editing it.
+- CLI commands are governed by each CLI's native permission mode (Claude Code runs `permissionMode: 'auto'`,
+  set in `packages/harness/src/claude/chat.ts`). conciv keeps no command rules; its own `approval: 'ask'` tools
+  use deny-and-retry.
 
 ## Project status
 

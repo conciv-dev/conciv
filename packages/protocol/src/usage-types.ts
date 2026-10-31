@@ -1,5 +1,13 @@
 import {z} from 'zod'
-import type {TokenUsage} from '@tanstack/ai'
+import {fromSpecTokenUsage, type SpecTokenUsage, type TokenUsage as LibraryTokenUsage} from '@tanstack/ai'
+
+export type TokenUsage = LibraryTokenUsage
+
+export type ReportedUsage = TokenUsage | SpecTokenUsage[] | undefined
+
+export function toTokenUsage(usage: ReportedUsage): TokenUsage | undefined {
+  return Array.isArray(usage) ? fromSpecTokenUsage(usage) : usage
+}
 
 export const UsageSnapshotSchema = z.object({
   modelId: z.string().optional(),
@@ -15,28 +23,30 @@ export const UsageSnapshotSchema = z.object({
 })
 export type UsageSnapshot = z.infer<typeof UsageSnapshotSchema>
 
-type ConcivProviderUsage = {
-  modelId?: string
-  contextWindow?: number
-  totalCostUsd?: number
-  numTurns?: number
-}
+const ProviderUsageSchema = z
+  .object({
+    modelId: z.string().optional().catch(undefined),
+    contextWindow: z.number().optional().catch(undefined),
+    totalCostUsd: z.number().optional().catch(undefined),
+    numTurns: z.number().optional().catch(undefined),
+  })
+  .catch({})
 
-export function tokenUsageToSnapshot(u: TokenUsage): UsageSnapshot {
-  const p = (u.providerUsageDetails ?? {}) as ConcivProviderUsage
+export function tokenUsageToSnapshot(usage: TokenUsage): UsageSnapshot {
+  const provider = ProviderUsageSchema.parse(usage.providerUsageDetails ?? {})
   return {
-    modelId: p.modelId,
-    contextWindow: p.contextWindow,
-    inputTokens: u.promptTokens,
-    outputTokens: u.completionTokens,
-    cacheReadTokens: u.promptTokensDetails?.cachedTokens,
-    cacheWriteTokens: u.promptTokensDetails?.cacheWriteTokens,
-    reasoningTokens: u.completionTokensDetails?.reasoningTokens,
-    totalCostUsd: p.totalCostUsd,
-    numTurns: p.numTurns,
+    modelId: provider.modelId,
+    contextWindow: provider.contextWindow,
+    inputTokens: usage.promptTokens,
+    outputTokens: usage.completionTokens,
+    cacheReadTokens: usage.promptTokensDetails?.cachedTokens,
+    cacheWriteTokens: usage.promptTokensDetails?.cacheWriteTokens,
+    reasoningTokens: usage.completionTokensDetails?.reasoningTokens,
+    totalCostUsd: provider.totalCostUsd,
+    numTurns: provider.numTurns,
   }
 }
 
-export function contextUsedTokens(s: UsageSnapshot): number | undefined {
-  return s.contextTokens
+export function contextUsedTokens(snapshot: UsageSnapshot): number | undefined {
+  return snapshot.contextTokens
 }

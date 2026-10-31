@@ -1,5 +1,5 @@
 import type {PageOutcome} from '@conciv/protocol/page-types'
-import {type BootApp, createFakeHarness, createTestkit, type Kit, withAutoApproval} from '@conciv/harness-testkit'
+import {approvePending, type BootApp, createFakeHarness, createTestkit, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 import type {ResolvedConcivConfig} from '@conciv/core/config'
 import {afterEach, beforeEach, expect, vi} from 'vitest'
@@ -55,29 +55,10 @@ export async function bootCli(cleanups: (() => Promise<void>)[], extras: BootExt
   return kit
 }
 
-export async function approvedSession(
-  kit: Kit,
-  cleanups: (() => Promise<void>)[],
-): Promise<{sessionId: string; approved: () => string[]}> {
+export async function approvedSession(kit: Kit): Promise<{sessionId: string; approve: () => Promise<string[]>}> {
   const {sessionId} = await kit.rpc.sessions.create(undefined)
   process.env.CONCIV_SESSION_ID = sessionId
-  const approved: string[] = []
-  const release = {open: (): void => {}}
-  const pump = withAutoApproval(
-    kit.base,
-    sessionId,
-    () =>
-      new Promise<void>((resolve) => {
-        release.open = resolve
-      }),
-    (approvalId) => approved.push(approvalId),
-  )
-  cleanups.push(async () => {
-    delete process.env.CONCIV_SESSION_ID
-    release.open()
-    await pump.catch(() => {})
-  })
-  return {sessionId, approved: () => [...approved]}
+  return {sessionId, approve: () => approvePending(kit.base, sessionId)}
 }
 
 export type SeenQuery = Record<string, unknown>

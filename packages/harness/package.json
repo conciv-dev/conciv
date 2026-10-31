@@ -65,24 +65,16 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.25.0",
-    "@anthropic-ai/claude-agent-sdk": "^0.3.179",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.312",
+    "@conciv/ai": "workspace:^",
     "@conciv/harness-init": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@opencode-ai/sdk": "^1.17.4",
-    "@tanstack/ai": "catalog:",
-    "@tanstack/ai-sandbox": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@tanstack/ai-acp": "catalog:",
-    "@tanstack/ai-claude-code": "catalog:",
-    "@tanstack/ai-codex": "catalog:",
-    "@tanstack/ai-opencode": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "oxc-parser": "catalog:",
     "tsdown": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",

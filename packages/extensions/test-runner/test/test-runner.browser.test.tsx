@@ -170,7 +170,7 @@ describe('test card', () => {
     it('announces the run summary in a live region', async () => {
       mountCard(completedRun(), makeCtx([]))
 
-      await expect.element(page.getByRole('status')).toHaveTextContent('1 passed, 1 failed')
+      await expect.element(page.getByRole('status')).toMatchTextContent('1 passed, 1 failed')
     })
 
     it('expands a failure into its message, stack and the open/fix actions', async () => {
@@ -201,7 +201,7 @@ describe('test card', () => {
       await expect.element(page.getByText('broken')).toBeVisible()
       await expect.element(page.getByText('3 passed', {exact: true})).toBeVisible()
       await expect.element(page.getByText('1 failed', {exact: true})).toBeVisible()
-      await expect.element(page.getByRole('status')).toHaveTextContent('Test run finished: 3 passed, 1 failed')
+      await expect.element(page.getByRole('status')).toMatchTextContent('Test run finished: 3 passed, 1 failed')
     })
 
     it('shows finished rows and a ticking count while the run is still in flight', async () => {
@@ -209,13 +209,13 @@ describe('test card', () => {
 
       await expect.element(page.getByText('works')).toBeVisible()
       await expect.element(page.getByText('broken')).toBeVisible()
-      await expect.element(page.getByRole('status')).toHaveTextContent('Test run in progress: 3 passed, 1 failed')
+      await expect.element(page.getByRole('status')).toMatchTextContent('Test run in progress: 3 passed, 1 failed')
     })
 
     it('keeps two streamed tests that share a title as separate live rows', async () => {
       mountCard({result: undefined}, makeCtx([]))
 
-      await expect.element(page.getByRole('status')).toHaveTextContent('Test run in progress: 3 passed, 1 failed')
+      await expect.element(page.getByRole('status')).toMatchTextContent('Test run in progress: 3 passed, 1 failed')
       expect(page.getByText('shares a title').elements()).toHaveLength(2)
     })
 

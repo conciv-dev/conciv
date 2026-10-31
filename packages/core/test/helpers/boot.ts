@@ -2,7 +2,7 @@ import {chmodSync, mkdirSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {join} from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension} from '@conciv/extension'
 import {createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
@@ -23,7 +23,6 @@ export type BootOverrides = {
   openInEditor?: (file: string, line?: number) => void
   bridge?: BundlerBridge
   firstChunkTimeoutMs?: number
-  askTimeoutMs?: number
 }
 
 function fakeClaudeBinDir(stateRoot: string): string {
@@ -73,7 +72,6 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
     extensionConfig: overrides.extensionConfig,
     bridge: overrides.bridge,
     firstChunkTimeoutMs: overrides.firstChunkTimeoutMs,
-    askTimeoutMs: overrides.askTimeoutMs,
   })
 }
 

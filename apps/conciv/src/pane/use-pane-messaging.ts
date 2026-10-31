@@ -1,7 +1,7 @@
 import {useMutation, type CreateMutationResult} from '@tanstack/solid-query'
 import type {ChatSession} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
-import type {MultimodalContent} from '@tanstack/ai-client'
+import type {SendContent} from '@conciv/protocol/chat-message-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {AppData} from '../data/app-data.js'
 import type {EngineNotices} from '../shell/notice-context.js'
@@ -42,7 +42,7 @@ export type PaneMessaging = {
   compact: CreateMutationResult<unknown, Error, void, unknown>
   compacting: () => boolean
   visibleError: () => Error | undefined
-  onSend: (content: string | MultimodalContent) => Promise<void>
+  onSend: (content: string | SendContent) => Promise<void>
   onSendError: (failure: unknown) => void
 }
 
@@ -74,7 +74,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
     return error && error.message !== 'stopped' ? error : undefined
   }
 
-  const onSend = async (content: string | MultimodalContent): Promise<void> => {
+  const onSend = async (content: string | SendContent): Promise<void> => {
     const verdict = checkSend(content, {
       busy: compacting(),
       reachable: deps.reachability.online(),

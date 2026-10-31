@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import {primaryArgument, shortToolLabel} from '../src/tools/primitives/tool-row.js'
 
 function call(input: Record<string, unknown>): ToolCallPart {

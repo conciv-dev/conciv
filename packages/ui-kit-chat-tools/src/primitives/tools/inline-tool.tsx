@@ -1,4 +1,5 @@
-import type {ToolCallPart} from '@tanstack/ai-client'
+import {isPlainObject} from 'es-toolkit'
+import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 
 export function truncate(value: string, max = 80): string {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value
@@ -15,17 +16,19 @@ export function shortenPath(filepath: string, depth = 2): string {
   return parts.slice(-depth).join('/')
 }
 
-export function inlineValue(part: ToolCallPart, argKeys: readonly string[]): string {
+function parsedArguments(raw: string): unknown {
   try {
-    const args = JSON.parse(part.arguments || '{}')
-    for (const key of argKeys) {
-      const value = args[key]
-      if (typeof value === 'string' && value) return value
-    }
-    return ''
+    return JSON.parse(raw || '{}')
   } catch {
-    return ''
+    return null
   }
+}
+
+export function inlineValue(part: ToolCallPart, argKeys: readonly string[]): string {
+  const args = parsedArguments(part.arguments)
+  if (!isPlainObject(args)) return ''
+  const found = argKeys.map((key) => args[key]).find((value) => typeof value === 'string' && value !== '')
+  return typeof found === 'string' ? found : ''
 }
 
 export const SUMMARY_KEYS = ['file_path', 'path', 'pattern', 'command', 'query', 'glob', 'url'] as const

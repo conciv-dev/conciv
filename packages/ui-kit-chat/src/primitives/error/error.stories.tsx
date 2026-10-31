@@ -1,17 +1,18 @@
 import {onMount, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
+import {createChat, type Chat} from '@conciv/ai/client'
 import {ChatProvider} from '../../store/chat-context.js'
-import {storyConnection} from '../../store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Error} from './error.js'
 
 const meta: Meta = {title: 'ui-kit-chat/primitives/Error'}
 export default meta
 type Story = StoryObj
 
-function ErrorApp(props: {expose: (chat: UseChatReturn) => void}): JSX.Element {
-  const chat = useChat({
+function ErrorApp(props: {expose: (chat: Chat) => void}): JSX.Element {
+  const chat = createChat({
+    threadId: 'error',
     connection: storyConnection({shouldError: true, error: new globalThis.Error('Stream failed: 500')}),
   })
   onMount(() => props.expose(chat))
@@ -26,7 +27,7 @@ function ErrorApp(props: {expose: (chat: UseChatReturn) => void}): JSX.Element {
 
 export const ShowsRunError: Story = {
   render: () => {
-    let chat: UseChatReturn | undefined
+    let chat: Chat | undefined
     return (
       <div>
         <button type="button" onClick={() => void chat?.sendMessage('go')}>

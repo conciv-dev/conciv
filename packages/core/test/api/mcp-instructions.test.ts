@@ -12,13 +12,13 @@ const STALE = {
 
 describe('mcp server instructions', () => {
   it('says nothing about staleness while the engine matches the code on disk', () => {
-    const text = serverInstructions(['page'], FRESH)
+    const text = serverInstructions('page', FRESH)
 
     expect(text).not.toMatch(/outdated|restart the dev server/i)
   })
 
   it('warns that the loaded server code is behind the disk and names what changed', () => {
-    const text = serverInstructions(['page'], STALE)
+    const text = serverInstructions('page', STALE)
 
     expect(text).toMatch(/server code on disk is newer than the running engine/i)
     expect(text).toMatch(/restart the dev server/i)
@@ -26,9 +26,9 @@ describe('mcp server instructions', () => {
   })
 
   it('still describes the sandbox workflow while it is warning about staleness', () => {
-    const text = serverInstructions(['page'], STALE)
+    const text = serverInstructions('page', STALE)
 
     expect(text).toContain('execute_typescript')
-    expect(text).toContain('external_catalog')
+    expect(text).toContain('discover_tools')
   })
 })

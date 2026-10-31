@@ -209,7 +209,7 @@ already renders `in {sourceLabel(source)}` (`grab-reference.tsx:35-37,68-76`). F
 
 - When `source.filePath === ''` but `componentName` is set (the v1 native case, `03`), `sourceLabel`
   currently returns `componentName ? \`${componentName} at ${where}\``with`where === ''`→ renders
-"PaymentCardCell at ". **Fix`sourceLabel`** to handle empty `filePath`: show just `componentName`
+  "PaymentCardCell at ". **Fix`sourceLabel`** to handle empty `filePath`: show just `componentName`
   (e.g. "in PaymentCardCell") when there is no file. Small, self-contained edit with a unit test.
 - No other change: the image-preview arm already renders via Phase 0's `ScaledSnapshot` image branch.
 

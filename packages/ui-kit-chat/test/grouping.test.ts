@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {MessagePart, UIMessage} from '@tanstack/ai-client'
+import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {
   childCallsFor,
@@ -17,12 +17,12 @@ import {
 } from '../src/store/grouping.js'
 import {createPageSessionGrouper} from '../src/store/page-session.js'
 
-function modelOnlyText(content: string): MessagePart {
-  const part: MessagePart & {metadata?: unknown} = {type: 'text', content, metadata: {modelOnly: true}}
+function modelOnlyText(content: string): ChatPart {
+  const part: ChatPart & {metadata?: unknown} = {type: 'text', content, metadata: {modelOnly: true}}
   return part
 }
 
-function assistant(id: string, parts: MessagePart[]): UIMessage {
+function assistant(id: string, parts: ChatPart[]): ChatMessage {
   return {id, role: 'assistant', parts}
 }
 
@@ -34,7 +34,7 @@ function shape(nodes: readonly GroupNode[]): Shape[] {
   )
 }
 
-function group(parts: MessagePart[], grouper: Grouper = defaultGrouper, context: GroupByContext = {}): Shape[] {
+function group(parts: ChatPart[], grouper: Grouper = defaultGrouper, context: GroupByContext = {}): Shape[] {
   return shape(groupParts(parts, grouper, context))
 }
 
@@ -100,8 +100,8 @@ describe('default grouper', () => {
   it('gives unrenderable data parts no node at all', () => {
     expect(
       group([
-        {type: 'structured-output', status: 'complete', raw: '{}'},
-        {type: 'structured-output', status: 'complete', raw: '{}'},
+        {type: 'structured-output', status: 'complete', raw: '{}', data: {}},
+        {type: 'structured-output', status: 'complete', raw: '{}', data: {}},
         {type: 'text', content: 'done'},
       ]),
     ).toEqual([leaf(2)])
@@ -114,7 +114,7 @@ describe('default grouper', () => {
   it('creates no group at all for a run of only unrenderable parts', () => {
     expect(
       group([
-        {type: 'structured-output', status: 'complete', raw: '{}'},
+        {type: 'structured-output', status: 'complete', raw: '{}', data: {}},
         {type: 'thinking', content: '  '},
         {type: 'tool-result', toolCallId: 't1', content: 'ok', state: 'complete'},
       ]),
@@ -125,7 +125,7 @@ describe('default grouper', () => {
     const nodes = groupParts(
       [
         {type: 'thinking', content: 'plan'},
-        {type: 'structured-output', status: 'complete', raw: '{}'},
+        {type: 'structured-output', status: 'complete', raw: '{}', data: {}},
         {type: 'text', content: 'done'},
       ],
       defaultGrouper,
@@ -202,7 +202,7 @@ describe('page-session grouper', () => {
     ).toEqual([session(0), chain(1)])
   })
 
-  const codeCall = (id: string, name: string): MessagePart => ({
+  const codeCall = (id: string, name: string): ChatPart => ({
     type: 'tool-call',
     id,
     name,
@@ -210,7 +210,7 @@ describe('page-session grouper', () => {
     state: 'complete',
   })
 
-  const subAct = (id: string, parent: string, name = 'page_fill'): MessagePart => {
+  const subAct = (id: string, parent: string, name = 'page_fill'): ChatPart => {
     const part: ToolCallPartWithParent = {
       type: 'tool-call',
       id,
@@ -257,7 +257,7 @@ describe('page-session grouper', () => {
   })
 
   it('leaves a live code run where it was born and only folds it into the session once settled', () => {
-    const parts: MessagePart[] = [codeCall('p1', 'execute_typescript'), subAct('s1', 'p1')]
+    const parts: ChatPart[] = [codeCall('p1', 'execute_typescript'), subAct('s1', 'p1')]
 
     expect(group(parts, pageGrouper, {live: true})).toEqual([chain(0), session(1)])
     expect(group(parts, pageGrouper)).toEqual([session(0, 1)])
@@ -382,7 +382,7 @@ describe('page-session grouper', () => {
 })
 
 describe('sticky grouper', () => {
-  const livePart = (index: number): MessagePart =>
+  const livePart = (index: number): ChatPart =>
     index % 2 === 0
       ? {type: 'thinking', content: `step ${index}`}
       : {type: 'tool-call', id: `t${index}`, name: 'read', arguments: '{}', state: 'complete'}
@@ -406,15 +406,15 @@ describe('sticky grouper', () => {
   it('reclassifies from the first part whose identity changed', () => {
     const reused = createPageSessionGrouper(stickyConfig)
     const fresh = createPageSessionGrouper(stickyConfig)
-    const head: MessagePart = {
+    const head: ChatPart = {
       type: 'tool-call',
       id: 'p1',
       name: 'execute_typescript',
       arguments: '{}',
       state: 'complete',
     }
-    const act: MessagePart = {type: 'tool-call', id: 'f1', name: 'page_fill', arguments: '{}', state: 'complete'}
-    const replaced: MessagePart = {type: 'text', content: 'a fresh opening line'}
+    const act: ChatPart = {type: 'tool-call', id: 'f1', name: 'page_fill', arguments: '{}', state: 'complete'}
+    const replaced: ChatPart = {type: 'text', content: 'a fresh opening line'}
 
     reused([head], {live: true})
 
@@ -619,7 +619,7 @@ describe('pairResults', () => {
   })
 })
 
-function childPart(id: string, parent: string): MessagePart {
+function childPart(id: string, parent: string): ChatPart {
   const part: ToolCallPartWithParent = {
     type: 'tool-call',
     id,
@@ -646,7 +646,7 @@ describe('parentToolCallIdOf', () => {
 
 describe('childCallsFor', () => {
   it('collects tool-call parts whose parent matches, in order', () => {
-    const parts: MessagePart[] = [
+    const parts: ChatPart[] = [
       {type: 'tool-call', id: 'p1', name: 'execute_typescript', arguments: '{}', state: 'complete'},
       childPart('c1', 'p1'),
       childPart('c2', 'p1'),

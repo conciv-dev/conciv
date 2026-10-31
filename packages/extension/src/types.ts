@@ -1,12 +1,12 @@
 import type {Component, JSX} from 'solid-js'
 import type {z} from 'zod'
-import type {ContentPart} from '@tanstack/ai'
+import type {ContentPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {AnyRouter} from '@orpc/server'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import type {HarnessConnectContext, HarnessConnectPlan} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
-import type {HarnessSessionId, SessionId, UIMessage} from '@conciv/protocol/chat-types'
+import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
@@ -94,7 +94,7 @@ export type ServerHarness = {
   connectPlan?: (ctx: HarnessConnectContext) => HarnessConnectPlan
   release?: (sessionId: SessionId) => void
   transcriptExists?: (token: HarnessSessionId) => boolean
-  transcriptMessages?: (token: HarnessSessionId) => Promise<UIMessage[]>
+  transcriptMessages?: (token: HarnessSessionId) => Promise<ChatMessage[]>
 }
 
 export type ServerApi<Config> = {

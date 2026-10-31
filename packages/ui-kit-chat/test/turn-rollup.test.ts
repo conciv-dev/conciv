@@ -1,14 +1,14 @@
 import {describe, expect, it} from 'vitest'
 import {createRoot} from 'solid-js'
-import type {MessagePart} from '@tanstack/ai-client'
+import type {ChatPart} from '@conciv/protocol/chat-message-types'
 import type {Turn} from '../src/store/grouping.js'
 import {sessionTotals, summaryLine, turnRollup, type TurnRollup} from '../src/store/turn-rollup.js'
 
-function turn(key: string, parts: MessagePart[]): Turn {
+function turn(key: string, parts: ChatPart[]): Turn {
   return {key, role: 'assistant', parts, start: 0, end: 0}
 }
 
-function applyPatchCall(id: string, files: Array<{path: string; kind: 'Update' | 'Add' | 'Delete'}>): MessagePart {
+function applyPatchCall(id: string, files: Array<{path: string; kind: 'Update' | 'Add' | 'Delete'}>): ChatPart {
   const body = files
     .map((file) => `*** ${file.kind} File: ${file.path}\n@@\n+line one\n+line two\n-old line`)
     .join('\n')
@@ -21,11 +21,11 @@ function applyPatchCall(id: string, files: Array<{path: string; kind: 'Update' |
   }
 }
 
-function bashCall(id: string, state: 'complete' | 'input-streaming' = 'complete'): MessagePart {
+function bashCall(id: string, state: 'complete' | 'input-streaming' = 'complete'): ChatPart {
   return {type: 'tool-call', id, name: 'Bash', arguments: '{}', state}
 }
 
-function editCall(id: string, path: string, oldString: string, newString: string): MessagePart {
+function editCall(id: string, path: string, oldString: string, newString: string): ChatPart {
   return {
     type: 'tool-call',
     id,
@@ -35,7 +35,7 @@ function editCall(id: string, path: string, oldString: string, newString: string
   }
 }
 
-function multiEditCall(id: string, path: string, edits: Array<{old_string: string; new_string: string}>): MessagePart {
+function multiEditCall(id: string, path: string, edits: Array<{old_string: string; new_string: string}>): ChatPart {
   return {
     type: 'tool-call',
     id,
@@ -45,7 +45,7 @@ function multiEditCall(id: string, path: string, edits: Array<{old_string: strin
   }
 }
 
-function writeCall(id: string, path: string, content: string): MessagePart {
+function writeCall(id: string, path: string, content: string): ChatPart {
   return {
     type: 'tool-call',
     id,
@@ -55,7 +55,7 @@ function writeCall(id: string, path: string, content: string): MessagePart {
   }
 }
 
-function bashResult(callId: string, exitCode: number): MessagePart {
+function bashResult(callId: string, exitCode: number): ChatPart {
   return {
     type: 'tool-result',
     toolCallId: callId,

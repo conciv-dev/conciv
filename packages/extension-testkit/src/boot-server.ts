@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {start} from '@conciv/core/start'
 import type {AnyExtension} from '@conciv/extension'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 
 export type BootedServer = {
   apiBase: string

@@ -1,4 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
+import {makeRunTypescript} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
 
 const cleanups: (() => Promise<void>)[] = []
@@ -12,7 +13,10 @@ describe('conciv_ui asked through /api/mcp', () => {
     cleanups.push(() => kit.cleanup())
     const sessionId = await kit.session()
     const stream = await kit.events(sessionId)
-    const pending = kit.callTool('conciv_ui', {kind: 'confirm', question: 'Proceed?'}, sessionId)
+    const pending = makeRunTypescript(
+      kit.base,
+      sessionId,
+    )("return await external_conciv_ui({kind: 'confirm', question: 'Proceed?'})")
     const call = await stream.waitForToolCall('conciv_ui', {hangGuardMs: 15_000})
     await kit.rpc.chat.uiReply({sessionId, toolCallId: call.toolCallId, value: 'yes'})
     expect(JSON.stringify(await pending)).toContain('"answered":true')

@@ -1,10 +1,15 @@
+import {randomUUID} from 'node:crypto'
+import {mkdir, writeFile} from 'node:fs/promises'
+import {dirname, join} from 'node:path'
 import {z} from 'zod'
 import {defineExtension, imageResult, type AnyToolBuilder} from '@conciv/extension'
+import {CONCIV_STATE_DIR} from '@conciv/protocol/state-types'
 import {RawFrameSchema, type RawFrame, type SourceLoc} from '@conciv/protocol/page-types'
 import {locateDef, PAGE_EXTENSION_NAME, PAGE_TOOL_DEFS, PageScreenshotSchema, screenshotDef} from './shared/defs.js'
 import {grabAttachment} from './server/grab-attachment.js'
 
 export type PageServerContext = {
+  cwd: string
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
 }
 
@@ -23,9 +28,12 @@ const locateServer = locateDef.server(async (input, ctx: PageServerContext, _req
   return {...data, source: await ctx.symbolicate(frames.data)}
 })
 
-const screenshotServer = screenshotDef.server(async (input, _ctx: PageServerContext, _request, page) => {
+const screenshotServer = screenshotDef.server(async (input, ctx: PageServerContext, _request, page) => {
   const {image, width, height} = PageScreenshotSchema.parse(await page.call(screenshotDef.name, input))
-  return imageResult('image/webp', image, {width, height})
+  const path = join(CONCIV_STATE_DIR, 'tmp', 'screenshots', `${randomUUID()}.webp`)
+  await mkdir(dirname(join(ctx.cwd, path)), {recursive: true})
+  await writeFile(join(ctx.cwd, path), Buffer.from(image, 'base64'))
+  return imageResult('image/webp', image, {width, height, path})
 })
 
 const SERVER_STEPS: Record<string, AnyToolBuilder> = {
@@ -44,7 +52,7 @@ export const page = defineExtension({
   systemPrompt: PAGE_PROMPT,
   attachments: [grabAttachment],
 }).server((server) => ({
-  context: {symbolicate: server.symbolicate},
+  context: {cwd: server.cwd, symbolicate: server.symbolicate},
 }))
 
 export default page

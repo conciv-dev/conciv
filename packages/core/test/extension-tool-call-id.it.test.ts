@@ -1,11 +1,11 @@
 import {randomUUID} from 'node:crypto'
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {EventType} from '@tanstack/ai'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {createTestHarness} from '@conciv/harness-testkit'
 import {requireClaude} from './helpers/adapters.js'
 import {bootKit} from './helpers/boot.js'
+import {ChatEventType} from '@conciv/protocol/chat-event-types'
 
 const echoCallId = defineTool({
   name: 'acme_echo_call_id',
@@ -39,9 +39,9 @@ describe('an extension tool run from a chat turn knows which tool call it is ans
     const call = events.toolCalls('acme_echo_call_id').at(-1)
     if (call === undefined) throw new Error('the chat turn never carried the tool call')
     const answer = events.all.findLast(
-      (chunk) => chunk.type === EventType.TOOL_CALL_RESULT && chunk.toolCallId === call.toolCallId,
+      (chunk) => chunk.type === ChatEventType.TOOL_CALL_RESULT && chunk.toolCallId === call.toolCallId,
     )
-    if (answer === undefined || answer.type !== EventType.TOOL_CALL_RESULT) {
+    if (answer === undefined || answer.type !== ChatEventType.TOOL_CALL_RESULT || typeof answer.content !== 'string') {
       throw new Error('the chat turn never carried a result for the tool call')
     }
     expect(EchoResultSchema.parse(JSON.parse(answer.content)).toolCallId).toBe(call.toolCallId)

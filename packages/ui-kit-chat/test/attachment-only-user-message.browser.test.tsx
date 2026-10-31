@@ -2,25 +2,29 @@ import 'virtual:uno.css'
 import type {JSX} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat} from '@tanstack/ai-solid'
-import type {MultimodalContent} from '@tanstack/ai-client'
+import {createChat} from '@conciv/ai/client'
+import type {SendContent} from '@conciv/protocol/chat-message-types'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 
-const GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
+const GIF_BASE64 = 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
+const GIF = `data:image/gif;base64,${GIF_BASE64}`
 
 function imagePart() {
   return {type: 'image', source: {type: 'data', value: GIF, mimeType: 'image/gif'}} as const
 }
 
-function withText(): MultimodalContent {
+function withText(): SendContent {
   return {content: [{type: 'text', content: 'here it is'}, imagePart()]}
 }
 
-function ThreadHost(props: {content: () => MultimodalContent}): JSX.Element {
-  const chat = useChat({connection: storyConnection({chunks: [], chunkDelay: 2})})
+function ThreadHost(props: {content: () => SendContent}): JSX.Element {
+  const chat = createChat({
+    threadId: 'attachment-only-user-message',
+    connection: storyConnection({chunks: [], chunkDelay: 2}),
+  })
   return (
     <ChatProvider chat={chat}>
       <button type="button" onClick={() => void chat.sendMessage(props.content())}>
@@ -41,4 +45,19 @@ it('a user message that carries text still renders it', async () => {
   await page.getByRole('button', {name: 'send'}).click()
 
   await expect.element(page.getByText('here it is'), {timeout: 2000}).toBeVisible()
+})
+
+it('a sent image shows in the user turn', async () => {
+  const sentImage = (): SendContent => ({
+    content: [
+      {type: 'text', content: 'what color is this'},
+      {type: 'image', source: {type: 'data', value: GIF_BASE64, mimeType: 'image/gif'}},
+    ],
+  })
+  mountView(() => <ThreadHost content={sentImage} />)
+
+  await page.getByRole('button', {name: 'send'}).click()
+
+  await expect.element(page.getByText('what color is this'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.getByRole('img', {name: 'image-1'})).toBeVisible()
 })

@@ -37,7 +37,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@ast-grep/napi": "^0.45.0",
+    "@ast-grep/napi": "^0.51.0",
     "@clack/prompts": "catalog:",
     "@conciv/contract": "workspace:^",
     "@conciv/extension-page": "workspace:^",
@@ -47,7 +47,7 @@
     "@orpc/client": "catalog:",
     "citty": "catalog:",
     "diff": "^9.0.0",
-    "nypm": "^0.6.9",
+    "nypm": "^0.6.12",
     "picocolors": "^1.1.1",
     "zod": "catalog:"
   },

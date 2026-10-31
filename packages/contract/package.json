@@ -40,7 +40,6 @@
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
-    "@tanstack/ai": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

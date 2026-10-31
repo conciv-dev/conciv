@@ -1,5 +1,5 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
-import type {ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import {keyBy} from 'es-toolkit'
 import {coalesceTurns, type Turn} from '../../store/grouping.js'
 import {activeCallInParts} from '../../store/active-call.js'
@@ -23,7 +23,7 @@ export function useActivity(): ActivityState {
   return context
 }
 
-function resultsById(messages: ReadonlyArray<UIMessage>): Record<string, ToolResultPart> {
+function resultsById(messages: ReadonlyArray<ChatMessage>): Record<string, ToolResultPart> {
   const results = messages
     .flatMap((message) => message.parts)
     .filter((part): part is ToolResultPart => part.type === 'tool-result' && part.toolCallId.length > 0)
@@ -39,7 +39,7 @@ function lastRunningCall(
 }
 
 type ActivityRootProps = ParentProps<{
-  messages: UIMessage[]
+  messages: ChatMessage[]
   live?: boolean
   label?: ActivityLabeler
 }>

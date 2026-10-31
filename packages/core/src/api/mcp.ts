@@ -3,8 +3,8 @@ import {Hono} from 'hono'
 import {z} from 'zod'
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import {EventType, isContentPartArray, type ContentPart, type StreamChunk} from '@tanstack/ai'
-import type {ToolRequest} from '@conciv/extension'
+import {generateMessageId, isContentParts, type ContentPart} from '@conciv/protocol/chat-message-types'
+import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {EngineStaleness} from '@conciv/contract'
 import {HTTPException} from 'hono/http-exception'
 import {
@@ -17,12 +17,17 @@ import {
 } from '@conciv/protocol/chat-types'
 import type {SessionScope} from '../runtime/scope-types.js'
 import {logError} from '../lib/debug.js'
-import {cappedText, RESULT_CAP_CHARS, safeStringify, truncationEnvelope} from '../lib/result-cap.js'
+import {
+  cappedText,
+  cappedValue,
+  RESULT_CAP_CHARS,
+  safeStringify,
+  truncationEnvelope,
+  type CodeRunner,
+  type CodeTool,
+} from '@conciv/chat'
+import {imageBlocks, imagesIn, withoutImages} from '@conciv/ai/server'
 import {loopbackHostAllowlist} from '../lib/cors.js'
-import type {CodeCapability} from '../chat/capabilities.js'
-import type {PermissionGate} from '../chat/gate.js'
-import {makeCodeMode, type CodeMode} from '../chat/code-mode.js'
-import {CODE_MODE_TOOL_CALL_EVENT, codeModeEventPublisher} from '../chat/code-mode-parts.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema} from './execute-schemas.js'
 
 export function sessionIdFromHeaders(headers: Headers): SessionId | null {
@@ -49,19 +54,17 @@ function partToContent(part: ContentPart): TextContent | ImageContent {
   if (part.type === 'image') {
     return {type: 'image', data: part.source.value, mimeType: part.source.mimeType ?? 'application/octet-stream'}
   }
-  return {type: 'text', text: safeStringify(part, `content part of type "${part.type}"`)}
+  return {type: 'text', text: safeStringify(part)}
 }
+
+const DISCOVER_TOOL_NAME = 'discover_tools'
+
+const DiscoverInputSchema = z.object({toolNames: z.array(z.string())})
 
 const DECLARED_ERROR_PREFIX = /^([A-Z][A-Z0-9_]+): /
 
-function executeDescription(categories: string[]): string {
-  const sample = categories.length > 0 ? ` Capability categories include ${categories.join(', ')}.` : ''
-  return (
-    'Run TypeScript in a secure sandbox wired to this project. Every capability is an async external_* function, and `await external_catalog({search?, name?})` lists them or returns one full typed signature; discovery and calls happen in the same execution.' +
-    sample +
-    ' Return a value to pass results back; console.log output is captured.'
-  )
-}
+const EXECUTE_DESCRIPTION =
+  'Run TypeScript in a secure sandbox wired to this project. Every capability is an async external_* function; call discover_tools first for their typed signatures. Return a value to pass results back; console.log output is captured.'
 
 function stalenessNotice(staleness: EngineStaleness): string {
   if (!staleness.stale) return ''
@@ -70,31 +73,24 @@ function stalenessNotice(staleness: EngineStaleness): string {
 `
 }
 
-export function serverInstructions(categories: string[], staleness: EngineStaleness): string {
-  const sample = categories.length > 0 ? `Capability categories include ${categories.join(', ')}.\n` : ''
-  return `${stalenessNotice(staleness)}This server exposes one tool: ${EXECUTE_TOOL_NAME}. It runs TypeScript in a sandbox where every project capability is an async external_* function.
-${sample}
-Workflow: call \`await external_catalog({})\` (or \`external_catalog({search})\`) inside the sandbox to list capabilities with the exact function name each one answers to, \`await external_catalog({name})\` for a full typed signature, then call the function and return a value.
+export function serverInstructions(capabilities: string, staleness: EngineStaleness): string {
+  return `${stalenessNotice(staleness)}This server exposes ${EXECUTE_TOOL_NAME}, which runs TypeScript in a sandbox where every project capability is an async external_* function, and ${DISCOVER_TOOL_NAME}, which returns their full typed signatures.
+
+${capabilities}
 
 Rules of the sandbox:
-- Mutating capabilities may pause for user approval; a denial throws an Error exactly where your code called the function.
 - A capability's declared error code arrives as a "CODE: message" prefix on the thrown error's message (typed error objects do not survive the isolate boundary).
 - Each execution is isolated: no state, imports, network, or file system carry over between calls.
 - Oversized results are truncated to an envelope carrying the reason and a head sample; return less data instead of retrying.`
 }
 
-function declaredCodesOf(capabilities: CodeCapability[]): Set<string> {
-  return new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code)))
-}
-
-function decodeDeclaredCode(message: string, declaredCodes: Set<string>): string | undefined {
+function decodeDeclaredCode(message: string, declaredCodes: ReadonlySet<string>): string | undefined {
   const candidate = DECLARED_ERROR_PREFIX.exec(message)?.[1]
-  if (candidate === undefined) return undefined
-  if (!declaredCodes.has(candidate)) return undefined
+  if (candidate === undefined || !declaredCodes.has(candidate)) return undefined
   return candidate
 }
 
-function errorReply(result: z.infer<typeof ExecuteResultSchema>, declaredCodes: Set<string>): ExecuteReply {
+function errorReply(result: z.infer<typeof ExecuteResultSchema>, declaredCodes: ReadonlySet<string>): ExecuteReply {
   const message = result.error?.message ?? 'execution failed'
   const code = decodeDeclaredCode(message, declaredCodes)
   const payload = {
@@ -105,7 +101,7 @@ function errorReply(result: z.infer<typeof ExecuteResultSchema>, declaredCodes: 
     },
     ...(result.logs === undefined || result.logs.length === 0 ? {} : {logs: result.logs}),
   }
-  return {content: [{type: 'text', text: cappedText(safeStringify(payload, 'execution error'))}], isError: true}
+  return {content: [{type: 'text', text: cappedText(safeStringify(payload))}], isError: true}
 }
 
 function cappedParts(parts: (TextContent | ImageContent)[]): (TextContent | ImageContent)[] {
@@ -138,91 +134,75 @@ function cappedParts(parts: (TextContent | ImageContent)[]): (TextContent | Imag
 
 function logsPart(logs: string[]): TextContent[] {
   if (logs.length === 0) return []
-  return [{type: 'text', text: cappedText(safeStringify({logs}, 'execution logs'))}]
+  return [{type: 'text', text: cappedText(safeStringify({logs}))}]
 }
 
 function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply {
-  if (isContentPartArray(result.result)) {
+  if (isContentParts(result.result)) {
     return {content: cappedParts([...result.result.map(partToContent), ...logsPart(result.logs ?? [])])}
   }
-  const body = safeStringify({result: result.result ?? null, logs: result.logs ?? []}, 'execution result')
-  return {content: [{type: 'text', text: cappedText(body)}]}
+  const body = safeStringify({result: withoutImages(result.result ?? null), logs: result.logs ?? []})
+  return {content: [{type: 'text', text: cappedText(body)}, ...imageBlocks(imagesIn(result.result))]}
 }
 
-type PublishChunks = (chunks: StreamChunk[]) => void
+type PublishChunks = (chunks: ChatEvent[]) => void
 
-function executeStartChunks(executionId: string, typescriptCode: string): StreamChunk[] {
+function callStartChunks(callId: string, toolName: string, input: unknown): ChatEvent[] {
   return [
-    {
-      type: EventType.TOOL_CALL_START,
-      toolCallId: executionId,
-      toolCallName: EXECUTE_TOOL_NAME,
-      toolName: EXECUTE_TOOL_NAME,
-    },
-    {type: EventType.TOOL_CALL_ARGS, toolCallId: executionId, delta: JSON.stringify({typescriptCode})},
-    {type: EventType.TOOL_CALL_END, toolCallId: executionId},
+    {type: ChatEventType.TOOL_CALL_START, toolCallId: callId, toolCallName: toolName},
+    {type: ChatEventType.TOOL_CALL_ARGS, toolCallId: callId, delta: safeStringify(input)},
+    {type: ChatEventType.TOOL_CALL_END, toolCallId: callId},
   ]
 }
 
-function executeResultChunk(executionId: string, reply: ExecuteReply): StreamChunk {
+function executeResultChunk(executionId: string, reply: ExecuteReply): ChatEvent {
   const text = reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
   return {
-    type: EventType.TOOL_CALL_RESULT,
-    messageId: `${executionId}-result`,
+    type: ChatEventType.TOOL_CALL_RESULT,
+    messageId: generateMessageId(),
     toolCallId: executionId,
     content: text || JSON.stringify({result: 'non-text content'}),
-    state: reply.isError === true ? 'output-error' : 'output-available',
+    ...(reply.isError === true && {metadata: {tanstack: {state: 'output-error'}}}),
   }
 }
 
-const SandboxToolCallSchema = z.object({callId: z.string(), name: z.string()})
-
-type NoteToolCall = (toolCallId: string, toolName: string) => void
-
-function sandboxEventContext(
-  executionId: string,
-  publish: PublishChunks,
-  note: NoteToolCall,
-): {
-  emitCustomEvent: (eventName: string, value: Record<string, unknown>) => void
-} {
-  const emit = codeModeEventPublisher(executionId, publish)
-  return {
-    emitCustomEvent: (eventName, value) => {
-      if (eventName === CODE_MODE_TOOL_CALL_EVENT) {
-        const parsed = SandboxToolCallSchema.safeParse(value)
-        if (parsed.success) note(parsed.data.callId, parsed.data.name)
-      }
-      emit(eventName, value)
-    },
-  }
-}
-
-async function runExecute(
-  codeMode: CodeMode,
-  typescriptCode: string,
-  publish: PublishChunks,
-  declaredCodes: () => Set<string>,
-  note: NoteToolCall,
-): Promise<ExecuteReply> {
+async function runExecute(runner: CodeRunner, typescriptCode: string, publish: PublishChunks): Promise<ExecuteReply> {
   const executionId = randomUUID()
-  publish(executeStartChunks(executionId, typescriptCode))
-  const raw = await codeMode
-    .run(typescriptCode, sandboxEventContext(executionId, publish, note))
+  publish(callStartChunks(executionId, EXECUTE_TOOL_NAME, {typescriptCode}))
+  const raw = await runner
+    .run(typescriptCode, executionId)
     .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
   const parsed = ExecuteResultSchema.safeParse(raw)
   const result = parsed.success
     ? parsed.data
     : {success: false, error: {message: 'the sandbox returned an unreadable result'}}
-  const reply = result.success ? successReply(result) : errorReply(result, declaredCodes())
+  const reply = result.success ? successReply(result) : errorReply(result, runner.declaredCodes)
   publish([executeResultChunk(executionId, reply)])
   return reply
 }
 
+async function runDirect(tool: CodeTool, input: unknown, publish: PublishChunks): Promise<ExecuteReply> {
+  const callId = randomUUID()
+  publish(callStartChunks(callId, tool.name, input))
+  const reply: ExecuteReply = await tool.run(input, callId).then(
+    (value) => ({content: [{type: 'text', text: cappedText(safeStringify(value))}]}),
+    (error: unknown) => ({
+      content: [{type: 'text', text: cappedText(safeStringify({error: {message: String(error)}}))}],
+      isError: true,
+    }),
+  )
+  publish([executeResultChunk(callId, reply)])
+  return reply
+}
+
+async function runDiscover(runner: CodeRunner, toolNames: string[]): Promise<ExecuteReply> {
+  if (runner.discover === null) return {content: [{type: 'text', text: 'no tools to discover'}], isError: true}
+  const found = await runner.discover.run(toolNames)
+  return {content: [{type: 'text', text: cappedText(safeStringify(cappedValue(found)))}]}
+}
+
 type McpDeps = {
-  capabilities: (sessionId: SessionId) => CodeCapability[]
-  askGate: (sessionId: SessionId) => PermissionGate
-  listening: (sessionId: SessionId) => boolean
+  codeRunner: (sessionId: SessionId) => Promise<CodeRunner | null>
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   staleness: () => EngineStaleness
 }
@@ -230,28 +210,34 @@ type McpDeps = {
 export type McpVars = {mcp: McpDeps}
 
 async function buildServer(deps: McpDeps, scope: SessionScope): Promise<McpServer> {
-  const request: ToolRequest = {sessionId: scope.id, model: scope.model}
-  const gate = deps.askGate(scope.id)
-  const codeMode = await makeCodeMode(() => deps.capabilities(scope.id), scope.id, request, gate, {
-    listening: deps.listening,
-  })
+  const runner = await deps.codeRunner(scope.id)
   const server = new McpServer(
     {name: 'conciv', version: '0.0.0'},
-    {instructions: serverInstructions(codeMode?.categories ?? [], deps.staleness())},
+    {instructions: serverInstructions(runner?.systemPrompt ?? '', deps.staleness())},
   )
-  if (codeMode === null) {
-    logError('[mcp] code mode is unavailable (isolated-vm incompatible or an empty registry); no tools registered')
+  if (runner === null) {
+    logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
     return server
   }
   const publish: PublishChunks = (chunks) => chunks.forEach((chunk) => scope.stream.publish(chunk))
-  const declaredCodes = () => declaredCodesOf(deps.capabilities(scope.id))
-  const note: NoteToolCall = (toolCallId, toolName) => scope.asks.noteToolCall(toolCallId, toolName)
+  if (runner.discover !== null) {
+    server.registerTool(
+      DISCOVER_TOOL_NAME,
+      {description: runner.discover.description, inputSchema: DiscoverInputSchema.shape},
+      (args) => runDiscover(runner, args.toolNames),
+    )
+  }
+  for (const tool of runner.asking) {
+    server.registerTool(tool.name, {description: tool.description, inputSchema: tool.inputSchema.shape}, (args) =>
+      runDirect(tool, args, publish),
+    )
+  }
   server.registerTool(
     EXECUTE_TOOL_NAME,
-    {description: executeDescription(codeMode.categories), inputSchema: ExecuteInputSchema.shape},
+    {description: EXECUTE_DESCRIPTION, inputSchema: ExecuteInputSchema.shape},
     async (args) => {
       try {
-        return await runExecute(codeMode, args.typescriptCode, publish, declaredCodes, note)
+        return await runExecute(runner, args.typescriptCode, publish)
       } catch (error) {
         logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
         throw error

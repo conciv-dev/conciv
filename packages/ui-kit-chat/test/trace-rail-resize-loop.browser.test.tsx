@@ -51,11 +51,9 @@ function resizeLoopErrors(): string[] {
 
 function mountPacedTrace(): (step: number) => void {
   const [step, setStep] = createSignal(0)
-  mountView(
-    (): JSX.Element => (
-      <Trace summary={`${ROW_COUNT} tools ran`} compactLine={`${ROW_COUNT} tools`} items={rows(step)} defaultOpen />
-    ),
-  )
+  mountView((): JSX.Element => (
+    <Trace summary={`${ROW_COUNT} tools ran`} compactLine={`${ROW_COUNT} tools`} items={rows(step)} defaultOpen />
+  ))
   return setStep
 }
 

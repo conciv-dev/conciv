@@ -1,6 +1,6 @@
 ---
 name: react-introspection
-description: Use when the user asks about a React component on the live page, or you need to map a rendered element to its source file, read its props/hooks/state, dump the component tree, or find a component by name. The sandbox catalog names the React capabilities and their arguments. Reach for this instead of poking __REACT_DEVTOOLS_GLOBAL_HOOK__ or fiber keys through the eval capability.
+description: Use when the user asks about a React component on the live page, or you need to map a rendered element to its source file, read its props/hooks/state, dump the component tree, or find a component by name. The `discover_tools` tool names the React capabilities and returns their arguments. Reach for this instead of poking __REACT_DEVTOOLS_GLOBAL_HOOK__ or fiber keys through the eval capability.
 ---
 
 # React introspection
@@ -12,11 +12,11 @@ already do, correctly and source-mapped.
 
 ## Which capabilities exist
 
-Call `await external_catalog({search: 'react'})` inside `execute_typescript`. It lists every
-capability the running app offers with the exact function name to call, each with its own summary -
-the React ones are the `react` category. `await external_catalog({name})` returns one full typed
-signature. That list is generated from the running registry, so it is never stale, and it is the
-only place to look. Do not work from memory, and do not work from a list written in a file.
+Use the `discover_tools` tool, a sibling of `execute_typescript`. Its description lists every
+capability the running app offers with the exact function name to call, each with a one-line summary,
+and calling it with `{toolNames: [...]}` returns their full typed signatures. That list is generated
+from the running registry, so it is never stale, and it is the only place to look. Do not work from
+memory, and do not work from a list written in a file.
 
 Each capability validates its own arguments. Target an element with a CSS `selector`, a `ref` from
 the latest snapshot, or a React component `name`. Prefer `ref`; refs go stale on re-render.

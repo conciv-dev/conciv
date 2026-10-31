@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../src/store/tool-context.js'
 import {ToolFallback} from '../src/tools/styled/tool-fallback.js'
 import {mountView} from './mount-view.js'

@@ -73,11 +73,7 @@ function Root(props: {
   createEffect(
     on(
       () => props.collection,
-      (collection) => {
-        const highlighted = listbox().highlightedValue
-        if (highlighted !== null && collection.has(highlighted)) return
-        listbox().highlightFirst()
-      },
+      () => listbox().highlightFirst(),
     ),
   )
 

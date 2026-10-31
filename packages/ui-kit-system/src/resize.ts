@@ -49,11 +49,9 @@ export function createResizable(opts: {
   const [resizing, setResizing] = createSignal(false)
   let stopDrag: VoidFunction | undefined
 
-  const onPointerDown = (e: PointerEvent) => {
-    if (e.button !== 0) return
+  const startDrag = (e: PointerEvent, startSize: number) => {
     e.preventDefault()
     setResizing(true)
-    const startSize = size()
     const grow = opts.grow()
     const horizontal = grow === 'left' || grow === 'right'
     const start = horizontal ? e.clientX : e.clientY
@@ -83,6 +81,10 @@ export function createResizable(opts: {
       clearMove()
       clearUp()
     }
+  }
+
+  const onPointerDown = (e: PointerEvent) => {
+    if (e.button === 0) startDrag(e, size())
   }
 
   const STEP = 24

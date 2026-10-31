@@ -1,5 +1,6 @@
 import {createSignal, onMount, Show, type JSX} from 'solid-js'
 import {createStore, produce, unwrap} from 'solid-js/store'
+import {mapValues} from 'es-toolkit'
 import {Streamdown, type HastElement, type HighlightCode} from '@conciv/solid-streamdown'
 import type {WorkerToMainMessage} from './highlight-shared.js'
 import HighlightWorkerConstructor from './highlight-worker.ts?worker&inline'
@@ -136,13 +137,47 @@ export function warmHighlighter(): void {
   ensureBackend()
 }
 
-type DiagramStyle = {theme: 'default' | 'dark'; fontFamily: string}
+const DIAGRAM_TOKENS = {
+  background: '--chat-bg',
+  primaryColor: '--chat-fill-strong',
+  secondaryColor: '--chat-fill',
+  tertiaryColor: '--chat-fill-soft',
+  primaryBorderColor: '--chat-line-2',
+  secondaryBorderColor: '--chat-line-2',
+  tertiaryBorderColor: '--chat-line',
+  primaryTextColor: '--chat-text',
+  secondaryTextColor: '--chat-text',
+  tertiaryTextColor: '--chat-text-2',
+  textColor: '--chat-text',
+  lineColor: '--chat-text-3',
+  edgeLabelBackground: '--chat-bg',
+  clusterBkg: '--chat-fill-soft',
+  clusterBorder: '--chat-line',
+  noteBkgColor: '--chat-perm-chip-bg',
+  noteBorderColor: '--chat-perm-line',
+  noteTextColor: '--chat-text',
+} as const
+
+type DiagramStyle = {
+  darkMode: boolean
+  fontFamily: string
+  themeVariables: Record<keyof typeof DIAGRAM_TOKENS, string>
+}
 
 let diagramCount = 0
 
-function diagramStyle(element: Element): DiagramStyle {
+function resolvedColor(probe: HTMLElement, token: string): string {
+  probe.style.color = `var(${token})`
+  return getComputedStyle(probe).color
+}
+
+function diagramStyle(element: HTMLElement): DiagramStyle {
   const computed = getComputedStyle(element)
-  return {theme: computed.colorScheme.trim() === 'dark' ? 'dark' : 'default', fontFamily: computed.fontFamily}
+  const probe = document.createElement('span')
+  element.append(probe)
+  const themeVariables = mapValues(DIAGRAM_TOKENS, (token) => resolvedColor(probe, token))
+  probe.remove()
+  return {darkMode: computed.colorScheme.trim() === 'dark', fontFamily: computed.fontFamily, themeVariables}
 }
 
 async function renderDiagram(source: string, style: DiagramStyle): Promise<string> {
@@ -152,7 +187,8 @@ async function renderDiagram(source: string, style: DiagramStyle): Promise<strin
     securityLevel: 'strict',
     suppressErrorRendering: true,
     fontFamily: style.fontFamily,
-    theme: style.theme,
+    theme: 'base',
+    themeVariables: {...style.themeVariables, darkMode: style.darkMode, fontFamily: style.fontFamily},
   })
   diagramCount += 1
   const {svg} = await mermaid.render(`conciv-diagram-${diagramCount}`, source)
@@ -165,7 +201,7 @@ function MermaidDiagram(props: {code: string}): JSX.Element {
   onMount(() => {
     if (!source) return
     const style = diagramStyle(source)
-    const key = cacheKey(`mermaid:${style.theme}:${style.fontFamily}`, props.code)
+    const key = cacheKey(`mermaid:${JSON.stringify(style)}`, props.code)
     const cached = diagrams.store[key]
     if (cached !== undefined) return setSvg(cached)
     void renderDiagram(props.code, style)

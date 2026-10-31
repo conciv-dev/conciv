@@ -383,23 +383,47 @@ export function teardownFixture(fixture: Fixture): void {
   rmSync(fixture.root, {recursive: true, force: true})
 }
 
-export type NextHandle = {child: ChildProcess; devPort: number; logPath: string}
+export type NextHandle = {child: ChildProcess; appDir: string; devPort: number; logPath: string}
 
-export function startNext(appDir: string, options: {webpack: boolean; devPort: number}): NextHandle {
+export type StartNextOptions = {webpack: boolean; devPort: number; instrumentationStatDelayMs?: number}
+
+function writeInstrumentationStatDelay(appDir: string, delayMs: number): string {
+  const preloadPath = join(dirname(dirname(appDir)), 'instrumentation-stat-delay.cjs')
+  writeFileSync(
+    preloadPath,
+    [
+      `const fs = require('node:fs')`,
+      `const lstat = fs.lstat`,
+      `fs.lstat = (path, ...rest) => {`,
+      `  const callback = rest.pop()`,
+      `  const delayed = (...args) => setTimeout(callback, ${delayMs}, ...args)`,
+      `  return lstat(path, ...rest, String(path).endsWith('/instrumentation.ts') ? delayed : callback)`,
+      `}`,
+      ``,
+    ].join('\n'),
+  )
+  return preloadPath
+}
+
+export function startNext(appDir: string, options: StartNextOptions): NextHandle {
   rmSync(join(appDir, '.next'), {recursive: true, force: true})
   rmSync(join(appDir, '.conciv'), {recursive: true, force: true})
   const args = ['exec', 'next', 'dev', '--port', String(options.devPort)]
   if (options.webpack) args.push('--webpack')
   const logPath = join(appDir, 'next-dev.log')
   const log = openSync(logPath, 'w')
+  const delayMs = options.instrumentationStatDelayMs
   const child = spawn('pnpm', args, {
     cwd: appDir,
     detached: true,
     stdio: ['ignore', log, log],
-    env: NON_INTERACTIVE_ENV,
+    env:
+      delayMs === undefined
+        ? NON_INTERACTIVE_ENV
+        : {...NON_INTERACTIVE_ENV, NODE_OPTIONS: `--require ${writeInstrumentationStatDelay(appDir, delayMs)}`},
   })
   closeSync(log)
-  return {child, devPort: options.devPort, logPath}
+  return {child, appDir, devPort: options.devPort, logPath}
 }
 
 async function listeningSnapshot(): Promise<string> {
@@ -425,6 +449,11 @@ function logTail(handle: NextHandle): string {
   } catch {
     return '(no next dev log captured)'
   }
+}
+
+function instrumentationReport(handle: NextHandle): string {
+  const path = '.next/dev/server/instrumentation.js'
+  return `${path} ${existsSync(join(handle.appDir, path)) ? 'exists' : 'is missing'}`
 }
 
 async function isListening(port: number): Promise<boolean> {
@@ -485,7 +514,7 @@ export async function waitReady(handle: NextHandle, enginePort: number): Promise
     await waitFor(() => isListening(enginePort), 180_000)
   } catch (error) {
     throw new Error(
-      `conciv engine never listened on ${enginePort}\n--- listening ports ---\n${await listeningSnapshot()}\n--- next dev output ---\n${logTail(handle)}`,
+      `conciv engine never listened on ${enginePort}\n${instrumentationReport(handle)}\n--- listening ports ---\n${await listeningSnapshot()}\n--- next dev output ---\n${logTail(handle)}`,
       {cause: error},
     )
   }

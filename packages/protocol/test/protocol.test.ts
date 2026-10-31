@@ -1,6 +1,5 @@
 import {createSignal} from 'solid-js'
 import {describe, expect, it} from 'vitest'
-import type {ChatClientState} from '@tanstack/ai-client'
 import {chatBusy} from '../src/chat-busy.js'
 import {
   SessionId,
@@ -13,9 +12,7 @@ import {
   MAX_ATTACHMENT_RAW_BYTES,
 } from '../src/chat-types.js'
 import {defineFrameworkAdapter, type FrameworkClientCore, type FrameworkServerCore} from '../src/framework-types.js'
-import {EventType} from '@tanstack/ai'
-import type {AnyTextAdapter} from '@tanstack/ai'
-import {defineHarness, type TranscriptHandle} from '../src/harness-types.js'
+import {ChatEventType} from '../src/chat-event-types.js'
 import {
   decodeEntities,
   isDangerousTag,
@@ -34,12 +31,11 @@ import {
 import {PageQuerySchema} from '../src/page-types.js'
 import {TtyClientControlSchema, TtyServerControlSchema} from '../src/terminal-types.js'
 import {aguiSnapshotFor, UiAnswerSchema, UiAnswerValueSchema, UiInputSchema} from '../src/ui-types.js'
-import {UsageSnapshotSchema, contextUsedTokens} from '../src/usage-types.js'
 
 describe('chat busy', () => {
   describe('chatBusy', () => {
     it('includes local and shared generation state', () => {
-      const [status, setStatus] = createSignal<ChatClientState>('ready')
+      const [status, setStatus] = createSignal('ready')
       const [sessionGenerating, setSessionGenerating] = createSignal(false)
       const chat = {status, sessionGenerating}
 
@@ -276,87 +272,6 @@ describe('define framework adapter', () => {
       expect((await adapter.payload?.snapshot())?.kind).toBe('flight')
       expect(await adapter.queryCache?.queries()).toEqual([])
       expect(await adapter.isr?.entries()).toEqual([])
-    })
-  })
-})
-
-describe('define harness', () => {
-  const stubHandle: TranscriptHandle = {
-    revision: () => Promise.resolve({ok: false, reason: 'missing', detail: 'stub'}),
-    read: () => Promise.resolve({ok: false, reason: 'missing', detail: 'stub'}),
-    close: () => {},
-  }
-
-  const fakeAdapter: AnyTextAdapter = {
-    kind: 'text',
-    name: 'fake',
-    model: 'fake',
-    '~types': {
-      providerOptions: {},
-      inputModalities: ['text'],
-      messageMetadataByModality: {
-        text: undefined,
-        image: undefined,
-        audio: undefined,
-        video: undefined,
-        document: undefined,
-      },
-      toolCapabilities: [],
-      toolCallMetadata: undefined,
-      systemPromptMetadata: undefined,
-    },
-    chatStream: async function* () {},
-    structuredOutput: () => Promise.reject(new Error('fake adapter')),
-  }
-
-  const base = {
-    id: 'x',
-    binName: 'x',
-    chatConfig: () => ({adapter: fakeAdapter}),
-  }
-
-  describe('defineHarness (generic typed factory; history↔transcriptHistory enforced by the type)', () => {
-    it('returns the adapter unchanged when capabilities match members', () => {
-      const adapter = defineHarness({
-        ...base,
-        capabilities: {
-          resume: false,
-          permissionGate: 'none',
-          transcriptHistory: false,
-          compaction: false,
-          systemPrompt: 'none',
-          mcp: 'none',
-          slashCommands: 'none',
-          imageInput: false,
-          init: 'none',
-        },
-      })
-      expect(adapter.id).toBe('x')
-
-      expect('history' in adapter).toBe(false)
-    })
-
-    it('accepts a transcriptHistory harness that provides a history implementation', () => {
-      const adapter = defineHarness({
-        ...base,
-        capabilities: {
-          resume: false,
-          permissionGate: 'none',
-          transcriptHistory: true,
-          compaction: false,
-          systemPrompt: 'none',
-          mcp: 'none',
-          slashCommands: 'none',
-          imageInput: false,
-          init: 'none',
-        },
-        history: {
-          messages: () => Promise.resolve([]),
-          observe: () => stubHandle,
-          list: () => Promise.resolve([]),
-        },
-      })
-      expect(typeof adapter.history?.messages).toBe('function')
     })
   })
 })
@@ -765,8 +680,8 @@ describe('ui types', () => {
     it('snapshot is a native MESSAGES_SNAPSHOT chunk carrying UIMessages verbatim', () => {
       const messages = [{id: 'm1', role: 'user' as const, parts: [{type: 'text' as const, content: 'hi'}]}]
       const chunk = aguiSnapshotFor(messages)
-      expect(chunk.type).toBe(EventType.MESSAGES_SNAPSHOT)
-      if (chunk.type === EventType.MESSAGES_SNAPSHOT) expect(chunk.messages).toEqual(messages)
+      expect(chunk.type).toBe(ChatEventType.MESSAGES_SNAPSHOT)
+      if (chunk.type === ChatEventType.MESSAGES_SNAPSHOT) expect(chunk.messages).toEqual(messages)
     })
   })
 
@@ -810,30 +725,6 @@ describe('ui types', () => {
       expect(UiAnswerSchema.parse({answered: false, note: 'timed out'})).toEqual({answered: false, note: 'timed out'})
       expect(UiAnswerSchema.safeParse({answered: true}).success).toBe(false)
       expect(UiAnswerSchema.safeParse({answered: false, value: 'yes'}).success).toBe(false)
-    })
-  })
-})
-
-describe('usage types', () => {
-  describe('usage-types', () => {
-    it('parses a partial snapshot (all fields optional)', () => {
-      expect(UsageSnapshotSchema.safeParse({}).success).toBe(true)
-      const r = UsageSnapshotSchema.safeParse({inputTokens: 10, contextWindow: 200000})
-      expect(r.success && r.data.inputTokens).toBe(10)
-    })
-
-    it('rejects negative tokens', () => {
-      expect(UsageSnapshotSchema.safeParse({inputTokens: -1}).success).toBe(false)
-    })
-
-    it('reports occupancy from contextTokens, never the billing sum', () => {
-      expect(
-        contextUsedTokens({contextTokens: 92000, inputTokens: 100, cacheReadTokens: 50, cacheWriteTokens: 10}),
-      ).toBe(92000)
-    })
-
-    it('returns undefined when no occupancy is present (billing totals are not occupancy)', () => {
-      expect(contextUsedTokens({inputTokens: 773000, cacheReadTokens: 700000, totalCostUsd: 1})).toBeUndefined()
     })
   })
 })

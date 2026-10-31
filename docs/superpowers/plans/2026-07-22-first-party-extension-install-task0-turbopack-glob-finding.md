@@ -142,7 +142,7 @@ published widget" design does not work under Turbopack.
   engine boot and produced `conciv picked: []`. For the widened/nested cells `register()` was stubbed
   to a no-op to isolate the **client** widget module graph from server-side engine-boot noise (the
   brief explicitly permits this: the widget graph `nextjs-widget → extension-compiler/dedupe → embed
-mountConciv → glob` remained fully real and packed). `withConciv` still supplied
+  mountConciv → glob` remained fully real and packed). `withConciv` still supplied
   `NEXT_PUBLIC_CONCIV_PORT`, so the widget executed. The glob result is client-side and independent of
   the engine.
 - **`FAB_COUNT 0`** was observed and **not** used as a pass/fail signal. The gate is glob discovery,

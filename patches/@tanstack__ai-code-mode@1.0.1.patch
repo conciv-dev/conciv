@@ -1,0 +1,37 @@
+diff --git a/dist/esm/bindings/tool-to-binding.js b/dist/esm/bindings/tool-to-binding.js
+index 8d09f64..45f82d1 100644
+--- a/dist/esm/bindings/tool-to-binding.js
++++ b/dist/esm/bindings/tool-to-binding.js
+@@ -83,7 +83,9 @@ function createEventAwareBindings(bindings, emitCustomEvent, parentContext, hook
+ 		wrapped[name] = {
+ 			...binding,
+ 			execute: async (args) => {
++				const callId = globalThis.crypto.randomUUID();
+ 				emitCustomEvent("code_mode:external_call", {
++					callId,
+ 					function: name,
+ 					args,
+ 					timestamp: Date.now()
+@@ -91,12 +93,13 @@ function createEventAwareBindings(bindings, emitCustomEvent, parentContext, hook
+ 				const startTime = Date.now();
+ 				try {
+ 					toolContext.abortSignal?.throwIfAborted();
+-					const run = () => binding.execute(args, toolContext);
++					const run = () => binding.execute(args, { ...toolContext, toolCallId: callId });
+ 					const result = await (hook ? hook({
+ 						name: toolName,
+ 						args
+ 					}, run) : run());
+ 					emitCustomEvent("code_mode:external_result", {
++						callId,
+ 						function: name,
+ 						result,
+ 						duration: Date.now() - startTime
+@@ -104,6 +107,7 @@ function createEventAwareBindings(bindings, emitCustomEvent, parentContext, hook
+ 					return result;
+ 				} catch (error) {
+ 					emitCustomEvent("code_mode:external_error", {
++						callId,
+ 						function: name,
+ 						error: error instanceof Error ? error.message : String(error),
+ 						duration: Date.now() - startTime

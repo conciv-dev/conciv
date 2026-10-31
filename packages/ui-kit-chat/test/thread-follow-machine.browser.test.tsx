@@ -5,10 +5,10 @@ import {onMount, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
-import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
-import type {UIMessage} from '@tanstack/ai-client'
+import {createChat, type Chat} from '@conciv/ai/client'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {storyConnection} from '../src/store/story-connection.js'
+import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 
 const TURN_COUNT = 60
@@ -23,8 +23,8 @@ function answerBody(index: number): string {
   return `answer ${index}\ntail marker ${index}`
 }
 
-function seed(count: number): UIMessage[] {
-  return Array.from({length: count}, (_, index): UIMessage[] => [
+function seed(count: number): ChatMessage[] {
+  return Array.from({length: count}, (_, index): ChatMessage[] => [
     {id: `u${index}`, role: 'user', parts: [{type: 'text', content: `question ${index}`}]},
     {id: `a${index}`, role: 'assistant', parts: [{type: 'text', content: answerBody(index)}]},
   ]).flat()
@@ -34,13 +34,17 @@ type MountedThread = {
   container: HTMLElement
   unmount: () => void
   viewport: () => HTMLElement
-  chat: () => UseChatReturn
+  chat: () => Chat
 }
 
-function mountThread(initial: UIMessage[]): MountedThread {
-  let chat: UseChatReturn | undefined
+function mountThread(initial: ChatMessage[]): MountedThread {
+  let chat: Chat | undefined
   function View(): JSX.Element {
-    const value = useChat({connection: storyConnection({chunks: []}), initialMessages: initial})
+    const value = createChat({
+      threadId: 'thread-follow-machine',
+      connection: storyConnection({chunks: []}),
+      initialMessages: initial,
+    })
     onMount(() => {
       chat = value
     })
@@ -96,7 +100,7 @@ type SettledThread = {
 
 async function mountSettledThread(): Promise<SettledThread> {
   const thread = mountThread(seed(TURN_COUNT))
-  await expect.element(page.getByText(`tail marker ${LAST_TURN}`).first()).toBeVisible()
+  await expect.element(page.getByText(`answer ${LAST_TURN} tail marker ${LAST_TURN}`)).toBeVisible()
   await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom', '')
   return {thread, viewport: thread.viewport()}
 }
@@ -141,7 +145,7 @@ it('returns to the bottom and re-follows when Latest is pressed', async () => {
 
   await page.getByText('Latest').click()
   await expect.element(page.elementLocator(settled.viewport)).toHaveAttribute('data-at-bottom', '')
-  await expect.element(page.getByText(`tail marker ${LAST_TURN}`).first()).toBeVisible()
+  await expect.element(page.getByText(`answer ${LAST_TURN} tail marker ${LAST_TURN}`)).toBeVisible()
 
   expect(distanceFromEnd(settled.viewport)).toBeLessThanOrEqual(2)
 })
@@ -150,7 +154,7 @@ it('stays pinned to the end when turns are appended while following', async () =
   const settled = await mountSettledThread()
 
   settled.thread.chat().setMessages([...seed(TURN_COUNT), ...seed(TURN_COUNT + 3).slice(TURN_COUNT * 2)])
-  await expect.element(page.getByText(`tail marker ${TURN_COUNT + 2}`).first()).toBeVisible()
+  await expect.element(page.getByText(`answer ${TURN_COUNT + 2} tail marker ${TURN_COUNT + 2}`)).toBeVisible()
 
   expect(distanceFromEnd(settled.viewport)).toBeLessThanOrEqual(2)
 })

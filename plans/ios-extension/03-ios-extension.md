@@ -60,7 +60,7 @@ served by the core**, which the SDK WebView loads by URL. Two concrete pieces:
    It is the same `@conciv/embed` app code — no fork — with a different entry and a transparent host
    document (`html,body{background:transparent}`, appendix A.5). `@conciv/embed` must add
    `@conciv/extension-ios` to its `dependencies` (workspace protocol `"@conciv/extension-ios":
-"workspace:^"`, matching every other `@conciv/*` dep in embed's manifest — verified), and the native
+   "workspace:^"`, matching every other `@conciv/*` dep in embed's manifest — verified), and the native
    build joins embed's `build` script and `files` (D16, `08`). A **build test mirrors
    `mount-externals.test.ts`**: it reads the native bundle from `dist/` and asserts the ios client is
    present (inlined) and the shared Solid/Ark runtime is externalized (so the WebView shares one Ark/Solid
@@ -69,7 +69,7 @@ served by the core**, which the SDK WebView loads by URL. Two concrete pieces:
 2. **How the core serves it.** Core routing today (`packages/core/src/app.ts` `composeRoutes`) serves
    `/health`, `/rpc/*`, `/api/mcp`, and extension routes — it does **not** currently serve an HTML page; in
    dev the widget page is served by the `@conciv/it` **build** plugin (a Vite/unplugin, `packages/it/src/
-plugin-instance.ts` → `plugin/vite.ts`), not by core. So "core serves the native page" is a **small new
+   plugin-instance.ts` → `plugin/vite.ts`), not by core. So "core serves the native page" is a **small new
    core route** that returns the built native HTML + `native-entry` bundle from `@conciv/embed/dist`
    (analogous to how a Vite host serves the widget), added alongside `composeRoutes`. Register the ios
    server + client in `packages/it/src/plugin-instance.ts` (`serverExtensions` gets `iosServer`;
@@ -287,7 +287,7 @@ SwiftUI grabbability (D5); and that unanchored SwiftUI content is not pickable. 
   idempotent (terminate-tolerant). Env reaches the app via `SIMCTL_CHILD_*` (assert the launched app
   reads `CONCIV_URL`).
 - **AC3** — `ios.screenshot` returns an `imageResult('image/png', ...)` (image content part + `{width,
-height}` detail) of the current sim screen; `ios.logs` returns recent lines. No `ios.viewHierarchy` tool
+  height}` detail) of the current sim screen; `ios.logs` returns recent lines. No `ios.viewHierarchy` tool
   exists; screen structure reaches the agent via the subtree folded into `grab.text` (D6, `02`) instead.
 - **AC3b (D7)** — With **no** `ios` config, core still starts (`parseConfig(undefined)` → inert server), and
   every `ios.*` tool returns a clear "ios extension not configured" result rather than throwing.

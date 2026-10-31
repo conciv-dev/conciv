@@ -1,5 +1,5 @@
 import {getHarness} from '@conciv/harness'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/harness'
 import type {HarnessSessionId} from '@conciv/protocol/chat-types'
 
 export function requireClaude(): HarnessAdapter {

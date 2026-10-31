@@ -9,6 +9,8 @@ import {mountView} from './mount-view.js'
 
 const TIMEOUT_MS = 3000
 
+const spinnerGlyph = () => page.getByText(/^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]$/)
+
 const FRAME = 'dark p-3 w-[26rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
 
 function framed(child: JSX.Element): JSX.Element {
@@ -30,14 +32,15 @@ it('narrates on one quiet mono line led by a visible braille spinner glyph', asy
 
   await expect.element(page.getByText('Running pnpm test', {exact: true})).toBeVisible()
   await page.screenshot({path: '__screenshots__/now-line/quiet-narration-line.png'})
-  await expect.element(page.getByText('⠋', {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
+  await expect.element(spinnerGlyph(), {timeout: TIMEOUT_MS}).toBeVisible()
 })
 
 it('cycles the braille spinner glyph while the run is live', async () => {
   mountView(() => framed(<NowLine title="Reading widget-shell.tsx" />))
 
-  await expect.element(page.getByText('⠋', {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
-  await expect.element(page.getByText('⠙', {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
+  await expect.element(spinnerGlyph(), {timeout: TIMEOUT_MS}).toBeVisible()
+  const firstGlyph = spinnerGlyph().element().textContent
+  await expect.element(spinnerGlyph(), {timeout: TIMEOUT_MS}).not.toHaveTextContent(firstGlyph)
 })
 
 it('freezes the spinner glyph visible under prefers-reduced-motion instead of hiding it', async () => {
@@ -106,7 +109,7 @@ it('keeps the spinner and the Stop affordance on one line when the narration ove
 
   await expect.element(page.getByText(LONG_TITLE, {exact: true})).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
-  await expect.element(page.getByText('⠋', {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
+  await expect.element(spinnerGlyph(), {timeout: TIMEOUT_MS}).toBeVisible()
   await page.screenshot({path: '__screenshots__/now-line/narrow-overflow.png'})
 })
 

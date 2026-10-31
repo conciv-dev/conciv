@@ -13,8 +13,8 @@ export const RPC_WS_PATH = '/rpc-ws'
 
 export type UpgradeWebSocket = (createEvents: (c: Context) => WSEvents) => MiddlewareHandler
 
-export function rpcConnectionContext(requestUrl: string): RpcContext {
-  return {origin: new URL(requestUrl).origin, headers: {}}
+export function rpcConnectionContext(requestUrl: string, callerOrigin: string | null): RpcContext {
+  return {origin: new URL(requestUrl).origin, callerOrigin, headers: {}}
 }
 
 export function rpcHandlerOptions(): StandardRPCHandlerOptions<RpcContext> {
@@ -51,7 +51,7 @@ export function rpcFetchMiddleware(router: AnyRouter): MiddlewareHandler {
   return async (c, next) => {
     const {matched, response} = await handler.handle(c.req.raw, {
       prefix: RPC_PREFIX,
-      context: rpcConnectionContext(c.req.url),
+      context: rpcConnectionContext(c.req.url, c.req.header('origin') ?? null),
     })
     if (matched && response) return c.newResponse(response.body, response)
     await next()
@@ -83,7 +83,7 @@ export function rpcWebsocketRoute(
 ): MiddlewareHandler {
   const handler = new WebsocketRPCHandler<RpcContext>(router, rpcHandlerOptions())
   const route = options.upgrade((c) => {
-    const context = rpcConnectionContext(c.req.url)
+    const context = rpcConnectionContext(c.req.url, c.req.header('origin') ?? null)
     const held: {socket: WSContext<unknown> | null} = {socket: null}
     const peer = peerSocket(held)
     return {

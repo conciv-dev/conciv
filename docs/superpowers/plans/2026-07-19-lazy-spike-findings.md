@@ -197,7 +197,7 @@ Target repo: `@tanstack/ai-sandbox` (the tool-bridge provisioner). File under th
 > in a single spawn (claude-code) never re-enter `chatStream`, so the growth is never provisioned.
 >
 > **Reproduction:** `chat({adapter: claudeCodeText, tools: [eager, {…, lazy: true}],
-lazyToolsConfig: {includeDescription: 'first-sentence'}})`; prompt the model to discover then
+> lazyToolsConfig: {includeDescription: 'first-sentence'}})`; prompt the model to discover then
 > call the lazy tool. Observed: discovery succeeds, the lazy tool call fails with
 > `No such tool available`, and the tool's `execute` never runs.
 >
@@ -495,7 +495,7 @@ through gemini) still hangs when tools are present cannot be re-tested, because 
 is server-side dead for this machine:
 
 - `oauth-personal` → `IneligibleTierError: This client is no longer supported for Gemini Code Assist
-for individuals` (migrate to Antigravity). Reproduced on both a plain `-p` turn and ACP, gemini-cli
+  for individuals` (migrate to Antigravity). Reproduced on both a plain `-p` turn and ACP, gemini-cli
   0.51.0 (latest; auth methods available: oauth-personal, compute-default-credentials, gemini-api-key,
   vertex-ai — no `antigravity` method: `validateAuthMethod` rejects it).
 - User directive 2026-07-20/21: no `GEMINI_API_KEY` runs — account auth only. With account auth dead,

@@ -1,5 +1,5 @@
 import {createElement, type JSX} from 'preact'
-import {useEffect, useRef} from 'preact/hooks'
+import {useEffect, useState} from 'preact/hooks'
 import {createConciv, type ConcivInit} from '@conciv/embed'
 
 export type {ConcivInit, ConcivSettingsInit, ExtensionsInput} from '@conciv/embed'
@@ -7,21 +7,18 @@ export type {ConcivInit, ConcivSettingsInit, ExtensionsInput} from '@conciv/embe
 export type ConcivWidgetProps = ConcivInit
 
 export function ConcivWidget(props: ConcivWidgetProps): JSX.Element {
-  const hostRef = useRef<HTMLDivElement>(null)
-  const latest = useRef(props)
-  useEffect(() => {
-    latest.current = props
-  })
+  const [host, setHost] = useState<HTMLDivElement | null>(null)
   const configKey = JSON.stringify({apiBase: props.apiBase, settings: props.settings})
+  const [config, setConfig] = useState({key: configKey, apiBase: props.apiBase, settings: props.settings})
+  if (config.key !== configKey) setConfig({key: configKey, apiBase: props.apiBase, settings: props.settings})
   const extensions = props.extensions
   useEffect(() => {
-    const el = hostRef.current
-    if (!el) return
-    const handle = createConciv({apiBase: latest.current.apiBase, settings: latest.current.settings, extensions})
-    void handle.mount(el).catch(() => undefined)
+    if (!host) return
+    const handle = createConciv({apiBase: config.apiBase, settings: config.settings, extensions})
+    handle.mount(host).catch((error: unknown) => console.error('conciv widget failed to mount', error))
     return () => {
       handle.unmount()
     }
-  }, [configKey, extensions])
-  return createElement('div', {ref: hostRef})
+  }, [host, config, extensions])
+  return createElement('div', {ref: setHost})
 }

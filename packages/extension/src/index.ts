@@ -25,7 +25,7 @@ export type {
 export {defineAttachment} from './define-attachment.js'
 export type {AnyAttachmentBuilder, AttachmentBuilder} from './define-attachment.js'
 export {imageResult} from './image-result.js'
-export type {ContentPart} from '@tanstack/ai'
+export type {ContentPart} from '@conciv/protocol/chat-message-types'
 export {
   collectAttachmentCards,
   collectClientEffects,

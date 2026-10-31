@@ -1,6 +1,6 @@
 import {Show, splitProps, type Accessor, type JSX, type ValidComponent} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {MessagePart as Part} from '@tanstack/ai-client'
+import type {ChatPart as Part} from '@conciv/protocol/chat-message-types'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {usePart} from '../message/message-context.js'
 

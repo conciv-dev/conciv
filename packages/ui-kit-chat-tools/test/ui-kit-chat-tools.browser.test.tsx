@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {describe, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {cleanup} from '@solidjs/testing-library'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {defineTool} from '@conciv/extension/tool'
 import type {AnyToolBuilder} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
@@ -579,7 +579,7 @@ describe('tool row projections', () => {
     mountView(() => row(call('apply_patch', {patchText: PATCH}), result('applied')))
 
     await expect.element(page.getByText('edit')).toBeVisible()
-    await expect.element(page.getByText('turn-rollup.ts')).toBeVisible()
+    await expect.element(page.getByText('turn-rollup.ts', {exact: false})).toBeVisible()
     await expect.element(page.getByText('+2 −1')).toBeVisible()
   })
 
@@ -592,9 +592,9 @@ describe('tool row projections', () => {
     ))
 
     await expect.element(page.getByText('write')).toBeVisible()
-    await expect.element(page.getByText('new-file.ts')).toBeVisible()
+    await expect.element(page.getByText('new-file.ts', {exact: false})).toBeVisible()
     await expect.element(page.getByText('+3 −0')).toBeVisible()
-    await expect.element(page.getByText('old.ts')).toBeVisible()
+    await expect.element(page.getByText('old.ts', {exact: false})).toBeVisible()
     await expect.element(page.getByText('+1 −1')).toBeVisible()
   })
 

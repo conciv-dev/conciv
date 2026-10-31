@@ -1,7 +1,5 @@
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import {
-  defineHarness,
-  type HarnessAdapter,
   type HarnessCommand,
   type HarnessConnect,
   type HarnessConnectContext,
@@ -9,7 +7,8 @@ import {
   type HarnessModel,
   type HarnessSessionMeta,
 } from '@conciv/protocol/harness-types'
-import {makeTextAdapter} from '@conciv/harness'
+import {defineHarness, type HarnessAdapter} from '@conciv/harness'
+import {makeTextAdapter} from '@conciv/ai/server'
 import {makeScriptedRun, type ScriptedRun} from './scripted-run.js'
 
 export type FakeHarness = HarnessAdapter & {
