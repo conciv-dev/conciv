@@ -6,7 +6,7 @@ import type {AttachmentCardSlot} from '@conciv/ui-kit-chat'
 import {NoteRow} from '@conciv/ui-kit-chat/tools'
 import {ErrorScreen} from '../shell/error-screen.js'
 
-export type ExtensionFallback = 'silent' | 'tab' | 'card'
+export type ExtensionFallback = 'silent' | 'tab' | 'card' | 'chip'
 
 function reportCrash(name: string, error: unknown): void {
   console.error(`[conciv] extension "${name}" crashed`, error)
@@ -23,11 +23,36 @@ function CardFallback(props: {name: string}): JSX.Element {
   )
 }
 
+function ChipFallback(props: {name: string; remove?: JSX.Element}): JSX.Element {
+  return (
+    <div
+      role="status"
+      class="inline-flex items-center gap-1 ps-2 pe-0.5 min-h-8 max-w-full rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] text-[0.75rem]"
+    >
+      <TriangleAlert size={12} class="shrink-0 [color:var(--chat-danger)]" aria-hidden="true" />
+      <span class="[color:var(--chat-text-2)]">Failed to render</span>
+      <span class="min-w-0 [color:var(--chat-text-3)] [font-family:var(--chat-mono)] [overflow-wrap:anywhere]">
+        {props.name}
+      </span>
+      {props.remove}
+    </div>
+  )
+}
+
 export function ExtensionBoundary(props: {
   name: string
   fallback: ExtensionFallback
+  remove?: JSX.Element
+  focusAfterRetry?: () => HTMLElement | undefined
   children: JSX.Element
 }): JSX.Element {
+  let retryButton: HTMLButtonElement | undefined
+  const retry = (reset: () => void): void => {
+    retryButton = undefined
+    reset()
+    const target = retryButton ?? props.focusAfterRetry?.()
+    target?.focus()
+  }
   const fallback = (error: unknown, reset: () => void): JSX.Element => {
     reportCrash(props.name, error)
     if (props.fallback === 'tab')
@@ -35,10 +60,14 @@ export function ExtensionBoundary(props: {
         <ErrorScreen
           message={`The ${props.name} extension crashed`}
           detail="Details are in the browser console."
-          onRetry={reset}
+          onRetry={() => retry(reset)}
+          retryRef={(element) => {
+            retryButton = element
+          }}
         />
       )
     if (props.fallback === 'card') return <CardFallback name={props.name} />
+    if (props.fallback === 'chip') return <ChipFallback name={props.name} remove={props.remove} />
     return null
   }
   return (
@@ -61,11 +90,14 @@ export function guardedComponent<Props extends object>(
 }
 
 function guardedBodyPredicate(name: string, predicate: ToolBodyPredicate): ToolBodyPredicate {
+  const reported = new Set<string>()
   return (part, result, ctx) => {
     try {
       return predicate(part, result, ctx)
     } catch (error) {
-      reportCrash(name, error)
+      const message = error instanceof Error ? error.message : String(error)
+      if (!reported.has(message)) reportCrash(name, error)
+      reported.add(message)
       return true
     }
   }
@@ -83,11 +115,19 @@ export function guardedToolCards(extensions: AnyExtension[]): ToolCardEntry[] {
   })
 }
 
-export function guardedAttachmentCards(extensions: AnyExtension[], fallback: ExtensionFallback): AttachmentCardSlot[] {
+export function guardedAttachmentCards(extensions: AnyExtension[], fallback: 'card' | 'chip'): AttachmentCardSlot[] {
   return collectAttachmentCards(extensions).map((entry) => {
     const owner = extensions.find((extension) =>
       extension.attachments?.some((attachment) => attachment.mime === entry.mime),
     )
-    return {...entry, render: guardedComponent(owner?.name ?? entry.mime, fallback, entry.render)}
+    const name = owner?.name ?? entry.mime
+    return {
+      ...entry,
+      render: (props) => (
+        <ExtensionBoundary name={name} fallback={fallback} remove={props.remove}>
+          <entry.render {...props} />
+        </ExtensionBoundary>
+      ),
+    }
   })
 }

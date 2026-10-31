@@ -1,5 +1,5 @@
 import {createFileRoute, redirect, useBlocker, useRouter} from '@tanstack/solid-router'
-import {Show, createMemo, type JSX} from 'solid-js'
+import {Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
 import {useAppData, useConnectionGeneration, useInstances, useRpc} from '../app/context.js'
@@ -46,6 +46,8 @@ function PanelView(): JSX.Element {
     })
   }
 
+  const [content, setContent] = createSignal<HTMLDivElement>()
+
   return (
     <Show when={mountKey()} keyed>
       {(mount) => (
@@ -67,9 +69,17 @@ function PanelView(): JSX.Element {
             }}
             class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
           >
-            <ExtensionBoundary name={mount.view.instance.extension.name} fallback="tab">
-              <MountedView view={mount.view} clientValue={mount.view.instance.clientValue} />
-            </ExtensionBoundary>
+            <div
+              ref={setContent}
+              role="group"
+              aria-label={mount.view.label}
+              tabindex={-1}
+              class="flex flex-1 flex-col min-h-0 focus-visible:[outline:var(--chat-focus)] focus-visible:[outline-offset:-2px]"
+            >
+              <ExtensionBoundary name={mount.view.instance.extension.name} fallback="tab" focusAfterRetry={content}>
+                <MountedView view={mount.view} clientValue={mount.view.instance.clientValue} />
+              </ExtensionBoundary>
+            </div>
           </div>
         </HostApiProvider>
       )}

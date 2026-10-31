@@ -6,6 +6,7 @@ export type ErrorScreenProps = {
   message: string
   detail?: string
   onRetry: () => void
+  retryRef?: (element: HTMLButtonElement) => void
 }
 
 export function ErrorScreen(props: ErrorScreenProps): JSX.Element {
@@ -20,7 +21,7 @@ export function ErrorScreen(props: ErrorScreenProps): JSX.Element {
       <Show when={props.detail}>
         <p class="text-[0.75rem] leading-[1.45] text-chat-text-3 max-w-72">{props.detail}</p>
       </Show>
-      <Button variant="outline-danger" onClick={props.onRetry}>
+      <Button variant="outline-danger" onClick={props.onRetry} ref={(element) => props.retryRef?.(element)}>
         Retry
       </Button>
     </div>

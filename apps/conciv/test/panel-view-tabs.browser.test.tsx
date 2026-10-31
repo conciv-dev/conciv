@@ -1,15 +1,17 @@
 import './helpers/utilities.css'
 import {afterEach, describe, expect, test, vi} from 'vitest'
-import {page} from 'vitest/browser'
+import {page, userEvent} from 'vitest/browser'
 import type {JSX} from 'solid-js'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
+import {INERT_TOOL_CATALOG} from '@conciv/protocol/tool-view-types'
 import {bootedCore} from './helpers/booted-core.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, runTurn} from './helpers/core-session.js'
 import {createShellHarness} from './helpers/shell-harness.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
+import {guardedToolCards} from '../src/extension/extension-boundary.js'
 
 const SUBSCRIBE_PATH = ['chat', 'subscribe']
 const NOTES_BODY = 'the notes view body'
@@ -210,6 +212,72 @@ describe('a crashing extension', () => {
     await expect.element(page.getByText(AFTER_TOOLS_TEXT), {timeout: 8000}).toBeVisible()
     await expect.element(editor()).toBeVisible()
   }, 30_000)
+
+  test('Retry lands keyboard focus on the next Retry after a re-crash and on the view after recovery', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await mountAfterTurn([], [crashingTab])
+    const crashingTabButton = () => page.getByRole('tab', {name: 'Crashing', exact: true})
+
+    await expect.element(crashingTabButton(), {timeout: 8000}).toBeVisible()
+    await crashingTabButton().click()
+    await expect.element(page.getByText('The crash-tab extension crashed'), {timeout: 8000}).toBeVisible()
+
+    await userEvent.tab({shift: true})
+    await expect.element(retry()).toHaveFocus()
+
+    await userEvent.keyboard('{Enter}')
+    await expect.element(retry()).toHaveFocus()
+    expect(retry().element().matches(':focus-visible'), 'the new Retry shows the focus ring').toBe(true)
+    expect(crashReports('crash-tab')).toBe(2)
+
+    tabCrash.armed = false
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText(RECOVERED_BODY)).toBeVisible()
+    const viewContent = () => panel().getByRole('group', {name: 'Crashing'})
+    await expect.element(viewContent()).toHaveFocus()
+    expect(viewContent().element().matches(':focus-visible'), 'the view content shows the focus ring').toBe(true)
+  }, 30_000)
+
+  test('a throwing hasEmbeddedBody reports once per error message across evaluations', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const failure = {message: 'first failure'}
+    const extension = defineExtension({
+      name: 'crash-streaming-predicate',
+      tools: [
+        defineTool({name: 'crash_streaming', ...TOOL_SHAPE}).render({
+          render: () => <p>{CALM_CARD_BODY}</p>,
+          hasEmbeddedBody: () => {
+            throw new Error(failure.message)
+          },
+        }),
+      ],
+    })
+    const part = {
+      type: 'tool-call',
+      id: 'call',
+      name: 'crash_streaming',
+      arguments: '{}',
+      state: 'input-complete',
+    } as const
+    const ctx = {
+      apiBase: '',
+      harnessId: 'fixture',
+      sendMessage: () => {},
+      catalog: INERT_TOOL_CATALOG,
+      addResult: () => {},
+    }
+    const evaluate = guardedToolCards([extension])[0]?.hasEmbeddedBody
+
+    expect(evaluate?.(part, undefined, ctx)).toBe(true)
+    expect(evaluate?.(part, undefined, ctx)).toBe(true)
+    expect(evaluate?.(part, undefined, ctx)).toBe(true)
+    expect(crashReports('crash-streaming-predicate')).toBe(1)
+
+    failure.message = 'second failure'
+    expect(evaluate?.(part, undefined, ctx)).toBe(true)
+    expect(evaluate?.(part, undefined, ctx)).toBe(true)
+    expect(crashReports('crash-streaming-predicate')).toBe(2)
+  })
 
   test('a throwing view icon leaves the status bar with its tab label', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})

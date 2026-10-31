@@ -23,5 +23,5 @@ export function paneAttachments(
     TEXT_ATTACHMENT_ADAPTER,
     ...cards.map((entry) => createDocumentAttachmentAdapter(entry.mime)),
   ])
-  return {cards, chips: guardedAttachmentCards(extensions, 'silent'), adapter}
+  return {cards, chips: guardedAttachmentCards(extensions, 'chip'), adapter}
 }
