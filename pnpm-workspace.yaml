@@ -46,6 +46,7 @@ catalog:
   '@playwright/test': '^1.64.1'
   '@shikijs/langs-precompiled': 4.5.0
   '@solid-primitives/event-listener': '^2.4.6'
+  '@solid-primitives/resize-observer': '^2.2.0'
   '@solid-primitives/timer': '^1.4.4'
   '@solidjs/testing-library': '^0.8.10'
   '@storybook/addon-docs': '^10.6.5'
