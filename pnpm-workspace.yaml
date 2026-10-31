@@ -133,10 +133,7 @@ catalog:
   ws: '^8.22.0'
   zod: '^4.6.7'
 
-# Force patched protobufjs (GHSA-wcpc-wj8m-hjx6 prototype pollution); pulled in transitively
-# via jazz-tools OpenTelemetry in the whiteboard extension.
 overrides:
-  protobufjs@<8.4.1: '>=8.4.1'
   # lodash-es _.template code injection (GHSA-r5fr-rjxr-66jc); npm never shipped 4.17.24, the
   # patched line is 4.18.x. Pulled in transitively via @excalidraw in the whiteboard extension.
   lodash-es@<4.18.0: '>=4.18.1'
@@ -150,9 +147,6 @@ overrides:
   'nanoid@>=4.0.0 <5.0.9': '>=5.0.9 <6'
   # next (incl. latest 16.x) pins postcss 8.4.31 exact (</style> XSS advisory).
   postcss@<8.5.10: '>=8.5.10 <9'
-  # jazz-tools (latest alpha) pins esbuild ^0.27; the dev-server advisory window is
-  # 0.27.3-0.28.0 only, so only that window is floored to 0.28.1.
-  'esbuild@>=0.27.3 <0.28.1': '>=0.28.1'
   # @netlify/otel (via nitro>unstorage>@netlify/blobs) pins @opentelemetry/core 2.7.1 exact.
   '@opentelemetry/core@<2.8.0': '>=2.8.0 <3'
 
