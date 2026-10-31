@@ -2,7 +2,7 @@ import {Outlet, createFileRoute} from '@tanstack/solid-router'
 import {FocusTrap, createResizable} from '@conciv/ui-kit-system'
 import {Show, createEffect, createSignal, type JSX} from 'solid-js'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
-import {useEnvironment, useFabPosition, useLayers, useSuppressed} from '../app/context.js'
+import {useEnvironment, useFabPosition, useLayers, useSettings, useSuppressed} from '../app/context.js'
 import {makePanelComposerFocus, PanelComposerFocusContext} from '../app/panel-focus.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
@@ -55,6 +55,9 @@ function PanelLayout(): JSX.Element {
   const search = Route.useSearch()
   const position = fabPosition
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
+  const settings = useSettings()
+  const docked = settings.surface === 'dock'
+  const sheet = () => phone() || docked
   const anchoredBottom = () => position().startsWith('bottom')
   const anchoredRight = () => position().endsWith('right')
   const close = () => panelChrome.close()
@@ -94,15 +97,15 @@ function PanelLayout(): JSX.Element {
       <NoticeContextProvider>
         <PanelComposerFocusContext.Provider value={composerFocus}>
           <FocusTrap
-            disabled={!open() || layers.anyOpen()}
+            disabled={docked || !open() || layers.anyOpen()}
             initialFocus={keepTrapFromFocusing}
             returnFocusOnDeactivate={false}
           >
             <section
-              class={`${PANEL_BASE} ${phone() ? PANEL_SHEET : `${PANEL_CARD} ${PANEL_POS[position()]}`} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}
+              class={`${PANEL_BASE} ${sheet() ? PANEL_SHEET : `${PANEL_CARD} ${PANEL_POS[position()]}`} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}
               data-conciv-panel
               data-conciv-suppressed={suppressed()}
-              style={phone() ? undefined : {height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
+              style={sheet() ? undefined : {height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
               role="dialog"
               aria-label="conciv chat agent"
               id="conciv-chat-panel"
@@ -110,7 +113,7 @@ function PanelLayout(): JSX.Element {
               <NoticeSurface />
               <EngineStaleNotice />
               <EngineUnreachableNotice />
-              <Show when={!phone()}>
+              <Show when={!sheet()}>
                 <div class={PANEL_TICK_TOP} aria-hidden="true" />
                 <div class={PANEL_TICK_LEFT} aria-hidden="true" />
                 <div

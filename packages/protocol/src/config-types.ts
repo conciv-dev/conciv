@@ -8,6 +8,8 @@ export interface QuickTerminalConfig {
   hotkey?: string | string[]
 }
 
+export type ConcivSurface = 'page' | 'dock'
+
 export interface WidgetConfig {
   modal?: boolean | ModalConfig
 
@@ -18,6 +20,8 @@ export interface ConcivSettingsInit extends WidgetConfig {
   defaultOpen?: boolean
 
   launcher?: 'native' | 'mascot' | false
+
+  surface?: ConcivSurface
 }
 
 export interface ExtensionRegistry {}

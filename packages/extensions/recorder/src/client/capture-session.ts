@@ -1,5 +1,5 @@
 import type {RecorderConfig, RrwebEvent} from '../shared/protocol.js'
-import {startCapture, takeFreshSnapshot} from './capture.js'
+import {startCapture, takeFreshSnapshot, type CaptureLibrary} from './capture.js'
 import {createFlusher} from './flusher.js'
 import {createVisibilityPauser} from './visibility-pauser.js'
 
@@ -10,6 +10,7 @@ export type CaptureSession = {
 }
 
 export function createCaptureSession(opts: {
+  library: CaptureLibrary
   config: RecorderConfig
   reloadConfig: () => Promise<RecorderConfig>
   send: (events: RrwebEvent[]) => Promise<void>
@@ -18,7 +19,7 @@ export function createCaptureSession(opts: {
   const flusher = createFlusher({send: opts.send})
   flusher.setLive(true)
   let generation = 0
-  let stopRecord: (() => void) | undefined = startCapture(opts.config, (event) => flusher.push(event))
+  let stopRecord: (() => void) | undefined = startCapture(opts.library, opts.config, (event) => flusher.push(event))
   const offListeners: (() => void)[] = []
   const listenFlush = (target: Window | Document, name: string): void => {
     const handler = (): void => void flusher.flushNow()
@@ -44,7 +45,7 @@ export function createCaptureSession(opts: {
         .reloadConfig()
         .then((resumedConfig) => {
           if (generation !== resumedGeneration) return
-          stopRecord = startCapture(resumedConfig, (event) => flusher.push(event))
+          stopRecord = startCapture(opts.library, resumedConfig, (event) => flusher.push(event))
         })
         .catch(() => {
           if (generation === resumedGeneration) opts.onFailed()
@@ -57,7 +58,7 @@ export function createCaptureSession(opts: {
     document.removeEventListener('visibilitychange', pauser.onVisibilityChange)
   })
   return {
-    takeSnapshot: () => takeFreshSnapshot(),
+    takeSnapshot: () => takeFreshSnapshot(opts.library),
     flushNow: () => flusher.flushNow(),
     async finish() {
       generation += 1

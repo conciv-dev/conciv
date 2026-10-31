@@ -19,6 +19,7 @@ import {SessionPillPending, UsagePending} from '../shell/pending.js'
 import {NoticeContextProvider, NoticeSurface} from '../shell/notice-context.js'
 import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../lib/quick-search.js'
+import {openPipTarget} from '../shell/pip.js'
 
 const CLOSE =
   'bg-transparent [border:none] text-chat-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-chat-surface-sm trans-color-bg hover:text-chat-text hover:bg-chat-fill-strong'
@@ -214,7 +215,17 @@ function QuickLayer(): JSX.Element {
         <QuickTerminalHeader
           onPip={() => {
             const id = paneIds()[focusedIndex()]
-            if (id) void router.navigate({to: '/pip/$sessionId', params: {sessionId: id}})
+            if (!id) return
+            if (openPipTarget()) {
+              void router.navigate({to: '/pip/$sessionId', params: {sessionId: id}})
+              return
+            }
+            void router.navigate({
+              to: '/panel/$sessionId',
+              params: {sessionId: id},
+              search: {popOut: 'lost', open: true},
+              replace: true,
+            })
           }}
           onSplit={() => addFreshPane()}
           onClose={() => router.history.back()}
