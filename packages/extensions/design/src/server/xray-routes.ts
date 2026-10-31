@@ -1,7 +1,7 @@
 import {readFile} from 'node:fs/promises'
 import {join, resolve, sep} from 'node:path'
 import {ORPCError, os} from '@orpc/server'
-import {Hono} from 'hono'
+import {Hono, type Context} from 'hono'
 import {getMimeType} from 'hono/utils/mime'
 import {z} from 'zod'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
@@ -56,14 +56,23 @@ export function makeXrayApp(input: {store: TargetStore; pageDir: string; designD
     cache.page ??= await readFile(join(root, PAGE_FILE), 'utf8').catch(() => null)
     return cache.page
   }
+  const known = async (target: string | undefined): Promise<boolean> => {
+    const id = NonEmptySchema.safeParse(target)
+    return id.success && (await store.find({id: id.data})) !== null
+  }
+  const servePage = async (c: Context) => {
+    if (!(await known(c.req.query('target')))) return c.text('not found', 404)
+    const html = await page()
+    if (html === null) return c.text(NOT_BUILT, 503)
+    return c.html(html)
+  }
   return new Hono()
     .get('/xray', async (c) => {
-      const id = NonEmptySchema.safeParse(c.req.query('target'))
-      if (!id.success || (await store.find({id: id.data})) === null) return c.text('not found', 404)
-      const html = await page()
-      if (html === null) return c.text(NOT_BUILT, 503)
-      return c.html(html)
+      if (!(await known(c.req.query('target')))) return c.text('not found', 404)
+      return c.redirect(`xray/list${new URL(c.req.url).search}`)
     })
+    .get('/xray/list', servePage)
+    .get('/xray/capture', servePage)
     .get('/xray/:asset{.+}', (c) => {
       const asset = NonEmptySchema.safeParse(c.req.param('asset'))
       if (!asset.success) return c.text('not found', 404)

@@ -1,9 +1,24 @@
 import {For, Show, type JSX} from 'solid-js'
-import {RelativeTime} from '@conciv/ui-kit-system'
+import {RelativeTime, SegmentGroup, TooltipIconButton} from '@conciv/ui-kit-system'
 import {choiceFilter, filterChoice, stale, type Filter, type WidthTab, type XrayData} from './data.js'
 import type {View} from './xray-schemas.js'
 
 const MOBILE_WIDTH = 768
+
+const SEGMENT_ROOT = 'gap-2! p-0! rounded-none! bg-transparent! border-0!'
+const SEGMENT_LABEL = 'text-sm! font-sans! text-current! op-fade'
+const SEGMENT_ITEM =
+  'border border-base rounded! px-2! py-1! gap-2! font-sans! text-current! whitespace-nowrap shrink-0 op-50 grayscale transition hover:op-100 data-[state=checked]:op-100 data-[state=checked]:grayscale-0'
+const SEGMENT_INDICATOR = 'bg-active! rounded!'
+
+const VIEW_ITEMS: {view: View; label: string; icon: string}[] = [
+  {view: 'list', label: 'List', icon: 'i-ph-list-bullets-duotone'},
+  {view: 'capture', label: 'Capture', icon: 'i-ph-image-duotone'},
+]
+
+function parseView(value: string): View {
+  return value === 'capture' ? 'capture' : 'list'
+}
 
 const CHIP_FOCUS = 'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary-500/40'
 
@@ -108,6 +123,8 @@ export type XrayPanelProps = {
 
 export function XrayPanel(props: XrayPanelProps): JSX.Element {
   const choice = () => filterChoice(props.filter)
+  const targetIds = () => props.data.widths.map((tab) => tab.target.id)
+  const tabById = (id: string) => props.data.widths.find((tab) => tab.target.id === id)
   return (
     <div class="border border-base rounded-xl bg-glass flex flex-col">
       <div class="flex flex-wrap min-w-0 items-center">
@@ -122,37 +139,31 @@ export function XrayPanel(props: XrayPanelProps): JSX.Element {
           onInput={(event) => props.onQuery(event.currentTarget.value)}
         />
         <div class="pe-2 ps-4 flex flex-wrap gap-2 max-w-full min-h-10 min-w-0 items-center">
-          <div
-            role="radiogroup"
-            aria-label="Viewport"
-            class="scrollbar-hidden py-1 flex gap-2 max-w-full min-w-0 items-center overflow-x-auto"
+          <SegmentGroup.Root
+            value={props.data.target.id}
+            onValueChange={(details) => details.value !== null && props.onTarget(details.value)}
+            class={`${SEGMENT_ROOT} scrollbar-hidden py-1 max-w-full min-w-0 overflow-x-auto`}
           >
-            <span class="text-sm op-fade" aria-hidden="true">
-              Viewport
-            </span>
-            <For each={props.data.widths}>
-              {(tab) => (
-                <RadioChip
-                  group="viewport"
-                  small
-                  checked={tab.target.id === props.data.target.id}
-                  icon={widthIcon(tab.target.width)}
-                  onSelect={() => props.onTarget(tab.target.id)}
-                >
-                  <span class="tabular-nums">
-                    {tab.target.width} · {widthSummary(tab)}
-                  </span>
-                </RadioChip>
+            <SegmentGroup.Label class={SEGMENT_LABEL}>Viewport</SegmentGroup.Label>
+            <SegmentGroup.Indicator class={SEGMENT_INDICATOR} />
+            <For each={targetIds()}>
+              {(id) => (
+                <Show when={tabById(id)}>
+                  {(tab) => (
+                    <SegmentGroup.Item value={id} class={`${SEGMENT_ITEM} text-sm!`}>
+                      <span class={widthIcon(tab().target.width)} aria-hidden="true" />
+                      <SegmentGroup.ItemText class="tabular-nums">
+                        {tab().target.width} · {widthSummary(tab())}
+                      </SegmentGroup.ItemText>
+                      <SegmentGroup.ItemHiddenInput />
+                    </SegmentGroup.Item>
+                  )}
+                </Show>
               )}
             </For>
-          </div>
-          <Show when={props.data.ranAt !== null}>
-            <span class="mx-1 border-s border-base h-5" aria-hidden="true" />
-            <Show when={stale(props.data) && !props.running}>
-              <span class="badge badge-color-amber">stale: source changed</span>
-            </Show>
-            <RunButton running={props.running} onRun={props.onRun} />
-          </Show>
+          </SegmentGroup.Root>
+          <span class="mx-1 border-s border-base h-5 hidden sm:block" aria-hidden="true" />
+          <RunButton running={props.running} onRun={props.onRun} />
         </div>
       </div>
       <div class="p-2 border-t border-base flex flex-wrap gap-2 items-center">
@@ -168,55 +179,54 @@ export function XrayPanel(props: XrayPanelProps): JSX.Element {
           label="Match"
           onToggle={(match) => props.onFilter(choiceFilter({...choice(), match}))}
         />
-        <button
-          type="button"
+        <TooltipIconButton
+          tooltip="Invert selection"
           class="btn-icon-compact rounded-md"
-          aria-label="Invert selection"
           onClick={() => props.onFilter(choiceFilter({above: !choice().above, match: !choice().match}))}
         >
           <span class="i-ph-selection-inverse-duotone" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
+        </TooltipIconButton>
+        <TooltipIconButton
+          tooltip="Select all"
           class="btn-icon-compact rounded-md"
-          aria-label="Select all"
           onClick={() => props.onFilter('all')}
         >
           <span class="i-ph-selection-all-duotone" aria-hidden="true" />
-        </button>
+        </TooltipIconButton>
       </div>
       <div class="p-2 pe-4 border-t border-base flex flex-wrap gap-2 items-center">
-        <div role="radiogroup" aria-label="View as" class="flex gap-2 items-center">
-          <span class="text-sm ps-2 op-fade" aria-hidden="true">
-            View as
-          </span>
-          <RadioChip
-            group="view"
-            checked={props.view === 'list'}
-            icon="i-ph-list-bullets-duotone"
-            onSelect={() => props.onView('list')}
-          >
-            List
-          </RadioChip>
-          <RadioChip
-            group="view"
-            checked={props.view === 'capture'}
-            icon="i-ph-image-duotone"
-            onSelect={() => props.onView('capture')}
-          >
-            Capture
-          </RadioChip>
-        </div>
-        <span class="text-sm ms-auto min-w-0 truncate">
-          <span class="font-mono op-75">{props.data.target.route}</span>
-          <Show when={props.data.ranAt}>
-            {(at) => (
-              <span class="op-fade tabular-nums">
-                {' · diffed '}
-                <RelativeTime value={new Date(at())} />
-              </span>
+        <SegmentGroup.Root
+          value={props.view}
+          onValueChange={(details) => details.value !== null && props.onView(parseView(details.value))}
+          class={SEGMENT_ROOT}
+        >
+          <SegmentGroup.Label class={`${SEGMENT_LABEL} ps-2`}>View as</SegmentGroup.Label>
+          <SegmentGroup.Indicator class={SEGMENT_INDICATOR} />
+          <For each={VIEW_ITEMS}>
+            {(item) => (
+              <SegmentGroup.Item value={item.view} class={`${SEGMENT_ITEM} text-base!`}>
+                <span class={item.icon} aria-hidden="true" />
+                <SegmentGroup.ItemText>{item.label}</SegmentGroup.ItemText>
+                <SegmentGroup.ItemHiddenInput />
+              </SegmentGroup.Item>
             )}
+          </For>
+        </SegmentGroup.Root>
+        <span class="text-sm ms-auto flex flex-wrap gap-2 min-w-0 items-center justify-end">
+          <Show when={stale(props.data) && !props.running}>
+            <span class="badge badge-color-amber shrink-0">stale: source changed</span>
           </Show>
+          <span class="min-w-0 truncate">
+            <span class="font-mono op-75">{props.data.target.route}</span>
+            <Show when={props.data.ranAt} fallback={<span class="op-fade">{' · not diffed yet'}</span>}>
+              {(at) => (
+                <span class="op-fade tabular-nums">
+                  {' · diffed '}
+                  <RelativeTime value={new Date(at())} />
+                </span>
+              )}
+            </Show>
+          </span>
         </span>
       </div>
     </div>

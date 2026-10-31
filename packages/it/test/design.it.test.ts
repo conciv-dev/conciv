@@ -181,6 +181,11 @@ function target(name: string): string {
   return join(kit.targetsDir, `${name}.png`)
 }
 
+function capturePage(xray: string): string {
+  const url = new URL(xray)
+  return new URL(`capture${url.search}`, url).href
+}
+
 function fileUnder(root: string, relative: string): string {
   return isAbsolute(relative) ? relative : join(root, relative)
 }
@@ -590,7 +595,7 @@ describe('x-ray page', () => {
     await goto('target')
     const registered = await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
     const report = await call('design_diff', {width: 1280})
-    expect(report.xray).toContain(`/api/ext/design/xray?target=${registered.id}`)
+    expect(report.xray).toContain(`/api/ext/design/xray/list?target=${registered.id}`)
     const html = await fetch(report.xray)
     expect(html.status).toBe(200)
     expect(await html.text()).toContain('<script type="module"')
@@ -681,10 +686,12 @@ describe('x-ray page', () => {
     const narrow = await call('design_target', {image: target('u1-390'), route: '/', width: 390})
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
-    await xray.goto(`${report.xray}&view=capture`)
+    await xray.goto(capturePage(report.xray))
     await xray.getByRole('radiogroup', {name: 'Viewport'}).getByText('390').click()
     await expectLocator(xray.getByRole('radio', {name: '390'})).toBeChecked()
-    await expectLocator(xray).toHaveURL((url) => url.search.includes(narrow.id) && url.search.includes('view=capture'))
+    await expectLocator(xray).toHaveURL(
+      (url) => url.pathname.endsWith('/xray/capture') && url.search.includes(narrow.id),
+    )
     await expectLocator(xray.getByRole('radio', {name: 'Capture'})).toBeChecked()
     await xray.close()
   })
@@ -693,7 +700,7 @@ describe('x-ray page', () => {
     await goto('/')
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
-    await xray.goto(`${report.xray}&view=capture`)
+    await xray.goto(capturePage(report.xray))
     await expectLocator(xray.getByRole('radio', {name: 'Capture'})).toBeChecked()
     await expectLocator(xray.getByRole('radio', {name: 'Slider'})).toBeChecked()
     await expectLocator(xray.getByRole('radio', {name: 'Side by side'})).toBeVisible()
@@ -709,7 +716,7 @@ describe('x-ray page', () => {
     const xray = await browser.newPage()
     await xray.goto(report.xray)
     await expectLocator(xray.getByText(pill)).toBeVisible()
-    await xray.goto(`${report.xray}&view=capture`)
+    await xray.goto(capturePage(report.xray))
     await expectLocator(xray.getByRole('figure')).toContainText('Live over design')
     await expectLocator(xray.getByText(pill)).toHaveCount(0)
     await xray.close()
@@ -729,7 +736,7 @@ describe('x-ray page', () => {
     await xray.close()
   })
 
-  it('a width without a run offers exactly one Run diff', async () => {
+  it('a width without a run keeps the panel Run diff and says it was not diffed yet', async () => {
     await goto('/')
     const unrun = await call('design_target', {image: target('u1-390'), route: '/', width: 390, name: 'unrun'})
     const report = await call('design_diff', {width: 1280})
@@ -738,7 +745,51 @@ describe('x-ray page', () => {
     const xray = await browser.newPage()
     await xray.goto(url.toString())
     await expectLocator(xray.getByText('No diff for')).toBeVisible()
-    await expectLocator(xray.getByRole('button', {name: 'Run diff'})).toHaveCount(1)
+    await expectLocator(xray.getByText('not diffed yet')).toBeVisible()
+    await expectLocator(xray.getByRole('button', {name: 'Run diff'})).toHaveCount(2)
+    await xray.close()
+  })
+
+  it('hovering the invert button shows its tooltip', async () => {
+    await goto('/')
+    const report = await call('design_diff', {width: 1280})
+    const xray = await browser.newPage()
+    await xray.goto(report.xray)
+    await xray.getByRole('button', {name: 'Invert selection'}).hover()
+    await expectLocator(xray.getByRole('tooltip')).toHaveText('Invert selection')
+    await xray.close()
+  })
+
+  it('arrow keys switch the viewport and keep focus in the viewport group', async () => {
+    await goto('/')
+    await call('design_target', {image: target('u1-390'), route: '/', width: 390})
+    const report = await call('design_diff', {width: 1280})
+    const xray = await browser.newPage()
+    await xray.goto(report.xray)
+    const group = xray.getByRole('radiogroup', {name: 'Viewport'})
+    const desktop = group.getByRole('radio', {name: '1280'})
+    await expectLocator(desktop).toBeChecked()
+    await desktop.focus()
+    await xray.keyboard.press('ArrowRight')
+    await expectLocator(xray).toHaveURL((url) => !url.search.includes(report.target.id))
+    await expectLocator(group.getByRole('radio', {checked: true})).toBeFocused()
+    await expectLocator(desktop).not.toBeChecked()
+    await expectLocator(group.locator('label[data-focus-visible]')).toHaveCount(1)
+    await xray.close()
+  })
+
+  it('keys 2 and 1 switch the view route and the view selection follows', async () => {
+    await goto('/')
+    const report = await call('design_diff', {width: 1280})
+    const xray = await browser.newPage()
+    await xray.goto(report.xray)
+    await expectLocator(xray.getByRole('radio', {name: 'List'})).toBeChecked()
+    await xray.keyboard.press('2')
+    await expectLocator(xray).toHaveURL((url) => url.pathname.endsWith('/xray/capture'))
+    await expectLocator(xray.getByRole('radio', {name: 'Capture'})).toBeChecked()
+    await xray.keyboard.press('1')
+    await expectLocator(xray).toHaveURL((url) => url.pathname.endsWith('/xray/list'))
+    await expectLocator(xray.getByRole('radio', {name: 'List'})).toBeChecked()
     await xray.close()
   })
 

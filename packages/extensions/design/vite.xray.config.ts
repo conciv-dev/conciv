@@ -18,9 +18,5 @@ export default defineConfig(async ({command}) => ({
   root: local('src/xray/'),
   base: './',
   plugins: [await compiler(command), UnoCSS({configFile: local('uno.config.ts')})],
-  experimental: {
-    renderBuiltUrl: (filename: string, context: {hostType: 'js' | 'css' | 'html'}) =>
-      context.hostType === 'html' ? `xray/${filename}` : {relative: true},
-  },
   build: {outDir: local('dist/xray/'), emptyOutDir: true, sourcemap: true},
 }))

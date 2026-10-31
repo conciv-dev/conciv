@@ -90,12 +90,24 @@ function runTime(report: DiffReport | null): number | null {
   return Number.isFinite(at) ? at : null
 }
 
+const PAGE_SEGMENT = '/xray'
+
+export function pagePrefix(): string {
+  const path = window.location.pathname
+  const at = path.indexOf(PAGE_SEGMENT)
+  return at === -1 ? '' : path.slice(0, at + PAGE_SEGMENT.length)
+}
+
+function pageUrl(): URL {
+  return new URL(pagePrefix(), window.location.origin)
+}
+
 function engineApiBase(): string {
-  return new URL('../../../', window.location.href).href.slice(0, -1)
+  return new URL('../../../', pageUrl()).href.slice(0, -1)
 }
 
 function fileUrl(path: string): string {
-  return new URL(`files/${path}`, window.location.href).href
+  return new URL(`files/${path}`, pageUrl()).href
 }
 
 function designClient() {

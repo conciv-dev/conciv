@@ -1,6 +1,6 @@
 import {For, onCleanup, onMount, Show, type JSX} from 'solid-js'
 import {clamp} from 'es-toolkit'
-import {ScrollArea} from '@conciv/ui-kit-system'
+import {ScrollArea, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
 import type {TargetRecord} from '../shared/types.js'
 import type {Row, XrayImages} from './data.js'
 import {Frame} from './frame.js'
@@ -115,15 +115,14 @@ export function StageToolbar(props: ToolbarProps): JSX.Element {
         </For>
       </div>
       <div role="group" aria-label="Zoom" class="flex gap-1 items-center">
-        <button
-          type="button"
+        <TooltipIconButton
+          tooltip="Zoom out"
           class="btn-icon-compact"
-          aria-label="Zoom out"
           disabled={props.scale <= MIN_ZOOM}
           onClick={() => props.onZoom(-1)}
         >
           <span class="i-ph-magnifying-glass-minus-duotone" aria-hidden="true" />
-        </button>
+        </TooltipIconButton>
         <button
           type="button"
           class="btn-action-sm min-w-14 justify-center tabular-nums"
@@ -131,15 +130,14 @@ export function StageToolbar(props: ToolbarProps): JSX.Element {
         >
           {props.fitted ? 'Fit' : ZOOM_PERCENT.format(props.scale)}
         </button>
-        <button
-          type="button"
+        <TooltipIconButton
+          tooltip="Zoom in"
           class="btn-icon-compact"
-          aria-label="Zoom in"
           disabled={props.scale >= MAX_ZOOM}
           onClick={() => props.onZoom(1)}
         >
           <span class="i-ph-magnifying-glass-plus-duotone" aria-hidden="true" />
-        </button>
+        </TooltipIconButton>
       </div>
       <div class="ms-auto">
         <CheckChip
@@ -220,37 +218,50 @@ function Divider(props: {value: number; onChange: (value: number) => void}): JSX
     props.onChange(clamp(props.value + direction * step, 0, 100))
   }
   return (
-    <div
-      role="separator"
-      tabindex="0"
-      aria-orientation="vertical"
-      aria-label="Live and design divider"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(props.value)}
-      class="group outline-none w-4 cursor-ew-resize inset-y-0 absolute touch-none -translate-x-1/2"
-      style={{left: `${props.value}%`}}
-      onPointerDown={(event) => {
-        event.stopPropagation()
-        event.currentTarget.setPointerCapture(event.pointerId)
-        follow(event)
-      }}
-      onPointerMove={(event) => {
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) follow(event)
-      }}
-      onKeyDown={nudge}
-    >
-      <span
-        class="bg-neutral-900 w-0.5 inset-y-0 left-1/2 absolute dark:bg-neutral-100 -translate-x-1/2"
-        aria-hidden="true"
-      />
-      <span
-        class="border border-base rounded-full bg-base grid size-7 shadow-sm left-1/2 top-1/2 place-items-center absolute group-focus-visible:ring-2 group-focus-visible:ring-primary-500/40 -translate-x-1/2 -translate-y-1/2"
-        aria-hidden="true"
-      >
-        <span class="i-ph-arrows-out-line-horizontal size-4" />
-      </span>
-    </div>
+    <Tooltip.Root>
+      <Tooltip.Context>
+        {(api) => (
+          <div
+            role="separator"
+            tabindex="0"
+            aria-orientation="vertical"
+            aria-label="Live and design divider"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(props.value)}
+            class="group outline-none w-4 cursor-ew-resize inset-y-0 absolute touch-none -translate-x-1/2"
+            style={{left: `${props.value}%`}}
+            onPointerDown={(event) => {
+              event.stopPropagation()
+              event.currentTarget.setPointerCapture(event.pointerId)
+              follow(event)
+            }}
+            onPointerMove={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) follow(event)
+            }}
+            onKeyDown={nudge}
+            onFocus={(event) => event.currentTarget.matches(':focus-visible') && api().setOpen(true)}
+            onBlur={() => api().setOpen(false)}
+          >
+            <span class="bg-neutral-900 w-0.5 inset-y-0 left-1/2 absolute -translate-x-1/2" aria-hidden="true" />
+            <Tooltip.Trigger
+              asChild={(triggerProps) => (
+                <span
+                  {...triggerProps()}
+                  class="border border-base rounded-full bg-base grid size-7 shadow-sm left-1/2 top-1/2 place-items-center absolute group-focus-visible:ring-2 group-focus-visible:ring-primary-500/40 -translate-x-1/2 -translate-y-1/2"
+                  aria-hidden="true"
+                >
+                  <span class="i-ph-arrows-out-line-horizontal size-4" />
+                </span>
+              )}
+            />
+          </div>
+        )}
+      </Tooltip.Context>
+      <Tooltip.Positioner>
+        <Tooltip.Content>Live and design divider</Tooltip.Content>
+      </Tooltip.Positioner>
+    </Tooltip.Root>
   )
 }
 

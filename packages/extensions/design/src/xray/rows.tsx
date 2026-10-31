@@ -109,7 +109,7 @@ export type ComponentRowsProps = {
 
 export function ComponentRows(props: ComponentRowsProps): JSX.Element {
   return (
-    <ul role="list" aria-label="Components" class="m-0 p-0 list-none flex flex-col gap-2">
+    <ul role="list" aria-label="Components" class="m-0 p-0 pb-16 pt-4 list-none flex flex-col gap-2">
       <For each={props.rows}>
         {(row, index) => (
           <ComponentRow

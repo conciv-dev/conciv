@@ -66,7 +66,7 @@ export const design = defineExtension({
       const origin = server.nativeUrl()
       const query = `target=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}`
       return {
-        url: `${origin ?? server.basePath}/api/ext/${DESIGN_EXTENSION_NAME}/xray?${query}`,
+        url: `${origin ?? server.basePath}/api/ext/${DESIGN_EXTENSION_NAME}/xray/list?${query}`,
         absolute: origin !== undefined,
       }
     },

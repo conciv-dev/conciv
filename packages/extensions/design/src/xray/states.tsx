@@ -11,26 +11,30 @@ function components(total: number): string {
 
 function EmptyState(props: {icon: string; title: JSX.Element; children?: JSX.Element}): JSX.Element {
   return (
-    <div class="px-4 py-24 text-center flex flex-col gap-3 items-center justify-center">
-      <span class={`${props.icon} text-4xl op-fade`} aria-hidden="true" />
-      <h2 class="text-lg font-medium m-0 text-balance">{props.title}</h2>
-      {props.children}
+    <div class="px-4 flex-1 grid place-items-center">
+      <div class="text-center flex flex-col gap-3 items-center">
+        <span class={`${props.icon} text-4xl op-fade`} aria-hidden="true" />
+        <h2 class="text-lg font-medium m-0 text-balance">{props.title}</h2>
+        {props.children}
+      </div>
     </div>
   )
 }
 
 export function Loading(): JSX.Element {
   return (
-    <div role="status" class="py-24 op-fade flex gap-2 items-center justify-center">
-      <span class="i-ph-circle-notch animate-spin motion-reduce:animate-none" aria-hidden="true" />
-      Loading the x-ray…
+    <div role="status" class="flex-1 grid place-items-center">
+      <span class="op-fade flex gap-2 items-center">
+        <span class="i-ph-circle-notch animate-spin motion-reduce:animate-none" aria-hidden="true" />
+        Loading the x-ray…
+      </span>
     </div>
   )
 }
 
 export function LoadError(props: {message: string; onRetry: () => void}): JSX.Element {
   return (
-    <div role="alert">
+    <div role="alert" class="flex flex-1 flex-col">
       <EmptyState icon="i-ph-warning-duotone" title="The x-ray could not load this target">
         <p class="text-sm font-mono m-0 op-fade max-w-160 break-all text-pretty">{props.message}</p>
         <button type="button" class="btn-action-sm" onClick={() => props.onRetry()}>
@@ -96,5 +100,9 @@ export function NothingShown(props: {query: string; filter: Filter}): JSX.Elemen
       ? 'No component in this selection.'
       : `No component matches “${props.query.trim()}”.`
   }
-  return <p class="text-sm m-0 py-12 text-center op-fade">{text()}</p>
+  return (
+    <div class="flex-1 grid place-items-center">
+      <p class="text-sm m-0 text-center op-fade">{text()}</p>
+    </div>
+  )
 }
