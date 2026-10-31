@@ -20,5 +20,6 @@ function toolbarStyle(variant: string | null) {
     backgroundColor: variant === 'recolor' ? '#f5f5f5' : '#ffffff',
     width: variant === 'wide' ? 680 : 640,
     ...(variant === 'target' ? {paddingRight: 0} : {}),
+    ...(variant === null ? {} : {paddingTop: 0}),
   }
 }
