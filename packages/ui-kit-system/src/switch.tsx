@@ -18,6 +18,7 @@ const SWELL_SPRING = {stiffness: 520, damping: 34, mass: 0.6}
 const MAX_STRETCH = 0.4
 const STRETCH_SPEED = 600
 const STRETCH_GAIN = 0.36
+const REFERENCE_TRAVEL = 42
 const HOVER_SCALE = 1.035
 const TAP_SLOP = {fine: 4, coarse: 8}
 
@@ -113,7 +114,9 @@ function createSwitchMotion(): SwitchMotion {
     const target = motion.drag ?? rest()
     advance({target, seconds})
     if (still(target)) return settle(element)
-    const stretch = 1 + Math.min(MAX_STRETCH, Math.abs(motion.flow.value) / STRETCH_SPEED) * STRETCH_GAIN
+    const {min, max} = bounds()
+    const threshold = STRETCH_SPEED * (Math.max(1, max - min) / REFERENCE_TRAVEL)
+    const stretch = 1 + Math.min(MAX_STRETCH, Math.abs(motion.flow.value) / threshold) * STRETCH_GAIN
     paint({element, offset: motion.position.value - rest(), stretch, swell: motion.swell.value})
     return true
   }
