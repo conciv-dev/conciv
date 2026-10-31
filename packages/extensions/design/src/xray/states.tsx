@@ -93,7 +93,7 @@ export function AllMatch(props: {
   )
 }
 
-export function NothingShown(props: {query: string; filter: Filter}): JSX.Element {
+export function NothingShown(props: {query: string; filter: Filter; onClear: () => void}): JSX.Element {
   const text = () => {
     if (props.filter === 'none') return 'Nothing selected. Turn on Off or Match.'
     return props.query.trim() === ''
@@ -102,7 +102,15 @@ export function NothingShown(props: {query: string; filter: Filter}): JSX.Elemen
   }
   return (
     <div class="flex-1 grid place-items-center">
-      <p class="text-sm m-0 text-center op-fade">{text()}</p>
+      <div class="flex flex-col gap-3 items-center">
+        <p class="text-sm m-0 text-center op-fade">{text()}</p>
+        <Show when={props.query.trim() !== ''}>
+          <button type="button" class="btn-action-sm" onClick={() => props.onClear()}>
+            <span class="i-ph-x-circle-duotone" aria-hidden="true" />
+            Clear search
+          </button>
+        </Show>
+      </div>
     </div>
   )
 }

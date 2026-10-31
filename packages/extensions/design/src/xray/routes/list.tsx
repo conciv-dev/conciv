@@ -16,6 +16,8 @@ const Route = listRoute
 
 function XrayList(): JSX.Element {
   const search = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const clearQuery = () => navigate({search: (previous) => ({...previous, q: undefined}), replace: true})
   const page = useXrayPage()
   return (
     <Switch>
@@ -38,7 +40,7 @@ function XrayList(): JSX.Element {
         />
       </Match>
       <Match when={page.visible().length === 0}>
-        <NothingShown query={search().q ?? ''} filter={search().filter} />
+        <NothingShown query={search().q ?? ''} filter={search().filter} onClear={clearQuery} />
       </Match>
       <Match when={page.visible().length > 0}>
         <ComponentRows
