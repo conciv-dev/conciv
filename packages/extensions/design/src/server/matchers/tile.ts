@@ -1,3 +1,4 @@
+import {SOURCE_ATTR} from '../../shared/source-attr.js'
 import {TOLERANCES} from '../../shared/tolerances.js'
 import type {Box, Comparators, LiveComponent, Matcher, Pair, Raster} from '../../shared/types.js'
 import {isOpaqueHex, sampledFills} from '../deltas/colors.js'
@@ -34,7 +35,7 @@ export function componentSelector(input: {component: LiveComponent; parent: Pair
   const {component, parent, shared} = input
   const key = sourceKey(component)
   if (key === null) return parent === null ? component.tag : `${parent.selector} > ${component.tag}`
-  const selector = `[data-conciv-source="${key}"]`
+  const selector = `[${SOURCE_ATTR}="${key}"]`
   return shared ? `${selector}:nth-child(${component.index})` : selector
 }
 

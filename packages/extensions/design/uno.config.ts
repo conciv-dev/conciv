@@ -6,20 +6,6 @@ function local(path: string): string {
   return fileURLToPath(new URL(path, import.meta.url))
 }
 
-const GLASS_LIGHT_RATIO = 1.3
-
-function glass(match: string[]): string | undefined {
-  const opacity = Number(match[1] ?? '50')
-  if (!Number.isInteger(opacity) || opacity < 0 || opacity > 100) return undefined
-  const light = Math.min(Math.round(opacity * GLASS_LIGHT_RATIO), 100)
-  return `bg-white/${light} dark:bg-[#050505]/${opacity} backdrop-blur-[7px]`
-}
-
-function badge(match: string[]): string {
-  const color = match[1] ?? 'gray'
-  return `bg-${color}-400/20 dark:bg-${color}-400/10 text-${color}-700 dark:text-${color}-300 border-${color}-600/10 dark:border-${color}-300/10`
-}
-
 export default defineConfig({
   content: {filesystem: [local('src/xray/**/*.{ts,tsx,html}'), local('../../ui-kit-system/src/**/*.{ts,tsx}')]},
   presets: [
@@ -69,10 +55,18 @@ export default defineConfig({
       'btn-action-active': 'color-active border-active! bg-active op-100!',
       'btn-primary':
         'px-3 py-1.5 rounded flex gap-2 items-center bg-primary-500 hover:bg-primary-600 text-white transition disabled:op-50 disabled:pointer-events-none focus-base active:scale-97 motion-reduce:active:scale-100',
+      'bg-glass': 'bg-white/65 dark:bg-[#050505]/50 backdrop-blur-[7px]',
+      'bg-glass:80': 'bg-white dark:bg-[#050505]/80 backdrop-blur-[7px]',
+      'badge-color-orange':
+        'bg-orange-400/20 dark:bg-orange-400/10 text-orange-700 dark:text-orange-300 border-orange-600/10 dark:border-orange-300/10',
+      'badge-color-red':
+        'bg-red-400/20 dark:bg-red-400/10 text-red-700 dark:text-red-300 border-red-600/10 dark:border-red-300/10',
+      'badge-color-amber':
+        'bg-amber-400/20 dark:bg-amber-400/10 text-amber-700 dark:text-amber-300 border-amber-600/10 dark:border-amber-300/10',
+      'badge-color-green':
+        'bg-green-400/20 dark:bg-green-400/10 text-green-700 dark:text-green-300 border-green-600/10 dark:border-green-300/10',
       'btn-icon-compact':
         'w-6 h-6 rounded flex items-center justify-center op-75 hover:op-100 hover:bg-active transition focus-base disabled:pointer-events-none disabled:op-30!',
     },
-    [/^bg-glass(?::(\d+))?$/, glass, {layer: 'shortcuts'}],
-    [/^badge-color-(\w+)$/, badge],
   ],
 })

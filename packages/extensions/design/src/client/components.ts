@@ -1,8 +1,8 @@
 import {formatHex, formatHex8, parse} from 'culori'
+import {SOURCE_ATTR} from '../shared/source-attr.js'
 import {TOLERANCES} from '../shared/tolerances.js'
 import type {Box, Glyph, LiveComponent, LiveStyles, SourceLoc} from '../shared/types.js'
 
-const SOURCE_ATTR = 'data-conciv-source'
 const NORMAL_LINE_HEIGHT = 1.2
 
 type Viewport = {width: number; height: number}

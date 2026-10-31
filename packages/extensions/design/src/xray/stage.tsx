@@ -241,14 +241,14 @@ function Divider(props: {value: number; onChange: (value: number) => void}): JSX
       onKeyDown={nudge}
     >
       <span
-        class="outline-1 outline-white outline bg-neutral-800 opacity-60 w-px inset-y-0 left-1/2 absolute dark:outline-black dark:bg-neutral-200"
+        class="bg-neutral-800/60 w-px inset-y-0 left-1/2 absolute dark:bg-neutral-200/60 -translate-x-1/2"
         aria-hidden="true"
       />
       <span
-        class="text-xs leading-none border border-base rounded-full bg-base grid size-6 shadow left-1/2 top-1/2 place-items-center absolute group-focus-visible:ring-2 group-focus-visible:ring-primary-500/40 -translate-1/2"
+        class="border border-base rounded-full bg-base grid size-7 shadow-sm left-1/2 top-1/2 place-items-center absolute group-focus-visible:ring-2 group-focus-visible:ring-primary-500/40 -translate-x-1/2 -translate-y-1/2"
         aria-hidden="true"
       >
-        ‹ ›
+        <span class="i-ph-arrows-out-line-horizontal size-4" />
       </span>
     </div>
   )

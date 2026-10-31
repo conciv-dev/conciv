@@ -701,6 +701,47 @@ describe('x-ray page', () => {
     await xray.close()
   })
 
+  it('capture view keeps the off count pill off the stage', async () => {
+    await goto('/')
+    const report = await call('design_diff', {width: 1280})
+    const above = report.components.filter((part) => part.deltas.length > 0).length + report.unmatched.length
+    const pill = `${above} of ${report.components.length + report.unmatched.length} off`
+    const xray = await browser.newPage()
+    await xray.goto(report.xray)
+    await expectLocator(xray.getByText(pill)).toBeVisible()
+    await xray.goto(`${report.xray}&view=capture`)
+    await expectLocator(xray.getByRole('figure')).toContainText('Live over design')
+    await expectLocator(xray.getByText(pill)).toHaveCount(0)
+    await xray.close()
+  })
+
+  it('a row keyed by its source attribute shows the element tag, not the attribute selector', async () => {
+    await goto('/')
+    const report = await call('design_diff', {width: 1280})
+    const first = report.components[0]
+    expect(first?.selector).toContain('[data-conciv-source=')
+    if (first === undefined) return
+    const xray = await browser.newPage()
+    await xray.goto(report.xray)
+    const row = xray.getByRole('listitem').first()
+    await expectLocator(row.getByText(first.tag, {exact: true})).toBeVisible()
+    await expectLocator(row).not.toContainText('data-conciv-source')
+    await xray.close()
+  })
+
+  it('a width without a run offers exactly one Run diff', async () => {
+    await goto('/')
+    const unrun = await call('design_target', {image: target('u1-390'), route: '/', width: 390, name: 'unrun'})
+    const report = await call('design_diff', {width: 1280})
+    const url = new URL(report.xray)
+    url.searchParams.set('target', unrun.id)
+    const xray = await browser.newPage()
+    await xray.goto(url.toString())
+    await expectLocator(xray.getByText('No diff for')).toBeVisible()
+    await expectLocator(xray.getByRole('button', {name: 'Run diff'})).toHaveCount(1)
+    await xray.close()
+  })
+
   it('a region without a source falls back to its kind and cannot open', async () => {
     await goto('missing')
     const report = await call('design_diff', {width: 1280})

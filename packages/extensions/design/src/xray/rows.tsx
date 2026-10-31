@@ -1,4 +1,4 @@
-import {createEffect, For, on, Show, type JSX} from 'solid-js'
+import {For, onMount, Show, type JSX} from 'solid-js'
 import {
   badgeColor,
   badgeText,
@@ -49,29 +49,16 @@ type ComponentRowProps = {
 }
 
 function ComponentRow(props: ComponentRowProps): JSX.Element {
-  const held: {item?: HTMLLIElement} = {}
   const above = () => rowAboveTolerance(props.row)
-  createEffect(
-    on(
-      () => props.expanded,
-      (expanded) => {
-        if (expanded) held.item?.scrollIntoView({block: 'nearest'})
-      },
-    ),
-  )
   return (
-    <li
-      ref={(item) => {
-        held.item = item
-      }}
-    >
+    <li>
       <div
         role={props.expanded ? 'region' : undefined}
         aria-label={props.expanded ? `${rowName(props.row)} component` : undefined}
         class="flex flex-col gap-2"
       >
         <div
-          class={`text-sm font-mono px-2 py-1 border border-base rounded flex gap-4 min-w-0 transition items-center relative hover:bg-active ${ROW_FOCUS}  ${props.expanded ? 'bg-active' : ''}  ${above() || props.expanded ? '' : 'op-50 hover:op-75'}`}
+          class={`text-sm font-mono px-2 py-1 border border-base rounded flex flex-wrap gap-x-4 gap-y-1 min-w-0 transition items-center relative hover:bg-active ${ROW_FOCUS}  ${props.expanded ? 'bg-active' : ''}  ${above() || props.expanded ? '' : 'op-50 hover:op-75'}`}
         >
           <span class="text-xs color-meta text-end shrink-0 w-8 tabular-nums">#{props.index}</span>
           <button
@@ -84,13 +71,17 @@ function ComponentRow(props: ComponentRowProps): JSX.Element {
             {rowTitle(props.row)}
           </button>
           <Show when={props.row.source !== null && props.row.selector !== ''}>
-            <span class="color-meta shrink max-w-64 truncate">{props.row.selector}</span>
+            <span class="color-meta flex-1 basis-0 max-w-64 min-w-0 truncate">{props.row.selector}</span>
           </Show>
           <Show
             when={above() && props.row.unmatched === null}
             fallback={<StatusBadge row={props.row} fixed={props.fixed} />}
           >
-            <span role="list" aria-label="Deltas" class="flex flex-wrap gap-1 min-w-0">
+            <span
+              role="list"
+              aria-label="Deltas"
+              class="ps-12 flex basis-full flex-wrap gap-1 min-w-0 order-last md:ps-0 md:basis-auto md:order-none"
+            >
               <For each={props.row.deltas}>{(delta) => <DeltaBadge delta={delta} />}</For>
             </span>
           </Show>
@@ -100,7 +91,9 @@ function ComponentRow(props: ComponentRowProps): JSX.Element {
             aria-hidden="true"
           />
         </div>
-        <Show when={props.expanded}>{props.children(props.row)}</Show>
+        <Show when={props.expanded}>
+          <div ref={(card) => onMount(() => card.scrollIntoView({block: 'nearest'}))}>{props.children(props.row)}</div>
+        </Show>
       </div>
     </li>
   )

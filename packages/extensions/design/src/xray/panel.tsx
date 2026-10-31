@@ -121,8 +121,12 @@ export function XrayPanel(props: XrayPanelProps): JSX.Element {
           value={props.query}
           onInput={(event) => props.onQuery(event.currentTarget.value)}
         />
-        <div class="pe-2 ps-4 flex flex-wrap gap-2 min-h-10 items-center">
-          <div role="radiogroup" aria-label="Viewport" class="flex gap-2 items-center">
+        <div class="pe-2 ps-4 flex flex-wrap gap-2 max-w-full min-h-10 min-w-0 items-center">
+          <div
+            role="radiogroup"
+            aria-label="Viewport"
+            class="scrollbar-hidden py-1 flex gap-2 max-w-full min-w-0 items-center overflow-x-auto"
+          >
             <span class="text-sm op-fade" aria-hidden="true">
               Viewport
             </span>
@@ -142,11 +146,13 @@ export function XrayPanel(props: XrayPanelProps): JSX.Element {
               )}
             </For>
           </div>
-          <span class="mx-1 border-s border-base h-5" aria-hidden="true" />
-          <Show when={stale(props.data) && !props.running}>
-            <span class="badge badge-color-amber">stale: source changed</span>
+          <Show when={props.data.ranAt !== null}>
+            <span class="mx-1 border-s border-base h-5" aria-hidden="true" />
+            <Show when={stale(props.data) && !props.running}>
+              <span class="badge badge-color-amber">stale: source changed</span>
+            </Show>
+            <RunButton running={props.running} onRun={props.onRun} />
           </Show>
-          <RunButton running={props.running} onRun={props.onRun} />
         </div>
       </div>
       <div class="p-2 border-t border-base flex flex-wrap gap-2 items-center">

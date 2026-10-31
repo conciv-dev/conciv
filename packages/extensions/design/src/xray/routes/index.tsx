@@ -306,7 +306,7 @@ function XrayPage(): JSX.Element {
                 </Match>
               </Switch>
             </div>
-            <Show when={ran()}>
+            <Show when={ran() && !capture()}>
               <AbovePill above={above()} total={rows().length} />
             </Show>
             <Show when={view.shortcuts}>

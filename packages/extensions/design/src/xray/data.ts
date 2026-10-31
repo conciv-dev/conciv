@@ -2,6 +2,7 @@ import {makeRpcClient} from '@conciv/contract'
 import {makeExtRpcClient} from '@conciv/extension'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {aboveTolerance, componentAboveTolerance} from '../shared/above.js'
+import {SOURCE_ATTR} from '../shared/source-attr.js'
 import type {ComponentReport, DeltaKindName, DiffReport} from '../shared/defs.js'
 import type {Box, SourceLoc, TargetRecord} from '../shared/types.js'
 import type {XrayRouter} from '../server/xray-routes.js'
@@ -55,7 +56,7 @@ export function reportRows(report: DiffReport | null): Row[] {
     label: sourceLabel(component.source),
     source: component.source,
     tag: component.tag,
-    selector: component.selector,
+    selector: component.selector.startsWith(`[${SOURCE_ATTR}=`) ? component.tag : component.selector,
     live: component.live,
     target: component.target,
     mismatch: component.mismatch,
