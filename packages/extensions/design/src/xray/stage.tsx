@@ -241,7 +241,7 @@ function Divider(props: {value: number; onChange: (value: number) => void}): JSX
       onKeyDown={nudge}
     >
       <span
-        class="bg-neutral-800/60 w-px inset-y-0 left-1/2 absolute dark:bg-neutral-200/60 -translate-x-1/2"
+        class="bg-neutral-900 w-0.5 inset-y-0 left-1/2 absolute dark:bg-neutral-100 -translate-x-1/2"
         aria-hidden="true"
       />
       <span
