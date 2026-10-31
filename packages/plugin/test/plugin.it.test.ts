@@ -9,6 +9,7 @@ import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it} from 'vitest'
 import getPort from 'get-port'
 import {chromium, type Browser, type Page} from 'playwright'
+import {DevTools} from '@vitejs/devtools'
 import {createServer, type Plugin, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
 import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS} from '@conciv/extension-compiler/extensions'
@@ -863,4 +864,78 @@ describe('widget inject', () => {
       expect(occurrences).toBe(1)
     })
   })
+})
+
+describe('vite devtools dock', () => {
+  const servers: ViteDevServer[] = []
+  const dirs = devServers()
+  let browser: Browser
+
+  beforeAll(async () => {
+    browser = await chromium.launch({headless: true})
+  })
+  afterAll(async () => {
+    await browser.close()
+    await Promise.all(servers.map((server) => server.close()))
+    await dirs.stopAll()
+  })
+
+  async function dockServer(widget?: false): Promise<string> {
+    const root = realpathSync(dirs.tempDir('conciv-dock-'))
+    writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title><h1>host</h1>')
+    const server = await createServer({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      server: {host: '127.0.0.1', port: 0},
+      plugins: [
+        makeViteHook(
+          {enabled: true, stateRoot: root, ...(widget === false ? {widget} : {})},
+          {
+            ...NO_BUILTINS,
+            embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
+            dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
+          },
+        ),
+        DevTools({clientAuth: false}),
+      ],
+    })
+    servers.push(server)
+    await server.listen()
+    const address = server.httpServer?.address()
+    return `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`
+  }
+
+  it('fills the dock panel with the widget and keeps it there when the dock entry is reopened', async () => {
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
+    const entry = page.getByRole('button', {name: 'conciv'})
+    await entry.dispatchEvent('click')
+    const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
+    await chat.getByRole('textbox').first().waitFor()
+    expect(await page.getByRole('button', {name: /Open conciv chat|Close chat/}).count()).toBe(0)
+    await page.keyboard.press('Escape')
+    await chat.getByRole('textbox').first().waitFor({state: 'hidden'})
+    await entry.dispatchEvent('click')
+    await chat.getByRole('textbox').first().waitFor()
+    await page.close()
+  }, 60_000)
+
+  it('keeps the floating page widget when Vite DevTools is not enabled', async () => {
+    const {server} = await dirs.start()
+    servers.push(server)
+    const address = server.httpServer?.address()
+    const base = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`
+    const source = await (await fetch(`${base}${EXTENSIONS_ROUTE}`)).text()
+    expect(source).toContain('mountConciv')
+    expect(source).not.toContain('concivDockRenderer')
+  })
+
+  it('registers no dock entry when the widget is off', async () => {
+    const page = await browser.newPage()
+    await page.goto(await dockServer(false), {waitUntil: 'domcontentloaded'})
+    await page.getByRole('button', {name: 'Settings'}).waitFor()
+    expect(await page.getByRole('button', {name: 'conciv'}).count()).toBe(0)
+    await page.close()
+  }, 60_000)
 })

@@ -290,7 +290,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
 async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
   const supplied = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
   const extensions = [pageExtension, ...supplied]
-  const settings = parseConcivSettings(init.settings ? JSON.stringify(init.settings) : metaContent('conciv-widget'))
+  const settings = initSettings(init)
   const grabProvider = init.grabProvider
   const apiBase = init.apiBase ?? resolveApiBase()
   if (apiBase) return bootNormal({root, extensions, settings, apiBase, grabProvider})
@@ -299,6 +299,10 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
   const found = await gate.connectGate.preflight()
   if (found) return bootNormal({root, extensions, settings, apiBase: found, grabProvider, connectMode: true})
   return bootConnect({root, extensions, settings, grabProvider})
+}
+
+function initSettings(init: ConcivInit): ConcivSettings {
+  return parseConcivSettings(init.settings ? JSON.stringify(init.settings) : metaContent('conciv-widget'))
 }
 
 export function mountImpl(
@@ -311,7 +315,7 @@ export function mountImpl(
   const inner = document.createElement('div')
   inner.setAttribute('data-conciv-root', '')
   el.appendChild(inner)
-  const {host, root, dispose: disposeShadow} = createShadowRoot(inner)
+  const {host, root, dispose: disposeShadow} = createShadowRoot(inner, initSettings(init).surface)
   let disposed = false
   let disposeBoot: (() => void) | undefined
   let rebindBoot: ((apiBase: string) => void) | undefined

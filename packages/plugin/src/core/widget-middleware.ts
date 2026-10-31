@@ -1,6 +1,6 @@
 import type {IncomingMessage, OutgoingHttpHeader, ServerResponse} from 'node:http'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
-import type {WidgetConfig} from '@conciv/protocol/config-types'
+import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
 
@@ -12,7 +12,7 @@ function escapeAttr(value: string): string {
 
 export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; injectTo: 'head'}
 
-export function htmlTags(corePort: number, opts: {widget?: WidgetConfig | false}): HtmlTag[] {
+export function htmlTags(corePort: number, opts: {widget?: ConcivSettingsInit | false}): HtmlTag[] {
   const base: HtmlTag[] = [
     {tag: 'meta', attrs: {name: 'conciv-api-base', content: `http://127.0.0.1:${corePort}`}, injectTo: 'head'},
   ]
@@ -24,7 +24,7 @@ export function htmlTags(corePort: number, opts: {widget?: WidgetConfig | false}
   ]
 }
 
-export function widgetTags(apiBase: string, widgetConfig?: WidgetConfig | false): string {
+export function widgetTags(apiBase: string, widgetConfig?: ConcivSettingsInit | false): string {
   const base = `<meta name="conciv-api-base" content="${escapeAttr(apiBase)}">`
   if (widgetConfig === false) return base
   return (
@@ -83,7 +83,7 @@ function trailingCallback(args: ReadonlyArray<unknown>): (() => void) | undefine
 
 const NESTED_FETCH_DESTS = new Set(['iframe', 'frame', 'embed', 'object'])
 
-export function makeWidgetInject(apiBase: string, widgetConfig?: WidgetConfig | false): Middleware {
+export function makeWidgetInject(apiBase: string, widgetConfig?: ConcivSettingsInit | false): Middleware {
   const tags = widgetTags(apiBase, widgetConfig)
   return (req, res, next) => {
     const fetchDest = req.headers['sec-fetch-dest']

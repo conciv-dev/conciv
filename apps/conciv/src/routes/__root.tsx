@@ -247,6 +247,7 @@ function RootChrome(props: {
     void router.navigate({to: '/panel/latest', search: {open: true}, replace: Boolean(quickMatch())})
   }
   const closePanel = () => {
+    if (settings.surface === 'dock') return
     const captured = hostRestoreTarget
     hostRestoreTarget = null
     void setShutter(router, false).then(() => {

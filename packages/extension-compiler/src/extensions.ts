@@ -20,11 +20,27 @@ export type Builtins = {
 
 export const NO_BUILTINS: Builtins = {serverExtensions: [], clientEntries: []}
 
+export type ExtensionsSurface = 'page' | 'dock'
+
+const PAGE_MOUNT = [
+  `mountConciv(picked.extensions).catch((error) => console.error('[conciv] widget failed to start', error))`,
+]
+
+const DOCK_RENDERER = [
+  `export default function concivDockRenderer(context) {`,
+  `  const conciv = createConciv({extensions: picked.extensions})`,
+  `  const mount = (panel) => conciv.mount(panel).catch((error) => console.error('[conciv] widget failed to start', error))`,
+  `  context.current.events.on('dom:panel:mounted', mount)`,
+  `  if (context.current.domElements.panel) mount(context.current.domElements.panel)`,
+  `}`,
+]
+
 export function extensionsModuleSource(
   clientEntries: readonly string[],
   apiBase?: string,
   embedEntry?: string,
   dedupeEntry?: string,
+  surface: ExtensionsSurface = 'page',
 ): string {
   const imports = clientEntries.map((entry, index) => `import builtin${index} from ${JSON.stringify(entry)}`)
   const builtinNames = clientEntries.map((_, index) => `builtin${index}`)
@@ -33,7 +49,7 @@ export function extensionsModuleSource(
       ? []
       : [`if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ = ${JSON.stringify(apiBase)}`]
   return [
-    `import {mountConciv} from ${JSON.stringify(embedEntry ?? '@conciv/embed')}`,
+    `import {${surface === 'dock' ? 'createConciv' : 'mountConciv'}} from ${JSON.stringify(embedEntry ?? '@conciv/embed')}`,
     ...imports,
     ...apiBaseLine,
     `import {dedupeExtensions, toSortedEntries} from ${JSON.stringify(dedupeEntry ?? '@conciv/extension-compiler/dedupe')}`,
@@ -42,7 +58,7 @@ export function extensionsModuleSource(
     `const builtinEntries = [${builtinNames.map((n, i) => `{extension: ${n}, source: 'builtin:${i}'}`).join(', ')}]`,
     `const picked = dedupeExtensions([...builtinEntries, ...folderEntries])`,
     `for (const d of picked.dropped) console.warn('conciv extension dropped:', d.source, d.reason)`,
-    `mountConciv(picked.extensions).catch((error) => console.error('[conciv] widget failed to start', error))`,
+    ...(surface === 'dock' ? DOCK_RENDERER : PAGE_MOUNT),
     '',
   ].join('\n')
 }

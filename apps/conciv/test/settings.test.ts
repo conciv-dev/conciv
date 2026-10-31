@@ -2,12 +2,18 @@ import {describe, expect, it} from 'vitest'
 import {parseConcivSettings} from '../src/data/settings.js'
 
 describe('parseConcivSettings', () => {
+  it('reads the dock surface and falls back to the page surface', () => {
+    expect(parseConcivSettings(JSON.stringify({surface: 'dock'})).surface).toBe('dock')
+    expect(parseConcivSettings(JSON.stringify({surface: 'nope'})).surface).toBe('page')
+  })
+
   it('returns defaults for empty or invalid raw config', () => {
     const expected = {
       modal: {enabled: true, position: 'bottom-right'},
       quickTerminal: {enabled: true, hotkeys: ['Mod+`']},
       defaultOpen: false,
       launcher: 'mascot',
+      surface: 'page',
       transport: 'auto',
     }
     expect(parseConcivSettings('')).toEqual(expected)

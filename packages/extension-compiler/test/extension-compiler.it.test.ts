@@ -65,6 +65,13 @@ describe('client entry inject', () => {
       expect(source).toContain('window.__CONCIV_API_BASE__ = "http://127.0.0.1:41700"')
     })
 
+    it('exports a dock renderer instead of mounting on the page when the surface is dock', () => {
+      const source = extensionsModuleSource(['/abs/a/client.js'], undefined, undefined, undefined, 'dock')
+      expect(source).toContain('export default function concivDockRenderer')
+      expect(source).toContain('createConciv')
+      expect(source).not.toContain('mountConciv')
+    })
+
     it('omits the window global when no api base is known (classic path uses the meta tag)', () => {
       const source = extensionsModuleSource(['/abs/a/client.js'])
       expect(source).not.toContain('__CONCIV_API_BASE__')

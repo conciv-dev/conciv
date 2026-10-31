@@ -6,10 +6,10 @@ import {defineBundlerBridge, type BundlerBridge, type BundlerDiagnostic} from '@
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
+import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
-import {htmlTags, makeWidgetInject} from './widget-middleware.js'
+import {EXTENSIONS_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
 import type {AnyExtension} from '@conciv/extension'
 import {type Builtins, NO_BUILTINS, loadServerExtensions} from '@conciv/extension-compiler/extensions'
@@ -101,7 +101,11 @@ export function makeViteBridge(server: ViteLike): BundlerBridge {
   })
 }
 
-function mountWidget(server: ViteDevServer, apiBase: string, widgetConfig: ConcivConfig['widget']): void {
+function mountWidget(
+  server: ViteDevServer,
+  apiBase: string,
+  widgetConfig: ConcivSettingsInit | false | undefined,
+): void {
   server.middlewares.stack.unshift({
     route: '',
     handle: makeWidgetInject(apiBase, widgetConfig),
@@ -166,17 +170,52 @@ function embedChunks(embedEntry: string): string[] {
   }
 }
 
-export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO_BUILTINS): Plugin {
+const CONCIV_MARK_URI =
+  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0iI0Q3MjYzRCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJjb25jaXYiPjx0aXRsZT5jb25jaXY8L3RpdGxlPjxwYXRoIGQ9Ik0xNS4xIDE0LjYzSDQ4LjlBNi4zMiA2LjMyIDAgMCAxIDU1LjIyIDIwLjk1VjQzLjY1QTYuMzIgNi4zMiAwIDAgMSA0OC45IDQ5Ljk3SDI3LjM5TDE4IDU4LjE3TDE4IDQ5Ljk3SDE1LjFBNi4zMiA2LjMyIDAgMCAxIDguNzggNDMuNjVWMjAuOTVBNi4zMiA2LjMyIDAgMCAxIDE1LjEgMTQuNjNaTTUuMDY1IDI2LjI5Mkg1LjA2NUEyLjA5IDIuMDkgMCAwIDEgNy4xNTUgMjguMzgyVjM2LjIxOEEyLjA5IDIuMDkgMCAwIDEgNS4wNjUgMzguMzA4SDUuMDY1QTIuMDkgMi4wOSAwIDAgMSAyLjk3NSAzNi4yMThWMjguMzgyQTIuMDkgMi4wOSAwIDAgMSA1LjA2NSAyNi4yOTJaTTU4LjkzNSAyNi4yOTJINTguOTM1QTIuMDkgMi4wOSAwIDAgMSA2MS4wMjUgMjguMzgyVjM2LjIxOEEyLjA5IDIuMDkgMCAwIDEgNTguOTM1IDM4LjMwOEg1OC45MzVBMi4wOSAyLjA5IDAgMCAxIDU2Ljg0NSAzNi4yMThWMjguMzgyQTIuMDkgMi4wOSAwIDAgMSA1OC45MzUgMjYuMjkyWk00MS44MTUgNC45TDQ0LjIwNSA0LjlMNDQuMjA1IDE2LjYzTDQxLjgxNSAxNi42M1pNNDAuMDIgNC45QTIuOTkgMi45OSAwIDEgMSA0NiA0LjlBMi45OSAyLjk5IDAgMSAxIDQwLjAyIDQuOVpNMTguMDYgMjUuMzRMMjQuOTIxIDMyLjMxTDE4LjA2IDM5LjI4TDIwLjk2IDQyLjE4TDMwLjcxOSAzMi4zMUwyMC45NiAyMi40NFpNMzIuNTEgMzguNkwzMi41MSA0Mi4xOEw0NiA0Mi4xOEw0NiAzOC42WiIvPjwvc3ZnPg=='
+
+type DevToolsContext = {
+  docks: {
+    register: (entry: {
+      id: string
+      title: string
+      icon: string
+      type: 'custom-render'
+      renderer: {importFrom: string; importName: string}
+    }) => void
+  }
+}
+
+type DevToolsPlugin = Plugin & {devtools: {setup: (context: DevToolsContext) => void}}
+
+function widgetSettings(widget: ConcivConfig['widget'], docked: boolean): ConcivSettingsInit | false | undefined {
+  if (widget === false || !docked) return widget
+  return {...widget, launcher: false, defaultOpen: true, surface: 'dock'}
+}
+
+export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO_BUILTINS): DevToolsPlugin {
   let engine: Engine | null = null
   let apiBase: string | undefined
   let root = process.cwd()
 
   let deferToTsd = false
   let managedExcludes: string[] = []
+  let docked = false
   return {
     name: 'conciv',
     apply: 'serve',
     enforce: 'pre',
+    devtools: {
+      setup(context) {
+        if (!docked) return
+        context.docks.register({
+          id: 'conciv',
+          title: 'conciv',
+          icon: CONCIV_MARK_URI,
+          type: 'custom-render',
+          renderer: {importFrom: EXTENSIONS_ROUTE, importName: 'default'},
+        })
+      },
+    },
     config(userConfig) {
       const embedFiles =
         builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...embedChunks(builtins.embedEntry)]
@@ -196,6 +235,10 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     },
     configResolved(config) {
       root = config.root
+      docked =
+        options.widget !== false &&
+        resolveConfig(options, config.root).enabled &&
+        config.plugins.some((plugin) => plugin.name === 'vite:devtools')
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
     async resolveId(id, importer) {
@@ -209,7 +252,14 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       return concivSrcEntry(resolved.id)
     },
     load(id) {
-      return loadExtensionsModule(id, builtins.clientEntries, apiBase, builtins.embedEntry, builtins.dedupeEntry)
+      return loadExtensionsModule(
+        id,
+        builtins.clientEntries,
+        apiBase,
+        builtins.embedEntry,
+        builtins.dedupeEntry,
+        docked ? 'dock' : 'page',
+      )
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
@@ -220,7 +270,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       handler(_html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         if (!cfg.enabled || !engine) return []
-        return htmlTags(engine.port, {widget: options.widget})
+        return htmlTags(engine.port, {widget: widgetSettings(options.widget, docked)})
       },
     },
     async configureServer(server: ViteDevServer) {
@@ -236,7 +286,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       )
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
-      mountWidget(server, apiBase, options.widget)
+      mountWidget(server, apiBase, widgetSettings(options.widget, docked))
       server.httpServer?.on('close', () => void booted.stop())
     },
   }
