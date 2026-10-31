@@ -35,7 +35,7 @@ import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {imageToolProvisioner} from './image-tool-results.js'
 import {childCards} from './child-cards.js'
 import {codeModeTools, loadIsolateDriver, secretRefusalOf} from './code-mode.js'
-import {createDelivery, type ChatDelivery, type Turn} from './delivery.js'
+import {createDelivery, terminalPhaseOf, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 
 export type ChatStores = {
@@ -116,12 +116,6 @@ function lifecycleOf(record: RunRecord): RunLifecycle {
     serverNow: Date.now(),
     error: record.error?.message ?? null,
   }
-}
-
-function terminalPhaseOf(chunk: ChatEvent): RunPhase | null {
-  if (chunk.type === EventType.RUN_ERROR) return 'failed'
-  if (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return 'completed'
-  return null
 }
 
 function failedPlan(error: unknown): TurnPlan {

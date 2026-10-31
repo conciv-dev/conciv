@@ -10,6 +10,7 @@ import {
 } from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
+import {setTimeout as delay} from 'node:timers/promises'
 import {afterEach, describe, expect, it, afterAll, beforeAll, beforeEach} from 'vitest'
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -1158,6 +1159,16 @@ describe('chat', () => {
     })
   })
 
+  describe('turn end', () => {
+    it('a viewer sees the turn finish only after the turn-end hooks have run', async () => {
+      const sessionId = await newSession()
+      turnEndHold.ms = 200
+      await finished(sessionId, 'slow end')
+      turnEndHold.ms = 0
+      expect(turnEnds).toContain(sessionId)
+    })
+  })
+
   describe('context meter', () => {
     it('the meter reads the last assistant usage in the transcript, not the sum of the turn', async () => {
       const sessionId = await newSession()
@@ -1472,6 +1483,7 @@ const seenRuns: SeenRun[] = []
 const cli: {usage: TokenUsage[]; launchFailures: string[]} = {usage: [], launchFailures: []}
 const toolRuns = {ask: 0, echo: 0}
 const turnEnds: string[] = []
+const turnEndHold = {ms: 0}
 const turnEndWaiters: {sessionId: string; settle: () => void}[] = []
 
 function fixtureExtension() {
@@ -1564,7 +1576,8 @@ function fixtureAttachments() {
   return [expanding, broken]
 }
 
-function noteTurnEnd(sessionId: string): void {
+async function noteTurnEnd(sessionId: string): Promise<void> {
+  await delay(turnEndHold.ms)
   turnEnds.push(sessionId)
   const ready = turnEndWaiters.filter((waiter) => waiter.sessionId === sessionId)
   turnEndWaiters.splice(0, turnEndWaiters.length, ...turnEndWaiters.filter((waiter) => !ready.includes(waiter)))

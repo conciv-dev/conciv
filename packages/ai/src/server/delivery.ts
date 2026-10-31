@@ -1,5 +1,6 @@
 import {
   chatParamsFromRequestBody,
+  EventType,
   memoryStream,
   resolveResumeRunId,
   resumeServerSentEventsResponse,
@@ -10,7 +11,7 @@ import {
   type StreamDurability,
   type WebSocketLike,
 } from '@tanstack/ai'
-import type {ChatEvent} from '@conciv/protocol/chat-event-types'
+import {isRunPhaseTerminal, runLifecycleEvent, type ChatEvent, type RunPhase} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 
 export type Turn = {threadId: string; runId: string; kind: 'chat' | 'compact'}
@@ -56,10 +57,35 @@ function socketLike(sink: SocketSink, handlers: {message: SocketHandler[]; close
 
 async function* noStream(): AsyncGenerator<ChatEvent> {}
 
+export function terminalPhaseOf(chunk: ChatEvent): RunPhase | null {
+  if (chunk.type === EventType.RUN_ERROR) return 'failed'
+  if (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return 'completed'
+  return null
+}
+
+function endsTheRun(chunk: ChatEvent): boolean {
+  if (terminalPhaseOf(chunk) !== null) return true
+  const lifecycle = runLifecycleEvent.parse(chunk)
+  return lifecycle !== null && isRunPhaseTerminal(lifecycle.phase)
+}
+
+async function* finishLast(stream: AsyncIterable<ChatEvent>): AsyncGenerator<ChatEvent> {
+  const held: ChatEvent[] = []
+  try {
+    for await (const chunk of stream) {
+      if (endsTheRun(chunk)) held.push(chunk)
+      else yield chunk
+    }
+  } finally {
+    yield* held
+  }
+}
+
 export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDelivery {
   const drive = async (turn: Turn, messages: Array<ChatMessage | ModelMessage>): Promise<void> => {
     const durability = memoryStream({runId: turn.runId})
-    const response = toServerSentEventsResponse(run(turn, messages, durability, new AbortController()), {
+    const stream = run(turn, messages, durability, new AbortController())
+    const response = toServerSentEventsResponse(finishLast(stream), {
       durability: {adapter: durability, batch: LIVE_BATCH},
       debug,
     })
