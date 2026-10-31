@@ -23,6 +23,7 @@ const CHIP: Record<SessionStatusKind, string> = {
   stopping: '[background:var(--chat-status-waiting)]',
   waiting: '[background:var(--chat-status-waiting)]',
   failed: '[background:var(--chat-status-failed)]',
+  stopped: '[background:var(--chat-status-done)]',
   done: '[background:var(--chat-status-done)]',
 }
 const CHIP_BASE =

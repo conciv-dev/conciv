@@ -302,6 +302,9 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                           turnPrefix={renderTurnPrefix}
                           pageSession={PAGE_SESSION}
                         />
+                        <Show when={chat.stopped() && !narrating()}>
+                          <Divider kind="stopped" />
+                        </Show>
                         <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
                         <Show when={compacting()}>
                           <Divider kind="compact" pending />

@@ -87,6 +87,7 @@ const grabItem = () => page.getByRole('menuitem', {name: 'Select an element from
 const snapshot = () => page.getByTitle('Grabbed element snapshot')
 const notifications = () => page.getByRole('region', {name: /Notifications/})
 const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+const stoppedLine = () => page.getByRole('separator', {name: 'Stopped'})
 const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
 const narration = () => page.getByText('Responding…', {exact: true})
 const FROZEN_GLYPH = '⠿'
@@ -414,6 +415,24 @@ test('clicking stop with an empty queue just stops the run', async () => {
   await stopButton().click()
 
   await expect.element(page.getByRole('button', {name: 'Send message'})).toBeVisible()
+})
+
+test('a stopped turn ends with a Stopped line that a reload still shows', async () => {
+  const {sessionId} = await newSession()
+  await coreControl.holdTurn()
+  mountChatPane(sessionId)
+  await input().fill('stop this one')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(stopButton()).toBeVisible()
+  await expect.element(stoppedLine()).not.toBeInTheDocument()
+
+  await stopButton().click()
+
+  await expect.element(stoppedLine()).toBeVisible()
+  active.pane?.dispose()
+  mountChatPane(sessionId)
+  await expect.element(page.getByText('stop this one')).toBeVisible()
+  await expect.element(stoppedLine()).toBeVisible()
 })
 
 test('Escape in the focused composer does what the stop button does and leaves the draft untouched', async () => {

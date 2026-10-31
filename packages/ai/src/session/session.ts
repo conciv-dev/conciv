@@ -50,6 +50,7 @@ export type ChatSession = Omit<Chat, 'stop'> & {
   refresh: () => Promise<void>
   interruptAndFlush: () => Promise<void>
   stopping: Accessor<boolean>
+  stopped: Accessor<boolean>
   runSource: Accessor<RunClockSource | null>
   runError: Accessor<string | null>
   sessionRunning: Accessor<boolean>
@@ -165,6 +166,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   })
   onCleanup(() => connection.close())
   const stopping = createMemo(() => runSource()?.lifecycle.phase === 'stopping')
+  const stopped = createMemo(() => runSource()?.lifecycle.phase === 'aborted')
   const runError = createMemo(() => {
     const source = runSource()
     return source && source.lifecycle.phase === 'failed' ? source.lifecycle.error : null
@@ -214,6 +216,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     refresh,
     interruptAndFlush,
     stopping,
+    stopped,
     runSource,
     runError,
     sessionRunning,
