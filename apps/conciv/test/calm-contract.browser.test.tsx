@@ -111,7 +111,7 @@ test('a second run leaves the first run untouched [mechanism B: wrong streaming 
   expectCalm(watch)
 })
 
-test('an approval pause and its retry keep every surface in place, the ask waiting in the strip', async () => {
+test('an approval pause stays calm with the ask in the strip, and its retry keeps the turn rows', async () => {
   const {sessionId} = await newSession()
   await coreControl.scriptTurn({
     toolCalls: [{name: 'Bash', input: {command: 'rm -rf build'}}],
@@ -127,17 +127,20 @@ test('an approval pause and its retry keep every surface in place, the ask waiti
   await promptWith('delete the build directory')
   await expect.element(page.getByText('That needs your approval.')).toBeVisible()
   await expect.element(approvalStrip().getByRole('group', {name: 'Permission request'})).toBeVisible()
-  const watch = watchCalm({allow: ['answered-ask']})
+  await expect.element(sendButton()).toBeVisible()
+  const watch = watchCalm()
   await watch.checkpoint()
   await page.screenshot({path: `${SHOTS}/approval-paused.png`})
+  expect(watch.removed()).toEqual([])
+  expect(watch.drifted()).toEqual([])
+  const rows = [...document.querySelectorAll('[data-conciv-msg]')]
 
   await coreControl.scriptTurn({toolCalls: [], text: 'Approved and finished.'})
   await page.getByRole('button', {name: 'Approve'}).click()
   await expect.element(page.getByText('Approved and finished.')).toBeVisible()
   await expect.element(approvalStrip()).not.toBeInTheDocument()
-  await watch.checkpoint()
   await page.screenshot({path: `${SHOTS}/approval-resumed.png`})
-  expectCalm(watch)
+  expect(rows.filter((row) => !row.isConnected)).toEqual([])
 })
 
 test('a run parked on an unresolved tool call settles in place when the next run starts [mechanism A: card remount, tool-call-card.tsx:113-124]', async () => {

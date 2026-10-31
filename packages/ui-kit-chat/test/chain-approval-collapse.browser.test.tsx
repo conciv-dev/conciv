@@ -58,7 +58,7 @@ function ApprovalThread(): JSX.Element {
   )
 }
 
-it('keeps an ask from the library event out of the trace, which folds like any settled run', async () => {
+it('keeps an ask from the library event out of the trace, which stays open and collapses by hand', async () => {
   mountView(() => <ApprovalThread />)
 
   await startRun()
@@ -66,12 +66,11 @@ it('keeps an ask from the library event out of the trace, which folds like any s
 
   const trigger = page.getByRole('button', {name: /trace/i})
   const permissionBlock = page.getByRole('group', {name: 'Permission request'})
-  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'closed')
+  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
+  await expect.element(page.getByRole('list', {name: 'Execution trace'}).getByText('bash')).toBeVisible()
   await expect.element(permissionBlock).not.toBeInTheDocument()
 
   await trigger.click()
 
-  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
-  await expect.element(page.getByRole('list', {name: 'Execution trace'}).getByText('bash')).toBeVisible()
-  await expect.element(permissionBlock).not.toBeInTheDocument()
+  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'closed')
 })
