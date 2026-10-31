@@ -1,7 +1,7 @@
 import './helpers/utilities.css'
 import {afterEach, describe, expect, test, vi} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import type {JSX} from 'solid-js'
+import {createSignal, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {INERT_TOOL_CATALOG} from '@conciv/protocol/tool-view-types'
@@ -345,6 +345,39 @@ describe('a crashing extension', () => {
     await expect.element(page.getByText(CARD_FAILED)).toBeVisible()
     await expect.element(editor()).toBeVisible()
     expect(crashReports('crash-header')).toBe(1)
+  }, 30_000)
+
+  test('an embedded ToolCard header that starts throwing after it was published falls back alone', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const LATE_TITLE = 'the late header title'
+    const [broken, setBroken] = createSignal(false)
+    const lateTitle = (): string => {
+      if (broken()) throw new Error('fixture late crash')
+      return LATE_TITLE
+    }
+    const lateHeader = defineExtension({
+      name: 'late-header',
+      tools: [
+        defineTool({name: 'late_header', ...TOOL_SHAPE}).render({
+          render: (props) => <ToolCard part={props.part} result={props.result} title={lateTitle()} />,
+          hasEmbeddedBody: () => true,
+        }),
+      ],
+    })
+    await mountAfterTurn([{name: 'late_header', input: {}}], [lateHeader])
+
+    await expect.element(page.getByText(AFTER_TOOLS_TEXT), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByText(LATE_TITLE).first()).toBeVisible()
+    expect(crashReports('late-header')).toBe(0)
+
+    setBroken(true)
+
+    await expect.element(page.getByText(CARD_FAILED)).toBeVisible()
+    await expect.element(page.getByText(LATE_TITLE)).not.toBeInTheDocument()
+    await expect.element(page.getByText(AFTER_TOOLS_TEXT)).toBeVisible()
+    await editor().fill('still typing after the late crash')
+    await expect.element(editor()).toHaveTextContent('still typing after the late crash')
+    expect(crashReports('late-header')).toBe(1)
   }, 30_000)
 
   test('a throwing view icon leaves the status bar with its tab label', async () => {
