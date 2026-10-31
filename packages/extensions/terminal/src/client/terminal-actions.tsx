@@ -5,7 +5,7 @@ import RotateCw from 'lucide-solid/icons/rotate-cw'
 import SquareArrowOutUpRight from 'lucide-solid/icons/square-arrow-out-up-right'
 import {ModelSelector, useModelSelectorContext} from '@conciv/ui-kit-chat'
 import type {ModelOption} from '@conciv/ui-kit-chat'
-import {Button, TooltipIconButton, writeClipboardText} from '@conciv/ui-kit-system'
+import {Button, Tooltip, TooltipIconButton, writeClipboardText} from '@conciv/ui-kit-system'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {ORPCError} from '@orpc/client'
 import {getExtensionApi} from '@conciv/extension'
@@ -113,7 +113,7 @@ export function TerminalActions(): JSX.Element {
   }
   const grabDisabled = () => (grab.grabbable ? !grab.grabbable() : false)
   return (
-    <>
+    <Tooltip.Group>
       <TooltipIconButton
         tooltip={grabDisabled() ? 'Nothing on this screen to select' : 'Select an element from the page'}
         class="shrink-0 size-7"
@@ -173,6 +173,6 @@ export function TerminalActions(): JSX.Element {
       >
         <SquareArrowOutUpRight class="size-4 block" aria-hidden="true" />
       </TooltipIconButton>
-    </>
+    </Tooltip.Group>
   )
 }
