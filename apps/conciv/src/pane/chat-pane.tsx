@@ -35,7 +35,7 @@ import type {MarkerRow} from '@conciv/contract'
 import {collectToolRenderers} from '@conciv/extension'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments} from './pane-attachments.js'
+import {paneAttachments, returnUnsentToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../app/context.js'
 import {useHarnessMeta} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
@@ -274,7 +274,8 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
             value={{
               onSend: messaging.onSend,
               onSendError: messaging.onSendError,
-              onCancel: () => chat.interruptAndFlush(),
+              onCancel: () =>
+                void chat.interruptAndFlush().then((unsent) => returnUnsentToDraft(unsent, {insert, addFile: attach})),
             }}
           >
             <div class="contents">

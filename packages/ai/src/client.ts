@@ -12,6 +12,7 @@ export type {
 export {fetchServerSentEvents, webSocket} from '@tanstack/ai-client'
 export type {
   ConnectConnectionAdapter,
+  QueuedMessage,
   ResumableConnectConnectionAdapter,
   SubscribeConnectionAdapter,
 } from '@tanstack/ai-client'

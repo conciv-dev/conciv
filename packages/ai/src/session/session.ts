@@ -48,7 +48,7 @@ export type CreateChatSessionOptions = {
 export type ChatSession = Omit<Chat, 'stop'> & {
   stop: () => Promise<void>
   refresh: () => Promise<void>
-  interruptAndFlush: () => Promise<void>
+  interruptAndFlush: () => Promise<readonly QueuedMessage[]>
   stopping: Accessor<boolean>
   stopped: Accessor<boolean>
   runSource: Accessor<RunClockSource | null>
@@ -207,20 +207,25 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const sendQueuedSequentially = async (
     queued: readonly QueuedMessage[],
     stopRequest: Promise<void>,
-  ): Promise<void> => {
-    for (const item of queued) {
-      if (latestStop !== stopRequest) return
+  ): Promise<readonly QueuedMessage[]> => {
+    for (const [index, item] of queued.entries()) {
+      if (latestStop !== stopRequest) return queued.slice(index)
       await chat.sendMessage(item.content)
     }
+    return []
   }
-  const interruptAndFlush = async (): Promise<void> => {
+  const interruptAndFlush = async (): Promise<readonly QueuedMessage[]> => {
     const queued = chat.queue()
     const stopRequest = stop()
     await stopRequest
-    if (queued.length === 0 || latestStop !== stopRequest) return
+    if (queued.length === 0 || latestStop !== stopRequest) return queued
     const joined = joinedQueueText(queued)
-    const flushed = joined === null ? sendQueuedSequentially(queued, stopRequest) : chat.sendMessage(joined)
-    await flushed.catch((error: unknown) => options.onError?.(asError(error)))
+    const flushed =
+      joined === null ? sendQueuedSequentially(queued, stopRequest) : chat.sendMessage(joined).then(() => [])
+    return flushed.catch((error: unknown) => {
+      options.onError?.(asError(error))
+      return []
+    })
   }
   return {
     ...chat,

@@ -2,7 +2,7 @@ import './helpers/utilities.css'
 import {render} from '@solidjs/testing-library'
 import {createRoot, createSignal, onMount, type JSX} from 'solid-js'
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {page} from 'vitest/browser'
+import {page, userEvent} from 'vitest/browser'
 import {
   createChat,
   createChatSession,
@@ -10,9 +10,15 @@ import {
   type ChatSessionConnection,
   type ChatSessionHydration,
 } from '@conciv/ai/client'
-import {ChatProvider} from '@conciv/ui-kit-chat'
+import type {ContentPart} from '@conciv/protocol/chat-message-types'
+import {ChatProvider, ComposerHandlersProvider, useComposer} from '@conciv/ui-kit-chat'
 import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
+import {EngineReachabilityContext} from '../src/app/reachability.js'
+import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
+import {returnUnsentToDraft} from '../src/pane/pane-attachments.js'
+import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {QueueStrip} from '../src/pane/queue-strip.jsx'
+import {memoryStorage} from './helpers/memory-storage.js'
 
 function Harness(props: {count: number}): JSX.Element {
   const chat = createChat({
@@ -83,19 +89,12 @@ describe('QueueStrip', () => {
   })
 })
 
-describe('a later Stop cancels a queued flush still waiting on an earlier one', () => {
-  const disposers: Array<() => void> = []
-  const mounted = (create: () => ChatSession): ChatSession =>
-    createRoot((dispose) => {
-      disposers.push(dispose)
-      return create()
-    })
-
+describe('a later Stop returns a superseded queued flush to the draft', () => {
   afterEach(() => {
     for (const dispose of disposers.splice(0)) dispose()
   })
 
-  it('does not send the follow-up after a newer turn was started and stopped during the wait', async () => {
+  it('appends the follow-up under typed text after a newer turn was started and stopped during the wait', async () => {
     const heldRefresh = Promise.withResolvers<ChatSessionHydration>()
     const refreshStarted = Promise.withResolvers<void>()
     const held = () => {
@@ -103,35 +102,49 @@ describe('a later Stop cancels a queued flush still waiting on an earlier one', 
       return heldRefresh.promise
     }
     const {sent, session: create} = sessionOverHeldRuns([held])
-    const session = mounted(create)
+    const {session, cancel} = mountDraftPane(create)
     void session.sendMessage('first turn')
     await vi.waitFor(() => expect(sent).toEqual(['first turn']))
     await session.sendMessage('queued follow-up')
-    const earlierFlush = session.interruptAndFlush()
+    const earlierCancel = cancel()
     await refreshStarted.promise
     void session.sendMessage('second turn')
     await vi.waitFor(() => expect(sent).toEqual(['first turn', 'second turn']))
-    await session.interruptAndFlush()
+    await cancel()
+    await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
+    await userEvent.keyboard('still typing')
+    await expect.element(draftOutput()).toHaveTextContent('"still typing"')
     heldRefresh.resolve(EMPTY_HYDRATION)
-    await Promise.race([earlierFlush, vi.waitUntil(() => sent.length > 2)])
+    await Promise.race([earlierCancel, vi.waitUntil(() => sent.length > 2)])
     expect(sent).toEqual(['first turn', 'second turn'])
+    await expect.element(draftOutput()).toHaveTextContent('"still typing\\nqueued follow-up"')
   })
 
-  it('stops walking a multipart queue once a Stop lands mid-flush', async () => {
+  it('returns only the unsent items, text in order and images as attachments, once a Stop lands mid-flush', async () => {
     const {sent, session: create} = sessionOverHeldRuns([])
-    const session = mounted(create)
-    const multipart = (text: string) => [{type: 'text' as const, content: text}]
+    const {session, cancel, attached} = mountDraftPane(create)
+    const multipart = (text: string): ContentPart[] => [{type: 'text', content: text}]
     void session.sendMessage('first turn')
     await vi.waitFor(() => expect(sent).toEqual(['first turn']))
     await session.sendMessage({content: multipart('queued one')})
     await session.sendMessage({content: multipart('queued two')})
-    const flush = session.interruptAndFlush()
+    await session.sendMessage({
+      content: [
+        ...multipart('queued three'),
+        {type: 'image', source: {type: 'data', mimeType: 'image/png', value: PNG_PIXEL}},
+      ],
+    })
+    const flush = cancel()
     await vi.waitFor(() => expect(sent).toEqual(['first turn', 'queued one']))
     await session.stop()
     await Promise.race([flush, vi.waitUntil(() => sent.length > 2)])
     expect(sent).toEqual(['first turn', 'queued one'])
+    await expect.element(draftOutput()).toHaveTextContent('"queued two\\nqueued three"')
+    expect(attached.map((file) => file.type)).toEqual(['image/png'])
   })
 })
+
+const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
 const EMPTY_HYDRATION: ChatSessionHydration = {messages: [], lastRun: null, pendingApprovals: []}
 
@@ -170,4 +183,45 @@ function sessionOverHeldRuns(refreshes: Array<() => Promise<ChatSessionHydration
         decide: () => Promise.resolve({startsTurn: false}),
       }),
   }
+}
+
+const draftOutput = () => page.getByRole('status', {name: 'Draft'})
+
+function DraftOutput(): JSX.Element {
+  const composer = useComposer()
+  return <output aria-label="Draft">{JSON.stringify(composer.text())}</output>
+}
+
+const disposers: Array<() => void> = []
+
+function mountDraftPane(create: () => ChatSession) {
+  const attached: File[] = []
+  const inputs: ComposerInputHandle[] = []
+  const session = createRoot((dispose) => {
+    disposers.push(dispose)
+    return create()
+  })
+  render(() => (
+    <EngineReachabilityContext.Provider value={{online: () => true, sustainedOffline: () => false}}>
+      <ChatProvider chat={session}>
+        <ComposerHandlersProvider value={{}}>
+          <PaneComposer
+            draftStorage={memoryStorage()}
+            draftKey="queue-flush"
+            placeholder="Ask anything…"
+            inputLabel="Message"
+            onInputReady={(handle) => inputs.push(handle)}
+          >
+            <DraftOutput />
+          </PaneComposer>
+        </ComposerHandlersProvider>
+      </ChatProvider>
+    </EngineReachabilityContext.Provider>
+  ))
+  const sink = {
+    insert: (text: string) => inputs[0]?.append(text),
+    addFile: (file: File) => void attached.push(file),
+  }
+  const cancel = () => session.interruptAndFlush().then((unsent) => returnUnsentToDraft(unsent, sink))
+  return {session, cancel, attached}
 }
