@@ -507,10 +507,10 @@ test('folding a card leaves a released reader exactly where they were [gate e: s
     const rowBefore = topEdgeRowIndex(viewport)
     const offsetBefore = topEdgeRowOffset(viewport)
 
-    await traceToggle().click()
-    await expect.element(traceToggle()).toBeVisible()
-    await traceToggle().click()
-    await expect.element(traceToggle()).toBeVisible()
+    await traceToggle().click({scroll: 'none'})
+    await expect.element(page.getByText('Show trace', {exact: true})).toBeVisible()
+    await traceToggle().click({scroll: 'none'})
+    await expect.element(page.getByText('Hide trace', {exact: true})).toBeVisible()
 
     expect(topEdgeRowIndex(viewport)).toBe(rowBefore)
     expect(Math.abs(offsetBefore - topEdgeRowOffset(viewport))).toBeLessThanOrEqual(ROW_ROUNDING_TOLERANCE_PX)
