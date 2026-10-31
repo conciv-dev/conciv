@@ -28,7 +28,7 @@ import {
   type ShellMountOptions,
 } from './helpers.browser.js'
 import {render} from '@solidjs/testing-library'
-import {type JSX, createSignal, onMount, type Component, createMemo, For, Show} from 'solid-js'
+import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show} from 'solid-js'
 import {
   AttachmentByMime,
   ChatProvider,
@@ -39,6 +39,7 @@ import {
   ComposerActions as ComposerActionsPrimitive,
   ComposerActionsHost,
   type SessionStatus,
+  useComposer,
 } from '@conciv/ui-kit-chat'
 import './utilities.css'
 import '@conciv/ui-kit-chat/theme/tokens.css'
@@ -50,8 +51,8 @@ import {
   getExtensionApi,
   type RegisterExtension,
 } from '@conciv/extension'
-import {paneAttachments} from '../src/pane/pane-attachments.js'
-import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import {paneAttachments, returnUnsentToDraft} from '../src/pane/pane-attachments.js'
+import type {ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {INERT_TOOL_CTX, ToolCallCard} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
@@ -68,13 +69,26 @@ import {makePaneGrabApi} from '../src/extension/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {ComposerActions} from '../src/composer/actions.js'
-import {createChat} from '@conciv/ai/client'
+import {
+  createChat,
+  createChatSession,
+  type ChatSession,
+  type ChatSessionConnection,
+  type ChatSessionHydration,
+} from '@conciv/ai/client'
+import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
 import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import type {RunClockSource} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {StatusBar} from '../src/pane/status-bar.jsx'
+import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
+import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
+import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
+import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
+import {createToolRegistry} from '@conciv/extension/registry'
+import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 
 describe('approval replay', () => {
   const core = bootedCore('approval-replay')
@@ -125,6 +139,27 @@ describe('approval replay', () => {
     await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
     await expect.element(page.getByText('Approved: Bash: rm -rf build', {exact: true})).toBeVisible()
     await expect.element(page.getByText('Deleted.')).toBeVisible()
+  }, 120_000)
+
+  test('an ask from a chat turn sits in the strip, and denying it posts the message that re-runs the turn refused', async () => {
+    const {sessionId} = await newSession()
+    keep(await attachedPane(sessionId))
+    await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
+    await coreControl.scriptCustomEvent('approval-requested', {
+      approvalId: 'turn-deny',
+      title: 'Approve Bash: git push --force',
+      input: {command: 'git push --force'},
+    })
+
+    await composer().fill('force push main')
+    await page.getByRole('button', {name: 'Send message'}).click()
+    await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
+
+    await coreControl.scriptTurn({toolCalls: [], text: 'Understood, I will not force push.'})
+    await page.getByRole('button', {name: 'Deny'}).click()
+    await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
+    await expect.element(page.getByText('Denied: Bash: git push --force', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Understood, I will not force push.')).toBeVisible()
   }, 120_000)
 
   test('a pane opened while the ask waits draws the card from hydrate', async () => {
@@ -779,6 +814,18 @@ describe('notices', () => {
     await expect.element(page.getByText('Now following fix the flaky test.')).not.toBeInTheDocument()
     expect(handedBack).toBe(1)
   })
+
+  test('a notice raised again under the same name replaces the one already standing', async () => {
+    const {notify} = mountToaster()
+
+    notify('Still connected to your terminal.', {key: 'hand-back', tone: 'danger'})
+    await expect.element(page.getByText('Still connected to your terminal.')).toBeVisible()
+
+    notify('Handed the terminal back.', {key: 'hand-back', tone: 'success'})
+
+    await expect.element(page.getByText('Handed the terminal back.')).toBeVisible()
+    await expect.element(page.getByText('Still connected to your terminal.')).not.toBeInTheDocument()
+  })
 })
 
 describe('page session card', () => {
@@ -1150,6 +1197,143 @@ describe('queue strip', () => {
       expect(page.getByText('queued instruction 4').elements()).toHaveLength(0)
     })
   })
+
+  describe('a later Stop returns a superseded queued flush to the draft', () => {
+    afterEach(() => {
+      for (const dispose of disposers.splice(0)) dispose()
+    })
+
+    it('appends the follow-up under typed text after a newer turn was started and stopped during the wait', async () => {
+      const heldRefresh = Promise.withResolvers<ChatSessionHydration>()
+      const refreshStarted = Promise.withResolvers<void>()
+      const held = () => {
+        refreshStarted.resolve()
+        return heldRefresh.promise
+      }
+      const {sent, session: create} = sessionOverHeldRuns([held])
+      const {session, cancel} = mountDraftPane(create)
+      void session.sendMessage('first turn')
+      await vi.waitFor(() => expect(sent).toEqual(['first turn']))
+      await session.sendMessage('queued follow-up')
+      const earlierCancel = cancel()
+      await refreshStarted.promise
+      void session.sendMessage('second turn')
+      await vi.waitFor(() => expect(sent).toEqual(['first turn', 'second turn']))
+      await cancel()
+      await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
+      await userEvent.keyboard('still typing')
+      await expect.element(draftOutput()).toHaveTextContent('"still typing"')
+      heldRefresh.resolve(EMPTY_HYDRATION)
+      await Promise.race([earlierCancel, vi.waitUntil(() => sent.length > 2)])
+      expect(sent).toEqual(['first turn', 'second turn'])
+      await expect.element(draftOutput()).toHaveTextContent('"still typing\\nqueued follow-up"')
+    })
+
+    it('returns only the unsent items, text in order and images as attachments, once a Stop lands mid-flush', async () => {
+      const {sent, session: create} = sessionOverHeldRuns([])
+      const {session, cancel, attached} = mountDraftPane(create)
+      const multipart = (text: string): ContentPart[] => [{type: 'text', content: text}]
+      void session.sendMessage('first turn')
+      await vi.waitFor(() => expect(sent).toEqual(['first turn']))
+      await session.sendMessage({content: multipart('queued one')})
+      await session.sendMessage({content: multipart('queued two')})
+      await session.sendMessage({
+        content: [
+          ...multipart('queued three'),
+          {type: 'image', source: {type: 'data', mimeType: 'image/png', value: PNG_PIXEL}},
+        ],
+      })
+      const flush = cancel()
+      await vi.waitFor(() => expect(sent).toEqual(['first turn', 'queued one']))
+      await session.stop()
+      await Promise.race([flush, vi.waitUntil(() => sent.length > 2)])
+      expect(sent).toEqual(['first turn', 'queued one'])
+      await expect.element(draftOutput()).toHaveTextContent('"queued two\\nqueued three"')
+      expect(attached.map((file) => file.type)).toEqual(['image/png'])
+    })
+  })
+
+  const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
+  const EMPTY_HYDRATION: ChatSessionHydration = {messages: [], lastRun: null, pendingApprovals: []}
+
+  type SentMessages = Parameters<ChatSessionConnection['send']>[0]
+
+  function lastUserText(messages: SentMessages): string {
+    const last = messages.at(-1)
+    if (!last || !('parts' in last)) return ''
+    return last.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(' ')
+  }
+
+  const abortOf = (signal: AbortSignal | undefined): Promise<void> =>
+    new Promise((resolve) => signal?.addEventListener('abort', () => resolve(), {once: true}))
+
+  function sessionOverHeldRuns(refreshes: Array<() => Promise<ChatSessionHydration>>) {
+    const sent: string[] = []
+    const connection: ChatSessionConnection = {
+      subscribe: async function* (signal) {
+        await abortOf(signal)
+        yield* []
+      },
+      send: async (messages, _data, signal) => {
+        sent.push(lastUserText(messages))
+        await abortOf(signal)
+      },
+      refresh: () => refreshes.shift()?.() ?? Promise.resolve(EMPTY_HYDRATION),
+      close: () => undefined,
+    }
+    return {
+      sent,
+      session: (): ChatSession =>
+        createChatSession({
+          sessionId: 'queue-flush',
+          connect: () => connection,
+          stop: () => Promise.resolve(),
+          decide: () => Promise.resolve({startsTurn: false}),
+        }),
+    }
+  }
+
+  const draftOutput = () => page.getByRole('status', {name: 'Draft'})
+
+  function DraftOutput(): JSX.Element {
+    const composer = useComposer()
+    return <output aria-label="Draft">{JSON.stringify(composer.text())}</output>
+  }
+
+  const disposers: Array<() => void> = []
+
+  function mountDraftPane(create: () => ChatSession) {
+    const attached: File[] = []
+    const inputs: ComposerInputHandle[] = []
+    const session = createRoot((dispose) => {
+      disposers.push(dispose)
+      return create()
+    })
+    render(() => (
+      <EngineReachabilityContext.Provider value={{online: () => true, sustainedOffline: () => false}}>
+        <ChatProvider chat={session}>
+          <ComposerHandlersProvider value={{}}>
+            <PaneComposer
+              draftStorage={memoryStorage()}
+              draftKey="queue-flush"
+              placeholder="Ask anything…"
+              inputLabel="Message"
+              onInputReady={(handle) => inputs.push(handle)}
+            >
+              <DraftOutput />
+            </PaneComposer>
+          </ComposerHandlersProvider>
+        </ChatProvider>
+      </EngineReachabilityContext.Provider>
+    ))
+    const sink = {
+      insert: (text: string) => inputs[0]?.append(text),
+      addFile: (file: File) => void attached.push(file),
+    }
+    const cancel = () => session.interruptAndFlush().then((unsent) => returnUnsentToDraft(unsent, sink))
+    return {session, cancel, attached}
+  }
 })
 
 describe('quick add pane', () => {
@@ -1479,5 +1663,67 @@ describe('tool card dispatch', () => {
 
     await expect.element(browserPage.getByRole('status')).toHaveTextContent('ship')
     expect(browserPage.getByRole('button', {name: 'hold'}).query()).toBeNull()
+  })
+})
+
+describe('wire name coverage', () => {
+  function realRegistry(): ReturnType<typeof createToolRegistry> {
+    const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
+    for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
+    for (const tool of BUILTIN_SERVER_TOOLS) {
+      registry.register(tool, {owner: 'a built-in server tool', context: {bundler: () => undefined}})
+    }
+    registry.register(BUILTIN_OPEN_TOOL, {owner: 'a built-in editor tool', context: {openInEditor: () => {}}})
+    return registry
+  }
+
+  const registry = realRegistry()
+
+  const CATALOG_TOOL_NAME = 'catalog'
+
+  const modelReachableNames = [
+    EXECUTE_TOOL_NAME,
+    CATALOG_TOOL_NAME,
+    concivUiToolDef.name,
+    concivExtensionsToolDef.name,
+    ...registry.catalog.list().map((entry) => entry.name),
+  ]
+
+  const HARNESS_NATIVE_CARD_NAMES = [
+    'Bash',
+    'apply_patch',
+    'Read',
+    'Edit',
+    'MultiEdit',
+    'Write',
+    'Grep',
+    'Glob',
+    'TodoWrite',
+    'ToolSearch',
+  ]
+
+  const concivOwnedCards: ToolCardEntry[] = [
+    ...collectToolRenderers([pageExtensionEntry]),
+    ...concivToolCards,
+    ...coreToolCards,
+    ...builtinToolCards,
+  ]
+
+  const cardNames = new Set(concivOwnedCards.flatMap((entry) => entry.names))
+
+  it('every model-reachable tool name resolves to a card entry or catalog meta', () => {
+    expect(modelReachableNames.length).toBeGreaterThan(10)
+    const unresolved = modelReachableNames.filter(
+      (name) => !cardNames.has(name) && registry.catalog.list().every((entry) => entry.name !== name),
+    )
+    expect(unresolved).toEqual([])
+  })
+
+  it('no conciv-owned card is registered for a name the model can never put on the wire', () => {
+    const reachable = new Set(modelReachableNames)
+    const dead = concivOwnedCards
+      .flatMap((entry) => entry.names)
+      .filter((name) => !reachable.has(name) && !HARNESS_NATIVE_CARD_NAMES.includes(name))
+    expect(dead).toEqual([])
   })
 })
