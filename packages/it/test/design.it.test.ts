@@ -545,7 +545,7 @@ it('a delta present only at 390 is flagged as a breakpoint delta', async () => {
   const mobile = await call('design_diff', {width: 390})
   const gap = mobile.components.flatMap((c) => c.deltas).find((d) => d.kind === 'gap-before')
   expect(gap).toMatchObject({breakpoint: true, file: 'src/card.module.css'})
-  expect(['gap: 8px', 'gap: 16px']).toContain(gap?.declaration)
+  expect(gap?.declaration).toBe('gap: 16px')
 })
 
 it('clear removes the frame', async () => {

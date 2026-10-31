@@ -94,7 +94,11 @@ function lookups(input: {delta: Delta; pair: Pair}): Lookup[] {
   })
 }
 
-async function resolveWinners(input: {wanted: Lookup[]; page: ServerToolPageAccess}): Promise<WinnerResult> {
+async function resolveWinners(input: {
+  wanted: Lookup[]
+  width: number
+  page: ServerToolPageAccess
+}): Promise<WinnerResult> {
   const groups = groupBy(
     uniqBy(input.wanted, (lookup) => lookup.property),
     (lookup) => lookup.owner.selector,
@@ -102,7 +106,11 @@ async function resolveWinners(input: {wanted: Lookup[]; page: ServerToolPageAcce
   const results = await Promise.all(
     Object.entries(groups).map(async ([selector, group]) =>
       WinnerResultSchema.parse(
-        await input.page.call(winnerDef.name, {selector, properties: group.map((lookup) => lookup.property)}),
+        await input.page.call(winnerDef.name, {
+          selector,
+          properties: group.map((lookup) => lookup.property),
+          width: input.width,
+        }),
       ),
     ),
   )
@@ -114,10 +122,15 @@ async function attribute(input: {
   design: DesignRuntime
   page: ServerToolPageAccess
   cssMap: CssMap
+  width: number
 }): Promise<ComponentReport> {
   const {ranked, design, page, cssMap} = input
   const {pair, report} = ranked
-  const winners = await resolveWinners({wanted: report.deltas.flatMap((delta) => lookups({delta, pair})), page})
+  const winners = await resolveWinners({
+    wanted: report.deltas.flatMap((delta) => lookups({delta, pair})),
+    width: input.width,
+    page,
+  })
   const deltas = await Promise.all(
     report.deltas.map(async (delta) => {
       const [found] = lookups({delta, pair}).flatMap(({property, owner}) => {
@@ -144,11 +157,12 @@ async function withProvenance(input: {
   ranked: Ranked[]
   design: DesignRuntime
   page: ServerToolPageAccess
+  width: number
 }): Promise<ComponentReport[]> {
-  const {ranked, design, page} = input
+  const {ranked, design, page, width} = input
   if (ranked.length === 0) return []
   const cssMap = await design.cssMap()
-  return Promise.all(ranked.map((entry) => attribute({ranked: entry, design, page, cssMap})))
+  return Promise.all(ranked.map((entry) => attribute({ranked: entry, design, page, cssMap, width})))
 }
 
 function reportHint(input: {attributed: boolean; absolute: boolean}): {hint?: string} {
@@ -192,7 +206,7 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, re
     .filter(({report}) => report.deltas.length > 0 || report.children === 0)
     .toSorted((a, b) => measured(b) - measured(a) || b.pair.mismatch * area(b.pair) - a.pair.mismatch * area(a.pair))
     .slice(0, input.limit)
-  const components = await withProvenance({ranked, design, page})
+  const components = await withProvenance({ranked, design, page, width: record.width})
   const xray = design.xrayUrl({id: record.id, session: request.sessionId})
   return design.store.writeRun({
     id: record.id,

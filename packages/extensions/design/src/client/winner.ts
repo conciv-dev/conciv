@@ -2,6 +2,7 @@ import Specificity, {type SpecificityObject} from '@bramus/specificity'
 import type {WinnerInput, WinnerResult} from '../shared/defs.js'
 import {propertyAliases} from '../shared/properties.js'
 import type {Winner} from '../shared/types.js'
+import {captureFrameAt} from './frame.js'
 
 type Sheet = Winner['sheet']
 
@@ -9,7 +10,9 @@ type Origin = {sheet: Sheet; conditions: string[]; layer: string | null; parent:
 
 type Entry = {rule: CSSStyleRule; selector: string; origin: Origin}
 
-type Scan = {entries: Entry[]; layers: string[]}
+type Realm = {doc: Document; view: Window & typeof globalThis}
+
+type Scan = {entries: Entry[]; layers: string[]; realm: Realm}
 
 type Candidate = {winner: Winner; layer: number; specificity: SpecificityObject; order: number}
 
@@ -26,15 +29,15 @@ function readRules(sheet: CSSStyleSheet | null): CSSRuleList | null {
   }
 }
 
-function sheetOwner(sheet: CSSStyleSheet): Element | null {
-  const owner = sheet.ownerNode
-  if (owner instanceof Element) return owner
-  if (sheet.parentStyleSheet === null) return null
-  return sheetOwner(sheet.parentStyleSheet)
+function sheetOwner(input: {sheet: CSSStyleSheet; realm: Realm}): Element | null {
+  const owner = input.sheet.ownerNode
+  if (owner instanceof input.realm.view.Element) return owner
+  if (input.sheet.parentStyleSheet === null) return null
+  return sheetOwner({sheet: input.sheet.parentStyleSheet, realm: input.realm})
 }
 
-function describeSheet(input: {sheet: CSSStyleSheet; adopted: boolean}): Sheet {
-  const owner = sheetOwner(input.sheet)
+function describeSheet(input: {sheet: CSSStyleSheet; adopted: boolean; realm: Realm}): Sheet {
+  const owner = sheetOwner(input)
   return {
     href: input.sheet.href,
     viteDevId: owner?.getAttribute('data-vite-dev-id') ?? null,
@@ -77,7 +80,7 @@ function visitStyle(input: {rule: CSSStyleRule; origin: Origin; scan: Scan}): vo
 
 function visitMedia(input: {rule: CSSMediaRule; origin: Origin; scan: Scan}): void {
   const {rule, origin, scan} = input
-  if (!window.matchMedia(rule.media.mediaText).matches) return
+  if (!scan.realm.view.matchMedia(rule.media.mediaText).matches) return
   walk({
     rules: rule.cssRules,
     origin: {...origin, conditions: [...origin.conditions, `@media ${rule.conditionText}`]},
@@ -87,7 +90,7 @@ function visitMedia(input: {rule: CSSMediaRule; origin: Origin; scan: Scan}): vo
 
 function visitSupports(input: {rule: CSSSupportsRule; origin: Origin; scan: Scan}): void {
   const {rule, origin, scan} = input
-  if (!CSS.supports(rule.conditionText)) return
+  if (!scan.realm.view.CSS.supports(rule.conditionText)) return
   walk({
     rules: rule.cssRules,
     origin: {...origin, conditions: [...origin.conditions, `@supports ${rule.conditionText}`]},
@@ -111,7 +114,7 @@ function visitImport(input: {rule: CSSImportRule; origin: Origin; scan: Scan}): 
   const {rule, origin, scan} = input
   const rules = readRules(rule.styleSheet)
   if (rules === null) return
-  if (rule.media.mediaText !== '' && !window.matchMedia(rule.media.mediaText).matches) return
+  if (rule.media.mediaText !== '' && !scan.realm.view.matchMedia(rule.media.mediaText).matches) return
   const layer = rule.layerName === null ? origin.layer : layerName({origin, name: rule.layerName})
   if (layer !== null) register({scan, name: layer})
   walk({rules, origin: {...origin, layer}, scan})
@@ -119,24 +122,29 @@ function visitImport(input: {rule: CSSImportRule; origin: Origin; scan: Scan}): 
 
 function visit(input: {rule: CSSRule; origin: Origin; scan: Scan}): void {
   const {rule, origin, scan} = input
-  if (rule instanceof CSSStyleRule) return visitStyle({rule, origin, scan})
-  if (rule instanceof CSSMediaRule) return visitMedia({rule, origin, scan})
-  if (rule instanceof CSSSupportsRule) return visitSupports({rule, origin, scan})
-  if (rule instanceof CSSLayerBlockRule) return visitLayerBlock({rule, origin, scan})
-  if (rule instanceof CSSLayerStatementRule) return visitLayerStatement({rule, origin, scan})
-  if (rule instanceof CSSImportRule) return visitImport({rule, origin, scan})
+  const {view} = scan.realm
+  if (rule instanceof view.CSSStyleRule) return visitStyle({rule, origin, scan})
+  if (rule instanceof view.CSSMediaRule) return visitMedia({rule, origin, scan})
+  if (rule instanceof view.CSSSupportsRule) return visitSupports({rule, origin, scan})
+  if (rule instanceof view.CSSLayerBlockRule) return visitLayerBlock({rule, origin, scan})
+  if (rule instanceof view.CSSLayerStatementRule) return visitLayerStatement({rule, origin, scan})
+  if (rule instanceof view.CSSImportRule) return visitImport({rule, origin, scan})
 }
 
-function scanSheets(): Scan {
-  const scan: Scan = {entries: [], layers: []}
+function scanSheets(realm: Realm): Scan {
+  const scan: Scan = {entries: [], layers: [], realm}
   const sheets = [
-    ...Array.from(document.styleSheets).map((sheet) => ({sheet, adopted: false})),
-    ...document.adoptedStyleSheets.map((sheet) => ({sheet, adopted: true})),
+    ...Array.from(realm.doc.styleSheets).map((sheet) => ({sheet, adopted: false})),
+    ...realm.doc.adoptedStyleSheets.map((sheet) => ({sheet, adopted: true})),
   ]
   for (const {sheet, adopted} of sheets) {
     const rules = readRules(sheet)
     if (rules === null) continue
-    walk({rules, origin: {sheet: describeSheet({sheet, adopted}), conditions: [], layer: null, parent: null}, scan})
+    walk({
+      rules,
+      origin: {sheet: describeSheet({sheet, adopted, realm}), conditions: [], layer: null, parent: null},
+      scan,
+    })
   }
   return scan
 }
@@ -185,8 +193,9 @@ function declared(input: {style: CSSStyleDeclaration; aliases: string[]}): {alia
   return {alias, value: input.style.getPropertyValue(alias)}
 }
 
-function inlineCandidate(input: {element: Element; aliases: string[]; layers: number}): Candidate | null {
-  if (!(input.element instanceof HTMLElement || input.element instanceof SVGElement)) return null
+function inlineCandidate(input: {element: Element; aliases: string[]; scan: Scan}): Candidate | null {
+  const {view} = input.scan.realm
+  if (!(input.element instanceof view.HTMLElement || input.element instanceof view.SVGElement)) return null
   const style = input.element.style
   const hit = declared({style, aliases: input.aliases})
   if (hit === null) return null
@@ -202,7 +211,7 @@ function inlineCandidate(input: {element: Element; aliases: string[]; layers: nu
       conditions: [],
       rulePath: 'style',
     },
-    layer: input.layers,
+    layer: input.scan.layers.length,
     specificity: ZERO,
     order: Number.MAX_SAFE_INTEGER,
   }
@@ -238,32 +247,34 @@ function ruleCandidates(input: {element: Element; aliases: string[]; scan: Scan}
   })
 }
 
-function resolveVar(input: {element: Element; value: string}): string {
+function resolveVar(input: {element: Element; value: string; realm: Realm}): string {
   const start = input.value.indexOf('var(')
   if (start === -1) return input.value
   const close = input.value.indexOf(')', start)
   if (close === -1) return input.value
   const [name = '', ...fallback] = input.value.slice(start + 4, close).split(',')
-  const custom = getComputedStyle(input.element).getPropertyValue(name.trim()).trim()
+  const custom = input.realm.view.getComputedStyle(input.element).getPropertyValue(name.trim()).trim()
   const resolved = custom === '' ? fallback.join(',').trim() : custom
   return resolveVar({
     element: input.element,
+    realm: input.realm,
     value: `${input.value.slice(0, start)}${resolved}${input.value.slice(close + 1)}`,
   })
 }
 
-function normalized(input: {property: string; value: string}): string {
-  const probe = document.createElement('span').style
+function normalized(input: {property: string; value: string; realm: Realm}): string {
+  const probe = input.realm.doc.createElement('span').style
   probe.setProperty(input.property, input.value)
   return probe.getPropertyValue(input.property)
 }
 
-function confirms(input: {element: Element; property: string; value: string}): boolean {
-  const computed = getComputedStyle(input.element).getPropertyValue(input.property)
-  const value = resolveVar({element: input.element, value: input.value})
+function confirms(input: {element: Element; property: string; value: string; realm: Realm}): boolean {
+  const {realm} = input
+  const computed = realm.view.getComputedStyle(input.element).getPropertyValue(input.property)
+  const value = resolveVar({element: input.element, value: input.value, realm})
   if (value === computed) return true
-  const expected = normalized({property: input.property, value: computed})
-  return expected !== '' && normalized({property: input.property, value}) === expected
+  const expected = normalized({property: input.property, value: computed, realm})
+  return expected !== '' && normalized({property: input.property, value, realm}) === expected
 }
 
 type WinnerQuery = {element: Element; property: string; scan: Scan}
@@ -271,8 +282,9 @@ type WinnerQuery = {element: Element; property: string; scan: Scan}
 function inherits(input: WinnerQuery): Winner | null {
   const parent = input.element.parentElement
   if (parent === null) return null
-  const own = getComputedStyle(input.element).getPropertyValue(input.property)
-  if (own !== getComputedStyle(parent).getPropertyValue(input.property)) return null
+  const {view} = input.scan.realm
+  const own = view.getComputedStyle(input.element).getPropertyValue(input.property)
+  if (own !== view.getComputedStyle(parent).getPropertyValue(input.property)) return null
   const winner = winningDeclaration({...input, element: parent})
   if (winner === null) return null
   return {...winner, inherited: true}
@@ -281,21 +293,35 @@ function inherits(input: WinnerQuery): Winner | null {
 function winningDeclaration(input: WinnerQuery): Winner | null {
   const {scan} = input
   const aliases = propertyAliases(input.property)
-  const inline = inlineCandidate({element: input.element, aliases, layers: scan.layers.length})
+  const inline = inlineCandidate({element: input.element, aliases, scan})
   const candidates = [...ruleCandidates({element: input.element, aliases, scan}), ...(inline === null ? [] : [inline])]
   const best = candidates.reduce<Candidate | null>((top, next) => {
     if (top === null || outranks({a: next, b: top})) return next
     return top
   }, null)
   if (best === null) return inherits(input)
-  if (!confirms({element: input.element, property: input.property, value: best.winner.value})) return null
+  if (!confirms({element: input.element, property: input.property, value: best.winner.value, realm: scan.realm})) {
+    return null
+  }
   return best.winner
 }
 
+function frameRealm(width: number): Realm | null {
+  const view = captureFrameAt(width)?.contentDocument?.defaultView
+  return view ? {doc: view.document, view} : null
+}
+
+function realmAt(width: number | undefined): Realm {
+  const tab: Realm = {doc: document, view: window}
+  if (width === undefined || width === innerWidth) return tab
+  return frameRealm(width) ?? tab
+}
+
 export function winnerStep(input: WinnerInput): Promise<WinnerResult> {
-  const element = document.querySelector(input.selector)
+  const realm = realmAt(input.width)
+  const element = realm.doc.querySelector(input.selector)
   if (element === null) return Promise.resolve(Object.fromEntries(input.properties.map((property) => [property, null])))
-  const scan = scanSheets()
+  const scan = scanSheets(realm)
   return Promise.resolve(
     Object.fromEntries(input.properties.map((property) => [property, winningDeclaration({element, property, scan})])),
   )
