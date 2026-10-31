@@ -314,7 +314,7 @@ function UserTurn(): JSX.Element {
   const config = useContext(ThreadConfigContext)
   const message = useMessage()
   const chat = useChatContext()
-  const DocumentCard = (): JSX.Element => <AttachmentByMime cards={config.attachmentCards()} />
+  const AttachmentCard = (): JSX.Element => <AttachmentByMime cards={config.attachmentCards()} />
   const promptText = createMemo(() => promptTextOf(message.message()))
   const timeLabel = createMemo(() => promptTimeLabel(chat.messages()[message.message().start]?.createdAt))
   return (
@@ -322,7 +322,7 @@ function UserTurn(): JSX.Element {
       <TurnPrefix />
       <Message.If hasAttachments>
         <div class="flex flex-wrap gap-1 self-end">
-          <Message.Attachments components={{Document: DocumentCard}} />
+          <Message.Attachments components={{Image: AttachmentCard, Document: AttachmentCard}} />
         </div>
       </Message.If>
       <Message.If hasText>

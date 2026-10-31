@@ -9,7 +9,8 @@ import {storyConnection} from '@conciv/ai/testkit'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 
-const GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
+const GIF_BASE64 = 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
+const GIF = `data:image/gif;base64,${GIF_BASE64}`
 
 function imagePart() {
   return {type: 'image', source: {type: 'data', value: GIF, mimeType: 'image/gif'}} as const
@@ -44,4 +45,19 @@ it('a user message that carries text still renders it', async () => {
   await page.getByRole('button', {name: 'send'}).click()
 
   await expect.element(page.getByText('here it is'), {timeout: 2000}).toBeVisible()
+})
+
+it('a sent image shows in the user turn', async () => {
+  const sentImage = (): SendContent => ({
+    content: [
+      {type: 'text', content: 'what color is this'},
+      {type: 'image', source: {type: 'data', value: GIF_BASE64, mimeType: 'image/gif'}},
+    ],
+  })
+  mountView(() => <ThreadHost content={sentImage} />)
+
+  await page.getByRole('button', {name: 'send'}).click()
+
+  await expect.element(page.getByText('what color is this'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.getByRole('img', {name: 'image-1'})).toBeVisible()
 })
