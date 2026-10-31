@@ -80,6 +80,10 @@ function area(pair: Pair): number {
 
 type Ranked = {pair: Pair; report: ComponentReport}
 
+function measured(ranked: Ranked): number {
+  return ranked.report.deltas.length > 0 ? 1 : 0
+}
+
 type Lookup = {property: string; owner: Pair}
 
 function lookups(input: {delta: Delta; pair: Pair}): Lookup[] {
@@ -185,8 +189,8 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, re
         },
       }
     })
-    .filter(({report}) => report.deltas.length > 0)
-    .toSorted((a, b) => b.pair.mismatch * area(b.pair) - a.pair.mismatch * area(a.pair))
+    .filter(({report}) => report.deltas.length > 0 || report.children === 0)
+    .toSorted((a, b) => measured(b) - measured(a) || b.pair.mismatch * area(b.pair) - a.pair.mismatch * area(a.pair))
     .slice(0, input.limit)
   const components = await withProvenance({ranked, design, page})
   const xray = design.xrayUrl({id: record.id, session: request.sessionId})

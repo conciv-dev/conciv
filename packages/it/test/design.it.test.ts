@@ -450,6 +450,18 @@ it('inline and sx keys map to the JSX attribute with a spacing suggestion only f
   ).toMatchObject({via: 'className', line: 9, column: 58, declaration: 'pl-8'})
 })
 
+it('a component whose pixels differ without a measured delta is reported and keeps status open', async () => {
+  await goto('badge')
+  await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+  const report = await call('design_diff', {})
+  expect(report.components).toContainEqual(
+    expect.objectContaining({source: expect.objectContaining({file: 'src/Toolbar.tsx'}), tag: 'header', deltas: []}),
+  )
+  const status = await call('design_status', {route: '/'})
+  expect(status.done).toBe(false)
+  expect(status.targets[0]?.above).toBeGreaterThan(0)
+})
+
 it('status flips to done when every width matches', async () => {
   await goto('/')
   await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
