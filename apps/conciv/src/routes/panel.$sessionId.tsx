@@ -38,6 +38,7 @@ import {QueueStrip} from '../pane/queue-strip.js'
 import {StatusBar, type StatusBarView} from '../pane/status-bar.js'
 import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 import {SessionPillPending, SessionTitlePending, UsagePending, ViewTabsPending} from '../shell/pending.js'
+import {guardedComponent} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 
 const RAIL =
@@ -173,7 +174,11 @@ function PanelSession(): JSX.Element {
   const taskTitle = () => row()?.title || 'New session'
   const statusBarViews = createMemo<StatusBarView[]>(() => [
     {id: 'chat', label: 'Chat'},
-    ...views().map((view) => ({id: view.id, label: view.label, icon: view.icon})),
+    ...views().map((view) => ({
+      id: view.id,
+      label: view.label,
+      icon: view.icon && guardedComponent(view.instance.extension.name, 'silent', view.icon),
+    })),
   ])
 
   const paneValue: PaneContextValue = {

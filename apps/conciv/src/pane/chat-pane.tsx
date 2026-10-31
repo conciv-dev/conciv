@@ -34,7 +34,6 @@ import {coreToolCards} from '@conciv/core/cards'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {MarkerRow} from '@conciv/contract'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
-import {collectToolRenderers} from '@conciv/extension'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments, returnUnsentToDraft} from './pane-attachments.js'
@@ -48,6 +47,7 @@ import {useComposerTriggerSources} from './trigger-sources.js'
 import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
+import {guardedToolCards} from '../extension/extension-boundary.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
@@ -204,8 +204,9 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
     captureFor: captures.lookup,
   })
 
+  const extensionToolCards = guardedToolCards(instances.map((instance) => instance.extension))
   const tools = (): ToolCardEntry[] => [
-    ...collectToolRenderers(instances.map((instance) => instance.extension)),
+    ...extensionToolCards,
     ...concivToolCards,
     ...coreToolCards,
     ...builtinToolCards,
@@ -248,7 +249,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
     ),
   )
   const PaneAttachment = (slotProps: {removable?: boolean}): JSX.Element => (
-    <AttachmentByMime cards={attachments().cards} removable={slotProps.removable} />
+    <AttachmentByMime cards={attachments().chips} removable={slotProps.removable} />
   )
   const stageGrab = (grab: Grab) => {
     pane.grabStaging.stage(grab)

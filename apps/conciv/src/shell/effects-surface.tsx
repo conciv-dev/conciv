@@ -4,6 +4,7 @@ import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {MountedSurface} from '@conciv/extension/client'
 import {useConnectionGeneration, useHostTheme} from '../app/context.js'
 import {applySchemeClass, applySkinClass, themeClasses} from '../lib/color-scheme.js'
+import {ExtensionBoundary} from '../extension/extension-boundary.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
 import styles from '../styles.css?inline'
 
@@ -38,7 +39,11 @@ export function EffectsSurface(props: {instances: ExtensionInstance[]}): JSX.Ele
           <Show when={mountKey()} keyed>
             {(mount) => (
               <For each={mount.instances}>
-                {(instance) => <MountedSurface extension={instance.extension} clientValue={instance.clientValue} />}
+                {(instance) => (
+                  <ExtensionBoundary name={instance.extension.name} fallback="silent">
+                    <MountedSurface extension={instance.extension} clientValue={instance.clientValue} />
+                  </ExtensionBoundary>
+                )}
               </For>
             )}
           </Show>
