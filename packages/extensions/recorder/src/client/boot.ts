@@ -34,7 +34,7 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
     if (sessionBlocked()) return
     const library = await loadCaptureLibrary().catch(() => undefined)
     if (library) return startCaptureSession(library)
-    store.setStatus('blocked')
+    if (!abort.signal.aborted) store.setStatus('blocked')
   }
 
   const stopSession = async (): Promise<void> => {
