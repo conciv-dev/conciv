@@ -9,8 +9,8 @@ const FOCUS_RING =
   'focus-visible:[outline:var(--chat-focus)] focus-visible:[outline-offset:-0.125rem] focus-visible:![box-shadow:none]'
 const THUMBNAIL_BUTTON = `self-start max-w-full min-w-11 min-h-11 overflow-hidden rounded-[var(--chat-radius-sm)] !border-chat-line !cursor-zoom-in ${FOCUS_RING}`
 const THUMBNAIL_IMAGE = 'block max-w-full max-h-40 w-auto h-auto'
-const FIT_BUTTON = `w-full align-top !cursor-zoom-in ${FOCUS_RING}`
-const ACTUAL_BUTTON = `w-max min-w-full align-top !cursor-zoom-out ${FOCUS_RING}`
+const FIT_BUTTON = `!flex mx-auto w-fit max-w-full !cursor-zoom-in ${FOCUS_RING}`
+const ACTUAL_BUTTON = `!flex mx-auto w-max !cursor-zoom-out ${FOCUS_RING}`
 const FIT_IMAGE = 'block w-auto h-auto max-w-full max-h-[calc(100dvh-8rem)]'
 const ACTUAL_IMAGE = 'block w-auto h-auto max-w-none'
 const FOOTER = 'flex justify-end'
