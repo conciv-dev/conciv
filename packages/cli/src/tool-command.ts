@@ -1,3 +1,5 @@
+import {existsSync} from 'node:fs'
+import {resolve} from 'node:path'
 import {z} from 'zod'
 import {defineCommand, type ArgDef, type ArgsDef, type CommandDef} from 'citty'
 import type {ToolMeta} from '@conciv/extension/tool'
@@ -13,14 +15,20 @@ const DeclaredField = z.object({
   type: z.string().optional(),
   enum: z.array(z.string()).optional(),
   description: z.string().optional(),
+  format: z.string().optional(),
+  items: z.object({type: z.string().optional()}).optional(),
 })
+
+type Field = z.infer<typeof DeclaredField>
 
 const DeclaredInput = z.object({
   properties: z.record(z.string(), DeclaredField).default({}),
   required: z.array(z.string()).default([]),
 })
 
-type ToolField = {name: string; required: boolean; field: z.infer<typeof DeclaredField>}
+type ToolField = {name: string; required: boolean; field: Field}
+
+type ParsedArgs = {args: unknown; rawArgs: readonly string[]}
 
 function toolFields(tool: ToolDeclaration): ToolField[] {
   const declared = DeclaredInput.parse(z.toJSONSchema(tool.inputSchema, {io: 'input'}))
@@ -34,6 +42,7 @@ function toolSummary(tool: ToolDeclaration): string {
 
 function flagArg(entry: ToolField): ArgDef {
   const description = entry.field.description ?? entry.name
+  if (entry.field.type === 'array') return {type: 'string', description: `${description} (repeat the flag for more)`}
   if (entry.field.enum) return {type: 'enum', options: entry.field.enum, description}
   if (entry.field.type === 'boolean') return {type: 'boolean', description}
   return {type: 'string', description}
@@ -55,8 +64,8 @@ function toolArgs(tool: ToolDeclaration, positional: string | undefined): ArgsDe
   return args
 }
 
-function toolInput(tool: ToolDeclaration, raw: unknown): Record<string, unknown> {
-  const parsed = tool.inputSchema.safeParse(supplied(raw))
+function toolInput(input: {tool: ToolDeclaration; parsed: ParsedArgs}): Record<string, unknown> {
+  const parsed = input.tool.inputSchema.safeParse(wireInput({fields: toolFields(input.tool), parsed: input.parsed}))
   if (!parsed.success) throw userFailure(z.prettifyError(parsed.error))
   return Object.fromEntries(Object.entries(parsed.data).filter(([, value]) => value !== undefined))
 }
@@ -73,7 +82,7 @@ export function toolCommand(
   return defineCommand({
     meta: {name: options.name, description: toolSummary(tool)},
     args: toolArgs(tool, options.positional),
-    run: ({args}) => options.run(toolInput(tool, args)),
+    run: ({args, rawArgs}) => options.run(toolInput({tool, parsed: {args, rawArgs}})),
   })
 }
 
@@ -85,24 +94,45 @@ function wireFields(signature: WireToolSignature): ToolField[] {
   return Object.entries(declared.properties).map(([name, field]) => ({name, required: required.has(name), field}))
 }
 
-function castWireValue(field: z.infer<typeof DeclaredField>, value: unknown): unknown {
+function castScalar(input: {type: string | undefined; format: string | undefined; value: unknown}): unknown {
+  const {type, format, value} = input
   if (typeof value !== 'string') return value
-  if (field.type === 'number' || field.type === 'integer') {
+  if (type === 'number' || type === 'integer') {
     const numeric = Number(value)
     return Number.isNaN(numeric) ? value : numeric
   }
+  if (format === 'path' && existsSync(resolve(value))) return resolve(value)
   return value
 }
 
-function wireInput(fields: ToolField[], raw: unknown): Record<string, unknown> {
+function repeatedFlag(input: {rawArgs: readonly string[]; name: string}): string[] {
+  const flag = `--${input.name}`
+  const end = input.rawArgs.indexOf('--')
+  const flags = end === -1 ? input.rawArgs : input.rawArgs.slice(0, end)
+  return flags.flatMap((arg, index) => {
+    const next = flags[index + 1]
+    if (arg === flag) return next === undefined ? [] : [next]
+    return arg.startsWith(`${flag}=`) ? [arg.slice(flag.length + 1)] : []
+  })
+}
+
+function castValue(input: {name: string; field: Field; value: unknown; rawArgs: readonly string[]}): unknown {
+  const {name, field, value, rawArgs} = input
+  if (field.type !== 'array') return castScalar({type: field.type, format: field.format, value})
+  const repeated = repeatedFlag({rawArgs, name})
+  const values = repeated.length > 0 ? repeated : [value].flat()
+  return values.map((item) => castScalar({type: field.items?.type, format: undefined, value: item}))
+}
+
+function wireInput(input: {fields: ToolField[]; parsed: ParsedArgs}): Record<string, unknown> {
+  const {fields, parsed} = input
   const known = new Map(fields.map((field) => [field.name, field.field]))
   return Object.fromEntries(
-    Object.entries(supplied(raw))
-      .filter(([name]) => known.has(name))
-      .map(([name, value]) => {
-        const field = known.get(name)
-        return [name, field === undefined ? value : castWireValue(field, value)]
-      }),
+    Object.entries(supplied(parsed.args)).flatMap(([name, value]) => {
+      const field = known.get(name)
+      if (field === undefined) return []
+      return [[name, castValue({name, field, value, rawArgs: parsed.rawArgs})]]
+    }),
   )
 }
 
@@ -131,6 +161,6 @@ export function wireToolCommand(
   return defineCommand({
     meta: {name: options.name, description: signature.summary},
     args: wireArgs(fields, positional),
-    run: ({args}) => options.run(wireInput(fields, args)),
+    run: ({args, rawArgs}) => options.run(wireInput({fields, parsed: {args, rawArgs}})),
   })
 }

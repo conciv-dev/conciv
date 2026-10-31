@@ -1,0 +1,101 @@
+{
+  "name": "@conciv/extension-design",
+  "version": "0.0.20",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The design built-in extension: holds a target image per route and width, captures the live page at that width and returns ranked component deltas with style provenance.",
+  "keywords": [
+    "conciv",
+    "design",
+    "extension",
+    "visual-diff"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/extensions/design"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "browser": {
+        "types": "./dist/client.d.ts",
+        "default": "./dist/client.js"
+      },
+      "import": {
+        "types": "./dist/server.d.ts",
+        "default": "./dist/server.js"
+      }
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./defs": {
+      "types": "./dist/shared/defs.d.ts",
+      "import": "./dist/shared/defs.js"
+    },
+    "./provenance": {
+      "types": "./dist/server/provenance/mappers.d.ts",
+      "import": "./dist/server/provenance/mappers.js"
+    },
+    "./types": {
+      "types": "./dist/shared/types.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && vite build && vite build --config vite.xray.config.ts && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only",
+    "dev:xray": "vite --config vite.xray.config.ts"
+  },
+  "dependencies": {
+    "@blazediff/core": "catalog:",
+    "@bramus/specificity": "catalog:",
+    "@conciv/extension": "workspace:^",
+    "@conciv/extension-page": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@orpc/server": "catalog:",
+    "@zumer/snapdom": "catalog:",
+    "culori": "catalog:",
+    "es-toolkit": "catalog:",
+    "hono": "catalog:",
+    "oxc-parser": "catalog:",
+    "pixelmatch": "catalog:",
+    "pngjs": "catalog:",
+    "postcss": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/contract": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
+    "@conciv/uno-preset": "workspace:*",
+    "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/timer": "catalog:",
+    "@tanstack/solid-router": "catalog:",
+    "@types/culori": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pngjs": "catalog:",
+    "@unocss/reset": "catalog:",
+    "solid-js": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "unocss": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:"
+  }
+}
