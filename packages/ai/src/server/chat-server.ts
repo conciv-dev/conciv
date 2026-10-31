@@ -1,24 +1,16 @@
 import {z} from 'zod'
 import {
   chat,
-  chatParamsFromRequestBody,
   defineChatMiddleware,
   EventType,
-  memoryStream,
   requestRunCancel,
-  resolveResumeRunId,
-  resumeServerSentEventsResponse,
-  resumeWebSocketStream,
   RUN_CANCEL_REASON,
-  toServerSentEventsResponse,
-  toWebSocketStream,
   type DebugConfig,
   type MetadataStore,
   type RunRecord,
   type RunStore,
   type StreamDurability,
   type TokenUsage,
-  type WebSocketLike,
 } from '@tanstack/ai'
 import {defineLock, InMemoryLockStore, withLocks} from '@tanstack/ai/locks'
 import type {IsolateDriver} from '@tanstack/ai-code-mode'
@@ -37,6 +29,7 @@ import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-type
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {childCards} from './child-cards.js'
 import {codeModeTools, loadIsolateDriver, secretRefusalOf} from './code-mode.js'
+import {createDelivery, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 
 export type ChatStores = {
@@ -50,8 +43,6 @@ export type ChatStores = {
 }
 
 export type CommandRules = {allow: readonly string[]; ask: readonly string[]; deny: readonly string[]}
-
-export type Turn = {threadId: string; runId: string; kind: 'chat' | 'compact'}
 
 export type Approvals = ReadonlyMap<string, boolean>
 
@@ -71,6 +62,7 @@ export type TurnHooks = {
   plan: (turn: Turn) => TurnPlan
   usage: (turn: Turn, usage: TokenUsage) => Promise<void>
   end: (turn: Turn, run: RunLifecycle) => Promise<void>
+  broadcast: (turn: Turn, chunk: ChatEvent) => void
 }
 
 export type ChatServerConfig = {
@@ -82,10 +74,6 @@ export type ChatServerConfig = {
   log: (message: string) => void
 }
 
-export type SocketSink = {send: (data: string) => void; close: (code?: number, reason?: string) => void}
-
-export type ChatSocket = {open: (sink: SocketSink) => void; message: (data: unknown) => void; close: () => void}
-
 export type ChatThread = {messages: ChatMessage[]; activeRun: {runId: string} | null; lastRun: RunLifecycle | null}
 
 export type CodeDiscovery = {description: string; run: (toolNames: string[]) => Promise<unknown>}
@@ -94,25 +82,16 @@ export type CodeRunner = {
   systemPrompt: string
   run: (code: string, emit: CustomEventSink) => Promise<unknown>
   discover: CodeDiscovery | null
-  asking: ChatTool[]
 }
 
 export type CustomEventSink = (name: string, value: Record<string, unknown>) => void
 
-export type ChatServer = {
-  socket: (request: Request) => ChatSocket
-  events: (request: Request) => Promise<Response>
-  resume: (request: Request) => Response | null
-  drive: (turn: Turn, messages: ModelMessage[]) => Promise<void>
+export type ChatServer = ChatDelivery & {
   stop: (threadId: string, runIds?: readonly string[]) => Promise<void>
   endRuns: (threadId: string) => Promise<void>
   hydrate: (threadId: string) => Promise<ChatThread>
-  codeRunner: (codeMode: readonly ChatTool[], asking: readonly ChatTool[], approvals: Approvals) => CodeRunner | null
+  codeRunner: (codeMode: readonly ChatTool[]) => CodeRunner | null
 }
-
-const LIVE_BATCH = 1
-
-const FROM_START = '-1'
 
 const PHASE_BY_STATUS: Record<RunRecord['status'], RunPhase> = {
   running: 'running',
@@ -170,8 +149,6 @@ function withLastUser(messages: ModelMessage[], user: ModelMessage | undefined):
   return [...messages.slice(0, index), user, ...messages.slice(index + 1)]
 }
 
-async function* noStream(): AsyncGenerator<ChatEvent> {}
-
 export function toolApprovalId(name: string): string {
   return approvalId({provider: 'conciv', kind: 'tool', target: name})
 }
@@ -208,18 +185,6 @@ const ReconstructedSchema = z.object({
   messages: z.array(z.custom<ChatMessage>((value) => typeof value === 'object' && value !== null)),
   activeRun: z.object({runId: z.string()}).nullable(),
 })
-
-type SocketHandler = (event: {data: unknown}) => void
-
-function socketLike(sink: SocketSink, handlers: {message: SocketHandler[]; close: (() => void)[]}): WebSocketLike {
-  function addEventListener(type: 'message', handler: (event: {data: unknown}) => void): void
-  function addEventListener(type: 'close' | 'error', handler: () => void): void
-  function addEventListener(type: 'message' | 'close' | 'error', handler: (event: {data: unknown}) => void): void {
-    if (type === 'message') handlers.message.push(handler)
-    if (type === 'close') handlers.close.push(() => handler({data: null}))
-  }
-  return {send: (data) => sink.send(data), close: (code, reason) => sink.close(code, reason), addEventListener}
-}
 
 async function sweepAbandonedRuns(runs: ChatStores['runs'], hooks: TurnHooks): Promise<void> {
   const now = Date.now()
@@ -322,11 +287,17 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   function concivTurn(turn: Turn, plan: TurnPlan, granted: {approvals: Approvals}, view: RunMessages, entry: LiveRun) {
     const failure: {message: string | null} = {message: null}
     const prepared: {sent: number; provider: ModelMessage[]} = {sent: 0, provider: []}
-    const settle = async (): Promise<void> => {
+    const settle = async (phase: RunPhase): Promise<void> => {
       live.delete(turn.runId)
-      const lifecycle = await recordLifecycle(turn.runId)
-      if (lifecycle !== null) await hooks.end(turn, lifecycle)
-      entry.settled.resolve()
+      try {
+        hooks.broadcast(turn, await terminalChunk(turn.runId, phase, failure.message))
+        const lifecycle = await recordLifecycle(turn.runId)
+        if (lifecycle !== null) await hooks.end(turn, lifecycle)
+      } catch (error) {
+        config.log(`[ai] ending run ${turn.runId} failed: ${String(error)}`)
+      } finally {
+        entry.settled.resolve()
+      }
     }
     return defineChatMiddleware({
       name: 'conciv-turn',
@@ -358,7 +329,9 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         const shaped = await plan.chunk(chunk)
         if (chunk.type === EventType.RUN_STARTED) {
           const lifecycle = await recordLifecycle(turn.runId)
-          return lifecycle === null ? shaped : [...shaped, lifecycleChunk(lifecycle)]
+          if (lifecycle === null) return shaped
+          hooks.broadcast(turn, lifecycleChunk(lifecycle))
+          return [...shaped, lifecycleChunk(lifecycle)]
         }
         const phase = terminalPhaseOf(chunk)
         if (phase === null) return shaped
@@ -367,8 +340,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         return [await terminalChunk(turn.runId, phase, error), ...shaped]
       },
       onUsage: (_ctx, usage) => hooks.usage(turn, usage),
-      onFinish: settle,
-      onError: settle,
+      onFinish: () => settle('completed'),
+      onError: () => settle('failed'),
       onAbort: async () => {
         if (failure.message !== null) {
           await stores.runs.update(turn.runId, {
@@ -377,7 +350,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             error: {message: failure.message},
           })
         }
-        await settle()
+        await settle(failure.message === null ? 'aborted' : 'failed')
       },
     })
   }
@@ -447,102 +420,13 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     })
   }
 
-  const linkedController = (signal: AbortSignal): AbortController => {
-    const controller = new AbortController()
-    signal.addEventListener('abort', () => controller.abort(signal.reason), {once: true, signal: controller.signal})
-    return controller
-  }
-
-  const seenRun = (runId: string): boolean => live.has(runId) || stores.runs.known(runId)
-
-  const serveSocket = (socket: WebSocketLike, request: Request): void => {
-    const resumed = memoryStream(request)
-    if (resolveResumeRunId(request) !== null && resumed.resumeFrom() !== null) {
-      resumeWebSocketStream(socket, {adapter: resumed, debug})
-      return
-    }
-    const durabilities = new WeakMap<Request, StreamDurability>()
-    toWebSocketStream(socket, request, {
-      debug,
-      durability: (ctx) => {
-        const offset = seenRun(ctx.runId) ? {offset: FROM_START} : {}
-        const adapter = memoryStream({runId: ctx.runId, ...offset})
-        durabilities.set(ctx.request, adapter)
-        return adapter
-      },
-      onRun: (ctx) => {
-        const durability = durabilities.get(ctx.request)
-        if (durability === undefined) throw new Error(`run ${ctx.runId} reached onRun without its durability log`)
-        if (durability.resumeFrom() !== null) return noStream()
-        return run(
-          {threadId: ctx.threadId, runId: ctx.runId, kind: 'chat'},
-          ctx.messages,
-          durability,
-          linkedController(ctx.signal),
-        )
-      },
-      batch: LIVE_BATCH,
-    })
-  }
-
-  const parsedParams = async (request: Request) => {
-    try {
-      return await chatParamsFromRequestBody(await request.json())
-    } catch (error) {
-      config.log(`[ai] refused a chat request: ${String(error)}`)
-      return null
-    }
-  }
-
   return {
-    socket: (request) => {
-      const handlers: {message: SocketHandler[]; close: (() => void)[]} = {message: [], close: []}
-      return {
-        open: (sink) => serveSocket(socketLike(sink, handlers), request),
-        message: (data) => {
-          for (const handler of handlers.message) handler({data})
-        },
-        close: () => {
-          for (const handler of handlers.close) handler()
-        },
-      }
-    },
-    events: async (request) => {
-      const params = await parsedParams(request)
-      if (params === null) return Response.json({message: 'the request is not a valid chat run'}, {status: 400})
-      if (seenRun(params.runId)) {
-        return resumeServerSentEventsResponse({adapter: memoryStream({runId: params.runId, offset: FROM_START})})
-      }
-      const durability = memoryStream({runId: params.runId})
-      const controller = new AbortController()
-      const stream = run(
-        {threadId: params.threadId, runId: params.runId, kind: 'chat'},
-        params.messages,
-        durability,
-        controller,
-      )
-      return toServerSentEventsResponse(stream, {
-        abortController: controller,
-        durability: {adapter: durability, batch: LIVE_BATCH},
-        debug,
-      })
-    },
-    resume: (request) => {
-      if (resolveResumeRunId(request) === null) return null
-      const durability = memoryStream(request)
-      if (durability.resumeFrom() === null) return null
-      return resumeServerSentEventsResponse({adapter: durability})
-    },
-    drive: async (turn, messages) => {
-      const durability = memoryStream({runId: turn.runId})
-      const controller = new AbortController()
-      const response = toServerSentEventsResponse(run(turn, messages, durability, controller), {
-        abortController: controller,
-        durability: {adapter: durability, batch: LIVE_BATCH},
-        debug,
-      })
-      await response.text()
-    },
+    ...createDelivery({
+      run,
+      seenRun: (runId) => live.has(runId) || stores.runs.known(runId),
+      debug,
+      log: config.log,
+    }),
     stop: async (threadId, runIds) => {
       const active = await stores.runs.findActiveRun(threadId)
       if (active === null) return
@@ -564,7 +448,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       const latest = (await stores.runs.listByThread(threadId)).at(-1)
       return {...thread, lastRun: latest === undefined ? null : lifecycleOf(latest)}
     },
-    codeRunner: (codeMode, asking, approvals) => {
+    codeRunner: (codeMode) => {
       if (driver === null) return null
       const coded = codeModeTools(driver, codeMode, (value) => value, debug)
       if (coded === null) return null
@@ -579,7 +463,6 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           return result
         },
         discover: discoveryOf(coded.discover),
-        asking: gatedTools(asking, () => approvals),
       }
     },
   }

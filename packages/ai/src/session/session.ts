@@ -39,7 +39,7 @@ export type CreateChatSessionOptions = {
   sessionId: string
   connect: (callbacks: ChatSessionCallbacks) => ChatSessionConnection
   stop: (runIds: string[]) => Promise<unknown>
-  decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<unknown>
+  decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<{startsTurn: boolean}>
   onError?: (error: Error) => void
 }
 
@@ -176,9 +176,9 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const stop = (): Promise<void> => stopRun().catch((error: unknown) => options.onError?.(asError(error)))
   const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
     const ask = asks.pending.find((waiting) => waiting.approvalId === approvalId)
-    await options.decide(approvalId, approved, scope)
+    const decision = await options.decide(approvalId, approved, scope)
     setAsks('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
-    if (approved && ask !== undefined) await chat.sendMessage(approvedText(ask.toolName, scope))
+    if (decision.startsTurn && ask !== undefined) await chat.sendMessage(approvedText(ask.toolName, scope))
   }
   const sendQueuedSequentially = async (queued: readonly QueuedMessage[]): Promise<void> => {
     for (const item of queued) await chat.sendMessage(item.content)

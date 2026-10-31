@@ -928,11 +928,40 @@ describe('chat', () => {
         {approvalId: ASK_ID, toolCallId: ASK_ID, toolName: 'fixture_ask', input: {target: 'x'}, runId: null},
       ])
       expect(toolRuns.ask).toBe(ran)
-      await decide(sessionId, ASK_ID, true)
-      await finished(sessionId, 'Approved: fixture_ask')
+      await expect(decide(sessionId, ASK_ID, true)).resolves.toEqual({ok: true, startsTurn: false})
+      await finished(sessionId, 'an unrelated turn')
       await expect(call()).resolves.toEqual({done: 'x'})
       expect(toolRuns.ask).toBe(ran + 1)
       await expect(call()).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+    })
+
+    it('an external MCP agent is refused, one approval runs one retry, and no chat turn starts', async () => {
+      const sessionId = await newSession()
+      const ran = toolRuns.ask
+      const client = await connectMcpClient(`${chatKit().base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
+      const askTool = (await client.tools()).find((tool) => tool.name === 'fixture_ask')
+      if (askTool === undefined) throw new Error('fixture_ask is not on /api/mcp')
+      const call = () => askTool.execute({target: 'x'})
+      await expect(call()).rejects.toThrow(/needs the user/)
+      expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([
+        {approvalId: ASK_ID, toolCallId: ASK_ID, toolName: 'fixture_ask', input: {target: 'x'}, runId: null},
+      ])
+      await expect(decide(sessionId, ASK_ID, true)).resolves.toEqual({ok: true, startsTurn: false})
+      expect(runsOf(sessionId)).toEqual([])
+      await finished(sessionId, 'an unrelated turn')
+      expect(lastRunOf(sessionId).approvals).not.toContain(ASK_ID)
+      await expect(call()).resolves.toEqual('{"done":"x"}')
+      expect(toolRuns.ask).toBe(ran + 1)
+      await expect(call()).rejects.toThrow(/needs the user/)
+      expect(toolRuns.ask).toBe(ran + 1)
+      await client.close()
+    })
+
+    it('approving an ask from a chat turn tells the widget to start the retry turn', async () => {
+      const sessionId = await newSession()
+      await askTurn(sessionId)
+      await expect(decide(sessionId, ASK_ID, true)).resolves.toEqual({ok: true, startsTurn: true})
+      expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
     })
 
     it('a session option counts its messages right after a turn', async () => {

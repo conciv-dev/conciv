@@ -55,10 +55,10 @@ export async function bootCli(cleanups: (() => Promise<void>)[], extras: BootExt
   return kit
 }
 
-export async function approvedSession(kit: Kit): Promise<{approve: () => Promise<string[]>}> {
+export async function approvedSession(kit: Kit): Promise<{sessionId: string; approve: () => Promise<string[]>}> {
   const {sessionId} = await kit.rpc.sessions.create(undefined)
   process.env.CONCIV_SESSION_ID = sessionId
-  return {approve: () => approvePending(kit.base, sessionId)}
+  return {sessionId, approve: () => approvePending(kit.base, sessionId)}
 }
 
 export type SeenQuery = Record<string, unknown>

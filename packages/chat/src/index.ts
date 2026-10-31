@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {join} from 'node:path'
 import {Hono} from 'hono'
 import type {UpgradeWebSocket} from 'hono/ws'
-import {approvalAskOf, approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
   approvalNeeded,
@@ -17,7 +17,7 @@ import {markers, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, type SessionId} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
-import {createApprovalStore, createUiChannel, type ApprovalScope} from './approvals.js'
+import {createApprovalStore, createUiChannel, type ApprovalDecision, type ApprovalScope} from './approvals.js'
 import {cappedValue, chatToolSet, type CodeCapability} from './code-mode.js'
 import {clearThread, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, normalizedMessages, toolNameNormalizer} from './transcript.js'
@@ -68,7 +68,12 @@ export type ChatPlane = {
   clear: (sessionId: SessionId) => Promise<void>
   live: (sessionId: SessionId) => Promise<boolean>
   running: () => Promise<ReadonlySet<string>>
-  decide: (sessionId: SessionId, approvalId: string, approved: boolean, scope: ApprovalScope) => Promise<boolean>
+  decide: (
+    sessionId: SessionId,
+    approvalId: string,
+    approved: boolean,
+    scope: ApprovalScope,
+  ) => Promise<ApprovalDecision | null>
   answerUi: (sessionId: SessionId, toolCallId: string, value: unknown) => boolean
   askUi: (sessionId: SessionId) => Promise<UiAnswer>
   codeRunner: (sessionId: SessionId, publish: (chunk: ChatEvent) => void) => Promise<CodeRunner | null>
@@ -104,6 +109,15 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     log: deps.log,
   })
   const normalize = toolNameNormalizer(deps.toolNames)
+
+  const admitCall: ChatPlane['admitCall'] = async (sessionId, toolName, input, publish) => {
+    if (deps.sessions.row(sessionId) === null) return `session "${sessionId}" does not exist`
+    const approvalId = toolApprovalId(toolName)
+    if (await approvals.admit(sessionId, approvalId)) return null
+    await approvals.asked(sessionId, {approvalId, toolCallId: approvalId, title: toolName, input, runId: null})
+    publish({...approvalRequestedEvent.create({approvalId, title: toolName, input}), timestamp: Date.now()})
+    return approvalNeeded(toolName).message
+  }
 
   const hydrate = async (sessionId: SessionId): Promise<ChatHydration> => {
     if ((await stores.runs.findActiveRun(sessionId)) === null) await transcripts.sync(sessionId)
@@ -156,42 +170,15 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     decide: (sessionId, approvalId, approved, scope) => approvals.decide(sessionId, approvalId, approved, scope),
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),
     askUi: (sessionId) => ui.ask(sessionId),
-    admitCall: async (sessionId, toolName, input, publish) => {
-      if (deps.sessions.row(sessionId) === null) return `session "${sessionId}" does not exist`
-      const approvalId = toolApprovalId(toolName)
-      if (await approvals.admit(sessionId, approvalId)) return null
-      await approvals.asked(sessionId, {
-        approvalId,
-        toolCallId: approvalId,
-        title: toolName,
-        input,
-        runId: null,
-        caller: 'rpc',
-      })
-      publish({...approvalRequestedEvent.create({approvalId, title: toolName, input}), timestamp: Date.now()})
-      return approvalNeeded(toolName).message
-    },
+    admitCall,
     codeRunner: async (sessionId, publish) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = deps.capabilities(sessionId)
       const toolSet = chatToolSet(capabilities, {sessionId, model})
-      const runner = server.codeRunner(toolSet.codeMode, toolSet.asking, await approvals.granted(sessionId))
+      const runner = server.codeRunner(toolSet.codeMode)
       if (runner === null) return null
       const emitter = (parentToolCallId: string) => (name: string, value: Record<string, unknown>) => {
         const chunk: ChatEvent = {type: ChatEventType.CUSTOM, name, value, timestamp: Date.now()}
-        const ask = approvalAskOf(chunk)
-        if (ask !== null) {
-          const asked = {
-            approvalId: ask.approvalId,
-            toolCallId: ask.toolCallId,
-            title: ask.toolName,
-            input: ask.input,
-            runId: null,
-          }
-          void approvals.asked(sessionId, asked).catch((error: unknown) => {
-            deps.log(`[chat] recording the approval ask ${ask.approvalId} failed: ${String(error)}`)
-          })
-        }
         for (const card of childCardChunks(chunk, parentToolCallId, cappedValue) ?? [chunk]) {
           if (card.type === ChatEventType.TOOL_CALL_START) {
             ui.noteToolCall(sessionId, card.toolCallId, card.toolCallName)
@@ -199,7 +186,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
           publish(card)
         }
       }
-      const asking = runner.asking.flatMap((tool): CodeTool[] => {
+      const asking = toolSet.asking.flatMap((tool): CodeTool[] => {
         const execute = tool.execute
         const capability = toolSet.asked.find((entry) => entry.name === tool.name)
         if (!execute || capability === undefined) return []
@@ -208,8 +195,11 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
             name: tool.name,
             description: tool.description,
             inputSchema: capability.inputSchema,
-            run: (input, parentToolCallId) =>
-              Promise.resolve(execute(input, {emitCustomEvent: emitter(parentToolCallId)})),
+            run: async (input, parentToolCallId) => {
+              const refusal = await admitCall(sessionId, tool.name, input, publish)
+              if (refusal !== null) throw new Error(refusal)
+              return execute(input, {emitCustomEvent: emitter(parentToolCallId)})
+            },
           },
         ]
       })

@@ -23,6 +23,7 @@ export type SessionPort = {
   recordTitle: (sessionId: SessionId, title: string) => Promise<void>
   onRunStart: (sessionId: SessionId) => Promise<void>
   onRunEnd: (sessionId: SessionId) => Promise<void>
+  publish: (sessionId: SessionId, chunk: ChatEvent) => void
 }
 
 export type SystemPromptSources = {systemPromptFile?: string; systemPromptText?: string}
@@ -247,6 +248,7 @@ export function turnHooks(
         ...(contextWindow === undefined ? {} : {contextWindow}),
       })
     },
+    broadcast: (turn, chunk) => deps.sessions.publish(SessionId.parse(turn.threadId), chunk),
     end: async (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
       await context.transcripts.settle(sessionId)

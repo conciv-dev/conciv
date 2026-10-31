@@ -309,6 +309,7 @@ function sessionPort(nativeId: HarnessSessionId | null = null): SessionPort {
     recordContextTokens: async () => undefined,
     recordTitle: async () => undefined,
     onRunStart: async () => undefined,
+    publish: () => undefined,
     onRunEnd: async (ended) => {
       runEnds.filter((waiter) => waiter.sessionId === ended).forEach((waiter) => waiter.settle())
     },

@@ -2,7 +2,7 @@ import {DatabaseSync} from 'node:sqlite'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {defineAIPersistence} from '@tanstack/ai-persistence'
 import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
-import {drizzleChatStores} from '../src/server.js'
+import {createChatServer, drizzleChatStores, makeTextAdapter, type TurnHooks} from '../src/server.js'
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {
@@ -16,7 +16,8 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import {UsageSnapshotSchema, contextUsedTokens} from '@conciv/protocol/usage-types'
 import {createTextChunks, storyConnection} from '../src/testkit.js'
-import {readdirSync, readFileSync, statSync} from 'node:fs'
+import {mkdtempSync, readdirSync, readFileSync, statSync} from 'node:fs'
+import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
 import {parseSync} from 'oxc-parser'
@@ -55,6 +56,47 @@ CREATE TABLE \`chat_threads\` (
     client.exec(CHAT_TABLES)
     return drizzle({client})
   }
+
+  it('ending a run settles it and logs the failure when the end hook throws', {timeout: 15_000}, async () => {
+    const logged: string[] = []
+    const started = Promise.withResolvers<void>()
+    const stalled = makeTextAdapter('stalled', async function* () {
+      yield {type: ChatEventType.RUN_STARTED, runId: 'run', threadId: 'thread', timestamp: Date.now()}
+      started.resolve()
+      await new Promise(() => undefined)
+    })
+    const hooks: TurnHooks = {
+      plan: () => ({
+        adapter: stalled,
+        systemPrompts: [],
+        codeMode: [],
+        asking: [],
+        setup: async () => new Map(),
+        expand: async (messages) => messages,
+        providerMessages: async (messages) => messages,
+        chunk: async (chunk) => [chunk],
+      }),
+      usage: async () => undefined,
+      broadcast: () => undefined,
+      end: async () => {
+        throw new Error('end hook failed')
+      },
+    }
+    const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
+    const server = await createChatServer({
+      stores: drizzleChatStores(chatDb()),
+      sandbox: {dir, journalDir: join(dir, 'runs'), commands: {allow: [], ask: [], deny: []}},
+      hooks,
+      codeModeResult: (value) => value,
+      firstOutputTimeoutMs: 30_000,
+      log: (message) => logged.push(message),
+    })
+    const driven = server.drive({threadId: 'thread', runId: 'run', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+    await started.promise
+    await server.endRuns('thread')
+    await driven
+    expect(logged.join('\n')).toContain('end hook failed')
+  })
 
   runPersistenceConformance(
     'conciv drizzle chat stores',

@@ -217,7 +217,7 @@ export async function recordFirstTitle(db: ConcivDb, sessionId: SessionId, title
   await db
     .update(sessions)
     .set({title})
-    .where(and(eq(sessions.id, sessionId), isNull(sessions.title)))
+    .where(and(eq(sessions.id, sessionId), isNull(sessions.title), isNull(sessions.harnessSessionId)))
 }
 
 export async function sweepEmptyRows(db: ConcivDb): Promise<void> {

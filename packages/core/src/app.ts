@@ -181,7 +181,11 @@ async function recordSessionUsage(db: ConcivDb, sessionId: SessionId, usage: Usa
   await db.update(sessions).set({usage, updatedAt: Date.now()}).where(eq(sessions.id, sessionId))
 }
 
-function sessionPort(db: ConcivDb, rows: RowScope, hooks: Pick<SessionPort, 'onRunStart' | 'onRunEnd'>): SessionPort {
+function sessionPort(
+  db: ConcivDb,
+  rows: RowScope,
+  hooks: Pick<SessionPort, 'onRunStart' | 'onRunEnd' | 'publish'>,
+): SessionPort {
   return {
     row: (sessionId) => {
       const row = currentRow(db, sessionId)
@@ -197,6 +201,7 @@ function sessionPort(db: ConcivDb, rows: RowScope, hooks: Pick<SessionPort, 'onR
     recordTitle: (sessionId, title) => recordFirstTitle(db, sessionId, title),
     onRunStart: hooks.onRunStart,
     onRunEnd: hooks.onRunEnd,
+    publish: hooks.publish,
   }
 }
 
@@ -469,6 +474,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         await db.delete(drafts).where(eq(drafts.sessionId, sessionId))
       },
       onRunEnd,
+      publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
     }),
     commands: {allow: [...readOnlyCommandAllows, ...askFreeCommandAllows()], ask: readOnlyCommandAsks, deny: []},
     toolNames: new Set([...toolList.map((tool) => tool.name), ...concivSandboxToolNames()]),

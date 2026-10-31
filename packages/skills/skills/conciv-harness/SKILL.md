@@ -151,7 +151,7 @@ translation; most adapters omit it.
 ## `chat()` owns the turn — you never spawn or decode the CLI in core/widget
 
 `packages/chat/src/turn.ts:186-194` is the only call site that invokes `chatConfig`; the plan it
-returns reaches `chat()` in `run` (`packages/ai/src/server/chat-server.ts:400-443`):
+returns reaches `chat()` in `run` (`packages/ai/src/server/chat-server.ts:377-420`):
 
 ```ts
 return chat({
@@ -184,18 +184,18 @@ return chat({
 The middleware is generic `@tanstack/ai` middleware that applies to every adapter equally; none of it
 has a per-harness variant. `withSandbox` is the published one from `@tanstack/ai-sandbox`, and conciv
 hands it a sandbox built once at engine start — `localProcessSandbox({dir})` behind a `default: 'ask'`
-policy, reused per thread (`packages/ai/src/server/chat-server.ts:265-278`) — together with the
+policy, reused per thread (`packages/ai/src/server/chat-server.ts:234-247`) — together with the
 durability options that make a run recoverable: the same event-log adapter the transport replays from,
 a journal directory under the conciv state dir, and `detachOnDisconnect: true`, which leaves the agent
 running when a client disconnects instead of destroying its sandbox. Tools that need approval are
-wrapped by `gatedTools` (`packages/ai/src/server/chat-server.ts:181-195`). An adapter neither sees nor
+wrapped by `gatedTools` (`packages/ai/src/server/chat-server.ts:162-176`). An adapter neither sees nor
 makes those decisions, and `chatConfig` receives no approval callback: if your adapter needs a
 CLI-specific "is this command risky" check, that check belongs in the sandbox's command rules
 (`packages/core/src/command-policy.ts`), not a special case bolted onto core or the widget.
 
 ## Sandbox-virtual workdir: `chatConfig` never passes a host `cwd`; `connect.plan()` legitimately does
 
-`localProcessSandbox({dir})` (`packages/ai/src/server/chat-server.ts:265-278`, `dir` is the engine cwd) roots every process
+`localProcessSandbox({dir})` (`packages/ai/src/server/chat-server.ts:234-247`, `dir` is the engine cwd) roots every process
 spawned **through the sandbox** at `deps.cwd` already — the sandbox root IS `deps.cwd`, not a
 subdirectory of it (AGENTS.md, "Harness & runner
 adapters": "the local-process sandbox root IS the cwd... adapters default to `/workspace`"). Because of

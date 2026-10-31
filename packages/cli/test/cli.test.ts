@@ -710,6 +710,7 @@ describe('cli', () => {
         expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
         written.length = 0
         expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(1)
+        expect((await kit.rpc.chat.hydrate({sessionId: session.sessionId})).lastRun).toBeNull()
       })
 
       it('server graph round-trips a real bundler bridge inside the envelope', async () => {

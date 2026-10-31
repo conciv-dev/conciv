@@ -138,7 +138,7 @@ export const contract = {
     permissionDecision: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending approval'}})
       .input(PermissionDecisionSchema)
-      .output(Ok),
+      .output(Ok.extend({startsTurn: z.boolean()})),
     uiReply: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending ui question'}})
       .input(SessionIdInput.extend({toolCallId: z.string(), value: UiAnswerValueSchema}))
