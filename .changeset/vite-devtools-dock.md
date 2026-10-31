@@ -25,3 +25,5 @@ Panel `open` and `toggle` commands bring the conciv dock entry forward when the 
 Pop out opens its window inside the click, so browsers that only allow popups during a user gesture no longer block it. A blocked pop-out shows the "could not be reopened" notice with a Pop out again action.
 
 A recording start that times out while rrweb is still loading no longer starts capturing once rrweb arrives, and a later start still records.
+
+The Vite plugin recognizes conciv meta tags in any quoting or spacing, so a pre-injected fragment keeps its settings.

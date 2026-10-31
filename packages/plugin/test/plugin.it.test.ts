@@ -971,6 +971,30 @@ describe('widget inject', () => {
       expect(occurrences).toBe(1)
     })
 
+    it.each([
+      {quoting: 'single quotes', settings: '<meta name=\'conciv-widget\' content=\'{"surface":"dock"}\'>'},
+      {quoting: 'spaced attributes', settings: '<meta content="{}" name = "conciv-widget" >'},
+      {quoting: 'no quotes', settings: '<meta name=conciv-widget content={}>'},
+    ])('keeps an injected fragment with no head or body as is ($quoting)', async ({settings}) => {
+      const fragment = `${settings}<meta name = 'conciv-api-base' content='${API_BASE}'><div>x</div>`
+      const entry = `<script type=module src='${EXTENSIONS_ROUTE}'></script>`
+      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
+        res.setHeader('content-type', 'text/html')
+        res.end(`${fragment}${entry}`)
+      })
+      state.server = server
+      expect(await (await fetch(base)).text()).toBe(`${fragment}${entry}`)
+    })
+
+    it('injects a tag whose name only starts like a conciv tag', async () => {
+      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
+        res.setHeader('content-type', 'text/html')
+        res.end('<meta name="conciv-widget-preview" content="x"><div>x</div>')
+      })
+      state.server = server
+      expect(await (await fetch(base)).text()).toContain('<meta name="conciv-widget" content="{}">')
+    })
+
     it('adds the missing settings meta when the html already references the client entry', async () => {
       const preinjected = `<html><head>${ENTRY}</head><body>x</body></html>`
       const {server, base} = await startServer(makeWidgetInject(API_BASE, {surface: 'dock'}), (res) => {

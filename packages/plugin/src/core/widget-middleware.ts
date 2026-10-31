@@ -24,27 +24,35 @@ export function htmlTags(corePort: number, opts: {widget?: ConcivSettingsInit | 
   ]
 }
 
-type WidgetTag = {marker: string; html: string}
+type WidgetTag = {present: (html: string) => boolean; html: string}
+
+function metaPresent(name: string): (html: string) => boolean {
+  const marker = new RegExp(`\\bname\\s*=\\s*["']?${name}(?=["'\\s/>])`, 'i')
+  return (html) => marker.test(html)
+}
 
 function widgetTags(apiBase: string, widgetConfig?: ConcivSettingsInit | false): WidgetTag[] {
   const base = {
-    marker: 'name="conciv-api-base"',
+    present: metaPresent('conciv-api-base'),
     html: `<meta name="conciv-api-base" content="${escapeAttr(apiBase)}">`,
   }
   if (widgetConfig === false) return [base]
   return [
     base,
     {
-      marker: 'name="conciv-widget"',
+      present: metaPresent('conciv-widget'),
       html: `<meta name="conciv-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">`,
     },
-    {marker: EXTENSIONS_ROUTE, html: `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`},
+    {
+      present: (html) => html.includes(EXTENSIONS_ROUTE),
+      html: `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`,
+    },
   ]
 }
 
 function missingTags(html: string, tags: readonly WidgetTag[]): string {
   return tags
-    .filter((tag) => !html.includes(tag.marker))
+    .filter((tag) => !tag.present(html))
     .map((tag) => tag.html)
     .join('')
 }
