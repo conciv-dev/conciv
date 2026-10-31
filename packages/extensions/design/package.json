@@ -90,6 +90,7 @@
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@iconify-json/ph": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/timer": "catalog:",
     "@tanstack/solid-router": "catalog:",

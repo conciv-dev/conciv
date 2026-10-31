@@ -1,0 +1,43 @@
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+.bg-dots {
+  background-image: radial-gradient(circle at 25px 25px, #dcdcdc 1.1px, transparent 1.6px);
+  background-size: 50px 50px;
+}
+
+.dark .bg-dots {
+  background-image: radial-gradient(circle at 25px 25px, #2a2a2a 1.1px, transparent 1.6px);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar:horizontal {
+  height: 6px;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #8884;
+  transition: background 0.2s ease;
+  border-radius: 1px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #8885;
+}
+
+::-webkit-scrollbar-track {
+  border-radius: 1px;
+  background: transparent;
+}
