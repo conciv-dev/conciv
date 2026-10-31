@@ -16,8 +16,14 @@ const ACTUAL_IMAGE = 'block w-auto h-auto max-w-none'
 const FOOTER = 'flex justify-end'
 const FAILED = 'text-chat-danger text-[0.75rem] break-words'
 
-export function ZoomableImage(props: {src: string; alt: string; portal?: HTMLElement}): JSX.Element {
-  const [local] = splitProps(props, ['src', 'alt', 'portal'])
+export function ZoomableImage(props: {
+  src: string
+  alt: string
+  portal?: HTMLElement
+  thumbnail?: JSX.ButtonHTMLAttributes<HTMLButtonElement>
+  imageClass?: string
+}): JSX.Element {
+  const [local] = splitProps(props, ['src', 'alt', 'portal', 'thumbnail', 'imageClass'])
   const [view, setView] = createSignal<View>('closed')
   const actual = () => view() === 'actual'
   const fail = () => setView('failed')
@@ -50,13 +56,14 @@ export function ZoomableImage(props: {src: string; alt: string; portal?: HTMLEle
   return (
     <Show when={view() !== 'failed'} fallback={<p class={FAILED}>Could not load {local.alt}</p>}>
       <Button
+        {...local.thumbnail}
         variant="plain"
         size="none"
-        class={THUMBNAIL_BUTTON}
+        class={local.thumbnail?.class ?? THUMBNAIL_BUTTON}
         aria-label={`Open ${local.alt}`}
         onClick={() => setView('fit')}
       >
-        <img src={local.src} alt={local.alt} class={THUMBNAIL_IMAGE} onError={fail} />
+        <img src={local.src} alt={local.alt} class={local.imageClass ?? THUMBNAIL_IMAGE} onError={fail} />
       </Button>
       <Switch>
         <Match when={local.portal}>{(mount) => <Portal mount={mount()}>{viewer()}</Portal>}</Match>
