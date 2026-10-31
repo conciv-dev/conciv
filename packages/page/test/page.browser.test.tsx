@@ -201,7 +201,7 @@ describe('element capture', () => {
   let style: HTMLStyleElement
   let driver: PageDriver
 
-  beforeEach(() => {
+  beforeEach(async () => {
     style = document.createElement('style')
     style.textContent = '.capture-form .cta {color: rgb(1, 2, 3);}'
     document.head.appendChild(style)
@@ -240,6 +240,7 @@ describe('element capture', () => {
     host.querySelector('#hostile')?.appendChild(hostileTabLink)
     document.body.appendChild(host)
     driver = makeDomPageDriver({tools: collectClientTools([probes])})
+    await import('rrweb-snapshot')
   })
 
   afterEach(() => {
@@ -956,7 +957,7 @@ describe('page dispatcher', () => {
   let host: HTMLElement
   let driver: PageDriver
 
-  beforeAll(() => {
+  beforeAll(async () => {
     host = document.createElement('div')
     host.innerHTML = `
     <p id="prose">hello dispatcher</p>
@@ -964,6 +965,7 @@ describe('page dispatcher', () => {
   `
     document.body.appendChild(host)
     driver = makeDomPageDriver({tools: collectClientTools([probes])})
+    await import('rrweb-snapshot')
   })
 
   afterAll(() => {

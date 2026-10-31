@@ -35,14 +35,15 @@ export type SnapshotLibrary = {
   stringifyStylesheet: typeof stringifyStylesheet
 }
 
-let snapshotLibrary: Promise<SnapshotLibrary | null> | undefined
-
-export function loadSnapshotLibrary(): Promise<SnapshotLibrary | null> {
-  snapshotLibrary ??= import('rrweb-snapshot').catch(() => {
-    showToast(SNAPSHOT_BLOCKED_MESSAGE, 'error')
-    return null
-  })
-  return snapshotLibrary
+export function startSnapshotLoad(): () => SnapshotLibrary | null {
+  const loaded: {library: SnapshotLibrary | null} = {library: null}
+  import('rrweb-snapshot').then(
+    (library) => {
+      loaded.library = library
+    },
+    () => showToast(SNAPSHOT_BLOCKED_MESSAGE, 'error'),
+  )
+  return () => loaded.library
 }
 
 function serializeOptions(

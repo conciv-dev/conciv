@@ -531,7 +531,7 @@ describe('native page vite boot', () => {
       const root = servers.tempDir('conciv-vite-installed-')
       writeFileSync(
         join(root, 'index.html'),
-        '<!doctype html><html><head><meta charset="utf-8"></head><body><p id="probe">probe</p></body></html>',
+        '<!doctype html><html><head><meta charset="utf-8"></head><body><p id="probe">probe</p><button id="counter" onclick="this.textContent = String(Number(this.textContent) + 1)">0</button></body></html>',
       )
       const embedDir = installConcivPackage(root, '@conciv/embed')
       const extensionDirs = BUILTIN_EXTENSIONS.map((name) => installConcivPackage(root, name))
@@ -610,6 +610,28 @@ describe('native page vite boot', () => {
       expect(outcome).toMatchObject({ok: true, capture: {after: {descriptor: {accessibleName: 'rewritten'}}}})
       expect(outcome.capture.after.node).toBeUndefined()
       await blockedPage.close()
+    }, 90_000)
+
+    it('runs a page tool once and promptly while rrweb-snapshot is still loading', async () => {
+      const url = state.started?.server.resolvedUrls?.local[0]
+      const slowPage = await state.browser?.newPage()
+      if (slowPage === undefined || url === undefined) throw new Error('dev server did not start')
+      await slowPage.route(/rrweb-snapshot/, () => new Promise<void>(() => {}))
+      await slowPage.goto(url, {waitUntil: 'domcontentloaded'})
+      await slowPage
+        .getByRole('dialog', {name: 'conciv chat agent'})
+        .getByRole('textbox', {name: 'Message the conciv agent'})
+        .waitFor({timeout: 45_000})
+      const outcome = await slowPage.evaluate(() =>
+        Promise.race([
+          Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({name: 'page_click', input: {selector: '#counter'}}),
+          new Promise((resolve) => setTimeout(() => resolve('still waiting'), 2_000)),
+        ]),
+      )
+      expect(outcome).toMatchObject({ok: true, capture: {after: {descriptor: {tagName: 'button'}}}})
+      expect(outcome.capture.after.node).toBeUndefined()
+      await expectLocator(slowPage.getByRole('button', {name: '1', exact: true})).toBeVisible()
+      await slowPage.close()
     }, 90_000)
 
     it('keeps recording and its actions when only the replay player is blocked', async () => {
