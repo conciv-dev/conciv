@@ -1111,6 +1111,36 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 60_000)
 
+  it('shows the inline chat after a pop-out started from the quick terminal of a closed widget closes', async () => {
+    const {server} = await dirs.start(
+      {},
+      {
+        ...realBuiltins,
+        embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
+        dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
+      },
+      realpathSync(dirs.tempDir('conciv-quick-')),
+    )
+    writeFileSync(join(server.config.root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
+    const url = server.resolvedUrls?.local[0]
+    if (url === undefined) throw new Error('dev server did not start')
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    await page.goto(url, {waitUntil: 'domcontentloaded'})
+    await page.getByRole('button', {name: /conciv chat$/}).waitFor({timeout: 45_000})
+    const quick = page.getByRole('dialog', {name: 'conciv quick terminal'})
+    await expectLocator(async () => {
+      await page.keyboard.press('ControlOrMeta+`')
+      await expectLocator(quick).toBeVisible({timeout: 1_000})
+    }).toPass({timeout: 30_000})
+    const popup = page.waitForEvent('popup')
+    await quick.getByRole('button', {name: 'Pop out'}).click()
+    await (await popup).close()
+    await expectLocator(
+      page.getByRole('dialog', {name: 'conciv chat agent'}).getByRole('textbox', {name: 'Message the conciv agent'}),
+    ).toBeVisible()
+    await page.close()
+  }, 90_000)
+
   it('opens the chat and the recorder on a cold cache without Vite re-optimizing dependencies', async () => {
     const root = realpathSync(dirs.tempDir('conciv-cold-'))
     const embedEntry = fileURLToPath(import.meta.resolve('@conciv/embed'))

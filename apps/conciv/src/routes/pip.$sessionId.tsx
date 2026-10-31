@@ -29,7 +29,12 @@ function PipSession(): JSX.Element {
     return sessionId ? {sessionId, generation: generation()} : undefined
   }
   const returnInline = (search: {popOut?: 'lost'}) =>
-    void navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}, search, replace: true})
+    void navigate({
+      to: '/panel/$sessionId',
+      params: {sessionId: params().sessionId},
+      search: {...search, open: true},
+      replace: true,
+    })
 
   onMount(() => {
     const opened = openPipWindow({title: 'conciv', theme})
