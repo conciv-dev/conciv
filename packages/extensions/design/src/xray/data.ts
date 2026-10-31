@@ -1,7 +1,7 @@
 import {makeRpcClient} from '@conciv/contract'
 import {makeExtRpcClient} from '@conciv/extension'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import {aboveTolerance} from '../shared/above.js'
+import {aboveTolerance, componentAboveTolerance} from '../shared/above.js'
 import type {ComponentReport, DiffReport} from '../shared/defs.js'
 import type {Box, SourceLoc, TargetRecord} from '../shared/types.js'
 import type {XrayRouter} from '../server/xray-routes.js'
@@ -76,7 +76,8 @@ export function reportRows(report: DiffReport | null): Row[] {
 }
 
 export function rowAboveTolerance(row: Row): boolean {
-  return row.unmatched !== null || row.deltas.length > 0
+  if (row.unmatched !== null || row.mismatch === null) return true
+  return componentAboveTolerance({deltas: row.deltas, mismatch: row.mismatch})
 }
 
 function runTime(report: DiffReport | null): number | null {
