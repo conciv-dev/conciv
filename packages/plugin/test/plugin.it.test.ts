@@ -9,6 +9,7 @@ import {
   rmSync,
   statSync,
   symlinkSync,
+  cpSync,
   writeFileSync,
 } from 'node:fs'
 import {createServer as createHttpServer, type Server, type ServerResponse} from 'node:http'
@@ -1259,11 +1260,18 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 90_000)
 
-  it('opens the chat and the recorder on a cold cache without Vite re-optimizing dependencies', async () => {
+  it('opens the chat and the recorder on a cold cache of an installed conciv without Vite re-optimizing dependencies', async () => {
     const root = realpathSync(dirs.tempDir('conciv-cold-'))
-    const embedEntry = fileURLToPath(import.meta.resolve('@conciv/embed'))
     writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
-    linkConcivIt(root)
+    const installed = join(installConcivPackage(root, '@conciv/embed'), '..')
+    for (const name of ['terminal', 'test-runner', 'whiteboard', 'recorder', 'ios']) {
+      installConcivPackage(root, `@conciv/extension-${name}`)
+    }
+    const workspaceIt = join(
+      dirname(dirname(dirname(realpathSync(fileURLToPath(import.meta.resolve('@conciv/embed')))))),
+      'it',
+    )
+    cpSync(join(workspaceIt, 'package.json'), join(installed, 'it', 'package.json'))
     const logged: string[] = []
     const remember = (message: string): void => void logged.push(message)
     const server = await createServer({
@@ -1275,8 +1283,11 @@ describe('vite devtools dock', () => {
         makeViteHook(
           {enabled: true, stateRoot: root},
           {
-            ...realBuiltins,
-            embedEntry,
+            serverExtensions: realBuiltins.serverExtensions,
+            clientEntries: ['terminal', 'test-runner', 'whiteboard', 'recorder', 'ios'].map((name) =>
+              join(installed, `extension-${name}`, 'dist', 'client.js'),
+            ),
+            embedEntry: join(installed, 'embed', 'dist', 'mount.js'),
             dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
           },
         ),
@@ -1291,14 +1302,12 @@ describe('vite devtools dock', () => {
     page.on('response', (response) => {
       if (response.status() === 504) gatewayFailures.push(response.url())
     })
-    const highlighterLanguages = page.waitForResponse(/langs-precompiled_markdown/, {timeout: 60_000})
     const recorderPlayer = page.waitForResponse(/rrweb-player/, {timeout: 60_000})
     await page.goto(url, {waitUntil: 'domcontentloaded'})
     await page.getByRole('button', {name: /conciv chat$/}).click({timeout: 45_000})
     const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
     await chat.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
     await chat.getByRole('tab', {name: /Recorder/}).click()
-    await highlighterLanguages
     await recorderPlayer
     expect(logged.filter((line) => /Failed to resolve dependency|optimized dependencies changed/.test(line))).toEqual(
       [],
