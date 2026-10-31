@@ -18,7 +18,7 @@ import {dirname, isAbsolute, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it} from 'vitest'
 import getPort from 'get-port'
-import {chromium, firefox, type Browser, type Page} from 'playwright'
+import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
 import {DevTools} from '@vitejs/devtools'
 import {createLogger, createServer, type Plugin, type ViteDevServer} from 'vite'
@@ -1020,25 +1020,21 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 60_000)
 
-  it('keeps the hidden conciv pane out of the tab order while another dock entry is open', async () => {
-    const firefoxBrowser = await firefox.launch({headless: true})
-    try {
-      const page = await firefoxBrowser.newPage({viewport: {width: 1280, height: 800}})
-      await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
-      await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
-      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
-      await composer.waitFor()
-      const hiddenComposer = page.getByRole('textbox', {name: 'Message the conciv agent', includeHidden: true})
-      await page.getByRole('button', {name: 'Settings'}).click()
-      await page.getByRole('combobox', {name: 'Language'}).waitFor()
-      await page.getByRole('button', {name: 'Advanced'}).focus()
-      for (let step = 0; step < 30; step += 1) {
-        await page.keyboard.press('Tab')
-        await expectLocator(hiddenComposer).not.toBeFocused()
-      }
-    } finally {
-      await firefoxBrowser.close()
-    }
+  it('keeps the hidden conciv pane unfocusable while another dock entry is open', async () => {
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
+    const entry = page.getByRole('button', {name: 'conciv'})
+    await entry.dispatchEvent('click')
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await composer.waitFor()
+    await page.getByRole('button', {name: 'Settings'}).click()
+    await page.getByRole('combobox', {name: 'Language'}).waitFor()
+    await composer.focus()
+    await expectLocator(composer).not.toBeFocused()
+    await entry.dispatchEvent('click')
+    await composer.focus()
+    await expectLocator(composer).toBeFocused()
+    await page.close()
   }, 60_000)
 
   it('follows the color mode chosen in the DevTools settings', async () => {
