@@ -18,6 +18,8 @@ const BADGE_CLASS: Record<BadgeColor | 'green', string> = {
   green: 'badge badge-color-green',
 }
 
+const BADGE_SLOT = 'ps-12 flex basis-full flex-wrap gap-1 min-w-0 order-last md:ps-0 md:basis-auto md:order-none'
+
 const ROW_FOCUS = 'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary-500/40'
 
 function StatusBadge(props: {row: Row; fixed: boolean}): JSX.Element {
@@ -75,13 +77,13 @@ function ComponentRow(props: ComponentRowProps): JSX.Element {
           </Show>
           <Show
             when={above() && props.row.unmatched === null}
-            fallback={<StatusBadge row={props.row} fixed={props.fixed} />}
+            fallback={
+              <span class={BADGE_SLOT}>
+                <StatusBadge row={props.row} fixed={props.fixed} />
+              </span>
+            }
           >
-            <span
-              role="list"
-              aria-label="Deltas"
-              class="ps-12 flex basis-full flex-wrap gap-1 min-w-0 order-last md:ps-0 md:basis-auto md:order-none"
-            >
+            <span role="list" aria-label="Deltas" class={BADGE_SLOT}>
               <For each={props.row.deltas}>{(delta) => <DeltaBadge delta={delta} />}</For>
             </span>
           </Show>
