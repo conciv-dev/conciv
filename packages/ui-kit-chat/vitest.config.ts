@@ -25,6 +25,17 @@ export default defineConfig({
     projects: [
       {
         extends: true,
+        test: {
+          name: 'ui-kit-chat',
+          environment: 'node',
+          include: ['test/**/*.test.ts'],
+          server: {deps: {inline: ['solid-js']}},
+          testTimeout: ciTest().testTimeout,
+          hookTimeout: ciTest().hookTimeout,
+        },
+      },
+      {
+        extends: true,
         plugins: [solidPlugin(), UnoCSS({content: {filesystem: ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx}']}})],
         optimizeDeps: browserOptimizeDeps([...DIFFS_ENTRIES, ...HIGHLIGHT_WORKER_LANGUAGES, ...TANSTACK_AI_SOLID_DEPS]),
         test: {
