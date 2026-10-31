@@ -1,6 +1,5 @@
 import type {ChatMessage} from './chat-message-types.js'
 import type {HarnessSessionId, SessionId} from './chat-types.js'
-import type {TtyCommand} from './terminal-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
