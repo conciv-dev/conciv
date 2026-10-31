@@ -13,6 +13,7 @@
   "scripts": {
     "prepare": "node -e \"process.exit(process.env.CI || process.env.GIT_INDEX_FILE ? 0 : 1)\" || prek install",
     "dev": "turbo run dev --filter=tanstack-start-example",
+    "dev:watch": "turbo watch dev --filter=@conciv/app",
     "dev:site": "turbo run dev --filter=site",
     "storybook": "turbo run storybook --filter=conciv-storybook",
     "build": "turbo run build",

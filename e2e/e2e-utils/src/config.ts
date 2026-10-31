@@ -16,7 +16,7 @@ function serverEntry(command: string, port: number, env: Record<string, string> 
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe' as const,
     timeout: 180_000,
-    env: {CONCIV_E2E: '1', ...env},
+    env,
   }
 }
 
