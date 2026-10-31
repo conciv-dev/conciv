@@ -26,13 +26,18 @@ import {forceReducedMotion} from './helpers/reduced-motion.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 
 const HYDRATE_PATH = ['chat', 'hydrate']
+const UNSCRIPTED_REPLY = 'an unscripted reply'
 
 const core = {base: ''}
 const active: {pane: PaneMount | null} = {pane: null}
 const faults = trackedFaults()
 
 beforeAll(async () => {
-  const booted = await coreControl.bootCore({id: 'chat-pane', allowedOrigins: [window.location.origin]})
+  const booted = await coreControl.bootCore({
+    id: 'chat-pane',
+    text: UNSCRIPTED_REPLY,
+    allowedOrigins: [window.location.origin],
+  })
   core.base = booted.base
 }, 60_000)
 
@@ -120,6 +125,7 @@ async function startStreamingRun(): Promise<void> {
   await input().fill('first turn')
   await userEvent.keyboard('{Enter}')
   await expect.element(stopButton()).toBeVisible()
+  await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
 }
 
 test('restores the server-side draft text and staged grabs when the pane mounts', async () => {
@@ -421,7 +427,6 @@ test('Escape outside the composer does not stop the run', async () => {
 
 test('a new-session divider does not flash before the transcript snapshot hydrates', async () => {
   const {sessionId} = await newSession()
-  await coreControl.scriptTurn({toolCalls: [], text: 'starting a fresh session'})
   await runTurn(core.base, sessionId, 'restart with a clean slate')
   const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
   const mount = mountChatPane(sessionId)
@@ -432,7 +437,7 @@ test('a new-session divider does not flash before the transcript snapshot hydrat
 
   await coreControl.releaseFault(gate)
 
-  await expect.element(page.getByText('starting a fresh session')).toBeVisible()
+  await expect.element(page.getByText('restart with a clean slate')).toBeVisible()
   await expect.element(page.getByRole('separator', {name: 'New session'})).toBeVisible()
   await expect.element(skeleton()).not.toBeInTheDocument()
 })
