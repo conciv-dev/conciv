@@ -5,6 +5,9 @@ import {
   EventType,
   requestRunCancel,
   RUN_CANCEL_REASON,
+  StreamProcessor,
+  uiMessageToModelMessages,
+  withTanstackMetadata,
   type DebugConfig,
   type MetadataStore,
   type RunRecord,
@@ -206,28 +209,26 @@ type LiveRun = {
 
 type RunMessages = {full: ModelMessage[]}
 
-type StreamedText = {messageId: string; text: string}
-
 function isSubagentChunk(chunk: ChatEvent): boolean {
   return 'subagentRunId' in chunk && chunk.subagentRunId !== undefined
 }
 
-function followText(streamed: StreamedText, chunk: ChatEvent): void {
-  if (isSubagentChunk(chunk)) return
-  if (chunk.type === EventType.TEXT_MESSAGE_START) {
-    streamed.messageId = chunk.messageId
-    streamed.text = ''
-  }
-  if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) streamed.text += chunk.delta
+function followRun(processor: StreamProcessor, chunk: ChatEvent): void {
+  if (isSubagentChunk(chunk) || chunk.type === EventType.MESSAGES_SNAPSHOT) return
+  processor.processChunk(chunk)
 }
 
-async function flushStreamedText(messages: MessageStore, threadId: string, streamed: StreamedText): Promise<void> {
-  if (streamed.messageId === '' || streamed.text === '') return
+async function saveStoppedTurn(messages: MessageStore, threadId: string, processor: StreamProcessor): Promise<void> {
+  const shown = processor
+    .getMessages()
+    .filter((message) => message.role === 'assistant')
+    .flatMap(uiMessageToModelMessages)
+    .map((message) => withTanstackMetadata(message, {stopReason: 'aborted'}))
+  if (shown.length === 0) return
+  const replaced = new Set(shown.flatMap((message) => (message.id === undefined ? [] : [message.id])))
   const stored = await messages.loadThread(threadId)
-  const index = stored.findLastIndex((message) => message.role === 'assistant' && message.id === streamed.messageId)
-  const saved = stored[index]
-  if (saved === undefined || saved.content === streamed.text) return
-  await messages.saveThread(threadId, stored.with(index, {...saved, content: streamed.text}))
+  const kept = stored.filter((message) => message.id === undefined || !replaced.has(message.id))
+  await messages.saveThread(threadId, [...kept, ...shown])
 }
 
 function silentCategories(logger: DebugConfig['logger']): DebugConfig {
@@ -306,7 +307,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   function concivTurn(turn: Turn, plan: TurnPlan, granted: {approvals: Approvals}, view: RunMessages, entry: LiveRun) {
     const failure: {message: string | null} = {message: null}
     const prepared: {sent: number; provider: ModelMessage[]} = {sent: 0, provider: []}
-    const streamed: StreamedText = {messageId: '', text: ''}
+    const shown = new StreamProcessor({})
     const settle = async (): Promise<void> => {
       try {
         const lifecycle = await recordLifecycle(turn.runId)
@@ -345,7 +346,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         }
       },
       onChunk: async (_ctx, chunk) => {
-        followText(streamed, chunk)
+        followRun(shown, chunk)
         const shaped = await plan.chunk(chunk)
         if (chunk.type === EventType.RUN_STARTED) {
           const lifecycle = await recordLifecycle(turn.runId)
@@ -363,8 +364,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       onFinish: () => settle(),
       onError: () => settle(),
       onAbort: async () => {
-        await flushStreamedText(stores.messages, turn.threadId, streamed).catch((error: unknown) =>
-          config.log(`[ai] saving the stopped text of run ${turn.runId} failed: ${String(error)}`),
+        await saveStoppedTurn(stores.messages, turn.threadId, shown).catch((error: unknown) =>
+          config.log(`[ai] saving the stopped turn of run ${turn.runId} failed: ${String(error)}`),
         )
         if (failure.message !== null) {
           await stores.runs.update(turn.runId, {
