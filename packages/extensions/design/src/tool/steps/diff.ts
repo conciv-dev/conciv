@@ -209,7 +209,7 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, re
       }
     })
     .filter(({report}) => report.deltas.length > 0 || report.children === 0)
-    .toSorted((a, b) => measured(b) - measured(a) || b.pair.mismatch * area(b.pair) - a.pair.mismatch * area(a.pair))
+    .toSorted((a, b) => b.pair.mismatch * area(b.pair) - a.pair.mismatch * area(a.pair) || measured(b) - measured(a))
     .slice(0, input.limit)
   const components = await withProvenance({ranked, design, page, width: record.width, height: record.height})
   const xray = design.xrayUrl({id: record.id, session: request.sessionId})
