@@ -28,10 +28,19 @@ const PAGE_MOUNT = [
 
 const DOCK_RENDERER = [
   `export default function concivDockRenderer(context) {`,
+  `  const entry = context.current`,
   `  const conciv = createConciv({extensions: picked.extensions})`,
-  `  const mount = (panel) => conciv.mount(panel).catch((error) => console.error('[conciv] widget failed to start', error))`,
-  `  context.current.events.on('dom:panel:mounted', mount)`,
-  `  if (context.current.domElements.panel) mount(context.current.domElements.panel)`,
+  `  const setInert = (inert) => {`,
+  `    if (entry.domElements.panel) entry.domElements.panel.inert = inert`,
+  `  }`,
+  `  const mount = (panel) => {`,
+  `    panel.inert = !entry.isActive`,
+  `    conciv.mount(panel).catch((error) => console.error('[conciv] widget failed to start', error))`,
+  `  }`,
+  `  entry.events.on('entry:activated', () => setInert(false))`,
+  `  entry.events.on('entry:deactivated', () => setInert(true))`,
+  `  entry.events.on('dom:panel:mounted', mount)`,
+  `  if (entry.domElements.panel) mount(entry.domElements.panel)`,
   `}`,
 ]
 
