@@ -123,8 +123,9 @@ test('a throwing attachment card reads as a failed card in the thread and a fail
 
   await expect.element(threadCards.getByText('This card failed to render'), {timeout: 2000}).toBeVisible()
   await expect.element(composerChips.getByText('calm player').first(), {timeout: 2000}).toBeVisible()
-  await expect.element(composerChips.getByText('Failed to render', {exact: true}), {timeout: 2000}).toBeVisible()
-  await expect.element(composerChips.getByText('crash-attachment')).toBeVisible()
+  await expect
+    .element(composerChips.getByRole('button', {name: 'Failed to render crash-attachment'}), {timeout: 2000})
+    .toBeVisible()
   expect(crash.mock.calls.filter((call) => call[0] === '[conciv] extension "crash-attachment" crashed').length).toBe(2)
   crash.mockRestore()
 })
@@ -147,7 +148,7 @@ test('removing a failed chip un-stages its attachment, so the next send carries 
       </>
     )
   })
-  const failedChip = page.getByText('Failed to render', {exact: true})
+  const failedChip = page.getByRole('button', {name: 'Failed to render crash-attachment'})
 
   await expect.element(failedChip, {timeout: 2000}).toBeVisible()
   await page.screenshot({path: '__screenshots__/extension-boundary/failed-chip.png'})
@@ -183,7 +184,7 @@ test('a failed chip names the extension whose card was selected, not an earlier 
     </ComposerFixture>
   ))
 
-  await expect.element(page.getByText('card-owner'), {timeout: 2000}).toBeVisible()
-  await expect.element(page.getByText('declares-only')).not.toBeInTheDocument()
+  await expect.element(page.getByRole('button', {name: 'Failed to render card-owner'}), {timeout: 2000}).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Failed to render declares-only'})).not.toBeInTheDocument()
   crash.mockRestore()
 })

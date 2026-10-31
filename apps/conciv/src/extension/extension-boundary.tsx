@@ -2,7 +2,7 @@ import {ErrorBoundary, Suspense, type Component, type JSX} from 'solid-js'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import {collectAttachmentCards, collectToolRenderers, type AnyExtension} from '@conciv/extension'
 import type {ToolBodyPredicate, ToolCardEntry} from '@conciv/protocol/tool-view-types'
-import type {AttachmentCardSlot} from '@conciv/ui-kit-chat'
+import {AttachmentUI, type AttachmentCardSlot} from '@conciv/ui-kit-chat'
 import {NoteRow} from '@conciv/ui-kit-chat/tools'
 import {ErrorScreen} from '../shell/error-screen.js'
 
@@ -23,18 +23,10 @@ function CardFallback(props: {name: string}): JSX.Element {
   )
 }
 
-function ChipFallback(props: {name: string; remove?: JSX.Element}): JSX.Element {
+function ChipFallback(props: {name: string; removable: boolean}): JSX.Element {
   return (
-    <div
-      role="status"
-      class="inline-flex items-center gap-1 ps-2 pe-0.5 min-h-8 max-w-full rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] text-[0.75rem]"
-    >
-      <TriangleAlert size={12} class="shrink-0 [color:var(--chat-danger)]" aria-hidden="true" />
-      <span class="[color:var(--chat-text-2)]">Failed to render</span>
-      <span class="min-w-0 [color:var(--chat-text-3)] [font-family:var(--chat-mono)] [overflow-wrap:anywhere]">
-        {props.name}
-      </span>
-      {props.remove}
+    <div role="status">
+      <AttachmentUI removable={props.removable} failure={`Failed to render ${props.name}`} />
     </div>
   )
 }
@@ -42,7 +34,7 @@ function ChipFallback(props: {name: string; remove?: JSX.Element}): JSX.Element 
 export function ExtensionBoundary(props: {
   name: string
   fallback: ExtensionFallback
-  remove?: JSX.Element
+  removable?: boolean
   focusAfterRetry?: () => HTMLElement | undefined
   children: JSX.Element
 }): JSX.Element {
@@ -67,7 +59,7 @@ export function ExtensionBoundary(props: {
         />
       )
     if (props.fallback === 'card') return <CardFallback name={props.name} />
-    if (props.fallback === 'chip') return <ChipFallback name={props.name} remove={props.remove} />
+    if (props.fallback === 'chip') return <ChipFallback name={props.name} removable={props.removable ?? false} />
     return null
   }
   return (
@@ -132,7 +124,7 @@ export function guardedAttachmentCards(extensions: AnyExtension[], fallback: 'ca
     return {
       ...entry,
       render: (props) => (
-        <ExtensionBoundary name={name} fallback={fallback} remove={props.remove}>
+        <ExtensionBoundary name={name} fallback={fallback} removable={props.remove !== undefined}>
           <entry.render {...props} />
         </ExtensionBoundary>
       ),
