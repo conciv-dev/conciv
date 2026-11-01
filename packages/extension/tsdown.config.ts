@@ -11,6 +11,8 @@ export default defineConfig({
     'src/tool-registry.ts',
     'src/devframe-host.ts',
     'src/devframe-connection.ts',
+    'src/devframe-function.ts',
+    'src/devframe-plugin.ts',
   ],
   format: 'esm',
   fixedExtension: false,

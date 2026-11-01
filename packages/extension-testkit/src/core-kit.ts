@@ -1,6 +1,6 @@
 import {createFakeHarness, createTestkit, type FakeHarness, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
-import type {AnyExtension} from '@conciv/extension'
+import type {AnyExtension, ConcivPlugin} from '@conciv/extension'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessConnect, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
@@ -15,6 +15,7 @@ export async function bootCoreKit(opts: {
   displayName?: string
   connect?: HarnessConnect
   extensions?: AnyExtension[]
+  plugins?: readonly ConcivPlugin[]
   models?: HarnessModel[]
   commands?: HarnessCommand[]
   history?: HarnessSessionMeta[]
@@ -50,6 +51,7 @@ export async function bootCoreKit(opts: {
       openInEditor: () => {},
       harness: env.harness,
       extensions: opts.extensions,
+      plugins: opts.plugins,
       allowedOrigins: opts.allowedOrigins,
       staleness: opts.staleness,
       nativePageDir: opts.nativePageDir,

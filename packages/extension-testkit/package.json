@@ -29,7 +29,8 @@
     "./chat-wire": "./src/chat-wire.ts",
     "./push-wire": "./src/push-wire.ts",
     "./rpc-fault": "./src/rpc-fault.ts",
-    "./chat-fault": "./src/chat-fault.ts"
+    "./chat-fault": "./src/chat-fault.ts",
+    "./devframe-faults": "./src/devframe-faults.ts"
   },
   "scripts": {
     "build": "vite build -c vite.test-host.config.ts",

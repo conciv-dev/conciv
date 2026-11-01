@@ -15,7 +15,8 @@ import {splitExtension} from '../src/split-extension.js'
 import {compileExtensionSolid} from '../src/compile-extension.js'
 import {mkdtempSync, writeFileSync, mkdirSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
-import {defineConcivPlugin, defineExtension} from '@conciv/extension'
+import {defineExtension} from '@conciv/extension'
+import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
 import {addSourceToJsx} from '../src/inject-source.js'
 import {scaffold} from '@conciv/extension/catalog'
 
@@ -620,7 +621,7 @@ export const aliased = makeTool({name: 'aliased'}).server(() => 'ALIAS_SERVER_BO
 describe('split concivplugin', () => {
   const here = dirname(fileURLToPath(import.meta.url))
   const ID = '/proj/conciv/extensions/plugin.tsx'
-  const PLUGIN = `import {defineConcivPlugin} from '@conciv/extension'
+  const PLUGIN = `import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
 import {serverOnly} from './server-only.js'
 import {Panel} from './panel.jsx'
 export default defineConcivPlugin({id: 'split-probe', title: 'Split probe'})

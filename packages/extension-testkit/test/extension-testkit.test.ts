@@ -1,4 +1,7 @@
-import {expect, test, afterEach, describe, it} from 'vitest'
+import {setImmediate} from 'node:timers/promises'
+import {afterAll, afterEach, beforeAll, expect, test, describe, it} from 'vitest'
+import {defineConcivFunction} from '@conciv/extension/devframe-function'
+import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
 import {
   createFakeHarness,
   makeRpcClient,
@@ -19,10 +22,95 @@ import {makeFakeFrameworkAdapter} from '../src/framework-fake.js'
 import {createServer} from 'node:http'
 import {listenLocal} from '../src/listen-local.js'
 import {gateRpcCalls} from '../src/rpc-fault.js'
+import {
+  abortCalls,
+  callCount,
+  callCursor,
+  failCalls,
+  gateCalls,
+  holdCalls,
+  observeCalls,
+} from '../src/devframe-faults.js'
 import {rpcObserverFor, observeRpc} from '../src/rpc-observer.js'
 import {test as browserTest} from '@conciv/browser-fixture'
 import {launch} from '../src/launch.js'
 import {settleTeardown} from '../src/settle-teardown.js'
+
+describe('devframe faults', () => {
+  const faultProbe = defineConcivPlugin({id: 'fault-probe', title: 'Fault probe'}).server((ctx) => {
+    ctx.rpc.register(
+      defineConcivFunction({
+        name: 'fault-probe:ping',
+        type: 'query',
+        input: z.object({value: z.string().default('pong')}),
+        output: z.string(),
+        handler: (input) => input.value,
+      }),
+    )
+  })
+
+  const ping = (kit: CoreKit): Promise<unknown> =>
+    kit.hub.connection.ready().then(({rpc}) => rpc.$callRaw({method: 'fault-probe:ping', args: [{}]}))
+
+  let kit: CoreKit
+
+  beforeAll(async () => {
+    kit = await bootCoreKit({id: 'devframe-faults', plugins: [faultProbe]})
+  })
+
+  afterAll(() => kit.cleanup())
+
+  it('fails a named call with a coded error until repaired', async () => {
+    const fault = await failCalls(kit, ['fault-probe:ping'], 'BROKEN')
+    await expect(ping(kit)).rejects.toMatchObject({code: 'BROKEN'})
+    fault.repair()
+    expect(await ping(kit)).toBe('pong')
+  })
+
+  it('aborts a named call as a dropped connection', async () => {
+    const fault = await abortCalls(kit, ['fault-probe:ping'])
+    await expect(ping(kit)).rejects.toMatchObject({code: 'DISCONNECTED'})
+    fault.repair()
+  })
+
+  it('holds a call until released', async () => {
+    const hold = await holdCalls(kit, ['fault-probe:ping'])
+    const settled = {done: false}
+    const pending = ping(kit).then((value) => {
+      settled.done = true
+      return value
+    })
+    await setImmediate()
+    expect(settled.done).toBe(false)
+    hold.release()
+    expect(await pending).toBe('pong')
+  })
+
+  it('gates a call and reports its arrival', async () => {
+    const gate = await gateCalls(kit, ['fault-probe:ping'])
+    const pending = ping(kit)
+    await gate.arrived
+    gate.release()
+    expect(await pending).toBe('pong')
+  })
+
+  it('observes and counts calls by pattern, through a cursor', async () => {
+    const observer = await observeCalls(kit, /^fault-probe:/)
+    await ping(kit)
+    const cursor = callCursor(observer, 'fault-probe:ping')
+    await ping(kit)
+    expect(callCount(observer, 'fault-probe:ping')).toBe(2)
+    expect(cursor.count()).toBe(1)
+    expect(observer.calls()[0]).toEqual({name: 'fault-probe:ping', input: {}})
+    observer.stop()
+    await ping(kit)
+    expect(callCount(observer, 'fault-probe:ping')).toBe(2)
+  })
+
+  it('refuses to wrap a function the hub does not have', async () => {
+    await expect(failCalls(kit, ['fault-probe:missing'])).rejects.toThrow(/fault-probe:missing/)
+  })
+})
 
 describe('boot server', () => {
   test('boots a real extension server reachable over HTTP', async () => {

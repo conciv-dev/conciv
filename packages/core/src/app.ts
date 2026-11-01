@@ -8,7 +8,6 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
-  concivError,
   type AnyExtension,
   type AnyToolBuilder,
   type AttachmentDocumentPart,
@@ -21,6 +20,7 @@ import {
   type ToolRequest,
 } from '@conciv/extension'
 import type {ConcivHost} from '@conciv/extension/devframe-host'
+import {concivError} from '@conciv/extension/devframe-function'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness, transcriptPathWithin} from '@conciv/harness'

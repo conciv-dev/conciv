@@ -1,4 +1,8 @@
-import {afterEach, describe, expect, it} from 'vitest'
+import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
+import {onlineManager} from '@tanstack/query-core'
+import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
+import {until} from '@conciv/harness-testkit'
+import {serveDevframePlugin} from '@conciv/harness-testkit/devframe-mounts'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {ChatClient} from '@conciv/ai/testkit'
 import {makeRpcClient, type RpcClient, type SessionMeta} from '@conciv/contract'
@@ -9,9 +13,9 @@ import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {acquirePushChannel, livePushChannelCount, type PageQueryFrame} from '../src/push-channel.js'
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
-import {makeQueryUtils} from '../src/query-utils.js'
+import {hubQueryUtils, makeQueryUtils, type HubCall} from '../src/query-utils.js'
 import {ORPCError} from '@orpc/client'
-import {isReachabilityError} from '../src/reachability.js'
+import {isReachabilityError, setupEngineReachability} from '../src/reachability.js'
 
 describe('chat client', () => {
   let kit: ClientKit | undefined
@@ -510,6 +514,70 @@ describe('push channel', () => {
       expect(livePushChannelCount()).toBe(opened - 1)
     })
   })
+})
+
+describe('hub-backed query utils', () => {
+  const sessionsProbe = defineConcivPlugin({id: 'query-probe', title: 'Query probe'}).server((ctx) => {
+    ctx.rpc.register({name: 'conciv:sessions:list', type: 'query', handler: () => [{id: 'from-hub'}]})
+    ctx.rpc.register({name: 'conciv:sessions:create', type: 'action', handler: () => ({sessionId: 'created-on-hub'})})
+  })
+
+  const hubCall =
+    (kit: ClientKit): HubCall =>
+    (name, input) =>
+      kit.hub.connection.ready().then(({rpc}) => rpc.$callRaw({method: name, args: [input]}))
+
+  let kit: ClientKit
+
+  beforeAll(async () => {
+    kit = await bootClientKit({plugins: [sessionsProbe]})
+  })
+
+  afterAll(() => kit.cleanup())
+
+  it('sends a listed group through the hub and keeps the query keys of the oRPC utils', async () => {
+    const plain = makeQueryUtils(kit.rpc)
+    const utils = hubQueryUtils(plain, hubCall(kit), new Set(['sessions']))
+    const options = utils.sessions.list.queryOptions({input: {includeHidden: false}})
+    expect(options.queryKey).toEqual(plain.sessions.list.queryOptions({input: {includeHidden: false}}).queryKey)
+    expect(utils.sessions.list.key()).toEqual(plain.sessions.list.key())
+    const client = new QueryClient()
+    expect(await client.fetchQuery(options)).toEqual([{id: 'from-hub'}])
+  })
+
+  it('sends a mutation of a listed group through the hub', async () => {
+    const utils = hubQueryUtils(makeQueryUtils(kit.rpc), hubCall(kit), new Set(['sessions']))
+    const options = utils.sessions.create.mutationOptions()
+    const client = new QueryClient()
+    const observer = new MutationObserver(client, options)
+    expect(await observer.mutate({})).toEqual({sessionId: 'created-on-hub'})
+  })
+
+  it('leaves an unlisted group on oRPC', async () => {
+    const utils = hubQueryUtils(makeQueryUtils(kit.rpc), hubCall(kit), new Set())
+    const client = new QueryClient()
+    const listed = await client.fetchQuery(utils.sessions.list.queryOptions({input: {includeHidden: true}}))
+    expect(listed).not.toEqual([{id: 'from-hub'}])
+  })
+})
+
+describe('reachability from a hub connection', () => {
+  const noopHub = defineConcivPlugin({id: 'reach-probe', title: 'Reach probe'})
+
+  it('takes the engine offline when the hub connection drops and back when it reconnects', async () => {
+    const served = await serveDevframePlugin(noopHub.devframe)
+    const dispose = setupEngineReachability('http://127.0.0.1:1', served.client.connection)
+    const seen: boolean[] = []
+    const stopWatching = onlineManager.subscribe((online) => seen.push(online))
+    await served.client.connection.ready()
+    await served.hub.close()
+    await until(() => seen.includes(false))
+    await until(() => seen.at(-1) === true)
+    stopWatching()
+    dispose()
+    onlineManager.setOnline(true)
+    await served.close()
+  }, 10_000)
 })
 
 describe('query utils', () => {

@@ -166,7 +166,7 @@ function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
   )
   const queryClient = new QueryClient()
   const announce = options.announce
-  const data = makeAppData(rpc, queryClient)
+  const data = makeAppData(rpc, undefined, queryClient)
   const connected = () => true
   return {
     rpc,

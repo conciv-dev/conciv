@@ -9,7 +9,7 @@ const PROBE_MODULE = 'conciv-probe-entry'
 const PROBE_SOURCE = `
 import {getDevframeRpcClient} from 'devframe/client'
 import {browserClient, readSharedState} from '@conciv/extension/devframe-connection'
-import {concivCall} from '@conciv/extension'
+import {concivCall} from '@conciv/extension/devframe-function'
 Object.assign(window, {concivProbe: {getDevframeRpcClient, browserClient, readSharedState, concivCall}})
 `
 
@@ -19,7 +19,7 @@ export type ConcivProbe = {
   getDevframeRpcClient: typeof import('devframe/client').getDevframeRpcClient
   browserClient: typeof import('@conciv/extension/devframe-connection').browserClient
   readSharedState: typeof import('@conciv/extension/devframe-connection').readSharedState
-  concivCall: typeof import('@conciv/extension').concivCall
+  concivCall: typeof import('@conciv/extension/devframe-function').concivCall
 }
 
 declare global {

@@ -2,7 +2,8 @@
 import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {concivError, defineConcivFunction, defineConcivPlugin} from '@conciv/extension'
+import {concivError, defineConcivFunction} from '@conciv/extension/devframe-function'
+import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
 import {createFakeHarness, type Kit} from '@conciv/harness-testkit'
 import {
   loginTab,

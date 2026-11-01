@@ -55,6 +55,14 @@
     "./devframe-connection": {
       "types": "./dist/devframe-connection.d.ts",
       "import": "./dist/devframe-connection.js"
+    },
+    "./devframe-function": {
+      "types": "./dist/devframe-function.d.ts",
+      "import": "./dist/devframe-function.js"
+    },
+    "./devframe-plugin": {
+      "types": "./dist/devframe-plugin.d.ts",
+      "import": "./dist/devframe-plugin.js"
     }
   },
   "publishConfig": {
