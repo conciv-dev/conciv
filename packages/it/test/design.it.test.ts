@@ -755,13 +755,13 @@ describe('x-ray page', () => {
     await call('design_clear', {target: unrun.id})
   })
 
-  it('hovering the invert button shows its tooltip', async () => {
+  it('hovering the select all button shows its tooltip', async () => {
     await goto('/')
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
     await xray.goto(report.xray)
-    await xray.getByRole('button', {name: 'Invert selection'}).hover()
-    await expectLocator(xray.getByRole('tooltip')).toHaveText('Invert selection')
+    await xray.getByRole('button', {name: 'Select all'}).hover()
+    await expectLocator(xray.getByRole('tooltip')).toHaveText('Select all')
     await xray.close()
   })
 
@@ -852,6 +852,54 @@ describe('x-ray page', () => {
     const xray = await browser.newPage()
     await xray.goto(`${report.xray}&q=1280`)
     await expectLocator(xray.getByRole('textbox', {name: 'Search components'})).toHaveValue('1280')
+    await xray.close()
+  })
+
+  it('a component off by paint alone says no property was measured', async () => {
+    await goto('badge')
+    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    const report = await call('design_diff', {})
+    const index = report.components.findIndex((c) => fromToolbar(c) && c.tag === 'header')
+    const header = report.components[index]
+    expect(header?.deltas).toEqual([])
+    if (header === undefined) return
+    const url = new URL(report.xray)
+    url.searchParams.set('component', `${header.selector}#${index}`)
+    const xray = await browser.newPage()
+    await xray.goto(url.toString())
+    await expectLocator(xray.getByRole('region', {name: 'component'})).toContainText(
+      'The paint differs from the design, but no property delta was measured.',
+    )
+    await xray.close()
+  })
+
+  it('the filter offers no Match choice while the report lists only components off the design', async () => {
+    await goto('/')
+    const report = await call('design_diff', {width: 1280})
+    const xray = await browser.newPage()
+    await xray.goto(report.xray)
+    await expectLocator(xray.getByRole('checkbox', {name: 'Off'})).toBeVisible()
+    await expectLocator(xray.getByRole('checkbox', {name: 'Match'})).toHaveCount(0)
+    await expectLocator(xray.getByRole('button', {name: 'Invert selection'})).toHaveCount(0)
+    await xray.close()
+  })
+
+  it('moving between rows reads the report once', async () => {
+    await goto('/')
+    const report = await call('design_diff', {width: 1280})
+    const xray = await browser.newPage()
+    await xray.goto(report.xray)
+    const inspector = xray.getByRole('region', {name: 'component'})
+    await inspector.waitFor()
+    const reads: string[] = []
+    xray.on('request', (request) => {
+      if (new URL(request.url()).pathname.endsWith('/xray/report')) reads.push(request.url())
+    })
+    await xray.keyboard.press('j')
+    await expectLocator(inspector).toContainText(String(report.components[1]?.source?.file))
+    await xray.keyboard.press('k')
+    await expectLocator(inspector).toContainText(String(report.components[0]?.source?.file))
+    expect(reads).toEqual([])
     await xray.close()
   })
 })

@@ -183,12 +183,6 @@ export function filterChoice(filter: Filter): FilterChoice {
   return {above: filter === 'all' || filter === 'above', match: filter === 'all' || filter === 'match'}
 }
 
-export function choiceFilter(choice: FilterChoice): Filter {
-  if (choice.above && choice.match) return 'all'
-  if (choice.above) return 'above'
-  return choice.match ? 'match' : 'none'
-}
-
 function shown(input: {row: Row; filter: Filter}): boolean {
   const choice = filterChoice(input.filter)
   return rowAboveTolerance(input.row) ? choice.above : choice.match

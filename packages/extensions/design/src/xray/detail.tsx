@@ -3,7 +3,7 @@ import {createTimer} from '@solid-primitives/timer'
 import {compact, uniq} from 'es-toolkit'
 import type {DeltaKindName} from '../shared/defs.js'
 import type {Box, SourceLoc, TargetRecord} from '../shared/types.js'
-import {deltaValue, rowName, type Delta, type Row, type XrayImages} from './data.js'
+import {deltaValue, rowAboveTolerance, rowName, type Delta, type Row, type XrayImages} from './data.js'
 import {fixPrompt, traced} from './fix-prompt.js'
 
 const CONTEXT_PX = 24
@@ -115,15 +115,17 @@ function SetBy(props: {delta: Delta; onOpen: (source: SourceLoc) => void}): JSX.
   )
 }
 
+function noDeltaNote(row: Row): string {
+  if (row.unmatched !== null) return UNMATCHED_NOTE[row.unmatched]
+  if (rowAboveTolerance(row)) return 'The paint differs from the design, but no property delta was measured.'
+  return 'Matches the design.'
+}
+
 function PropertyTable(props: {row: Row; onOpen: (source: SourceLoc) => void}): JSX.Element {
   return (
     <Show
       when={props.row.deltas.length > 0}
-      fallback={
-        <p class="text-sm m-0 op-fade flex-1">
-          {props.row.unmatched === null ? 'Matches the design.' : UNMATCHED_NOTE[props.row.unmatched]}
-        </p>
-      }
+      fallback={<p class="text-sm m-0 op-fade flex-1">{noDeltaNote(props.row)}</p>}
     >
       <div class="flex-1 max-w-full min-w-0 overflow-x-auto">
         <table class="w-full border-collapse">

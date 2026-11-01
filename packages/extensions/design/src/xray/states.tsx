@@ -95,7 +95,7 @@ export function AllMatch(props: {
 
 export function NothingShown(props: {query: string; filter: Filter; onClear: () => void}): JSX.Element {
   const text = () => {
-    if (props.filter === 'none') return 'Nothing selected. Turn on Off or Match.'
+    if (props.filter === 'none') return 'Nothing selected. Turn on Off.'
     return props.query.trim() === ''
       ? 'No component in this selection.'
       : `No component matches “${props.query.trim()}”.`

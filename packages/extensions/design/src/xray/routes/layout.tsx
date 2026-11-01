@@ -142,7 +142,10 @@ function XrayLayout(): JSX.Element {
     aboveAtRun: [],
   })
 
-  const [data, {refetch}] = createResource(() => ({target: search().target, fixture: search().fixture === 1}), loadData)
+  const dataKey = createMemo(() => ({target: search().target, fixture: search().fixture === 1}), undefined, {
+    equals: (a, b) => a.target === b.target && a.fixture === b.fixture,
+  })
+  const [data, {refetch}] = createResource(dataKey, loadData)
   const current = () => (data.state === 'ready' || data.state === 'refreshing' ? data.latest : undefined)
   const ran = () => (current()?.report ?? null) !== null
   const mode = (): Mode => (ran() ? (search().mode ?? storedMode ?? 'slider') : 'design')

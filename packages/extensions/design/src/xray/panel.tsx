@@ -1,6 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {RelativeTime, SegmentGroup, TooltipIconButton} from '@conciv/ui-kit-system'
-import {choiceFilter, filterChoice, stale, type Filter, type WidthTab, type XrayData} from './data.js'
+import {filterChoice, stale, type Filter, type WidthTab, type XrayData} from './data.js'
 import type {View} from './xray-schemas.js'
 
 const MOBILE_WIDTH = 768
@@ -171,21 +171,8 @@ export function XrayPanel(props: XrayPanelProps): JSX.Element {
           checked={choice().above}
           icon="i-ph-warning-circle-duotone text-orange-600 dark:text-orange-400"
           label="Off"
-          onToggle={(above) => props.onFilter(choiceFilter({...choice(), above}))}
+          onToggle={(above) => props.onFilter(above ? 'all' : 'none')}
         />
-        <CheckChip
-          checked={choice().match}
-          icon="i-ph-check-circle-duotone text-green-600 dark:text-green-400"
-          label="Match"
-          onToggle={(match) => props.onFilter(choiceFilter({...choice(), match}))}
-        />
-        <TooltipIconButton
-          tooltip="Invert selection"
-          class="btn-icon-compact rounded-md"
-          onClick={() => props.onFilter(choiceFilter({above: !choice().above, match: !choice().match}))}
-        >
-          <span class="i-ph-selection-inverse-duotone" aria-hidden="true" />
-        </TooltipIconButton>
         <TooltipIconButton
           tooltip="Select all"
           class="btn-icon-compact rounded-md"
