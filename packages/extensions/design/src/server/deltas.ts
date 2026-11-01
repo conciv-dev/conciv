@@ -54,10 +54,10 @@ function sideStyles(input: {
   glyphs: Box[]
 }): Partial<LiveStyles> {
   const {pair, from, box, raster} = input
-  const textLeaf = pair.live.children.length === 0 && pair.live.text !== ''
+  const paintsText = pair.live.glyphs.length > 0
   const glyphs = input.glyphs.length === 0 ? [box] : input.glyphs
   const fills = sampledFills({raster, box, glyphs, color: input.color})
-  const color = textLeaf && fills.foreground !== null ? {color: fills.foreground} : {}
+  const color = paintsText && fills.foreground !== null ? {color: fills.foreground} : {}
   if (from === 'target') return {background: fills.background, ...color}
   const {background: declared, color: _declared, ...rest} = pair.live.styles
   return {...rest, ...(isOpaqueHex(declared) ? {background: declared} : {}), ...color}

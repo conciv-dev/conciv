@@ -1034,6 +1034,19 @@ describe('text', () => {
     const report = await call('design_diff', {})
     expect(report.components.filter((c) => c.tag === 'input').filter(aboveTolerance)).toHaveLength(1)
   })
+
+  it('a recolored label inside an unsourced span is a foreground delta on its button', async () => {
+    await goto('span-recolor')
+    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    const [first] = await toolbarButtons()
+    const report = await call('design_diff', {})
+    const foreground = reportedFor({report, component: first})
+      .flatMap((c) => c.deltas)
+      .find((d) => d.kind === 'foreground')
+    expect(foreground).toBeDefined()
+    expect(colorDistance(String(foreground?.live), '#ffd166')).toBeLessThanOrEqual(COLOR_DELTA_E)
+    expect(colorDistance(String(foreground?.target), '#ffffff')).toBeLessThanOrEqual(COLOR_DELTA_E)
+  })
 })
 
 const WHITE = [255, 255, 255] as const
