@@ -7,5 +7,5 @@
     "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "include": ["*.ts", "tests"]
+  "include": ["*.ts"]
 }
