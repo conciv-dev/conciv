@@ -39,10 +39,20 @@ async function serve(port: MessagePort): Promise<void> {
   port.on('message', (raw: unknown) => {
     const message = HostMessageSchema.parse(raw)
     if (message.type === 'execute') {
-      void context.execute(message.code).then((result) => {
-        const done: WorkerMessage = {type: 'done', result}
-        port.postMessage(done)
-      })
+      void context
+        .execute(message.code)
+        .catch((error: unknown) => ({
+          success: false,
+          error: {
+            name: error instanceof Error ? error.name : 'Error',
+            message: error instanceof Error ? error.message : String(error),
+          },
+          logs: [],
+        }))
+        .then((result) => {
+          const done: WorkerMessage = {type: 'done', result}
+          port.postMessage(done)
+        })
       return
     }
     const call = pending.get(message.id)
