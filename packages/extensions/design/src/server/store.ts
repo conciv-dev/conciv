@@ -4,10 +4,16 @@ import {mkdir, readdir, readFile, rename, rm, writeFile} from 'node:fs/promises'
 import {join, relative} from 'node:path'
 import {toolError} from '@conciv/extension'
 import {z} from 'zod'
-import {DiffReportSchema, type DiffReport} from '../shared/defs.js'
-import {ModelSchema} from '../shared/model-schemas.js'
+import {BoxSchema, DiffReportSchema, type DiffReport} from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
-import type {Decision, StoredRun, TargetModel, TargetRecord, TargetStore} from '../shared/types.js'
+import {
+  ROLES,
+  type Decision,
+  type StoredRun,
+  type TargetModel,
+  type TargetRecord,
+  type TargetStore,
+} from '../shared/types.js'
 import {decodePng, encodePng} from './raster.js'
 
 export const TARGET_FILE = 'target.png'
@@ -16,6 +22,42 @@ const RECORD_FILE = 'record.json'
 const DECISIONS_FILE = 'decisions.json'
 const CAPTURES_DIR = 'captures'
 const RUN_PREFIXES = ['live-', 'diff-', 'result-']
+
+const OcrLineSchema = z.object({box: BoxSchema, text: z.string(), confidence: z.number()})
+
+const NodeBaseSchema = z.object({id: z.string(), box: BoxSchema, within: z.string().optional()})
+
+const TextNodeSchema = NodeBaseSchema.extend({
+  kind: z.literal('text'),
+  text: z.string(),
+  lines: z.array(OcrLineSchema),
+  confidence: z.number(),
+  role: z.enum(ROLES).optional(),
+  roleConfidence: z.number().optional(),
+  typography: z
+    .object({size: z.number(), lineHeight: z.number(), weight: z.number(), confidence: z.number()})
+    .optional(),
+})
+
+const BoxNodeSchema = NodeBaseSchema.extend({
+  kind: z.literal('box'),
+  paint: z.object({background: z.string()}).optional(),
+  border: z.object({width: z.number(), color: z.string()}).nullable(),
+  radius: z.number(),
+})
+
+const ImageNodeSchema = NodeBaseSchema.extend({kind: z.literal('image')})
+
+const TargetNodeSchema = z.discriminatedUnion('kind', [TextNodeSchema, BoxNodeSchema, ImageNodeSchema])
+
+const ModelSchema = z.object({
+  id: z.string(),
+  source: z.object({kind: z.string(), ref: z.string()}),
+  viewport: z.object({width: z.number(), height: z.number()}),
+  root: z.object({id: z.string(), box: BoxSchema}),
+  nodes: z.array(TargetNodeSchema),
+  scale: z.number(),
+})
 
 const RecordSchema = z.object({
   id: z.string(),

@@ -1,11 +1,12 @@
 import type {ServerApi, ToolRequest} from '@conciv/extension'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import type {DesignConfig} from './config.js'
+import type {DesignConfig} from './tolerances.js'
 import type {DeltaKindName, DiffInput, DiffReport, StatusReport, TargetInput, TargetResult} from './defs.js'
-import type {Role} from './roles.js'
 
-export type {DeltaKindName, DiffReport}
+export const ROLES = ['placeholder', 'data', 'unknown'] as const
+export type Role = (typeof ROLES)[number]
+export type LiveRole = 'literal' | 'expression' | 'mixed'
 
 export type Box = {x: number; y: number; w: number; h: number}
 export type Raster = {width: number; height: number; data: Uint8Array}
@@ -13,7 +14,7 @@ export type SourceLoc = {file: string; line: number; column: number}
 
 export type OcrLine = {box: Box; text: string; confidence: number}
 export type Border = {width: number; color: string}
-export type Typography = {size: number; lineHeight: number; weight: number; confidence: number}
+type Typography = {size: number; lineHeight: number; weight: number; confidence: number}
 type NodeBase = {id: string; box: Box; within?: string}
 export type TextNode = NodeBase & {
   kind: 'text'
@@ -27,7 +28,7 @@ export type TextNode = NodeBase & {
 export type BoxNode = NodeBase & {kind: 'box'; paint?: {background: string}; border: Border | null; radius: number}
 export type ImageNode = NodeBase & {kind: 'image'}
 export type TargetNode = TextNode | BoxNode | ImageNode
-export type TargetRoot = {id: string; box: Box}
+type TargetRoot = {id: string; box: Box}
 export type TargetModel = {
   id: string
   source: {kind: string; ref: string}
@@ -199,7 +200,7 @@ export type TargetRecord = {
   createdAt: number
   acceptedRun?: string
 }
-export type DecisionKind = 'pin' | 'excluded' | 'image-slot' | 'accept-delta' | 'tolerance'
+type DecisionKind = 'pin' | 'excluded' | 'image-slot' | 'accept-delta' | 'tolerance'
 export type Decision = {id: string; kind: DecisionKind; anchor: string; value: string | number | null; at: number}
 export type StoredRun = {run: string; report: DiffReport}
 export type TargetStore = {
@@ -223,20 +224,6 @@ export type TargetStore = {
   }): Promise<DiffReport>
   lastResult(id: string): Promise<DiffReport | null>
   reportPath(path: string): string
-}
-export type Registries = {
-  adapters: TargetAdapter[]
-  enrichers: Enricher[]
-  captures: Record<DesignConfig['capture'], Capture>
-  pixel: Record<DesignConfig['comparator'], PixelComparator>
-  geometry: Record<DesignConfig['geometry'], GeometryEstimator>
-  color: Record<DesignConfig['color'], ColorMetric>
-  matchers: Record<DesignConfig['matcher'], Matcher>
-  text: Record<DesignConfig['text'], TextReader>
-  segmenters: Record<DesignConfig['segmenter'], Segmenter>
-  roles: Record<DesignConfig['roles'], RoleRules>
-  deltaKinds: DeltaKind[]
-  mappers: ProvenanceMapper[]
 }
 export type DesignRuntime = {
   cwd: string

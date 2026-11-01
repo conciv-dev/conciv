@@ -1,18 +1,41 @@
 import {readdir} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {defineExtension} from '@conciv/extension'
+import {defineExtension, type ServerApi} from '@conciv/extension'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import {designConfig} from './shared/config.js'
+import {designConfig, type DesignConfig} from './shared/tolerances.js'
 import {DESIGN_EXTENSION_NAME, DESIGN_GUIDE} from './shared/defs.js'
 import type {CssMap, DesignRuntime} from './shared/types.js'
-import {destroyPaddle} from './server/comparators/paddle.js'
-import {buildCssMap} from './server/provenance/css-map.js'
-import {createDiffer} from './server/differ.js'
-import {pickRuntime} from './server/registries.js'
+import {COLOR_METRICS, DELTA_KINDS} from './server/deltas.js'
+import {CAPTURES, createDiffer, GEOMETRY, MATCHERS, PIXEL_COMPARATORS, SERVER_STEPS} from './server/differ.js'
+import {buildCssMap, MAPPERS} from './server/provenance.js'
 import {createTargetStore} from './server/store.js'
+import {ADAPTERS, destroyPaddle, ENRICHERS, ROLE_RULES, SEGMENTERS, TEXT_READERS} from './server/target.js'
 import {makeXrayApp, makeXrayRouter} from './server/xray-routes.js'
-import {SERVER_STEPS} from './tool/server.js'
+
+function pickRuntime(input: {
+  config: DesignConfig
+  server: ServerApi<DesignConfig>
+}): Omit<DesignRuntime, 'store' | 'cssMap' | 'xrayUrl'> {
+  const {config} = input
+  return {
+    cwd: input.server.cwd,
+    capture: CAPTURES[config.capture],
+    comparators: {
+      pixel: PIXEL_COMPARATORS[config.comparator],
+      geometry: GEOMETRY[config.geometry],
+      color: COLOR_METRICS[config.color],
+      text: TEXT_READERS[config.text],
+    },
+    matcher: MATCHERS[config.matcher],
+    adapters: ADAPTERS,
+    enrichers: ENRICHERS,
+    segmenter: SEGMENTERS[config.segmenter],
+    roles: ROLE_RULES[config.roles],
+    deltaKinds: DELTA_KINDS,
+    mappers: MAPPERS,
+  }
+}
 
 async function cssFiles(cwd: string): Promise<string[]> {
   const root = join(cwd, 'src')

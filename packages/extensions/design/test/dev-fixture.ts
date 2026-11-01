@@ -1,7 +1,7 @@
 import {compact} from 'es-toolkit'
-import type {DiffReport} from '../shared/defs.js'
-import type {Box, TargetRecord} from '../shared/types.js'
-import {assemble, type Delta, type ReportResponse, type XrayData} from './data.js'
+import type {DiffReport} from '../src/shared/defs.js'
+import type {Box, TargetRecord} from '../src/shared/types.js'
+import {assemble, type Delta, type ReportResponse, type XrayData} from '../src/xray/panel.js'
 
 const ROUTE = '/?variant=target'
 const HOME = '.conciv/design'

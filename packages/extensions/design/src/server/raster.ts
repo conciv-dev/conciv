@@ -248,7 +248,7 @@ export function expand(input: {box: Box; by: number}): Box {
   return {x: box.x - by, y: box.y - by, w: box.w + by * 2, h: box.h + by * 2}
 }
 
-export function differs(input: {data: Uint8Array; index: number; background: Uint8Array}): boolean {
+function differs(input: {data: Uint8Array; index: number; background: Uint8Array}): boolean {
   const {data, index, background} = input
   return range(4).some(
     (channel) => Math.abs((data[index * 4 + channel] ?? 0) - (background[channel] ?? 0)) > TOLERANCES.inkTrimThreshold,
@@ -367,4 +367,37 @@ export function openMask(input: {mask: Uint8Array; width: number; height: number
     pass(mask, (count) => count === 9),
     (count) => count > 0,
   )
+}
+
+function clampedArea(box: Box): number {
+  return Math.max(0, box.w) * Math.max(0, box.h)
+}
+
+function sharedLength(input: {start: number; length: number; otherStart: number; otherLength: number}): number {
+  const {start, length, otherStart, otherLength} = input
+  return Math.max(0, Math.min(start + length, otherStart + otherLength) - Math.max(start, otherStart))
+}
+
+export function overlapping(input: {a: Box; b: Box}): boolean {
+  const {a, b} = input
+  const shared =
+    sharedLength({start: a.x, length: a.w, otherStart: b.x, otherLength: b.w}) *
+    sharedLength({start: a.y, length: a.h, otherStart: b.y, otherLength: b.h})
+  return shared > Math.min(clampedArea(a), clampedArea(b)) / 2
+}
+
+export function sameLine(input: {a: Box; b: Box}): boolean {
+  const {a, b} = input
+  return sharedLength({start: a.y, length: a.h, otherStart: b.y, otherLength: b.h}) >= Math.min(a.h, b.h) / 2
+}
+
+export function union(boxes: Box[]): Box {
+  const x = Math.min(...boxes.map((box) => box.x))
+  const y = Math.min(...boxes.map((box) => box.y))
+  return {
+    x,
+    y,
+    w: Math.max(...boxes.map((box) => box.x + box.w)) - x,
+    h: Math.max(...boxes.map((box) => box.y + box.h)) - y,
+  }
 }

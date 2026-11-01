@@ -17,7 +17,7 @@ export function designVerb(name: string): string {
   return name.slice(DESIGN_TOOL_PREFIX.length)
 }
 
-export const DELTA_KIND_NAMES = [
+const DELTA_KIND_NAMES = [
   'inset-left',
   'inset-right',
   'inset-top',
@@ -36,7 +36,7 @@ export const DELTA_KIND_NAMES = [
   'text',
 ] as const
 
-export const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
+const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
 
 export type DeltaKindName = z.infer<typeof DeltaKindNameSchema>
 
@@ -55,7 +55,7 @@ export const LiveStylesSchema = z.object({
 
 export const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
 
-export const LiveComponentSchema = z.object({
+const LiveComponentSchema = z.object({
   source: SourceLocSchema.nullable(),
   tag: z.string(),
   text: z.string(),
@@ -70,7 +70,7 @@ export const LiveComponentSchema = z.object({
   children: z.array(z.record(z.string(), z.unknown())).describe('nested components of the same shape'),
 })
 
-export const ProvenanceSchema = z.object({
+const ProvenanceSchema = z.object({
   via: z.enum(['sx', 'style', 'className', 'css', 'emotion', 'styled', 'library', 'source', 'unknown']),
   file: z.string().optional(),
   line: z.number().optional(),
@@ -80,7 +80,7 @@ export const ProvenanceSchema = z.object({
   suggest: z.string().optional(),
 })
 
-export const DeltaSchema = ProvenanceSchema.partial().extend({
+const DeltaSchema = ProvenanceSchema.partial().extend({
   kind: DeltaKindNameSchema,
   side: z.enum(['left', 'right', 'top', 'bottom', 'x', 'y']).optional(),
   live: z.union([z.number(), z.string()]),
@@ -92,14 +92,14 @@ export const DeltaSchema = ProvenanceSchema.partial().extend({
     .describe('the live text is a literal equal to sample data in the design; render it from the data instead'),
 })
 
-export const UnmatchedSchema = z.object({
+const UnmatchedSchema = z.object({
   kind: z.enum(['missing', 'extra']),
   target: BoxSchema.optional(),
   live: BoxSchema.optional(),
   source: SourceLocSchema.optional(),
 })
 
-export const WinnerSchema = z.object({
+const WinnerSchema = z.object({
   selector: z.string().nullable(),
   declaration: z.string(),
   value: z.string(),
@@ -117,7 +117,7 @@ export const WinnerSchema = z.object({
   rulePath: z.string(),
 })
 
-export const TargetResultSchema = z.object({
+const TargetResultSchema = z.object({
   id: z.string(),
   route: z.string().optional(),
   width: z.number(),
@@ -127,7 +127,7 @@ export const TargetResultSchema = z.object({
   next: z.string(),
 })
 
-export const ComponentReportSchema = z.object({
+const ComponentReportSchema = z.object({
   source: SourceLocSchema.nullable(),
   tag: z.string(),
   selector: z.string(),
@@ -138,7 +138,7 @@ export const ComponentReportSchema = z.object({
   children: z.number(),
 })
 
-export const RouteItemSchema = z
+const RouteItemSchema = z
   .object({live: z.string(), target: z.string()})
   .describe('the tab shows another route than the design target; nothing was measured')
 
@@ -161,7 +161,7 @@ export const DiffReportSchema = z.object({
 
 export type DiffReport = z.infer<typeof DiffReportSchema>
 
-export const StatusReportSchema = z.object({
+const StatusReportSchema = z.object({
   route: z.string().optional(),
   targets: z.array(
     z.object({
@@ -177,7 +177,7 @@ export const StatusReportSchema = z.object({
   reregister: z.boolean().optional().describe('the stored target is unreadable; register the design image again'),
 })
 
-export const CaptureResultSchema = z.object({
+const CaptureResultSchema = z.object({
   path: z.string(),
   width: z.number(),
   height: z.number(),
@@ -189,7 +189,7 @@ export const ViewportResultSchema = z.object({width: z.number(), height: z.numbe
 
 export const WinnerResultSchema = z.record(z.string(), WinnerSchema.nullable())
 
-export const ClearResultSchema = z.object({removed: z.number()})
+const ClearResultSchema = z.object({removed: z.number()})
 
 const Width = z.number().int().positive()
 
@@ -335,7 +335,7 @@ const CAPTURE_SPEC = {
 
 export const captureDef = designTool({...CAPTURE_SPEC, input: CaptureInputSchema})
 
-export const TabCaptureInputSchema = CaptureInputSchema.extend({
+const TabCaptureInputSchema = CaptureInputSchema.extend({
   width: Width.optional().describe('viewport width of the hidden capture frame; defaults to the tab width'),
 })
 
@@ -371,7 +371,6 @@ export const DESIGN_TOOL_DEFS = [targetDef, diffDef, statusDef, captureDef, winn
 
 export type TargetInput = z.output<typeof TargetInputSchema>
 export type DiffInput = z.output<typeof DiffInputSchema>
-export type StatusInput = z.output<typeof StatusInputSchema>
 export type CaptureInput = z.output<typeof CaptureInputSchema>
 export type TabCaptureInput = z.output<typeof TabCaptureInputSchema>
 export type WinnerInput = z.output<typeof WinnerInputSchema>
