@@ -1,4 +1,4 @@
-import {setImmediate} from 'node:timers/promises'
+import {setImmediate as nextMacrotask} from 'node:timers/promises'
 import {afterAll, afterEach, beforeAll, expect, test, describe, it} from 'vitest'
 import {defineConcivFunction} from '@conciv/extension/devframe-function'
 import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
@@ -80,7 +80,7 @@ describe('devframe faults', () => {
       settled.done = true
       return value
     })
-    await setImmediate()
+    await nextMacrotask()
     expect(settled.done).toBe(false)
     hold.release()
     expect(await pending).toBe('pong')
