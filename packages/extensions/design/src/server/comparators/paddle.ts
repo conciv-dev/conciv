@@ -152,9 +152,10 @@ async function createService(): Promise<OcrService> {
   return ocr
 }
 
-const state: {service: Promise<OcrService> | null; queue: Promise<unknown>} = {
+const state: {service: Promise<OcrService> | null; queue: Promise<unknown>; disposing: boolean} = {
   service: null,
   queue: Promise.resolve(),
+  disposing: false,
 }
 
 function paddleService(): Promise<OcrService> {
@@ -218,14 +219,22 @@ async function recognize(input: {raster: Raster}): Promise<TextRun[]> {
 
 export const paddleReader: TextReader = {
   name: 'paddle',
-  read: ({raster}) => serialized(() => recognize({raster})),
+  read: ({raster}) => {
+    if (state.disposing) return Promise.reject(new Error('the OCR reader is shutting down'))
+    return serialized(() => recognize({raster}))
+  },
+}
+
+async function destroyService(): Promise<void> {
+  const pending = state.service
+  state.service = null
+  const service = await pending?.catch(() => null)
+  await service?.destroy()
 }
 
 export async function destroyPaddle(): Promise<void> {
-  const pending = state.service
-  state.service = null
-  if (pending === null) return
-  const service = await pending.catch(() => null)
-  if (service === null) return
-  await serialized(() => service.destroy())
+  state.disposing = true
+  await serialized(destroyService).finally(() => {
+    state.disposing = false
+  })
 }

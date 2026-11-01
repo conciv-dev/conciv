@@ -39,7 +39,7 @@ import {
 } from '@conciv/extension-design/defs'
 import {mapDeclaration} from '@conciv/extension-design/provenance'
 import {glyphCoreColor} from '@conciv/extension-design/colors'
-import {trimToInk} from '@conciv/extension-design/paddle'
+import {destroyPaddle, paddleReader, trimToInk} from '@conciv/extension-design/paddle'
 import {groupText} from '@conciv/extension-design/text-groups'
 import type {Box, ColorMetric, LiveComponent, Provenance, Raster, TextRun, Winner} from '@conciv/extension-design/types'
 import {unplugin} from '../src/plugin-instance.js'
@@ -1217,5 +1217,19 @@ describe('glyphCoreColor', () => {
     const ink = glyphCoreColor({raster, box, glyphs: [box], background: '#426bf2', color: ciede2000})
     expect(ink).not.toBeNull()
     expect(colorDistance(String(ink), '#ffd166')).toBeLessThanOrEqual(COLOR_DELTA_E)
+  })
+})
+
+describe('paddle disposal', () => {
+  it('a read queued before disposal finishes first and a read during disposal is refused', async () => {
+    await destroyPaddle()
+    const raster = painted({inks: []})
+    const settled: string[] = []
+    const queued = paddleReader.read({raster}).then(() => settled.push('read'))
+    const disposed = destroyPaddle().then(() => settled.push('disposed'))
+    await expect(paddleReader.read({raster})).rejects.toThrow('the OCR reader is shutting down')
+    await Promise.all([queued, disposed])
+    expect(settled).toEqual(['read', 'disposed'])
+    expect(await paddleReader.read({raster})).toEqual([])
   })
 })
