@@ -30,23 +30,37 @@ function boot(): Promise<Engine> {
   })
 }
 
-async function hostPage(): Promise<{server: Server; url: string}> {
-  const bundle = await build({
-    entryPoints: [fileURLToPath(new URL('./spike/client-entry.ts', import.meta.url))],
+async function bundle(entry: string): Promise<string> {
+  const output = await build({
+    entryPoints: [fileURLToPath(new URL(entry, import.meta.url))],
     bundle: true,
     format: 'esm',
     platform: 'browser',
     write: false,
   })
-  const script = bundle.outputFiles[0]?.text ?? ''
+  return output.outputFiles[0]?.text ?? ''
+}
+
+async function hostPage(): Promise<{server: Server; url: string}> {
+  const scripts: Record<string, string> = {
+    '/client.js': await bundle('./spike/client-entry.ts'),
+    '/panel.js': await bundle('./spike/panel-entry.ts'),
+  }
+  const pages: Record<string, string> = {
+    '/panel.html': '<!doctype html><title>panel</title><script type="module" src="/panel.js"></script>',
+  }
   const server = createServer((request, response) => {
-    if (request.url === '/client.js') {
+    const script = scripts[request.url ?? '']
+    if (script !== undefined) {
       response.writeHead(200, {'content-type': 'text/javascript'})
       response.end(script)
       return
     }
     response.writeHead(200, {'content-type': 'text/html; charset=utf-8'})
-    response.end('<!doctype html><title>host</title><script type="module" src="/client.js"></script>')
+    response.end(
+      pages[request.url ?? ''] ??
+        '<!doctype html><title>host</title><img src="data:," width="1" height="1"><script type="module" src="/client.js"></script>',
+    )
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -68,6 +82,13 @@ async function openTab(context: BrowserContext, url: string, base: string): Prom
 declare global {
   interface Window {
     getDevframeRpcClient: typeof import('devframe/client').getDevframeRpcClient
+    createPageScriptChannel: typeof import('devframe/in-page-channel').createPageScriptChannel
+    connectPanelChannel: typeof import('devframe/in-page-channel').connectPanelChannel
+    loadA11y: () => Promise<typeof import('@devframes/plugin-a11y/client-script')>
+    reconnectingClient: (
+      baseURL: string,
+      onClient: (client: import('devframe/client').DevframeRpcClient) => void,
+    ) => Promise<void>
     client: import('devframe/client').DevframeRpcClient
   }
 }
@@ -284,6 +305,135 @@ describe('devframe plane spike', () => {
     console.log('SERVICES', JSON.stringify(outcome))
     expect(outcome.html).toContain('<pre')
     expect(outcome.outside).not.toBe('opened')
+  })
+
+  it('exposes a page-script tool to the server MCP through the browser agent bridge', async () => {
+    await page.evaluate(() => {
+      window.createPageScriptChannel({
+        name: 'conciv:page',
+        functions: {
+          title: {type: 'query', agent: {description: 'Read the host page title.'}, handler: () => document.title},
+        },
+      })
+    })
+    const mcp = async (method: string, params: object): Promise<string> => {
+      const response = await fetch(`${base()}__mcp`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          authorization: `Bearer ${MCP_TOKEN}`,
+        },
+        body: JSON.stringify({jsonrpc: '2.0', id: 1, method, params}),
+      })
+      return response.text()
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    const listed = await mcp('tools/list', {})
+    const name = listed.match(/"name":"([^"]*title[^"]*)"/)?.[1]
+    console.log('PAGE TOOL', name)
+    expect(name).toBeDefined()
+    const called = await mcp('tools/call', {name, arguments: {}})
+    expect(called).toContain('host')
+  })
+
+  it('connects a panel iframe to the page script without the server', async () => {
+    await page.evaluate(() => {
+      window.createPageScriptChannel({
+        name: 'conciv:panel',
+        functions: {measure: {type: 'query', handler: () => window.innerWidth}},
+      })
+      const frame = document.createElement('iframe')
+      frame.src = '/panel.html'
+      document.body.append(frame)
+    })
+    const frame = await (await page.waitForSelector('iframe')).contentFrame()
+    if (!frame) throw new Error('panel frame did not load')
+    await frame.waitForFunction(() => 'connectPanelChannel' in window)
+    const width = await frame.evaluate(async () => {
+      const channel = window.connectPanelChannel({name: 'conciv:panel', functions: {}})
+      return channel.call('measure')
+    })
+    expect(width).toBeGreaterThan(0)
+  })
+
+  it('runs the a11y scanner on the host page and reports into the messages feed', async () => {
+    const found = await page.evaluate(async () => {
+      const a11y = await window.loadA11y()
+      a11y.default({
+        messages: {
+          add: (input) => window.client.call('hub:messages:add', input),
+          remove: (id) => window.client.call('hub:messages:remove', id),
+        },
+      })
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const feed = (await window.client.call('devframes:plugin:messages:list')) as {
+          entries: {category?: string; message: string}[]
+        }
+        const a11y = feed.entries.filter((entry) => entry.category === 'a11y')
+        if (a11y.length > 1) return a11y.map((entry) => entry.message)
+        await new Promise((resolve) => setTimeout(resolve, 200))
+      }
+      return []
+    })
+    console.log('A11Y', JSON.stringify(found).slice(0, 300))
+    expect(found.length).toBeGreaterThan(1)
+  })
+
+  it('registers browser-side agent functions as WebMCP tools', async () => {
+    const tab = await context.newPage()
+    await tab.addInitScript(() => {
+      const tools: {name: string; execute: (args: Record<string, unknown>) => Promise<{content: {text: string}[]}>}[] =
+        []
+      Object.assign(navigator, {modelContext: {registerTool: (tool: (typeof tools)[number]) => void tools.push(tool)}})
+      Object.assign(window, {webMcpTools: tools})
+    })
+    await tab.goto(host.url, {waitUntil: 'domcontentloaded'})
+    await tab.waitForFunction(() => 'getDevframeRpcClient' in window)
+    const outcome = await tab.evaluate(async (baseURL) => {
+      const client = await window.getDevframeRpcClient({baseURL})
+      client.client.register({
+        name: 'conciv:page:selection',
+        type: 'query',
+        agent: {description: 'Read the text the user selected on the page.'},
+        handler: () => 'selected text',
+      })
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      const tools = (
+        window as unknown as {
+          webMcpTools: {name: string; execute: (args: object) => Promise<{content: {text: string}[]}>}[]
+        }
+      ).webMcpTools
+      const tool = tools.find((candidate) => candidate.name.includes('selection'))
+      const result = tool ? await tool.execute({}) : null
+      return {names: tools.map((candidate) => candidate.name), text: result?.content[0]?.text}
+    }, base())
+    console.log('WEBMCP', JSON.stringify(outcome))
+    await tab.close()
+    expect(outcome.text).toContain('selected text')
+  })
+
+  it('recovers a tab when the engine restarts under it, through a small reconnect wrapper', async () => {
+    await page.evaluate(async (baseURL) => {
+      window.client.close?.()
+      await window.reconnectingClient(baseURL, (client) => Object.assign(window, {client}))
+    }, base())
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await engine.stop()
+    engine = await boot()
+    const outcome = await page.evaluate(async () => {
+      for (let attempt = 0; attempt < 40; attempt++) {
+        try {
+          if (await window.client.ensureTrusted(250))
+            return {recovered: true, sessions: ((await window.client.call('conciv:sessions:list')) as unknown[]).length}
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 150))
+        }
+      }
+      return {recovered: false}
+    })
+    console.log('RECONNECT', JSON.stringify(outcome))
+    expect(outcome).toEqual({recovered: true, sessions: 1})
   })
 
   it('remembers the tab across an engine restart', async () => {
