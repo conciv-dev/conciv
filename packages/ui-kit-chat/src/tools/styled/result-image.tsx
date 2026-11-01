@@ -1,10 +1,17 @@
 import {splitProps, type JSX} from 'solid-js'
+import {ZoomableImage} from '@conciv/ui-kit-system'
+import {useViewportInternal} from '../../primitives/thread/viewport-internal.js'
 
-const IMAGE_CLASS =
-  'rounded-[var(--chat-radius-sm)] max-h-60 max-w-full [border:1px_solid_var(--chat-line)] self-start block'
+export function panelLayer(element: HTMLElement | undefined): HTMLElement | undefined {
+  return element?.closest<HTMLElement>('[data-conciv-panel]')?.parentElement ?? undefined
+}
 
-export function ResultImage(props: {src: string; alt: string; class?: string}): JSX.Element {
-  const [local] = splitProps(props, ['src', 'alt', 'class'])
-  const imageClass = (): string => `${IMAGE_CLASS} ${local.class ?? ''}`
-  return <img src={local.src} alt={local.alt} class={imageClass()} />
+export function ResultImage(props: {src: string; alt: string}): JSX.Element {
+  const [local] = splitProps(props, ['src', 'alt'])
+  const viewport = useViewportInternal()
+  const portal = (): HTMLElement | undefined => {
+    const element = viewport?.element()
+    return panelLayer(element) ?? element
+  }
+  return <ZoomableImage src={local.src} alt={local.alt} portal={portal()} />
 }

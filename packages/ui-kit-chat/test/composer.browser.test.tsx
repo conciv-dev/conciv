@@ -1,7 +1,17 @@
 import 'virtual:uno.css'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it, describe} from 'vitest'
-import {type JSX, createSignal, For, Show, splitProps, untrack, type ParentProps, type Accessor} from 'solid-js'
+import {
+  type JSX,
+  createSignal,
+  For,
+  Show,
+  splitProps,
+  untrack,
+  onMount,
+  type ParentProps,
+  type Accessor,
+} from 'solid-js'
 import {ActionBar} from '../src/primitives/action-bar/action-bar.js'
 import {MessageProvider} from '../src/primitives/message/message-context.js'
 import type {Turn} from '../src/store/grouping.js'
@@ -20,7 +30,15 @@ import {render} from '@solidjs/testing-library'
 import {Composer as ComposerPrimitive} from '../src/primitives/composer/composer.js'
 import {ComposerHandlersProvider, type ComposerHandlers} from '../src/primitives/composer/composer-handlers.js'
 import {useComposerContext, type ComposerContextValue} from '../src/primitives/composer/composer-context.js'
-import {createTextAttachmentAdapter} from '../src/primitives/attachment/attachment-adapter.js'
+import {
+  composeAttachmentAdapters,
+  createSimpleImageAttachmentAdapter,
+  createTextAttachmentAdapter,
+  type CompleteAttachment,
+} from '../src/primitives/attachment/attachment-adapter.js'
+import {AttachmentProvider} from '../src/primitives/attachment/attachment.js'
+import {AttachmentUI} from '../src/styled/attachment-ui.js'
+import {SAMPLE_IMAGE_BASE64, SAMPLE_IMAGE_MIME} from '../src/store/sample-image.fixtures.js'
 import type {WebStorage} from '@conciv/storage-history'
 import {Error as ErrorPrimitive} from '../src/primitives/error/error.js'
 import {Composer} from '../src/styled/composer.js'
@@ -206,6 +224,126 @@ describe('assistant action bar reveal', () => {
     await userEvent.keyboard('{Enter}')
 
     await expect.element(page.getByRole('button', {name: 'Copy failed'})).toBeVisible()
+  })
+})
+
+describe('attachment image viewer', () => {
+  const IMAGE = 'shot.png'
+  const DOCUMENT = 'notes.txt'
+
+  const imageFile = (): File =>
+    new File([Uint8Array.from(atob(SAMPLE_IMAGE_BASE64), (character) => character.charCodeAt(0))], IMAGE, {
+      type: SAMPLE_IMAGE_MIME,
+    })
+  const textFile = (): File => new File(['notes'], DOCUMENT, {type: 'text/plain'})
+
+  const tile = () => page.getByRole('button', {name: `Open ${IMAGE}`})
+  const viewer = () => page.getByRole('dialog', {name: IMAGE})
+  const panel = () => page.getByRole('region', {name: 'panel'})
+
+  function Panel(props: ParentProps): JSX.Element {
+    return (
+      <section aria-label="panel" data-conciv-panel class="[transform:translateX(0)] overflow-hidden">
+        {props.children}
+      </section>
+    )
+  }
+
+  function Staged(props: {files: File[]}): JSX.Element {
+    const composer = useComposerContext()
+    onMount(() => props.files.forEach((file) => void composer.addAttachment(file)))
+    return <></>
+  }
+
+  function mountComposer(files: File[]): void {
+    const adapter = composeAttachmentAdapters([createSimpleImageAttachmentAdapter(), createTextAttachmentAdapter()])
+    render(() => {
+      const chat = createChat({threadId: 'attachment-viewer', connection: storyConnection(untrack(() => undefined))})
+      return (
+        <ChatProvider chat={chat}>
+          <Panel>
+            <ComposerHandlersProvider value={{onSend: () => {}, onCancel: () => {}}}>
+              <Composer attachmentAdapter={adapter}>
+                <Staged files={files} />
+              </Composer>
+            </ComposerHandlersProvider>
+          </Panel>
+        </ChatProvider>
+      )
+    })
+  }
+
+  function mountSent(source: string): void {
+    const attachment: CompleteAttachment = {
+      id: 'sent',
+      type: 'image',
+      name: IMAGE,
+      content: [{type: 'image', source: {type: 'url', value: source}}],
+      status: {type: 'complete'},
+    }
+    render(() => (
+      <Panel>
+        <AttachmentProvider value={attachment}>
+          <AttachmentUI />
+        </AttachmentProvider>
+      </Panel>
+    ))
+  }
+
+  it('opens the full image outside the transformed panel, and toggles actual size', async () => {
+    mountComposer([imageFile()])
+
+    await tile().click()
+
+    await expect.element(viewer().getByRole('img', {name: IMAGE})).toBeVisible()
+    await expect.element(panel().getByRole('dialog')).not.toBeInTheDocument()
+    await viewer().getByRole('button', {name: 'Show actual size'}).click()
+    await expect.element(viewer().getByRole('button', {name: 'Fit to window'})).toBeVisible()
+  })
+
+  it('Escape closes the viewer and returns a visible focus to the tile', async () => {
+    mountComposer([imageFile()])
+
+    await tile().click()
+    await expect.element(viewer()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+
+    await expect.element(viewer()).not.toBeInTheDocument()
+    await expect.element(tile()).toHaveFocus()
+    expect(document.activeElement?.matches(':focus-visible')).toBe(true)
+    await userEvent.keyboard('{Enter}')
+    await viewer().getByRole('button', {name: 'Close'}).click()
+    await expect.element(viewer()).not.toBeInTheDocument()
+    await expect.element(tile()).toHaveFocus()
+  })
+
+  it('Remove drops the attachment without opening the viewer', async () => {
+    mountComposer([imageFile()])
+
+    await page.getByRole('button', {name: `Remove ${IMAGE}`}).click()
+
+    await expect.element(tile()).not.toBeInTheDocument()
+    await expect.element(viewer()).not.toBeInTheDocument()
+  })
+
+  it('a document tile stays inert', async () => {
+    mountComposer([textFile()])
+
+    await page.getByRole('button', {name: DOCUMENT}).click()
+
+    await expect.element(page.getByRole('button', {name: `Open ${DOCUMENT}`})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('a sent image tile opens the viewer too', async () => {
+    const source = `data:${SAMPLE_IMAGE_MIME};base64,${SAMPLE_IMAGE_BASE64}`
+    mountSent(source)
+
+    await tile().click()
+
+    await expect.element(viewer().getByRole('img', {name: IMAGE})).toHaveAttribute('src', source)
+    await expect.element(panel().getByRole('dialog')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: `Remove ${IMAGE}`})).not.toBeInTheDocument()
   })
 })
 

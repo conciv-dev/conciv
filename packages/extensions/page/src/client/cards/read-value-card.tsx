@@ -44,6 +44,6 @@ export const readValueCard: ToolCardView = {
   render: ReadValueCard,
   hasEmbeddedBody: (_part, result) =>
     cardErrorMessage(result) !== undefined ||
-    payloadIsStructured(cardPayload(result)) ||
-    resultChips(result).length > 0,
+    (parseResultMedia(result).imageUrl === undefined &&
+      (payloadIsStructured(cardPayload(result)) || resultChips(result).length > 0)),
 }
