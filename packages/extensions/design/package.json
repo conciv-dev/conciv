@@ -17,7 +17,8 @@
     "directory": "packages/extensions/design"
   },
   "files": [
-    "dist"
+    "dist",
+    "models"
   ],
   "type": "module",
   "exports": {
@@ -74,10 +75,13 @@
     "culori": "catalog:",
     "es-toolkit": "catalog:",
     "hono": "catalog:",
+    "onnxruntime-web": "catalog:",
     "oxc-parser": "catalog:",
     "pixelmatch": "catalog:",
     "pngjs": "catalog:",
     "postcss": "catalog:",
+    "ppu-ocv": "catalog:",
+    "ppu-paddle-ocr": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

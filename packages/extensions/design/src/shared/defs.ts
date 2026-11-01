@@ -113,6 +113,7 @@ export const TargetResultSchema = z.object({
   width: z.number(),
   height: z.number(),
   scale: z.number(),
+  text: z.object({runs: z.number(), error: z.string().optional()}).optional(),
 })
 
 export const ComponentReportSchema = z.object({

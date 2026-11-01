@@ -636,6 +636,28 @@ async function toolbarButtons(): Promise<LiveComponent[]> {
   return toolbar?.children ?? []
 }
 
+const StoredModelSchema = z.object({
+  root: z.object({
+    children: z.array(
+      z.object({
+        kind: z.string().optional(),
+        text: z.string().optional(),
+        box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
+      }),
+    ),
+  }),
+})
+
+function inside(input: {inner: LiveComponent['box']; outer: LiveComponent['box']}): boolean {
+  const {inner, outer} = input
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.w <= outer.x + outer.w &&
+    inner.y + inner.h <= outer.y + outer.h
+  )
+}
+
 function reportedFor(input: {report: DiffReport; component: LiveComponent | undefined}): DiffReport['components'] {
   const {report, component} = input
   if (component === undefined) return []
@@ -643,6 +665,21 @@ function reportedFor(input: {report: DiffReport; component: LiveComponent | unde
 }
 
 describe('text', () => {
+  it('reads the text runs of a target once at registration', async () => {
+    await goto('target')
+    const [first] = await toolbarButtons()
+    const registered = await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    expect(registered.text?.runs).toBeGreaterThan(0)
+    const stored = StoredModelSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${registered.id}/model.json`), 'utf8')),
+    )
+    const label = stored.root.children.find((child) => child.kind === 'text' && child.text?.toLowerCase() === 'export')
+    expect(label).toBeDefined()
+    expect(first).toBeDefined()
+    if (label === undefined || first === undefined) return
+    expect(inside({inner: label.box, outer: first.box})).toBe(true)
+  })
+
   it('a recolored label is a foreground delta measured from glyph ink', async () => {
     await goto('text-recolor')
     await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})

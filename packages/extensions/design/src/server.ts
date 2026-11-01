@@ -6,6 +6,7 @@ import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {designConfig} from './shared/config.js'
 import {DESIGN_EXTENSION_NAME} from './shared/defs.js'
 import type {CssMap, DesignRuntime} from './shared/types.js'
+import {destroyPaddle} from './server/comparators/paddle.js'
 import {buildCssMap} from './server/provenance/css-map.js'
 import {pickRuntime} from './server/registries.js'
 import {createTargetStore} from './server/store.js'
@@ -62,7 +63,10 @@ export const design = defineExtension({
     context: {design: runtime},
     router: makeXrayRouter({store, designDir}),
     app: makeXrayApp({store, pageDir: fileURLToPath(new URL('xray/', import.meta.url)), designDir, cwd: server.cwd}),
-    dispose: css.dispose,
+    dispose: async () => {
+      await destroyPaddle()
+      css.dispose()
+    },
   }
 })
 
