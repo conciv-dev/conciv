@@ -37,6 +37,7 @@ function report(input: {target: TargetRecord; body: Pick<DiffReport, 'mismatch' 
     diffImage: `${HOME}/${target.id}/diff-${at}.png`,
     livePath: `${HOME}/${target.id}/live-${at}.png`,
     xray: '',
+    warnings: [],
     ...input.body,
   }
   return value
@@ -245,14 +246,15 @@ const DESKTOP_RESPONSE: ReportResponse = {
   target: TARGETS.desktop,
   report: DESKTOP,
   targetImage: '',
+  nodes: [],
   sourceChangedAt: Date.now() - SOURCE_CHANGE_AGE_MS,
 }
 
 const RESPONSES: ReportResponse[] = [
-  {target: TARGETS.narrow, report: NARROW, targetImage: '', sourceChangedAt: null},
+  {target: TARGETS.narrow, report: NARROW, targetImage: '', nodes: [], sourceChangedAt: null},
   DESKTOP_RESPONSE,
-  {target: TARGETS.large, report: LARGE, targetImage: '', sourceChangedAt: null},
-  {target: TARGETS.wide, report: null, targetImage: '', sourceChangedAt: null},
+  {target: TARGETS.large, report: LARGE, targetImage: '', nodes: [], sourceChangedAt: null},
+  {target: TARGETS.wide, report: null, targetImage: '', nodes: [], sourceChangedAt: null},
 ]
 
 export function loadFixture(input: {id: string}): XrayData {

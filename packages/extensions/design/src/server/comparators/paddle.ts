@@ -2,21 +2,20 @@ import {readFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import {dirname, join} from 'node:path'
 import {pathToFileURL} from 'node:url'
-import {range} from 'es-toolkit'
 import * as ort from 'onnxruntime-web'
 import type {InferenceSession} from 'onnxruntime-web'
 import {Canvas, Contours, cv, ImageProcessor} from 'ppu-ocv'
 import type {CanvasLike} from 'ppu-ocv'
 import {CanvasProcessor, CanvasToolkit} from 'ppu-ocv/canvas'
 import {z} from 'zod'
-import {TOLERANCES} from '../../shared/tolerances.js'
-import type {Box, Raster, TextReader, TextRun} from '../../shared/types.js'
-import {crop, encodePng} from '../raster.js'
+import type {OcrLine, Raster, TextReader} from '../../shared/types.js'
+import {encodePng} from '../raster.js'
+
+export {differs, trimToInk} from '../raster.js'
 
 const MODEL_FILES = ['PP-OCRv6_tiny_det.ort', 'PP-OCRv6_tiny_rec.ort', 'ppocrv6_tiny_dict.txt'] as const
 const SESSION = {executionProviders: ['wasm'], graphOptimizationLevel: 'all'} as const
 const RECOGNITION = {strategy: 'per-box', minimumConfidence: 0} as const
-const MINIMUM_TRIM_SIDE = 2
 
 type OcrService = {
   options: {session: object; detection: object; recognition: {charactersDictionary: string[]}; debugging: object}
@@ -54,6 +53,7 @@ const RecognizedSchema = z.object({
   results: z.array(
     z.object({
       text: z.string(),
+      confidence: z.number(),
       box: z.object({x: z.number(), y: z.number(), width: z.number(), height: z.number()}),
     }),
   ),
@@ -172,48 +172,15 @@ function serialized<Result>(task: () => Promise<Result>): Promise<Result> {
   return run
 }
 
-function differs(input: {data: Uint8Array; index: number; background: Uint8Array}): boolean {
-  const {data, index, background} = input
-  return range(4).some(
-    (channel) => Math.abs((data[index * 4 + channel] ?? 0) - (background[channel] ?? 0)) > TOLERANCES.inkTrimThreshold,
-  )
-}
-
-export function trimToInk(input: {raster: Raster; box: Box}): Box {
-  const {raster, box} = input
-  const x = Math.max(0, Math.floor(box.x))
-  const y = Math.max(0, Math.floor(box.y))
-  const w = Math.min(raster.width - x, Math.ceil(box.w))
-  const h = Math.min(raster.height - y, Math.ceil(box.h))
-  if (w < MINIMUM_TRIM_SIDE || h < MINIMUM_TRIM_SIDE) return box
-  const tile = crop({raster, box: {x, y, w, h}}).raster
-  const background = tile.data.slice(0, 4)
-  const ink = range(w * h).filter((index) => differs({data: tile.data, index, background}))
-  if (ink.length === 0) return box
-  const bounds = ink.reduce(
-    (edges, index) => {
-      const column = index % w
-      const row = (index - column) / w
-      return {
-        left: Math.min(edges.left, column),
-        top: Math.min(edges.top, row),
-        right: Math.max(edges.right, column + 1),
-        bottom: Math.max(edges.bottom, row + 1),
-      }
-    },
-    {left: w, top: h, right: 0, bottom: 0},
-  )
-  return {x: x + bounds.left, y: y + bounds.top, w: bounds.right - bounds.left, h: bounds.bottom - bounds.top}
-}
-
-async function recognize(input: {raster: Raster}): Promise<TextRun[]> {
+async function recognize(input: {raster: Raster}): Promise<OcrLine[]> {
   const {raster} = input
   const service = await paddleService()
   const png = Uint8Array.from(encodePng(raster)).buffer
   const {results} = RecognizedSchema.parse(await service.recognize(png, {flatten: true, noCache: true}))
   return results.map((result) => ({
     text: result.text,
-    box: trimToInk({raster, box: {x: result.box.x, y: result.box.y, w: result.box.width, h: result.box.height}}),
+    confidence: result.confidence,
+    box: {x: result.box.x, y: result.box.y, w: result.box.width, h: result.box.height},
   }))
 }
 

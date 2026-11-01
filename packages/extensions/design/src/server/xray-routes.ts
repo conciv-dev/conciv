@@ -28,6 +28,10 @@ export function makeXrayRouter(input: {store: TargetStore; designDir: string; so
           target,
           report: await store.lastResult(target.id),
           targetImage: store.reportPath(join(designDir, target.id, TARGET_FILE)),
+          nodes: await store.model(target.id).then(
+            (model) => model.nodes,
+            () => [],
+          ),
           sourceChangedAt: sourceChangedAt(),
         }
       }),

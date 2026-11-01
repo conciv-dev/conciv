@@ -1,5 +1,5 @@
 import type {Box, DeltaKind, Side} from '../../shared/types.js'
-import {bottom, differs, right} from './insets.js'
+import {bottom, insetDiffers, right} from './insets.js'
 
 function gapBetween(input: {first: Box; second: Box; axis: 'row' | 'column'}): number {
   const {first, second, axis} = input
@@ -22,7 +22,7 @@ function gapKind(before: boolean): DeltaKind {
     measure: ({live, target}) => {
       const a = measureGap({side: live, before})
       const b = measureGap({side: target, before})
-      if (a === null || b === null || !differs({live: a, target: b})) return []
+      if (a === null || b === null || !insetDiffers({live: a, target: b})) return []
       return [{kind, live: a, target: b}]
     },
   }

@@ -24,7 +24,6 @@ This directory stores design targets on disk, one directory per target id, each 
 - `findRegions`, `diffMask` (`raster.ts`): flood-fill connected regions of at least minSize; mask of pure-red opaque diff output pixels
 - Subdirectories:
   - [captures](./captures/README.md): Contains the 'tab' Capture, which asks the connected browser page to screenshot itself at a given size and returns a decoded raster plus the live component tree.
-  - [enrichers](./enrichers/README.md): Contains the color Enricher, which fills in missing target node fills by sampling the target raster.
   - [registries](./registries/README.md): One-line modules that export the concrete implementations for each registry slot used by REGISTRIES in ../registries.ts.
   - [comparators](./comparators/README.md): Holds the pixel comparators (blazediff, pixelmatch), the CIEDE2000 color metric and the edge-projection geometry estimator.
   - [adapters](./adapters/README.md): Contains the image TargetAdapter, which loads a PNG from a file path or base64 string into a TargetModel scaled to a requested width.

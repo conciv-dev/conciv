@@ -4,9 +4,10 @@ import {mkdir, readdir, readFile, rename, rm, writeFile} from 'node:fs/promises'
 import {join, relative} from 'node:path'
 import {toolError} from '@conciv/extension'
 import {z} from 'zod'
-import {BoxSchema, DiffReportSchema, type DiffReport} from '../shared/defs.js'
+import {DiffReportSchema, type DiffReport} from '../shared/defs.js'
+import {ModelSchema} from '../shared/model-schemas.js'
 import {TOLERANCES} from '../shared/tolerances.js'
-import type {Decision, StoredRun, TargetModel, TargetNode, TargetRecord, TargetStore} from '../shared/types.js'
+import type {Decision, StoredRun, TargetModel, TargetRecord, TargetStore} from '../shared/types.js'
 import {decodePng, encodePng} from './raster.js'
 
 export const TARGET_FILE = 'target.png'
@@ -37,42 +38,6 @@ const DecisionsSchema = z.array(
     at: z.number(),
   }),
 )
-
-const TargetNodeSchema: z.ZodType<TargetNode> = z.lazy(() =>
-  z.object({
-    id: z.string(),
-    box: BoxSchema,
-    kind: z.enum(['frame', 'text', 'image', 'vector', 'component', 'unknown']).optional(),
-    name: z.string().optional(),
-    text: z.string().optional(),
-    fills: z.object({background: z.string().optional(), foreground: z.string().optional()}).optional(),
-    typography: z
-      .object({
-        family: z.string().optional(),
-        size: z.number().optional(),
-        weight: z.number().optional(),
-        lineHeight: z.number().optional(),
-      })
-      .optional(),
-    layout: z
-      .object({
-        direction: z.enum(['row', 'column']).optional(),
-        gap: z.number().optional(),
-        padding: z.array(z.number()).optional(),
-      })
-      .optional(),
-    confidence: z.number(),
-    children: z.array(TargetNodeSchema),
-  }),
-)
-
-const ModelSchema = z.object({
-  id: z.string(),
-  source: z.object({kind: z.string(), ref: z.string()}),
-  viewport: z.object({width: z.number(), height: z.number()}),
-  root: TargetNodeSchema,
-  scale: z.number(),
-})
 
 function stamp(): string {
   return `${Date.now()}-${randomUUID().slice(0, 4)}`

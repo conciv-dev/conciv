@@ -14,7 +14,7 @@ export function measureInsets(side: Side): Insets | null {
   }
 }
 
-export function differs(input: {live: number; target: number}): boolean {
+export function insetDiffers(input: {live: number; target: number}): boolean {
   return Math.abs(input.live - input.target) > TOLERANCES.geometryPx
 }
 
@@ -25,7 +25,7 @@ function insetKind(edge: keyof Insets): DeltaKind {
     measure: ({live, target}) => {
       const a = measureInsets(live)
       const b = measureInsets(target)
-      if (a === null || b === null || !differs({live: a[edge], target: b[edge]})) return []
+      if (a === null || b === null || !insetDiffers({live: a[edge], target: b[edge]})) return []
       return [{kind, live: a[edge], target: b[edge]}]
     },
   }

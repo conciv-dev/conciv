@@ -42,13 +42,8 @@ export const imageAdapter: TargetAdapter = {
       viewport,
       raster,
       scale,
-      root: {
-        id: 'root',
-        kind: 'frame',
-        box: {x: 0, y: 0, w: viewport.width, h: viewport.height},
-        confidence: 1,
-        children: [],
-      },
+      root: {id: 'root', box: {x: 0, y: 0, w: viewport.width, h: viewport.height}},
+      nodes: [],
     }
   },
 }

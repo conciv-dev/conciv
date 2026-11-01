@@ -86,6 +86,10 @@ export const DeltaSchema = ProvenanceSchema.partial().extend({
   live: z.union([z.number(), z.string()]),
   target: z.union([z.number(), z.string()]),
   breakpoint: z.boolean().optional(),
+  warning: z
+    .enum(['sample-data'])
+    .optional()
+    .describe('the live text is a literal equal to sample data in the design; render it from the data instead'),
 })
 
 export const UnmatchedSchema = z.object({
@@ -148,6 +152,11 @@ export const DiffReportSchema = z.object({
   unmatched: z.array(UnmatchedSchema),
   hint: z.string().optional(),
   route: RouteItemSchema.optional(),
+  warnings: z.array(DeltaSchema).default([]).describe('outside every count; hard-coded sample data to replace'),
+  segmentation: z
+    .enum(['full', 'partial'])
+    .optional()
+    .describe('partial when image regions cover much of the design, so boxes inside them are not read'),
 })
 
 export type DiffReport = z.infer<typeof DiffReportSchema>

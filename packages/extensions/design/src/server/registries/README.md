@@ -10,7 +10,6 @@ Each file imports the concrete implementation(s) from a sibling server directory
 - `captures` (`captures.ts`): {tab: tabCapture}
 - `color` (`color.ts`): {ciede2000}
 - `deltaKinds` (`delta-kinds.ts`): DELTA_KINDS from ../deltas.ts
-- `enrichers` (`enrichers.ts`): [colorEnricher]
 - `geometry` (`geometry.ts`): {'edge-projection': edgeProjection}
 - `mappers` (`mappers.ts`): MAPPERS from ../provenance/mappers.ts
 - `matchers` (`matchers.ts`): {tile: tileMatcher}

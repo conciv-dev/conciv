@@ -3,7 +3,8 @@ import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {z} from 'zod'
 import {unreadableMessage} from '../../server/adapters/image.js'
 import {DESIGN_GUIDE, type TargetInput, type TargetResult} from '../../shared/defs.js'
-import type {DesignRuntime, Enricher, Raster, TargetNode, TextReader} from '../../shared/types.js'
+import {TEXT_ENRICHER} from '../../server/enrichers.js'
+import type {DesignRuntime, TargetModel} from '../../shared/types.js'
 
 const PageRouteSchema = z.object({pathname: z.string(), search: z.string()})
 
@@ -21,34 +22,29 @@ async function routeLabel(input: {route: string | undefined; page: ServerToolPag
   return liveRoute(input.page).then(pathnameIn, () => undefined)
 }
 
-async function enrich(input: {node: TargetNode; raster: Raster; enrichers: Enricher[]}): Promise<TargetNode> {
-  const {raster, enrichers} = input
-  const own = await enrichers.reduce<Promise<TargetNode>>(async (pending, enricher) => {
-    const node = await pending
-    if (!enricher.applies(node)) return node
-    return {...node, ...(await enricher.run({node, raster}))}
-  }, Promise.resolve(input.node))
-  const children = await Promise.all(own.children.map((node) => enrich({node, raster, enrichers})))
-  return {...own, children}
+type Enriched = {model: TargetModel; failures: Record<string, string>}
+
+async function enrich(input: {model: TargetModel; design: DesignRuntime}): Promise<Enriched> {
+  const {design} = input
+  return design.enrichers.reduce<Promise<Enriched>>(
+    async (pending, enricher) => {
+      const {model, failures} = await pending
+      try {
+        const nodes = await enricher.run({model, raster: model.raster, runtime: design})
+        return {model: {...model, nodes}, failures}
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return {model, failures: {...failures, [enricher.name]: message}}
+      }
+    },
+    Promise.resolve({model: input.model, failures: {}}),
+  )
 }
 
-type ReadText = {children: TargetNode[]; text: NonNullable<TargetResult['text']>}
-
-async function readText(input: {raster: Raster; reader: TextReader}): Promise<ReadText> {
-  try {
-    const runs = await input.reader.read({raster: input.raster})
-    const children = runs.map((run, index): TargetNode => ({
-      id: `text-${index}`,
-      kind: 'text',
-      text: run.text,
-      box: run.box,
-      confidence: 1,
-      children: [],
-    }))
-    return {children, text: {runs: runs.length}}
-  } catch (error) {
-    return {children: [], text: {runs: 0, error: error instanceof Error ? error.message : String(error)}}
-  }
+function textResult(enriched: Enriched): NonNullable<TargetResult['text']> {
+  const runs = enriched.model.nodes.filter((node) => node.kind === 'text').length
+  const error = enriched.failures[TEXT_ENRICHER]
+  return error === undefined ? {runs} : {runs, error}
 }
 
 export async function registerTarget(request: {
@@ -62,12 +58,11 @@ export async function registerTarget(request: {
   if (adapter === undefined) {
     throw toolError('image-unreadable', {message: unreadableMessage(input.image)})
   }
-  const model = await adapter.load({ref: input.image, scale: input.scale ?? 1, cwd: design.cwd})
-  const root = await enrich({node: model.root, raster: model.raster, enrichers: design.enrichers})
-  const read = await readText({raster: model.raster, reader: design.comparators.text})
+  const loaded = await adapter.load({ref: input.image, scale: input.scale ?? 1, cwd: design.cwd})
+  const enriched = await enrich({model: loaded, design})
   const route = await routeLabel({route: input.route, page})
   const record = await design.store.put({
-    model: {...model, root: {...root, children: [...root.children, ...read.children]}},
+    model: enriched.model,
     session,
     ...(route === undefined ? {} : {route}),
     ...(input.name === undefined ? {} : {name: input.name}),
@@ -78,7 +73,7 @@ export async function registerTarget(request: {
     width: record.width,
     height: record.height,
     scale: record.scale,
-    text: read.text,
+    text: textResult(enriched),
     next: DESIGN_GUIDE,
   }
 }

@@ -28,6 +28,7 @@ function XrayCapture(): JSX.Element {
       <Stage
         mode={page.mode()}
         rows={page.rows()}
+        nodes={page.loaded().nodes}
         selected={page.selected()}
         images={page.loaded().images}
         target={page.loaded().target}

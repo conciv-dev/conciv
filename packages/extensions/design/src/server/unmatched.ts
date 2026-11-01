@@ -1,7 +1,6 @@
 import {TOLERANCES} from '../shared/tolerances.js'
 import type {Box, LiveCapture, Pair, Raster, TargetModel, Unmatched} from '../shared/types.js'
-import {expand} from './matchers/tile.js'
-import {crop, edgeDensity, edgeMap, findRegions} from './raster.js'
+import {crop, edgeDensity, edgeMap, expand, findRegions} from './raster.js'
 
 const BLANK_DENSITY = 0.01
 

@@ -1,5 +1,5 @@
 import type {DeltaKind, Side} from '../../shared/types.js'
-import {differs, measureInsets} from './insets.js'
+import {insetDiffers, measureInsets} from './insets.js'
 
 function measurePadding(side: Side): {x: number; y: number} | null {
   if (side.styles.fontSize === undefined) return null
@@ -15,7 +15,7 @@ export const padding: DeltaKind = {
     const b = measurePadding(target)
     if (a === null || b === null) return []
     return (['x', 'y'] as const).flatMap((side) =>
-      differs({live: a[side], target: b[side]})
+      insetDiffers({live: a[side], target: b[side]})
         ? [{kind: 'padding' as const, side, live: a[side], target: b[side]}]
         : [],
     )

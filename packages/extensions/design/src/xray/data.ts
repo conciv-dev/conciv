@@ -4,7 +4,7 @@ import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {aboveTolerance, componentAboveTolerance} from '../shared/above.js'
 import {SOURCE_ATTR} from '../shared/source-attr.js'
 import type {ComponentReport, DeltaKindName, DiffReport} from '../shared/defs.js'
-import type {Box, SourceLoc, TargetRecord} from '../shared/types.js'
+import type {Box, SourceLoc, TargetNode, TargetRecord} from '../shared/types.js'
 import type {XrayRouter} from '../server/xray-routes.js'
 
 export type Delta = ComponentReport['deltas'][number]
@@ -29,6 +29,7 @@ export type XrayImages = {target: string; live: string | null; diff: string | nu
 export type XrayData = {
   target: TargetRecord
   report: DiffReport | null
+  nodes: TargetNode[]
   images: XrayImages
   widths: WidthTab[]
   ranAt: number | null
@@ -39,6 +40,7 @@ export type ReportResponse = {
   target: TargetRecord
   report: DiffReport | null
   targetImage: string
+  nodes: TargetNode[]
   sourceChangedAt: number | null
 }
 
@@ -123,6 +125,7 @@ export function assemble(input: {
   const data: XrayData = {
     target: current.target,
     report: current.report,
+    nodes: current.nodes,
     images: {
       target: image(current.targetImage),
       live: current.report === null ? null : image(current.report.livePath),

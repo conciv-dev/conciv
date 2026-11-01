@@ -346,6 +346,7 @@ it('ranks the toolbar first with an inset delta and reports the missing card, ne
   )
   expect(report.diffImage.startsWith('.conciv/design/') || isAbsolute(report.diffImage)).toBe(true)
   expect(existsSync(fileUnder(stateRoot, report.diffImage))).toBe(true)
+  expect(report.warnings, 'the table cells render from data; the literals left are headers and Create').toEqual([])
 })
 
 it('a recolored toolbar is a background delta and a wider one a fill delta', async () => {
@@ -931,16 +932,28 @@ async function toolbarButtons(): Promise<LiveComponent[]> {
 }
 
 const StoredModelSchema = z.object({
-  root: z.object({
-    children: z.array(
-      z.object({
-        kind: z.string().optional(),
-        text: z.string().optional(),
-        box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
-      }),
-    ),
-  }),
+  nodes: z.array(
+    z.object({
+      id: z.string(),
+      kind: z.enum(['text', 'box', 'image']),
+      text: z.string().optional(),
+      role: z.string().optional(),
+      within: z.string().optional(),
+      box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
+    }),
+  ),
 })
+
+async function storedNodes(id: string): Promise<z.infer<typeof StoredModelSchema>['nodes']> {
+  const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+  return StoredModelSchema.parse(JSON.parse(await readFile(path, 'utf8'))).nodes
+}
+
+function near(input: {a: Box; b: Box}): boolean {
+  const {a, b} = input
+  const edges = [a.x - b.x, a.y - b.y, a.x + a.w - b.x - b.w, a.y + a.h - b.y - b.h]
+  return edges.every((edge) => Math.abs(edge) <= 2)
+}
 
 function inside(input: {inner: LiveComponent['box']; outer: LiveComponent['box']}): boolean {
   const {inner, outer} = input
@@ -1006,10 +1019,9 @@ describe('text', () => {
     const [first] = await toolbarButtons()
     const registered = await call('design_target', {image: target('u1-1280')})
     expect(registered.text?.runs).toBeGreaterThan(0)
-    const stored = StoredModelSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${registered.id}/model.json`), 'utf8')),
+    const label = (await storedNodes(registered.id)).find(
+      (node) => node.kind === 'text' && node.text?.toLowerCase() === 'export',
     )
-    const label = stored.root.children.find((child) => child.kind === 'text' && child.text?.toLowerCase() === 'export')
     expect(label).toBeDefined()
     expect(first).toBeDefined()
     if (label === undefined || first === undefined) return
@@ -1071,22 +1083,12 @@ describe('text', () => {
     expect((await call('design_status', {})).done).toBe(true)
   })
 
-  it('a changed label is a text delta on the button that paints it', async () => {
+  it('a changed label rendered from an expression is no text delta', async () => {
     await goto('text-changed')
     await call('design_target', {image: target('u1-1280')})
-    const [first] = await toolbarButtons()
     const report = await call('design_diff', {})
-    const texts = report.components.flatMap((c) =>
-      c.deltas.filter((d) => d.kind === 'text').map((delta) => ({component: c, delta})),
-    )
-    expect(texts).toHaveLength(1)
-    expect(texts[0]?.component.source).toEqual(first?.source)
-    expect(texts[0]?.delta).toMatchObject({
-      live: 'Download',
-      target: 'Export',
-      via: 'source',
-      file: 'src/Toolbar.tsx',
-    })
+    expect(report.components.flatMap((c) => c.deltas.filter((d) => d.kind === 'text'))).toEqual([])
+    expect(report.warnings).toEqual([])
   })
 
   it('a changed field border stays reported when its placeholder agrees', async () => {
@@ -1355,6 +1357,58 @@ describe('paddle disposal', () => {
     await Promise.all([queued, disposed])
     expect(settled).toEqual(['read', 'disposed'])
     expect(await paddleReader.read({raster})).toEqual([])
+  })
+})
+
+describe('nodes', () => {
+  it('registering u1-1280 yields box nodes for the toolbar, each card and the table within 2 px', async () => {
+    await goto('target')
+    const captured = await call('design_capture', {height: 720})
+    const registered = await call('design_target', {image: target('u1-1280')})
+    const boxes = (await storedNodes(registered.id)).filter((node) => node.kind === 'box')
+    const wanted = captured.components.filter((c) =>
+      ['src/Toolbar.tsx', 'src/Cards.tsx', 'src/Table.tsx'].includes(c.source?.file ?? ''),
+    )
+    const containers = [
+      ...wanted.filter((c) => c.tag === 'header' || c.tag === 'table'),
+      ...wanted.flatMap((c) => c.children.filter((child) => child.tag === 'article')),
+    ]
+    expect(containers.map((c) => c.tag).toSorted()).toEqual(['article', 'article', 'header', 'table'])
+    expect(containers.filter((c) => !boxes.some((node) => near({a: node.box, b: c.box})))).toEqual([])
+  })
+
+  it('the Export text node is within the first button', async () => {
+    await goto('target')
+    const [first] = await toolbarButtons()
+    const registered = await call('design_target', {image: target('u1-1280')})
+    const nodes = await storedNodes(registered.id)
+    const label = nodes.find((node) => node.kind === 'text' && node.text?.toLowerCase() === 'export')
+    const button = nodes.find((node) => node.id === label?.within)
+    expect(button?.kind).toBe('box')
+    expect(first).toBeDefined()
+    if (button === undefined || first === undefined) return
+    expect(near({a: button.box, b: first.box})).toBe(true)
+  })
+
+  it('roles against roles-1280 reports no text delta and no warning', async () => {
+    await goto('roles')
+    const registered = await call('design_target', {image: target('roles-1280')})
+    const texts = (await storedNodes(registered.id)).filter((node) => node.kind === 'text')
+    const roles = Object.fromEntries(texts.map((node) => [node.text, node.role]))
+    expect(roles).toMatchObject({'[Customer Name]': 'placeholder', '$1,200': 'data', 'INV-001': 'data'})
+    const report = await call('design_diff', {})
+    expect(report.components.flatMap((c) => c.deltas.filter((d) => d.kind === 'text'))).toEqual([])
+    expect(report.warnings).toEqual([])
+  })
+
+  it('hardcoded against hardcoded-1280 reports a sample-data warning and done', async () => {
+    await goto('hardcoded')
+    await call('design_target', {image: target('hardcoded-1280')})
+    const report = await call('design_diff', {})
+    expect(report.warnings).toEqual([
+      expect.objectContaining({kind: 'text', warning: 'sample-data', live: '1,200', file: 'src/Table.tsx'}),
+    ])
+    expect((await call('design_status', {})).done).toBe(true)
   })
 })
 

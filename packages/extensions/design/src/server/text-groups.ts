@@ -1,10 +1,8 @@
 import {groupBy, range} from 'es-toolkit'
 import {TOLERANCES} from '../shared/tolerances.js'
 import type {Box, ColorMetric, LiveComponent, Raster, TextGroup, TextRun} from '../shared/types.js'
-import {trimToInk} from './comparators/paddle.js'
 import {glyphCoreColor} from './deltas/colors.js'
-import {expand} from './matchers/tile.js'
-import {crop, edgeMap, medianColor} from './raster.js'
+import {crop, edgeMap, expand, medianColor, trimToInk} from './raster.js'
 
 type Item = {side: 'live' | 'target'; text: string; boxes: Box[]; owner: LiveComponent | null}
 type Grouped = {group: TextGroup; mask: Box[]}
@@ -22,7 +20,7 @@ function span(input: {start: number; length: number; otherStart: number; otherLe
   return Math.max(0, Math.min(start + length, otherStart + otherLength) - Math.max(start, otherStart))
 }
 
-function overlapping(input: {a: Box; b: Box}): boolean {
+export function overlapping(input: {a: Box; b: Box}): boolean {
   const {a, b} = input
   const shared =
     span({start: a.x, length: a.w, otherStart: b.x, otherLength: b.w}) *
@@ -30,7 +28,7 @@ function overlapping(input: {a: Box; b: Box}): boolean {
   return shared > Math.min(area(a), area(b)) / 2
 }
 
-function sameLine(input: {a: Box; b: Box}): boolean {
+export function sameLine(input: {a: Box; b: Box}): boolean {
   const {a, b} = input
   return span({start: a.y, length: a.h, otherStart: b.y, otherLength: b.h}) >= Math.min(a.h, b.h) / 2
 }
@@ -50,11 +48,11 @@ function joined(items: Item[]): string {
     .join(' ')
 }
 
-function folded(text: string): string {
+export function folded(text: string): string {
   return [...text.toLowerCase()].filter((character) => character.trim() !== '').join('')
 }
 
-function union(boxes: Box[]): Box {
+export function union(boxes: Box[]): Box {
   const x = Math.min(...boxes.map((box) => box.x))
   const y = Math.min(...boxes.map((box) => box.y))
   return {

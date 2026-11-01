@@ -7,6 +7,8 @@ export const designConfig = z.object({
   capture: z.enum(['tab']).default('tab'),
   matcher: z.enum(['tile']).default('tile'),
   text: z.enum(['paddle']).default('paddle'),
+  segmenter: z.enum(['threshold']).default('threshold'),
+  roles: z.enum(['rules']).default('rules'),
 })
 
 export type DesignConfig = z.output<typeof designConfig>

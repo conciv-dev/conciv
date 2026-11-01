@@ -26,11 +26,13 @@ import type {
 } from '../../shared/types.js'
 import {withBreakpoints} from '../../server/breakpoints.js'
 import {sideFrom} from '../../server/deltas.js'
-import {expand} from '../../server/matchers/tile.js'
 import {DELTA_PROPERTIES, PARENT_PROPERTIES} from '../../server/provenance/delta-properties.js'
 import {mapDeclaration} from '../../server/provenance/mappers.js'
-import {paintOver} from '../../server/raster.js'
-import {groupText, textDiffers} from '../../server/text-groups.js'
+import {expand, paintOver} from '../../server/raster.js'
+import {segmentationQuality} from '../../server/enrichers.js'
+import {liveText, type LiveText} from '../../server/roles.js'
+import {folded, groupText, textDiffers} from '../../server/text-groups.js'
+import {textDelta, type Role, type TextVerdict} from '../../shared/roles.js'
 import {unmatchedRegions} from '../../server/unmatched.js'
 import {liveRoute, pathnameIn} from './target.js'
 
@@ -65,6 +67,7 @@ function refused(input: {record: TargetRecord; route: RouteItem; xray: XrayLink}
     xray: xray.url,
     components: [],
     unmatched: [],
+    warnings: [],
     route,
     hint: `the tab shows ${route.live} but the design target is the design of ${route.target}; navigate the tab to ${route.target}, then diff again`,
   }
@@ -184,18 +187,67 @@ async function withProvenance(input: {
 }
 
 function targetRuns(target: TargetModel): TextRun[] {
-  return target.root.children.flatMap((node) =>
-    node.kind === 'text' && node.text !== undefined ? [{box: node.box, text: node.text}] : [],
+  return target.nodes.flatMap((node) => (node.kind === 'text' ? [{box: node.box, text: node.text}] : []))
+}
+
+function boxKey(box: Box): string {
+  return `${box.x},${box.y},${box.w},${box.h}`
+}
+
+function groupRole(input: {group: TextGroup; roles: Map<string, Role>}): Role {
+  const found = new Set(input.group.target.map((box) => input.roles.get(boxKey(box)) ?? 'unknown'))
+  const [only] = found
+  return found.size === 1 && only !== undefined ? only : 'unknown'
+}
+
+function literalsAgree(input: {live: LiveText; group: TextGroup}): boolean {
+  const {live, group} = input
+  if (live.role !== 'mixed') return !textDiffers(group)
+  const target = folded(group.targetText)
+  return live.literals.every((literal) => target.includes(folded(literal)))
+}
+
+async function verdicts(input: {
+  groups: TextGroup[]
+  target: TargetModel
+  cwd: string
+}): Promise<Map<TextGroup, TextVerdict>> {
+  const {groups, target, cwd} = input
+  const roles = new Map(
+    target.nodes.flatMap((node): [string, Role][] =>
+      node.kind === 'text' ? [[boxKey(node.box), node.role ?? 'unknown']] : [],
+    ),
   )
+  const judged = await Promise.all(
+    groups.map(async (group): Promise<[TextGroup, TextVerdict]> => {
+      const live = await liveText({cwd, source: group.owner.source})
+      const role = groupRole({group, roles})
+      const equal = live === null ? !textDiffers(group) : literalsAgree({live, group})
+      return [group, textDelta({live: live?.role ?? 'literal', target: role, equal})]
+    }),
+  )
+  return new Map(judged)
+}
+
+function warnings(input: {groups: TextGroup[]; judged: Map<TextGroup, TextVerdict>}): Delta[] {
+  return input.groups
+    .filter((group) => input.judged.get(group) === 'sample-data')
+    .map((group) => {
+      const delta: Delta = {kind: 'text', live: group.liveText, target: group.targetText, warning: 'sample-data'}
+      const {source} = group.owner
+      return source === null
+        ? delta
+        : {...delta, via: 'source', file: source.file, line: source.line, column: source.column}
+    })
 }
 
 function ownedTargetGlyphs(input: {groups: TextGroup[]; pair: Pair}): Box[] {
   return input.groups.filter((group) => group.owner === input.pair.live).flatMap((group) => group.target)
 }
 
-function textDeltas(input: {groups: TextGroup[]; pair: Pair}): Delta[] {
+function textDeltas(input: {groups: TextGroup[]; pair: Pair; judged: Map<TextGroup, TextVerdict>}): Delta[] {
   return input.groups
-    .filter((group) => group.owner === input.pair.live && textDiffers(group))
+    .filter((group) => group.owner === input.pair.live && input.judged.get(group) === 'text')
     .map((group) => ({kind: 'text', live: group.liveText, target: group.targetText}))
 }
 
@@ -230,6 +282,7 @@ export async function runDiff(request: {
     target: target.raster,
     color: design.comparators.color,
   })
+  const judged = await verdicts({groups, target, cwd: design.cwd})
   const masked = paintOver({
     onto: live.raster,
     from: target.raster,
@@ -273,7 +326,7 @@ export async function runDiff(request: {
           : design.deltaKinds.flatMap((kind) =>
               kind.measure({live: liveSide, target: targetSide, color: design.comparators.color}),
             )
-      const deltas = [...kinds, ...textDeltas({groups, pair})]
+      const deltas = [...kinds, ...textDeltas({groups, pair, judged})]
       return {
         pair,
         report: {
@@ -305,6 +358,8 @@ export async function runDiff(request: {
         mismatch: rounded(matched.mismatch),
         components,
         unmatched: unmatchedRegions({target, matched: matched.matchedTargetBoxes, pairs: matched.pairs, live}),
+        warnings: warnings({groups, judged}),
+        segmentation: segmentationQuality(target),
         ...reportHint({attributed: live.components.length > 0, absolute: xray.absolute}),
       },
     }),

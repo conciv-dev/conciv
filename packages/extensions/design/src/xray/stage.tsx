@@ -1,7 +1,7 @@
 import {For, onCleanup, onMount, Show, type JSX} from 'solid-js'
 import {clamp} from 'es-toolkit'
 import {ScrollArea, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
-import type {TargetRecord} from '../shared/types.js'
+import type {TargetNode, TargetRecord} from '../shared/types.js'
 import type {Row, XrayImages} from './data.js'
 import {Frame} from './frame.js'
 import {CheckChip, RadioChip} from './panel.js'
@@ -201,6 +201,53 @@ function Overlay(props: {
   )
 }
 
+const NODE_STYLE: Record<TargetNode['kind'], {stroke: string; label: string}> = {
+  text: {stroke: 'stroke-primary-500', label: 'fill-primary-600'},
+  box: {stroke: 'stroke-amber-500', label: 'fill-amber-700'},
+  image: {stroke: 'stroke-red-500', label: 'fill-red-600'},
+}
+const NODE_LABEL_SIZE = 10
+
+function nodeLabel(node: TargetNode): string {
+  return node.kind === 'text' ? (node.role ?? 'unknown') : node.kind
+}
+
+function NodeLayer(props: {nodes: TargetNode[]; target: TargetRecord}): JSX.Element {
+  return (
+    <svg
+      class="size-full pointer-events-none inset-0 absolute"
+      viewBox={`0 0 ${props.target.width} ${props.target.height}`}
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="Nodes read from the design"
+    >
+      <For each={props.nodes}>
+        {(node) => (
+          <g>
+            <rect
+              class={`fill-none stroke-1 ${NODE_STYLE[node.kind].stroke}`}
+              x={node.box.x}
+              y={node.box.y}
+              width={node.box.w}
+              height={node.box.h}
+              stroke-dasharray={node.kind === 'image' ? DASH : undefined}
+              vector-effect="non-scaling-stroke"
+            />
+            <text
+              class={`font-mono ${NODE_STYLE[node.kind].label}`}
+              x={node.box.x + 1}
+              y={node.kind === 'text' ? node.box.y + node.box.h + NODE_LABEL_SIZE : node.box.y + NODE_LABEL_SIZE}
+              font-size={String(NODE_LABEL_SIZE)}
+            >
+              {nodeLabel(node)}
+            </text>
+          </g>
+        )}
+      </For>
+    </svg>
+  )
+}
+
 type DividerEvent = PointerEvent & {currentTarget: HTMLDivElement}
 
 function Divider(props: {value: number; onChange: (value: number) => void}): JSX.Element {
@@ -268,6 +315,7 @@ function Divider(props: {value: number; onChange: (value: number) => void}): JSX
 type StageProps = {
   mode: Mode
   rows: Row[]
+  nodes: TargetNode[]
   selected: Row | null
   images: XrayImages
   target: TargetRecord
@@ -355,6 +403,7 @@ export function Stage(props: StageProps): JSX.Element {
   const DesignShot = () => (
     <Shot label="Design" src={props.images.target} failure={failed(props.images.target) ? FAILURE.design : null}>
       <Picture src={props.images.target} alt="Design" />
+      <NodeLayer nodes={props.nodes} target={props.target} />
     </Shot>
   )
   const LiveShot = () => (

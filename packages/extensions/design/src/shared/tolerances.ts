@@ -15,6 +15,12 @@ export const TOLERANCES = {
   runsKept: 20,
   frameSettleMs: 5000,
   captureBudgetMs: 10_000,
+  segmentDistance: 10,
+  segmentImageShare: 0.3,
+  ocrConfidenceFloor: 0.6,
+  ocrUpsampleBelowPx: 16,
+  ocrTileHeight: 1600,
+  ocrTileOverlap: 64,
 } as const
 
 export const LIBRARY_SHEET_MARKER = '/node_modules/'

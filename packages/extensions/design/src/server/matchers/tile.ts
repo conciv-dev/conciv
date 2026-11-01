@@ -2,12 +2,7 @@ import {SOURCE_ATTR} from '../../shared/source-attr.js'
 import {TOLERANCES} from '../../shared/tolerances.js'
 import type {Box, Comparators, LiveComponent, Matcher, Pair, Raster} from '../../shared/types.js'
 import {isOpaqueHex, sampledFills} from '../deltas/colors.js'
-import {boxBlur, crop} from '../raster.js'
-
-export function expand(input: {box: Box; by: number}): Box {
-  const {box, by} = input
-  return {x: box.x - by, y: box.y - by, w: box.w + by * 2, h: box.h + by * 2}
-}
+import {boxBlur, crop, expand} from '../raster.js'
 
 function clip(input: {box: Box; to: Box}): Box {
   const {box, to} = input

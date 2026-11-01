@@ -3,6 +3,7 @@ import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {DesignConfig} from './config.js'
 import type {DeltaKindName, DiffInput, DiffReport, StatusReport, TargetInput, TargetResult} from './defs.js'
+import type {Role} from './roles.js'
 
 export type {DeltaKindName, DiffReport}
 
@@ -10,24 +11,30 @@ export type Box = {x: number; y: number; w: number; h: number}
 export type Raster = {width: number; height: number; data: Uint8Array}
 export type SourceLoc = {file: string; line: number; column: number}
 
-export type TargetNode = {
-  id: string
-  box: Box
-  kind?: 'frame' | 'text' | 'image' | 'vector' | 'component' | 'unknown'
-  name?: string
-  text?: string
-  fills?: {background?: string; foreground?: string}
-  typography?: {family?: string; size?: number; weight?: number; lineHeight?: number}
-  layout?: {direction?: 'row' | 'column'; gap?: number; padding?: number[]}
+export type OcrLine = {box: Box; text: string; confidence: number}
+export type Border = {width: number; color: string}
+export type Typography = {size: number; lineHeight: number; weight: number; confidence: number}
+type NodeBase = {id: string; box: Box; within?: string}
+export type TextNode = NodeBase & {
+  kind: 'text'
+  text: string
+  lines: OcrLine[]
   confidence: number
-  children: TargetNode[]
+  role?: Role
+  roleConfidence?: number
+  typography?: Typography
 }
+export type BoxNode = NodeBase & {kind: 'box'; paint?: {background: string}; border: Border | null; radius: number}
+export type ImageNode = NodeBase & {kind: 'image'}
+export type TargetNode = TextNode | BoxNode | ImageNode
+export type TargetRoot = {id: string; box: Box}
 export type TargetModel = {
   id: string
   source: {kind: string; ref: string}
   viewport: {width: number; height: number}
   raster: Raster
-  root: TargetNode
+  root: TargetRoot
+  nodes: TargetNode[]
   scale: number
 }
 export type TargetAdapter = {
@@ -37,9 +44,10 @@ export type TargetAdapter = {
 }
 export type Enricher = {
   name: string
-  applies(node: TargetNode): boolean
-  run(input: {node: TargetNode; raster: Raster}): Promise<Partial<TargetNode>>
+  run(input: {model: TargetModel; raster: Raster; runtime: DesignRuntime}): Promise<TargetNode[]>
 }
+export type Segmenter = {name: string; segment(input: {raster: Raster; nodes: TargetNode[]}): Promise<TargetNode[]>}
+export type RoleRules = (input: {text: string; neighbours: string[]}) => {role: Role; confidence: number}
 
 export type Glyph = {text: string; boxes: Box[]}
 
@@ -94,7 +102,7 @@ export type TextGroup = {
   agrees: boolean
   owner: LiveComponent
 }
-export type TextReader = {name: string; read(input: {raster: Raster}): Promise<TextRun[]>}
+export type TextReader = {name: string; read(input: {raster: Raster}): Promise<OcrLine[]>}
 export type Comparators = {
   pixel: PixelComparator
   geometry: GeometryEstimator
@@ -136,6 +144,7 @@ export type Delta = {
   live: number | string
   target: number | string
   breakpoint?: boolean
+  warning?: 'sample-data'
 } & Partial<Provenance>
 export type DeltaKind = {kind: DeltaKindName; measure(input: {live: Side; target: Side; color: ColorMetric}): Delta[]}
 export type Unmatched = {kind: 'missing' | 'extra'; target?: Box; live?: Box; source?: SourceLoc}
@@ -224,6 +233,8 @@ export type Registries = {
   color: Record<DesignConfig['color'], ColorMetric>
   matchers: Record<DesignConfig['matcher'], Matcher>
   text: Record<DesignConfig['text'], TextReader>
+  segmenters: Record<DesignConfig['segmenter'], Segmenter>
+  roles: Record<DesignConfig['roles'], RoleRules>
   deltaKinds: DeltaKind[]
   mappers: ProvenanceMapper[]
 }
@@ -235,6 +246,8 @@ export type DesignRuntime = {
   matcher: Matcher
   adapters: TargetAdapter[]
   enrichers: Enricher[]
+  segmenter: Segmenter
+  roles: RoleRules
   deltaKinds: DeltaKind[]
   mappers: ProvenanceMapper[]
   cssMap: () => Promise<CssMap>

@@ -1,8 +1,13 @@
 import {range} from 'es-toolkit'
 import {PNG} from 'pngjs'
+import {TOLERANCES} from '../shared/tolerances.js'
 import type {Box, Raster} from '../shared/types.js'
 
 const EDGE_THRESHOLD = 48
+const MINIMUM_TRIM_SIDE = 2
+const DIAGONAL_SHARE = 1 - Math.SQRT1_2
+
+export type Rgb = [number, number, number]
 
 export function decodePng(bytes: Uint8Array): Raster {
   const png = PNG.sync.read(Buffer.from(bytes))
@@ -113,7 +118,7 @@ function channelMedian(histogram: Uint32Array, count: number): number {
   return 0
 }
 
-function hex(channels: number[]): string {
+export function hex(channels: number[]): string {
   return `#${channels.map((value) => value.toString(16).padStart(2, '0')).join('')}`
 }
 
@@ -136,14 +141,19 @@ export function medianColor(input: {raster: Raster; exclude: Uint8Array}): strin
   return hex(histograms.map((histogram) => channelMedian(histogram, count)))
 }
 
-function floodFill(input: {mask: Uint8Array; seen: Uint8Array; width: number; height: number; start: number}): {
-  size: number
-  box: Box
-} {
-  const {mask, seen, width, height, start} = input
+export type Region = {label: number; size: number; box: Box}
+
+function floodFill(input: {
+  mask: Uint8Array
+  labels: Int32Array
+  width: number
+  height: number
+  start: number
+}): Region {
+  const {mask, labels, width, height, start} = input
+  const label = labels[start] ?? 0
   const bounds = {size: 0, minX: width, minY: height, maxX: 0, maxY: 0}
   const stack = [start]
-  seen[start] = 1
   while (stack.length > 0) {
     const index = stack.pop() ?? 0
     const x = index % width
@@ -160,27 +170,37 @@ function floodFill(input: {mask: Uint8Array; seen: Uint8Array; width: number; he
       y < height - 1 ? index + width : -1,
     ]
     neighbours.forEach((next) => {
-      if (next < 0 || mask[next] !== 1 || seen[next] === 1) return
-      seen[next] = 1
+      if (next < 0 || mask[next] !== 1 || labels[next] !== 0) return
+      labels[next] = label
       stack.push(next)
     })
   }
   return {
+    label,
     size: bounds.size,
     box: {x: bounds.minX, y: bounds.minY, w: bounds.maxX - bounds.minX + 1, h: bounds.maxY - bounds.minY + 1},
   }
 }
 
-export function findRegions(input: {mask: Uint8Array; width: number; height: number; minSize: number}): Box[] {
-  const {mask, width, height, minSize} = input
-  const seen = new Uint8Array(width * height)
-  const regions: Box[] = []
+export function labelRegions(input: {mask: Uint8Array; width: number; height: number}): {
+  labels: Int32Array
+  regions: Region[]
+} {
+  const {mask, width, height} = input
+  const labels = new Int32Array(width * height)
+  const regions: Region[] = []
   for (let start = 0; start < width * height; start += 1) {
-    if (mask[start] !== 1 || seen[start] === 1) continue
-    const region = floodFill({mask, seen, width, height, start})
-    if (region.size >= minSize) regions.push(region.box)
+    if (mask[start] !== 1 || labels[start] !== 0) continue
+    labels[start] = regions.length + 1
+    regions.push(floodFill({mask, labels, width, height, start}))
   }
-  return regions
+  return {labels, regions}
+}
+
+export function findRegions(input: {mask: Uint8Array; width: number; height: number; minSize: number}): Box[] {
+  return labelRegions(input)
+    .regions.filter((region) => region.size >= input.minSize)
+    .map((region) => region.box)
 }
 
 export function diffMask(input: {output: Uint8Array; width: number; height: number}): Uint8Array {
@@ -221,4 +241,130 @@ export function paintOver(input: {onto: Raster; from: Raster; boxes: Box[]}): Ra
     })
   })
   return {width: onto.width, height: onto.height, data}
+}
+
+export function expand(input: {box: Box; by: number}): Box {
+  const {box, by} = input
+  return {x: box.x - by, y: box.y - by, w: box.w + by * 2, h: box.h + by * 2}
+}
+
+export function differs(input: {data: Uint8Array; index: number; background: Uint8Array}): boolean {
+  const {data, index, background} = input
+  return range(4).some(
+    (channel) => Math.abs((data[index * 4 + channel] ?? 0) - (background[channel] ?? 0)) > TOLERANCES.inkTrimThreshold,
+  )
+}
+
+export function trimToInk(input: {raster: Raster; box: Box}): Box {
+  const {raster, box} = input
+  const x = Math.max(0, Math.floor(box.x))
+  const y = Math.max(0, Math.floor(box.y))
+  const w = Math.min(raster.width - x, Math.ceil(box.w))
+  const h = Math.min(raster.height - y, Math.ceil(box.h))
+  if (w < MINIMUM_TRIM_SIDE || h < MINIMUM_TRIM_SIDE) return box
+  const tile = crop({raster, box: {x, y, w, h}}).raster
+  const background = tile.data.slice(0, 4)
+  const ink = range(w * h).filter((index) => differs({data: tile.data, index, background}))
+  if (ink.length === 0) return box
+  const bounds = ink.reduce(
+    (edges, index) => {
+      const column = index % w
+      const row = (index - column) / w
+      return {
+        left: Math.min(edges.left, column),
+        top: Math.min(edges.top, row),
+        right: Math.max(edges.right, column + 1),
+        bottom: Math.max(edges.bottom, row + 1),
+      }
+    },
+    {left: w, top: h, right: 0, bottom: 0},
+  )
+  return {x: x + bounds.left, y: y + bounds.top, w: bounds.right - bounds.left, h: bounds.bottom - bounds.top}
+}
+
+export function rgbAt(input: {raster: Raster; index: number}): Rgb {
+  const {raster, index} = input
+  return [raster.data[index * 4] ?? 0, raster.data[index * 4 + 1] ?? 0, raster.data[index * 4 + 2] ?? 0]
+}
+
+export function rgbDistance(input: {a: Rgb; b: Rgb}): number {
+  const {a, b} = input
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
+}
+
+export function inkCoverage(input: {raster: Raster; box: Box; background: Rgb; threshold: number}): number {
+  const {raster, box, background, threshold} = input
+  const area = box.w * box.h
+  if (area <= 0) return 0
+  let covered = 0
+  for (let y = box.y; y < box.y + box.h; y += 1) {
+    for (let x = box.x; x < box.x + box.w; x += 1) {
+      if (rgbDistance({a: rgbAt({raster, index: y * raster.width + x}), b: background}) > threshold) covered += 1
+    }
+  }
+  return covered / area
+}
+
+function cornerDepth(input: {
+  raster: Raster
+  corner: {x: number; y: number}
+  step: {x: number; y: number}
+  inside: Rgb
+  outside: Rgb
+  limit: number
+}): number {
+  const {raster, corner, step, inside, outside, limit} = input
+  const span = rgbDistance({a: inside, b: outside})
+  if (span === 0) return 0
+  let depth = 0
+  for (let i = 0; i < limit; i += 1) {
+    const index = (corner.y + step.y * i) * raster.width + corner.x + step.x * i
+    const covered = Math.min(1, rgbDistance({a: rgbAt({raster, index}), b: outside}) / span)
+    depth += 1 - covered
+    if (covered >= 1) break
+  }
+  return depth
+}
+
+export function cornerRadius(input: {raster: Raster; box: Box; inside: Rgb; outside: Rgb}): number {
+  const {raster, box, inside, outside} = input
+  const limit = Math.floor(Math.min(box.w, box.h) / 2)
+  const right = box.x + box.w - 1
+  const bottom = box.y + box.h - 1
+  const corners = [
+    {corner: {x: box.x, y: box.y}, step: {x: 1, y: 1}},
+    {corner: {x: right, y: box.y}, step: {x: -1, y: 1}},
+    {corner: {x: box.x, y: bottom}, step: {x: 1, y: -1}},
+    {corner: {x: right, y: bottom}, step: {x: -1, y: -1}},
+  ]
+  const depths = corners
+    .map(({corner, step}) => cornerDepth({raster, corner, step, inside, outside, limit}))
+    .toSorted((a, b) => a - b)
+  const median = ((depths[1] ?? 0) + (depths[2] ?? 0)) / 2
+  return Math.round(median / DIAGONAL_SHARE)
+}
+
+export function openMask(input: {mask: Uint8Array; width: number; height: number}): Uint8Array {
+  const {mask, width, height} = input
+  const pass = (source: Uint8Array, keep: (count: number) => boolean): Uint8Array => {
+    const out = new Uint8Array(source.length)
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        let count = 0
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nx = Math.min(width - 1, Math.max(0, x + dx))
+            const ny = Math.min(height - 1, Math.max(0, y + dy))
+            count += source[ny * width + nx] ?? 0
+          }
+        }
+        out[y * width + x] = keep(count) ? 1 : 0
+      }
+    }
+    return out
+  }
+  return pass(
+    pass(mask, (count) => count === 9),
+    (count) => count > 0,
+  )
 }
