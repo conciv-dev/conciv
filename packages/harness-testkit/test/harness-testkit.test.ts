@@ -21,6 +21,10 @@ import {makeRunStream} from '../src/run-stream.js'
 import {makeScriptedRun, type ScriptedRun} from '../src/scripted-run.js'
 import {until as testkitUntil} from '../src/testkit.js'
 import {until} from '../src/until.js'
+import {makeSessionBoundRpcClient} from '../src/session.js'
+import {setImmediate} from 'node:timers/promises'
+import {setFlagsFromString} from 'node:v8'
+import {runInNewContext} from 'node:vm'
 
 describe('call tool', () => {
   it('harnessAvailable returns a boolean for any adapter', () => {
@@ -870,4 +874,40 @@ describe('until', () => {
       expect(state.open).toBe(false)
     })
   })
+})
+
+describe('session bound rpc client', () => {
+  it('ends an aborted event stream after the request behind it was collected', async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, {'content-type': 'text/event-stream'})
+      response.write(`event: message\ndata: ${JSON.stringify({json: {type: 'probe'}})}\n\n`)
+    })
+    const port = await new Promise<number>((resolve) => {
+      server.listen(0, '127.0.0.1', () => {
+        const address = server.address()
+        resolve(typeof address === 'object' && address !== null ? address.port : 0)
+      })
+    })
+    try {
+      const abort = new AbortController()
+      const events = await makeSessionBoundRpcClient(`http://127.0.0.1:${port}`, () => 'conciv_probe').chat.events(
+        {sessionId: 'conciv_probe'},
+        {signal: abort.signal},
+      )
+      await events.next()
+      setFlagsFromString('--expose-gc')
+      const collect: unknown = runInNewContext('gc')
+      if (typeof collect !== 'function') throw new Error('gc unavailable')
+      collect()
+      await setImmediate()
+      collect()
+      await setImmediate()
+      const ended = events.next()
+      abort.abort()
+      await expect(ended).rejects.toThrow()
+    } finally {
+      server.closeAllConnections()
+      await new Promise((resolve) => server.close(resolve))
+    }
+  }, 5_000)
 })
