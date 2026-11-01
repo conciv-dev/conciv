@@ -19,10 +19,10 @@ function syncSessions(client: DevframeRpcClient, props: DevframeLinkProps): void
   })
 }
 
-function trustOf(client: DevframeRpcClient): () => boolean | undefined {
+function unauthorizedOf(client: DevframeRpcClient): () => boolean | undefined {
   return from<boolean>((set) => {
-    set(client.isTrusted === true)
-    return client.events.on('rpc:is-trusted:updated', (isTrusted) => set(isTrusted))
+    set(client.status === 'unauthorized')
+    return client.events.on('connection:status', (status) => set(status === 'unauthorized'))
   })
 }
 
@@ -79,14 +79,17 @@ async function connect(apiBase: string, props: DevframeLinkProps): Promise<Devfr
   client.events.on('rpc:is-trusted:updated', (isTrusted) => {
     if (isTrusted) syncSessions(client, props)
   })
+  client.events.on('connection:status', (status) => {
+    if (status === 'unauthorized') void client.requestAuthCode()
+  })
   if (client.isTrusted) syncSessions(client, props)
-  else void client.requestAuthCode()
+  if (client.status === 'unauthorized') void client.requestAuthCode()
   return client
 }
 
-function Gate(props: {client: DevframeRpcClient; trusted: () => boolean | undefined}): JSX.Element {
+function Gate(props: {client: DevframeRpcClient; unauthorized: () => boolean | undefined}): JSX.Element {
   return (
-    <Show when={props.trusted() === false}>
+    <Show when={props.unauthorized()}>
       <AuthorizeCard client={props.client} />
     </Show>
   )
@@ -97,5 +100,5 @@ export function DevframeLink(props: DevframeLinkProps): JSX.Element {
     () => props.apiBase(),
     (apiBase) => connect(apiBase, props),
   )
-  return <Show when={client()}>{(ready) => <Gate client={ready()} trusted={trustOf(ready())} />}</Show>
+  return <Show when={client()}>{(ready) => <Gate client={ready()} unauthorized={unauthorizedOf(ready())} />}</Show>
 }
