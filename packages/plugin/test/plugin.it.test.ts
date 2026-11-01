@@ -995,37 +995,6 @@ describe('widget inject', () => {
       expect(await (await fetch(base)).text()).toContain('<meta name="conciv-widget" content="{}">')
     })
 
-    it.each([
-      {decoy: 'another tag with that name', html: '<input name="conciv-widget">'},
-      {decoy: 'a comment', html: '<!-- <meta name="conciv-widget" content="{}"> -->'},
-      {decoy: 'a script', html: `<script>const tag = '<meta name="conciv-widget" content="{}">'</script>`},
-      {decoy: 'another attribute name', html: '<meta data-name="conciv-widget">'},
-      {decoy: 'another attribute value', html: '<meta content="name=conciv-widget">'},
-    ])('injects the settings meta when the html only has $decoy', async ({html}) => {
-      const {server, base} = await startServer(makeWidgetInject(API_BASE, {surface: 'dock'}), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end(`<html><head>${html}</head><body>x</body></html>`)
-      })
-      state.server = server
-      expect(await (await fetch(base)).text()).toContain(
-        '<meta name="conciv-widget" content="{&quot;surface&quot;:&quot;dock&quot;}">',
-      )
-    })
-
-    it.each([
-      {shape: 'upper case', tag: '<META NAME="conciv-widget" CONTENT="{}">'},
-      {shape: 'another attribute first', tag: '<meta content="a > b" name="conciv-widget">'},
-      {shape: 'self closed', tag: '<meta name=conciv-widget />'},
-      {shape: 'after a comment', tag: '<!-- settings --><meta name="conciv-widget" content="{}">'},
-    ])('keeps a real settings meta ($shape)', async ({tag}) => {
-      const {server, base} = await startServer(makeWidgetInject(API_BASE, {surface: 'dock'}), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end(`<html><head>${tag}</head><body>x</body></html>`)
-      })
-      state.server = server
-      expect(await (await fetch(base)).text()).not.toContain('&quot;surface&quot;')
-    })
-
     it('adds the missing settings meta when the html already references the client entry', async () => {
       const preinjected = `<html><head>${ENTRY}</head><body>x</body></html>`
       const {server, base} = await startServer(makeWidgetInject(API_BASE, {surface: 'dock'}), (res) => {

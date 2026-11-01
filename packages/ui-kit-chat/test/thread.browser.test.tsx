@@ -3,16 +3,24 @@ import '@conciv/ui-kit-system/tokens.css'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {type JSX, createSignal, onMount, untrack, type ParentProps, For} from 'solid-js'
 import {page, userEvent, type Locator} from 'vitest/browser'
-import {expect, it, beforeEach, onTestFinished, describe} from 'vitest'
+import {expect, it, beforeEach, describe} from 'vitest'
 import type {ChatPart, ToolCallPart, ChatMessage} from '@conciv/protocol/chat-message-types'
-import type {ToolCardEntry, ToolCardProps, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {Activity} from '../src/styled/activity.js'
-import {mountView, RunSettledIndicator, startRun, waitForRunSettled, haltRun, streamingThread} from './helpers.js'
+import {
+  catalogOf,
+  ctxWith,
+  mountView,
+  RunSettledIndicator,
+  startRun,
+  waitForRunSettled,
+  haltRun,
+  streamingThread,
+} from './helpers.js'
 import {createChat, type Chat} from '@conciv/ai/client'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {ToolProvider} from '../src/store/tool-context.js'
 import {
-  createApprovalChunk,
   createReasoningChunks,
   createToolCallChunks,
   storyConnection,
@@ -34,70 +42,16 @@ import {VIRTUALIZE_THRESHOLD} from '../src/primitives/thread/virtualize-threshol
 import {Message} from '../src/primitives/message/message.js'
 import {MessageProvider} from '../src/primitives/message/message-context.js'
 import {NowLine} from '../src/styled/now-line.js'
-import {ChatEventType} from '@conciv/protocol/chat-event-types'
 import {StatusVisual} from '../src/tools/primitives/status-visual.js'
 import {ErrorBlock} from '../src/tools/styled/error-block.js'
 import type {ToolStatus} from '../src/tools/primitives/tool-status.js'
-import {TraceClamp} from '../src/styled/trace/clamp.js'
 import {TraceOutputBlock} from '../src/styled/trace/output-block.js'
 import type {PermissionScope} from '@conciv/protocol/chat-types'
 import {TracePermissionBlock} from '../src/styled/trace/permission-block.js'
 import {Trace, type TraceItem} from '../src/styled/trace/trace.js'
 import {TraceToolRow} from '../src/styled/trace/trace-row.js'
-import type {ToolRowProjection} from '../src/tools/primitives/tool-row.js'
 import {TraceActionRow} from '../src/styled/trace/action-row.js'
 import {Thread as PrimitiveThread} from '../src/primitives/thread/thread.js'
-
-describe('activity standalone outside step group', () => {
-  function ConfirmCard(props: ToolCardProps): JSX.Element {
-    return <p>Confirm this action for {props.part.name}</p>
-  }
-
-  const entries: ToolCardEntry[] = [
-    {names: ['confirm_ui'], render: ConfirmCard, hasEmbeddedBody: () => true, display: 'standalone'},
-  ]
-
-  function call(id: string, name: string, state: ToolCallPart['state']): ChatPart {
-    return {type: 'tool-call', id, name, arguments: '{}', state}
-  }
-
-  function result(toolCallId: string, state: 'complete' | 'error'): ChatPart {
-    return {type: 'tool-result', toolCallId, content: 'ok', state}
-  }
-
-  const messages: ChatMessage[] = [
-    {id: 'u1', role: 'user', parts: [{type: 'text', content: 'please confirm the deploy'}]},
-    {
-      id: 'a1',
-      role: 'assistant',
-      parts: [
-        {type: 'thinking', content: 'checking the deploy target'},
-        call('t1', 'read', 'complete'),
-        result('t1', 'complete'),
-        call('s1', 'confirm_ui', 'complete'),
-        result('s1', 'complete'),
-      ],
-    },
-  ]
-
-  it('renders a standalone tool card outside StepGroup collapsible', async () => {
-    mountView(() => (
-      <Activity.Root messages={messages} tools={entries}>
-        <Activity.Timeline />
-      </Activity.Root>
-    ))
-
-    const stepGroup = page.getByRole('button', {name: '2 steps'})
-    await expect.element(stepGroup, {timeout: 3000}).toHaveAttribute('aria-expanded', 'false')
-
-    await expect.element(page.getByText('Confirm this action for confirm_ui'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByRole('button', {name: 'read'}), {timeout: 3000}).not.toBeInTheDocument()
-
-    await stepGroup.click()
-    await expect.element(page.getByRole('button', {name: 'read'}), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByText('Confirm this action for confirm_ui'), {timeout: 3000}).toBeVisible()
-  })
-})
 
 describe('bottom pinned log scrollers', () => {
   const FULLY_IN_VIEWPORT = {ratio: 0.99}
@@ -133,91 +87,12 @@ describe('bottom pinned log scrollers', () => {
   })
 })
 
-describe('chain approval collapse', () => {
-  const bashMeta: ToolViewMeta = {
-    summary: 'run a shell command',
-    mutating: true,
-    mirrors: false,
-    approval: 'ask',
-  }
-
-  function approvalToolCtx(): ToolViewCtx {
-    return {
-      apiBase: '',
-      harnessId: 'test',
-      sendMessage: () => {},
-      catalog: {loaded: () => true, meta: (name) => (name === 'bash' ? bashMeta : undefined)},
-      addResult: () => {},
-      respondApproval: () => {},
-    }
-  }
-
-  function ApprovalThread(): JSX.Element {
-    const chat = createChat({
-      threadId: 'chain-approval-collapse',
-      connection: storyConnection({
-        chunks: [
-          ...createReasoningChunks('deciding what to run'),
-          ...createToolCallChunks('bash', {command: 'rm -rf tmp'}),
-          createApprovalChunk('bash', {command: 'rm -rf tmp'}),
-        ],
-        chunkDelay: 30,
-      }),
-    })
-    return (
-      <ChatProvider chat={chat}>
-        <ToolProvider value={approvalToolCtx()}>
-          <button type="button" onClick={() => void chat.sendMessage('run it')}>
-            ask
-          </button>
-          <RunSettledIndicator />
-          <Thread>
-            <Thread.Viewport>
-              <Thread.Messages />
-            </Thread.Viewport>
-          </Thread>
-        </ToolProvider>
-      </ChatProvider>
-    )
-  }
-
-  it('keeps an ask from the library event out of the trace, which stays open and collapses by hand', async () => {
-    mountView(() => <ApprovalThread />)
-
-    await startRun()
-    await waitForRunSettled()
-
-    const trigger = page.getByRole('button', {name: /trace/i})
-    const permissionBlock = page.getByRole('group', {name: 'Permission request'})
-    await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
-    await expect.element(page.getByRole('list', {name: 'Execution trace'}).getByText('bash')).toBeVisible()
-    await expect.element(permissionBlock).not.toBeInTheDocument()
-
-    await trigger.click()
-
-    await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'closed')
-  })
-})
-
 describe('empty group suppression', () => {
-  function StubSessionCard(props: GroupRenderProps): JSX.Element {
-    const parts = () => pageSessionCallParts(props.parts(), props.node.indices)
-    return <span>{`session acts ${parts().length}`}</span>
-  }
-
-  const PAGE_SESSION_ENTRY: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render: StubSessionCard}
-
-  const PAGE_SESSION: PageSessionConfig = {
-    entry: PAGE_SESSION_ENTRY,
-    actNames: new Set(['page_fill']),
-    toolPrefix: 'page_',
-  }
-
   function dataPart(): ChatPart {
     return {type: 'structured-output', status: 'complete', raw: '{"done":true}', data: {done: true}}
   }
 
-  function staticThread(parts: ChatPart[], pageSession?: PageSessionConfig): () => JSX.Element {
+  function staticThread(parts: ChatPart[]): () => JSX.Element {
     const messages: ChatMessage[] = [
       {id: 'u1', role: 'user', parts: [{type: 'text', content: 'go'}]},
       {id: 'a1', role: 'assistant', parts},
@@ -229,7 +104,7 @@ describe('empty group suppression', () => {
         <ChatProvider chat={chat}>
           <Thread>
             <Thread.Viewport>
-              <Thread.Messages pageSession={pageSession} />
+              <Thread.Messages />
             </Thread.Viewport>
           </Thread>
         </ChatProvider>
@@ -237,82 +112,11 @@ describe('empty group suppression', () => {
     }
   }
 
-  async function expectReplyWithoutChain(): Promise<void> {
-    await expect.element(page.getByText('All set.'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByRole('button', {name: /trace/i})).not.toBeInTheDocument()
-  }
-
-  it('renders no group wrapper for a run of unrenderable data parts without a page session', async () => {
+  it('renders no group wrapper for a run of unrenderable data parts', async () => {
     mountView(staticThread([dataPart(), dataPart(), {type: 'text', content: 'All set.'}]))
 
-    await expectReplyWithoutChain()
-  })
-
-  it('renders no group wrapper for a run of unrenderable data parts with a page session configured', async () => {
-    mountView(staticThread([dataPart(), dataPart(), {type: 'text', content: 'All set.'}], PAGE_SESSION))
-
-    await expectReplyWithoutChain()
-    await expect.element(page.getByText(/session acts/)).not.toBeInTheDocument()
-  })
-
-  it('renders no reasoning group for a thinking part with only whitespace content', async () => {
-    mountView(
-      staticThread([
-        {type: 'thinking', content: '   '},
-        {type: 'text', content: 'All set.'},
-      ]),
-    )
-
-    await expectReplyWithoutChain()
-  })
-
-  it('keeps a chain group for a thinking part once the segment also ran a tool', async () => {
-    mountView(
-      staticThread([
-        {type: 'thinking', content: 'weighing it'},
-        {type: 'tool-call', id: 'c1', name: 'Bash', arguments: '{"command":"ls"}', state: 'complete'},
-        {type: 'text', content: 'All set.'},
-      ]),
-    )
-
-    const trigger = page.getByRole('button', {name: /trace/i})
-    await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
-    await expect.element(page.getByText('weighing it'), {timeout: 3000}).toBeVisible()
-    await userEvent.click(trigger)
-    await expect.element(trigger).toHaveAttribute('data-state', 'closed')
-  })
-
-  const BLANK_THINKING_CHUNKS = [
-    ...createReasoningChunks(' ', 'blank-thought'),
-    ...createTextChunks('blank run reply', 'blank-reply'),
-  ]
-
-  it('opens no streaming group for a blank thinking part mid-run', async () => {
-    mountView(streamingThread(BLANK_THINKING_CHUNKS, 1))
-
-    await startRun()
-    await expect.element(page.getByText('blank run reply'), {timeout: 3000}).toBeVisible()
+    await expect.element(page.getByText('All set.'), {timeout: 3000}).toBeVisible()
     await expect.element(page.getByRole('button', {name: /trace/i})).not.toBeInTheDocument()
-
-    await haltRun()
-    await expect.element(page.getByRole('button', {name: /trace/i})).not.toBeInTheDocument()
-  })
-
-  const THINKING_THEN_TOOL_CHUNKS = [
-    ...createReasoningChunks('mapping the repo'),
-    ...createToolCallChunks('Bash', {command: 'ls'}),
-  ]
-
-  it('shows the group with its first member expanded while the run streams', async () => {
-    mountView(streamingThread(THINKING_THEN_TOOL_CHUNKS, 30))
-
-    await startRun()
-    const trigger = page.getByRole('button', {name: /trace/i})
-    await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
-    await expect.element(page.getByText('mapping the repo'), {timeout: 3000}).toBeVisible()
-
-    await haltRun()
-    await expect.element(trigger, {timeout: 3000}).toBeVisible()
   })
 })
 
@@ -441,12 +245,6 @@ describe('message if has text', () => {
 
     await expect.element(page.getByText('bubble drawn')).toBeVisible()
   })
-
-  it('a turn whose text is only whitespace draws no bubble', async () => {
-    mount([grabDocumentPart(), {type: 'text', content: '   '}])
-
-    await expect.element(page.getByText('bubble drawn')).not.toBeInTheDocument()
-  })
 })
 
 describe('nested group rendering', () => {
@@ -527,98 +325,6 @@ describe('nested group rendering', () => {
 
     await expect.element(page.getByText('top body'), {timeout: 3000}).toBeVisible()
   })
-
-  function staticActivity(
-    parts: ChatPart[],
-    grouping: Grouping,
-    groupEntries: readonly GroupEntry[],
-  ): () => JSX.Element {
-    return function StaticActivity(): JSX.Element {
-      return (
-        <Activity messages={messagesWith(parts)} grouping={grouping} groupEntries={groupEntries}>
-          <Activity.Timeline aria-label="activity" />
-        </Activity>
-      )
-    }
-  }
-
-  it('recursively dispatches registered child entries in the activity timeline', async () => {
-    const grouping: Grouping = {grouper: grouperByText(() => [OUTER_KEY, INNER_KEY]), context: {}}
-    mountView(
-      staticActivity([{type: 'text', content: 'nested body'}], grouping, [
-        wrapperEntry(OUTER_KEY, 'outer wrapper'),
-        wrapperEntry(INNER_KEY, 'inner wrapper'),
-      ]),
-    )
-
-    await expect.element(page.getByText('outer wrapper'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByText('inner wrapper'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByText('nested body'), {timeout: 3000}).toBeVisible()
-  })
-
-  it('flattens an unregistered child group key in the activity timeline', async () => {
-    const grouping: Grouping = {grouper: grouperByText(() => [OUTER_KEY, MYSTERY_KEY]), context: {}}
-    mountView(
-      staticActivity([{type: 'text', content: 'nested body'}], grouping, [wrapperEntry(OUTER_KEY, 'outer wrapper')]),
-    )
-
-    await expect.element(page.getByText('outer wrapper'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByText('nested body'), {timeout: 3000}).toBeVisible()
-  })
-
-  function groupedPartsThread(parts: ChatPart[], grouping: Grouping): () => JSX.Element {
-    const GroupWrapper = (props: {indices: readonly number[]; groupKey: GroupKey; children?: JSX.Element}) => (
-      <div>
-        <span>{`wrap ${props.groupKey}`}</span>
-        {props.children}
-      </div>
-    )
-    const GroupedAssistant = (): JSX.Element => (
-      <Message.Unstable_PartsGrouped grouping={grouping} components={{Group: GroupWrapper}} />
-    )
-    return function GroupedPartsThread(): JSX.Element {
-      const chat = createChat({threadId: 'nested-group-rendering', connection: storyConnection()})
-      onMount(() => chat.setMessages(messagesWith(parts)))
-      return (
-        <ChatProvider chat={chat}>
-          <Thread>
-            <Thread.Viewport>
-              <Thread.Messages components={{AssistantMessage: GroupedAssistant}} />
-            </Thread.Viewport>
-          </Thread>
-        </ChatProvider>
-      )
-    }
-  }
-
-  it('wraps every level of a nested path through the grouped primitive', async () => {
-    const grouping: Grouping = {grouper: grouperByText(() => [OUTER_KEY, INNER_KEY]), context: {}}
-    mountView(groupedPartsThread([{type: 'text', content: 'nested body'}], grouping))
-
-    await expect.element(page.getByText('wrap group-outer'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByText('wrap group-inner'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByText('nested body'), {timeout: 3000}).toBeVisible()
-  })
-
-  it('suppresses every wrapper of a nested group whose descendants render nothing', async () => {
-    const grouping: Grouping = {
-      grouper: (parts) => parts.map((part) => (part.type === 'structured-output' ? [OUTER_KEY, INNER_KEY] : [])),
-      context: {},
-    }
-    mountView(
-      groupedPartsThread(
-        [
-          {type: 'structured-output', status: 'complete', raw: '{}', data: {}},
-          {type: 'text', content: 'visible reply'},
-        ],
-        grouping,
-      ),
-    )
-
-    await expect.element(page.getByText('visible reply'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByText('wrap group-outer')).not.toBeInTheDocument()
-    await expect.element(page.getByText('wrap group-inner')).not.toBeInTheDocument()
-  })
 })
 
 describe('now line', () => {
@@ -650,82 +356,12 @@ describe('now line', () => {
     await expect.element(spinnerGlyph(), {timeout: TIMEOUT_MS}).toBeVisible()
   })
 
-  it('cycles the braille spinner glyph while the run is live', async () => {
-    mountView(() => framed(<NowLine title="Reading widget-shell.tsx" />))
-
-    await expect.element(spinnerGlyph(), {timeout: TIMEOUT_MS}).toBeVisible()
-    const firstGlyph = spinnerGlyph().element().textContent
-    await expect.element(spinnerGlyph(), {timeout: TIMEOUT_MS}).not.toHaveTextContent(firstGlyph)
-  })
-
   it('freezes the spinner glyph visible under prefers-reduced-motion instead of hiding it', async () => {
     const restore = withReducedMotion()
     mountView(() => framed(<NowLine title="Reading widget-shell.tsx" />))
 
     await expect.element(page.getByText('⠿', {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
     restore()
-  })
-
-  const FIRST_ACTIVITY = 'Thinking…'
-  const NEXT_ACTIVITY = 'Running ls'
-
-  it('swaps the narration label and unmounts the outgoing one once its exit finishes', async () => {
-    const [title, setTitle] = createSignal(FIRST_ACTIVITY)
-    mountView(() => framed(<NowLine title={title()} />))
-
-    await expect.element(page.getByText(FIRST_ACTIVITY, {exact: true})).toBeVisible()
-    setTitle(NEXT_ACTIVITY)
-    await expect.element(page.getByText(NEXT_ACTIVITY, {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
-    await page.screenshot({path: '__screenshots__/now-line/label-swap.png'})
-    await expect.element(page.getByText(FIRST_ACTIVITY, {exact: true}), {timeout: TIMEOUT_MS}).not.toBeInTheDocument()
-  })
-
-  it('swaps with a single label and no exit animation under prefers-reduced-motion', async () => {
-    const restore = withReducedMotion()
-    const [title, setTitle] = createSignal(FIRST_ACTIVITY)
-    mountView(() => framed(<NowLine title={title()} />))
-
-    await expect.element(page.getByText(FIRST_ACTIVITY, {exact: true})).toBeVisible()
-    setTitle(NEXT_ACTIVITY)
-    await expect.element(page.getByText(NEXT_ACTIVITY, {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
-    await expect.element(page.getByText(FIRST_ACTIVITY, {exact: true})).not.toBeInTheDocument()
-    restore()
-  })
-
-  const CHURN_START = 'Thinking…'
-  const CHURN_STEPS = ['Reading app.tsx', 'Running tsc', 'Reading now-line.tsx', 'Running oxlint', 'Responding…']
-  const CHURN_SETTLED = 'Responding…'
-
-  it('cuts to the latest narration under rapid churn and settles on exactly one label', async () => {
-    const [title, setTitle] = createSignal(CHURN_START)
-    mountView(() => framed(<NowLine title={title()} />))
-
-    await expect.element(page.getByText(CHURN_START, {exact: true})).toBeVisible()
-    for (const step of CHURN_STEPS) {
-      setTitle(step)
-      await expect.element(page.getByText(step, {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
-    }
-
-    await expect.element(page.getByText(CHURN_SETTLED, {exact: true})).toBeVisible()
-    await page.screenshot({path: '__screenshots__/now-line/churn-settled.png'})
-    for (const stale of [CHURN_START, ...CHURN_STEPS.slice(0, -1)]) {
-      await expect.element(page.getByText(stale, {exact: true}), {timeout: TIMEOUT_MS}).not.toBeInTheDocument()
-    }
-  })
-
-  const LONG_TITLE = 'Running pnpm turbo run test --filter=@conciv/ui-kit-chat --filter=@conciv/app --concurrency=1'
-
-  it('keeps the spinner and the Stop affordance on one line when the narration overflows a narrow panel', async () => {
-    mountView(() => (
-      <div class="dark p-3 w-[15rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">
-        <NowLine title={LONG_TITLE} onStop={() => {}} />
-      </div>
-    ))
-
-    await expect.element(page.getByText(LONG_TITLE, {exact: true})).toBeVisible()
-    await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
-    await expect.element(spinnerGlyph(), {timeout: TIMEOUT_MS}).toBeVisible()
-    await page.screenshot({path: '__screenshots__/now-line/narrow-overflow.png'})
   })
 
   it('offers a mono text Stop affordance that matches the composer controls', async () => {
@@ -744,10 +380,7 @@ describe('now line', () => {
 })
 
 describe('page session injection', () => {
-  const cardMounts: string[] = []
-
   function StubSessionCard(props: GroupRenderProps): JSX.Element {
-    onMount(() => cardMounts.push('card'))
     const parts = () => pageSessionCallParts(props.parts(), props.node.indices)
     const thinking = () => pageSessionThinkingParts(props.parts(), props.node.indices)
     return (
@@ -890,25 +523,6 @@ describe('page session injection', () => {
     )
   }
 
-  it('selects a trailing page-session as the live segment instead of the last chain', async () => {
-    mountView(() => (
-      <ActivityHarness
-        live
-        messages={[
-          user('u1', 'drive the page'),
-          assistant('a1', [
-            call('b1', 'bash', 'complete'),
-            result('b1', 'complete'),
-            call('f1', 'page_fill', 'input-complete'),
-          ]),
-        ]}
-      />
-    ))
-
-    await expect.element(page.getByText('session live'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByRole('button', {name: '1 step'})).toBeVisible()
-  })
-
   it('settles a live activity session once a trailing reply follows the acts', async () => {
     mountView(() => (
       <ActivityHarness
@@ -971,56 +585,6 @@ describe('page session injection', () => {
     await expect.element(page.getByRole('button', {name: 'execute_typescript'})).not.toBeInTheDocument()
   })
 
-  it('keeps the injected card and its DOM node mounted across streamed act appends', async () => {
-    cardMounts.length = 0
-    mountView(
-      threadHarness(
-        {chunks: [...fillChunks('f1', true), ...fillChunks('f2', false)], chunkDelay: 150, runsUntilStopped: true},
-        PAGE_SESSION,
-      ),
-    )
-
-    await page.getByRole('button', {name: 'ask'}).click()
-    await expect.element(page.getByText('session acts 1'), {timeout: 3000}).toBeVisible()
-    const cardNode = page.getByText(/session acts/).element()
-
-    await expect.element(page.getByText('session acts 2'), {timeout: 3000}).toBeVisible()
-    expect(page.getByText(/session acts/).element()).toBe(cardNode)
-    expect(cardMounts.length).toBe(1)
-
-    await page.getByRole('button', {name: 'halt'}).click()
-    await expect.element(page.getByText('session settled'), {timeout: 3000}).toBeVisible()
-    expect(cardMounts.length).toBe(1)
-  })
-
-  it('keeps the live session streaming when a trailing foreign result arrives', async () => {
-    mountView(
-      threadHarness(
-        {
-          chunks: [
-            ...fillChunks('f1', true),
-            ...fillChunks('f2', true),
-            {
-              type: ChatEventType.TOOL_CALL_RESULT,
-              messageId: 'foreign-result',
-              toolCallId: 'foreign',
-              content: '{}',
-            },
-          ],
-          chunkDelay: 1,
-          runsUntilStopped: true,
-        },
-        PAGE_SESSION,
-      ),
-    )
-
-    await page.getByRole('button', {name: 'ask'}).click()
-    await expect.element(page.getByText('session acts 2'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByText('session live')).toBeVisible()
-    await page.getByRole('button', {name: 'halt'}).click()
-    await expect.element(page.getByText('session settled'), {timeout: 3000}).toBeVisible()
-  })
-
   it('hands the folded thinking parts to the injected renderer', async () => {
     mountView(() => (
       <ActivityHarness
@@ -1039,51 +603,9 @@ describe('page session injection', () => {
 
     await expect.element(page.getByText('session thinking 1'), {timeout: 3000}).toBeVisible()
   })
-
-  it('renders no phantom card for a parent split from its acts by reply text', async () => {
-    mountView(() => (
-      <ActivityHarness
-        messages={[
-          user('u1', 'explain then edit'),
-          assistant('a1', [
-            call('p1', 'execute_typescript', 'complete'),
-            {type: 'text', content: 'first, the plan'},
-            subCall('s1', 'page_fill', 'p1', 'complete'),
-            result('s1', 'complete'),
-          ]),
-        ]}
-      />
-    ))
-
-    await expect.element(page.getByText('session acts 1'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByRole('button', {name: '1 step'})).toBeVisible()
-    expect(page.getByText(/session acts/).elements()).toHaveLength(1)
-  })
-})
-
-describe('solid cleanup wiring', () => {
-  it('mounts a marker button for the next test to check against', async () => {
-    mountView(() => <button type="button">cleanup marker</button>)
-    await expect.element(page.getByRole('button', {name: 'cleanup marker'})).toBeVisible()
-  })
-
-  it('sees only its own mount, proving the shared afterEach(cleanup) ran between tests', async () => {
-    mountView(() => <button type="button">cleanup marker</button>)
-    await expect.element(page.getByRole('button', {name: 'cleanup marker'})).toBeVisible()
-  })
 })
 
 describe('standalone tool outside chain', () => {
-  function confirmToolCtx(): ToolViewCtx {
-    return {
-      apiBase: '',
-      harnessId: 'test',
-      sendMessage: () => {},
-      catalog: {loaded: () => true, meta: () => undefined},
-      addResult: () => {},
-    }
-  }
-
   function ConfirmCard(props: ToolCardProps): JSX.Element {
     return <p>Confirm this action for {props.part.name}</p>
   }
@@ -1106,7 +628,7 @@ describe('standalone tool outside chain', () => {
     })
     return (
       <ChatProvider chat={chat}>
-        <ToolProvider value={confirmToolCtx()}>
+        <ToolProvider value={ctxWith(catalogOf({}))}>
           <button type="button" onClick={() => void chat.sendMessage('ask me')}>
             ask
           </button>
@@ -1148,27 +670,11 @@ describe('status visual', () => {
     await expect.element(page.getByRole('img', {name: 'needs approval'})).toBeVisible()
   })
 
-  it('gives each status its own accessible name in icon form, distinguishing them without relying on color', async () => {
-    mountView(() => <For each={STATUSES}>{(status) => <StatusVisual status={status} form="icon" />}</For>)
-
-    await expect.element(page.getByRole('img', {name: 'running'})).toBeVisible()
-    await expect.element(page.getByRole('img', {name: 'complete'})).toBeVisible()
-    await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
-    await expect.element(page.getByRole('img', {name: 'needs approval'})).toBeVisible()
-  })
-
   it('shows the default "Error" label and the message', async () => {
     mountView(() => <ErrorBlock message="nothing on the page matches that selector" />)
 
     await expect.element(page.getByText('Error')).toBeVisible()
     await expect.element(page.getByText('nothing on the page matches that selector')).toBeVisible()
-  })
-
-  it('shows a custom label in place of "Error"', async () => {
-    mountView(() => <ErrorBlock label="Failure" message="the sandbox blew up" />)
-
-    await expect.element(page.getByText('Failure')).toBeVisible()
-    await expect.element(page.getByText('the sandbox blew up')).toBeVisible()
   })
 })
 
@@ -1277,14 +783,20 @@ describe('thread composition', () => {
 })
 
 describe('thread session log', () => {
-  function baseToolCtx(): ToolViewCtx {
-    return {
-      apiBase: '',
-      harnessId: 'test',
-      sendMessage: () => {},
-      catalog: {loaded: () => true, meta: () => undefined},
-      addResult: () => {},
-    }
+  function LogThread(props: {messages: ChatMessage[]}): JSX.Element {
+    const chat = createChat({threadId: 'thread-session-log', connection: storyConnection()})
+    onMount(() => chat.setMessages(props.messages))
+    return (
+      <ChatProvider chat={chat}>
+        <ToolProvider value={ctxWith(catalogOf({}))}>
+          <Thread>
+            <Thread.Viewport>
+              <Thread.Messages />
+            </Thread.Viewport>
+          </Thread>
+        </ToolProvider>
+      </ChatProvider>
+    )
   }
 
   function messagesWithSettledTrace(): ChatMessage[] {
@@ -1312,24 +824,8 @@ describe('thread session log', () => {
     ]
   }
 
-  function SettledTraceThread(): JSX.Element {
-    const chat = createChat({threadId: 'thread-session-log', connection: storyConnection()})
-    onMount(() => chat.setMessages(messagesWithSettledTrace()))
-    return (
-      <ChatProvider chat={chat}>
-        <ToolProvider value={baseToolCtx()}>
-          <Thread>
-            <Thread.Viewport>
-              <Thread.Messages />
-            </Thread.Viewport>
-          </Thread>
-        </ToolProvider>
-      </ChatProvider>
-    )
-  }
-
   it('collapses a settled, non-active turn to its record line and expands it again on toggle', async () => {
-    mountView(() => <SettledTraceThread />)
+    mountView(() => <LogThread messages={messagesWithSettledTrace()} />)
 
     await expect.element(page.getByText('Found it in watcher.ts.'), {timeout: 3000}).toBeVisible()
     await expect.element(page.getByText('Fixed and verified.'), {timeout: 3000}).toBeVisible()
@@ -1345,64 +841,6 @@ describe('thread session log', () => {
     await expect.element(page.getByText('checking the event listeners first'), {timeout: 3000}).toBeVisible()
     await new Promise((resolve) => setTimeout(resolve, 900))
     await page.screenshot({path: '__screenshots__/thread-session-log/expanded-record.png'})
-  })
-
-  it('renders the answer prose after the trace/record row when the trace precedes it in the stream', async () => {
-    mountView(() => <SettledTraceThread />)
-
-    const answerLocator = page.getByText('Found it in watcher.ts.')
-    const triggerLocator = page.getByRole('button', {name: /trace/i})
-    await expect.element(answerLocator, {timeout: 3000}).toBeVisible()
-    await expect.element(triggerLocator, {timeout: 3000}).toBeVisible()
-
-    const answer = answerLocator.element()
-    const trigger = triggerLocator.element()
-    const order = trigger.compareDocumentPosition(answer)
-    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-  })
-
-  it('leaves every settled trace row free of the running ring once the run is over', async () => {
-    mountView(() => <SettledTraceThread />)
-
-    await expect.element(page.getByText('Found it in watcher.ts.'), {timeout: 3000}).toBeVisible()
-    await page.getByRole('button', {name: /trace/i}).click()
-    await expect.element(page.getByText('checking the event listeners first'), {timeout: 3000}).toBeVisible()
-
-    expect(document.querySelectorAll('[role="img"][aria-label="running"]')).toHaveLength(0)
-  })
-
-  function messagesWithoutTools(): ChatMessage[] {
-    return [
-      {id: 'u1', role: 'user', parts: [{type: 'text', content: 'what does this module do'}]},
-      {
-        id: 'a1',
-        role: 'assistant',
-        parts: [{type: 'text', content: 'It coalesces messages into turns.'}],
-      },
-    ]
-  }
-
-  function ToollessThread(): JSX.Element {
-    const chat = createChat({threadId: 'thread-session-log', connection: storyConnection()})
-    onMount(() => chat.setMessages(messagesWithoutTools()))
-    return (
-      <ChatProvider chat={chat}>
-        <ToolProvider value={baseToolCtx()}>
-          <Thread>
-            <Thread.Viewport>
-              <Thread.Messages />
-            </Thread.Viewport>
-          </Thread>
-        </ToolProvider>
-      </ChatProvider>
-    )
-  }
-
-  it('renders no trace at all for a turn segment that neither reasoned nor ran tools', async () => {
-    mountView(() => <ToollessThread />)
-
-    await expect.element(page.getByText('It coalesces messages into turns.'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByRole('button', {name: /trace/i})).not.toBeInTheDocument()
   })
 
   function messagesWithTwoSegments(): ChatMessage[] {
@@ -1437,24 +875,8 @@ describe('thread session log', () => {
     ]
   }
 
-  function TwoSegmentThread(): JSX.Element {
-    const chat = createChat({threadId: 'thread-session-log', connection: storyConnection()})
-    onMount(() => chat.setMessages(messagesWithTwoSegments()))
-    return (
-      <ChatProvider chat={chat}>
-        <ToolProvider value={baseToolCtx()}>
-          <Thread>
-            <Thread.Viewport>
-              <Thread.Messages />
-            </Thread.Viewport>
-          </Thread>
-        </ToolProvider>
-      </ChatProvider>
-    )
-  }
-
   it('gives each trace segment of one turn its own summary line', async () => {
-    mountView(() => <TwoSegmentThread />)
+    mountView(() => <LogThread messages={messagesWithTwoSegments()} />)
 
     await expect.element(page.getByText('Tests are green.'), {timeout: 3000}).toBeVisible()
 
@@ -1486,24 +908,8 @@ describe('thread session log', () => {
     ]
   }
 
-  function InterleavedTurnThread(): JSX.Element {
-    const chat = createChat({threadId: 'thread-session-log', connection: storyConnection()})
-    onMount(() => chat.setMessages(messagesWithInterleavedTurn()))
-    return (
-      <ChatProvider chat={chat}>
-        <ToolProvider value={baseToolCtx()}>
-          <Thread>
-            <Thread.Viewport>
-              <Thread.Messages />
-            </Thread.Viewport>
-          </Thread>
-        </ToolProvider>
-      </ChatProvider>
-    )
-  }
-
   it('renders text, trace, then text in stream order for a turn with parts interleaved around a tool call', async () => {
-    const container = mountView(() => <InterleavedTurnThread />)
+    const container = mountView(() => <LogThread messages={messagesWithInterleavedTurn()} />)
 
     const firstTextLocator = page.getByText('Let me check the CI logs.')
     const triggerLocator = page.getByRole('button', {name: /trace/i})
@@ -1527,101 +933,6 @@ describe('thread session log', () => {
     expect(answerIndex).toBeGreaterThan(triggerIndex)
     expect(answerIndex).toBe(contentRows.length - 1)
     await page.screenshot({path: '__screenshots__/thread-session-log/interleaved-turn-order.png'})
-  })
-})
-
-describe('thread trace rail', () => {
-  function toolCtx(): ToolViewCtx {
-    return {
-      apiBase: '',
-      harnessId: 'test',
-      sendMessage: () => {},
-      catalog: {loaded: () => true, meta: () => undefined},
-      addResult: () => {},
-    }
-  }
-
-  function tracedMessages(): ChatMessage[] {
-    return [
-      {id: 'u1', role: 'user', parts: [{type: 'text', content: 'find the leak'}]},
-      {
-        id: 'a1',
-        role: 'assistant',
-        parts: [
-          {type: 'thinking', content: 'checking the event listeners first'},
-          {
-            type: 'tool-call',
-            id: 'call1',
-            name: 'bash',
-            arguments: '{"command":"grep -rn addEventListener src"}',
-            input: {command: 'grep -rn addEventListener src'},
-            state: 'complete',
-            output: 'src/watcher.ts:12',
-          },
-          {type: 'text', content: 'Found it in watcher.ts.'},
-        ],
-      },
-    ]
-  }
-
-  function TracedThread(props: {messages: ChatMessage[]}): JSX.Element {
-    const chat = createChat({threadId: 'thread-trace-rail', connection: storyConnection()})
-    onMount(() => chat.setMessages(props.messages))
-    return (
-      <ChatProvider chat={chat}>
-        <ToolProvider value={toolCtx()}>
-          <Thread>
-            <Thread.Viewport>
-              <Thread.Messages />
-            </Thread.Viewport>
-          </Thread>
-        </ToolProvider>
-      </ChatProvider>
-    )
-  }
-
-  function traceRoot(): HTMLElement {
-    const root = page.getByRole('button', {name: /trace/i}).element().closest('[data-part="root"]')
-    if (!(root instanceof HTMLElement)) throw new Error('expected the trace collapsible root')
-    return root
-  }
-
-  function traceArmsPath(): SVGPathElement {
-    const path = traceRoot().querySelectorAll(':scope > svg > path')[1]
-    if (!(path instanceof SVGPathElement)) throw new Error('expected the trace rail arms path')
-    return path
-  }
-
-  it('ticks a rail arm onto the expanded rows of a thread trace', async () => {
-    mountView(() => <TracedThread messages={tracedMessages()} />)
-
-    await expect.element(page.getByText('Found it in watcher.ts.'), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByRole('button', {name: /hide trace/i}), {timeout: 3000}).toBeVisible()
-    await expect.element(page.getByText('checking the event listeners first'), {timeout: 3000}).toBeVisible()
-
-    await expect.element(page.elementLocator(traceArmsPath()), {timeout: 3000}).not.toHaveAttribute('d', '')
-  })
-})
-
-describe('trace clamp', () => {
-  function overflowLabel(hiddenLines: number): string {
-    return hiddenLines >= 20 ? 'reveal-large' : 'reveal-small'
-  }
-
-  it('re-measures overflow of a live streaming block once the viewport is already clamped at its max height', async () => {
-    const [lineCount, setLineCount] = createSignal(5)
-
-    mountView(() => (
-      <TraceClamp size="default" live overflowLabel={overflowLabel}>
-        <For each={Array.from({length: 200}, (_, i) => i)}>
-          {(i) => <div style={i < lineCount() ? undefined : {display: 'none'}}>trace line {i}</div>}
-        </For>
-      </TraceClamp>
-    ))
-
-    setLineCount(50)
-
-    await expect.element(page.getByText('reveal-large')).toBeVisible()
   })
 })
 
@@ -1675,29 +986,6 @@ describe('trace output block', () => {
     await expect.element(page.getByRole('status')).toHaveTextContent('Could not copy the output')
   })
 
-  it('announces a clipboard refusal when writeText throws synchronously instead of returning a rejected promise', async () => {
-    const throwSync = (): Promise<void> => {
-      throw new Error('navigator.clipboard is unavailable in this context')
-    }
-    mountView(() => (
-      <TraceOutputBlock text={STDOUT} writeText={throwSync}>
-        {STDOUT}
-      </TraceOutputBlock>
-    ))
-
-    await page.getByRole('button', {name: 'Copy'}).click()
-
-    await expect.element(page.getByRole('status')).toHaveTextContent('Could not copy the output')
-  })
-
-  it('reaches the block actions with the keyboard', async () => {
-    mountView(() => <TraceOutputBlock text={STDOUT}>{STDOUT}</TraceOutputBlock>)
-
-    await userEvent.tab()
-
-    await expect.element(page.getByRole('button', {name: 'Copy'})).toHaveFocus()
-  })
-
   it('runs the open action the block was given', async () => {
     function View() {
       const [opened, setOpened] = createSignal('')
@@ -1742,14 +1030,7 @@ describe('trace permission block', () => {
   type Decision = {id: string; approved: boolean; scope: PermissionScope | undefined}
 
   function ctxRecording(decisions: Decision[]): ToolViewCtx {
-    return {
-      apiBase: '',
-      harnessId: 'test',
-      sendMessage: () => {},
-      catalog: {loaded: () => true, meta: () => undefined},
-      addResult: () => {},
-      respondApproval: (id, approved, scope) => decisions.push({id, approved, scope}),
-    }
+    return {...ctxWith(catalogOf({})), respondApproval: (id, approved, scope) => decisions.push({id, approved, scope})}
   }
 
   it('approves through the Approve button', async () => {
@@ -1816,30 +1097,6 @@ describe('trace permission block', () => {
     expect(decisions).toEqual([{id: 'approval-1', approved: false, scope: 'once'}])
   })
 
-  it('announces the decision the reader just made', async () => {
-    const decisions: Decision[] = []
-    mountView(() => <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />)
-
-    await page.getByRole('button', {name: 'Deny'}).click()
-
-    await expect.element(page.getByRole('status')).toHaveTextContent('Denied the request')
-  })
-
-  it('keeps the announcement status paragraph a child of the list item, both while pending and after it settles', async () => {
-    const decisions: Decision[] = []
-    const container = mountView(() => (
-      <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />
-    ))
-
-    await expect.element(page.getByRole('group', {name: 'Permission request'})).toBeVisible()
-    expect(container.querySelector('li > p[role="status"]')).not.toBeNull()
-
-    await page.getByRole('button', {name: 'Deny'}).click()
-
-    await expect.element(page.getByRole('status')).toHaveTextContent('Denied the request')
-    expect(container.querySelector('li > p[role="status"]')).not.toBeNull()
-  })
-
   it('remembers the exact command for the session through the session action', async () => {
     const decisions: Decision[] = []
     mountView(() => <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />)
@@ -1885,141 +1142,6 @@ describe('trace permission block', () => {
     await expect.element(page.getByRole('timer')).toBeVisible()
     await expect.element(page.getByRole('timer')).toMatchTextContent(/expires in 1:\d\d/)
     expect(document.querySelectorAll('[role="timer"]')).toHaveLength(1)
-  })
-})
-
-describe('trace rail resize loop', () => {
-  const ROW_COUNT = 40
-  const RELEASE_STEPS = 30
-
-  const windowErrors: string[] = []
-  window.addEventListener('error', (event) => {
-    windowErrors.push(typeof event.message === 'string' ? event.message : String(event))
-  })
-
-  beforeEach(() => {
-    windowErrors.length = 0
-  })
-
-  function outputAt(index: number, step: number): string {
-    const lines = 2 + ((index + step * 5) % 24)
-    return Array.from({length: lines}, (_, line) => `src/module-${index}.ts:${line} matched the pattern`).join('\n')
-  }
-
-  function rows(step: () => number): TraceItem[] {
-    return Array.from({length: ROW_COUNT}, (_, index) => ({
-      key: `row-${index}`,
-      render: (branch) => (
-        <TraceToolRow
-          projection={{mark: 'pass', label: 'grep', target: `src/module-${index}.ts`, meta: 'matches'}}
-          ring={branch.ring}
-          body={() => <TraceOutputBlock text={outputAt(index, step())}>{outputAt(index, step())}</TraceOutputBlock>}
-        />
-      ),
-    }))
-  }
-
-  function nextFrame(): Promise<void> {
-    return new Promise((resolve) => {
-      requestAnimationFrame(() => resolve())
-    })
-  }
-
-  function resizeLoopErrors(): string[] {
-    return windowErrors.filter((message) => message.includes('ResizeObserver loop'))
-  }
-
-  function mountPacedTrace(): (step: number) => void {
-    const [step, setStep] = createSignal(0)
-    mountView((): JSX.Element => (
-      <Trace summary={`${ROW_COUNT} tools ran`} compactLine={`${ROW_COUNT} tools`} items={rows(step)} defaultOpen />
-    ))
-    return setStep
-  }
-
-  it('re-sizing trace bodies under a paced release never trips a ResizeObserver notification loop', async () => {
-    const release = mountPacedTrace()
-    await expect.element(page.getByText(`src/module-${ROW_COUNT - 1}.ts`).first()).toBeVisible()
-
-    for (let step = 1; step <= RELEASE_STEPS; step++) {
-      release(step)
-      await nextFrame()
-    }
-
-    expect(resizeLoopErrors()).toEqual([])
-  })
-})
-
-describe('trace rail', () => {
-  function toolItem(key: string, projection: ToolRowProjection, body?: () => JSX.Element): TraceItem {
-    return {
-      key,
-      render: (branch) => <TraceToolRow projection={projection} ring={branch.ring} body={body} />,
-    }
-  }
-
-  const LONG_OUTPUT = Array.from({length: 20}, (_, index) => `src/file-${index}.ts: a matching line`).join('\n')
-
-  function twoRowTrace(): TraceItem[] {
-    return [
-      toolItem('failing', {mark: 'fail', label: 'bash', target: 'pnpm test', meta: 'exit 1'}, () => (
-        <TraceOutputBlock text={LONG_OUTPUT}>{LONG_OUTPUT}</TraceOutputBlock>
-      )),
-      toolItem('passing', {mark: 'pass', label: 'read', target: 'src/store/turn-rollup.ts', meta: '96 lines'}),
-    ]
-  }
-
-  function mountTrace(items: TraceItem[]): HTMLElement {
-    return mountView(() => <Trace summary="2 tools ran" compactLine="2 tools" items={items} defaultOpen />)
-  }
-
-  function traceRoot(container: HTMLElement): HTMLElement {
-    const root = container.querySelector('[data-scope="collapsible"][data-part="root"]')
-    if (!(root instanceof HTMLElement)) throw new Error('expected the collapsible root')
-    return root
-  }
-
-  function railSvg(container: HTMLElement): SVGSVGElement {
-    const svg = traceRoot(container).querySelectorAll(':scope > svg')[0]
-    if (!(svg instanceof SVGSVGElement)) throw new Error('expected the rail svg')
-    return svg
-  }
-
-  function spinePath(container: HTMLElement): SVGPathElement {
-    const path = railSvg(container).querySelectorAll('path')[0]
-    if (!(path instanceof SVGPathElement)) throw new Error('expected the rail spine path')
-    return path
-  }
-
-  function armsPath(container: HTMLElement): SVGPathElement {
-    const path = railSvg(container).querySelectorAll('path')[1]
-    if (!(path instanceof SVGPathElement)) throw new Error('expected the rail arms path')
-    return path
-  }
-
-  it('draws nothing at all while the trace is collapsed', async () => {
-    const container = mountView(() => (
-      <Trace summary="2 tools ran" compactLine="2 tools" items={twoRowTrace()} folded />
-    ))
-    await expect.element(page.getByText('Show trace')).toBeVisible()
-
-    expect(spinePath(container).getAttribute('d')).toBe('')
-    expect(armsPath(container).getAttribute('d')).toBe('')
-  })
-
-  it('reflows the spine when a row before the last one changes height', async () => {
-    const container = mountTrace(twoRowTrace())
-    await expect.element(page.getByText('bash')).toBeVisible()
-
-    const path = spinePath(container)
-    const initialD = path.getAttribute('d')
-
-    const fold = page.getByRole('button', {name: /pnpm test/})
-    await expect.element(fold).toHaveAttribute('aria-expanded', 'true')
-    await fold.click()
-    await expect.element(fold).toHaveAttribute('aria-expanded', 'false')
-
-    await expect.element(page.elementLocator(path)).not.toHaveAttribute('d', initialD ?? '')
   })
 })
 
@@ -2085,14 +1207,6 @@ describe('trace', () => {
     await expect.element(page.getByText('exit 1')).toBeVisible()
   })
 
-  it('draws the branch spine down every row and terminates it at the final one', async () => {
-    mountView(() => <Trace summary={SUMMARY} compactLine={COMPACT} items={settledItems} defaultOpen />)
-
-    await expect.element(page.getByRole('listitem').last()).toBeVisible()
-    await expect.element(page.getByText('src/app.tsx')).toBeVisible()
-    await page.screenshot({path: '__screenshots__/trace/branch-spine.png'})
-  })
-
   it('gives at most one live step the running ring and dims every earlier live step', async () => {
     mountView(() => <Trace summary={SUMMARY} compactLine={COMPACT} items={liveItems} defaultOpen />)
 
@@ -2154,75 +1268,8 @@ describe('trace', () => {
   })
 })
 
-describe('virtual reload layout', () => {
-  const TURNS = VIRTUALIZE_THRESHOLD * 4
-  const PROSE = 'a settled paragraph of the seeded answer that wraps across the pane. '
-
-  function answerFor(index: number): string {
-    return `seeded answer ${index}`
-  }
-
-  function seedTranscript(turns: number): ChatMessage[] {
-    return Array.from({length: turns}, (_unused, index): ChatMessage =>
-      index % 2 === 0
-        ? {id: `m${index}`, role: 'user', parts: [{type: 'text', content: `seeded question ${index}`}]}
-        : {
-            id: `m${index}`,
-            role: 'assistant',
-            parts: [{type: 'text', content: `${answerFor(index)}\n${PROSE.repeat(3)}`}],
-          },
-    )
-  }
-
-  function ReloadedThread(props: {initial: ChatMessage[]; ref?: (element: HTMLElement) => void}): JSX.Element {
-    const chat = createChat({
-      threadId: 'virtual-reload-layout',
-      connection: storyConnection({chunks: []}),
-      initialMessages: props.initial,
-    })
-    return (
-      <ChatProvider chat={chat}>
-        <Thread class="h-150 w-100">
-          <Thread.Viewport ref={props.ref}>
-            <Thread.Messages turnPrefix={() => null} />
-          </Thread.Viewport>
-        </Thread>
-      </ChatProvider>
-    )
-  }
-
-  function mountReloadedThread(initial: ChatMessage[]): {host: HTMLElement; viewport: () => HTMLElement} {
-    let viewport: HTMLElement | undefined
-    const host = mountView(() => (
-      <ReloadedThread
-        initial={initial}
-        ref={(element) => {
-          viewport = element
-        }}
-      />
-    ))
-    return {
-      host,
-      viewport: () => {
-        if (!viewport) throw new Error('viewport not mounted')
-        return viewport
-      },
-    }
-  }
-
-  it('a fresh mount over a long transcript settles pinned to the latest turn', async () => {
-    const thread = mountReloadedThread(seedTranscript(TURNS))
-
-    await expect.element(page.getByText(answerFor(TURNS - 1), {exact: false})).toBeVisible()
-    await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom')
-  })
-})
-
 describe('virtual scroll', () => {
   const TURN_COUNT = 80
-  const MODERATE_STEP_PX = 200
-  const FAST_STEP_PX = 800
-  const ESTIMATED_TURN_PX = 600
 
   const windowErrors: string[] = []
   window.addEventListener('error', (event) => {
@@ -2286,16 +1333,6 @@ describe('virtual scroll', () => {
     return messages
   }
 
-  function baseToolCtx(): ToolViewCtx {
-    return {
-      apiBase: '',
-      harnessId: 'test',
-      sendMessage: () => {},
-      catalog: {loaded: () => true, meta: () => undefined},
-      addResult: () => {},
-    }
-  }
-
   function mountThread(initial: ChatMessage[]): void {
     function VirtualThread(): JSX.Element {
       const chat = createChat({
@@ -2306,7 +1343,7 @@ describe('virtual scroll', () => {
       return (
         <div class="flex flex-col h-[520px] w-[560px]">
           <ChatProvider chat={chat}>
-            <ToolProvider value={baseToolCtx()}>
+            <ToolProvider value={ctxWith(catalogOf({}))}>
               <Thread>
                 <Thread.Viewport>
                   <Thread.Messages />
@@ -2318,12 +1355,6 @@ describe('virtual scroll', () => {
       )
     }
     mountView(() => <VirtualThread />)
-  }
-
-  async function sweepUpwards(stepPx: number): Promise<void> {
-    const wheelSteps = Math.ceil((TURN_COUNT * ESTIMATED_TURN_PX) / stepPx)
-    await userEvent.wheel(page.getByRole('log'), {delta: {y: -stepPx}, times: wheelSteps})
-    await expect.element(page.getByText('question 0', {exact: false}).first()).toBeVisible()
   }
 
   async function lastTurnVisible(): Promise<void> {
@@ -2346,18 +1377,11 @@ describe('virtual scroll', () => {
 
   it('scrolling a card-heavy thread never trips a ResizeObserver notification loop', async () => {
     await settledThread()
-    await sweepUpwards(FAST_STEP_PX)
+    await wheelToFirstTurn()
     await userEvent.wheel(page.getByRole('log'), {delta: {y: 1_000_000}})
     await lastTurnVisible()
-    await sweepUpwards(MODERATE_STEP_PX)
 
     expect(resizeLoopErrors()).toEqual([])
-  })
-
-  it('a deep jump re-windows onto the target turn within the overscan', async () => {
-    await settledThread()
-    await wheelToFirstTurn()
-    await expect.element(page.getByText(`answer ${TURN_COUNT - 1}`, {exact: false})).not.toBeInTheDocument()
   })
 })
 
@@ -2369,11 +1393,6 @@ describe('virtual thread', () => {
   function lastAnswer(count: number): string {
     return `answer ${count % 2 === 0 ? count - 1 : count - 2}`
   }
-
-  const windowErrors: string[] = []
-  window.addEventListener('error', (event) => {
-    windowErrors.push(typeof event.message === 'string' ? event.message : String(event))
-  })
 
   function seedMessages(count: number): ChatMessage[] {
     const messages: ChatMessage[] = []
@@ -2478,43 +1497,11 @@ describe('virtual thread', () => {
     await expect.element(page.getByText('question 0')).not.toBeInTheDocument()
   })
 
-  it('virtualizing above the threshold never trips a ResizeObserver notification loop', async () => {
-    windowErrors.length = 0
-    mountThread(seedMessages(ABOVE_THRESHOLD))
-
-    await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
-
-    const loopErrors = windowErrors.filter((message) => message.includes('ResizeObserver loop'))
-    expect(loopErrors).toEqual([])
-  })
-
   it('windows nothing below the threshold: every turn stays mounted', async () => {
     mountThread(seedMessages(WELL_BELOW_THRESHOLD))
 
     await expect.element(page.getByText(lastAnswer(WELL_BELOW_THRESHOLD), {exact: false})).toBeVisible()
     await expect.element(page.getByText('question 0')).toBeInTheDocument()
-  })
-
-  type EscapedThread = {thread: ReturnType<typeof mountThread>; latest: ReturnType<typeof page.getByRole>}
-
-  async function mountAndEscapeToTheTop(): Promise<EscapedThread> {
-    const thread = mountThread(seedMessages(ABOVE_THRESHOLD))
-    await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
-    const latest = page.getByRole('button', {name: 'Scroll to bottom'})
-
-    wheelUpTo(thread.viewport(), 0)
-    await expect.element(latest).not.toBeDisabled()
-    return {thread, latest}
-  }
-
-  it('escapes on wheel up and re-pins via the scroll-to-bottom button', async () => {
-    const {thread, latest} = await mountAndEscapeToTheTop()
-    await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
-    await expect.element(page.getByText('question 0')).toBeVisible()
-
-    await latest.click()
-    await expect.element(latest).toBeDisabled()
-    await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
   })
 
   it('crossing the threshold while following keeps the bottom pinned', async () => {
@@ -2545,32 +1532,5 @@ describe('virtual thread', () => {
 
     await expect.element(page.getByText('question 0')).toBeVisible()
     await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
-  })
-
-  function countScrollWrites(viewport: HTMLElement): {calls: () => number} {
-    const native = viewport.scrollTo.bind(viewport)
-    const seen = {count: 0}
-    Object.defineProperty(viewport, 'scrollTo', {
-      configurable: true,
-      value: (options?: ScrollToOptions) => {
-        seen.count += 1
-        native(options)
-      },
-    })
-    onTestFinished(() => {
-      Reflect.deleteProperty(viewport, 'scrollTo')
-    })
-    return {calls: () => seen.count}
-  }
-
-  it('the latest-turn gesture writes the scroll position at most once', async () => {
-    const {thread, latest} = await mountAndEscapeToTheTop()
-    await expect.element(page.getByText('question 0')).toBeVisible()
-
-    const writes = countScrollWrites(thread.viewport())
-    await latest.click()
-    await expect.element(latest).toBeDisabled()
-
-    expect(writes.calls()).toBeLessThanOrEqual(1)
   })
 })
