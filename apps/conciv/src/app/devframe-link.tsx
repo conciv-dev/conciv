@@ -75,7 +75,7 @@ function AuthorizeCard(props: {client: DevframeRpcClient}): JSX.Element {
 }
 
 async function connect(apiBase: string, props: DevframeLinkProps): Promise<DevframeRpcClient> {
-  const client = await getDevframeRpcClient({baseURL: `${apiBase}/__conciv/`})
+  const client = await getDevframeRpcClient({baseURL: `${apiBase}/__conciv/`, simpleAuth: false})
   client.events.on('rpc:is-trusted:updated', (isTrusted) => {
     if (isTrusted) syncSessions(client, props)
   })
