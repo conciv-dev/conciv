@@ -7,6 +7,7 @@ import {isAbsolute, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
 import {differenceCiede2000} from 'culori'
+import pixelmatch from 'pixelmatch'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
 import {PNG} from 'pngjs'
@@ -46,6 +47,8 @@ const PROVENANCE_DIR = fileURLToPath(new URL('fixtures/design/provenance/', impo
 const ENDPOINT_FILE = 'dev-endpoint.json'
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const COLOR_DELTA_E = 3
+const TILE_GATE = 0.005
+const TILE_MARGIN = 8
 
 const CatalogSchema = z.array(ToolCommandSignatureSchema)
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
@@ -658,6 +661,48 @@ function inside(input: {inner: LiveComponent['box']; outer: LiveComponent['box']
   )
 }
 
+const ButtonBoxSchema = z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()})
+
+type ReportedComponent = DiffReport['components'][number]
+
+function aboveTolerance(component: ReportedComponent): boolean {
+  return component.deltas.length > 0 || component.mismatch >= TILE_GATE
+}
+
+function fromToolbar(component: ReportedComponent): boolean {
+  return component.source?.file === 'src/Toolbar.tsx'
+}
+
+function croppedPixels(input: {png: PNG; box: z.infer<typeof ButtonBoxSchema>}): Uint8Array {
+  const {png, box} = input
+  const left = Math.max(0, Math.floor(box.x))
+  const top = Math.max(0, Math.floor(box.y))
+  const width = Math.min(png.width, Math.ceil(box.x + box.w)) - left
+  const height = Math.min(png.height, Math.ceil(box.y + box.h)) - top
+  const data = new Uint8Array(width * height * 4)
+  Array.from({length: height}, (_, row) => row).forEach((row) => {
+    const start = ((top + row) * png.width + left) * 4
+    data.set(png.data.subarray(start, start + width * 4), row * width * 4)
+  })
+  return data
+}
+
+function differingShare(input: {a: PNG; b: PNG; box: z.infer<typeof ButtonBoxSchema>}): number {
+  const {a, b} = input
+  const box = {
+    x: input.box.x - TILE_MARGIN,
+    y: input.box.y - TILE_MARGIN,
+    w: input.box.w + TILE_MARGIN * 2,
+    h: input.box.h + TILE_MARGIN * 2,
+  }
+  const width = Math.min(a.width, Math.ceil(box.x + box.w)) - Math.max(0, Math.floor(box.x))
+  const height = Math.min(a.height, Math.ceil(box.y + box.h)) - Math.max(0, Math.floor(box.y))
+  const differing = pixelmatch(croppedPixels({png: a, box}), croppedPixels({png: b, box}), undefined, width, height, {
+    includeAA: false,
+  })
+  return differing / (width * height)
+}
+
 function reportedFor(input: {report: DiffReport; component: LiveComponent | undefined}): DiffReport['components'] {
   const {report, component} = input
   if (component === undefined) return []
@@ -692,5 +737,46 @@ describe('text', () => {
     expect(colorDistance(String(foreground?.live), '#ffd166')).toBeLessThanOrEqual(COLOR_DELTA_E)
     expect(colorDistance(String(foreground?.target), '#ffffff')).toBeLessThanOrEqual(COLOR_DELTA_E)
     expect(reportedFor({report, component: second}).flatMap((c) => c.deltas)).toEqual([])
+  })
+
+  it('text rendered with a second rasterization is no finding', async () => {
+    await goto('textnoise')
+    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    const report = await call('design_diff', {})
+    expect(report.components.flatMap((c) => c.deltas)).toEqual([])
+    expect(report.components.filter(aboveTolerance)).toEqual([])
+    expect((await call('design_status', {route: '/'})).done).toBe(true)
+  })
+
+  it('a container whose own paint changed stays reported when its text is noise', async () => {
+    await goto('badge-textnoise')
+    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    const report = await call('design_diff', {})
+    const header = report.components.find((c) => fromToolbar(c) && c.tag === 'header')
+    expect(header?.deltas).toEqual([])
+    expect(header?.mismatch).toBeGreaterThanOrEqual(TILE_GATE)
+    expect(report.components.filter((c) => fromToolbar(c) && c.tag === 'button').filter(aboveTolerance)).toEqual([])
+    expect((await call('design_status', {route: '/'})).done).toBe(false)
+  })
+
+  it('a target rendered by another browser matches the page', async () => {
+    const button = ButtonBoxSchema.parse(
+      JSON.parse(await readFile(join(kit.targetsDir, 'u1-1280-firefox.json'), 'utf8')),
+    )
+    const share = differingShare({
+      a: decodePng(await readFile(target('u1-1280'))),
+      b: decodePng(await readFile(target('u1-1280-firefox'))),
+      box: button,
+    })
+    expect(share, 'the Firefox render of the first button differs from the Chromium one').toBeGreaterThanOrEqual(
+      TILE_GATE,
+    )
+    await goto('target')
+    await call('design_target', {image: target('u1-1280-firefox'), route: '/', width: 1280})
+    const report = await call('design_diff', {})
+    expect(report.components.filter((c) => fromToolbar(c) && aboveTolerance(c))).toEqual([])
+    expect(report.components.flatMap((c) => c.deltas.map((d) => d.kind))).not.toContain('foreground')
+    expect(report.components.flatMap((c) => c.deltas.map((d) => String(d.kind)))).not.toContain('text')
+    expect((await call('design_status', {route: '/'})).done).toBe(true)
   })
 })

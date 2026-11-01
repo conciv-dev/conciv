@@ -9,7 +9,6 @@ export const TOLERANCES = {
   blurRadius: 1,
   glyphHalo: 1,
   inkTrimThreshold: 40,
-  textOffsetPx: 8,
   fillDifference: 0.05,
   depth: 3,
   limit: 12,

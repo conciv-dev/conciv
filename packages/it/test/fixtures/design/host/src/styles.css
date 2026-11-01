@@ -5,6 +5,7 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
+  line-height: 18px;
   color: #1f2933;
   background: #eef1f5;
 }
@@ -37,6 +38,8 @@ body {
 
 button {
   font: inherit;
+  line-height: 18px;
+  height: 34px;
   padding: 8px 16px;
   border: 0;
   border-radius: 6px;
@@ -50,6 +53,8 @@ button {
 
 .field {
   font: inherit;
+  line-height: 18px;
+  height: 36px;
   width: 320px;
   max-width: 100%;
   padding: 8px 12px;
@@ -67,7 +72,13 @@ button {
 
 .table th,
 .table td {
+  line-height: 18px;
+  height: 35px;
   padding: 8px 12px;
   text-align: left;
   border-bottom: 1px solid #e3e7ed;
+}
+
+.table th {
+  height: 34.5px;
 }

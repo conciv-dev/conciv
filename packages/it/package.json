@@ -89,6 +89,7 @@
     "@vitejs/plugin-react": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "culori": "catalog:",
+    "pixelmatch": "catalog:",
     "playwright": "catalog:",
     "pngjs": "catalog:",
     "react": "catalog:",

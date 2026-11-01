@@ -235,3 +235,19 @@ export function boxMask(input: {boxes: Box[]; area: Box}): Uint8Array {
   })
   return mask
 }
+
+export function paintOver(input: {onto: Raster; from: Raster; boxes: Box[]}): Raster {
+  const {onto, from, boxes} = input
+  const data = new Uint8Array(onto.data)
+  const width = Math.min(onto.width, from.width)
+  const height = Math.min(onto.height, from.height)
+  boxes.forEach((box) => {
+    const x0 = Math.max(0, Math.floor(box.x))
+    const x1 = Math.min(width, Math.ceil(box.x + box.w))
+    if (x1 <= x0) return
+    range(Math.max(0, Math.floor(box.y)), Math.min(height, Math.ceil(box.y + box.h))).forEach((y) => {
+      data.set(from.data.subarray((y * from.width + x0) * 4, (y * from.width + x1) * 4), (y * onto.width + x0) * 4)
+    })
+  })
+  return {width: onto.width, height: onto.height, data}
+}

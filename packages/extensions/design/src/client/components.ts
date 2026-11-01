@@ -98,13 +98,42 @@ function glyphBox(input: {rect: DOMRect; bounds: Box}): Box | null {
   return {x: left, y: top, w: right - left, h: bottom - top}
 }
 
+function placeholderFields(input: {el: Element; view: Realm}): (HTMLInputElement | HTMLTextAreaElement)[] {
+  const {el, view} = input
+  const own =
+    (el instanceof view.HTMLInputElement || el instanceof view.HTMLTextAreaElement) &&
+    el.value === '' &&
+    el.placeholder !== ''
+      ? [el]
+      : []
+  const nested = [...el.children].flatMap((child) =>
+    child.hasAttribute(SOURCE_ATTR) ? [] : placeholderFields({el: child, view}),
+  )
+  return [...own, ...nested]
+}
+
+function placeholderGlyph(input: {field: HTMLInputElement | HTMLTextAreaElement}): Glyph[] {
+  const {field} = input
+  const outer = field.getBoundingClientRect()
+  const rect = new DOMRect(
+    outer.left + field.clientLeft,
+    outer.top + field.clientTop,
+    field.clientWidth,
+    field.clientHeight,
+  )
+  const box = {x: Math.ceil(rect.left), y: Math.ceil(rect.top), w: Math.floor(rect.width), h: Math.floor(rect.height)}
+  return [{text: field.placeholder, boxes: [box]}]
+}
+
 function measureGlyphs(input: {el: Element; view: Realm; bounds: Box}): Glyph[] {
-  return glyphNodes(input).flatMap((node) => {
+  const texts = glyphNodes(input).flatMap((node) => {
     const range = node.ownerDocument.createRange()
     range.selectNodeContents(node)
     const boxes = [...range.getClientRects()].flatMap((rect) => glyphBox({rect, bounds: input.bounds}) ?? [])
     return boxes.length === 0 ? [] : [{text: node.textContent ?? '', boxes}]
   })
+  const placeholders = placeholderFields(input).flatMap((field) => placeholderGlyph({field}))
+  return [...texts, ...placeholders]
 }
 
 function siblingIndex(el: Element): number {

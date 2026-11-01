@@ -51,10 +51,12 @@ function sideStyles(input: {
   box: Box
   raster: Raster
   color: ColorMetric
+  glyphs: Box[]
 }): Partial<LiveStyles> {
   const {pair, from, box, raster} = input
   const textLeaf = pair.live.children.length === 0 && pair.live.text !== ''
-  const fills = sampledFills({raster, box, glyphs: [box], color: input.color})
+  const glyphs = input.glyphs.length === 0 ? [box] : input.glyphs
+  const fills = sampledFills({raster, box, glyphs, color: input.color})
   const color = textLeaf && fills.foreground !== null ? {color: fills.foreground} : {}
   if (from === 'target') return {background: fills.background, ...color}
   const {background: declared, color: _declared, ...rest} = pair.live.styles
@@ -75,8 +77,9 @@ export function sideFrom(input: {
   page: Box
   raster: Raster
   color: ColorMetric
+  glyphs: Box[]
 }): Side | null {
-  const {pair, from, children, page, raster, color} = input
+  const {pair, from, children, page, raster, color, glyphs} = input
   const box = pickBox({pair, from})
   if (box === null) return null
   return {
@@ -86,6 +89,6 @@ export function sideFrom(input: {
     next: neighbourBox({pair, from, step: 'next'}),
     axis: pair.live.axis,
     textBox: contentBox({children, from}),
-    styles: sideStyles({pair, from, box, raster, color}),
+    styles: sideStyles({pair, from, box, raster, color, glyphs}),
   }
 }

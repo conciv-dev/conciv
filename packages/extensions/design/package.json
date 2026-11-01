@@ -60,6 +60,7 @@
     "build": "tsdown && vite build && vite build --config vite.xray.config.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
+    "test": "vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "dev:xray": "vite --config vite.xray.config.ts"
@@ -88,6 +89,7 @@
     "@conciv/contract": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/timer": "catalog:",
     "@tanstack/solid-router": "catalog:",
@@ -95,11 +97,13 @@
     "@types/node": "catalog:",
     "@types/pngjs": "catalog:",
     "@unocss/reset": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:"
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
   }
 }

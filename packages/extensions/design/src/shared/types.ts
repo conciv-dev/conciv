@@ -85,6 +85,14 @@ export type GeometryEstimator = {
 }
 export type ColorMetric = {name: string; distance(input: {a: string; b: string}): number}
 export type TextRun = {box: Box; text: string}
+export type TextGroup = {
+  live: Box[]
+  target: Box[]
+  liveText: string
+  targetText: string
+  agrees: boolean
+  owner: LiveComponent
+}
 export type TextReader = {name: string; read(input: {raster: Raster}): Promise<TextRun[]>}
 export type Comparators = {
   pixel: PixelComparator

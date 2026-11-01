@@ -10,11 +10,26 @@ import {
   type WinnerResult,
 } from '../../shared/defs.js'
 import {TOLERANCES} from '../../shared/tolerances.js'
-import type {CssMap, Delta, DesignRuntime, Pair, Raster, ServerStep, TargetRecord} from '../../shared/types.js'
+import type {
+  Box,
+  CssMap,
+  Delta,
+  DesignRuntime,
+  Pair,
+  Raster,
+  ServerStep,
+  TargetModel,
+  TargetRecord,
+  TextGroup,
+  TextRun,
+} from '../../shared/types.js'
 import {withBreakpoints} from '../../server/breakpoints.js'
 import {sideFrom} from '../../server/deltas.js'
+import {expand} from '../../server/matchers/tile.js'
 import {DELTA_PROPERTIES, PARENT_PROPERTIES} from '../../server/provenance/delta-properties.js'
 import {mapDeclaration} from '../../server/provenance/mappers.js'
+import {paintOver} from '../../server/raster.js'
+import {groupText} from '../../server/text-groups.js'
 import {unmatchedRegions} from '../../server/unmatched.js'
 import {liveRoute, targetWidth} from './target.js'
 
@@ -170,6 +185,16 @@ async function withProvenance(input: {
   return Promise.all(ranked.map((entry) => attribute({ranked: entry, design, page, cssMap, width, height})))
 }
 
+function targetRuns(target: TargetModel): TextRun[] {
+  return target.root.children.flatMap((node) =>
+    node.kind === 'text' && node.text !== undefined ? [{box: node.box, text: node.text}] : [],
+  )
+}
+
+function ownedTargetGlyphs(input: {groups: TextGroup[]; pair: Pair}): Box[] {
+  return input.groups.filter((group) => group.owner === input.pair.live).flatMap((group) => group.target)
+}
+
 function reportHint(input: {attributed: boolean; absolute: boolean}): {hint?: string} {
   const hints = [input.attributed ? null : HINT, input.absolute ? null : ORIGIN_HINT].filter((hint) => hint !== null)
   return hints.length === 0 ? {} : {hint: hints.join('; ')}
@@ -180,15 +205,50 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, re
   const record = await findTarget({query: input, design, page})
   const target = await design.store.model(record.id)
   const live = await design.capture.capture({route: record.route, width: record.width, height: record.height, page})
-  const matched = design.matcher.match({live, target, comparators: design.comparators, depth: input.depth})
+  const {groups, agreeing} = groupText({
+    components: live.components,
+    runs: targetRuns(target),
+    live: live.raster,
+    target: target.raster,
+    color: design.comparators.color,
+  })
+  const masked = paintOver({
+    onto: live.raster,
+    from: target.raster,
+    boxes: agreeing.map((box) => expand({box, by: TOLERANCES.glyphHalo + TOLERANCES.blurRadius})),
+  })
+  const matched = design.matcher.match({
+    live: {...live, raster: masked},
+    target,
+    comparators: design.comparators,
+    depth: input.depth,
+  })
   const pageBox = {x: 0, y: 0, w: live.viewport.width, h: live.viewport.height}
   const reported = matched.pairs.filter((pair) => pair.mismatch >= TOLERANCES.tileGate)
   const ranked = reported
     .map((pair): Ranked => {
       const children = matched.pairs.filter((child) => child.parent === pair)
       const color = design.comparators.color
-      const liveSide = sideFrom({pair, from: 'live', children, page: pageBox, raster: live.raster, color})
-      const targetSide = sideFrom({pair, from: 'target', children, page: pageBox, raster: target.raster, color})
+      const liveGlyphs = pair.live.glyphs.flatMap((glyph) => glyph.boxes)
+      const targetGlyphs = ownedTargetGlyphs({groups, pair})
+      const liveSide = sideFrom({
+        pair,
+        from: 'live',
+        children,
+        page: pageBox,
+        raster: live.raster,
+        color,
+        glyphs: liveGlyphs,
+      })
+      const targetSide = sideFrom({
+        pair,
+        from: 'target',
+        children,
+        page: pageBox,
+        raster: target.raster,
+        color,
+        glyphs: targetGlyphs,
+      })
       const deltas =
         liveSide === null || targetSide === null
           ? []
@@ -217,7 +277,7 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, re
   return design.store.writeRun({
     id: record.id,
     live: live.raster,
-    diff: paintDiff({live: live.raster, mask: matched.mask, width: Math.min(live.raster.width, target.raster.width)}),
+    diff: paintDiff({live: masked, mask: matched.mask, width: Math.min(live.raster.width, target.raster.width)}),
     result: await withBreakpoints({
       record,
       store: design.store,
