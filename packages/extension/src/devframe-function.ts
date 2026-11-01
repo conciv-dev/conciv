@@ -19,6 +19,14 @@ const WireErrorSchema = z.object({
 
 const ErrorEnvelopeSchema = z.object({t: z.literal('s'), i: z.string(), e: WireErrorSchema})
 
+const INVALID_ARGUMENT = /^RPC function "[^"]+" received an invalid argument at position \d+: /
+
+const InvalidArgumentEnvelopeSchema = z.object({
+  t: z.literal('s'),
+  i: z.string(),
+  e: z.instanceof(Error).refine((error) => INVALID_ARGUMENT.test(error.message)),
+})
+
 const CodedSchema = z.object({code: z.string(), message: z.string(), data: z.unknown().optional()})
 
 const SessionInput = z.object({sessionId: SessionId.optional()})
@@ -56,8 +64,10 @@ export function concivRpcOptions(): {deserialize: (raw: string) => unknown} {
     deserialize: (raw) => {
       const message = decodeFrame(raw)
       const envelope = ErrorEnvelopeSchema.safeParse(message)
-      if (!envelope.success) return message
-      return {t: envelope.data.t, i: envelope.data.i, e: fromWireError(envelope.data.e)}
+      if (envelope.success) return {t: envelope.data.t, i: envelope.data.i, e: fromWireError(envelope.data.e)}
+      const invalid = InvalidArgumentEnvelopeSchema.safeParse(message)
+      if (!invalid.success) return message
+      return {t: invalid.data.t, i: invalid.data.i, e: concivError('BAD_REQUEST', invalid.data.e.message)}
     },
   }
 }

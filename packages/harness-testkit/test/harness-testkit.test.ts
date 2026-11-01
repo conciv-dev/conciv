@@ -1005,7 +1005,11 @@ describe('conciv devframe layer over a real hub', () => {
 
   it('refuses input that fails the schema before the handler runs', async () => {
     const served = await serveDevframePlugin(probe.devframe)
-    await expect(call(served.client, 'probe:greet', {name: 3})).rejects.toThrow()
+    await expect(call(served.client, 'probe:greet', {name: 3})).rejects.toMatchObject({
+      name: 'ConcivError',
+      code: 'BAD_REQUEST',
+      message: expect.stringMatching(/name: Invalid input/),
+    })
     await served.close()
   }, 10_000)
 
