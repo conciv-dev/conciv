@@ -16,6 +16,7 @@
     "packages/plugin/test/fixtures/diagnostics-app/**",
     "packages/extensions/tanstack/test/fixtures/build-errors-app/**",
     "packages/cli/test/fixtures/**",
-    "e2e/nextjs/packed/fixture-lock.yaml"
+    "e2e/nextjs/packed/fixture-lock.yaml",
+    "docs/designs/spikes/**"
   ]
 }

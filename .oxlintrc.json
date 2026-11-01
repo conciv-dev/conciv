@@ -367,6 +367,7 @@
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/oxlint-plugin/fixtures/**",
     "e2e/*/src",
-    "e2e/*/app"
+    "e2e/*/app",
+    "docs/designs/spikes/**"
   ]
 }
