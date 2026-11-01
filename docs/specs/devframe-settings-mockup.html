@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>conciv settings mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600&family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:wght@400;500;600&display=swap">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0a0a0b;color:#d8d2ce;font-family:'Source Sans 3',ui-sans-serif,system-ui,sans-serif;padding:48px 32px}
+.page-title{font-family:Archivo,sans-serif;font-size:28px;font-weight:600;color:#f0ebe8;margin:0 0 6px}
+.page-sub{margin:0 0 40px;color:#a29c9c;font-size:14px}
+.board{display:flex;flex-wrap:wrap;gap:56px 40px}
+.frame{display:flex;flex-direction:column;gap:10px}
+.frame-name{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8d8887}
+
+.p{--panel:#17161a;--sunk:rgba(0,0,0,.35);--text:#d8d2ce;--hi:#f0ebe8;--t2:#a29c9c;--dim:#8d8887;--fill:rgba(255,255,255,.03);--fill2:rgba(255,255,255,.08);--line:#272428;--soft:#232025;--line2:#322e33;--accent:#c9857f;--danger:#d98070;--ok:#6fbf8b;--on:#14100f;width:480px;height:760px;background:var(--panel);color:var(--text);font-size:13px;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 44px rgba(0,0,0,.6)}
+.p.light{--panel:#f6f7f9;--sunk:rgba(15,18,24,.05);--text:#1d2127;--hi:#0b0d10;--t2:#565b63;--dim:#6b717a;--fill:#ffffff;--fill2:rgba(15,18,24,.06);--line:rgba(15,18,24,.12);--soft:rgba(15,18,24,.08);--line2:rgba(15,18,24,.18);--accent:#2563eb;--danger:#dc2626;--ok:#16a34a;--on:#ffffff;box-shadow:0 16px 44px rgba(15,18,24,.18)}
+.hd{display:flex;align-items:center;gap:6px;height:52px;padding:0 8px;border-bottom:1px solid var(--soft);flex:none}
+.hd.root{padding-left:16px}
+.ttl{font-family:Archivo,ui-sans-serif,sans-serif;font-size:15px;font-weight:600;color:var(--hi);flex:1}
+.ib{width:36px;height:36px;display:grid;place-items:center;background:none;border:0;border-radius:4px;color:var(--t2);text-decoration:none;cursor:pointer;flex:none}
+.ib:hover{background:var(--fill2);color:var(--hi)}
+.ib.sm{width:30px;height:30px}
+.ib.pinned{color:var(--accent)}
+.ml{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.bd{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:22px}
+.grp{display:flex;flex-direction:column;gap:8px}
+.lead{color:var(--t2);font-size:12px;line-height:1.4;margin:0}
+.card{border:1px solid var(--line);border-radius:8px;background:var(--fill);display:flex;flex-direction:column}
+.card.danger{border-color:color-mix(in oklch,var(--danger) 32%,transparent)}
+.row{display:flex;align-items:center;gap:12px;min-height:46px;padding:10px 12px;color:inherit;text-decoration:none;background:none;border:0;font:inherit;text-align:left;width:100%}
+.row+.row{border-top:1px solid var(--soft)}
+a.row:hover,button.row:hover{background:var(--fill2);cursor:pointer}
+.row.tab{gap:10px;min-height:44px;padding:6px 6px 6px 4px}
+.row.tab.off .name{color:var(--dim)}
+.row.key{gap:10px;min-height:42px;padding:6px 8px 6px 12px}
+.row.key.rec{background:color-mix(in oklch,var(--accent) 10%,transparent);box-shadow:inset 2px 0 0 var(--accent)}
+.row.key .recl{display:none}
+.row.key.rec .recl{display:inline}
+.row.key.rec .keys,.row.key.rec .none{display:none}
+.stack{display:flex;flex-direction:column;gap:10px;padding:12px}
+.stack+.stack{border-top:1px solid var(--soft)}
+.ico{width:16px;height:16px;color:var(--t2);flex:none}
+.chev{width:14px;height:14px;color:var(--dim);flex:none}
+.grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.lbl{color:var(--hi);font-size:13px;font-weight:500;display:flex;gap:8px;align-items:center}
+.hint{color:var(--t2);font-size:12px;line-height:1.35}
+.val,.meta,.pkg{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:var(--t2);white-space:nowrap}
+.meta,.pkg{font-size:10.5px;color:var(--dim)}
+.name{flex:1;min-width:0;color:var(--hi);font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px}
+.row.key .name{font-weight:400}
+.num{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;color:var(--dim);width:14px;text-align:right;flex:none}
+.grip{width:18px;height:28px;display:grid;place-items:center;color:var(--dim);cursor:grab;flex:none;background:none;border:0;padding:0}
+.chip{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:1px 5px;border-radius:3px;border:1px solid var(--line2);color:var(--t2);font-weight:400}
+.chip.ok{color:var(--ok);border-color:color-mix(in oklch,var(--ok) 40%,transparent)}
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:2px;gap:2px;background:var(--sunk);border:1px solid var(--soft);border-radius:4px}
+.seg button{border:0;background:none;color:var(--t2);font:inherit;font-size:12px;height:30px;border-radius:3px;cursor:pointer}
+.seg button.on{background:var(--fill2);color:var(--hi);box-shadow:inset 0 0 0 1px var(--line2)}
+.skins{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.skin{border:1px solid var(--line);border-radius:4px;background:none;padding:0;color:inherit;font:inherit;text-align:left;cursor:pointer;overflow:hidden}
+.skin.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.prev{height:58px;padding:8px;display:flex;flex-direction:column;gap:5px}
+.bar{height:5px;border-radius:2px}
+.cap{display:flex;justify-content:space-between;align-items:center;padding:7px 9px;border-top:1px solid var(--soft);font-size:12px;color:var(--hi)}
+.sw{width:32px;height:18px;border-radius:999px;background:var(--fill2);border:1px solid var(--line2);position:relative;flex:none;padding:0;cursor:pointer}
+.sw span{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:999px;background:var(--dim);transition:left .18s cubic-bezier(.22,1,.36,1)}
+.sw.on{background:var(--accent);border-color:var(--accent)}
+.sw.on span{left:16px;background:var(--on)}
+.tab .sw{margin-right:6px}
+.radio{width:14px;height:14px;border-radius:999px;border:1px solid var(--line2);flex:none;display:grid;place-items:center}
+.row.on .radio{border-color:var(--accent)}
+.row.on .radio::after{content:'';width:6px;height:6px;border-radius:999px;background:var(--accent)}
+.selw{position:relative;display:flex}
+.sel{appearance:none;height:32px;min-width:150px;padding:0 28px 0 10px;border:1px solid var(--line2);border-radius:4px;background:var(--sunk);color:var(--hi);font:inherit;font-size:12px}
+.selw svg{position:absolute;right:10px;top:11px;pointer-events:none;color:var(--dim)}
+.code{display:flex;align-items:center;gap:8px;padding:0 4px 0 10px;height:34px;border:1px solid var(--soft);border-radius:4px;background:var(--sunk);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:var(--text)}
+.code span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{height:28px;padding:0 10px;border:1px solid var(--line2);border-radius:4px;background:none;color:var(--text);font:inherit;font-size:12px;cursor:pointer;flex:none}
+.btn:hover{background:var(--fill2)}
+.btn.d{border-color:color-mix(in oklch,var(--danger) 42%,transparent);color:var(--danger)}
+.btn.d:hover{background:color-mix(in oklch,var(--danger) 10%,transparent)}
+.btn.d.on{background:var(--danger);border-color:var(--danger);color:var(--on)}
+.search{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:1px solid var(--line2);border-radius:4px;background:var(--sunk);color:var(--dim)}
+.search input{flex:1;border:0;background:none;color:var(--hi);font:inherit;font-size:13px;outline:none}
+.search input::placeholder{color:var(--dim)}
+.keys{display:flex;gap:3px;align-items:center}
+.kbd{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;min-width:18px;height:20px;display:inline-grid;place-items:center;padding:0 5px;color:var(--text);border:1px solid var(--line2);border-bottom-width:2px;border-radius:3px;background:var(--fill)}
+.none{font-size:12px;color:var(--dim)}
+.recl{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:var(--accent)}
+.note{display:flex;gap:10px;padding:10px 12px;border:1px dashed var(--line2);border-radius:8px;color:var(--t2);font-size:12px;line-height:1.4}
+.note code{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:var(--hi)}
+.ft{flex:none;display:flex;align-items:center;justify-content:space-between;height:34px;padding:0 16px;border-top:1px solid var(--soft)}
+.dot{width:6px;height:6px;border-radius:999px;background:var(--ok);display:inline-block;margin-right:6px}
+:focus-visible{outline:2px solid var(--accent, #c9857f);outline-offset:1px}
+</style>
+</head>
+<body>
+<h1 class="page-title">conciv settings</h1>
+<p class="page-sub">Mockup for the widget panel at 480px. Dark is the default skin; one light overview at the end. Rows link between screens; switches, pickers and shortcut rows respond to clicks.</p>
+
+<div class="board">
+
+<!-- Overview -->
+<div class="frame" id="settings">
+<span class="frame-name">Settings</span>
+<div class="p">
+  <header class="hd root">
+    <span class="ttl">Settings</span>
+    <button class="ib" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+  </header>
+  <div class="bd">
+    <section class="grp">
+      <span class="ml">conciv</span>
+      <nav class="card">
+        <a class="row" href="#appearance"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 2v12"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor" stroke="none"/></svg><span class="grow"><span class="lbl">Appearance</span></span><span class="val">Auto · Conciv</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></a>
+        <a class="row" href="#agent"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="2"/><path d="M5 7l2 1.5L5 10M8.5 10.5h2.5"/></svg><span class="grow"><span class="lbl">Agent</span></span><span class="val">Claude Code · Opus</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></a>
+      </nav>
+    </section>
+    <section class="grp">
+      <span class="ml">Tools</span>
+      <nav class="card">
+        <a class="row" href="#tabs"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M2 10h12M6 10v3.5M10 10v3.5"/></svg><span class="grow"><span class="lbl">Tabs</span><span class="hint">Which tools show in the tab bar, and their order</span></span><span class="val">6 shown</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></a>
+        <a class="row" href="#shortcuts"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h1M7 6.5h1M10 6.5h2M5 9.5h6"/></svg><span class="grow"><span class="lbl">Shortcuts</span></span><span class="val">14 commands</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></a>
+        <a class="row" href="#plugins"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2.5h4v2a1.5 1.5 0 0 0 3 0V6h1.5v4H13a1.5 1.5 0 0 0 0 3v1.5H2.5V6H6z"/></svg><span class="grow"><span class="lbl">Plugins</span></span><span class="val">2 of 5 on</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></a>
+      </nav>
+    </section>
+    <section class="grp">
+      <span class="ml">This project</span>
+      <nav class="card">
+        <a class="row" href="#access"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 1.8l5.2 2v4c0 3-2.2 5.2-5.2 6.4C5 13 2.8 10.8 2.8 7.8v-4z"/></svg><span class="grow"><span class="lbl">Access and reset</span><span class="hint">Signed-in browsers, reset tabs and shortcuts</span></span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></a>
+      </nav>
+    </section>
+  </div>
+  <footer class="ft"><span class="ml"><span class="dot"></span>Saved automatically</span><span class="ml">conciv · devframe 1.3.0</span></footer>
+</div>
+</div>
+
+<!-- Appearance -->
+<div class="frame" id="appearance">
+<span class="frame-name">Appearance</span>
+<div class="p">
+  <header class="hd">
+    <a class="ib" href="#settings" aria-label="Back to settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5"/></svg></a>
+    <span class="ttl">Appearance</span>
+    <button class="ib" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+  </header>
+  <div class="bd">
+    <section class="grp">
+      <span class="ml">Color</span>
+      <div class="card">
+        <div class="stack">
+          <span class="grow"><span class="lbl">Color mode</span><span class="hint">Auto follows the page, then your system.</span></span>
+          <div class="seg" role="radiogroup" aria-label="Color mode">
+            <button class="on" data-group="mode" role="radio" aria-checked="true">Auto</button>
+            <button data-group="mode" role="radio" aria-checked="false">Light</button>
+            <button data-group="mode" role="radio" aria-checked="false">Dark</button>
+          </div>
+        </div>
+        <div class="stack">
+          <span class="grow"><span class="lbl">Skin</span><span class="hint">Shapes, type and accent of the panel.</span></span>
+          <div class="skins">
+            <button class="skin on" data-group="skin" aria-pressed="true">
+              <div class="prev" style="background:#17161a"><div class="bar" style="width:60%;background:#322e33"></div><div class="bar" style="width:85%;background:#272428"></div><div class="bar" style="width:24px;background:#c9857f;margin-top:auto"></div></div>
+              <div class="cap"><span>Conciv</span><span class="ml">default</span></div>
+            </button>
+            <button class="skin" data-group="skin" aria-pressed="false">
+              <div class="prev" style="background:#0e1110"><div class="bar" style="width:60%;background:#2e3a33;border-radius:0"></div><div class="bar" style="width:85%;background:#222b26;border-radius:0"></div><div class="bar" style="width:24px;background:#5fd39a;margin-top:auto;border-radius:0"></div></div>
+              <div class="cap"><span>Terminal</span><span class="ml">mono</span></div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="grp">
+      <span class="ml">Panel</span>
+      <div class="card">
+        <div class="row"><span class="grow"><span class="lbl">Close on outside click</span><span class="hint">Clicking the page closes the panel.</span></span><button class="sw" data-toggle role="switch" aria-checked="false" aria-label="Close on outside click"><span></span></button></div>
+        <div class="row"><span class="grow"><span class="lbl">Show address bar on tool tabs</span><span class="hint">For tools that load their own page.</span></span><button class="sw" data-toggle role="switch" aria-checked="false" aria-label="Show address bar on tool tabs"><span></span></button></div>
+        <div class="row"><span class="grow"><span class="lbl">Reduce motion</span><span class="hint">Auto follows your system setting.</span></span><button class="sw" data-toggle role="switch" aria-checked="false" aria-label="Reduce motion"><span></span></button></div>
+      </div>
+    </section>
+  </div>
+  <footer class="ft"><span class="ml"><span class="dot"></span>Saved automatically</span><span class="ml">this project</span></footer>
+</div>
+</div>
+
+<!-- Agent -->
+<div class="frame" id="agent">
+<span class="frame-name">Agent</span>
+<div class="p">
+  <header class="hd">
+    <a class="ib" href="#settings" aria-label="Back to settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5"/></svg></a>
+    <span class="ttl">Agent</span>
+    <button class="ib" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+  </header>
+  <div class="bd">
+    <section class="grp">
+      <span class="ml">Coding agent</span>
+      <div class="card" role="radiogroup" aria-label="Coding agent">
+        <button class="row on" data-group="agent" role="radio" aria-checked="true"><span class="radio"></span><span class="grow"><span class="lbl">Claude Code</span><span class="hint">claude on PATH</span></span><span class="chip ok">Ready</span></button>
+        <button class="row" data-group="agent" role="radio" aria-checked="false"><span class="radio"></span><span class="grow"><span class="lbl">Codex</span><span class="hint">codex on PATH</span></span><span class="chip ok">Ready</span></button>
+        <button class="row" data-group="agent" role="radio" aria-checked="false"><span class="radio"></span><span class="grow"><span class="lbl">[OTHER HARNESS]</span><span class="hint">Not installed</span></span><span class="chip">Missing</span></button>
+      </div>
+    </section>
+    <section class="grp">
+      <span class="ml">New sessions</span>
+      <div class="card">
+        <div class="row"><span class="grow"><label class="lbl" for="model">Model</label><span class="hint">Change it per session from the composer.</span></span><span class="selw"><select id="model" class="sel"><option>Opus 5.5</option><option>Sonnet 5.5</option><option>Haiku 5.5</option></select><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 3.5l3 3 3-3"/></svg></span></div>
+      </div>
+    </section>
+    <section class="grp">
+      <span class="ml">Other agents</span>
+      <div class="card">
+        <div class="stack">
+          <span class="grow"><span class="lbl">Connect over MCP</span><span class="hint">Any MCP client can use this page's tools with this address and token.</span></span>
+          <div class="code"><span>http://localhost:5173/__conciv/mcp</span><button class="btn">Copy</button></div>
+          <div class="code"><span>Bearer ••••••••••••••••</span><button class="btn">Copy</button></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <footer class="ft"><span class="ml"><span class="dot"></span>Saved automatically</span><span class="ml">this project</span></footer>
+</div>
+</div>
+
+<!-- Tabs -->
+<div class="frame" id="tabs">
+<span class="frame-name">Tabs</span>
+<div class="p">
+  <header class="hd">
+    <a class="ib" href="#settings" aria-label="Back to settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5"/></svg></a>
+    <span class="ttl">Tabs</span>
+    <button class="ib" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+  </header>
+  <div class="bd">
+    <p class="lead">Drag to reorder. Hidden tabs stay reachable from the command menu. Pinned tabs never collapse into the overflow menu.</p>
+    <section class="grp">
+      <span class="ml">conciv</span>
+      <div class="card" data-tabs>
+        <div class="row tab"><button class="grip" aria-label="Reorder Chat"><svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.1"/><circle cx="7" cy="3" r="1.1"/><circle cx="3" cy="7" r="1.1"/><circle cx="7" cy="7" r="1.1"/><circle cx="3" cy="11" r="1.1"/><circle cx="7" cy="11" r="1.1"/></svg></button><span class="num"></span><span class="name">Chat</span><button class="ib sm pinned" data-pin aria-label="Pin Chat" aria-pressed="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2.5h4l-.6 4 2.6 2.5H4l2.6-2.5zM8 9v4.5"/></svg></button><button class="sw on" data-toggle data-show role="switch" aria-checked="true" aria-label="Show Chat"><span></span></button></div>
+        <div class="row tab"><button class="grip" aria-label="Reorder Tests"><svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.1"/><circle cx="7" cy="3" r="1.1"/><circle cx="3" cy="7" r="1.1"/><circle cx="7" cy="7" r="1.1"/><circle cx="3" cy="11" r="1.1"/><circle cx="7" cy="11" r="1.1"/></svg></button><span class="num"></span><span class="name">Tests</span><button class="ib sm" data-pin aria-label="Pin Tests" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2.5h4l-.6 4 2.6 2.5H4l2.6-2.5zM8 9v4.5"/></svg></button><button class="sw on" data-toggle data-show role="switch" aria-checked="true" aria-label="Show Tests"><span></span></button></div>
+        <div class="row tab"><button class="grip" aria-label="Reorder Recorder"><svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.1"/><circle cx="7" cy="3" r="1.1"/><circle cx="3" cy="7" r="1.1"/><circle cx="7" cy="7" r="1.1"/><circle cx="3" cy="11" r="1.1"/><circle cx="7" cy="11" r="1.1"/></svg></button><span class="num"></span><span class="name">Recorder</span><button class="ib sm" data-pin aria-label="Pin Recorder" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2.5h4l-.6 4 2.6 2.5H4l2.6-2.5zM8 9v4.5"/></svg></button><button class="sw on" data-toggle data-show role="switch" aria-checked="true" aria-label="Show Recorder"><span></span></button></div>
+        <div class="row tab"><button class="grip" aria-label="Reorder Design"><svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.1"/><circle cx="7" cy="3" r="1.1"/><circle cx="3" cy="7" r="1.1"/><circle cx="7" cy="7" r="1.1"/><circle cx="3" cy="11" r="1.1"/><circle cx="7" cy="11" r="1.1"/></svg></button><span class="num"></span><span class="name">Design</span><button class="ib sm" data-pin aria-label="Pin Design" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2.5h4l-.6 4 2.6 2.5H4l2.6-2.5zM8 9v4.5"/></svg></button><button class="sw on" data-toggle data-show role="switch" aria-checked="true" aria-label="Show Design"><span></span></button></div>
+        <div class="row tab off"><button class="grip" aria-label="Reorder Whiteboard"><svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.1"/><circle cx="7" cy="3" r="1.1"/><circle cx="3" cy="7" r="1.1"/><circle cx="7" cy="7" r="1.1"/><circle cx="3" cy="11" r="1.1"/><circle cx="7" cy="11" r="1.1"/></svg></button><span class="num"></span><span class="name">Whiteboard</span><button class="ib sm" data-pin aria-label="Pin Whiteboard" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2.5h4l-.6 4 2.6 2.5H4l2.6-2.5zM8 9v4.5"/></svg></button><button class="sw" data-toggle data-show role="switch" aria-checked="false" aria-label="Show Whiteboard"><span></span></button></div>
+      </div>
+    </section>
+    <section class="grp">
+      <span class="ml">Devframe tools</span>
+      <div class="card" data-tabs>
+        <div class="row tab"><button class="grip" aria-label="Reorder Terminals"><svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.1"/><circle cx="7" cy="3" r="1.1"/><circle cx="3" cy="7" r="1.1"/><circle cx="7" cy="7" r="1.1"/><circle cx="3" cy="11" r="1.1"/><circle cx="7" cy="11" r="1.1"/></svg></button><span class="num"></span><span class="name">Terminals<span class="chip">devframe</span></span><button class="ib sm pinned" data-pin aria-label="Pin Terminals" aria-pressed="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2.5h4l-.6 4 2.6 2.5H4l2.6-2.5zM8 9v4.5"/></svg></button><button class="sw on" data-toggle data-show role="switch" aria-checked="true" aria-label="Show Terminals"><span></span></button></div>
+        <div class="row tab"><button class="grip" aria-label="Reorder Messages"><svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.1"/><circle cx="7" cy="3" r="1.1"/><circle cx="3" cy="7" r="1.1"/><circle cx="7" cy="7" r="1.1"/><circle cx="3" cy="11" r="1.1"/><circle cx="7" cy="11" r="1.1"/></svg></button><span class="num"></span><span class="name">Messages<span class="chip">devframe</span></span><button class="ib sm" data-pin aria-label="Pin Messages" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2.5h4l-.6 4 2.6 2.5H4l2.6-2.5zM8 9v4.5"/></svg></button><button class="sw on" data-toggle data-show role="switch" aria-checked="true" aria-label="Show Messages"><span></span></button></div>
+        <div class="row tab off"><button class="grip" aria-label="Reorder Git"><svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.1"/><circle cx="7" cy="3" r="1.1"/><circle cx="3" cy="7" r="1.1"/><circle cx="7" cy="7" r="1.1"/><circle cx="3" cy="11" r="1.1"/><circle cx="7" cy="11" r="1.1"/></svg></button><span class="num"></span><span class="name">Git<span class="chip">devframe</span></span><button class="ib sm" data-pin aria-label="Pin Git" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2.5h4l-.6 4 2.6 2.5H4l2.6-2.5zM8 9v4.5"/></svg></button><button class="sw" data-toggle data-show role="switch" aria-checked="false" aria-label="Show Git"><span></span></button></div>
+      </div>
+    </section>
+  </div>
+  <footer class="ft"><span class="ml"><span class="dot"></span>Saved automatically</span><span class="ml">shared with Vite DevTools</span></footer>
+</div>
+</div>
+
+<!-- Shortcuts -->
+<div class="frame" id="shortcuts">
+<span class="frame-name">Shortcuts</span>
+<div class="p">
+  <header class="hd">
+    <a class="ib" href="#settings" aria-label="Back to settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5"/></svg></a>
+    <span class="ttl">Shortcuts</span>
+    <button class="ib" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+  </header>
+  <div class="bd">
+    <label class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg><input type="search" placeholder="Search commands" aria-label="Search commands"></label>
+    <section class="grp">
+      <span class="ml">Panel</span>
+      <div class="card">
+        <button class="row key" data-rec><span class="name">Open or close conciv</span><span class="recl">Press keys, Esc to cancel</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">.</span></span></button>
+        <button class="row key" data-rec><span class="name">Command menu</span><span class="recl">Press keys, Esc to cancel</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">K</span></span></button>
+        <button class="row key" data-rec><span class="name">Settings</span><span class="recl">Press keys, Esc to cancel</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">,</span></span></button>
+      </div>
+    </section>
+    <section class="grp">
+      <span class="ml">Chat</span>
+      <div class="card">
+        <button class="row key" data-rec><span class="name">New session</span><span class="recl">Press keys, Esc to cancel</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">⇧</span><span class="kbd">O</span></span></button>
+        <button class="row key" data-rec><span class="name">Pick an element on the page</span><span class="recl">Press keys, Esc to cancel</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">⇧</span><span class="kbd">C</span></span></button>
+        <button class="row key rec" data-rec><span class="name">Stop the agent</span><span class="recl">Press keys, Esc to cancel</span><span class="keys"><span class="kbd">Esc</span></span></button>
+        <button class="row key" data-rec><span class="name">Switch model</span><span class="recl">Press keys, Esc to cancel</span><span class="none">Add shortcut</span></button>
+      </div>
+    </section>
+    <section class="grp">
+      <span class="ml">Tools</span>
+      <div class="card">
+        <button class="row key" data-rec><span class="name">Open Terminals</span><span class="recl">Press keys, Esc to cancel</span><span class="keys"><span class="kbd">⌃</span><span class="kbd">`</span></span></button>
+        <button class="row key" data-rec><span class="name">Run tests</span><span class="recl">Press keys, Esc to cancel</span><span class="none">Add shortcut</span></button>
+      </div>
+    </section>
+  </div>
+  <footer class="ft"><span class="ml"><span class="dot"></span>Saved automatically</span><span class="ml">shared with Vite DevTools</span></footer>
+</div>
+</div>
+
+<!-- Plugins -->
+<div class="frame" id="plugins">
+<span class="frame-name">Plugins</span>
+<div class="p">
+  <header class="hd">
+    <a class="ib" href="#settings" aria-label="Back to settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5"/></svg></a>
+    <span class="ttl">Plugins</span>
+    <button class="ib" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+  </header>
+  <div class="bd">
+    <section class="grp">
+      <span class="ml">Devframe plugins</span>
+      <div class="card">
+        <div class="row" style="min-height:56px"><span class="grow"><span class="lbl">Terminals</span><span class="hint">The agent session and any shell, in one tab.</span><span class="pkg">@devframes/plugin-terminals</span></span><button class="sw on" data-toggle role="switch" aria-checked="true" aria-label="Turn on Terminals"><span></span></button></div>
+        <div class="row" style="min-height:56px"><span class="grow"><span class="lbl">Messages</span><span class="hint">Notices from tools and the agent, shown as toasts.</span><span class="pkg">@devframes/plugin-messages</span></span><button class="sw on" data-toggle role="switch" aria-checked="true" aria-label="Turn on Messages"><span></span></button></div>
+        <div class="row" style="min-height:56px"><span class="grow"><span class="lbl">Git</span><span class="hint">Changed files and diffs for this repo.</span><span class="pkg">@devframes/plugin-git</span></span><button class="sw" data-toggle role="switch" aria-checked="false" aria-label="Turn on Git"><span></span></button></div>
+        <div class="row" style="min-height:56px"><span class="grow"><span class="lbl">Accessibility</span><span class="hint">Checks the page and lists problems the agent can fix.</span><span class="pkg">@devframes/plugin-a11y</span></span><button class="sw" data-toggle role="switch" aria-checked="false" aria-label="Turn on Accessibility"><span></span></button></div>
+        <div class="row" style="min-height:56px"><span class="grow"><span class="lbl">Inspect</span><span class="hint">Debug view of the hub itself.</span><span class="pkg">@devframes/plugin-inspect</span></span><button class="sw" data-toggle role="switch" aria-checked="false" aria-label="Turn on Inspect"><span></span></button></div>
+      </div>
+    </section>
+    <div class="note"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true" style="flex:none;margin-top:2px"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5v.5"/></svg><span>The project's config can lock these. Set them in <code>conciv({devframes})</code> to share them with your team.</span></div>
+  </div>
+  <footer class="ft"><span class="ml"><span class="dot"></span>Saved automatically</span><span class="ml">this project</span></footer>
+</div>
+</div>
+
+<!-- Access and reset -->
+<div class="frame" id="access">
+<span class="frame-name">Access and reset</span>
+<div class="p">
+  <header class="hd">
+    <a class="ib" href="#settings" aria-label="Back to settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5"/></svg></a>
+    <span class="ttl">Access and reset</span>
+    <button class="ib" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+  </header>
+  <div class="bd">
+    <section class="grp">
+      <span class="ml">Signed-in browsers</span>
+      <div class="card">
+        <div class="row"><span class="grow"><span class="lbl">Firefox on macOS<span class="chip ok">this browser</span></span><span class="meta">signed in today, 09:41</span></span><button class="btn d">Sign out</button></div>
+        <div class="row"><span class="grow"><span class="lbl">Chrome on macOS</span><span class="meta">signed in 3 days ago</span></span><button class="btn d">Sign out</button></div>
+        <div class="row"><span class="grow"><span class="lbl">Codex</span><span class="meta">agent token · used 2 minutes ago</span></span><button class="btn d">Revoke</button></div>
+      </div>
+    </section>
+    <section class="grp">
+      <span class="ml">Reset</span>
+      <div class="card">
+        <div class="row"><span class="grow"><span class="lbl">Tabs</span><span class="hint">Show every tab again, in the default order.</span></span><button class="btn">Reset</button></div>
+        <div class="row"><span class="grow"><span class="lbl">Shortcuts</span><span class="hint">Back to the default keys.</span></span><button class="btn">Reset</button></div>
+      </div>
+      <div class="card danger">
+        <div class="row"><span class="grow"><span class="lbl">All settings for this project</span><span class="hint">Chats and history are kept.</span></span><button class="btn d" data-arm data-idle="Reset all" data-armed="Click again to reset">Reset all</button></div>
+      </div>
+    </section>
+  </div>
+  <footer class="ft"><span class="ml"><span class="dot"></span>Saved automatically</span><span class="ml">this project</span></footer>
+</div>
+</div>
+
+<!-- Light overview -->
+<div class="frame" id="settings-light">
+<span class="frame-name">Settings (light)</span>
+<div class="p light">
+  <header class="hd root">
+    <span class="ttl">Settings</span>
+    <button class="ib" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+  </header>
+  <div class="bd">
+    <section class="grp">
+      <span class="ml">conciv</span>
+      <nav class="card">
+        <a class="row" href="#appearance"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 2v12"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor" stroke="none"/></svg><span class="grow"><span class="lbl">Appearance</span></span><span class="val">Light · Conciv</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></a>
+        <a class="row" href="#agent"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="2"/><path d="M5 7l2 1.5L5 10M8.5 10.5h2.5"/></svg><span class="grow"><span class="lbl">Agent</span></span><span class="val">Claude Code · Opus</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></a>
+      </nav>
+    </section>
+    <section class="grp">
+      <span class="ml">Tools</span>
+      <nav class="card">
+        <a class="row" href="#tabs"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M2 10h12M6 10v3.5M10 10v3.5"/></svg><span class="grow"><span class="lbl">Tabs</span><span class="hint">Which tools show in the tab bar, and their order</span></span><span class="val">6 shown</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></a>
+        <a class="row" href="#shortcuts"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h1M7 6.5h1M10 6.5h2M5 9.5h6"/></svg><span class="grow"><span class="lbl">Shortcuts</span></span><span class="val">14 commands</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></a>
+        <a class="row" href="#plugins"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2.5h4v2a1.5 1.5 0 0 0 3 0V6h1.5v4H13a1.5 1.5 0 0 0 0 3v1.5H2.5V6H6z"/></svg><span class="grow"><span class="lbl">Plugins</span></span><span class="val">2 of 5 on</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></a>
+      </nav>
+    </section>
+    <section class="grp">
+      <span class="ml">This project</span>
+      <nav class="card">
+        <a class="row" href="#access"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 1.8l5.2 2v4c0 3-2.2 5.2-5.2 6.4C5 13 2.8 10.8 2.8 7.8v-4z"/></svg><span class="grow"><span class="lbl">Access and reset</span><span class="hint">Signed-in browsers, reset tabs and shortcuts</span></span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></a>
+      </nav>
+    </section>
+  </div>
+  <footer class="ft"><span class="ml"><span class="dot"></span>Saved automatically</span><span class="ml">conciv · devframe 1.3.0</span></footer>
+</div>
+</div>
+
+</div>
+
+<script>
+function renumber(card) {
+  let count = 0
+  card.querySelectorAll('.row.tab').forEach(function (row) {
+    const shown = !row.classList.contains('off')
+    if (shown) count += 1
+    row.querySelector('.num').textContent = shown ? String(count) : ''
+  })
+}
+
+document.querySelectorAll('[data-tabs]').forEach(renumber)
+
+document.addEventListener('click', function (event) {
+  const target = event.target.closest('button')
+  if (!target) return
+  if (target.dataset.group) {
+    const scope = target.closest('.p')
+    scope.querySelectorAll('[data-group="' + target.dataset.group + '"]').forEach(function (item) {
+      const on = item === target
+      item.classList.toggle('on', on)
+      if (item.hasAttribute('aria-checked')) item.setAttribute('aria-checked', String(on))
+      if (item.hasAttribute('aria-pressed')) item.setAttribute('aria-pressed', String(on))
+    })
+    return
+  }
+  if (target.hasAttribute('data-toggle')) {
+    const on = target.classList.toggle('on')
+    target.setAttribute('aria-checked', String(on))
+    if (target.hasAttribute('data-show')) {
+      target.closest('.row').classList.toggle('off', !on)
+      renumber(target.closest('[data-tabs]'))
+    }
+    return
+  }
+  if (target.hasAttribute('data-pin')) {
+    const on = target.classList.toggle('pinned')
+    target.setAttribute('aria-pressed', String(on))
+    return
+  }
+  if (target.hasAttribute('data-rec')) {
+    const wasRecording = target.classList.contains('rec')
+    target.closest('.p').querySelectorAll('[data-rec]').forEach(function (row) {
+      row.classList.remove('rec')
+    })
+    if (!wasRecording) target.classList.add('rec')
+    return
+  }
+  if (target.hasAttribute('data-arm')) {
+    const armed = target.classList.toggle('on')
+    target.textContent = armed ? target.dataset.armed : target.dataset.idle
+  }
+})
+</script>
+</body>
+</html>
