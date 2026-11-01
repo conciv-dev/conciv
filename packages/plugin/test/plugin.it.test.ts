@@ -12,7 +12,7 @@ import {
   cpSync,
   writeFileSync,
 } from 'node:fs'
-import {createServer as createHttpServer, type Server, type ServerResponse} from 'node:http'
+import {createServer as createHttpServer, request as httpRequest, type Server, type ServerResponse} from 'node:http'
 import {createServer as createNetServer} from 'node:net'
 import {tmpdir} from 'node:os'
 import {stripVTControlCharacters} from 'node:util'
@@ -1579,9 +1579,40 @@ describe('extension load isolation', () => {
   }, 60_000)
 })
 
-describe('nextjs devframe hub on the page origin', () => {
-  const NEXT_PORT = 3401
-  const ENGINE_PORT = 3402
+const NEXT_BUNDLERS = [
+  {bundler: 'webpack', flags: ['--webpack'], nextPort: 3430, enginePort: 3431},
+  {bundler: 'turbopack', flags: [], nextPort: 3432, enginePort: 3433},
+]
+
+function hostRequest(port: number, path: string, host: string, upgrade: boolean): Promise<number | 'no upgrade'> {
+  const upgradeHeaders = {
+    connection: 'Upgrade',
+    upgrade: 'websocket',
+    'sec-websocket-version': '13',
+    'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==',
+  }
+  return new Promise((resolve, reject) => {
+    const outgoing = httpRequest({host: '127.0.0.1', port, path, headers: {host, ...(upgrade ? upgradeHeaders : {})}})
+    outgoing.on('upgrade', (response, socket) => {
+      socket.destroy()
+      resolve(response.statusCode ?? 0)
+    })
+    outgoing.on('response', (response) => {
+      response.resume()
+      resolve(response.statusCode ?? 0)
+    })
+    outgoing.on('error', reject)
+    outgoing.setTimeout(3_000, () => {
+      outgoing.destroy()
+      resolve('no upgrade')
+    })
+    outgoing.end()
+  })
+}
+
+describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)', ({flags, nextPort, enginePort}) => {
+  const NEXT_PORT = nextPort
+  const ENGINE_PORT = enginePort
   const PAGE = `http://127.0.0.1:${NEXT_PORT}`
   const EXAMPLE = fileURLToPath(new URL('../../../apps/examples/nextjs-app/', import.meta.url))
   const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -1676,9 +1707,10 @@ describe('nextjs devframe hub on the page origin', () => {
   beforeAll(async () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-next-hub-'))
     probeScript = await bundleProbe()
+    rmSync(join(EXAMPLE, '.next'), {recursive: true, force: true})
     next = spawn(
       join(EXAMPLE, 'node_modules/.bin/next'),
-      ['dev', '--webpack', '--port', String(NEXT_PORT), '--hostname', '127.0.0.1'],
+      ['dev', ...flags, '--port', String(NEXT_PORT), '--hostname', '127.0.0.1'],
       {
         cwd: EXAMPLE,
         detached: true,
@@ -1711,7 +1743,10 @@ describe('nextjs devframe hub on the page origin', () => {
 
   afterAll(async () => {
     await browser?.close()
-    if (next?.pid) process.kill(-next.pid, 'SIGTERM')
+    if (!next?.pid || next.exitCode !== null) return
+    const exited = new Promise((resolve) => next.once('exit', resolve))
+    process.kill(-next.pid, 'SIGTERM')
+    await exited
   })
 
   it('forwards the hub meta, plugin pages and their assets on the next port, keeping the trailing slash', async () => {
@@ -1726,6 +1761,17 @@ describe('nextjs devframe hub on the page origin', () => {
     const userRoute = await fetch(`${PAGE}/about/`, {redirect: 'manual'})
     expect(userRoute.status).toBe(308)
     expect(userRoute.headers.get('location')).toBe('/about')
+  })
+
+  it('forwards only loopback hosts, so a LAN host gets no hub while the app still serves', async () => {
+    for (const host of [`localhost:${NEXT_PORT}`, `127.0.0.1:${NEXT_PORT}`, `[::1]:${NEXT_PORT}`])
+      expect(await hostRequest(NEXT_PORT, '/__conciv/__connection.json', host, false)).toBe(200)
+    const lan = `192.168.1.20:${NEXT_PORT}`
+    expect(await hostRequest(NEXT_PORT, '/__conciv/__connection.json', lan, false)).toBe(404)
+    expect(await hostRequest(NEXT_PORT, `${PLUGIN_FRAME}`, lan, false)).toBe(404)
+    expect(await hostRequest(NEXT_PORT, '/', lan, false)).toBe(200)
+    expect(await hostRequest(NEXT_PORT, '/__conciv/__ws', `127.0.0.1:${NEXT_PORT}`, true)).toBe(101)
+    expect(await hostRequest(NEXT_PORT, '/__conciv/__ws', lan, true)).toBe('no upgrade')
   })
 
   it('logs in over the page-origin websocket, then a same-origin plugin iframe with a bare url is trusted from the stored login', async () => {

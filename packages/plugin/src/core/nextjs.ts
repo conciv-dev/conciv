@@ -11,11 +11,12 @@ const ENTRY_RELATIVE = './.conciv/extensions-client.gen.tsx'
 
 type TurbopackConfig = {resolveAlias?: Record<string, unknown>; [key: string]: unknown}
 type WebpackEntry = () => Promise<Record<string, unknown>>
-type WebpackConfig = {entry?: WebpackEntry; resolve?: {alias?: Record<string, string | false>}; externals?: unknown}
+type WebpackConfig = {entry?: WebpackEntry; resolve?: {alias?: Record<string, string | false>}}
 type WebpackContext = {nextRuntime?: string; dev?: boolean; dir?: string; config?: {pageExtensions?: string[]}}
 type WebpackHook = (config: WebpackConfig, context: WebpackContext) => WebpackConfig
 
-type Route = {source: string; destination: string}
+type HostCondition = {type: 'header'; key: 'host'; value: string}
+type Route = {source: string; destination: string; has?: HostCondition[]}
 type RedirectRoute = Route & {permanent: boolean}
 type RewriteTable = {beforeFiles?: Route[]; afterFiles?: Route[]; fallback?: Route[]}
 
@@ -43,6 +44,11 @@ type WithConcivResult<T> = Omit<
 }
 
 const HUB_BASE = '/__conciv'
+const LOOPBACK_HOST: HostCondition = {
+  type: 'header',
+  key: 'host',
+  value: '(localhost|127\\.0\\.0\\.1|\\[::1\\])(:\\d+)?',
+}
 const TRAILING_SLASH_REDIRECT: RedirectRoute = {
   source: '/:path((?!__conciv/).+)/',
   destination: '/:path',
@@ -53,7 +59,11 @@ function forwardHub(
   base: ConfigWithEnv,
   port: string,
 ): Pick<ConfigWithEnv, 'rewrites' | 'redirects' | 'skipTrailingSlashRedirect'> {
-  const hub: Route = {source: `${HUB_BASE}/:path*`, destination: `http://127.0.0.1:${port}${HUB_BASE}/:path*`}
+  const hub: Route = {
+    source: `${HUB_BASE}/:path*`,
+    destination: `http://127.0.0.1:${port}${HUB_BASE}/:path*`,
+    has: [LOOPBACK_HOST],
+  }
   const userRedirects = base.redirects
   const userRewrites = base.rewrites
   return {
@@ -121,11 +131,6 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
     resolveConfig.alias = alias
     config.resolve = resolveConfig
     compileInstrumentationFirst(config, context)
-    if (context.nextRuntime === 'nodejs')
-      config.externals = [
-        ...(Array.isArray(config.externals) ? config.externals : []),
-        Object.fromEntries(EDGE_REGISTER_ENTRIES.map((entry) => [entry, `module ${entry}`])),
-      ]
     return userWebpack ? userWebpack(config, context) : config
   }
   return {
