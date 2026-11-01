@@ -320,17 +320,21 @@
       }
     },
     {
-      "files": [
-        "packages/core/**",
-        "packages/ui-kit-chat/**",
-        "apps/conciv/**",
-        "packages/embed/**",
-        "packages/harness/**",
-        "packages/client/**",
-        "packages/publish/**"
-      ],
+      "files": ["packages/core/**"],
       "rules": {
-        "conciv/test-file-budget": "off"
+        "conciv/test-file-budget": ["error", {"max": 3}]
+      }
+    },
+    {
+      "files": ["packages/ui-kit-chat/**"],
+      "rules": {
+        "conciv/test-file-budget": ["error", {"max": 5}]
+      }
+    },
+    {
+      "files": ["apps/conciv/**"],
+      "rules": {
+        "conciv/test-file-budget": ["error", {"max": 3}]
       }
     },
     {
