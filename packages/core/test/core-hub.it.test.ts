@@ -34,6 +34,7 @@ const hubProbe = defineConcivPlugin({id: 'hub-probe', title: 'Hub probe'}).serve
     defineConcivFunction({
       name: 'hub-probe:defaults',
       type: 'query',
+      agent: {description: 'marks this hub as having an agent surface', safety: 'read'},
       input: z.object({count: z.number().default(3)}),
       output: z.object({count: z.number()}),
       handler: (input) => input,
@@ -265,7 +266,7 @@ describe('conciv hub', () => {
     expect(await kit.hub.call('added:ping')).toBe('pong')
   }, 10_000)
 
-  it('answers on no MCP route and registers no WebMCP tool', async () => {
+  it('answers on no MCP route', async () => {
     expect((await fetch(`${kit.hubUrl}__connection.json`)).status).toBe(200)
     const route = await fetch(`${kit.hubUrl}__mcp`, {
       method: 'POST',
@@ -274,6 +275,9 @@ describe('conciv hub', () => {
     })
     expect(route.status).toBe(404)
     expect(kit.hubInstance.connectionMeta().mcp).toBeUndefined()
+  }, 10_000)
+
+  it('registers no WebMCP tool from a page client', async () => {
     const page = await browser.newPage()
     await page.addInitScript(() => {
       const registered: string[] = []
