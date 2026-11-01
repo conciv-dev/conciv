@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto'
 import {existsSync} from 'node:fs'
 import {Hono} from 'hono'
 import {z} from 'zod'
@@ -63,10 +64,14 @@ import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
 import {engineStaleness} from './lib/engine-stamp.js'
+import {makeDevframePlane} from './devframe-plane.js'
+import type {DevframeInstance} from 'devframe/initiate'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
+  devframeAuth?: boolean
+  mcpToken?: string
   cwd: string
   basePath?: string
   bridge?: BundlerBridge
@@ -275,6 +280,7 @@ export type MadeApp = {
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
+  devframe: DevframeInstance
 }
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string, claudeHome?: string): ServerHarness {
@@ -515,6 +521,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
   )
 
+  const devframe = makeDevframePlane({
+    chat: chatDeps,
+    stateDir: concivStateDir(opts.cfg.stateRoot),
+    auth: opts.devframeAuth ?? true,
+    mcpToken: opts.mcpToken ?? randomUUID(),
+  })
+  app.all(`${devframe.base}*`, (c) => devframe.handler(c.req.raw))
+
   if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))
 
   mounted.forEach((entry) => {
@@ -523,8 +537,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const dispose = async (): Promise<void> => {
     for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
+    await devframe.close()
     db.$client.close()
   }
 
-  return {app, chat: chatDeps, plane, dispose, extensionContexts, runtime}
+  return {app, chat: chatDeps, plane, dispose, extensionContexts, runtime, devframe}
 }

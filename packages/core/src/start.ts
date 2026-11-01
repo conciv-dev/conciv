@@ -1,4 +1,5 @@
 import {serveHono, type ServeFetch} from '@conciv/serve'
+import {Server as HttpServer} from 'node:http'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
@@ -35,6 +36,8 @@ export type StartOpts = {
   harness?: HarnessAdapter
   nativePageDir?: string
   devEndpointDir?: string
+  devframeAuth?: boolean
+  mcpToken?: string
 }
 
 export type Engine = {
@@ -178,8 +181,10 @@ export async function start(opts: StartOpts): Promise<Engine> {
     onShutdown: opts.onShutdown,
     nativePageDir: opts.nativePageDir,
     nativeUrl,
+    devframeAuth: opts.devframeAuth,
+    mcpToken: opts.mcpToken,
   }
-  const {app, dispose, extensionContexts} = await makeApp(appOpts)
+  const {app, dispose, extensionContexts, devframe} = await makeApp(appOpts)
 
   const notifyClient = onceNotifier(opts.onClientRequest)
   const served = opts.accessToken
@@ -200,6 +205,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   }
   const {port, close} = serving
   portRef.port = port
+  if (serving.server instanceof HttpServer) devframe.attach(serving.server)
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const base = tokenScopedBase()
