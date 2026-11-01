@@ -63,7 +63,7 @@ await timed('install', () =>
   installPacked({
     root: PACKED_APP_DIR,
     packages: ['.'],
-    allowBuilds: {'isolated-vm': true},
+    allowBuilds: {'isolated-vm': true, protobufjs: false},
     overrides,
     lock: LOCK,
     fresh: updateLockfile,

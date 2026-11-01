@@ -2,11 +2,12 @@ import {readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
-import type {Browser} from 'playwright'
+import {firefox, type Browser} from 'playwright'
 import {PNG} from 'pngjs'
 import {createServer} from 'vite'
 
 const HOST_ROOT = fileURLToPath(new URL('host/', import.meta.url))
+const FIREFOX_SHOT = {name: 'u1-1280-firefox', path: '/?variant=target', width: 1280, height: 720} as const
 
 const SHOTS = [
   {name: 'u1-1280', path: '/?variant=target', ready: 'header.toolbar', width: 1280, height: 720},
@@ -24,6 +25,27 @@ function upscale2x(source: PNG): PNG {
   })
   out.data = Buffer.from(scaled.buffer)
   return out
+}
+
+async function renderFirefox(input: {origin: string; dir: string}): Promise<void> {
+  const browser = await firefox.launch()
+  try {
+    const page = await browser.newPage({viewport: {width: FIREFOX_SHOT.width, height: FIREFOX_SHOT.height}})
+    await page.goto(new URL(FIREFOX_SHOT.path, input.origin).href)
+    await page.locator('header.toolbar').waitFor()
+    await page.evaluate(() => document.fonts.ready)
+    await writeFile(join(input.dir, `${FIREFOX_SHOT.name}.png`), await page.screenshot({fullPage: false}))
+    const button = await page
+      .locator('header.toolbar button')
+      .first()
+      .evaluate((element) => {
+        const rect = element.getBoundingClientRect()
+        return {x: rect.x, y: rect.y, w: rect.width, h: rect.height}
+      })
+    await writeFile(join(input.dir, `${FIREFOX_SHOT.name}.json`), JSON.stringify(button))
+  } finally {
+    await browser.close()
+  }
 }
 
 export async function renderTargets(input: {browser: Browser; dir: string}): Promise<void> {
@@ -47,6 +69,7 @@ export async function renderTargets(input: {browser: Browser; dir: string}): Pro
       await writeFile(join(input.dir, `${shot.name}.png`), await page.screenshot({fullPage: false}))
       await page.close()
     }
+    await renderFirefox({origin, dir: input.dir})
   } finally {
     await server.close()
   }

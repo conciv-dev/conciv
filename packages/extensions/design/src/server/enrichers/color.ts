@@ -1,17 +1,14 @@
 import type {Enricher} from '../../shared/types.js'
-import {crop, edgeMap, foregroundColor, medianColor} from '../raster.js'
+import {ciede2000} from '../comparators/ciede2000.js'
+import {sampledFills} from '../deltas/colors.js'
 
 export const colorEnricher: Enricher = {
   name: 'color',
   applies: (node) => node.fills === undefined,
   run: ({node, raster}) => {
-    const tile = crop({raster, box: node.box}).raster
-    const edges = edgeMap(tile)
+    const {background, foreground} = sampledFills({raster, box: node.box, glyphs: [node.box], color: ciede2000})
     return Promise.resolve({
-      fills: {
-        background: medianColor({raster: tile, exclude: edges}),
-        foreground: foregroundColor({raster: tile, edges}),
-      },
+      fills: foreground === null ? {background} : {background, foreground},
       confidence: 0.8,
     })
   },

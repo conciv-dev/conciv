@@ -1,10 +1,12 @@
 import {formatHex, formatHex8, parse} from 'culori'
-import type {Box, LiveComponent, LiveStyles, SourceLoc} from '../shared/types.js'
+import {SOURCE_ATTR} from '../shared/source-attr.js'
+import {TOLERANCES} from '../shared/tolerances.js'
+import type {Box, Glyph, LiveComponent, LiveStyles, SourceLoc} from '../shared/types.js'
 
-const SOURCE_ATTR = 'data-conciv-source'
 const NORMAL_LINE_HEIGHT = 1.2
 
 type Viewport = {width: number; height: number}
+type Realm = Window & typeof globalThis
 
 function readSource(el: Element): SourceLoc | null {
   const raw = el.getAttribute(SOURCE_ATTR)
@@ -77,15 +79,73 @@ function measureTextBox(input: {nodes: Text[]; viewport: Viewport}): Box | null 
   return clipped({rect: new DOMRect(left, top, right - left, bottom - top), viewport: input.viewport})
 }
 
+function glyphNodes(input: {el: Element; view: Realm}): Text[] {
+  const {el, view} = input
+  return [...el.childNodes].flatMap((node): Text[] => {
+    if (node instanceof view.Text) return (node.textContent ?? '').trim() === '' ? [] : [node]
+    if (!(node instanceof view.Element) || node.hasAttribute(SOURCE_ATTR)) return []
+    return glyphNodes({el: node, view})
+  })
+}
+
+function glyphBox(input: {rect: DOMRect; bounds: Box}): Box | null {
+  const {rect, bounds} = input
+  const left = Math.max(bounds.x, Math.floor(rect.left) - TOLERANCES.glyphHalo)
+  const top = Math.max(bounds.y, Math.floor(rect.top) - TOLERANCES.glyphHalo)
+  const right = Math.min(bounds.x + bounds.w, Math.ceil(rect.right) + TOLERANCES.glyphHalo)
+  const bottom = Math.min(bounds.y + bounds.h, Math.ceil(rect.bottom) + TOLERANCES.glyphHalo)
+  if (right <= left || bottom <= top) return null
+  return {x: left, y: top, w: right - left, h: bottom - top}
+}
+
+function placeholderFields(input: {el: Element; view: Realm}): (HTMLInputElement | HTMLTextAreaElement)[] {
+  const {el, view} = input
+  const own =
+    (el instanceof view.HTMLInputElement || el instanceof view.HTMLTextAreaElement) &&
+    el.value === '' &&
+    el.placeholder !== ''
+      ? [el]
+      : []
+  const nested = [...el.children].flatMap((child) =>
+    child.hasAttribute(SOURCE_ATTR) ? [] : placeholderFields({el: child, view}),
+  )
+  return [...own, ...nested]
+}
+
+function placeholderGlyph(input: {field: HTMLInputElement | HTMLTextAreaElement}): Glyph[] {
+  const {field} = input
+  const outer = field.getBoundingClientRect()
+  const rect = new DOMRect(
+    outer.left + field.clientLeft,
+    outer.top + field.clientTop,
+    field.clientWidth,
+    field.clientHeight,
+  )
+  const box = {x: Math.ceil(rect.left), y: Math.ceil(rect.top), w: Math.floor(rect.width), h: Math.floor(rect.height)}
+  return [{text: field.placeholder, boxes: [box]}]
+}
+
+function measureGlyphs(input: {el: Element; view: Realm; bounds: Box}): Glyph[] {
+  const texts = glyphNodes(input).flatMap((node) => {
+    const range = node.ownerDocument.createRange()
+    range.selectNodeContents(node)
+    const boxes = [...range.getClientRects()].flatMap((rect) => glyphBox({rect, bounds: input.bounds}) ?? [])
+    return boxes.length === 0 ? [] : [{text: node.textContent ?? '', boxes}]
+  })
+  const placeholders = placeholderFields(input).flatMap((field) => placeholderGlyph({field}))
+  return [...texts, ...placeholders]
+}
+
 function siblingIndex(el: Element): number {
   const parent = el.parentElement
   if (parent === null) return 1
   return [...parent.children].indexOf(el) + 1
 }
 
-function componentTree(input: {el: Element; viewport: Viewport; view: Window}): LiveComponent {
+function componentTree(input: {el: Element; viewport: Viewport; view: Realm}): LiveComponent {
   const {el, viewport} = input
   const nodes = ownTextNodes(el)
+  const box = clipped({rect: el.getBoundingClientRect(), viewport})
   return {
     source: readSource(el),
     tag: el.tagName.toLowerCase(),
@@ -93,8 +153,9 @@ function componentTree(input: {el: Element; viewport: Viewport; view: Window}): 
       .map((node) => node.textContent ?? '')
       .join('')
       .trim(),
-    box: clipped({rect: el.getBoundingClientRect(), viewport}),
+    box,
     textBox: measureTextBox({nodes, viewport}),
+    glyphs: measureGlyphs({el, view: input.view, bounds: box}),
     axis: readAxis(el),
     styles: readStyles(input.view.getComputedStyle(el)),
     index: siblingIndex(el),
@@ -102,7 +163,7 @@ function componentTree(input: {el: Element; viewport: Viewport; view: Window}): 
   }
 }
 
-function collectUnder(input: {el: Element; viewport: Viewport; view: Window}): LiveComponent[] {
+function collectUnder(input: {el: Element; viewport: Viewport; view: Realm}): LiveComponent[] {
   return [...input.el.children].flatMap((child) =>
     child.hasAttribute(SOURCE_ATTR)
       ? [componentTree({el: child, viewport: input.viewport, view: input.view})]

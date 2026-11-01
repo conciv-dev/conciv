@@ -50,12 +50,10 @@ export function unmatchedRegions(input: {
     if (!blank({raster: target.raster, box: pair.liveBox}) || blank({raster: live.raster, box: pair.liveBox})) return
     extras.add(pair)
   })
-  const extra = [...extras].map(
-    (pair): Unmatched => ({
-      kind: 'extra',
-      live: pair.liveBox,
-      ...(pair.live.source === null ? {} : {source: pair.live.source}),
-    }),
-  )
+  const extra = [...extras].map((pair): Unmatched => ({
+    kind: 'extra',
+    live: pair.liveBox,
+    ...(pair.live.source === null ? {} : {source: pair.live.source}),
+  }))
   return [...missing, ...extra]
 }

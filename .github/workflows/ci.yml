@@ -116,7 +116,7 @@ jobs:
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: playwright-chromium-firefox-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       # Turbo cache: scoped within a lockfile generation, so a dependency change
       # discards prior cache instead of carrying (and laundering) it forward.
       # Restore/save are split so artifacts of tasks that passed persist even when
@@ -164,12 +164,12 @@ jobs:
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
       - timeout-minutes: 17
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
       - run: pnpm exec conciv-ci-shards run
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
@@ -364,7 +364,7 @@ jobs:
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: playwright-chromium-firefox-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo
@@ -400,12 +400,12 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
       - timeout-minutes: 17
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
       # Alone on its own runner: nothing else competes for chromium/vite/cpu, so the merged suite's
       # maxWorkers:2 is safe and the heavy solid-streamdown cold-load has headroom. Dependency
       # builds are capped so a cold turbo cache (lockfile change) can't OOM chrome mid-run.
@@ -490,7 +490,7 @@ jobs:
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: playwright-chromium-firefox-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo
@@ -530,12 +530,12 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
       - timeout-minutes: 17
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
       # Real harness CLIs for the e2e/harnesses turn matrix: unauthenticated turns must
       # surface a visible error (proving spawn + stream + error plumbing), never hang or
       # vanish. pi is a stub harness and never spawns its binary. Only the shard that

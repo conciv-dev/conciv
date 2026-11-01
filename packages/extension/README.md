@@ -125,3 +125,30 @@ the call rejects, an **error** card (the rejection propagates out of `execute` a
 tool part's `output-error` state). A failed page verb never renders as a green success. Do not catch
 and swallow a `PageVerbError` inside `execute` if you want the failure reflected in the card; let it
 reject.
+
+## Overview
+
+Package root for the extension authoring contract. Built with tsdown as ESM with .d.ts from six entry points.
+
+## Interface
+
+- Exports `.` and `./client` (`package.json`): dist/index.js
+- Exports `./host`, `./catalog`, `./tool` (define-tool), `./registry` (tool-registry), `./rpc-mount` (`package.json`)
+- `tsdown.config.ts`: entries src/index.ts, host.ts, catalog.ts, define-tool.ts, rpc-mount.ts, tool-registry.ts
+- `scripts` (`package.json`): build, typecheck, lint, test (`vitest run --passWithNoTests`), publint, attw
+- Subdirectories:
+  - src: [./src/README.md](./src/README.md) - builders, host hooks, tool registry, RPC mount
+
+## Invariants
+
+- `peerDependencies` (`package.json`): solid-js is a peer, not bundled
+- `type: module` (`package.json`): ESM only
+
+## Side Effects
+
+- `build` script (`package.json`): writes dist/
+
+## Verification
+
+- Run: `pnpm exec turbo run test --filter=@conciv/extension` from the repo root (turbo builds the package and its dependencies first)
+- Typecheck and lint: `cd packages/extension && pnpm typecheck && pnpm lint`

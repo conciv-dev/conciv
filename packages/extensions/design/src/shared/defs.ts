@@ -28,6 +28,7 @@ export const DELTA_KIND_NAMES = [
   'background',
   'foreground',
   'radius',
+  'text',
 ] as const
 
 export const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
@@ -47,12 +48,17 @@ export const LiveStylesSchema = z.object({
   radius: z.number(),
 })
 
+export const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
+
 export const LiveComponentSchema = z.object({
   source: SourceLocSchema.nullable(),
   tag: z.string(),
   text: z.string(),
   box: BoxSchema,
   textBox: BoxSchema.nullable(),
+  glyphs: z
+    .array(GlyphSchema)
+    .describe('the text nodes the component paints, each with one box per line, grown by the anti-aliasing halo'),
   axis: z.enum(['row', 'column']).nullable(),
   styles: LiveStylesSchema,
   index: z.number().describe('position among the DOM siblings, 1-based'),
@@ -60,7 +66,7 @@ export const LiveComponentSchema = z.object({
 })
 
 export const ProvenanceSchema = z.object({
-  via: z.enum(['sx', 'style', 'className', 'css', 'emotion', 'styled', 'library', 'unknown']),
+  via: z.enum(['sx', 'style', 'className', 'css', 'emotion', 'styled', 'library', 'source', 'unknown']),
   file: z.string().optional(),
   line: z.number().optional(),
   column: z.number().optional(),
@@ -108,6 +114,7 @@ export const TargetResultSchema = z.object({
   width: z.number(),
   height: z.number(),
   scale: z.number(),
+  text: z.object({runs: z.number(), error: z.string().optional()}).optional(),
 })
 
 export const ComponentReportSchema = z.object({

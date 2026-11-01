@@ -1,4 +1,4 @@
-import type {Box, DeltaKind, LiveStyles, Pair, Raster, Side} from '../shared/types.js'
+import type {Box, ColorMetric, DeltaKind, LiveStyles, Pair, Raster, Side} from '../shared/types.js'
 import {background, foreground, isOpaqueHex, sampledFills} from './deltas/colors.js'
 import {align, fill} from './deltas/fill-align.js'
 import {gapAfter, gapBefore} from './deltas/gaps.js'
@@ -45,11 +45,19 @@ function contentBox(input: {children: Pair[]; from: From}): Box | null {
   return union(children.flatMap((pair) => pickBox({pair, from}) ?? []))
 }
 
-function sideStyles(input: {pair: Pair; from: From; box: Box; raster: Raster}): Partial<LiveStyles> {
+function sideStyles(input: {
+  pair: Pair
+  from: From
+  box: Box
+  raster: Raster
+  color: ColorMetric
+  glyphs: Box[]
+}): Partial<LiveStyles> {
   const {pair, from, box, raster} = input
-  const textLeaf = pair.live.children.length === 0 && pair.live.text !== ''
-  const fills = sampledFills({raster, box})
-  const color = textLeaf ? {color: fills.foreground} : {}
+  const paintsText = pair.live.glyphs.length > 0
+  const glyphs = input.glyphs.length === 0 ? [box] : input.glyphs
+  const fills = sampledFills({raster, box, glyphs, color: input.color})
+  const color = paintsText && fills.foreground !== null ? {color: fills.foreground} : {}
   if (from === 'target') return {background: fills.background, ...color}
   const {background: declared, color: _declared, ...rest} = pair.live.styles
   return {...rest, ...(isOpaqueHex(declared) ? {background: declared} : {}), ...color}
@@ -62,8 +70,16 @@ function neighbourBox(input: {pair: Pair; from: From; step: 'prev' | 'next'}): B
   return neighbourBox({pair: near, from, step})
 }
 
-export function sideFrom(input: {pair: Pair; from: From; children: Pair[]; page: Box; raster: Raster}): Side | null {
-  const {pair, from, children, page, raster} = input
+export function sideFrom(input: {
+  pair: Pair
+  from: From
+  children: Pair[]
+  page: Box
+  raster: Raster
+  color: ColorMetric
+  glyphs: Box[]
+}): Side | null {
+  const {pair, from, children, page, raster, color, glyphs} = input
   const box = pickBox({pair, from})
   if (box === null) return null
   return {
@@ -73,6 +89,6 @@ export function sideFrom(input: {pair: Pair; from: From; children: Pair[]; page:
     next: neighbourBox({pair, from, step: 'next'}),
     axis: pair.live.axis,
     textBox: contentBox({children, from}),
-    styles: sideStyles({pair, from, box, raster}),
+    styles: sideStyles({pair, from, box, raster, color, glyphs}),
   }
 }

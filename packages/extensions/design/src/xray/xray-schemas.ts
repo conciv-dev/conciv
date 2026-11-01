@@ -1,6 +1,8 @@
 import {z} from 'zod'
-import {type Filter} from './list.js'
+import {FILTERS, type Filter} from './data.js'
 import {MODES} from './stage.js'
+
+export type View = 'list' | 'capture'
 
 export const XraySearchSchema = z.object({
   target: z.coerce.string().default('').catch(''),
@@ -8,7 +10,7 @@ export const XraySearchSchema = z.object({
   mode: z.enum(MODES).optional().catch(undefined),
   component: z.coerce.string().optional().catch(undefined),
   filter: z
-    .enum(['all', 'above', 'unmatched'])
+    .enum([...FILTERS, 'unmatched'])
     .transform((value): Filter => (value === 'unmatched' ? 'above' : value))
     .default('all')
     .catch('all'),

@@ -4,11 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>design x-ray</title>
+    <script>
+      const scheme = matchMedia('(prefers-color-scheme: dark)')
+      const applyScheme = () => document.documentElement.classList.toggle('dark', scheme.matches)
+      applyScheme()
+      scheme.addEventListener('change', applyScheme)
+    </script>
   </head>
-  <body
-    class="text-[0.8125rem] text-chat-text leading-[1.45] font-chat bg-chat-ground grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden h-dvh m-0"
-  >
-    <div data-design-xray class="contents"></div>
+  <body class="bg-dots color-base font-sans antialiased m-0 min-h-dvh">
+    <div data-design-xray></div>
     <script type="module" src="./entry.tsx"></script>
   </body>
 </html>
