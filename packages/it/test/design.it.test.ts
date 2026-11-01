@@ -618,4 +618,12 @@ describe('x-ray page', () => {
     await expectLocator(inspector).toContainText(second.source.file)
     await xray.close()
   })
+
+  it('keeps a numeric filter query from the url', async () => {
+    const report = await call('design_diff', {width: 1280})
+    const xray = await browser.newPage()
+    await xray.goto(`${report.xray}&q=1280`)
+    await expectLocator(xray.getByRole('textbox', {name: 'Filter components'})).toHaveValue('1280')
+    await xray.close()
+  })
 })
