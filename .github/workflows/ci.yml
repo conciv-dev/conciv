@@ -116,7 +116,7 @@ jobs:
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: playwright-chromium-firefox-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       # Turbo cache: scoped within a lockfile generation, so a dependency change
       # discards prior cache instead of carrying (and laundering) it forward.
       # Restore/save are split so artifacts of tasks that passed persist even when
@@ -364,7 +364,7 @@ jobs:
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: playwright-chromium-firefox-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo
@@ -490,7 +490,7 @@ jobs:
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: playwright-chromium-firefox-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo
