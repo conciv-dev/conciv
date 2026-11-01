@@ -51,6 +51,7 @@ export async function bootCli(cleanups: (() => Promise<void>)[], extras: BootExt
     return kit.cleanup()
   })
   process.env.CONCIV_PORT = new URL(kit.base).port
+  process.env.CONCIV_TOKEN = kit.loginToken
   process.env.CONCIV_SESSION_ID = await kit.session()
   return kit
 }
@@ -102,6 +103,7 @@ export function cliSession(): CliSession {
   afterEach(async () => {
     vi.restoreAllMocks()
     delete process.env.CONCIV_PORT
+    delete process.env.CONCIV_TOKEN
     for (const cleanup of session.cleanups.splice(0)) await cleanup()
   })
   return session
