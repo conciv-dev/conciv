@@ -185,10 +185,7 @@ describe('conciv hub', () => {
   }, 15_000)
 
   it('syncs shared state to two tabs', async () => {
-    const tabs = await Promise.all([
-      trustedTab(browser, host.url, kit.hubUrl),
-      trustedTab(browser, host.url, kit.hubUrl),
-    ])
+    const tabs = [await trustedTab(browser, host.url, kit.hubUrl), await trustedTab(browser, host.url, kit.hubUrl)]
     const seen = tabs.map((tab) =>
       tab.evaluate(
         (key) =>
@@ -203,6 +200,32 @@ describe('conciv hub', () => {
     await kit.hub.call('hub-probe:bump', {})
     expect(await Promise.all(seen)).toEqual([1, 1])
     await Promise.all(tabs.map((tab) => tab.close()))
+  }, 15_000)
+
+  it('stops writing shared state once the reader is released', async () => {
+    const tab = await trustedTab(browser, host.url, kit.hubUrl)
+    const outcome = tab.evaluate(
+      (key) =>
+        new Promise<{released: number[]; live: number}>((resolve) => {
+          const released: number[] = []
+          const stop = window.concivProbe.readSharedState<{count: number}>(window.concivConnection, key, (value) => {
+            released.push(value.count)
+            if (released.length !== 1) return
+            stop()
+            window.concivProbe.readSharedState<{count: number}>(window.concivConnection, key, (latest) => {
+              if (latest.count === value.count) Object.assign(window, {readyForBump: true})
+              if (latest.count > value.count) resolve({released, live: latest.count})
+            })
+          })
+        }),
+      SHARED_STATE,
+    )
+    await tab.waitForFunction(() => Reflect.get(window, 'readyForBump') === true)
+    await kit.hub.call('hub-probe:bump', {})
+    const {released, live} = await outcome
+    expect(released).toHaveLength(1)
+    expect(live).toBe((released[0] ?? 0) + 1)
+    await tab.close()
   }, 15_000)
 
   it('replays a stream to a late subscriber', async () => {

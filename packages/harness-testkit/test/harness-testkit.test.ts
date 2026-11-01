@@ -1005,7 +1005,11 @@ describe('conciv devframe layer over a real hub', () => {
 
   it('refuses input that fails the schema before the handler runs', async () => {
     const served = await serveDevframePlugin(probe.devframe)
-    await expect(call(served.client, 'probe:greet', {name: 3})).rejects.toThrow()
+    await expect(call(served.client, 'probe:greet', {name: 3})).rejects.toMatchObject({
+      name: 'ConcivError',
+      code: 'BAD_REQUEST',
+      message: expect.stringMatching(/name: Invalid input/),
+    })
     await served.close()
   }, 10_000)
 
@@ -1061,6 +1065,48 @@ describe('conciv devframe layer over a real hub', () => {
     await served.hub.close()
     await expect(pending).rejects.toMatchObject({code: 'DISCONNECTED'})
     await expect(ended).rejects.toMatchObject({code: 'DISCONNECTED'})
+    await served.close()
+  }, 10_000)
+
+  it('stops the source stream when the connection drops', async () => {
+    const served = await serveDevframePlugin(probe.devframe)
+    const source = {returned: false, pulls: 0}
+    const stream = served.client.connection.stream(() => ({
+      [Symbol.asyncIterator]: () => ({
+        next: () => {
+          source.pulls += 1
+          if (source.pulls === 1) return Promise.resolve({done: false, value: 'first'})
+          return new Promise<IteratorResult<string>>(() => {})
+        },
+        return: () => {
+          source.returned = true
+          return Promise.resolve({done: true, value: undefined})
+        },
+      }),
+    }))
+    const iterator = stream[Symbol.asyncIterator]()
+    expect((await iterator.next()).value).toBe('first')
+    const ended = iterator.next()
+    await served.hub.close()
+    await expect(ended).rejects.toMatchObject({code: 'DISCONNECTED'})
+    expect(source.returned).toBe(true)
+    await served.close()
+  }, 10_000)
+
+  it('refuses ready, calls and streams with DISCONNECTED once closed, including a wait already pending', async () => {
+    const served = await serveDevframePlugin(probe.devframe)
+    const unreachable = nodeClient({url: 'http://127.0.0.1:1', transport: 'ws'})
+    const waiting = unreachable.connection.ready()
+    unreachable.close()
+    await expect(waiting).rejects.toMatchObject({code: 'DISCONNECTED'})
+    expect(unreachable.connection.status()).toBe('closed')
+    served.client.close()
+    await expect(served.client.connection.ready()).rejects.toMatchObject({code: 'DISCONNECTED'})
+    await expect(call(served.client, 'probe:greet', {})).rejects.toMatchObject({code: 'DISCONNECTED'})
+    const stream = served.client.connection.stream(async function* () {
+      yield 'never'
+    })
+    await expect(stream[Symbol.asyncIterator]().next()).rejects.toMatchObject({code: 'DISCONNECTED'})
     await served.close()
   }, 10_000)
 })

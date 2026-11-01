@@ -9,7 +9,7 @@ import {concivError, concivRpcOptions, type ConcivCall, type ConcivServerFunctio
 const RECONNECT_BASE_WAIT_MS = 100
 const RECONNECT_MAX_WAIT_MS = 2_000
 
-export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected'
+export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'closed'
 
 type ClosableClient = {close?: () => void}
 
@@ -33,10 +33,14 @@ function disconnected(): Error {
 
 async function* untilDropped<Chunk>(source: AsyncIterable<Chunk>, dropped: Promise<never>): AsyncGenerator<Chunk> {
   const iterator = source[Symbol.asyncIterator]()
-  while (true) {
-    const next = await Promise.race([iterator.next(), dropped])
-    if (next.done) return
-    yield next.value
+  try {
+    while (true) {
+      const next = await Promise.race([iterator.next(), dropped])
+      if (next.done) return
+      yield next.value
+    }
+  } finally {
+    Promise.resolve(iterator.return?.()).catch(() => {})
   }
 }
 
@@ -49,8 +53,9 @@ export function reconnectingClient<Client extends ClosableClient>(
     status: ConnectionStatus
     link: Link<Client> | null
     retryer: AsyncRetryer<() => Promise<Link<Client>>> | null
-    closed: boolean
-  } = {status: 'idle', link: null, retryer: null, closed: false}
+  } = {status: 'idle', link: null, retryer: null}
+
+  const isClosed = (): boolean => state.status === 'closed'
 
   function setStatus(status: ConnectionStatus): void {
     state.status = status
@@ -71,7 +76,7 @@ export function reconnectingClient<Client extends ClosableClient>(
   function drop(): void {
     state.link?.client.close?.()
     state.link = null
-    if (state.closed) return
+    if (isClosed()) return
     setStatus('disconnected')
     void connect()
   }
@@ -86,7 +91,7 @@ export function reconnectingClient<Client extends ClosableClient>(
     })
     const link = await state.retryer.execute()
     if (!link) return
-    if (state.closed) {
+    if (isClosed()) {
       link.client.close?.()
       return
     }
@@ -101,16 +106,32 @@ export function reconnectingClient<Client extends ClosableClient>(
     return () => clientListeners.delete(listener)
   }
 
+  function onStatus(listener: StatusListener): () => void {
+    statusListeners.add(listener)
+    return () => statusListeners.delete(listener)
+  }
+
   function nextLink(): Promise<Link<Client>> {
+    if (isClosed()) return Promise.reject(disconnected())
     if (state.status === 'idle') void connect()
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       if (state.link) {
         resolve(state.link)
         return
       }
-      const off = onClient(() => {
-        off()
-        if (state.link) resolve(state.link)
+      const release = (): void => {
+        offClient()
+        offStatus()
+      }
+      const offClient = onClient(() => {
+        if (!state.link) return
+        release()
+        resolve(state.link)
+      })
+      const offStatus = onStatus((status) => {
+        if (status !== 'closed') return
+        release()
+        reject(disconnected())
       })
     })
   }
@@ -118,10 +139,7 @@ export function reconnectingClient<Client extends ClosableClient>(
   return {
     ready: async () => (await nextLink()).client,
     status: () => state.status,
-    onStatus: (listener) => {
-      statusListeners.add(listener)
-      return () => statusListeners.delete(listener)
-    },
+    onStatus,
     onClient,
     stream: <Chunk>(openStream: (client: Client) => AsyncIterable<Chunk>): AsyncIterable<Chunk> => ({
       async *[Symbol.asyncIterator]() {
@@ -130,7 +148,8 @@ export function reconnectingClient<Client extends ClosableClient>(
       },
     }),
     close: () => {
-      state.closed = true
+      if (isClosed()) return
+      setStatus('closed')
       state.retryer?.abort()
       state.link?.drop()
     },
@@ -158,16 +177,25 @@ export function readSharedState<Value extends object>(
   key: string,
   write: (value: ReturnType<SharedState<Value>['value']>) => void,
 ): () => void {
-  return connection.onClient((client) => {
+  let reading = new AbortController()
+  const offClient = connection.onClient((client) => {
+    reading.abort()
+    reading = new AbortController()
+    const {signal} = reading
     const subscribe = async (): Promise<void> => {
-      if (!(await client.ensureTrusted())) return
+      if (!(await client.ensureTrusted()) || signal.aborted) return
       const state = await client.sharedState.get<Value>(key)
+      if (signal.aborted) return
       const publish = (): void => write(state.value())
+      signal.addEventListener('abort', state.on('updated', publish), {once: true})
       publish()
-      state.on('updated', publish)
     }
     subscribe().catch((error: unknown) => console.error(`conciv: reading shared state ${key} failed`, error))
   })
+  return () => {
+    offClient()
+    reading.abort()
+  }
 }
 
 export type NodeClientOptions = {url: string; transport: 'ws' | 'sse'; token?: string}

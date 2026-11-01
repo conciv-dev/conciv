@@ -21,6 +21,8 @@ import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it} from 'vitest'
 import getPort from 'get-port'
 import {chromium, type Browser, type Page} from 'playwright'
+import {getPathMatch} from 'next/dist/shared/lib/router/utils/path-match.js'
+import {prepareDestination} from 'next/dist/shared/lib/router/utils/prepare-destination.js'
 import {expect as expectLocator} from 'playwright/test'
 import {DevTools} from '@vitejs/devtools'
 import {createLogger, createServer, type Plugin, type ViteDevServer} from 'vite'
@@ -734,12 +736,43 @@ describe('nextjs hub forwarding config', () => {
     expect(table?.fallback).toEqual([userRoute])
   })
 
-  it('re-adds the trailing slash redirect outside the hub, unless the user turned it off', async () => {
+  type Redirect = {source: string; destination: string}
+
+  function redirectTarget(redirects: readonly Redirect[], path: string): string | undefined {
+    const hit = redirects
+      .map((route) => ({route, params: getPathMatch(route.source, {strict: true, removeUnnamedParams: true})(path)}))
+      .find((match) => match.params !== false)
+    if (!hit?.params) return undefined
+    return prepareDestination({
+      appendParamsToQuery: false,
+      destination: hit.route.destination,
+      params: hit.params,
+      query: {},
+    }).newUrl
+  }
+
+  it('strips a trailing slash everywhere but the hub, keeping the user redirects', async () => {
     const config = withConciv({redirects: async () => [{...userRoute, permanent: false}]}, {port: 3599})
     expect(config.skipTrailingSlashRedirect).toBe(true)
     const redirects = (await config.redirects?.()) ?? []
-    expect(redirects.map((route) => route.source)).toEqual(['/:path((?!__conciv/).+)/', '/old'])
-    const skipped = withConciv({skipTrailingSlashRedirect: true}, {port: 3599})
+    expect(redirectTarget(redirects, '/about/')).toBe('/about')
+    expect(redirectTarget(redirects, '/docs/intro/')).toBe('/docs/intro')
+    expect(redirectTarget(redirects, '/__conciv/rpc/')).toBeUndefined()
+    expect(redirectTarget(redirects, '/old')).toBe('/new')
+  })
+
+  it('adds the trailing slash everywhere but the hub when the app sets trailingSlash', async () => {
+    const redirects = (await withConciv({trailingSlash: true}, {port: 3599}).redirects?.()) ?? []
+    expect(redirectTarget(redirects, '/about')).toBe('/about/')
+    expect(redirectTarget(redirects, '/about/')).toBeUndefined()
+    expect(redirectTarget(redirects, '/logo.png/')).toBe('/logo.png')
+    expect(redirectTarget(redirects, '/__conciv')).toBeUndefined()
+    expect(redirectTarget(redirects, '/__conciv/rpc')).toBeUndefined()
+  })
+
+  it('adds no slash redirect of its own when the user turned them off', async () => {
+    const skipped = withConciv({skipTrailingSlashRedirect: true, trailingSlash: true}, {port: 3599})
+    expect(skipped.skipTrailingSlashRedirect).toBe(true)
     expect(await skipped.redirects?.()).toEqual([])
   })
 
@@ -970,13 +1003,16 @@ describe('widget inject', () => {
     })
 
     it('injects the client entry into a streamed text/html response, before </head>', async () => {
-      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
-        res.setHeader('content-type', 'text/html')
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => undefined),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
 
-        res.write('<!doctype html><html><head><title>app</title></head>')
-        res.write('<body><h1>hi</h1></body>')
-        res.end('</html>')
-      })
+          res.write('<!doctype html><html><head><title>app</title></head>')
+          res.write('<body><h1>hi</h1></body>')
+          res.end('</html>')
+        },
+      )
       state.server = server
       const html = await (await fetch(base)).text()
       expect(html).toContain(ENTRY)
@@ -986,11 +1022,14 @@ describe('widget inject', () => {
     })
 
     it('injects when headers arrive via writeHead(status, statusText, flat-array) + end(cb) (flat-array writeHead shape)', async () => {
-      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
-        res.writeHead(200, 'OK', ['content-type', 'text/html; charset=utf-8'])
-        res.write('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')
-        res.end(() => {})
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => undefined),
+        (res) => {
+          res.writeHead(200, 'OK', ['content-type', 'text/html; charset=utf-8'])
+          res.write('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')
+          res.end(() => {})
+        },
+      )
       state.server = server
       const res = await fetch(base)
       const html = await res.text()
@@ -1001,10 +1040,13 @@ describe('widget inject', () => {
 
     it('injects the conciv-widget config meta into the SSR html response (the path the site uses)', async () => {
       const widgetConfig = {quickTerminal: {hotkey: ['Alt+k']}}
-      const {server, base} = await startServer(makeWidgetInject(API_BASE, widgetConfig), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => widgetConfig),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')
+        },
+      )
       state.server = server
       const html = await (await fetch(base)).text()
       expect(html).toContain('name="conciv-widget"')
@@ -1013,10 +1055,13 @@ describe('widget inject', () => {
     })
 
     it('passes non-html responses through untouched', async () => {
-      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
-        res.setHeader('content-type', 'application/json')
-        res.end(JSON.stringify({ok: true}))
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => undefined),
+        (res) => {
+          res.setHeader('content-type', 'application/json')
+          res.end(JSON.stringify({ok: true}))
+        },
+      )
       state.server = server
       const body = await (await fetch(base)).text()
       expect(body).toBe('{"ok":true}')
@@ -1025,10 +1070,13 @@ describe('widget inject', () => {
 
     it('does not double-inject when the html already references the client entry', async () => {
       const preinjected = `<html><head>${ENTRY}</head><body>x</body></html>`
-      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end(preinjected)
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => undefined),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end(preinjected)
+        },
+      )
       state.server = server
       const html = await (await fetch(base)).text()
       const occurrences = html.split(`src="${EXTENSIONS_ROUTE}"`).length - 1
@@ -1042,29 +1090,38 @@ describe('widget inject', () => {
     ])('keeps an injected fragment with no head or body as is ($quoting)', async ({settings}) => {
       const fragment = `${settings}<meta name = 'conciv-api-base' content='${API_BASE}'><div>x</div>`
       const entry = `<script type=module src='${EXTENSIONS_ROUTE}'></script>`
-      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end(`${fragment}${entry}`)
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => undefined),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end(`${fragment}${entry}`)
+        },
+      )
       state.server = server
       expect(await (await fetch(base)).text()).toBe(`${fragment}${entry}`)
     })
 
     it('injects a tag whose name only starts like a conciv tag', async () => {
-      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end('<meta name="conciv-widget-preview" content="x"><div>x</div>')
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => undefined),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end('<meta name="conciv-widget-preview" content="x"><div>x</div>')
+        },
+      )
       state.server = server
       expect(await (await fetch(base)).text()).toContain('<meta name="conciv-widget" content="{}">')
     })
 
     it('adds the missing settings meta when the html already references the client entry', async () => {
       const preinjected = `<html><head>${ENTRY}</head><body>x</body></html>`
-      const {server, base} = await startServer(makeWidgetInject(API_BASE, {surface: 'dock'}), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end(preinjected)
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => ({surface: 'dock'})),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end(preinjected)
+        },
+      )
       state.server = server
       const html = await (await fetch(base)).text()
       expect(html.split(`src="${EXTENSIONS_ROUTE}"`).length - 1).toBe(1)
@@ -1074,14 +1131,32 @@ describe('widget inject', () => {
     it('keeps a settings meta the html already carries', async () => {
       const existing = '<meta name="conciv-widget" content="{}">'
       const preinjected = `<html><head>${existing}${ENTRY}</head><body>x</body></html>`
-      const {server, base} = await startServer(makeWidgetInject(API_BASE, {surface: 'dock'}), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end(preinjected)
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => ({surface: 'dock'})),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end(preinjected)
+        },
+      )
       state.server = server
       const html = await (await fetch(base)).text()
       expect(html.split('name="conciv-widget"').length - 1).toBe(1)
       expect(html).toContain(existing)
+    })
+
+    it('reads the widget settings on every request, so a surface change reaches the next page load', async () => {
+      const current: {surface: 'page' | 'dock'} = {surface: 'dock'}
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => ({surface: current.surface})),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end('<html><head></head><body>x</body></html>')
+        },
+      )
+      state.server = server
+      expect(await (await fetch(base)).text()).toContain('{&quot;surface&quot;:&quot;dock&quot;}')
+      current.surface = 'page'
+      expect(await (await fetch(base)).text()).toContain('{&quot;surface&quot;:&quot;page&quot;}')
     })
   })
 })

@@ -16,9 +16,9 @@ type WebpackConfig = {entry?: WebpackEntry; resolve?: {alias?: Record<string, st
 type WebpackContext = {nextRuntime?: string; dev?: boolean; dir?: string; config?: {pageExtensions?: string[]}}
 type WebpackHook = (config: WebpackConfig, context: WebpackContext) => WebpackConfig
 
-type HostCondition = {type: 'header'; key: 'host'; value: string}
-type Route = {source: string; destination: string; has?: HostCondition[]}
-type RedirectRoute = Route & {permanent: boolean}
+type HeaderCondition = {type: 'header'; key: string; value?: string}
+type Route = {source: string; destination: string; has?: HeaderCondition[]}
+type RedirectRoute = Route & {permanent: boolean; missing?: HeaderCondition[]; locale?: false; basePath?: false}
 type RewriteTable = {beforeFiles?: Route[]; afterFiles?: Route[]; fallback?: Route[]}
 
 type ConfigWithEnv = {
@@ -29,6 +29,8 @@ type ConfigWithEnv = {
   rewrites?: () => Promise<Route[] | RewriteTable>
   redirects?: () => Promise<RedirectRoute[]>
   skipTrailingSlashRedirect?: boolean
+  trailingSlash?: boolean
+  basePath?: string
 }
 
 type WithConcivResult<T> = Omit<
@@ -44,16 +46,41 @@ type WithConcivResult<T> = Omit<
   skipTrailingSlashRedirect?: boolean
 }
 
-const LOOPBACK_HOST: HostCondition = {
+const LOOPBACK_HOST: HeaderCondition = {
   type: 'header',
   key: 'host',
   value: '(localhost|127\\.0\\.0\\.1|\\[::1\\])(:\\d+)?',
 }
 
-const TRAILING_SLASH_REDIRECT: RedirectRoute = {
-  source: `/:path((?!${HUB_PATH.slice(1)}/).+)/`,
-  destination: '/:path',
-  permanent: true,
+const HUB_SEGMENT = HUB_PATH.slice(1)
+
+function basePathRedirect(basePath: string, source: string, destination: string): RedirectRoute[] {
+  if (!basePath) return []
+  return [{source, destination, permanent: true, basePath: false}]
+}
+
+function trailingSlashRedirects(trailingSlash: boolean, basePath: string): RedirectRoute[] {
+  if (trailingSlash)
+    return [
+      ...basePathRedirect(basePath, basePath, `${basePath}/`),
+      {
+        source: `/:file((?!\\.well-known(?:/.*)?)(?!${HUB_SEGMENT}/)(?:[^/]+/)*[^/]+\\.\\w+)/`,
+        destination: '/:file',
+        permanent: true,
+        locale: false,
+        missing: [{type: 'header', key: 'x-nextjs-data'}],
+      },
+      {
+        source: `/:notfile((?!\\.well-known(?:/.*)?)(?!${HUB_SEGMENT}(?:/|$))(?:[^/]+/)*[^/\\.]+)`,
+        destination: '/:notfile/',
+        permanent: true,
+        locale: false,
+      },
+    ]
+  return [
+    ...basePathRedirect(basePath, `${basePath}/`, basePath),
+    {source: `/:path((?!${HUB_SEGMENT}/).+)/`, destination: '/:path', permanent: true, locale: false},
+  ]
 }
 
 function forwardHub(
@@ -68,7 +95,9 @@ function forwardHub(
   return {
     skipTrailingSlashRedirect: true,
     redirects: async () => [
-      ...(base.skipTrailingSlashRedirect ? [] : [TRAILING_SLASH_REDIRECT]),
+      ...(base.skipTrailingSlashRedirect
+        ? []
+        : trailingSlashRedirects(base.trailingSlash === true, base.basePath ?? '')),
       ...((await base.redirects?.()) ?? []),
     ],
     rewrites: async () => {

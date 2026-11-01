@@ -8,7 +8,7 @@ Widget settings parsing, the query-utils wrapper over the rpc client, and the ha
 
 - `parseConcivSettings(raw)` (`settings.ts`): parses a JSON string into `ConcivSettings`; exported as `@conciv/app/settings`
 - `ConcivSettings`, `Launcher` types (`settings.ts`): `modal`, `quickTerminal`, `defaultOpen`, `launcher`, `surface`, `transport`
-- `makeAppData(rpc, hub, queryClient)` (`app-data.ts`): returns `{utils, invalidateSessions}` built on `makeQueryUtils` from `@conciv/client`, with groups in `DEVFRAME_GROUPS` sent through the hub
+- `makeAppData(rpc, queryClient)` (`app-data.ts`): returns `{utils, invalidateSessions}` built on `makeQueryUtils` from `@conciv/client`
 - `AppData` type (`app-data.ts`)
 - `HarnessMetaContext`, `createHarnessMeta`, `useHarnessMeta` (`harness-meta.ts`): harness metadata (`ChatModels['harness']`) accessor
 
