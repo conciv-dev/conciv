@@ -41,7 +41,7 @@ function DockSurface(props: {entry: DevframeDockEntry; apiBase: string; sessionI
         <iframe
           class="flex-1 min-h-0 border-0"
           sandbox="allow-scripts allow-same-origin allow-forms"
-          src={new URL(entry().url, props.apiBase).href}
+          src={new URL(entry().url, window.location.origin).href}
           title={entry().title}
         />
       )}
