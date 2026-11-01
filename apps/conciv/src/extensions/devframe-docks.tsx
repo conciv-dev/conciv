@@ -1,4 +1,4 @@
-import {createResource, createSignal, For, from, onCleanup, Show, type JSX} from 'solid-js'
+import {createResource, createSignal, For, from, onCleanup, Show, untrack, type JSX} from 'solid-js'
 import type {SharedState} from 'devframe/utils/shared-state'
 import LayoutGrid from 'lucide-solid/icons/layout-grid'
 import type {DevframeDockEntry} from '@devframes/hub/types'
@@ -87,8 +87,12 @@ function DockRail(props: {all: () => DevframeDockEntry[] | undefined}): JSX.Elem
           )}
         </For>
       </div>
-      <Show when={current()} keyed>
-        {(entry) => <DockSurface entry={entry} apiBase={apiBase()} sessionId={sessionId()} />}
+      <Show when={current()?.id} keyed>
+        {(id) => (
+          <Show when={untrack(() => entries().find((entry) => entry.id === id))}>
+            {(entry) => <DockSurface entry={untrack(entry)} apiBase={apiBase()} sessionId={sessionId()} />}
+          </Show>
+        )}
       </Show>
     </div>
   )
