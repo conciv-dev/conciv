@@ -138,18 +138,6 @@ export function pixelHex(input: {raster: Raster; index: number}): string {
   return hex([0, 1, 2].map((channel) => input.raster.data[input.index * 4 + channel] ?? 0))
 }
 
-const NEIGHBOURS = [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => ({dx, dy})))
-
-export function eroded(input: {mask: Uint8Array; width: number; height: number}): Uint8Array {
-  const {mask, width, height} = input
-  return mask.map((value, index) => {
-    const x = index % width
-    const y = (index - x) / width
-    if (value !== 1 || x === 0 || y === 0 || x === width - 1 || y === height - 1) return 0
-    return NEIGHBOURS.every(({dx, dy}) => mask[index + dy * width + dx] === 1) ? 1 : 0
-  })
-}
-
 export function medianColor(input: {raster: Raster; exclude: Uint8Array}): string {
   const {raster, exclude} = input
   const histograms = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)]

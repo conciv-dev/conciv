@@ -1,7 +1,7 @@
 import {memoize} from 'es-toolkit'
 import {TOLERANCES} from '../../shared/tolerances.js'
 import type {Box, ColorMetric, DeltaKind, Raster} from '../../shared/types.js'
-import {boxMask, crop, edgeMap, eroded, medianColor, pixelHex} from '../raster.js'
+import {boxMask, crop, edgeMap, medianColor, pixelHex} from '../raster.js'
 
 const OPAQUE_HEX_LENGTH = 7
 
@@ -20,11 +20,12 @@ export function glyphCoreColor(input: {
   const tile = crop({raster, box})
   const inGlyph = boxMask({boxes: glyphs, area: tile.box})
   const distance = memoize((hex: string) => color.distance({a: hex, b: background}))
-  const ink = inGlyph.map((inside, index) =>
-    inside === 1 && distance(pixelHex({raster: tile.raster, index})) > TOLERANCES.colorDeltaE ? 1 : 0,
+  const distances = Array.from(inGlyph, (inside, index) =>
+    inside === 1 ? distance(pixelHex({raster: tile.raster, index})) : 0,
   )
-  const core = eroded({mask: ink, width: tile.raster.width, height: tile.raster.height})
-  if (!core.includes(1)) return null
+  const peak = distances.reduce((highest, value) => Math.max(highest, value), 0)
+  if (peak <= TOLERANCES.colorDeltaE) return null
+  const core = Uint8Array.from(distances, (value) => (value >= peak - TOLERANCES.colorDeltaE ? 1 : 0))
   return medianColor({raster: tile.raster, exclude: core.map((value) => 1 - value)})
 }
 

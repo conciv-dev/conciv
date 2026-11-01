@@ -1202,4 +1202,20 @@ describe('glyphCoreColor', () => {
     const raster = {width: 16, height: 16, data: new Uint8Array(16 * 16 * 4).fill(200)}
     expect(glyphCoreColor({raster, box, glyphs: [box], background: '#c8c8c8', color: ciede2000})).toBeNull()
   })
+
+  it('reads a thin stroke from its fully covered pixels, not its blended edge', () => {
+    const box = {x: 0, y: 0, w: 16, h: 16}
+    const data = new Uint8Array(16 * 16 * 4)
+    Array.from({length: 16 * 16}, (_, index) => index).forEach((index) => {
+      const x = index % 16
+      const y = (index - x) / 16
+      const stroke = y >= 2 && y < 14
+      const pixel = stroke && x === 7 ? [255, 209, 102] : stroke && x === 8 ? [161, 158, 172] : [66, 107, 242]
+      data.set([...pixel, 255], index * 4)
+    })
+    const raster = {width: 16, height: 16, data}
+    const ink = glyphCoreColor({raster, box, glyphs: [box], background: '#426bf2', color: ciede2000})
+    expect(ink).not.toBeNull()
+    expect(colorDistance(String(ink), '#ffd166')).toBeLessThanOrEqual(COLOR_DELTA_E)
+  })
 })
