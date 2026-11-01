@@ -1,5 +1,5 @@
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http'
-import {expect, it, afterEach, describe, vi} from 'vitest'
+import {expect, it, afterEach, afterAll, beforeAll, describe, vi} from 'vitest'
 import {z} from 'zod'
 import {getHarness} from '@conciv/harness'
 import {harnessAvailable} from '../src/harness-available.js'
@@ -21,7 +21,11 @@ import {makeRunStream} from '../src/run-stream.js'
 import {makeScriptedRun, type ScriptedRun} from '../src/scripted-run.js'
 import {until as testkitUntil} from '../src/testkit.js'
 import {until} from '../src/until.js'
-import {makeSessionBoundRpcClient} from '../src/session.js'
+import {makeRpcClient, makeSessionBoundRpcClient, type RpcClient} from '../src/session.js'
+import {implement} from '@orpc/server'
+import {RPCHandler} from '@orpc/server/node'
+import {contract} from '@conciv/contract'
+import {once} from 'node:events'
 import {setImmediate} from 'node:timers/promises'
 import {setFlagsFromString} from 'node:v8'
 import {runInNewContext} from 'node:vm'
@@ -876,38 +880,50 @@ describe('until', () => {
   })
 })
 
-describe('session bound rpc client', () => {
-  it('ends an aborted event stream after the request behind it was collected', async () => {
-    const server = createServer((_request, response) => {
-      response.writeHead(200, {'content-type': 'text/event-stream'})
-      response.write(`event: message\ndata: ${JSON.stringify({json: {type: 'probe'}})}\n\n`)
-    })
-    const port = await new Promise<number>((resolve) => {
-      server.listen(0, '127.0.0.1', () => {
-        const address = server.address()
-        resolve(typeof address === 'object' && address !== null ? address.port : 0)
-      })
-    })
-    try {
-      const abort = new AbortController()
-      const events = await makeSessionBoundRpcClient(`http://127.0.0.1:${port}`, () => 'conciv_probe').chat.events(
-        {sessionId: 'conciv_probe'},
-        {signal: abort.signal},
-      )
-      await events.next()
-      setFlagsFromString('--expose-gc')
-      const collect: unknown = runInNewContext('gc')
-      if (typeof collect !== 'function') throw new Error('gc unavailable')
-      collect()
-      await setImmediate()
-      collect()
-      await setImmediate()
-      const ended = events.next()
-      abort.abort()
-      await expect(ended).rejects.toThrow()
-    } finally {
-      server.closeAllConnections()
-      await new Promise((resolve) => server.close(resolve))
-    }
-  }, 5_000)
+describe('rpc clients abort a stream after the request behind it was collected', () => {
+  const queries = implement(contract).page.queries.handler(async function* ({signal}) {
+    yield {requestId: 'first', query: null}
+    if (signal) await once(signal, 'abort')
+  })
+  const handler = new RPCHandler({page: {queries}})
+  const server = createServer((request, response) => {
+    void handler.handle(request, response, {prefix: '/rpc'})
+  })
+  const base = {url: ''}
+
+  beforeAll(async () => {
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const address = server.address()
+    base.url = `http://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`
+  })
+
+  afterAll(async () => {
+    server.closeAllConnections()
+    await new Promise((resolve) => server.close(resolve))
+  })
+
+  async function expectAbortAfterCollection(client: RpcClient): Promise<void> {
+    const abort = new AbortController()
+    const stream = await client.page.queries(undefined, {signal: abort.signal})
+    await stream.next()
+    setFlagsFromString('--expose-gc')
+    const collect: unknown = runInNewContext('gc')
+    if (typeof collect !== 'function') throw new Error('gc unavailable')
+    collect()
+    await setImmediate()
+    collect()
+    await setImmediate()
+    const ended = stream.next()
+    abort.abort()
+    await expect(ended).rejects.toThrow()
+  }
+
+  it('makeRpcClient', async () => {
+    await expectAbortAfterCollection(makeRpcClient(base.url))
+  }, 10_000)
+
+  it('makeSessionBoundRpcClient', async () => {
+    await expectAbortAfterCollection(makeSessionBoundRpcClient(base.url, () => 'session-a'))
+  }, 10_000)
 })
