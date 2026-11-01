@@ -30,3 +30,21 @@ const extensions = () => import('@conciv/extension-terminal/client').then((mod) 
 Prop changes remount the widget with the new configuration. Keep the `extensions` array identity-stable (module constant or `useMemo`); a fresh array each render remounts each render; `settings`/`apiBase` are compared by value, inline literals are fine. Passing `apiBase` explicitly is the recommended secure usage; the `?core=` query-param fallback is restricted to loopback/same-origin URLs. The widget's font and CSS `@property` registrations stay in `document.head` after unmount (idempotent, reused on remount).
 
 If your build also runs the `@conciv/it` plugin, set its `widget: false` option so the plugin's script inject and the component don't both mount a widget; pick one path.
+
+## Interface
+
+- `package.json:exports["."]` - `dist/index.js` with types in `dist/index.d.ts`.
+- Source: [src](./src/README.md).
+- Test fixture: `test/fixtures/host/`, the Vite page the integration test drives.
+
+## Invariants
+
+- None
+
+## Side Effects
+
+- The package root (configs and manifest) has none. At runtime `ConcivWidget` mounts the widget DOM inside its anchor element and logs a failed mount with `console.error`. Full list in [src/README.md](./src/README.md#side-effects).
+
+## Verification
+
+- Run: `pnpm exec turbo run test --filter=@conciv/react` from the repo root (turbo builds the package and its dependencies first) (builds the fixture with `vite.fixture.config.ts`, then runs vitest)

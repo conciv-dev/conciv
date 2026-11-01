@@ -35,3 +35,31 @@ These commands need the dev server running.
 
 Docs: [conciv.dev](https://conciv.dev/docs/quick-start). Part of
 [conciv](https://github.com/conciv-dev/conciv).
+
+## Overview
+
+Package root of @conciv/cli, the `conciv` binary, built by tsdown from src/bin.ts into an ESM dist/bin.js that the build marks executable.
+
+## Interface
+
+- `bin.conciv` (`package.json`): ./dist/bin.js
+- `exports['./bin']` (`package.json`): ./dist/bin.js is the only export
+- `scripts` (`package.json`): build (`tsdown && chmod +x dist/bin.js`), typecheck, lint, test, publint, attw
+- `tsdown.config.ts`: entry src/bin.ts, esm, dts false
+- `vitest.config.ts`: `ciTest()` from @conciv/vitest-config
+- Subdirectories:
+  - src: [./src/README.md](./src/README.md) - commands, argument validation, JSON envelopes and engine RPC
+
+## Invariants
+
+- `scripts.build` (`package.json`): dist/bin.js must be made executable or the `conciv` bin will not run
+- `dts: false` (`tsdown.config.ts`): the package exposes a binary and no library API
+
+## Side Effects
+
+- `scripts.build` (`package.json`): writes dist/ and changes the mode of dist/bin.js
+
+## Verification
+
+- Run: `pnpm exec turbo run test --filter=@conciv/cli` from the repo root (turbo builds the package and its dependencies first)
+- Typecheck and lint: `cd packages/cli && pnpm typecheck && pnpm lint`

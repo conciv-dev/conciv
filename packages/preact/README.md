@@ -30,3 +30,26 @@ const extensions = () => import('@conciv/extension-terminal/client').then((mod) 
 Prop changes remount the widget with the new configuration. Keep the `extensions` array identity-stable (module constant or `useMemo`); a fresh array each render remounts each render; `settings`/`apiBase` are compared by value, inline literals are fine. Passing `apiBase` explicitly is the recommended secure usage; the `?core=` query-param fallback is restricted to loopback/same-origin URLs. The widget's font and CSS `@property` registrations stay in `document.head` after unmount (idempotent, reused on remount).
 
 If your build also runs the `@conciv/it` plugin, set its `widget: false` option so the plugin's script inject and the component don't both mount a widget; pick one path.
+
+## Interface
+
+- [src/README.md](./src/README.md): `ConcivWidget`, `ConcivWidgetProps` and re-exported `@conciv/embed` types.
+- `test/fixtures/host/`: Preact host page used by the integration test.
+- `exports["."]` -> `./dist/index.js` + `./dist/index.d.ts`; `files: ["dist"]`; dependency `@conciv/embed`; peer `preact` >=10; `sideEffects: false`; engines node >=22.13 (`package.json`).
+- `tsdown.config.ts`: entry `src/index.ts`, ESM + dts, externals `/^@conciv\//`, `preact`, `preact/hooks`.
+- Scripts: `build` (`tsdown`), `typecheck`, `lint` (`oxlint`), `test` (`vite build --config vite.fixture.config.ts && vitest run`), `publint`, `attw` (`--profile esm-only`).
+
+## Invariants
+
+- The `test` script builds the fixture into `test/dist` before `vitest run`, because `test/widget.it.test.ts` reads `test/dist` (`package.json`, `vite.fixture.config.ts`).
+- Integration tests run serially (`fileParallelism: false`, `vitest.config.ts`).
+- Remount rules (`configKey` value comparison, `extensions` reference comparison) are in [src/README.md](./src/README.md#invariants).
+
+## Side Effects
+
+- `ConcivWidget` mounts the widget into its host div and unmounts it on cleanup (`src/index.ts`).
+- The `test` script empties and writes `test/dist` (`emptyOutDir: true`, `vite.fixture.config.ts`).
+
+## Verification
+
+- Run: `pnpm exec turbo run test --filter=@conciv/preact` from the repo root (turbo builds the package and its dependencies first)
