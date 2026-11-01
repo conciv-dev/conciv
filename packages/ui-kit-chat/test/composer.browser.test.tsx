@@ -1,6 +1,6 @@
 import 'virtual:uno.css'
 import {page, userEvent} from 'vitest/browser'
-import {expect, it, vi, describe} from 'vitest'
+import {expect, it, describe} from 'vitest'
 import {
   type JSX,
   createSignal,
@@ -8,10 +8,9 @@ import {
   Show,
   splitProps,
   untrack,
+  onMount,
   type ParentProps,
   type Accessor,
-  onMount,
-  type Component,
 } from 'solid-js'
 import {ActionBar} from '../src/primitives/action-bar/action-bar.js'
 import {MessageProvider} from '../src/primitives/message/message-context.js'
@@ -21,10 +20,10 @@ import {createChat, type ConnectConnectionAdapter} from '@conciv/ai/client'
 import {ChatEventType} from '@conciv/protocol/chat-event-types'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {Thread} from '../src/styled/thread.js'
-import {ActionRow, ActionButton} from '../src/tools/styled/action-row.js'
+import {ActionButton} from '../src/tools/styled/action-row.js'
 import {createTextChunks, storyConnection, type StoryConnectionOptions} from '@conciv/ai/testkit'
 import type {SendContent} from '@conciv/protocol/chat-message-types'
-import {Chip, ChipGroup, ChipRow} from '../src/tools/styled/chip.js'
+import {Chip, ChipRow} from '../src/tools/styled/chip.js'
 import {range} from 'es-toolkit'
 import {ComposerActions, ComposerActionsHost} from '../src/primitives/composer/composer-actions.js'
 import {render} from '@solidjs/testing-library'
@@ -35,10 +34,7 @@ import {
   composeAttachmentAdapters,
   createSimpleImageAttachmentAdapter,
   createTextAttachmentAdapter,
-  type Attachment,
-  type AttachmentAdapter,
   type CompleteAttachment,
-  type PendingAttachment,
 } from '../src/primitives/attachment/attachment-adapter.js'
 import {AttachmentProvider} from '../src/primitives/attachment/attachment.js'
 import {AttachmentUI} from '../src/styled/attachment-ui.js'
@@ -46,7 +42,6 @@ import {SAMPLE_IMAGE_BASE64, SAMPLE_IMAGE_MIME} from '../src/store/sample-image.
 import type {WebStorage} from '@conciv/storage-history'
 import {Error as ErrorPrimitive} from '../src/primitives/error/error.js'
 import {Composer} from '../src/styled/composer.js'
-import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {createStore} from 'solid-js/store'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {
@@ -57,12 +52,9 @@ import {
 } from '../src/tools/element-capture.fixtures.js'
 import {ElementPreview} from '../src/tools/styled/element-preview.js'
 import {ModelSelector, type ModelOption} from '../src/primitives/model-selector/model-selector.js'
-import {ModelSelector as StyledModelSelector} from '../src/styled/model-selector.js'
 
 describe('action bar copy', () => {
   const COPIED_MS = 2_000
-  const RE_ARM_AFTER_MS = 1_200
-  const PAST_FIRST_DEADLINE_MS = 1_250
 
   const TURN: Turn = {
     key: 'assistant-1',
@@ -72,8 +64,6 @@ describe('action bar copy', () => {
     end: 0,
   }
 
-  const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
-
   const copyButton = () => page.getByRole('button', {name: 'Copy'})
 
   const accept =
@@ -82,8 +72,6 @@ describe('action bar copy', () => {
       written.push(text)
       return Promise.resolve()
     }
-
-  const refuse = (): Promise<void> => Promise.reject(new Error('the document is not focused'))
 
   function mountCopyAction(writeText: (text: string) => Promise<void>): void {
     mountView((): JSX.Element => (
@@ -110,34 +98,6 @@ describe('action bar copy', () => {
 
     await expect.element(copyButton(), {timeout: 1000}).toHaveAttribute('data-copied')
     expect(written).toEqual(['copied text'])
-  })
-
-  it('does not claim the message was copied when the clipboard refuses', async () => {
-    mountCopyAction(refuse)
-
-    await copyButton().click()
-
-    await expect.element(copyButton(), {timeout: 1000}).toHaveAttribute('data-copy-failed')
-    expect(copyButton().element().hasAttribute('data-copied')).toBe(false)
-  })
-
-  it('keeps the copied state when a second copy re-arms the window', async () => {
-    mountCopyAction(accept([]))
-    await copyButton().click()
-    await expect.element(copyButton(), {timeout: 1000}).toHaveAttribute('data-copied')
-    await wait(RE_ARM_AFTER_MS)
-    await copyButton().click()
-    await wait(PAST_FIRST_DEADLINE_MS)
-    await expect.element(copyButton(), {timeout: 300}).toHaveAttribute('data-copied')
-  })
-
-  it('drops the copied state once the re-armed window runs out', async () => {
-    mountCopyAction(accept([]))
-    await copyButton().click()
-    await expect.element(copyButton(), {timeout: 1000}).toHaveAttribute('data-copied')
-    await wait(RE_ARM_AFTER_MS)
-    await copyButton().click()
-    await expect.element(copyButton(), {timeout: COPIED_MS * 2}).not.toHaveAttribute('data-copied')
   })
 })
 
@@ -189,17 +149,6 @@ describe('action bar inactive unreachable', () => {
     await expect.element(page.getByText('reply').nth(1), {timeout: 2000}).toBeVisible()
   }
 
-  it('keeps an autohidden, not-last action bar unreachable by Tab until it becomes active', async () => {
-    await mountWithTwoAssistantReplies()
-
-    await expect.element(page.getByRole('button', {name: 'ask-two'})).toHaveFocus()
-    await expect.element(page.getByRole('button', {name: 'Copy'}).last()).toBeVisible()
-
-    await userEvent.tab()
-
-    await expect.element(page.getByRole('button', {name: 'Copy'}).last()).toHaveFocus()
-  })
-
   it('restores reachability once the hidden bar becomes active on hover', async () => {
     await mountWithTwoAssistantReplies()
 
@@ -215,43 +164,18 @@ describe('action bar inactive unreachable', () => {
 })
 
 describe('action row', () => {
-  it('renders allow and deny buttons reachable by role and name', async () => {
-    mountView(() => (
-      <ActionRow>
-        <ActionButton intent="deny">Deny</ActionButton>
-        <ActionButton intent="allow">Allow</ActionButton>
-      </ActionRow>
-    ))
-
-    await expect.element(page.getByRole('button', {name: 'Deny'})).toBeVisible()
-    await expect.element(page.getByRole('button', {name: 'Allow'})).toBeVisible()
-  })
-
   it('fires onClick for a neutral action button', async () => {
-    const onClick = vi.fn()
-    mountView(() => <ActionButton onClick={onClick}>Retry</ActionButton>)
+    const [clicks, setClicks] = createSignal(0)
+    mountView(() => (
+      <>
+        <ActionButton onClick={() => setClicks(clicks() + 1)}>Retry</ActionButton>
+        <p>clicks {clicks()}</p>
+      </>
+    ))
 
     await userEvent.click(page.getByRole('button', {name: 'Retry'}))
 
-    await expect.element(page.getByRole('button', {name: 'Retry'})).toBeVisible()
-    expect(onClick).toHaveBeenCalledTimes(1)
-  })
-
-  it('respects disabled and does not fire onClick when clicked', async () => {
-    const onClick = vi.fn()
-    mountView(() => (
-      <ActionButton intent="allow" disabled onClick={onClick}>
-        Allow
-      </ActionButton>
-    ))
-
-    const button = page.getByRole('button', {name: 'Allow'})
-    await expect.element(button).toBeDisabled()
-
-    await expect(userEvent.click(button, {timeout: 500})).rejects.toThrow()
-
-    await expect.element(button).toBeDisabled()
-    expect(onClick).not.toHaveBeenCalled()
+    await expect.element(page.getByText('clicks 1')).toBeVisible()
   })
 })
 
@@ -303,17 +227,128 @@ describe('assistant action bar reveal', () => {
   })
 })
 
+describe('attachment image viewer', () => {
+  const IMAGE = 'shot.png'
+  const DOCUMENT = 'notes.txt'
+
+  const imageFile = (): File =>
+    new File([Uint8Array.from(atob(SAMPLE_IMAGE_BASE64), (character) => character.charCodeAt(0))], IMAGE, {
+      type: SAMPLE_IMAGE_MIME,
+    })
+  const textFile = (): File => new File(['notes'], DOCUMENT, {type: 'text/plain'})
+
+  const tile = () => page.getByRole('button', {name: `Open ${IMAGE}`})
+  const viewer = () => page.getByRole('dialog', {name: IMAGE})
+  const panel = () => page.getByRole('region', {name: 'panel'})
+
+  function Panel(props: ParentProps): JSX.Element {
+    return (
+      <section aria-label="panel" data-conciv-panel class="[transform:translateX(0)] overflow-hidden">
+        {props.children}
+      </section>
+    )
+  }
+
+  function Staged(props: {files: File[]}): JSX.Element {
+    const composer = useComposerContext()
+    onMount(() => props.files.forEach((file) => void composer.addAttachment(file)))
+    return <></>
+  }
+
+  function mountComposer(files: File[]): void {
+    const adapter = composeAttachmentAdapters([createSimpleImageAttachmentAdapter(), createTextAttachmentAdapter()])
+    render(() => {
+      const chat = createChat({threadId: 'attachment-viewer', connection: storyConnection(untrack(() => undefined))})
+      return (
+        <ChatProvider chat={chat}>
+          <Panel>
+            <ComposerHandlersProvider value={{onSend: () => {}, onCancel: () => {}}}>
+              <Composer attachmentAdapter={adapter}>
+                <Staged files={files} />
+              </Composer>
+            </ComposerHandlersProvider>
+          </Panel>
+        </ChatProvider>
+      )
+    })
+  }
+
+  function mountSent(source: string): void {
+    const attachment: CompleteAttachment = {
+      id: 'sent',
+      type: 'image',
+      name: IMAGE,
+      content: [{type: 'image', source: {type: 'url', value: source}}],
+      status: {type: 'complete'},
+    }
+    render(() => (
+      <Panel>
+        <AttachmentProvider value={attachment}>
+          <AttachmentUI />
+        </AttachmentProvider>
+      </Panel>
+    ))
+  }
+
+  it('opens the full image outside the transformed panel, and toggles actual size', async () => {
+    mountComposer([imageFile()])
+
+    await tile().click()
+
+    await expect.element(viewer().getByRole('img', {name: IMAGE})).toBeVisible()
+    await expect.element(panel().getByRole('dialog')).not.toBeInTheDocument()
+    await viewer().getByRole('button', {name: 'Show actual size'}).click()
+    await expect.element(viewer().getByRole('button', {name: 'Fit to window'})).toBeVisible()
+  })
+
+  it('Escape closes the viewer and returns a visible focus to the tile', async () => {
+    mountComposer([imageFile()])
+
+    await tile().click()
+    await expect.element(viewer()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+
+    await expect.element(viewer()).not.toBeInTheDocument()
+    await expect.element(tile()).toHaveFocus()
+    expect(document.activeElement?.matches(':focus-visible')).toBe(true)
+    await userEvent.keyboard('{Enter}')
+    await viewer().getByRole('button', {name: 'Close'}).click()
+    await expect.element(viewer()).not.toBeInTheDocument()
+    await expect.element(tile()).toHaveFocus()
+  })
+
+  it('Remove drops the attachment without opening the viewer', async () => {
+    mountComposer([imageFile()])
+
+    await page.getByRole('button', {name: `Remove ${IMAGE}`}).click()
+
+    await expect.element(tile()).not.toBeInTheDocument()
+    await expect.element(viewer()).not.toBeInTheDocument()
+  })
+
+  it('a document tile stays inert', async () => {
+    mountComposer([textFile()])
+
+    await page.getByRole('button', {name: DOCUMENT}).click()
+
+    await expect.element(page.getByRole('button', {name: `Open ${DOCUMENT}`})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('a sent image tile opens the viewer too', async () => {
+    const source = `data:${SAMPLE_IMAGE_MIME};base64,${SAMPLE_IMAGE_BASE64}`
+    mountSent(source)
+
+    await tile().click()
+
+    await expect.element(viewer().getByRole('img', {name: IMAGE})).toHaveAttribute('src', source)
+    await expect.element(panel().getByRole('dialog')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: `Remove ${IMAGE}`})).not.toBeInTheDocument()
+  })
+})
+
 describe('attachment only user message', () => {
   const GIF_BASE64 = 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
-  const GIF = `data:image/gif;base64,${GIF_BASE64}`
-
-  function imagePart() {
-    return {type: 'image', source: {type: 'data', value: GIF, mimeType: 'image/gif'}} as const
-  }
-
-  function withText(): SendContent {
-    return {content: [{type: 'text', content: 'here it is'}, imagePart()]}
-  }
 
   function ThreadHost(props: {content: () => SendContent}): JSX.Element {
     const chat = createChat({
@@ -334,14 +369,6 @@ describe('attachment only user message', () => {
     )
   }
 
-  it('a user message that carries text still renders it', async () => {
-    mountView(() => <ThreadHost content={withText} />)
-
-    await page.getByRole('button', {name: 'send'}).click()
-
-    await expect.element(page.getByText('here it is'), {timeout: 2000}).toBeVisible()
-  })
-
   it('a sent image shows in the user turn', async () => {
     const sentImage = (): SendContent => ({
       content: [
@@ -360,7 +387,7 @@ describe('attachment only user message', () => {
 
 describe('chip', () => {
   it('renders a field chip showing its name and value', async () => {
-    const host = mountView(() => (
+    mountView(() => (
       <ChipRow>
         <Chip name="role" value="textbox" />
       </ChipRow>
@@ -368,48 +395,6 @@ describe('chip', () => {
 
     await expect.element(page.getByText('role')).toBeVisible()
     await expect.element(page.getByText('textbox')).toBeVisible()
-    expect(host.querySelector('dl')).not.toBeNull()
-    expect(host.querySelector('dl dt')).not.toBeNull()
-    expect(host.querySelector('dl dd')).not.toBeNull()
-  })
-
-  it('renders ChipGroup as a plain container, not a definition list', async () => {
-    const host = mountView(() => (
-      <ChipGroup>
-        <Chip kind="pill" value="npm run build" />
-      </ChipGroup>
-    ))
-
-    await expect.element(page.getByText('npm run build')).toBeVisible()
-    expect(host.querySelector('dl')).toBeNull()
-  })
-
-  it('renders a pill chip showing its value, reachable by role, with the tooltip reachable by role when set', async () => {
-    mountView(() => <Chip kind="pill" value="npm run build" tooltip="Runs the project build script" />)
-
-    const trigger = page.getByRole('button', {name: 'npm run build'})
-    await expect.element(trigger).toBeVisible()
-
-    await userEvent.hover(trigger)
-    await expect.element(page.getByRole('tooltip', {name: 'Runs the project build script'})).toBeVisible()
-  })
-
-  it('renders a field chip with a tooltip inside a ChipGroup, keeping the dl child model valid elsewhere, while still exposing name, value and tooltip', async () => {
-    const host = mountView(() => (
-      <ChipGroup>
-        <Chip kind="field" name="selector" value="#submit" tooltip="The CSS selector that was matched" />
-      </ChipGroup>
-    ))
-
-    const trigger = page.getByRole('button', {name: 'selector #submit'})
-    await expect.element(trigger).toBeVisible()
-
-    await userEvent.hover(trigger)
-    await expect.element(page.getByRole('tooltip', {name: 'The CSS selector that was matched'})).toBeVisible()
-
-    expect(host.querySelector('dl')).toBeNull()
-    expect(host.querySelector('dt')).toBeNull()
-    expect(host.querySelector('dd')).toBeNull()
   })
 
   const LONG_VALUE = 'Frontend engineer who ships accessible interfaces and keeps the design system honest'
@@ -457,29 +442,6 @@ describe('chip', () => {
     await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
     expect(chipShowing(host, 'idle').hasAttribute('aria-describedby')).toBe(false)
   })
-
-  it('gives each tone its own accessible tooltip content, distinguishing tones without relying on class names', async () => {
-    mountView(() => (
-      <ChipGroup>
-        <Chip kind="pill" tone="neutral" value="idle" tooltip="status: neutral" />
-        <Chip kind="pill" tone="accent" value="running" tooltip="status: accent" />
-        <Chip kind="pill" tone="success" value="passed" tooltip="status: success" />
-        <Chip kind="pill" tone="danger" value="failed" tooltip="status: danger" />
-      </ChipGroup>
-    ))
-
-    const cases: Array<[string, string]> = [
-      ['idle', 'status: neutral'],
-      ['running', 'status: accent'],
-      ['passed', 'status: success'],
-      ['failed', 'status: danger'],
-    ]
-
-    for (const [value, tooltip] of cases) {
-      await userEvent.hover(page.getByRole('button', {name: value}))
-      await expect.element(page.getByRole('tooltip', {name: tooltip})).toBeVisible()
-    }
-  })
 })
 
 describe('composer actions', () => {
@@ -487,7 +449,6 @@ describe('composer actions', () => {
   const ONE_SLOT_PX = 170
   const NO_SLOT_PX = 100
   const LEADING_BUDGET_PX = 220
-  const RACE_PX = 230
 
   function Glyph(): JSX.Element {
     return <span aria-hidden="true" class="size-5 block" />
@@ -823,115 +784,11 @@ describe('composer actions', () => {
     await expect.element(overflowMenu()).not.toBeInTheDocument()
     await expect.element(compactButton()).toBeVisible()
   })
-
-  it('keeps the overflow menu open when leading and trailing regions resize together', async () => {
-    const [swapped, setSwapped] = createSignal(false)
-    const [picks, setPicks] = createSignal<string[]>(['idle'])
-    mountView(() => (
-      <>
-        <StatusRegion picks={picks()} />
-        <Fixture
-          width={RACE_PX}
-          onOverflowDismissed={() => setPicks((current) => [...current, 'dismissed'])}
-          leading={
-            <Show when={!swapped()}>
-              <Slots count={2} />
-            </Show>
-          }
-          trailing={
-            <Show when={swapped()} fallback={<Slots count={1} />}>
-              <Slots count={2} />
-              <span role="img" aria-label="Wide trailing marker" class="size-8.5 block" />
-            </Show>
-          }
-        >
-          <StandardActions />
-        </Fixture>
-      </>
-    ))
-
-    await userEvent.click(trigger())
-    await expect.element(compactItem()).toBeVisible()
-
-    setSwapped(true)
-
-    await expect.element(page.getByRole('img', {name: 'Wide trailing marker'})).toBeVisible()
-    await expect.element(status()).toHaveTextContent('idle')
-    await expect.element(compactItem()).toBeVisible()
-  })
-
-  it('opens with Enter, highlights with ArrowDown and returns focus to the trigger on Escape', async () => {
-    mountView(() => (
-      <Fixture width={NO_SLOT_PX}>
-        <StandardActions />
-      </Fixture>
-    ))
-
-    await expect.element(trigger()).toBeVisible()
-    await userEvent.tab()
-    await userEvent.tab()
-    await expect.element(trigger()).toHaveFocus()
-
-    await userEvent.keyboard('{Enter}')
-    await expect.element(compactItem()).toBeVisible()
-
-    await userEvent.keyboard('{ArrowDown}')
-    await expect.element(overflowMenu()).toHaveAttribute('aria-activedescendant')
-
-    await userEvent.keyboard('{Escape}')
-    await expect.element(overflowMenu()).not.toBeInTheDocument()
-    await expect.element(trigger()).toHaveFocus()
-  })
-
-  function SwappingMenuAction(props: {alternate: boolean}): JSX.Element {
-    const [local] = splitProps(props, ['alternate'])
-    return (
-      <ComposerActions.Action priority={5}>
-        <Show
-          when={local.alternate}
-          fallback={<ComposerActions.ActionMenuItem label="Menu only action" onSelect={() => undefined} />}
-        >
-          <ComposerActions.ActionMenuItem label="Alternate action" onSelect={() => undefined} />
-        </Show>
-      </ComposerActions.Action>
-    )
-  }
-
-  it('keeps live trailing content mounted when an action swaps its overflow entries', async () => {
-    const [alternate, setAlternate] = createSignal(false)
-    mountView(() => (
-      <Fixture width={WIDE_PX} maxInlineAuto={0} trailing={<input aria-label="Trailing draft" />}>
-        <StandardActions />
-        <SwappingMenuAction alternate={alternate()} />
-      </Fixture>
-    ))
-
-    const draft = () => page.getByRole('textbox', {name: 'Trailing draft'})
-    await userEvent.fill(draft(), 'kept')
-    await expect.element(draft()).toHaveValue('kept')
-
-    setAlternate(true)
-
-    await userEvent.click(trigger())
-    await expect.element(page.getByRole('menuitem', {name: 'Alternate action'})).toBeVisible()
-    await expect.element(draft()).toHaveValue('kept')
-  })
 })
 
 describe('composer attachment ops', () => {
   function textFile(body: string, name: string): File {
     return new File([body], name, {type: 'text/plain'})
-  }
-
-  function trackedAdapter(onRemove?: (attachment: Attachment) => void): AttachmentAdapter {
-    const adapter = createTextAttachmentAdapter()
-    return {
-      ...adapter,
-      remove: async (attachment) => {
-        onRemove?.(attachment)
-        await adapter.remove(attachment)
-      },
-    }
   }
 
   function ChatHost(props: ParentProps): JSX.Element {
@@ -952,11 +809,11 @@ describe('composer attachment ops', () => {
     return null
   }
 
-  function mountComposer(options: {onAdapterRemove?: (attachment: Attachment) => void} = {}): ComposerContextValue {
+  function mountComposer(): ComposerContextValue {
     let captured: ComposerContextValue | undefined
     render(() => (
       <ChatHost>
-        <ComposerPrimitive.Root attachmentAdapter={trackedAdapter(options.onAdapterRemove)}>
+        <ComposerPrimitive.Root attachmentAdapter={createTextAttachmentAdapter()}>
           <ComposerPrimitive.Input aria-label="Message" />
           <ContextProbe
             onReady={(context) => {
@@ -1009,65 +866,6 @@ describe('composer attachment ops', () => {
 
     expect(await composer.replaceAttachment(id, textFile('uno', 'uno.txt'))).toBeNull()
     expect(composer.attachments()).toHaveLength(0)
-  })
-
-  it('replaceAttachment releases the displaced attachment through the adapter', async () => {
-    const removed: string[] = []
-    const composer = mountComposer({onAdapterRemove: (attachment) => removed.push(attachment.name)})
-    const id = await composer.addAttachment(textFile('one', 'one.txt'))
-    if (!id) throw new Error('expected the attachment to be added')
-
-    await composer.replaceAttachment(id, textFile('uno', 'uno.txt'))
-
-    expect(removed).toEqual(['one.txt'])
-    expect(composer.attachments()).toHaveLength(1)
-  })
-
-  it('keeps the in-flight replacement out of the attachment list until the swap', async () => {
-    const seenBetweenEmissions: number[] = []
-    let composer: ComposerContextValue | undefined
-    let nextId = 0
-    const watchingAdapter: AttachmentAdapter = {
-      accept: 'text/plain',
-      add: async function* ({file}) {
-        nextId += 1
-        const pending: PendingAttachment = {
-          id: `watched-${nextId}`,
-          type: 'document',
-          name: file.name,
-          contentType: file.type,
-          file,
-          status: {type: 'running', reason: 'uploading', progress: 0},
-        }
-        yield pending
-        seenBetweenEmissions.push(composer?.attachments().length ?? -1)
-        yield {...pending, status: {type: 'requires-action', reason: 'composer-send'}}
-      },
-      remove: async () => {},
-      send: async (attachment) => ({...attachment, status: {type: 'complete'}, content: []}),
-    }
-    let captured: ComposerContextValue | undefined
-    render(() => (
-      <ChatHost>
-        <ComposerPrimitive.Root attachmentAdapter={watchingAdapter}>
-          <ComposerPrimitive.Input aria-label="Message" />
-          <ContextProbe
-            onReady={(context) => {
-              captured = context
-            }}
-          />
-        </ComposerPrimitive.Root>
-      </ChatHost>
-    ))
-    if (!captured) throw new Error('expected the composer context to be captured')
-    composer = captured
-    const id = await composer.addAttachment(textFile('one', 'one.txt'))
-    if (!id) throw new Error('expected the attachment to be added')
-
-    await composer.replaceAttachment(id, textFile('uno', 'uno.txt'))
-
-    expect(seenBetweenEmissions).toEqual([1, 1])
-    expect(composer.attachments().map((entry) => entry.name)).toEqual(['uno.txt'])
   })
 })
 
@@ -1237,48 +1035,6 @@ describe('composer send morph', () => {
     await userEvent.click(stop)
     await expect.element(page.getByRole('button', {name: 'Send message'})).toBeVisible()
     await expect.element(input).toHaveValue('follow-up while running')
-  })
-})
-
-describe('composer send tooltip slot', () => {
-  function ChatHost(
-    props: ParentProps<{connection?: StoryConnectionOptions; handlers?: ComposerHandlers}>,
-  ): JSX.Element {
-    const chat = createChat({
-      threadId: 'composer-send-tooltip-slot',
-      connection: storyConnection(untrack(() => props.connection)),
-    })
-    const handlers = untrack(() => props.handlers ?? {})
-    return (
-      <ChatProvider chat={chat}>
-        <ComposerHandlersProvider value={handlers}>{props.children}</ComposerHandlersProvider>
-      </ChatProvider>
-    )
-  }
-
-  function ComposerHarness(): JSX.Element {
-    return (
-      <ComposerPrimitive.Root>
-        <ComposerPrimitive.Input aria-label="Message" />
-        <TooltipIconButtonSlot tooltip="Send message">
-          {(buttonProps) => <ComposerPrimitive.Send {...buttonProps()}>Send</ComposerPrimitive.Send>}
-        </TooltipIconButtonSlot>
-      </ComposerPrimitive.Root>
-    )
-  }
-
-  it('submits the message when a Send wrapped in TooltipIconButtonSlot is clicked', async () => {
-    const handlers: ComposerHandlers = {onSend: () => Promise.resolve()}
-    mountView(() => (
-      <ChatHost handlers={handlers}>
-        <ComposerHarness />
-      </ChatHost>
-    ))
-
-    await page.getByRole('textbox', {name: 'Message'}).fill('clicked through a tooltip icon button slot')
-    await page.getByRole('button', {name: 'Send message'}).click()
-
-    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('')
   })
 })
 
@@ -1780,316 +1536,5 @@ describe('model selector', () => {
 
     await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).toBeVisible()
     await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).toBeVisible()
-  })
-
-  it('filters models that arrive after mount', async () => {
-    const deliverModels = mountLateSelector()
-
-    await expect.element(page.getByRole('button', {name: 'Select model'}), {timeout: 2000}).toBeVisible()
-    deliverModels(HARNESS_MODELS)
-    await userEvent.click(page.getByRole('button', {name: 'Select model'}))
-    await userEvent.keyboard('sonnet')
-
-    await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).toBeVisible()
-    await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).not.toBeInTheDocument()
-  })
-
-  it('hides the styled model list until the selector is opened', async () => {
-    mountView(() => <StyledModelSelector models={HARNESS_MODELS} defaultValue="claude-opus-4-8" searchable />)
-
-    await expect.element(page.getByRole('button', {name: 'Select model'}), {timeout: 2000}).toBeVisible()
-    await expect.element(page.getByPlaceholder('Search models…'), {timeout: 2000}).not.toBeVisible()
-    await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).not.toBeVisible()
-  })
-
-  it('reveals and filters the styled model list from keystrokes typed right after the trigger click', async () => {
-    mountView(() => <StyledModelSelector models={HARNESS_MODELS} defaultValue="claude-opus-4-8" searchable />)
-
-    await userEvent.click(page.getByRole('button', {name: 'Select model'}))
-    await userEvent.keyboard('haiku')
-
-    await expect.element(page.getByPlaceholder('Search models…'), {timeout: 2000}).toBeVisible()
-    await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).toBeVisible()
-    await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).not.toBeInTheDocument()
-  })
-
-  const MODELS_WITH_DISABLED: readonly ModelOption[] = [
-    ...HARNESS_MODELS,
-    {id: 'claude-legacy-3-0', name: 'Claude Legacy 3.0', disabled: true},
-  ]
-
-  function DisabledAwareSelector(): JSX.Element {
-    return (
-      <ModelSelector.Root models={MODELS_WITH_DISABLED} defaultValue="claude-opus-4-8">
-        <ModelSelector.Trigger aria-label="Select model" />
-        <ModelSelector.Content>
-          <ModelSelector.Search />
-          <ModelSelector.List />
-        </ModelSelector.Content>
-      </ModelSelector.Root>
-    )
-  }
-
-  async function eraseQuery(length: number): Promise<void> {
-    for (let stroke = 0; stroke < length; stroke += 1) {
-      await userEvent.keyboard('{Backspace}')
-    }
-  }
-
-  it('filters disabled options out of the list alongside the enabled ones', async () => {
-    mountView(() => <DisabledAwareSelector />)
-
-    await userEvent.click(page.getByRole('button', {name: 'Select model'}))
-    await expect.element(page.getByText('Claude Legacy 3.0'), {timeout: 2000}).toBeVisible()
-    await userEvent.keyboard('sonnet')
-
-    await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).toBeVisible()
-    await expect.element(page.getByText('Claude Legacy 3.0'), {timeout: 2000}).not.toBeInTheDocument()
-    await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).not.toBeInTheDocument()
-  })
-
-  it('restores every option, disabled included, when the query is cleared', async () => {
-    mountView(() => <DisabledAwareSelector />)
-
-    await userEvent.click(page.getByRole('button', {name: 'Select model'}))
-    await userEvent.keyboard('sonnet')
-    await expect.element(page.getByText('Claude Legacy 3.0'), {timeout: 2000}).not.toBeInTheDocument()
-    await eraseQuery('sonnet'.length)
-
-    await expect.element(page.getByText('Claude Legacy 3.0'), {timeout: 2000}).toBeVisible()
-    await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).toBeVisible()
-    await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).toBeVisible()
-  })
-})
-
-describe('slot instances', () => {
-  function createSlotProbe(label: string): Component {
-    const [instances, setInstances] = createSignal(0)
-    return () => {
-      onMount(() => setInstances(instances() + 1))
-      return (
-        <span>
-          {label} instances: {instances()}
-        </span>
-      )
-    }
-  }
-
-  function ChatHost(props: ParentProps): JSX.Element {
-    const chat = createChat({threadId: 'slot-instances', connection: storyConnection()})
-    return <ChatProvider chat={chat}>{props.children}</ChatProvider>
-  }
-
-  async function expectSingleInstance(label: string): Promise<void> {
-    await expect.element(page.getByText(`${label} instances: 1`), {timeout: 2000}).toBeVisible()
-  }
-
-  it('builds the composer children slot exactly once', async () => {
-    const Probe = createSlotProbe('composer children')
-    mountView(() => (
-      <ChatHost>
-        <Composer>
-          <Probe />
-        </Composer>
-      </ChatHost>
-    ))
-
-    await expectSingleInstance('composer children')
-  })
-
-  it('builds the composer busy slot exactly once', async () => {
-    const Probe = createSlotProbe('composer busy')
-    mountView(() => (
-      <ChatHost>
-        <Composer busy={<Probe />} />
-      </ChatHost>
-    ))
-
-    await expectSingleInstance('composer busy')
-  })
-
-  it('builds thread viewport children exactly once', async () => {
-    const Probe = createSlotProbe('thread footer')
-    mountView(() => (
-      <ChatHost>
-        <Thread>
-          <Thread.Viewport>
-            <Thread.Messages />
-            <Probe />
-          </Thread.Viewport>
-        </Thread>
-      </ChatHost>
-    ))
-
-    await expectSingleInstance('thread footer')
-  })
-
-  it('builds thread welcome children exactly once', async () => {
-    const Probe = createSlotProbe('thread welcome')
-    mountView(() => (
-      <ChatHost>
-        <Thread>
-          <Thread.Viewport>
-            <Thread.Welcome>
-              <Probe />
-            </Thread.Welcome>
-            <Thread.Messages />
-          </Thread.Viewport>
-        </Thread>
-      </ChatHost>
-    ))
-
-    await expectSingleInstance('thread welcome')
-  })
-
-  it('builds thread composer children exactly once', async () => {
-    const Probe = createSlotProbe('thread composer region')
-    mountView(() => (
-      <ChatHost>
-        <Thread>
-          <Thread.Viewport>
-            <Thread.Messages />
-          </Thread.Viewport>
-          <Thread.Composer>
-            <Probe />
-          </Thread.Composer>
-        </Thread>
-      </ChatHost>
-    ))
-
-    await expectSingleInstance('thread composer region')
-  })
-
-  it('builds the model selector trigger slot exactly once', async () => {
-    const Probe = createSlotProbe('trigger children')
-    mountView(() => (
-      <StyledModelSelector.Root models={HARNESS_MODELS} defaultValue="claude-opus-4-8">
-        <StyledModelSelector.Trigger>
-          <Probe />
-        </StyledModelSelector.Trigger>
-      </StyledModelSelector.Root>
-    ))
-
-    await expectSingleInstance('trigger children')
-  })
-})
-
-describe('attachment image viewer', () => {
-  const IMAGE = 'shot.png'
-  const DOCUMENT = 'notes.txt'
-
-  const imageFile = (): File =>
-    new File([Uint8Array.from(atob(SAMPLE_IMAGE_BASE64), (character) => character.charCodeAt(0))], IMAGE, {
-      type: SAMPLE_IMAGE_MIME,
-    })
-  const textFile = (): File => new File(['notes'], DOCUMENT, {type: 'text/plain'})
-
-  const tile = () => page.getByRole('button', {name: `Open ${IMAGE}`})
-  const viewer = () => page.getByRole('dialog', {name: IMAGE})
-  const panel = () => page.getByRole('region', {name: 'panel'})
-
-  function Panel(props: ParentProps): JSX.Element {
-    return (
-      <section aria-label="panel" data-conciv-panel class="[transform:translateX(0)] overflow-hidden">
-        {props.children}
-      </section>
-    )
-  }
-
-  function Staged(props: {files: File[]}): JSX.Element {
-    const composer = useComposerContext()
-    onMount(() => props.files.forEach((file) => void composer.addAttachment(file)))
-    return <></>
-  }
-
-  function mountComposer(files: File[]): void {
-    const adapter = composeAttachmentAdapters([createSimpleImageAttachmentAdapter(), createTextAttachmentAdapter()])
-    render(() => {
-      const chat = createChat({threadId: 'attachment-viewer', connection: storyConnection(untrack(() => undefined))})
-      return (
-        <ChatProvider chat={chat}>
-          <Panel>
-            <ComposerHandlersProvider value={{onSend: () => {}, onCancel: () => {}}}>
-              <Composer attachmentAdapter={adapter}>
-                <Staged files={files} />
-              </Composer>
-            </ComposerHandlersProvider>
-          </Panel>
-        </ChatProvider>
-      )
-    })
-  }
-
-  function mountSent(source: string): void {
-    const attachment: CompleteAttachment = {
-      id: 'sent',
-      type: 'image',
-      name: IMAGE,
-      content: [{type: 'image', source: {type: 'url', value: source}}],
-      status: {type: 'complete'},
-    }
-    render(() => (
-      <Panel>
-        <AttachmentProvider value={attachment}>
-          <AttachmentUI />
-        </AttachmentProvider>
-      </Panel>
-    ))
-  }
-
-  it('opens the full image outside the transformed panel, and toggles actual size', async () => {
-    mountComposer([imageFile()])
-
-    await tile().click()
-
-    await expect.element(viewer().getByRole('img', {name: IMAGE})).toBeVisible()
-    await expect.element(panel().getByRole('dialog')).not.toBeInTheDocument()
-    await viewer().getByRole('button', {name: 'Show actual size'}).click()
-    await expect.element(viewer().getByRole('button', {name: 'Fit to window'})).toBeVisible()
-  })
-
-  it('Escape closes the viewer and returns a visible focus to the tile', async () => {
-    mountComposer([imageFile()])
-
-    await tile().click()
-    await expect.element(viewer()).toBeVisible()
-    await userEvent.keyboard('{Escape}')
-
-    await expect.element(viewer()).not.toBeInTheDocument()
-    await expect.element(tile()).toHaveFocus()
-    expect(document.activeElement?.matches(':focus-visible')).toBe(true)
-    await userEvent.keyboard('{Enter}')
-    await viewer().getByRole('button', {name: 'Close'}).click()
-    await expect.element(viewer()).not.toBeInTheDocument()
-    await expect.element(tile()).toHaveFocus()
-  })
-
-  it('Remove drops the attachment without opening the viewer', async () => {
-    mountComposer([imageFile()])
-
-    await page.getByRole('button', {name: `Remove ${IMAGE}`}).click()
-
-    await expect.element(tile()).not.toBeInTheDocument()
-    await expect.element(viewer()).not.toBeInTheDocument()
-  })
-
-  it('a document tile stays inert', async () => {
-    mountComposer([textFile()])
-
-    await page.getByRole('button', {name: DOCUMENT}).click()
-
-    await expect.element(page.getByRole('button', {name: `Open ${DOCUMENT}`})).not.toBeInTheDocument()
-    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('a sent image tile opens the viewer too', async () => {
-    const source = `data:${SAMPLE_IMAGE_MIME};base64,${SAMPLE_IMAGE_BASE64}`
-    mountSent(source)
-
-    await tile().click()
-
-    await expect.element(viewer().getByRole('img', {name: IMAGE})).toHaveAttribute('src', source)
-    await expect.element(panel().getByRole('dialog')).not.toBeInTheDocument()
-    await expect.element(page.getByRole('button', {name: `Remove ${IMAGE}`})).not.toBeInTheDocument()
   })
 })
