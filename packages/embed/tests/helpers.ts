@@ -47,25 +47,13 @@ export async function bootEmbedKit(
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
-export const embedBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-widget.global.js'), 'utf8')
+const embedBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-widget.global.js'), 'utf8')
 
-const HOST_BACKDROPS: Record<string, string> = {
-  'light-stripes': 'repeating-linear-gradient(45deg, #ffffff 0 14px, #ff0000 14px 28px)',
-  'dark-stripes': 'repeating-linear-gradient(45deg, #000000 0 14px, #0000ff 14px 28px)',
-}
-
-function backdropStyle(backdrop: string | null | undefined): string {
-  const stripes = backdrop === null || backdrop === undefined ? undefined : HOST_BACKDROPS[backdrop]
-  if (stripes === undefined) return ''
-  return `<style>html,body{min-height:100%;margin:0}body{background:${stripes}}</style>`
-}
-
-export function hostPage(opts: {apiBase: string; widget?: string; body?: string; backdrop?: string | null}): string {
+export function hostPage(opts: {apiBase: string; widget?: string; body?: string}): string {
   return `<!doctype html><html><head>
     <meta charset="utf-8">
     <meta name="conciv-api-base" content="${opts.apiBase}">
     <meta name="conciv-widget" content='${opts.widget ?? '{}'}'>
-    ${backdropStyle(opts.backdrop)}
   </head><body>
     ${opts.body ?? '<div id="probe">page-bus-ok</div>'}
     <script>${embedBundle}</script>
@@ -92,11 +80,8 @@ export async function reserveDeadPort(): Promise<{base: string; port: number}> {
 export type ProxyCore = {
   base: string
   port: number
-  requestCount: () => number
-  wsConnectionCount: () => number
   trafficCount: () => number
   dropConnections: () => void
-  setUpgradesBlocked: (blocked: boolean) => void
   close: () => Promise<void>
 }
 
@@ -109,14 +94,10 @@ function handshakeResponse(upstream: IncomingMessage): string {
   return [statusLine, ...headers, '', ''].join('\r\n')
 }
 
-export async function proxyTo(
-  targetBase: string,
-  opts: {blockUpgrades?: boolean; port?: number} = {},
-): Promise<ProxyCore> {
+export async function proxyTo(targetBase: string, opts: {port?: number} = {}): Promise<ProxyCore> {
   const target = new URL(targetBase)
   let count = 0
   let upgrades = 0
-  let upgradesBlocked = opts.blockUpgrades === true
   const piped = new Set<Duplex>()
   const server: Server = createServer((req, res) => {
     count += 1
@@ -141,10 +122,6 @@ export async function proxyTo(
   })
   server.on('upgrade', (req, clientSocket: Duplex, head: Buffer) => {
     upgrades += 1
-    if (upgradesBlocked) {
-      clientSocket.destroy()
-      return
-    }
     piped.add(clientSocket)
     clientSocket.on('close', () => piped.delete(clientSocket))
     const proxyReq = httpRequest({
@@ -172,15 +149,10 @@ export async function proxyTo(
   return {
     base,
     port,
-    requestCount: () => count,
-    wsConnectionCount: () => upgrades,
     trafficCount: () => count + upgrades,
     dropConnections: () => {
       for (const socket of piped) socket.destroy()
       piped.clear()
-    },
-    setUpgradesBlocked: (blocked) => {
-      upgradesBlocked = blocked
     },
     close: async () => {
       try {
@@ -217,27 +189,21 @@ export function setupWidgetSuite(options: Parameters<typeof bootEmbedKit>[0] = {
   return {kit: () => kit, host: () => host}
 }
 
-export type ProxiedEmbedSuite = {
+type ProxiedEmbedSuite = {
   kit: () => EmbedKit
   core: () => ProxyCore
   host: () => {base: string; close: () => Promise<void>}
 }
 
-export function setupProxiedEmbedSuite(
-  opts: {
-    text?: string
-    widget?: string
-    proxy?: {blockUpgrades?: boolean; port?: number}
-  } = {},
-): ProxiedEmbedSuite {
+export function setupProxiedEmbedSuite(opts: {text?: string} = {}): ProxiedEmbedSuite {
   let kit: EmbedKit
   let core: ProxyCore
   let host: {base: string; close: () => Promise<void>}
 
   test.beforeEach(async () => {
     kit = await bootEmbedKit({text: opts.text})
-    core = await proxyTo(kit.base, opts.proxy)
-    host = await serveHost(() => hostPage({apiBase: core.base, widget: opts.widget ?? '{"quickTerminal":false}'}))
+    core = await proxyTo(kit.base)
+    host = await serveHost(() => hostPage({apiBase: core.base, widget: '{"quickTerminal":false}'}))
   })
 
   test.afterEach(async () => {
@@ -272,14 +238,6 @@ export async function openChatPanel(page: Page): Promise<void> {
 export async function sendChatMessage(page: Page, text: string): Promise<void> {
   await chatBox(page).fill(text)
   await page.getByRole('button', {name: 'Send message'}).click()
-}
-
-export async function sendHeldTurn(page: Page, suite: WidgetSuite): Promise<void> {
-  suite.kit().harness.script.hold()
-  await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
-  await openChatPanel(page)
-  await sendChatMessage(page, 'hold this turn open')
-  await expect(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
 }
 
 export function untilPanelDraft(
