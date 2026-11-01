@@ -14,7 +14,7 @@ import {
 } from 'node:fs'
 import {createServer as createHttpServer, request as httpRequest, type Server, type ServerResponse} from 'node:http'
 import {createServer as createNetServer} from 'node:net'
-import {tmpdir} from 'node:os'
+import {networkInterfaces, tmpdir} from 'node:os'
 import {stripVTControlCharacters} from 'node:util'
 import {dirname, isAbsolute, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -1584,15 +1584,32 @@ const NEXT_BUNDLERS = [
   {bundler: 'turbopack', flags: [], nextPort: 3432, enginePort: 3433},
 ]
 
-function hostRequest(port: number, path: string, host: string, upgrade: boolean): Promise<number | 'no upgrade'> {
+const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))
+const PLUGIN_FRAME = '/__conciv/devframes_plugin_terminals/'
+const PROBE_ID = 'conciv-probe-entry'
+
+function hostRequest(
+  port: number,
+  path: string,
+  host: string,
+  upgrade: boolean,
+  address = '127.0.0.1',
+): Promise<number | 'no upgrade'> {
   const upgradeHeaders = {
     connection: 'Upgrade',
     upgrade: 'websocket',
     'sec-websocket-version': '13',
     'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==',
+    origin: `http://${host}`,
   }
   return new Promise((resolve, reject) => {
-    const outgoing = httpRequest({host: '127.0.0.1', port, path, headers: {host, ...(upgrade ? upgradeHeaders : {})}})
+    const outgoing = httpRequest({
+      host: address,
+      localAddress: address,
+      port,
+      path,
+      headers: {host, ...(upgrade ? upgradeHeaders : {})},
+    })
     outgoing.on('upgrade', (response, socket) => {
       socket.destroy()
       resolve(response.statusCode ?? 0)
@@ -1602,12 +1619,148 @@ function hostRequest(port: number, path: string, host: string, upgrade: boolean)
       resolve(response.statusCode ?? 0)
     })
     outgoing.on('error', reject)
-    outgoing.setTimeout(3_000, () => {
-      outgoing.destroy()
-      resolve('no upgrade')
-    })
+    if (upgrade)
+      outgoing.setTimeout(3_000, () => {
+        outgoing.destroy()
+        resolve('no upgrade')
+      })
     outgoing.end()
   })
+}
+
+async function bundleProbe(): Promise<string> {
+  const built = await build({
+    root: PACKAGE_ROOT,
+    configFile: false,
+    logLevel: 'silent',
+    plugins: [
+      {
+        name: 'conciv-probe',
+        resolveId: (id) => (id.endsWith(PROBE_ID) ? PROBE_ID : null),
+        load: (id) =>
+          id === PROBE_ID
+            ? "import {getDevframeRpcClient} from 'devframe/client'\nObject.assign(window, {getDevframeRpcClient})"
+            : null,
+      },
+    ],
+    build: {
+      write: false,
+      minify: false,
+      lib: {entry: PROBE_ID, formats: ['es'], fileName: 'probe'},
+      rollupOptions: {output: {inlineDynamicImports: true}},
+    },
+  })
+  const outputs = Array.isArray(built) ? built : [built]
+  const chunk = outputs
+    .flatMap((result) => ('output' in result ? result.output : []))
+    .find((item) => item.type === 'chunk')
+  return chunk && 'code' in chunk ? chunk.code : ''
+}
+
+function waitForOutput<T>(
+  child: ChildProcess,
+  output: () => string,
+  read: (text: string) => T | undefined,
+): Promise<T> {
+  return new Promise((resolve) => {
+    const found = read(stripVTControlCharacters(output()))
+    if (found !== undefined) return resolve(found)
+    const onData = (): void => {
+      const value = read(stripVTControlCharacters(output()))
+      if (value === undefined) return
+      child.stdout?.off('data', onData)
+      child.stderr?.off('data', onData)
+      resolve(value)
+    }
+    child.stdout?.on('data', onData)
+    child.stderr?.on('data', onData)
+  })
+}
+
+function authCode(child: ChildProcess, output: () => string): Promise<string> {
+  return waitForOutput(child, output, (text) => text.match(/auth code\s+(\d{6})/)?.[1])
+}
+
+async function probeTab(page: string, probeScript: string, newTab: () => Promise<Page>, body: string): Promise<Page> {
+  const tab = await newTab()
+  await tab.route(`${page}/conciv-probe.js`, (route) =>
+    route.fulfill({contentType: 'text/javascript', body: probeScript}),
+  )
+  await tab.route(`${page}/conciv-probe`, (route) =>
+    route.fulfill({
+      contentType: 'text/html; charset=utf-8',
+      body: `<!doctype html><title>probe</title>${body}<script type="module" src="/conciv-probe.js"></script>`,
+    }),
+  )
+  await tab.goto(`${page}/conciv-probe`, {waitUntil: 'domcontentloaded'})
+  await tab.waitForFunction(() => 'getDevframeRpcClient' in window)
+  return tab
+}
+
+async function frameCall(tab: Page): Promise<{src: string | null; href: string; trusted: boolean; sessions: boolean}> {
+  const frameElement = await tab.waitForSelector('iframe')
+  const src = await frameElement.getAttribute('src')
+  const frame = await frameElement.contentFrame()
+  if (!frame) throw new Error('plugin iframe has no frame')
+  await frame.waitForLoadState('domcontentloaded')
+  await frame.addScriptTag({url: '/conciv-probe.js', type: 'module'})
+  await frame.waitForFunction(() => 'getDevframeRpcClient' in window)
+  return frame
+    .evaluate(async () => {
+      const client = await window.getDevframeRpcClient({baseURL: './'})
+      const trusted = await client.ensureTrusted(3_000).catch(() => false)
+      const sessions = trusted ? await client.call('conciv:sessions:list') : null
+      return {href: location.href, trusted, sessions: Array.isArray(sessions)}
+    })
+    .then((outcome) => ({src, ...outcome}))
+}
+
+async function loginThenFramedCall(
+  browser: Browser,
+  page: string,
+  probeScript: string,
+  code: () => Promise<string>,
+): Promise<void> {
+  const context = await browser.newContext()
+  const tab = await probeTab(page, probeScript, () => context.newPage(), '')
+  const sockets: string[] = []
+  tab.on('websocket', (socket) => sockets.push(socket.url()))
+  await tab.evaluate(async () => {
+    const client = await window.getDevframeRpcClient({baseURL: '/__conciv/', simpleAuth: false})
+    Object.assign(window, {client})
+    await client.requestAuthCode()
+  })
+  expect(await tab.evaluate((otp) => window.client.requestTrustWithCode(otp), await code())).toBe(true)
+  const iframe = `<iframe src="${PLUGIN_FRAME}" title="plugin"></iframe>`
+  const framed = await probeTab(page, probeScript, () => context.newPage(), iframe)
+  framed.on('websocket', (socket) => sockets.push(socket.url()))
+  const outcome = await frameCall(framed)
+  expect(outcome).toMatchObject({src: PLUGIN_FRAME, trusted: true, sessions: true})
+  expect(outcome.href.startsWith(`${page}${PLUGIN_FRAME}`)).toBe(true)
+  expect(outcome.href).not.toMatch(/devframe_auth_token|devframe_otp|devframe_remote/)
+  expect(sockets.length).toBeGreaterThan(0)
+  expect(sockets.every((url) => url.startsWith(`${page.replace('http', 'ws')}/__conciv/__ws`))).toBe(true)
+  const stranger = await probeTab(page, probeScript, () => browser.newPage(), iframe)
+  expect(await frameCall(stranger)).toMatchObject({src: PLUGIN_FRAME, trusted: false, sessions: false})
+  await context.close()
+}
+
+async function stopGroup(child: ChildProcess | undefined): Promise<void> {
+  if (!child?.pid || child.exitCode !== null) return
+  const exited = new Promise((resolve) => child.once('exit', resolve))
+  process.kill(-child.pid, 'SIGTERM')
+  await exited
+}
+
+async function expectHubForwarded(page: string): Promise<void> {
+  const meta = await fetch(`${page}/__conciv/__connection.json`)
+  expect(meta.status).toBe(200)
+  expect(await meta.json()).toMatchObject({backend: 'websocket', websocket: {path: '/__conciv/__ws'}})
+  const pluginPage = await fetch(`${page}${PLUGIN_FRAME}`, {redirect: 'manual'})
+  expect(pluginPage.status).toBe(200)
+  const asset = (await pluginPage.text()).match(/src="\.\/([^"]+\.js)"/)?.[1]
+  expect(asset).toBeDefined()
+  expect((await fetch(`${page}${PLUGIN_FRAME}${asset}`)).status).toBe(200)
 }
 
 describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)', ({flags, nextPort, enginePort}) => {
@@ -1615,94 +1768,11 @@ describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)'
   const ENGINE_PORT = enginePort
   const PAGE = `http://127.0.0.1:${NEXT_PORT}`
   const EXAMPLE = fileURLToPath(new URL('../../../apps/examples/nextjs-app/', import.meta.url))
-  const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))
-  const PLUGIN_FRAME = '/__conciv/devframes_plugin_terminals/'
-  const PROBE_ID = 'conciv-probe-entry'
 
   let next: ChildProcess
   let output = ''
   let browser: Browser
   let probeScript = ''
-
-  async function bundleProbe(): Promise<string> {
-    const built = await build({
-      root: PACKAGE_ROOT,
-      configFile: false,
-      logLevel: 'silent',
-      plugins: [
-        {
-          name: 'conciv-probe',
-          resolveId: (id) => (id.endsWith(PROBE_ID) ? PROBE_ID : null),
-          load: (id) =>
-            id === PROBE_ID
-              ? "import {getDevframeRpcClient} from 'devframe/client'\nObject.assign(window, {getDevframeRpcClient})"
-              : null,
-        },
-      ],
-      build: {
-        write: false,
-        minify: false,
-        lib: {entry: PROBE_ID, formats: ['es'], fileName: 'probe'},
-        rollupOptions: {output: {inlineDynamicImports: true}},
-      },
-    })
-    const outputs = Array.isArray(built) ? built : [built]
-    const chunk = outputs
-      .flatMap((result) => ('output' in result ? result.output : []))
-      .find((item) => item.type === 'chunk')
-    return chunk && 'code' in chunk ? chunk.code : ''
-  }
-
-  function authCode(): Promise<string> {
-    const readCode = (): string | undefined => stripVTControlCharacters(output).match(/auth code\s+(\d{6})/)?.[1]
-    return new Promise((resolve) => {
-      const found = readCode()
-      if (found) return resolve(found)
-      const onData = (): void => {
-        const code = readCode()
-        if (!code) return
-        next.stdout?.off('data', onData)
-        resolve(code)
-      }
-      next.stdout?.on('data', onData)
-    })
-  }
-
-  async function probeTab(newTab: () => Promise<Page>, body: string): Promise<Page> {
-    const tab = await newTab()
-    await tab.route(`${PAGE}/conciv-probe.js`, (route) =>
-      route.fulfill({contentType: 'text/javascript', body: probeScript}),
-    )
-    await tab.route(`${PAGE}/conciv-probe`, (route) =>
-      route.fulfill({
-        contentType: 'text/html; charset=utf-8',
-        body: `<!doctype html><title>probe</title>${body}<script type="module" src="/conciv-probe.js"></script>`,
-      }),
-    )
-    await tab.goto(`${PAGE}/conciv-probe`, {waitUntil: 'domcontentloaded'})
-    await tab.waitForFunction(() => 'getDevframeRpcClient' in window)
-    return tab
-  }
-
-  async function frameCall(
-    tab: Page,
-  ): Promise<{src: string | null; href: string; trusted: boolean; sessions: boolean}> {
-    const frameElement = await tab.waitForSelector('iframe')
-    const src = await frameElement.getAttribute('src')
-    const frame = await frameElement.contentFrame()
-    if (!frame) throw new Error('plugin iframe has no frame')
-    await frame.waitForLoadState('domcontentloaded')
-    await frame.addScriptTag({url: '/conciv-probe.js', type: 'module'})
-    await frame.waitForFunction(() => 'getDevframeRpcClient' in window)
-    return frame
-      .evaluate(async () => {
-        const client = await window.getDevframeRpcClient({baseURL: './'})
-        const trusted = await client.ensureTrusted(3_000).catch(() => false)
-        const sessions = trusted ? await client.call('conciv:sessions:list') : null
-        return {href: location.href, trusted, sessions: Array.isArray(sessions)}
-      })
-      .then((outcome) => ({src, ...outcome}))
-  }
 
   beforeAll(async () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-next-hub-'))
@@ -1728,14 +1798,11 @@ describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)'
     next.stderr?.on('data', (chunk: Buffer) => {
       output += chunk.toString()
     })
-    await new Promise<void>((resolve) => {
-      const onData = (): void => {
-        if (!output.includes('Ready in')) return
-        next.stdout?.off('data', onData)
-        resolve()
-      }
-      next.stdout?.on('data', onData)
-    })
+    await waitForOutput(
+      next,
+      () => output,
+      (text) => (text.includes('Ready in') ? true : undefined),
+    )
     const home = await fetch(`${PAGE}/`)
     expect(home.status).toBe(200)
     browser = await chromium.launch({headless: true, args: ['--disable-features=LocalNetworkAccessChecks']})
@@ -1743,21 +1810,11 @@ describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)'
 
   afterAll(async () => {
     await browser?.close()
-    if (!next?.pid || next.exitCode !== null) return
-    const exited = new Promise((resolve) => next.once('exit', resolve))
-    process.kill(-next.pid, 'SIGTERM')
-    await exited
+    await stopGroup(next)
   })
 
   it('forwards the hub meta, plugin pages and their assets on the next port, keeping the trailing slash', async () => {
-    const meta = await fetch(`${PAGE}/__conciv/__connection.json`)
-    expect(meta.status).toBe(200)
-    expect(await meta.json()).toMatchObject({backend: 'websocket', websocket: {path: '/__conciv/__ws'}})
-    const pluginPage = await fetch(`${PAGE}${PLUGIN_FRAME}`, {redirect: 'manual'})
-    expect(pluginPage.status).toBe(200)
-    const asset = (await pluginPage.text()).match(/src="\.\/([^"]+\.js)"/)?.[1]
-    expect(asset).toBeDefined()
-    expect((await fetch(`${PAGE}${PLUGIN_FRAME}${asset}`)).status).toBe(200)
+    await expectHubForwarded(PAGE)
     const userRoute = await fetch(`${PAGE}/about/`, {redirect: 'manual'})
     expect(userRoute.status).toBe(308)
     expect(userRoute.headers.get('location')).toBe('/about')
@@ -1775,28 +1832,81 @@ describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)'
   })
 
   it('logs in over the page-origin websocket, then a same-origin plugin iframe with a bare url is trusted from the stored login', async () => {
-    const context = await browser.newContext()
-    const tab = await probeTab(() => context.newPage(), '')
-    const sockets: string[] = []
-    tab.on('websocket', (socket) => sockets.push(socket.url()))
-    await tab.evaluate(async () => {
-      const client = await window.getDevframeRpcClient({baseURL: '/__conciv/', simpleAuth: false})
-      Object.assign(window, {client})
-      await client.requestAuthCode()
+    await loginThenFramedCall(browser, PAGE, probeScript, () => authCode(next, () => output))
+  })
+})
+
+const LAN_ADDRESS = Object.values(networkInterfaces())
+  .flat()
+  .find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address
+
+const DEV_SERVERS = [
+  {server: 'webpack-dev-server', bin: 'webpack', config: 'webpack.config.mjs', devPort: 3470, enginePort: 3471},
+  {server: 'rspack dev server', bin: 'rspack', config: 'rspack.config.mjs', devPort: 3472, enginePort: 3473},
+]
+
+describe.each(DEV_SERVERS)('$server devframe hub on the page origin', ({bin, config, devPort, enginePort}) => {
+  const PAGE = `http://127.0.0.1:${devPort}`
+  const FIXTURE = fileURLToPath(new URL('./fixtures/dev-server-app/', import.meta.url))
+
+  let server: ChildProcess
+  let output = ''
+  let browser: Browser
+  let probeScript = ''
+
+  beforeAll(async () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-dev-server-hub-'))
+    probeScript = await bundleProbe()
+    server = spawn(
+      join(PACKAGE_ROOT, 'node_modules/.bin', bin),
+      ['serve', '--config', config, '--port', String(devPort), '--host', '::'],
+      {
+        cwd: FIXTURE,
+        detached: true,
+        env: {...process.env, CONCIV_OPTIONS: JSON.stringify({port: enginePort, stateRoot})},
+      },
+    )
+    server.stdout?.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
     })
-    const code = await authCode()
-    expect(await tab.evaluate((otp) => window.client.requestTrustWithCode(otp), code)).toBe(true)
-    const framed = await probeTab(() => context.newPage(), `<iframe src="${PLUGIN_FRAME}" title="plugin"></iframe>`)
-    framed.on('websocket', (socket) => sockets.push(socket.url()))
-    const outcome = await frameCall(framed)
-    expect(outcome).toMatchObject({src: PLUGIN_FRAME, trusted: true, sessions: true})
-    expect(outcome.href.startsWith(`${PAGE}${PLUGIN_FRAME}`)).toBe(true)
-    expect(outcome.href).not.toMatch(/devframe_auth_token|devframe_otp|devframe_remote/)
-    expect(sockets.length).toBeGreaterThan(0)
-    expect(sockets.every((url) => url.startsWith(`ws://127.0.0.1:${NEXT_PORT}/__conciv/__ws`))).toBe(true)
-    const stranger = await probeTab(() => browser.newPage(), `<iframe src="${PLUGIN_FRAME}" title="plugin"></iframe>`)
-    expect(await frameCall(stranger)).toMatchObject({src: PLUGIN_FRAME, trusted: false, sessions: false})
-    await context.close()
+    server.stderr?.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    await waitForOutput(
+      server,
+      () => output,
+      (text) => (/compiled successfully/i.test(text) ? true : undefined),
+    )
+    expect((await fetch(`${PAGE}/main.js`)).status).toBe(200)
+    browser = await chromium.launch({headless: true, args: ['--disable-features=LocalNetworkAccessChecks']})
+  }, 60_000)
+
+  afterAll(async () => {
+    await browser?.close()
+    await stopGroup(server)
+  })
+
+  it('forwards the hub meta, plugin pages and their assets on the dev server port', async () => {
+    await expectHubForwarded(PAGE)
+  })
+
+  it.skipIf(LAN_ADDRESS === undefined)(
+    'forwards only loopback sockets, so a LAN client gets no hub while the app still serves',
+    async () => {
+      const lan = LAN_ADDRESS ?? ''
+      expect(await hostRequest(devPort, '/__conciv/__connection.json', `127.0.0.1:${devPort}`, false)).toBe(200)
+      expect(await hostRequest(devPort, '/__conciv/__connection.json', `[::1]:${devPort}`, false, '::1')).toBe(200)
+      expect(await hostRequest(devPort, '/__conciv/__ws', `127.0.0.1:${devPort}`, true)).toBe(101)
+      const forgedHost = `127.0.0.1:${devPort}`
+      expect(await hostRequest(devPort, '/__conciv/__connection.json', forgedHost, false, lan)).toBe(404)
+      expect(await hostRequest(devPort, PLUGIN_FRAME, `${lan}:${devPort}`, false, lan)).toBe(404)
+      expect(await hostRequest(devPort, '/main.js', `${lan}:${devPort}`, false, lan)).toBe(200)
+      expect(await hostRequest(devPort, '/__conciv/__ws', forgedHost, true, lan)).not.toBe(101)
+    },
+  )
+
+  it('logs in over the page-origin websocket, then a same-origin plugin iframe with a bare url is trusted from the stored login', async () => {
+    await loginThenFramedCall(browser, PAGE, probeScript, () => authCode(server, () => output))
   })
 })
 

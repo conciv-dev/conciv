@@ -14,6 +14,7 @@
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/oxlint-plugin/fixtures/**",
     "packages/cli/test/fixtures/**",
+    "packages/plugin/test/fixtures/dev-server-app/**",
     "apps/examples/**",
     "docs/assets/page-session-card-spike/**",
     "e2e/astro/**",
@@ -100,6 +101,10 @@
     "circular-dependencies": "warn"
   },
   "ignoreDependencies": [
+    "@rspack/cli",
+    "@rspack/dev-server",
+    "webpack-cli",
+    "webpack-dev-server",
     "@agentclientprotocol/sdk",
     "@opencode-ai/sdk",
     "collections",

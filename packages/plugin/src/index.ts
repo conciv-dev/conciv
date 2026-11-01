@@ -2,6 +2,7 @@ import {createUnplugin, type UnpluginInstance, type UnpluginOptions} from 'unplu
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {makeEngineBooter} from './core/boot.js'
 import {makeViteHook} from './core/vite.js'
+import {hubProxy} from './core/dev-server-hub.js'
 import {type Builtins, NO_BUILTINS} from '@conciv/extension-compiler/extensions'
 
 export type {Builtins} from '@conciv/extension-compiler/extensions'
@@ -16,11 +17,19 @@ export function createConcivUnplugin(builtins: Builtins = NO_BUILTINS): Unplugin
       name: 'conciv',
 
       vite: makeViteHook(options, builtins) as UnpluginOptions['vite'],
-      webpack() {
-        if (options.enabled !== false) void boot()
+      webpack(compiler) {
+        if (options.enabled === false) return
+        void boot()
+        const devServer = compiler.options.devServer
+        if (devServer === false) return
+        compiler.options.devServer = {...devServer, proxy: [hubProxy(boot), ...(devServer?.proxy ?? [])]}
       },
-      rspack() {
-        if (options.enabled !== false) void boot()
+      rspack(compiler) {
+        if (options.enabled === false) return
+        void boot()
+        const devServer = compiler.options.devServer
+        if (devServer === false) return
+        compiler.options.devServer = {...devServer, proxy: [hubProxy(boot), ...(devServer?.proxy ?? [])]}
       },
       rollup: {},
       esbuild: {},
