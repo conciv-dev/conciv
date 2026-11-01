@@ -13,6 +13,7 @@ import {GrabCard} from '../src/client/cards/grab-card.js'
 import {mountAttachment} from './fixtures/attachment-harness.js'
 import {GrabSnapshotFrame} from '../src/client/cards/grab-snapshot-frame.js'
 import {createSignal, type JSX} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
 import {SessionCard} from '../src/client/cards/session-card.js'
 
@@ -400,18 +401,29 @@ describe('read value card image', () => {
     })
 
     it('an image that cannot load says so instead of offering a broken viewer', async () => {
-      await mountExpandedCard('QUJD')
+      await mountExpandedCard({image: 'QUJD'})
 
       await expect.element(page.getByText('Could not load Took a screenshot')).toBeVisible()
       await expect.element(page.getByRole('button', {name: THUMBNAIL})).not.toBeInTheDocument()
     })
 
-    async function mountExpandedCard(image: string = webpBase64()): Promise<void> {
+    it('a failed image recovers when its source changes to one that loads', async () => {
+      const [source, setSource] = createStore({image: 'QUJD'})
+      await mountExpandedCard(source)
+      await expect.element(page.getByText('Could not load Took a screenshot')).toBeVisible()
+
+      setSource('image', webpBase64())
+
+      await expect.element(page.getByRole('button', {name: THUMBNAIL})).toBeVisible()
+      await expect.element(page.getByText('Could not load Took a screenshot')).not.toBeInTheDocument()
+    })
+
+    async function mountExpandedCard(source: {image: string} = {image: webpBase64()}): Promise<void> {
       render(() => (
         <ReadValueCard
           part={storyPart('page_screenshot', {})}
           result={storyResult([
-            {type: 'image', source: {type: 'data', value: image, mimeType: 'image/webp'}},
+            {type: 'image', source: {type: 'data', value: source.image, mimeType: 'image/webp'}},
             {type: 'text', content: JSON.stringify({width: 8, height: 6, path: 'tmp/screenshots/shot.webp'})},
           ])}
           ctx={storyCtx({page_screenshot: SCREENSHOT_META})}

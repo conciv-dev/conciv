@@ -3,7 +3,7 @@ import {Portal} from 'solid-js/web'
 import {Button} from './button.js'
 import {Dialog} from './dialog.js'
 
-type View = 'closed' | 'fit' | 'actual' | 'failed'
+type View = 'closed' | 'fit' | 'actual' | {failed: string}
 
 const FOCUS_RING =
   'focus-visible:[outline:var(--chat-focus)] focus-visible:[outline-offset:-0.125rem] focus-visible:![box-shadow:none]'
@@ -26,7 +26,11 @@ export function ZoomableImage(props: {
   const [local] = splitProps(props, ['src', 'alt', 'portal', 'thumbnail', 'imageClass'])
   const [view, setView] = createSignal<View>('closed')
   const actual = () => view() === 'actual'
-  const fail = () => setView('failed')
+  const failed = () => {
+    const current = view()
+    return typeof current === 'object' && current.failed === local.src
+  }
+  const fail = () => setView({failed: local.src})
   const viewer = () => (
     <Dialog
       open={view() === 'fit' || actual()}
@@ -54,7 +58,7 @@ export function ZoomableImage(props: {
     </Dialog>
   )
   return (
-    <Show when={view() !== 'failed'} fallback={<p class={FAILED}>Could not load {local.alt}</p>}>
+    <Show when={!failed()} fallback={<p class={FAILED}>Could not load {local.alt}</p>}>
       <Button
         {...local.thumbnail}
         variant="plain"
