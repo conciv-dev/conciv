@@ -9,6 +9,5 @@ declare global {
     concivTestHandle: ConcivHandle
     concivTestElement: HTMLElement
     concivNativePost: (message: unknown) => Promise<void>
-    concivNativeRebind: (detail: unknown) => Promise<void>
   }
 }
