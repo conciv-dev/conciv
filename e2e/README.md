@@ -48,12 +48,14 @@ touches none of this is fine.
 | `vite-solid-component`  | copy of `vite-solid`       | `@conciv/solid` `<ConcivWidget/>` path, plugin `widget: false`  |
 | `vite-react-packed`     | copy of `vite-react`       | published-tarball pnpm install, catches dist/packaging bugs     |
 
-`vite-react-packed` installs conciv the way an npm user does. Its `test:e2e` runs `install-packed.ts`
-first: `pnpm pack` on every package in `@conciv/it`'s production dependency chain, then a copy of
-`app/` in a temp dir outside the workspace whose `pnpm-workspace.yaml` overrides each `@conciv/*` to
-its tarball, then a plain `pnpm install` there (isolated layout, non-conciv deps from the registry).
-Playwright still runs from `e2e/vite-react-packed`, so it uses `e2e-utils` from the workspace; only
-the vite dev server runs in the temp copy.
+`vite-react-packed` installs conciv the way an npm user does, using the packing helpers in
+`e2e-utils/src/packed.ts` (shared with `nextjs/packed`). Its `test:e2e` runs `install-packed.ts` first:
+it builds and `pnpm pack`s `@conciv/it`'s workspace dependency closure, copies `index.html`, `src/` and
+`public/` from `vite-react` into a temp dir outside the workspace, generates the `package.json` and
+`vite.config.ts`, overrides each `@conciv/*` to its tarball and runs `pnpm install` there, seeded from
+the committed `fixture-lock.yaml` and checked for drift. When a registry dependency changes, refresh it
+with `pnpm --filter conciv-e2e-vite-react-packed run update-packed-lockfile`. Playwright runs from
+`e2e/vite-react-packed`; only the vite dev server runs in the temp copy.
 
 `e2e-utils` holds the shared Playwright config factory, the widget boot assertions, and the fixed
 port registry (`src/ports.ts`) so suites can run side by side.

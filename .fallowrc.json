@@ -22,7 +22,6 @@
     "e2e/svelte/**",
     "e2e/tanstack-start/**",
     "e2e/vite-react/**",
-    "e2e/vite-react-packed/**",
     "e2e/vite-solid/**",
     "e2e/vite-vanilla/**",
     "**/vitest.config.ts",

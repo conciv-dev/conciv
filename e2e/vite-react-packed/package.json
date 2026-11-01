@@ -5,14 +5,8 @@
   "type": "module",
   "scripts": {
     "test:e2e": "node install-packed.ts && playwright test",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
-  "dependencies": {
-    "@conciv/it": "workspace:*",
-    "@vitejs/plugin-react": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
-    "vite": "catalog:"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "update-packed-lockfile": "node install-packed.ts --update-lockfile"
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
