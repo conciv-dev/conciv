@@ -44,6 +44,10 @@
     "./defs": {
       "types": "./dist/shared/defs.d.ts",
       "import": "./dist/shared/defs.js"
+    },
+    "./body-margins": {
+      "types": "./dist/client/body-margins.d.ts",
+      "import": "./dist/client/body-margins.js"
     }
   },
   "publishConfig": {

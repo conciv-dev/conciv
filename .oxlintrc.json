@@ -357,6 +357,8 @@
     "**/test-results",
     "packages/plugin/test/fixtures/**",
     "packages/extensions/tanstack/test/fixtures/**",
+    "packages/it/test/fixtures/design/host/**",
+    "packages/it/test/fixtures/design/provenance/**",
     "packages/cli/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/oxlint-plugin/fixtures/**",

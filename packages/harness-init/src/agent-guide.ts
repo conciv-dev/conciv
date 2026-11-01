@@ -1,6 +1,6 @@
 export const CONCIV_BIN = '.conciv/bin/conciv'
 
-export const CONCIV_RANKING_SENTENCE = `This project has conciv installed. For everything in the running browser, use the conciv CLI through Bash (\`${CONCIV_BIN} tools page ...\`, \`${CONCIV_BIN} tools react ...\`, \`${CONCIV_BIN} tools server ...\`). Use browser MCP tools only when a conciv command cannot do what you need.`
+export const CONCIV_RANKING_SENTENCE = `This project has conciv installed. For everything in the running browser, use the conciv CLI through Bash (\`${CONCIV_BIN} tools page ...\`, \`${CONCIV_BIN} tools react ...\`, \`${CONCIV_BIN} tools design ...\`, \`${CONCIV_BIN} tools server ...\`). Use browser MCP tools only when a conciv command cannot do what you need.`
 
 export const CONCIV_COMMAND_GUIDE = [
   '### When to use conciv instead of the browser MCP',
@@ -17,4 +17,5 @@ export const CONCIV_COMMAND_GUIDE = [
   `- Browser console errors and warnings: \`${CONCIV_BIN} tools page console\``,
   `- Unexpected re-renders or a memo that never updates: \`${CONCIV_BIN} tools react track <selector>\``,
   `- Module graph, transformed source, a forced hot update: \`${CONCIV_BIN} tools server graph|transform|reload\``,
+  `- Matching a page to a design image: \`${CONCIV_BIN} tools design target <image> --route <route> --width <px>\`, then edit, then \`${CONCIV_BIN} tools design diff\`; fix the first components in the list (sorted by impact) using the source and the deltas, run \`diff\` again, stop when \`${CONCIV_BIN} tools design status\` says done. Do not eyeball the screenshot when \`diff\` is available.`,
 ].join('\n')

@@ -1,0 +1,29 @@
+.cards {
+  display: flex;
+  gap: 8px;
+}
+
+.card {
+  flex: 1;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.card p {
+  margin: 0;
+  font-size: 24px;
+}
+
+@media (max-width: 600px) {
+  .mobileGap {
+    gap: 16px;
+  }
+}

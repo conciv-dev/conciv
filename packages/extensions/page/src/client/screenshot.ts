@@ -1,5 +1,5 @@
-import type {SnapdomPlugin} from '@zumer/snapdom'
 import type {PageScreenshot} from '../shared/defs.js'
+import {keepBodyMargins} from './body-margins.js'
 
 const WEBP_QUALITY = 0.8
 const DATA_URL_COMMA = ','
@@ -15,18 +15,6 @@ function base64(blob: Blob): Promise<string> {
     reader.addEventListener('error', () => reject(reader.error ?? new Error('The screenshot could not be read.')))
     reader.readAsDataURL(blob)
   })
-}
-
-const keepBodyMargins: SnapdomPlugin = {
-  name: 'keep-body-margins',
-  afterClone: (context) => {
-    const root = context.clone
-    const body = root?.querySelector(':scope > body')
-    if (!(root instanceof HTMLElement) || !(body instanceof HTMLElement)) return
-    body.style.removeProperty('margin-top')
-    body.style.removeProperty('margin-bottom')
-    root.style.display = 'flow-root'
-  },
 }
 
 export async function screenshot(): Promise<PageScreenshot> {

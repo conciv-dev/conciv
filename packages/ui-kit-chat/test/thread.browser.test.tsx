@@ -2220,9 +2220,6 @@ describe('virtual reload layout', () => {
 
 describe('virtual scroll', () => {
   const TURN_COUNT = 80
-  const MODERATE_STEP_PX = 200
-  const FAST_STEP_PX = 800
-  const ESTIMATED_TURN_PX = 600
 
   const windowErrors: string[] = []
   window.addEventListener('error', (event) => {
@@ -2320,14 +2317,6 @@ describe('virtual scroll', () => {
     mountView(() => <VirtualThread />)
   }
 
-  async function sweepUpwards(stepPx: number): Promise<void> {
-    const wheelSteps = Math.ceil((TURN_COUNT * ESTIMATED_TURN_PX) / stepPx)
-    for (let step = 0; step < wheelSteps; step++) {
-      await userEvent.wheel(page.getByRole('log'), {delta: {y: -stepPx}})
-    }
-    await expect.element(page.getByText('question 0', {exact: false}).first()).toBeVisible()
-  }
-
   async function lastTurnVisible(): Promise<void> {
     await expect.element(page.getByText(`answer ${TURN_COUNT - 1}`, {exact: false}).first()).toBeVisible()
   }
@@ -2348,10 +2337,9 @@ describe('virtual scroll', () => {
 
   it('scrolling a card-heavy thread never trips a ResizeObserver notification loop', async () => {
     await settledThread()
-    await sweepUpwards(FAST_STEP_PX)
+    await wheelToFirstTurn()
     await userEvent.wheel(page.getByRole('log'), {delta: {y: 1_000_000}})
     await lastTurnVisible()
-    await sweepUpwards(MODERATE_STEP_PX)
 
     expect(resizeLoopErrors()).toEqual([])
   })

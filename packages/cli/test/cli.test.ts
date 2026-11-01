@@ -9,6 +9,7 @@ import {delimiter, dirname, join, relative, resolve as resolvePath} from 'node:p
 import {fileURLToPath} from 'node:url'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
+import {design} from '@conciv/extension-design/server'
 import {createServer as createHttpServer, type Server} from 'node:http'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {engineOrigin} from '../src/engine-origin.js'
@@ -245,6 +246,12 @@ describe('cli', () => {
         expect(help.stdout).not.toContain('fill')
       })
 
+      it('derives the design verbs offline from the design tool declarations', () => {
+        const help = conciv(['tools', 'design', '--help'])
+        expect(help.status).toBe(0)
+        expect(help.stdout).toContain('register a design image as the target')
+      })
+
       it('shows a verb flags offline', () => {
         const help = conciv(['tools', 'page', 'fill', '--help'])
         expect(help.status).toBe(0)
@@ -272,7 +279,7 @@ describe('cli', () => {
 
     const FailureSchema = z.object({ok: z.literal(false), error: z.object({kind: z.enum(['user', 'unexpected'])})})
 
-    async function helpFor(argv: string[]): Promise<string> {
+    async function helpText(argv: string[]): Promise<string> {
       const logged: string[] = []
       vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
         logged.push(String(line))
@@ -298,10 +305,65 @@ describe('cli', () => {
 
     const beaconExtension = defineExtension({name: 'acme-beacon', tools: [beacon]})
 
+    const ONE_PIXEL_PNG =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+
     describe('the CLI reads its commands from the tool declarations', () => {
+      it('derives design verbs from the design tool declarations online', async () => {
+        await bootCli(cleanups, {extensions: [design]})
+        expect(await helpText(['tools', 'design', '--help'])).toContain('compare the live page with its design target')
+      })
+
+      it('sends design diff flags to the server as the tool input', async () => {
+        const kit = await bootCli(cleanups, {extensions: [design]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {pathname: '/cards', search: ''}})
+        expect(await runCli(cliMain, ['tools', 'design', 'diff', '--width', '390', '--limit', '5'])).toBe(1)
+        expect(answer.seen()).toMatchObject({name: 'page_route'})
+        expect(onlyDocument(written)).toMatchObject({
+          ok: false,
+          error: {message: 'no design target for /cards at 390px; register one with design_target'},
+        })
+      })
+
+      it('sends every repeat of an array flag to the server as one array', async () => {
+        const kit = await bootCli(cleanups, {extensions: [design]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {padding: null, gap: null}})
+        expect(
+          await runCli(cliMain, [
+            'tools',
+            'design',
+            'winner',
+            '--selector',
+            '#a',
+            '--properties',
+            'padding',
+            '--properties',
+            'gap',
+          ]),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({
+          name: 'design_winner',
+          input: {selector: '#a', properties: ['padding', 'gap']},
+        })
+      })
+
+      it('resolves a relative image path against the CLI working directory', async () => {
+        await bootCli(cleanups, {extensions: [design]})
+        const home = process.cwd()
+        const dir = mkdtempSync(join(tmpdir(), 'conciv-design-image-'))
+        writeFileSync(join(dir, 'u1.png'), Buffer.from(ONE_PIXEL_PNG, 'base64'))
+        process.chdir(dir)
+        cleanups.push(async () => {
+          process.chdir(home)
+          rmSync(dir, {recursive: true, force: true})
+        })
+        expect(await runCli(cliMain, ['tools', 'design', 'target', './u1.png', '--route', '/', '--width', '1'])).toBe(0)
+        expect(onlyDocument(written)).toMatchObject({ok: true, data: {route: '/', width: 1}})
+      })
+
       it('derives a page verb whose declaration carries card cosmetics the CLI itself ignores', async () => {
         await bootCli(cleanups, {extensions: [beaconExtension]})
-        const help = await helpFor(['tools', 'page', '--help'])
+        const help = await helpText(['tools', 'page', '--help'])
         expect(help).toContain('raise the acme beacon over the page')
       })
 
@@ -354,28 +416,28 @@ describe('cli', () => {
 
       it("describes a verb by what it does, never by the verb's own command path", async () => {
         await bootCli(cleanups)
-        const help = await helpFor(['tools', 'page', '--help'])
+        const help = await helpText(['tools', 'page', '--help'])
         expect(help).not.toMatch(/page fill/)
         expect(help).toContain('type a value into a form field')
       })
 
       it('offers the screenshot verb under page, derived from its declaration', async () => {
         await bootCli(cleanups)
-        const help = await helpFor(['tools', 'page', '--help'])
+        const help = await helpText(['tools', 'page', '--help'])
         expect(help).toContain('screenshot')
         expect(help).toContain('capture the visible viewport as a webp image')
       })
 
       it('offers the hot update wait under page, derived from its declaration', async () => {
         await bootCli(cleanups)
-        const help = await helpFor(['tools', 'page', '--help'])
+        const help = await helpText(['tools', 'page', '--help'])
         expect(help).toMatch(/^\s+hmr\s/m)
         expect(help).toContain('after editing a file, wait for the hot update to land before reading the page')
       })
 
       it('offers the react verbs under react and leaves the page-only ones out', async () => {
         await bootCli(cleanups)
-        const help = await helpFor(['tools', 'react', '--help'])
+        const help = await helpText(['tools', 'react', '--help'])
         expect(help).toContain('inspect')
         expect(help).toContain('override')
         expect(help).not.toContain('sethtml')
@@ -856,6 +918,7 @@ describe('cli', () => {
     test('the CLI reads the tool declarations without loading the extension package index', () => {
       const external = runtimeClosure(cliEntry)
       expect([...external].filter((specifier) => specifier.startsWith('@conciv/extension')).toSorted()).toEqual([
+        '@conciv/extension-design/defs',
         '@conciv/extension-page/defs',
         '@conciv/extension/tool',
       ])

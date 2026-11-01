@@ -38,6 +38,8 @@ catalog:
   '@tanstack/ai-acp': 1.0.0
 
   '@ark-ui/solid': '^5.39.3'
+  '@blazediff/core': ^1.10.0
+  '@bramus/specificity': ^2.4.3
   '@clack/prompts': '^1.8.1'
   '@hono/node-server': '^2.1.5'
   '@oxlint/plugins': 1.90.0
@@ -70,7 +72,9 @@ catalog:
   '@tiptap/extension-paragraph': '^3.32.1'
   '@tiptap/extension-text': '^3.32.1'
   '@tiptap/pm': '^3.32.1'
+  '@types/culori': ^4.0.1
   '@types/node': '^26.6.6'
+  '@types/pngjs': ^6.0.5
   '@types/react': '^19.3.0'
   '@types/react-dom': '^19.3.0'
   '@types/ws': '^8.18.2'
@@ -85,6 +89,7 @@ catalog:
   bippy: 0.6.1
   citty: '^0.2.2'
   class-variance-authority: '^0.7.1'
+  culori: ^4.0.2
   drizzle-kit: '1.0.0-rc.5'
   drizzle-orm: '1.0.0-rc.5'
   es-toolkit: '^1.53.0'
@@ -104,7 +109,9 @@ catalog:
   oxfmt: 0.75.0
   oxlint: 1.90.0
   p-timeout: '^8.0.0'
+  pixelmatch: ^8.0.0
   playwright: '^1.64.1'
+  pngjs: ^7.0.0
   postcss: '^8.5.32'
   preact: '^11.1.0'
   publint: '^0.3.25'
