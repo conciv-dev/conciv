@@ -11,7 +11,6 @@ declare global {
 }
 
 const API_BASE_PROBE_NAME = 'api-base-probe'
-const MOUNT_PROBE_NAME = 'mount-probe'
 const CONNECT_GATE_PROBE_NAME = 'connect-gate-probe'
 
 function ApiBaseProbe(): JSX.Element {
@@ -28,25 +27,8 @@ function ApiBaseProbe(): JSX.Element {
 
 const apiBaseProbe = defineExtension({name: API_BASE_PROBE_NAME, Surface: ApiBaseProbe}).client(() => ({value: {}}))
 
-function mountBaseProbe(label: string): () => JSX.Element {
-  return () => {
-    const mountedBase = getExtensionApi(MOUNT_PROBE_NAME).useApiBase()()
-    return (
-      <output aria-label={label} style={{position: 'fixed', bottom: '0', right: '0', opacity: '0'}}>
-        {mountedBase}
-      </output>
-    )
-  }
-}
-
-const mountProbe = defineExtension({
-  name: MOUNT_PROBE_NAME,
-  Surface: mountBaseProbe('surface mount api base'),
-  views: [{id: MOUNT_PROBE_NAME, label: 'Mount probe', Component: mountBaseProbe('view mount api base')}],
-}).client(() => ({value: {}}))
-
 export function makeHandle(apiBase: string): ConcivHandle {
-  return createConciv({extensions: [terminal, apiBaseProbe, mountProbe], apiBase})
+  return createConciv({extensions: [terminal, apiBaseProbe], apiBase})
 }
 
 function ConnectPane(): JSX.Element {
@@ -78,8 +60,5 @@ export function makeConnectHandle(): ConcivHandle {
 
 declare module '@conciv/protocol/config-types' {
   interface ExtensionRegistry
-    extends
-      RegisterExtension<typeof apiBaseProbe>,
-      RegisterExtension<typeof mountProbe>,
-      RegisterExtension<typeof connectGateProbe> {}
+    extends RegisterExtension<typeof apiBaseProbe>, RegisterExtension<typeof connectGateProbe> {}
 }
