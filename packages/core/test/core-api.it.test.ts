@@ -1961,6 +1961,12 @@ return seen`
         ])
       })
 
+      it('a tool that returns nothing resolves to undefined and the program goes on', async () => {
+        expect(
+          await executeResult('const quiet = await external_fixture_quiet({}); return [typeof quiet, "after"]'),
+        ).toEqual(['undefined', 'after'])
+      })
+
       it('a program that never ends leaves the server answering, and stopping its turn ends the program', async () => {
         const sessionId = await newSession()
         codeTurn('await external_fixture_echo({text: "spinning"}); while (true) {}')
@@ -2215,7 +2221,7 @@ return seen`
   function fixtureExtension() {
     return defineExtension({
       name: 'fixture',
-      tools: [echoTool(), readTool(), askTool(), failTool(), hugeTool(), imageTool()],
+      tools: [echoTool(), readTool(), quietTool(), askTool(), failTool(), hugeTool(), imageTool()],
       attachments: fixtureAttachments(),
     }).server(() => ({context: {}, turnEnd: noteTurnEnd}))
   }
@@ -2243,6 +2249,16 @@ return seen`
       outputSchema: z.object({value: z.number()}),
       meta: {summary: 'read a fixture value', category: 'fixture', mutating: false},
     }).server(() => ({value: 7}))
+  }
+
+  function quietTool() {
+    return defineTool({
+      name: 'fixture_quiet',
+      description: 'Do nothing and return nothing.',
+      inputSchema: z.object({}),
+      outputSchema: z.unknown(),
+      meta: {summary: 'return nothing', category: 'fixture', mutating: false},
+    }).server(() => undefined)
   }
 
   function askTool() {

@@ -19,7 +19,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `image-tool-results.ts:imagesIn` / `withoutImages` / `imageBlocks` - find image parts, replace them with a stub, or convert them to MCP image blocks.
 - `child-cards.ts:childCardChunks` / `childCards` - turn `code_mode:external_call/result/error` custom events into TOOL_CALL_* chunks linked to the parent `execute_typescript` call.
 - `code-mode.ts:loadIsolateDriver` / `codeModeTools` / `secretRefusalOf` - pick an isolate driver, build code-mode tools, detect secret refusals.
-- `code-mode.ts:stoppedWith` - wraps a driver so aborting the signal disposes the running context; a turn passes its run signal, so stopping the turn stops its program.
+- `code-mode.ts:stoppedWith` - wraps a driver so aborting the signal disposes the running context; a turn passes its run signal, so stopping the turn stops its program; a failed dispose is logged.
 - `quickjs-thread.ts:quickJSThreadDriver` - an `IsolateDriver` that runs `createQuickJSIsolateDriver` in a `node:worker_threads` worker (entry `quickjs-worker.ts`, built as `dist/quickjs-worker.js`), one worker per context.
 - `run-guard.ts:guardedAdapter` - wraps `chatStream` with an end signal and a first-output timeout.
 
@@ -34,7 +34,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `code-mode.ts:refusingSecrets` - throws when a tool parameter was flagged as a secret; `codeModeTools` returns null when there are no `__toolSide === 'server'` tools.
 - `code-mode.ts:DRIVER_CANDIDATES` - tries isolate-node first (the optional `@tanstack/ai-isolate-node`, used when it loads and `probeIsolatedVm().compatible`), then QuickJS in a worker thread (256 MB memory, 2 MB stack); timeout 150000 ms.
 - `quickjs-thread.ts` - guest code never runs on the server thread, so a busy program cannot block HTTP, SSE or stop requests. Tool calls cross the worker port as `call` / `result` messages, every message is zod-parsed on both sides, and a tool error reaches the guest as an Error with the same message.
-- `quickjs-thread.ts:threadContext` - terminates the worker when the program outlives its timeout by 1 s (reported as `TimeoutError`, like the QuickJS driver), on dispose (`AbortError`), on an unreadable message, and a worker that errors or exits ends the execution with that error.
+- `quickjs-thread.ts:threadContext` - terminates the worker when the program outlives its timeout by 1 s (reported as `TimeoutError`, like the QuickJS driver), on dispose (`AbortError`), on an unreadable message, and a worker that errors or exits ends the execution with that error. Every worker error is also logged, so an error outside an execution never reaches the server thread as an unhandled `error` event.
 - `run-guard.ts:guarded` - the first-output timer fires `onSilence` unless a chunk other than RUN_STARTED/CUSTOM arrives first.
 - `delivery.ts:events` - returns 400 for an invalid body, and replays from offset `-1` when `seenRun(runId)` is true.
 - `chat-stores.ts:metadata.set` - throws a TypeError on a null or undefined value; `runs.createOrResume` throws if the row is missing after insert-or-ignore.

@@ -5,7 +5,7 @@ import {createQuickJSIsolateDriver} from '@tanstack/ai-isolate-quickjs'
 import type {ToolBinding} from '@tanstack/ai-code-mode'
 import {HostMessageSchema, WorkerSetupSchema, type WorkerMessage} from './quickjs-messages.js'
 
-const ResultValueSchema = z.object({value: z.unknown()})
+const ResultValueSchema = z.object({value: z.unknown().optional()})
 
 function bindingsOver(port: MessagePort, names: string[], pending: Map<string, PromiseWithResolvers<unknown>>) {
   return Object.fromEntries(

@@ -421,7 +421,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const coded =
       driver === null
         ? null
-        : codeModeTools(stoppedWith(driver, controller.signal), plan.codeMode, config.codeModeResult, debug)
+        : codeModeTools(stoppedWith(driver, controller.signal, config.log), plan.codeMode, config.codeModeResult, debug)
     const seconds = Math.round(config.firstOutputTimeoutMs / 1000)
     const view: RunMessages = {full: []}
     return chat({

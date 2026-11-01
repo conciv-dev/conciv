@@ -10,7 +10,9 @@ const QUICKJS_MEMORY_LIMIT_MB = 256
 
 const QUICKJS_MAX_STACK_BYTES = 2 * 1024 * 1024
 
-type DriverCandidate = {name: string; create: () => Promise<IsolateDriver | null>}
+type Log = (message: string) => void
+
+type DriverCandidate = {name: string; create: (log: Log) => Promise<IsolateDriver | null>}
 
 const DRIVER_CANDIDATES: readonly DriverCandidate[] = [
   {
@@ -23,18 +25,17 @@ const DRIVER_CANDIDATES: readonly DriverCandidate[] = [
   },
   {
     name: '@tanstack/ai-isolate-quickjs in a worker thread',
-    create: async () =>
-      quickJSThreadDriver({
-        timeout: CODE_MODE_TIMEOUT_MS,
-        memoryLimit: QUICKJS_MEMORY_LIMIT_MB,
-        maxStackSize: QUICKJS_MAX_STACK_BYTES,
-      }),
+    create: async (log) =>
+      quickJSThreadDriver(
+        {timeout: CODE_MODE_TIMEOUT_MS, memoryLimit: QUICKJS_MEMORY_LIMIT_MB, maxStackSize: QUICKJS_MAX_STACK_BYTES},
+        log,
+      ),
   },
 ]
 
-async function attempt(candidate: DriverCandidate, log: (message: string) => void): Promise<IsolateDriver | null> {
+async function attempt(candidate: DriverCandidate, log: Log): Promise<IsolateDriver | null> {
   try {
-    const driver = await candidate.create()
+    const driver = await candidate.create(log)
     if (driver === null) log(`[ai] the code mode driver ${candidate.name} is incompatible with this platform`)
     return driver
   } catch (error) {
@@ -43,7 +44,7 @@ async function attempt(candidate: DriverCandidate, log: (message: string) => voi
   }
 }
 
-export async function loadIsolateDriver(log: (message: string) => void): Promise<IsolateDriver | null> {
+export async function loadIsolateDriver(log: Log): Promise<IsolateDriver | null> {
   for (const candidate of DRIVER_CANDIDATES) {
     const driver = await attempt(candidate, log)
     if (driver !== null) return driver
@@ -52,11 +53,14 @@ export async function loadIsolateDriver(log: (message: string) => void): Promise
   return null
 }
 
-export function stoppedWith(driver: IsolateDriver, signal: AbortSignal): IsolateDriver {
+export function stoppedWith(driver: IsolateDriver, signal: AbortSignal, log: Log): IsolateDriver {
   return {
     createContext: async (config) => {
       const context = await driver.createContext(config)
-      const stop = () => void context.dispose().catch(() => undefined)
+      const stop = () =>
+        void context
+          .dispose()
+          .catch((error: unknown) => log(`[ai] stopping a code mode program failed: ${String(error)}`))
       signal.addEventListener('abort', stop, {once: true})
       if (signal.aborted) stop()
       return {

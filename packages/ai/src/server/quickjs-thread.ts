@@ -7,6 +7,8 @@ const HARD_STOP_GRACE_MS = 1000
 
 type QuickJSThreadLimits = {timeout: number; memoryLimit: number; maxStackSize: number}
 
+type Log = (message: string) => void
+
 function failure(name: string, message: string): ExecutionResult {
   return {success: false, error: {name, message}, logs: []}
 }
@@ -69,7 +71,7 @@ function nextMessage(worker: Worker, type: 'ready' | 'done', limitMs: number, si
   })
 }
 
-async function threadContext(config: IsolateConfig, limits: QuickJSThreadLimits): Promise<IsolateContext> {
+async function threadContext(config: IsolateConfig, limits: QuickJSThreadLimits, log: Log): Promise<IsolateContext> {
   const timeout = config.timeout ?? limits.timeout
   const setup: WorkerSetup = {
     names: Object.keys(config.bindings),
@@ -79,6 +81,7 @@ async function threadContext(config: IsolateConfig, limits: QuickJSThreadLimits)
   }
   const worker = new Worker(new URL('./quickjs-worker.js', import.meta.url), {workerData: setup})
   const disposed = new AbortController()
+  worker.on('error', (error: Error) => log(`[ai] the QuickJS worker failed: ${error.name}: ${error.message}`))
   serveCalls(worker, config)
   const ready = await nextMessage(worker, 'ready', timeout, disposed.signal)
   if (!ready.success) {
@@ -100,6 +103,6 @@ async function threadContext(config: IsolateConfig, limits: QuickJSThreadLimits)
   }
 }
 
-export function quickJSThreadDriver(limits: QuickJSThreadLimits): IsolateDriver {
-  return {createContext: (config) => threadContext(config, limits)}
+export function quickJSThreadDriver(limits: QuickJSThreadLimits, log: Log): IsolateDriver {
+  return {createContext: (config) => threadContext(config, limits, log)}
 }
