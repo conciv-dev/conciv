@@ -1,4 +1,4 @@
-import {createResource, createSignal, For, from, onCleanup, Show, untrack, type JSX} from 'solid-js'
+import {createMemo, createResource, createSignal, For, from, onCleanup, Show, untrack, type JSX} from 'solid-js'
 import type {SharedState} from 'devframe/utils/shared-state'
 import LayoutGrid from 'lucide-solid/icons/layout-grid'
 import type {DevframeDockEntry} from '@devframes/hub/types'
@@ -25,6 +25,20 @@ function mountDock(
   })
 }
 
+function DockFrame(props: {url: string; title: string}): JSX.Element {
+  const [loaded, setLoaded] = createSignal(false)
+  return (
+    <iframe
+      class="flex-1 min-h-0 border-0 transition-opacity duration-150"
+      classList={{'opacity-0': !loaded()}}
+      sandbox="allow-scripts allow-same-origin allow-forms"
+      src={props.url}
+      title={props.title}
+      onLoad={() => setLoaded(true)}
+    />
+  )
+}
+
 function DockSurface(props: {entry: DevframeDockEntry; apiBase: string; sessionId: string | null}): JSX.Element {
   const runtime = useDevframeRuntime()
   return (
@@ -37,14 +51,7 @@ function DockSurface(props: {entry: DevframeDockEntry; apiBase: string; sessionI
         />
       }
     >
-      {(entry) => (
-        <iframe
-          class="flex-1 min-h-0 border-0"
-          sandbox="allow-scripts allow-same-origin allow-forms"
-          src={new URL(entry().url, window.location.origin).href}
-          title={entry().title}
-        />
-      )}
+      {(entry) => <DockFrame url={new URL(entry().url, window.location.origin).href} title={entry().title} />}
     </Show>
   )
 }
@@ -70,6 +77,10 @@ function DockRail(props: {all: () => DevframeDockEntry[] | undefined}): JSX.Elem
   const [selected, setSelected] = createSignal<string | null>(null)
   const current = (): DevframeDockEntry | undefined =>
     entries().find((entry) => entry.id === (selected() ?? entries()[0]?.id))
+  const opened = createMemo<string[]>((previous) => {
+    const id = current()?.id
+    return id === undefined || previous.includes(id) ? previous : [...previous, id]
+  }, [])
   return (
     <div class="flex flex-1 min-h-0 flex-col">
       <div class="flex gap-1 p-2 border-b border-chat-line" role="tablist" aria-label="Devframe docks">
@@ -87,13 +98,15 @@ function DockRail(props: {all: () => DevframeDockEntry[] | undefined}): JSX.Elem
           )}
         </For>
       </div>
-      <Show when={current()?.id} keyed>
+      <For each={opened()}>
         {(id) => (
-          <Show when={untrack(() => entries().find((entry) => entry.id === id))}>
-            {(entry) => <DockSurface entry={untrack(entry)} apiBase={apiBase()} sessionId={sessionId()} />}
-          </Show>
+          <div class={current()?.id === id ? 'flex flex-1 min-h-0 flex-col' : 'hidden'}>
+            <Show when={untrack(() => entries().find((entry) => entry.id === id))}>
+              {(entry) => <DockSurface entry={untrack(entry)} apiBase={apiBase()} sessionId={sessionId()} />}
+            </Show>
+          </div>
         )}
-      </Show>
+      </For>
     </div>
   )
 }
