@@ -1,7 +1,7 @@
 # Design extension: text compared as text
 
 - **Author:** omridevk
-- **Status:** Draft (third revision, after two EGM review rounds)
+- **Status:** Shipped in pull request #683 (merged 2026-11-01). The loop around these tools is `docs/designs/design-driver.md`.
 - **Date:** 2026-11-01
 
 ---
