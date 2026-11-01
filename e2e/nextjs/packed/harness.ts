@@ -308,6 +308,7 @@ export async function setupFixture(options: SetupFixtureOptions = {}): Promise<F
     "  - 'packages/*'",
     ...releaseAgeYaml(),
     'allowBuilds:',
+    '  isolated-vm: false',
     '  sharp: false',
     '  protobufjs: false',
     'overrides:',

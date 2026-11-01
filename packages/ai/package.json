@@ -72,5 +72,8 @@
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "optionalDependencies": {
+    "@tanstack/ai-isolate-node": "catalog:"
   }
 }

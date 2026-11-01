@@ -27,6 +27,7 @@ catalog:
   '@tanstack/ai-client': 1.0.1
   '@tanstack/ai-persistence': 1.0.1
   '@tanstack/ai-code-mode': 1.0.1
+  '@tanstack/ai-isolate-node': 1.0.0
   '@tanstack/ai-isolate-quickjs': 1.0.0
   '@tanstack/ai-solid': 1.0.0
   '@tanstack/ai-sandbox': 1.0.0
@@ -202,6 +203,8 @@ allowBuilds:
   # Node-side ONNX runtime pulled in by @huggingface/transformers; the site demo runs
   # inference in the browser (onnxruntime-web), so the native binary is never used.
   onnxruntime-node: false
+  # Native isolate sandbox used by @tanstack/ai-isolate-node (core Code Mode): must compile.
+  isolated-vm: true
   # Replaced by @lydell/node-pty (prebuilds, no install script); upstream must stay blocked.
   node-pty: false
 

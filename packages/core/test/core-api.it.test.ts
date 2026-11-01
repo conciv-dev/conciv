@@ -1961,6 +1961,19 @@ return seen`
         ])
       })
 
+      it('a program that never ends leaves the server answering, and stopping its turn ends the program', async () => {
+        const sessionId = await newSession()
+        codeTurn('await external_fixture_echo({text: "spinning"}); while (true) {}')
+        const turn = await send(sessionId, 'spin', {runId: 'spin-run'})
+        await turn.waitFor((chunk) => isResultFor(chunk, 'spinning'), GUARD)
+        const asked = performance.now()
+        await chatKit().rpc.sessions.list(undefined)
+        expect(performance.now() - asked).toBeLessThan(1_000)
+        const ended = nextTurnEnd(sessionId)
+        await chatKit().rpc.chat.stop({sessionId, runIds: ['spin-run']})
+        await ended
+      })
+
       it('discover_tools shows a tool output shape and declared error codes, the catalog only its summary', async () => {
         const discover = await mcpTool('discover_tools')
         const found = JSON.stringify(await discover.execute({toolNames: ['fixture_fail']}))
