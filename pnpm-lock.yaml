@@ -87,9 +87,6 @@ catalogs:
     '@tanstack/ai-codex':
       specifier: 1.0.0
       version: 1.0.0
-    '@tanstack/ai-isolate-node':
-      specifier: 1.0.0
-      version: 1.0.0
     '@tanstack/ai-isolate-quickjs':
       specifier: 1.0.0
       version: 1.0.0
@@ -1768,10 +1765,6 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 5.0.5(patch_hash=7189da9e8689d861418382a9ed5eb375dff9411258170717551be5f672ece1cd)(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.0.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
-    optionalDependencies:
-      '@tanstack/ai-isolate-node':
-        specifier: 'catalog:'
-        version: 1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))
 
   packages/brand:
     dependencies:
@@ -10455,12 +10448,6 @@ packages:
   '@tanstack/ai-event-client@1.0.0':
     resolution: {integrity: sha512-RXlk6XkIYU4n25QYoCmETKiFjPnEpwvQv5Ve62pdtHaEVP//VZUdwGSRGCf/PATgwYdib8FT49tPmqnKtXPDhw==}
 
-  '@tanstack/ai-isolate-node@1.0.0':
-    resolution: {integrity: sha512-Ut2VcoQLUzkhTbNkNFs+gpKweASQpCE0IFCuQ9wBg0ZZxua7QD1vubHqN8rFesRVYe66lzZ1FshFzOUxue8bEQ==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      '@tanstack/ai-code-mode': ^1.0.0
-
   '@tanstack/ai-isolate-quickjs@1.0.0':
     resolution: {integrity: sha512-/62KNZYPYlvCIWwpNlRkuh2CxYr8EWuUcB30GQi9BRUV2bM6ooD1HnHwZ4aefKXee7WIjFN+l98UktycXyQ7Ug==}
     peerDependencies:
@@ -14904,10 +14891,6 @@ packages:
   isexe@3.1.5:
     resolution: {integrity: sha512-6B3tLtFqtQS4ekarvLVMZ+X+VlvQekbe4taUkf/rhVO3d/h0M2rfARm/pXLcPEsjjMsFgrFgSrhQIxcSVrBz8w==}
     engines: {node: '>=18'}
-
-  isolated-vm@6.1.2:
-    resolution: {integrity: sha512-GGfsHqtlZiiurZaxB/3kY7LLAXR3sgzDul0fom4cSyBjx6ZbjpTrFWiH3z/nUfLJGJ8PIq9LQmQFiAxu24+I7A==}
-    engines: {node: '>=22.0.0'}
 
   iterator.prototype@1.1.5:
     resolution: {integrity: sha512-H0dkQoCa3b2VEeKQBOxFph+JAbcrQdE7KC0UkqwpLmv2EC4P41QXP+rqo9wYodACiG5/WM5s9oDApTU8utwj9g==}
@@ -23116,12 +23099,6 @@ snapshots:
     dependencies:
       '@tanstack/devtools-event-client': 0.4.4
 
-  '@tanstack/ai-isolate-node@1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))':
-    dependencies:
-      '@tanstack/ai-code-mode': 1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
-      isolated-vm: 6.1.2
-    optional: true
-
   '@tanstack/ai-isolate-quickjs@1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))':
     dependencies:
       '@tanstack/ai-code-mode': 1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
@@ -28343,11 +28320,6 @@ snapshots:
   isexe@2.0.0: {}
 
   isexe@3.1.5: {}
-
-  isolated-vm@6.1.2:
-    dependencies:
-      node-gyp-build: 4.8.4
-    optional: true
 
   iterator.prototype@1.1.5:
     dependencies:

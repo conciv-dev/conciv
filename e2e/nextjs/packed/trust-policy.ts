@@ -30,7 +30,6 @@ export async function runTrustPolicyInstall(): Promise<TrustPolicyInstallResult>
       'trustPolicyExclude:',
       ...UPSTREAM_BLOCKED_TRUST_EXCLUDES.map((name) => `  - ${JSON.stringify(name)}`),
       'allowBuilds:',
-      '  isolated-vm: true',
       '  protobufjs: false',
       'overrides:',
       ...Object.entries(overrides).map(([name, value]) => `  ${JSON.stringify(name)}: ${JSON.stringify(value)}`),

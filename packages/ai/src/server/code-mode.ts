@@ -9,48 +9,18 @@ const QUICKJS_MEMORY_LIMIT_MB = 256
 
 const QUICKJS_MAX_STACK_BYTES = 2 * 1024 * 1024
 
-type DriverCandidate = {name: string; create: () => Promise<IsolateDriver | null>}
-
-const DRIVER_CANDIDATES: readonly DriverCandidate[] = [
-  {
-    name: '@tanstack/ai-isolate-node',
-    create: async () => {
-      const loaded = await import('@tanstack/ai-isolate-node')
-      if (!loaded.probeIsolatedVm().compatible) return null
-      return loaded.createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
-    },
-  },
-  {
-    name: '@tanstack/ai-isolate-quickjs',
-    create: async () => {
-      const loaded = await import('@tanstack/ai-isolate-quickjs')
-      return loaded.createQuickJSIsolateDriver({
-        timeout: CODE_MODE_TIMEOUT_MS,
-        memoryLimit: QUICKJS_MEMORY_LIMIT_MB,
-        maxStackSize: QUICKJS_MAX_STACK_BYTES,
-      })
-    },
-  },
-]
-
-async function attempt(candidate: DriverCandidate, log: (message: string) => void): Promise<IsolateDriver | null> {
+export async function loadIsolateDriver(log: (message: string) => void): Promise<IsolateDriver | null> {
   try {
-    const driver = await candidate.create()
-    if (driver === null) log(`[ai] the code mode driver ${candidate.name} is incompatible with this platform`)
-    return driver
+    const loaded = await import('@tanstack/ai-isolate-quickjs')
+    return loaded.createQuickJSIsolateDriver({
+      timeout: CODE_MODE_TIMEOUT_MS,
+      memoryLimit: QUICKJS_MEMORY_LIMIT_MB,
+      maxStackSize: QUICKJS_MAX_STACK_BYTES,
+    })
   } catch (error) {
-    log(`[ai] the code mode driver ${candidate.name} failed to load: ${String(error)}`)
+    log(`[ai] the code mode driver @tanstack/ai-isolate-quickjs failed to load: ${String(error)}`)
     return null
   }
-}
-
-export async function loadIsolateDriver(log: (message: string) => void): Promise<IsolateDriver | null> {
-  for (const candidate of DRIVER_CANDIDATES) {
-    const driver = await attempt(candidate, log)
-    if (driver !== null) return driver
-  }
-  log('[ai] code mode found no usable isolate driver')
-  return null
 }
 
 function isServerTool(tool: ChatTool): tool is CodeModeTool {

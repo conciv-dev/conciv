@@ -1946,6 +1946,21 @@ describe('rpc wire', () => {
         ).toContain('fixture_echo')
       })
 
+      it('a program awaiting tools one after another and in a loop gets every result back in order', async () => {
+        const sequential = Array.from(
+          {length: 20},
+          (_, index) => `seen.push((await external_fixture_echo({text: 's${index}'})).echoed)`,
+        ).join('\n')
+        const program = `const seen = []
+${sequential}
+for (let index = 0; index < 30; index++) seen.push((await external_fixture_echo({text: 'l' + index})).echoed)
+return seen`
+        expect(await executeResult(program)).toEqual([
+          ...Array.from({length: 20}, (_, index) => `s${index}`),
+          ...Array.from({length: 30}, (_, index) => `l${index}`),
+        ])
+      })
+
       it('discover_tools shows a tool output shape and declared error codes, the catalog only its summary', async () => {
         const discover = await mcpTool('discover_tools')
         const found = JSON.stringify(await discover.execute({toolNames: ['fixture_fail']}))
