@@ -8,6 +8,9 @@ import {initHub, type HubInstance} from '@devframes/hub/initiate'
 import type {DevframeHubContext} from '@devframes/hub/types'
 import {createTerminalsDevframe} from '@devframes/plugin-terminals'
 import {createMessagesDevframe} from '@devframes/plugin-messages'
+import {createGitDevframe} from '@devframes/plugin-git'
+import {createA11yDevframe} from '@devframes/plugin-a11y'
+import {createInspectDevframe} from '@devframes/plugin-inspect'
 import {createJsonRenderView} from '@devframes/json-render/node'
 import {z} from 'zod'
 import {eq} from 'drizzle-orm'
@@ -177,6 +180,9 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
         presets: [{id: 'echo', title: 'Echo', command: '/bin/echo', args: ['hello-from-pty'], mode: 'readonly'}],
       }),
       createMessagesDevframe(),
+      createGitDevframe(),
+      createA11yDevframe(),
+      createInspectDevframe(),
       ...opts.plugins,
     ],
     auth: opts.auth,

@@ -81,6 +81,8 @@
     "@devframes/hub": "1.2.6",
     "@devframes/json-render": "1.2.6",
     "@devframes/plugin-a11y": "1.2.6",
+    "@devframes/plugin-git": "1.2.6",
+    "@devframes/plugin-inspect": "1.2.6",
     "@devframes/plugin-messages": "1.2.6",
     "@devframes/plugin-terminals": "1.2.6",
     "@devframes/service-git": "1.2.6",

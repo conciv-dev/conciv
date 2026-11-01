@@ -1,6 +1,7 @@
 import {createContext, createResource, createSignal, from, Show, useContext, type JSX} from 'solid-js'
 import {createDevframeClientRuntime, type DevframeClientRuntime} from '@devframes/hub/client'
 import {terminalDockRenderer} from '@conciv/extension-terminal/dock'
+import {DevframeOverlays} from './devframe-overlays.js'
 import {getDevframeRpcClient, type DevframeRpcClient} from 'devframe/client'
 import type {QueryClient} from '@tanstack/solid-query'
 import {Button} from '@conciv/ui-kit-system'
@@ -28,7 +29,7 @@ function startRuntime(client: DevframeRpcClient): Promise<DevframeClientRuntime>
   return createDevframeClientRuntime({
     rpc: client,
     clientType: 'embedded',
-    loadClientScripts: false,
+    loadClientScripts: true,
     renderers: {'conciv-terminal': terminalDockRenderer},
   })
 }
@@ -124,6 +125,7 @@ function Gate(props: {
   return (
     <DevframeRuntimeContext.Provider value={() => runtime()}>
       {props.children}
+      <Show when={runtime()}>{(ready) => <DevframeOverlays runtime={ready()} />}</Show>
       <Show when={props.unauthorized()}>
         <AuthorizeCard client={props.client} />
       </Show>

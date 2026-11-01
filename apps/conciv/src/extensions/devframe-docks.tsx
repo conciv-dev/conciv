@@ -70,6 +70,7 @@ function liveEntries(state: SharedState<DevframeDockEntry[]>): () => DevframeDoc
 }
 
 function DockRail(props: {all: () => DevframeDockEntry[] | undefined}): JSX.Element {
+  const runtime = useDevframeRuntime()
   const host = getHostApi()
   const apiBase = host.useApiBase()
   const sessionId = host.useSessionId()
@@ -91,7 +92,10 @@ function DockRail(props: {all: () => DevframeDockEntry[] | undefined}): JSX.Elem
               role="tab"
               aria-selected={current()?.id === entry.id}
               class="px-2 py-1 text-xs rounded-chat-surface-sm aria-selected:bg-chat-fill text-chat-text-2"
-              onClick={() => setSelected(entry.id)}
+              onClick={() => {
+                setSelected(entry.id)
+                void runtime()?.context.docks.switchEntry(entry.id)
+              }}
             >
               {entry.title}
             </button>
