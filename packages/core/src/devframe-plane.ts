@@ -126,7 +126,9 @@ declare module 'devframe/types' {
 
 export type DevframePlaneOpts = {chat: ChatContext; stateDir: string; auth: boolean; mcpToken: string; cwd: string}
 
-export function makeDevframePlane(opts: DevframePlaneOpts): HubInstance {
+export type DevframePlane = {hub: HubInstance; sessionsChanged: () => void}
+
+export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
   const contextRef: {current: DevframeHubContext | null} = {current: null}
   const requireContext = (): DevframeHubContext => {
     if (!contextRef.current) throw new Error('conciv hub is not configured yet')
@@ -158,7 +160,7 @@ export function makeDevframePlane(opts: DevframePlaneOpts): HubInstance {
       serverFunctionsFor(deps, requireContext).forEach((fn) => ctx.rpc.register(fn))
     },
   })
-  return initHub({
+  const hub = initHub({
     base: '/__conciv/',
     devframes: [
       definition,
@@ -195,4 +197,10 @@ export function makeDevframePlane(opts: DevframePlaneOpts): HubInstance {
       })
     },
   })
+  return {
+    hub,
+    sessionsChanged: () => {
+      if (contextRef.current) void deps.refresh()
+    },
+  }
 }

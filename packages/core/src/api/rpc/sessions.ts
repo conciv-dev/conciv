@@ -67,18 +67,21 @@ export function sessionsRouter(deps: RpcDeps) {
         deletedAt: null,
       })
       await db.insert(markers).values({id: randomUUID(), sessionId, afterTurn: 0, kind: 'new'})
+      deps.sessionsChanged()
       return {sessionId}
     }),
     resolve: os.sessions.resolve.handler(({input}) => resolveRow(scope, input)),
     open: os.sessions.open.handler(({input}) => openNativeRow(scope, input)),
     restore: os.sessions.restore.handler(async ({input}) => {
       await restoreRow(db, input.sessionId)
+      deps.sessionsChanged()
       return {sessionId: input.sessionId}
     }),
     rename: os.sessions.rename.handler(async ({input, errors}) => {
       if (!(await rowById(db, input.sessionId))) throw errors.NOT_FOUND()
       const title = cleanTitle(input.title)
       await db.update(sessions).set({title, updatedAt: Date.now()}).where(eq(sessions.id, input.sessionId))
+      deps.sessionsChanged()
       return {title}
     }),
     delete: os.sessions.delete.handler(async ({input}) => {
@@ -87,6 +90,7 @@ export function sessionsRouter(deps: RpcDeps) {
       await chat.plane.clear(input.sessionId)
       await deleteSessionCaptures(db, input.sessionId)
       await clearPageChanges(db, input.sessionId)
+      deps.sessionsChanged()
       return {ok: true as const}
     }),
     model: os.sessions.model.handler(async ({input, errors}) => {
@@ -95,6 +99,7 @@ export function sessionsRouter(deps: RpcDeps) {
       const found = models.find((model) => model.id === input.model && !model.disabled)
       if (!found) throw errors.UNKNOWN_MODEL()
       await db.update(sessions).set({model: input.model, updatedAt: Date.now()}).where(eq(sessions.id, input.sessionId))
+      deps.sessionsChanged()
       return {model: input.model}
     }),
     compact: os.sessions.compact.handler(async ({input}) => {

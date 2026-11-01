@@ -29,6 +29,7 @@ export type RpcDeps = {
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>
   staleness: () => EngineStaleness
+  sessionsChanged: () => void
 }
 
 export const os = implement(contract).$context<RpcContext>()

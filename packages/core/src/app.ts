@@ -483,6 +483,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
 
+  const sessionsNotifier = {notify: (): void => {}}
   const rpc = makeRpcRouter({
     chat: chatDeps,
     tools: toolList,
@@ -490,6 +491,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
+    sessionsChanged: () => sessionsNotifier.notify(),
   })
 
   const compositeRpc = makeCompositeRpcRouter(
@@ -521,13 +523,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
   )
 
-  const devframe = makeDevframePlane({
+  const devframePlane = makeDevframePlane({
     chat: chatDeps,
     stateDir: concivStateDir(opts.cfg.stateRoot),
     auth: opts.devframeAuth ?? true,
     mcpToken: opts.mcpToken ?? randomUUID(),
     cwd: opts.cwd,
   })
+  const devframe = devframePlane.hub
+  sessionsNotifier.notify = devframePlane.sessionsChanged
   app.all(`${devframe.base}*`, (c) => devframe.handler(c.req.raw))
 
   if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))

@@ -232,10 +232,17 @@ function announceToDevTools(context: DevToolsContext, booted: Engine, root: stri
     title: 'conciv: list sessions',
     agent: {description: 'List the conciv chat sessions of this project.'},
     handler: async () => {
-      const response = await booted.devframe.handler(
-        new Request(`http://127.0.0.1:${booted.port}/__conciv/__index.json`),
-      )
-      return response.json()
+      const hub = await booted.devframe.context
+      const sessions = await hub.rpc.invokeLocal('conciv:sessions:list')
+      const titles = sessions.map((session) => session.title ?? 'Untitled')
+      await context.messages.add({
+        message: `${sessions.length} conciv session${sessions.length === 1 ? '' : 's'}`,
+        description: titles.join('\n') || 'No sessions yet',
+        level: 'info',
+        notify: true,
+        category: 'conciv',
+      })
+      return sessions
     },
   })
   void context.terminals.startPtySession(
@@ -347,5 +354,11 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       if (devtoolsContext) announceToDevTools(devtoolsContext, booted, root)
       server.httpServer?.on('close', () => void booted.stop())
     },
+  }
+}
+
+declare module 'devframe' {
+  interface DevframeRpcServerFunctions {
+    'conciv:sessions:list': () => Promise<{title: string | null}[]>
   }
 }

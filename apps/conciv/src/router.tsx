@@ -13,6 +13,7 @@ import type {ConcivSettings} from './data/settings.js'
 import type {ExtensionInstance} from './extension/extension-slots.js'
 import {createInstances} from './extension/create-instances.js'
 import highlight from './extensions/highlight.js'
+import {DevframeLink} from './app/devframe-link.js'
 import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
 
@@ -103,7 +104,12 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
     onCleanup(disposeInstances)
     const harness = createHarnessMeta(data, connected, queryClient)
-    return <HarnessMetaContext.Provider value={harness}>{props.children}</HarnessMetaContext.Provider>
+    return (
+      <HarnessMetaContext.Provider value={harness}>
+        {props.children}
+        <DevframeLink apiBase={apiBase} queryClient={queryClient} data={data} />
+      </HarnessMetaContext.Provider>
+    )
   }
   return createRouter({
     routeTree,
