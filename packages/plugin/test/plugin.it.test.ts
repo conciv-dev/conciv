@@ -1,4 +1,4 @@
-import {execFileSync} from 'node:child_process'
+import {execFileSync, spawn, type ChildProcess} from 'node:child_process'
 import {cp, mkdtemp, realpath, writeFile} from 'node:fs/promises'
 import {
   existsSync,
@@ -15,6 +15,7 @@ import {
 import {createServer as createHttpServer, type Server, type ServerResponse} from 'node:http'
 import {createServer as createNetServer} from 'node:net'
 import {tmpdir} from 'node:os'
+import {stripVTControlCharacters} from 'node:util'
 import {dirname, isAbsolute, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it} from 'vitest'
@@ -22,7 +23,7 @@ import getPort from 'get-port'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
 import {DevTools} from '@vitejs/devtools'
-import {createLogger, createServer, type Plugin, type ViteDevServer} from 'vite'
+import {build, createLogger, createServer, type Plugin, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
 import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
 import ios from '@conciv/extension-ios'
@@ -1577,3 +1578,185 @@ describe('extension load isolation', () => {
     await page.close()
   }, 60_000)
 })
+
+describe('nextjs devframe hub on the page origin', () => {
+  const NEXT_PORT = 3401
+  const ENGINE_PORT = 3402
+  const PAGE = `http://127.0.0.1:${NEXT_PORT}`
+  const EXAMPLE = fileURLToPath(new URL('../../../apps/examples/nextjs-app/', import.meta.url))
+  const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))
+  const PLUGIN_FRAME = '/__conciv/devframes_plugin_terminals/'
+  const PROBE_ID = 'conciv-probe-entry'
+
+  let next: ChildProcess
+  let output = ''
+  let browser: Browser
+  let probeScript = ''
+
+  async function bundleProbe(): Promise<string> {
+    const built = await build({
+      root: PACKAGE_ROOT,
+      configFile: false,
+      logLevel: 'silent',
+      plugins: [
+        {
+          name: 'conciv-probe',
+          resolveId: (id) => (id.endsWith(PROBE_ID) ? PROBE_ID : null),
+          load: (id) =>
+            id === PROBE_ID
+              ? "import {getDevframeRpcClient} from 'devframe/client'\nObject.assign(window, {getDevframeRpcClient})"
+              : null,
+        },
+      ],
+      build: {
+        write: false,
+        minify: false,
+        lib: {entry: PROBE_ID, formats: ['es'], fileName: 'probe'},
+        rollupOptions: {output: {inlineDynamicImports: true}},
+      },
+    })
+    const outputs = Array.isArray(built) ? built : [built]
+    const chunk = outputs
+      .flatMap((result) => ('output' in result ? result.output : []))
+      .find((item) => item.type === 'chunk')
+    return chunk && 'code' in chunk ? chunk.code : ''
+  }
+
+  function authCode(): Promise<string> {
+    const readCode = (): string | undefined => stripVTControlCharacters(output).match(/auth code\s+(\d{6})/)?.[1]
+    return new Promise((resolve) => {
+      const found = readCode()
+      if (found) return resolve(found)
+      const onData = (): void => {
+        const code = readCode()
+        if (!code) return
+        next.stdout?.off('data', onData)
+        resolve(code)
+      }
+      next.stdout?.on('data', onData)
+    })
+  }
+
+  async function probeTab(newTab: () => Promise<Page>, body: string): Promise<Page> {
+    const tab = await newTab()
+    await tab.route(`${PAGE}/conciv-probe.js`, (route) =>
+      route.fulfill({contentType: 'text/javascript', body: probeScript}),
+    )
+    await tab.route(`${PAGE}/conciv-probe`, (route) =>
+      route.fulfill({
+        contentType: 'text/html; charset=utf-8',
+        body: `<!doctype html><title>probe</title>${body}<script type="module" src="/conciv-probe.js"></script>`,
+      }),
+    )
+    await tab.goto(`${PAGE}/conciv-probe`, {waitUntil: 'domcontentloaded'})
+    await tab.waitForFunction(() => 'getDevframeRpcClient' in window)
+    return tab
+  }
+
+  async function frameCall(
+    tab: Page,
+  ): Promise<{src: string | null; href: string; trusted: boolean; sessions: boolean}> {
+    const frameElement = await tab.waitForSelector('iframe')
+    const src = await frameElement.getAttribute('src')
+    const frame = await frameElement.contentFrame()
+    if (!frame) throw new Error('plugin iframe has no frame')
+    await frame.waitForLoadState('domcontentloaded')
+    await frame.addScriptTag({url: '/conciv-probe.js', type: 'module'})
+    await frame.waitForFunction(() => 'getDevframeRpcClient' in window)
+    return frame
+      .evaluate(async () => {
+        const client = await window.getDevframeRpcClient({baseURL: './'})
+        const trusted = await client.ensureTrusted(3_000).catch(() => false)
+        const sessions = trusted ? await client.call('conciv:sessions:list') : null
+        return {href: location.href, trusted, sessions: Array.isArray(sessions)}
+      })
+      .then((outcome) => ({src, ...outcome}))
+  }
+
+  beforeAll(async () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-next-hub-'))
+    probeScript = await bundleProbe()
+    next = spawn(
+      join(EXAMPLE, 'node_modules/.bin/next'),
+      ['dev', '--webpack', '--port', String(NEXT_PORT), '--hostname', '127.0.0.1'],
+      {
+        cwd: EXAMPLE,
+        detached: true,
+        env: {
+          ...process.env,
+          NEXT_TELEMETRY_DISABLED: '1',
+          NEXT_PUBLIC_CONCIV_PORT: String(ENGINE_PORT),
+          CONCIV_OPTIONS: JSON.stringify({port: ENGINE_PORT, stateRoot}),
+        },
+      },
+    )
+    next.stdout?.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    next.stderr?.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    await new Promise<void>((resolve) => {
+      const onData = (): void => {
+        if (!output.includes('Ready in')) return
+        next.stdout?.off('data', onData)
+        resolve()
+      }
+      next.stdout?.on('data', onData)
+    })
+    const home = await fetch(`${PAGE}/`)
+    expect(home.status).toBe(200)
+    browser = await chromium.launch({headless: true, args: ['--disable-features=LocalNetworkAccessChecks']})
+  }, 120_000)
+
+  afterAll(async () => {
+    await browser?.close()
+    if (next?.pid) process.kill(-next.pid, 'SIGTERM')
+  })
+
+  it('forwards the hub meta, plugin pages and their assets on the next port, keeping the trailing slash', async () => {
+    const meta = await fetch(`${PAGE}/__conciv/__connection.json`)
+    expect(meta.status).toBe(200)
+    expect(await meta.json()).toMatchObject({backend: 'websocket', websocket: {path: '/__conciv/__ws'}})
+    const pluginPage = await fetch(`${PAGE}${PLUGIN_FRAME}`, {redirect: 'manual'})
+    expect(pluginPage.status).toBe(200)
+    const asset = (await pluginPage.text()).match(/src="\.\/([^"]+\.js)"/)?.[1]
+    expect(asset).toBeDefined()
+    expect((await fetch(`${PAGE}${PLUGIN_FRAME}${asset}`)).status).toBe(200)
+    const userRoute = await fetch(`${PAGE}/about/`, {redirect: 'manual'})
+    expect(userRoute.status).toBe(308)
+    expect(userRoute.headers.get('location')).toBe('/about')
+  })
+
+  it('logs in over the page-origin websocket, then a same-origin plugin iframe with a bare url is trusted from the stored login', async () => {
+    const context = await browser.newContext()
+    const tab = await probeTab(() => context.newPage(), '')
+    const sockets: string[] = []
+    tab.on('websocket', (socket) => sockets.push(socket.url()))
+    await tab.evaluate(async () => {
+      const client = await window.getDevframeRpcClient({baseURL: '/__conciv/', simpleAuth: false})
+      Object.assign(window, {client})
+      await client.requestAuthCode()
+    })
+    const code = await authCode()
+    expect(await tab.evaluate((otp) => window.client.requestTrustWithCode(otp), code)).toBe(true)
+    const framed = await probeTab(() => context.newPage(), `<iframe src="${PLUGIN_FRAME}" title="plugin"></iframe>`)
+    framed.on('websocket', (socket) => sockets.push(socket.url()))
+    const outcome = await frameCall(framed)
+    expect(outcome).toMatchObject({src: PLUGIN_FRAME, trusted: true, sessions: true})
+    expect(outcome.href.startsWith(`${PAGE}${PLUGIN_FRAME}`)).toBe(true)
+    expect(outcome.href).not.toMatch(/devframe_auth_token|devframe_otp|devframe_remote/)
+    expect(sockets.length).toBeGreaterThan(0)
+    expect(sockets.every((url) => url.startsWith(`ws://127.0.0.1:${NEXT_PORT}/__conciv/__ws`))).toBe(true)
+    const stranger = await probeTab(() => browser.newPage(), `<iframe src="${PLUGIN_FRAME}" title="plugin"></iframe>`)
+    expect(await frameCall(stranger)).toMatchObject({src: PLUGIN_FRAME, trusted: false, sessions: false})
+    await context.close()
+  })
+})
+
+declare global {
+  interface Window {
+    getDevframeRpcClient: typeof import('devframe/client').getDevframeRpcClient
+    client: import('devframe/client').DevframeRpcClient
+  }
+}

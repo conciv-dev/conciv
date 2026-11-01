@@ -11,22 +11,63 @@ const ENTRY_RELATIVE = './.conciv/extensions-client.gen.tsx'
 
 type TurbopackConfig = {resolveAlias?: Record<string, unknown>; [key: string]: unknown}
 type WebpackEntry = () => Promise<Record<string, unknown>>
-type WebpackConfig = {entry?: WebpackEntry; resolve?: {alias?: Record<string, string | false>}}
+type WebpackConfig = {entry?: WebpackEntry; resolve?: {alias?: Record<string, string | false>}; externals?: unknown}
 type WebpackContext = {nextRuntime?: string; dev?: boolean; dir?: string; config?: {pageExtensions?: string[]}}
 type WebpackHook = (config: WebpackConfig, context: WebpackContext) => WebpackConfig
+
+type Route = {source: string; destination: string}
+type RedirectRoute = Route & {permanent: boolean}
+type RewriteTable = {beforeFiles?: Route[]; afterFiles?: Route[]; fallback?: Route[]}
 
 type ConfigWithEnv = {
   env?: Record<string, string | undefined>
   serverExternalPackages?: string[]
   turbopack?: TurbopackConfig
   webpack?: WebpackHook
+  rewrites?: () => Promise<Route[] | RewriteTable>
+  redirects?: () => Promise<RedirectRoute[]>
+  skipTrailingSlashRedirect?: boolean
 }
 
-type WithConcivResult<T> = Omit<T, 'env' | 'serverExternalPackages' | 'turbopack' | 'webpack'> & {
+type WithConcivResult<T> = Omit<
+  T,
+  'env' | 'serverExternalPackages' | 'turbopack' | 'webpack' | 'rewrites' | 'redirects' | 'skipTrailingSlashRedirect'
+> & {
   env: Record<string, string | undefined>
   serverExternalPackages: string[]
   turbopack?: TurbopackConfig
   webpack?: WebpackHook
+  rewrites?: () => Promise<RewriteTable>
+  redirects?: () => Promise<RedirectRoute[]>
+  skipTrailingSlashRedirect?: boolean
+}
+
+const HUB_BASE = '/__conciv'
+const TRAILING_SLASH_REDIRECT: RedirectRoute = {
+  source: '/:path((?!__conciv/).+)/',
+  destination: '/:path',
+  permanent: true,
+}
+
+function forwardHub(
+  base: ConfigWithEnv,
+  port: string,
+): Pick<ConfigWithEnv, 'rewrites' | 'redirects' | 'skipTrailingSlashRedirect'> {
+  const hub: Route = {source: `${HUB_BASE}/:path*`, destination: `http://127.0.0.1:${port}${HUB_BASE}/:path*`}
+  const userRedirects = base.redirects
+  const userRewrites = base.rewrites
+  return {
+    skipTrailingSlashRedirect: true,
+    redirects: async () => [
+      ...(base.skipTrailingSlashRedirect ? [] : [TRAILING_SLASH_REDIRECT]),
+      ...((await userRedirects?.()) ?? []),
+    ],
+    rewrites: async () => {
+      const user = (await userRewrites?.()) ?? []
+      if (Array.isArray(user)) return {beforeFiles: [hub], afterFiles: user}
+      return {...user, beforeFiles: [hub, ...(user.beforeFiles ?? [])]}
+    },
+  }
 }
 
 const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/plugin', '@conciv/core', '@conciv/db', '@conciv/harness']
@@ -65,6 +106,7 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   for (const [key, value] of Object.entries(concivEnv)) {
     if (process.env[key] === undefined) process.env[key] = value
   }
+  const effectivePort = process.env.NEXT_PUBLIC_CONCIV_PORT ?? concivEnv.NEXT_PUBLIC_CONCIV_PORT
   const generated = writeExtensionsEntry(process.cwd())
   const baseTurbopack = base.turbopack ?? {}
   const turbopack: TurbopackConfig = {
@@ -79,14 +121,20 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
     resolveConfig.alias = alias
     config.resolve = resolveConfig
     compileInstrumentationFirst(config, context)
+    if (context.nextRuntime === 'nodejs')
+      config.externals = [
+        ...(Array.isArray(config.externals) ? config.externals : []),
+        Object.fromEntries(EDGE_REGISTER_ENTRIES.map((entry) => [entry, `module ${entry}`])),
+      ]
     return userWebpack ? userWebpack(config, context) : config
   }
   return {
     ...nextConfig,
-    env: {...baseEnv, ...concivEnv},
+    env: {...baseEnv, ...concivEnv, NEXT_PUBLIC_CONCIV_PORT: effectivePort},
     serverExternalPackages,
     turbopack,
     webpack,
+    ...forwardHub(base, effectivePort),
   }
 }
 
