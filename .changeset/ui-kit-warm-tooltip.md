@@ -1,5 +1,5 @@
 ---
-'@conciv/ui-kit-system': minor
+'@conciv/ui-kit-system': patch
 '@conciv/ui-kit-chat': patch
 '@conciv/extension-terminal': patch
 '@conciv/extension-whiteboard': patch
