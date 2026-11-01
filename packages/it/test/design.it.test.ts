@@ -776,7 +776,25 @@ describe('text', () => {
     const report = await call('design_diff', {})
     expect(report.components.filter((c) => fromToolbar(c) && aboveTolerance(c))).toEqual([])
     expect(report.components.flatMap((c) => c.deltas.map((d) => d.kind))).not.toContain('foreground')
-    expect(report.components.flatMap((c) => c.deltas.map((d) => String(d.kind)))).not.toContain('text')
+    expect(report.components.flatMap((c) => c.deltas.map((d) => d.kind))).not.toContain('text')
     expect((await call('design_status', {route: '/'})).done).toBe(true)
+  })
+
+  it('a changed label is a text delta on the button that paints it', async () => {
+    await goto('text-changed')
+    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    const [first] = await toolbarButtons()
+    const report = await call('design_diff', {})
+    const texts = report.components.flatMap((c) =>
+      c.deltas.filter((d) => d.kind === 'text').map((delta) => ({component: c, delta})),
+    )
+    expect(texts).toHaveLength(1)
+    expect(texts[0]?.component.source).toEqual(first?.source)
+    expect(texts[0]?.delta).toMatchObject({
+      live: 'Download',
+      target: 'Export',
+      via: 'source',
+      file: 'src/Toolbar.tsx',
+    })
   })
 })

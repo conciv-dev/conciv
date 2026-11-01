@@ -151,7 +151,7 @@ export type Winner = {
   rulePath: string
 }
 export type Provenance = {
-  via: 'sx' | 'style' | 'className' | 'css' | 'emotion' | 'styled' | 'library' | 'unknown'
+  via: 'sx' | 'style' | 'className' | 'css' | 'emotion' | 'styled' | 'library' | 'source' | 'unknown'
   file?: string
   line?: number
   column?: number

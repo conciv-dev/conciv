@@ -10,6 +10,7 @@ function where(delta: Delta): string {
 }
 
 function sentence(delta: Delta): string {
+  if (delta.kind === 'text') return `change the text from ${delta.live} to ${delta.target} at ${where(delta)}`
   const change = `${delta.kind} is ${delta.live} where the design has ${delta.target}`
   const declared = delta.declaration === undefined ? '' : `, declared as \`${delta.declaration}\``
   const suggestion = delta.suggest === undefined ? '' : `; ${delta.suggest}`

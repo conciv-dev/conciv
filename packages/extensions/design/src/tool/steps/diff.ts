@@ -29,7 +29,7 @@ import {expand} from '../../server/matchers/tile.js'
 import {DELTA_PROPERTIES, PARENT_PROPERTIES} from '../../server/provenance/delta-properties.js'
 import {mapDeclaration} from '../../server/provenance/mappers.js'
 import {paintOver} from '../../server/raster.js'
-import {groupText} from '../../server/text-groups.js'
+import {groupText, textDiffers} from '../../server/text-groups.js'
 import {unmatchedRegions} from '../../server/unmatched.js'
 import {liveRoute, targetWidth} from './target.js'
 
@@ -152,6 +152,7 @@ async function attribute(input: {
   })
   const deltas = await Promise.all(
     report.deltas.map(async (delta) => {
+      if (delta.kind === 'text') return sourced({delta, pair})
       const [found] = lookups({delta, pair}).flatMap(({property, owner}) => {
         const winner = winners[property]
         return winner === null || winner === undefined || winner.inherited ? [] : [{property, winner, owner}]
@@ -193,6 +194,18 @@ function targetRuns(target: TargetModel): TextRun[] {
 
 function ownedTargetGlyphs(input: {groups: TextGroup[]; pair: Pair}): Box[] {
   return input.groups.filter((group) => group.owner === input.pair.live).flatMap((group) => group.target)
+}
+
+function textDeltas(input: {groups: TextGroup[]; pair: Pair}): Delta[] {
+  return input.groups
+    .filter((group) => group.owner === input.pair.live && textDiffers(group))
+    .map((group) => ({kind: 'text', live: group.liveText, target: group.targetText}))
+}
+
+function sourced(input: {delta: Delta; pair: Pair}): Delta {
+  const {source} = input.pair.live
+  if (source === null) return input.delta
+  return {...input.delta, via: 'source', file: source.file, line: source.line, column: source.column}
 }
 
 function reportHint(input: {attributed: boolean; absolute: boolean}): {hint?: string} {
@@ -249,12 +262,13 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, re
         color,
         glyphs: targetGlyphs,
       })
-      const deltas =
+      const kinds =
         liveSide === null || targetSide === null
           ? []
           : design.deltaKinds.flatMap((kind) =>
               kind.measure({live: liveSide, target: targetSide, color: design.comparators.color}),
             )
+      const deltas = [...kinds, ...textDeltas({groups, pair})]
       return {
         pair,
         report: {

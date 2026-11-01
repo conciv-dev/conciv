@@ -129,6 +129,10 @@ function toGroup(input: {members: Item[]; live: Raster; target: Raster; color: C
   return {live: liveBoxes, target: targetBoxes, liveText, targetText, agrees, owner}
 }
 
+export function textDiffers(group: TextGroup): boolean {
+  return folded(group.liveText) !== folded(group.targetText)
+}
+
 export function groupText(input: {
   components: LiveComponent[]
   runs: TextRun[]

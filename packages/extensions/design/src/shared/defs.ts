@@ -28,6 +28,7 @@ export const DELTA_KIND_NAMES = [
   'background',
   'foreground',
   'radius',
+  'text',
 ] as const
 
 export const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
@@ -65,7 +66,7 @@ export const LiveComponentSchema = z.object({
 })
 
 export const ProvenanceSchema = z.object({
-  via: z.enum(['sx', 'style', 'className', 'css', 'emotion', 'styled', 'library', 'unknown']),
+  via: z.enum(['sx', 'style', 'className', 'css', 'emotion', 'styled', 'library', 'source', 'unknown']),
   file: z.string().optional(),
   line: z.number().optional(),
   column: z.number().optional(),

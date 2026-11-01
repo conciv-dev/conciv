@@ -3,7 +3,7 @@ export function Toolbar(props: ToolbarProps) {
   return (
     <header className="Lib-toolbar toolbar pl-8" style={style}>
       <button type="button" style={buttonStyle({textNoise: props.textNoise, color: props.labelColor})}>
-        Export
+        {props.label ?? 'Export'}
       </button>
       <button type="button" style={buttonStyle({textNoise: props.textNoise})}>
         Create
@@ -12,7 +12,13 @@ export function Toolbar(props: ToolbarProps) {
   )
 }
 
-type ToolbarProps = {variant: string | null; badge?: boolean; labelColor?: string; textNoise?: boolean}
+type ToolbarProps = {
+  variant: string | null
+  badge?: boolean
+  labelColor?: string
+  textNoise?: boolean
+  label?: string
+}
 
 const BADGE = {
   backgroundImage: 'linear-gradient(#426bf2, #426bf2)',

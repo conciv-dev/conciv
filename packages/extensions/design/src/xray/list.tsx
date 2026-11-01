@@ -44,6 +44,7 @@ const KIND: Record<DeltaKindName, {name: string; measure: Measure}> = {
   background: {name: 'background', measure: 'plain'},
   foreground: {name: 'text color', measure: 'plain'},
   radius: {name: 'corner radius', measure: 'px'},
+  text: {name: 'text', measure: 'plain'},
 }
 
 const PADDING_AXIS: Record<string, string> = {x: 'horizontal padding', y: 'vertical padding'}
