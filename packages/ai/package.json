@@ -1,6 +1,6 @@
 {
   "name": "@conciv/ai",
-  "version": "0.0.19",
+  "version": "0.0.21",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The chat primitives conciv is built from: messages, events, tools, usage, the CLI text adapters, the server primitives and testkits.",
   "keywords": [
     "ag-ui",

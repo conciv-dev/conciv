@@ -1,6 +1,6 @@
 {
   "name": "@conciv/mascot",
-  "version": "0.0.20",
+  "version": "0.0.21",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv robot mascot: a framework-free GSAP mascot service, Solid and React compound components, and sixteen antenna-tip effects.",
   "keywords": [
     "conciv",

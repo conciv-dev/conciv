@@ -1,5 +1,17 @@
 # @conciv/page
 
+## 0.0.21
+
+### Patch Changes
+
+- [#646](https://github.com/conciv-dev/conciv/pull/646) [`71a7483`](https://github.com/conciv-dev/conciv/commit/71a74838dd923c10f8559054495a770f9f8cc0c8) Thanks [@omridevk](https://github.com/omridevk)! - Remove test-only and unused exports from the package surfaces.
+
+- [#638](https://github.com/conciv-dev/conciv/pull/638) [`5b93081`](https://github.com/conciv-dev/conciv/commit/5b930812c5e4ff718da8799d3fddd1429dc6c7a3) Thanks [@omridevk](https://github.com/omridevk)! - Test-only: fold each package's tests into one browser file per JSX runtime and drop the empty node vitest project.
+- Updated dependencies [[`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c), [`f0ffc0b`](https://github.com/conciv-dev/conciv/commit/f0ffc0b076d88de8ebd93655d980629e29889937)]:
+  - @conciv/protocol@0.0.21
+  - @conciv/extension@0.0.21
+  - @conciv/grab@0.0.21
+
 ## 0.0.20
 
 ### Patch Changes

@@ -1,5 +1,37 @@
 # @conciv/embed
 
+## 0.0.21
+
+### Patch Changes
+
+- [#625](https://github.com/conciv-dev/conciv/pull/625) [`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c) Thanks [@omridevk](https://github.com/omridevk)! - Dependency upgrades for build tooling and runtime packages: bippy 0.6, react-grab 0.2, @pierre/diffs 1.6, @tanstack/hotkeys 0.18, rrweb 2.2, changesets 3, turbo 2.11 and the rest of the deps-packages lane.
+
+- [#650](https://github.com/conciv-dev/conciv/pull/650) [`0208423`](https://github.com/conciv-dev/conciv/commit/02084232ad633479dcbb7d6949700a31df1173ee) Thanks [@omridevk](https://github.com/omridevk)! - New built-in design extension, mounted by `@conciv/it`: register a design image as the target of a route at a width, then `conciv tools design diff` compares the live page with it and ranks the components that differ, with the deltas and the source that sets them. `conciv tools design status` says when every registered width matches. The agent guide written by `conciv init` describes the loop.
+
+- [#652](https://github.com/conciv-dev/conciv/pull/652) [`af69127`](https://github.com/conciv-dev/conciv/commit/af69127fb97de0d722e206a6d31471a0569fdf02) Thanks [@omridevk](https://github.com/omridevk)! - Isolate crashing extensions behind one boundary: tabs, surfaces, slots, tool and attachment cards and view icons keep the widget up, log the crash, and tabs offer a retry.
+
+- [#677](https://github.com/conciv-dev/conciv/pull/677) [`8d69e53`](https://github.com/conciv-dev/conciv/commit/8d69e53ab3e7c4856db980bb5656eda4fddac9ed) Thanks [@omridevk](https://github.com/omridevk)! - Hold the consolidated chat-plane packages to the test file budget again.
+
+- [#674](https://github.com/conciv-dev/conciv/pull/674) [`15c2fcb`](https://github.com/conciv-dev/conciv/commit/15c2fcb875fae4ffa552671380b7227a1e790d6f) Thanks [@omridevk](https://github.com/omridevk)! - Cut the embed end-to-end suite to the cases no faster test already covers.
+
+- [#666](https://github.com/conciv-dev/conciv/pull/666) [`4465b85`](https://github.com/conciv-dev/conciv/commit/4465b854e45ce6553eebd6547e2d0be49157f71e) Thanks [@omridevk](https://github.com/omridevk)! - Fold the apps/conciv test suite into one node file, one browser file and the calm perf file, with helpers split by runner.
+- Updated dependencies [[`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c), [`ad66158`](https://github.com/conciv-dev/conciv/commit/ad66158ab8919dd5a482f30cca45367df5a9566b), [`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c), [`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c), [`0208423`](https://github.com/conciv-dev/conciv/commit/02084232ad633479dcbb7d6949700a31df1173ee), [`0d9fe32`](https://github.com/conciv-dev/conciv/commit/0d9fe3275ada18af5e0e65c37c79b8f3662c8d3a), [`f0ffc0b`](https://github.com/conciv-dev/conciv/commit/f0ffc0b076d88de8ebd93655d980629e29889937), [`377d894`](https://github.com/conciv-dev/conciv/commit/377d894a25c2a83fa009b3240b64dc512e0eef95), [`621c280`](https://github.com/conciv-dev/conciv/commit/621c2802782a5f7420bc0c9b2030a948b793a156), [`71a7483`](https://github.com/conciv-dev/conciv/commit/71a74838dd923c10f8559054495a770f9f8cc0c8), [`96acad4`](https://github.com/conciv-dev/conciv/commit/96acad42d70fcb83a2ab535999a1c97ecb34a21f), [`5b93081`](https://github.com/conciv-dev/conciv/commit/5b930812c5e4ff718da8799d3fddd1429dc6c7a3), [`6bf7fd7`](https://github.com/conciv-dev/conciv/commit/6bf7fd764de4d02b9af80ad10760e733b333c478), [`3cff847`](https://github.com/conciv-dev/conciv/commit/3cff847f9737309ef22fcac06fb84ff974d1340a), [`23c7842`](https://github.com/conciv-dev/conciv/commit/23c78425c6f53b434d4bf3b4e97666b0cbb95103), [`14fec2c`](https://github.com/conciv-dev/conciv/commit/14fec2caf05dc77879f79055c04ee12f84ea9379), [`0208423`](https://github.com/conciv-dev/conciv/commit/02084232ad633479dcbb7d6949700a31df1173ee), [`19bd8e7`](https://github.com/conciv-dev/conciv/commit/19bd8e7423d375af888579a5bffff335a3e4c7a3), [`f31c74a`](https://github.com/conciv-dev/conciv/commit/f31c74ad91e9ed4ee2def6b062a6f616dbef6ec1)]:
+  - @conciv/client@0.0.21
+  - @conciv/protocol@0.0.21
+  - @conciv/ui-kit-system@0.0.21
+  - @conciv/solid-streamdown@0.0.21
+  - @conciv/ui-kit-chat@0.0.21
+  - @conciv/extension-page@0.0.21
+  - @conciv/contract@0.0.21
+  - @conciv/extension@0.0.21
+  - @conciv/mascot@0.0.21
+  - @conciv/extension-ios@0.0.21
+  - @conciv/ui-kit-chat-tools@0.0.21
+  - @conciv/ui-kit-tap@0.0.21
+  - @conciv/grab@0.0.21
+  - @conciv/solid-diffs@0.0.21
+  - @conciv/storage-history@0.0.21
+
 ## 0.0.20
 
 ### Patch Changes

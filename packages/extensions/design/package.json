@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-design",
-  "version": "0.0.20",
+  "version": "0.0.21",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The design built-in extension: holds a target image per route and width, captures the live page at that width and returns ranked component deltas with style provenance.",
   "keywords": [
     "conciv",
