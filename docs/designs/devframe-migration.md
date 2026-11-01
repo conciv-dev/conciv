@@ -272,7 +272,7 @@ the reconnect wrapper treats like any drop.
 **5. Agent surface.** Today `packages/core/src/api/mcp.ts` exposes only `discover_tools`,
 `execute_typescript` and `approval: 'ask'` tools, and that stays. Server tools are
 `defineConcivFunction`s with `agent`; page tools are page-script functions with `agent`.
-Devframe's agent host is used only as the in-process registry `/api/mcp` reads. Devframe's
+`/api/mcp` stays on its own server (spike commit `4f62c00b7`). Devframe's route cannot replace it: it lists every `agent` function, including those of Devframe's own Terminals and Messages plugins, has no tool filter, and fixes its instructions at startup while conciv's are per session. Running Devframe's handler on our path works but swaps about 55 lines of SDK wiring for about 100 of ours. Revisit if Devframe adds a tool filter and per-request instructions. Devframe's agent host is used only as an in-process registry, and `/api/mcp` reads it through a filter to conciv's own tools, because that host also holds plugin tools such as a preset terminal spawn, which would otherwise skip the gate. Devframe's
 MCP route (`mcp: false`) and WebMCP (`webmcp: false` on the widget's client) stay off, and
 plugin iframes never register agent functions. conciv functions are never registered as agent tools in
 Vite DevTools' hub, so nothing reaches a tool around the approval gate. The registry's public
