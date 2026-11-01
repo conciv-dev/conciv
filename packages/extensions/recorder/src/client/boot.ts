@@ -3,12 +3,14 @@ import {RECORDER_NAME, type RecorderControl} from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
 import {loadCaptureLibrary, type CaptureLibrary} from './capture.js'
 import {createCaptureSession, type CaptureSession} from './capture-session.js'
+import {createFlusher} from './flusher.js'
 import type {RecorderStore} from './recorder-store.js'
 
 export function bootRecorder(apiBase: string, store: RecorderStore): () => void {
   const rpc = makeExtRpcClient<RecorderRouter>(apiBase, RECORDER_NAME)
   const clientId = store.clientId()
   const abort = new AbortController()
+  const flusher = createFlusher({send: (events) => rpc.flush({clientId, events}).then(() => undefined)})
   let session: CaptureSession | undefined
 
   const sessionBlocked = (): boolean => session !== undefined || abort.signal.aborted || !store.live()
@@ -21,7 +23,7 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
         library,
         config,
         reloadConfig: () => rpc.config(undefined),
-        send: (events) => rpc.flush({clientId, events}).then(() => undefined),
+        flusher,
         onFailed: () => store.setStatus('failed'),
       })
       store.setStatus('recording')
@@ -40,7 +42,7 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
 
   const stopSession = async (): Promise<void> => {
     const active = session
-    if (!active || store.live()) return
+    if (!active) return
     session = undefined
     store.setStatus('idle')
     await active.finish()
@@ -61,7 +63,9 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
 
   const consumeControl = (message: RecorderControl): void => {
     if (message.live !== undefined) store.setLive(message.live)
-    applying.tail = applying.tail.then(() => handleControl(message)).catch(() => undefined)
+    applying.tail = applying.tail
+      .then(() => handleControl(message))
+      .catch((error: unknown) => console.error('[conciv] recorder control failed', error))
   }
 
   const controlLoop = async (): Promise<void> => {
@@ -81,5 +85,6 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
     const active = session
     session = undefined
     void active?.finish()
+    flusher.dispose()
   }
 }

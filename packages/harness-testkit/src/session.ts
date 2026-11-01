@@ -1,6 +1,6 @@
 import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
-import {makeRpcClient, type RpcClient, type RpcClientContext} from '@conciv/contract'
+import {abortableFetch, makeRpcClient, type RpcClient, type RpcClientContext} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 
 export {makeRpcClient, type RpcClient}
@@ -14,6 +14,7 @@ export async function resolveSession(apiBase: string, id?: string): Promise<stri
 export function makeSessionBoundRpcClient(apiBase: string, activeSessionId: () => string): RpcClient {
   const link = new RPCLink<RpcClientContext>({
     url: `${apiBase}/rpc`,
+    fetch: abortableFetch,
     headers: () => (activeSessionId() ? {[CONCIV_SESSION_HEADER]: activeSessionId()} : {}),
   })
   return createORPCClient<RpcClient>(link)
