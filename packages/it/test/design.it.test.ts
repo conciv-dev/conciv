@@ -694,6 +694,7 @@ describe('x-ray page', () => {
     )
     await expectLocator(xray.getByRole('radio', {name: 'Capture'})).toBeChecked()
     await xray.close()
+    await call('design_clear', {target: narrow.id})
   })
 
   it('capture view shows the stage', async () => {
@@ -711,7 +712,7 @@ describe('x-ray page', () => {
   it('capture view keeps the off count pill off the stage', async () => {
     await goto('/')
     const report = await call('design_diff', {width: 1280})
-    const above = report.components.filter((part) => part.deltas.length > 0).length + report.unmatched.length
+    const above = report.components.filter(aboveTolerance).length + report.unmatched.length
     const pill = `${above} of ${report.components.length + report.unmatched.length} off`
     const xray = await browser.newPage()
     await xray.goto(report.xray)
@@ -748,6 +749,7 @@ describe('x-ray page', () => {
     await expectLocator(xray.getByText('not diffed yet')).toBeVisible()
     await expectLocator(xray.getByRole('button', {name: 'Run diff'})).toHaveCount(2)
     await xray.close()
+    await call('design_clear', {target: unrun.id})
   })
 
   it('hovering the invert button shows its tooltip', async () => {
@@ -762,7 +764,7 @@ describe('x-ray page', () => {
 
   it('arrow keys switch the viewport and keep focus in the viewport group', async () => {
     await goto('/')
-    await call('design_target', {image: target('u1-390'), route: '/', width: 390})
+    const narrow = await call('design_target', {image: target('u1-390'), route: '/', width: 390})
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
     await xray.goto(report.xray)
@@ -776,6 +778,7 @@ describe('x-ray page', () => {
     await expectLocator(desktop).not.toBeChecked()
     await expectLocator(group.locator('label[data-focus-visible]')).toHaveCount(1)
     await xray.close()
+    await call('design_clear', {target: narrow.id})
   })
 
   it('keys 2 and 1 switch the view route and the view selection follows', async () => {
