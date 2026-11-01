@@ -32,6 +32,7 @@ export interface ConcivConfig {
   enabled?: boolean
 
   extensions?: {[Name in keyof ExtensionRegistry]?: RegisteredExtensionConfig<ExtensionRegistry[Name]>}
+  devframes?: {add?: readonly object[]}
   widgetUrl?: string
 
   widget?: WidgetConfig | false

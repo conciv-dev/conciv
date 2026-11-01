@@ -13,7 +13,9 @@
     ".": "./src/testkit.ts",
     "./until": "./src/until.ts",
     "./rpc-mounts": "./src/rpc-mounts.ts",
-    "./rpc-websocket-client": "./src/rpc-websocket-client.ts"
+    "./rpc-websocket-client": "./src/rpc-websocket-client.ts",
+    "./devframe-mounts": "./src/devframe-mounts.ts",
+    "./devframe-probe": "./src/devframe-probe.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -26,11 +28,16 @@
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
+    "@devframes/agentic": "catalog:",
+    "@devframes/hub": "catalog:",
     "@modelcontextprotocol/sdk": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
+    "devframe": "catalog:",
     "hono": "catalog:",
     "p-timeout": "catalog:",
+    "playwright": "catalog:",
+    "vite": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -1,5 +1,6 @@
 import {CHAT_SYSTEM_PROMPT} from '@conciv/harness/claude'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
+import type {DevframeDefinition} from 'devframe'
 import {isHarnessSessionId, isSessionId, type HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
 
 export type {ConcivConfig} from '@conciv/protocol/config-types'
@@ -15,6 +16,18 @@ export interface ResolvedConcivConfig {
   harnessSessionId: HarnessSessionId | undefined
   systemPrompt: string
   extensions: ConcivConfig['extensions']
+  devframes?: DevframeDefinition[]
+}
+
+function isDevframeDefinition(value: object): value is DevframeDefinition {
+  return 'id' in value && 'setup' in value
+}
+
+function resolveDevframes(added: ConcivConfig['devframes']): DevframeDefinition[] {
+  return (added?.add ?? []).map((entry) => {
+    if (isDevframeDefinition(entry)) return entry
+    throw new Error('conciv: devframes.add takes devframe definitions (an object with id and setup)')
+  })
 }
 
 function declaredValue(candidates: (string | undefined)[]): string | undefined {
@@ -60,5 +73,6 @@ export function resolveConfig(options: ConcivConfig, root: string): ResolvedConc
     harnessSessionId: resolveHarnessSessionId([options.claudeSessionId, env.CONCIV_CLAUDE_SESSION_ID]),
     systemPrompt: resolveSystemPrompt(options.systemPrompt),
     extensions: options.extensions,
+    devframes: resolveDevframes(options.devframes),
   }
 }

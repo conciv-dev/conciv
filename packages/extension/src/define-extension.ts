@@ -96,7 +96,10 @@ export type RegisterExtension<Extension> =
       }
     : Record<never, never>
 
-function parseExtensionConfig<Schema extends z.ZodType>(schema: Schema | undefined, raw: unknown): ConfigOf<Schema> {
+export function parseExtensionConfig<Schema extends z.ZodType>(
+  schema: Schema | undefined,
+  raw: unknown,
+): ConfigOf<Schema> {
   return (schema ? schema.parse(raw ?? {}) : {}) as ConfigOf<Schema>
 }
 
@@ -115,12 +118,14 @@ function isConfigured<Config>(config: Config): config is Exclude<Config, undefin
   return config !== undefined
 }
 
-function makeSystemPrompt<
+export function makeSystemPrompt<
   Name extends string,
   Schema extends z.ZodType,
   Tools extends readonly AnyToolBuilder[],
   Attachments extends readonly AnyAttachmentBuilder[],
->(meta: ExtensionMeta<Name, Schema, Tools, Attachments>): SystemPromptResolver | undefined {
+>(
+  meta: Pick<ExtensionMeta<Name, Schema, Tools, Attachments>, 'configSchema' | 'systemPrompt'>,
+): SystemPromptResolver | undefined {
   const prompt = meta.systemPrompt
   if (prompt === undefined) return undefined
   return (raw, context) => {

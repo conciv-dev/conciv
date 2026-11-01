@@ -23,6 +23,10 @@ import {until as testkitUntil} from '../src/testkit.js'
 import {until} from '../src/until.js'
 import {makeRpcClient, makeSessionBoundRpcClient, type RpcClient} from '../src/session.js'
 import {implement} from '@orpc/server'
+import {initHub} from '@devframes/hub/initiate'
+import {concivError, defineConcivFunction, defineConcivPlugin} from '@conciv/extension'
+import {nodeClient, type NodeClient} from '@conciv/extension/devframe-connection'
+import {serveDevframePlugin} from '../src/devframe-mounts.js'
 import {RPCHandler} from '@orpc/server/node'
 import {contract} from '@conciv/contract'
 import {once} from 'node:events'
@@ -216,12 +220,17 @@ if (existsSync(join(root, 'writer-live'))) unlinkSync(join(root, 'writer-live'))
   function lateWritingBoot(state: {writer: ChildProcess | null}): BootApp {
     return async (env) => {
       seedTree(env.stateRoot)
+      const hub = initHub({base: '/__conciv/', auth: false, mcp: false, cwd: env.cwd})
       return {
+        hub,
+        claimUpgrade: () => false,
+        loginToken: 'unused',
         fetch: (request) =>
           new Response(JSON.stringify({json: fakeRpcResponse(request)}), {
             headers: {'content-type': 'application/json'},
           }),
         dispose: async () => {
+          await hub.close()
           const writer = spawn(process.execPath, ['-e', lateWriterSource, env.stateRoot], {
             stdio: ['ignore', 'pipe', 'ignore'],
           })
@@ -925,5 +934,132 @@ describe('rpc clients abort a stream after the request behind it was collected',
 
   it('makeSessionBoundRpcClient', async () => {
     await expectAbortAfterCollection(makeSessionBoundRpcClient(base.url, () => 'session-a'))
+  }, 10_000)
+})
+
+describe('conciv devframe layer over a real hub', () => {
+  const held = {release: (): void => {}}
+
+  const probe = defineConcivPlugin({
+    id: 'probe',
+    title: 'Probe',
+    configSchema: z.object({greeting: z.string().default('hello')}),
+  }).server((ctx, _host, config) => {
+    ctx.rpc.register(
+      defineConcivFunction({
+        name: 'probe:greet',
+        type: 'query',
+        input: z.object({name: z.string().default('world'), loud: z.boolean().default(false)}),
+        output: z.object({text: z.string()}),
+        handler: (input) => {
+          const text = `${config.greeting} ${input.name}`
+          return {text: input.loud ? text.toUpperCase() : text}
+        },
+      }),
+    )
+    ctx.rpc.register(
+      defineConcivFunction({
+        name: 'probe:fail',
+        type: 'query',
+        input: z.object({}),
+        output: z.null(),
+        handler: () => {
+          throw concivError('NOT_FOUND', 'nothing here', {id: 7})
+        },
+      }),
+    )
+    ctx.rpc.register(
+      defineConcivFunction({
+        name: 'probe:hold',
+        type: 'action',
+        input: z.object({}),
+        output: z.null(),
+        handler: () =>
+          new Promise<null>((resolve) => {
+            held.release = () => resolve(null)
+          }),
+      }),
+    )
+    ctx.rpc.register(
+      defineConcivFunction({
+        name: 'probe:session',
+        type: 'query',
+        session: true,
+        input: z.object({}),
+        output: z.object({sessionId: z.string()}),
+        handler: (_input, {sessionId}) => ({sessionId}),
+      }),
+    )
+  })
+
+  const call = (client: NodeClient, name: string, input: unknown): Promise<unknown> =>
+    client.connection.ready().then(({rpc}) => rpc.$callRaw({method: name, args: [input]}))
+
+  it('applies zod defaults and the plugin config before the handler runs', async () => {
+    const served = await serveDevframePlugin(probe.devframe)
+    expect(await call(served.client, 'probe:greet', {})).toEqual({text: 'hello world'})
+    expect(await call(served.client, 'probe:greet', {name: 'conciv', loud: true})).toEqual({text: 'HELLO CONCIV'})
+    await served.close()
+  }, 10_000)
+
+  it('refuses input that fails the schema before the handler runs', async () => {
+    const served = await serveDevframePlugin(probe.devframe)
+    await expect(call(served.client, 'probe:greet', {name: 3})).rejects.toThrow()
+    await served.close()
+  }, 10_000)
+
+  it('rebuilds a coded error with its code and data on a node client', async () => {
+    const served = await serveDevframePlugin(probe.devframe)
+    await expect(call(served.client, 'probe:fail', {})).rejects.toMatchObject({
+      name: 'ConcivError',
+      code: 'NOT_FOUND',
+      message: 'nothing here',
+      data: {id: 7},
+    })
+    await served.close()
+  }, 10_000)
+
+  it('runs a session function under the explicit session and falls back to the host', async () => {
+    const served = await serveDevframePlugin(probe.devframe)
+    expect(await call(served.client, 'probe:session', {sessionId: 'conciv_explicit'})).toEqual({
+      sessionId: 'conciv_explicit',
+    })
+    expect(await call(served.client, 'probe:session', {})).toEqual({sessionId: 'conciv_test'})
+    await served.close()
+  }, 10_000)
+
+  it('serves the same function over the sse transport', async () => {
+    const served = await serveDevframePlugin(probe.devframe)
+    const sse = nodeClient({url: served.url, transport: 'sse'})
+    expect(await call(sse, 'probe:greet', {name: 'sse'})).toEqual({text: 'hello sse'})
+    sse.close()
+    await served.close()
+  }, 10_000)
+
+  it('reports the connection status from idle through connected and down to disconnected', async () => {
+    const served = await serveDevframePlugin(probe.devframe)
+    const statuses: string[] = [served.client.connection.status()]
+    served.client.connection.onStatus((status) => statuses.push(status))
+    await served.client.connection.ready()
+    await served.hub.close()
+    await until(() => statuses.includes('disconnected'))
+    expect(statuses.slice(0, 4)).toEqual(['idle', 'connecting', 'connected', 'disconnected'])
+    await served.close()
+  }, 10_000)
+
+  it('rejects a pending call and ends an open stream with DISCONNECTED when the connection drops', async () => {
+    const served = await serveDevframePlugin(probe.devframe)
+    const pending = call(served.client, 'probe:hold', {})
+    const stream = served.client.connection.stream(async function* () {
+      yield 'first'
+      await new Promise(() => {})
+    })
+    const iterator = stream[Symbol.asyncIterator]()
+    expect((await iterator.next()).value).toBe('first')
+    const ended = iterator.next()
+    await served.hub.close()
+    await expect(pending).rejects.toMatchObject({code: 'DISCONNECTED'})
+    await expect(ended).rejects.toMatchObject({code: 'DISCONNECTED'})
+    await served.close()
   }, 10_000)
 })

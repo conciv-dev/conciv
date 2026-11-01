@@ -1,4 +1,4 @@
-import {serveHono} from '@conciv/serve'
+import {serveHono, type ClaimUpgrade} from '@conciv/serve'
 
 export type ServedApp = {
   base: string
@@ -8,10 +8,10 @@ export type ServedApp = {
 }
 
 export async function serveApp(
-  fetch: (request: Request) => Response | Promise<Response>,
+  listener: {fetch: (request: Request) => Response | Promise<Response>; claimUpgrade?: ClaimUpgrade},
   opts: {port?: number} = {},
 ): Promise<ServedApp> {
-  const {port, close} = await serveHono({fetch, port: opts.port})
+  const {port, close} = await serveHono({...listener, port: opts.port})
   const base = `http://127.0.0.1:${port}`
   return {base, wsBase: base.replace('http', 'ws'), port, close}
 }

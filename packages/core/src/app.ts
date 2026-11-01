@@ -8,9 +8,11 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
+  concivError,
   type AnyExtension,
   type AnyToolBuilder,
   type AttachmentDocumentPart,
+  type ConcivPlugin,
   type ContentPart,
   type ExtensionServerTool,
   type ServerHarness,
@@ -18,6 +20,7 @@ import {
   type ServerSessions,
   type ToolRequest,
 } from '@conciv/extension'
+import type {ConcivHost} from '@conciv/extension/devframe-host'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness, transcriptPathWithin} from '@conciv/harness'
@@ -62,8 +65,13 @@ import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
+import {rpcSessionList} from './api/rpc/sessions.js'
 import {engineStaleness} from './lib/engine-stamp.js'
+import {makeDevframePlane} from './devframe-plane.js'
+import {currentSession, runWithSession} from './runtime/session-context.js'
 import type {OpenInEditor} from './editor/open.js'
+import type {ClaimUpgrade} from '@conciv/serve'
+import type {HubInstance} from '@devframes/hub/initiate'
 
 export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
@@ -76,6 +84,10 @@ export type MakeAppOpts = {
   systemPromptText?: string
 
   extensions?: AnyExtension[]
+
+  plugins?: readonly ConcivPlugin[]
+
+  loginToken?: string
 
   extensionConfig?: Record<string, unknown>
   harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
@@ -275,6 +287,9 @@ export type MadeApp = {
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
+  hub: HubInstance
+  claimUpgrade: ClaimUpgrade
+  loginToken: string
 }
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string, claudeHome?: string): ServerHarness {
@@ -305,6 +320,34 @@ async function mcpSessionId(
 
 export function withBuiltinExtensions(extensions: readonly AnyExtension[] | undefined): AnyExtension[] {
   return [pageServerExtension, ...(extensions ?? [])]
+}
+
+type HostParts = {
+  sessions: ServerSessions
+  harness: ServerHarness
+  nativeUrl: () => string | undefined
+  chat: ChatContext
+  runtime: CoreRuntime
+}
+
+function makeConcivHost(opts: MakeAppOpts, parts: HostParts): ConcivHost {
+  return {
+    cwd: opts.cwd,
+    basePath: opts.basePath ?? '',
+    stateDir: concivStateDir(opts.cfg.stateRoot),
+    sessions: parts.sessions,
+    harness: parts.harness,
+    symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
+    bundler: opts.bridge,
+    nativeUrl: parts.nativeUrl,
+    latestSession: async () => (await rpcSessionList(parts.chat, false))[0]?.id ?? null,
+    config: (id) => opts.extensionConfig?.[id],
+    inSession: (id, run) => {
+      const sessionId = id ?? currentSession()?.id
+      if (sessionId === undefined) throw concivError('NO_SESSION', 'this call needs a session')
+      return runWithSession(parts.runtime.forSession(sessionId), () => run(sessionId))
+    },
+  }
 }
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
@@ -521,10 +564,30 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)
   })
 
+  const devframePlane = makeDevframePlane({
+    stateDir: concivStateDir(opts.cfg.stateRoot),
+    cwd: opts.cwd,
+    host: makeConcivHost(opts, {sessions: serverSessions, harness: serverHarness, nativeUrl, chat: chatDeps, runtime}),
+    plugins: opts.plugins,
+    devframes: opts.cfg.devframes,
+    loginToken: opts.loginToken,
+    allowedOrigins: opts.allowedOrigins,
+  })
+  const {hub, claimUpgrade, loginToken} = devframePlane
+  app.all(`${hub.base}*`, (c) => hub.handler(c.req.raw))
+
   const dispose = async (): Promise<void> => {
+    await devframePlane.close().catch((error: unknown) => logError(`[core] the hub failed to close: ${String(error)}`))
     for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
     db.$client.close()
   }
 
-  return {app, chat: chatDeps, plane, dispose, extensionContexts, runtime}
+  try {
+    await hub.ready
+  } catch (error) {
+    await dispose()
+    throw error
+  }
+
+  return {app, chat: chatDeps, plane, dispose, extensionContexts, runtime, hub, claimUpgrade, loginToken}
 }

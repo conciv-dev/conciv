@@ -15,3 +15,7 @@ export function session(): SessionScope {
   if (scope === undefined) throw new Error(MISSING_SESSION)
   return scope
 }
+
+export function currentSession(): SessionScope | undefined {
+  return sessionStorage.getStore()
+}

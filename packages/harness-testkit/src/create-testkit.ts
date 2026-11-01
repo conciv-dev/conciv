@@ -3,6 +3,9 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import pTimeout from 'p-timeout'
+import {nodeClient, type NodeClient} from '@conciv/extension/devframe-connection'
+import type {ClaimUpgrade} from '@conciv/serve'
+import type {HubInstance} from '@devframes/hub/initiate'
 import {serveApp} from './serve-app.js'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatContentPartSchema, CONCIV_SESSION_HEADER, type ChatContentPart} from '@conciv/protocol/chat-types'
@@ -24,6 +27,9 @@ export type BootEnv = {
 export type BootedApp = {
   fetch: (request: Request) => Response | Promise<Response>
   dispose: () => Promise<void>
+  hub: HubInstance
+  claimUpgrade: ClaimUpgrade
+  loginToken: string
 }
 export type BootApp = (env: BootEnv) => Promise<BootedApp>
 
@@ -34,6 +40,10 @@ export type Kit = {
   wsBase: string
   stateRoot: string
   rpc: RpcClient
+  hub: NodeClient
+  hubInstance: HubInstance
+  hubUrl: string
+  loginToken: string
   session: (id?: string) => Promise<string>
   turn: (
     input: string | ChatMessage,
@@ -94,13 +104,16 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
     setup: async () => {
       const stateRoot = options.stateRoot ?? mkdtempSync(join(tmpdir(), 'conciv-kit-'))
       const app = await boot({stateRoot, cwd: stateRoot, harness})
-      let served = await serveApp(app.fetch)
+      const listener = {fetch: app.fetch, claimUpgrade: app.claimUpgrade}
+      let served = await serveApp(listener)
       const base = served.base
       const wsBase = served.wsBase
       const aborts: AbortController[] = []
       const activeSession = {id: ''}
       const rpc = makeSessionBoundRpcClient(base, () => activeSession.id)
       const bootstrapRpc = makeRpcClient(base)
+      const hubUrl = `${base}${app.hub.base}`
+      const hub = nodeClient({url: hubUrl, transport: 'ws', token: app.loginToken})
 
       const post = (path: string, body: unknown, session?: string): Promise<Response> =>
         fetch(`${base}${path}`, {
@@ -139,6 +152,10 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
         wsBase,
         stateRoot,
         rpc,
+        hub,
+        hubInstance: app.hub,
+        hubUrl,
+        loginToken: app.loginToken,
         session: (id) => (id ? resolve(id) : Promise.resolve(activeSession.id)),
         turn: startTurn,
         join: (runId) => sockets.join({wsBase, runId}),
@@ -166,7 +183,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
         callTool,
         restartServer: async () => {
           await served.close()
-          served = await serveApp(app.fetch, {port: served.port})
+          served = await serveApp(listener, {port: served.port})
         },
         cleanup: async () => {
           sockets.closeAll()
@@ -181,6 +198,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
             await Promise.all(runningSessions.map((meta) => stopActiveRun(meta.id).catch(() => {})))
           }
           await pTimeout(stopLiveSessions(), {milliseconds: 3_000, fallback: () => undefined})
+          hub.close()
           await app.dispose()
           await served.close()
           if (ownsStateRoot) rmSync(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
