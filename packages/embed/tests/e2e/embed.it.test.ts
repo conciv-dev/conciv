@@ -528,7 +528,7 @@ test.describe('element capture', () => {
       const sessionCard = page.getByRole('button', {name: /Edited the page/})
       await expect(sessionCard).toBeVisible({timeout: 30_000})
       await expect(page.getByRole('button', {name: /Set the text/})).toHaveCount(0)
-      await sessionCard.click()
+      await expect(sessionCard).toHaveAttribute('aria-expanded', 'true')
       const dialog = page.getByRole('dialog', {name: 'conciv chat agent'})
       const stepTarget = dialog.getByText('rendered through the pipeline', {exact: true})
       await expect(stepTarget).toBeVisible({timeout: 30_000})
