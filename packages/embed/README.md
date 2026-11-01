@@ -36,3 +36,25 @@ conciv({widget: {transport: 'websocket'}}) // never probe, always /rpc-ws
 ```
 
 `auto` (the default) is the boot probe described above.
+
+## Interface
+
+- `package.json:exports["."]` - `dist/mount.js` with types in `dist/mount.d.ts`.
+- `vite.config.ts` - library build of `src/mount.ts` to `mount.js` (ES format, shared packages external).
+- `vite.global.config.ts` - IIFE `ConcivWidget` bundle `conciv-widget.global.js` from `tests/fixtures/global-entry.ts`.
+- `vite.native.config.ts` - IIFE `ConcivWidgetNative` bundle `conciv-widget-native.global.js` from `src/native-entry.ts`.
+- `vite.handle.config.ts` - IIFE `ConcivHandle` test bundle `conciv-handle.global.js` into `tests/dist`.
+- `playwright.config.ts:testDir` - `./tests/e2e`.
+- Source: [src](./src/README.md).
+
+## Invariants
+
+- `turbo.json:tasks.build` - depends on `^build` and outputs `dist/**`.
+
+## Side Effects
+
+- None
+
+## Verification
+
+- Run: `cd packages/embed && pnpm test` (builds `vite.handle.config.ts`, then runs vitest and Playwright)

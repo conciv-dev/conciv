@@ -172,6 +172,34 @@ Full docs live at **[conciv.dev](https://conciv.dev)** and in
 (chat, page control, live tests, approvals), harness and test-runner configuration, and
 troubleshooting.
 
+## Repository blueprint
+
+Every package, app and source directory carries a `README.md` with its interface, invariants, side effects and the command that verifies it. Start from the three top-level blueprints and follow the links down.
+
+### Subdirectories & System Boundaries
+
+- packages: [packages/README.md](./packages/README.md) - the npm packages: engine and plugin, shared contracts, the browser widget and UI kits, host framework SDKs, and private repo tooling.
+- apps: [apps/README.md](./apps/README.md) - the widget UI (`@conciv/app`), the conciv.dev site, the Storybook and the example host apps.
+- native: [native/README.md](./native/README.md) - the Swift ConcivWidget iOS SDK and the ConcivDemo app.
+
+### Global Invariants
+
+- Everything is ESM, Node >= 22 (`node:sqlite` needs >= 22.13), one pnpm workspace with catalog-pinned dependencies and turbo as the task graph.
+- Code shared between the browser and Node lives in a contract package (`protocol`, `contract`, `extension`, `grab`) or an extension's `shared/` directory; the browser never imports a server entry.
+- Extensions are declared once with `defineExtension` and split at build time by `extension-compiler` into a browser half and a Node half. The public package set is `PUBLIC_PACKAGES` in `packages/publish`, and every other `@conciv/*` package is internal to `@conciv/it`.
+- The engine binds loopback only; cross-origin access is gated by the Host/Origin middleware in `packages/core/src/lib`.
+
+### Global Side Effects
+
+- The engine writes its SQLite database, port file and endpoint discovery file under the project's state directory and `~/.conciv`.
+- Harness adapters read the user's agent transcripts (`~/.claude`, `~/.codex`, `~/.pi`, opencode's database) and spawn the agent binaries.
+- The Vite plugin boots the engine process, injects the widget meta tags and script into served HTML and serves the generated extensions module from the dev server.
+- `conciv-publish` publishes to npm, pushes git tags and force-pushes the `conciv-swift` mirror.
+
+### System Verification
+
+- Run: `pnpm typecheck && pnpm lint && pnpm test` at the repo root (turbo runs every package), or `pnpm test:affected` for packages changed since `origin/main`.
+
 ## Contributing
 
 Issues and PRs are welcome. This is a young project moving fast, so the best first step is to run the

@@ -102,3 +102,25 @@ created.
 
 Under `prefers-reduced-motion: reduce` poses land instantly, the gaze never arms and no effect
 starts.
+
+## Interface
+
+- `package.json:exports` - `.`, `./solid`, `./react`, and `./effects/<name>` for binary, matrix, thought-cloud, pixel-bubbles, signal-rings, speech-bubble, steam, spark, spark-burst, spark-fountain, satellite, led-cone, tick-ring, signal-bars, heart, notes.
+- `tsdown.config.ts:entry` - `src/core/index.ts`, `src/core/style-merge.ts`, `src/solid/index.ts` and each `src/core/effects/<name>.ts` (unbundled, ESM, `vite-plugin-solid`).
+- `tsdown.solid-source.config.ts` - `src/solid/index.ts` to `dist/solid` with `jsx: 'preserve'` and `.jsx` output.
+- `tsdown.react.config.ts` - `src/react/index.ts` to `dist/react`.
+- `playwright.config.ts:testDir` - `./tests/e2e`.
+- Source: [src](./src/README.md). Tests: `tests/browser/` (DOM helpers for the browser tests) and [tests/e2e](./tests/e2e/README.md).
+
+## Invariants
+
+- `package.json:peerDependencies` - `react`/`react-dom` `>=18` and `solid-js` `>=1.8`, optional.
+
+## Side Effects
+
+- None
+
+## Verification
+
+- Run: `cd packages/mascot && pnpm test` (vitest, then Playwright on `tests/e2e`)
+- Run: `cd packages/mascot && pnpm typecheck`

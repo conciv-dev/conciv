@@ -25,3 +25,23 @@ to the framework's client entry and bakes the engine origin into that module
 fixed port. See `apps/examples/tanstack-start`; its `widget-mount.e2e.test.ts`
 proves the widget mounts on both the classic and nitro stacks (toggle with
 `CONCIV_NITRO=1`).
+
+## Interface
+
+- `package.json:exports` - `./plugin/vite`, `./plugin/webpack`, `./plugin/rspack`, `./plugin/rollup`, `./plugin/esbuild`, `./plugin/nextjs` (with an `edge-light` condition to `nextjs-edge.js`), `./plugin/nextjs/widget`.
+- `tsdown.config.ts:external` - `@conciv/*`, `unplugin`, `vite`, `launch-editor` and `next` stay external.
+- `vitest.config.ts:projects` - `it` (all `test/**/*.test.ts` except the design test) and `design` (`test/design.it.test.ts`, 120 s timeouts, no file parallelism).
+- Source: [src](./src/README.md).
+- Test fixtures: `test/fixtures/design/` (the design fixture host, provenance components and the target renderer used by `test/design.it.test.ts`).
+
+## Invariants
+
+- None
+
+## Side Effects
+
+- None
+
+## Verification
+
+- Run: `cd packages/it && pnpm test`

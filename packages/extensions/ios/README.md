@@ -1,8 +1,8 @@
 # @conciv/extension-ios
 
 Internal built-in extension for driving a native iOS (simulator) app from the conciv
-agent. It ships the WKWebView page and native bridge protocol, the `ios.*` server
-tools (`build`, `run`, `screenshot`, `logs`), and the transport plumbing that points
+agent. It ships the WKWebView page and native bridge protocol, the `ios_build`,
+`ios_run`, `ios_screenshot` and `ios_logs` server tools, and the transport plumbing that points
 the in-app WebView at the dev core. Installed automatically by `@conciv/it`; do not
 install directly.
 
@@ -133,3 +133,31 @@ shipped source).
 8. In the simulator (physical-device transport is deferred past v1): raise the software
    keyboard with Cmd+K, type in the composer, and confirm the keyboard does not cover it
    and the safe-area insets are correct.
+
+## Interface
+
+- `exports["."]` (`package.json`): maps to `./dist/server.js` and `./dist/server.d.ts`
+- `exports["./client"]` (`package.json`): maps to `./dist/client.js` and `./dist/client.d.ts`
+- `exports["./bridge"]` (`package.json`): maps to `./dist/shared/bridge.js`
+- `exports["./bridge-client"]` (`package.json`): maps to `./dist/shared/bridge-client.js`
+- `scripts.gen:fixtures` (`package.json`): runs `node fixtures/bridge/gen.ts`
+- `scripts.build` (`package.json`): runs `tsdown && vite build && tsc -p tsconfig.build.json`
+- default export `defineConfig` (`tsdown.config.ts`): ESM entries `src/server.ts`, `src/shared/bridge.ts` and `src/shared/bridge-client.ts`, with `dts: false`
+- default export `defineConfig` (`vite.config.ts`): ES lib build of `src/client.tsx` to `client.js`, with `emptyOutDir: false` and sourcemaps
+- default export `defineConfig` (`vitest.config.ts`): spreads `ciTest()` and includes `test/**/*.test.ts`
+- Subdirectories:
+  - [src](./src/README.md): Entry points of the iOS extension: `server.ts` registers four simulator tools, and `client.tsx` connects the WKWebView page to the native bridge.
+
+## Invariants
+
+- `rollupOptions.external` (`vite.config.ts`): `solid-js`, `zod` and `@conciv/*` are never bundled into `client.js`
+- `peerDependencies.solid-js` (`package.json`): requires `^1.9.13`
+- `compilerOptions.emitDeclarationOnly` (`tsconfig.build.json`): tsc emits only `.d.ts` files to `dist`, with `rootDir` set to `src`
+
+## Side Effects
+
+- `build.emptyOutDir: false` (`vite.config.ts`): vite writes `client.js` into `dist` without clearing the tsdown output
+
+## Verification
+
+- Run: `cd packages/extensions/ios && pnpm test`
