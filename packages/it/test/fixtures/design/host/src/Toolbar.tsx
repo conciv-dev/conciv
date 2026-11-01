@@ -2,9 +2,13 @@ export function Toolbar(props: ToolbarProps) {
   const style = {...toolbarStyle(props.variant), ...(props.badge ? BADGE : {})}
   return (
     <header className="Lib-toolbar toolbar pl-8" style={style}>
-      <button type="button" style={buttonStyle({textNoise: props.textNoise, color: props.labelColor})}>
-        {props.label ?? 'Export'}
-      </button>
+      {props.spanColor === undefined ? (
+        <button type="button" style={buttonStyle({textNoise: props.textNoise, color: props.labelColor})}>
+          {props.label ?? 'Export'}
+        </button>
+      ) : (
+        <button type="button" dangerouslySetInnerHTML={{__html: unsourcedLabel(props.spanColor)}} />
+      )}
       <button type="button" style={buttonStyle({textNoise: props.textNoise})}>
         Create
       </button>
@@ -18,6 +22,11 @@ type ToolbarProps = {
   labelColor?: string
   textNoise?: boolean
   label?: string
+  spanColor?: string
+}
+
+function unsourcedLabel(color: string) {
+  return `<span style="color: ${color}">Export</span>`
 }
 
 const BADGE = {

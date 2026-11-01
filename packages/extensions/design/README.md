@@ -20,8 +20,10 @@ Every renderer rasterizes glyphs differently, so identical text differs pixel by
 the developer's browser. The extension compares text as text and keeps it out of the pixel comparison only when both
 sides agree on it.
 
-1. **Foreground color from glyph ink.** The `foreground` delta samples the median color of the eroded ink inside a
-   component's glyph boxes, not the anti-aliased edges of its tile. A component with no ink reports no foreground.
+1. **Foreground color from glyph ink.** The `foreground` delta samples the ink inside a component's glyph boxes, not
+   the anti-aliased edges of its tile: the median color of the pixels within `colorDeltaE` of the pixel farthest from
+   the background, so blended edges and subpixel color fringes do not count. A component paints text, and is compared
+   on `foreground`, when it captured glyphs. A component with no ink reports no foreground.
 2. **Live text.** Each captured component carries its glyphs: one entry per text node it paints (stopping at nested
    components), with one box per line, rounded out to whole pixels and grown by `glyphHalo`. An empty `input` or
    `textarea` with a placeholder contributes the placeholder as a glyph whose box is the field's padding box.
@@ -30,16 +32,20 @@ sides agree on it.
    when the reader fails; the target is stored either way.
 4. **Groups.** On each diff, live glyphs and target runs whose boxes overlap by more than half the smaller box are
    joined into groups, across component boundaries. A group needs both sides. Each side's strings are joined in
-   reading order, case folded and stripped of whitespace. A group agrees when the strings are equal, the ink colors
-   are within `colorDeltaE`, and the ink-trimmed box unions agree edge for edge within `geometryPx`. Ink colors on
-   both sides are sampled the same way: ink inside the trimmed boxes, against the median background of their union
-   grown by `tileMargin`.
-5. **Masking.** Before the matcher runs, the agreeing boxes of both sides, grown by `glyphHalo` plus `blurRadius`,
-   are painted with the target's pixels on a copy of the live capture. Everything else compares as before. The
+   reading order, case folded and stripped of whitespace. A group's text agrees when the strings are equal and the
+   ink-trimmed box unions agree edge for edge within `geometryPx`. Ink color is checked per component in the group:
+   the live ink inside its trimmed glyph boxes against the target ink inside the same glyph boxes, within
+   `colorDeltaE`, each against the median background of the boxes' union grown by `tileMargin`.
+5. **Masking.** Before the matcher runs, each component whose text and ink agree contributes its ink-trimmed glyph
+   boxes, and the parts of the target boxes within `geometryPx` of them. These boxes, grown by `glyphHalo` plus
+   `blurRadius`, are painted with the target's pixels on a copy of the live capture. A placeholder is masked by its
+   ink, never by its field box, so a changed border or background of the field stays in the diff. Everything else compares as before. The
    original capture is kept for color sampling, unmatched regions and the stored run image; the diff image is drawn on
    the masked copy.
 6. **Text delta.** A gated component that owns a group whose strings differ carries a `text` delta with the live and
-   the target string. Its provenance is the component's own source location (`via: 'source'`).
+   the target string. When one OCR run spans several components, their strings are found in the run as whole words
+   left to right; the first component whose string is missing owns the delta, and its target string is the rest of
+   the run. Its provenance is the component's own source location (`via: 'source'`).
 7. **Status** is unchanged: no component above tolerance and nothing unmatched.
 
 A target registered before text runs existed has no runs: nothing is grouped or masked, and diffs behave as they did.
@@ -83,6 +89,8 @@ All in `src/shared/tolerances.ts`.
 - A text change inside a component whose pixels stay below `tileGate`, or under a parent the matcher does not
   descend into, produces no `text` delta.
 - A row shifted by more than half a line forms no group; it stays in the pixels and the geometry deltas report it.
+- Position agreement is checked per group, not per component: one OCR box spanning several labels cannot be split, so
+  a label moved inside a run whose union stays within `geometryPx` is masked.
 - Weight, italic, decoration or letter-spacing changes with the same string, ink color and place are masked.
 - Tall images (above about 2000px) lose OCR recall on small text; missed runs stay in the pixels.
 - 2x exports are downscaled nearest-neighbour by the adapter and are not separately measured.

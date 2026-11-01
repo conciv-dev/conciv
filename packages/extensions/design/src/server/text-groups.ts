@@ -7,6 +7,7 @@ import {expand} from './matchers/tile.js'
 import {crop, edgeMap, medianColor} from './raster.js'
 
 type Item = {side: 'live' | 'target'; text: string; boxes: Box[]; owner: LiveComponent | null}
+type Grouped = {group: TextGroup; mask: Box[]}
 
 function flattened(components: LiveComponent[]): LiveComponent[] {
   return components.flatMap((component) => [component, ...flattened(component.children)])
@@ -92,6 +93,62 @@ function placeAgrees(input: {liveBoxes: Box[]; targetBoxes: Box[]}): boolean {
   return edges.every((edge) => Math.abs(edge) <= TOLERANCES.geometryPx)
 }
 
+function intersection(input: {a: Box; b: Box}): Box | null {
+  const {a, b} = input
+  const x = Math.max(a.x, b.x)
+  const y = Math.max(a.y, b.y)
+  const w = Math.min(a.x + a.w, b.x + b.w) - x
+  const h = Math.min(a.y + a.h, b.y + b.h) - y
+  return w > 0 && h > 0 ? {x, y, w, h} : null
+}
+
+function words(text: string): string[] {
+  return [...text]
+    .map((character) => (character.trim() === '' ? ' ' : character))
+    .join('')
+    .split(' ')
+    .filter((word) => word !== '')
+}
+
+function foundAt(input: {wanted: string[]; among: string[]; from: number}): number | undefined {
+  const {wanted, from} = input
+  const folds = input.among.map((word) => word.toLowerCase())
+  return range(from, Math.max(from, folds.length - wanted.length + 1)).find((start) =>
+    wanted.every((word, offset) => folds[start + offset] === word.toLowerCase()),
+  )
+}
+
+function misaligned(input: {liveItems: Item[]; targetText: string}): {item: Item; remainder: string} | null {
+  const target = words(input.targetText)
+  const walk = input.liveItems.reduce<{cursor: number; missing: Item | null}>(
+    (state, item) => {
+      if (state.missing !== null) return state
+      const wanted = words(item.text)
+      const at = foundAt({wanted, among: target, from: state.cursor})
+      return at === undefined ? {cursor: state.cursor, missing: item} : {cursor: at + wanted.length, missing: null}
+    },
+    {cursor: 0, missing: null},
+  )
+  if (walk.missing === null) return null
+  return {item: walk.missing, remainder: target.slice(walk.cursor).join(' ')}
+}
+
+type Constituent = {item: Item; trimmed: Box[]; agrees: boolean}
+
+function constituent(input: {item: Item; live: Raster; target: Raster; color: ColorMetric}): Constituent {
+  const {item, live, target, color} = input
+  const trimmed = item.boxes.map((box) => trimToInk({raster: live, box}))
+  const agrees = inkAgrees({live, target, liveBoxes: trimmed, targetBoxes: item.boxes, color})
+  return {item, trimmed, agrees}
+}
+
+function masked(input: {constituent: Constituent; targetBoxes: Box[]}): Box[] {
+  const {constituent: part, targetBoxes} = input
+  const reach = part.trimmed.map((box) => expand({box, by: TOLERANCES.geometryPx}))
+  const target = targetBoxes.flatMap((a) => reach.flatMap((b) => intersection({a, b}) ?? []))
+  return [...part.trimmed, ...target]
+}
+
 function connected(items: Item[]): Item[][] {
   const parent = items.map((_, index) => index)
   const root = (index: number): number => {
@@ -111,22 +168,30 @@ function connected(items: Item[]): Item[][] {
   return Object.values(byRoot).map((indexes) => indexes.flatMap((index) => items[index] ?? []))
 }
 
-function toGroup(input: {members: Item[]; live: Raster; target: Raster; color: ColorMetric}): TextGroup | null {
+function toGroup(input: {members: Item[]; live: Raster; target: Raster; color: ColorMetric}): Grouped | null {
+  const {live, target, color} = input
   const sorted = input.members.toSorted(readingOrder)
   const liveItems = sorted.filter((item) => item.side === 'live')
   const targetItems = sorted.filter((item) => item.side === 'target')
-  const owner = liveItems[0]?.owner ?? null
-  if (owner === null || targetItems.length === 0) return null
+  const first = liveItems[0]?.owner ?? null
+  if (first === null || targetItems.length === 0) return null
   const liveBoxes = liveItems.flatMap((item) => item.boxes)
   const targetBoxes = targetItems.flatMap((item) => item.boxes)
   const liveText = joined(liveItems)
   const targetText = joined(targetItems)
-  const trimmed = liveBoxes.map((box) => trimToInk({raster: input.live, box}))
-  const agrees =
-    folded(liveText) === folded(targetText) &&
-    inkAgrees({live: input.live, target: input.target, liveBoxes: trimmed, targetBoxes, color: input.color}) &&
-    placeAgrees({liveBoxes: trimmed, targetBoxes})
-  return {live: liveBoxes, target: targetBoxes, liveText, targetText, agrees, owner}
+  const parts = liveItems.map((item) => constituent({item, live, target, color}))
+  const sameText = folded(liveText) === folded(targetText)
+  const samePlace = placeAgrees({liveBoxes: parts.flatMap((part) => part.trimmed), targetBoxes})
+  const agreeing = sameText && samePlace ? parts.filter((part) => part.agrees) : []
+  const mask = agreeing.flatMap((part) => masked({constituent: part, targetBoxes}))
+  const agrees = sameText && samePlace && agreeing.length === parts.length
+  const missing = sameText ? null : misaligned({liveItems, targetText})
+  const group = {live: liveBoxes, target: targetBoxes, liveText, targetText, agrees, owner: first}
+  if (missing === null || missing.item.owner === null) return {group, mask}
+  return {
+    group: {...group, liveText: missing.item.text.trim(), targetText: missing.remainder, owner: missing.item.owner},
+    mask,
+  }
 }
 
 export function textDiffers(group: TextGroup): boolean {
@@ -146,9 +211,8 @@ export function groupText(input: {
     owner.glyphs.map((glyph): Item => ({side: 'live', text: glyph.text, boxes: glyph.boxes, owner})),
   )
   const targetItems = runs.map((run): Item => ({side: 'target', text: run.text, boxes: [run.box], owner: null}))
-  const groups = connected([...liveItems, ...targetItems]).flatMap(
+  const grouped = connected([...liveItems, ...targetItems]).flatMap(
     (members) => toGroup({members, live, target, color}) ?? [],
   )
-  const agreeing = groups.filter((group) => group.agrees).flatMap((group) => [...group.live, ...group.target])
-  return {groups, agreeing}
+  return {groups: grouped.map(({group}) => group), agreeing: grouped.flatMap(({mask}) => mask)}
 }

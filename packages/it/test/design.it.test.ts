@@ -1027,6 +1027,13 @@ describe('text', () => {
       file: 'src/Toolbar.tsx',
     })
   })
+
+  it('a changed field border stays reported when its placeholder agrees', async () => {
+    await goto('field-border')
+    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    const report = await call('design_diff', {})
+    expect(report.components.filter((c) => c.tag === 'input').filter(aboveTolerance)).toHaveLength(1)
+  })
 })
 
 const WHITE = [255, 255, 255] as const
@@ -1065,6 +1072,11 @@ function glyphComponent(input: {glyphs: {text: string; boxes: Box[]}[]; x?: numb
     index: 1,
     children: [],
   }
+}
+
+function intersects(input: {a: Box; b: Box}): boolean {
+  const {a, b} = input
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 }
 
 function inkInside(box: Box): Box {
@@ -1162,6 +1174,44 @@ describe('groupText', () => {
     const runs = [{text: 'Export', box: moved}]
     const targetInks = [{box: inkInside(moved), rgb: BLACK, phase: 4}]
     expect(grouped({components: [label], runs, targetInks}).groups[0]?.agrees).toBe(false)
+  })
+
+  it('gives a differing run to the first component whose string it lacks', () => {
+    const exportButton = glyphComponent({glyphs: [{text: 'Export', boxes: [{x: 10, y: 10, w: 60, h: 20}]}], x: 1})
+    const deleteButton = glyphComponent({glyphs: [{text: 'Delete', boxes: [{x: 80, y: 10, w: 60, h: 20}]}], x: 2})
+    const runs = [{text: 'Export Create', box: {x: 10, y: 10, w: 130, h: 20}}]
+    const {groups} = grouped({components: [exportButton, deleteButton], runs})
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.owner).toBe(deleteButton)
+    expect(groups[0]).toMatchObject({liveText: 'Delete', targetText: 'Create', agrees: false})
+  })
+
+  it('masks only the labels of a shared run whose ink agrees', () => {
+    const exportBox = {x: 10, y: 10, w: 60, h: 20}
+    const createBox = {x: 80, y: 10, w: 60, h: 20}
+    const exportButton = glyphComponent({glyphs: [{text: 'Export', boxes: [exportBox]}], x: 1})
+    const createButton = glyphComponent({glyphs: [{text: 'Create', boxes: [createBox]}], x: 2})
+    const runs = [{text: 'Export Create', box: {x: 10, y: 10, w: 130, h: 20}}]
+    const targetInks = [
+      {box: inkInside(exportBox), rgb: BLACK},
+      {box: inkInside(createBox), rgb: RED},
+    ]
+    const {agreeing} = grouped({components: [exportButton, createButton], runs, targetInks})
+    expect(agreeing.some((box) => intersects({a: box, b: inkInside(exportBox)}))).toBe(true)
+    expect(agreeing.some((box) => intersects({a: box, b: inkInside(createBox)}))).toBe(false)
+  })
+
+  it('masks a field placeholder by its ink, not by the field box', () => {
+    const word = {x: 20, y: 15, w: 60, h: 20}
+    const fieldBox = {x: 5, y: 5, w: 190, h: 40}
+    const field = glyphComponent({glyphs: [{text: 'Search', boxes: [fieldBox]}]})
+    const runs = [{text: 'Search', box: word}]
+    const liveInks = [{box: inkInside(word), rgb: BLACK}]
+    const {agreeing} = grouped({components: [field], runs, liveInks})
+    expect(agreeing.length).toBeGreaterThan(0)
+    expect(agreeing.some((box) => intersects({a: box, b: {x: fieldBox.x, y: fieldBox.y, w: fieldBox.w, h: 1}}))).toBe(
+      false,
+    )
   })
 })
 
