@@ -1,3 +1,4 @@
+import {range} from 'es-toolkit'
 import {PNG} from 'pngjs'
 import type {Box, Raster} from '../shared/types.js'
 
@@ -133,6 +134,22 @@ function hex(channels: number[]): string {
   return `#${channels.map((value) => value.toString(16).padStart(2, '0')).join('')}`
 }
 
+export function pixelHex(input: {raster: Raster; index: number}): string {
+  return hex([0, 1, 2].map((channel) => input.raster.data[input.index * 4 + channel] ?? 0))
+}
+
+const NEIGHBOURS = [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => ({dx, dy})))
+
+export function eroded(input: {mask: Uint8Array; width: number; height: number}): Uint8Array {
+  const {mask, width, height} = input
+  return mask.map((value, index) => {
+    const x = index % width
+    const y = (index - x) / width
+    if (value !== 1 || x === 0 || y === 0 || x === width - 1 || y === height - 1) return 0
+    return NEIGHBOURS.every(({dx, dy}) => mask[index + dy * width + dx] === 1) ? 1 : 0
+  })
+}
+
 export function medianColor(input: {raster: Raster; exclude: Uint8Array}): string {
   const {raster, exclude} = input
   const histograms = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)]
@@ -146,12 +163,6 @@ export function medianColor(input: {raster: Raster; exclude: Uint8Array}): strin
     })
   }
   return hex(histograms.map((histogram) => channelMedian(histogram, count)))
-}
-
-export function foregroundColor(input: {raster: Raster; edges: Uint8Array}): string {
-  const background = medianColor({raster: input.raster, exclude: input.edges})
-  if (edgeDensity(input.edges) === 0) return background
-  return medianColor({raster: input.raster, exclude: input.edges.map((value) => 1 - value)})
 }
 
 function floodFill(input: {mask: Uint8Array; seen: Uint8Array; width: number; height: number; start: number}): {
@@ -208,5 +219,19 @@ export function diffMask(input: {output: Uint8Array; width: number; height: numb
     const red = output[i * 4] === 255 && output[i * 4 + 1] === 0 && output[i * 4 + 2] === 0
     mask[i] = red && output[i * 4 + 3] === 255 ? 1 : 0
   }
+  return mask
+}
+
+export function boxMask(input: {boxes: Box[]; area: Box}): Uint8Array {
+  const {boxes, area} = input
+  const mask = new Uint8Array(area.w * area.h)
+  boxes.forEach((box) => {
+    const x0 = Math.max(0, box.x - area.x)
+    const x1 = Math.min(area.w, box.x + box.w - area.x)
+    if (x1 <= x0) return
+    range(Math.max(0, box.y - area.y), Math.min(area.h, box.y + box.h - area.y)).forEach((y) => {
+      mask.fill(1, y * area.w + x0, y * area.w + x1)
+    })
+  })
   return mask
 }

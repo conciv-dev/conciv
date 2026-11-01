@@ -66,7 +66,12 @@ function colorAgrees(input: {pages: Pages; pair: Pair; comparators: Comparators}
   const {pages, pair, comparators} = input
   const declared = pair.live.styles.background
   if (pair.targetBox === null || !isOpaqueHex(declared)) return true
-  const sampled = sampledFills({raster: pages.target, box: pair.targetBox}).background
+  const sampled = sampledFills({
+    raster: pages.target,
+    box: pair.targetBox,
+    glyphs: [pair.targetBox],
+    color: comparators.color,
+  }).background
   return comparators.color.distance({a: declared, b: sampled}) <= TOLERANCES.declaredColorDeltaE
 }
 

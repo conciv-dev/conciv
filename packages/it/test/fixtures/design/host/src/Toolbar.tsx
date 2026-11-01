@@ -1,8 +1,10 @@
-export function Toolbar(props: {variant: string | null; badge?: boolean}) {
+export function Toolbar(props: {variant: string | null; badge?: boolean; labelColor?: string}) {
   const style = {...toolbarStyle(props.variant), ...(props.badge ? BADGE : {})}
   return (
     <header className="Lib-toolbar toolbar pl-8" style={style}>
-      <button type="button">Export</button>
+      <button type="button" style={props.labelColor === undefined ? undefined : {color: props.labelColor}}>
+        Export
+      </button>
       <button type="button">Create</button>
     </header>
   )

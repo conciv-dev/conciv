@@ -186,8 +186,9 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, re
   const ranked = reported
     .map((pair): Ranked => {
       const children = matched.pairs.filter((child) => child.parent === pair)
-      const liveSide = sideFrom({pair, from: 'live', children, page: pageBox, raster: live.raster})
-      const targetSide = sideFrom({pair, from: 'target', children, page: pageBox, raster: target.raster})
+      const color = design.comparators.color
+      const liveSide = sideFrom({pair, from: 'live', children, page: pageBox, raster: live.raster, color})
+      const targetSide = sideFrom({pair, from: 'target', children, page: pageBox, raster: target.raster, color})
       const deltas =
         liveSide === null || targetSide === null
           ? []

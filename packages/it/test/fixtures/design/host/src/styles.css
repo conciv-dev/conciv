@@ -44,6 +44,10 @@ button {
   background: #426bf2;
 }
 
+.toolbar button:first-child {
+  width: 112px;
+}
+
 .field {
   font: inherit;
   width: 320px;

@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os'
 import {isAbsolute, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
+import {differenceCiede2000} from 'culori'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
 import {PNG} from 'pngjs'
@@ -44,6 +45,7 @@ const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url
 const PROVENANCE_DIR = fileURLToPath(new URL('fixtures/design/provenance/', import.meta.url))
 const ENDPOINT_FILE = 'dev-endpoint.json'
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
+const COLOR_DELTA_E = 3
 
 const CatalogSchema = z.array(ToolCommandSignatureSchema)
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
@@ -617,5 +619,40 @@ describe('x-ray page', () => {
     await xray.keyboard.press('j')
     await expectLocator(inspector).toContainText(second.source.file)
     await xray.close()
+  })
+})
+
+const colorDistance = differenceCiede2000()
+
+function sameSource(input: {a: LiveComponent['source']; b: LiveComponent['source']}): boolean {
+  const {a, b} = input
+  return a !== null && b !== null && a.file === b.file && a.line === b.line && a.column === b.column
+}
+
+async function toolbarButtons(): Promise<LiveComponent[]> {
+  const captured = await call('design_capture', {width: 1280, height: 720})
+  const toolbar = captured.components.find((c) => c.source?.file === 'src/Toolbar.tsx')
+  return toolbar?.children ?? []
+}
+
+function reportedFor(input: {report: DiffReport; component: LiveComponent | undefined}): DiffReport['components'] {
+  const {report, component} = input
+  if (component === undefined) return []
+  return report.components.filter((c) => sameSource({a: c.source, b: component.source}))
+}
+
+describe('text', () => {
+  it('a recolored label is a foreground delta measured from glyph ink', async () => {
+    await goto('text-recolor')
+    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    const [first, second] = await toolbarButtons()
+    const report = await call('design_diff', {})
+    const foreground = reportedFor({report, component: first})
+      .flatMap((c) => c.deltas)
+      .find((d) => d.kind === 'foreground')
+    expect(foreground).toBeDefined()
+    expect(colorDistance(String(foreground?.live), '#ffd166')).toBeLessThanOrEqual(COLOR_DELTA_E)
+    expect(colorDistance(String(foreground?.target), '#ffffff')).toBeLessThanOrEqual(COLOR_DELTA_E)
+    expect(reportedFor({report, component: second}).flatMap((c) => c.deltas)).toEqual([])
   })
 })
