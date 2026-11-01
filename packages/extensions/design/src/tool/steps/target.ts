@@ -2,14 +2,23 @@ import {toolError} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {z} from 'zod'
 import {unreadableMessage} from '../../server/adapters/image.js'
-import {captureDef, ViewportResultSchema, type TargetInput, type TargetResult} from '../../shared/defs.js'
-import type {Enricher, Raster, ServerStep, TargetNode, TextReader} from '../../shared/types.js'
+import {DESIGN_GUIDE, type TargetInput, type TargetResult} from '../../shared/defs.js'
+import type {DesignRuntime, Enricher, Raster, TargetNode, TextReader} from '../../shared/types.js'
 
 const PageRouteSchema = z.object({pathname: z.string(), search: z.string()})
 
 export async function liveRoute(page: ServerToolPageAccess): Promise<string> {
   const {pathname, search} = PageRouteSchema.parse(await page.call('page_route', {}))
   return `${pathname}${search}`
+}
+
+export function pathnameIn(route: string): string {
+  return route.split('?')[0] ?? route
+}
+
+async function routeLabel(input: {route: string | undefined; page: ServerToolPageAccess}): Promise<string | undefined> {
+  if (input.route !== undefined) return input.route
+  return liveRoute(input.page).then(pathnameIn, () => undefined)
 }
 
 async function enrich(input: {node: TargetNode; raster: Raster; enrichers: Enricher[]}): Promise<TargetNode> {
@@ -42,34 +51,34 @@ async function readText(input: {raster: Raster; reader: TextReader}): Promise<Re
   }
 }
 
-export async function targetWidth(input: {width: number | undefined; page: ServerToolPageAccess}): Promise<number> {
-  if (input.width !== undefined) return input.width
-  return ViewportResultSchema.parse(await input.page.call(captureDef.name, {probe: true})).width
-}
-
-export const targetStep: ServerStep<TargetInput, TargetResult> = async (input, ctx, _request, page) => {
-  const {design} = ctx
-  const width = await targetWidth({width: input.width, page})
-  const route = input.route ?? (await liveRoute(page))
+export async function registerTarget(request: {
+  input: TargetInput
+  session: string
+  design: DesignRuntime
+  page: ServerToolPageAccess
+}): Promise<TargetResult> {
+  const {input, session, design, page} = request
   const adapter = design.adapters.find((candidate) => candidate.accepts({ref: input.image, cwd: design.cwd}))
   if (adapter === undefined) {
     throw toolError('image-unreadable', {message: unreadableMessage(input.image)})
   }
-  const model = await adapter.load({ref: input.image, width, cwd: design.cwd})
+  const model = await adapter.load({ref: input.image, scale: input.scale ?? 1, cwd: design.cwd})
   const root = await enrich({node: model.root, raster: model.raster, enrichers: design.enrichers})
   const read = await readText({raster: model.raster, reader: design.comparators.text})
+  const route = await routeLabel({route: input.route, page})
   const record = await design.store.put({
     model: {...model, root: {...root, children: [...root.children, ...read.children]}},
-    route,
-    width,
+    session,
+    ...(route === undefined ? {} : {route}),
     ...(input.name === undefined ? {} : {name: input.name}),
   })
   return {
     id: record.id,
-    route: record.route,
+    ...(record.route === undefined ? {} : {route: record.route}),
     width: record.width,
     height: record.height,
     scale: record.scale,
     text: read.text,
+    next: DESIGN_GUIDE,
   }
 }

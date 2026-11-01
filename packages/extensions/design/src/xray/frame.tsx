@@ -4,7 +4,7 @@ const DOTS = [0, 1, 2]
 
 type FrameProps = {
   label: string
-  route: string
+  route?: string
   width: number
   height: number
   scale: number

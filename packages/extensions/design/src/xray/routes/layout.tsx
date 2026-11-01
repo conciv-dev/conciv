@@ -4,7 +4,7 @@ import {createStore, type SetStoreFunction} from 'solid-js/store'
 import {Dialog, readStorage, writeStorage} from '@conciv/ui-kit-system'
 import type {SourceLoc} from '../../shared/types.js'
 import {
-  diffCommand,
+  DIFF_COMMAND,
   filterRows,
   loadXray,
   openInEditor,
@@ -187,7 +187,7 @@ function XrayLayout(): JSX.Element {
     const loaded = current()
     if (loaded === undefined || activity.running) return
     setActivity({running: true, failure: null, message: 'Running the diff', aboveAtRun: aboveKeys(rows())})
-    runDiff({target: loaded.target, session: search().session}).then(
+    runDiff({session: search().session}).then(
       () => {
         setActivity({running: false, message: 'The diff finished'})
         void refetch()
@@ -195,7 +195,7 @@ function XrayLayout(): JSX.Element {
       (error: unknown) =>
         setActivity({
           running: false,
-          failure: `The diff did not run: ${failure(error)}. Run ${diffCommand(loaded.target)} in a terminal.`,
+          failure: `The diff did not run: ${failure(error)}. Run ${DIFF_COMMAND} in a terminal.`,
           message: 'The diff did not run',
         }),
     )

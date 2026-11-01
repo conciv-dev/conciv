@@ -1,7 +1,8 @@
-import type {ToolRequest} from '@conciv/extension'
+import type {ServerApi, ToolRequest} from '@conciv/extension'
+import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {DesignConfig} from './config.js'
-import type {DeltaKindName, DiffReport} from './defs.js'
+import type {DeltaKindName, DiffInput, DiffReport, StatusReport, TargetInput, TargetResult} from './defs.js'
 
 export type {DeltaKindName, DiffReport}
 
@@ -32,7 +33,7 @@ export type TargetModel = {
 export type TargetAdapter = {
   kind: string
   accepts(input: {ref: string; cwd: string}): boolean
-  load(input: {ref: string; width?: number; cwd: string}): Promise<TargetModel>
+  load(input: {ref: string; scale: number; cwd: string}): Promise<TargetModel>
 }
 export type Enricher = {
   name: string
@@ -70,7 +71,7 @@ export type LiveCapture = {
 }
 export type Capture = {
   name: string
-  capture(input: {route: string; width: number; height: number; page: ServerToolPageAccess}): Promise<LiveCapture>
+  capture(input: {width: number; height: number; page: ServerToolPageAccess}): Promise<LiveCapture>
   clear(input: {page: ServerToolPageAccess}): Promise<void>
 }
 
@@ -180,19 +181,30 @@ export type ProvenanceMapper = {
 
 export type TargetRecord = {
   id: string
-  route: string
+  session: string
+  route?: string
   width: number
   height: number
   name?: string
   scale: number
   createdAt: number
+  acceptedRun?: string
 }
+export type DecisionKind = 'pin' | 'excluded' | 'image-slot' | 'accept-delta' | 'tolerance'
+export type Decision = {id: string; kind: DecisionKind; anchor: string; value: string | number | null; at: number}
+export type StoredRun = {run: string; report: DiffReport}
 export type TargetStore = {
-  put(input: {model: TargetModel; route: string; width: number; name?: string}): Promise<TargetRecord>
-  find(input: {id?: string; route?: string; width?: number}): Promise<TargetRecord | null>
+  put(input: {model: TargetModel; session: string; route?: string; name?: string}): Promise<TargetRecord>
+  find(input: {id: string}): Promise<TargetRecord | null>
+  current(input: {session: string}): Promise<TargetRecord | null>
   list(input: {route?: string}): Promise<TargetRecord[]>
-  remove(input: {id?: string; route?: string}): Promise<number>
+  remove(input: {id?: string; all?: boolean}): Promise<number>
   model(id: string): Promise<TargetModel>
+  decisions(id: string): Promise<Decision[]>
+  decide(input: {id: string; kind: DecisionKind; anchor: string; value: Decision['value']}): Promise<Decision>
+  revoke(input: {id: string; decision: string}): Promise<boolean>
+  accept(input: {id: string; run: string}): Promise<TargetRecord>
+  latestRun(id: string): Promise<StoredRun | null>
   writeCapture(input: {png: Uint8Array}): Promise<string>
   writeRun(input: {
     id: string
@@ -231,7 +243,15 @@ export type DesignRuntime = {
 
 export type XrayLink = {url: string; absolute: boolean}
 
-export type DesignContext = {design: DesignRuntime}
+export type Differ = {
+  register(input: {input: TargetInput; session: SessionId}): Promise<TargetResult>
+  run(input: {input: DiffInput; session: SessionId}): Promise<DiffReport>
+  status(input: {session: SessionId}): Promise<StatusReport>
+}
+
+export type DesignPage = ServerApi<DesignConfig>['page']
+
+export type DesignContext = {design: DesignRuntime; differ: Differ}
 
 export type ServerStep<Input, Output> = (
   input: Input,

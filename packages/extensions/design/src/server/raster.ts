@@ -70,23 +70,6 @@ export function boxBlur(input: {raster: Raster; radius: number}): Raster {
   return blurPass({raster: once, radius: input.radius, horizontal: false})
 }
 
-export function scaleToWidth(input: {raster: Raster; width: number}): {raster: Raster; scale: number} {
-  const {raster, width} = input
-  const scale = width / raster.width
-  if (width === raster.width) return {raster, scale}
-  const height = Math.max(1, Math.round(raster.height * scale))
-  const data = new Uint8Array(width * height * 4)
-  for (let y = 0; y < height; y += 1) {
-    const sy = Math.min(raster.height - 1, Math.floor(y / scale))
-    for (let x = 0; x < width; x += 1) {
-      const sx = Math.min(raster.width - 1, Math.floor(x / scale))
-      const from = (sy * raster.width + sx) * 4
-      data.set(raster.data.subarray(from, from + 4), (y * width + x) * 4)
-    }
-  }
-  return {raster: {width, height, data}, scale}
-}
-
 function luminance(raster: Raster): Float32Array {
   const out = new Float32Array(raster.width * raster.height)
   for (let i = 0; i < out.length; i += 1) {

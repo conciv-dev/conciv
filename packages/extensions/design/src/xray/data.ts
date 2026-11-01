@@ -160,9 +160,9 @@ async function sessionClient(session: string | undefined) {
   return makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
 }
 
-export async function runDiff(input: {target: TargetRecord; session: string | undefined}): Promise<void> {
+export async function runDiff(input: {session: string | undefined}): Promise<void> {
   const rpc = await sessionClient(input.session)
-  await rpc.registry.call({name: 'design_diff', input: {target: input.target.id, width: input.target.width}})
+  await rpc.registry.call({name: 'design_diff', input: {}})
 }
 
 export async function openInEditor(input: {source: SourceLoc; session: string | undefined}): Promise<void> {
@@ -170,9 +170,7 @@ export async function openInEditor(input: {source: SourceLoc; session: string | 
   await rpc.editor.open({file: input.source.file, line: input.source.line})
 }
 
-export function diffCommand(target: TargetRecord): string {
-  return `conciv tools design diff --target ${target.id} --width ${target.width}`
-}
+export const DIFF_COMMAND = 'conciv tools design diff'
 
 export const FILTERS = ['all', 'above', 'match', 'none'] as const
 export type Filter = (typeof FILTERS)[number]

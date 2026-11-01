@@ -214,7 +214,7 @@ export const screenshotDef = pageTool({
   category: 'read',
   icon: 'read',
   label: {running: 'Taking a screenshot', done: 'Took a screenshot'},
-  hint: 'the one look at what the user sees: pixels, not DOM; for structure use page_snapshot or page_tree',
+  hint: 'the one look at what the user sees: pixels, not DOM; for structure use page_snapshot or page_tree; to match a design image use design_diff, never a screenshot',
   keywords: ['screenshot', 'image', 'viewport', 'pixels', 'visual'],
   input: noInput,
   output: z.array(z.union([ImagePart, ImageDetailPart])),

@@ -2,6 +2,7 @@ import {groupBy, uniqBy} from 'es-toolkit'
 import {toolError} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {
+  NO_TARGET_MESSAGE,
   winnerDef,
   WinnerResultSchema,
   type ComponentReport,
@@ -17,11 +18,11 @@ import type {
   DesignRuntime,
   Pair,
   Raster,
-  ServerStep,
   TargetModel,
   TargetRecord,
   TextGroup,
   TextRun,
+  XrayLink,
 } from '../../shared/types.js'
 import {withBreakpoints} from '../../server/breakpoints.js'
 import {sideFrom} from '../../server/deltas.js'
@@ -31,46 +32,42 @@ import {mapDeclaration} from '../../server/provenance/mappers.js'
 import {paintOver} from '../../server/raster.js'
 import {groupText, textDiffers} from '../../server/text-groups.js'
 import {unmatchedRegions} from '../../server/unmatched.js'
-import {liveRoute, targetWidth} from './target.js'
+import {liveRoute, pathnameIn} from './target.js'
+
+type RouteItem = NonNullable<DiffReport['route']>
 
 const HINT = 'no element carries data-conciv-source; the page is not a dev build compiled by the conciv plugin'
 const ORIGIN_HINT = 'the conciv engine origin is unknown, so xray is a path on the engine and not a full url'
 const MISMATCH_PRECISION = 10_000
 
-async function findTarget(input: {
-  query: DiffInput
-  design: DesignRuntime
-  page: ServerToolPageAccess
-}): Promise<TargetRecord> {
-  const {query, design, page} = input
-  if (query.target !== undefined) {
-    const byId = await design.store.find({id: query.target})
-    if (byId === null) {
-      throw toolError('no-target', {
-        message: `no design target with id ${query.target}; register one with design_target`,
-      })
-    }
-    await assertLiveRoute({record: byId, page})
-    return byId
-  }
-  const width = await targetWidth({width: query.width, page})
-  const route = await liveRoute(page)
-  const pathname = route.split('?')[0] ?? route
-  const record = (await design.store.find({route, width})) ?? (await design.store.find({route: pathname, width}))
+async function currentTarget(input: {design: DesignRuntime; session: string}): Promise<TargetRecord> {
+  const record = await input.design.store.current({session: input.session})
   if (record !== null) return record
-  throw toolError('no-target', {
-    message: `no design target for ${route} at ${width}px; register one with design_target`,
-  })
+  throw toolError('no-target', {message: NO_TARGET_MESSAGE})
 }
 
-async function assertLiveRoute(input: {record: TargetRecord; page: ServerToolPageAccess}): Promise<void> {
-  const {record} = input
-  const live = await liveRoute(input.page)
-  const compared = record.route.includes('?') ? live : (live.split('?')[0] ?? live)
-  if (compared === record.route) return
-  throw toolError('route-mismatch', {
-    message: `target ${record.id} is the design of ${record.route} but the tab shows ${live}; navigate the tab to ${record.route} first, then diff again`,
-  })
+async function otherRoute(input: {record: TargetRecord; page: ServerToolPageAccess}): Promise<RouteItem | null> {
+  const target = input.record.route
+  if (target === undefined) return null
+  const live = await liveRoute(input.page).catch(() => null)
+  if (live === null) return null
+  const compared = target.includes('?') ? live : pathnameIn(live)
+  return compared === target ? null : {live, target}
+}
+
+function refused(input: {record: TargetRecord; route: RouteItem; xray: XrayLink}): DiffReport {
+  const {record, route, xray} = input
+  return {
+    target: {id: record.id, ...(record.route === undefined ? {} : {route: record.route}), width: record.width},
+    mismatch: 0,
+    diffImage: '',
+    livePath: '',
+    xray: xray.url,
+    components: [],
+    unmatched: [],
+    route,
+    hint: `the tab shows ${route.live} but the design target is the design of ${route.target}; navigate the tab to ${route.target}, then diff again`,
+  }
 }
 
 function paintDiff(input: {live: Raster; mask: Uint8Array; width: number}): Raster {
@@ -213,11 +210,19 @@ function reportHint(input: {attributed: boolean; absolute: boolean}): {hint?: st
   return hints.length === 0 ? {} : {hint: hints.join('; ')}
 }
 
-export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, request, page) => {
-  const {design} = ctx
-  const record = await findTarget({query: input, design, page})
+export async function runDiff(request: {
+  input: DiffInput
+  session: string
+  design: DesignRuntime
+  page: ServerToolPageAccess
+}): Promise<DiffReport> {
+  const {input, session, design, page} = request
+  const record = await currentTarget({design, session})
+  const xray = design.xrayUrl({id: record.id, session})
+  const route = await otherRoute({record, page})
+  if (route !== null) return refused({record, route, xray})
   const target = await design.store.model(record.id)
-  const live = await design.capture.capture({route: record.route, width: record.width, height: record.height, page})
+  const live = await design.capture.capture({width: record.width, height: record.height, page})
   const {groups, agreeing} = groupText({
     components: live.components,
     runs: targetRuns(target),
@@ -287,7 +292,6 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, re
     .toSorted((a, b) => measured(b) - measured(a) || b.pair.mismatch * area(b.pair) - a.pair.mismatch * area(a.pair))
     .slice(0, input.limit)
   const components = await withProvenance({ranked, design, page, width: record.width, height: record.height})
-  const xray = design.xrayUrl({id: record.id, session: request.sessionId})
   return design.store.writeRun({
     id: record.id,
     live: live.raster,
@@ -296,7 +300,7 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, re
       record,
       store: design.store,
       result: {
-        target: {id: record.id, route: record.route, width: record.width},
+        target: {id: record.id, ...(record.route === undefined ? {} : {route: record.route}), width: record.width},
         xray: xray.url,
         mismatch: rounded(matched.mismatch),
         components,

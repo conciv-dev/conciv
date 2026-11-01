@@ -4,10 +4,11 @@ import {fileURLToPath} from 'node:url'
 import {defineExtension} from '@conciv/extension'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {designConfig} from './shared/config.js'
-import {DESIGN_EXTENSION_NAME} from './shared/defs.js'
+import {DESIGN_EXTENSION_NAME, DESIGN_GUIDE} from './shared/defs.js'
 import type {CssMap, DesignRuntime} from './shared/types.js'
 import {destroyPaddle} from './server/comparators/paddle.js'
 import {buildCssMap} from './server/provenance/css-map.js'
+import {createDiffer} from './server/differ.js'
 import {pickRuntime} from './server/registries.js'
 import {createTargetStore} from './server/store.js'
 import {makeXrayApp, makeXrayRouter} from './server/xray-routes.js'
@@ -72,7 +73,9 @@ export const design = defineExtension({
     },
   }
   return {
-    context: {design: runtime},
+    context: {design: runtime, differ: createDiffer({runtime, store, page: server.page})},
+    systemPrompt: async ({sessionId}) =>
+      (await store.current({session: sessionId})) === null ? undefined : DESIGN_GUIDE,
     router: makeXrayRouter({store, designDir, sourceChangedAt: changes.sourceChangedAt}),
     app: makeXrayApp({store, pageDir: fileURLToPath(new URL('xray/', import.meta.url)), designDir, cwd: server.cwd}),
     dispose: async () => {

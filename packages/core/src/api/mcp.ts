@@ -203,6 +203,7 @@ async function runDiscover(runner: CodeRunner, toolNames: string[]): Promise<Exe
 
 type McpDeps = {
   codeRunner: (sessionId: SessionId) => Promise<CodeRunner | null>
+  sessionPrompt: (sessionId: SessionId) => Promise<string>
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   staleness: () => EngineStaleness
 }
@@ -211,9 +212,11 @@ export type McpVars = {mcp: McpDeps}
 
 async function buildServer(deps: McpDeps, scope: SessionScope): Promise<McpServer> {
   const runner = await deps.codeRunner(scope.id)
+  const sessionLines = await deps.sessionPrompt(scope.id)
+  const capabilities = [runner?.systemPrompt ?? '', sessionLines].filter(Boolean).join('\n\n')
   const server = new McpServer(
     {name: 'conciv', version: '0.0.0'},
-    {instructions: serverInstructions(runner?.systemPrompt ?? '', deps.staleness())},
+    {instructions: serverInstructions(capabilities, deps.staleness())},
   )
   if (runner === null) {
     logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')

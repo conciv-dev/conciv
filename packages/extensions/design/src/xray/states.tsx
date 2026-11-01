@@ -46,7 +46,7 @@ export function LoadError(props: {message: string; onRetry: () => void}): JSX.El
   )
 }
 
-export function NoRun(props: {route: string; width: number; running: boolean; onRun: () => void}): JSX.Element {
+export function NoRun(props: {route?: string; width: number; running: boolean; onRun: () => void}): JSX.Element {
   return (
     <EmptyState
       icon="i-ph-image-duotone"

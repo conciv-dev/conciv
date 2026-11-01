@@ -303,6 +303,40 @@ describe('api extension lifecycle', () => {
   }, 30_000)
 })
 
+describe('api extension session prompt', () => {
+  const INITIALIZE = JSON.stringify({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {protocolVersion: '2025-06-18', capabilities: {}, clientInfo: {name: 'session-prompt-test', version: '0'}},
+  })
+
+  test('a mounted extension adds a line to the mcp instructions of one session only', async () => {
+    const promptOwner = defineExtension({name: 'prompted'}).server(() => ({
+      context: {},
+      systemPrompt: async ({sessionId}) =>
+        sessionId === 'conciv_prompted' ? 'A target waits for this session.' : undefined,
+    }))
+    const kit = await bootKit({extensions: [promptOwner]})
+    try {
+      const instructions = (session: string) =>
+        fetch(`${kit.base}/api/mcp`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+            [CONCIV_SESSION_HEADER]: session,
+          },
+          body: INITIALIZE,
+        }).then((reply) => reply.text())
+      expect(await instructions('conciv_prompted')).toContain('A target waits for this session.')
+      expect(await instructions('conciv_other')).not.toContain('A target waits for this session.')
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+})
+
 describe('api extension mount isolation', () => {
   function cfgFor(stateRoot: string): ResolvedConcivConfig {
     return {

@@ -1,14 +1,16 @@
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type {PageAskRequest} from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ConcivDb} from '@conciv/db'
 import {createSessionBus, type SessionBus} from '../sessions/session-bus.js'
 import {makeJournal, makePageBus, type CaptureSink, type PageEnv} from '../page-bus.js'
-import {makeBuiltinRegistry} from '../tool-registry.js'
+import {askPage, makeBuiltinRegistry} from '../tool-registry.js'
 
 export type SessionPrimitives = {
   stream: SessionBus
   page: PageEnv
   registry: ToolRegistry
+  askPage: (request: PageAskRequest) => Promise<unknown>
 }
 
 export type SessionPrimitivesDeps = {
@@ -30,5 +32,6 @@ export function makeSessionPrimitives(deps: SessionPrimitivesDeps): SessionPrimi
     stream: createSessionBus(),
     page,
     registry: makeBuiltinRegistry({page, bundler: deps.bundler, openInEditor: deps.openInEditor}),
+    askPage: (request) => askPage({...request, page}),
   }
 }

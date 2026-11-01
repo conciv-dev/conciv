@@ -1,10 +1,10 @@
 import {existsSync, statSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
-import {randomUUID} from 'node:crypto'
+import {createHash} from 'node:crypto'
 import {resolve} from 'node:path'
 import {toolError} from '@conciv/extension'
 import type {TargetAdapter} from '../../shared/types.js'
-import {decodePng, scaleToWidth} from '../raster.js'
+import {decodePng} from '../raster.js'
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
@@ -32,19 +32,20 @@ async function readImage(input: {ref: string; cwd: string}): Promise<Uint8Array>
 export const imageAdapter: TargetAdapter = {
   kind: 'image',
   accepts: ({ref, cwd}) => isFile(resolve(cwd, ref)) || pngBase64(ref) !== null,
-  load: async ({ref, width, cwd}) => {
-    const decoded = decodePng(await readImage({ref, cwd}))
-    const {raster, scale} = scaleToWidth({raster: decoded, width: width ?? decoded.width})
+  load: async ({ref, scale, cwd}) => {
+    const bytes = await readImage({ref, cwd})
+    const raster = decodePng(bytes)
+    const viewport = {width: Math.round(raster.width / scale), height: Math.round(raster.height / scale)}
     return {
-      id: randomUUID().slice(0, 8),
+      id: createHash('sha256').update(bytes).digest('hex').slice(0, 12),
       source: {kind: 'image', ref: isFile(resolve(cwd, ref)) ? ref : 'base64'},
-      viewport: {width: raster.width, height: raster.height},
+      viewport,
       raster,
       scale,
       root: {
         id: 'root',
         kind: 'frame',
-        box: {x: 0, y: 0, w: raster.width, h: raster.height},
+        box: {x: 0, y: 0, w: viewport.width, h: viewport.height},
         confidence: 1,
         children: [],
       },

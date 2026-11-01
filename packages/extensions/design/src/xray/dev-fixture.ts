@@ -10,7 +10,16 @@ const SOURCE_CHANGE_AGE_MS = 4_000
 const RUN_SUFFIX = 'a1b2'
 
 function record(input: {id: string; width: number; name: string}): TargetRecord {
-  return {id: input.id, route: ROUTE, width: input.width, height: 720, name: input.name, scale: 1, createdAt: 0}
+  return {
+    id: input.id,
+    session: 'dev',
+    route: ROUTE,
+    width: input.width,
+    height: 720,
+    name: input.name,
+    scale: 1,
+    createdAt: 0,
+  }
 }
 
 const TARGETS = {

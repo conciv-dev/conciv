@@ -1,43 +1,30 @@
 import {basename} from 'node:path'
-import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {aboveTolerance} from '../../shared/above.js'
-import type {DiffReport, StatusInput, StatusReport} from '../../shared/defs.js'
-import type {DesignRuntime, ServerStep, TargetRecord} from '../../shared/types.js'
-import {liveRoute} from './target.js'
+import {DESIGN_GUIDE, type DiffReport, type StatusReport} from '../../shared/defs.js'
+import type {TargetStore} from '../../shared/types.js'
 
 function runTime(report: DiffReport): number | null {
   const at = Number(basename(report.livePath).split('-')[1])
   return Number.isFinite(at) ? at : null
 }
 
-async function listed(input: {query: StatusInput; design: DesignRuntime; page: ServerToolPageAccess}): Promise<{
-  route: string
-  records: TargetRecord[]
-}> {
-  const {query, design, page} = input
-  if (query.route !== undefined) return {route: query.route, records: await design.store.list({route: query.route})}
-  const live = await liveRoute(page)
-  const records = await design.store.list({route: live})
-  if (records.length > 0) return {route: live, records}
-  const pathname = live.split('?')[0] ?? live
-  return {route: pathname, records: await design.store.list({route: pathname})}
-}
-
-export const statusStep: ServerStep<StatusInput, StatusReport> = async (input, ctx, _request, page) => {
-  const {route, records} = await listed({query: input, design: ctx.design, page})
-  const targets = await Promise.all(
-    records.map(async (record) => {
-      const report = await ctx.design.store.lastResult(record.id)
-      if (report === null) return {id: record.id, width: record.width, mismatch: null, above: 0, lastAt: null}
-      return {
-        id: record.id,
-        width: record.width,
-        mismatch: report.mismatch,
-        above: aboveTolerance(report),
-        lastAt: runTime(report),
-      }
-    }),
+export async function targetStatus(input: {store: TargetStore; session: string}): Promise<StatusReport> {
+  const {store} = input
+  const record = await store.current({session: input.session})
+  if (record === null) return {targets: [], done: false}
+  const report = await store.lastResult(record.id)
+  const reregister = await store.model(record.id).then(
+    () => false,
+    () => true,
   )
-  const done = targets.length > 0 && targets.every((target) => target.lastAt !== null && target.above === 0)
-  return {route, targets, done}
+  const lastAt = report === null ? null : runTime(report)
+  const above = report === null ? 0 : aboveTolerance(report)
+  const done = !reregister && lastAt !== null && above === 0
+  return {
+    ...(record.route === undefined ? {} : {route: record.route}),
+    targets: [{id: record.id, width: record.width, mismatch: report?.mismatch ?? null, above, lastAt}],
+    done,
+    ...(done ? {} : {next: DESIGN_GUIDE}),
+    ...(reregister ? {reregister} : {}),
+  }
 }

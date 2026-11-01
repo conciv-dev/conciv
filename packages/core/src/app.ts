@@ -359,6 +359,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       context,
       dispose: result?.dispose,
       turnEnd: result?.turnEnd,
+      systemPrompt: result?.systemPrompt,
     }
   }
 
@@ -374,6 +375,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
         bundler: opts.bridge,
         nativeUrl,
+        page: {ask: primitives.askPage},
       })
       return assembleMounted(extension, result)
     } catch (error) {
@@ -392,6 +394,17 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
+  const sessionPrompts = mounted.flatMap((entry) => (entry.systemPrompt ? [entry.systemPrompt] : []))
+  const sessionPrompt = async (sessionId: SessionId): Promise<string> => {
+    const settled = await Promise.allSettled(sessionPrompts.map((resolve) => resolve({cwd: opts.cwd, sessionId})))
+    return settled
+      .flatMap((outcome) => {
+        if (outcome.status === 'fulfilled') return outcome.value === undefined ? [] : [outcome.value]
+        logError(`[core] a session system prompt failed: ${String(outcome.reason)}`)
+        return []
+      })
+      .join('\n\n')
+  }
   const onRunEnd = async (sessionId: SessionId): Promise<void> => {
     const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
     settled.forEach((outcome) => {
@@ -499,6 +512,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       harnessId: harness.id,
       mcp: {
         codeRunner: (sessionId) => plane.codeRunner(sessionId, (chunk) => stream.publish(sessionId, chunk)),
+        sessionPrompt,
         resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
         staleness,
       },

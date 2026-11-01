@@ -4134,6 +4134,9 @@ importers:
 
   packages/skills:
     devDependencies:
+      '@conciv/harness-init':
+        specifier: workspace:*
+        version: link:../harness-init
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config

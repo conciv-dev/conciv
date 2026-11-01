@@ -15,7 +15,9 @@ export async function withBreakpoints(input: {
   store: TargetStore
 }): Promise<RunResult> {
   const {result, record, store} = input
-  const siblings = (await store.list({route: record.route})).filter((other) => other.width !== record.width)
+  const siblings = (await store.list({})).filter(
+    (other) => other.route === record.route && other.width !== record.width,
+  )
   const others = (await Promise.all(siblings.map((other) => store.lastResult(other.id)))).filter(
     (report) => report !== null,
   )

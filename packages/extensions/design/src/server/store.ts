@@ -6,23 +6,37 @@ import {toolError} from '@conciv/extension'
 import {z} from 'zod'
 import {BoxSchema, DiffReportSchema, type DiffReport} from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
-import type {TargetModel, TargetNode, TargetRecord, TargetStore} from '../shared/types.js'
+import type {Decision, StoredRun, TargetModel, TargetNode, TargetRecord, TargetStore} from '../shared/types.js'
 import {decodePng, encodePng} from './raster.js'
 
 export const TARGET_FILE = 'target.png'
 const MODEL_FILE = 'model.json'
 const RECORD_FILE = 'record.json'
+const DECISIONS_FILE = 'decisions.json'
 const CAPTURES_DIR = 'captures'
+const RUN_PREFIXES = ['live-', 'diff-', 'result-']
 
 const RecordSchema = z.object({
   id: z.string(),
-  route: z.string(),
+  session: z.string().default(''),
+  route: z.string().optional(),
   width: z.number(),
   height: z.number(),
   name: z.string().optional(),
   scale: z.number(),
   createdAt: z.number(),
+  acceptedRun: z.string().optional(),
 })
+
+const DecisionsSchema = z.array(
+  z.object({
+    id: z.string(),
+    kind: z.enum(['pin', 'excluded', 'image-slot', 'accept-delta', 'tolerance']),
+    anchor: z.string(),
+    value: z.union([z.string(), z.number(), z.null()]),
+    at: z.number(),
+  }),
+)
 
 const TargetNodeSchema: z.ZodType<TargetNode> = z.lazy(() =>
   z.object({
@@ -79,16 +93,25 @@ async function readJson<T>(input: {path: string; schema: z.ZodType<T>}): Promise
   return parsed.success ? parsed.data : null
 }
 
-async function prune(input: {dir: string; prefix: string}): Promise<void> {
-  const names = (await readdir(input.dir)).filter((name) => name.startsWith(input.prefix)).toSorted()
+function runStamp(input: {name: string; prefix: string}): string {
+  return input.name.slice(input.prefix.length).split('.')[0] ?? ''
+}
+
+async function prune(input: {dir: string; prefix: string; spared: string[]}): Promise<void> {
+  const names = (await readdir(input.dir))
+    .filter((name) => name.startsWith(input.prefix))
+    .filter((name) => !input.spared.includes(runStamp({name, prefix: input.prefix})))
+    .toSorted()
   const stale = names.slice(0, Math.max(0, names.length - TOLERANCES.runsKept))
   await Promise.all(stale.map((name) => rm(join(input.dir, name), {force: true})))
 }
 
-function matches(input: {record: TargetRecord; id?: string; route?: string; width?: number}): boolean {
-  if (input.id !== undefined && input.record.id !== input.id) return false
-  if (input.route !== undefined && input.record.route !== input.route) return false
-  return input.width === undefined || input.record.width === input.width
+async function runs(home: string): Promise<string[]> {
+  if (!existsSync(home)) return []
+  return (await readdir(home))
+    .filter((name) => name.startsWith('result-'))
+    .map((name) => runStamp({name, prefix: 'result-'}))
+    .toSorted()
 }
 
 type PutRequest = Parameters<TargetStore['put']>[0]
@@ -111,33 +134,66 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       .toSorted((a, b) => a.createdAt - b.createdAt)
   }
 
-  async function remove(filter: {id?: string; route?: string}): Promise<number> {
-    if (filter.id === undefined && filter.route === undefined) return 0
-    const doomed = (await list({})).filter((record) => matches({record, ...filter}))
+  async function find(filter: {id: string}): Promise<TargetRecord | null> {
+    return (await list({})).find((record) => record.id === filter.id) ?? null
+  }
+
+  async function remove(filter: {id?: string; all?: boolean}): Promise<number> {
+    const doomed = (await list({})).filter((record) => filter.all === true || record.id === filter.id)
     await Promise.all(doomed.map((record) => rm(join(dir, record.id), {recursive: true, force: true})))
     return doomed.length
   }
 
-  async function replace(request: PutRequest): Promise<TargetRecord> {
-    const {model, route, width, name} = request
-    const stale = (await list({route})).filter((record) => record.width === width)
-    await Promise.all(stale.map((record) => rm(join(dir, record.id), {recursive: true, force: true})))
-    const id = randomUUID().slice(0, 8)
-    const record: TargetRecord = {
-      id,
-      route,
-      width,
+  async function writeRecord(record: TargetRecord): Promise<TargetRecord> {
+    await writeFile(join(dir, record.id, RECORD_FILE), JSON.stringify(record))
+    return record
+  }
+
+  async function register(request: PutRequest): Promise<TargetRecord> {
+    const {model, session, route, name} = request
+    const {raster, ...rest} = model
+    const earlier = await find({id: model.id})
+    const home = join(dir, model.id)
+    await mkdir(home, {recursive: true})
+    await writeFile(join(home, TARGET_FILE), encodePng(raster))
+    await writeFile(join(home, MODEL_FILE), JSON.stringify(rest))
+    return writeRecord({
+      id: model.id,
+      session,
+      ...(route === undefined ? {} : {route}),
+      width: model.viewport.width,
       height: model.viewport.height,
       ...(name === undefined ? {} : {name}),
       scale: model.scale,
       createdAt: Date.now(),
-    }
-    const {raster, ...rest} = model
-    const home = join(dir, id)
-    await mkdir(home, {recursive: true})
-    await writeFile(join(home, TARGET_FILE), encodePng(raster))
-    await writeFile(join(home, MODEL_FILE), JSON.stringify({...rest, id}))
-    await writeFile(join(home, RECORD_FILE), JSON.stringify(record))
+      ...(earlier?.acceptedRun === undefined ? {} : {acceptedRun: earlier.acceptedRun}),
+    })
+  }
+
+  async function decisions(id: string): Promise<Decision[]> {
+    return (await readJson({path: join(dir, id, DECISIONS_FILE), schema: DecisionsSchema})) ?? []
+  }
+
+  async function writeDecisions(update: {id: string; decisions: Decision[]}): Promise<void> {
+    await writeFile(join(dir, update.id, DECISIONS_FILE), JSON.stringify(update.decisions))
+  }
+
+  async function latestRun(id: string): Promise<StoredRun | null> {
+    const run = (await runs(join(dir, id))).at(-1)
+    if (run === undefined) return null
+    const report = await readJson({path: join(dir, id, `result-${run}.json`), schema: DiffReportSchema})
+    return report === null ? null : {run, report}
+  }
+
+  function serial<T>(work: () => Promise<T>): Promise<T> {
+    const next = queue.tail.then(work)
+    queue.tail = next.catch(() => undefined)
+    return next
+  }
+
+  async function existing(id: string): Promise<TargetRecord> {
+    const record = await find({id})
+    if (record === null) throw toolError('no-target', {message: `no design target with id ${id}`})
     return record
   }
 
@@ -148,23 +204,47 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
   return {
     list,
     remove,
-    put: (request) => {
-      const next = queue.tail.then(() => replace(request))
-      queue.tail = next.catch(() => undefined)
-      return next
+    find,
+    put: (request) => serial(() => register(request)),
+    current: async ({session}) => {
+      const records = await list({})
+      const own = records.filter((record) => record.session === session).at(-1)
+      if (own !== undefined) return own
+      return records.length === 1 ? (records[0] ?? null) : null
     },
-    find: async (filter) => (await list({})).findLast((record) => matches({record, ...filter})) ?? null,
     model: async (id): Promise<TargetModel> => {
       const model = await readJson({path: join(dir, id, MODEL_FILE), schema: ModelSchema})
-      if (model === null) throw toolError('no-target', {message: `no design target with id ${id}`})
+      if (model === null) {
+        throw toolError('no-target', {
+          message: `the stored design target ${id} is unreadable; register the design image again with design_target`,
+        })
+      }
       return {...model, raster: decodePng(await readFile(join(dir, id, TARGET_FILE)))}
     },
+    decisions,
+    decide: ({id, kind, anchor, value}) =>
+      serial(async () => {
+        await existing(id)
+        const decision: Decision = {id: randomUUID().slice(0, 8), kind, anchor, value, at: Date.now()}
+        await writeDecisions({id, decisions: [...(await decisions(id)), decision]})
+        return decision
+      }),
+    revoke: ({id, decision}) =>
+      serial(async () => {
+        const all = await decisions(id)
+        const kept = all.filter((entry) => entry.id !== decision)
+        if (kept.length === all.length) return false
+        await writeDecisions({id, decisions: kept})
+        return true
+      }),
+    accept: ({id, run}) => serial(async () => writeRecord({...(await existing(id)), acceptedRun: run})),
+    latestRun,
     writeCapture: async ({png}) => {
       const captures = join(dir, CAPTURES_DIR)
       await mkdir(captures, {recursive: true})
       const path = join(captures, `capture-${stamp()}.png`)
       await writeFile(path, png)
-      await prune({dir: captures, prefix: 'capture-'})
+      await prune({dir: captures, prefix: 'capture-', spared: []})
       return path
     },
     writeRun: async ({id, live, diff, result}) => {
@@ -179,19 +259,12 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       const pending = join(home, `pending-${at}.json`)
       await writeFile(pending, JSON.stringify(report))
       await rename(pending, join(home, `result-${at}.json`))
-      await Promise.all(['live-', 'diff-', 'result-'].map((prefix) => prune({dir: home, prefix})))
+      const record = await find({id})
+      const spared = [(await runs(home))[0], record?.acceptedRun].filter((run) => run !== undefined)
+      await Promise.all(RUN_PREFIXES.map((prefix) => prune({dir: home, prefix, spared})))
       return report
     },
-    lastResult: async (id): Promise<DiffReport | null> => {
-      const home = join(dir, id)
-      if (!existsSync(home)) return null
-      const last = (await readdir(home))
-        .filter((name) => name.startsWith('result-'))
-        .toSorted()
-        .at(-1)
-      if (last === undefined) return null
-      return readJson({path: join(home, last), schema: DiffReportSchema})
-    },
+    lastResult: async (id): Promise<DiffReport | null> => (await latestRun(id))?.report ?? null,
     reportPath,
   }
 }

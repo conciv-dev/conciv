@@ -1,7 +1,7 @@
 import {parse} from 'culori'
 import {snapdom} from '@zumer/snapdom'
 import {toolError} from '@conciv/extension'
-import {DESIGN_ERRORS, type CaptureInput, type ViewportResult} from '../shared/defs.js'
+import {DESIGN_ERRORS, type TabCaptureInput, type ViewportResult} from '../shared/defs.js'
 import type {LiveComponent} from '../shared/types.js'
 import {keepBodyMargins} from '@conciv/extension-page/body-margins'
 import {collectComponents} from './components.js'
@@ -82,13 +82,13 @@ async function captureInFrame(size: Size): Promise<ClientCapture> {
   return {image: await base64(blob), ...size, route: locationRoute(location), components}
 }
 
-function needsFrame(input: {requested: CaptureInput; viewport: Size}): boolean {
+function needsFrame(input: {requested: TabCaptureInput; viewport: Size}): boolean {
   const {requested, viewport} = input
   if (requested.width !== undefined && requested.width !== viewport.width) return true
   return requested.height !== undefined && requested.height !== viewport.height
 }
 
-export async function captureStep(input: CaptureInput): Promise<ClientCapture | ViewportResult> {
+export async function captureStep(input: TabCaptureInput): Promise<ClientCapture | ViewportResult> {
   const viewport = {width: innerWidth, height: innerHeight}
   if (input.clear === true) removeCaptureFrame()
   if (input.probe === true || input.clear === true) return viewport
