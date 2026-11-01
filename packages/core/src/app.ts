@@ -65,7 +65,7 @@ import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {makeDevframePlane} from './devframe-plane.js'
-import type {DevframeInstance} from 'devframe/initiate'
+import type {HubInstance} from '@devframes/hub/initiate'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
@@ -280,7 +280,7 @@ export type MadeApp = {
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
-  devframe: DevframeInstance
+  devframe: HubInstance
 }
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string, claudeHome?: string): ServerHarness {
@@ -526,6 +526,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     stateDir: concivStateDir(opts.cfg.stateRoot),
     auth: opts.devframeAuth ?? true,
     mcpToken: opts.mcpToken ?? randomUUID(),
+    cwd: opts.cwd,
   })
   app.all(`${devframe.base}*`, (c) => devframe.handler(c.req.raw))
 

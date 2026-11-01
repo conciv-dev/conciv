@@ -1,11 +1,16 @@
 import {join} from 'node:path'
 import {defineDevframe, defineRpcFunction} from 'devframe'
-import {initDevframe, type DevframeInstance} from 'devframe/initiate'
 import type {DevframeNodeRpcSession} from 'devframe/types'
 import type {RpcDefinitionsToFunctions} from 'devframe/rpc'
 import {defineDiagnostics} from 'devframe/utils/nostics'
+import {initHub, type HubInstance} from '@devframes/hub/initiate'
+import type {DevframeHubContext} from '@devframes/hub/types'
+import {createTerminalsDevframe} from '@devframes/plugin-terminals'
+import {createMessagesDevframe} from '@devframes/plugin-messages'
+import {createJsonRenderView} from '@devframes/json-render/node'
 import {z} from 'zod'
 import {eq} from 'drizzle-orm'
+import type {SessionMeta} from '@conciv/contract'
 import {sessions} from '@conciv/db'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {ChatContext} from './api/rpc/mount.js'
@@ -13,6 +18,8 @@ import {rpcSessionList} from './api/rpc/sessions.js'
 import {rowById} from './sessions/session-rows.js'
 
 const NAMESPACE = 'conciv'
+const SESSIONS_STATE = 'conciv:sessions'
+const TICKS_CHANNEL = 'conciv:ticks'
 
 export const concivDiagnostics = defineDiagnostics({
   codes: {
@@ -21,15 +28,15 @@ export const concivDiagnostics = defineDiagnostics({
   },
 })
 
-const RenameInput = z.object({sessionId: SessionId, title: z.string().min(1).max(200)})
-
 function coded(diagnostic: {code: string; message: string}): Error {
   return new Error(`${diagnostic.code}: ${diagnostic.message}`)
 }
 
-export type PlaneDeps = {chat: ChatContext; pages: Map<string, DevframeNodeRpcSession>}
+const RenameInput = z.object({sessionId: SessionId, title: z.string().min(1).max(200)})
 
-function serverFunctionsFor(deps: PlaneDeps) {
+export type PlaneDeps = {chat: ChatContext; pages: Map<string, DevframeNodeRpcSession>; refresh: () => Promise<void>}
+
+function serverFunctionsFor(deps: PlaneDeps, ctx: () => DevframeHubContext) {
   const sessionsList = defineRpcFunction({
     name: 'conciv:sessions:list',
     type: 'query',
@@ -51,6 +58,7 @@ function serverFunctionsFor(deps: PlaneDeps) {
         .update(sessions)
         .set({title: input.title, updatedAt: Date.now()})
         .where(eq(sessions.id, input.sessionId))
+      await deps.refresh()
       return {title: input.title}
     },
   })
@@ -61,9 +69,9 @@ function serverFunctionsFor(deps: PlaneDeps) {
     jsonSerializable: true,
     args: [z.object({sessionId: SessionId})],
     returns: z.object({registered: z.boolean()}),
-    setup: (ctx) => ({
+    setup: (context) => ({
       handler: (input) => {
-        const session = ctx.rpc.getCurrentRpcSession()
+        const session = context.rpc.getCurrentRpcSession()
         if (session) deps.pages.set(input.sessionId, session)
         return {registered: Boolean(session)}
       },
@@ -78,12 +86,26 @@ function serverFunctionsFor(deps: PlaneDeps) {
     returns: z.string(),
     handler: async (input) => {
       const page = deps.pages.get(input.sessionId)
-      if (!page) throw concivDiagnostics.CONCIV_NO_PAGE({sessionId: input.sessionId})
+      if (!page) throw coded(concivDiagnostics.CONCIV_NO_PAGE({sessionId: input.sessionId}))
       return page.rpc.$call('conciv:page:query', input.question)
     },
   })
 
-  return [sessionsList, sessionsRename, pageRegister, pageAsk] as const
+  const ticksStart = defineRpcFunction({
+    name: 'conciv:ticks:start',
+    type: 'action',
+    jsonSerializable: true,
+    args: [z.object({count: z.number().int().min(1).max(100)})],
+    returns: z.object({streamId: z.string()}),
+    handler: (input) => {
+      const stream = ctx().rpc.streaming.create<number>(TICKS_CHANNEL, {replayWindow: 256}).start()
+      Array.from({length: input.count}, (_, index) => index + 1).forEach((tick) => stream.write(tick))
+      stream.close()
+      return {streamId: stream.id}
+    },
+  })
+
+  return [sessionsList, sessionsRename, pageRegister, pageAsk, ticksStart] as const
 }
 
 declare module 'devframe' {
@@ -91,12 +113,34 @@ declare module 'devframe' {
   interface DevframeRpcClientFunctions {
     'conciv:page:query': (question: string) => Promise<string>
   }
+  interface DevframeSettingsRegistry {
+    conciv: {scheme: 'light' | 'dark' | 'system'}
+  }
 }
 
-export type DevframePlaneOpts = {chat: ChatContext; stateDir: string; auth: boolean; mcpToken: string}
+declare module 'devframe/types' {
+  interface DevframeRpcSharedStates {
+    [SESSIONS_STATE]: {sessions: SessionMeta[]}
+  }
+}
 
-export function makeDevframePlane(opts: DevframePlaneOpts): DevframeInstance {
-  const deps: PlaneDeps = {chat: opts.chat, pages: new Map()}
+export type DevframePlaneOpts = {chat: ChatContext; stateDir: string; auth: boolean; mcpToken: string; cwd: string}
+
+export function makeDevframePlane(opts: DevframePlaneOpts): HubInstance {
+  const contextRef: {current: DevframeHubContext | null} = {current: null}
+  const requireContext = (): DevframeHubContext => {
+    if (!contextRef.current) throw new Error('conciv hub is not configured yet')
+    return contextRef.current
+  }
+  const deps: PlaneDeps = {
+    chat: opts.chat,
+    pages: new Map(),
+    refresh: async () => {
+      const state = await requireContext().rpc.sharedState.get(SESSIONS_STATE, {initialValue: {sessions: []}})
+      const list = await rpcSessionList(opts.chat, false)
+      state.mutate(() => ({sessions: list}))
+    },
+  }
   const definition = defineDevframe({
     id: NAMESPACE,
     name: NAMESPACE,
@@ -104,15 +148,51 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframeInstance {
     packageName: '@conciv/core',
     homepage: 'https://conciv.dev',
     description: 'conciv engine',
-    basePath: '/__conciv/',
+    importMetaUrl: import.meta.url,
+    services: [
+      {package: '@devframes/service-open', options: {roots: [opts.cwd]}},
+      {package: '@devframes/service-shiki'},
+      {package: '@devframes/service-git', options: {cwd: opts.cwd}},
+    ],
     setup(ctx) {
-      serverFunctionsFor(deps).forEach((fn) => ctx.rpc.register(fn))
+      serverFunctionsFor(deps, requireContext).forEach((fn) => ctx.rpc.register(fn))
     },
   })
-  return initDevframe(definition, {
+  return initHub({
     base: '/__conciv/',
+    devframes: [
+      definition,
+      createTerminalsDevframe({
+        presets: [{id: 'echo', title: 'Echo', command: '/bin/echo', args: ['hello-from-pty'], mode: 'readonly'}],
+      }),
+      createMessagesDevframe(),
+    ],
     auth: opts.auth,
     mcp: {allowedOrigins: false, authorization: opts.mcpToken},
     getStorageDir: (scope) => join(opts.stateDir, 'devframe', scope),
+    async configure(ctx) {
+      contextRef.current = ctx
+      await deps.refresh()
+      ctx.commands.register({
+        id: 'conciv:new-session',
+        title: 'New conciv session',
+        agent: {description: 'Start a new conciv chat session.'},
+        handler: async () => {
+          await ctx.messages.add({message: 'conciv session created', level: 'success', notify: true})
+          return {sessionId: 'conciv_new'}
+        },
+      })
+      createJsonRenderView(ctx, {
+        id: 'conciv:status',
+        spec: {
+          root: 'root',
+          elements: {
+            root: {type: 'Card', props: {title: 'conciv status'}, children: ['count']},
+            count: {type: 'Text', props: {text: {$state: '/sessions'}}, children: []},
+          },
+          state: {sessions: 0},
+        },
+      })
+    },
   })
 }

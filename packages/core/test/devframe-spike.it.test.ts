@@ -10,6 +10,12 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {getTempAuthCode} from 'devframe/node/auth'
 import {createFakeHarness, makeRpcClient} from '@conciv/harness-testkit'
 import {start, type Engine} from '../src/start.js'
+import type {} from '@devframes/hub/node'
+import type {} from '@devframes/plugin-terminals/rpc'
+import type {} from '@devframes/plugin-messages/rpc'
+import type {} from '@devframes/service-shiki'
+import type {} from '@devframes/service-git'
+import type {} from '@devframes/service-open'
 
 const MCP_TOKEN = 'spike-mcp-token'
 const root = mkdtempSync(join(tmpdir(), 'conciv-devframe-spike-'))
@@ -170,6 +176,116 @@ describe('devframe plane spike', () => {
     expect(body).toContain('sessions')
   })
 
+  it('syncs the session list to the tab as shared state', async () => {
+    const rpc = makeRpcClient(`http://127.0.0.1:${engine.port}`)
+    const {sessionId} = await rpc.sessions.create()
+    const titles = await page.evaluate(async (id) => {
+      const state = await window.client.sharedState.get('conciv:sessions')
+      const updated = new Promise<string[]>((resolve) =>
+        state.on('updated', (next: {sessions: {title: string | null}[]}) =>
+          resolve(next.sessions.map((session) => session.title ?? '')),
+        ),
+      )
+      await window.client.call('conciv:sessions:rename', {sessionId: id, title: 'renamed live'})
+      return updated
+    }, sessionId)
+    expect(titles).toContain('renamed live')
+  })
+
+  it('streams chunks and replays them to a late subscriber', async () => {
+    const ticks = await page.evaluate(async () => {
+      const {streamId} = await window.client.call('conciv:ticks:start', {count: 5})
+      const received: number[] = []
+      for await (const tick of window.client.streaming.subscribe<number>('conciv:ticks', streamId)) received.push(tick)
+      return received
+    })
+    expect(ticks).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it('runs a palette command that posts a toast to the messages feed', async () => {
+    const outcome = await page.evaluate(async () => {
+      const commands = (await window.client.sharedState.get('devframe:commands')).value() as {id: string}[]
+      const result = await window.client.call('hub:commands:execute', 'conciv:new-session')
+      const feed = (await window.client.call('devframes:plugin:messages:list')) as {entries: {message: string}[]}
+      return {
+        commandIds: commands.map((command) => command.id),
+        result,
+        messages: feed.entries.map((entry) => entry.message),
+      }
+    })
+    expect(outcome.commandIds).toContain('conciv:new-session')
+    expect(outcome.result).toEqual({sessionId: 'conciv_new'})
+    expect(outcome.messages).toContain('conciv session created')
+  })
+
+  it('streams a real PTY session to the tab', async () => {
+    const output = await page.evaluate(async () => {
+      const info = (await window.client.call('devframes:plugin:terminals:spawn', {presetId: 'echo'})) as {id: string}
+      let text = ''
+      for await (const chunk of window.client.streaming.subscribe<string>(
+        'devframes:plugin:terminals:output',
+        info.id,
+      )) {
+        text += chunk
+        if (text.includes('hello-from-pty')) break
+      }
+      return text
+    })
+    expect(output).toContain('hello-from-pty')
+  })
+
+  it('deep-links into a session through dock activation', async () => {
+    const activation = await page.evaluate(async () => {
+      const state = await window.client.sharedState.get('devframe:docks:active')
+      await window.client.call('hub:docks:activate', {dockId: 'conciv', params: {sessionId: 'conciv_deep'}})
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      return state.value()
+    })
+    expect(activation).toMatchObject({activation: {dockId: 'conciv', params: {sessionId: 'conciv_deep'}}})
+  })
+
+  it('persists a typed project setting', async () => {
+    const scheme = await page.evaluate(async () => {
+      const settings = window.client.scope('conciv').settings
+      await settings.project.set('scheme', 'dark')
+      return settings.project.get('scheme')
+    })
+    expect(scheme).toBe('dark')
+  })
+
+  it('publishes a JSON-render view as shared state', async () => {
+    const spec = await page.evaluate(async () => {
+      const index = (await window.client.sharedState.get('devframe:json-render:index')).value()
+      const entries = Object.values(index as Record<string, {key?: string; stateKey?: string}>).flat()
+      const entry = JSON.stringify(index)
+      const key = entry.match(/devframe:json-render:[^"]*status/)?.[0]
+      if (!key) return {index: entries}
+      return (await window.client.sharedState.get(key)).value()
+    })
+    expect(JSON.stringify(spec)).toContain('conciv status')
+  })
+
+  it('serves shiki, git and open-in-editor as wire services', async () => {
+    const outcome = await page.evaluate(async () => {
+      const highlighted = (await window.client.call('devframes:service:shiki:highlight', {
+        code: 'const a = 1',
+        lang: 'ts',
+      })) as {html: string}
+      const status = await window.client.call('devframes:service:git:status').then(
+        (value: unknown) => ({ok: true, value}),
+        (error: unknown) => ({ok: false, error: String(error)}),
+      )
+      const outside = await window.client.call('devframes:service:open:open-in-editor', {path: '/etc/hosts'}).then(
+        () => 'opened',
+        (error: unknown) => String(error),
+      )
+      return {html: highlighted.html.slice(0, 60), status, outside}
+    })
+    console.log('SERVICES', JSON.stringify(outcome))
+    expect(outcome.html).toContain('<pre')
+    expect(outcome.outside).not.toBe('opened')
+  })
+
   it('remembers the tab across an engine restart', async () => {
     await page.close()
     await new Promise((resolve) => setTimeout(resolve, 300))
@@ -188,6 +304,6 @@ describe('devframe plane spike', () => {
       ),
     )
     expect(await page.evaluate(() => window.client.ensureTrusted(5_000))).toBe(true)
-    expect(await page.evaluate(() => window.client.call('conciv:sessions:list'))).toEqual([])
+    expect(await page.evaluate(() => window.client.call('conciv:sessions:list'))).toHaveLength(1)
   })
 })

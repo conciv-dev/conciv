@@ -2117,6 +2117,30 @@ importers:
       '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../ui-kit-chat
+      '@devframes/hub':
+        specifier: 1.2.6
+        version: 1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1)
+      '@devframes/json-render':
+        specifier: 1.2.6
+        version: 1.2.6(@devframes/hub@1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1))(devframe@1.2.6)
+      '@devframes/plugin-a11y':
+        specifier: 1.2.6
+        version: 1.2.6(devframe@1.2.6)(vite@8.3.5)
+      '@devframes/plugin-messages':
+        specifier: 1.2.6
+        version: 1.2.6(@devframes/hub@1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1))(devframe@1.2.6)(vite@8.3.5)
+      '@devframes/plugin-terminals':
+        specifier: 1.2.6
+        version: 1.2.6(@devframes/hub-ui@1.2.6(@devframes/hub@1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1))(@devframes/json-render@1.2.6(@devframes/hub@1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1))(devframe@1.2.6))(devframe@1.2.6))(@devframes/hub@1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1))(devframe@1.2.6)(vite@8.3.5)
+      '@devframes/service-git':
+        specifier: 1.2.6
+        version: 1.2.6(devframe@1.2.6)
+      '@devframes/service-open':
+        specifier: 1.2.6
+        version: 1.2.6(devframe@1.2.6)
+      '@devframes/service-shiki':
+        specifier: 1.2.6
+        version: 1.2.6(devframe@1.2.6)
       '@hono/node-server':
         specifier: 'catalog:'
         version: 2.1.5(hono@4.13.14)
@@ -5689,6 +5713,19 @@ packages:
       '@devframes/hub':
         optional: true
 
+  '@devframes/plugin-a11y@1.2.6':
+    resolution: {integrity: sha512-kBEID8IGlSo9ANPeq8OmJ6xoUWDkvl8inRNg8mF0oAdzghMUZFoqW4e0feeYp6mmNWp5IQPzivqlq8rubIJ03g==}
+    hasBin: true
+    peerDependencies:
+      '@devframes/plugin-a11y--assets': 1.2.6
+      devframe: 1.2.6
+      vite: ^8.0.0
+    peerDependenciesMeta:
+      '@devframes/plugin-a11y--assets':
+        optional: true
+      vite:
+        optional: true
+
   '@devframes/plugin-inspect@1.2.6':
     resolution: {integrity: sha512-Kn+yoOfhd7EFGMb9IJ/CfXLUj9jxN8Dt5ZIV4UHs9o25T6bf333t5CXkreKM/VGRrFgBJ/WZsScYGBA9w4o6fw==}
     hasBin: true
@@ -5729,8 +5766,18 @@ packages:
       vite:
         optional: true
 
+  '@devframes/service-git@1.2.6':
+    resolution: {integrity: sha512-zRgZBxL0/RKZBUpzro4pPoGqIg4ctTFdNq6p8ECo6gAT7YVsMIq0z7Cvb2hkZdA3RrBOpRLfHvquihtHxK4BRg==}
+    peerDependencies:
+      devframe: 1.2.6
+
   '@devframes/service-open@1.2.6':
     resolution: {integrity: sha512-lFEpPp/4sIwR68jVaaLqU9XngxYTkjKuWt1ZvCQ9xCY77WU+N8N1zKhs/dDWzE0+bURcmMhcWXZQ3gUlzcbbtw==}
+    peerDependencies:
+      devframe: 1.2.6
+
+  '@devframes/service-shiki@1.2.6':
+    resolution: {integrity: sha512-rYPvb4aN1pNEIK0NqaAok4T7I8qAZFS1qf0ucMFnUJlmcnX0cuFWY+FHMhbsA2CFZLqFb8oSxvDMBI8QVITdZQ==}
     peerDependencies:
       devframe: 1.2.6
 
@@ -19021,6 +19068,13 @@ snapshots:
     optionalDependencies:
       '@devframes/hub': 1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1)
 
+  '@devframes/plugin-a11y@1.2.6(devframe@1.2.6)(vite@8.3.5)':
+    dependencies:
+      cac: 7.1.0
+      devframe: 1.2.6(@devframes/agentic@1.2.6)(cac@7.1.0)(ocache@0.3.1)(srvx@1.0.8)
+    optionalDependencies:
+      vite: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
+
   '@devframes/plugin-inspect@1.2.6(devframe@1.2.6)(vite@8.3.5)':
     dependencies:
       cac: 7.1.0
@@ -19049,10 +19103,19 @@ snapshots:
       - '@devframes/hub'
       - '@devframes/hub-ui'
 
+  '@devframes/service-git@1.2.6(devframe@1.2.6)':
+    dependencies:
+      devframe: 1.2.6(@devframes/agentic@1.2.6)(cac@7.1.0)(ocache@0.3.1)(srvx@1.0.8)
+
   '@devframes/service-open@1.2.6(devframe@1.2.6)':
     dependencies:
       devframe: 1.2.6(@devframes/agentic@1.2.6)(cac@7.1.0)(ocache@0.3.1)(srvx@1.0.8)
       pathe: 2.0.3
+
+  '@devframes/service-shiki@1.2.6(devframe@1.2.6)':
+    dependencies:
+      devframe: 1.2.6(@devframes/agentic@1.2.6)(cac@7.1.0)(ocache@0.3.1)(srvx@1.0.8)
+      shiki: 4.5.0
 
   '@devframes/vite@1.2.6(@devframes/hub-ui@1.2.6(@devframes/hub@1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1))(@devframes/json-render@1.2.6(@devframes/hub@1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1))(devframe@1.2.6))(devframe@1.2.6))(@devframes/hub@1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1))(devframe@1.2.6)(vite@8.3.5)':
     dependencies:
