@@ -9,5 +9,5 @@
     "incremental": false
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/xray/**", "src/**/*.test.ts"]
+  "exclude": ["src/xray/**"]
 }

@@ -48,6 +48,18 @@
       "types": "./dist/server/provenance/mappers.d.ts",
       "import": "./dist/server/provenance/mappers.js"
     },
+    "./text-groups": {
+      "types": "./dist/server/text-groups.d.ts",
+      "import": "./dist/server/text-groups.js"
+    },
+    "./paddle": {
+      "types": "./dist/server/comparators/paddle.d.ts",
+      "import": "./dist/server/comparators/paddle.js"
+    },
+    "./colors": {
+      "types": "./dist/server/deltas/colors.d.ts",
+      "import": "./dist/server/deltas/colors.js"
+    },
     "./types": {
       "types": "./dist/shared/types.d.ts"
     },
@@ -60,7 +72,6 @@
     "build": "tsdown && vite build && vite build --config vite.xray.config.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "dev:xray": "vite --config vite.xray.config.ts"
@@ -89,7 +100,6 @@
     "@conciv/contract": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@iconify-json/ph": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/timer": "catalog:",
@@ -98,13 +108,11 @@
     "@types/node": "catalog:",
     "@types/pngjs": "catalog:",
     "@unocss/reset": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "vite-plugin-solid": "catalog:"
   }
 }
