@@ -23,4 +23,4 @@ tileMatcher crops both rasters to their common page area, blurs them, and comput
 
 ## Verification
 
-- Run: `cd packages/extensions/design && pnpm typecheck && pnpm lint` (the package has no `test` script)
+- Run: `pnpm exec turbo run typecheck lint --filter=@conciv/extension-design` from the repo root (turbo builds the package and its dependencies first) (the package has no `test` script)

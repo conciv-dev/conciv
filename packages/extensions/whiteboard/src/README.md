@@ -36,4 +36,4 @@ Both entries call `defineExtension` from @conciv/extension with the same name (`
 
 ## Verification
 
-- Run: `cd packages/extensions/whiteboard && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-whiteboard` from the repo root (turbo builds the package and its dependencies first)

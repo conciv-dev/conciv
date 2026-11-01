@@ -53,8 +53,8 @@ conciv({widget: {transport: 'websocket'}}) // never probe, always /rpc-ws
 
 ## Side Effects
 
-- None
+- The package root (configs and manifest) has none. At runtime mounting sets `window.__CONCIV_*` globals, creates a shadow root on the host page and starts the page plane. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 
-- Run: `cd packages/embed && pnpm test` (builds `vite.handle.config.ts`, then runs vitest and Playwright)
+- Run: `pnpm exec turbo run test --filter=@conciv/embed` from the repo root (turbo builds the package and its dependencies first) (builds `vite.handle.config.ts`, then runs vitest and Playwright)

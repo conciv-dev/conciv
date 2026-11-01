@@ -28,5 +28,5 @@ Private dev-only package that mounts a conciv extension in a real browser agains
 
 ## Verification
 
-- Run: `cd packages/extension-testkit && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-testkit` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/extension-testkit && pnpm typecheck && pnpm lint`

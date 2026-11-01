@@ -33,5 +33,5 @@ Package entry and the headless terminal model. `createTerminalModel` wraps an xt
 
 ## Verification
 
-- Run: `cd packages/ui-kit-terminal && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-terminal` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/ui-kit-terminal && pnpm typecheck && pnpm lint`

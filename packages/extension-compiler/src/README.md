@@ -48,4 +48,4 @@ Build-time code for conciv extensions. It splits extension modules into browser 
 
 ## Verification
 
-- Run: `cd packages/extension-compiler && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-compiler` from the repo root (turbo builds the package and its dependencies first)

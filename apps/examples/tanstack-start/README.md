@@ -211,4 +211,4 @@ For TanStack Start specific documentation, visit [TanStack Start](https://tansta
 
 ## Verification
 
-- Run: `cd apps/examples/tanstack-start && pnpm typecheck && pnpm lint` (the package has no `test` script)
+- Run: `pnpm exec turbo run typecheck lint --filter=tanstack-start-example` from the repo root (turbo builds the package and its dependencies first) (the package has no `test` script)

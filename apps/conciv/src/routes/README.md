@@ -38,4 +38,4 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 
 ## Verification
 
-- Run: `cd apps/conciv && pnpm typecheck && pnpm lint && pnpm test`
+- Run: `pnpm exec turbo run typecheck lint test --filter=@conciv/app` from the repo root (turbo builds the package and its dependencies first)

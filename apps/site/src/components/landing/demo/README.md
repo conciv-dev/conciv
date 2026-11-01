@@ -32,4 +32,4 @@ The interactive hero demo: a fake app preview whose elements can be grabbed, a s
 
 ## Verification
 
-- Run: `cd apps/site && pnpm typecheck && pnpm lint && pnpm test`
+- Run: `pnpm exec turbo run typecheck lint test --filter=site` from the repo root (turbo builds the package and its dependencies first)

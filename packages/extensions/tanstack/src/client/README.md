@@ -47,4 +47,4 @@ router-adapter.ts walks React root fibers from `rootFibers()` (@conciv/page) to 
 
 ## Verification
 
-- Run: `cd packages/extensions/tanstack && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-tanstack` from the repo root (turbo builds the package and its dependencies first)

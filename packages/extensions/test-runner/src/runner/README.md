@@ -36,4 +36,4 @@ contract.ts defines the manager and adapter types and the tagged runner-unavaila
 
 ## Verification
 
-- Run: `cd packages/extensions/test-runner && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-test-runner` from the repo root (turbo builds the package and its dependencies first)

@@ -15,8 +15,8 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Side Effects
 
-- None
+- The package root (configs and manifest) has none. At runtime turns write the `@conciv/db` run and thread tables and stream over the chat HTTP and WebSocket routes. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 
-- Run: `cd packages/chat && pnpm typecheck` (the package has no `test` script)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/chat` from the repo root (turbo builds the package and its dependencies first) (the package has no `test` script)

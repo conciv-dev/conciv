@@ -24,4 +24,4 @@ OpenCode harness, published as `./opencode`. It chats through `opencode` from `@
 
 ## Verification
 
-- Run: `cd packages/harness && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/harness` from the repo root (turbo builds the package and its dependencies first)

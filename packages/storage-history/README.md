@@ -24,5 +24,5 @@ Package internal to @conciv/it that provides a @tanstack/history RouterHistory w
 
 ## Verification
 
-- Run: `cd packages/storage-history && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/storage-history` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/storage-history && pnpm typecheck && pnpm lint`

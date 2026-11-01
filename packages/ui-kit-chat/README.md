@@ -32,4 +32,4 @@ npm install -D @conciv/it
 
 ## Verification
 
-- Run: `cd packages/ui-kit-chat && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)

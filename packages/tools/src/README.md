@@ -31,4 +31,4 @@ Entry modules of `@conciv/tools`. They define the `conciv_ui` and `conciv_extens
 
 ## Verification
 
-- Run: `cd packages/tools && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/tools` from the repo root (turbo builds the package and its dependencies first)

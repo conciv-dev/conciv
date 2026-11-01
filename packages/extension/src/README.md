@@ -55,5 +55,5 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 
 ## Verification
 
-- Run: `cd packages/extension && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/extension && pnpm typecheck && pnpm lint`

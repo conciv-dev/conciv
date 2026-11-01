@@ -21,4 +21,4 @@ The adapter accepts a reference that is either a file under cwd or base64 data w
 
 ## Verification
 
-- Run: `cd packages/extensions/design && pnpm typecheck && pnpm lint` (the package has no `test` script)
+- Run: `pnpm exec turbo run typecheck lint --filter=@conciv/extension-design` from the repo root (turbo builds the package and its dependencies first) (the package has no `test` script)

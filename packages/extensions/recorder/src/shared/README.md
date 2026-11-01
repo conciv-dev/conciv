@@ -30,4 +30,4 @@ This directory defines the recorder's wire and config contracts, which both the 
 
 ## Verification
 
-- Run: `cd packages/extensions/recorder && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-recorder` from the repo root (turbo builds the package and its dependencies first)

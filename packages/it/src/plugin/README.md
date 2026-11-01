@@ -23,4 +23,4 @@ One entry file per bundler subpath of `@conciv/it/plugin/*`. Each re-exports the
 
 ## Verification
 
-- Run: `cd packages/it && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/it` from the repo root (turbo builds the package and its dependencies first)

@@ -28,4 +28,4 @@ Solid version of the conciv lockup and mark, with the same path data, colors and
 
 ## Verification
 
-- Run: `cd packages/brand && pnpm test` (Vitest project `brand-solid-browser`); typecheck with `pnpm typecheck`.
+- Run: `pnpm exec turbo run test --filter=@conciv/brand` from the repo root (turbo builds the package and its dependencies first) (Vitest project `brand-solid-browser`); typecheck with `pnpm typecheck`.

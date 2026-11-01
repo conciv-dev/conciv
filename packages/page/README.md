@@ -16,8 +16,8 @@ Package root for `@conciv/page`, inlined by `@conciv/embed`. Builds `src/index.t
 
 ## Side Effects
 
-- None
+- The package root (configs and manifest) has none. At runtime the page plane replaces `console.*`, installs window error listeners and answers engine page queries against the host DOM. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 
-- Run: `cd packages/page && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/page` from the repo root (turbo builds the package and its dependencies first)

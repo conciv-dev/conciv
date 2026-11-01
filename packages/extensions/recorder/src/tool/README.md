@@ -31,4 +31,4 @@
 
 ## Verification
 
-- Run: `cd packages/extensions/recorder && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-recorder` from the repo root (turbo builds the package and its dependencies first)

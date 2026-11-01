@@ -37,4 +37,4 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 
 ## Verification
 
-- Run: `cd packages/chat && pnpm typecheck` (the package has no `test` script)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/chat` from the repo root (turbo builds the package and its dependencies first) (the package has no `test` script)

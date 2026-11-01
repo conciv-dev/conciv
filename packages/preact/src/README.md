@@ -24,4 +24,4 @@ Single entry `index.ts`: a Preact component that renders an anchor `<div>` and m
 
 ## Verification
 
-- Run: `cd packages/preact && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/preact` from the repo root (turbo builds the package and its dependencies first)

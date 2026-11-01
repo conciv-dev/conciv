@@ -31,4 +31,4 @@ client.tsx defines the browser extension. It registers `tanstackClientTools`, sh
 
 ## Verification
 
-- Run: `cd packages/extensions/tanstack && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-tanstack` from the repo root (turbo builds the package and its dependencies first)

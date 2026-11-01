@@ -34,4 +34,4 @@ DOM and browser helpers: api base resolution, shadow root creation with fonts, h
 
 ## Verification
 
-- Run: `cd apps/conciv && pnpm typecheck && pnpm lint && pnpm test`
+- Run: `pnpm exec turbo run typecheck lint test --filter=@conciv/app` from the repo root (turbo builds the package and its dependencies first)

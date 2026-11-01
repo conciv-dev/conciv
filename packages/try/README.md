@@ -21,4 +21,4 @@ CLI behind `npx @conciv/try --token <token>`. It boots a token-gated conciv core
 
 ## Verification
 
-- Run: `cd packages/try && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/try` from the repo root (turbo builds the package and its dependencies first)

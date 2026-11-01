@@ -36,4 +36,4 @@ Source of the `conciv-try` CLI. `cli.ts` parses arguments with citty and reports
 
 ## Verification
 
-- Run: `cd packages/try && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/try` from the repo root (turbo builds the package and its dependencies first)

@@ -27,4 +27,4 @@ React version of the conciv logo: the full lockup (mark plus wordmark) and the s
 
 ## Verification
 
-- Run: `cd packages/brand && pnpm test` (Vitest project `brand-react-browser`); typecheck with `pnpm typecheck` (`tsconfig.react.json`).
+- Run: `pnpm exec turbo run test --filter=@conciv/brand` from the repo root (turbo builds the package and its dependencies first) (Vitest project `brand-react-browser`); typecheck with `pnpm typecheck` (`tsconfig.react.json`).

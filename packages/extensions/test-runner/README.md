@@ -31,4 +31,4 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Verification
 
-- Run: `cd packages/extensions/test-runner && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-test-runner` from the repo root (turbo builds the package and its dependencies first)

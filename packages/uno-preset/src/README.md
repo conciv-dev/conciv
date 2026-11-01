@@ -30,5 +30,5 @@ Builds the conciv UnoCSS preset: presetWind4 plus a typography preset themed wit
 
 ## Verification
 
-- Run: `cd packages/uno-preset && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/uno-preset` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/uno-preset && pnpm typecheck && pnpm lint`

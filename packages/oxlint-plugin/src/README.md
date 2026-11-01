@@ -35,4 +35,4 @@ The oxlint JS plugin `conciv`: `plugin.js` registers twelve rules, each in its o
 
 ## Verification
 
-- Run: `cd packages/oxlint-plugin && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/oxlint-plugin` from the repo root (turbo builds the package and its dependencies first)

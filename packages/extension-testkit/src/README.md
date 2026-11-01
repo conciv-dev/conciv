@@ -60,5 +60,5 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 
 ## Verification
 
-- Run: `cd packages/extension-testkit && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-testkit` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/extension-testkit && pnpm typecheck && pnpm lint`

@@ -22,4 +22,4 @@ Router factory, TanStack Start instance with request middleware, generated route
 
 ## Verification
 
-- Run: `cd apps/site && pnpm typecheck && pnpm lint && pnpm test`
+- Run: `pnpm exec turbo run typecheck lint test --filter=site` from the repo root (turbo builds the package and its dependencies first)

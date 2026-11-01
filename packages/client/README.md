@@ -24,5 +24,5 @@ Client data layer used inside @conciv/it: typed oRPC query utilities, a chat con
 
 ## Verification
 
-- Run: `cd packages/client && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/client` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/client && pnpm typecheck && pnpm lint`

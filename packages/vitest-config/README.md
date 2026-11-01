@@ -23,4 +23,4 @@ Private workspace package (`private: true`) holding shared vitest CI settings, a
 
 ## Verification
 
-- Run: `cd packages/vitest-config && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/vitest-config` from the repo root (turbo builds the package and its dependencies first)

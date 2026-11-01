@@ -160,4 +160,4 @@ shipped source).
 
 ## Verification
 
-- Run: `cd packages/extensions/ios && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-ios` from the repo root (turbo builds the package and its dependencies first)

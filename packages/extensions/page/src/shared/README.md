@@ -31,4 +31,4 @@ defs.ts builds each tool with a private `pageTool` helper around `defineTool`. T
 
 ## Verification
 
-- Run: `cd packages/extensions/page && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-page` from the repo root (turbo builds the package and its dependencies first)

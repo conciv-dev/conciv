@@ -22,5 +22,5 @@ The oRPC contract (procedures plus zod schemas) shared by conciv core and its cl
 
 ## Verification
 
-- Run: `cd packages/contract && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/contract` from the repo root (turbo builds the package and its dependencies first)
 - Also: `pnpm typecheck`, `pnpm lint`

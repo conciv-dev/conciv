@@ -26,5 +26,5 @@ The three entry modules of `@conciv/ai`. `client.ts` and `server.ts` re-export t
 
 ## Verification
 
-- Run: `cd packages/ai && pnpm test`
-- Run: `cd packages/ai && pnpm typecheck`
+- Run: `pnpm exec turbo run test --filter=@conciv/ai` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/ai` from the repo root (turbo builds the package and its dependencies first)

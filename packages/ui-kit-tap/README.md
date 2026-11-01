@@ -25,8 +25,8 @@ npm install -D @conciv/it
 
 ## Side Effects
 
-- None
+- The package root (configs and manifest) has none. At runtime the fields create a TipTap `Editor` on the host element and destroy it on cleanup. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 
-- Run: `cd packages/ui-kit-tap && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-tap` from the repo root (turbo builds the package and its dependencies first)

@@ -33,4 +33,4 @@ Helpers shared by the harness adapters: the `HarnessAdapter` contract type, an A
 
 ## Verification
 
-- Run: `cd packages/harness && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/harness` from the repo root (turbo builds the package and its dependencies first)

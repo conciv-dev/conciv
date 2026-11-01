@@ -32,5 +32,5 @@ Browser page for the test host. It mounts the extension under test (from a virtu
 
 ## Verification
 
-- Run: `cd packages/extension-testkit && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-testkit` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/extension-testkit && pnpm typecheck && pnpm lint`

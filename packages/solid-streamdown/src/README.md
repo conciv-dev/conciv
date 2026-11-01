@@ -26,4 +26,4 @@ The `Streamdown` Solid component and its block splitter. Markdown is healed with
 
 ## Verification
 
-- Run: `cd packages/solid-streamdown && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/solid-streamdown` from the repo root (turbo builds the package and its dependencies first)

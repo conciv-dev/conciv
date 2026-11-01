@@ -30,5 +30,5 @@ Published package that ships agent skill markdown, discovered through @tanstack/
 
 ## Verification
 
-- Run: `cd packages/skills && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/skills` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/skills && pnpm typecheck && pnpm lint`

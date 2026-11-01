@@ -34,4 +34,4 @@ TipTap editors for SolidJS: `RichTextField`, a plain-text composer with slash an
 
 ## Verification
 
-- Run: `cd packages/ui-kit-tap && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-tap` from the repo root (turbo builds the package and its dependencies first)

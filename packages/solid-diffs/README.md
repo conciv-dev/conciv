@@ -22,4 +22,4 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Verification
 
-- Run: `cd packages/solid-diffs && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/solid-diffs` from the repo root (turbo builds the package and its dependencies first)

@@ -20,4 +20,4 @@ The `ConcivWidget` React component, which mounts the conciv widget from `@conciv
 
 ## Verification
 
-- Run: `cd packages/react && pnpm test` (builds the fixture with `vite.fixture.config.ts`, then runs vitest)
+- Run: `pnpm exec turbo run test --filter=@conciv/react` from the repo root (turbo builds the package and its dependencies first) (builds the fixture with `vite.fixture.config.ts`, then runs vitest)

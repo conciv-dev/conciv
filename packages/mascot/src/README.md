@@ -20,5 +20,5 @@ Source root of `@conciv/mascot`. Its own files are the generated layer images an
 
 ## Verification
 
-- Run: `cd packages/mascot && pnpm test` (vitest, then Playwright on `tests/e2e`)
-- Run: `cd packages/mascot && pnpm typecheck`
+- Run: `pnpm exec turbo run test --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first) (vitest, then Playwright on `tests/e2e`)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first)

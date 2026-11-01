@@ -45,4 +45,4 @@ Deploys to [conciv.dev](https://conciv.dev) via Cloudflare Workers Builds on pus
 
 ## Verification
 
-- Run: `cd apps/site && pnpm typecheck && pnpm lint && pnpm test`
+- Run: `pnpm exec turbo run typecheck lint test --filter=site` from the repo root (turbo builds the package and its dependencies first)

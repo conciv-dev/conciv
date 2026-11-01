@@ -30,5 +30,5 @@ Private package (`"private": true`, `"sideEffects": false`) that ships the conci
 
 ## Verification
 
-- Run: `cd packages/brand && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/brand` from the repo root (turbo builds the package and its dependencies first)
 - Also: `pnpm typecheck`, `pnpm lint`

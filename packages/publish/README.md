@@ -39,4 +39,4 @@ Each package owns its own publish metadata (`keywords`, `repository`, `homepage`
 
 ## Verification
 
-- Run: `cd packages/publish && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/publish` from the repo root (turbo builds the package and its dependencies first)

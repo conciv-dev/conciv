@@ -48,4 +48,4 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 
 ## Verification
 
-- Run: `cd packages/contract && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/contract` from the repo root (turbo builds the package and its dependencies first)

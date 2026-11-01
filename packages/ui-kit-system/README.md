@@ -41,5 +41,5 @@ npm install -D @conciv/it
 
 ## Verification
 
-- Run: `cd packages/ui-kit-system && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-system` from the repo root (turbo builds the package and its dependencies first)
 - Also: `pnpm gen:check`, `pnpm typecheck`, `pnpm lint`

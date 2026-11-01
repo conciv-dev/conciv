@@ -35,4 +35,4 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 
 ## Verification
 
-- Run: `cd packages/db && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/db` from the repo root (turbo builds the package and its dependencies first)

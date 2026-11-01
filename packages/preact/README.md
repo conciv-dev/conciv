@@ -52,4 +52,4 @@ If your build also runs the `@conciv/it` plugin, set its `widget: false` option 
 
 ## Verification
 
-- Run: `cd packages/preact && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/preact` from the repo root (turbo builds the package and its dependencies first)

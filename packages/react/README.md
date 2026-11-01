@@ -43,8 +43,8 @@ If your build also runs the `@conciv/it` plugin, set its `widget: false` option 
 
 ## Side Effects
 
-- None
+- The package root (configs and manifest) has none. At runtime `ConcivWidget` mounts the widget DOM inside its anchor element and logs a failed mount with `console.error`. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 
-- Run: `cd packages/react && pnpm test` (builds the fixture with `vite.fixture.config.ts`, then runs vitest)
+- Run: `pnpm exec turbo run test --filter=@conciv/react` from the repo root (turbo builds the package and its dependencies first) (builds the fixture with `vite.fixture.config.ts`, then runs vitest)

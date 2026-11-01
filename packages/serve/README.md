@@ -16,8 +16,8 @@ Package root for `@conciv/serve`, internal to `@conciv/it`. Builds `src/serve.ts
 
 ## Side Effects
 
-- None
+- The package root (configs and manifest) has none. At runtime `serveHono` binds a TCP port and creates a `ws` server; `closeServer` closes live sockets. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 
-- Run: `cd packages/serve && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/serve` from the repo root (turbo builds the package and its dependencies first)

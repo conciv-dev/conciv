@@ -30,5 +30,5 @@ Init steps that install dependencies: @conciv/it as a dev dependency and the opt
 
 ## Verification
 
-- Run: `cd packages/cli && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/cli` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/cli && pnpm typecheck && pnpm lint`

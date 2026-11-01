@@ -38,5 +38,5 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that pic
 
 ## Verification
 
-- Run: `cd packages/client && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/client` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/client && pnpm typecheck && pnpm lint`

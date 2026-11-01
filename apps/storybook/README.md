@@ -23,4 +23,4 @@ Solid Storybook (`storybook-solidjs-vite`) that collects stories from `src/` and
 
 ## Verification
 
-- Run: `cd apps/storybook && pnpm typecheck && pnpm lint && pnpm test`
+- Run: `pnpm exec turbo run typecheck lint test --filter=conciv-storybook` from the repo root (turbo builds the package and its dependencies first)

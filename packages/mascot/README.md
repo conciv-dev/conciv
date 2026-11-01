@@ -118,9 +118,9 @@ starts.
 
 ## Side Effects
 
-- None
+- The package root (configs and manifest) has none. At runtime stories mount the mascot into the Storybook DOM; the core service drives GSAP tweens on the layer elements. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 
-- Run: `cd packages/mascot && pnpm test` (vitest, then Playwright on `tests/e2e`)
-- Run: `cd packages/mascot && pnpm typecheck`
+- Run: `pnpm exec turbo run test --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first) (vitest, then Playwright on `tests/e2e`)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first)

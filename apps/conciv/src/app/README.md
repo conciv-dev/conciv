@@ -35,4 +35,4 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 
 ## Verification
 
-- Run: `cd apps/conciv && pnpm typecheck && pnpm lint && pnpm test`
+- Run: `pnpm exec turbo run typecheck lint test --filter=@conciv/app` from the repo root (turbo builds the package and its dependencies first)

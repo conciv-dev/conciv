@@ -34,4 +34,4 @@ client.tsx builds the browser extension from `PAGE_CLIENT_TOOLS` and `grabAttach
 
 ## Verification
 
-- Run: `cd packages/extensions/page && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-page` from the repo root (turbo builds the package and its dependencies first)

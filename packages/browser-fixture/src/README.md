@@ -19,4 +19,4 @@ One vitest fixture that launches a single Playwright Chromium per test file and 
 
 ## Verification
 
-- Run: `cd packages/browser-fixture && pnpm typecheck` (the package has no `test` script)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/browser-fixture` from the repo root (turbo builds the package and its dependencies first) (the package has no `test` script)

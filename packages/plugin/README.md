@@ -12,12 +12,12 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Invariants
 
-- None
+- webpack and rspack boot the engine only when `enabled !== false`; the Next.js widget starts only in a browser with `NEXT_PUBLIC_CONCIV_PORT` set and `NODE_ENV` not `production`. Full list in [src/README.md](./src/README.md#invariants).
 
 ## Side Effects
 
-- None
+- The package root (configs and manifest) has none. At runtime the Vite, webpack and rspack entries boot the engine process (`src/core/boot.ts`), the Vite hook injects the widget tags into served HTML and writes `.conciv/extensions-client.gen.tsx`, and the Next.js widget entry mounts browser UI on `window`. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 
-- Run: `cd packages/plugin && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/plugin` from the repo root (turbo builds the package and its dependencies first)

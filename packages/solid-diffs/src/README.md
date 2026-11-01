@@ -30,4 +30,4 @@ Solid components that create `@pierre/diffs` `File` / `FileDiff` instances on a 
 
 ## Verification
 
-- Run: `cd packages/solid-diffs && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/solid-diffs` from the repo root (turbo builds the package and its dependencies first)

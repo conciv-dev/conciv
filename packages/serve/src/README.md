@@ -24,4 +24,4 @@ A wrapper over `@hono/node-server`'s `serve()` that listens with WebSocket suppo
 
 ## Verification
 
-- Run: `cd packages/serve && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/serve` from the repo root (turbo builds the package and its dependencies first)

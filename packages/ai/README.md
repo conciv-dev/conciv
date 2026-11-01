@@ -19,9 +19,9 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Side Effects
 
-- None
+- The package root (configs and manifest) has none. At runtime the server runtime writes runs and threads to drizzle SQLite tables and delivers them over SSE and WebSocket; the testkit schedules timers per chunk. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 
-- Run: `cd packages/ai && pnpm test`
-- Run: `cd packages/ai && pnpm typecheck`
+- Run: `pnpm exec turbo run test --filter=@conciv/ai` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/ai` from the repo root (turbo builds the package and its dependencies first)

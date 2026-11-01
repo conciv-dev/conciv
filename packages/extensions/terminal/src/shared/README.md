@@ -20,4 +20,4 @@
 
 ## Verification
 
-- Run: `cd packages/extensions/terminal && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-terminal` from the repo root (turbo builds the package and its dependencies first)

@@ -27,4 +27,4 @@ Top-level sources of `@conciv/harness-init`: the init-contribution registry for 
 
 ## Verification
 
-- Run: `cd packages/harness-init && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/harness-init` from the repo root (turbo builds the package and its dependencies first)

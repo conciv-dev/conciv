@@ -20,4 +20,4 @@ Next.js App Router root layout and home page from the create-next-app template.
 
 ## Verification
 
-- Run: `cd apps/examples/nextjs-app && pnpm lint && pnpm build` (the package has no `test` or `typecheck` script)
+- Run: `pnpm exec turbo run lint build --filter=nextjs-app` from the repo root (turbo builds the package and its dependencies first) (the package has no `test` or `typecheck` script)

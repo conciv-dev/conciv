@@ -44,4 +44,4 @@ Test helpers for running the conciv engine against a scripted or real harness: b
 
 ## Verification
 
-- Run: `cd packages/harness-testkit && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/harness-testkit` from the repo root (turbo builds the package and its dependencies first)

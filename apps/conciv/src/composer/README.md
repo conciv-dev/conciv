@@ -31,4 +31,4 @@ Composer toolbar: element grab, new session, compact and terminal launch actions
 
 ## Verification
 
-- Run: `cd apps/conciv && pnpm typecheck && pnpm lint && pnpm test`
+- Run: `pnpm exec turbo run typecheck lint test --filter=@conciv/app` from the repo root (turbo builds the package and its dependencies first)

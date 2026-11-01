@@ -56,4 +56,4 @@ Source of the conciv SolidJS design system. Most files wrap `@ark-ui/solid` prim
 
 ## Verification
 
-- Run: `cd packages/ui-kit-system && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-system` from the repo root (turbo builds the package and its dependencies first)

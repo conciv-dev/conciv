@@ -27,4 +27,4 @@ SolidJS tool-card renderers for the chat thread. `UiCard` renders interactive pr
 
 ## Verification
 
-- Run: `cd packages/tools && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/tools` from the repo root (turbo builds the package and its dependencies first)

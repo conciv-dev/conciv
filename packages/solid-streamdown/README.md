@@ -16,8 +16,8 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Side Effects
 
-- None
+- The package root (configs and manifest) has none. At runtime `Streamdown` sets the `--sd-caret` CSS variable on its root while animating. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 
-- Run: `cd packages/solid-streamdown && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/solid-streamdown` from the repo root (turbo builds the package and its dependencies first)

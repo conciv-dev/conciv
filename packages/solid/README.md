@@ -58,5 +58,5 @@ Published package that wraps @conciv/embed in a Solid `<ConcivWidget />` compone
 
 ## Verification
 
-- Run: `cd packages/solid && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/solid` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/solid && pnpm typecheck && pnpm lint`

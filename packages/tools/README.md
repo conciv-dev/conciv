@@ -26,4 +26,4 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Verification
 
-- Run: `cd packages/tools && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/tools` from the repo root (turbo builds the package and its dependencies first)

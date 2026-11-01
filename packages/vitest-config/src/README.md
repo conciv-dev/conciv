@@ -37,4 +37,4 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 
 ## Verification
 
-- Run: `cd packages/vitest-config && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/vitest-config` from the repo root (turbo builds the package and its dependencies first)

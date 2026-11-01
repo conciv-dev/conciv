@@ -19,8 +19,8 @@ Private, repo-local oxlint JS plugin (`@conciv/oxlint-plugin`) holding the conci
 
 ## Side Effects
 
-- None
+- The package root (configs and manifest) has none. At runtime rules resolve `lucide-solid` icon modules from disk and cache per directory. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 
-- Run: `cd packages/oxlint-plugin && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/oxlint-plugin` from the repo root (turbo builds the package and its dependencies first)

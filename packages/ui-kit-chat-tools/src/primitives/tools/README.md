@@ -28,5 +28,5 @@ Headless per-tool primitives. Each file defines a Solid context, a `Root` provid
 
 ## Verification
 
-- Run: `cd packages/ui-kit-chat-tools && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat-tools` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/ui-kit-chat-tools && pnpm typecheck && pnpm lint`

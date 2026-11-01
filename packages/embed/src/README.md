@@ -32,4 +32,4 @@ Mounts the conciv widget into a shadow root on the host page and starts the page
 
 ## Verification
 
-- Run: `cd packages/embed && pnpm test` (builds `vite.handle.config.ts`, then runs vitest and Playwright)
+- Run: `pnpm exec turbo run test --filter=@conciv/embed` from the repo root (turbo builds the package and its dependencies first) (builds `vite.handle.config.ts`, then runs vitest and Playwright)

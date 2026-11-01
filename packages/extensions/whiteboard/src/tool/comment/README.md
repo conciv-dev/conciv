@@ -38,4 +38,4 @@ def.ts declares the tool definitions with zod schemas, error codes (COMMENT_NOT_
 
 ## Verification
 
-- Run: `cd packages/extensions/whiteboard && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-whiteboard` from the repo root (turbo builds the package and its dependencies first)

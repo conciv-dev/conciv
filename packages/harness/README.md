@@ -27,4 +27,4 @@ Coding-agent harness adapters behind the `HarnessAdapter` contract (`src/_shared
 
 ## Verification
 
-- Run: `cd packages/harness && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/harness` from the repo root (turbo builds the package and its dependencies first)

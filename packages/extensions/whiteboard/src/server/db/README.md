@@ -38,4 +38,4 @@ schema.ts declares the drizzle tables canvas_elements, canvas_draft_elements, ca
 
 ## Verification
 
-- Run: `cd packages/extensions/whiteboard && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-whiteboard` from the repo root (turbo builds the package and its dependencies first)

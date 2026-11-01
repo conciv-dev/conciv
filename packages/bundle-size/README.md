@@ -24,5 +24,5 @@ Private CI tool that measures the gzip size of published package dists and the a
 
 ## Verification
 
-- Run: `cd packages/bundle-size && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/bundle-size` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/bundle-size && pnpm typecheck && pnpm lint`

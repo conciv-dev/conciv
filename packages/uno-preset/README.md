@@ -22,5 +22,5 @@ Private shared UnoCSS preset reused by other packages' uno.config files, built w
 
 ## Verification
 
-- Run: `cd packages/uno-preset && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/uno-preset` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/uno-preset && pnpm typecheck && pnpm lint`

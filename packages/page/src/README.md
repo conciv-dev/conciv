@@ -43,4 +43,4 @@ The DOM side of the page plane. `startPagePlane` reads page queries from the eng
 
 ## Verification
 
-- Run: `cd packages/page && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/page` from the repo root (turbo builds the package and its dependencies first)

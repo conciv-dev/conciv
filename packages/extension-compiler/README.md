@@ -25,5 +25,5 @@ Vite build plumbing for conciv extension code: client/server splitting, Solid TS
 
 ## Verification
 
-- Run: `cd packages/extension-compiler && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-compiler` from the repo root (turbo builds the package and its dependencies first)
 - Also: `pnpm typecheck`, `pnpm lint`

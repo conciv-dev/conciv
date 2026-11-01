@@ -20,4 +20,4 @@ Headless session list and list item parts driven by a `ThreadListActions` provid
 
 ## Verification
 
-- Run: `cd packages/ui-kit-chat && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)

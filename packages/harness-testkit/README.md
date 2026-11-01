@@ -16,8 +16,8 @@ Package root for `@conciv/harness-testkit`. `package.json` exports the TypeScrip
 
 ## Side Effects
 
-- None
+- The package root (configs and manifest) has none. At runtime `setup` creates a `conciv-kit-*` temp state root and boots an engine; `cleanup` removes it. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 
-- Run: `cd packages/harness-testkit && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/harness-testkit` from the repo root (turbo builds the package and its dependencies first)

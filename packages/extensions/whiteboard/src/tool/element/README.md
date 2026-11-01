@@ -23,4 +23,4 @@ def.ts declares element_reference (input file and component; output found plus o
 
 ## Verification
 
-- Run: `cd packages/extensions/whiteboard && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-whiteboard` from the repo root (turbo builds the package and its dependencies first)

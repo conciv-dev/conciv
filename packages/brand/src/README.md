@@ -21,4 +21,4 @@ Source root of `@conciv/brand`. This level holds only Storybook material: five `
 
 ## Verification
 
-- Run: `cd packages/brand && pnpm test`; stories are type-checked by `pnpm typecheck` through `tsconfig.json` `include`.
+- Run: `pnpm exec turbo run test --filter=@conciv/brand` from the repo root (turbo builds the package and its dependencies first); stories are type-checked by `pnpm typecheck` through `tsconfig.json` `include`.

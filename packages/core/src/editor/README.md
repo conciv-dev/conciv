@@ -24,5 +24,5 @@ Opens source locations in an editor. It debounces repeat opens, symbolicates sta
 
 ## Verification
 
-- Run: `cd packages/core && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/core` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/core && pnpm typecheck && pnpm lint`

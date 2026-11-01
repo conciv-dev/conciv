@@ -24,4 +24,4 @@ Pi harness, published as `./pi`. Chat is unsupported (`unsupportedChatConfig`). 
 
 ## Verification
 
-- Run: `cd packages/harness && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/harness` from the repo root (turbo builds the package and its dependencies first)

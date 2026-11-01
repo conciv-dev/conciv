@@ -31,4 +31,4 @@ Both entry points call `defineExtension` with name `test-runner`, `testRunnerCon
 
 ## Verification
 
-- Run: `cd packages/extensions/test-runner && pnpm test`
+- Run: `pnpm exec turbo run test --filter=@conciv/extension-test-runner` from the repo root (turbo builds the package and its dependencies first)
