@@ -74,6 +74,9 @@ export const ImageAndFileTiles: Story = {
     await waitFor(() => expect(c.getByRole('img', {name: 'diagram.png'})).toBeVisible())
     await expect(c.getByRole('button', {name: 'Remove diagram.png'})).toBeInTheDocument()
 
+    await userEvent.hover(c.getByRole('button', {name: 'Remove diagram.png'}))
+    await waitFor(() => expect(c.getByRole('tooltip')).toHaveTextContent('Remove diagram.png'))
+
     const page = within(canvasElement.ownerDocument.body)
     await userEvent.click(c.getByRole('button', {name: 'Open diagram.png'}))
     const viewer = await page.findByRole('dialog', {name: 'diagram.png'})
@@ -84,9 +87,6 @@ export const ImageAndFileTiles: Story = {
 
     await userEvent.click(c.getByRole('button', {name: 'notes.pdf'}))
     await expect(page.queryByRole('dialog')).toBeNull()
-
-    await userEvent.hover(c.getByRole('button', {name: 'Remove diagram.png'}))
-    await waitFor(() => expect(c.getByRole('tooltip')).toHaveTextContent('Remove diagram.png'))
 
     await userEvent.click(c.getByRole('button', {name: 'Remove diagram.png'}))
     await waitFor(() => expect(c.queryByRole('img', {name: 'diagram.png'})).toBeNull())
