@@ -17,7 +17,8 @@
     "directory": "packages/extensions/design"
   },
   "files": [
-    "dist"
+    "dist",
+    "models"
   ],
   "type": "module",
   "exports": {
@@ -47,6 +48,18 @@
       "types": "./dist/server/provenance/mappers.d.ts",
       "import": "./dist/server/provenance/mappers.js"
     },
+    "./text-groups": {
+      "types": "./dist/server/text-groups.d.ts",
+      "import": "./dist/server/text-groups.js"
+    },
+    "./paddle": {
+      "types": "./dist/server/comparators/paddle.d.ts",
+      "import": "./dist/server/comparators/paddle.js"
+    },
+    "./colors": {
+      "types": "./dist/server/deltas/colors.d.ts",
+      "import": "./dist/server/deltas/colors.js"
+    },
     "./types": {
       "types": "./dist/shared/types.d.ts"
     },
@@ -74,16 +87,20 @@
     "culori": "catalog:",
     "es-toolkit": "catalog:",
     "hono": "catalog:",
+    "onnxruntime-web": "catalog:",
     "oxc-parser": "catalog:",
     "pixelmatch": "catalog:",
     "pngjs": "catalog:",
     "postcss": "catalog:",
+    "ppu-ocv": "catalog:",
+    "ppu-paddle-ocr": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/contract": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
+    "@iconify-json/ph": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/timer": "catalog:",
     "@tanstack/solid-router": "catalog:",

@@ -310,6 +310,7 @@ export async function setupFixture(options: SetupFixtureOptions = {}): Promise<F
     'allowBuilds:',
     '  isolated-vm: false',
     '  sharp: false',
+    '  protobufjs: false',
     'overrides:',
     ...Object.entries(overrides).map(([name, value]) => `  '${name}': '${value}'`),
     '',

@@ -2,7 +2,8 @@ import {makeRpcClient} from '@conciv/contract'
 import {makeExtRpcClient} from '@conciv/extension'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {aboveTolerance, componentAboveTolerance} from '../shared/above.js'
-import type {ComponentReport, DiffReport} from '../shared/defs.js'
+import {SOURCE_ATTR} from '../shared/source-attr.js'
+import type {ComponentReport, DeltaKindName, DiffReport} from '../shared/defs.js'
 import type {Box, SourceLoc, TargetRecord} from '../shared/types.js'
 import type {XrayRouter} from '../server/xray-routes.js'
 
@@ -31,9 +32,15 @@ export type XrayData = {
   images: XrayImages
   widths: WidthTab[]
   ranAt: number | null
+  sourceChangedAt: number | null
 }
 
-export type ReportResponse = {target: TargetRecord; report: DiffReport | null; targetImage: string}
+export type ReportResponse = {
+  target: TargetRecord
+  report: DiffReport | null
+  targetImage: string
+  sourceChangedAt: number | null
+}
 
 const EXTENSION_SLUG = 'design'
 
@@ -44,34 +51,30 @@ export function sourceLabel(source: SourceLoc | null): string {
 
 export function reportRows(report: DiffReport | null): Row[] {
   if (report === null) return []
-  const components = report.components.map(
-    (component, index): Row => ({
-      key: `${component.selector}#${index}`,
-      label: sourceLabel(component.source),
-      source: component.source,
-      tag: component.tag,
-      selector: component.selector,
-      live: component.live,
-      target: component.target,
-      mismatch: component.mismatch,
-      deltas: component.deltas,
-      unmatched: null,
-    }),
-  )
-  const unmatched = report.unmatched.map(
-    (region, index): Row => ({
-      key: `unmatched-${index}`,
-      label: region.source === undefined ? `${region.kind} region` : sourceLabel(region.source),
-      source: region.source ?? null,
-      tag: '',
-      selector: '',
-      live: region.live ?? null,
-      target: region.target ?? null,
-      mismatch: null,
-      deltas: [],
-      unmatched: region.kind,
-    }),
-  )
+  const components = report.components.map((component, index): Row => ({
+    key: `${component.selector}#${index}`,
+    label: sourceLabel(component.source),
+    source: component.source,
+    tag: component.tag,
+    selector: component.selector.startsWith(`[${SOURCE_ATTR}=`) ? component.tag : component.selector,
+    live: component.live,
+    target: component.target,
+    mismatch: component.mismatch,
+    deltas: component.deltas,
+    unmatched: null,
+  }))
+  const unmatched = report.unmatched.map((region, index): Row => ({
+    key: `unmatched-${index}`,
+    label: region.source === undefined ? `${region.kind} region` : sourceLabel(region.source),
+    source: region.source ?? null,
+    tag: '',
+    selector: '',
+    live: region.live ?? null,
+    target: region.target ?? null,
+    mismatch: null,
+    deltas: [],
+    unmatched: region.kind,
+  }))
   return [...components, ...unmatched]
 }
 
@@ -87,12 +90,24 @@ function runTime(report: DiffReport | null): number | null {
   return Number.isFinite(at) ? at : null
 }
 
+const PAGE_SEGMENT = '/xray'
+
+export function pagePrefix(): string {
+  const path = window.location.pathname
+  const at = path.indexOf(PAGE_SEGMENT)
+  return at === -1 ? '' : path.slice(0, at + PAGE_SEGMENT.length)
+}
+
+function pageUrl(): URL {
+  return new URL(pagePrefix(), window.location.origin)
+}
+
 function engineApiBase(): string {
-  return new URL('../../../', window.location.href).href.slice(0, -1)
+  return new URL('../../../', pageUrl()).href.slice(0, -1)
 }
 
 function fileUrl(path: string): string {
-  return new URL(`files/${path}`, window.location.href).href
+  return new URL(`files/${path}`, pageUrl()).href
 }
 
 function designClient() {
@@ -120,8 +135,13 @@ export function assemble(input: {
       }))
       .toSorted((a, b) => a.target.width - b.target.width),
     ranAt: runTime(current.report),
+    sourceChangedAt: current.sourceChangedAt,
   }
   return data
+}
+
+export function stale(data: XrayData): boolean {
+  return data.sourceChangedAt !== null && data.ranAt !== null && data.sourceChangedAt > data.ranAt
 }
 
 export async function loadXray(input: {id: string}): Promise<XrayData> {
@@ -152,4 +172,67 @@ export async function openInEditor(input: {source: SourceLoc; session: string | 
 
 export function diffCommand(target: TargetRecord): string {
   return `conciv tools design diff --target ${target.id} --width ${target.width}`
+}
+
+export const FILTERS = ['all', 'above', 'match', 'none'] as const
+export type Filter = (typeof FILTERS)[number]
+
+export type FilterChoice = {above: boolean; match: boolean}
+
+export function filterChoice(filter: Filter): FilterChoice {
+  return {above: filter === 'all' || filter === 'above', match: filter === 'all' || filter === 'match'}
+}
+
+function shown(input: {row: Row; filter: Filter}): boolean {
+  const choice = filterChoice(input.filter)
+  return rowAboveTolerance(input.row) ? choice.above : choice.match
+}
+
+export function filterRows(input: {rows: Row[]; filter: Filter; query: string}): Row[] {
+  const needle = input.query.trim().toLowerCase()
+  return input.rows
+    .filter((row) => shown({row, filter: input.filter}))
+    .filter((row) => needle === '' || `${row.label} ${row.selector} ${row.tag}`.toLowerCase().includes(needle))
+}
+
+const SHARE = new Intl.NumberFormat(undefined, {style: 'percent', maximumFractionDigits: 1})
+const AMOUNT = new Intl.NumberFormat(undefined, {maximumFractionDigits: 1})
+
+export type BadgeColor = 'orange' | 'red' | 'amber'
+
+const BADGE_COLOR: Partial<Record<DeltaKindName, BadgeColor>> = {
+  background: 'red',
+  foreground: 'red',
+  fontSize: 'amber',
+  lineHeight: 'amber',
+  fontWeight: 'amber',
+}
+
+function baseName(file: string): string {
+  const name = file.split('/').at(-1) ?? file
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(0, dot) : name
+}
+
+export function rowTitle(row: Row): string {
+  return row.source === null ? rowName(row) : baseName(row.source.file)
+}
+
+export function rowName(row: Row): string {
+  if (row.source !== null) return `${baseName(row.source.file)} ${row.tag}`.trim()
+  if (row.selector !== '') return row.selector
+  return row.label
+}
+
+export function deltaValue(input: {delta: Delta; value: number | string}): string {
+  if (typeof input.value === 'string') return input.value
+  return input.delta.kind === 'fill' ? SHARE.format(input.value) : AMOUNT.format(input.value)
+}
+
+export function badgeText(delta: Delta): string {
+  return `${delta.kind} ${deltaValue({delta, value: delta.live})} → ${deltaValue({delta, value: delta.target})}`
+}
+
+export function badgeColor(delta: Delta): BadgeColor {
+  return BADGE_COLOR[delta.kind] ?? 'orange'
 }

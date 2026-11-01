@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {BoxSchema, captureDef, LiveStylesSchema, SourceLocSchema} from '../../shared/defs.js'
+import {BoxSchema, captureDef, GlyphSchema, LiveStylesSchema, SourceLocSchema} from '../../shared/defs.js'
 import type {Capture, LiveComponent} from '../../shared/types.js'
 import {TOLERANCES} from '../../shared/tolerances.js'
 import {decodePng} from '../raster.js'
@@ -12,6 +12,7 @@ const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
   text: z.string(),
   box: BoxSchema,
   textBox: BoxSchema.nullable(),
+  glyphs: z.array(GlyphSchema),
   axis: z.enum(['row', 'column']).nullable(),
   styles: LiveStylesSchema,
   index: z.number(),

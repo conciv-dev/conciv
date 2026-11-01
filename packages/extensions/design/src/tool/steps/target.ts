@@ -3,7 +3,7 @@ import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {z} from 'zod'
 import {unreadableMessage} from '../../server/adapters/image.js'
 import {captureDef, ViewportResultSchema, type TargetInput, type TargetResult} from '../../shared/defs.js'
-import type {Enricher, Raster, ServerStep, TargetNode} from '../../shared/types.js'
+import type {Enricher, Raster, ServerStep, TargetNode, TextReader} from '../../shared/types.js'
 
 const PageRouteSchema = z.object({pathname: z.string(), search: z.string()})
 
@@ -23,6 +23,25 @@ async function enrich(input: {node: TargetNode; raster: Raster; enrichers: Enric
   return {...own, children}
 }
 
+type ReadText = {children: TargetNode[]; text: NonNullable<TargetResult['text']>}
+
+async function readText(input: {raster: Raster; reader: TextReader}): Promise<ReadText> {
+  try {
+    const runs = await input.reader.read({raster: input.raster})
+    const children = runs.map((run, index): TargetNode => ({
+      id: `text-${index}`,
+      kind: 'text',
+      text: run.text,
+      box: run.box,
+      confidence: 1,
+      children: [],
+    }))
+    return {children, text: {runs: runs.length}}
+  } catch (error) {
+    return {children: [], text: {runs: 0, error: error instanceof Error ? error.message : String(error)}}
+  }
+}
+
 export async function targetWidth(input: {width: number | undefined; page: ServerToolPageAccess}): Promise<number> {
   if (input.width !== undefined) return input.width
   return ViewportResultSchema.parse(await input.page.call(captureDef.name, {probe: true})).width
@@ -38,11 +57,19 @@ export const targetStep: ServerStep<TargetInput, TargetResult> = async (input, c
   }
   const model = await adapter.load({ref: input.image, width, cwd: design.cwd})
   const root = await enrich({node: model.root, raster: model.raster, enrichers: design.enrichers})
+  const read = await readText({raster: model.raster, reader: design.comparators.text})
   const record = await design.store.put({
-    model: {...model, root},
+    model: {...model, root: {...root, children: [...root.children, ...read.children]}},
     route,
     width,
     ...(input.name === undefined ? {} : {name: input.name}),
   })
-  return {id: record.id, route: record.route, width: record.width, height: record.height, scale: record.scale}
+  return {
+    id: record.id,
+    route: record.route,
+    width: record.width,
+    height: record.height,
+    scale: record.scale,
+    text: read.text,
+  }
 }

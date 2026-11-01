@@ -6,6 +6,7 @@ import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {designConfig} from './shared/config.js'
 import {DESIGN_EXTENSION_NAME} from './shared/defs.js'
 import type {CssMap, DesignRuntime} from './shared/types.js'
+import {destroyPaddle} from './server/comparators/paddle.js'
 import {buildCssMap} from './server/provenance/css-map.js'
 import {pickRuntime} from './server/registries.js'
 import {createTargetStore} from './server/store.js'
@@ -37,12 +38,24 @@ function lazyCssMap(input: {cwd: string; bundler: BundlerBridge | undefined}): {
   }
 }
 
+function sourceChanges(bundler: BundlerBridge | undefined): {
+  sourceChangedAt: () => number | null
+  dispose: () => void
+} {
+  const last: {at: number | null} = {at: null}
+  const unsubscribe = bundler?.subscribe?.((diagnostic) => {
+    if (diagnostic.kind === 'hmr-update') last.at = diagnostic.timestamp
+  })
+  return {sourceChangedAt: () => last.at, dispose: unsubscribe ?? (() => {})}
+}
+
 export const design = defineExtension({
   name: DESIGN_EXTENSION_NAME,
   configSchema: designConfig,
   tools: SERVER_STEPS,
 }).server((server) => {
   const css = lazyCssMap({cwd: server.cwd, bundler: server.bundler})
+  const changes = sourceChanges(server.bundler)
   const designDir = join(server.stateDir, 'design')
   const store = createTargetStore({dir: designDir, cwd: server.cwd})
   const runtime: DesignRuntime = {
@@ -53,16 +66,20 @@ export const design = defineExtension({
       const origin = server.nativeUrl()
       const query = `target=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}`
       return {
-        url: `${origin ?? server.basePath}/api/ext/${DESIGN_EXTENSION_NAME}/xray?${query}`,
+        url: `${origin ?? server.basePath}/api/ext/${DESIGN_EXTENSION_NAME}/xray/list?${query}`,
         absolute: origin !== undefined,
       }
     },
   }
   return {
     context: {design: runtime},
-    router: makeXrayRouter({store, designDir}),
+    router: makeXrayRouter({store, designDir, sourceChangedAt: changes.sourceChangedAt}),
     app: makeXrayApp({store, pageDir: fileURLToPath(new URL('xray/', import.meta.url)), designDir, cwd: server.cwd}),
-    dispose: css.dispose,
+    dispose: async () => {
+      await destroyPaddle()
+      css.dispose()
+      changes.dispose()
+    },
   }
 })
 

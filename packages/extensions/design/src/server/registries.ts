@@ -10,6 +10,7 @@ import {geometry} from './registries/geometry.js'
 import {mappers} from './registries/mappers.js'
 import {matchers} from './registries/matchers.js'
 import {pixel} from './registries/pixel.js'
+import {text} from './registries/text.js'
 
 export const REGISTRIES: Registries = {
   adapters,
@@ -19,6 +20,7 @@ export const REGISTRIES: Registries = {
   geometry,
   color,
   matchers,
+  text,
   deltaKinds,
   mappers,
 }
@@ -35,7 +37,7 @@ export function pickRuntime(input: {
       pixel: REGISTRIES.pixel[config.comparator],
       geometry: REGISTRIES.geometry[config.geometry],
       color: REGISTRIES.color[config.color],
-      text: null,
+      text: REGISTRIES.text[config.text],
     },
     matcher: REGISTRIES.matchers[config.matcher],
     adapters: REGISTRIES.adapters,

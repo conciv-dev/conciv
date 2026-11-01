@@ -36,4 +36,5 @@ export const DELTA_PROPERTIES = {
   background: () => ['background-color'],
   foreground: () => ['color'],
   radius: () => ['border-radius'],
+  text: () => [],
 } as const satisfies Record<DeltaKindName, Candidates>
