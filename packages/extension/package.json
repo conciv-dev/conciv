@@ -69,9 +69,10 @@
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "@devframes/agentic": "1.3.0",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
-    "devframe": "1.2.6",
+    "devframe": "1.3.0",
     "hono": "catalog:",
     "zod": "catalog:"
   },

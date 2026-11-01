@@ -217,6 +217,9 @@ minimumReleaseAgeExclude:
   - 'lucide-react'
   - 'lucide-solid'
   - 'tsdown'
+  # Devframe 1.3.0 is inside the 48h window. Remove once it has aged out.
+  - 'devframe'
+  - '@devframes/*'
 patchedDependencies:
   # createEventAwareBindings (dist/esm/bindings/tool-to-binding.js:73-115 in 1.0.1) emits
   # code_mode:external_call / external_result / external_error with no call id, so parallel child calls

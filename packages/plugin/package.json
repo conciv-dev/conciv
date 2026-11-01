@@ -77,9 +77,10 @@
     "@conciv/extension": "workspace:^",
     "@conciv/extension-compiler": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@devframes/hub": "1.2.6",
+    "@devframes/agentic": "1.3.0",
+    "@devframes/hub": "1.3.0",
     "chokidar": "^6.0.0",
-    "devframe": "1.2.6",
+    "devframe": "1.3.0",
     "knitwork": "^1.3.0",
     "launch-editor": "^2.14.2",
     "unplugin": "^3.6.0"
