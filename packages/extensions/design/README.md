@@ -60,6 +60,10 @@ asserts runs after registration is what catches it.
 The service is created once per process, reads are serialized, and it is disposed with the extension. A read takes
 a few hundred milliseconds per 1280x720 image once warm, and happens once per registration.
 
+pnpm 11 fails an install on any dependency build script it was not told about, and `onnxruntime-web` depends on
+`protobufjs`, whose postinstall only prints a version warning. Add `allowBuilds: {protobufjs: false}` to your
+`pnpm-workspace.yaml` (or `ignoredBuiltDependencies: [protobufjs]` on older pnpm).
+
 ## Constants
 
 All in `src/shared/tolerances.ts`.
