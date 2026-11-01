@@ -1,5 +1,6 @@
 import {join} from 'node:path'
-import {defineDevframe, defineRpcFunction} from 'devframe'
+import {defineDevframe, defineRpcFunction, type DevframeDefinition} from 'devframe'
+import {CONCIV_HOST_SERVICE, type ConcivHost} from '@conciv/extension/devframe-host'
 import type {DevframeNodeRpcSession} from 'devframe/types'
 import type {RpcDefinitionsToFunctions} from 'devframe/rpc'
 import {defineDiagnostics} from 'devframe/utils/nostics'
@@ -124,7 +125,15 @@ declare module 'devframe/types' {
   }
 }
 
-export type DevframePlaneOpts = {chat: ChatContext; stateDir: string; auth: boolean; mcpToken: string; cwd: string}
+export type DevframePlaneOpts = {
+  chat: ChatContext
+  stateDir: string
+  auth: boolean
+  mcpToken: string
+  cwd: string
+  host: ConcivHost
+  plugins: DevframeDefinition[]
+}
 
 export type DevframePlane = {hub: HubInstance; sessionsChanged: () => void}
 
@@ -168,12 +177,14 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
         presets: [{id: 'echo', title: 'Echo', command: '/bin/echo', args: ['hello-from-pty'], mode: 'readonly'}],
       }),
       createMessagesDevframe(),
+      ...opts.plugins,
     ],
     auth: opts.auth,
     mcp: {allowedOrigins: false, authorization: opts.mcpToken},
     getStorageDir: (scope) => join(opts.stateDir, 'devframe', scope),
     async configure(ctx) {
       contextRef.current = ctx
+      ctx.services.provide(CONCIV_HOST_SERVICE, opts.host)
       await deps.refresh()
       ctx.commands.register({
         id: 'conciv:new-session',

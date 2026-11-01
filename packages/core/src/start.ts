@@ -7,6 +7,7 @@ import type {HarnessAdapter} from '@conciv/harness'
 import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
 import {makeApp, withBuiltinExtensions, type MakeAppOpts} from './app.js'
 import type {HubInstance} from '@devframes/hub/initiate'
+import type {DevframeDefinition} from 'devframe'
 
 export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
@@ -39,6 +40,7 @@ export type StartOpts = {
   devEndpointDir?: string
   devframeAuth?: boolean
   mcpToken?: string
+  devframes?: DevframeDefinition[]
 }
 
 export type Engine = {
@@ -185,6 +187,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativeUrl,
     devframeAuth: opts.devframeAuth,
     mcpToken: opts.mcpToken,
+    devframes: opts.devframes,
   }
   const {app, dispose, extensionContexts, devframe} = await makeApp(appOpts)
 

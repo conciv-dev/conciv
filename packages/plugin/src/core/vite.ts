@@ -1,3 +1,4 @@
+import {createTerminalDevframe} from '@conciv/extension-terminal/devframe'
 import {Server as HttpServer} from 'node:http'
 import type {DevframeHubContext} from '@devframes/hub/types'
 import {dirname, join} from 'node:path'
@@ -143,6 +144,7 @@ async function bootEngine(
     extensions,
     nativePageDir,
     devEndpointDir: options.devEndpointDir,
+    devframes: [createTerminalDevframe()],
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
   })
 }

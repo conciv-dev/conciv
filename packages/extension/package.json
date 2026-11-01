@@ -47,6 +47,10 @@
     "./rpc-mount": {
       "types": "./dist/rpc-mount.d.ts",
       "import": "./dist/rpc-mount.js"
+    },
+    "./devframe-host": {
+      "types": "./dist/devframe-host.d.ts",
+      "import": "./dist/devframe-host.js"
     }
   },
   "publishConfig": {
@@ -67,6 +71,7 @@
     "@conciv/ui-kit-system": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
+    "devframe": "1.2.6",
     "hono": "catalog:",
     "zod": "catalog:"
   },

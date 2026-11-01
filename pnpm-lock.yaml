@@ -510,6 +510,9 @@ importers:
       '@conciv/ui-kit-tap':
         specifier: workspace:^
         version: link:../../packages/ui-kit-tap
+      '@devframes/hub':
+        specifier: 1.2.6
+        version: 1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1)
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
@@ -1223,7 +1226,7 @@ importers:
     dependencies:
       '@conciv/extension-terminal':
         specifier: workspace:*
-        version: file:packages/extensions/terminal(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(solid-js@1.9.17)(ws@8.22.0)
+        version: file:packages/extensions/terminal(@devframes/agentic@1.2.6)(@opentelemetry/api@1.9.1)(cac@7.1.0)(crossws@0.4.17(srvx@1.0.8))(ocache@0.3.1)(solid-js@1.9.17)(srvx@1.0.8)(ws@8.22.0)
       '@conciv/it':
         specifier: workspace:*
         version: file:packages/it(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(vite@8.3.5)
@@ -2435,6 +2438,9 @@ importers:
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
+      devframe:
+        specifier: 1.2.6
+        version: 1.2.6(@devframes/agentic@1.2.6)(cac@7.1.0)(ocache@0.3.1)(srvx@1.0.8)
       hono:
         specifier: 'catalog:'
         version: 4.13.14
@@ -3091,6 +3097,9 @@ importers:
       '@conciv/ui-kit-terminal':
         specifier: workspace:^
         version: link:../../ui-kit-terminal
+      '@devframes/hub':
+        specifier: 1.2.6
+        version: 1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1)
       '@hono/node-server':
         specifier: 'catalog:'
         version: 2.1.5(hono@4.13.14)
@@ -3106,6 +3115,15 @@ importers:
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
+      '@xterm/addon-fit':
+        specifier: ^0.11.0
+        version: 0.11.0
+      '@xterm/xterm':
+        specifier: ^6.0.0
+        version: 6.0.0
+      devframe:
+        specifier: 1.2.6
+        version: 1.2.6(@devframes/agentic@1.2.6)(cac@7.1.0)(ocache@0.3.1)(srvx@1.0.8)
       hono:
         specifier: 'catalog:'
         version: 4.13.14
@@ -18953,26 +18971,34 @@ snapshots:
   '@colors/colors@1.5.0':
     optional: true
 
-  '@conciv/extension-terminal@file:packages/extensions/terminal(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(solid-js@1.9.17)(ws@8.22.0)':
+  '@conciv/extension-terminal@file:packages/extensions/terminal(@devframes/agentic@1.2.6)(@opentelemetry/api@1.9.1)(cac@7.1.0)(crossws@0.4.17(srvx@1.0.8))(ocache@0.3.1)(solid-js@1.9.17)(srvx@1.0.8)(ws@8.22.0)':
     dependencies:
       '@conciv/extension': link:packages/extension
       '@conciv/protocol': link:packages/protocol
       '@conciv/ui-kit-chat': link:packages/ui-kit-chat
       '@conciv/ui-kit-system': link:packages/ui-kit-system
       '@conciv/ui-kit-terminal': link:packages/ui-kit-terminal
+      '@devframes/hub': 1.2.6(@devframes/agentic@1.2.6)(crossws@0.4.17(srvx@1.0.8))(devframe@1.2.6)(ocache@0.3.1)
       '@hono/node-server': 2.1.5(hono@4.13.14)
       '@lydell/node-pty': 1.1.0
       '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/server': 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
       '@solid-primitives/event-listener': 2.4.6(solid-js@1.9.17)
+      '@xterm/addon-fit': 0.11.0
+      '@xterm/xterm': 6.0.0
+      devframe: 1.2.6(@devframes/agentic@1.2.6)(cac@7.1.0)(ocache@0.3.1)(srvx@1.0.8)
       hono: 4.13.14
       lucide-solid: 1.64.0(solid-js@1.9.17)
       solid-js: 1.9.17
       zod: 4.6.7
     transitivePeerDependencies:
+      - '@devframes/agentic'
       - '@opentelemetry/api'
+      - cac
       - crossws
       - fastify
+      - ocache
+      - srvx
       - ws
 
   '@conciv/it@file:packages/it(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(vite@8.3.5)':

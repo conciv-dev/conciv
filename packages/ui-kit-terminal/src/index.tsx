@@ -8,3 +8,4 @@ export {
 } from './model.js'
 export {TerminalPrimitive, useTerminal} from './primitives/terminal.js'
 export {Terminal} from './styled/terminal.js'
+export {injectXtermCss} from './xterm-css.js'

@@ -66,11 +66,14 @@ import {logError} from './lib/debug.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {makeDevframePlane} from './devframe-plane.js'
 import type {HubInstance} from '@devframes/hub/initiate'
+import type {DevframeDefinition} from 'devframe'
+import {rpcSessionList} from './api/rpc/sessions.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
   devframeAuth?: boolean
+  devframes?: DevframeDefinition[]
   mcpToken?: string
   cwd: string
   basePath?: string
@@ -529,6 +532,17 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     auth: opts.devframeAuth ?? true,
     mcpToken: opts.mcpToken ?? randomUUID(),
     cwd: opts.cwd,
+    plugins: opts.devframes ?? [],
+    host: {
+      cwd: opts.cwd,
+      stateDir: concivStateDir(opts.cfg.stateRoot),
+      sessions: serverSessions,
+      harness: serverHarness,
+      symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
+      bundler: opts.bridge,
+      nativeUrl,
+      latestSession: async () => (await rpcSessionList(chatDeps, false))[0]?.id ?? null,
+    },
   })
   const devframe = devframePlane.hub
   sessionsNotifier.notify = devframePlane.sessionsChanged

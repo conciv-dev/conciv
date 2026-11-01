@@ -38,6 +38,7 @@
     "@conciv/ui-kit-chat-tools": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/ui-kit-tap": "workspace:^",
+    "@devframes/hub": "1.2.6",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/mutation-observer": "^1.2.4",
     "@tanstack/hotkeys": "^0.18.0",

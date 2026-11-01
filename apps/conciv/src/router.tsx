@@ -14,6 +14,7 @@ import type {ExtensionInstance} from './extension/extension-slots.js'
 import {createInstances} from './extension/create-instances.js'
 import highlight from './extensions/highlight.js'
 import {DevframeLink} from './app/devframe-link.js'
+import devframeDocks from './extensions/devframe-docks.js'
 import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
 
@@ -95,7 +96,7 @@ function wireEngineReachability(apiBase: () => string): {dispose: () => void} {
 export function createConcivRouter(config: ConcivRouterConfig) {
   const queryClient = new QueryClient()
   const data = makeAppData(config.rpc, queryClient)
-  const extensions = [highlight, ...(config.extensions ?? [])]
+  const extensions = [highlight, devframeDocks, ...(config.extensions ?? [])]
   const instances = createInstances(extensions)
   const apiBase = config.apiBase ?? (() => '')
   const connected = config.connected ?? (() => true)
@@ -106,8 +107,9 @@ export function createConcivRouter(config: ConcivRouterConfig) {
     const harness = createHarnessMeta(data, connected, queryClient)
     return (
       <HarnessMetaContext.Provider value={harness}>
-        {props.children}
-        <DevframeLink apiBase={apiBase} queryClient={queryClient} data={data} />
+        <DevframeLink apiBase={apiBase} queryClient={queryClient} data={data}>
+          {props.children}
+        </DevframeLink>
       </HarnessMetaContext.Provider>
     )
   }

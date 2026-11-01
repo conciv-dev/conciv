@@ -1,4 +1,6 @@
-import {createResource, createSignal, from, Show, type JSX} from 'solid-js'
+import {createContext, createResource, createSignal, from, Show, useContext, type JSX} from 'solid-js'
+import {createDevframeClientRuntime, type DevframeClientRuntime} from '@devframes/hub/client'
+import {terminalDockRenderer} from '@conciv/extension-terminal/dock'
 import {getDevframeRpcClient, type DevframeRpcClient} from 'devframe/client'
 import type {QueryClient} from '@tanstack/solid-query'
 import {Button} from '@conciv/ui-kit-system'
@@ -7,7 +9,29 @@ import type {AppData} from '../data/app-data.js'
 const SESSIONS_STATE = 'conciv:sessions'
 const CODE_LENGTH = 6
 
-type DevframeLinkProps = {apiBase: () => string; queryClient: QueryClient; data: AppData}
+type DevframeLinkProps = {apiBase: () => string; queryClient: QueryClient; data: AppData; children?: JSX.Element}
+
+const DevframeRuntimeContext = createContext<() => DevframeClientRuntime | undefined>(() => undefined)
+
+export function useDevframeRuntime(): () => DevframeClientRuntime | undefined {
+  return useContext(DevframeRuntimeContext)
+}
+
+function trustedOf(client: DevframeRpcClient): () => boolean | undefined {
+  return from<boolean>((set) => {
+    set(client.isTrusted === true)
+    return client.events.on('rpc:is-trusted:updated', (isTrusted) => set(isTrusted))
+  })
+}
+
+function startRuntime(client: DevframeRpcClient): Promise<DevframeClientRuntime> {
+  return createDevframeClientRuntime({
+    rpc: client,
+    clientType: 'embedded',
+    loadClientScripts: false,
+    renderers: {'conciv-terminal': terminalDockRenderer},
+  })
+}
 
 function syncSessions(client: DevframeRpcClient, props: DevframeLinkProps): void {
   void client.sharedState.get(SESSIONS_STATE).then((state) => {
@@ -87,11 +111,23 @@ async function connect(apiBase: string, props: DevframeLinkProps): Promise<Devfr
   return client
 }
 
-function Gate(props: {client: DevframeRpcClient; unauthorized: () => boolean | undefined}): JSX.Element {
+function Gate(props: {
+  client: DevframeRpcClient
+  unauthorized: () => boolean | undefined
+  trusted: () => boolean | undefined
+  children?: JSX.Element
+}): JSX.Element {
+  const [runtime] = createResource(
+    () => (props.trusted() ? props.client : false),
+    (client) => startRuntime(client),
+  )
   return (
-    <Show when={props.unauthorized()}>
-      <AuthorizeCard client={props.client} />
-    </Show>
+    <DevframeRuntimeContext.Provider value={() => runtime()}>
+      {props.children}
+      <Show when={props.unauthorized()}>
+        <AuthorizeCard client={props.client} />
+      </Show>
+    </DevframeRuntimeContext.Provider>
   )
 }
 
@@ -100,5 +136,13 @@ export function DevframeLink(props: DevframeLinkProps): JSX.Element {
     () => props.apiBase(),
     (apiBase) => connect(apiBase, props),
   )
-  return <Show when={client()}>{(ready) => <Gate client={ready()} unauthorized={unauthorizedOf(ready())} />}</Show>
+  return (
+    <Show when={client()} fallback={props.children}>
+      {(ready) => (
+        <Gate client={ready()} unauthorized={unauthorizedOf(ready())} trusted={trustedOf(ready())}>
+          {props.children}
+        </Gate>
+      )}
+    </Show>
+  )
 }

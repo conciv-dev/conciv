@@ -40,6 +40,14 @@
       "types": "./dist/server.d.ts",
       "import": "./dist/server.js"
     },
+    "./devframe": {
+      "types": "./dist/devframe.d.ts",
+      "import": "./dist/devframe.js"
+    },
+    "./dock": {
+      "types": "./dist/dock.d.ts",
+      "import": "./dist/dock.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -59,11 +67,15 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/ui-kit-terminal": "workspace:^",
+    "@devframes/hub": "1.2.6",
     "@hono/node-server": "catalog:",
     "@lydell/node-pty": "^1.1.0",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "devframe": "1.2.6",
     "hono": "catalog:",
     "lucide-solid": "catalog:",
     "zod": "catalog:"
