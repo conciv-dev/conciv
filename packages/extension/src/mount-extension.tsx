@@ -1,11 +1,11 @@
 import {Show, untrack, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {HostApiProvider} from './hooks.js'
-import type {AnyExtension} from './define-extension.js'
+import type {ClientExtension} from './define-extension.js'
 import type {ExtensionSlot, ExtensionView} from './types.js'
 
 export type MountedExtensionProps = {
-  extension: AnyExtension
+  extension: ClientExtension
   clientValue: object
   slot: ExtensionSlot
 }
@@ -23,7 +23,7 @@ export function MountedExtension(props: MountedExtensionProps): JSX.Element {
 }
 
 export type MountedSurfaceProps = {
-  extension: AnyExtension
+  extension: ClientExtension
   clientValue: object
 }
 

@@ -1,6 +1,6 @@
 import {ErrorBoundary, Suspense, type Component, type JSX} from 'solid-js'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
-import {collectAttachmentCards, collectToolRenderers, type AnyExtension} from '@conciv/extension'
+import {collectAttachmentCards, collectToolRenderers, type ClientExtension} from '@conciv/extension'
 import type {ToolBodyPredicate, ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {AttachmentUI, type AttachmentCardSlot} from '@conciv/ui-kit-chat'
 import {NoteRow} from '@conciv/ui-kit-chat/tools'
@@ -101,7 +101,7 @@ function guardedBodyPredicate(name: string, predicate: ToolBodyPredicate): ToolB
   }
 }
 
-export function guardedToolCards(extensions: AnyExtension[]): ToolCardEntry[] {
+export function guardedToolCards(extensions: ClientExtension[]): ToolCardEntry[] {
   return collectToolRenderers(extensions).map((entry) => {
     const owner = extensions.find((extension) =>
       extension.tools?.some((tool) => entry.names.includes(tool.name) && tool.__render?.render === entry.render),
@@ -115,7 +115,7 @@ export function guardedToolCards(extensions: AnyExtension[]): ToolCardEntry[] {
   })
 }
 
-export function guardedAttachmentCards(extensions: AnyExtension[], fallback: 'card' | 'chip'): AttachmentCardSlot[] {
+export function guardedAttachmentCards(extensions: ClientExtension[], fallback: 'card' | 'chip'): AttachmentCardSlot[] {
   return collectAttachmentCards(extensions).map((entry) => {
     const owner = extensions.find((extension) =>
       extension.attachments?.some((attachment) => attachment.mime === entry.mime && attachment.__card === entry.render),

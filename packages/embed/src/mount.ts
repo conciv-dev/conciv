@@ -1,11 +1,11 @@
-import type {AnyExtension} from '@conciv/extension'
+import type {ClientExtension} from '@conciv/extension'
 import type {GrabProvider} from '@conciv/grab'
 import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 import type {EventBusClient, PanelCommandEventMap} from '@conciv/protocol/event-bus'
 
 export type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
-export type ExtensionsInput = AnyExtension[] | (() => Promise<AnyExtension[]>)
+export type ExtensionsInput = ClientExtension[] | (() => Promise<ClientExtension[]>)
 
 export type ConcivInit = {
   extensions?: ExtensionsInput
@@ -122,7 +122,7 @@ function insideCaptureFrame(): boolean {
   }
 }
 
-export function mountConciv(extensions: AnyExtension[]): Promise<void> {
+export function mountConciv(extensions: ClientExtension[]): Promise<void> {
   if (typeof document === 'undefined') return Promise.resolve()
   if (insideCaptureFrame()) return Promise.resolve()
   if (document.querySelector('[data-conciv-script-root]')) return Promise.resolve()

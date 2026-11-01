@@ -1,5 +1,5 @@
 import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
-import type {AnyExtension} from './define-extension.js'
+import type {ClientExtension} from './define-extension.js'
 import type {ClientToolCtx, ToolMeta} from './define-tool.js'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import type {AttachmentCardEntry, ClientEffect} from './types.js'
@@ -16,7 +16,7 @@ export function captureModeOf(meta: ToolMeta | undefined): ToolCaptureMode {
   return meta?.mutating === true ? 'after' : 'none'
 }
 
-export function collectClientTools(builders: AnyExtension[]): ClientToolEntry[] {
+export function collectClientTools(builders: ClientExtension[]): ClientToolEntry[] {
   const seen = new Set<string>()
   const entries: ClientToolEntry[] = []
   for (const builder of builders)
@@ -54,7 +54,7 @@ export function collectClientEffects(
   return entries
 }
 
-export function collectToolRenderers(builders: AnyExtension[]): ToolCardEntry[] {
+export function collectToolRenderers(builders: ClientExtension[]): ToolCardEntry[] {
   const seen = new Set<string>()
   const entries: ToolCardEntry[] = []
   for (const builder of builders)
@@ -73,7 +73,7 @@ export function collectToolRenderers(builders: AnyExtension[]): ToolCardEntry[] 
   return entries
 }
 
-export function collectAttachmentCards(builders: AnyExtension[]): AttachmentCardEntry[] {
+export function collectAttachmentCards(builders: ClientExtension[]): AttachmentCardEntry[] {
   const seen = new Set<string>()
   const entries: AttachmentCardEntry[] = []
   for (const builder of builders)

@@ -7,7 +7,7 @@ import {createWebStorageHistory} from '@conciv/storage-history'
 import {
   collectClientEffects,
   collectClientTools,
-  type AnyExtension,
+  type ClientExtension,
   type ClientEffect,
   type ClientToolEntry,
 } from '@conciv/extension'
@@ -121,14 +121,14 @@ function makeActiveSessionBinding(
 
 type BootNormalConfig = {
   root: ShadowRoot
-  extensions: AnyExtension[]
+  extensions: ClientExtension[]
   settings: ConcivSettings
   apiBase: string
   grabProvider?: GrabProvider
   connectMode?: boolean
 }
 
-type MountedRouter = {options: {context: {instances: {extension: AnyExtension; effects: readonly ClientEffect[]}[]}}}
+type MountedRouter = {options: {context: {instances: {extension: ClientExtension; effects: readonly ClientEffect[]}[]}}}
 
 function mountedClientTools(router: MountedRouter): ClientToolEntry[] {
   return collectClientTools(router.options.context.instances.map((instance) => instance.extension))
@@ -228,7 +228,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
 
 type BootConnectConfig = {
   root: ShadowRoot
-  extensions: AnyExtension[]
+  extensions: ClientExtension[]
   settings: ConcivSettings
   grabProvider?: GrabProvider
 }

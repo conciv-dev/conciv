@@ -2,6 +2,7 @@ export {defineExtension} from './define-extension.js'
 export type {
   AnyExtension,
   AnyToolBuilder,
+  ClientExtension,
   ExtensionBuilder,
   ExtensionMeta,
   RegisterExtension,

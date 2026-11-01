@@ -83,6 +83,8 @@ export type AnyExtension = ExtensionBuilder<
   object
 >
 
+export type ClientExtension = Omit<AnyExtension, 'client' | 'server'>
+
 type RegisteredConfig<Schema extends z.ZodType> = [Schema] extends [z.ZodNever] ? never : z.input<Schema>
 
 export type RegisterExtension<Extension> =
@@ -118,7 +120,7 @@ function isConfigured<Config>(config: Config): config is Exclude<Config, undefin
   return config !== undefined
 }
 
-export function makeSystemPrompt<
+function makeSystemPrompt<
   Name extends string,
   Schema extends z.ZodType,
   Tools extends readonly AnyToolBuilder[],

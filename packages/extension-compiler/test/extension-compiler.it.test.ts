@@ -15,7 +15,7 @@ import {splitExtension} from '../src/split-extension.js'
 import {compileExtensionSolid} from '../src/compile-extension.js'
 import {mkdtempSync, writeFileSync, mkdirSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
-import {defineExtension} from '@conciv/extension'
+import {defineConcivPlugin, defineExtension} from '@conciv/extension'
 import {addSourceToJsx} from '../src/inject-source.js'
 import {scaffold} from '@conciv/extension/catalog'
 
@@ -614,6 +614,41 @@ export const aliased = makeTool({name: 'aliased'}).server(() => 'ALIAS_SERVER_BO
         expect(code).toContain('SERVER_BODY')
       }
     })
+  })
+})
+
+describe('split concivplugin', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const ID = '/proj/conciv/extensions/plugin.tsx'
+  const PLUGIN = `import {defineConcivPlugin} from '@conciv/extension'
+import {serverOnly} from './server-only.js'
+import {Panel} from './panel.jsx'
+export default defineConcivPlugin({id: 'split-probe', title: 'Split probe'})
+  .server((ctx) => serverOnly(ctx))
+  .client({Component: Panel})
+`
+
+  it('strips the server half from the browser entry and the client half from the node entry', () => {
+    const browser = splitExtension(PLUGIN, ID, 'browser')
+    const node = splitExtension(PLUGIN, ID, 'node')
+    expect(browser?.code).not.toContain('server-only')
+    expect(browser?.code).toContain('./panel.jsx')
+    expect(node?.code).not.toContain('./panel.jsx')
+    expect(node?.code).toContain('server-only')
+  })
+
+  it('loads a folder plugin on the server without its client half and keeps it through dedupe', async () => {
+    const loaded = await loadServerExtensions(join(here, 'fixtures', 'plugin-extensions'), [])
+    expect(loaded.map((entry) => entry.name)).toEqual(['folder-plugin'])
+    expect(loaded[0]).toMatchObject({id: 'folder-plugin', title: 'Folder plugin'})
+    expect(loaded[0]?.Component).toBeUndefined()
+  }, 30_000)
+
+  it('drops a second plugin claiming the same id', () => {
+    const entry = {extension: defineConcivPlugin({id: 'same', title: 'Same'}), source: 'first'}
+    const result = dedupeExtensions([entry, {...entry, source: 'second'}])
+    expect(result.extensions.map((extension) => extension.name)).toEqual(['same'])
+    expect(result.dropped).toEqual([{source: 'second', reason: 'duplicate-name:same'}])
   })
 })
 

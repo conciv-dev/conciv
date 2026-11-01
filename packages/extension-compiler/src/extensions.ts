@@ -2,17 +2,16 @@ import {readdirSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {createJiti, type Jiti, type JSXOptions, type TransformOptions, type TransformResult} from 'jiti'
-import type {AnyExtension} from '@conciv/extension'
 import {DOCK_REVEAL_EVENT} from '@conciv/protocol/event-bus'
 import {splitExtension} from './split-extension.js'
-import {dedupeExtensions, EXTENSION_GLOB, type ExtensionEntry} from './dedupe-extensions.js'
+import {dedupeExtensions, EXTENSION_GLOB, type DiscoveredExtension, type ExtensionEntry} from './dedupe-extensions.js'
 
 export const EXTENSIONS_VIRTUAL_ID = 'virtual:conciv-extensions'
 export const EXTENSIONS_RESOLVED_ID = '\0' + EXTENSIONS_VIRTUAL_ID
 export const EXTENSIONS_ROUTE = '/@conciv/extensions.js'
 
 export type Builtins = {
-  serverExtensions: readonly AnyExtension[]
+  serverExtensions: readonly DiscoveredExtension[]
   clientEntries: readonly string[]
   embedEntry?: string
   dedupeEntry?: string
@@ -108,13 +107,13 @@ export async function loadExtensionPackages(
   root: string,
   resolveFrom: string,
   specifiers: readonly string[],
-): Promise<AnyExtension[]> {
+): Promise<DiscoveredExtension[]> {
   const rootJiti = createJiti(pathToFileURL(join(root, 'noop.js')).href)
   const resolveFromUrl = rootJiti.esmResolve(resolveFrom)
   const packageJiti = createJiti(resolveFromUrl)
   return Promise.all(
     specifiers.map(async (specifier) => {
-      const loaded = await packageJiti.import<{default?: AnyExtension}>(specifier)
+      const loaded = await packageJiti.import<{default?: DiscoveredExtension}>(specifier)
       const extension = loaded && typeof loaded === 'object' && 'default' in loaded ? loaded.default : undefined
       if (extension === undefined) throw new Error(`conciv builtin extension ${specifier} has no default export`)
       return extension
@@ -141,8 +140,8 @@ function createSplittingJiti(root: string): Jiti {
 
 export async function loadServerExtensions(
   root: string,
-  builtinServerExtensions: readonly AnyExtension[],
-): Promise<AnyExtension[]> {
+  builtinServerExtensions: readonly DiscoveredExtension[],
+): Promise<DiscoveredExtension[]> {
   const builtinEntries: ExtensionEntry[] = builtinServerExtensions.map((extension, index) => ({
     extension,
     source: `builtin:${index}`,

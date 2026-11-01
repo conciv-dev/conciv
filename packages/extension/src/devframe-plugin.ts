@@ -2,9 +2,15 @@ import {defineDevframe, type DevframeDefinition} from 'devframe'
 import type {DevframeDockDefaults, DevframeNodeContext} from 'devframe/types'
 import type {z} from 'zod'
 import type {AnyAttachmentBuilder} from './define-attachment.js'
-import {makeSystemPrompt, parseExtensionConfig, type AnyToolBuilder, type ExtensionMeta} from './define-extension.js'
+import {
+  defineExtension,
+  parseExtensionConfig,
+  type AnyToolBuilder,
+  type ClientExtension,
+  type ExtensionMeta,
+} from './define-extension.js'
 import {CONCIV_HOST_SERVICE, type ConcivHost} from './devframe-host.js'
-import type {ConfigOf, ConnectGate, SystemPromptFactory, SystemPromptResolver} from './types.js'
+import type {ConfigOf, ConnectGate, SystemPromptFactory} from './types.js'
 
 export type ConcivPluginMeta<Id extends string, Schema extends z.ZodType> = {
   id: Id
@@ -27,13 +33,10 @@ export type ConcivPluginServer<Config> = (
   config: Config,
 ) => void | Promise<void>
 
-export type ConcivPlugin<Id extends string = string, Schema extends z.ZodType = z.ZodType> = ConcivPluginClient & {
+export type ConcivPlugin<Id extends string = string, Schema extends z.ZodType = z.ZodType> = ClientExtension & {
   id: Id
-  name: Id
   title: string
   approval?: readonly string[]
-  connectGate?: ConnectGate
-  systemPrompt?: SystemPromptResolver
   devframe: DevframeDefinition
   server: (factory: ConcivPluginServer<ConfigOf<Schema>>) => ConcivPlugin<Id, Schema>
   client: (half: ConcivPluginClient) => ConcivPlugin<Id, Schema>
@@ -43,28 +46,31 @@ export function defineConcivPlugin<const Id extends string, Schema extends z.Zod
   meta: ConcivPluginMeta<Id, Schema>,
 ): ConcivPlugin<Id, Schema> {
   const parts: {server?: ConcivPluginServer<ConfigOf<Schema>>} = {}
-  const devframe = defineDevframe({
-    id: meta.id,
-    name: meta.title,
-    version: '0.0.0',
-    packageName: `conciv-plugin-${meta.id}`,
-    homepage: 'https://conciv.dev',
-    description: meta.title,
-    dock: meta.dock,
-    setup: async (ctx) => {
-      const host = ctx.services.get(CONCIV_HOST_SERVICE)
-      if (!host) throw new Error(`conciv plugin "${meta.id}" needs the conciv:host service`)
-      await parts.server?.(ctx, host, parseExtensionConfig(meta.configSchema, host.config(meta.id)))
-    },
+  const extension = defineExtension({
+    name: meta.id,
+    configSchema: meta.configSchema,
+    systemPrompt: meta.systemPrompt,
+    connectGate: meta.connectGate,
   })
   const plugin: ConcivPlugin<Id, Schema> = {
+    ...extension,
     id: meta.id,
-    name: meta.id,
     title: meta.title,
     approval: meta.approval,
-    connectGate: meta.connectGate,
-    systemPrompt: makeSystemPrompt(meta),
-    devframe,
+    devframe: defineDevframe({
+      id: meta.id,
+      name: meta.title,
+      version: '0.0.0',
+      packageName: `conciv-plugin-${meta.id}`,
+      homepage: 'https://conciv.dev',
+      description: meta.title,
+      dock: meta.dock,
+      setup: async (ctx) => {
+        const host = ctx.services.get(CONCIV_HOST_SERVICE)
+        if (!host) throw new Error(`conciv plugin "${meta.id}" needs the conciv:host service`)
+        await parts.server?.(ctx, host, parseExtensionConfig(meta.configSchema, host.config(meta.id)))
+      },
+    }),
     server: (factory) => {
       parts.server = factory
       return plugin

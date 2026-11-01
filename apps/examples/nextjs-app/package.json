@@ -23,5 +23,10 @@
     "eslint": "^10.13.0",
     "eslint-config-next": "16.4.3",
     "typescript": "catalog:"
+  },
+  "dependenciesMeta": {
+    "@conciv/it": {
+      "injected": true
+    }
   }
 }

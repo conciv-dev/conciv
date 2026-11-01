@@ -1,6 +1,6 @@
 import type {QueuedMessage} from '@conciv/ai/client'
 import type {ContentPart} from '@conciv/protocol/chat-message-types'
-import type {AnyExtension} from '@conciv/extension'
+import type {ClientExtension} from '@conciv/extension'
 import {
   composeAttachmentAdapters,
   createDocumentAttachmentAdapter,
@@ -16,7 +16,7 @@ const IMAGE_ATTACHMENT_ADAPTER = createSimpleImageAttachmentAdapter()
 const TEXT_ATTACHMENT_ADAPTER = createTextAttachmentAdapter()
 
 export function paneAttachments(
-  extensions: AnyExtension[],
+  extensions: ClientExtension[],
   imageInput: unknown,
 ): {cards: AttachmentCardSlot[]; chips: AttachmentCardSlot[]; adapter: AttachmentAdapter} {
   const cards = guardedAttachmentCards(extensions, 'card')

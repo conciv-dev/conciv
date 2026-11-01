@@ -8,10 +8,10 @@ import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
+import {isHubPath, isLoopback} from './dev-server-hub.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
 import {EXTENSIONS_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
-import type {AnyExtension} from '@conciv/extension'
 import {type Builtins, NO_BUILTINS, loadServerExtensions} from '@conciv/extension-compiler/extensions'
 import {
   loadExtensionsModule,
@@ -123,11 +123,23 @@ function safeOrigin(url: string): string | null {
   }
 }
 
+function mountHub(server: ViteDevServer, hub: Engine['hub']): void {
+  server.middlewares.use((req, res, next) => {
+    if (isHubPath(req.url) && isLoopback(req.socket.remoteAddress)) hub.nodeMiddleware(req, res, next)
+    else next()
+  })
+  server.httpServer?.on('upgrade', (req, socket, head) => {
+    if (req.url?.split('?')[0] !== `${hub.base}__ws`) return
+    if (isLoopback(req.socket.remoteAddress)) hub.handleUpgrade(req, socket, head)
+    else socket.destroy()
+  })
+}
+
 async function bootEngine(
   server: ViteDevServer,
   options: ConcivConfig,
   agentPath: string,
-  extensions: AnyExtension[],
+  extensions: Awaited<ReturnType<typeof loadServerExtensions>>,
   nativePageDir: string | undefined,
 ): Promise<Engine> {
   const {start} = await import('@conciv/core/start')
@@ -321,6 +333,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
       mountWidget(server, apiBase, widgetSettings(options.widget, docked))
+      mountHub(server, booted.hub)
       server.httpServer?.on('close', () => void booted.stop())
     },
   }
