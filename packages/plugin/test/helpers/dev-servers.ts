@@ -112,9 +112,9 @@ function installPackage(nodeModules: string, name: string, sourceDir: string, in
   }
 }
 
-export function installConcivPackage(root: string, name: string): string {
+export function installConcivPackage(root: string, name: string, nodeModules = join(root, 'node_modules')): string {
   const sourceDir = packageDirFrom(name, dirname(import.meta.dirname))
   if (sourceDir === null) throw new Error(`${name} is not resolvable from @conciv/plugin`)
-  installPackage(join(root, 'node_modules'), name, sourceDir, new Set())
-  return join(root, 'node_modules', name)
+  installPackage(nodeModules, name, sourceDir, new Set())
+  return join(nodeModules, name)
 }

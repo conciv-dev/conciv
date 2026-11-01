@@ -1319,18 +1319,22 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 90_000)
 
-  it('opens the chat and the recorder on a cold cache of an installed conciv without Vite re-optimizing dependencies', async () => {
+  it('opens the chat and the recorder on a cold cache of a pnpm-installed conciv with one Solid and without Vite re-optimizing dependencies', async () => {
     const root = realpathSync(dirs.tempDir('conciv-cold-'))
     writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
-    const installed = join(installConcivPackage(root, '@conciv/embed'), '..')
+    const store = join(root, 'node_modules', '.pnpm', 'node_modules')
+    const installed = join(installConcivPackage(root, '@conciv/embed', store), '..')
     for (const name of ['terminal', 'test-runner', 'whiteboard', 'recorder', 'ios']) {
-      installConcivPackage(root, `@conciv/extension-${name}`)
+      installConcivPackage(root, `@conciv/extension-${name}`, store)
     }
+    installConcivPackage(root, '@conciv/extension-compiler', store)
     const workspaceIt = join(
       dirname(dirname(dirname(realpathSync(fileURLToPath(import.meta.resolve('@conciv/embed')))))),
       'it',
     )
     cpSync(join(workspaceIt, 'package.json'), join(installed, 'it', 'package.json'))
+    mkdirSync(join(root, 'node_modules', '@conciv'))
+    symlinkSync(join(installed, 'it'), join(root, 'node_modules', '@conciv', 'it'))
     const logged: string[] = []
     const remember = (message: string): void => void logged.push(message)
     const server = await createServer({
@@ -1347,7 +1351,7 @@ describe('vite devtools dock', () => {
               join(installed, `extension-${name}`, 'dist', 'client.js'),
             ),
             embedEntry: join(installed, 'embed', 'dist', 'mount.js'),
-            dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
+            dedupeEntry: join(installed, 'extension-compiler', 'dist', 'dedupe-extensions.js'),
           },
         ),
       ],
@@ -1361,6 +1365,10 @@ describe('vite devtools dock', () => {
     page.on('response', (response) => {
       if (response.status() === 504) gatewayFailures.push(response.url())
     })
+    const warnings: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'warning') warnings.push(message.text())
+    })
     const recorderPlayer = page.waitForResponse(/rrweb-player/, {timeout: 60_000})
     await page.goto(url, {waitUntil: 'domcontentloaded'})
     await page.getByRole('button', {name: /conciv chat$/}).click({timeout: 45_000})
@@ -1372,6 +1380,7 @@ describe('vite devtools dock', () => {
       [],
     )
     expect(gatewayFailures).toEqual([])
+    expect(warnings.filter((warning) => warning.includes('multiple instances of Solid'))).toEqual([])
     await page.close()
   }, 120_000)
 
