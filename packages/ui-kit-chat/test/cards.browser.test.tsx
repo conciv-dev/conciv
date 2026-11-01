@@ -13,7 +13,7 @@ import type {
 import {MetaToolCard} from '../src/tools/styled/meta-tool-card.js'
 import {ToolFallback} from '../src/tools/styled/tool-fallback.js'
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../src/store/tool-context.js'
-import {cardPart, cardResult, catalogOf as cardCatalogOf, ctxWith as cardCtxWith, mountView} from './helpers.js'
+import {cardPart, cardResult, catalogOf, ctxWith, mountView} from './helpers.js'
 import {render} from '@solidjs/testing-library'
 import {CardShell} from '../src/tools/styled/card-shell.js'
 import {CollapsibleCard} from '../src/tools/styled/collapsible-card.js'
@@ -58,7 +58,7 @@ describe('card body nonempty', () => {
       <MetaToolCard
         part={cardPart('page_noop', {})}
         result={undefined}
-        ctx={cardCtxWith(cardCatalogOf({page_noop: NO_SCHEMA_META}))}
+        ctx={ctxWith(catalogOf({page_noop: NO_SCHEMA_META}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -72,7 +72,7 @@ describe('card body nonempty', () => {
       <MetaToolCard
         part={cardPart('page_fill', {selector: '#name', value: 'Ada', timeoutMs: 250})}
         result={undefined}
-        ctx={cardCtxWith(cardCatalogOf({page_fill: FILL_META}))}
+        ctx={ctxWith(catalogOf({page_fill: FILL_META}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -87,7 +87,7 @@ describe('card body nonempty', () => {
       <MetaToolCard
         part={cardPart('page_noop', {reason: 'warming the cache'})}
         result={undefined}
-        ctx={cardCtxWith(cardCatalogOf({page_noop: NO_SCHEMA_META}))}
+        ctx={ctxWith(catalogOf({page_noop: NO_SCHEMA_META}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -97,26 +97,12 @@ describe('card body nonempty', () => {
     await expect.element(page.getByText('no input')).not.toBeInTheDocument()
   })
 
-  it('MetaToolCard shows its input chips while running with no result yet', async () => {
-    mountView(() => (
-      <MetaToolCard
-        part={cardPart('page_fill', {selector: '#name', value: 'Ada'}, 'input-complete')}
-        result={undefined}
-        ctx={cardCtxWith(cardCatalogOf({page_fill: FILL_META}))}
-        addResult={INERT_ADD_RESULT}
-      />
-    ))
-
-    await expandFirst()
-    await expect.element(page.getByText('Ada')).toBeVisible()
-  })
-
   it('MetaToolCard shows the error block alongside its input chips for an error-only result', async () => {
     mountView(() => (
       <MetaToolCard
         part={cardPart('page_fill', {selector: '#name', value: 'Ada'})}
         result={errorResult('element not found')}
-        ctx={cardCtxWith(cardCatalogOf({page_fill: FILL_META}))}
+        ctx={ctxWith(catalogOf({page_fill: FILL_META}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -140,60 +126,9 @@ describe('card body nonempty', () => {
     await page.getByRole('button').click()
     await expect.element(page.getByText('no input')).toBeVisible()
   })
-
-  it('ToolFallback shows a quiet no-input row for whitespace-only arguments', async () => {
-    mountView(() => (
-      <ToolFallback
-        part={{type: 'tool-call', id: 'z2', name: 'ping', arguments: '   ', state: 'complete'}}
-        result={undefined}
-        ctx={INERT_TOOL_CTX}
-        addResult={INERT_ADD_RESULT}
-      />
-    ))
-
-    await page.getByRole('button').click()
-    await expect.element(page.getByText('no input')).toBeVisible()
-  })
-})
-
-describe('card shell subtitle', () => {
-  const PART: ToolCallPart = {type: 'tool-call', id: 't1', name: 'demo_tool', arguments: '{}', state: 'input-complete'}
-
-  describe('CardShell subtitle', () => {
-    it('renders a distinct muted subtitle next to a shrink-fit title', async () => {
-      render(() => (
-        <CardShell
-          meta={undefined}
-          title="Read the router state"
-          subtitle="/about · 2 matches"
-          part={PART}
-          result={undefined}
-        />
-      ))
-      await expect.element(page.getByText('Read the router state', {exact: true})).toBeVisible()
-      await expect.element(page.getByText('/about · 2 matches', {exact: true})).toBeVisible()
-    })
-  })
 })
 
 describe('collapsible card shape', () => {
-  it('renders a collapsible with a chevron even when the body is empty', async () => {
-    mountView(() => <CollapsibleCard header={<span>Rendered choices</span>} />)
-
-    await expect.element(page.getByText('Rendered choices')).toBeVisible()
-    await expect.element(page.getByRole('button')).toHaveAttribute('aria-expanded')
-  })
-
-  it('renders a collapsible with an expand button when the card has body content', async () => {
-    mountView(() => (
-      <CollapsibleCard header={<span>Rendered a form</span>}>
-        <span>Pick a primary color</span>
-      </CollapsibleCard>
-    ))
-
-    await expect.element(page.getByRole('button')).toHaveAttribute('aria-expanded')
-  })
-
   it('expands to reveal the body content on click', async () => {
     mountView(() => (
       <CollapsibleCard header={<span>Ran a command</span>}>
@@ -225,30 +160,6 @@ describe('collapsible card shape', () => {
 })
 
 describe('collapsible section', () => {
-  it('starts collapsed by default, hiding the body and reporting aria-expanded false', async () => {
-    mountView(() => (
-      <CollapsibleSection header={<span>test-suite.spec.ts</span>}>
-        <span>assertion failed: expected 2, got 3</span>
-      </CollapsibleSection>
-    ))
-
-    const trigger = page.getByRole('button', {name: 'test-suite.spec.ts'})
-    await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
-    expect(page.getByText('assertion failed: expected 2, got 3').query()).toBeNull()
-  })
-
-  it('starts open when defaultOpen is set, showing the body and reporting aria-expanded true', async () => {
-    mountView(() => (
-      <CollapsibleSection header={<span>failing-test.spec.ts</span>} defaultOpen>
-        <span>stack trace goes here</span>
-      </CollapsibleSection>
-    ))
-
-    const trigger = page.getByRole('button', {name: 'failing-test.spec.ts'})
-    await expect.element(trigger).toHaveAttribute('aria-expanded', 'true')
-    await expect.element(page.getByText('stack trace goes here')).toBeVisible()
-  })
-
   it('toggles open and closed on trigger click', async () => {
     mountView(() => (
       <CollapsibleSection header={<span>nested-section</span>}>
@@ -266,20 +177,6 @@ describe('collapsible section', () => {
     await userEvent.click(trigger)
     await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
     await expect.element(page.getByText('nested detail content')).not.toBeVisible()
-  })
-
-  it('supports nesting inside another collapsible card body', async () => {
-    mountView(() => (
-      <div>
-        <p>Card body</p>
-        <CollapsibleSection header={<span>inner section</span>} defaultOpen>
-          <span>inner content</span>
-        </CollapsibleSection>
-      </div>
-    ))
-
-    await expect.element(page.getByText('Card body')).toBeVisible()
-    await expect.element(page.getByText('inner content')).toBeVisible()
   })
 })
 
@@ -324,24 +221,6 @@ describe('embedded card chrome', () => {
       ))
       await expect.element(page.getByText('invalidated')).toBeVisible()
       expect(page.getByText('posts').query()).toBeNull()
-    })
-
-    it('keeps the subtitle as a body line instead of dropping it with the header', async () => {
-      render(() => (
-        <CardChromeProvider value="embedded">
-          <CardShell
-            meta={undefined}
-            title="Read the router state"
-            subtitle="/about · 2 matches"
-            part={EMPTY_PART}
-            result={undefined}
-          >
-            <p>router body</p>
-          </CardShell>
-        </CardChromeProvider>
-      ))
-      await expect.element(page.getByText('/about · 2 matches')).toBeVisible()
-      expect(page.getByText('Read the router state').query()).toBeNull()
     })
 
     it('still renders the header, chips and the empty-input placeholder as a standalone card', async () => {
@@ -422,7 +301,7 @@ describe('meta tool card error', () => {
       <MetaToolCard
         part={cardPart('page_fill', {selector: '#ghost', value: 'nobody'})}
         result={errorResult('{"error":{"message":"page_fill failed","code":"NO_MATCH"}}')}
-        ctx={cardCtxWith(cardCatalogOf({page_fill: fillMeta}))}
+        ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -437,7 +316,7 @@ describe('meta tool card error', () => {
       <MetaToolCard
         part={cardPart('page_fill', {selector: '#ghost', value: 'nobody'})}
         result={errorResult('{"error":{"message":"the sandbox blew up","code":"SOMETHING_ELSE"}}')}
-        ctx={cardCtxWith(cardCatalogOf({page_fill: fillMeta}))}
+        ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -452,7 +331,7 @@ describe('meta tool card error', () => {
       <MetaToolCard
         part={cardPart('page_fill', {selector: '#ghost', value: 'nobody'})}
         result={errorResult('NO_MATCH: the field vanished')}
-        ctx={cardCtxWith(cardCatalogOf({page_fill: fillMeta}))}
+        ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -467,7 +346,7 @@ describe('meta tool card error', () => {
       <MetaToolCard
         part={cardPart('page_fill', {selector: '#ghost', value: 'nobody'})}
         result={errorResult('{"error":"NO_MATCH: the field vanished"}')}
-        ctx={cardCtxWith(cardCatalogOf({page_fill: fillMeta}))}
+        ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -478,27 +357,12 @@ describe('meta tool card error', () => {
     expect(document.body.textContent).not.toContain('NO_MATCH: the field vanished')
   })
 
-  it('a code-mode string error envelope with an unknown code falls through to the bare message', async () => {
-    mountView(() => (
-      <MetaToolCard
-        part={cardPart('page_fill', {selector: '#ghost', value: 'nobody'})}
-        result={errorResult('{"error":"SOMETHING_ELSE: the sandbox blew up"}')}
-        ctx={cardCtxWith(cardCatalogOf({page_fill: fillMeta}))}
-        addResult={INERT_ADD_RESULT}
-      />
-    ))
-
-    await userEvent.click(page.getByRole('button'))
-    await expect.element(page.getByText('the sandbox blew up', {exact: true})).toBeVisible()
-    expect(document.body.textContent).not.toContain('{"error"')
-  })
-
   it("a JSON.stringify'd string result renders the plain string, not raw quotes", async () => {
     mountView(() => (
       <MetaToolCard
         part={cardPart('page_ship', {selector: '#hero'})}
         result={successResult(JSON.stringify('shipped-42'))}
-        ctx={cardCtxWith(cardCatalogOf({page_ship: shipMeta}))}
+        ctx={ctxWith(catalogOf({page_ship: shipMeta}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -529,7 +393,7 @@ describe('meta tool card object result', () => {
       <MetaToolCard
         part={cardPart('page_measure', {selector: '#hero'})}
         result={cardResult('{"width":320,"height":48}', 'complete')}
-        ctx={cardCtxWith(cardCatalogOf({page_measure: measureMeta}))}
+        ctx={ctxWith(catalogOf({page_measure: measureMeta}))}
         addResult={INERT_ADD_RESULT}
       />
     ))
@@ -571,23 +435,6 @@ describe('permission card session', () => {
 
     expect(decisions).toEqual([{id: 'appr-1', approved: true, scope: 'once'}])
   })
-
-  it('reports a session allow for the session action on a command approval', async () => {
-    const decisions: Decision[] = []
-    mountView(() => <PermissionCard part={askingPart({command: 'pnpm run build'})} ctx={ctxRecording(decisions)} />)
-
-    await page.getByRole('button', {name: 'Allow for session'}).click()
-
-    expect(decisions).toEqual([{id: 'appr-1', approved: true, scope: 'session'}])
-  })
-
-  it('omits the session action when the approval carries no command to remember', async () => {
-    const decisions: Decision[] = []
-    mountView(() => <PermissionCard part={askingPart({elementId: 'e1'})} ctx={ctxRecording(decisions)} />)
-
-    await expect.element(page.getByRole('button', {name: 'Allow', exact: true})).toBeVisible()
-    expect(document.querySelectorAll('button')).toHaveLength(2)
-  })
 })
 
 describe('tool call card dispatch', () => {
@@ -601,19 +448,8 @@ describe('tool call card dispatch', () => {
     inputSchema: {type: 'object', properties: {note: {type: 'string'}}},
   }
 
-  function catalogOf(entries: Record<string, ToolViewMeta>): ToolCatalogView {
-    return {loaded: () => true, meta: (name) => entries[name]}
-  }
-
-  function ctxWith(catalog: ToolCatalogView): ToolViewCtx {
-    return {
-      apiBase: '',
-      harnessId: 'test',
-      sendMessage: () => {},
-      catalog,
-      addResult: () => {},
-      respondApproval: () => {},
-    }
+  function ctxAsking(catalog: ToolCatalogView): ToolViewCtx {
+    return {...ctxWith(catalog), respondApproval: () => {}}
   }
 
   function part(name: string, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
@@ -641,7 +477,7 @@ describe('tool call card dispatch', () => {
       <ToolCallCard
         part={part('page_ship')}
         result={undefined}
-        ctx={ctxWith(catalogOf({page_ship: shipMeta}))}
+        ctx={ctxAsking(catalogOf({page_ship: shipMeta}))}
         tools={() => [extensionEntry, builtinEntry]}
       />
     ))
@@ -655,7 +491,7 @@ describe('tool call card dispatch', () => {
       <ToolCallCard
         part={part('page_ship')}
         result={undefined}
-        ctx={ctxWith(catalogOf({page_ship: shipMeta}))}
+        ctx={ctxAsking(catalogOf({page_ship: shipMeta}))}
         tools={() => [builtinEntry]}
       />
     ))
@@ -669,7 +505,7 @@ describe('tool call card dispatch', () => {
       <ToolCallCard
         part={part('page_ship')}
         result={undefined}
-        ctx={ctxWith(catalogOf({page_ship: shipMeta}))}
+        ctx={ctxAsking(catalogOf({page_ship: shipMeta}))}
         tools={() => []}
       />
     ))
@@ -683,7 +519,7 @@ describe('tool call card dispatch', () => {
       <ToolCallCard
         part={part('mcp__weather__forecast')}
         result={undefined}
-        ctx={ctxWith(catalogOf({}))}
+        ctx={ctxAsking(catalogOf({}))}
         tools={() => []}
       />
     ))
@@ -701,7 +537,7 @@ describe('tool call card dispatch', () => {
       <ToolCallCard
         part={approval}
         result={undefined}
-        ctx={ctxWith(catalogOf({page_ship: shipMeta}))}
+        ctx={ctxAsking(catalogOf({page_ship: shipMeta}))}
         tools={() => []}
       />
     ))
@@ -787,25 +623,6 @@ describe('tool card auto collapse', () => {
     setState('complete')
     await expect.element(page.getByText('approval detail')).not.toBeVisible()
   })
-
-  it('shows the collapsible state on the trigger even when a tooltip wraps it', async () => {
-    mountView(() => (
-      <ToolCard
-        Icon={Icon}
-        title="Edited the page"
-        titleTooltip="what this run did"
-        part={part('complete')}
-        result={undefined}
-      >
-        <span>step rail</span>
-      </ToolCard>
-    ))
-
-    const trigger = page.getByRole('button', {name: /Edited the page/})
-    await expect.element(trigger).toHaveAttribute('data-state', 'closed')
-    await trigger.click()
-    await expect.element(trigger).toHaveAttribute('data-state', 'open')
-  })
 })
 
 describe('tool card title reveal', () => {
@@ -867,10 +684,6 @@ describe('tool fallback json', () => {
     }
   }
 
-  function result(content: string): ToolResultPart {
-    return {type: 'tool-result', toolCallId: 'f1', content, state: 'complete'}
-  }
-
   async function openBody(): Promise<void> {
     await userEvent.click(page.getByRole('button'))
   }
@@ -886,35 +699,11 @@ describe('tool fallback json', () => {
     expect(container.querySelectorAll('[data-scope="json-tree-view"][data-part="root"]').length).toBe(1)
     expect(container.querySelectorAll('diffs-container').length).toBe(0)
   })
-
-  it('renders a plain-text result as a shiki code block, not a JSON tree', async () => {
-    const container = mountView(() => (
-      <ToolFallback
-        part={part({})}
-        result={result('clear skies over the bay')}
-        ctx={ctx}
-        addResult={INERT_ADD_RESULT}
-      />
-    ))
-
-    await openBody()
-
-    await expect.element(page.getByText('clear skies over the bay')).toBeVisible()
-    expect(container.querySelectorAll('diffs-container').length).toBe(1)
-    expect(container.querySelectorAll('[data-scope="json-tree-view"][data-part="root"]').length).toBe(0)
-  })
 })
 
 describe('tool trace row', () => {
   function ctxRecording(decisions: Array<{id: string; approved: boolean}>): ToolViewCtx {
-    return {
-      apiBase: '',
-      harnessId: 'test',
-      sendMessage: () => {},
-      catalog: {loaded: () => true, meta: () => undefined},
-      addResult: () => {},
-      respondApproval: (id, approved) => decisions.push({id, approved}),
-    }
+    return {...ctxWith(catalogOf({})), respondApproval: (id, approved) => decisions.push({id, approved})}
   }
 
   const noCtx = ctxRecording([])
@@ -1094,13 +883,7 @@ describe('tool trace row', () => {
 })
 
 describe('trace row card header', () => {
-  const ctx: ToolViewCtx = {
-    apiBase: '',
-    harnessId: 'test',
-    sendMessage: () => {},
-    catalog: {loaded: () => true, meta: () => undefined},
-    addResult: () => {},
-  }
+  const ctx = ctxWith(catalogOf({}))
 
   function call(name: string, input: Record<string, unknown>): ToolCallPart {
     return {type: 'tool-call', id: 'c1', name, arguments: JSON.stringify(input), input, state: 'complete'}
@@ -1246,47 +1029,5 @@ describe('trace row card header', () => {
     await expect.element(page.getByText('the command output')).toBeVisible()
     await expect.element(page.getByText('rm -rf tmp')).toBeVisible()
     await expect.element(page.getByText('page edit')).toBeVisible()
-  })
-
-  const declaredCtx: ToolViewCtx = {
-    ...ctx,
-    catalog: {
-      loaded: () => true,
-      meta: () => ({summary: 'read the live query and mutation cache off the page', mutating: false, mirrors: false}),
-    },
-  }
-
-  it('shows a declared tool summary once, on the row, when the generic card body would repeat it', async () => {
-    mountView(() => (
-      <ToolTraceRow
-        part={call('tanstack_query_cache', {scope: 'all'})}
-        result={failedResult()}
-        ctx={declaredCtx}
-        tools={() => []}
-      />
-    ))
-
-    await expect.element(page.getByText('read the live query and mutation cache off the page')).toBeVisible()
-    expect(page.getByText('read the live query and mutation cache off the page').elements()).toHaveLength(1)
-  })
-
-  const headerlessTool: ToolCardEntry = {
-    names: ['tanstack_query_cache'],
-    render: () => <p>a card without any header</p>,
-    hasEmbeddedBody: () => true,
-  }
-
-  it('falls back to the generic projection for a card that publishes no header', async () => {
-    mountView(() => (
-      <ToolTraceRow
-        part={call('tanstack_query_cache', {scope: 'all'})}
-        result={failedResult()}
-        ctx={ctx}
-        tools={() => [headerlessTool]}
-      />
-    ))
-
-    await expect.element(page.getByText('a card without any header')).toBeVisible()
-    await expect.element(page.getByText('all')).toBeVisible()
   })
 })

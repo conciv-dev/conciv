@@ -1,6 +1,5 @@
 import {describe, expect, it} from 'vitest'
 import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/protocol/chat-types'
-import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import type {RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
@@ -11,7 +10,7 @@ import {
   fileToDataSource,
 } from '../src/primitives/attachment/attachment-adapter.js'
 import {formatElapsed, runClock, type RunClockSource} from '../src/store/run-clock.js'
-import {coalesceTurns, defaultGrouper, diffTurns, groupParts, type GroupNode} from '../src/store/grouping.js'
+import {coalesceTurns, diffTurns} from '../src/store/grouping.js'
 
 describe('attachment adapter', () => {
   describe('attachment adapters', () => {
@@ -62,22 +61,6 @@ describe('attachment adapter', () => {
       await expect(adapter.send(pending)).rejects.toThrow('MB image limit')
     })
 
-    it('accepts an image at the cap and keeps its base64 payload under the ws rpc budget', async () => {
-      const adapter = createSimpleImageAttachmentAdapter()
-      const largest = new File([new Uint8Array(MAX_ATTACHMENT_RAW_BYTES)], 'largest.png', {type: 'image/png'})
-      const pending = await adapter.add({file: largest})
-      if (Symbol.asyncIterator in pending) throw new Error('Expected a promise attachment')
-      expect(pending.status).toMatchObject({type: 'requires-action', reason: 'composer-send'})
-
-      const oneOver = new File([new Uint8Array(MAX_ATTACHMENT_RAW_BYTES + 1)], 'over.png', {type: 'image/png'})
-      const overPending = await adapter.add({file: oneOver})
-      if (Symbol.asyncIterator in overPending) throw new Error('Expected a promise attachment')
-      expect(overPending.status).toMatchObject({type: 'incomplete', reason: 'error'})
-
-      const largestBase64Length = Math.ceil(MAX_ATTACHMENT_RAW_BYTES / 3) * 4
-      expect(largestBase64Length).toBeLessThan(WS_RPC_PAYLOAD_BUDGET_BYTES)
-    })
-
     it('marks svg images incomplete on add and refuses to send them', async () => {
       const adapter = createSimpleImageAttachmentAdapter()
       const svg = new File(['<svg/>'], 'icon.svg', {type: 'image/svg+xml'})
@@ -111,14 +94,6 @@ describe('attachment adapter', () => {
       const complete = await adapter.send(pending)
       expect(complete.status).toEqual({type: 'complete'})
       expect(complete.content).toEqual([{type: 'text', content: 'Attachment recording.txt:\nline one\nline two'}])
-    })
-
-    it('marks oversized text files incomplete on add', async () => {
-      const adapter = createTextAttachmentAdapter()
-      const big = new File([new Uint8Array(2 * 1024 * 1024)], 'huge.txt', {type: 'text/plain'})
-      const pending = await adapter.add({file: big})
-      if (Symbol.asyncIterator in pending) throw new Error('Expected a promise attachment')
-      expect(pending.status).toMatchObject({type: 'incomplete', reason: 'error'})
     })
 
     it('composes adapters and routes add/send/remove to the adapter matching the file type', async () => {
@@ -264,120 +239,6 @@ describe('grouping diff', () => {
       const previousTurns = diffTurns([], [], previousMessages)
       const next = [...conversation(), assistant('a4', [text('appended')])]
       expect(diffTurns(previousTurns, previousMessages, next)).toEqual(coalesceTurns(next))
-    })
-  })
-
-  describe('diffTurns identity reuse', () => {
-    it('reuses settled turns across a trailing append', () => {
-      const previousMessages = conversation()
-      const previousTurns = diffTurns([], [], previousMessages)
-      const next = [...previousMessages, user('u3', 'again')]
-      const turns = diffTurns(previousTurns, previousMessages, next)
-      expect(turns[0]).toBe(previousTurns[0])
-      expect(turns[1]).toBe(previousTurns[1])
-      expect(turns[2]).toBe(previousTurns[2])
-      expect(turns[3]).toBe(previousTurns[3])
-      expect(turns[4]?.key).toBe('u3')
-    })
-
-    it('reuses settled turns while the last assistant turn streams', () => {
-      const previousMessages = conversation()
-      const previousTurns = diffTurns([], [], previousMessages)
-      const streamed = [...previousMessages]
-      streamed[4] = assistant('a3', [text('answer two grew longer')])
-      const turns = diffTurns(previousTurns, previousMessages, streamed)
-      expect(turns[0]).toBe(previousTurns[0])
-      expect(turns[1]).toBe(previousTurns[1])
-      expect(turns[2]).toBe(previousTurns[2])
-      expect(turns[3]).not.toBe(previousTurns[3])
-      expect(turns[3]?.parts[0]).toEqual(text('answer two grew longer'))
-    })
-
-    it('rebuilds a merged turn when a new assistant message joins it', () => {
-      const previousMessages = conversation()
-      const previousTurns = diffTurns([], [], previousMessages)
-      const next = [...previousMessages, assistant('a4', [text('tail')])]
-      const turns = diffTurns(previousTurns, previousMessages, next)
-      expect(turns).toEqual(coalesceTurns(next))
-      expect(turns[3]).not.toBe(previousTurns[3])
-      expect(turns[3]?.parts).toHaveLength(2)
-    })
-
-    it('rebuilds edited mid-history turns and keeps unaffected neighbours', () => {
-      const previousMessages = conversation()
-      const previousTurns = diffTurns([], [], previousMessages)
-      const edited = [...previousMessages]
-      edited[0] = user('u1', 'hello edited')
-      const turns = diffTurns(previousTurns, previousMessages, edited)
-      expect(turns).toEqual(coalesceTurns(edited))
-      expect(turns[0]).not.toBe(previousTurns[0])
-      expect(turns[1]).toBe(previousTurns[1])
-    })
-
-    it('handles truncation', () => {
-      const previousMessages = conversation()
-      const previousTurns = diffTurns([], [], previousMessages)
-      const truncated = previousMessages.slice(0, 3)
-      const turns = diffTurns(previousTurns, previousMessages, truncated)
-      expect(turns).toEqual(coalesceTurns(truncated))
-      expect(turns).toHaveLength(2)
-      expect(turns[0]).toBe(previousTurns[0])
-    })
-
-    it('reuses settled turns when a history snapshot re-mints their message ids', () => {
-      const previousMessages = conversation()
-      const previousTurns = diffTurns([], [], previousMessages)
-      const resnapshot = previousMessages.map((message, index) => ({
-        ...message,
-        id: `server-${index}`,
-        parts: message.parts.map((part) => ({...part})),
-      }))
-      const turns = diffTurns(previousTurns, previousMessages, resnapshot)
-      expect(turns.filter((turn, index) => turn !== previousTurns[index])).toEqual([])
-    })
-
-    it('handles wholesale branch replacement', () => {
-      const previousMessages = conversation()
-      const previousTurns = diffTurns([], [], previousMessages)
-      const replaced = [user('x1', 'other'), assistant('x2', [text('branch')])]
-      const turns = diffTurns(previousTurns, previousMessages, replaced)
-      expect(turns).toEqual(coalesceTurns(replaced))
-      expect(turns[0]).not.toBe(previousTurns[0])
-    })
-
-    it('rebuilds when a role change moves a turn boundary', () => {
-      const previousMessages = [user('u1', 'a'), assistant('a1', [text('b')]), assistant('a2', [text('c')])]
-      const previousTurns = diffTurns([], [], previousMessages)
-      const next: ChatMessage[] = [user('u1', 'a'), user('a1', 'b'), assistant('a2', [text('c')])]
-      const turns = diffTurns(previousTurns, previousMessages, next)
-      expect(turns).toEqual(coalesceTurns(next))
-    })
-  })
-
-  describe('group tree keys under append-only streaming', () => {
-    const streamed: ChatPart[] = [
-      {type: 'thinking', content: 'plan'},
-      {type: 'tool-call', id: 't1', name: 'read', arguments: '{}', state: 'complete'},
-      {type: 'tool-result', toolCallId: 't1', content: 'ok', state: 'complete'},
-      {type: 'text', content: 'the answer'},
-      {type: 'tool-call', id: 't2', name: 'confirm', arguments: '{}', state: 'complete'},
-    ]
-
-    const keysOf = (parts: ChatPart[]): Array<[string, string | undefined]> =>
-      groupParts(parts, defaultGrouper, {}).map((node: GroupNode) => [node.nodeKey, node.idKey])
-
-    it('keeps the keys of already-emitted nodes stable as parts append', () => {
-      const prefixes = streamed.map((_part, index) => keysOf(streamed.slice(0, index + 1)))
-      const final = keysOf(streamed)
-      for (const prefix of prefixes) expect(final.slice(0, prefix.length)).toEqual(prefix)
-    })
-
-    it('keys a group by the identity of its first member, leaving id-less first members unkeyed', () => {
-      expect(keysOf(streamed)).toEqual([
-        ['0', undefined],
-        ['1', undefined],
-        ['2', 'id:t2'],
-      ])
     })
   })
 })

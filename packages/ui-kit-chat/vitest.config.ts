@@ -6,7 +6,9 @@ import {TANSTACK_AI_SOLID_DEPS, browserOptimizeDeps, ciTest, ciTestSolidBrowser}
 
 const DIFFS_ENTRIES = ['@pierre/diffs', '@pierre/diffs/worker']
 
-const HIGHLIGHT_WORKER_LANGUAGES = [
+const HIGHLIGHT_WORKER_DEPS = [
+  'shiki/engine/javascript',
+  'shiki/langs/bash.mjs',
   '@shikijs/langs-precompiled/typescript',
   '@shikijs/langs-precompiled/tsx',
   '@shikijs/langs-precompiled/javascript',
@@ -37,7 +39,7 @@ export default defineConfig({
       {
         extends: true,
         plugins: [solidPlugin(), UnoCSS({content: {filesystem: ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx}']}})],
-        optimizeDeps: browserOptimizeDeps([...DIFFS_ENTRIES, ...HIGHLIGHT_WORKER_LANGUAGES, ...TANSTACK_AI_SOLID_DEPS]),
+        optimizeDeps: browserOptimizeDeps([...DIFFS_ENTRIES, ...HIGHLIGHT_WORKER_DEPS, ...TANSTACK_AI_SOLID_DEPS]),
         test: {
           ...ciTestSolidBrowser(),
           name: 'ui-kit-chat-browser',
