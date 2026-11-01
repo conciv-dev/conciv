@@ -772,6 +772,47 @@ describe('recorder controls', () => {
       expect(calls.startedSince(['ext', 'recorder', 'config'])).toBe(2)
       await rpc.presence({...viewer, live: false})
     }, 120_000)
+
+    it('keeps events whose flush failed across a stop and a new start, in order', async () => {
+      const page = api().page
+      const rpc = recorderRpc()
+      const viewer = {viewerId: 'failed-flush-across-stop'}
+      const flushCarrying = (label: string) =>
+        page.waitForRequest(
+          (request) => FLUSH_REQUEST.test(request.url()) && (request.postData() ?? '').includes(label),
+          {timeout: 10_000},
+        )
+      await reloadWidget(page)
+      const firstFlush = page.waitForRequest(FLUSH_REQUEST, {timeout: 10_000})
+      await rpc.presence({...viewer, live: true})
+      await (await (await firstFlush).response())?.finished()
+
+      const firstLabel = 'Marker 1'
+      const secondLabel = 'Marker 2'
+      await page.route(FLUSH_REQUEST, (route) => route.abort())
+      const firstFailed = flushCarrying(firstLabel)
+      expect(await addMarker(page)).toBe(firstLabel)
+      await firstFailed
+      const restartConfig = page.waitForRequest(CONFIG_REQUEST, {timeout: 10_000})
+      await rpc.presence({...viewer, live: false})
+      await rpc.presence({...viewer, live: true})
+      await restartConfig
+      await page.unroute(FLUSH_REQUEST)
+
+      const secondSent = flushCarrying(secondLabel)
+      expect(await addMarker(page)).toBe(secondLabel)
+      await (await (await secondSent).response())?.finished()
+
+      const {clients} = await rpc.clients()
+      const clientId = clients.at(-1)?.id
+      if (!clientId) throw new Error('no recorder client connected')
+      const {events} = await rpc.window({clientId})
+      const mutationIndex = (label: string): number =>
+        events.findIndex((event) => event.type === 3 && JSON.stringify(event).includes(label))
+      expect(mutationIndex(firstLabel)).toBeGreaterThanOrEqual(0)
+      expect(mutationIndex(firstLabel)).toBeLessThan(mutationIndex(secondLabel))
+      await rpc.presence({...viewer, live: false})
+    }, 120_000)
   })
 })
 
