@@ -1,3 +1,9 @@
+# nextjs-app
+
+## Overview
+
+Next.js example host app wired to conciv through `@conciv/it/plugin/nextjs`.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -34,3 +40,24 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Interface
+
+- `withConciv(nextConfig)` (`next.config.ts`): wraps the Next config with the conciv plugin from `@conciv/it/plugin/nextjs`
+- `register` (`instrumentation.ts`): re-export of `@conciv/it/plugin/nextjs` server instrumentation hook
+- `instrumentation-client.ts`: side-effect import of `@conciv/it/plugin/nextjs/widget`, loads the widget in the browser
+- `eslintConfig` (`eslint.config.mjs`): `eslint-config-next` core-web-vitals and typescript presets
+- Subdirectories: [app](./app/README.md), [conciv](./conciv/README.md)
+
+## Invariants
+
+- `eslint.config.mjs`: `.next/**`, `out/**`, `build/**`, `next-env.d.ts` are ignored by lint
+
+## Side Effects
+
+- `instrumentation-client.ts`: importing `@conciv/it/plugin/nextjs/widget` mounts the conciv widget in the page
+- `instrumentation.ts:register`: Next.js calls it at server start; behavior is owned by `@conciv/it`
+
+## Verification
+
+- Run: `pnpm exec turbo run lint build --filter=nextjs-app` from the repo root (turbo builds the package and its dependencies first) (the package has no `test` or `typecheck` script)

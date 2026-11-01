@@ -4,6 +4,38 @@ Internal to `@conciv/it`. The design extension holds a target image per route an
 page at that width, and returns the components that differ from the design, ranked, with the measured deltas and the
 source location that sets each value.
 
+## Overview
+
+The package.json describes this as the design built-in extension, internal to @conciv/it. It holds a target image per route and width, reads the target's text once with OCR, captures the live page at that width and returns ranked component deltas with style provenance. The root exports pick a browser condition (dist/client.js) or an import condition (dist/server.js), with subpaths ./client, ./server, ./defs, ./provenance, ./text-groups, ./paddle, ./colors and ./types. The `build` script runs four steps in order: tsdown, vite build (client), vite build with vite.xray.config.ts (xray page into dist/xray), then tsc declaration emit (which excludes src/xray).
+
+## Interface
+
+- default `defineConfig` (`tsdown.config.ts`): bundles `src/server.ts`, `src/shared/defs.ts`, `src/server/provenance/mappers.ts`, `src/server/text-groups.ts`, `src/server/comparators/paddle.ts` and `src/server/deltas/colors.ts` as ESM with `dts: false`
+- default `defineConfig` (`vite.config.ts`): library build of `src/client.ts` to `client.js` (ES format), with `emptyOutDir: false` and sourcemaps
+- default `defineConfig` (`vite.xray.config.ts`): builds `src/xray/` into `dist/xray/` with UnoCSS and the Solid plugin; in serve mode it loads `../../it/dist/vite.js` instead of plain Solid
+- default `defineConfig` (`uno.config.ts`): UnoCSS with `presetConciv`, scanning `src/xray/**` and `../../ui-kit-system/src/**`
+- package.json `exports`: `.` (browser maps to client, import maps to server), `./client`, `./server`, `./defs`, `./provenance` (`dist/server/provenance/mappers`), `./text-groups`, `./paddle` (`dist/server/comparators/paddle`), `./colors` (`dist/server/deltas/colors`), `./types` (types only)
+- package.json script `dev:xray`: runs `vite --config vite.xray.config.ts`
+- Subdirectories:
+  - [src](./src/README.md): Holds the two entry points of the design extension: `client.ts` registers the browser-side tools and the capture-frame responder, and `server.ts` wires up the target store, a lazy CSS source map, the xray router/app and the design runtime context.
+
+## Invariants
+
+- `rollupOptions.external` (`vite.config.ts`) treats imports matching solid-js, zod, @conciv/, lucide-solid, rrweb, @rrweb/, @tanstack/, @orpc/, @zumer/ or @bramus/ as external unless the import path contains `.css`
+- `renderBuiltUrl` (`vite.xray.config.ts`) prefixes HTML asset URLs with `xray/` and uses relative URLs for JS and CSS
+- `exclude: ["src/xray/**"]` (`tsconfig.build.json`): no declarations are emitted for the xray page
+- `ppu-paddle-ocr`, `ppu-ocv` and `onnxruntime-web` are pinned exactly (see [OCR engine](#ocr-engine))
+
+## Side Effects
+
+- `build` script (package.json): writes dist/ (server.js, shared/defs.js, server/provenance/mappers.js, server/text-groups.js, server/comparators/paddle.js, server/deltas/colors.js, client.js, xray/, .d.ts files); the xray build empties `dist/xray/` (`emptyOutDir: true` in `vite.xray.config.ts`)
+- `compiler` (`vite.xray.config.ts`): in serve mode it dynamically imports the sibling package build at `../../it/dist/vite.js`
+- `design_target` runs OCR in-process on `onnxruntime-web`; the service is created on first read and disposed with the extension
+
+## Verification
+
+- Run: `pnpm exec turbo run typecheck lint --filter=@conciv/extension-design` from the repo root (turbo builds the package and its dependencies first). The package has no `test` script; its behaviour is covered by `packages/it/test/design.it.test.ts`.
+
 ## Tools
 
 - `design_target` registers a PNG (a file under the project, or base64) as the design of a route at a width. It
