@@ -22,6 +22,7 @@ import type {ChatContext} from './api/rpc/mount.js'
 import {rpcSessionList} from './api/rpc/sessions.js'
 import {rowById} from './sessions/session-rows.js'
 import {concivError, defineConcivFunction} from './devframe-function.js'
+import {routeTools} from './devframe-agent-route.js'
 
 const NAMESPACE = 'conciv'
 const SESSIONS_STATE = 'conciv:sessions'
@@ -41,7 +42,12 @@ function raised(variant: z.infer<typeof ErrorVariant>): Error {
   return concivError('CONCIV_PROBE', 'probe failure', {attempt: 3, ids: ['a', 'b']})
 }
 
-export type PlaneDeps = {chat: ChatContext; pages: Map<string, DevframeNodeRpcSession>; refresh: () => Promise<void>}
+export type PlaneDeps = {
+  chat: ChatContext
+  pages: Map<string, DevframeNodeRpcSession>
+  refresh: () => Promise<void>
+  agentRoute: boolean
+}
 
 function serverFunctionsFor(deps: PlaneDeps, ctx: () => DevframeHubContext) {
   const ticksChannel: {current: RpcStreamingChannel<number> | null} = {current: null}
@@ -54,7 +60,7 @@ function serverFunctionsFor(deps: PlaneDeps, ctx: () => DevframeHubContext) {
     name: 'conciv:sessions:list',
     type: 'query',
     jsonSerializable: true,
-    agent: {description: 'List the chat sessions of this project.', safety: 'read'},
+    ...(deps.agentRoute ? {} : {agent: {description: 'List the chat sessions of this project.', safety: 'read'}}),
     handler: () => rpcSessionList(deps.chat, false),
   })
 
@@ -196,6 +202,7 @@ export type DevframePlaneOpts = {
   cwd: string
   host: ConcivHost
   plugins: DevframeDefinition[]
+  agentRoute: boolean
 }
 
 export type DevframePlane = {hub: HubInstance; sessionsChanged: () => void}
@@ -209,6 +216,7 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
   const deps: PlaneDeps = {
     chat: opts.chat,
     pages: new Map(),
+    agentRoute: opts.agentRoute,
     refresh: async () => {
       const state = await requireContext().rpc.sharedState.get(SESSIONS_STATE, {initialValue: {sessions: []}})
       const list = await rpcSessionList(opts.chat, false)
@@ -246,7 +254,7 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
       ...opts.plugins,
     ],
     auth: opts.auth,
-    mcp: {allowedOrigins: false, authorization: opts.mcpToken},
+    mcp: {allowedOrigins: false, authorization: opts.mcpToken, exposeSharedState: !opts.agentRoute},
     getStorageDir: (scope) => join(opts.stateDir, 'devframe', scope),
     async configure(ctx) {
       contextRef.current = ctx
@@ -259,11 +267,12 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
         }
       })
       ctx.services.provide(CONCIV_HOST_SERVICE, opts.host)
+      if (opts.agentRoute) ctx.agent.registerToolProvider(routeTools)
       await deps.refresh()
       ctx.commands.register({
         id: 'conciv:new-session',
         title: 'New conciv session',
-        agent: {description: 'Start a new conciv chat session.'},
+        ...(opts.agentRoute ? {} : {agent: {description: 'Start a new conciv chat session.'}}),
         handler: async () => {
           await ctx.messages.add({message: 'conciv session created', level: 'success', notify: true})
           return {sessionId: 'conciv_new'}

@@ -47,7 +47,7 @@ export function nativeIdFromHeaders(headers: Headers): HarnessSessionId | null {
 type TextContent = {type: 'text'; text: string}
 type ImageContent = {type: 'image'; data: string; mimeType: string}
 
-type ExecuteReply = {content: (TextContent | ImageContent)[]; isError?: boolean}
+export type ExecuteReply = {content: (TextContent | ImageContent)[]; isError?: boolean}
 
 function partToContent(part: ContentPart): TextContent | ImageContent {
   if (part.type === 'text') return {type: 'text', text: part.content}
@@ -57,13 +57,13 @@ function partToContent(part: ContentPart): TextContent | ImageContent {
   return {type: 'text', text: safeStringify(part)}
 }
 
-const DISCOVER_TOOL_NAME = 'discover_tools'
+export const DISCOVER_TOOL_NAME = 'discover_tools'
 
-const DiscoverInputSchema = z.object({toolNames: z.array(z.string())})
+export const DiscoverInputSchema = z.object({toolNames: z.array(z.string())})
 
 const DECLARED_ERROR_PREFIX = /^([A-Z][A-Z0-9_]+): /
 
-const EXECUTE_DESCRIPTION =
+export const EXECUTE_DESCRIPTION =
   'Run TypeScript in a secure sandbox wired to this project. Every capability is an async external_* function; call discover_tools first for their typed signatures. Return a value to pass results back; console.log output is captured.'
 
 function stalenessNotice(staleness: EngineStaleness): string {
@@ -145,7 +145,7 @@ function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply
   return {content: [{type: 'text', text: cappedText(body)}, ...imageBlocks(imagesIn(result.result))]}
 }
 
-type PublishChunks = (chunks: ChatEvent[]) => void
+export type PublishChunks = (chunks: ChatEvent[]) => void
 
 function callStartChunks(callId: string, toolName: string, input: unknown): ChatEvent[] {
   return [
@@ -166,7 +166,11 @@ function executeResultChunk(executionId: string, reply: ExecuteReply): ChatEvent
   }
 }
 
-async function runExecute(runner: CodeRunner, typescriptCode: string, publish: PublishChunks): Promise<ExecuteReply> {
+export async function runExecute(
+  runner: CodeRunner,
+  typescriptCode: string,
+  publish: PublishChunks,
+): Promise<ExecuteReply> {
   const executionId = randomUUID()
   publish(callStartChunks(executionId, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
@@ -181,7 +185,7 @@ async function runExecute(runner: CodeRunner, typescriptCode: string, publish: P
   return reply
 }
 
-async function runDirect(tool: CodeTool, input: unknown, publish: PublishChunks): Promise<ExecuteReply> {
+export async function runDirect(tool: CodeTool, input: unknown, publish: PublishChunks): Promise<ExecuteReply> {
   const callId = randomUUID()
   publish(callStartChunks(callId, tool.name, input))
   const reply: ExecuteReply = await tool.run(input, callId).then(
@@ -195,13 +199,13 @@ async function runDirect(tool: CodeTool, input: unknown, publish: PublishChunks)
   return reply
 }
 
-async function runDiscover(runner: CodeRunner, toolNames: string[]): Promise<ExecuteReply> {
+export async function runDiscover(runner: CodeRunner, toolNames: string[]): Promise<ExecuteReply> {
   if (runner.discover === null) return {content: [{type: 'text', text: 'no tools to discover'}], isError: true}
   const found = await runner.discover.run(toolNames)
   return {content: [{type: 'text', text: cappedText(safeStringify(cappedValue(found)))}]}
 }
 
-type McpDeps = {
+export type McpDeps = {
   codeRunner: (sessionId: SessionId) => Promise<CodeRunner | null>
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   staleness: () => EngineStaleness

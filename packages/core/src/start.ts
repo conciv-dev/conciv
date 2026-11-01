@@ -40,6 +40,7 @@ export type StartOpts = {
   devEndpointDir?: string
   devframeAuth?: boolean
   mcpToken?: string
+  agentRoute?: boolean
   devframes?: DevframeDefinition[]
 }
 
@@ -187,6 +188,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativeUrl,
     devframeAuth: opts.devframeAuth,
     mcpToken: opts.mcpToken,
+    agentRoute: opts.agentRoute,
     devframes: opts.devframes,
   }
   const {app, dispose, extensionContexts, devframe} = await makeApp(appOpts)

@@ -65,6 +65,7 @@ import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {makeDevframePlane} from './devframe-plane.js'
+import {mountAgentRoutes} from './devframe-agent-route.js'
 import type {HubInstance} from '@devframes/hub/initiate'
 import type {DevframeDefinition} from 'devframe'
 import {rpcSessionList} from './api/rpc/sessions.js'
@@ -75,6 +76,7 @@ export type MakeAppOpts = {
   devframeAuth?: boolean
   devframes?: DevframeDefinition[]
   mcpToken?: string
+  agentRoute?: boolean
   cwd: string
   basePath?: string
   bridge?: BundlerBridge
@@ -504,15 +506,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ),
   )
 
+  const mcpDeps = {
+    codeRunner: (sessionId: SessionId) => plane.codeRunner(sessionId, (chunk) => stream.publish(sessionId, chunk)),
+    resolveSession: async (header: SessionId | null, nativeId: HarnessSessionId | null) =>
+      runtime.forSession(await mcpSessionId(rows, header, nativeId)),
+    staleness,
+  }
+
   const app = composeRoutes(
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       harnessId: harness.id,
-      mcp: {
-        codeRunner: (sessionId) => plane.codeRunner(sessionId, (chunk) => stream.publish(sessionId, chunk)),
-        resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
-        staleness,
-      },
+      mcp: mcpDeps,
     },
     compositeRpc,
     {
@@ -526,11 +531,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
   )
 
+  const mcpToken = opts.mcpToken ?? randomUUID()
   const devframePlane = makeDevframePlane({
     chat: chatDeps,
     stateDir: concivStateDir(opts.cfg.stateRoot),
     auth: opts.devframeAuth ?? true,
-    mcpToken: opts.mcpToken ?? randomUUID(),
+    mcpToken,
+    agentRoute: opts.agentRoute === true,
     cwd: opts.cwd,
     plugins: opts.devframes ?? [],
     host: {
@@ -546,6 +553,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
   const devframe = devframePlane.hub
   sessionsNotifier.notify = devframePlane.sessionsChanged
+  const closeAgentRoutes = await mountAgentRoutes({
+    enabled: opts.agentRoute,
+    deps: {...mcpDeps, token: mcpToken},
+    hub: devframe,
+    cwd: opts.cwd,
+    stateDir: concivStateDir(opts.cfg.stateRoot),
+    mount: (path, serve) => app.all(path, (c) => serve(c.req.raw)),
+  })
   app.all(`${devframe.base}*`, (c) => devframe.handler(c.req.raw))
 
   if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))
@@ -556,6 +571,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const dispose = async (): Promise<void> => {
     for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
+    await closeAgentRoutes()
     await devframe.close()
     db.$client.close()
   }
