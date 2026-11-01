@@ -1,5 +1,6 @@
 ---
-'@conciv/plugin': patch
+'@conciv/extension-recorder': patch
+'@conciv/contract': patch
 ---
 
-Fix three dock review findings: every queued recorder stop now finishes its session, failed recorder controls are logged, and the widget settings meta is only treated as present for a real `<meta>` tag.
+Every queued recorder stop now finishes its session, failed recorder controls are logged, and node RPC links keep the caller's abort signal so an aborted stream really closes.
