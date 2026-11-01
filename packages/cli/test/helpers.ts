@@ -32,7 +32,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       systemPrompt: '',
       extensions: undefined,
     }
-    const {app, dispose, hub, claimUpgrade, loginToken} = await makeApp({
+    const {fetch, dispose, hub, claimUpgrade, loginToken} = await makeApp({
       cfg,
       cwd: env.cwd,
       openInEditor: extras.openInEditor ?? (() => {}),
@@ -40,7 +40,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       bridge: extras.bridge,
       extensions: extras.extensions,
     })
-    return {fetch: app.fetch, dispose, hub, claimUpgrade, loginToken}
+    return {fetch, dispose, hub, claimUpgrade, loginToken}
   }
 }
 

@@ -34,7 +34,6 @@ import {unmatchedRegions} from '../../server/unmatched.js'
 import {liveRoute, targetWidth} from './target.js'
 
 const HINT = 'no element carries data-conciv-source; the page is not a dev build compiled by the conciv plugin'
-const ORIGIN_HINT = 'the conciv engine origin is unknown, so xray is a path on the engine and not a full url'
 const MISMATCH_PRECISION = 10_000
 
 async function findTarget(input: {
@@ -208,9 +207,8 @@ function sourced(input: {delta: Delta; pair: Pair}): Delta {
   return {...input.delta, via: 'source', file: source.file, line: source.line, column: source.column}
 }
 
-function reportHint(input: {attributed: boolean; absolute: boolean}): {hint?: string} {
-  const hints = [input.attributed ? null : HINT, input.absolute ? null : ORIGIN_HINT].filter((hint) => hint !== null)
-  return hints.length === 0 ? {} : {hint: hints.join('; ')}
+function reportHint(attributed: boolean): {hint?: string} {
+  return attributed ? {} : {hint: HINT}
 }
 
 export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, request, page) => {
@@ -297,11 +295,11 @@ export const diffStep: ServerStep<DiffInput, DiffReport> = async (input, ctx, re
       store: design.store,
       result: {
         target: {id: record.id, route: record.route, width: record.width},
-        xray: xray.url,
+        xray,
         mismatch: rounded(matched.mismatch),
         components,
         unmatched: unmatchedRegions({target, matched: matched.matchedTargetBoxes, pairs: matched.pairs, live}),
-        ...reportHint({attributed: live.components.length > 0, absolute: xray.absolute}),
+        ...reportHint(live.components.length > 0),
       },
     }),
   })

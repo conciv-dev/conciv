@@ -1,6 +1,5 @@
 import {randomUUID} from 'node:crypto'
 import {serveHono, type ClaimUpgrade, type ServeFetch} from '@conciv/serve'
-import {Hono} from 'hono'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -8,11 +7,13 @@ import type {AnyExtension, ConcivPlugin, ExtensionPromptContext} from '@conciv/e
 import {isConcivPlugin} from '@conciv/extension/devframe-plugin'
 import type {HubInstance} from '@devframes/hub/initiate'
 import {makeApp, withBuiltinExtensions, type MakeAppOpts} from './app.js'
+import {agentPathFor} from './engine-gate.js'
 
 export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {statePaths} from './lib/state-paths.js'
+import {logError} from './lib/debug.js'
 import {writeText} from './lib/fs.js'
 import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/server-port.js'
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint, writePrivateFile} from './lib/dev-endpoint.js'
@@ -43,6 +44,8 @@ export type StartOpts = {
 export type Engine = {
   port: number
   apiBase: string
+  agentBase: string
+  loginToken: string
   hub: HubInstance
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
@@ -89,7 +92,7 @@ async function servePreferredPort(listener: Listener, preferred: number): Promis
   const reserved = await reservePort(listener, preferred)
   if (reserved) return reserved
   const serving = await serveHono({...listener, port: 0})
-  console.warn(
+  logError(
     `conciv: port ${preferred} is already in use, the engine is listening on http://127.0.0.1:${serving.port} instead`,
   )
   return serving
@@ -147,32 +150,32 @@ export async function start(opts: StartOpts): Promise<Engine> {
     () => Date.now(),
   )
 
+  const loginToken = opts.accessToken ?? randomUUID()
   const portRef = {port: 0}
   const harnessEnv = (sessionId?: SessionId): NodeJS.ProcessEnv => {
-    const baseEnv = opts.childEnv ? opts.childEnv(portRef.port) : process.env
+    const baseEnv = {...(opts.childEnv ? opts.childEnv(portRef.port) : process.env), CONCIV_TOKEN: loginToken}
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
   }
-  const tokenScopedBase = (): string | undefined => {
+  const agentBase = (): string | undefined => {
     if (portRef.port === 0) return undefined
-    const prefix = opts.accessToken ? `/t/${opts.accessToken}` : ''
-    return `http://127.0.0.1:${portRef.port}${prefix}`
+    return `http://127.0.0.1:${portRef.port}${agentPathFor(loginToken)}`
   }
   const nativeUrl = (): string | undefined => {
     if (!opts.nativePageDir) return undefined
-    return tokenScopedBase()
+    return agentBase()
   }
 
   const appOpts: MakeAppOpts = {
     cfg,
     cwd: opts.root,
-    basePath: opts.accessToken ? `/t/${opts.accessToken}` : '',
     bridge: opts.bridge,
     openInEditor,
     systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
     systemPromptText: systemPrompt,
     extensions,
     plugins,
-    loginToken: opts.accessToken ?? randomUUID(),
+    loginToken,
+    browserLogins: !opts.accessToken,
     extensionConfig: cfg.extensions,
     harness: opts.harness,
     harnessEnv,
@@ -181,19 +184,16 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     nativeUrl,
   }
-  const {app, dispose, extensionContexts, hub, claimUpgrade} = await makeApp(appOpts)
+  const {fetch, dispose, extensionContexts, hub, claimUpgrade} = await makeApp(appOpts)
 
   const notifyClient = onceNotifier(opts.onClientRequest)
-  const served = opts.accessToken
-    ? new Hono()
-        .use(async (_context, next) => {
-          notifyClient()
-          await next()
-        })
-        .all(`${hub.base}*`, (context) => hub.handler(context.req.raw))
-        .mount(`/t/${opts.accessToken}`, app.fetch)
-    : app
-  const listener: Listener = {fetch: served.fetch.bind(served), claimUpgrade}
+  const listener: Listener = {
+    fetch: (request, env) => {
+      notifyClient()
+      return fetch(request, env)
+    },
+    claimUpgrade,
+  }
   let serving: Served
   try {
     serving = await servePort(listener, opts.port, paths.server)
@@ -205,14 +205,12 @@ export async function start(opts: StartOpts): Promise<Engine> {
   portRef.port = port
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
-  const base = tokenScopedBase()
+  const base = `http://127.0.0.1:${port}${agentPathFor(loginToken)}`
   try {
-    if (base) {
-      const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: `${base}/api/mcp`})
-      writePrivateFile(endpoint.path, endpoint.contents)
-    }
-    if (opts.nativePageDir && base) {
-      writeDevEndpoint(endpointDir, {apiBase: base, token: opts.accessToken ?? null, pid: process.pid})
+    const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: `${base}/api/mcp`, token: loginToken})
+    writePrivateFile(endpoint.path, endpoint.contents)
+    if (opts.nativePageDir) {
+      writeDevEndpoint(endpointDir, {apiBase: base, token: loginToken, pid: process.pid})
     }
   } catch (error) {
     await dispose()
@@ -224,12 +222,14 @@ export async function start(opts: StartOpts): Promise<Engine> {
     try {
       removeDevEndpoint(endpointDir, process.pid)
     } catch (error) {
-      console.error('conciv: failed to remove the dev endpoint file', error)
+      logError(`conciv: failed to remove the dev endpoint file: ${String(error)}`)
     }
   }
   return {
     port,
     apiBase: `http://127.0.0.1:${port}`,
+    agentBase: base,
+    loginToken,
     hub,
     cfg,
     extensionContexts,

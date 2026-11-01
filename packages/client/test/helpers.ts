@@ -9,7 +9,7 @@ export async function bootClientKit(
 ): Promise<ClientKit> {
   const harness = createFakeHarness({id: 'fake-client', text: 'ok'})
   const kit = await createTestkit(harness, async (env) => {
-    const {app, dispose, hub, claimUpgrade, loginToken} = await makeApp({
+    const {fetch, dispose, hub, claimUpgrade, loginToken} = await makeApp({
       cfg: {
         enabled: true,
         widgetUrl: undefined,
@@ -26,7 +26,7 @@ export async function bootClientKit(
       extensions: opts.extensions,
       plugins: opts.plugins,
     })
-    return {fetch: app.fetch, dispose, hub, claimUpgrade, loginToken}
+    return {fetch, dispose, hub, claimUpgrade, loginToken}
   }).setup()
   return {...kit, harness, gate: {hold: harness.script.hold, release: harness.script.release}}
 }

@@ -23,7 +23,7 @@
 - `CAPTURE_REQUEST` = 'conciv-design:capture', `CAPTURE_READY` = 'conciv-design:capture-ready' (`messages.ts`)
 - `componentAboveTolerance` / `aboveTolerance` (`above.ts`): checks a single component / counts the components above tolerance plus the unmatched entries
 - `propertyAliases(property)` / `declares({declared, property})` (`properties.ts`): map physical and logical sides for inset/padding/margin/border and match shorthands
-- types `DesignRuntime`, `DesignContext`, `TargetStore`, `TargetRecord`, `TargetModel`, `TargetAdapter`, `Enricher`, `Capture`, `PixelComparator`, `GeometryEstimator`, `ColorMetric`, `Matcher`, `DeltaKind`, `ProvenanceMapper`, `CssMap`, `Registries`, `ServerStep`, `XrayLink`, `LiveComponent`, `Winner`, `Provenance` (`types.ts`)
+- types `DesignRuntime`, `DesignContext`, `TargetStore`, `TargetRecord`, `TargetModel`, `TargetAdapter`, `Enricher`, `Capture`, `PixelComparator`, `GeometryEstimator`, `ColorMetric`, `Matcher`, `DeltaKind`, `ProvenanceMapper`, `CssMap`, `Registries`, `ServerStep`, `LiveComponent`, `Winner`, `Provenance` (`types.ts`)
 
 ## Invariants
 
