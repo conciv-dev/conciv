@@ -660,7 +660,7 @@ describe('engine stamp', () => {
     })
   })
 
-  const EndpointSchema = z.object({mcpUrl: z.string()})
+  const EndpointSchema = z.object({mcpUrl: z.string(), token: z.string()})
 
   function recordedEndpoint(root: string): z.infer<typeof EndpointSchema> {
     return EndpointSchema.parse(JSON.parse(readFileSync(join(statePaths(root).dir, 'mcp-endpoint.json'), 'utf8')))
@@ -679,8 +679,9 @@ describe('engine stamp', () => {
       try {
         const engine = await start({options: {harnessBin: 'true', stateRoot: root}, root, launchEditor: () => {}})
         try {
-          const {mcpUrl} = recordedEndpoint(root)
-          expect(mcpUrl).toBe(`http://127.0.0.1:${engine.port}/api/mcp`)
+          const {mcpUrl, token} = recordedEndpoint(root)
+          expect(token).toBe(engine.loginToken)
+          expect(mcpUrl).toBe(`http://127.0.0.1:${engine.port}/t/${engine.loginToken}/api/mcp`)
           expect(statSync(join(statePaths(root).dir, 'mcp-endpoint.json')).mode & 0o777).toBe(0o600)
           const response = await fetch(mcpUrl, {
             method: 'POST',
