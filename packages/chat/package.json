@@ -1,6 +1,6 @@
 {
   "name": "@conciv/chat",
-  "version": "0.0.19",
+  "version": "0.0.21",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv chat plane: turns, hydrate, transcript import, stop, compaction, boot recovery, the permission gate and the chat stores, built on @conciv/ai.",
   "keywords": [
     "ai",

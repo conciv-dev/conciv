@@ -1,5 +1,13 @@
 # @conciv/contract
 
+## 0.0.21
+
+### Patch Changes
+
+- [#667](https://github.com/conciv-dev/conciv/pull/667) [`0d9fe32`](https://github.com/conciv-dev/conciv/commit/0d9fe3275ada18af5e0e65c37c79b8f3662c8d3a) Thanks [@omridevk](https://github.com/omridevk)! - Every queued recorder stop now finishes its session, events whose upload failed during a stop stay queued ahead of the next session's, failed recorder controls are logged, and node RPC links keep the caller's abort signal so an aborted stream really closes.
+- Updated dependencies [[`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c)]:
+  - @conciv/protocol@0.0.21
+
 ## 0.0.20
 
 ### Patch Changes

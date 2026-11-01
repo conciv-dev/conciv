@@ -1,5 +1,16 @@
 # @conciv/extension
 
+## 0.0.21
+
+### Patch Changes
+
+- [#669](https://github.com/conciv-dev/conciv/pull/669) [`f0ffc0b`](https://github.com/conciv-dev/conciv/commit/f0ffc0b076d88de8ebd93655d980629e29889937) Thanks [@omridevk](https://github.com/omridevk)! - Node extension RPC clients now stop a stream when its abort signal fires, even after the fetch Request has been garbage collected.
+- Updated dependencies [[`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c), [`ad66158`](https://github.com/conciv-dev/conciv/commit/ad66158ab8919dd5a482f30cca45367df5a9566b), [`0d9fe32`](https://github.com/conciv-dev/conciv/commit/0d9fe3275ada18af5e0e65c37c79b8f3662c8d3a), [`71a7483`](https://github.com/conciv-dev/conciv/commit/71a74838dd923c10f8559054495a770f9f8cc0c8), [`0208423`](https://github.com/conciv-dev/conciv/commit/02084232ad633479dcbb7d6949700a31df1173ee), [`19bd8e7`](https://github.com/conciv-dev/conciv/commit/19bd8e7423d375af888579a5bffff335a3e4c7a3), [`f31c74a`](https://github.com/conciv-dev/conciv/commit/f31c74ad91e9ed4ee2def6b062a6f616dbef6ec1)]:
+  - @conciv/protocol@0.0.21
+  - @conciv/ui-kit-system@0.0.21
+  - @conciv/contract@0.0.21
+  - @conciv/grab@0.0.21
+
 ## 0.0.20
 
 ### Patch Changes

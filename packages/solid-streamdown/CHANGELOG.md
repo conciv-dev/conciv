@@ -1,5 +1,13 @@
 # @conciv/solid-streamdown
 
+## 0.0.21
+
+### Patch Changes
+
+- [#626](https://github.com/conciv-dev/conciv/pull/626) [`ad66158`](https://github.com/conciv-dev/conciv/commit/ad66158ab8919dd5a482f30cca45367df5a9566b) Thanks [@omridevk](https://github.com/omridevk)! - Delete the tests that asserted CSS or animation implementation details.
+
+- [#637](https://github.com/conciv-dev/conciv/pull/637) [`96acad4`](https://github.com/conciv-dev/conciv/commit/96acad42d70fcb83a2ab535999a1c97ecb34a21f) Thanks [@omridevk](https://github.com/omridevk)! - Test-only: fold each package's tests into one file and drop the empty node vitest project.
+
 ## 0.0.20
 
 ### Patch Changes

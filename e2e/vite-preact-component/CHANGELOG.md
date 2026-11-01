@@ -1,5 +1,14 @@
 # conciv-e2e-vite-preact-component
 
+## 0.0.13
+
+### Patch Changes
+
+- Updated dependencies [[`0208423`](https://github.com/conciv-dev/conciv/commit/02084232ad633479dcbb7d6949700a31df1173ee), [`19bd8e7`](https://github.com/conciv-dev/conciv/commit/19bd8e7423d375af888579a5bffff335a3e4c7a3)]:
+  - @conciv/it@0.0.21
+  - @conciv/extension-terminal@0.0.21
+  - @conciv/preact@0.0.21
+
 ## 0.0.12
 
 ### Patch Changes

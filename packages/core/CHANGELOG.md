@@ -1,5 +1,67 @@
 # @conciv/core
 
+## 0.0.21
+
+### Patch Changes
+
+- [#625](https://github.com/conciv-dev/conciv/pull/625) [`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c) Thanks [@omridevk](https://github.com/omridevk)! - New `@conciv/ai` package: the chat primitives conciv is built from, on top of TanStack AI. Three
+  entries, with the message, part and event types living in `@conciv/protocol`:
+
+  - `@conciv/ai/server`: `createChatServer`, which runs every turn through `chat()` with the library's
+    persistence (`withPersistence`, streaming snapshots), locks, the local-process sandbox and its
+    command policy, code mode with `discover_tools`, WebSocket and SSE delivery with resume, stop and
+    hydrate; plus the CLI text adapters (`claudeCode`, `codex`, `opencode`, `acp`, `makeTextAdapter`).
+    The patched `@tanstack/ai-sandbox` and `@tanstack/ai-code-mode` ship inside its dist.
+  - `@conciv/ai/client`: `createChat` and `createChatSession`, the Solid chat session on the library's
+    `useChat` (connection, hydration, stop, approvals). The widget's chat runs on it.
+  - `@conciv/ai/testkit`: the story connection and chunk builders for stories and tests.
+
+  `bippy` stays held at its current version.
+
+  New `@conciv/chat` package: the conciv chat plane on top of `@conciv/ai/server` (`createChatPlane`):
+  the Drizzle chat stores over `@conciv/db`'s tables, transcript import, compaction with a divider that
+  keeps the history, boot recovery, approvals as the library's deny-and-retry flow with once and
+  session grants, `conciv_ui` questions, and the code-mode capabilities with the result cap. Tools that
+  need approval stay ordinary tool calls outside code mode. Core wires the plane and keeps sessions,
+  slash commands and the session bus; `@conciv/core`, `@conciv/db`, `@conciv/harness` and
+  `@conciv/protocol` no longer depend on `@tanstack/ai*`.
+
+  The widget posts "Approved: <title>" after an approval and refreshes hydration on stop and on a run
+  error. Approval tools called over RPC from outside the widget (the `conciv` CLI, curl) are refused
+  with the same ask, and a retry after approving runs.
+
+  The agent prompts and the `react-introspection` skill name `discover_tools`; `external_catalog` is
+  gone. `@conciv/harness-testkit` builds on the `@conciv/ai` event types and chunk builders and reaches
+  tools through `/api/mcp` with `discover_tools`. `discover_tools` carries each tool's
+  output shape and declared error codes.
+
+- [#625](https://github.com/conciv-dev/conciv/pull/625) [`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c) Thanks [@omridevk](https://github.com/omridevk)! - Move the @tanstack/ai family to 1.0 and the harness SDKs to their latest releases.
+
+- [#621](https://github.com/conciv-dev/conciv/pull/621) [`377d894`](https://github.com/conciv-dev/conciv/commit/377d894a25c2a83fa009b3240b64dc512e0eef95) Thanks [@omridevk](https://github.com/omridevk)! - New page capability `page_hmr` (`conciv tools page hmr`): after editing a file, wait until Vite's hot update has been applied in the browser before reading the page. `server reload` now waits on it as well and reports `applied` and `waitedMs`.
+
+  `conciv init` adds a `CLAUDE.md` containing `@AGENTS.md` when the claude harness is chosen and no `CLAUDE.md` exists yet, can now wire vite configs written as a function (`defineConfig(() => ({...}))`, async functions, function bodies with a single return), and prints every command as `.conciv/bin/conciv ...` so it runs as written without `conciv` on PATH.
+
+  The core dev server writes `.conciv/mcp-endpoint.json` when it boots, so the claude stdio MCP bridge works in headless runs.
+
+- [#625](https://github.com/conciv-dev/conciv/pull/625) [`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c) Thanks [@omridevk](https://github.com/omridevk)! - Stop cancels only the runs the client saw: `chat.stop` takes `runIds`, so a stop that lands after the next turn was claimed (Escape or the stop button with queued messages) no longer cancels that next turn. The flush now waits for the stop to be acknowledged before it sends.
+
+  A stop also cancels a run whose viewer already disconnected: the run keeps watching for a recorded cancel until it ends, instead of waiting out the 15s settle timeout.
+
+- [#673](https://github.com/conciv-dev/conciv/pull/673) [`c06f93f`](https://github.com/conciv-dev/conciv/commit/c06f93f3978414d74829f203c898d258ccde1a1f) Thanks [@omridevk](https://github.com/omridevk)! - Cut the core test suite to the cases that guard distinct server behaviour and share one engine boot per describe where cases do not touch each other's state.
+- Updated dependencies [[`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c), [`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c), [`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c), [`0208423`](https://github.com/conciv-dev/conciv/commit/02084232ad633479dcbb7d6949700a31df1173ee), [`0d9fe32`](https://github.com/conciv-dev/conciv/commit/0d9fe3275ada18af5e0e65c37c79b8f3662c8d3a), [`f0ffc0b`](https://github.com/conciv-dev/conciv/commit/f0ffc0b076d88de8ebd93655d980629e29889937), [`377d894`](https://github.com/conciv-dev/conciv/commit/377d894a25c2a83fa009b3240b64dc512e0eef95), [`621c280`](https://github.com/conciv-dev/conciv/commit/621c2802782a5f7420bc0c9b2030a948b793a156), [`71a7483`](https://github.com/conciv-dev/conciv/commit/71a74838dd923c10f8559054495a770f9f8cc0c8), [`5b93081`](https://github.com/conciv-dev/conciv/commit/5b930812c5e4ff718da8799d3fddd1429dc6c7a3), [`3cff847`](https://github.com/conciv-dev/conciv/commit/3cff847f9737309ef22fcac06fb84ff974d1340a), [`23c7842`](https://github.com/conciv-dev/conciv/commit/23c78425c6f53b434d4bf3b4e97666b0cbb95103), [`14fec2c`](https://github.com/conciv-dev/conciv/commit/14fec2caf05dc77879f79055c04ee12f84ea9379), [`19bd8e7`](https://github.com/conciv-dev/conciv/commit/19bd8e7423d375af888579a5bffff335a3e4c7a3), [`f31c74a`](https://github.com/conciv-dev/conciv/commit/f31c74ad91e9ed4ee2def6b062a6f616dbef6ec1)]:
+  - @conciv/chat@0.0.21
+  - @conciv/db@0.0.21
+  - @conciv/harness@0.0.21
+  - @conciv/protocol@0.0.21
+  - @conciv/ui-kit-chat@0.0.21
+  - @conciv/extension-page@0.0.21
+  - @conciv/harness-init@0.0.21
+  - @conciv/contract@0.0.21
+  - @conciv/extension@0.0.21
+  - @conciv/tools@0.0.21
+  - @conciv/serve@0.0.21
+  - @conciv/solid-diffs@0.0.21
+
 ## 0.0.20
 
 ### Patch Changes

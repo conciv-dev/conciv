@@ -1,5 +1,31 @@
 # @conciv/ui-kit-chat
 
+## 0.0.21
+
+### Patch Changes
+
+- [#625](https://github.com/conciv-dev/conciv/pull/625) [`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c) Thanks [@omridevk](https://github.com/omridevk)! - Upgrade mermaid to 12.2 for chat diagrams (ELK is now the default layout).
+
+- [#672](https://github.com/conciv-dev/conciv/pull/672) [`621c280`](https://github.com/conciv-dev/conciv/commit/621c2802782a5f7420bc0c9b2030a948b793a156) Thanks [@omridevk](https://github.com/omridevk)! - Cut the ui-kit-chat test suites to the component behaviours they own, dropping duplicate, mechanism and library cases.
+
+- [#663](https://github.com/conciv-dev/conciv/pull/663) [`3cff847`](https://github.com/conciv-dev/conciv/commit/3cff847f9737309ef22fcac06fb84ff974d1340a) Thanks [@omridevk](https://github.com/omridevk)! - Fold the ui-kit-chat tests into four browser files and drop the node test project.
+
+- [#623](https://github.com/conciv-dev/conciv/pull/623) [`23c7842`](https://github.com/conciv-dev/conciv/commit/23c78425c6f53b434d4bf3b4e97666b0cbb95103) Thanks [@omridevk](https://github.com/omridevk)! - The thread virtualizer rounds turn height estimates to whole pixels, so a reader who scrolled up no longer shifts by a fraction of a pixel when rows above the viewport get their first real measurement.
+
+- [#665](https://github.com/conciv-dev/conciv/pull/665) [`14fec2c`](https://github.com/conciv-dev/conciv/commit/14fec2caf05dc77879f79055c04ee12f84ea9379) Thanks [@omridevk](https://github.com/omridevk)! - Restore the attachment adapter, run clock and grouping diff node tests in one node test file.
+
+- [#651](https://github.com/conciv-dev/conciv/pull/651) [`19bd8e7`](https://github.com/conciv-dev/conciv/commit/19bd8e7423d375af888579a5bffff335a3e4c7a3) Thanks [@omridevk](https://github.com/omridevk)! - Warm tooltips: `Tooltip.Group` turns a toolbar's tooltips into one label that pops in on the first trigger, then glides and resizes to the next while the text swaps, with an optional lean and fuse. Ungrouped tooltips get the same pop. `TooltipIconButton` accepts a `shortcut` rendered as a keycap. The chat action bar, composer, terminal actions and whiteboard thread header share one warm tooltip.
+
+  Switch: the thumb travels on a spring, squishes with its velocity, swells on hover and can be dragged; reduced motion jumps.
+
+- [#675](https://github.com/conciv-dev/conciv/pull/675) [`f31c74a`](https://github.com/conciv-dev/conciv/commit/f31c74ad91e9ed4ee2def6b062a6f616dbef6ec1) Thanks [@omridevk](https://github.com/omridevk)! - Tool result images open in a viewer: click the thumbnail for a fit-to-window dialog, click the image for actual size. Image attachments in the composer and on sent messages open the same viewer.
+- Updated dependencies [[`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c), [`ad66158`](https://github.com/conciv-dev/conciv/commit/ad66158ab8919dd5a482f30cca45367df5a9566b), [`71a7483`](https://github.com/conciv-dev/conciv/commit/71a74838dd923c10f8559054495a770f9f8cc0c8), [`96acad4`](https://github.com/conciv-dev/conciv/commit/96acad42d70fcb83a2ab535999a1c97ecb34a21f), [`0208423`](https://github.com/conciv-dev/conciv/commit/02084232ad633479dcbb7d6949700a31df1173ee), [`19bd8e7`](https://github.com/conciv-dev/conciv/commit/19bd8e7423d375af888579a5bffff335a3e4c7a3), [`f31c74a`](https://github.com/conciv-dev/conciv/commit/f31c74ad91e9ed4ee2def6b062a6f616dbef6ec1)]:
+  - @conciv/protocol@0.0.21
+  - @conciv/ui-kit-system@0.0.21
+  - @conciv/solid-streamdown@0.0.21
+  - @conciv/solid-diffs@0.0.21
+  - @conciv/storage-history@0.0.21
+
 ## 0.0.20
 
 ### Patch Changes

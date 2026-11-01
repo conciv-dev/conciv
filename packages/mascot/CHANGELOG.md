@@ -1,5 +1,11 @@
 # @conciv/mascot
 
+## 0.0.21
+
+### Patch Changes
+
+- [#646](https://github.com/conciv-dev/conciv/pull/646) [`71a7483`](https://github.com/conciv-dev/conciv/commit/71a74838dd923c10f8559054495a770f9f8cc0c8) Thanks [@omridevk](https://github.com/omridevk)! - Remove test-only and unused exports from the package surfaces.
+
 ## 0.0.20
 
 ### Patch Changes
