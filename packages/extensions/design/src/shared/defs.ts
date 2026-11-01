@@ -47,12 +47,17 @@ export const LiveStylesSchema = z.object({
   radius: z.number(),
 })
 
+export const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
+
 export const LiveComponentSchema = z.object({
   source: SourceLocSchema.nullable(),
   tag: z.string(),
   text: z.string(),
   box: BoxSchema,
   textBox: BoxSchema.nullable(),
+  glyphs: z
+    .array(GlyphSchema)
+    .describe('the text nodes the component paints, each with one box per line, grown by the anti-aliasing halo'),
   axis: z.enum(['row', 'column']).nullable(),
   styles: LiveStylesSchema,
   index: z.number().describe('position among the DOM siblings, 1-based'),

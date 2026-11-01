@@ -6,6 +6,7 @@ export const designConfig = z.object({
   color: z.enum(['ciede2000']).default('ciede2000'),
   capture: z.enum(['tab']).default('tab'),
   matcher: z.enum(['tile']).default('tile'),
+  text: z.enum(['paddle']).default('paddle'),
 })
 
 export type DesignConfig = z.output<typeof designConfig>

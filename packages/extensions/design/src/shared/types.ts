@@ -40,6 +40,8 @@ export type Enricher = {
   run(input: {node: TargetNode; raster: Raster}): Promise<Partial<TargetNode>>
 }
 
+export type Glyph = {text: string; boxes: Box[]}
+
 export type LiveStyles = {
   background: string
   color: string
@@ -54,6 +56,7 @@ export type LiveComponent = {
   text: string
   box: Box
   textBox: Box | null
+  glyphs: Glyph[]
   axis: 'row' | 'column' | null
   styles: LiveStyles
   index: number
@@ -81,12 +84,13 @@ export type GeometryEstimator = {
   estimate(input: {live: Raster; target: Raster; liveBox: Box}): {targetBox: Box | null}
 }
 export type ColorMetric = {name: string; distance(input: {a: string; b: string}): number}
-export type TextReader = {name: string; read(input: {raster: Raster}): Promise<{text: string; boxes: Box[]}>}
+export type TextRun = {box: Box; text: string}
+export type TextReader = {name: string; read(input: {raster: Raster}): Promise<TextRun[]>}
 export type Comparators = {
   pixel: PixelComparator
   geometry: GeometryEstimator
   color: ColorMetric
-  text: TextReader | null
+  text: TextReader
 }
 export type Pair = {
   live: LiveComponent
@@ -199,6 +203,7 @@ export type Registries = {
   geometry: Record<DesignConfig['geometry'], GeometryEstimator>
   color: Record<DesignConfig['color'], ColorMetric>
   matchers: Record<DesignConfig['matcher'], Matcher>
+  text: Record<DesignConfig['text'], TextReader>
   deltaKinds: DeltaKind[]
   mappers: ProvenanceMapper[]
 }
