@@ -3,7 +3,7 @@ import {FitAddon} from '@xterm/addon-fit'
 import type {DockRenderer} from '@devframes/hub/client'
 import {injectXtermCss} from '@conciv/ui-kit-terminal'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {TERMINAL_OUTPUT_CHANNEL, type TerminalDockEntry, type TerminalFrame} from './shared/devframe-protocol.js'
+import {TERMINAL_OUTPUT_CHANNEL, type TerminalDockEntry} from './shared/devframe-protocol.js'
 
 export const SESSION_ATTRIBUTE = 'data-conciv-session'
 
@@ -23,9 +23,9 @@ export const terminalDockRenderer: DockRenderer<TerminalDockEntry> = ({container
   const live: {sessionId: SessionId | null; closed: boolean} = {sessionId: null, closed: false}
 
   const pump = async (streamId: string): Promise<void> => {
-    for await (const frame of rpc.streaming.subscribe<TerminalFrame>(TERMINAL_OUTPUT_CHANNEL, streamId)) {
+    for await (const chunk of rpc.streaming.subscribe<string>(TERMINAL_OUTPUT_CHANNEL, streamId)) {
       if (live.closed) return
-      if (frame.kind === 'data') terminal.write(frame.data)
+      terminal.write(chunk)
     }
   }
 
@@ -37,6 +37,8 @@ export const terminalDockRenderer: DockRenderer<TerminalDockEntry> = ({container
     })
     .then(({sessionId, streamId}) => {
       live.sessionId = SessionId.parse(sessionId)
+      fit.fit()
+      void rpc.call('conciv-terminal:resize', {sessionId: live.sessionId, cols: terminal.cols, rows: terminal.rows})
       return pump(streamId)
     })
     .catch((error: unknown) => terminal.write(`\r\n\x1b[31m${String(error)}\x1b[0m\r\n`))

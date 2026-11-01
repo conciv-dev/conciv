@@ -2,12 +2,12 @@ import {randomUUID} from 'node:crypto'
 import {defineDevframe, defineRpcFunction} from 'devframe'
 import type {DevframeNodeContext} from 'devframe/types'
 import type {RpcDefinitionsToFunctions} from 'devframe/rpc'
-import type {DevframeHubContext} from '@devframes/hub/types'
+import type {DevframeHubContext, DevframePtyTerminalSession} from '@devframes/hub/types'
 import {z} from 'zod'
 import {CONCIV_HOST_SERVICE, type ConcivHost} from '@conciv/extension/devframe-host'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {createTtySessions, type TtySessions} from './server/pty-sessions.js'
-import {TERMINAL_DOCK_TYPE, TERMINAL_OUTPUT_CHANNEL, type TerminalFrame} from './shared/devframe-protocol.js'
+import type {TtyCommand} from '@conciv/protocol/terminal-types'
+import {TERMINAL_DOCK_TYPE} from './shared/devframe-protocol.js'
 
 const OpenInput = z.object({
   sessionId: SessionId.optional(),
@@ -21,7 +21,11 @@ const ResizeInput = z.object({
   rows: z.number().int().min(2).max(500),
 })
 
-type TerminalPlane = {tty: TtySessions; host: () => ConcivHost}
+type TerminalPlane = {
+  sessions: Map<SessionId, DevframePtyTerminalSession>
+  host: () => ConcivHost
+  hub: () => DevframeHubContext
+}
 
 function isHubContext(ctx: DevframeNodeContext): ctx is DevframeHubContext {
   return 'docks' in ctx
@@ -34,12 +38,20 @@ async function resolveSession(plane: TerminalPlane, requested: SessionId | undef
   return latest
 }
 
-async function ensureTty(plane: TerminalPlane, sessionId: SessionId, cols: number, rows: number): Promise<void> {
-  const alive = plane.tty.get(sessionId)
-  if (alive && !alive.exited()) {
+function withUnsetEnv(command: TtyCommand): {command: string; args: string[]} {
+  const prefixes = command.unsetEnvPrefixes ?? []
+  const unset = Object.keys(process.env).filter((key) => prefixes.some((prefix) => key.startsWith(prefix)))
+  if (unset.length === 0) return {command: command.bin, args: command.args}
+  return {command: '/usr/bin/env', args: [...unset.flatMap((key) => ['-u', key]), command.bin, ...command.args]}
+}
+
+async function ensurePty(plane: TerminalPlane, sessionId: SessionId, cols: number, rows: number): Promise<string> {
+  const alive = plane.sessions.get(sessionId)
+  if (alive && alive.status === 'running') {
     alive.resize(cols, rows)
-    return
+    return alive.id
   }
+  if (alive) plane.hub().terminals.remove(alive)
   const host = plane.host()
   const ttyCommand = host.harness.ttyCommand
   if (!ttyCommand) throw new Error(`CONCIV_NO_TTY: harness "${host.harness.id}" has no terminal mode`)
@@ -47,27 +59,28 @@ async function ensureTty(plane: TerminalPlane, sessionId: SessionId, cols: numbe
   await host.sessions.recordToken(sessionId, token)
   const resume = host.harness.transcriptExists?.(token) ?? true
   host.harness.release?.(sessionId)
-  const session = plane.tty.open(
-    sessionId,
-    ttyCommand({
-      cwd: host.cwd,
-      stateDir: host.stateDir,
-      concivSessionId: sessionId,
-      harnessSessionId: token,
-      resume,
-      owned: true,
-      model: await host.sessions.model(sessionId),
-      mcpUrl: null,
-      hookUrl: null,
-    }),
-    host.cwd,
-  )
-  session.resize(cols, rows)
+  const tty = ttyCommand({
+    cwd: host.cwd,
+    stateDir: host.stateDir,
+    concivSessionId: sessionId,
+    harnessSessionId: token,
+    resume,
+    owned: true,
+    model: await host.sessions.model(sessionId),
+    mcpUrl: null,
+    hookUrl: null,
+  })
+  const session = await plane
+    .hub()
+    .terminals.startPtySession(
+      {...withUnsetEnv(tty), env: tty.env, cwd: host.cwd, cols, rows},
+      {id: `conciv-agent-${sessionId}-${Date.now()}`, title: 'conciv agent', description: `chat session ${sessionId}`},
+    )
+  plane.sessions.set(sessionId, session)
+  return session.id
 }
 
-function terminalFunctions(plane: TerminalPlane, ctx: DevframeNodeContext) {
-  const output = ctx.rpc.streaming.create<TerminalFrame>(TERMINAL_OUTPUT_CHANNEL, {replayWindow: 4096})
-
+function terminalFunctions(plane: TerminalPlane) {
   const open = defineRpcFunction({
     name: 'conciv-terminal:open',
     type: 'action',
@@ -77,16 +90,8 @@ function terminalFunctions(plane: TerminalPlane, ctx: DevframeNodeContext) {
     handler: async (raw) => {
       const input = OpenInput.parse(raw)
       const sessionId = await resolveSession(plane, input.sessionId)
-      await ensureTty(plane, sessionId, input.cols, input.rows)
-      const session = plane.tty.get(sessionId)
-      if (!session) throw new Error('CONCIV_NO_TTY: terminal did not start')
-      const stream = output.start()
-      const detach = session.attach({
-        data: (data) => stream.write({kind: 'data', data}),
-        control: (control) => stream.write({kind: 'control', control}),
-      })
-      stream.signal.addEventListener('abort', detach, {once: true})
-      return {sessionId, streamId: stream.id}
+      const streamId = await ensurePty(plane, sessionId, input.cols, input.rows)
+      return {sessionId, streamId}
     },
   })
 
@@ -98,7 +103,7 @@ function terminalFunctions(plane: TerminalPlane, ctx: DevframeNodeContext) {
     returns: z.null(),
     handler: (raw) => {
       const input = InputInput.parse(raw)
-      plane.tty.get(input.sessionId)?.write(input.data)
+      plane.sessions.get(input.sessionId)?.write(input.data)
       return null
     },
   })
@@ -111,7 +116,7 @@ function terminalFunctions(plane: TerminalPlane, ctx: DevframeNodeContext) {
     returns: z.null(),
     handler: (raw) => {
       const input = ResizeInput.parse(raw)
-      plane.tty.get(input.sessionId)?.resize(input.cols, input.rows)
+      plane.sessions.get(input.sessionId)?.resize(input.cols, input.rows)
       return null
     },
   })
@@ -134,9 +139,12 @@ export function createTerminalDevframe() {
     icon: 'ph:terminal-window-duotone',
     dock: {when: 'false'},
     setup(ctx) {
+      if (!isHubContext(ctx)) return
+      const hub = ctx
       const hostRef: {current: ConcivHost | null} = {current: null}
       const plane: TerminalPlane = {
-        tty: createTtySessions(),
+        sessions: new Map(),
+        hub: () => hub,
         host: () => {
           if (!hostRef.current) throw new Error('CONCIV_NO_HOST: the conciv engine is not attached')
           return hostRef.current
@@ -145,14 +153,13 @@ export function createTerminalDevframe() {
       ctx.services.whenAvailable(CONCIV_HOST_SERVICE, (host) => {
         hostRef.current = host
       })
-      terminalFunctions(plane, ctx).forEach((fn) => ctx.rpc.register(fn))
-      if (isHubContext(ctx))
-        ctx.docks.register({
-          id: 'conciv-terminal-view',
-          title: 'Agent terminal',
-          icon: 'ph:terminal-window-duotone',
-          type: TERMINAL_DOCK_TYPE,
-        })
+      terminalFunctions(plane).forEach((fn) => ctx.rpc.register(fn))
+      ctx.docks.register({
+        id: 'conciv-terminal-view',
+        title: 'Agent terminal',
+        icon: 'ph:terminal-window-duotone',
+        type: TERMINAL_DOCK_TYPE,
+      })
     },
   })
 }
