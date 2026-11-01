@@ -168,30 +168,43 @@ function connected(items: Item[]): Item[][] {
   return Object.values(byRoot).map((indexes) => indexes.flatMap((index) => items[index] ?? []))
 }
 
+function agreement(input: {parts: Constituent[]; targetBoxes: Box[]; sameText: boolean}): {
+  agrees: boolean
+  mask: Box[]
+} {
+  const {parts, targetBoxes, sameText} = input
+  const samePlace = placeAgrees({liveBoxes: parts.flatMap((part) => part.trimmed), targetBoxes})
+  if (!sameText || !samePlace) return {agrees: false, mask: []}
+  const agreeing = parts.filter((part) => part.agrees)
+  return {
+    agrees: agreeing.length === parts.length,
+    mask: agreeing.flatMap((part) => masked({constituent: part, targetBoxes})),
+  }
+}
+
+function attributed(input: {group: TextGroup; liveItems: Item[]; sameText: boolean}): TextGroup {
+  const {group, liveItems, sameText} = input
+  const missing = sameText ? null : misaligned({liveItems, targetText: group.targetText})
+  if (missing === null || missing.item.owner === null) return group
+  return {...group, liveText: missing.item.text.trim(), targetText: missing.remainder, owner: missing.item.owner}
+}
+
 function toGroup(input: {members: Item[]; live: Raster; target: Raster; color: ColorMetric}): Grouped | null {
   const {live, target, color} = input
   const sorted = input.members.toSorted(readingOrder)
   const liveItems = sorted.filter((item) => item.side === 'live')
   const targetItems = sorted.filter((item) => item.side === 'target')
-  const first = liveItems[0]?.owner ?? null
-  if (first === null || targetItems.length === 0) return null
-  const liveBoxes = liveItems.flatMap((item) => item.boxes)
+  const owner = liveItems[0]?.owner ?? null
+  if (owner === null || targetItems.length === 0) return null
   const targetBoxes = targetItems.flatMap((item) => item.boxes)
   const liveText = joined(liveItems)
   const targetText = joined(targetItems)
-  const parts = liveItems.map((item) => constituent({item, live, target, color}))
   const sameText = folded(liveText) === folded(targetText)
-  const samePlace = placeAgrees({liveBoxes: parts.flatMap((part) => part.trimmed), targetBoxes})
-  const agreeing = sameText && samePlace ? parts.filter((part) => part.agrees) : []
-  const mask = agreeing.flatMap((part) => masked({constituent: part, targetBoxes}))
-  const agrees = sameText && samePlace && agreeing.length === parts.length
-  const missing = sameText ? null : misaligned({liveItems, targetText})
-  const group = {live: liveBoxes, target: targetBoxes, liveText, targetText, agrees, owner: first}
-  if (missing === null || missing.item.owner === null) return {group, mask}
-  return {
-    group: {...group, liveText: missing.item.text.trim(), targetText: missing.remainder, owner: missing.item.owner},
-    mask,
-  }
+  const parts = liveItems.map((item) => constituent({item, live, target, color}))
+  const {agrees, mask} = agreement({parts, targetBoxes, sameText})
+  const liveBoxes = liveItems.flatMap((item) => item.boxes)
+  const group = {live: liveBoxes, target: targetBoxes, liveText, targetText, agrees, owner}
+  return {group: attributed({group, liveItems, sameText}), mask}
 }
 
 export function textDiffers(group: TextGroup): boolean {
