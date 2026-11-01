@@ -202,6 +202,7 @@
     "packages/extensions/try-it/test/fixture/connect-pane-fixture.tsx",
     "e2e/harnesses/vite.*.config.ts",
     "apps/conciv/test/commands/core-control.ts",
-    "apps/conciv/test/commands/core-testkit.ts"
+    "apps/conciv/test/commands/core-testkit.ts",
+    "packages/core/test/spike/*-entry.ts"
   ]
 }

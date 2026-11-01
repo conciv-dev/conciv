@@ -1,3 +1,5 @@
+import {Server as HttpServer} from 'node:http'
+import type {DevframeHubContext} from '@devframes/hub/types'
 import {dirname, join} from 'node:path'
 import {readdirSync} from 'node:fs'
 import type {IncomingMessage, ServerResponse} from 'node:http'
@@ -209,17 +211,7 @@ function embedChunks(embedEntry: string): string[] {
 const CONCIV_MARK_URI =
   'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0iI0Q3MjYzRCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJjb25jaXYiPjx0aXRsZT5jb25jaXY8L3RpdGxlPjxwYXRoIGQ9Ik0xNS4xIDE0LjYzSDQ4LjlBNi4zMiA2LjMyIDAgMCAxIDU1LjIyIDIwLjk1VjQzLjY1QTYuMzIgNi4zMiAwIDAgMSA0OC45IDQ5Ljk3SDI3LjM5TDE4IDU4LjE3TDE4IDQ5Ljk3SDE1LjFBNi4zMiA2LjMyIDAgMCAxIDguNzggNDMuNjVWMjAuOTVBNi4zMiA2LjMyIDAgMCAxIDE1LjEgMTQuNjNaTTUuMDY1IDI2LjI5Mkg1LjA2NUEyLjA5IDIuMDkgMCAwIDEgNy4xNTUgMjguMzgyVjM2LjIxOEEyLjA5IDIuMDkgMCAwIDEgNS4wNjUgMzguMzA4SDUuMDY1QTIuMDkgMi4wOSAwIDAgMSAyLjk3NSAzNi4yMThWMjguMzgyQTIuMDkgMi4wOSAwIDAgMSA1LjA2NSAyNi4yOTJaTTU4LjkzNSAyNi4yOTJINTguOTM1QTIuMDkgMi4wOSAwIDAgMSA2MS4wMjUgMjguMzgyVjM2LjIxOEEyLjA5IDIuMDkgMCAwIDEgNTguOTM1IDM4LjMwOEg1OC45MzVBMi4wOSAyLjA5IDAgMCAxIDU2Ljg0NSAzNi4yMThWMjguMzgyQTIuMDkgMi4wOSAwIDAgMSA1OC45MzUgMjYuMjkyWk00MS44MTUgNC45TDQ0LjIwNSA0LjlMNDQuMjA1IDE2LjYzTDQxLjgxNSAxNi42M1pNNDAuMDIgNC45QTIuOTkgMi45OSAwIDEgMSA0NiA0LjlBMi45OSAyLjk5IDAgMSAxIDQwLjAyIDQuOVpNMTguMDYgMjUuMzRMMjQuOTIxIDMyLjMxTDE4LjA2IDM5LjI4TDIwLjk2IDQyLjE4TDMwLjcxOSAzMi4zMUwyMC45NiAyMi40NFpNMzIuNTEgMzguNkwzMi41MSA0Mi4xOEw0NiA0Mi4xOEw0NiAzOC42WiIvPjwvc3ZnPg=='
 
-type DevToolsContext = {
-  docks: {
-    register: (entry: {
-      id: string
-      title: string
-      icon: string
-      type: 'custom-render'
-      renderer: {importFrom: string; importName: string}
-    }) => void
-  }
-}
+type DevToolsContext = DevframeHubContext
 
 type DevToolsPlugin = Plugin & {devtools: {setup: (context: DevToolsContext) => void}}
 
@@ -228,8 +220,33 @@ function widgetSettings(widget: ConcivConfig['widget'], docked: boolean): Conciv
   return {...widget, launcher: false, defaultOpen: true, surface: 'dock'}
 }
 
+function announceToDevTools(context: DevToolsContext, booted: Engine, root: string): void {
+  void context.messages.add({
+    message: `conciv engine ready on port ${booted.port}`,
+    level: 'success',
+    notify: true,
+    category: 'conciv',
+  })
+  context.commands.register({
+    id: 'conciv:sessions',
+    title: 'conciv: list sessions',
+    agent: {description: 'List the conciv chat sessions of this project.'},
+    handler: async () => {
+      const response = await booted.devframe.handler(
+        new Request(`http://127.0.0.1:${booted.port}/__conciv/__index.json`),
+      )
+      return response.json()
+    },
+  })
+  void context.terminals.startPtySession(
+    {command: process.env.SHELL ?? '/bin/sh', cwd: root},
+    {id: 'conciv-shell', title: 'conciv shell'},
+  )
+}
+
 export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO_BUILTINS): DevToolsPlugin {
   let engine: Engine | null = null
+  let devtoolsContext: DevToolsContext | null = null
   let apiBase: string | undefined
   let root = process.cwd()
 
@@ -242,6 +259,8 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     enforce: 'pre',
     devtools: {
       setup(context) {
+        devtoolsContext = context
+        if (engine) announceToDevTools(context, engine, root)
         if (!docked) return
         context.docks.register({
           id: 'conciv',
@@ -323,6 +342,9 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
       mountWidget(server, apiBase, widgetSettings(options.widget, docked))
+      server.middlewares.use(booted.devframe.nodeMiddleware)
+      if (server.httpServer instanceof HttpServer) booted.devframe.attach(server.httpServer)
+      if (devtoolsContext) announceToDevTools(devtoolsContext, booted, root)
       server.httpServer?.on('close', () => void booted.stop())
     },
   }

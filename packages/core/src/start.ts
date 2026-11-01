@@ -6,6 +6,7 @@ import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
 import {makeApp, withBuiltinExtensions, type MakeAppOpts} from './app.js'
+import type {HubInstance} from '@devframes/hub/initiate'
 
 export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
@@ -42,6 +43,7 @@ export type StartOpts = {
 
 export type Engine = {
   port: number
+  devframe: HubInstance
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
   extensionContexts: Record<string, unknown>
@@ -232,6 +234,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   }
   return {
     port,
+    devframe,
     cfg,
     extensionContexts,
     stop: async () => {
