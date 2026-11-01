@@ -5,6 +5,7 @@ import {mountToolCard} from '@conciv/extension-testkit/card-harness'
 import {CardChromeProvider, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
 import {loadCaptureLibrary} from '../src/client/capture.js'
 import {createCaptureSession} from '../src/client/capture-session.js'
+import {createFlusher} from '../src/client/flusher.js'
 import type {RecorderConfig, RrwebEvent} from '../src/shared/protocol.js'
 import {RecordingToolCard} from '../src/tool/card.js'
 
@@ -32,6 +33,11 @@ describe('capture session', () => {
       vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
       let releaseConfig: (value: RecorderConfig) => void = () => {}
       const sentByStopped: RrwebEvent[][] = []
+      const stoppedFlusher = createFlusher({
+        send: async (events) => {
+          sentByStopped.push(events)
+        },
+      })
       const stoppedSession = createCaptureSession({
         library: await loadCaptureLibrary(),
         config,
@@ -39,9 +45,7 @@ describe('capture session', () => {
           new Promise((resolve) => {
             releaseConfig = resolve
           }),
-        send: async (events) => {
-          sentByStopped.push(events)
-        },
+        flusher: stoppedFlusher,
         onFailed: () => {},
       })
       setVisibility('hidden')
@@ -51,13 +55,16 @@ describe('capture session', () => {
       const flushesAfterFinish = sentByStopped.length
 
       const sentByNext: RrwebEvent[][] = []
+      const nextFlusher = createFlusher({
+        send: async (events) => {
+          sentByNext.push(events)
+        },
+      })
       const nextSession = createCaptureSession({
         library: await loadCaptureLibrary(),
         config,
         reloadConfig: () => Promise.resolve(config),
-        send: async (events) => {
-          sentByNext.push(events)
-        },
+        flusher: nextFlusher,
         onFailed: () => {},
       })
       await nextSession.flushNow()
@@ -71,18 +78,23 @@ describe('capture session', () => {
       expect(snapshotCount(sentByNext)).toBeGreaterThan(snapshotsBefore)
       expect(sentByStopped.length).toBe(flushesAfterFinish)
       await nextSession.finish()
+      nextFlusher.dispose()
+      stoppedFlusher.dispose()
     })
 
     it('a resume with no interleaved stop re-attaches the recorder', async () => {
       vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
       const sent: RrwebEvent[][] = []
+      const flusher = createFlusher({
+        send: async (events) => {
+          sent.push(events)
+        },
+      })
       const session = createCaptureSession({
         library: await loadCaptureLibrary(),
         config,
         reloadConfig: () => Promise.resolve(config),
-        send: async (events) => {
-          sent.push(events)
-        },
+        flusher: flusher,
         onFailed: () => {},
       })
       setVisibility('hidden')
@@ -95,6 +107,7 @@ describe('capture session', () => {
       await session.flushNow()
       expect(snapshotCount(sent)).toBeGreaterThan(snapshotsBefore)
       await session.finish()
+      flusher.dispose()
     })
   })
 })

@@ -843,6 +843,14 @@ describe('x-ray page', () => {
     }).toPass({timeout: 10_000})
     await xray.close()
   })
+
+  it('keeps a numeric search query from the url', async () => {
+    const report = await call('design_diff', {width: 1280})
+    const xray = await browser.newPage()
+    await xray.goto(`${report.xray}&q=1280`)
+    await expectLocator(xray.getByRole('textbox', {name: 'Search components'})).toHaveValue('1280')
+    await xray.close()
+  })
 })
 
 const colorDistance = differenceCiede2000()

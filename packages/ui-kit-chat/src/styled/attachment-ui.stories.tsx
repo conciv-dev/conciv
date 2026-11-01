@@ -77,8 +77,23 @@ export const ImageAndFileTiles: Story = {
     await userEvent.hover(c.getByRole('button', {name: 'Remove diagram.png'}))
     await waitFor(() => expect(c.getByRole('tooltip')).toHaveTextContent('Remove diagram.png'))
 
+    const page = within(canvasElement.ownerDocument.body)
+    await userEvent.click(c.getByRole('button', {name: 'Open diagram.png'}))
+    const viewer = await page.findByRole('dialog', {name: 'diagram.png'})
+    await expect(within(viewer).getByRole('button', {name: 'Show actual size'})).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(page.queryByRole('dialog', {name: 'diagram.png'})).toBeNull())
+    await waitFor(() => expect(c.getByRole('button', {name: 'Open diagram.png'})).toHaveFocus())
+
+    await userEvent.click(c.getByRole('button', {name: 'notes.pdf'}))
+    await expect(page.queryByRole('dialog')).toBeNull()
+
     await userEvent.click(c.getByRole('button', {name: 'Remove diagram.png'}))
     await waitFor(() => expect(c.queryByRole('img', {name: 'diagram.png'})).toBeNull())
     await expect(c.getByRole('button', {name: 'Remove notes.pdf'})).toBeInTheDocument()
   },
+}
+
+export const Tiles: Story = {
+  render: () => <Frame />,
 }

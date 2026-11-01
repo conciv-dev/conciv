@@ -14,9 +14,18 @@ export type RpcClient = ContractRouterClient<typeof contract, RpcClientContext>
 
 export type RpcClientOptions = {headers?: Record<string, string>}
 
+export function abortableFetch(
+  request: Request,
+  init: RequestInit,
+  options: {signal?: AbortSignal | undefined},
+): Promise<Response> {
+  return fetch(request, {...init, signal: options.signal ?? null})
+}
+
 export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): RpcClient {
   const link = new RPCLink<RpcClientContext>({
     url: `${apiBase}/rpc`,
+    fetch: abortableFetch,
     ...(options.headers ? {headers: options.headers} : {}),
   })
   return createORPCClient(link)

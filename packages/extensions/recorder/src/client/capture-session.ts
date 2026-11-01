@@ -1,6 +1,6 @@
-import type {RecorderConfig, RrwebEvent} from '../shared/protocol.js'
+import type {RecorderConfig} from '../shared/protocol.js'
 import {startCapture, takeFreshSnapshot, type CaptureLibrary} from './capture.js'
-import {createFlusher} from './flusher.js'
+import type {Flusher} from './flusher.js'
 import {createVisibilityPauser} from './visibility-pauser.js'
 
 export type CaptureSession = {
@@ -13,10 +13,10 @@ export function createCaptureSession(opts: {
   library: CaptureLibrary
   config: RecorderConfig
   reloadConfig: () => Promise<RecorderConfig>
-  send: (events: RrwebEvent[]) => Promise<void>
+  flusher: Flusher
   onFailed: () => void
 }): CaptureSession {
-  const flusher = createFlusher({send: opts.send})
+  const flusher = opts.flusher
   flusher.setLive(true)
   let generation = 0
   let stopRecord: (() => void) | undefined = startCapture(opts.library, opts.config, (event) => flusher.push(event))
@@ -65,8 +65,8 @@ export function createCaptureSession(opts: {
       stopRecord?.()
       stopRecord = undefined
       for (const off of offListeners) off()
+      flusher.setLive(false)
       await flusher.flushNow()
-      flusher.dispose()
     },
   }
 }

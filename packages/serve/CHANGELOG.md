@@ -1,5 +1,12 @@
 # @conciv/serve
 
+## 0.0.21
+
+### Patch Changes
+
+- Updated dependencies [[`060d32a`](https://github.com/conciv-dev/conciv/commit/060d32a66de6929c085a431a9676ac3759e6ff4c)]:
+  - @conciv/protocol@0.0.21
+
 ## 0.0.20
 
 ### Patch Changes

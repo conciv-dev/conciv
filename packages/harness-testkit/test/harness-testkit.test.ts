@@ -1,5 +1,5 @@
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http'
-import {expect, it, afterEach, describe, vi} from 'vitest'
+import {expect, it, afterEach, afterAll, beforeAll, describe, vi} from 'vitest'
 import {z} from 'zod'
 import {getHarness} from '@conciv/harness'
 import {harnessAvailable} from '../src/harness-available.js'
@@ -21,6 +21,14 @@ import {makeRunStream} from '../src/run-stream.js'
 import {makeScriptedRun, type ScriptedRun} from '../src/scripted-run.js'
 import {until as testkitUntil} from '../src/testkit.js'
 import {until} from '../src/until.js'
+import {makeRpcClient, makeSessionBoundRpcClient, type RpcClient} from '../src/session.js'
+import {implement} from '@orpc/server'
+import {RPCHandler} from '@orpc/server/node'
+import {contract} from '@conciv/contract'
+import {once} from 'node:events'
+import {setImmediate} from 'node:timers/promises'
+import {setFlagsFromString} from 'node:v8'
+import {runInNewContext} from 'node:vm'
 
 describe('call tool', () => {
   it('harnessAvailable returns a boolean for any adapter', () => {
@@ -870,4 +878,52 @@ describe('until', () => {
       expect(state.open).toBe(false)
     })
   })
+})
+
+describe('rpc clients abort a stream after the request behind it was collected', () => {
+  const queries = implement(contract).page.queries.handler(async function* ({signal}) {
+    yield {requestId: 'first', query: null}
+    if (signal) await once(signal, 'abort')
+  })
+  const handler = new RPCHandler({page: {queries}})
+  const server = createServer((request, response) => {
+    void handler.handle(request, response, {prefix: '/rpc'})
+  })
+  const base = {url: ''}
+
+  beforeAll(async () => {
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const address = server.address()
+    base.url = `http://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`
+  })
+
+  afterAll(async () => {
+    server.closeAllConnections()
+    await new Promise((resolve) => server.close(resolve))
+  })
+
+  async function expectAbortAfterCollection(client: RpcClient): Promise<void> {
+    const abort = new AbortController()
+    const stream = await client.page.queries(undefined, {signal: abort.signal})
+    await stream.next()
+    setFlagsFromString('--expose-gc')
+    const collect: unknown = runInNewContext('gc')
+    if (typeof collect !== 'function') throw new Error('gc unavailable')
+    collect()
+    await setImmediate()
+    collect()
+    await setImmediate()
+    const ended = stream.next()
+    abort.abort()
+    await expect(ended).rejects.toThrow()
+  }
+
+  it('makeRpcClient', async () => {
+    await expectAbortAfterCollection(makeRpcClient(base.url))
+  }, 10_000)
+
+  it('makeSessionBoundRpcClient', async () => {
+    await expectAbortAfterCollection(makeSessionBoundRpcClient(base.url, () => 'session-a'))
+  }, 10_000)
 })

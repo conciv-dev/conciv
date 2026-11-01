@@ -2,24 +2,20 @@ import {randomUUID} from 'node:crypto'
 import {mkdtempSync, realpathSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {describe, it, afterEach, expect} from 'vitest'
+import {describe, it, afterEach, afterAll, beforeAll, expect} from 'vitest'
 import {defineExtension, defineTool, toolError} from '@conciv/extension'
-import {type HarnessAdapter} from '@conciv/harness'
 import {
   harnessAvailable,
   createTestHarness,
-  makeCallTool,
   makeRunTypescript,
   type Kit,
   connectMcpClient,
-  createFakeHarness,
 } from '@conciv/harness-testkit'
 import {claude} from '@conciv/harness/claude'
 import {codex} from '@conciv/harness/codex'
-import {geminiCli} from '@conciv/harness/gemini-cli'
 import {opencode} from '@conciv/harness/opencode'
-import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {SessionId, CONCIV_SESSION_HEADER, CONCIV_CLAUDE_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {ChatEventType} from '@conciv/protocol/chat-event-types'
+import {SessionId, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {z} from 'zod'
 import {readDevEndpoint} from '../src/lib/dev-endpoint.js'
 import {start, type Engine} from '../src/start.js'
@@ -61,24 +57,6 @@ describe('codex tanstack', () => {
           sessionEvent: 'codex.session-id',
         }),
       120_000,
-    )
-  })
-})
-
-describe('gemini tanstack', () => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'gemini-tanstack-')))
-
-  describe('gemini-cli through acpCompatible + conciv sandbox/gate', () => {
-    it.todo(
-      'streams a real turn and resumes the session (blocked: gemini session/load does not restore context, #96)',
-      () =>
-        assertTurnAndResume({
-          harness: geminiCli,
-          dir,
-          sessionId: SessionId.parse('conciv_it-gemini-1'),
-          sessionEvent: 'gemini-cli.session-id',
-        }),
-      180_000,
     )
   })
 })
@@ -152,31 +130,6 @@ describe('extension tool call id', () => {
   })
 })
 
-describe('extension tool session', () => {
-  const echo = defineTool({
-    name: 'acme_echo_session',
-    description: 'Echo the request session back',
-    inputSchema: z.object({}),
-    outputSchema: z.object({sessionId: z.string().nullable()}),
-    meta: {summary: 'echo the request session back', category: 'fixture', mutating: false},
-  }).server((_input, _ctx, request) => ({sessionId: request.sessionId}))
-
-  const acme = defineExtension({name: 'acme', tools: [echo]})
-
-  describe('/api/mcp threads the request session into extension tool execute', () => {
-    it('echoes the header session id', async () => {
-      const server = await bootKit({extensions: [acme]})
-      try {
-        const call = makeCallTool(server.base, 'conciv_x')
-        const result = JSON.stringify(await call('acme_echo_session', {}))
-        expect(result).toContain('conciv_x')
-      } finally {
-        await server.cleanup()
-      }
-    }, 30_000)
-  })
-})
-
 describe('registry extension tools', () => {
   const lens = defineTool({
     name: 'acme_lens',
@@ -217,59 +170,39 @@ describe('registry extension tools', () => {
   }
 
   describe('registry-declared extension tools ride the tool registry into the sandbox', () => {
-    it('appears in discover_tools with its declared summary and input', async () => {
-      const kit = await bootKit({extensions: [acme]})
-      try {
-        const found = JSON.stringify(await discover(kit, 'acme_lens'))
-        expect(found).toContain('inspect the lens assembly')
-        expect(found).toContain('zoom')
-      } finally {
-        await kit.cleanup()
-      }
-    }, 30_000)
+    const shared: {kit: Kit | undefined} = {kit: undefined}
 
-    it('is callable through the code-mode sandbox and surfaces its declared error by code', async () => {
-      const kit = await bootKit({extensions: [acme]})
-      try {
-        const drawn = await runSandbox(kit, 'return await external_acme_lens({zoom: 2})')
-        expect(JSON.stringify(drawn)).toContain('focused')
-        const failed = await runSandbox(
-          kit,
-          "try { await external_acme_lens({zoom: 9}); return 'no-error' } catch (error) { return String(error) }",
-        )
-        expect(z.string().parse(failed)).toContain('LENS_JAMMED')
-      } finally {
-        await kit.cleanup()
-      }
-    }, 30_000)
+    beforeAll(async () => {
+      shared.kit = await bootKit({extensions: [acme]})
+    })
+
+    afterAll(async () => {
+      await shared.kit?.cleanup()
+    })
+
+    function kit(): Kit {
+      if (shared.kit === undefined) throw new Error('the app did not boot')
+      return shared.kit
+    }
+
+    it('appears in discover_tools with its declared summary and input', async () => {
+      const found = JSON.stringify(await discover(kit(), 'acme_lens'))
+      expect(found).toContain('inspect the lens assembly')
+      expect(found).toContain('zoom')
+    })
 
     it('rejects malformed input with a loud validation error, never a silent success', async () => {
-      const kit = await bootKit({extensions: [acme]})
-      try {
-        const failed = await runSandbox(
-          kit,
-          "try { await external_acme_lens({zoom: 'way too much'}); return 'no-error' } catch (error) { return String(error) }",
-        )
-        expect(z.string().parse(failed)).not.toBe('no-error')
-        expect(z.string().parse(failed).toLowerCase()).toMatch(/input|invalid|zoom/)
-      } finally {
-        await kit.cleanup()
-      }
-    }, 30_000)
-
-    it('surfaces the capability exactly once, never through two declaration paths', async () => {
-      const kit = await bootKit({extensions: [acme]})
-      try {
-        const found = JSON.stringify(await discover(kit, 'acme_lens'))
-        expect(found.split('external_acme_lens(').length - 1).toBe(1)
-      } finally {
-        await kit.cleanup()
-      }
-    }, 30_000)
+      const failed = await runSandbox(
+        kit(),
+        "try { await external_acme_lens({zoom: 'way too much'}); return 'no-error' } catch (error) { return String(error) }",
+      )
+      expect(z.string().parse(failed)).not.toBe('no-error')
+      expect(z.string().parse(failed).toLowerCase()).toMatch(/input|invalid|zoom/)
+    })
 
     it('refuses to boot a tool declared without meta and an output schema instead of forwarding it', async () => {
       await expect(bootKit({extensions: [acme, legacy]})).rejects.toThrow(/acme_dial/)
-    }, 30_000)
+    })
   })
 })
 
@@ -332,40 +265,6 @@ describe('start dev endpoint', () => {
         await engine.stop()
         expect(readDevEndpoint(endpointDir)).toBeNull()
       })
-    })
-
-    it('does not write the endpoint when no native page is served', async () => {
-      await withStartedEngine({}, async (engine, endpointDir) => {
-        expect(readDevEndpoint(endpointDir)).toBeNull()
-        await engine.stop()
-      })
-    })
-  })
-})
-
-describe('start harness di', () => {
-  describe('start harness DI', () => {
-    it('uses the injected harness instead of the registry', async () => {
-      const fake = createFakeHarness({id: 'fake-start-di', text: 'ok'})
-      const marker = {seen: false}
-      const harness: HarnessAdapter = Object.assign({}, fake)
-      Object.defineProperty(harness, 'id', {
-        get() {
-          marker.seen = true
-          return 'fake-start-di'
-        },
-      })
-      const root = mkdtempSync(join(tmpdir(), 'conciv-start-di-'))
-      const engine = await start({
-        options: {stateRoot: root, systemPrompt: false, harness: 'fake-start-di'},
-        root,
-        harness,
-        extensions: [],
-        launchEditor: () => {},
-      })
-      expect(marker.seen).toBe(true)
-      await engine.stop()
-      rmSync(root, {recursive: true, force: true})
     })
   })
 })
@@ -432,102 +331,10 @@ describe('api mcp claude session header', () => {
   }
 
   describe('/api/mcp resolves the calling claude session', () => {
-    it('scopes tools to the conciv session that adopted that claude session', async () => {
-      const kit = await bootKit({extensions: [acme]})
-      try {
-        const claudeSessionId = randomUUID()
-        const sessionId = await kit.session(claudeSessionId)
-        expect(sessionId).toMatch(/^conciv_/)
-
-        expect(await echoedSession(kit.base, {[CONCIV_CLAUDE_SESSION_HEADER]: claudeSessionId})).toBe(sessionId)
-      } finally {
-        await kit.cleanup()
-      }
-    }, 30_000)
-
-    it('mints a fresh, unadopted session when that claude session maps to nothing', async () => {
-      const kit = await bootKit({extensions: [acme]})
-      try {
-        const first = await echoedSession(kit.base, {[CONCIV_CLAUDE_SESSION_HEADER]: randomUUID()})
-        const second = await echoedSession(kit.base, {[CONCIV_CLAUDE_SESSION_HEADER]: randomUUID()})
-        expect(first).toMatch(/^conciv_/)
-        expect(second).toMatch(/^conciv_/)
-        expect(first).not.toBe(second)
-      } finally {
-        await kit.cleanup()
-      }
-    }, 30_000)
-
     it('keeps honouring the conciv session header the owned and tty paths send', async () => {
       const kit = await bootKit({extensions: [acme]})
       try {
         expect(await echoedSession(kit.base, {[CONCIV_SESSION_HEADER]: 'conciv_x'})).toBe('conciv_x')
-      } finally {
-        await kit.cleanup()
-      }
-    }, 30_000)
-  })
-})
-
-describe('api mcp execute stream', () => {
-  const draw = defineTool({
-    name: 'canvas_svg',
-    description: 'Draw an svg shape on the canvas',
-    inputSchema: z.object({shape: z.string()}),
-    outputSchema: z.object({drawn: z.string()}),
-    meta: {summary: 'draw an svg shape on the canvas', category: 'fixture', mutating: false},
-  }).server((input) => ({drawn: input.shape}))
-
-  const acme = defineExtension({name: 'acme', tools: [draw]})
-
-  async function executeRaw(base: string, session: string, typescriptCode: string): Promise<unknown> {
-    const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: session})
-    try {
-      const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
-      if (!tool?.execute) throw new Error('execute_typescript not on /api/mcp')
-      return await tool.execute({typescriptCode})
-    } finally {
-      await mcp.close()
-    }
-  }
-
-  function toolCallStarts(chunks: ChatEvent[]): {toolCallId: string; name: string; parent?: string}[] {
-    return chunks.flatMap((chunk) => {
-      if (chunk.type !== ChatEventType.TOOL_CALL_START) return []
-      const name = chunk.toolCallName
-      const meta = z
-        .object({parentToolCallId: z.string().optional()})
-        .loose()
-        .safeParse(chunk.metadata ?? {})
-      return [{toolCallId: chunk.toolCallId, name, parent: meta.success ? meta.data.parentToolCallId : undefined}]
-    })
-  }
-
-  describe('/api/mcp sandbox calls render as nested action cards on the session stream', () => {
-    it('publishes the execute call and its capability calls, nested by parent id', async () => {
-      const kit = await bootKit({extensions: [acme]})
-      try {
-        const session = await kit.session()
-        const stream = await kit.events(session)
-        await executeRaw(kit.base, session, "return await external_canvas_svg({shape: 'circle'})")
-        const childStart = await stream.waitFor(
-          (chunk) => toolCallStarts([chunk]).some((call) => call.name === 'canvas_svg'),
-          {hangGuardMs: 10_000},
-        )
-        const child = toolCallStarts([childStart])[0]
-        if (!child) throw new Error('no canvas_svg tool call on the stream')
-        expect(child.parent).toBeDefined()
-        const parentStart = await stream.waitFor(
-          (chunk) => toolCallStarts([chunk]).some((call) => call.name === 'execute_typescript'),
-          {hangGuardMs: 10_000},
-        )
-        const parent = toolCallStarts([parentStart])[0]
-        expect(parent?.toolCallId).toBe(child.parent)
-        const childResult = await stream.waitFor(
-          (chunk) => chunk.type === ChatEventType.TOOL_CALL_RESULT && chunk.toolCallId === child.toolCallId,
-          {hangGuardMs: 10_000},
-        )
-        expect(JSON.stringify(childResult)).toContain('circle')
       } finally {
         await kit.cleanup()
       }

@@ -1,16 +1,11 @@
-import {mkdtempSync, chmodSync, mkdirSync, writeFileSync} from 'node:fs'
+import {mkdtempSync} from 'node:fs'
 import {writeFile, rm} from 'node:fs/promises'
-import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {fileURLToPath, pathToFileURL} from 'node:url'
-import {afterEach, expect} from 'vitest'
-import {foldChatEvents} from '@conciv/ai/testkit'
+import {expect} from 'vitest'
 import {type ChatPlane} from '@conciv/chat'
-import {type EngineStaleness} from '@conciv/contract'
-import {openDb, type ConcivDb} from '@conciv/db'
+import {type ConcivDb} from '@conciv/db'
 import {type AnyExtension} from '@conciv/extension'
-import {type ToolRegistry} from '@conciv/extension/registry'
 import {getHarness, type HarnessAdapter} from '@conciv/harness'
 import {
   type ChatMessage,
@@ -20,17 +15,9 @@ import {
   type BootApp,
   createTestHarness,
   type TestHarness,
-  createFakeHarness,
-  type FakeHarness,
 } from '@conciv/harness-testkit'
 import {type BundlerBridge} from '@conciv/protocol/bundler-types'
-import {
-  type ChatEvent,
-  ChatEventType,
-  isRunPhaseTerminal,
-  runLifecycleEvent,
-  type RunPhase,
-} from '@conciv/protocol/chat-event-types'
+import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {type HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {type PageOutcome} from '@conciv/protocol/page-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
@@ -38,11 +25,6 @@ import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {type ResolvedConcivConfig} from '../src/config.js'
-import {type PageEnv} from '../src/page-bus.js'
-import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
-import {type SessionPrimitives} from '../src/runtime/primitives.js'
-import {type CoreRuntime, type ScopedToolCall} from '../src/runtime/scope-types.js'
-import {createSessionBus} from '../src/sessions/session-bus.js'
 import {ensureRow} from '../src/sessions/session-rows.js'
 
 export function requireClaude(): HarnessAdapter {
@@ -60,8 +42,6 @@ export function requireTranscriptPath(
 }
 
 export const runReal = !process.env.CI
-
-export const testDb = (): ConcivDb => openDb(mkdtempSync(join(tmpdir(), 'conciv-store-')))
 
 const MessageSchema = z
   .object({
@@ -93,87 +73,12 @@ export function userTexts(snapshot: SnapshotView): string[] {
   return snapshot.messages.filter((message) => message.role === 'user').map(textOf)
 }
 
-export function userMessageIds(snapshot: SnapshotView): Array<string | undefined> {
-  return snapshot.messages.filter((message) => message.role === 'user').map((message) => message.id)
-}
-
-export function assistantTexts(snapshot: SnapshotView): string[] {
-  return snapshot.messages.filter((message) => message.role === 'assistant').map(textOf)
-}
-
-export function partTypes(snapshot: SnapshotView): string[] {
-  return snapshot.messages.flatMap((message) => message.parts.map((part) => part.type))
-}
-
-function rendered(chunks: ChatEvent[]): SnapshotMessage[] {
-  return z.array(MessageSchema).parse(foldChatEvents(chunks))
-}
-
-export function reconstructSnapshot(chunks: ChatEvent[]): SnapshotView {
-  return {type: ChatEventType.MESSAGES_SNAPSHOT, messages: rendered(chunks)}
-}
-
-export function reconstructTranscript(chunks: ChatEvent[]): string[] {
-  return rendered(chunks).map((message) => `${message.role}: ${textOf(message)}`)
-}
-
-export function reconstructUserTexts(chunks: ChatEvent[]): string[] {
-  return rendered(chunks)
-    .filter((message) => message.role === 'user')
-    .map(textOf)
-}
-
-export async function collectChunks(source: AsyncIterable<ChatEvent>, into: ChatEvent[]): Promise<void> {
-  try {
-    for await (const chunk of source) into.push(chunk)
-  } catch {}
-}
-
-function runIdsAtPhase(chunks: ChatEvent[], match: (phase: RunPhase) => boolean): Set<string> {
-  const seen = new Set<string>()
-  for (const chunk of chunks) {
-    const lifecycle = runLifecycleEvent.parse(chunk)
-    if (lifecycle && match(lifecycle.phase)) seen.add(lifecycle.runId)
-  }
-  return seen
-}
-
-export function runsStarted(chunks: ChatEvent[]): number {
-  return runIdsAtPhase(chunks, (phase) => phase === 'running').size
-}
-
-export function runsFinished(chunks: ChatEvent[]): number {
-  return runIdsAtPhase(chunks, isRunPhaseTerminal).size
-}
-
-export function peakLiveRuns(chunks: ChatEvent[]): number {
-  const open = new Set<string>()
-  const tally = {peak: 0}
-  for (const chunk of chunks) {
-    const lifecycle = runLifecycleEvent.parse(chunk)
-    if (!lifecycle) continue
-    if (isRunPhaseTerminal(lifecycle.phase)) open.delete(lifecycle.runId)
-    if (lifecycle.phase === 'running') open.add(lifecycle.runId)
-    tally.peak = Math.max(tally.peak, open.size)
-  }
-  return tally.peak
-}
-
 export async function runTurn(kit: Kit, input: string | ChatMessage, session: string): Promise<RunEvents> {
   const stream = await kit.turn(input, {session})
   return stream.done()
 }
 
-export function countType(events: RunEvents, type: string): number {
-  return events.all.filter((chunk) => chunk.type === type).length
-}
-
-const require = createRequire(import.meta.url)
-const tsxEntry = fileURLToPath(pathToFileURL(require.resolve('tsx')))
-const fakeClaudePath = fileURLToPath(new URL('./fixtures/fake-claude.ts', import.meta.url))
-
 export type BootOverrides = {
-  fakeClaude?: {env?: (sessionId?: string) => NodeJS.ProcessEnv}
   cwd?: string
   claudeHome?: string
   extensions?: AnyExtension[]
@@ -181,15 +86,6 @@ export type BootOverrides = {
   openInEditor?: (file: string, line?: number) => void
   bridge?: BundlerBridge
   firstChunkTimeoutMs?: number
-}
-
-function fakeClaudeBinDir(stateRoot: string): string {
-  const binDir = join(stateRoot, 'fake-bin')
-  mkdirSync(binDir, {recursive: true})
-  const shim = join(binDir, 'claude')
-  writeFileSync(shim, `#!/bin/sh\nexec "${process.execPath}" --import "${tsxEntry}" "${fakeClaudePath}" "$@"\n`)
-  chmodSync(shim, 0o755)
-  return binDir
 }
 
 export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter = requireClaude()): Promise<Kit> {
@@ -210,21 +106,11 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
     systemPrompt: '',
     extensions: undefined,
   }
-  const fake = overrides.fakeClaude
-  const binDir = fake ? fakeClaudeBinDir(env.stateRoot) : null
-  const harnessEnv = binDir
-    ? (sessionId?: string): NodeJS.ProcessEnv => ({
-        ...process.env,
-        PATH: `${binDir}:${process.env.PATH ?? ''}`,
-        ...fake?.env?.(sessionId),
-      })
-    : undefined
   return makeApp({
     cfg,
     cwd: overrides.cwd ?? env.cwd,
     openInEditor: overrides.openInEditor ?? (() => {}),
     harness: env.harness,
-    harnessEnv,
     claudeHome: overrides.claudeHome,
     extensions: overrides.extensions,
     extensionConfig: overrides.extensionConfig,
@@ -256,29 +142,6 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
   const sessionId = SessionId.parse('conciv_fixture')
   if (opts.seedSession !== false) await ensureRow(made.chat.db, sessionId, harness.id, stateRoot)
   return {plane: made.plane, db: made.chat.db, harness, sessionId, stateRoot, dispose: made.dispose}
-}
-
-export const SCRIPTED_REPLY = 'scripted reply'
-
-export type FakeSession = {kit: Kit; harness: FakeHarness; sessionId: string}
-
-export function useFakeSessions(): {open: () => Promise<FakeSession>; adopt: (kit: Kit) => void} {
-  const kits: Kit[] = []
-  afterEach(async () => {
-    for (const kit of kits.splice(0)) await kit.cleanup()
-  })
-  return {
-    adopt: (kit) => {
-      kits.push(kit)
-    },
-    open: async () => {
-      const harness = createFakeHarness({text: SCRIPTED_REPLY})
-      const kit = await bootKit({}, harness)
-      kits.push(kit)
-      const sessionId = await kit.session()
-      return {kit, harness, sessionId}
-    },
-  }
 }
 
 export async function hydratedSnapshot(kit: Kit, sessionId: string): Promise<SnapshotView> {
@@ -335,29 +198,6 @@ export async function assertTurnAndResume(opts: ResumeScenarioOpts): Promise<voi
   } finally {
     await kit.cleanup()
   }
-}
-
-const FRESH: EngineStaleness = {stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}
-
-export async function pageRuntime(page: PageEnv, registry: ToolRegistry): Promise<CoreRuntime> {
-  const fixture = await makeChatFixture()
-  const primitives: SessionPrimitives = {
-    stream: createSessionBus(),
-    page,
-    registry,
-  }
-  return makeCoreRuntime({
-    primitives,
-    plane: fixture.plane,
-    db: fixture.db,
-    model: () => null,
-    staleness: () => FRESH,
-  })
-}
-
-export function scopedToolCallOf(runtime: CoreRuntime): ScopedToolCall {
-  return (name, input, request) =>
-    runtime.forSession(request.sessionId).tools.call(name, input, {toolCallId: request.toolCallId})
 }
 
 const written: string[] = []
