@@ -272,7 +272,7 @@ the reconnect wrapper treats like any drop.
 **5. Agent surface.** Today `packages/core/src/api/mcp.ts` exposes only `discover_tools`,
 `execute_typescript` and `approval: 'ask'` tools, and that stays. Server tools are
 `defineConcivFunction`s with `agent`; page tools are page-script functions with `agent`.
-`/api/mcp` stays on its own server (spike commit `4f62c00b7`). Devframe's route cannot replace it: it lists every `agent` function, including those of Devframe's own Terminals and Messages plugins, has no tool filter, and fixes its instructions at startup while conciv's are per session. Running Devframe's handler on our path works but swaps about 55 lines of SDK wiring for about 100 of ours. Revisit if Devframe adds a tool filter and per-request instructions. Devframe's agent host is used as an in-process registry that `/api/mcp` reads, plugin tools included: agents reach Devframe plugin tools (Terminals, Messages, and any opted-in plugin) through code mode, mirrored and capped. They carry no conciv approval; the harness's own permission mode governs them (decided 2026-11-02). Existing `approval: 'ask'` tools keep their gate. Devframe's
+`/api/mcp` stays on its own server (spike commit `4f62c00b7`). Devframe's route cannot replace it: it lists every `agent` function, including those of Devframe's own Terminals and Messages plugins, has no tool filter, and fixes its instructions at startup while conciv's are per session. Running Devframe's handler on our path works but swaps about 55 lines of SDK wiring for about 100 of ours. Revisit if Devframe adds a tool filter and per-request instructions. Devframe's agent host is used as an in-process registry that `/api/mcp` reads, plugin tools included: agents reach Devframe plugin tools (Terminals, Messages, and any opted-in plugin) through code mode, mirrored and capped. They carry no conciv approval; the harness's own permission mode governs them (decided 2026-11-02). Existing `approval: 'ask'` tools keep their gate until PR 21. Devframe's
 MCP route (`mcp: false`) and WebMCP (`webmcp: false` on the widget's client) stay off, and
 plugin iframes never register agent functions. conciv functions are never registered as agent tools in
 Vite DevTools' hub, so nothing reaches a tool around the approval gate. The registry's public
@@ -293,6 +293,7 @@ PR 10..18  extensions move, one per PR:
         terminal, test-runner, ios, recorder, page, tanstack, design, whiteboard, try-it
 PR 19  settings page (mockup), on Devframe's settings store, with the mode switch
 PR 20  delete oRPC, push channel, old registry runtime, old extension runtime
+PR 21  approval prompts replaced by Devframe safety labels
 ```
 
 - **Engine:** hub and oRPC run in one process, behind one gate (Security). Each group
@@ -998,6 +999,30 @@ Extension-specific files:
 ### Every PR
 
 - A `.changeset/<name>.md` naming each touched public package.
+
+### PR 21: Replace conciv's approval prompts with Devframe safety labels
+
+Decided 2026-11-02. A product change, so it ships alone after PR 20.
+
+#### 43. Tool declarations with `approval: 'ask'`: `packages/tools/src/builtins/server-tools.ts`, `packages/extensions/page/src/shared/defs.ts`, `packages/extensions/whiteboard/src/tool/comment/def.ts`, `packages/extensions/whiteboard/src/tool/canvas/def.ts`, `packages/extensions/ios/src/server.ts` (Modify)
+
+- **Type / Scope**: Tools.
+- **Proposed Changes**: Replace `approval: 'ask'` with `agent: {safety: 'destructive'}`.
+
+#### 44. `packages/core/src/api/mcp.ts`, `packages/chat/src/index.ts`, `packages/chat/src/approvals.ts`, `packages/chat/src/code-mode.ts` (Modify)
+
+- **Type / Scope**: Agent surface.
+- **Proposed Changes**: `destructive` tools are listed directly on `/api/mcp` with the MCP
+  destructive hint, and code-mode scripts cannot call them, so the CLI sees every one. The
+  harness's permission mode decides: Claude's auto mode; Codex runs them with no check
+  (accepted). Delete `admitCall`, the deny-and-retry flow, approval events and the approval
+  cards.
+
+#### 45. Tests and docs (Modify)
+
+- **Type / Scope**: Tests, documentation.
+- **Proposed Changes**: A test that a script cannot call a `destructive` tool. Remove approval
+  cases; update `AGENTS.md` (Security & safety) and the tool-contract docs.
 
 ### Verification Plan
 
