@@ -1158,6 +1158,25 @@ describe('conciv devframe layer over a real hub', () => {
     connection.close()
   }, 10_000)
 
+  it('calls a listener added from inside a listener once, for the client and for the status', async () => {
+    const connection = reconnectingClient(async () => ({close: () => {}}))
+    const nestedClients: object[] = []
+    const nestedStatuses: string[] = []
+    const offOuterClient = connection.onClient(() => {
+      offOuterClient()
+      connection.onClient((client) => nestedClients.push(client))
+    })
+    const offOuterStatus = connection.onStatus((status) => {
+      if (status !== 'connected') return
+      offOuterStatus()
+      connection.onStatus((next) => nestedStatuses.push(next))
+    })
+    await connection.ready()
+    expect(nestedClients).toHaveLength(1)
+    expect(nestedStatuses).toEqual([])
+    connection.close()
+  }, 10_000)
+
   it('refuses ready, calls and streams with DISCONNECTED once closed, including a wait already pending', async () => {
     const served = await serveDevframePlugin(probe.devframe)
     const unreachable = nodeClient({url: 'http://127.0.0.1:1', transport: 'ws'})

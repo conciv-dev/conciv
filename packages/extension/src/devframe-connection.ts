@@ -60,7 +60,7 @@ export function reconnectingClient<Client extends ClosableClient>(
   function setStatus(status: ConnectionStatus): void {
     if (state.status === status) return
     state.status = status
-    statusListeners.forEach((listener) => listener(status))
+    Array.from(statusListeners).forEach((listener) => listener(status))
   }
 
   async function openLink(): Promise<Link<Client>> {
@@ -105,7 +105,7 @@ export function reconnectingClient<Client extends ClosableClient>(
     }
     state.link = link
     setStatus('connected')
-    clientListeners.forEach((listener) => listener(link.client))
+    Array.from(clientListeners).forEach((listener) => listener(link.client))
   }
 
   function onClient(listener: ClientListener<Client>): () => void {
