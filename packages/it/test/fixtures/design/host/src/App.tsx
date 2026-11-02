@@ -28,6 +28,7 @@ export function App() {
   const requested = new URLSearchParams(location.search).get('variant')
   document.documentElement.className = (requested === null ? undefined : LOOK_CLASSES[requested]) ?? ''
   if (requested === 'empty') return null
+  if (requested === 'dashboard') return <main className="dashboard" />
   if (requested === 'type') {
     return (
       <main className="type">
