@@ -9,6 +9,7 @@ export type PageFailures = {
 
 const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]']
 const OUTDATED_OPTIMIZE_DEP = 'Outdated Optimize Dep'
+const DUPLICATE_SOLID = 'You appear to have multiple instances of Solid'
 
 function redactUrl(url: string): string {
   const parsed = URL.parse(url)
@@ -33,7 +34,9 @@ export function collectFailures(page: Page): PageFailures {
   const failures: PageFailures = {pageErrors: [], consoleErrors: [], requestFailures: [], thirdPartyRequests: []}
   page.on('pageerror', (error) => failures.pageErrors.push(String(error)))
   page.on('console', (message) => {
-    if (message.type() === 'error') failures.consoleErrors.push(describeConsoleMessage(message))
+    if (message.type() === 'error' || message.text().includes(DUPLICATE_SOLID)) {
+      failures.consoleErrors.push(describeConsoleMessage(message))
+    }
   })
   page.on('request', (request) => {
     if (isThirdPartyRequest(request.url())) failures.thirdPartyRequests.push(redactUrl(request.url()))

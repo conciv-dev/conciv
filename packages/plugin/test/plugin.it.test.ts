@@ -1319,29 +1319,54 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 90_000)
 
+  function installConcivInto(root: string, storeSegments: string[]): Builtins {
+    const store = join(root, ...storeSegments)
+    const installed = join(installConcivPackage(root, '@conciv/embed', store), '..')
+    for (const name of ['terminal', 'test-runner', 'whiteboard', 'recorder', 'ios']) {
+      installConcivPackage(root, `@conciv/extension-${name}`, store)
+    }
+    installConcivPackage(root, '@conciv/extension-compiler', store)
+    const workspaceIt = join(
+      dirname(dirname(dirname(realpathSync(fileURLToPath(import.meta.resolve('@conciv/embed')))))),
+      'it',
+    )
+    cpSync(join(workspaceIt, 'package.json'), join(installed, 'it', 'package.json'))
+    if (!existsSync(join(root, 'node_modules', '@conciv', 'it'))) {
+      mkdirSync(join(root, 'node_modules', '@conciv'), {recursive: true})
+      symlinkSync(join(installed, 'it'), join(root, 'node_modules', '@conciv', 'it'))
+    }
+    return {
+      serverExtensions: realBuiltins.serverExtensions,
+      clientEntries: ['terminal', 'test-runner', 'whiteboard', 'recorder', 'ios'].map((name) =>
+        join(installed, `extension-${name}`, 'dist', 'client.js'),
+      ),
+      embedEntry: join(installed, 'embed', 'dist', 'mount.js'),
+      dedupeEntry: join(installed, 'extension-compiler', 'dist', 'dedupe-extensions.js'),
+    }
+  }
+
+  function linkWorkspaceConciv(root: string): Builtins {
+    linkConcivIt(root)
+    return {
+      ...realBuiltins,
+      embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
+      dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
+    }
+  }
+
   it.each([
-    {layout: 'flat', storeSegments: ['node_modules']},
-    {layout: 'pnpm-isolated', storeSegments: ['node_modules', '.pnpm', 'node_modules']},
+    {layout: 'flat', prepare: (root: string) => installConcivInto(root, ['node_modules'])},
+    {
+      layout: 'pnpm-isolated',
+      prepare: (root: string) => installConcivInto(root, ['node_modules', '.pnpm', 'node_modules']),
+    },
+    {layout: 'workspace-linked', prepare: linkWorkspaceConciv},
   ])(
     'opens the chat and the recorder on a cold cache of a $layout conciv install with one Solid and without Vite re-optimizing dependencies',
-    async ({storeSegments}) => {
+    async ({prepare}) => {
       const root = realpathSync(dirs.tempDir('conciv-cold-'))
       writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
-      const store = join(root, ...storeSegments)
-      const installed = join(installConcivPackage(root, '@conciv/embed', store), '..')
-      for (const name of ['terminal', 'test-runner', 'whiteboard', 'recorder', 'ios']) {
-        installConcivPackage(root, `@conciv/extension-${name}`, store)
-      }
-      installConcivPackage(root, '@conciv/extension-compiler', store)
-      const workspaceIt = join(
-        dirname(dirname(dirname(realpathSync(fileURLToPath(import.meta.resolve('@conciv/embed')))))),
-        'it',
-      )
-      cpSync(join(workspaceIt, 'package.json'), join(installed, 'it', 'package.json'))
-      if (!existsSync(join(root, 'node_modules', '@conciv', 'it'))) {
-        mkdirSync(join(root, 'node_modules', '@conciv'), {recursive: true})
-        symlinkSync(join(installed, 'it'), join(root, 'node_modules', '@conciv', 'it'))
-      }
+      const builtins = prepare(root)
       const logged: string[] = []
       const remember = (message: string): void => void logged.push(message)
       const server = await createServer({
@@ -1349,19 +1374,7 @@ describe('vite devtools dock', () => {
         configFile: false,
         customLogger: {...createLogger('silent'), info: remember, warn: remember, warnOnce: remember},
         server: {host: '127.0.0.1', port: 0},
-        plugins: [
-          makeViteHook(
-            {enabled: true, stateRoot: root},
-            {
-              serverExtensions: realBuiltins.serverExtensions,
-              clientEntries: ['terminal', 'test-runner', 'whiteboard', 'recorder', 'ios'].map((name) =>
-                join(installed, `extension-${name}`, 'dist', 'client.js'),
-              ),
-              embedEntry: join(installed, 'embed', 'dist', 'mount.js'),
-              dedupeEntry: join(installed, 'extension-compiler', 'dist', 'dedupe-extensions.js'),
-            },
-          ),
-        ],
+        plugins: [makeViteHook({enabled: true, stateRoot: root}, builtins)],
       })
       servers.push(server)
       await server.listen()
@@ -1383,9 +1396,15 @@ describe('vite devtools dock', () => {
       await chat.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
       await chat.getByRole('tab', {name: /Recorder/}).click()
       await recorderPlayer
-      expect(logged.filter((line) => /Failed to resolve dependency|optimized dependencies changed/.test(line))).toEqual(
-        [],
-      )
+      expect(
+        logged.filter((line) =>
+          /Failed to resolve dependency|optimized dependencies changed|new dependencies optimized/.test(line),
+        ),
+      ).toEqual([])
+      const metadata: unknown = JSON.parse(readFileSync(join(server.config.cacheDir, 'deps', '_metadata.json'), 'utf8'))
+      expect(metadata).toMatchObject({
+        optimized: {'@conciv/it > @conciv/embed > @conciv/solid-diffs > @tanstack/solid-pacer': expect.anything()},
+      })
       expect(gatewayFailures).toEqual([])
       expect(warnings.filter((warning) => warning.includes('multiple instances of Solid'))).toEqual([])
       await page.close()
