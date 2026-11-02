@@ -2,16 +2,16 @@
 
 ## Overview
 
-`server.ts` defines the `ios` extension with `IosConfigSchema`, the tools `ios_build`, `ios_run`, `ios_screenshot` and `ios_logs`, and `iosSystemPrompt`. It also builds the tool context (config, exec runner, cwd, nativeUrl). `client.tsx` creates a bridge client on top of the `window.webkit.messageHandlers.concivBridge` transport and exposes `window.__concivNative` for calls coming from native. It sends panel open and close commands through the event bus, provides a native grab provider, and renders an alert when the bridge versions are incompatible.
+`server.ts` defines the `ios` Devframe plugin with `IosConfigSchema` and `iosSystemPrompt`, and registers the hub functions `ios:build`, `ios:run`, `ios:screenshot` and `ios:logs`, which reach the agent as the tools `ios_build`, `ios_run`, `ios_screenshot` and `ios_logs`. Its server half builds the tool context (config, exec runner, cwd, nativeUrl) from the conciv host. `client.tsx` creates a bridge client on top of the `window.webkit.messageHandlers.concivBridge` transport and exposes `window.__concivNative` for calls coming from native. It sends panel open and close commands through the event bus, provides a native grab provider, and renders an alert when the bridge versions are incompatible.
 
 ## Interface
 
-- default export (`server.ts`): `defineExtension({name: IOS_NAME, configSchema: IosConfigSchema, tools, systemPrompt: iosSystemPrompt})` with a server context of `{config, runner: makeExecRunner(), cwd, nativeUrl}`
-- tool `ios_build` (`server.ts`): input `{clean?: boolean}`, output `BuildOutputSchema`, approval `ask`, mutating
-- tool `ios_run` (`server.ts`): input `{autoshow?: boolean}`, output `RunOutputSchema`, approval `ask`, mutating
-- tool `ios_screenshot` (`server.ts`): empty input, output `ScreenshotOutputSchema`, read-only
-- tool `ios_logs` (`server.ts`): input `{sinceSeconds?, predicate?, limit?}`, output `LogsOutputSchema`, read-only
-- `ios` / default export (`client.tsx`): client extension named `IOS_NAME` with `Surface: IosBridgeSurface`; its client setup calls `ensureBridge()`
+- default export (`server.ts`): `defineConcivPlugin({id: IOS_NAME, title: 'iOS', configSchema: IosConfigSchema, systemPrompt: iosSystemPrompt})` whose server half registers the four functions with a tool context of `{config, runner: makeExecRunner(), cwd, nativeUrl}`
+- function `ios:build`, agent tool `ios_build` (`server.ts`): input `{clean?: boolean}`, output `BuildOutputSchema`, approval `ask`, mutating
+- function `ios:run`, agent tool `ios_run` (`server.ts`): input `{autoshow?: boolean}`, output `RunOutputSchema`, approval `ask`, mutating
+- function `ios:screenshot`, agent tool `ios_screenshot` (`server.ts`): empty input, output `ScreenshotOutputSchema`, read-only
+- function `ios:logs`, agent tool `ios_logs` (`server.ts`): input `{sinceSeconds?, predicate?, limit?}`, output `LogsOutputSchema`, read-only
+- `ios` / default export (`client.tsx`): client half of the `IOS_NAME` plugin with `Surface: IosBridgeSurface`; the surface calls `ensureBridge()` when it mounts and makes no server calls
 - `makeNativeGrabProvider` (`client.tsx`): returns a `GrabProvider` whose `pick`, `comment`, `cancel`, `isActive` and `grabbable` go through the native bridge
 - `nativePageBase` (`client.tsx`): re-exported from `./shared/page-base.js`
 - global `window.__concivNative` (`client.tsx`): object with `handshake`, `bridgeIncompatible`, `open`, `close`, `grabResult` and `grabCapability`, each forwarding to the bridge with the message `type` set

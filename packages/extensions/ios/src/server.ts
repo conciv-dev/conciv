@@ -1,5 +1,6 @@
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@conciv/extension'
+import {defineConcivFunction} from '@conciv/extension/devframe-function'
+import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
 import {IOS_NAME, IosConfigSchema} from './shared/meta.js'
 import {iosSystemPrompt} from './server/prompt.js'
 import {makeExecRunner} from './server/simctl-runner.js'
@@ -26,79 +27,99 @@ const LogsInput = z.object({
   limit: z.number().int().positive().max(5000).optional(),
 })
 
-const buildTool = defineTool({
-  name: 'ios_build',
-  description: 'Compile the native iOS project for the simulator and report build diagnostics.',
-  inputSchema: BuildInput,
-  outputSchema: BuildOutputSchema,
-  approval: 'ask',
-  streamTitle: 'Building iOS app',
-  meta: {
-    summary: 'compile the native iOS project for the simulator',
-    category: IOS_CATEGORY,
-    mutating: true,
-    keywords: ['ios', 'build', 'compile', 'xcode'],
-    icon: 'script',
-    label: {running: 'Building the iOS app', done: 'Built the iOS app'},
-    hint: 'answers with ok false and an error field when the extension carries no ios config',
-  },
-}).server((input, ctx: IosToolContext) => runBuild(ctx, input))
+function iosFunctions(tools: IosToolContext) {
+  return [
+    defineConcivFunction({
+      name: 'ios:build',
+      type: 'action',
+      agent: {
+        name: 'ios_build',
+        description: 'Compile the native iOS project for the simulator and report build diagnostics.',
+        approval: 'ask',
+        meta: {
+          summary: 'compile the native iOS project for the simulator',
+          category: IOS_CATEGORY,
+          mutating: true,
+          keywords: ['ios', 'build', 'compile', 'xcode'],
+          icon: 'script',
+          label: {running: 'Building the iOS app', done: 'Built the iOS app'},
+          hint: 'answers with ok false and an error field when the extension carries no ios config',
+        },
+      },
+      input: BuildInput,
+      output: BuildOutputSchema,
+      handler: (input) => runBuild(tools, input),
+    }),
+    defineConcivFunction({
+      name: 'ios:run',
+      type: 'action',
+      agent: {
+        name: 'ios_run',
+        description: 'Boot the simulator, install the built app, and launch it so the change is visible.',
+        approval: 'ask',
+        meta: {
+          summary: 'boot the simulator, install the built app, and launch it',
+          category: IOS_CATEGORY,
+          mutating: true,
+          keywords: ['ios', 'run', 'simulator', 'launch'],
+          icon: 'script',
+          label: {running: 'Launching the iOS app', done: 'Launched the iOS app'},
+          hint: 'needs a built app; a failure names the stage it stopped at',
+        },
+      },
+      input: RunInput,
+      output: RunOutputSchema,
+      handler: (input) => runRun(tools, input),
+    }),
+    defineConcivFunction({
+      name: 'ios:screenshot',
+      type: 'query',
+      agent: {
+        name: 'ios_screenshot',
+        description: 'Capture the current simulator screen as a PNG image to verify what is on screen.',
+        meta: {
+          summary: 'capture the current simulator screen as a png image',
+          category: IOS_CATEGORY,
+          mutating: false,
+          keywords: ['ios', 'screenshot', 'screen', 'image'],
+          icon: 'read',
+          label: {running: 'Capturing the screen', done: 'Captured the screen'},
+          hint: 'returns an image part plus a text part carrying the png width and height',
+        },
+      },
+      input: ScreenshotInput,
+      output: ScreenshotOutputSchema,
+      handler: async () => ScreenshotOutputSchema.parse(await runScreenshot(tools)),
+    }),
+    defineConcivFunction({
+      name: 'ios:logs',
+      type: 'query',
+      agent: {
+        name: 'ios_logs',
+        description: 'Return recent simulator log lines, optionally filtered by a log predicate.',
+        meta: {
+          summary: 'return recent simulator log lines',
+          category: IOS_CATEGORY,
+          mutating: false,
+          keywords: ['ios', 'logs', 'simulator'],
+          icon: 'read',
+          label: {running: 'Reading simulator logs', done: 'Read simulator logs'},
+          hint: 'narrow the output with a log predicate and a seconds window',
+        },
+      },
+      input: LogsInput,
+      output: LogsOutputSchema,
+      handler: (input) => runLogs(tools, input),
+    }),
+  ]
+}
 
-const runTool = defineTool({
-  name: 'ios_run',
-  description: 'Boot the simulator, install the built app, and launch it so the change is visible.',
-  inputSchema: RunInput,
-  outputSchema: RunOutputSchema,
-  approval: 'ask',
-  streamTitle: 'Launching iOS app',
-  meta: {
-    summary: 'boot the simulator, install the built app, and launch it',
-    category: IOS_CATEGORY,
-    mutating: true,
-    keywords: ['ios', 'run', 'simulator', 'launch'],
-    icon: 'script',
-    label: {running: 'Launching the iOS app', done: 'Launched the iOS app'},
-    hint: 'needs a built app; a failure names the stage it stopped at',
-  },
-}).server((input, ctx: IosToolContext) => runRun(ctx, input))
-
-const screenshotTool = defineTool({
-  name: 'ios_screenshot',
-  description: 'Capture the current simulator screen as a PNG image to verify what is on screen.',
-  inputSchema: ScreenshotInput,
-  outputSchema: ScreenshotOutputSchema,
-  meta: {
-    summary: 'capture the current simulator screen as a png image',
-    category: IOS_CATEGORY,
-    mutating: false,
-    keywords: ['ios', 'screenshot', 'screen', 'image'],
-    icon: 'read',
-    label: {running: 'Capturing the screen', done: 'Captured the screen'},
-    hint: 'returns an image part plus a text part carrying the png width and height',
-  },
-}).server((_input, ctx: IosToolContext) => runScreenshot(ctx))
-
-const logsTool = defineTool({
-  name: 'ios_logs',
-  description: 'Return recent simulator log lines, optionally filtered by a log predicate.',
-  inputSchema: LogsInput,
-  outputSchema: LogsOutputSchema,
-  meta: {
-    summary: 'return recent simulator log lines',
-    category: IOS_CATEGORY,
-    mutating: false,
-    keywords: ['ios', 'logs', 'simulator'],
-    icon: 'read',
-    label: {running: 'Reading simulator logs', done: 'Read simulator logs'},
-    hint: 'narrow the output with a log predicate and a seconds window',
-  },
-}).server((input, ctx: IosToolContext) => runLogs(ctx, input))
-
-export default defineExtension({
-  name: IOS_NAME,
+export default defineConcivPlugin({
+  id: IOS_NAME,
+  title: 'iOS',
   configSchema: IosConfigSchema,
-  tools: [buildTool, runTool, screenshotTool, logsTool],
   systemPrompt: iosSystemPrompt,
-}).server((server) => ({
-  context: {config: server.config, runner: makeExecRunner(), cwd: server.cwd, nativeUrl: server.nativeUrl},
-}))
+}).server((ctx, host, config) => {
+  const tools: IosToolContext = {config, runner: makeExecRunner(), cwd: host.cwd, nativeUrl: host.nativeUrl}
+  for (const definition of iosFunctions(tools)) ctx.rpc.register(definition)
+})

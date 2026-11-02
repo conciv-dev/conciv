@@ -1,5 +1,5 @@
 import {createSignal, Show, type JSX} from 'solid-js'
-import {defineExtension} from '@conciv/extension'
+import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
 import {createEventBusClient, PANEL_PLUGIN_ID, type PanelCommandEventMap} from '@conciv/protocol/event-bus'
 import type {ElementRect, GrabActions, GrabProvider} from '@conciv/grab'
 import {createBridgeClient, type BridgeClient, type BridgeTransport} from './shared/bridge-client.js'
@@ -143,6 +143,7 @@ export function makeNativeGrabProvider(): GrabProvider {
 }
 
 function IosBridgeSurface(): JSX.Element {
+  ensureBridge()
   return (
     <Show when={incompatible()}>
       {(info) => (
@@ -170,12 +171,6 @@ function IosBridgeSurface(): JSX.Element {
   )
 }
 
-export const ios = defineExtension({
-  name: IOS_NAME,
-  Surface: IosBridgeSurface,
-}).client(() => {
-  ensureBridge()
-  return {value: {}}
-})
+export const ios = defineConcivPlugin({id: IOS_NAME, title: 'iOS'}).client({Surface: IosBridgeSurface})
 
 export default ios

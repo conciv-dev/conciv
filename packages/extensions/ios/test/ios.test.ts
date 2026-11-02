@@ -7,7 +7,6 @@ import {z} from 'zod'
 import type {Grab} from '@conciv/grab'
 import {makeDiscoverTools, makeRunTypescript} from '@conciv/harness-testkit'
 import {start, type Engine} from '@conciv/core'
-import type {AnyExtension} from '@conciv/extension'
 import {
   BridgeAckSchema,
   BridgeIncompatibleSchema,
@@ -930,7 +929,7 @@ describe('server tools', () => {
 })
 
 describe('tool catalog', () => {
-  const extensions: AnyExtension[] = [iosExtension]
+  const extensions = [iosExtension]
 
   async function boot(): Promise<{base: string; engine: Engine}> {
     const engine = await start({
@@ -970,6 +969,18 @@ describe('tool catalog', () => {
           .loose()
           .parse(await runSandbox(base, 'return await external_ios_logs({})'))
         expect(answered.error).toContain('not configured')
+      } finally {
+        await engine.stop()
+      }
+    }, 60_000)
+
+    it('serves every ios tool as a hub function under the ios plugin id', async () => {
+      const {engine} = await boot()
+      try {
+        const {agent} = await engine.hub.context
+        const notConfigured = {ok: false, error: 'ios extension not configured'}
+        for (const name of ['ios:logs', 'ios:screenshot', 'ios:build', 'ios:run'])
+          expect(await agent.invoke(name, [{}]), name).toEqual(notConfigured)
       } finally {
         await engine.stop()
       }
