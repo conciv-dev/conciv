@@ -1,8 +1,8 @@
 import {test} from '@playwright/test'
-import {collectFailures, expectWidgetBoots} from '@conciv/e2e-utils/widget'
+import {collectFailures, expectWidgetBoots, gotoTrusted} from '@conciv/e2e-utils/widget'
 
 test('widget boots from dist in a react vite app', async ({page}) => {
   const failures = collectFailures(page)
-  await page.goto('/', {waitUntil: 'domcontentloaded'})
+  await gotoTrusted(page, '/')
   await expectWidgetBoots(page, failures)
 })

@@ -4,6 +4,7 @@
 '@conciv/embed': patch
 '@conciv/extension': patch
 '@conciv/extension-compiler': patch
+'@conciv/it': patch
 '@conciv/plugin': patch
 '@conciv/protocol': patch
 '@conciv/serve': patch

@@ -1,4 +1,5 @@
-import {expect, type ConsoleMessage, type Page} from '@playwright/test'
+import {expect, test, type ConsoleMessage, type Page} from '@playwright/test'
+import {trustedTab} from '@conciv/extension-testkit/trusted-tab'
 
 export type PageFailures = {
   pageErrors: string[]
@@ -9,6 +10,7 @@ export type PageFailures = {
 
 const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]']
 const OUTDATED_OPTIMIZE_DEP = 'Outdated Optimize Dep'
+const DUPLICATE_SOLID = 'You appear to have multiple instances of Solid'
 
 function redactUrl(url: string): string {
   const parsed = URL.parse(url)
@@ -33,7 +35,9 @@ export function collectFailures(page: Page): PageFailures {
   const failures: PageFailures = {pageErrors: [], consoleErrors: [], requestFailures: [], thirdPartyRequests: []}
   page.on('pageerror', (error) => failures.pageErrors.push(String(error)))
   page.on('console', (message) => {
-    if (message.type() === 'error') failures.consoleErrors.push(describeConsoleMessage(message))
+    if (message.type() === 'error' || message.text().includes(DUPLICATE_SOLID)) {
+      failures.consoleErrors.push(describeConsoleMessage(message))
+    }
   })
   page.on('request', (request) => {
     if (isThirdPartyRequest(request.url())) failures.thirdPartyRequests.push(redactUrl(request.url()))
@@ -81,4 +85,10 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
     failures.consoleErrors.filter((entry) => !transientOptimizerReload.test(entry)),
     detail,
   ).toEqual([])
+}
+
+export async function gotoTrusted(page: Page, path: string): Promise<void> {
+  const appRoot = test.info().project.metadata.appRoot
+  await trustedTab(page, {root: typeof appRoot === 'string' ? appRoot : process.cwd()})
+  await page.goto(path, {waitUntil: 'domcontentloaded'})
 }

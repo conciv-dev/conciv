@@ -3,7 +3,8 @@ import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {promisify} from 'node:util'
-import {buildAndPack} from './harness.js'
+import {buildAndPack} from '@conciv/e2e-utils/packed'
+import {CLOSURE_ROOTS} from './harness.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -16,7 +17,7 @@ export async function runTrustPolicyInstall(): Promise<TrustPolicyInstallResult>
   const tgzDir = join(root, 'tgz')
   mkdirSync(tgzDir, {recursive: true})
   try {
-    const {overrides} = await buildAndPack(tgzDir)
+    const {overrides} = await buildAndPack(tgzDir, CLOSURE_ROOTS)
     const concivIt = overrides['@conciv/it']
     if (concivIt === undefined) throw new Error('buildAndPack did not produce a tarball for @conciv/it')
     writeFileSync(

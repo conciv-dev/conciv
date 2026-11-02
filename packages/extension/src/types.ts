@@ -101,6 +101,7 @@ export type ServerApi<Config> = {
   config: Config
   cwd: string
   basePath: string
+  agentPath: string
   stateDir: string
   sessions: ServerSessions
   harness: ServerHarness

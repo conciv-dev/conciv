@@ -126,8 +126,8 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
 
 export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
   return async (env) => {
-    const {app, dispose, hub, claimUpgrade, loginToken} = await bootMadeApp(env, overrides)
-    return {fetch: app.fetch, dispose, hub, claimUpgrade, loginToken}
+    const {fetch, dispose, hub, claimUpgrade, loginToken} = await bootMadeApp(env, overrides)
+    return {fetch, dispose, hub, claimUpgrade, loginToken}
   }
 }
 

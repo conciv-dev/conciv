@@ -99,7 +99,7 @@ describe('bridge', () => {
   }
 
   function pointProjectAt(dir: string, mcpUrl: string): void {
-    const file = claudeConnectEndpointFile({stateDir: concivStateDir(dir), mcpUrl})
+    const file = claudeConnectEndpointFile({stateDir: concivStateDir(dir), mcpUrl, token: 'tok-project'})
     mkdirSync(dirname(file.path), {recursive: true})
     writeFileSync(file.path, file.contents)
   }
@@ -626,19 +626,19 @@ describe('plugin files', () => {
   describe('claude connect endpoint file', () => {
     it('records the dev server url outside the plugin tree that claude copies into its cache', () => {
       const stateDir = '/first/.conciv'
-      const file = claudeConnectEndpointFile({stateDir, mcpUrl: FIRST_URL})
+      const file = claudeConnectEndpointFile({stateDir, mcpUrl: FIRST_URL, token: 'tok-first'})
 
       expect(file.path).toBe(claudeConnectEndpointPath(stateDir))
       expect(inside(claudeConnectDir(stateDir), file.path)).toBe(false)
-      expect(JSON.parse(file.contents)).toEqual({mcpUrl: FIRST_URL})
+      expect(JSON.parse(file.contents)).toEqual({mcpUrl: FIRST_URL, token: 'tok-first'})
     })
 
     it('gives each project its own endpoint file', () => {
-      const first = claudeConnectEndpointFile({stateDir: '/first/.conciv', mcpUrl: FIRST_URL})
-      const second = claudeConnectEndpointFile({stateDir: '/second/.conciv', mcpUrl: SECOND_URL})
+      const first = claudeConnectEndpointFile({stateDir: '/first/.conciv', mcpUrl: FIRST_URL, token: 'tok-first'})
+      const second = claudeConnectEndpointFile({stateDir: '/second/.conciv', mcpUrl: SECOND_URL, token: 'tok-second'})
 
       expect(first.path).not.toBe(second.path)
-      expect(JSON.parse(second.contents)).toEqual({mcpUrl: SECOND_URL})
+      expect(JSON.parse(second.contents)).toEqual({mcpUrl: SECOND_URL, token: 'tok-second'})
     })
   })
 })
