@@ -36,7 +36,7 @@ const DIFF_FILES = '[color:var(--chat-text-3)]'
 const DIFF_ADDS = '[color:var(--chat-success)]'
 const DIFF_DELS = '[color:var(--chat-danger)]'
 const VIEW_GROUP = 'flex-1 flex items-stretch justify-end min-w-0'
-const VIEW_LIST = 'relative flex items-stretch min-w-0'
+const VIEW_LIST = 'relative flex items-stretch min-w-0 overflow-x-auto overscroll-x-contain [scrollbar-width:none]'
 const VIEW_BTN =
   'flex-none inline-flex items-center gap-1.5 px-2.5 text-[length:var(--chat-text-xs)] font-medium [color:var(--chat-text-2)] bg-transparent [border-block:none] [border-inline-end:none] [border-inline-start:1px_solid_var(--chat-line-soft)] cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:opacity-40 disabled:cursor-default data-[selected]:[color:var(--chat-text-hi)] data-[selected]:[background:var(--chat-fill)]'
 const VIEW_INDICATOR =
