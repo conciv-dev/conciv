@@ -87,6 +87,7 @@
     "@jridgewell/trace-mapping": "0.3.31",
     "@modelcontextprotocol/sdk": "catalog:",
     "@orpc/server": "catalog:",
+    "@tanstack/pacer": "catalog:",
     "devframe": "catalog:",
     "drizzle-orm": "catalog:",
     "hono": "catalog:",

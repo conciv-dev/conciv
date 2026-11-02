@@ -38,6 +38,7 @@ import {NoticeContextProvider, NoticeSurface} from '../src/shell/notice-context.
 import {onlineManager} from '@tanstack/query-core'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
+import {hubFor, type HubConnection} from '../src/app/devframe-link.js'
 import {afterAll, afterEach, beforeAll, expect} from 'vitest'
 import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
 import {ChatPane} from '../src/pane/chat-pane.js'
@@ -166,7 +167,7 @@ function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
   )
   const queryClient = new QueryClient()
   const announce = options.announce
-  const data = makeAppData(rpc, queryClient)
+  const data = makeAppData(rpc, undefined, queryClient)
   const connected = () => true
   return {
     rpc,
@@ -323,13 +324,24 @@ type ShellHarness = {
 }
 
 export function createShellHarness(base: () => string): ShellHarness {
-  const mounted: {router: ReturnType<typeof createConcivRouter> | null} = {router: null}
+  const mounted: {
+    router: ReturnType<typeof createConcivRouter> | null
+    hub: HubConnection | null
+    unmount: () => void
+  } = {
+    router: null,
+    hub: null,
+    unmount: () => {},
+  }
 
   const mountShell = (entry: string, extensions: AnyExtension[] = [], options: ShellMountOptions = {}): void => {
     const apiBase = base()
     window.__CONCIV_API_BASE__ = apiBase
+    const hub = hubFor(apiBase)
+    mounted.hub = hub
     const router = createConcivRouter({
       rpc: makeBrowserRpcClient(apiBase).rpc,
+      hubConnection: () => hub,
       history: createMemoryHistory({initialEntries: [entry]}),
       environment: {rootNode: document, document},
       settings: parseConcivSettings(options.transport ? JSON.stringify({transport: options.transport}) : ''),
@@ -338,12 +350,16 @@ export function createShellHarness(base: () => string): ShellHarness {
       extensions,
     })
     mounted.router = router
-    render(() => <RouterProvider router={router} />)
+    mounted.unmount = render(() => <RouterProvider router={router} />).unmount
   }
 
   const dispose = (): void => {
+    mounted.unmount()
+    mounted.unmount = () => {}
     if (mounted.router) disposeConcivRouter(mounted.router)
     mounted.router = null
+    mounted.hub?.close()
+    mounted.hub = null
     closeBrowserRpcConnection(base())
     onlineManager.setOnline(true)
     delete window.__CONCIV_API_BASE__

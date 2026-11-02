@@ -11,6 +11,7 @@ export type CallGate = {arrived: Promise<void>; release: () => void}
 export type CallRecord = {name: string; input: unknown}
 export type CallObserver = {calls: () => CallRecord[]; stop: () => void}
 export type CallCursor = {count: () => number}
+export type CallCompletion = {completed: Promise<void>; stop: () => void}
 
 async function wrapCalls(kit: FaultKit, names: readonly string[], wrap: Wrap): Promise<() => void> {
   const context = await kit.hubInstance.context
@@ -69,6 +70,16 @@ export async function gateCalls(kit: FaultKit, names: readonly string[]): Promis
       gate.resolve()
     },
   }
+}
+
+export async function awaitCompletedCall(kit: FaultKit, names: readonly string[]): Promise<CallCompletion> {
+  const completed = Promise.withResolvers<void>()
+  const stop = await wrapCalls(kit, names, async (invoke, args) => {
+    const result = await invoke(...args)
+    completed.resolve()
+    return result
+  })
+  return {completed: completed.promise, stop}
 }
 
 export async function observeCalls(kit: FaultKit, pattern: RegExp): Promise<CallObserver> {

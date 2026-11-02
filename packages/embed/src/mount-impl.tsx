@@ -1,4 +1,4 @@
-import {createEffect, createRoot, createSignal, onCleanup} from 'solid-js'
+import {createEffect, createMemo, createRoot, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
@@ -18,7 +18,7 @@ import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
 import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
-import {hasLoginToken, hubFor, renderLogin, type HubConnection} from '@conciv/app/devframe-link'
+import {hasLoginToken, hubBaseOf, hubFor, renderLogin, type HubConnection} from '@conciv/app/devframe-link'
 import {makeNavigationStorage} from './navigation-storage.js'
 import type {ConcivInit} from './mount.js'
 
@@ -127,7 +127,30 @@ type BootNormalConfig = {
   apiBase: string | null
   grabProvider?: GrabProvider
   connectMode?: boolean
-  hub?: HubConnection
+  hub?: LinkedHub
+}
+
+type LinkedHub = {base: string; connection: HubConnection}
+
+function createFollowedHub(
+  initial: LinkedHub,
+  apiBase: Accessor<string | null>,
+): {hub: Accessor<HubConnection>; close: () => void} {
+  return createRoot((dispose) => {
+    const linked = createMemo<LinkedHub>((previous) => {
+      const nextApiBase = apiBase()
+      if (nextApiBase === null || hubBaseOf(nextApiBase) === previous.base) return previous
+      previous.connection.close()
+      return {base: hubBaseOf(nextApiBase), connection: hubFor(nextApiBase)}
+    }, initial)
+    return {
+      hub: () => linked().connection,
+      close: () => {
+        linked().connection.close()
+        dispose()
+      },
+    }
+  })
 }
 
 type MountedRouter = {options: {context: {instances: {extension: ClientExtension; effects: readonly ClientEffect[]}[]}}}
@@ -152,6 +175,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
   const [connectionGeneration, setConnectionGeneration] = createSignal(0)
   const [boundApiBase, setApiBase] = createSignal(config.apiBase)
   const apiBase = (): string => boundApiBase() ?? ''
+  const followed = config.hub ? createFollowedHub(config.hub, boundApiBase) : undefined
 
   const activeSession = makeActiveSessionBinding((session) =>
     startSessionPagePlane({
@@ -169,7 +193,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
   const interactive = createInteractiveSignal()
   const router = createConcivRouter({
     rpc,
-    hubConnection: config.hub,
+    hubConnection: followed?.hub,
     history: createWebStorageHistory({storage}),
     environment: {rootNode: config.root, document},
     settings: config.settings,
@@ -225,7 +249,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     () => router.options.context.queryClient.clear(),
     driver.dispose,
     closeConnection,
-    () => config.hub?.close(),
+    () => followed?.close(),
     interactive.notify,
   ]
   return {dispose: () => runDisposers(disposers), rebind, interactive: interactive.promise}
@@ -295,7 +319,11 @@ function bootConnect(config: BootConnectConfig): BootResult {
 function bootLinked(config: BootNormalConfig & {apiBase: string}): BootResult {
   const hub = hubFor(config.apiBase)
   window.__CONCIV_API_BASE__ = config.apiBase
-  const booted = bootNormal({...config, apiBase: hasLoginToken(config.apiBase) ? config.apiBase : null, hub})
+  const booted = bootNormal({
+    ...config,
+    apiBase: hasLoginToken(config.apiBase) ? config.apiBase : null,
+    hub: {base: hubBaseOf(config.apiBase), connection: hub},
+  })
   const disposeLogin = renderLogin(config.root, hub, config.apiBase, (trustedApiBase) => {
     if (trustedApiBase === window.__CONCIV_API_BASE__) return
     window.__CONCIV_API_BASE__ = trustedApiBase

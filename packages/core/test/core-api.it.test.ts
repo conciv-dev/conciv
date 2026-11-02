@@ -17,7 +17,7 @@ import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEa
 import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {cappedValue} from '@conciv/chat'
-import {type EngineStaleness, makeRpcClient as makeContractRpcClient} from '@conciv/contract'
+import {type EngineStaleness, makeRpcClient as makeContractRpcClient, type SessionMeta} from '@conciv/contract'
 import {
   defineExtension,
   defineTool,
@@ -992,7 +992,7 @@ describe('api page tool capture', () => {
     it('drops a session capture and its unreferenced css bundle when the session is deleted', async () => {
       const {sessionId, call} = await capturing()
       await call('page_fill', {selector: '#email', value: SECRET})
-      await kit().rpc.sessions.delete({sessionId})
+      await kit().hub.call('conciv:sessions:delete', {sessionId})
       const stored = await kit().rpc.captures.list({sessionId})
       expect(stored.captures).toEqual([])
       expect(stored.cssBundles).toEqual({})
@@ -1155,7 +1155,7 @@ describe('rpc wire', () => {
 
       it('server reads and widget writes without a bundler bridge report NO_BUNDLER', async () => {
         await expect(kit().rpc.server.config(undefined)).rejects.toMatchObject({code: 'NO_BUNDLER'})
-        const {sessionId} = await kit().rpc.sessions.create(undefined)
+        const {sessionId} = await kit().hub.call('conciv:sessions:create', {})
         const widget = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, origin: kit().base}})
         await expect(widget.server.reload({file: 'src/a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
       })
@@ -1322,7 +1322,7 @@ describe('rpc wire', () => {
       ])
       expect(await kit.rpc.server.transform({url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
       expect(await kit.rpc.server.urls(undefined)).toEqual({local: ['http://localhost:3000'], network: []})
-      const {sessionId} = await kit.rpc.sessions.create(undefined)
+      const {sessionId} = await kit.hub.call('conciv:sessions:create', {})
       const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       await expect(sessionRpc.server.reload({file: 'src/hot.ts'})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
       await expect(sessionRpc.server.restart({force: true})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
@@ -1400,7 +1400,7 @@ describe('rpc wire', () => {
         expect(lastRunOf(sessionId)).toMatchObject({model: undefined, resumeSessionId: null})
         expect(lastRunOf(sessionId).messages).not.toMatch(/previous conversation/i)
         const before = await thread(sessionId)
-        await chatKit().rpc.sessions.model({sessionId, model: 'haiku'})
+        await chatKit().hub.call('conciv:sessions:model', {sessionId, model: 'haiku'})
         await finished(sessionId, 'second question')
         expect(lastRunOf(sessionId)).toMatchObject({model: 'haiku', resumeSessionId: null})
         expect(lastRunOf(sessionId).messages).toContain('first question')
@@ -1515,10 +1515,10 @@ describe('rpc wire', () => {
         const sessionId = await newSession()
         await heldTurn(sessionId, 'delete me', 'deleted-run')
         const ended = nextTurnEnd(sessionId)
-        await chatKit().rpc.sessions.delete({sessionId})
+        await chatKit().hub.call('conciv:sessions:delete', {sessionId})
         await ended
         expect((await chatKit().hydrate(sessionId)).activeRun).toBeNull()
-        expect((await chatKit().rpc.sessions.list(undefined)).some((meta) => meta.id === sessionId)).toBe(false)
+        expect((await chatKit().hub.call('conciv:sessions:list', {})).some((meta) => meta.id === sessionId)).toBe(false)
       })
     })
 
@@ -1550,6 +1550,15 @@ describe('rpc wire', () => {
         expect((await chatKit().hydrate(sessionId)).activeRun).toBeNull()
         expect((await sessionMeta(sessionId)).running).toBe(false)
       })
+
+      it('publishes the running flag and the turn title to the session list in shared state', async () => {
+        const sessionId = await newSession()
+        const {turn} = await heldTurn(sessionId, 'published turn')
+        expect(await publishedMeta(sessionId, (meta) => meta.running)).toMatchObject({running: true})
+        script().release()
+        await turn.done(GUARD)
+        expect(await publishedMeta(sessionId, (meta) => !meta.running)).toMatchObject({title: 'published turn'})
+      }, 5_000)
 
       it('a reload that drops the socket mid-turn leaves the turn running to the end, and the reloaded page rejoins it', async () => {
         const sessionId = await newSession()
@@ -1727,7 +1736,7 @@ describe('rpc wire', () => {
       it('a session option counts its messages right after a turn', async () => {
         const sessionId = await newSession()
         await finished(sessionId, 'count me')
-        const row = (await chatKit().rpc.sessions.list(undefined)).find((meta) => meta.id === sessionId)
+        const row = (await chatKit().hub.call('conciv:sessions:list', {})).find((meta) => meta.id === sessionId)
         expect(row?.messageCount).toBe(2)
       })
     })
@@ -1781,8 +1790,8 @@ describe('rpc wire', () => {
         const sessionStream = await chatKit().events(sessionId)
         script().hold()
         const compacts = Promise.all([
-          chatKit().rpc.sessions.compact({sessionId}),
-          chatKit().rpc.sessions.compact({sessionId}),
+          chatKit().hub.call('conciv:sessions:compact', {sessionId}),
+          chatKit().hub.call('conciv:sessions:compact', {sessionId}),
         ])
         const first = sessionRunIdOf(await sessionStream.waitFor((chunk) => sessionRunIdOf(chunk) !== null, GUARD))
         await sessionStream.waitFor((chunk) => ![null, first].includes(sessionRunIdOf(chunk)), GUARD)
@@ -1809,8 +1818,11 @@ describe('rpc wire', () => {
     describe('terminal sessions', () => {
       it('a session started in the terminal opens with its turns, outlives its file, and picks up new ones', async () => {
         const transcript = writeTranscript(TERMINAL_ID, terminalTurns(['terminal one', 'terminal two']))
-        const {sessionId} = await chatKit().rpc.sessions.resolve({id: TERMINAL_ID})
+        const {sessionId} = await chatKit().hub.call('conciv:sessions:resolve', {id: TERMINAL_ID})
         expect(await threadUserTexts(sessionId)).toEqual(['terminal one', 'terminal two'])
+        const {native} = await sessionMeta(sessionId)
+        expect(native).not.toBeNull()
+        if (native) expect(await chatKit().hub.call('conciv:sessions:open', native)).toEqual({sessionId})
         expect((await sessionMeta(sessionId)).origin).toBe('external')
         rmSync(transcript)
         expect(await threadUserTexts(sessionId)).toEqual(['terminal one', 'terminal two'])
@@ -1891,21 +1903,23 @@ describe('rpc wire', () => {
         const latest = await newSession()
         await finished(latest, 'make it the latest')
         await headerMcpCall({})
-        expect((await chatKit().rpc.sessions.resolve({})).sessionId).toBe(latest)
+        expect((await chatKit().hub.call('conciv:sessions:resolve', {})).sessionId).toBe(latest)
       })
 
       it('opening by id keeps ours, creates an unknown one, and adopts a CLI or agent session exactly once', async () => {
         const ours = await newSession()
-        expect((await chatKit().rpc.sessions.resolve({id: ours})).sessionId).toBe(ours)
-        expect((await chatKit().rpc.sessions.resolve({id: UNKNOWN_SESSION})).sessionId).toBe(UNKNOWN_SESSION)
-        const adopted = (await chatKit().rpc.sessions.resolve({id: 'native-adopt-1'})).sessionId
-        expect((await chatKit().rpc.sessions.resolve({id: 'native-adopt-1'})).sessionId).toBe(adopted)
+        expect((await chatKit().hub.call('conciv:sessions:resolve', {id: ours})).sessionId).toBe(ours)
+        expect((await chatKit().hub.call('conciv:sessions:resolve', {id: UNKNOWN_SESSION})).sessionId).toBe(
+          UNKNOWN_SESSION,
+        )
+        const adopted = (await chatKit().hub.call('conciv:sessions:resolve', {id: 'native-adopt-1'})).sessionId
+        expect((await chatKit().hub.call('conciv:sessions:resolve', {id: 'native-adopt-1'})).sessionId).toBe(adopted)
         const adoptedStream = await chatKit().events(adopted)
         await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: 'native-adopt-1'})
         await adoptedStream.waitFor((chunk) => chunk.type === ChatEventType.TOOL_CALL_RESULT, GUARD)
         await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: 'agent-native-1'})
         await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: 'agent-native-1'})
-        const listed = await chatKit().rpc.sessions.list({includeHidden: true})
+        const listed = await chatKit().hub.call('conciv:sessions:list', {includeHidden: true})
         expect(listed.filter((meta) => meta.native?.nativeId === 'agent-native-1')).toHaveLength(1)
       })
 
@@ -1915,18 +1929,37 @@ describe('rpc wire', () => {
         await finished(kept, 'title from me')
         await finished(removed, 'clear me')
         expect(await sessionMeta(kept)).toMatchObject({origin: 'conciv', title: 'title from me'})
-        await chatKit().rpc.sessions.rename({sessionId: kept, title: '  renamed  '})
+        await chatKit().hub.call('conciv:sessions:rename', {sessionId: kept, title: '  renamed  '})
         expect((await sessionMeta(kept)).title).toBe('renamed')
+        await expect(
+          chatKit().hub.call('conciv:sessions:rename', {sessionId: NEVER_MADE, title: 'x'}),
+        ).rejects.toMatchObject({
+          code: 'NOT_FOUND',
+          message: 'session not found',
+        })
+        await expect(
+          chatKit().hub.call('conciv:sessions:model', {sessionId: kept, model: 'no-such-model'}),
+        ).rejects.toMatchObject({
+          code: 'UNKNOWN_MODEL',
+        })
         await expect(chatKit().rpc.sessions.rename({sessionId: NEVER_MADE, title: 'x'})).rejects.toMatchObject({
           code: 'NOT_FOUND',
+          message: 'session not found',
+          defined: true,
         })
         await expect(chatKit().rpc.sessions.model({sessionId: kept, model: 'no-such-model'})).rejects.toMatchObject({
           code: 'UNKNOWN_MODEL',
+          defined: true,
         })
-        await chatKit().rpc.sessions.delete({sessionId: removed})
-        expect((await chatKit().rpc.sessions.list(undefined)).map((meta) => meta.id)).not.toContain(removed)
+        await expect(chatKit().hub.call('conciv:sessions:rename', {sessionId: kept, title: ''})).rejects.toMatchObject({
+          code: 'BAD_REQUEST',
+        })
+        await chatKit().hub.call('conciv:sessions:delete', {sessionId: removed})
+        expect((await chatKit().hub.call('conciv:sessions:list', {})).map((meta) => meta.id)).not.toContain(removed)
         expect(await thread(removed)).toEqual([])
         expect(await threadUserTexts(kept)).toEqual(['title from me'])
+        expect(await chatKit().hub.call('conciv:sessions:restore', {sessionId: removed})).toEqual({sessionId: removed})
+        expect((await chatKit().hub.call('conciv:sessions:list', {})).map((meta) => meta.id)).toContain(removed)
       })
     })
 
@@ -2411,7 +2444,7 @@ return seen`
   }
 
   async function newSession(): Promise<string> {
-    return (await chatKit().rpc.sessions.create()).sessionId
+    return (await chatKit().hub.call('conciv:sessions:create', {})).sessionId
   }
 
   function send(
@@ -2474,8 +2507,26 @@ return seen`
     return `try { await ${call} } catch (error) { return String(error.message) }`
   }
 
+  async function publishedMeta(sessionId: string, reached: (meta: SessionMeta) => boolean) {
+    const context = await chatKit().hubInstance.context
+    const state = await context.rpc.sharedState.get<SessionMeta[]>('conciv:sessions')
+    const matching = () => state.value().find((meta) => meta.id === sessionId && reached(meta))
+    return new Promise<SessionMeta>((resolve) => {
+      const now = matching()
+      if (now) return resolve(now)
+      const off = state.on('updated', () => {
+        const next = matching()
+        if (!next) return
+        off()
+        resolve(next)
+      })
+    })
+  }
+
   async function sessionMeta(sessionId: string) {
-    const meta = (await chatKit().rpc.sessions.list({includeHidden: true})).find((entry) => entry.id === sessionId)
+    const meta = (await chatKit().hub.call('conciv:sessions:list', {includeHidden: true})).find(
+      (entry) => entry.id === sessionId,
+    )
     if (meta === undefined) throw new Error(`session ${sessionId} is not listed`)
     return meta
   }

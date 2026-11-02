@@ -26,6 +26,7 @@ import {bootKit} from './helpers.js'
 
 const TICKS_CHANNEL = 'hub-probe:ticks'
 const SHARED_STATE = 'hub-probe:shared'
+const SESSIONS_STATE = 'conciv:sessions'
 const PLUGIN_FRAME = 'devframes_plugin_terminals/'
 
 const hubProbe = defineConcivPlugin({id: 'hub-probe', title: 'Hub probe'}).server(async (ctx) => {
@@ -202,6 +203,37 @@ describe('conciv hub', () => {
     await Promise.all(tabs.map((tab) => tab.close()))
   }, 15_000)
 
+  it('publishes the session list to shared state when a session changes', async () => {
+    const tab = await trustedTab(browser, host.url, kit.hubUrl)
+    const seen = tab.evaluate(
+      ({key, title}) =>
+        new Promise<string>((resolve) => {
+          window.concivProbe.readSharedState<{id: string; title: string}[]>(window.concivConnection, key, (value) => {
+            const match = value.find((meta) => meta.title === title)
+            if (match) resolve(match.id)
+          })
+        }),
+      {key: SESSIONS_STATE, title: 'published title'},
+    )
+    const renamed = async (): Promise<string> => {
+      const {sessionId} = await kit.hub.call('conciv:sessions:create', {})
+      await kit.hub.call('conciv:sessions:rename', {sessionId, title: 'published title'})
+      return sessionId
+    }
+    const [seenId, sessionId] = await Promise.all([seen, renamed()])
+    expect(seenId).toBe(sessionId)
+    await tab.close()
+  }, 15_000)
+
+  it('leaves the latest session list in shared state after concurrent changes', async () => {
+    const {sessionId} = await kit.hub.call('conciv:sessions:create', {})
+    const titles = Array.from({length: 16}, (_, index) => `concurrent ${index}`)
+    await Promise.all(titles.map((title) => kit.hub.call('conciv:sessions:rename', {sessionId, title})))
+    const context = await kit.hubInstance.context
+    const state = await context.rpc.sharedState.get(SESSIONS_STATE)
+    expect(state.value()).toEqual(await kit.hub.call('conciv:sessions:list', {}))
+  })
+
   it('stops writing shared state once the reader is released', async () => {
     const tab = await trustedTab(browser, host.url, kit.hubUrl)
     const outcome = tab.evaluate(
@@ -360,6 +392,50 @@ describe('conciv hub', () => {
     expect(route.status).toBe(404)
     expect(kit.hubInstance.connectionMeta().mcp).toBeUndefined()
   }, 10_000)
+
+  it('connects a page on the hub origin through a path-only base', async () => {
+    const page = await browser.newPage()
+    try {
+      await page.goto(new URL('__connection.json', kit.hubUrl).href, {waitUntil: 'domcontentloaded'})
+      await page.addScriptTag({content: await probeScript(), type: 'module'})
+      await page.waitForFunction(() => 'concivProbe' in window)
+      const metaBase = await page.evaluate(async (baseURL) => {
+        const connection = window.concivProbe.browserClient({baseURL})
+        const base = (await connection.ready()).connection.metaBaseUrl
+        connection.close()
+        return base
+      }, new URL(kit.hubUrl).pathname)
+      expect(metaBase?.startsWith(kit.hubUrl)).toBe(true)
+    } finally {
+      await page.close()
+    }
+  }, 15_000)
+
+  it('connects a page that moves to another engine to that engine, not the first one it met', async () => {
+    const second = await bootKit({}, createFakeHarness({id: 'fake-hub-second'}))
+    const page = await browser.newPage()
+    try {
+      await page.goto(host.url, {waitUntil: 'domcontentloaded'})
+      await page.waitForFunction(() => 'concivProbe' in window)
+      const metaBases = await page.evaluate(
+        async ({firstURL, secondURL}) => {
+          const first = window.concivProbe.browserClient({baseURL: firstURL})
+          const firstBase = (await first.ready()).connection.metaBaseUrl
+          first.close()
+          const next = window.concivProbe.browserClient({baseURL: secondURL})
+          const secondBase = (await next.ready()).connection.metaBaseUrl
+          next.close()
+          return [firstBase, secondBase]
+        },
+        {firstURL: kit.hubUrl, secondURL: second.hubUrl},
+      )
+      expect(metaBases[0]?.startsWith(kit.hubUrl)).toBe(true)
+      expect(metaBases[1]?.startsWith(second.hubUrl)).toBe(true)
+    } finally {
+      await page.close()
+      await second.cleanup()
+    }
+  }, 30_000)
 
   it('registers no WebMCP tool from a page client', async () => {
     const page = await browser.newPage()

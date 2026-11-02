@@ -186,8 +186,8 @@ export type ResumeScenarioOpts = {
 export async function assertTurnAndResume(opts: ResumeScenarioOpts): Promise<void> {
   const kit = await bootKit({cwd: opts.dir}, opts.harness)
   try {
-    const sessionId = (await kit.rpc.sessions.resolve({id: opts.sessionId})).sessionId
-    if (opts.model) await kit.rpc.sessions.model({sessionId, model: opts.model})
+    const sessionId = (await kit.hub.call('conciv:sessions:resolve', {id: opts.sessionId})).sessionId
+    if (opts.model) await kit.hub.call('conciv:sessions:model', {sessionId, model: opts.model})
     const first = await (
       await kit.turn('Remember the token PLUM42. Reply with exactly OK.', {session: sessionId})
     ).done()

@@ -27,7 +27,7 @@ import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
-const SessionIdInput = z.object({sessionId: SessionId})
+export const SessionIdInputSchema = z.object({sessionId: SessionId})
 const ChatPendingInterruptSchema = z.object({
   id: z.string(),
   reason: z.string(),
@@ -50,7 +50,7 @@ export const ChatHydrationSchema = z.object({
   interrupts: z.object({runId: z.string(), pending: z.array(ChatPendingInterruptSchema)}).nullable(),
 })
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
-const Ok = z.object({ok: z.literal(true)})
+export const OkSchema = z.object({ok: z.literal(true)})
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
@@ -102,47 +102,51 @@ export const EngineStalenessSchema = z.object({
 
 export type EngineStaleness = z.infer<typeof EngineStalenessSchema>
 
+export const SessionsListInputSchema = z.object({includeHidden: z.boolean().optional()})
+export const SessionsListOutputSchema = z.array(SessionMetaSchema)
+export const SessionsResolveInputSchema = z.object({id: z.string().optional()})
+export const SessionsRenameInputSchema = SessionIdInputSchema.extend({title: z.string().min(1).max(120)})
+export const SessionsRenameOutputSchema = z.object({title: z.string()})
+export const SessionsModelInputSchema = SessionIdInputSchema.extend({model: z.string()})
+export const SessionsModelOutputSchema = z.object({model: z.string()})
+export const sessionsRenameErrors = notFound
+export const sessionsModelErrors = {...notFound, UNKNOWN_MODEL: {message: 'unknown or disabled model'}}
+
 export const contract = {
   sessions: {
-    list: oc.input(z.object({includeHidden: z.boolean().optional()}).nullish()).output(z.array(SessionMetaSchema)),
-    create: oc.output(SessionIdInput),
-    resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
-    open: oc.input(NativeSessionRefSchema).output(SessionIdInput),
-    restore: oc.input(SessionIdInput).output(SessionIdInput),
-    rename: oc
-      .errors(notFound)
-      .input(SessionIdInput.extend({title: z.string().min(1).max(120)}))
-      .output(z.object({title: z.string()})),
-    delete: oc.input(SessionIdInput).output(Ok),
-    model: oc
-      .errors({...notFound, UNKNOWN_MODEL: {message: 'unknown or disabled model'}})
-      .input(SessionIdInput.extend({model: z.string()}))
-      .output(z.object({model: z.string()})),
-    compact: oc.input(SessionIdInput).output(Ok),
+    list: oc.input(SessionsListInputSchema.nullish()).output(SessionsListOutputSchema),
+    create: oc.output(SessionIdInputSchema),
+    resolve: oc.input(SessionsResolveInputSchema).output(SessionIdInputSchema),
+    open: oc.input(NativeSessionRefSchema).output(SessionIdInputSchema),
+    restore: oc.input(SessionIdInputSchema).output(SessionIdInputSchema),
+    rename: oc.errors(sessionsRenameErrors).input(SessionsRenameInputSchema).output(SessionsRenameOutputSchema),
+    delete: oc.input(SessionIdInputSchema).output(OkSchema),
+    model: oc.errors(sessionsModelErrors).input(SessionsModelInputSchema).output(SessionsModelOutputSchema),
+    compact: oc.input(SessionIdInputSchema).output(OkSchema),
   },
   drafts: {
-    get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
-    set: oc.input(DraftRowSchema.omit({updatedAt: true})).output(Ok),
+    get: oc.input(SessionIdInputSchema).output(DraftRowSchema.nullable()),
+    set: oc.input(DraftRowSchema.omit({updatedAt: true})).output(OkSchema),
   },
   markers: {
-    list: oc.input(SessionIdInput).output(z.array(MarkerRowSchema)),
+    list: oc.input(SessionIdInputSchema).output(z.array(MarkerRowSchema)),
   },
   navigation: {
     get: oc.output(NavigationWriteSchema.nullable()),
     set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
   },
   chat: {
-    events: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    hydrate: oc.input(SessionIdInput).output(ChatHydrationSchema),
-    stop: oc.input(SessionIdInput.extend({runIds: z.array(z.string().min(1))})).output(Ok),
+    events: oc.input(SessionIdInputSchema).output(eventIterator(StreamChunkSchema)),
+    hydrate: oc.input(SessionIdInputSchema).output(ChatHydrationSchema),
+    stop: oc.input(SessionIdInputSchema.extend({runIds: z.array(z.string().min(1))})).output(OkSchema),
     permissionDecision: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending approval'}})
       .input(PermissionDecisionSchema)
-      .output(Ok.extend({startsTurn: z.boolean()})),
+      .output(OkSchema.extend({startsTurn: z.boolean()})),
     uiReply: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending ui question'}})
-      .input(SessionIdInput.extend({toolCallId: z.string(), value: UiAnswerValueSchema}))
-      .output(Ok),
+      .input(SessionIdInputSchema.extend({toolCallId: z.string(), value: UiAnswerValueSchema}))
+      .output(OkSchema),
   },
   registry: {
     catalog: oc.output(z.array(ToolCommandSignatureSchema)),
@@ -152,17 +156,17 @@ export const contract = {
       .output(z.unknown()),
   },
   captures: {
-    list: oc.input(SessionIdInput).output(SessionCapturesSchema),
+    list: oc.input(SessionIdInputSchema).output(SessionCapturesSchema),
   },
   page: {
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
     changes: oc.output(z.array(PageChangeEntrySchema)),
-    clearChanges: oc.output(Ok),
+    clearChanges: oc.output(OkSchema),
     queries: oc.output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
     reply: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending request'}})
       .input(PageReplySchema)
-      .output(Ok),
+      .output(OkSchema),
   },
   server: {
     config: oc.errors(noBundler).output(BundlerConfigSchema),
@@ -182,19 +186,19 @@ export const contract = {
     reload: oc
       .errors({...noBundler, ...approvalDenied})
       .input(z.object({file: z.string()}))
-      .output(Ok),
+      .output(OkSchema),
     restart: oc
       .errors({...noBundler, ...approvalDenied})
       .input(z.object({force: z.boolean().default(false)}))
-      .output(Ok),
+      .output(OkSchema),
   },
   editor: {
-    open: oc.input(EditorOpenInputSchema).output(Ok),
+    open: oc.input(EditorOpenInputSchema).output(OkSchema),
     openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
   },
   meta: {
     models: oc.output(ChatModelsSchema),
-    commands: oc.input(SessionIdInput).output(ChatCommandsSchema),
+    commands: oc.input(SessionIdInputSchema).output(ChatCommandsSchema),
     tools: oc.output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
   },

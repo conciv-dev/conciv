@@ -36,16 +36,18 @@ import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-a
 import {watchChatWire} from '@conciv/extension-testkit/chat-wire'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder'
 import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
-import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
+import {holdRpcCalls, failRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {Buffer} from 'node:buffer'
 import type {DraftRow} from '@conciv/contract'
-import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
+import {awaitCompletedCall, gateCalls} from '@conciv/extension-testkit/devframe-faults'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/extension-testkit/connect-handshake'
 import {makeExtRpcClient} from '@conciv/extension'
+
+const SESSIONS_LIST_CALL = 'conciv:sessions:list'
 
 test.describe('embed boot', () => {
   const ASSISTANT_TEXT = 'Hello from conciv'
@@ -664,11 +666,12 @@ test.describe('idle fetch heartbeat', () => {
       page,
     }) => {
       test.setTimeout(120_000)
-      const wire = watchRpcWire(page)
+      const listed = await awaitCompletedCall(suite.kit(), [SESSIONS_LIST_CALL])
       const hold = await holdRpcCalls(page)
       await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
       await openChatPanel(page)
-      await wire.sessionsBootTraffic()
+      await listed.completed
+      listed.stop()
 
       hold.hold()
 
@@ -838,7 +841,7 @@ test.describe('native widget', () => {
 
   test.beforeAll(async () => {
     kit = await bootCoreKit({id: 'fake-native', text: 'Hello from conciv', nativePageDir: nativeDistDir})
-    sessionId = (await kit.rpc.sessions.create()).sessionId
+    sessionId = (await kit.hub.call('conciv:sessions:create', {})).sessionId
   })
 
   test.afterAll(async () => {
@@ -889,9 +892,10 @@ test.describe('native widget', () => {
     test('opens the panel on native open and is idempotent, and closes on native close', async ({
       page: fixturePage,
     }) => {
-      const wire = watchRpcWire(fixturePage)
+      const listed = await awaitCompletedCall(kit, [SESSIONS_LIST_CALL])
       const {page} = await openNative(fixturePage)
-      await wire.sessionsBootTraffic()
+      await listed.completed
+      listed.stop()
       await callNative(page, 'open', {v: 1, seq: 1})
       await callNative(page, 'open', {v: 1, seq: 2})
       await expect(composerBox(page)).toHaveCount(1, {timeout: 30_000})
@@ -904,9 +908,10 @@ test.describe('native widget', () => {
       page: fixturePage,
     }) => {
       test.setTimeout(120_000)
-      const wire = watchRpcWire(fixturePage)
+      const listed = await awaitCompletedCall(kit, [SESSIONS_LIST_CALL])
       const {page, bridge} = await openNative(fixturePage)
-      await wire.sessionsBootTraffic()
+      await listed.completed
+      listed.stop()
       const picked = Promise.withResolvers<PageToNativeMessage>()
       bridge.notify = (message) => {
         if (message.type === 'grab.pick') picked.resolve(message)
@@ -1039,7 +1044,6 @@ test.describe('panel focus', () => {
   const suite = setupWidgetSuite()
 
   const COMPOSER_NAME = 'Message the conciv agent'
-  const SESSIONS_LIST = ['sessions', 'list'] as const
 
   function composer(page: Page) {
     return page.getByRole('textbox', {name: COMPOSER_NAME})
@@ -1106,14 +1110,13 @@ test.describe('panel focus', () => {
         hostPage({apiBase: suite.kit().base, widget: '{"quickTerminal":false,"transport":"fetch"}'}),
       )
       dedicatedHosts.push(host)
-      const sessionListGate = await gateRpcCalls(page, {path: SESSIONS_LIST})
+      const sessionListGate = await gateCalls(suite.kit(), [SESSIONS_LIST_CALL])
       await page.goto(host.base, {waitUntil: 'domcontentloaded'})
       try {
-        await sessionListGate.awaitCaptured(1)
+        await sessionListGate.arrived
         await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 15_000})
-        expect(sessionListGate.pending()).toBeGreaterThan(0)
       } finally {
-        await sessionListGate.dispose()
+        sessionListGate.release()
       }
       await openPanel(page)
       await expect(sessionOptionsButton(page)).toBeVisible({timeout: 30_000})
@@ -1241,6 +1244,10 @@ test.describe('rebind', () => {
       await expect(chatBox(page)).toBeVisible({timeout: 30_000})
 
       await expect(apiBaseProbe).toHaveText(proxyB.base, {timeout: 30_000})
+      await until(async () => proxyB.requestedPaths().some((requested) => requested.startsWith('/__conciv/')), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
 
       await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
@@ -1334,7 +1341,7 @@ test.describe('recording attachment', () => {
       await page.getByRole('button', {name: 'Send message'}).click()
       await expect(page.getByText('Recording received').first()).toBeVisible({timeout: 30_000})
 
-      const sessions = await kit.rpc.sessions.list()
+      const sessions = await kit.hub.call('conciv:sessions:list', {})
       const chatSession = sessions[0]?.id
       if (!chatSession) throw new Error('widget session not found')
       const persisted = {messages: ''}
@@ -1644,9 +1651,9 @@ test.describe('virtualize threshold cliff', () => {
   }
 
   async function measureSwitch(page: import('@playwright/test').Page, exchanges: number): Promise<{rowCount: number}> {
-    const {sessionId} = await suite.kit().rpc.sessions.create()
+    const {sessionId} = await suite.kit().hub.call('conciv:sessions:create', {})
     const title = `cliff ${exchanges} ${sessionId.slice(-8)}`
-    await suite.kit().rpc.sessions.rename({sessionId, title})
+    await suite.kit().hub.call('conciv:sessions:rename', {sessionId, title})
     await seedExchanges(sessionId, exchanges)
 
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})

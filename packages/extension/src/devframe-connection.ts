@@ -1,5 +1,7 @@
 import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
 import type {SharedState} from 'devframe/utils/shared-state'
+import type {ConnectionMeta} from 'devframe/types'
+import {DEVFRAME_CONNECTION_META_FILENAME} from 'devframe/constants'
 import {getDevframeRpcClient, type DevframeRpcClient} from 'devframe/client'
 import {createRpcClient} from 'devframe/rpc/client'
 import {createSseRpcChannel} from 'devframe/rpc/transports/sse-client'
@@ -64,6 +66,7 @@ export function reconnectingClient<Client extends ClosableClient>(
   }
 
   async function openLink(): Promise<Link<Client>> {
+    if (!isClosed()) setStatus('connecting')
     const dropSignal = Promise.withResolvers<never>()
     dropSignal.promise.catch(() => {})
     const onDrop = (): void => {
@@ -87,7 +90,6 @@ export function reconnectingClient<Client extends ClosableClient>(
   }
 
   async function connect(): Promise<void> {
-    setStatus('connecting')
     state.retryer = new AsyncRetryer(openLink, {
       backoff: 'exponential',
       baseWait: RECONNECT_BASE_WAIT_MS,
@@ -164,10 +166,17 @@ export function reconnectingClient<Client extends ClosableClient>(
   }
 }
 
+async function connectionMetaOf(baseURL: string): Promise<ConnectionMeta> {
+  const response = await fetch(new URL(DEVFRAME_CONNECTION_META_FILENAME, new URL(baseURL, location.href)))
+  if (!response.ok) throw new Error(`the hub at ${baseURL} answered ${response.status} for its connection meta`)
+  return response.json()
+}
+
 export function browserClient(options: {baseURL: string; authToken?: string}): ReconnectingClient<DevframeRpcClient> {
   return reconnectingClient(async (onDrop) => {
     const client = await getDevframeRpcClient({
       ...options,
+      connectionMeta: await connectionMetaOf(options.baseURL),
       simpleAuth: false,
       webmcp: false,
       otpParam: false,
@@ -193,14 +202,16 @@ export function readSharedState<Value extends object>(
     reading = new AbortController()
     const {signal} = reading
     const subscribe = async (): Promise<void> => {
-      if (!(await client.ensureTrusted()) || signal.aborted) return
+      if (!(await client.ensureTrusted(0)) || signal.aborted) return
       const state = await client.sharedState.get<Value>(key)
       if (signal.aborted) return
       const publish = (): void => write(state.value())
       signal.addEventListener('abort', state.on('updated', publish), {once: true})
       publish()
     }
-    subscribe().catch((error: unknown) => console.error(`conciv: reading shared state ${key} failed`, error))
+    subscribe().catch((error: unknown) => {
+      if (!signal.aborted) console.error(`conciv: reading shared state ${key} failed`, error)
+    })
   })
   return () => {
     offClient()
