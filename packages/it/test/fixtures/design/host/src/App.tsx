@@ -14,13 +14,19 @@ const TARGET_ALIASES = new Set([
   'column',
   'grid',
   'shifted',
+  'webfont',
+  'container',
 ])
+const LOOK_CLASSES: Record<string, string> = {webfont: 'webfont', container: 'webfont'}
+const CONTAINER_CSS =
+  '#root { container-type: inline-size; } @container (min-width: 600px) { .toolbar { padding-bottom: 12px; } }'
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
 const TYPE_SIZES = [12, 16, 24, 32]
 const TYPE_STRINGS = ['Export the quarterly report', 'EXPORT', '1,240.00']
 
 export function App() {
   const requested = new URLSearchParams(location.search).get('variant')
+  document.documentElement.className = (requested === null ? undefined : LOOK_CLASSES[requested]) ?? ''
   if (requested === 'empty') return null
   if (requested === 'type') {
     return (
@@ -60,6 +66,7 @@ export function App() {
       />
       <Cards variant={variant} column={requested === 'column'} />
       {variant === 'missing' ? null : <Table variant={variant} look={requested} />}
+      {requested === 'container' ? <style>{CONTAINER_CSS}</style> : null}
     </>
   )
 }

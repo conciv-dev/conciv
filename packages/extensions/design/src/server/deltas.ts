@@ -90,13 +90,15 @@ function insetDiffers(input: {live: number; target: number}): boolean {
 
 function insetKind(edge: keyof Insets): DeltaKind {
   const kind = `inset-${edge}` as const
+  const read = (side: Side): number | null => measureInsets(side)?.[edge] ?? null
   return {
     kind,
+    read,
     measure: ({live, target}) => {
-      const a = measureInsets(live)
-      const b = measureInsets(target)
-      if (a === null || b === null || !insetDiffers({live: a[edge], target: b[edge]})) return []
-      return [{kind, live: a[edge], target: b[edge]}]
+      const a = read(live)
+      const b = read(target)
+      if (a === null || b === null || !insetDiffers({live: a, target: b})) return []
+      return [{kind, live: a, target: b}]
     },
   }
 }
@@ -130,11 +132,13 @@ function measureGap(input: {side: Side; before: boolean}): number | null {
 
 function gapKind(before: boolean): DeltaKind {
   const kind = before ? 'gap-before' : 'gap-after'
+  const read = (side: Side): number | null => measureGap({side, before})
   return {
     kind,
+    read,
     measure: ({live, target}) => {
-      const a = measureGap({side: live, before})
-      const b = measureGap({side: target, before})
+      const a = read(live)
+      const b = read(target)
       if (a === null || b === null || !insetDiffers({live: a, target: b})) return []
       return [{kind, live: a, target: b}]
     },
@@ -157,6 +161,7 @@ function classifyAlign(side: Side): string | null {
 
 const align: DeltaKind = {
   kind: 'align',
+  read: classifyAlign,
   measure: ({live, target}) => {
     const a = classifyAlign(live)
     const b = classifyAlign(target)
@@ -296,6 +301,21 @@ export function sideFrom(input: {
   }
 }
 
+export function opinionSide(input: {side: Side; pair: Pair; children: Pair[]}): Side | null {
+  const {side, pair, children} = input
+  const box = pair.live.opinion?.box
+  if (box === undefined) return null
+  const boxes = children.map((child) => child.live.opinion?.box)
+  const known = boxes.filter((child) => child !== undefined)
+  return {
+    ...side,
+    box,
+    prev: opinionBox(pair.prev),
+    next: opinionBox(pair.next),
+    textBox: known.length === boxes.length ? union(known) : null,
+  }
+}
+
 export function edgeStrip(input: {
   pair: Pair
   raster: Raster
@@ -343,6 +363,10 @@ function stripAt(input: {box: Box; side: LiveBorder['side']; width: number; offs
     case 'right':
       return {x: box.x + box.w - width + offset, y: box.y + inset, w: width, h: box.h - inset * 2}
   }
+}
+
+function opinionBox(pair: Pair | null): Box | null {
+  return pair?.live.opinion?.box ?? null
 }
 
 function pickBox(input: {pair: Pair; from: From}): Box {

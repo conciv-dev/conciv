@@ -1,7 +1,7 @@
 import pixelmatch from 'pixelmatch'
 import {diff} from '@blazediff/core'
 import {z} from 'zod'
-import {groupBy, range, uniq, uniqBy} from 'es-toolkit'
+import {groupBy, keyBy, range, uniq, uniqBy} from 'es-toolkit'
 import {toolError, type AnyToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {basename} from 'node:path'
@@ -15,6 +15,7 @@ import {
   DiffInputSchema,
   DiffReportSchema,
   GlyphSchema,
+  OpinionSchema,
   LiveStylesSchema,
   measureDef,
   MeasureResultSchema,
@@ -43,6 +44,7 @@ import type {
   CssMap,
   Decision,
   Delta,
+  DeltaKind,
   DesignContext,
   DesignPage,
   DesignRuntime,
@@ -51,12 +53,14 @@ import type {
   LiveComponent,
   LiveRole,
   Matched,
+  MeasureSource,
   Pair,
   PixelComparator,
   PixelRegion,
   Raster,
   Role,
   ServerStep,
+  Side,
   TargetModel,
   TargetNode,
   TargetRecord,
@@ -69,7 +73,7 @@ import type {
   Unmatched,
   XrayLink,
 } from '../shared/types.js'
-import {edgeStrip, glyphCoreColor, isOpaqueHex, sideFrom} from './deltas.js'
+import {edgeStrip, glyphCoreColor, isOpaqueHex, opinionSide, sideFrom} from './deltas.js'
 import {
   createHistory,
   createRuns,
@@ -232,10 +236,11 @@ async function runDiff(request: {
   const pixels = comparePages({live: masked, target: model.raster, comparator: design.comparators.pixel})
   const nodes = model.nodes.filter((node) => !dropped.has(node.id))
   const pins = pinsFrom(decisions)
+  const placements = await twinPlacements({store: design.store, id: record.id})
   const paired = design.pairer({
     components: live.components,
     nodes,
-    twinVotes: await twinVotes({store: design.store, id: record.id}),
+    twinVotes: twinVotes(placements),
     pins,
     tolerances: TOLERANCES,
     live: live.raster,
@@ -289,7 +294,7 @@ async function runDiff(request: {
     ...extraEntries({components: live.components, paired: new Set(matched.map((entry) => entry.component.path))}),
     ...offsetEntries({offsets: alignment.offsets, measured}),
   ]
-  const reported = reportedComponents({measured, input: job.input, color})
+  const reported = reportedComponents({measured, input: job.input, color, placements})
   const components = await withProvenance({ranked: reported, design, page, width: record.width, height: record.height})
   const enriched = new Map(
     reported.map((entry, index) => [entry.pair, components[index]?.deltas ?? entry.report.deltas]),
@@ -333,7 +338,7 @@ async function runDiff(request: {
       warnings,
       segmentation: segmentationQuality(model),
       capturePath: live.capturePath,
-      sources: [live.source],
+      sources: measuredSources(live),
       responsive: await responsiveSection({store: design.store, id: record.id, model}),
       partial: paired.partial || Date.now() - started > TOLERANCES.runBudgetMs,
       pinsLost: pins
@@ -411,26 +416,32 @@ function comparePages(input: {live: Raster; target: Raster; comparator: PixelCom
   return {mismatch: whole.mismatch, mask: whole.mask, width: page.w, height: page.h}
 }
 
-async function twinVotes(input: {store: TargetStore; id: string}): Promise<TwinVote[]> {
+type Placement = TwinVote & {target: string}
+
+async function twinPlacements(input: {store: TargetStore; id: string}): Promise<Placement[]> {
   const {store, id} = input
   const twins = await store.twins(id)
-  const votes = await Promise.all(
-    Object.entries(twins).map(async ([other, list]) => {
-      const latest = await store.latestRun(other)
+  const placed = await Promise.all(
+    Object.entries(twins).map(async ([target, list]) => {
+      const latest = await store.latestRun(target)
       if (latest === null) return []
-      const byNode = new Map(latest.pairs.map((entry) => [entry.node, entry]))
-      return list.flatMap((twin): TwinVote[] => {
-        const found = byNode.get(twin.twin)
+      const byNode = keyBy(latest.pairs, (entry) => entry.node)
+      return list.flatMap((twin): Placement[] => {
+        const found = byNode[twin.twin]
         return found === undefined
           ? []
-          : [{node: twin.node, path: found.path, confidence: twin.confidence * found.confidence}]
+          : [{node: twin.node, target, path: found.path, confidence: twin.confidence * found.confidence}]
       })
     }),
   )
+  return placed.flat()
+}
+
+function twinVotes(placements: Placement[]): TwinVote[] {
   return uniqBy(
-    votes.flat().toSorted((a, b) => b.confidence - a.confidence),
+    placements.toSorted((a, b) => b.confidence - a.confidence),
     (vote) => vote.node,
-  )
+  ).map(({node, path, confidence}) => ({node, path, confidence}))
 }
 
 function withTypography(input: {entry: Matched; typography: Record<string, TextNode['typography']>}): Matched {
@@ -480,7 +491,18 @@ function measureDeltas(input: {
     window: moved({box: pair.liveBox, shift}),
     strip: strip === null ? null : edgeStrip({pair, raster: target, color, shift, toward: 'contrast'}),
   })
-  return design.deltaKinds.flatMap((kind) => kind.measure({live: liveSide, target: targetSide, color}))
+  const deltas = design.deltaKinds.flatMap((kind) => kind.measure({live: liveSide, target: targetSide, color}))
+  const opinion = opinionSide({side: liveSide, pair, children})
+  const confidence = pair.live.opinion?.confidence
+  if (opinion === null || confidence === undefined) return deltas
+  return deltas.map((delta) => withOpinion({delta, side: opinion, confidence, kinds: design.deltaKinds}))
+}
+
+function withOpinion(input: {delta: Delta; side: Side; confidence: number; kinds: DeltaKind[]}): Delta {
+  const {delta, side, confidence} = input
+  const live = input.kinds.find((kind) => kind.kind === delta.kind)?.read?.(side) ?? null
+  if (live === null) return delta
+  return {...delta, opinion: {source: 'takumi', live, confidence}}
 }
 
 function under(input: {pair: Pair; ancestor: Pair}): boolean {
@@ -630,8 +652,13 @@ function offsetEntries(input: {offsets: Offset[]; measured: Measured[]}): Unmatc
   })
 }
 
-function reportedComponents(input: {measured: Measured[]; input: DiffInput; color: ColorMetric}): Reported[] {
-  const {measured, color} = input
+function reportedComponents(input: {
+  measured: Measured[]
+  input: DiffInput
+  color: ColorMetric
+  placements: Placement[]
+}): Reported[] {
+  const {measured, color, placements} = input
   const above = measured.filter((entry) => entry.deltas.length > 0 || entry.pair.mismatch >= TOLERANCES.tileGate)
   const impact = (entry: Measured): number =>
     Math.max(0, ...entry.deltas.map((delta) => (delta.confidence ?? 1) * deltaSize({delta, color})))
@@ -650,6 +677,7 @@ function reportedComponents(input: {measured: Measured[]; input: DiffInput; colo
         children: above.filter((child) => child.pair.parent === entry.pair).length,
         nodes: uniq([entry.pair.node.id, ...entry.pair.texts.map((node) => node.id)]),
         path: entry.pair.live.path,
+        ...twinDisagreement({pair: entry.pair, placements}),
       },
     }))
     .filter(({report, pair}) => (report.deltas.length > 0 || report.children === 0) && pair.depth <= input.input.depth)
@@ -662,6 +690,13 @@ function reportedComponents(input: {measured: Measured[]; input: DiffInput; colo
     )
     .slice(0, input.input.limit)
     .map(({pair, report}) => ({pair, report}))
+}
+
+function twinDisagreement(input: {pair: Pair; placements: Placement[]}): Pick<ComponentReport, 'twinDisagreement'> {
+  const {pair} = input
+  const other = input.placements.find((entry) => entry.node === pair.node.id && entry.path !== pair.live.path)
+  if (other === undefined) return {}
+  return {twinDisagreement: {target: other.target, path: other.path}}
 }
 
 function unpairedShare(input: {unmatched: Unmatched[]; page: Box}): number {
@@ -877,6 +912,7 @@ const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
   hints: z.array(z.string()),
   index: z.number(),
   path: z.string(),
+  opinion: OpinionSchema.optional(),
   get children() {
     return z.array(LiveComponentTreeSchema)
   },
@@ -906,8 +942,13 @@ async function measure(input: {
     capturePath: reply.capturePath,
     source: reply.source,
     masks: reply.masks,
+    opinion: reply.opinion,
     ...(reply.limits === undefined ? {} : {limits: reply.limits}),
   }
+}
+
+function measuredSources(live: LiveCapture): MeasureSource[] {
+  return live.opinion ? [live.source, 'takumi'] : [live.source]
 }
 
 function sourceConfidence(live: LiveCapture): number {

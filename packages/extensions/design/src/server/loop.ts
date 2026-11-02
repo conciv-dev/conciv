@@ -1,7 +1,7 @@
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {isSessionId, type SessionId} from '@conciv/protocol/chat-types'
-import {STAGES, type DeltaKindName, type DiffInput, type DiffReport, type Stage, type Stop} from '../shared/defs.js'
-import {deltaSentence, kindStage, TOLERANCES} from '../shared/tolerances.js'
+import {STAGES, type DiffInput, type DiffReport, type Stage, type Stop} from '../shared/defs.js'
+import {deltaSentence, kindStage, kindTolerance, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Box,
   CapturePath,
@@ -211,26 +211,10 @@ const SETTLE_TOOL = 'page_hmr'
 const SETTLE_WAIT_MS = 5000
 const SIZE_CAP = 10
 const SCORE_PRECISION = 10_000
-const FONT_TOLERANCE = 0.5
-const WEIGHT_STEP = 100
 const COLOR_KINDS: ItemKind[] = ['background', 'foreground', 'border']
 
 function applied(reply: unknown): boolean {
   return typeof reply === 'object' && reply !== null && 'applied' in reply && reply.applied === true
-}
-
-function kindTolerance(kind: DeltaKindName): number {
-  switch (kind) {
-    case 'fontSize':
-    case 'lineHeight':
-      return FONT_TOLERANCE
-    case 'fontWeight':
-      return WEIGHT_STEP
-    case 'columns':
-      return 1
-    default:
-      return TOLERANCES.geometryPx
-  }
 }
 
 function capped(value: number): number {

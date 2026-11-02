@@ -77,10 +77,12 @@ export type LiveComponent = {
   hints: string[]
   index: number
   path: string
+  opinion?: Opinion
   children: LiveComponent[]
 }
+export type Opinion = {box: Box; confidence: number}
 export type CapturePath = 'region' | 'snapdom-live' | 'snapdom-mirror'
-export type MeasureSource = 'dom' | 'mirror'
+export type MeasureSource = 'dom' | 'mirror' | 'takumi'
 export type MirrorLimits = {canvases: number; fonts: string[]; inlineWidths: number}
 export type LiveCapture = {
   raster: Raster
@@ -91,6 +93,7 @@ export type LiveCapture = {
   source: MeasureSource
   masks: Box[]
   limits?: MirrorLimits
+  opinion: boolean
 }
 
 export type PixelRegion = {box: Box; kind: 'changed' | 'shift'; shift?: {dx: number; dy: number}}
@@ -179,9 +182,14 @@ export type Delta = {
   source?: MeasureSource
   confidence?: number
   width?: number
+  opinion?: {source: 'takumi'; live: number | string; confidence: number}
   warning?: 'sample-data'
 } & Partial<Provenance>
-export type DeltaKind = {kind: DeltaKindName; measure(input: {live: Side; target: Side; color: ColorMetric}): Delta[]}
+export type DeltaKind = {
+  kind: DeltaKindName
+  measure(input: {live: Side; target: Side; color: ColorMetric}): Delta[]
+  read?(side: Side): number | string | null
+}
 export type Unmatched = DiffReport['unmatched'][number]
 
 export type Winner = {

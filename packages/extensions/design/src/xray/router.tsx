@@ -595,7 +595,7 @@ function XrayList(): JSX.Element {
             selected={page.selected()?.key ?? null}
             fixed={page.fixed()}
             onSelect={page.toggle}
-            marks={(row) => <RowBadges row={row} data={page.loaded()} />}
+            marks={(row) => <RowBadges row={row} data={page.loaded()} opinions={page.tab !== null} />}
           >
             {(row) => (
               <>
@@ -604,6 +604,7 @@ function XrayList(): JSX.Element {
                   images={page.loaded().images}
                   target={page.loaded().target}
                   opening={page.activity.opening}
+                  opinions={page.tab !== null}
                   onOpen={page.open}
                   onCopied={page.copied}
                 />

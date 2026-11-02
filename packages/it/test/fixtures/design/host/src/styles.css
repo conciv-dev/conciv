@@ -115,3 +115,7 @@ button {
   margin: 0 0 12px;
   font-weight: 400;
 }
+
+.webfont * {
+  font-family: 'Source Sans 3';
+}

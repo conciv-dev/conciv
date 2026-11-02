@@ -104,6 +104,7 @@
     "ppu-paddle-ocr": "catalog:",
     "rrweb-snapshot": "catalog:",
     "solid-js": "catalog:",
+    "takumi-paint": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
