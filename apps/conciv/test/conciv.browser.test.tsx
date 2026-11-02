@@ -1001,6 +1001,63 @@ describe('panel connect', () => {
   }, 30_000)
 })
 
+const EDITOR_PROBE_NAME = 'editor-probe'
+const EDITOR_PROBE_FILE = 'src/thing.ts'
+
+function EditorProbe(): JSX.Element {
+  const openEditor = getExtensionApi(EDITOR_PROBE_NAME).useOpenEditor()
+  return (
+    <button type="button" onClick={() => openEditor(EDITOR_PROBE_FILE, 3)}>
+      Open the probe file
+    </button>
+  )
+}
+
+const editorProbe = defineExtension({
+  name: EDITOR_PROBE_NAME,
+  views: [{id: 'editor-probe', label: 'Editor probe', Component: EditorProbe}],
+}).client(() => ({value: {}}))
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof editorProbe> {}
+}
+
+describe('editor opening', () => {
+  const core = bootedCore('editor-opening')
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  const probeTab = () => page.getByRole('tab', {name: 'Editor probe', exact: true})
+  const openProbeFile = () => page.getByRole('button', {name: 'Open the probe file'})
+  const couldNotOpen = () => page.getByText(`could not open ${EDITOR_PROBE_FILE} in the editor`)
+
+  test('opening a file the hub refuses shows the could-not-open toast', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await faults.install({kind: 'hub-fail', names: ['conciv:editor:open']})
+    harness.mountShell(`/panel/${sessionId}?open=true`, [editorProbe])
+
+    await expect.element(probeTab(), {timeout: 8000}).toBeVisible()
+    await probeTab().click()
+    await openProbeFile().click()
+
+    await expect.element(couldNotOpen(), {timeout: 8000}).toBeVisible()
+  }, 30_000)
+
+  test('opening a file runs the hub function inside the active session', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const completed = await faults.install({kind: 'hub-completed', names: ['conciv:editor:open']})
+    harness.mountShell(`/panel/${sessionId}?open=true`, [editorProbe])
+
+    await expect.element(probeTab(), {timeout: 8000}).toBeVisible()
+    await probeTab().click()
+    await openProbeFile().click()
+
+    await coreControl.awaitFaultPending(completed, 1)
+  }, 30_000)
+})
+
 describe('panel refresh', () => {
   const HYDRATE_PATH = ['chat', 'hydrate']
   const REPLY_TEXT = 'the transcript that outlives a refresh'
@@ -1612,7 +1669,11 @@ describe('sessions over the hub', () => {
   test('a sessions call while the engine refuses fails with the attempt in flight', async () => {
     const deadBase = 'http://127.0.0.1:1/conciv'
     const hub = hubFor(deadBase)
-    const data = makeAppData(makeRpcClient(deadBase), {connection: () => hub, connected: () => true}, new QueryClient())
+    const data = makeAppData(
+      makeRpcClient(deadBase),
+      {connection: () => hub, connected: () => true, session: () => null},
+      new QueryClient(),
+    )
     try {
       await expect(data.rpc.sessions.list({includeHidden: true})).rejects.toMatchObject({code: 'DISCONNECTED'})
       await expect(data.rpc.sessions.list({includeHidden: true})).rejects.toMatchObject({code: 'DISCONNECTED'})

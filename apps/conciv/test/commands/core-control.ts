@@ -7,7 +7,7 @@ import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 import type {PushWireWatch} from '@conciv/extension-testkit/push-wire'
-import type {CallGate} from '@conciv/extension-testkit/devframe-faults'
+import type {CallCompletion, CallGate} from '@conciv/extension-testkit/devframe-faults'
 
 export type BootCoreInput = {
   id: string
@@ -31,6 +31,7 @@ export type FaultSpec =
   | {kind: 'hub-fail'; names: string[]; code?: string}
   | {kind: 'hub-abort'; names: string[]}
   | {kind: 'hub-gate'; names: string[]}
+  | {kind: 'hub-completed'; names: string[]}
 
 type Fault = {
   pending: () => number
@@ -249,11 +250,32 @@ function hubGateFault(gate: CallGate): Fault {
   }
 }
 
-type HubFaultSpec = Extract<FaultSpec, {kind: 'hub-gate' | 'hub-fail' | 'hub-abort'}>
+function hubCompletedWatch(completion: CallCompletion): Fault {
+  const completed = {count: 0}
+  void completion.completed.then(() => {
+    completed.count = 1
+  })
+  return {
+    pending: () => completed.count,
+    awaitCaptured: (count) =>
+      count <= 1
+        ? completion.completed
+        : Promise.reject(new Error('a hub completion watch reports only its first call')),
+    release: async () => completion.stop(),
+    dispose: async () => completion.stop(),
+  }
+}
+
+type HubFaultSpec = Extract<FaultSpec, {kind: 'hub-gate' | 'hub-fail' | 'hub-abort' | 'hub-completed'}>
+
+function isHubFault(spec: FaultSpec): spec is HubFaultSpec {
+  return spec.kind.startsWith('hub-')
+}
 
 async function hubFault(ctx: BrowserCommandContext, handle: string, spec: HubFaultSpec): Promise<Fault> {
-  const {abortCalls, failCalls, gateCalls} = await testkitOf(ctx)
+  const {abortCalls, awaitCompletedCall, failCalls, gateCalls} = await testkitOf(ctx)
   if (spec.kind === 'hub-gate') return hubGateFault(await gateCalls(kitOf(ctx), spec.names))
+  if (spec.kind === 'hub-completed') return hubCompletedWatch(await awaitCompletedCall(kitOf(ctx), spec.names))
   const fault =
     spec.kind === 'hub-abort'
       ? await abortCalls(kitOf(ctx), spec.names)
@@ -266,7 +288,7 @@ const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<str
   const {abortRpcCalls, failChatTurns, failRpcCalls, gateRpcCalls} = await testkitOf(ctx)
   state.handles.count += 1
   const handle = `fault-${state.handles.count}`
-  if (spec.kind === 'hub-gate' || spec.kind === 'hub-fail' || spec.kind === 'hub-abort') {
+  if (isHubFault(spec)) {
     state.faults.set(handle, await hubFault(ctx, handle, spec))
     return handle
   }

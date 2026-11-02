@@ -1196,9 +1196,27 @@ describe('rpc wire', () => {
         opened.splice(0)
       })
 
-      it('editor.open reaches the injected editor opener', async () => {
-        await kit().rpc.editor.open({file: 'src/thing.ts', line: 3})
+      it('conciv:editor:open reaches the injected editor opener inside the session', async () => {
+        const sessionId = await kit().session()
+        await expect(kit().hub.call('conciv:editor:open', {file: 'src/thing.ts', line: 3, sessionId})).resolves.toEqual(
+          {ok: true},
+        )
         expect(opened).toEqual([{file: 'src/thing.ts', line: 3}])
+      })
+
+      it('conciv:editor:open refuses a line below 1 before the opener runs', async () => {
+        const sessionId = await kit().session()
+        await expect(
+          kit().hub.call('conciv:editor:open', {file: 'src/thing.ts', line: 0, sessionId}),
+        ).rejects.toMatchObject({code: 'BAD_REQUEST'})
+        expect(opened).toEqual([])
+      })
+
+      it('conciv:editor:openFromFrames reports no-source for frames without a source map', async () => {
+        await expect(
+          kit().hub.call('conciv:editor:openFromFrames', {frames: [{fileName: 'does-not-exist.ts', line: 1}]}),
+        ).resolves.toEqual({status: 'no-source'})
+        expect(opened).toEqual([])
       })
 
       it('extension openSource drives editor.open and openFromFrames over rpc', async () => {

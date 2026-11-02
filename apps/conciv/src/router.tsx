@@ -93,11 +93,18 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const queryClient = new QueryClient()
   const apiBase = config.apiBase ?? (() => '')
   const connected = config.connected ?? (() => true)
+  const activeSession: {read: () => string | null} = {read: () => null}
   const data = makeAppData(
     config.rpc,
-    config.hubConnection ? {connection: config.hubConnection, connected} : undefined,
+    config.hubConnection
+      ? {connection: config.hubConnection, connected, session: () => activeSession.read()}
+      : undefined,
     queryClient,
   )
+  const bindActiveSession = (read: () => string | null): void => {
+    activeSession.read = read
+    config.bindActiveSession?.(read)
+  }
   const extensions = [highlight, ...(config.extensions ?? [])]
   const instances = createInstances(extensions)
   const disposeEngineConnection = wireEngineConnection(apiBase, config.hubConnection, data)
@@ -131,7 +138,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       grabProvider: config.grabProvider,
       apiBase,
       connectionGeneration: config.connectionGeneration ?? (() => 0),
-      bindActiveSession: config.bindActiveSession,
+      bindActiveSession,
       disposeInstances,
       notifyInteractive: config.notifyInteractive ?? (() => {}),
     },

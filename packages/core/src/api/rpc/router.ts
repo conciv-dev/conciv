@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {asc, eq} from 'drizzle-orm'
-import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
+import {isPageFailure, OpenSourceResultSchema, OpenSourceSchema, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isPageVerbError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
@@ -8,6 +8,7 @@ import {drafts, markers} from '@conciv/db'
 import {
   DraftsGetOutputSchema,
   DraftsSetInputSchema,
+  EditorOpenInputSchema,
   EngineStalenessSchema,
   MarkersListOutputSchema,
   NavigationGetOutputSchema,
@@ -29,7 +30,7 @@ import {listCommands, mcpUrlFor} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
-import {makeSessionOs, os, type RpcDeps} from './mount.js'
+import {makeSessionOs, os, type RpcDeps, type SessionOs} from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import type {ServerFunctionsOf} from '../../devframe-plane.js'
@@ -141,10 +142,7 @@ export function makeRpcRouter(deps: RpcDeps) {
         return callTool(BUILTIN_SERVER_TOOL.server_restart, input, errors)
       }),
     },
-    editor: {
-      open: sessionOs.editor.open.handler(({input}) => callTool(BUILTIN_OPEN_TOOL, input)),
-      openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
-    },
+    editor: editorRouter(deps, sessionOs),
     meta: metaRouter(deps),
   })
 }
@@ -333,3 +331,44 @@ export function navigationFunctions(deps: NavigationDeps) {
 }
 
 export type NavigationServerFunctions = ServerFunctionsOf<ReturnType<typeof navigationFunctions>>
+
+type EditorDeps = Pick<RpcDeps, 'openFromFrames'>
+
+function editorActions(deps: EditorDeps) {
+  return {
+    open: async (input: z.infer<typeof EditorOpenInputSchema>) =>
+      OkSchema.parse(await callTool(BUILTIN_OPEN_TOOL, input)),
+    openFromFrames: (input: z.infer<typeof OpenSourceSchema>) => deps.openFromFrames(input.frames),
+  }
+}
+
+function editorRouter(deps: EditorDeps, sessionOs: SessionOs) {
+  const actions = editorActions(deps)
+  return {
+    open: sessionOs.editor.open.handler(({input}) => actions.open(input)),
+    openFromFrames: os.editor.openFromFrames.handler(({input}) => actions.openFromFrames(input)),
+  }
+}
+
+export function editorFunctions(deps: EditorDeps) {
+  const actions = editorActions(deps)
+  return [
+    defineConcivFunction({
+      name: 'conciv:editor:open',
+      type: 'action',
+      session: true,
+      input: EditorOpenInputSchema,
+      output: OkSchema,
+      handler: actions.open,
+    }),
+    defineConcivFunction({
+      name: 'conciv:editor:openFromFrames',
+      type: 'action',
+      input: OpenSourceSchema,
+      output: OpenSourceResultSchema,
+      handler: actions.openFromFrames,
+    }),
+  ]
+}
+
+export type EditorServerFunctions = ServerFunctionsOf<ReturnType<typeof editorFunctions>>
