@@ -20,7 +20,7 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `pagePlaneWatchFor` / `awaitPagePlaneSubscribed` / `PagePlaneWatch` (`page-plane.ts`): per-page watch that resolves once the tab's `conciv:page:join` call on the hub socket returns without an error
 - `observeRpc` / `rpcObserverFor` / `RpcObserver` / `RpcCallRecord` / `RpcCallFilter` / `RpcInputPattern` (`rpc-observer.ts`): records HTTP oRPC calls by procedure path; supports mark, completed(filter), startedCount, completedCount, socketCount, dispose
 - `rpcCallCursor` / `rpcCallMark` / `httpRpcRequestUrls` / `RpcCallCursor` (`rpc-counts.ts`): counts RPC calls since a mark and collects /rpc request URLs
-- `failRpcCalls` / `abortRpcCalls` / `holdRpcCalls` / `gateRpcCalls` / `RpcFaultInjector` / `RpcHold` / `RpcGate` (`rpc-fault.ts`): Playwright route-based RPC fault injection (error status, abort, toggleable hold, capture-and-release gate)
+- `failRpcCalls` / `abortRpcCalls` / `holdRpcCalls` / `holdHub` / `gateRpcCalls` / `RpcFaultInjector` / `RpcHold` / `RpcGate` (`rpc-fault.ts`): Playwright route-based RPC fault injection (error status, abort, toggleable hold, capture-and-release gate); `holdHub` refuses the Devframe hub's HTTP paths and sockets while held and closes the open hub sockets, so with `holdRpcCalls` it stands in for a whole-engine outage
 - `failCalls` / `abortCalls` / `holdCalls` / `gateCalls` / `awaitCompletedCall` / `observeCalls` / `callCount` / `callCursor` (`devframe-faults.ts`): hub-side faults and waits that wrap named `conciv:*` devframe functions on the kit's hub (coded failure, dropped link, hold, capture-and-release gate, first completed call, call records)
 - `failChatTurns` / `dropChatTurns` / `ChatTurnFault` (`chat-fault.ts`): makes POSTs to CHAT_SSE_PATH return an error status (default 500) or abort them
 - `watchChatWire` / `ChatWireWatch` / `ChatTurnFrame` / `ChatTransport` / `ChatWirePart` (`chat-wire.ts`): captures chat turns sent over the CHAT_WS_PATH websocket or CHAT_SSE_PATH POSTs; exposes nextTurn and socket counters
@@ -54,7 +54,7 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `serveDir` (`serve.ts`), `serveHost` (`serve-host.ts`), `serveStaticDir` (`widget-suite.ts`), `listenLocal` (`listen-local.ts`): bind HTTP servers on 127.0.0.1 and read files from disk
 - `mountToolCard` (`card-harness.tsx`): appends to document.body; a module-level vitest afterEach disposes renders and clears document.body
 - `completeConnectHandshake` (`connect-handshake.ts`): dispatches the window CustomEvent 'embedtest:connect' and calls RPC registry.call
-- `failRpcCalls`/`abortRpcCalls`/`holdRpcCalls`/`gateRpcCalls` (`rpc-fault.ts`) and `failChatTurns`/`dropChatTurns` (`chat-fault.ts`): install page.route interceptors (holdRpcCalls is never unrouted)
+- `failRpcCalls`/`abortRpcCalls`/`holdRpcCalls`/`gateRpcCalls` (`rpc-fault.ts`) and `failChatTurns`/`dropChatTurns` (`chat-fault.ts`): install page.route interceptors (holdRpcCalls and holdHub are never unrouted)
 - `observeRpc` (`rpc-observer.ts`), `pagePlaneWatchFor` (`page-plane.ts`), `watchChatWire` (`chat-wire.ts`), `watchPushWire` (`push-wire.ts`): attach Playwright page listeners; chat-wire and push-wire never detach them
 - `testHostConfig` (`test-host-config.ts`): the conciv build plugin reads process.cwd() as its default root; the build empties outDir
 
