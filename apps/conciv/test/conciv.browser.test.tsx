@@ -957,7 +957,7 @@ declare module '@conciv/protocol/config-types' {
 }
 
 describe('panel connect', () => {
-  const RESOLVE_PATH = ['sessions', 'resolve']
+  const RESOLVE = ['conciv:sessions:resolve']
 
   const core = bootedCore('panel-connect')
   const harness = createShellHarness(core)
@@ -969,11 +969,11 @@ describe('panel connect', () => {
 
   const simulateFound = () => page.getByRole('button', {name: 'Simulate found'})
   const bindFailure = () => page.getByText(/conciv couldn.t connect to that workspace/)
-  const serverError = () => page.getByText('Internal Server Error')
+  const serverError = () => page.getByText('fault injected: INTERNAL_SERVER_ERROR')
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
   test('a bind that fails with a transport failure shows the connect failure screen, and retrying against a healthy engine hands off to the panel', async () => {
-    const unreachable = await faults.install({kind: 'abort', path: RESOLVE_PATH})
+    const unreachable = await faults.install({kind: 'hub-abort', names: RESOLVE})
     mountShell()
 
     await simulateFound().click()
@@ -985,7 +985,7 @@ describe('panel connect', () => {
   }, 30_000)
 
   test('a bind that fails with a server error shows the actual error, not the workspace-unreachable message', async () => {
-    const refused = await faults.install({kind: 'fail', path: RESOLVE_PATH, status: 500})
+    const refused = await faults.install({kind: 'hub-fail', names: RESOLVE, code: 'INTERNAL_SERVER_ERROR'})
     mountShell()
 
     await expect.element(simulateFound(), {timeout: 8000}).toBeVisible()
@@ -1337,8 +1337,6 @@ describe('queue strip', () => {
 })
 
 describe('quick add pane', () => {
-  const CREATE_PATH = ['sessions', 'create']
-
   const core = bootedCore('quick-add-pane')
   const harness = createShellHarness(core)
   const faults = trackedFaults()
@@ -1359,7 +1357,7 @@ describe('quick add pane', () => {
     harness.mountShell(`/quick?panes=${sessionId}&focus=0`)
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
 
-    const held = await faults.install({kind: 'gate', path: CREATE_PATH})
+    const held = await faults.install({kind: 'hub-gate', names: ['conciv:sessions:create']})
     const firstClick = splitPane().click()
     const secondClick = splitPane().click()
     await Promise.all([firstClick, secondClick])
@@ -1441,7 +1439,7 @@ describe('reachability flows', () => {
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const genericBoundary = () => page.getByText('Something went wrong!')
   const engineUnreachableNotice = () => page.getByText('conciv lost connection to the engine.')
-  const serverError = () => page.getByText('Internal Server Error')
+  const serverError = () => page.getByText('fault injected: INTERNAL_SERVER_ERROR')
 
   async function openSessionPanel(options: ShellMountOptions = {}): Promise<void> {
     const sessionId = await createSession(coreRpc(core()))
@@ -1450,7 +1448,11 @@ describe('reachability flows', () => {
   }
 
   test('a server error while resolving /panel/latest shows the actual error, not the unreachable message', async () => {
-    const refused = await faults.install({kind: 'fail', path: ['sessions', 'resolve'], status: 500})
+    const refused = await faults.install({
+      kind: 'hub-fail',
+      names: ['conciv:sessions:resolve'],
+      code: 'INTERNAL_SERVER_ERROR',
+    })
     harness.mountShell('/panel/latest?open=true')
 
     await expect.element(serverError(), {timeout: 8000}).toBeVisible()
@@ -1487,7 +1489,7 @@ describe('route boundary', () => {
   const routePending = () => page.getByRole('progressbar', {name: 'Loading conciv'})
 
   test('a slow beforeLoad reveals the route pending loader, then hands off to the pane', async () => {
-    const held = await faults.install({kind: 'gate', path: ['sessions', 'resolve']})
+    const held = await faults.install({kind: 'hub-gate', names: ['conciv:sessions:resolve']})
     harness.mountShell('/panel/latest?open=true')
 
     await expect.element(routePending()).toBeVisible()
@@ -1551,6 +1553,50 @@ describe('session selector', () => {
     await expect
       .element(page.getByRole('option', {name: /a session mid-run.*\d+ messages.*started externally/}))
       .toBeVisible()
+  })
+})
+
+describe('sessions over the hub', () => {
+  const core = bootedCore('sessions-hub')
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  async function titledSession(rpc: RpcClient, title: string): Promise<string> {
+    const {sessionId} = await rpc.sessions.create()
+    await rpc.sessions.rename({sessionId, title})
+    return sessionId
+  }
+
+  test('a rename the hub refuses announces the failure', async () => {
+    const sessionId = await titledSession(coreRpc(core()), 'before the refusal')
+    await faults.install({kind: 'hub-fail', names: ['conciv:sessions:rename']})
+    harness.mountShell(`/quick?panes=${sessionId}&focus=0`)
+
+    await page.getByRole('button', {name: 'Session: before the refusal'}).click()
+    await page.getByRole('button', {name: 'Rename current session'}).click()
+    await page.getByRole('textbox', {name: 'Rename session'}).fill('refused title')
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(page.getByRole('alert').filter({hasText: 'Rename failed'})).toBeInTheDocument()
+  })
+
+  test('the open selector follows a rename and a delete made elsewhere', async () => {
+    const rpc = coreRpc(core())
+    const activeId = await titledSession(rpc, 'the open session')
+    const otherId = await titledSession(rpc, 'renamed elsewhere soon')
+    harness.mountShell(`/quick?panes=${activeId}&focus=0`)
+
+    await page.getByRole('button', {name: 'Session: the open session'}).click()
+    await expect.element(page.getByRole('option', {name: /^renamed elsewhere soon/})).toBeVisible()
+
+    await rpc.sessions.rename({sessionId: otherId, title: 'renamed elsewhere'})
+    await expect.element(page.getByRole('option', {name: /^renamed elsewhere,/})).toBeVisible()
+
+    await rpc.sessions.delete({sessionId: otherId})
+    await expect.element(page.getByRole('option', {name: /^renamed elsewhere,/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^the open session/})).toBeVisible()
   })
 })
 

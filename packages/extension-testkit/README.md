@@ -7,7 +7,7 @@ Private dev-only package that mounts a conciv extension in a real browser agains
 ## Interface
 
 - `exports['.']` (`package.json`): ./src/get-extension-test-api.ts
-- `exports` subpaths (`package.json`): ./card-harness, ./connect-handshake, ./core-kit, ./framework-fake, ./host/grab, ./widget-suite, ./test-host, ./page-plane, ./listen-local, ./serve-host, ./navigation-state, ./rpc-counts, ./rpc-wire, ./chat-wire, ./push-wire, ./rpc-fault, ./chat-fault
+- `exports` subpaths (`package.json`): ./card-harness, ./connect-handshake, ./core-kit, ./framework-fake, ./host/grab, ./widget-suite, ./test-host, ./page-plane, ./listen-local, ./serve-host, ./navigation-state, ./rpc-counts, ./chat-wire, ./push-wire, ./rpc-fault, ./chat-fault
 - `scripts` (`package.json`): build (`vite build -c vite.test-host.config.ts`), typecheck, lint, test
 - `vite.test-host.config.ts`: `testHostConfig({clientEntry: fixtures/ping/client.tsx, outDir: dist/test-host})`
 - `vitest.config.ts`: project 'extension-testkit', node env, test/**/*.test.ts

@@ -7,6 +7,7 @@ import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 import type {PushWireWatch} from '@conciv/extension-testkit/push-wire'
+import type {CallGate} from '@conciv/extension-testkit/devframe-faults'
 
 export type BootCoreInput = {
   id: string
@@ -27,6 +28,9 @@ export type FaultSpec =
   | {kind: 'abort'; path?: string[]}
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
+  | {kind: 'hub-fail'; names: string[]; code?: string}
+  | {kind: 'hub-abort'; names: string[]}
+  | {kind: 'hub-gate'; names: string[]}
 
 type Fault = {
   pending: () => number
@@ -231,11 +235,41 @@ function trackedFault(handle: string, kind: FaultSpec['kind'], injector: Injecto
   }
 }
 
+function hubGateFault(gate: CallGate): Fault {
+  const arrival = {count: 0}
+  void gate.arrived.then(() => {
+    arrival.count = 1
+  })
+  return {
+    pending: () => arrival.count,
+    awaitCaptured: (count) =>
+      count <= 1 ? gate.arrived : Promise.reject(new Error('a hub gate reports only its first arrival')),
+    release: async () => gate.release(),
+    dispose: async () => gate.release(),
+  }
+}
+
+type HubFaultSpec = Extract<FaultSpec, {kind: 'hub-gate' | 'hub-fail' | 'hub-abort'}>
+
+async function hubFault(ctx: BrowserCommandContext, handle: string, spec: HubFaultSpec): Promise<Fault> {
+  const {abortCalls, failCalls, gateCalls} = await testkitOf(ctx)
+  if (spec.kind === 'hub-gate') return hubGateFault(await gateCalls(kitOf(ctx), spec.names))
+  const fault =
+    spec.kind === 'hub-abort'
+      ? await abortCalls(kitOf(ctx), spec.names)
+      : await failCalls(kitOf(ctx), spec.names, spec.code)
+  return trackedFault(handle, spec.kind, {repair: fault.repair, dispose: async () => fault.repair()})
+}
+
 const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<string> => {
   const state = stateOf(ctx)
   const {abortRpcCalls, failChatTurns, failRpcCalls, gateRpcCalls} = await testkitOf(ctx)
   state.handles.count += 1
   const handle = `fault-${state.handles.count}`
+  if (spec.kind === 'hub-gate' || spec.kind === 'hub-fail' || spec.kind === 'hub-abort') {
+    state.faults.set(handle, await hubFault(ctx, handle, spec))
+    return handle
+  }
   if (spec.kind === 'gate') {
     state.faults.set(handle, await gateRpcCalls(ctx.page, spec.path ? {path: spec.path} : {}))
     return handle

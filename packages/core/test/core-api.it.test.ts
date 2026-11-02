@@ -153,11 +153,13 @@ describe('api connect gate', () => {
       })
     })
 
-    it('404s the wrong token and the bare path', async () => {
+    it('refuses the wrong token and a bare api path, and leaves health open', async () => {
       const wrong = await fetch(`http://127.0.0.1:${engine.port}/t/nope/health`)
-      const bare = await fetch(`http://127.0.0.1:${engine.port}/health`)
-      expect(wrong.status).toBe(404)
-      expect(bare.status).toBe(404)
+      const bare = await fetch(`http://127.0.0.1:${engine.port}/rpc/sessions/list`, {method: 'POST'})
+      const health = await fetch(`http://127.0.0.1:${engine.port}/health`)
+      expect(wrong.status).toBe(401)
+      expect(bare.status).toBe(401)
+      expect(health.status).toBe(200)
     })
 
     it('serves rpc under the prefix', async () => {
@@ -420,7 +422,7 @@ describe('api extension router', () => {
     const client = makeExtRpcClient<ProbeRouter>(kit().base, 'router-probe')
     const result = await client.ping({value: 'hello'})
     expect(result.pong).toBe('hello')
-    expect(result.origin).toBe(kit().base)
+    expect(result.origin).toBe(new URL(kit().base).origin)
   })
 
   test('a non-loopback Origin is rejected on the extension rpc mount', async () => {
@@ -470,6 +472,7 @@ describe('api extension server surfaces', () => {
       })
 
       expect(server.basePath).toBe('')
+      expect(server.agentPath).toBe(new URL(kit.base).pathname)
       expect(server.harness.id).toBe('claude')
       expect(typeof server.harness.ttyCommand).toBe('function')
       const noSuchToken = HarnessSessionId.parse('no-such-token')
@@ -531,11 +534,12 @@ describe('api mcp loopback host', () => {
 
   type Reply = {status: number; body: string}
 
-  function postMcpOverHttp(port: number, host: string): Promise<Reply> {
+  function postMcpOverHttp(base: string, host: string): Promise<Reply> {
+    const {port, pathname} = new URL(base)
     const headers = {...MCP_HEADERS, host, 'content-length': String(Buffer.byteLength(INITIALIZE))}
     return new Promise<Reply>((resolve, reject) => {
       const req = httpRequest(
-        {hostname: '127.0.0.1', port, path: '/api/mcp', method: 'POST', setHost: false, headers},
+        {hostname: '127.0.0.1', port, path: `${pathname}/api/mcp`, method: 'POST', setHost: false, headers},
         (res) => {
           const chunks: Buffer[] = []
           res.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -555,13 +559,13 @@ describe('api mcp loopback host', () => {
     }
 
     it('accepts the loopback authority the server is bound to', async () => {
-      const reply = await postMcpOverHttp(port(), `127.0.0.1:${port()}`)
+      const reply = await postMcpOverHttp(kit().base, `127.0.0.1:${port()}`)
       expect(reply.status).toBe(200)
       expect(reply.body).toContain('conciv')
     })
 
     it('rejects a hostile Host with no Origin, naming the host as the failed check', async () => {
-      const reply = await postMcpOverHttp(port(), `evil.com:${port()}`)
+      const reply = await postMcpOverHttp(kit().base, `evil.com:${port()}`)
       expect(reply.status).toBe(403)
       expect(reply.body).toBe('forbidden host')
       expect(reply.body).not.toContain('origin')
@@ -692,7 +696,7 @@ describe('api native page', () => {
   const BUNDLE = 'conciv-widget-native.global.js'
 
   describe('token-scoped native page', () => {
-    it('serves the native page under /t/<token> with a prefix-relative bundle, and 404s unprefixed', async () => {
+    it('serves the native page under /t/<token> with a prefix-relative bundle, and unprefixed', async () => {
       const root = mkdtempSync(join(tmpdir(), 'conciv-native-token-'))
       const nativeDir = mkdtempSync(join(tmpdir(), 'conciv-native-dist-'))
       const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-native-ep-'))
@@ -725,7 +729,7 @@ describe('api native page', () => {
         expect(script.headers.get('content-type')).toContain('javascript')
 
         const unprefixed = await fetch(`${origin}/native`)
-        expect(unprefixed.status).toBe(404)
+        expect(unprefixed.status).toBe(200)
       } finally {
         await engine.stop()
         rmSync(root, {recursive: true, force: true})
@@ -2007,6 +2011,40 @@ describe('rpc wire', () => {
         ).toContain('fixture_echo')
       })
 
+      it('a program awaiting tools one after another and in a loop gets every result back in order', async () => {
+        const sequential = Array.from(
+          {length: 20},
+          (_, index) => `seen.push((await external_fixture_echo({text: 's${index}'})).echoed)`,
+        ).join('\n')
+        const program = `const seen = []
+${sequential}
+for (let index = 0; index < 30; index++) seen.push((await external_fixture_echo({text: 'l' + index})).echoed)
+return seen`
+        expect(await executeResult(program)).toEqual([
+          ...Array.from({length: 20}, (_, index) => `s${index}`),
+          ...Array.from({length: 30}, (_, index) => `l${index}`),
+        ])
+      })
+
+      it('a tool that returns nothing resolves to undefined and the program goes on', async () => {
+        expect(
+          await executeResult('const quiet = await external_fixture_quiet({}); return [typeof quiet, "after"]'),
+        ).toEqual(['undefined', 'after'])
+      })
+
+      it('a program that never ends leaves the server answering, and stopping its turn ends the program', async () => {
+        const sessionId = await newSession()
+        codeTurn('await external_fixture_echo({text: "spinning"}); while (true) {}')
+        const turn = await send(sessionId, 'spin', {runId: 'spin-run'})
+        await turn.waitFor((chunk) => isResultFor(chunk, 'spinning'), GUARD)
+        const asked = performance.now()
+        await chatKit().rpc.sessions.list(undefined)
+        expect(performance.now() - asked).toBeLessThan(1_000)
+        const ended = nextTurnEnd(sessionId)
+        await chatKit().rpc.chat.stop({sessionId, runIds: ['spin-run']})
+        await ended
+      })
+
       it('discover_tools shows a tool output shape and declared error codes, the catalog only its summary', async () => {
         const discover = await mcpTool('discover_tools')
         const found = JSON.stringify(await discover.execute({toolNames: ['fixture_fail']}))
@@ -2248,7 +2286,7 @@ describe('rpc wire', () => {
   function fixtureExtension() {
     return defineExtension({
       name: 'fixture',
-      tools: [echoTool(), readTool(), askTool(), failTool(), hugeTool(), imageTool()],
+      tools: [echoTool(), readTool(), quietTool(), askTool(), failTool(), hugeTool(), imageTool()],
       attachments: fixtureAttachments(),
     }).server(() => ({context: {}, turnEnd: noteTurnEnd}))
   }
@@ -2276,6 +2314,16 @@ describe('rpc wire', () => {
       outputSchema: z.object({value: z.number()}),
       meta: {summary: 'read a fixture value', category: 'fixture', mutating: false},
     }).server(() => ({value: 7}))
+  }
+
+  function quietTool() {
+    return defineTool({
+      name: 'fixture_quiet',
+      description: 'Do nothing and return nothing.',
+      inputSchema: z.object({}),
+      outputSchema: z.unknown(),
+      meta: {summary: 'return nothing', category: 'fixture', mutating: false},
+    }).server(() => undefined)
   }
 
   function askTool() {
@@ -3076,15 +3124,15 @@ describe('start dev endpoint', () => {
       )
     })
 
-    it('serves /native and writes a tokenless endpoint with no ios config (the zero-config widget path)', async () => {
+    it('serves /native and writes an endpoint with the engine token and no ios config (the zero-config widget path)', async () => {
       await withStartedEngine({serveNativePage: true}, async (engine, endpointDir) => {
         const page = await fetch(`http://127.0.0.1:${engine.port}/native`)
         expect(page.status).toBe(200)
         expect(await page.text()).toContain('data-conciv-native-root')
 
         expect(readDevEndpoint(endpointDir)).toEqual({
-          apiBase: `http://127.0.0.1:${engine.port}`,
-          token: null,
+          apiBase: engine.agentBase,
+          token: engine.loginToken,
           pid: process.pid,
         })
         await engine.stop()

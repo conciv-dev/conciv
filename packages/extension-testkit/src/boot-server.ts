@@ -24,7 +24,7 @@ export async function bootExtensionServer(
     launchEditor: () => {},
   })
   return {
-    apiBase: `http://127.0.0.1:${engine.port}`,
+    apiBase: engine.agentBase,
     extensionContexts: engine.extensionContexts,
     stop: () => engine.stop(),
   }
