@@ -1036,12 +1036,15 @@ describe('editor opening', () => {
   test('opening a file the hub refuses shows the could-not-open toast', async () => {
     const sessionId = await createSession(coreRpc(core()))
     await faults.install({kind: 'hub-fail', names: ['conciv:editor:open']})
+    const arrival = await coreControl.installFault({kind: 'hub-gate', names: ['conciv:editor:open']})
     harness.mountShell(`/panel/${sessionId}?open=true`, [editorProbe])
 
     await expect.element(probeTab(), {timeout: 8000}).toBeVisible()
     await probeTab().click()
     await openProbeFile().click()
 
+    await coreControl.awaitFaultPending(arrival, 1)
+    await coreControl.releaseFault(arrival)
     await expect.element(couldNotOpen(), {timeout: 8000}).toBeVisible()
   }, 30_000)
 
