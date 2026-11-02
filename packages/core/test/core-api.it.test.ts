@@ -1262,16 +1262,16 @@ describe('rpc wire', () => {
 
     it('navigation set → get round-trips the app URL stack including per-entry state', async () => {
       const {kit} = await bootWire()
-      expect(await kit.rpc.navigation.get(undefined)).toBeNull()
+      expect(await kit.hub.call('conciv:navigation:get', {})).toBeNull()
       const state = {
         entries: [{href: '/'}, {href: '/panel/s1/chat', state: {key: 'k1', __TSR_index: 1, usr: {from: 'fab'}}}],
         index: 1,
       }
-      await kit.rpc.navigation.set({...state, updatedAt: 100})
-      expect(await kit.rpc.navigation.get(undefined)).toEqual({...state, updatedAt: 100})
+      await kit.hub.call('conciv:navigation:set', {...state, updatedAt: 100})
+      expect(await kit.hub.call('conciv:navigation:get', {})).toEqual({...state, updatedAt: 100})
       const replaced = {entries: [{href: '/quick'}], index: 0}
-      await kit.rpc.navigation.set({...replaced, updatedAt: 200})
-      expect(await kit.rpc.navigation.get(undefined)).toEqual({...replaced, updatedAt: 200})
+      await kit.hub.call('conciv:navigation:set', {...replaced, updatedAt: 200})
+      expect(await kit.hub.call('conciv:navigation:get', {})).toEqual({...replaced, updatedAt: 200})
     })
 
     it('navigation set drops a write whose intent stamp is not strictly newer than the stored one', async () => {
@@ -1280,15 +1280,21 @@ describe('rpc wire', () => {
       const stale = {entries: [{href: '/stale'}], index: 0}
       const latest = {entries: [{href: '/latest'}], index: 0}
 
-      expect(await kit.rpc.navigation.set({...first, updatedAt: 100})).toEqual({ok: true, applied: true})
-      expect(await kit.rpc.navigation.set({...stale, updatedAt: 50})).toEqual({ok: true, applied: false})
-      expect(await kit.rpc.navigation.get(undefined)).toEqual({...first, updatedAt: 100})
+      expect(await kit.hub.call('conciv:navigation:set', {...first, updatedAt: 100})).toEqual({ok: true, applied: true})
+      expect(await kit.hub.call('conciv:navigation:set', {...stale, updatedAt: 50})).toEqual({ok: true, applied: false})
+      expect(await kit.hub.call('conciv:navigation:get', {})).toEqual({...first, updatedAt: 100})
 
-      expect(await kit.rpc.navigation.set({...latest, updatedAt: 150})).toEqual({ok: true, applied: true})
-      expect(await kit.rpc.navigation.get(undefined)).toEqual({...latest, updatedAt: 150})
+      expect(await kit.hub.call('conciv:navigation:set', {...latest, updatedAt: 150})).toEqual({
+        ok: true,
+        applied: true,
+      })
+      expect(await kit.hub.call('conciv:navigation:get', {})).toEqual({...latest, updatedAt: 150})
 
-      expect(await kit.rpc.navigation.set({...stale, updatedAt: 150})).toEqual({ok: true, applied: false})
-      expect(await kit.rpc.navigation.get(undefined)).toEqual({...latest, updatedAt: 150})
+      expect(await kit.hub.call('conciv:navigation:set', {...stale, updatedAt: 150})).toEqual({
+        ok: true,
+        applied: false,
+      })
+      expect(await kit.hub.call('conciv:navigation:get', {})).toEqual({...latest, updatedAt: 150})
     })
 
     it('server.* round-trips a real bundler bridge', async () => {

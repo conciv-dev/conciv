@@ -51,7 +51,6 @@ export const ChatHydrationSchema = z.object({
 })
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 export const OkSchema = z.object({ok: z.literal(true)})
-const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
@@ -115,6 +114,8 @@ export const sessionsModelErrors = {...notFound, UNKNOWN_MODEL: {message: 'unkno
 export const DraftsGetOutputSchema = DraftRowSchema.nullable()
 export const DraftsSetInputSchema = DraftRowSchema.omit({updatedAt: true})
 export const MarkersListOutputSchema = z.array(MarkerRowSchema)
+export const NavigationGetOutputSchema = NavigationWriteSchema.nullable()
+export const NavigationSetOutputSchema = z.object({ok: z.literal(true), applied: z.boolean()})
 
 export const contract = {
   sessions: {
@@ -136,8 +137,8 @@ export const contract = {
     list: oc.input(SessionIdInputSchema).output(MarkersListOutputSchema),
   },
   navigation: {
-    get: oc.output(NavigationWriteSchema.nullable()),
-    set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
+    get: oc.output(NavigationGetOutputSchema),
+    set: oc.input(NavigationWriteSchema).output(NavigationSetOutputSchema),
   },
   chat: {
     events: oc.input(SessionIdInputSchema).output(eventIterator(StreamChunkSchema)),

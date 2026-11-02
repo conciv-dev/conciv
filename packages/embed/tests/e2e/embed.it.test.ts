@@ -1202,7 +1202,7 @@ test.describe('rebind', () => {
   })
 
   async function panelSession(): Promise<string | null> {
-    const state = await kit.rpc.navigation.get(undefined)
+    const state = await kit.hub.call('conciv:navigation:get', {})
     const entry = state?.entries.find((row) => row.href.startsWith('/panel/'))
     if (!entry) return null
     return (entry.href.split('/')[2] ?? '').split('?')[0] ?? null
