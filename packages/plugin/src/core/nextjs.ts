@@ -109,14 +109,10 @@ function forwardHub(
   }
 }
 
-const DEVFRAMES_HANDOFF = Symbol.for('conciv.nextjs.devframes')
+export type ConcivRegisterOptions = Pick<ConcivConfig, 'devframes'>
 
-function handedOffDevframes(): ConcivConfig['devframes'] {
-  const handed: unknown = Reflect.get(globalThis, DEVFRAMES_HANDOFF)
-  if (typeof handed !== 'object' || handed === null || !('add' in handed) || !Array.isArray(handed.add))
-    return undefined
-  return {add: handed.add.filter((entry): entry is object => typeof entry === 'object' && entry !== null)}
-}
+const DEVFRAMES_IN_CONFIG =
+  'conciv: devframes.add cannot be set in withConciv, since next.config reaches the engine as JSON and drops each devframe setup function. Pass them to register in instrumentation.ts instead: export const register = () => registerConciv({devframes: {add: [myDevframe]}})'
 
 const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/plugin', '@conciv/core', '@conciv/db', '@conciv/harness']
 const EDGE_REGISTER_ENTRIES = ['@conciv/it/plugin/nextjs', '@conciv/plugin/nextjs']
@@ -148,7 +144,7 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   const presetPort = Number(process.env.NEXT_PUBLIC_CONCIV_PORT)
   const port = Number.isInteger(presetPort) && presetPort > 0 ? presetPort : (options.port ?? CONCIV_DEFAULT_PORT)
   const {devframes, ...serializable} = options
-  Reflect.set(globalThis, DEVFRAMES_HANDOFF, devframes)
+  if ((devframes?.add?.length ?? 0) > 0) throw new Error(DEVFRAMES_IN_CONFIG)
   const concivEnv = {
     NEXT_PUBLIC_CONCIV_PORT: String(port),
     CONCIV_OPTIONS: JSON.stringify({...serializable, port}),
@@ -182,12 +178,15 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   }
 }
 
-export async function registerWith(loadBuiltins: () => Promise<Builtins>): Promise<void> {
+export async function registerWith(
+  loadBuiltins: () => Promise<Builtins>,
+  registerOptions: ConcivRegisterOptions = {},
+): Promise<void> {
   if (process.env.NODE_ENV === 'production') return
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   const parsed = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
   if (parsed.enabled === false) return
-  const options: ConcivConfig = {...parsed, devframes: handedOffDevframes()}
+  const options: ConcivConfig = {...parsed, ...registerOptions}
   const root = process.cwd()
   try {
     const {watchExtensionsDir} = await import('./extensions-watch.js')
@@ -200,9 +199,9 @@ export async function registerWith(loadBuiltins: () => Promise<Builtins>): Promi
   await makeEngineBooter(options, root, builtins, 'exact')()
 }
 
-export async function register(): Promise<void> {
+export async function register(registerOptions: ConcivRegisterOptions = {}): Promise<void> {
   await registerWith(async () => {
     const {NO_BUILTINS} = await import('@conciv/extension-compiler/extensions')
     return NO_BUILTINS
-  })
+  }, registerOptions)
 }

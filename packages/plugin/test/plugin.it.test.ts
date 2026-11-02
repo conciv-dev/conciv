@@ -797,6 +797,13 @@ describe('nextjs hub forwarding config', () => {
     expect(config.skipTrailingSlashRedirect).toBeUndefined()
     expect(await config.redirects?.()).toEqual([{...userRoute, permanent: false}])
   })
+
+  it('refuses devframes.add in next.config and points at register in instrumentation', () => {
+    expect(() => withConciv({}, {port: 3599, devframes: {add: [{id: 'added'}]}})).toThrow(/instrumentation\.ts/)
+    expect(process.env.CONCIV_OPTIONS).toBeUndefined()
+    const config = withConciv({}, {port: 3599, devframes: {add: []}})
+    expect(JSON.parse(config.env.CONCIV_OPTIONS ?? '{}')).toEqual({port: 3599})
+  })
 })
 
 describe('nextjs config', () => {
