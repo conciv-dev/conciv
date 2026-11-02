@@ -4,8 +4,7 @@ import {Collapsible} from '@conciv/ui-kit-system'
 import {STAGES, type DiffReport, type Stage} from '../shared/defs.js'
 import {kindStage} from '../shared/tolerances.js'
 import type {TargetNode} from '../shared/types.js'
-import {nodeName} from './decisions.js'
-import type {ReportResponse, XrayData} from './panel.js'
+import {nodeName, type ReportResponse, type XrayData} from './panel.js'
 
 type Cell = {kind: 'absent'} | {kind: 'match'} | {kind: 'item'; stage: Stage; confidence: number}
 type HeatRow = {node: TargetNode; cells: Cell[]}

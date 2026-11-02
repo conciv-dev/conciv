@@ -6,7 +6,7 @@ import type {makeExtRpcClient} from '@conciv/extension'
 import {MARK_KINDS, STAGES, type DiffReport, type Stage} from '../shared/defs.js'
 import type {Box, Decision, TargetNode, TargetRecord} from '../shared/types.js'
 import type {XrayRouter} from '../server/xray-routes.js'
-import {RadioChip, type Row, type RowGroup, type XrayData} from './panel.js'
+import {nodeName, RadioChip, type Row, type RowGroup, type XrayData} from './panel.js'
 
 export type XrayClient = ReturnType<typeof makeExtRpcClient<XrayRouter>>
 
@@ -131,11 +131,6 @@ export function rowGroups(input: {rows: Row[]; grouped: boolean}): RowGroup[] {
 
 export function stageSorted(rows: Row[]): Row[] {
   return rows.toSorted((a, b) => stageOrder(a.stage) - stageOrder(b.stage))
-}
-
-export function nodeName(node: TargetNode): string {
-  if (node.kind === 'text') return `text "${node.text}"`
-  return `${node.kind} at ${Math.round(node.box.x)},${Math.round(node.box.y)}`
 }
 
 export function DecisionBar(props: {

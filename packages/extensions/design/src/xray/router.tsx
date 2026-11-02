@@ -176,6 +176,7 @@ const BOXES_KEY = 'conciv.design.xray.boxes'
 const DECIDE_KEY = 'conciv.design.xray.decide'
 const SLIDER_START = 50
 const NO_COMPONENT = ''
+const SECOND_MS = 1000
 
 type PageView = StageView & {shortcuts: boolean}
 type Activity = {
@@ -495,6 +496,9 @@ function XrayLayout(): JSX.Element {
                 onTarget={(id) => patch({target: id, component: undefined})}
                 onRun={run}
               />
+              <Show when={activity.running}>
+                <RunningLine />
+              </Show>
             </div>
             <Show when={tab !== null}>
               <div class="px-4 pt-2">
@@ -508,10 +512,7 @@ function XrayLayout(): JSX.Element {
                 </p>
               )}
             </Show>
-            <div
-              class={`px-4 flex flex-1 flex-col transition-opacity ${activity.running ? 'op-50 pointer-events-none' : ''}`}
-              aria-busy={activity.running}
-            >
+            <div class="px-4 flex flex-1 flex-col" aria-busy={activity.running}>
               <Outlet />
             </div>
             <Show when={ran() && !capture() && tab === null}>
@@ -791,4 +792,16 @@ declare module '@tanstack/solid-router' {
   interface Register {
     router: ReturnType<typeof createXrayRouter>
   }
+}
+
+function RunningLine(): JSX.Element {
+  const started = Date.now()
+  const [now, setNow] = createSignal(started)
+  createTimer(() => setNow(Date.now()), SECOND_MS, setInterval)
+  return (
+    <p class="text-sm m-0 pt-2 op-fade flex gap-2 items-center tabular-nums">
+      <span class="i-ph-circle-notch animate-spin motion-reduce:animate-none" aria-hidden="true" />
+      Running the diff · {Math.floor((now() - started) / SECOND_MS)}s
+    </p>
+  )
 }
