@@ -26,6 +26,8 @@ object in one file, and that file exports one table of them; `src/server.ts` pic
 src/
   client.tsx           widget entry: measurer, mirror, region and snapdom capture, type renders, CSS winner,
                        the composer button and the Surface that mounts the x-ray pane in the tab
+  client/
+    takumi.ts          the takumi second opinion: lays the mirror snapshot out at the design width in wasm
   server.ts            extension entry: pickRuntime over the slot tables, CSS map, x-ray routes, dispose
   shared/
     defs.ts            tool definitions, wire schemas, errors and messages
@@ -77,10 +79,36 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 - `design_target` registers a PNG (a file under the project, or base64) as the design of a route at a width. It
   replaces an earlier target of the same route and width.
 - `design_diff` captures the live page and compares it with the target.
-- `design_status` reports the current target's last run: score, round, stop and `done`, which holds when the stop
-  is `done` or the score is no worse than the accepted run's on the same capture path.
+- `design_status` reports the session's current target and its last run, and runs nothing. `score` is the tuple
+  `[unpairedShare, structure, content, geometry, paint, residualShare]`, compared left to right, lower is better.
+  `round` counts the `design_diff` calls since the image was registered or the last run was accepted. `stop` is
+  `done`, `residual-only`, `oscillating`, `stalled`, `budget` or null while the loop goes on. `done` is true when the
+  stop is `done`, or when an accepted run exists and the last run's score is not worse than the accepted run's on
+  the same capture path. `acceptedRun` names the run accepted from the overlay. While not done the result carries
+  `next`, the guide line telling the agent to call `design_diff`; `reregister` is set when the stored target can no
+  longer be read.
 - `design_capture`, `design_winner` and `design_clear` capture the page, name the CSS declaration that wins a
   property, and remove targets.
+
+## Sources
+
+Each delta names the source that measured it, and each report lists the sources of its run.
+
+- `dom`: the live document in the app tab. Used when the tab width equals the design width.
+- `mirror`: a scriptless snapshot of the live document, rebuilt in an off-screen iframe at the design width. Used
+  for every box, style and pixel when the tab width differs, so the tab is never resized. Its pixels are taken with
+  snapdom (`capturePath: snapdom-mirror`).
+- `takumi`: the same snapshot laid out by takumi in wasm, when the page's fonts are fetchable web fonts and its
+  styles stay inside takumi's subset. The value is stored as the delta's `opinion` and shown in the overlay beside
+  the mirror's; it never changes a count, the score or the stop.
+
+## Trials
+
+`docs/designs/trials/` holds one record per trial: the rounds an agent ran against a design image, with the brief,
+the score and the edit of every round, and where the loop misled it. Run one from `packages/it` with
+`pnpm trial --route '/?variant=<name>' --width <px> --image <png>`, then type `diff`, `status`, `pin <node> <path>`,
+`mark <kind> <node> [value]`, `accept`, `screenshot <file>` or `quit`; `pnpm trial --render <dir>` writes the
+fixture's design images.
 
 ## How text is compared
 

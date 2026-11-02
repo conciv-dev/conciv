@@ -63,7 +63,8 @@
     "lint": "oxlint --ignore-pattern 'test/fixtures/design/host/**' --ignore-pattern 'test/fixtures/design/provenance/**'",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "vitest run"
+    "test": "vitest run",
+    "trial": "tsx scripts/design-trial.ts"
   },
   "dependencies": {
     "@conciv/embed": "workspace:^",
@@ -96,6 +97,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "tsdown": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",

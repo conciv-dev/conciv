@@ -32,6 +32,7 @@ proves the widget mounts on both the classic and nitro stacks (toggle with
 - `tsdown.config.ts:external` - `@conciv/*`, `unplugin`, `vite`, `launch-editor` and `next` stay external.
 - `vitest.config.ts:projects` - `it` (all `test/**/*.test.ts` except the design test) and `design` (`test/design.it.test.ts`, 120 s timeouts, no file parallelism).
 - Source: [src](./src/README.md).
+- `scripts/design-trial.ts` (`pnpm trial`): boots the design fixture host with the plugin, registers a design image and runs the design loop one command at a time; see the design extension README.
 - Test fixtures: `test/fixtures/design/` (the design fixture host, provenance components and the target renderer used by `test/design.it.test.ts`).
 
 ## Invariants
