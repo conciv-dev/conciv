@@ -16,13 +16,17 @@ export type AppData = {
   readHubState: () => () => void
 }
 
+function unreachable(): Error {
+  return concivError('DISCONNECTED', 'conciv could not reach the engine')
+}
+
 function attemptSettled(connection: HubConnection): Promise<void> {
   if (connection.status() === 'connected') return Promise.resolve()
+  if (connection.status() === 'closed') return Promise.reject(unreachable())
   const settled = Promise.withResolvers<void>()
   const offStatus = connection.onStatus((status) => {
     if (status === 'connected') settled.resolve()
-    if (status === 'disconnected' || status === 'closed')
-      settled.reject(concivError('DISCONNECTED', 'conciv could not reach the engine'))
+    if (status === 'disconnected' || status === 'closed') settled.reject(unreachable())
   })
   if (connection.status() === 'idle') connection.ready().catch(() => {})
   return settled.promise.finally(offStatus)

@@ -1592,6 +1592,8 @@ describe('sessions over the hub', () => {
     try {
       await expect(data.rpc.sessions.list({includeHidden: true})).rejects.toMatchObject({code: 'DISCONNECTED'})
       await expect(data.rpc.sessions.list({includeHidden: true})).rejects.toMatchObject({code: 'DISCONNECTED'})
+      hub.close()
+      await expect(data.rpc.sessions.list({includeHidden: true})).rejects.toMatchObject({code: 'DISCONNECTED'})
     } finally {
       hub.close()
     }
