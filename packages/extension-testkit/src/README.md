@@ -17,7 +17,7 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `settleTeardown` / `TeardownStep` (`settle-teardown.ts`): runs teardown steps concurrently, each with its own timeout
 - `mountToolCard` (`card-harness.tsx`): renders a Solid `ToolCardProps` component with a synthetic tool-call part (id 't1') and an optional tool-result
 - `completeConnectHandshake` (`connect-handshake.ts`): waits for the 'connect pane ready' status, dispatches `embedtest:connect`, waits for the page-plane subscription, then calls RPC `registry.call` with page_text
-- `pagePlaneWatchFor` / `awaitPagePlaneSubscribed` / `PagePlaneWatch` (`page-plane.ts`): per-page watch that resolves once the push socket on PUSH_WS_PATH sends a 'ready' frame
+- `pagePlaneWatchFor` / `awaitPagePlaneSubscribed` / `PagePlaneWatch` (`page-plane.ts`): per-page watch that resolves once the tab's `conciv:page:join` call on the hub socket returns without an error
 - `observeRpc` / `rpcObserverFor` / `RpcObserver` / `RpcCallRecord` / `RpcCallFilter` / `RpcInputPattern` (`rpc-observer.ts`): records HTTP oRPC calls by procedure path; supports mark, completed(filter), startedCount, completedCount, socketCount, dispose
 - `rpcCallCursor` / `rpcCallMark` / `httpRpcRequestUrls` / `RpcCallCursor` (`rpc-counts.ts`): counts RPC calls since a mark and collects /rpc request URLs
 - `failRpcCalls` / `abortRpcCalls` / `holdRpcCalls` / `gateRpcCalls` / `RpcFaultInjector` / `RpcHold` / `RpcGate` (`rpc-fault.ts`): Playwright route-based RPC fault injection (error status, abort, toggleable hold, capture-and-release gate)

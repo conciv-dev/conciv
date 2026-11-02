@@ -139,6 +139,9 @@ export function servePage(
       if (!serving.signal.aborted) console.error(`conciv: joining the page to session ${sessionId} failed`, error)
     })
   })
+  hub.ready().catch((error: unknown) => {
+    if (!serving.signal.aborted) console.error(`conciv: the hub connection for session ${sessionId} failed`, error)
+  })
   return () => {
     offClient()
     serving.abort()

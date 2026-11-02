@@ -1,6 +1,7 @@
 import pTimeout, {TimeoutError} from 'p-timeout'
 import type {ConsoleMessage, Frame, Page, Request, Response, WebSocket as PageWebSocket} from 'playwright'
-import {PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
+import {structuredCloneParse} from 'devframe/utils/structured-clone'
+import {z} from 'zod'
 
 const SUBSCRIBE_TIMEOUT_MS = 30_000
 const JOURNAL_LIMIT = 200
@@ -8,6 +9,12 @@ const CONSOLE_TEXT_LIMIT = 200
 const SNAPSHOT_TIMEOUT_MS = 2_000
 const ERROR_SCREEN_TEXT_LIMIT = 300
 const FAILED_STATUS = 400
+const HUB_SOCKET_PATH = '/__ws'
+const PAGE_JOIN_FUNCTION = 'conciv:page:join'
+const STRUCTURED_CLONE_PREFIX = 's:'
+
+const JoinCallSchema = z.object({t: z.literal('q'), i: z.string(), m: z.literal(PAGE_JOIN_FUNCTION)})
+const CallResultSchema = z.object({t: z.literal('s'), i: z.string(), e: z.unknown().optional()})
 
 export type PagePlaneWatch = {
   subscribed: () => Promise<void>
@@ -15,8 +22,8 @@ export type PagePlaneWatch = {
 }
 
 type ReadyGate = {
-  ready: Promise<boolean>
-  open: (result: Promise<boolean>) => void
+  ready: Promise<void>
+  open: () => void
 }
 
 type JournalEntry = {at: number; line: string}
@@ -98,41 +105,46 @@ async function explain(input: {line: string; journal: Journal; page: Page}): Pro
   return [input.line, ...entries, await pageState(input.page)].join('\n')
 }
 
-function parsedJson(payload: string): unknown {
+function decodedFrame(payload: string | Buffer): unknown {
+  const raw = String(payload)
   try {
-    return JSON.parse(payload)
+    if (raw.startsWith(STRUCTURED_CLONE_PREFIX)) return structuredCloneParse(raw.slice(STRUCTURED_CLONE_PREFIX.length))
+    return JSON.parse(raw)
   } catch {
     return null
   }
 }
 
-function isReadyFrame(payload: string): boolean {
-  const frame = PushFrameSchema.safeParse(parsedJson(payload))
-  return frame.success && frame.data.channel === 'ready'
+function isHubSocket(socket: PageWebSocket): boolean {
+  return socket.url().includes(HUB_SOCKET_PATH)
 }
 
-function isPushSocket(socket: PageWebSocket): boolean {
-  return socket.url().includes(PUSH_WS_PATH)
-}
-
-function readyOf(socket: PageWebSocket): Promise<boolean> {
-  return socket
-    .waitForEvent('framereceived', {
-      timeout: SUBSCRIBE_TIMEOUT_MS,
-      predicate: (event) => isReadyFrame(String(event.payload)),
-    })
-    .then(
-      () => true,
-      () => false,
-    )
+function joinedOf(socket: PageWebSocket): Promise<boolean> {
+  const joins = new Set<string>()
+  const settled = Promise.withResolvers<boolean>()
+  const onSent = (event: {payload: string | Buffer}): void => {
+    const call = JoinCallSchema.safeParse(decodedFrame(event.payload))
+    if (call.success) joins.add(call.data.i)
+  }
+  const onReceived = (event: {payload: string | Buffer}): void => {
+    const result = CallResultSchema.safeParse(decodedFrame(event.payload))
+    if (!result.success || !joins.has(result.data.i)) return
+    settled.resolve(result.data.e === undefined)
+  }
+  const onClose = (): void => settled.resolve(false)
+  socket.on('framesent', onSent)
+  socket.on('framereceived', onReceived)
+  socket.on('close', onClose)
+  return settled.promise.finally(() => {
+    socket.off('framesent', onSent)
+    socket.off('framereceived', onReceived)
+    socket.off('close', onClose)
+  })
 }
 
 function readyGate(): ReadyGate {
-  const held: {open: (result: Promise<boolean>) => void} = {open: () => {}}
-  const opened = new Promise<Promise<boolean>>((resolve) => {
-    held.open = resolve
-  })
-  return {ready: opened.then((result) => result), open: (result) => held.open(result)}
+  const gate = Promise.withResolvers<void>()
+  return {ready: gate.promise, open: () => gate.resolve()}
 }
 
 function watchPagePlane(page: Page): PagePlaneWatch {
@@ -143,11 +155,14 @@ function watchPagePlane(page: Page): PagePlaneWatch {
   const onSocket = (socket: PageWebSocket): void => {
     note(`websocket open ${socket.url()}`)
     const gate = held.gate
-    if (isPushSocket(socket)) gate.open(readyOf(socket))
+    if (isHubSocket(socket))
+      void joinedOf(socket).then((joined) => {
+        if (joined) gate.open()
+      })
     const onClose = (): void => {
       note(`websocket close ${socket.url()}`)
       socketCleanups.delete(cleanup)
-      if (isPushSocket(socket) && held.gate === gate) held.gate = readyGate()
+      if (isHubSocket(socket) && held.gate === gate) held.gate = readyGate()
     }
     const cleanup = (): void => {
       socket.off('close', onClose)
@@ -193,22 +208,18 @@ function watchPagePlane(page: Page): PagePlaneWatch {
   return {
     subscribed: async () => {
       note('subscribed() called')
-      const ready = await pTimeout(held.gate.ready, {
+      await pTimeout(held.gate.ready, {
         milliseconds: SUBSCRIBE_TIMEOUT_MS,
         fallback: async () => {
           throw new TimeoutError(
-            await explain({line: `no page plane push socket opened on ${PUSH_WS_PATH}`, journal, page}),
+            await explain({
+              line: `the tab never joined its session with ${PAGE_JOIN_FUNCTION} on ${HUB_SOCKET_PATH}`,
+              journal,
+              page,
+            }),
           )
         },
       })
-      if (ready) return
-      throw new Error(
-        await explain({
-          line: `the page plane push socket on ${PUSH_WS_PATH} never sent its ready frame`,
-          journal,
-          page,
-        }),
-      )
     },
     dispose: () => {
       page.off('websocket', onSocket)
