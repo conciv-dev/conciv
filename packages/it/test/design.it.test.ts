@@ -852,13 +852,16 @@ describe('x-ray page', () => {
     const region = report.unmatched.find((part) => part.source === undefined)
     expect(region).toBeDefined()
     if (region === undefined) return
+    const kind = region.label ?? `${region.kind} region`
+    const box = region.target
+    const name =
+      box === undefined || kind.startsWith('text "')
+        ? kind
+        : `${kind} at ${Math.round(box.x)},${Math.round(box.y)} (${Math.round(box.w)}×${Math.round(box.h)})`
     const xray = await browser.newPage()
     await xray.goto(report.xray)
-    await xray
-      .getByRole('button', {name: `${region.kind} region`})
-      .first()
-      .click()
-    const card = xray.getByRole('region', {name: `${region.kind} region`})
+    await xray.getByRole('button', {name}).first().click()
+    const card = xray.getByRole('region', {name})
     await expectLocator(card.getByRole('button', {name: 'Open source'})).toBeDisabled()
     await xray.close()
   })
@@ -1681,6 +1684,16 @@ describe('overlay', () => {
     await expectLocator(
       page.getByRole('button', {name: 'Make'}).or(page.getByRole('button', {name: 'Export'})),
     ).toBeVisible()
+  })
+
+  it('unbuilt rows on an empty page name their design node and show no source', async () => {
+    await goto('empty')
+    await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const pane = await openPane()
+    const rows = pane.getByRole('list', {name: 'Components'}).getByRole('listitem')
+    await expectLocator(rows.filter({hasText: 'box at '}).first()).toContainText('box at ')
+    await expectLocator(rows.filter({hasText: 'no source'})).toHaveCount(0)
   })
 
   it('clicking a row outlines its element in the page', async () => {

@@ -81,6 +81,11 @@ export function sourceLabel(source: SourceLoc | null): string {
   return `${source.file}:${source.line}`
 }
 
+export function nodeName(node: TargetNode): string {
+  if (node.kind === 'text') return `text "${node.text}"`
+  return placedName({name: node.kind, box: node.box})
+}
+
 export function reportRows(report: DiffReport | null): Row[] {
   if (report === null) return []
   return [
@@ -137,7 +142,7 @@ function regionRow(input: {region: Region; index: number; report: DiffReport}): 
   const {region, report} = input
   return {
     key: `unmatched-${input.index}`,
-    label: region.source === undefined ? `${region.kind} region` : sourceLabel(region.source),
+    label: region.source === undefined ? regionName(region) : sourceLabel(region.source),
     source: region.source ?? null,
     tag: '',
     selector: '',
@@ -156,6 +161,21 @@ function regionRow(input: {region: Region; index: number; report: DiffReport}): 
     opinion: null,
     twinDisagreement: null,
   }
+}
+
+function sourceCell(source: SourceLoc | null): string {
+  return source === null ? '' : sourceLabel(source)
+}
+
+function regionName(region: Region): string {
+  const name = region.label ?? `${region.kind} region`
+  if (region.target === undefined || name.startsWith('text "')) return name
+  return placedName({name, box: region.target})
+}
+
+function placedName(input: {name: string; box: Box}): string {
+  const {name, box} = input
+  return `${name} at ${Math.round(box.x)},${Math.round(box.y)} (${Math.round(box.w)}×${Math.round(box.h)})`
 }
 
 function regionQuery(region: Region): string | null {
@@ -364,7 +384,7 @@ function ComponentRow(props: ComponentRowProps): JSX.Element {
             </span>
           </Show>
           {props.marks?.(props.row)}
-          <span class="color-meta ms-auto whitespace-nowrap">{sourceLabel(props.row.source)}</span>
+          <span class="color-meta ms-auto whitespace-nowrap">{sourceCell(props.row.source)}</span>
           <span
             class={`i-ph-caret-down op-50 shrink-0 transition-transform duration-150 motion-reduce:transition-none ${props.expanded ? 'rotate-180' : ''}`}
             aria-hidden="true"
