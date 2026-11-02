@@ -10,12 +10,20 @@ import {
   DraftsSetInputSchema,
   EngineStalenessSchema,
   MarkersListOutputSchema,
+  NavigationGetOutputSchema,
+  NavigationSetOutputSchema,
   OkSchema,
   SessionIdInputSchema,
   type RegistryCallErrorName,
 } from '@conciv/contract'
 import {defineConcivFunction} from '@conciv/extension/devframe-function'
-import {ChatCommandsSchema, ChatModelsSchema, ChatToolsSchema} from '@conciv/protocol/chat-types'
+import {
+  ChatCommandsSchema,
+  ChatModelsSchema,
+  ChatToolsSchema,
+  NavigationWriteSchema,
+  type NavigationWrite,
+} from '@conciv/protocol/chat-types'
 import {widgetCaller} from '../../lib/cors.js'
 import {listCommands, mcpUrlFor} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
@@ -81,10 +89,7 @@ export function makeRpcRouter(deps: RpcDeps) {
     chat: chatRouter(deps, sessionOs),
     drafts: draftsRouter(deps),
     markers: markersRouter(deps),
-    navigation: {
-      get: os.navigation.get.handler(() => engine.navigation.get()),
-      set: os.navigation.set.handler(({input}) => engine.navigation.set(input)),
-    },
+    navigation: navigationRouter(deps),
     registry: {
       catalog: os.registry.catalog.handler(() => engine.catalog()),
       call: sessionOs.registry.call.handler(async ({input, context, errors}) => {
@@ -288,3 +293,43 @@ export function markersFunctions(deps: StoreDeps) {
 
 export type DraftsServerFunctions = ServerFunctionsOf<ReturnType<typeof draftsFunctions>>
 export type MarkersServerFunctions = ServerFunctionsOf<ReturnType<typeof markersFunctions>>
+
+type NavigationDeps = Pick<RpcDeps, 'runtime'>
+
+function navigationActions(deps: NavigationDeps) {
+  const navigation = deps.runtime.engine.navigation
+  return {
+    get: () => navigation.get(),
+    set: (input: NavigationWrite) => navigation.set(input),
+  }
+}
+
+function navigationRouter(deps: NavigationDeps) {
+  const actions = navigationActions(deps)
+  return {
+    get: os.navigation.get.handler(() => actions.get()),
+    set: os.navigation.set.handler(({input}) => actions.set(input)),
+  }
+}
+
+export function navigationFunctions(deps: NavigationDeps) {
+  const actions = navigationActions(deps)
+  return [
+    defineConcivFunction({
+      name: 'conciv:navigation:get',
+      type: 'query',
+      input: z.object({}),
+      output: NavigationGetOutputSchema,
+      handler: actions.get,
+    }),
+    defineConcivFunction({
+      name: 'conciv:navigation:set',
+      type: 'action',
+      input: NavigationWriteSchema,
+      output: NavigationSetOutputSchema,
+      handler: actions.set,
+    }),
+  ]
+}
+
+export type NavigationServerFunctions = ServerFunctionsOf<ReturnType<typeof navigationFunctions>>
