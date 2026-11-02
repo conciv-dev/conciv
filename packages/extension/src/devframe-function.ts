@@ -100,7 +100,7 @@ type PlainSpec<
 type SessionSpec<
   NAME extends string,
   TYPE extends ConcivFunctionKind,
-  INPUT extends z.ZodType,
+  INPUT extends z.ZodObject,
   OUTPUT extends z.ZodType,
 > = FunctionBase<NAME, TYPE, INPUT, OUTPUT> & {
   session: true
@@ -112,7 +112,7 @@ type SessionSpec<
 
 type WideSpec =
   | PlainSpec<string, ConcivFunctionKind, z.ZodType, z.ZodType>
-  | SessionSpec<string, ConcivFunctionKind, z.ZodType, z.ZodType>
+  | SessionSpec<string, ConcivFunctionKind, z.ZodObject, z.ZodType>
 
 type ConcivFunction<
   NAME extends string,
@@ -129,8 +129,9 @@ type ConcivFunction<
 }
 
 function runHandler(spec: WideSpec, raw: unknown, ctx: DevframeNodeContext): unknown {
-  const input = spec.input.parse(raw)
-  if (spec.session !== true) return spec.handler(input, {ctx})
+  if (spec.session !== true) return spec.handler(spec.input.parse(raw), {ctx})
+  const wire = spec.input.extend(SessionInput.shape).parse(raw)
+  const input = Object.fromEntries(Object.entries(wire).filter(([key]) => key !== 'sessionId'))
   const host = ctx.services.get(CONCIV_HOST_SERVICE)
   if (!host) throw concivError('NO_SESSION', `${spec.name} needs the conciv:host service`)
   return host.inSession(SessionInput.parse(raw).sessionId, (sessionId) => spec.handler(input, {ctx, sessionId}))
@@ -139,7 +140,7 @@ function runHandler(spec: WideSpec, raw: unknown, ctx: DevframeNodeContext): unk
 export function defineConcivFunction<
   NAME extends string,
   TYPE extends ConcivFunctionKind,
-  INPUT extends z.ZodType,
+  INPUT extends z.ZodObject,
   OUTPUT extends z.ZodType,
 >(
   spec: SessionSpec<NAME, TYPE, INPUT, OUTPUT>,
@@ -151,7 +152,7 @@ export function defineConcivFunction<
   OUTPUT extends z.ZodType,
 >(spec: PlainSpec<NAME, TYPE, INPUT, OUTPUT>): ConcivFunction<NAME, TYPE, INPUT, OUTPUT>
 export function defineConcivFunction(spec: WideSpec): unknown {
-  const wireInput: z.ZodType = spec.session === true ? z.intersection(spec.input, SessionInput) : spec.input
+  const wireInput: z.ZodType = spec.session === true ? spec.input.extend(SessionInput.shape) : spec.input
   return defineRpcFunction({
     name: spec.name,
     type: spec.type,

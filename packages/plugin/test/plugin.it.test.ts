@@ -691,7 +691,7 @@ describe('native page vite boot', () => {
 })
 
 describe('nextjs hub forwarding config', () => {
-  const ENV_KEYS = ['NEXT_PUBLIC_CONCIV_PORT', 'CONCIV_OPTIONS'] as const
+  const ENV_KEYS = ['NEXT_PUBLIC_CONCIV_PORT', 'CONCIV_OPTIONS', 'NODE_ENV'] as const
   const savedEnv: Record<string, string | undefined> = {}
   let originalCwd = ''
   let projectRoot = ''
@@ -776,10 +776,26 @@ describe('nextjs hub forwarding config', () => {
     expect(await skipped.redirects?.()).toEqual([])
   })
 
-  it('forwards to a preset NEXT_PUBLIC_CONCIV_PORT', async () => {
+  it('forwards to a preset NEXT_PUBLIC_CONCIV_PORT and boots the engine on that same port', async () => {
     process.env.NEXT_PUBLIC_CONCIV_PORT = '3598'
-    const table = await withConciv({}, {port: 3599}).rewrites?.()
+    const config = withConciv({}, {port: 3599})
+    const table = await config.rewrites?.()
     expect(table?.beforeFiles?.[0]?.destination).toBe('http://127.0.0.1:3598/__conciv/:path*')
+    expect(JSON.parse(process.env.CONCIV_OPTIONS ?? '{}').port).toBe(3598)
+    expect(JSON.parse(config.env.CONCIV_OPTIONS ?? '{}').port).toBe(3598)
+  })
+
+  it('keeps the hub rewrite at the root path when the app sets a basePath', async () => {
+    const table = await withConciv({basePath: '/docs'}, {port: 3599}).rewrites?.()
+    expect(table?.beforeFiles?.[0]).toMatchObject({source: '/__conciv/:path*', basePath: false})
+  })
+
+  it('adds no hub rewrite or redirect override to a production build', async () => {
+    process.env.NODE_ENV = 'production'
+    const config = withConciv({redirects: async () => [{...userRoute, permanent: false}]}, {port: 3599})
+    expect(config.rewrites).toBeUndefined()
+    expect(config.skipTrailingSlashRedirect).toBeUndefined()
+    expect(await config.redirects?.()).toEqual([{...userRoute, permanent: false}])
   })
 })
 

@@ -110,6 +110,11 @@ describe('devframe faults', () => {
   it('refuses to wrap a function the hub does not have', async () => {
     await expect(failCalls(kit, ['fault-probe:missing'])).rejects.toThrow(/fault-probe:missing/)
   })
+
+  it('wraps none of the named calls when one of them is missing', async () => {
+    await expect(failCalls(kit, ['fault-probe:ping', 'fault-probe:missing'])).rejects.toThrow(/fault-probe:missing/)
+    expect(await ping(kit)).toBe('pong')
+  })
 })
 
 describe('boot server', () => {

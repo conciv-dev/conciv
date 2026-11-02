@@ -24,7 +24,7 @@ export type ConcivPluginMeta<Id extends string, Schema extends z.ZodType> = {
 
 export type ConcivPluginClient = Pick<
   ExtensionMeta<string, z.ZodType, readonly AnyToolBuilder[], readonly AnyAttachmentBuilder[]>,
-  'views' | 'Surface' | 'Component' | 'attachments' | 'tools'
+  'views' | 'Surface' | 'Component' | 'attachments'
 >
 
 export type ConcivPluginServer<Config> = (

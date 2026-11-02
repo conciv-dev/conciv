@@ -17,7 +17,7 @@ type WebpackContext = {nextRuntime?: string; dev?: boolean; dir?: string; config
 type WebpackHook = (config: WebpackConfig, context: WebpackContext) => WebpackConfig
 
 type HeaderCondition = {type: 'header'; key: string; value?: string}
-type Route = {source: string; destination: string; has?: HeaderCondition[]}
+type Route = {source: string; destination: string; has?: HeaderCondition[]; basePath?: false}
 type RedirectRoute = Route & {permanent: boolean; missing?: HeaderCondition[]; locale?: false; basePath?: false}
 type RewriteTable = {beforeFiles?: Route[]; afterFiles?: Route[]; fallback?: Route[]}
 
@@ -91,6 +91,7 @@ function forwardHub(
     source: `${HUB_PATH}/:path*`,
     destination: `http://127.0.0.1:${port}${HUB_PATH}/:path*`,
     has: [LOOPBACK_HOST],
+    basePath: false,
   }
   return {
     skipTrailingSlashRedirect: true,
@@ -106,6 +107,15 @@ function forwardHub(
       return {...user, beforeFiles: [hub, ...(user.beforeFiles ?? [])]}
     },
   }
+}
+
+const DEVFRAMES_HANDOFF = Symbol.for('conciv.nextjs.devframes')
+
+function handedOffDevframes(): ConcivConfig['devframes'] {
+  const handed: unknown = Reflect.get(globalThis, DEVFRAMES_HANDOFF)
+  if (typeof handed !== 'object' || handed === null || !('add' in handed) || !Array.isArray(handed.add))
+    return undefined
+  return {add: handed.add.filter((entry): entry is object => typeof entry === 'object' && entry !== null)}
 }
 
 const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/plugin', '@conciv/core', '@conciv/db', '@conciv/harness']
@@ -135,16 +145,17 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   const baseExternals = base.serverExternalPackages ?? []
   const serverExternalPackages = [...new Set([...baseExternals, ...ENGINE_EXTERNALS])]
   if (options.enabled === false) return {...nextConfig, env: baseEnv, serverExternalPackages}
-  const port = options.port ?? CONCIV_DEFAULT_PORT
-  const resolved: ConcivConfig = {...options, port}
+  const presetPort = Number(process.env.NEXT_PUBLIC_CONCIV_PORT)
+  const port = Number.isInteger(presetPort) && presetPort > 0 ? presetPort : (options.port ?? CONCIV_DEFAULT_PORT)
+  const {devframes, ...serializable} = options
+  Reflect.set(globalThis, DEVFRAMES_HANDOFF, devframes)
   const concivEnv = {
     NEXT_PUBLIC_CONCIV_PORT: String(port),
-    CONCIV_OPTIONS: JSON.stringify(resolved),
+    CONCIV_OPTIONS: JSON.stringify({...serializable, port}),
   }
   for (const [key, value] of Object.entries(concivEnv)) {
     if (process.env[key] === undefined) process.env[key] = value
   }
-  const effectivePort = process.env.NEXT_PUBLIC_CONCIV_PORT ?? concivEnv.NEXT_PUBLIC_CONCIV_PORT
   const generated = writeExtensionsEntry(process.cwd())
   const baseTurbopack = base.turbopack ?? {}
   const turbopack: TurbopackConfig = {
@@ -163,19 +174,20 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   }
   return {
     ...nextConfig,
-    env: {...baseEnv, ...concivEnv, NEXT_PUBLIC_CONCIV_PORT: effectivePort},
+    env: {...baseEnv, ...concivEnv},
     serverExternalPackages,
     turbopack,
     webpack,
-    ...forwardHub(base, effectivePort),
+    ...(process.env.NODE_ENV === 'production' ? {} : forwardHub(base, concivEnv.NEXT_PUBLIC_CONCIV_PORT)),
   }
 }
 
 export async function registerWith(loadBuiltins: () => Promise<Builtins>): Promise<void> {
   if (process.env.NODE_ENV === 'production') return
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
-  const options = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
-  if (options.enabled === false) return
+  const parsed = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
+  if (parsed.enabled === false) return
+  const options: ConcivConfig = {...parsed, devframes: handedOffDevframes()}
   const root = process.cwd()
   try {
     const {watchExtensionsDir} = await import('./extensions-watch.js')
