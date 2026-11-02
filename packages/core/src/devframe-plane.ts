@@ -15,6 +15,7 @@ import type {DevframeNodeContext} from 'devframe/types'
 import {createInteractiveAuth} from 'devframe/recipes/interactive-auth'
 import type {z} from 'zod'
 import {logError} from './lib/debug.js'
+import {isInheritedToken} from './devframe-trust.js'
 
 const HUB_BASE = '/__conciv/'
 
@@ -144,7 +145,13 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
     allowedOrigins: opts.allowedOrigins,
     getStorageDir: (scope) => join(opts.stateDir, 'devframe', scope),
     configure(ctx) {
-      Object.assign(auth, createInteractiveAuth(ctx, {clientAuthTokens: [opts.loginToken]}))
+      const interactive = createInteractiveAuth(ctx, {clientAuthTokens: [opts.loginToken]})
+      const guarded: DevframeAuthHandler = {
+        ...interactive,
+        authorize: (method, session) =>
+          interactive.authorize(method, session) && !isInheritedToken(ctx, session.meta.clientAuthToken),
+      }
+      Object.assign(auth, guarded)
     },
   })
   return {

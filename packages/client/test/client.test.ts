@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {onlineManager} from '@tanstack/query-core'
+import {onlineManager, QueryObserver, skipToken} from '@tanstack/query-core'
 import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
 import {concivError} from '@conciv/extension/devframe-function'
 import {until} from '@conciv/harness-testkit'
@@ -568,6 +568,20 @@ describe('hub-backed query utils', () => {
     )
     expect(isReachabilityError(refused)).toBe(false)
     expect(isReachabilityError(concivError('DISCONNECTED', 'the connection to the conciv engine dropped'))).toBe(true)
+  })
+
+  it('keeps a listed query disabled while its input is skipToken, even on an explicit refetch', async () => {
+    const booted = await bootHubKit()
+    const utils = makeQueryUtils(hubRoutedRpc(unreachableRpc, hubCall(booted), new Set(['sessions'])))
+    const observer = new QueryObserver(new QueryClient(), {
+      ...utils.sessions.list.queryOptions({input: skipToken}),
+      retry: false,
+    })
+    const stop = observer.subscribe(() => {})
+    expect(observer.getCurrentResult().fetchStatus).toBe('idle')
+    const refetched = await observer.refetch()
+    expect(refetched.error?.message).toMatch(/skipToken/)
+    stop()
   })
 
   it('leaves an unlisted group on oRPC', async () => {

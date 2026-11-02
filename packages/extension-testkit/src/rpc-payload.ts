@@ -2,6 +2,10 @@ import {StandardRPCJsonSerializer, StandardRPCSerializer} from '@orpc/client/sta
 
 const serializer = new StandardRPCSerializer(new StandardRPCJsonSerializer())
 
+export function engineRoutePath(pathname: string): string {
+  return pathname.replace(/^\/t\/[^/]+/, '')
+}
+
 export function procedurePathOf(pathname: string): readonly string[] {
   return pathname
     .split('/')

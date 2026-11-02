@@ -1,4 +1,7 @@
 import type {Accessor, Setter} from 'solid-js'
+import {z} from 'zod'
+import {defineConcivFunction} from '../src/devframe-function.js'
+import {defineConcivPlugin} from '../src/devframe-plugin.js'
 import {defineExtension} from '../src/define-extension.js'
 import {getExtensionApi, type ExtensionApi} from '../src/extension-api.js'
 import {getHostApi, HostApiProvider} from '../src/host.js'
@@ -73,3 +76,17 @@ export {
   rootHidesHostValues,
 }
 export type {RootHostWiringProbe, RootConnectHostApiProbe}
+
+const typedPlugin = defineConcivPlugin({id: 'typed', title: 'Typed'})
+// @ts-expect-error plugin tools are agent functions on the server half, never part of the client half
+typedPlugin.client({tools: []})
+
+// @ts-expect-error a session function takes an object input so the session id can join it
+defineConcivFunction({
+  name: 'typed:scalar-session',
+  type: 'query',
+  session: true,
+  input: z.string(),
+  output: z.string(),
+  handler: (input) => input,
+})

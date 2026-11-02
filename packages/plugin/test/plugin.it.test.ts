@@ -602,10 +602,21 @@ describe('native page vite boot', () => {
       expect(state.errors).toEqual([])
     }, 30_000)
 
-    it('asks a fresh tab for the login code, refuses a wrong one and opens the chat after the right one', async () => {
+    it('asks a fresh tab for the login code, refuses a wrong one and restores the saved chat after the right one', async () => {
       const url = state.started?.server.resolvedUrls?.local[0]
+      if (url === undefined) throw new Error('dev server did not start')
+      const opener = await trusted()
+      await opener.goto(url, {waitUntil: 'domcontentloaded'})
+      const openerLauncher = opener.getByRole('button', {name: /conciv chat$/})
+      await openerLauncher.waitFor({timeout: 45_000})
+      if ((await openerLauncher.getAttribute('aria-expanded')) !== 'true') {
+        const saved = opener.waitForResponse((response) => response.url().endsWith('/rpc/navigation/set'))
+        await openerLauncher.click()
+        await saved
+      }
+      await opener.close()
       const tab = await state.browser?.newPage()
-      if (tab === undefined || url === undefined) throw new Error('dev server did not start')
+      if (tab === undefined) throw new Error('browser did not start')
       const errorsBeforeLogin: string[] = []
       tab.on('console', (message) => {
         if (message.type() === 'error') errorsBeforeLogin.push(message.text())
@@ -623,7 +634,6 @@ describe('native page vite boot', () => {
       await code.fill(getTempAuthCode())
       await card.getByRole('button', {name: 'Authorize'}).click()
       await expectLocator(card).toBeHidden()
-      await tab.getByRole('button', {name: /conciv chat$/}).click()
       await tab.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
       await tab.close()
     }, 90_000)
@@ -726,7 +736,7 @@ describe('native page vite boot', () => {
 })
 
 describe('nextjs hub forwarding config', () => {
-  const ENV_KEYS = ['NEXT_PUBLIC_CONCIV_PORT', 'CONCIV_OPTIONS'] as const
+  const ENV_KEYS = ['NEXT_PUBLIC_CONCIV_PORT', 'CONCIV_OPTIONS', 'NODE_ENV'] as const
   const savedEnv: Record<string, string | undefined> = {}
   let originalCwd = ''
   let projectRoot = ''
@@ -811,10 +821,33 @@ describe('nextjs hub forwarding config', () => {
     expect(await skipped.redirects?.()).toEqual([])
   })
 
-  it('forwards to a preset NEXT_PUBLIC_CONCIV_PORT', async () => {
+  it('forwards to a preset NEXT_PUBLIC_CONCIV_PORT and boots the engine on that same port', async () => {
     process.env.NEXT_PUBLIC_CONCIV_PORT = '3598'
-    const table = await withConciv({}, {port: 3599}).rewrites?.()
+    const config = withConciv({}, {port: 3599})
+    const table = await config.rewrites?.()
     expect(table?.beforeFiles?.[0]?.destination).toBe('http://127.0.0.1:3598/__conciv/:path*')
+    expect(JSON.parse(process.env.CONCIV_OPTIONS ?? '{}').port).toBe(3598)
+    expect(JSON.parse(config.env.CONCIV_OPTIONS ?? '{}').port).toBe(3598)
+  })
+
+  it('keeps the hub rewrite at the root path when the app sets a basePath', async () => {
+    const table = await withConciv({basePath: '/docs'}, {port: 3599}).rewrites?.()
+    expect(table?.beforeFiles?.[0]).toMatchObject({source: '/__conciv/:path*', basePath: false})
+  })
+
+  it('adds no hub rewrite or redirect override to a production build', async () => {
+    process.env.NODE_ENV = 'production'
+    const config = withConciv({redirects: async () => [{...userRoute, permanent: false}]}, {port: 3599})
+    expect(config.rewrites).toBeUndefined()
+    expect(config.skipTrailingSlashRedirect).toBeUndefined()
+    expect(await config.redirects?.()).toEqual([{...userRoute, permanent: false}])
+  })
+
+  it('refuses devframes.add in next.config and points at register in instrumentation', () => {
+    expect(() => withConciv({}, {port: 3599, devframes: {add: [{id: 'added'}]}})).toThrow(/instrumentation\.ts/)
+    expect(process.env.CONCIV_OPTIONS).toBeUndefined()
+    const config = withConciv({}, {port: 3599, devframes: {add: []}})
+    expect(JSON.parse(config.env.CONCIV_OPTIONS ?? '{}')).toEqual({port: 3599})
   })
 })
 
@@ -1502,29 +1535,54 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 90_000)
 
+  function installConcivInto(root: string, storeSegments: string[]): Builtins {
+    const store = join(root, ...storeSegments)
+    const installed = join(installConcivPackage(root, '@conciv/embed', store), '..')
+    for (const name of ['terminal', 'test-runner', 'whiteboard', 'recorder', 'ios']) {
+      installConcivPackage(root, `@conciv/extension-${name}`, store)
+    }
+    installConcivPackage(root, '@conciv/extension-compiler', store)
+    const workspaceIt = join(
+      dirname(dirname(dirname(realpathSync(fileURLToPath(import.meta.resolve('@conciv/embed')))))),
+      'it',
+    )
+    cpSync(join(workspaceIt, 'package.json'), join(installed, 'it', 'package.json'))
+    if (!existsSync(join(root, 'node_modules', '@conciv', 'it'))) {
+      mkdirSync(join(root, 'node_modules', '@conciv'), {recursive: true})
+      symlinkSync(join(installed, 'it'), join(root, 'node_modules', '@conciv', 'it'))
+    }
+    return {
+      serverExtensions: realBuiltins.serverExtensions,
+      clientEntries: ['terminal', 'test-runner', 'whiteboard', 'recorder', 'ios'].map((name) =>
+        join(installed, `extension-${name}`, 'dist', 'client.js'),
+      ),
+      embedEntry: join(installed, 'embed', 'dist', 'mount.js'),
+      dedupeEntry: join(installed, 'extension-compiler', 'dist', 'dedupe-extensions.js'),
+    }
+  }
+
+  function linkWorkspaceConciv(root: string): Builtins {
+    linkConcivIt(root)
+    return {
+      ...realBuiltins,
+      embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
+      dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
+    }
+  }
+
   it.each([
-    {layout: 'flat', storeSegments: ['node_modules']},
-    {layout: 'pnpm-isolated', storeSegments: ['node_modules', '.pnpm', 'node_modules']},
+    {layout: 'flat', prepare: (root: string) => installConcivInto(root, ['node_modules'])},
+    {
+      layout: 'pnpm-isolated',
+      prepare: (root: string) => installConcivInto(root, ['node_modules', '.pnpm', 'node_modules']),
+    },
+    {layout: 'workspace-linked', prepare: linkWorkspaceConciv},
   ])(
     'opens the chat and the recorder on a cold cache of a $layout conciv install with one Solid and without Vite re-optimizing dependencies',
-    async ({storeSegments}) => {
+    async ({prepare}) => {
       const root = realpathSync(dirs.tempDir('conciv-cold-'))
       writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
-      const store = join(root, ...storeSegments)
-      const installed = join(installConcivPackage(root, '@conciv/embed', store), '..')
-      for (const name of ['terminal', 'test-runner', 'whiteboard', 'recorder', 'ios']) {
-        installConcivPackage(root, `@conciv/extension-${name}`, store)
-      }
-      installConcivPackage(root, '@conciv/extension-compiler', store)
-      const workspaceIt = join(
-        dirname(dirname(dirname(realpathSync(fileURLToPath(import.meta.resolve('@conciv/embed')))))),
-        'it',
-      )
-      cpSync(join(workspaceIt, 'package.json'), join(installed, 'it', 'package.json'))
-      if (!existsSync(join(root, 'node_modules', '@conciv', 'it'))) {
-        mkdirSync(join(root, 'node_modules', '@conciv'), {recursive: true})
-        symlinkSync(join(installed, 'it'), join(root, 'node_modules', '@conciv', 'it'))
-      }
+      const builtins = prepare(root)
       const logged: string[] = []
       const remember = (message: string): void => void logged.push(message)
       const server = await createServer({
@@ -1532,19 +1590,7 @@ describe('vite devtools dock', () => {
         configFile: false,
         customLogger: {...createLogger('silent'), info: remember, warn: remember, warnOnce: remember},
         server: {host: '127.0.0.1', port: 0},
-        plugins: [
-          makeViteHook(
-            {enabled: true, stateRoot: root},
-            {
-              serverExtensions: realBuiltins.serverExtensions,
-              clientEntries: ['terminal', 'test-runner', 'whiteboard', 'recorder', 'ios'].map((name) =>
-                join(installed, `extension-${name}`, 'dist', 'client.js'),
-              ),
-              embedEntry: join(installed, 'embed', 'dist', 'mount.js'),
-              dedupeEntry: join(installed, 'extension-compiler', 'dist', 'dedupe-extensions.js'),
-            },
-          ),
-        ],
+        plugins: [makeViteHook({enabled: true, stateRoot: root}, builtins)],
       })
       servers.push(server)
       await server.listen()
@@ -1566,9 +1612,15 @@ describe('vite devtools dock', () => {
       await chat.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
       await chat.getByRole('tab', {name: /Recorder/}).click()
       await recorderPlayer
-      expect(logged.filter((line) => /Failed to resolve dependency|optimized dependencies changed/.test(line))).toEqual(
-        [],
-      )
+      expect(
+        logged.filter((line) =>
+          /Failed to resolve dependency|optimized dependencies changed|new dependencies optimized/.test(line),
+        ),
+      ).toEqual([])
+      const metadata: unknown = JSON.parse(readFileSync(join(server.config.cacheDir, 'deps', '_metadata.json'), 'utf8'))
+      expect(metadata).toMatchObject({
+        optimized: {'@conciv/it > @conciv/embed > @conciv/solid-diffs > @tanstack/solid-pacer': expect.anything()},
+      })
       expect(gatewayFailures).toEqual([])
       expect(warnings.filter((warning) => warning.includes('multiple instances of Solid'))).toEqual([])
       await page.close()
@@ -1879,7 +1931,12 @@ async function expectHubForwarded(page: string): Promise<void> {
   expect((await fetch(`${page}${PLUGIN_FRAME}${asset}`)).status).toBe(200)
 }
 
-async function loginThenFramedCall(browser: Browser, page: string, code: () => Promise<string>): Promise<void> {
+async function loginThenFramedCall(
+  browser: Browser,
+  page: string,
+  code: () => Promise<string>,
+  whileTrusted: (tab: Page) => Promise<void> = async () => {},
+): Promise<void> {
   const tab = await originProbeTab(browser, page)
   const sockets: string[] = []
   tab.on('websocket', (socket) => sockets.push(socket.url()))
@@ -1893,6 +1950,7 @@ async function loginThenFramedCall(browser: Browser, page: string, code: () => P
     await code(),
   )
   expect(trusted).toBe(true)
+  await whileTrusted(tab)
   const frame = await pluginFrame(tab, PLUGIN_FRAME, await probeScript())
   const framed = await frame.evaluate(async () => {
     const client = await window.concivProbe.browserClient({baseURL: '/__conciv/'}).ready()
@@ -1960,14 +2018,41 @@ describe('devframe hub on the vite page origin', () => {
   })
 })
 
+declare module 'devframe' {
+  interface DevframeRpcServerFunctions {
+    'added:ping': () => Promise<string>
+  }
+}
+
 const NEXT_BUNDLERS = [
   {bundler: 'webpack', flags: ['--webpack'], nextPort: 3510, enginePort: 3511},
   {bundler: 'turbopack', flags: [], nextPort: 3512, enginePort: 3513},
 ]
 
+const NEXT_FIXTURE = fileURLToPath(new URL('./fixtures/next-app/', import.meta.url))
+
+function linkNextFixtureModules(): void {
+  const nextPackage = realpathSync(fileURLToPath(new URL('../node_modules/next', import.meta.url)))
+  const modules = join(NEXT_FIXTURE, 'node_modules')
+  rmSync(modules, {recursive: true, force: true})
+  mkdirSync(join(modules, '@conciv'), {recursive: true})
+  symlinkSync(nextPackage, join(modules, 'next'), 'dir')
+  for (const peer of ['react', 'react-dom']) symlinkSync(join(dirname(nextPackage), peer), join(modules, peer), 'dir')
+  const pluginRoot = fileURLToPath(new URL('..', import.meta.url))
+  const installed = join(modules, '@conciv/plugin')
+  mkdirSync(installed)
+  cpSync(join(pluginRoot, 'package.json'), join(installed, 'package.json'))
+  cpSync(join(pluginRoot, 'dist'), join(installed, 'dist'), {recursive: true})
+  symlinkSync(join(pluginRoot, 'node_modules'), join(installed, 'node_modules'), 'dir')
+}
+
+function clearNextFixture(): void {
+  for (const generated of ['.next', 'node_modules', '.conciv', 'next-env.d.ts', 'AGENTS.md', 'CLAUDE.md'])
+    rmSync(join(NEXT_FIXTURE, generated), {recursive: true, force: true})
+}
+
 describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)', ({flags, nextPort, enginePort}) => {
   const PAGE = `http://127.0.0.1:${nextPort}`
-  const EXAMPLE = fileURLToPath(new URL('../../../apps/examples/nextjs-app/', import.meta.url))
 
   let next: ChildProcess
   let output = ''
@@ -1975,12 +2060,21 @@ describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)'
 
   beforeAll(async () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-next-hub-'))
-    rmSync(join(EXAMPLE, '.next'), {recursive: true, force: true})
+    clearNextFixture()
+    linkNextFixtureModules()
     next = spawn(
-      join(EXAMPLE, 'node_modules/.bin/next'),
-      ['dev', ...flags, '--port', String(nextPort), '--hostname', '127.0.0.1'],
+      process.execPath,
+      [
+        join(NEXT_FIXTURE, 'node_modules/next/dist/bin/next'),
+        'dev',
+        ...flags,
+        '--port',
+        String(nextPort),
+        '--hostname',
+        '127.0.0.1',
+      ],
       {
-        cwd: EXAMPLE,
+        cwd: NEXT_FIXTURE,
         detached: true,
         env: {
           ...process.env,
@@ -2001,13 +2095,14 @@ describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)'
       () => output,
       (text) => (text.includes('Ready in') ? true : undefined),
     )
-    expect((await fetch(`${PAGE}/`)).status).toBe(200)
+    expect((await fetch(`${PAGE}/`)).status, output).toBe(200)
     browser = await chromium.launch({headless: true, args: ['--disable-features=LocalNetworkAccessChecks']})
   }, 120_000)
 
   afterAll(async () => {
     await browser?.close()
     await stopGroup(next)
+    clearNextFixture()
   })
 
   it('forwards the hub meta, plugin pages and their assets, keeping the trailing slash redirect', async () => {
@@ -2029,7 +2124,17 @@ describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)'
   }, 30_000)
 
   it('logs in over the page-origin websocket, then a plugin iframe is trusted from the stored login', async () => {
-    await loginThenFramedCall(browser, PAGE, () => authCode(next, () => output))
+    await loginThenFramedCall(
+      browser,
+      PAGE,
+      () => authCode(next, () => output),
+      async (tab) => {
+        const pong = await tab.evaluate(async () =>
+          window.concivProbe.concivCall(await window.concivConnection.ready())('added:ping'),
+        )
+        expect(pong).toBe('pong')
+      },
+    )
   }, 60_000)
 })
 

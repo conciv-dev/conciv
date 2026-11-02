@@ -335,6 +335,43 @@ describe('conciv hub', () => {
     await tab.close()
   }, 15_000)
 
+  it('refuses a prototype key in the engine token path with a 401', async () => {
+    const origin = new URL(kit.hubUrl).origin
+    const statuses = await Promise.all(
+      ['constructor', '__proto__', 'toString', 'hasOwnProperty'].map(async (key) => {
+        const response = await fetch(`${origin}/t/${key}/api/mcp`, {
+          method: 'POST',
+          headers: {'content-type': 'application/json'},
+          body: '{}',
+        })
+        return response.status
+      }),
+    )
+    expect(statuses).toEqual([401, 401, 401, 401])
+  }, 15_000)
+
+  it('trusts no tab that presents an object prototype key as its token', async () => {
+    const tab = await browser.newPage()
+    await tab.goto(host.url, {waitUntil: 'domcontentloaded'})
+    await tab.waitForFunction(() => 'concivProbe' in window)
+    const outcomes = await tab.evaluate(async (baseURL) => {
+      const tokens = ['constructor', '__proto__', 'toString', 'hasOwnProperty']
+      return Promise.all(
+        tokens.map(async (authToken) => {
+          const client = await window.concivProbe.browserClient({baseURL, authToken}).ready()
+          return window.concivProbe
+            .concivCall(client)('hub-probe:caller', {})
+            .then(
+              (value) => JSON.stringify(value),
+              () => 'refused',
+            )
+        }),
+      )
+    }, kit.hubUrl)
+    expect(outcomes).toEqual(['refused', 'refused', 'refused', 'refused'])
+    await tab.close()
+  }, 15_000)
+
   it('runs a session function under its session and refuses one with no session', async () => {
     const sessionId = SessionId.parse(await kit.session())
     expect(await kit.hub.call('hub-probe:session', {sessionId})).toEqual({sessionId})
@@ -422,7 +459,11 @@ describe('conciv hub', () => {
         const iterator = stream[Symbol.asyncIterator]()
         await iterator.next()
         const reads: number[] = []
-        window.concivProbe.readSharedState<{count: number}>(connection, key, (value) => reads.push(value.count))
+        const firstRead = Promise.withResolvers<void>()
+        window.concivProbe.readSharedState<{count: number}>(connection, key, (value) => {
+          reads.push(value.count)
+          firstRead.resolve()
+        })
         Object.assign(window, {
           ended: iterator.next().then(
             () => 'finished',
@@ -430,6 +471,7 @@ describe('conciv hub', () => {
           ),
           reads,
         })
+        await firstRead.promise
       },
       {channel: TICKS_CHANNEL, key: SHARED_STATE},
     )

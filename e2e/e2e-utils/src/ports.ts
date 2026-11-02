@@ -12,6 +12,7 @@ export const E2E_PORTS = {
   'vite-preact-component': 4321,
   'vite-solid-component': 4322,
   'tanstack-start-redact': 4323,
+  'vite-react-packed': 4324,
 } as const
 
 export type E2EApp = keyof typeof E2E_PORTS

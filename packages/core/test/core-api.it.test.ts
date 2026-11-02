@@ -1992,6 +1992,40 @@ describe('rpc wire', () => {
         ).toContain('fixture_echo')
       })
 
+      it('a program awaiting tools one after another and in a loop gets every result back in order', async () => {
+        const sequential = Array.from(
+          {length: 20},
+          (_, index) => `seen.push((await external_fixture_echo({text: 's${index}'})).echoed)`,
+        ).join('\n')
+        const program = `const seen = []
+${sequential}
+for (let index = 0; index < 30; index++) seen.push((await external_fixture_echo({text: 'l' + index})).echoed)
+return seen`
+        expect(await executeResult(program)).toEqual([
+          ...Array.from({length: 20}, (_, index) => `s${index}`),
+          ...Array.from({length: 30}, (_, index) => `l${index}`),
+        ])
+      })
+
+      it('a tool that returns nothing resolves to undefined and the program goes on', async () => {
+        expect(
+          await executeResult('const quiet = await external_fixture_quiet({}); return [typeof quiet, "after"]'),
+        ).toEqual(['undefined', 'after'])
+      })
+
+      it('a program that never ends leaves the server answering, and stopping its turn ends the program', async () => {
+        const sessionId = await newSession()
+        codeTurn('await external_fixture_echo({text: "spinning"}); while (true) {}')
+        const turn = await send(sessionId, 'spin', {runId: 'spin-run'})
+        await turn.waitFor((chunk) => isResultFor(chunk, 'spinning'), GUARD)
+        const asked = performance.now()
+        await chatKit().rpc.sessions.list(undefined)
+        expect(performance.now() - asked).toBeLessThan(1_000)
+        const ended = nextTurnEnd(sessionId)
+        await chatKit().rpc.chat.stop({sessionId, runIds: ['spin-run']})
+        await ended
+      })
+
       it('discover_tools shows a tool output shape and declared error codes, the catalog only its summary', async () => {
         const discover = await mcpTool('discover_tools')
         const found = JSON.stringify(await discover.execute({toolNames: ['fixture_fail']}))
@@ -2233,7 +2267,7 @@ describe('rpc wire', () => {
   function fixtureExtension() {
     return defineExtension({
       name: 'fixture',
-      tools: [echoTool(), readTool(), askTool(), failTool(), hugeTool(), imageTool()],
+      tools: [echoTool(), readTool(), quietTool(), askTool(), failTool(), hugeTool(), imageTool()],
       attachments: fixtureAttachments(),
     }).server(() => ({context: {}, turnEnd: noteTurnEnd}))
   }
@@ -2261,6 +2295,16 @@ describe('rpc wire', () => {
       outputSchema: z.object({value: z.number()}),
       meta: {summary: 'read a fixture value', category: 'fixture', mutating: false},
     }).server(() => ({value: 7}))
+  }
+
+  function quietTool() {
+    return defineTool({
+      name: 'fixture_quiet',
+      description: 'Do nothing and return nothing.',
+      inputSchema: z.object({}),
+      outputSchema: z.unknown(),
+      meta: {summary: 'return nothing', category: 'fixture', mutating: false},
+    }).server(() => undefined)
   }
 
   function askTool() {

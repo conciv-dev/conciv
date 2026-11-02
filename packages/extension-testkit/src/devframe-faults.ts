@@ -15,16 +15,18 @@ export type CallCursor = {count: () => number}
 async function wrapCalls(kit: FaultKit, names: readonly string[], wrap: Wrap): Promise<() => void> {
   const context = await kit.hubInstance.context
   const {rpc} = context
-  const restores = await Promise.all(
+  const targets = await Promise.all(
     names.map(async (name) => {
       const definition = rpc.get(name)
       if (!definition) throw new Error(`no hub function named ${name} to wrap`)
       const invoke: Invoke = await getRpcHandler(definition, context)
-      rpc.update({...definition, setup: undefined, handler: (...args: unknown[]) => wrap(invoke, args, name)})
-      return () => rpc.update(definition)
+      return {name, definition, invoke}
     }),
   )
-  return () => restores.forEach((restore) => restore())
+  targets.forEach(({name, definition, invoke}) =>
+    rpc.update({...definition, setup: undefined, handler: (...args: unknown[]) => wrap(invoke, args, name)}),
+  )
+  return () => targets.forEach(({definition}) => rpc.update(definition))
 }
 
 export async function failCalls(kit: FaultKit, names: readonly string[], code = 'FAULT_INJECTED'): Promise<CallFault> {

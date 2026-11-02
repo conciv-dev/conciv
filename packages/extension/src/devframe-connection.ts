@@ -60,8 +60,9 @@ export function reconnectingClient<Client extends ClosableClient>(
   const isClosed = (): boolean => state.status === 'closed'
 
   function setStatus(status: ConnectionStatus): void {
+    if (state.status === status) return
     state.status = status
-    statusListeners.forEach((listener) => listener(status))
+    Array.from(statusListeners).forEach((listener) => listener(status))
   }
 
   async function openLink(): Promise<Link<Client>> {
@@ -71,7 +72,11 @@ export function reconnectingClient<Client extends ClosableClient>(
       dropSignal.reject(disconnected())
       if (state.link?.dropped === dropSignal.promise) drop()
     }
-    const client = await open(onDrop)
+    const opening = open(onDrop)
+    const client = await Promise.race([dropSignal.promise, opening]).catch((error: unknown) => {
+      opening.then((late) => late.close?.()).catch(() => {})
+      throw error
+    })
     return {client, dropped: dropSignal.promise, drop: onDrop}
   }
 
@@ -90,6 +95,9 @@ export function reconnectingClient<Client extends ClosableClient>(
       baseWait: RECONNECT_BASE_WAIT_MS,
       maxWait: RECONNECT_MAX_WAIT_MS,
       maxAttempts: Number.POSITIVE_INFINITY,
+      onRetry: () => {
+        if (!isClosed()) setStatus('disconnected')
+      },
     })
     const link = await state.retryer.execute()
     if (!link) return
@@ -99,7 +107,7 @@ export function reconnectingClient<Client extends ClosableClient>(
     }
     state.link = link
     setStatus('connected')
-    clientListeners.forEach((listener) => listener(link.client))
+    Array.from(clientListeners).forEach((listener) => listener(link.client))
   }
 
   function onClient(listener: ClientListener<Client>): () => void {
@@ -174,9 +182,11 @@ export function browserClient(options: {baseURL: string; authToken?: string}): R
       otpParam: false,
       rpcOptions: concivRpcOptions(),
     })
+    const isDown = (status: string): boolean => status === 'disconnected' || status === 'error'
     client.events.on('connection:status', (status) => {
-      if (status === 'disconnected' || status === 'error') onDrop()
+      if (isDown(status)) onDrop()
     })
+    if (isDown(client.status)) onDrop()
     return client
   })
 }

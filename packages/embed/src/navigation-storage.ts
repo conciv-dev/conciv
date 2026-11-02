@@ -16,7 +16,7 @@ function parseNavigation(raw: string): NavigationState | null {
   }
 }
 
-export type NavigationStorage = WebStorage & {restored: Promise<void>; dispose: () => void}
+export type NavigationStorage = WebStorage & {restored: Promise<void>; reload: () => Promise<void>; dispose: () => void}
 
 type NavigationStorageState = {cache: string | null; lastStamp: number; wroteLocally: boolean; cancelled: boolean}
 
@@ -32,16 +32,17 @@ export function makeNavigationStorage(rpc: NavigationRpc, onRestore: (href: stri
     },
     {wait: WRITE_DELAY_MS},
   )
-  const restored = rpc.navigation
-    .get(undefined)
-    .catch(() => null)
-    .then((initial) => {
-      if (state.cancelled || state.wroteLocally || !initial) return
-      state.lastStamp = initial.updatedAt
-      state.cache = JSON.stringify({entries: initial.entries, index: initial.index})
-      const current = initial.entries[initial.index]
-      if (current) onRestore(current.href)
-    })
+  const load = (): Promise<void> =>
+    rpc.navigation
+      .get(undefined)
+      .catch(() => null)
+      .then((initial) => {
+        if (state.cancelled || state.wroteLocally || !initial) return
+        state.lastStamp = initial.updatedAt
+        state.cache = JSON.stringify({entries: initial.entries, index: initial.index})
+        const current = initial.entries[initial.index]
+        if (current) onRestore(current.href)
+      })
   return {
     getItem: () => state.cache,
     setItem: (_key, value) => {
@@ -50,7 +51,8 @@ export function makeNavigationStorage(rpc: NavigationRpc, onRestore: (href: stri
       const parsed = parseNavigation(value)
       if (parsed) write.maybeExecute(parsed, stamp())
     },
-    restored,
+    restored: load(),
+    reload: load,
     dispose: () => {
       state.cancelled = true
       write.cancel()
