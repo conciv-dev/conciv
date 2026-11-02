@@ -87,8 +87,15 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
   ).toEqual([])
 }
 
-export async function gotoTrusted(page: Page, path: string): Promise<void> {
+export async function gotoTrusted(
+  page: Page,
+  path: string,
+  options: {root?: string; timeout?: number} = {},
+): Promise<string> {
   const appRoot = test.info().project.metadata.appRoot
-  await trustedTab(page, {root: typeof appRoot === 'string' ? appRoot : process.cwd()})
-  await page.goto(path, {waitUntil: 'domcontentloaded'})
+  const apiBase = await trustedTab(page, {
+    root: options.root ?? (typeof appRoot === 'string' ? appRoot : process.cwd()),
+  })
+  await page.goto(path, {waitUntil: 'domcontentloaded', timeout: options.timeout})
+  return apiBase
 }

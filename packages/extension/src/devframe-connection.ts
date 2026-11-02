@@ -66,6 +66,7 @@ export function reconnectingClient<Client extends ClosableClient>(
   }
 
   async function openLink(): Promise<Link<Client>> {
+    if (!isClosed()) setStatus('connecting')
     const dropSignal = Promise.withResolvers<never>()
     dropSignal.promise.catch(() => {})
     const onDrop = (): void => {
@@ -89,7 +90,6 @@ export function reconnectingClient<Client extends ClosableClient>(
   }
 
   async function connect(): Promise<void> {
-    setStatus('connecting')
     state.retryer = new AsyncRetryer(openLink, {
       backoff: 'exponential',
       baseWait: RECONNECT_BASE_WAIT_MS,
@@ -167,7 +167,7 @@ export function reconnectingClient<Client extends ClosableClient>(
 }
 
 async function connectionMetaOf(baseURL: string): Promise<ConnectionMeta> {
-  const response = await fetch(new URL(DEVFRAME_CONNECTION_META_FILENAME, baseURL))
+  const response = await fetch(new URL(DEVFRAME_CONNECTION_META_FILENAME, new URL(baseURL, location.href)))
   if (!response.ok) throw new Error(`the hub at ${baseURL} answered ${response.status} for its connection meta`)
   return response.json()
 }
