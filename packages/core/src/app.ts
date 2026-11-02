@@ -57,15 +57,17 @@ import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
-import {openSourceFromFrames} from './editor/open-source.js'
+import {openSourceFromFrames, type OpenSourceFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {
   draftsFunctions,
+  editorFunctions,
   makeRpcRouter,
   markersFunctions,
   metaFunctions,
   navigationFunctions,
   type DraftsServerFunctions,
+  type EditorServerFunctions,
   type MarkersServerFunctions,
   type MetaServerFunctions,
   type NavigationServerFunctions,
@@ -90,7 +92,8 @@ declare module 'devframe' {
       MetaServerFunctions,
       DraftsServerFunctions,
       MarkersServerFunctions,
-      NavigationServerFunctions {}
+      NavigationServerFunctions,
+      EditorServerFunctions {}
 }
 
 export type MakeAppOpts = {
@@ -542,6 +545,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
 
+  const openFromFrames = (frames: OpenSourceFrames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor)
   const devframePlane = makeDevframePlane({
     stateDir: concivStateDir(opts.cfg.stateRoot),
     cwd: opts.cwd,
@@ -557,6 +561,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       ...draftsFunctions({chat: chatDeps}),
       ...markersFunctions({chat: chatDeps}),
       ...navigationFunctions({runtime}),
+      ...editorFunctions({openFromFrames}),
     ],
   })
   const publishSessions = (): Promise<void> => devframePlane.publish('sessions')
@@ -565,7 +570,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const rpc = makeRpcRouter({
     chat: chatDeps,
     tools: toolList,
-    openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
+    openFromFrames,
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
