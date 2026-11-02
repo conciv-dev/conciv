@@ -17,7 +17,7 @@ import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEa
 import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {cappedValue} from '@conciv/chat'
-import {type EngineStaleness, makeRpcClient as makeContractRpcClient} from '@conciv/contract'
+import {type EngineStaleness, makeRpcClient as makeContractRpcClient, type SessionMeta} from '@conciv/contract'
 import {
   defineExtension,
   defineTool,
@@ -1547,6 +1547,15 @@ describe('rpc wire', () => {
         expect((await sessionMeta(sessionId)).running).toBe(false)
       })
 
+      it('publishes the running flag and the turn title to the session list in shared state', async () => {
+        const sessionId = await newSession()
+        const {turn} = await heldTurn(sessionId, 'published turn')
+        expect(await publishedMeta(sessionId, (meta) => meta.running)).toMatchObject({running: true})
+        script().release()
+        await turn.done(GUARD)
+        expect(await publishedMeta(sessionId, (meta) => !meta.running)).toMatchObject({title: 'published turn'})
+      }, 5_000)
+
       it('a reload that drops the socket mid-turn leaves the turn running to the end, and the reloaded page rejoins it', async () => {
         const sessionId = await newSession()
         script().hold()
@@ -2448,6 +2457,22 @@ describe('rpc wire', () => {
 
   function catchMessage(call: string): string {
     return `try { await ${call} } catch (error) { return String(error.message) }`
+  }
+
+  async function publishedMeta(sessionId: string, reached: (meta: SessionMeta) => boolean) {
+    const context = await chatKit().hubInstance.context
+    const state = await context.rpc.sharedState.get<SessionMeta[]>('conciv:sessions')
+    const matching = () => state.value().find((meta) => meta.id === sessionId && reached(meta))
+    return new Promise<SessionMeta>((resolve) => {
+      const now = matching()
+      if (now) return resolve(now)
+      const off = state.on('updated', () => {
+        const next = matching()
+        if (!next) return
+        off()
+        resolve(next)
+      })
+    })
   }
 
   async function sessionMeta(sessionId: string) {

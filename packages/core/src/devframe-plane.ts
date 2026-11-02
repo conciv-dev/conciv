@@ -6,6 +6,7 @@ import type {ConcivPlugin} from '@conciv/extension'
 import {CONCIV_HOST_SERVICE, type ConcivHost} from '@conciv/extension/devframe-host'
 import type {ClaimUpgrade} from '@conciv/serve'
 import {initHub, type HubInstance} from '@devframes/hub/initiate'
+import {AsyncQueuer} from '@tanstack/pacer'
 import type {DevframePtyTerminalSession, DevframeTerminalSession} from '@devframes/hub/types'
 import {createMessagesDevframe} from '@devframes/plugin-messages'
 import {createTerminalsDevframe} from '@devframes/plugin-terminals'
@@ -51,6 +52,8 @@ export type DevframePlane = {
   publish: Publish
   close: () => Promise<void>
 }
+
+type PublishRequest = {group: PublishedGroup; done: PromiseWithResolvers<void>}
 
 function coreDevframe(opts: DevframePlaneOpts, publish: Publish): DevframeDefinition {
   return defineDevframe({
@@ -116,7 +119,18 @@ async function publishGroup(
 export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
   const auth = unfilledAuth()
   const loginToken = opts.loginToken ?? randomUUID()
-  const publish: Publish = (group) => publishGroup(hub, opts.published, group)
+  const queue = new AsyncQueuer<PublishRequest>(
+    async (request) => {
+      await publishGroup(hub, opts.published, request.group)
+      request.done.resolve()
+    },
+    {concurrency: 1},
+  )
+  const publish: Publish = (group) => {
+    const done = Promise.withResolvers<void>()
+    if (!queue.addItem({group, done})) done.resolve()
+    return done.promise
+  }
   const hub = initHub({
     name: 'conciv',
     base: HUB_BASE,

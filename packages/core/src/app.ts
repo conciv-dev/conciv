@@ -535,6 +535,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     published: {sessions: () => rpcSessionList(chatDeps, false)},
     functions: (publish) => sessionsFunctions({chat: chatDeps, runtime, publish}),
   })
+  const publishSessions = (): Promise<void> => devframePlane.publish('sessions')
+  runStartListeners.push(() => void publishSessions())
+  turnEnds.push(publishSessions)
   const rpc = makeRpcRouter({
     chat: chatDeps,
     tools: toolList,

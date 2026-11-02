@@ -224,6 +224,15 @@ describe('conciv hub', () => {
     await tab.close()
   }, 15_000)
 
+  it('leaves the latest session list in shared state after concurrent changes', async () => {
+    const {sessionId} = await kit.hub.call('conciv:sessions:create', {})
+    const titles = Array.from({length: 16}, (_, index) => `concurrent ${index}`)
+    await Promise.all(titles.map((title) => kit.hub.call('conciv:sessions:rename', {sessionId, title})))
+    const context = await kit.hubInstance.context
+    const state = await context.rpc.sharedState.get(SESSIONS_STATE)
+    expect(state.value()).toEqual(await kit.hub.call('conciv:sessions:list', {}))
+  })
+
   it('stops writing shared state once the reader is released', async () => {
     const tab = await trustedTab(browser, host.url, kit.hubUrl)
     const outcome = tab.evaluate(
