@@ -95,3 +95,5 @@ Ruling 3's "kept current by mutations" meant freshness, not mechanism. The mirro
 ## 22. Pairing floor (2026-11-02)
 
 Ruling 17's "1.3 times the median" is amended to the spike's final code: a node abstains when its top score is under 0.3 or under the median candidate score plus 0.1.
+
+23. The design dictates a layout. Width, height, x and y are metadata on a layout node, never the ask. The target model carries a layout pass (direction, gap, align, wrap, per-child size fill|fit|fixed, padding) and every brief sentence, row and delta speaks in those terms; a px number reaches the brief only inside a geometry delta on a paired element. A builder that copies coordinates (absolute positioning, px widths) is reported as `painted` and asked for the rule, not the pixel. Stated by Omri repeatedly; written 2026-11-02 after the stripe run painted the page.
