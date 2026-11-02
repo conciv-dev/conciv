@@ -50,6 +50,13 @@ export const ChatHydrationSchema = z.object({
 })
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 export const OkSchema = z.object({ok: z.literal(true)})
+export const CHAT_EVENTS_CHANNEL = 'conciv:chat:events'
+export const ChatEventsStreamSchema = z.object({streamId: z.string()})
+export const ChatStopInputSchema = SessionIdInputSchema.extend({runIds: z.array(z.string().min(1))})
+export const ChatPermissionDecisionOutputSchema = OkSchema.extend({startsTurn: z.boolean()})
+export const chatPermissionDecisionErrors = {UNKNOWN_REQUEST: {message: 'no pending approval'}}
+export const ChatUiReplyInputSchema = SessionIdInputSchema.extend({toolCallId: z.string(), value: UiAnswerValueSchema})
+export const chatUiReplyErrors = {UNKNOWN_REQUEST: {message: 'no pending ui question'}}
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 export const serverErrors = {NO_BUNDLER: {message: 'no bundler bridge'}}
 export const serverApprovalErrors = {...serverErrors, APPROVAL_DENIED: {message: 'the call was not approved'}}
@@ -156,15 +163,12 @@ export const contract = {
   chat: {
     events: oc.input(SessionIdInputSchema).output(eventIterator(StreamChunkSchema)),
     hydrate: oc.input(SessionIdInputSchema).output(ChatHydrationSchema),
-    stop: oc.input(SessionIdInputSchema.extend({runIds: z.array(z.string().min(1))})).output(OkSchema),
+    stop: oc.input(ChatStopInputSchema).output(OkSchema),
     permissionDecision: oc
-      .errors({UNKNOWN_REQUEST: {message: 'no pending approval'}})
+      .errors(chatPermissionDecisionErrors)
       .input(PermissionDecisionSchema)
-      .output(OkSchema.extend({startsTurn: z.boolean()})),
-    uiReply: oc
-      .errors({UNKNOWN_REQUEST: {message: 'no pending ui question'}})
-      .input(SessionIdInputSchema.extend({toolCallId: z.string(), value: UiAnswerValueSchema}))
-      .output(OkSchema),
+      .output(ChatPermissionDecisionOutputSchema),
+    uiReply: oc.errors(chatUiReplyErrors).input(ChatUiReplyInputSchema).output(OkSchema),
   },
   registry: {
     catalog: oc.output(RegistryCatalogOutputSchema),
