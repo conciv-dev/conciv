@@ -349,7 +349,7 @@ export function createShellHarness(base: () => string): ShellHarness {
     mounted.hub = hub
     const router = createConcivRouter({
       rpc: makeBrowserRpcClient(apiBase).rpc,
-      hubConnection: hub,
+      hubConnection: () => hub,
       history: createMemoryHistory({initialEntries: [entry]}),
       environment: {rootNode: document, document},
       settings: parseConcivSettings(options.transport ? JSON.stringify({transport: options.transport}) : ''),

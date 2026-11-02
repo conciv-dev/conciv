@@ -1155,6 +1155,16 @@ describe('conciv devframe layer over a real hub', () => {
     expect(unreachable.connection.status()).toBe('closed')
   }, 10_000)
 
+  it('reports each refused attempt as connecting then disconnected', async () => {
+    const unreachable = nodeClient({url: 'http://127.0.0.1:1', transport: 'ws'})
+    const statuses: string[] = []
+    unreachable.connection.onStatus((status) => statuses.push(status))
+    unreachable.connection.ready().catch(() => {})
+    await until(() => statuses.length >= 4, {hangGuardMs: 2_000})
+    unreachable.close()
+    expect(statuses.slice(0, 4)).toEqual(['connecting', 'disconnected', 'connecting', 'disconnected'])
+  }, 10_000)
+
   it('never installs a link that dropped before it finished opening, and opens a fresh one', async () => {
     const opened: number[] = []
     const connection = reconnectingClient(async (onDrop) => {

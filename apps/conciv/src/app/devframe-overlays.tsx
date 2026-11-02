@@ -1,4 +1,4 @@
-import {For, Show, createContext, createMemo, from, untrack, useContext, type JSX} from 'solid-js'
+import {For, Show, createContext, createMemo, from, untrack, useContext, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import {AsyncQueuer} from '@tanstack/pacer'
@@ -126,9 +126,13 @@ function liveDocks(state: SharedState<DevframeDockEntry[]>): () => readonly Devf
   })
 }
 
-function createHubShell(hub: HubConnection | undefined, notify: Notify): HubShell {
+function createHubShell(hub: Accessor<HubConnection> | undefined, notify: Notify): HubShell {
   if (!hub) return EMPTY_SHELL
-  const link = from<HubLink>((set) => watchLink(hub, notify, (next) => set(() => next)))
+  const linkOfConnection = createMemo(() => {
+    const connection = hub()
+    return from<HubLink>((set) => watchLink(connection, notify, (next) => set(() => next)))
+  })
+  const link = () => linkOfConnection()()
   const docks = createMemo(() => {
     const current = link()
     return current ? liveDocks(current.docks) : () => NO_DOCKS
@@ -136,7 +140,10 @@ function createHubShell(hub: HubConnection | undefined, notify: Notify): HubShel
   return {link, docks: () => docks()() ?? NO_DOCKS}
 }
 
-export function HubShellProvider(props: {hub: HubConnection | undefined; children: JSX.Element}): JSX.Element {
+export function HubShellProvider(props: {
+  hub: Accessor<HubConnection> | undefined
+  children: JSX.Element
+}): JSX.Element {
   const notices = useNotices()
   const shell = createHubShell(
     untrack(() => props.hub),

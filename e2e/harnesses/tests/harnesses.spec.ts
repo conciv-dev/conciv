@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test'
-import {collectFailures, expectWidgetBoots} from '@conciv/e2e-utils/widget'
+import {collectFailures, expectWidgetBoots, gotoTrusted} from '@conciv/e2e-utils/widget'
 import type {HarnessApp} from '@conciv/e2e-utils/ports'
 
 const expected: Record<HarnessApp, {model: string; group: string} | null> = {
@@ -29,7 +29,7 @@ test('full app boots with the configured harness and exposes its real model cata
   const harness = expected[projectName]
 
   const failures = collectFailures(page)
-  await page.goto('/', {waitUntil: 'domcontentloaded'})
+  await gotoTrusted(page, '/')
   await expectWidgetBoots(page, failures)
 
   const moreActions = page.getByRole('button', {name: 'More composer actions'})
