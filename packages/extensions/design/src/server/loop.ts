@@ -1,7 +1,7 @@
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {isSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import {STAGES, type DeltaKindName, type DiffInput, type DiffReport, type Stage, type Stop} from '../shared/defs.js'
-import {deltaSentence, TOLERANCES} from '../shared/tolerances.js'
+import {deltaSentence, kindStage, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Box,
   CapturePath,
@@ -214,36 +214,9 @@ const SCORE_PRECISION = 10_000
 const FONT_TOLERANCE = 0.5
 const WEIGHT_STEP = 100
 const COLOR_KINDS: ItemKind[] = ['background', 'foreground', 'border']
-const KIND_STAGES = {
-  unbuilt: 'structure',
-  axis: 'structure',
-  columns: 'structure',
-  text: 'content',
-  fontSize: 'content',
-  lineHeight: 'content',
-  fontWeight: 'content',
-  offset: 'geometry',
-  'inset-left': 'geometry',
-  'inset-right': 'geometry',
-  'inset-top': 'geometry',
-  'inset-bottom': 'geometry',
-  'gap-before': 'geometry',
-  'gap-after': 'geometry',
-  padding: 'geometry',
-  align: 'geometry',
-  background: 'paint',
-  foreground: 'paint',
-  radius: 'paint',
-  border: 'paint',
-  extra: null,
-} as const satisfies Record<ItemKind, Stage | null>
 
 function applied(reply: unknown): boolean {
   return typeof reply === 'object' && reply !== null && 'applied' in reply && reply.applied === true
-}
-
-function kindStage(kind: ItemKind): Stage | null {
-  return KIND_STAGES[kind]
 }
 
 function kindTolerance(kind: DeltaKindName): number {

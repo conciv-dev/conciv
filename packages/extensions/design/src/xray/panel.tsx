@@ -1,10 +1,26 @@
 import {For, onMount, Show, type JSX, createSignal} from 'solid-js'
 import {createTimer} from '@solid-primitives/timer'
-import {compact, uniq} from 'es-toolkit'
+import {compact, minBy, uniq} from 'es-toolkit'
 import {RelativeTime, SegmentGroup, TooltipIconButton} from '@conciv/ui-kit-system'
-import type {ComponentReport, DeltaKindName, DiffReport} from '../shared/defs.js'
-import {aboveTolerance, componentAboveTolerance, deltaSentence, SOURCE_ATTR, traced} from '../shared/tolerances.js'
-import type {Box, SourceLoc, TargetNode, TargetRecord} from '../shared/types.js'
+import {STAGES, type ComponentReport, type DeltaKindName, type DiffReport, type Stage} from '../shared/defs.js'
+import {
+  aboveTolerance,
+  componentAboveTolerance,
+  deltaSentence,
+  kindStage,
+  SOURCE_ATTR,
+  traced,
+} from '../shared/tolerances.js'
+import type {
+  Box,
+  Decision,
+  MeasureSource,
+  PairRecord,
+  SourceLoc,
+  TargetNode,
+  TargetRecord,
+  TwinPair,
+} from '../shared/types.js'
 
 export type Delta = ComponentReport['deltas'][number]
 
@@ -19,6 +35,13 @@ export type Row = {
   mismatch: number | null
   deltas: Delta[]
   unmatched: 'unbuilt' | 'extra' | 'offset' | null
+  query: string | null
+  stage: Stage | null
+  measured: MeasureSource | null
+  confidence: number | null
+  width: number | null
+  warning: boolean
+  nodes: string[]
 }
 
 type WidthTab = {target: TargetRecord; off: number | null}
@@ -31,8 +54,12 @@ export type XrayData = {
   nodes: TargetNode[]
   images: XrayImages
   widths: WidthTab[]
+  columns: ReportResponse[]
   ranAt: number | null
   sourceChangedAt: number | null
+  decisions: Decision[]
+  pairs: PairRecord[]
+  twins: Record<string, TwinPair[]>
 }
 
 export type ReportResponse = {
@@ -41,6 +68,9 @@ export type ReportResponse = {
   targetImage: string
   nodes: TargetNode[]
   sourceChangedAt: number | null
+  decisions: Decision[]
+  pairs: PairRecord[]
+  twins: Record<string, TwinPair[]>
 }
 
 export function sourceLabel(source: SourceLoc | null): string {
@@ -50,8 +80,18 @@ export function sourceLabel(source: SourceLoc | null): string {
 
 export function reportRows(report: DiffReport | null): Row[] {
   if (report === null) return []
-  const components = report.components.map((component, index): Row => ({
-    key: `${component.selector}#${index}`,
+  return [
+    ...report.components.map((component, index) => componentRow({component, index, report})),
+    ...report.unmatched.map((region, index) => regionRow({region, index, report})),
+  ]
+}
+
+type Region = DiffReport['unmatched'][number]
+
+function componentRow(input: {component: ComponentReport; index: number; report: DiffReport}): Row {
+  const {component, report} = input
+  return {
+    key: `${component.selector}#${input.index}`,
     label: sourceLabel(component.source),
     source: component.source,
     tag: component.tag,
@@ -61,9 +101,31 @@ export function reportRows(report: DiffReport | null): Row[] {
     mismatch: component.mismatch,
     deltas: component.deltas,
     unmatched: null,
-  }))
-  const unmatched = report.unmatched.map((region, index): Row => ({
-    key: `unmatched-${index}`,
+    query: component.selector,
+    ...deltaMeta({deltas: component.deltas, report}),
+    warning: report.warnings.some((warning) => sameSite({warning, source: component.source})),
+    nodes: component.nodes ?? [],
+  }
+}
+
+function deltaMeta(input: {
+  deltas: Delta[]
+  report: DiffReport
+}): Pick<Row, 'stage' | 'measured' | 'confidence' | 'width'> {
+  const [first] = input.deltas
+  const stages = compact(input.deltas.map((delta) => kindStage(delta.kind)))
+  return {
+    stage: minBy(stages, (stage) => STAGES.indexOf(stage)) ?? null,
+    measured: first?.source ?? input.report.sources[0] ?? null,
+    confidence: first?.confidence ?? null,
+    width: first?.width ?? input.report.target.width,
+  }
+}
+
+function regionRow(input: {region: Region; index: number; report: DiffReport}): Row {
+  const {region, report} = input
+  return {
+    key: `unmatched-${input.index}`,
     label: region.source === undefined ? `${region.kind} region` : sourceLabel(region.source),
     source: region.source ?? null,
     tag: '',
@@ -73,8 +135,23 @@ export function reportRows(report: DiffReport | null): Row[] {
     mismatch: null,
     deltas: [],
     unmatched: region.kind,
-  }))
-  return [...components, ...unmatched]
+    query: regionQuery(region),
+    stage: region.stage ?? null,
+    measured: report.sources[0] ?? null,
+    confidence: null,
+    width: report.target.width,
+    warning: false,
+    nodes: region.node === undefined ? [] : [region.node],
+  }
+}
+
+function regionQuery(region: Region): string | null {
+  if (region.source === undefined || region.live === undefined) return null
+  return `[${SOURCE_ATTR}="${region.source.file}:${region.source.line}:${region.source.column}"]`
+}
+
+function sameSite(input: {warning: Delta; source: SourceLoc | null}): boolean {
+  return input.source !== null && input.warning.file === input.source.file && input.warning.line === input.source.line
 }
 
 export function rowAboveTolerance(row: Row): boolean {
@@ -110,8 +187,14 @@ export function assemble(input: {
         off: sibling.report === null ? null : aboveTolerance(sibling.report),
       }))
       .toSorted((a, b) => a.target.width - b.target.width),
+    columns: siblings
+      .filter((sibling) => sibling.target.session === current.target.session)
+      .toSorted((a, b) => a.target.width - b.target.width),
     ranAt: runTime(current.report),
     sourceChangedAt: current.sourceChangedAt,
+    decisions: current.decisions,
+    pairs: current.pairs,
+    twins: current.twins,
   }
   return data
 }
@@ -163,7 +246,7 @@ function rowTitle(row: Row): string {
   return row.source === null ? rowName(row) : baseName(row.source.file)
 }
 
-function rowName(row: Row): string {
+export function rowName(row: Row): string {
   if (row.source !== null) return `${baseName(row.source.file)} ${row.tag}`.trim()
   if (row.selector !== '') return row.selector
   return row.label
@@ -226,6 +309,7 @@ type ComponentRowProps = {
   expanded: boolean
   fixed: boolean
   onSelect: (key: string) => void
+  marks?: (row: Row) => JSX.Element
   children: (row: Row) => JSX.Element
 }
 
@@ -266,6 +350,7 @@ function ComponentRow(props: ComponentRowProps): JSX.Element {
               <For each={props.row.deltas}>{(delta) => <DeltaBadge delta={delta} />}</For>
             </span>
           </Show>
+          {props.marks?.(props.row)}
           <span class="color-meta ms-auto whitespace-nowrap">{sourceLabel(props.row.source)}</span>
           <span
             class={`i-ph-caret-down op-50 shrink-0 transition-transform duration-150 motion-reduce:transition-none ${props.expanded ? 'rotate-180' : ''}`}
@@ -280,28 +365,46 @@ function ComponentRow(props: ComponentRowProps): JSX.Element {
   )
 }
 
+export type RowGroup = {name: string | null; rows: Row[]}
+
 type ComponentRowsProps = {
-  rows: Row[]
+  groups: RowGroup[]
   selected: string | null
   fixed: Set<string>
   onSelect: (key: string) => void
+  marks?: (row: Row) => JSX.Element
   children: (row: Row) => JSX.Element
 }
 
 export function ComponentRows(props: ComponentRowsProps): JSX.Element {
+  const rows = () => props.groups.flatMap((group) => group.rows)
   return (
     <ul role="list" aria-label="Components" class="m-0 p-0 pb-16 pt-4 list-none flex flex-col gap-2">
-      <For each={props.rows}>
-        {(row, index) => (
-          <ComponentRow
-            row={row}
-            index={index()}
-            expanded={props.selected === row.key}
-            fixed={props.fixed.has(row.key)}
-            onSelect={props.onSelect}
-          >
-            {props.children}
-          </ComponentRow>
+      <For each={props.groups}>
+        {(group) => (
+          <>
+            <Show when={group.name}>
+              {(name) => (
+                <li role="presentation" class="pt-2 first:pt-0">
+                  <h3 class="text-xs color-meta font-medium m-0">{name()}</h3>
+                </li>
+              )}
+            </Show>
+            <For each={group.rows}>
+              {(row) => (
+                <ComponentRow
+                  row={row}
+                  index={rows().indexOf(row)}
+                  expanded={props.selected === row.key}
+                  fixed={props.fixed.has(row.key)}
+                  onSelect={props.onSelect}
+                  marks={props.marks}
+                >
+                  {props.children}
+                </ComponentRow>
+              )}
+            </For>
+          </>
         )}
       </For>
     </ul>
@@ -587,7 +690,7 @@ export function ComponentDetail(props: ComponentDetailProps): JSX.Element {
         </button>
         <Show when={prompt()}>
           {(text) => (
-            <button type="button" class="text-sm btn-primary py-1 px-2.5" onClick={() => copy(text())}>
+            <button type="button" class="text-sm btn-primary px-2.5 py-1" onClick={() => copy(text())}>
               <span class={copied() ? 'i-ph-check' : 'i-ph-copy-duotone'} aria-hidden="true" />
               Copy fix prompt
             </button>

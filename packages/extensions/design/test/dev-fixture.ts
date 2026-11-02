@@ -241,19 +241,20 @@ function images(response: ReportResponse): (path: string) => string {
   }
 }
 
+const UNDECIDED = {targetImage: '', nodes: [], decisions: [], pairs: [], twins: {}}
+
 const DESKTOP_RESPONSE: ReportResponse = {
+  ...UNDECIDED,
   target: TARGETS.desktop,
   report: DESKTOP,
-  targetImage: '',
-  nodes: [],
   sourceChangedAt: Date.now() - SOURCE_CHANGE_AGE_MS,
 }
 
 const RESPONSES: ReportResponse[] = [
-  {target: TARGETS.narrow, report: NARROW, targetImage: '', nodes: [], sourceChangedAt: null},
+  {...UNDECIDED, target: TARGETS.narrow, report: NARROW, sourceChangedAt: null},
   DESKTOP_RESPONSE,
-  {target: TARGETS.large, report: LARGE, targetImage: '', nodes: [], sourceChangedAt: null},
-  {target: TARGETS.wide, report: null, targetImage: '', nodes: [], sourceChangedAt: null},
+  {...UNDECIDED, target: TARGETS.large, report: LARGE, sourceChangedAt: null},
+  {...UNDECIDED, target: TARGETS.wide, report: null, sourceChangedAt: null},
 ]
 
 export function loadFixture(input: {id: string}): XrayData {

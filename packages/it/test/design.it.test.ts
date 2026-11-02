@@ -15,11 +15,13 @@ import {createServer} from 'vite'
 import {afterAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient, ToolCommandSignatureSchema, type RpcClient} from '@conciv/contract'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
+import {makeExtRpcClient} from '@conciv/extension'
 import type {} from '@conciv/extension-design/client'
+import type {XrayRouter} from '@conciv/extension-design/xray-routes'
 import {
   CaptureInputSchema,
   ClearInputSchema,
@@ -28,6 +30,7 @@ import {
   designVerb,
   diffDef,
   DiffInputSchema,
+  DiffReportSchema,
   StatusInputSchema,
   TargetInputSchema,
   WinnerInputSchema,
@@ -78,6 +81,8 @@ type Kit = {
   browser: Browser
   page: Page
   origin: string
+  apiBase: string
+  session: SessionId
   stateRoot: string
   targetsDir: string
   call: Call
@@ -167,6 +172,8 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
     browser,
     page,
     origin,
+    apiBase,
+    session,
     stateRoot,
     targetsDir,
     call: makeCall(rpc),
@@ -268,6 +275,7 @@ process.env.LAUNCH_EDITOR = 'true'
 
 const kit = await boot()
 const {rpc, browser, page, stateRoot, call, goto} = kit
+const xrayRpc = makeExtRpcClient<XrayRouter>(kit.apiBase, 'design')
 
 afterAll(() => kit.dispose())
 
@@ -870,6 +878,9 @@ describe('x-ray page', () => {
     await expectLocator(xray.getByRole('listitem').first()).toBeVisible()
     await expectLocator(xray.getByText('stale: source changed')).toHaveCount(0)
     await xray.close()
+    const pane = await openPane()
+    await expectLocator(pane.getByRole('listitem').first()).toBeVisible()
+    await expectLocator(pane.getByText('stale: source changed')).toHaveCount(0)
   })
 
   it('keeps a numeric search query from the url', async () => {
@@ -1635,5 +1646,148 @@ describe('loop', () => {
     const report = await call('design_diff', {})
     expect(report.partial).toBe(false)
     expect([report.components, report.unmatched]).toEqual([[], []])
+  })
+})
+
+const PANE_NAME = 'Design x-ray'
+
+async function openPane() {
+  const chat = page
+    .getByRole('button', {name: 'Open conciv chat'})
+    .or(page.getByRole('button', {name: 'Minimize conciv chat'}))
+  await expectLocator(chat).toBeVisible()
+  if ((await chat.getAttribute('aria-label')) === 'Open conciv chat') await chat.click()
+  await page.getByRole('button', {name: 'More composer actions'}).click()
+  await page.getByRole('menuitem', {name: PANE_NAME}).click()
+  await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
+  const pane = page.getByRole('complementary', {name: PANE_NAME})
+  await expectLocator(pane).toBeVisible()
+  return pane
+}
+
+const UnbuiltSchema = z.object({kind: z.literal('unbuilt'), node: z.string(), target: ButtonBoxSchema})
+
+describe('overlay', () => {
+  it('the composer button opens the pane beside the page and the tab url stays', async () => {
+    await goto('/')
+    await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const url = page.url()
+    const pane = await openPane()
+    await expectLocator(pane.getByRole('list', {name: 'Components'})).toBeVisible()
+    await pane.getByText('Capture', {exact: true}).click()
+    await expectLocator(pane.getByRole('figure').first()).toContainText('Live over design')
+    expect(page.url()).toBe(url)
+    await expectLocator(
+      page.getByRole('button', {name: 'Make'}).or(page.getByRole('button', {name: 'Export'})),
+    ).toBeVisible()
+  })
+
+  it('clicking a row outlines its element in the page', async () => {
+    await goto('/')
+    const report = await call('design_diff', {})
+    const second = report.components[1]
+    expect(second?.source).toBeDefined()
+    if (second?.source === undefined || second.source === null) return
+    const pane = await openPane()
+    const name = second.source.file.split('/').at(-1)?.split('.')[0] ?? second.source.file
+    await pane.getByRole('button', {name, expanded: false}).first().click()
+    await expectLocator(pane.getByRole('status').filter({hasText: 'Outlined'})).toContainText(`Outlined ${name}`)
+  })
+
+  it('pinning the toolbar text node to the toolbar on shifted removes its text row', async () => {
+    await goto('shifted')
+    const {id} = await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const pane = await openPane()
+    await expectLocator(pane.getByText('text Make → Export')).toBeVisible()
+    const label = (await storedNodes(id)).find((node) => node.kind === 'text' && node.text === 'Export')
+    const toolbar = (await call('design_capture', {height: 720})).components.find(
+      (component) => component.source?.file === 'src/Toolbar.tsx',
+    )
+    expect([label, toolbar].every((found) => found !== undefined)).toBe(true)
+    if (label === undefined || toolbar === undefined) return
+    const pinned = await xrayRpc.xray.pin({id, node: label.id, path: toolbar.path, session: kit.session})
+    expect(
+      DiffReportSchema.nullable()
+        .parse(pinned.report)
+        ?.components.flatMap((c) => c.deltas),
+    ).not.toContainEqual(expect.objectContaining({kind: 'text', live: 'Make', target: 'Export'}))
+    await expectLocator(pane.getByRole('button', {name: 'Unpin text "Export"'})).toBeVisible()
+    await expectLocator(pane.getByText('text Make → Export')).toHaveCount(0)
+  })
+
+  it('excluding a region removes its rows next run', async () => {
+    await goto('missing')
+    const {id} = await freshTarget('u1-1280')
+    const before = await call('design_diff', {})
+    const regions = before.unmatched.flatMap((entry) => {
+      const parsed = UnbuiltSchema.safeParse(entry)
+      return parsed.success ? [parsed.data] : []
+    })
+    const region = regions.toSorted((a, b) => b.target.w * b.target.h - a.target.w * a.target.h)[0]
+    expect(
+      regions.filter((entry) => region !== undefined && inside({inner: entry.target, outer: region.target})).length,
+    ).toBeGreaterThan(1)
+    if (region === undefined) return
+    const pane = await openPane()
+    const marked = await xrayRpc.xray.mark({id, kind: 'excluded', node: region.node, session: kit.session})
+    expect(
+      DiffReportSchema.nullable()
+        .parse(marked.report)
+        ?.unmatched.filter(
+          (entry) => entry.target !== undefined && inside({inner: entry.target, outer: region.target}),
+        ),
+    ).toEqual([])
+    await expectLocator(pane.getByRole('button', {name: 'Revoke excluded box'})).toBeVisible()
+  })
+
+  it('accepting a run from the pane turns design_status done', async () => {
+    await goto('bordered')
+    await freshTarget('u1-1280')
+    await call('design_diff', {})
+    expect((await call('design_status', {})).done).toBe(false)
+    const pane = await openPane()
+    await pane.getByRole('button', {name: 'Accept this run'}).click()
+    await expectLocator(pane.getByText('Accepted', {exact: true})).toBeVisible()
+    expect((await call('design_status', {})).done).toBe(true)
+  })
+
+  it('a run on another capture path is not compared for stalled', async () => {
+    await goto('target')
+    await freshTarget('u1-390')
+    const mirrored = [await call('design_diff', {}), await call('design_diff', {})]
+    expect(mirrored.map((report) => report.capturePath)).toEqual(['snapdom-mirror', 'snapdom-mirror'])
+    await page.setViewportSize({width: 390, height: 720})
+    try {
+      const live = await call('design_diff', {})
+      expect(live.capturePath).not.toBe('snapdom-mirror')
+      expect(live.stop).not.toBe('stalled')
+    } finally {
+      await page.setViewportSize({width: 1280, height: 720})
+    }
+  })
+
+  it('shows Capture pixels when Region Capture exists and a click without a stream keeps the capture path', async () => {
+    await goto('/')
+    await freshTarget('u1-1280')
+    const before = await call('design_diff', {})
+    await page.evaluate(() => {
+      window.CropTarget ??= {fromElement: async () => ({})}
+    })
+    const pane = await openPane()
+    await pane.getByRole('button', {name: 'Capture pixels'}).click()
+    await expectLocator(page.getByText('Capture pixels needs a shared tab', {exact: false})).toBeVisible()
+    expect((await call('design_diff', {})).capturePath).toBe(before.capturePath)
+  })
+
+  it('hides Capture pixels without Region Capture', async () => {
+    await goto('/')
+    await page.evaluate(() => {
+      delete window.CropTarget
+    })
+    const pane = await openPane()
+    await expectLocator(pane.getByRole('button', {name: 'Accept this run'})).toBeVisible()
+    await expectLocator(pane.getByRole('button', {name: 'Capture pixels'})).toHaveCount(0)
   })
 })

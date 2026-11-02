@@ -78,6 +78,7 @@
   },
   "devDependencies": {
     "@conciv/contract": "workspace:^",
+    "@conciv/extension": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/vitest-config": "workspace:*",

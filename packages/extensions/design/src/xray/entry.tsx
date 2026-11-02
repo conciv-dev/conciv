@@ -4,8 +4,12 @@ import 'virtual:uno.css'
 import './xray.css'
 import {RouterProvider} from '@tanstack/solid-router'
 import {render} from 'solid-js/web'
-import {createXrayRouter} from './router.js'
+import {loadFixture} from '../../test/dev-fixture.js'
+import {createXrayRouter, standaloneContext} from './router.js'
 
 const mount = document.querySelector('[data-design-xray]')
+const fixture = import.meta.env.DEV ? (id: string) => loadFixture({id}) : null
 
-if (mount !== null) render(() => <RouterProvider router={createXrayRouter()} />, mount)
+if (mount !== null) {
+  render(() => <RouterProvider router={createXrayRouter({context: standaloneContext({fixture})})} />, mount)
+}

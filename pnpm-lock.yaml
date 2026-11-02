@@ -2597,6 +2597,9 @@ importers:
       '@bramus/specificity':
         specifier: 'catalog:'
         version: 2.4.3
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../../contract
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
@@ -2606,9 +2609,18 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
+      '@conciv/ui-kit-chat':
+        specifier: workspace:^
+        version: link:../../ui-kit-chat
+      '@conciv/ui-kit-system':
+        specifier: workspace:^
+        version: link:../../ui-kit-system
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
+      '@tanstack/solid-router':
+        specifier: 'catalog:'
+        version: 1.170.43(solid-js@1.9.17)
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 3.3.3
@@ -2621,6 +2633,9 @@ importers:
       hono:
         specifier: 'catalog:'
         version: 4.13.14
+      lucide-solid:
+        specifier: 'catalog:'
+        version: 1.64.0(solid-js@1.9.17)
       onnxruntime-web:
         specifier: 'catalog:'
         version: 1.31.1
@@ -2645,16 +2660,13 @@ importers:
       rrweb-snapshot:
         specifier: 'catalog:'
         version: 2.2.0
+      solid-js:
+        specifier: 'catalog:'
+        version: 1.9.17
       zod:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/contract':
-        specifier: workspace:^
-        version: link:../../contract
-      '@conciv/ui-kit-system':
-        specifier: workspace:^
-        version: link:../../ui-kit-system
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
@@ -2667,9 +2679,6 @@ importers:
       '@solid-primitives/timer':
         specifier: 'catalog:'
         version: 1.4.4(solid-js@1.9.17)
-      '@tanstack/solid-router':
-        specifier: 'catalog:'
-        version: 1.170.43(solid-js@1.9.17)
       '@types/culori':
         specifier: 'catalog:'
         version: 4.0.1
@@ -2682,9 +2691,6 @@ importers:
       '@unocss/reset':
         specifier: 'catalog:'
         version: 66.12.0
-      solid-js:
-        specifier: 'catalog:'
-        version: 1.9.17
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
@@ -3643,6 +3649,9 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../extension
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../extension-testkit

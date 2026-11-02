@@ -1,7 +1,7 @@
 import pixelmatch from 'pixelmatch'
 import {diff} from '@blazediff/core'
 import {z} from 'zod'
-import {groupBy, range, uniqBy} from 'es-toolkit'
+import {groupBy, range, uniq, uniqBy} from 'es-toolkit'
 import {toolError, type AnyToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {basename} from 'node:path'
@@ -18,6 +18,7 @@ import {
   LiveStylesSchema,
   measureDef,
   MeasureResultSchema,
+  NO_RUN_MESSAGE,
   NO_TARGET_MESSAGE,
   SourceLocSchema,
   statusDef,
@@ -130,6 +131,14 @@ export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore;
       if (record === null) return
       await runs.trigger({id: record.id, session, observe: false, input: DEFAULT_DIFF})
     },
+    capture: ({id, session}) => runs.trigger({id, session, observe: false, input: DEFAULT_DIFF}),
+    accept: async ({id}) => {
+      const latest = await store.latestRun(id)
+      if (latest === null) throw toolError('no-target', {message: NO_RUN_MESSAGE})
+      const record = await store.accept({id, run: latest.run})
+      history.reset(id)
+      return record
+    },
     status: ({session}) => targetStatus({store, session}),
   }
 }
@@ -198,8 +207,8 @@ async function runDiff(request: {
   const route = await otherRoute({record, page})
   if (route !== null) return refused({record, route, xray})
   const decisions = await design.store.decisions(record.id)
-  const dropped = droppedNodes(decisions)
   const model = cssModel(await design.store.model(record.id))
+  const dropped = droppedNodes({decisions, nodes: model.nodes})
   const reading = await measure({width: record.width, height: record.height, timeout: TOLERANCES.runBudgetMs, page})
   const droppedBoxes = model.nodes.filter((node) => dropped.has(node.id)).map((node) => node.box)
   const live = {
@@ -358,10 +367,24 @@ function scaledBox(input: {box: Box; by: number}): Box {
   return {x: box.x * by, y: box.y * by, w: box.w * by, h: box.h * by}
 }
 
-function droppedNodes(decisions: Decision[]): Set<string> {
-  return new Set(
-    decisions.filter((entry) => entry.kind === 'excluded' || entry.kind === 'image-slot').map((entry) => entry.anchor),
+function droppedNodes(input: {decisions: Decision[]; nodes: TargetNode[]}): Set<string> {
+  const anchors = new Set(
+    input.decisions
+      .filter((entry) => entry.kind === 'excluded' || entry.kind === 'image-slot')
+      .map((entry) => entry.anchor),
   )
+  const parents = new Map(input.nodes.map((node) => [node.id, node.within]))
+  return new Set(input.nodes.filter((node) => withinDropped({id: node.id, anchors, parents})).map((node) => node.id))
+}
+
+function withinDropped(input: {
+  id: string | undefined
+  anchors: Set<string>
+  parents: Map<string, string | undefined>
+}): boolean {
+  if (input.id === undefined) return false
+  if (input.anchors.has(input.id)) return true
+  return withinDropped({...input, id: input.parents.get(input.id)})
 }
 
 function pinsFrom(decisions: Decision[]): {node: string; path: string; decision: string}[] {
@@ -552,6 +575,7 @@ function unbuiltEntries(input: {nodes: TargetNode[]; pairedNodes: Set<string>}):
         target: node.box,
         label: node.kind === 'text' ? `text "${node.text}"` : node.kind,
         stage: structural ? 'structure' : null,
+        node: node.id,
       }
     })
 }
@@ -624,6 +648,8 @@ function reportedComponents(input: {measured: Measured[]; input: DiffInput; colo
         mismatch: rounded(entry.pair.mismatch),
         deltas: entry.deltas,
         children: above.filter((child) => child.pair.parent === entry.pair).length,
+        nodes: uniq([entry.pair.node.id, ...entry.pair.texts.map((node) => node.id)]),
+        path: entry.pair.live.path,
       },
     }))
     .filter(({report, pair}) => (report.deltas.length > 0 || report.children === 0) && pair.depth <= input.input.depth)
