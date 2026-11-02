@@ -1,4 +1,4 @@
-import {createResource, from, onCleanup, onMount, Show, type JSX} from 'solid-js'
+import {from, onCleanup, onMount, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {browserClient} from '@conciv/extension/devframe-connection'
@@ -18,6 +18,10 @@ function reportFailure(what: string): (error: unknown) => void {
 
 function tokenOf(apiBase: string): string | undefined {
   return TOKEN_SEGMENT.exec(new URL(apiBase, window.location.href).pathname)?.[1]
+}
+
+export function hasLoginToken(apiBase: string): boolean {
+  return tokenOf(apiBase) !== undefined
 }
 
 function AuthorizeCard(props: {client: HubClient; onTrusted: (token: string) => void}): JSX.Element {
@@ -99,15 +103,14 @@ function AuthorizeGate(props: {
   )
 }
 
-function HubLogin(props: {hub: HubConnection; onTrusted: (token: string) => void}): JSX.Element {
-  const [client, {refetch}] = createResource(() => props.hub.ready())
-  const refetchOnConnect = (status: string): void => {
-    if (status === 'connected') void refetch()
-  }
-  onMount(() => onCleanup(props.hub.onStatus(refetchOnConnect)))
+function connectedClientOf(hub: HubConnection): () => HubClient | undefined {
+  return from<HubClient>((set) => hub.onClient((next) => set(() => next)))
+}
+
+function HubLogin(props: {client: () => HubClient | undefined; onTrusted: (token: string) => void}): JSX.Element {
   return (
-    <Show when={client()}>
-      {(ready) => <AuthorizeGate client={ready()} unauthorized={unauthorizedOf(ready())} onTrusted={props.onTrusted} />}
+    <Show when={props.client()} keyed>
+      {(ready) => <AuthorizeGate client={ready} unauthorized={unauthorizedOf(ready)} onTrusted={props.onTrusted} />}
     </Show>
   )
 }
@@ -124,22 +127,23 @@ export function renderLogin(
   onTrusted: (trustedApiBase: string) => void,
 ): () => void {
   hub.ready().catch(reportFailure('the hub connection failed'))
-  if (tokenOf(apiBase) !== undefined) {
+  if (hasLoginToken(apiBase)) {
     onTrusted(apiBase)
     return () => {}
   }
   const origin = new URL(apiBase, window.location.href).origin
   const host = document.createElement('div')
+  host.className = 'font-chat text-chat-text'
   mount.appendChild(host)
   const rootNode = host.getRootNode()
-  const dispose = render(
-    () => (
+  const dispose = render(() => {
+    const client = connectedClientOf(hub)
+    return (
       <EnvironmentProvider value={() => rootNode}>
-        <HubLogin hub={hub} onTrusted={(token) => onTrusted(`${origin}/t/${token}`)} />
+        <HubLogin client={client} onTrusted={(token) => onTrusted(`${origin}/t/${token}`)} />
       </EnvironmentProvider>
-    ),
-    host,
-  )
+    )
+  }, host)
   return () => {
     dispose()
     host.remove()

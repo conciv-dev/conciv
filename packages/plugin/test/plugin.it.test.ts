@@ -606,6 +606,10 @@ describe('native page vite boot', () => {
       const url = state.started?.server.resolvedUrls?.local[0]
       const tab = await state.browser?.newPage()
       if (tab === undefined || url === undefined) throw new Error('dev server did not start')
+      const errorsBeforeLogin: string[] = []
+      tab.on('console', (message) => {
+        if (message.type() === 'error') errorsBeforeLogin.push(message.text())
+      })
       await tab.goto(url, {waitUntil: 'domcontentloaded'})
       const card = tab.getByRole('dialog', {name: 'Authorize conciv'})
       await expectLocator(card).toBeVisible({timeout: 45_000})
@@ -615,6 +619,7 @@ describe('native page vite boot', () => {
       await expectLocator(card.getByRole('alert')).toHaveText(
         'That code did not match. Check the terminal and try again.',
       )
+      expect(errorsBeforeLogin).toEqual([])
       await code.fill(getTempAuthCode())
       await card.getByRole('button', {name: 'Authorize'}).click()
       await expectLocator(card).toBeHidden()
