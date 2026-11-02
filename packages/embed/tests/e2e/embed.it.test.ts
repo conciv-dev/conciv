@@ -36,7 +36,7 @@ import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-a
 import {watchChatWire} from '@conciv/extension-testkit/chat-wire'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder'
 import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
-import {holdRpcCalls} from '@conciv/extension-testkit/rpc-fault'
+import {holdHub, holdRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
@@ -712,6 +712,7 @@ test.describe('mid session outage', () => {
     }) => {
       test.setTimeout(90_000)
       const hold = await holdRpcCalls(page)
+      const hubHold = await holdHub(page)
       await page.goto(host.base, {waitUntil: 'domcontentloaded'})
       await openChatPanel(page)
 
@@ -719,6 +720,7 @@ test.describe('mid session outage', () => {
       await composer.fill('a message queued during the outage')
 
       hold.hold()
+      hubHold.hold()
       const probe = await abortCalls(kit, [ENGINE_PROBE_CALL])
 
       const notice = page.getByText('conciv lost connection to the engine.')
@@ -729,6 +731,7 @@ test.describe('mid session outage', () => {
 
       probe.repair()
       hold.release()
+      hubHold.release()
 
       await expect(notice).not.toBeVisible({timeout: MOUNT_TIMEOUT_MS})
       await expect(page.getByRole('button', {name: 'Send message'})).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
