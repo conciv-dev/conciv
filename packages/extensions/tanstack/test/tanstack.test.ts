@@ -113,7 +113,13 @@ describe('connect parity', () => {
         await connectedPage.getByRole('link', {name: 'About'}).click()
         await expectLocator(connectedPage.getByRole('heading', {name: 'About this app'})).toBeVisible()
 
-        const state = routerStateSchema.parse(await kit.rpc.registry.call({name: 'tanstack_router_state', input: {}}))
+        const state = routerStateSchema.parse(
+          await kit.hub.call('conciv:registry:call', {
+            sessionId: await kit.session(),
+            name: 'tanstack_router_state',
+            input: {},
+          }),
+        )
 
         expect(state.location.pathname).toBe('/about')
         const aboutMatch = state.matches.find((match) => match.routeId === '/about')
@@ -871,7 +877,7 @@ describe('tool catalog', () => {
   const SERVER_TOOLS = ['tanstack_build_errors', 'tanstack_route_manifest', 'tanstack_server_fn_trace']
 
   test('the agent catalog lists exactly one tanstack tool per verb, page verbs bound client-side', async () => {
-    const catalog = await kit().rpc.registry.catalog()
+    const catalog = await kit().hub.call('conciv:registry:catalog', {})
     const tanstackEntries = catalog
       .filter((entry) => entry.name.startsWith('tanstack_'))
       .map((entry) => `${entry.name} (${entry.binding})`)
@@ -883,7 +889,7 @@ describe('tool catalog', () => {
   })
 
   test('every listed tanstack tool carries a summary the agent can read', async () => {
-    const catalog = await kit().rpc.registry.catalog()
+    const catalog = await kit().hub.call('conciv:registry:catalog', {})
     const missing = catalog
       .filter((entry) => entry.name.startsWith('tanstack_'))
       .filter((entry) => entry.summary.trim().length === 0)

@@ -25,9 +25,24 @@ import {
   OkSchema,
   PageChangesOutputSchema,
   PageSymbolicateOutputSchema,
+  RegistryCallInputSchema,
+  RegistryCallOutputSchema,
+  RegistryCatalogOutputSchema,
+  registryCallErrors,
+  serverErrors,
+  ServerGraphInputSchema,
+  ServerGraphOutputSchema,
+  ServerReloadInputSchema,
+  ServerResolveInputSchema,
+  ServerResolveOutputSchema,
+  ServerRestartInputSchema,
+  ServerTransformInputSchema,
+  ServerTransformOutputSchema,
+  ServerUrlsOutputSchema,
   SessionIdInputSchema,
   type RegistryCallErrorName,
 } from '@conciv/contract'
+import {BundlerConfigSchema} from '@conciv/protocol/bundler-types'
 import {concivError, defineConcivFunction} from '@conciv/extension/devframe-function'
 import {
   ChatCommandsSchema,
@@ -42,8 +57,8 @@ import {listCommands, mcpUrlFor} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
-import {makeSessionOs, os, type RpcDeps, type SessionOs} from './mount.js'
-import type {SessionScope} from '../../runtime/scope-types.js'
+import {definedErrors, makeSessionOs, os, type RpcDeps, type SessionOs} from './mount.js'
+import {isBrowserCaller} from '../../devframe-trust.js'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import type {ServerFunctionsOf} from '../../devframe-plane.js'
 import type {PageTab, PageTabs} from '../../page-bus.js'
@@ -56,14 +71,13 @@ export const PAGE_ERROR_NAME = {
   'handler-error': 'HANDLER_ERROR',
 } as const satisfies Record<PageErrorCode, RegistryCallErrorName>
 
-type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string}) => Error>
-type BundlerErrors = {NO_BUNDLER: () => Error}
-type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
-type GatedCall = {context: RpcContext & {session: SessionScope}; errors: ApprovalErrors}
+type GatedDeps = Pick<RpcDeps, 'runtime' | 'chat'>
+type GatedCall = {name: string; input: unknown; browser: boolean}
+type ServerTool<Output extends z.ZodType> = {name: string; outputSchema?: Output}
 
-function registryCallError(error: unknown, errors: RegistryErrors): Error {
-  if (isPageVerbError(error)) return errors[PAGE_ERROR_NAME[error.code]]({message: error.message})
-  if (isPageFailure(error)) return errors[PAGE_ERROR_NAME[error.error.code]]({message: error.error.message})
+function registryCallError(error: unknown): Error {
+  if (isPageVerbError(error)) return concivError(PAGE_ERROR_NAME[error.code], error.message)
+  if (isPageFailure(error)) return concivError(PAGE_ERROR_NAME[error.error.code], error.error.message)
   return error instanceof Error ? error : new Error(String(error))
 }
 
@@ -71,32 +85,186 @@ function hasErrorCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === code
 }
 
-async function callTool<Output extends z.ZodType>(
-  tool: {name: string; outputSchema?: Output},
-  input: unknown,
-  errors?: BundlerErrors,
-): Promise<z.output<Output>> {
+async function callTool<Output extends z.ZodType>(tool: ServerTool<Output>, input: unknown): Promise<z.output<Output>> {
   const output = tool.outputSchema
   if (output === undefined) throw new Error(`tool "${tool.name}" declares no output schema`)
+  return output.parse(await session().tools.call(tool.name, input))
+}
+
+async function serverTool<Output extends z.ZodType>(
+  tool: ServerTool<Output>,
+  input: unknown,
+): Promise<z.output<Output>> {
   try {
-    return output.parse(await session().tools.call(tool.name, input))
+    return await callTool(tool, input)
   } catch (error) {
-    if (errors && hasErrorCode(error, 'NO_BUNDLER')) throw errors.NO_BUNDLER()
+    if (hasErrorCode(error, 'NO_BUNDLER')) throw concivError('NO_BUNDLER', serverErrors.NO_BUNDLER.message)
     throw error
   }
 }
 
-async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, call: GatedCall): Promise<void> {
-  if (widgetCaller(call.context.callerOrigin, deps.allowedOrigins)) return
-  const asks = deps.runtime.engine.catalog().find((tool) => tool.name === name)?.approval === 'ask'
+async function refuseUnapproved(deps: GatedDeps, call: GatedCall): Promise<void> {
+  if (call.browser) return
+  const asks = deps.runtime.engine.catalog().find((tool) => tool.name === call.name)?.approval === 'ask'
   if (!asks) return
-  const scope = call.context.session
-  const refusal = await deps.chat.plane.admitCall(scope.id, name, input, scope.stream.publish)
-  if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal})
+  const scope = session()
+  const refusal = await deps.chat.plane.admitCall(scope.id, call.name, call.input, scope.stream.publish)
+  if (refusal !== null) throw concivError('APPROVAL_DENIED', refusal)
 }
 
+function registryActions(deps: GatedDeps) {
+  return {
+    catalog: () => deps.runtime.engine.catalog(),
+    call: async (input: z.infer<typeof RegistryCallInputSchema>, browser: boolean) => {
+      const tools = session().tools
+      if (!tools.has(input.name)) throw concivError('UNKNOWN_TOOL', registryCallErrors.UNKNOWN_TOOL.message)
+      await refuseUnapproved(deps, {name: input.name, input: input.input, browser})
+      try {
+        return await tools.call(input.name, input.input)
+      } catch (error) {
+        throw registryCallError(error)
+      }
+    },
+  }
+}
+
+function serverActions(deps: GatedDeps) {
+  const gated = async <Output extends z.ZodType>(tool: ServerTool<Output>, input: unknown, browser: boolean) => {
+    await refuseUnapproved(deps, {name: tool.name, input, browser})
+    return serverTool(tool, input)
+  }
+  return {
+    config: () => serverTool(BUILTIN_SERVER_TOOL.server_config, {}),
+    resolve: (input: z.infer<typeof ServerResolveInputSchema>) => serverTool(BUILTIN_SERVER_TOOL.server_resolve, input),
+    graph: (input: z.infer<typeof ServerGraphInputSchema>) => serverTool(BUILTIN_SERVER_TOOL.server_graph, input),
+    transform: (input: z.infer<typeof ServerTransformInputSchema>) =>
+      serverTool(BUILTIN_SERVER_TOOL.server_transform, input),
+    urls: () => serverTool(BUILTIN_SERVER_TOOL.server_urls, {}),
+    reload: (input: z.infer<typeof ServerReloadInputSchema>, browser: boolean) =>
+      gated(BUILTIN_SERVER_TOOL.server_reload, input, browser),
+    restart: (input: z.infer<typeof ServerRestartInputSchema>, browser: boolean) =>
+      gated(BUILTIN_SERVER_TOOL.server_restart, input, browser),
+  }
+}
+
+function widgetCalled(deps: RpcDeps, context: RpcContext): boolean {
+  return widgetCaller(context.callerOrigin, deps.allowedOrigins)
+}
+
+function registryRouter(deps: RpcDeps, sessionOs: SessionOs) {
+  const actions = registryActions(deps)
+  return {
+    catalog: os.registry.catalog.handler(() => actions.catalog()),
+    call: sessionOs.registry.call.handler(({input, context, errors}) =>
+      definedErrors(actions.call(input, widgetCalled(deps, context)), errors),
+    ),
+  }
+}
+
+function serverRouter(deps: RpcDeps, sessionOs: SessionOs) {
+  const actions = serverActions(deps)
+  return {
+    config: sessionOs.server.config.handler(({errors}) => definedErrors(actions.config(), errors)),
+    resolve: sessionOs.server.resolve.handler(({input, errors}) => definedErrors(actions.resolve(input), errors)),
+    graph: sessionOs.server.graph.handler(({input, errors}) => definedErrors(actions.graph(input), errors)),
+    transform: sessionOs.server.transform.handler(({input, errors}) => definedErrors(actions.transform(input), errors)),
+    urls: sessionOs.server.urls.handler(({errors}) => definedErrors(actions.urls(), errors)),
+    reload: sessionOs.server.reload.handler(({input, context, errors}) =>
+      definedErrors(actions.reload(input, widgetCalled(deps, context)), errors),
+    ),
+    restart: sessionOs.server.restart.handler(({input, context, errors}) =>
+      definedErrors(actions.restart(input, widgetCalled(deps, context)), errors),
+    ),
+  }
+}
+
+export function registryFunctions(deps: GatedDeps) {
+  const actions = registryActions(deps)
+  return [
+    defineConcivFunction({
+      name: 'conciv:registry:catalog',
+      type: 'query',
+      input: z.object({}),
+      output: RegistryCatalogOutputSchema,
+      handler: actions.catalog,
+    }),
+    defineConcivFunction({
+      name: 'conciv:registry:call',
+      type: 'action',
+      session: true,
+      input: RegistryCallInputSchema,
+      output: RegistryCallOutputSchema,
+      handler: (input, call) => actions.call(input, isBrowserCaller(call.ctx)),
+    }),
+  ]
+}
+
+export function serverFunctions(deps: GatedDeps) {
+  const actions = serverActions(deps)
+  return [
+    defineConcivFunction({
+      name: 'conciv:server:config',
+      type: 'query',
+      session: true,
+      input: z.object({}).loose(),
+      output: BundlerConfigSchema,
+      handler: actions.config,
+    }),
+    defineConcivFunction({
+      name: 'conciv:server:resolve',
+      type: 'query',
+      session: true,
+      input: ServerResolveInputSchema,
+      output: ServerResolveOutputSchema,
+      handler: actions.resolve,
+    }),
+    defineConcivFunction({
+      name: 'conciv:server:graph',
+      type: 'query',
+      session: true,
+      input: ServerGraphInputSchema,
+      output: ServerGraphOutputSchema,
+      handler: actions.graph,
+    }),
+    defineConcivFunction({
+      name: 'conciv:server:transform',
+      type: 'query',
+      session: true,
+      input: ServerTransformInputSchema,
+      output: ServerTransformOutputSchema,
+      handler: actions.transform,
+    }),
+    defineConcivFunction({
+      name: 'conciv:server:urls',
+      type: 'query',
+      session: true,
+      input: z.object({}).loose(),
+      output: ServerUrlsOutputSchema,
+      handler: actions.urls,
+    }),
+    defineConcivFunction({
+      name: 'conciv:server:reload',
+      type: 'action',
+      session: true,
+      input: ServerReloadInputSchema,
+      output: OkSchema,
+      handler: (input, call) => actions.reload(input, isBrowserCaller(call.ctx)),
+    }),
+    defineConcivFunction({
+      name: 'conciv:server:restart',
+      type: 'action',
+      session: true,
+      input: ServerRestartInputSchema,
+      output: OkSchema,
+      handler: (input, call) => actions.restart(input, isBrowserCaller(call.ctx)),
+    }),
+  ]
+}
+
+export type RegistryServerFunctions = ServerFunctionsOf<ReturnType<typeof registryFunctions>>
+export type ServerServerFunctions = ServerFunctionsOf<ReturnType<typeof serverFunctions>>
+
 export function makeRpcRouter(deps: RpcDeps) {
-  const engine = deps.runtime.engine
   const sessionOs = makeSessionOs(deps)
   return os.router({
     sessions: sessionsRouter(deps),
@@ -104,41 +272,10 @@ export function makeRpcRouter(deps: RpcDeps) {
     drafts: draftsRouter(deps),
     markers: markersRouter(deps),
     navigation: navigationRouter(deps),
-    registry: {
-      catalog: os.registry.catalog.handler(() => engine.catalog()),
-      call: sessionOs.registry.call.handler(async ({input, context, errors}) => {
-        if (!context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
-        await refuseUnapproved(deps, input.name, input.input, {context, errors})
-        try {
-          return await context.session.tools.call(input.name, input.input)
-        } catch (error) {
-          throw registryCallError(error, errors)
-        }
-      }),
-    },
+    registry: registryRouter(deps, sessionOs),
     captures: capturesRouter(deps),
     page: pageRouter(deps, sessionOs),
-    server: {
-      config: sessionOs.server.config.handler(({errors}) => callTool(BUILTIN_SERVER_TOOL.server_config, {}, errors)),
-      resolve: sessionOs.server.resolve.handler(({input, errors}) =>
-        callTool(BUILTIN_SERVER_TOOL.server_resolve, input, errors),
-      ),
-      graph: sessionOs.server.graph.handler(({input, errors}) =>
-        callTool(BUILTIN_SERVER_TOOL.server_graph, input, errors),
-      ),
-      transform: sessionOs.server.transform.handler(({input, errors}) =>
-        callTool(BUILTIN_SERVER_TOOL.server_transform, input, errors),
-      ),
-      urls: sessionOs.server.urls.handler(({errors}) => callTool(BUILTIN_SERVER_TOOL.server_urls, {}, errors)),
-      reload: sessionOs.server.reload.handler(async ({input, context, errors}) => {
-        await refuseUnapproved(deps, BUILTIN_SERVER_TOOL.server_reload.name, input, {context, errors})
-        return callTool(BUILTIN_SERVER_TOOL.server_reload, input, errors)
-      }),
-      restart: sessionOs.server.restart.handler(async ({input, context, errors}) => {
-        await refuseUnapproved(deps, BUILTIN_SERVER_TOOL.server_restart.name, input, {context, errors})
-        return callTool(BUILTIN_SERVER_TOOL.server_restart, input, errors)
-      }),
-    },
+    server: serverRouter(deps, sessionOs),
     editor: editorRouter(deps, sessionOs),
     meta: metaRouter(deps),
   })

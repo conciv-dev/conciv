@@ -315,6 +315,77 @@ describe('conciv hub', () => {
     await tab.close()
   }, 15_000)
 
+  it('exempts a logged-in tab from the approval ask on registry and server calls, and asks the engine token', async () => {
+    const {sessionId} = await kit.hub.call('conciv:sessions:create', {})
+    const tab = await trustedTab(browser, host.url, kit.hubUrl)
+    const fromTab = await tab.evaluate(async (session) => {
+      const call = window.concivProbe.concivCall(await window.concivConnection.ready())
+      const outcome = (run: Promise<unknown>): Promise<string> =>
+        run.then(
+          () => 'served',
+          (error: {code?: string}) => error.code ?? 'refused',
+        )
+      return Promise.all([
+        outcome(call('conciv:server:reload', {sessionId: session, file: 'src/a.ts'})),
+        outcome(call('conciv:server:restart', {sessionId: session, force: true})),
+        outcome(call('conciv:registry:call', {sessionId: session, name: 'server_reload', input: {file: 'src/a.ts'}})),
+      ])
+    }, sessionId)
+    expect(fromTab).toEqual(['NO_BUNDLER', 'NO_BUNDLER', 'NO_BUNDLER'])
+    await tab.close()
+    const engineOutcome = (run: Promise<unknown>): Promise<unknown> =>
+      run.then(
+        () => 'served',
+        (error: unknown) => error,
+      )
+    const fromEngine = await Promise.all([
+      engineOutcome(kit.hub.call('conciv:server:reload', {sessionId, file: 'src/a.ts'})),
+      engineOutcome(kit.hub.call('conciv:server:restart', {sessionId, force: true})),
+      engineOutcome(
+        kit.hub.call('conciv:registry:call', {sessionId, name: 'server_reload', input: {file: 'src/a.ts'}}),
+      ),
+    ])
+    expect(fromEngine).toEqual([
+      expect.objectContaining({code: 'APPROVAL_DENIED', message: expect.stringMatching(/needs the user/)}),
+      expect.objectContaining({code: 'APPROVAL_DENIED'}),
+      expect.objectContaining({code: 'APPROVAL_DENIED'}),
+    ])
+  }, 15_000)
+
+  it('refuses registry and server calls from an untrusted or prototype key token', async () => {
+    const {sessionId} = await kit.hub.call('conciv:sessions:create', {})
+    const tab = await probeTab(browser, host.url, kit.hubUrl)
+    const attempts = (authTokens: (string | null)[]): Promise<string[][]> =>
+      tab.evaluate(
+        async ({baseURL, session, tokens}) =>
+          Promise.all(
+            tokens.map(async (authToken) => {
+              const connection =
+                authToken === null ? window.concivConnection : window.concivProbe.browserClient({baseURL, authToken})
+              const call = window.concivProbe.concivCall(await connection.ready())
+              const outcome = (run: Promise<unknown>): Promise<string> =>
+                run.then(
+                  () => 'served',
+                  (error: {code?: string}) => error.code ?? 'refused',
+                )
+              return Promise.all([
+                outcome(call('conciv:registry:catalog', {})),
+                outcome(call('conciv:server:reload', {sessionId: session, file: 'src/a.ts'})),
+                outcome(
+                  call('conciv:registry:call', {sessionId: session, name: 'server_reload', input: {file: 'a.ts'}}),
+                ),
+              ])
+            }),
+          ),
+        {baseURL: kit.hubUrl, session: sessionId, tokens: authTokens},
+      )
+    const refused = await attempts([crypto.randomUUID(), 'constructor', '__proto__', 'toString', 'hasOwnProperty'])
+    expect(refused).toEqual(Array.from({length: 5}, () => ['refused', 'refused', 'refused']))
+    await loginTab(tab)
+    expect(await attempts([null])).toEqual([['served', 'NO_BUNDLER', 'NO_BUNDLER']])
+    await tab.close()
+  }, 15_000)
+
   it('refuses an api call with no token with a 401 the page can read, and serves it under the engine token', async () => {
     const origin = new URL(kit.hubUrl).origin
     const refused = await fetch(`${origin}/rpc/sessions/list`, {

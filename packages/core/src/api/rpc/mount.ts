@@ -1,4 +1,5 @@
 import {implement, ORPCError} from '@orpc/server'
+import {z} from 'zod'
 import {contract} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER, isSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
@@ -34,6 +35,20 @@ export type RpcDeps = {
 }
 
 export const os = implement(contract).$context<RpcContext>()
+
+const CodedErrorSchema = z.object({code: z.string(), message: z.string()})
+
+export function definedErrors<Result>(
+  run: Promise<Result>,
+  errors: Readonly<Record<string, (options: {message: string}) => Error>>,
+): Promise<Result> {
+  return run.catch((error: unknown) => {
+    const coded = CodedErrorSchema.safeParse(error)
+    if (!coded.success) throw error
+    const defined = errors[coded.data.code]
+    throw defined ? defined({message: coded.data.message}) : error
+  })
+}
 
 function headerSessionId(context: RpcContext): SessionId | null {
   const raw = rpcHeader(context, CONCIV_SESSION_HEADER)?.trim()

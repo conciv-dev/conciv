@@ -1,7 +1,6 @@
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
-import {makeRpcClient, type EngineStaleness} from '@conciv/contract'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import type {EngineStaleness} from '@conciv/contract'
 import type {HarnessCommand, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
@@ -172,11 +171,13 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
 const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => pushOf(ctx).opened()
 
 const outsideReload: BrowserCommand<[string, string]> = (ctx, sessionId, file): Promise<string> => {
-  const rpc = makeRpcClient(kitOf(ctx).base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-  return rpc.server.reload({file}).then(
-    () => 'resolved',
-    (error: unknown) => (typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : 'error'),
-  )
+  return kitOf(ctx)
+    .hub.call('conciv:server:reload', {sessionId, file})
+    .then(
+      () => 'resolved',
+      (error: unknown) =>
+        typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : 'error',
+    )
 }
 
 const addHubMessage: BrowserCommand<[HubMessageInput]> = async (ctx, input): Promise<void> => {

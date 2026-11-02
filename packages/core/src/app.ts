@@ -69,6 +69,8 @@ import {
   metaFunctions,
   navigationFunctions,
   pageFunctions,
+  registryFunctions,
+  serverFunctions,
   type CapturesServerFunctions,
   type DraftsServerFunctions,
   type EditorServerFunctions,
@@ -76,6 +78,8 @@ import {
   type MetaServerFunctions,
   type NavigationServerFunctions,
   type PageServerFunctions,
+  type RegistryServerFunctions,
+  type ServerServerFunctions,
 } from './api/rpc/router.js'
 import {makeCompositeRpcRouter, RPC_PREFIX, rpcFetchMiddleware} from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
@@ -101,7 +105,9 @@ declare module 'devframe' {
       NavigationServerFunctions,
       EditorServerFunctions,
       CapturesServerFunctions,
-      PageServerFunctions {}
+      PageServerFunctions,
+      RegistryServerFunctions,
+      ServerServerFunctions {}
 }
 
 export type MakeAppOpts = {
@@ -587,6 +593,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       ...editorFunctions({openFromFrames}),
       ...capturesFunctions({runtime}),
       ...pageFunctions({runtime, tabs: primitives.page.tabs}),
+      ...registryFunctions({runtime, chat: chatDeps}),
+      ...serverFunctions({runtime, chat: chatDeps}),
     ],
   })
   const publishSessions = (): Promise<void> => devframePlane.publish('sessions')

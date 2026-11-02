@@ -14,6 +14,8 @@ const DEVFRAME_GROUPS: ReadonlySet<string> = new Set([
   'editor',
   'captures',
   'page',
+  'registry',
+  'server',
 ])
 
 export type AppHub = {connection: () => HubConnection; connected: () => boolean; session: () => string | null}

@@ -110,6 +110,10 @@ function sharedKit(boot: () => Promise<Kit>): () => Kit {
   }
 }
 
+async function callPage(kit: Kit, name: string, input: Record<string, unknown> = {}): Promise<unknown> {
+  return kit.hub.call('conciv:registry:call', {sessionId: await kit.session(), name, input})
+}
+
 describe('api connect gate', () => {
   let engine: Engine
 
@@ -789,7 +793,7 @@ describe('api page agent page tool', () => {
       }
     }
 
-    it('journals an agent-driven mutation exactly as the CLI path journals it', async ({annotate, signal}) => {
+    it('journals an agent-driven mutation exactly as the CLI path journals it', async ({annotate}) => {
       const kit = await bootPageKit(annotate, () => ({ok: true, result: {ok: true, value: 'a@b.c'}}))
       const execute = await agentPageTool(kit, annotate)
 
@@ -803,7 +807,7 @@ describe('api page agent page tool', () => {
       await annotate('stage: the page.clearChanges rpc call')
       await kit.hub.call('conciv:page:clearChanges', {sessionId: await kit.session()})
       await annotate('stage: the cli page_fill rpc call')
-      await kit.rpc.registry.call({name: 'page_fill', input: {selector: '#email', value: 'a@b.c'}}, {signal})
+      await callPage(kit, 'page_fill', {selector: '#email', value: 'a@b.c'})
       await annotate('stage: the page.changes rpc call')
       const afterCli = ChangesSchema.parse(await kit.hub.call('conciv:page:changes', {sessionId: await kit.session()}))
       expect(afterAgent).toEqual(afterCli)
@@ -843,10 +847,6 @@ describe('api page page', () => {
     component: z.string().optional(),
     source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
   })
-
-  function callPage(kit: Kit, name: string, input: Record<string, unknown> = {}): Promise<unknown> {
-    return kit.rpc.registry.call({name, input})
-  }
 
   describe('registry.call page tabs (IT, real server, typed rpc)', () => {
     const kit = sharedKit(() => bootKit({cwd: tmpdir()}))
@@ -1064,7 +1064,7 @@ describe('rpc registry catalog cosmetics', () => {
     it('projects icon, label, mutating and mirrors across the wire', async () => {
       const kit = await bootKit({extensions: [acme]})
       try {
-        const catalog = await kit.rpc.registry.catalog(undefined)
+        const catalog = await kit.hub.call('conciv:registry:catalog', {})
         const entry = catalog.find((signature) => signature.name === 'acme_beacon')
         expect(entry).toMatchObject({
           icon: 'pointer',
@@ -1144,17 +1144,18 @@ describe('rpc wire', () => {
 
       it('registry.call reports PAGE_TIMEOUT when the page never replies', async () => {
         const tab = await kit().pageTab(() => new Promise(() => {}))
-        await expect(
-          kit().rpc.registry.call({name: 'page_wait', input: {selector: 'body', timeout: 100}}),
-        ).rejects.toMatchObject({
+        await expect(callPage(kit(), 'page_wait', {selector: 'body', timeout: 100})).rejects.toMatchObject({
           code: 'PAGE_TIMEOUT',
         })
         tab.close()
       })
 
       it('server reads and widget writes without a bundler bridge report NO_BUNDLER', async () => {
-        await expect(kit().rpc.server.config(undefined)).rejects.toMatchObject({code: 'NO_BUNDLER'})
         const {sessionId} = await kit().hub.call('conciv:sessions:create', {})
+        await expect(kit().hub.call('conciv:server:config', {sessionId})).rejects.toMatchObject({
+          code: 'NO_BUNDLER',
+          message: 'no bundler bridge',
+        })
         const widget = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, origin: kit().base}})
         await expect(widget.server.reload({file: 'src/a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
       })
@@ -1162,9 +1163,9 @@ describe('rpc wire', () => {
       it('a page reply carrying a transport code only the server may produce fails as HANDLER_ERROR, so the page cannot forge one', async () => {
         for (const code of PAGE_TRANSPORT_ERROR_CODES) {
           const tab = await kit().pageTab(() => ({ok: false, error: {code, message: 'boom'}}))
-          await expect(
-            kit().rpc.registry.call({name: 'page_wait', input: {selector: 'body', timeout: 100}}),
-          ).rejects.toMatchObject({code: 'HANDLER_ERROR'})
+          await expect(callPage(kit(), 'page_wait', {selector: 'body', timeout: 100})).rejects.toMatchObject({
+            code: 'HANDLER_ERROR',
+          })
           tab.close()
           await tab.closed
         }
@@ -1173,7 +1174,7 @@ describe('rpc wire', () => {
 
     describe('which tab answers a page query', () => {
       const kit = sharedKit(() => bootKit({}, createTestHarness(requireClaude())))
-      const pageWait = () => kit().rpc.registry.call({name: 'page_text', input: {selector: 'body'}})
+      const pageWait = () => callPage(kit(), 'page_text', {selector: 'body'})
       const answering = (text: string) => () => ({ok: true, result: {text}})
 
       const openTab = async (answer: Parameters<Kit['pageTab']>[0]) => {
@@ -1365,22 +1366,33 @@ describe('rpc wire', () => {
         },
       })
       const {kit} = await bootWire({bridge})
-      expect(await kit.rpc.server.config(undefined)).toMatchObject({root: '/repo', mode: 'development'})
-      expect(await kit.rpc.server.resolve({spec: './a', importer: 'b.ts'})).toEqual({id: 'b.ts!./a'})
-      expect(await kit.rpc.server.graph({file: 'src/a.ts'})).toEqual([
+      const {sessionId} = await kit.hub.call('conciv:sessions:create', {})
+      expect(await kit.hub.call('conciv:server:config', {sessionId})).toMatchObject({
+        root: '/repo',
+        mode: 'development',
+      })
+      expect(await kit.hub.call('conciv:server:resolve', {sessionId, spec: './a', importer: 'b.ts'})).toEqual({
+        id: 'b.ts!./a',
+      })
+      expect(await kit.hub.call('conciv:server:graph', {sessionId, file: 'src/a.ts'})).toEqual([
         {url: 'src/a.ts', importers: ['entry.ts'], importedModules: ['dep.ts']},
       ])
-      expect(await kit.rpc.server.transform({url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
-      expect(await kit.rpc.server.urls(undefined)).toEqual({local: ['http://localhost:3000'], network: []})
-      const {sessionId} = await kit.hub.call('conciv:sessions:create', {})
-      const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-      await expect(sessionRpc.server.reload({file: 'src/hot.ts'})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      await expect(sessionRpc.server.restart({force: true})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+      expect(await kit.hub.call('conciv:server:transform', {sessionId, url: '/src/a.ts'})).toEqual({
+        code: 'transformed:/src/a.ts',
+      })
+      expect(await kit.hub.call('conciv:server:urls', {sessionId})).toEqual({
+        local: ['http://localhost:3000'],
+        network: [],
+      })
+      const reload = () => kit.hub.call('conciv:server:reload', {sessionId, file: 'src/hot.ts'})
+      const restart = () => kit.hub.call('conciv:server:restart', {sessionId, force: true})
+      await expect(reload()).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+      await expect(restart()).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
       expect(reloaded).toEqual([])
       expect(restarted).toEqual([])
       await approvePending(kit.base, sessionId)
-      expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
-      expect(await sessionRpc.server.restart({force: true})).toEqual({ok: true})
+      expect(await reload()).toEqual({ok: true})
+      expect(await restart()).toEqual({ok: true})
       expect(reloaded).toEqual(['src/hot.ts'])
       expect(restarted).toEqual([true])
     })

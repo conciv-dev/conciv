@@ -51,9 +51,9 @@ export const ChatHydrationSchema = z.object({
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 export const OkSchema = z.object({ok: z.literal(true)})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
-const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
-const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
-const registryCallErrors = {
+export const serverErrors = {NO_BUNDLER: {message: 'no bundler bridge'}}
+export const serverApprovalErrors = {...serverErrors, APPROVAL_DENIED: {message: 'the call was not approved'}}
+export const registryCallErrors = {
   NO_PAGE_CLIENT: {message: 'no widget connected'},
   PAGE_TIMEOUT: {message: 'page did not reply (no widget connected?)'},
   UNKNOWN_TOOL: {message: 'no registered tool answers to that name'},
@@ -117,6 +117,18 @@ export const NavigationGetOutputSchema = NavigationWriteSchema.nullable()
 export const NavigationSetOutputSchema = z.object({ok: z.literal(true), applied: z.boolean()})
 export const PageSymbolicateOutputSchema = SourceLocSchema.nullable()
 export const PageChangesOutputSchema = z.array(PageChangeEntrySchema)
+export const RegistryCatalogOutputSchema = z.array(ToolCommandSignatureSchema)
+export const RegistryCallInputSchema = z.object({name: z.string().min(1), input: z.record(z.string(), z.unknown())})
+export const RegistryCallOutputSchema = z.unknown()
+export const ServerResolveInputSchema = z.object({spec: z.string(), importer: z.string().optional()})
+export const ServerResolveOutputSchema = z.object({id: z.string().nullable()})
+export const ServerGraphInputSchema = z.object({file: z.string()})
+export const ServerGraphOutputSchema = z.array(ModuleNodeSchema)
+export const ServerTransformInputSchema = z.object({url: z.string()})
+export const ServerTransformOutputSchema = z.object({code: z.string().nullable()})
+export const ServerUrlsOutputSchema = z.object({local: z.array(z.string()), network: z.array(z.string())})
+export const ServerReloadInputSchema = z.object({file: z.string()})
+export const ServerRestartInputSchema = z.object({force: z.boolean().default(false)})
 
 export const contract = {
   sessions: {
@@ -155,11 +167,8 @@ export const contract = {
       .output(OkSchema),
   },
   registry: {
-    catalog: oc.output(z.array(ToolCommandSignatureSchema)),
-    call: oc
-      .errors(registryCallErrors)
-      .input(z.object({name: z.string().min(1), input: z.record(z.string(), z.unknown())}))
-      .output(z.unknown()),
+    catalog: oc.output(RegistryCatalogOutputSchema),
+    call: oc.errors(registryCallErrors).input(RegistryCallInputSchema).output(RegistryCallOutputSchema),
   },
   captures: {
     list: oc.input(SessionIdInputSchema).output(SessionCapturesSchema),
@@ -170,28 +179,13 @@ export const contract = {
     clearChanges: oc.output(OkSchema),
   },
   server: {
-    config: oc.errors(noBundler).output(BundlerConfigSchema),
-    resolve: oc
-      .errors(noBundler)
-      .input(z.object({spec: z.string(), importer: z.string().optional()}))
-      .output(z.object({id: z.string().nullable()})),
-    graph: oc
-      .errors(noBundler)
-      .input(z.object({file: z.string()}))
-      .output(z.array(ModuleNodeSchema)),
-    transform: oc
-      .errors(noBundler)
-      .input(z.object({url: z.string()}))
-      .output(z.object({code: z.string().nullable()})),
-    urls: oc.errors(noBundler).output(z.object({local: z.array(z.string()), network: z.array(z.string())})),
-    reload: oc
-      .errors({...noBundler, ...approvalDenied})
-      .input(z.object({file: z.string()}))
-      .output(OkSchema),
-    restart: oc
-      .errors({...noBundler, ...approvalDenied})
-      .input(z.object({force: z.boolean().default(false)}))
-      .output(OkSchema),
+    config: oc.errors(serverErrors).output(BundlerConfigSchema),
+    resolve: oc.errors(serverErrors).input(ServerResolveInputSchema).output(ServerResolveOutputSchema),
+    graph: oc.errors(serverErrors).input(ServerGraphInputSchema).output(ServerGraphOutputSchema),
+    transform: oc.errors(serverErrors).input(ServerTransformInputSchema).output(ServerTransformOutputSchema),
+    urls: oc.errors(serverErrors).output(ServerUrlsOutputSchema),
+    reload: oc.errors(serverApprovalErrors).input(ServerReloadInputSchema).output(OkSchema),
+    restart: oc.errors(serverApprovalErrors).input(ServerRestartInputSchema).output(OkSchema),
   },
   editor: {
     open: oc.input(EditorOpenInputSchema).output(OkSchema),

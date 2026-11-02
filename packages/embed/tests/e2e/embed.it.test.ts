@@ -958,13 +958,13 @@ test.describe('page dispatch parity', () => {
 
   const ChangesSchema = z.array(z.object({verb: z.string()}).loose())
 
+  async function registryCall(kit: EmbedKit, name: string, input: Record<string, unknown>): Promise<unknown> {
+    return kit.hub.call('conciv:registry:call', {sessionId: await kit.session(), name, input})
+  }
+
   async function expectClickDispatched(kit: EmbedKit, page: Page): Promise<void> {
-    await expect(kit.rpc.registry.call({name: 'page_click', input: {selector: '#press-btn'}})).resolves.toMatchObject({
-      ok: true,
-    })
-    await expect(kit.rpc.registry.call({name: 'page_text', input: {selector: '#clicked-flag'}})).resolves.toMatchObject(
-      {text: 'clicked'},
-    )
+    await expect(registryCall(kit, 'page_click', {selector: '#press-btn'})).resolves.toMatchObject({ok: true})
+    await expect(registryCall(kit, 'page_text', {selector: '#clicked-flag'})).resolves.toMatchObject({text: 'clicked'})
     const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
     expect(changes.map((entry) => entry.verb)).toContain('page_click')
     await expect(page.locator('[data-conciv-cursor]')).toHaveCount(1, {timeout: 10_000})
@@ -1023,24 +1023,28 @@ test.describe('page dispatch parity', () => {
     })
 
     test('page_effect enable shows the highlight inspector the widget registers, disable reverts, toggle flips', async () => {
-      await expect(
-        kit.rpc.registry.call({name: 'page_effect', input: {action: 'enable', effect: 'highlight'}}),
-      ).resolves.toMatchObject({effect: 'highlight', enabled: true})
+      await expect(registryCall(kit, 'page_effect', {action: 'enable', effect: 'highlight'})).resolves.toMatchObject({
+        effect: 'highlight',
+        enabled: true,
+      })
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(1, {timeout: 10_000})
 
-      await expect(
-        kit.rpc.registry.call({name: 'page_effect', input: {action: 'disable', effect: 'highlight'}}),
-      ).resolves.toMatchObject({effect: 'highlight', enabled: false})
+      await expect(registryCall(kit, 'page_effect', {action: 'disable', effect: 'highlight'})).resolves.toMatchObject({
+        effect: 'highlight',
+        enabled: false,
+      })
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
 
-      await expect(
-        kit.rpc.registry.call({name: 'page_effect', input: {action: 'toggle', effect: 'highlight'}}),
-      ).resolves.toMatchObject({effect: 'highlight', enabled: true})
+      await expect(registryCall(kit, 'page_effect', {action: 'toggle', effect: 'highlight'})).resolves.toMatchObject({
+        effect: 'highlight',
+        enabled: true,
+      })
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(1, {timeout: 10_000})
 
-      await expect(
-        kit.rpc.registry.call({name: 'page_effect', input: {action: 'toggle', effect: 'highlight'}}),
-      ).resolves.toMatchObject({effect: 'highlight', enabled: false})
+      await expect(registryCall(kit, 'page_effect', {action: 'toggle', effect: 'highlight'})).resolves.toMatchObject({
+        effect: 'highlight',
+        enabled: false,
+      })
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
     })
   })

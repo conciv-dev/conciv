@@ -29,13 +29,11 @@ import {
   tombstoneRow,
 } from '../../sessions/session-rows.js'
 import type {ServerFunctionsOf} from '../../devframe-plane.js'
-import {os, type ChatContext, type RpcDeps} from './mount.js'
+import {definedErrors, os, type ChatContext, type RpcDeps} from './mount.js'
 
 export type SessionsDeps = Pick<RpcDeps, 'chat' | 'runtime' | 'publish'>
 
 type SessionIdInput = z.infer<typeof SessionIdInputSchema>
-
-const CodedErrorSchema = z.object({code: z.string()})
 
 export async function rpcSessionList(chat: ChatContext, includeHidden: boolean): Promise<SessionMeta[]> {
   const history = chat.harness.history
@@ -128,14 +126,6 @@ function sessionsActions(deps: SessionsDeps) {
       return published({ok: true as const})
     },
   }
-}
-
-function definedErrors<Result>(run: Promise<Result>, errors: Readonly<Record<string, () => Error>>): Promise<Result> {
-  return run.catch((error: unknown) => {
-    const coded = CodedErrorSchema.safeParse(error)
-    const defined = coded.success ? errors[coded.data.code] : undefined
-    throw defined ? defined() : error
-  })
 }
 
 export function sessionsRouter(deps: SessionsDeps) {
