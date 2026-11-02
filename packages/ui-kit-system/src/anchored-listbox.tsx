@@ -142,6 +142,12 @@ function SearchRoot(props: {
     loopFocus: true,
     onSelect: (details) => props.onSelect(details.value),
   }))
+  createEffect(
+    on(
+      () => props.collection,
+      () => listbox().highlightFirst(),
+    ),
+  )
   return (
     <Listbox.RootProvider value={listbox}>
       <Listbox.Input
@@ -153,10 +159,7 @@ function SearchRoot(props: {
         placeholder={props.label}
         autoHighlight
         value={props.query}
-        onInput={(event) => {
-          props.onQueryChange(event.currentTarget.value)
-          listbox().highlightFirst()
-        }}
+        onInput={(event) => props.onQueryChange(event.currentTarget.value)}
       />
       {props.children}
     </Listbox.RootProvider>

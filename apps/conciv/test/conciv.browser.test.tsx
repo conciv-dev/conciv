@@ -609,6 +609,23 @@ describe('devframe hub shell', () => {
     await expect.element(page.getByRole('tab', {name: 'Messages'})).not.toBeInTheDocument()
   }, 30_000)
 
+  test('runs the highlighted first command when Enter is pressed right after the palette opens', async () => {
+    const first: HubCommandInput = {
+      id: 'conciv-test:open-first',
+      title: 'Open the first command',
+      reply: {message: 'The first command ran', level: 'info', notify: false},
+    }
+    await coreControl.registerHubCommand(first)
+    await openHubPanel()
+
+    await editor().click()
+    await userEvent.keyboard('{ControlOrMeta>}k{/ControlOrMeta}')
+    await expect.element(palette().getByRole('option', {name: first.title}), {timeout: 8000}).toBeVisible()
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(palette()).not.toBeInTheDocument()
+  }, 30_000)
+
   test('closes the palette on Escape and hands focus back to the composer', async () => {
     await openHubPanel()
 

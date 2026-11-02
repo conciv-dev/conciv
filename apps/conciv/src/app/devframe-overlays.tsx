@@ -197,6 +197,7 @@ export function CommandPalette(props: {enabled: boolean}): JSX.Element {
   return (
     <TrackedDialog
       label="Commands"
+      layer="inline"
       open={palette.open}
       onOpenChange={(open) => setPalette({open, query: ''})}
       dismissable
