@@ -51,7 +51,7 @@ export type Stop = (typeof STOPS)[number]
 
 const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
 
-const MeasureSourceSchema = z.enum(['dom', 'mirror'])
+const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
 
 const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror'])
 
@@ -87,6 +87,10 @@ export const LiveStylesSchema = z.object({
 
 export const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
 
+export const OpinionSchema = z
+  .object({box: BoxSchema, confidence: z.number()})
+  .describe('the box takumi lays the component out at, beside the mirror box; never scored')
+
 const LiveComponentSchema = z.object({
   source: SourceLocSchema.nullable(),
   tag: z.string(),
@@ -103,6 +107,7 @@ const LiveComponentSchema = z.object({
   hints: z.array(z.string()).describe('class names and the aria-label, tokens for pairing'),
   index: z.number().describe('position among the DOM siblings, 1-based'),
   path: z.string().describe('sibling positions from the root joined by /, with s entering a shadow root'),
+  opinion: OpinionSchema.optional(),
   children: z.array(z.record(z.string(), z.unknown())).describe('nested components of the same shape'),
 })
 
@@ -124,6 +129,10 @@ const DeltaSchema = ProvenanceSchema.partial().extend({
   source: MeasureSourceSchema.optional().describe('dom when read in the tab, mirror when read in the mirror'),
   confidence: z.number().optional(),
   width: z.number().optional().describe('the design width the delta was measured at'),
+  opinion: z
+    .object({source: z.literal('takumi'), live: z.union([z.number(), z.string()]), confidence: z.number()})
+    .optional()
+    .describe('the same value read from the takumi layout; shown, never scored'),
   warning: z
     .enum(['sample-data'])
     .optional()
@@ -195,6 +204,10 @@ const ComponentReportSchema = z.object({
   children: z.number(),
   nodes: z.array(z.string()).optional().describe('the design nodes paired with this component'),
   path: z.string().optional().describe('where the component sits in the page tree'),
+  twinDisagreement: z
+    .object({target: z.string(), path: z.string()})
+    .optional()
+    .describe('the twin of the paired node in another design is paired to this other component'),
 })
 
 const RouteItemSchema = z
@@ -273,6 +286,7 @@ export const MeasureResultSchema = z.object({
   source: MeasureSourceSchema,
   masks: z.array(BoxSchema),
   limits: MirrorLimitsSchema.optional(),
+  opinion: z.boolean().describe('takumi laid the mirror out as a second opinion'),
 })
 
 const RenderSchema = z.object({

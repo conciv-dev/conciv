@@ -41,6 +41,7 @@ import type {
   Winner,
 } from './shared/types.js'
 import {XrayPane} from './xray/router.js'
+import {secondOpinion} from './client/takumi.js'
 
 declare global {
   interface Window {
@@ -73,7 +74,10 @@ const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 
+const TAKUMI_WASM = 'takumi_paint_wasm_bg.wasm'
+
 const mirrorSlot: {current: MirrorSlot | null} = {current: null}
+const engineBase: {current: (() => string) | null} = {current: null}
 const region: {stream: MediaStream | null} = {stream: null}
 
 const CLIENT_TOOLS = [
@@ -109,6 +113,9 @@ function Surface(): JSX.Element {
   const sessionId = host.useSessionId()
   const scheme = host.useColorScheme()
   const pane = design.useContext((context) => context)
+  onMount(() => {
+    engineBase.current = apiBase
+  })
   return (
     <Show when={pane.state.engaged}>
       <YieldFocus when={pane.state.open && !pane.state.picking}>
@@ -178,24 +185,45 @@ async function measureLive(size: Size): Promise<MeasureResult> {
     capturePath: shot === null ? 'snapdom-live' : 'region',
     source: 'dom',
     masks,
+    opinion: false,
   }
 }
 
 async function measureMirror(size: Size): Promise<MeasureResult> {
   const doc = mirrorDocument(await mirrorAt(size.width))
-  const components = collectComponents({root: doc, size})
+  const measured = collectComponents({root: doc, size})
   const masks = canvasBoxes({root: doc, size})
+  const opinion = await secondOpinion({doc, ...size, components: measured, wasm: takumiWasm()})
   const blob = await snapdomShot({doc, size, exclude: MIRROR_EXCLUDE, viewport: false})
   return {
     image: await base64(blob),
     ...size,
     route: locationRoute(),
-    components,
+    components: opinion === null ? measured : withOpinions({components: measured, ...opinion}),
     capturePath: 'snapdom-mirror',
     source: 'mirror',
     masks,
     limits: mirrorLimits(doc),
+    opinion: opinion !== null,
   }
+}
+
+function takumiWasm(): string | null {
+  const base = engineBase.current
+  return base === null ? null : `${base()}/api/ext/${DESIGN_EXTENSION_NAME}/takumi/${TAKUMI_WASM}`
+}
+
+function withOpinions(input: {
+  components: LiveComponent[]
+  boxes: Map<string, Box>
+  confidence: number
+}): LiveComponent[] {
+  const {boxes, confidence} = input
+  return input.components.map((component) => {
+    const box = boxes.get(component.path)
+    const children = withOpinions({...input, components: component.children})
+    return box === undefined ? {...component, children} : {...component, children, opinion: {box, confidence}}
+  })
 }
 
 function releaseMirror(): void {

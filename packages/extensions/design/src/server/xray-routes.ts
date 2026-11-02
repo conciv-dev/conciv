@@ -1,5 +1,5 @@
 import {readFile} from 'node:fs/promises'
-import {join, resolve, sep} from 'node:path'
+import {extname, join, resolve, sep} from 'node:path'
 import {ORPCError, os} from '@orpc/server'
 import {Hono, type Context} from 'hono'
 import {getMimeType} from 'hono/utils/mime'
@@ -15,6 +15,8 @@ const NOT_BUILT = 'the x-ray page is not built; build @conciv/extension-design'
 const NonEmptySchema = z.string().min(1)
 const TargetSchema = z.object({id: NonEmptySchema})
 const RunSchema = TargetSchema.extend({session: SessionId})
+const WASM_EXTENSION = '.wasm'
+const WASM_HEADERS = {'content-type': 'application/wasm', 'cache-control': 'public, max-age=31536000, immutable'}
 
 const xrayOs = os.$context<RpcContext>()
 
@@ -108,8 +110,21 @@ async function fileResponse(path: string): Promise<Response> {
   })
 }
 
-export function makeXrayApp(input: {store: TargetStore; pageDir: string; designDir: string; cwd: string}) {
+async function wasmResponse(path: string): Promise<Response> {
+  const body = await readFile(path).catch(() => null)
+  if (body === null) return new Response('not found', {status: 404})
+  return new Response(new Uint8Array(body), {headers: WASM_HEADERS})
+}
+
+export function makeXrayApp(input: {
+  store: TargetStore
+  pageDir: string
+  designDir: string
+  cwd: string
+  takumiDir: string
+}) {
   const {store, pageDir, cwd} = input
+  const takumiDir = resolve(input.takumiDir)
   const designDir = resolve(input.designDir)
   const root = resolve(pageDir)
   const cache: {page: string | null} = {page: null}
@@ -140,6 +155,11 @@ export function makeXrayApp(input: {store: TargetStore; pageDir: string; designD
       const path = resolve(root, asset.data)
       if (!inside({dir: root, path})) return c.text('not found', 404)
       return fileResponse(path)
+    })
+    .get('/takumi/:asset', (c) => {
+      const path = resolve(takumiDir, c.req.param('asset'))
+      if (!inside({dir: takumiDir, path}) || extname(path) !== WASM_EXTENSION) return c.text('not found', 404)
+      return wasmResponse(path)
     })
     .get('/files/:file{.+}', (c) => {
       const file = NonEmptySchema.safeParse(c.req.param('file'))

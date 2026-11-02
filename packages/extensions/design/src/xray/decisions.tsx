@@ -205,7 +205,7 @@ export function DecisionBar(props: {
   )
 }
 
-export function RowBadges(props: {row: Row; data: XrayData}): JSX.Element {
+export function RowBadges(props: {row: Row; data: XrayData; opinions: boolean}): JSX.Element {
   const parts = () =>
     compact([
       props.row.measured,
@@ -218,6 +218,20 @@ export function RowBadges(props: {row: Row; data: XrayData}): JSX.Element {
     <>
       <Show when={parts().length > 0}>
         <span class="text-xs color-meta whitespace-nowrap tabular-nums">{parts().join(' · ')}</span>
+      </Show>
+      <Show when={props.opinions && props.row.opinion}>
+        {(opinion) => (
+          <span class="text-xs color-meta whitespace-nowrap tabular-nums">
+            takumi {opinion().live} · {CONFIDENCE.format(opinion().confidence)}
+          </span>
+        )}
+      </Show>
+      <Show when={props.opinions && props.row.twinDisagreement}>
+        {(twin) => (
+          <span class="badge badge-color-amber" title={`${twin().target} pairs the twin to ${twin().path}`}>
+            twins disagree
+          </span>
+        )}
       </Show>
       <Show when={props.row.warning}>
         <span class="badge badge-color-amber">sample data</span>

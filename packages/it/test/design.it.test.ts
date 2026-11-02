@@ -1791,3 +1791,54 @@ describe('overlay', () => {
     await expectLocator(pane.getByRole('button', {name: 'Capture pixels'})).toHaveCount(0)
   })
 })
+
+const OPINION_KINDS = ['inset-left', 'inset-right', 'inset-top', 'inset-bottom', 'gap-before', 'gap-after', 'align']
+const TAKUMI_WASM = 'takumi_paint_wasm_bg.wasm'
+
+describe('takumi', () => {
+  it('webfont against u1-390 stores a takumi opinion beside the mirror value on geometry rows', async () => {
+    await goto('webfont')
+    await freshTarget('u1-390')
+    const report = await call('design_diff', {limit: 50})
+    expect(report.sources).toContain('takumi')
+    const opinions = report.components
+      .flatMap((c) => c.deltas)
+      .filter((d) => OPINION_KINDS.includes(d.kind) && d.opinion !== undefined)
+    expect(opinions.length).toBeGreaterThan(0)
+    expect(opinions[0]?.opinion?.source).toBe('takumi')
+    expect(opinions[0]?.opinion?.confidence).toBeGreaterThan(0.8)
+    expect(opinions[0]?.opinion?.confidence).toBeLessThan(0.9)
+  })
+
+  it('container disables takumi and reports mirror only', async () => {
+    await goto('container')
+    await freshTarget('u1-390')
+    const report = await call('design_diff', {})
+    expect(report.sources).toEqual(['mirror'])
+    expect(report.components.flatMap((c) => c.deltas).filter((d) => d.opinion !== undefined)).toEqual([])
+  })
+
+  it('a system font gives no opinion', async () => {
+    await goto('target')
+    await freshTarget('u1-390')
+    const report = await call('design_diff', {})
+    expect(report.sources).toEqual(['mirror'])
+    expect(report.components.flatMap((c) => c.deltas).filter((d) => d.opinion !== undefined)).toEqual([])
+  })
+
+  it('the pane shows the takumi opinion on a webfont row', async () => {
+    await goto('webfont')
+    await freshTarget('u1-390')
+    await call('design_diff', {limit: 50})
+    const pane = await openPane()
+    await expectLocator(pane.getByText(/^takumi /).first()).toBeVisible()
+  })
+
+  it('serves the takumi wasm and nothing else under its route', async () => {
+    const wasm = await fetch(`${kit.apiBase}/api/ext/design/takumi/${TAKUMI_WASM}`)
+    expect([wasm.status, wasm.headers.get('content-type')]).toEqual([200, 'application/wasm'])
+    const script = await fetch(`${kit.apiBase}/api/ext/design/takumi/takumi.js`)
+    const parent = await fetch(`${kit.apiBase}/api/ext/design/takumi/..%2Fpackage.json`)
+    expect([script.status, parent.status]).toEqual([404, 404])
+  })
+})

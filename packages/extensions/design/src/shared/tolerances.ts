@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ComponentReport, DiffReport, Stage} from './defs.js'
+import type {ComponentReport, DeltaKindName, DiffReport, Stage} from './defs.js'
 import type {Delta, ItemKind} from './types.js'
 
 export const TOLERANCES = {
@@ -44,6 +44,9 @@ export const TOLERANCES = {
   pairFloor: 0.3,
   pairFloorMargin: 0.1,
   pairMinWeight: 0.1,
+  takumiP95: {wide: 1.7, narrow: 7.4},
+  takumiNarrowBelow: 1000,
+  opinionBudgetMs: 2000,
 } as const
 
 export type Tolerances = typeof TOLERANCES
@@ -64,6 +67,23 @@ export type DesignConfig = z.output<typeof designConfig>
 
 export const SOURCE_ATTR = 'data-conciv-source'
 export const PANE_ATTR = 'data-conciv-design-pane'
+
+export function kindTolerance(kind: DeltaKindName): number {
+  switch (kind) {
+    case 'fontSize':
+    case 'lineHeight':
+      return FONT_TOLERANCE
+    case 'fontWeight':
+      return WEIGHT_STEP
+    case 'columns':
+      return 1
+    default:
+      return TOLERANCES.geometryPx
+  }
+}
+
+const FONT_TOLERANCE = 0.5
+const WEIGHT_STEP = 100
 
 export function kindStage(kind: ItemKind): Stage | null {
   return KIND_STAGES[kind]

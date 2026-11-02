@@ -8,6 +8,7 @@ import {
   componentAboveTolerance,
   deltaSentence,
   kindStage,
+  kindTolerance,
   SOURCE_ATTR,
   traced,
 } from '../shared/tolerances.js'
@@ -42,6 +43,8 @@ export type Row = {
   width: number | null
   warning: boolean
   nodes: string[]
+  opinion: {live: number | string; confidence: number} | null
+  twinDisagreement: ComponentReport['twinDisagreement'] | null
 }
 
 type WidthTab = {target: TargetRecord; off: number | null}
@@ -105,6 +108,14 @@ function componentRow(input: {component: ComponentReport; index: number; report:
     ...deltaMeta({deltas: component.deltas, report}),
     warning: report.warnings.some((warning) => sameSite({warning, source: component.source})),
     nodes: component.nodes ?? [],
+    ...secondOpinions(component),
+  }
+}
+
+function secondOpinions(component: ComponentReport): Pick<Row, 'opinion' | 'twinDisagreement'> {
+  return {
+    opinion: component.deltas.find((delta) => delta.opinion !== undefined)?.opinion ?? null,
+    twinDisagreement: component.twinDisagreement ?? null,
   }
 }
 
@@ -142,6 +153,8 @@ function regionRow(input: {region: Region; index: number; report: DiffReport}): 
     width: report.target.width,
     warning: false,
     nodes: region.node === undefined ? [] : [region.node],
+    opinion: null,
+    twinDisagreement: null,
   }
 }
 
@@ -537,7 +550,7 @@ function noDeltaNote(row: Row): string {
   return 'Matches the design.'
 }
 
-function PropertyTable(props: {row: Row; onOpen: (source: SourceLoc) => void}): JSX.Element {
+function PropertyTable(props: {row: Row; opinions: boolean; onOpen: (source: SourceLoc) => void}): JSX.Element {
   return (
     <Show
       when={props.row.deltas.length > 0}
@@ -561,6 +574,15 @@ function PropertyTable(props: {row: Row; onOpen: (source: SourceLoc) => void}): 
                   <td class="p-2 whitespace-nowrap">
                     <Swatch delta={delta} value={delta.live} />
                     {cellValue({delta, value: delta.live})}
+                    <Show when={props.opinions && delta.opinion}>
+                      {(opinion) => (
+                        <span class="text-xs color-meta font-sans ms-2">
+                          {opinionAgrees({delta, live: opinion().live})
+                            ? 'takumi agrees'
+                            : `takumi says ${cellValue({delta, value: opinion().live})}`}
+                        </span>
+                      )}
+                    </Show>
                   </td>
                   <td class="color-active p-2 whitespace-nowrap">
                     <Swatch delta={delta} value={delta.target} />
@@ -577,6 +599,12 @@ function PropertyTable(props: {row: Row; onOpen: (source: SourceLoc) => void}): 
       </div>
     </Show>
   )
+}
+
+function opinionAgrees(input: {delta: Delta; live: number | string}): boolean {
+  const {delta, live} = input
+  if (typeof live !== 'number' || typeof delta.live !== 'number') return live === delta.live
+  return Math.abs(live - delta.live) <= kindTolerance(delta.kind)
 }
 
 function CaptureCrop(props: {row: Row; live: string; target: TargetRecord}): JSX.Element {
@@ -640,6 +668,7 @@ type ComponentDetailProps = {
   images: XrayImages
   target: TargetRecord
   opening: boolean
+  opinions: boolean
   onOpen: (source: SourceLoc) => void
   onCopied: (copied: boolean) => void
 }
@@ -666,7 +695,7 @@ export function ComponentDetail(props: ComponentDetailProps): JSX.Element {
   return (
     <div class="xray-rise ms-14 border border-base rounded-lg bg-base overflow-hidden">
       <div class="p-4 flex flex-wrap gap-6 items-start">
-        <PropertyTable row={props.row} onOpen={props.onOpen} />
+        <PropertyTable row={props.row} opinions={props.opinions} onOpen={props.onOpen} />
         <Show when={props.images.live}>
           {(live) => <CaptureCrop row={props.row} live={live()} target={props.target} />}
         </Show>

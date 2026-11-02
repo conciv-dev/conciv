@@ -1,5 +1,6 @@
 import {readdir} from 'node:fs/promises'
-import {join} from 'node:path'
+import {createRequire} from 'node:module'
+import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {defineExtension, type ServerApi} from '@conciv/extension'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
@@ -14,6 +15,8 @@ import {buildCssMap, MAPPERS} from './server/provenance.js'
 import {createTargetStore} from './server/store.js'
 import {ADAPTERS, destroyPaddle, ENRICHERS, ROLE_RULES, SEGMENTERS, TEXT_READERS} from './server/target.js'
 import {makeXrayApp, makeXrayRouter} from './server/xray-routes.js'
+
+const TAKUMI_WASM_EXPORT = 'takumi-paint/takumi_paint_wasm_bg.wasm'
 
 function pickRuntime(input: {
   config: DesignConfig
@@ -103,7 +106,13 @@ export const design = defineExtension({
     systemPrompt: async ({sessionId}) =>
       (await store.current({session: sessionId})) === null ? undefined : DESIGN_GUIDE,
     router: makeXrayRouter({store, differ, designDir, sourceChangedAt: changes.sourceChangedAt}),
-    app: makeXrayApp({store, pageDir: fileURLToPath(new URL('xray/', import.meta.url)), designDir, cwd: server.cwd}),
+    app: makeXrayApp({
+      store,
+      pageDir: fileURLToPath(new URL('xray/', import.meta.url)),
+      designDir,
+      cwd: server.cwd,
+      takumiDir: dirname(createRequire(import.meta.url).resolve(TAKUMI_WASM_EXPORT)),
+    }),
     dispose: async () => {
       await destroyPaddle()
       css.dispose()

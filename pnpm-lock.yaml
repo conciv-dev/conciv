@@ -351,6 +351,9 @@ catalogs:
     tailwindcss:
       specifier: ^4.3.3
       version: 4.3.3
+    takumi-paint:
+      specifier: 0.5.0
+      version: 0.5.0
     tsdown:
       specifier: ^0.23.4
       version: 0.23.4
@@ -2663,6 +2666,9 @@ importers:
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
+      takumi-paint:
+        specifier: 'catalog:'
+        version: 0.5.0(preact@11.1.0)(react@19.3.1)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -10422,6 +10428,18 @@ packages:
       react:
         optional: true
 
+  '@takumi-rs/helpers@2.19.0':
+    resolution: {integrity: sha512-3ycCjYCP31HACXBvlpv4fMLw9vneCVGuttFBfZr4jpL0nHNCt2wlXvt0XFt05FscLMUY2s+5PGKPE6EatXI/mg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      preact: ^10.0.0 || ^11.0.0
+      react: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      preact:
+        optional: true
+      react:
+        optional: true
+
   '@takumi-rs/wasm@2.18.2':
     resolution: {integrity: sha512-Ap8rA5TRcfLRpKagM3NK0JGKo4TO0DrTI7fAFpKM5R04yIVvibT8Qq/FqFcYBqWdlVxfxwzdMAdn/Glxkx9WAA==}
     engines: {node: '>=20.19'}
@@ -17288,6 +17306,15 @@ packages:
     resolution: {integrity: sha512-FFl1sctUFyMgoVghDxZYDPOcxIKYmdZodkc1w+ozrRl2mW3OYlqWklyGR1c3zHoMFlqDZO170/v51ZmV/38JXw==}
     engines: {node: '>=20.19'}
 
+  takumi-paint@0.5.0:
+    resolution: {integrity: sha512-pNCQT9CtdX0wGihk/EiVNEgDlo4J8ffHQchkfBOYAIClzm8O3oZzNMm8hNlgkUP6Et2+iyf4tO3bqtl7jvIOmA==}
+    engines: {node: '>=20.19'}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      react:
+        optional: true
+
   tapable@2.3.3:
     resolution: {integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==}
     engines: {node: '>=6'}
@@ -23080,6 +23107,11 @@ snapshots:
       - react
 
   '@takumi-rs/helpers@2.18.2(preact@11.1.0)(react@19.3.1)':
+    optionalDependencies:
+      preact: 11.1.0
+      react: 19.3.1
+
+  '@takumi-rs/helpers@2.19.0(preact@11.1.0)(react@19.3.1)':
     optionalDependencies:
       preact: 11.1.0
       react: 19.3.1
@@ -31612,6 +31644,14 @@ snapshots:
       - csstype
       - preact
       - react
+
+  takumi-paint@0.5.0(preact@11.1.0)(react@19.3.1):
+    dependencies:
+      '@takumi-rs/helpers': 2.19.0(preact@11.1.0)(react@19.3.1)
+    optionalDependencies:
+      react: 19.3.1
+    transitivePeerDependencies:
+      - preact
 
   tapable@2.3.3: {}
 
