@@ -1035,6 +1035,15 @@ describe('conciv devframe layer over a real hub', () => {
     await served.close()
   }, 10_000)
 
+  it('starts the hub when a plugin fails to set up', async () => {
+    const broken = defineConcivPlugin({id: 'broken', title: 'Broken'}).server(() => {
+      throw new Error('broken setup')
+    })
+    const served = await serveDevframePlugin(broken.devframe)
+    expect(await served.hub.ready).toBeUndefined()
+    await served.close()
+  }, 10_000)
+
   it('returns only what the output schema declares, with its defaults', async () => {
     const served = await serveDevframePlugin(probe.devframe)
     expect(await call(served.client, 'probe:wide', {})).toEqual({title: 'kept', count: 1})
@@ -1101,10 +1110,11 @@ describe('conciv devframe layer over a real hub', () => {
     })
     const iterator = stream[Symbol.asyncIterator]()
     expect((await iterator.next()).value).toBe('first')
-    const ended = iterator.next()
+    const pendingRejects = expect(pending).rejects.toMatchObject({code: 'DISCONNECTED'})
+    const endedRejects = expect(iterator.next()).rejects.toMatchObject({code: 'DISCONNECTED'})
     await served.hub.close()
-    await expect(pending).rejects.toMatchObject({code: 'DISCONNECTED'})
-    await expect(ended).rejects.toMatchObject({code: 'DISCONNECTED'})
+    await pendingRejects
+    await endedRejects
     await served.close()
   }, 10_000)
 
@@ -1126,9 +1136,9 @@ describe('conciv devframe layer over a real hub', () => {
     }))
     const iterator = stream[Symbol.asyncIterator]()
     expect((await iterator.next()).value).toBe('first')
-    const ended = iterator.next()
+    const endedRejects = expect(iterator.next()).rejects.toMatchObject({code: 'DISCONNECTED'})
     await served.hub.close()
-    await expect(ended).rejects.toMatchObject({code: 'DISCONNECTED'})
+    await endedRejects
     expect(source.returned).toBe(true)
     await served.close()
   }, 10_000)

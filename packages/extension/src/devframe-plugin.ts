@@ -68,7 +68,11 @@ export function defineConcivPlugin<const Id extends string, Schema extends z.Zod
       setup: async (ctx) => {
         const host = ctx.services.get(CONCIV_HOST_SERVICE)
         if (!host) throw new Error(`conciv plugin "${meta.id}" needs the conciv:host service`)
-        await parts.server?.(ctx, host, parseExtensionConfig(meta.configSchema, host.config(meta.id)))
+        try {
+          await parts.server?.(ctx, host, parseExtensionConfig(meta.configSchema, host.config(meta.id)))
+        } catch (error) {
+          console.error(`[conciv] plugin "${meta.id}" failed to start: ${String(error)}`)
+        }
       },
     }),
     server: (factory) => {

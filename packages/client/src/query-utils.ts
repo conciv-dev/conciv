@@ -1,4 +1,5 @@
 import {createTanstackQueryUtils} from '@orpc/tanstack-query'
+import {skipToken} from '@tanstack/query-core'
 import type {RpcClient} from '@conciv/contract'
 
 export function makeQueryUtils(client: RpcClient) {
@@ -17,7 +18,10 @@ function hubProcedure<Procedure extends object>(procedure: Procedure, name: stri
       const source: object = target
       const value = Reflect.get(source, key)
       if (key === 'queryOptions')
-        return (options?: {input?: unknown}) => ({...value(options), queryFn: () => hub(name, options?.input ?? {})})
+        return (options?: {input?: unknown}) => {
+          if (options?.input === skipToken) return value(options)
+          return {...value(options), queryFn: () => hub(name, options?.input ?? {})}
+        }
       if (key === 'mutationOptions')
         return (options?: object) => ({...value(options), mutationFn: (input: unknown) => hub(name, input ?? {})})
       return value
