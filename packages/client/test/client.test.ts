@@ -1,4 +1,4 @@
-import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
+import {afterEach, describe, expect, it} from 'vitest'
 import {onlineManager} from '@tanstack/query-core'
 import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
 import {until} from '@conciv/harness-testkit'
@@ -517,47 +517,53 @@ describe('push channel', () => {
 })
 
 describe('hub-backed query utils', () => {
-  const sessionsProbe = defineConcivPlugin({id: 'query-probe', title: 'Query probe'}).server((ctx) => {
-    ctx.rpc.register({name: 'conciv:sessions:list', type: 'query', handler: () => [{id: 'from-hub'}]})
-    ctx.rpc.register({name: 'conciv:sessions:create', type: 'action', handler: () => ({sessionId: 'created-on-hub'})})
-  })
-
   const hubCall =
     (kit: ClientKit): HubCall =>
     (name, input) =>
       kit.hub.connection.ready().then(({rpc}) => rpc.$callRaw({method: name, args: [input]}))
 
-  let kit: ClientKit
+  const unreachableRpc = makeRpcClient('http://127.0.0.1:1')
 
-  beforeAll(async () => {
-    kit = await bootClientKit({plugins: [sessionsProbe]})
+  let kit: ClientKit | undefined
+
+  async function bootHubKit(): Promise<ClientKit> {
+    kit = await bootClientKit()
+    return kit
+  }
+
+  afterEach(async () => {
+    await kit?.cleanup()
+    kit = undefined
   })
 
-  afterAll(() => kit.cleanup())
-
   it('sends a listed group through the hub and keeps the query keys of the oRPC utils', async () => {
-    const plain = makeQueryUtils(kit.rpc)
-    const utils = hubQueryUtils(plain, hubCall(kit), new Set(['sessions']))
+    const booted = await bootHubKit()
+    const {sessionId} = await booted.rpc.sessions.create(undefined)
+    const plain = makeQueryUtils(unreachableRpc)
+    const utils = hubQueryUtils(plain, hubCall(booted), new Set(['sessions']))
     const options = utils.sessions.list.queryOptions({input: {includeHidden: false}})
     expect(options.queryKey).toEqual(plain.sessions.list.queryOptions({input: {includeHidden: false}}).queryKey)
     expect(utils.sessions.list.key()).toEqual(plain.sessions.list.key())
-    const client = new QueryClient()
-    expect(await client.fetchQuery(options)).toEqual([{id: 'from-hub'}])
+    const sessions = await new QueryClient().fetchQuery(options)
+    expect(sessions.map((meta: SessionMeta) => meta.id)).toContain(sessionId)
   })
 
   it('sends a mutation of a listed group through the hub', async () => {
-    const utils = hubQueryUtils(makeQueryUtils(kit.rpc), hubCall(kit), new Set(['sessions']))
-    const options = utils.sessions.create.mutationOptions()
-    const client = new QueryClient()
-    const observer = new MutationObserver(client, options)
-    expect(await observer.mutate({})).toEqual({sessionId: 'created-on-hub'})
+    const booted = await bootHubKit()
+    const utils = hubQueryUtils(makeQueryUtils(unreachableRpc), hubCall(booted), new Set(['sessions']))
+    const observer = new MutationObserver(new QueryClient(), utils.sessions.create.mutationOptions())
+    const {sessionId} = await observer.mutate({})
+    const listed = await booted.rpc.sessions.list({includeHidden: true})
+    expect(listed.map((meta: SessionMeta) => meta.id)).toContain(sessionId)
   })
 
   it('leaves an unlisted group on oRPC', async () => {
-    const utils = hubQueryUtils(makeQueryUtils(kit.rpc), hubCall(kit), new Set())
-    const client = new QueryClient()
-    const listed = await client.fetchQuery(utils.sessions.list.queryOptions({input: {includeHidden: true}}))
-    expect(listed).not.toEqual([{id: 'from-hub'}])
+    const booted = await bootHubKit()
+    const {sessionId} = await booted.rpc.sessions.create(undefined)
+    const unreachableHub: HubCall = () => Promise.reject(new Error('the hub is not on this path'))
+    const utils = hubQueryUtils(makeQueryUtils(booted.rpc), unreachableHub, new Set())
+    const listed = await new QueryClient().fetchQuery(utils.sessions.list.queryOptions({input: {includeHidden: true}}))
+    expect(listed.map((meta: SessionMeta) => meta.id)).toContain(sessionId)
   })
 })
 
