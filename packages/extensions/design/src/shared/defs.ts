@@ -38,6 +38,16 @@ const DELTA_KIND_NAMES = [
 
 const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
 
+const MeasureSourceSchema = z.enum(['dom', 'mirror'])
+
+const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror'])
+
+const MirrorLimitsSchema = z.object({
+  canvases: z.number().describe('canvas elements, blank in the mirror and masked'),
+  fonts: z.array(z.string()).describe('font families added through the FontFace API, missing in the mirror'),
+  inlineWidths: z.number().describe('elements with an inline width or height, laid out as the live page left them'),
+})
+
 export type DeltaKindName = z.infer<typeof DeltaKindNameSchema>
 
 export const BoxSchema = z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()})
@@ -50,7 +60,9 @@ export const LiveStylesSchema = z.object({
   fontSize: z.number(),
   lineHeight: z.number(),
   fontWeight: z.number(),
+  fontFamily: z.string(),
   radius: z.number(),
+  border: z.object({width: z.number(), style: z.string(), color: z.string()}).describe('the top border'),
 })
 
 export const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
@@ -65,8 +77,10 @@ const LiveComponentSchema = z.object({
     .array(GlyphSchema)
     .describe('the text nodes the component paints, each with one box per line, grown by the anti-aliasing halo'),
   axis: z.enum(['row', 'column']).nullable(),
+  columns: z.number().nullable().describe('track count of grid-template-columns, null when not a grid'),
   styles: LiveStylesSchema,
   index: z.number().describe('position among the DOM siblings, 1-based'),
+  path: z.string().describe('sibling positions from the root joined by /, with s entering a shadow root'),
   children: z.array(z.record(z.string(), z.unknown())).describe('nested components of the same shape'),
 })
 
@@ -85,7 +99,9 @@ const DeltaSchema = ProvenanceSchema.partial().extend({
   side: z.enum(['left', 'right', 'top', 'bottom', 'x', 'y']).optional(),
   live: z.union([z.number(), z.string()]),
   target: z.union([z.number(), z.string()]),
-  breakpoint: z.boolean().optional(),
+  source: MeasureSourceSchema.optional().describe('dom when read in the tab, mirror when read in the mirror'),
+  confidence: z.number().optional(),
+  width: z.number().optional().describe('the design width the delta was measured at'),
   warning: z
     .enum(['sample-data'])
     .optional()
@@ -157,6 +173,9 @@ export const DiffReportSchema = z.object({
     .enum(['full', 'partial'])
     .optional()
     .describe('partial when image regions cover much of the design, so boxes inside them are not read'),
+  capturePath: CapturePathSchema.optional().describe('how the pixels of this run were taken'),
+  sources: z.array(MeasureSourceSchema).default([]).describe('where the boxes and styles were read'),
+  limits: MirrorLimitsSchema.optional().describe('what the mirror could not reproduce'),
 })
 
 export type DiffReport = z.infer<typeof DiffReportSchema>
@@ -185,7 +204,28 @@ const CaptureResultSchema = z.object({
   components: z.array(LiveComponentSchema),
 })
 
-export const ViewportResultSchema = z.object({width: z.number(), height: z.number()})
+export const MeasureResultSchema = z.object({
+  image: z.string(),
+  width: z.number(),
+  height: z.number(),
+  route: z.string(),
+  components: z.array(LiveComponentSchema),
+  capturePath: CapturePathSchema,
+  source: MeasureSourceSchema,
+  masks: z.array(BoxSchema),
+  limits: MirrorLimitsSchema.optional(),
+})
+
+const RenderSchema = z.object({
+  text: z.string(),
+  font: z.string(),
+  size: z.number(),
+  weight: z.number(),
+  color: z.string(),
+  background: z.string(),
+})
+
+export const RenderResultSchema = z.object({images: z.array(z.string())})
 
 export const WinnerResultSchema = z.record(z.string(), WinnerSchema.nullable())
 
@@ -208,17 +248,23 @@ export const DiffInputSchema = z.object({
 export const StatusInputSchema = z.object({})
 
 export const CaptureInputSchema = z.object({
-  height: Width.optional().describe('viewport height in px'),
-  probe: z.boolean().optional().describe('only report the live viewport size'),
-  clear: z.boolean().optional().describe('remove the hidden capture frame'),
+  height: Width.optional().describe('height of the captured area in px; defaults to the viewport height'),
   timeout: z.number().int().positive().optional().describe('how long the page may take to answer, in ms'),
 })
+
+const MeasureInputSchema = z.object({
+  width: Width.optional().describe('the design width; the mirror is read when it differs from the tab width'),
+  height: Width.optional().describe('the design height'),
+  timeout: z.number().int().positive().optional(),
+})
+
+const RenderInputSchema = z.object({renders: z.array(RenderSchema)})
 
 export const WinnerInputSchema = z.object({
   selector: z.string().describe('CSS selector of the element'),
   properties: z.array(z.string()).describe('CSS properties to explain'),
   width: Width.optional().describe(
-    'viewport width the element was captured at; a capture frame of this width and height is read instead of the tab',
+    'design width the element was measured at; the mirror at this width is read instead of the tab',
   ),
   height: Width.optional().describe('viewport height the element was captured at'),
 })
@@ -231,11 +277,6 @@ export const ClearInputSchema = z.object({
 export const DESIGN_ERRORS = {
   'image-unreadable': {message: 'image is neither a PNG file nor PNG base64'},
   'no-target': {message: NO_TARGET_MESSAGE},
-  'frame-blocked': {
-    message:
-      'the app did not render inside the capture frame (frame-ancestors or X-Frame-Options); capture through cdp or chromium is not available yet',
-  },
-  'frame-timeout': {message: 'the capture frame did not settle in time'},
 } satisfies ToolErrors
 
 type DesignToolDef<Shape extends z.ZodRawShape, Out extends z.ZodType> = ToolBuilder<
@@ -259,6 +300,7 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   hint: string
   keywords: readonly string[]
   positional?: string
+  catalog?: boolean
 }): DesignToolDef<Shape, Out> {
   return defineTool({
     name: `design_${spec.verb}`,
@@ -277,6 +319,7 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
       capture: 'none',
       keywords: spec.keywords,
       ...(spec.positional === undefined ? {} : {positional: spec.positional}),
+      ...(spec.catalog === undefined ? {} : {catalog: spec.catalog}),
     },
   })
 }
@@ -321,25 +364,46 @@ export const statusDef = designTool({
   keywords: ['design', 'done', 'progress'],
 })
 
-const CAPTURE_SPEC = {
+export const captureDef = designTool({
   verb: 'capture',
   summary: 'capture the live page at the tab width as a PNG with its component tree',
   mutating: false,
   icon: 'read',
   running: 'Capturing the page',
   done: 'Captured the page',
-  output: z.union([CaptureResultSchema, ViewportResultSchema]),
+  input: CaptureInputSchema,
+  output: CaptureResultSchema,
   hint: 'returns the path of the PNG, never the bytes',
   keywords: ['design', 'capture', 'screenshot', 'components'],
-} as const
-
-export const captureDef = designTool({...CAPTURE_SPEC, input: CaptureInputSchema})
-
-const TabCaptureInputSchema = CaptureInputSchema.extend({
-  width: Width.optional().describe('viewport width of the hidden capture frame; defaults to the tab width'),
 })
 
-export const tabCaptureDef = designTool({...CAPTURE_SPEC, input: TabCaptureInputSchema})
+export const measureDef = designTool({
+  verb: 'measure',
+  summary: 'measure the page at the design width: components, pixels and how they were taken',
+  mutating: false,
+  icon: 'read',
+  running: 'Measuring the page',
+  done: 'Measured the page',
+  input: MeasureInputSchema,
+  output: MeasureResultSchema,
+  hint: 'called by design_diff; the mirror stands in for the tab when the widths differ',
+  keywords: ['design', 'measure'],
+  catalog: false,
+})
+
+export const renderDef = designTool({
+  verb: 'render',
+  summary: 'render strings in the page fonts as PNGs for the type estimate',
+  mutating: false,
+  icon: 'read',
+  running: 'Rendering text',
+  done: 'Rendered text',
+  input: RenderInputSchema,
+  output: RenderResultSchema,
+  hint: 'called by design_diff',
+  keywords: ['design', 'typography'],
+  catalog: false,
+})
 
 export const winnerDef = designTool({
   verb: 'winner',
@@ -356,7 +420,7 @@ export const winnerDef = designTool({
 
 export const clearDef = designTool({
   verb: 'clear',
-  summary: 'remove design targets and the hidden capture frame',
+  summary: 'remove design targets',
   mutating: true,
   icon: 'edit',
   running: 'Clearing design targets',
@@ -372,13 +436,15 @@ export const DESIGN_TOOL_DEFS = [targetDef, diffDef, statusDef, captureDef, winn
 export type TargetInput = z.output<typeof TargetInputSchema>
 export type DiffInput = z.output<typeof DiffInputSchema>
 export type CaptureInput = z.output<typeof CaptureInputSchema>
-export type TabCaptureInput = z.output<typeof TabCaptureInputSchema>
+export type MeasureInput = z.output<typeof MeasureInputSchema>
+export type MeasureResult = Omit<z.infer<typeof MeasureResultSchema>, 'components'> & {components: LiveComponent[]}
+export type RenderInput = z.output<typeof RenderInputSchema>
+export type RenderResult = z.infer<typeof RenderResultSchema>
 export type WinnerInput = z.output<typeof WinnerInputSchema>
 export type ClearInput = z.output<typeof ClearInputSchema>
 export type TargetResult = z.infer<typeof TargetResultSchema>
 export type ComponentReport = z.infer<typeof ComponentReportSchema>
 export type StatusReport = z.infer<typeof StatusReportSchema>
 export type CaptureResult = Omit<z.infer<typeof CaptureResultSchema>, 'components'> & {components: LiveComponent[]}
-export type ViewportResult = z.infer<typeof ViewportResultSchema>
 export type WinnerResult = z.infer<typeof WinnerResultSchema>
 export type ClearResult = z.infer<typeof ClearResultSchema>

@@ -315,6 +315,7 @@ export function sideFrom(input: {
     prev: neighbourBox({pair, from, step: 'prev'}),
     next: neighbourBox({pair, from, step: 'next'}),
     axis: pair.live.axis,
+    columns: from === 'live' ? pair.live.columns : null,
     textBox: contentBox({children, from}),
     styles: sideStyles({pair, from, box, raster, color, glyphs}),
   }

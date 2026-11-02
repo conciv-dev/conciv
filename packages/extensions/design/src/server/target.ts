@@ -10,17 +10,19 @@ import type {InferenceSession} from 'onnxruntime-web'
 import {Canvas, Contours, cv, ImageProcessor, type CanvasLike} from 'ppu-ocv'
 import {CanvasProcessor, CanvasToolkit} from 'ppu-ocv/canvas'
 import {z} from 'zod'
-import {range} from 'es-toolkit'
+import {range, uniqBy, zip} from 'es-toolkit'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import {DESIGN_GUIDE, type TargetInput, type TargetResult} from '../shared/defs.js'
+import {DESIGN_GUIDE, renderDef, RenderResultSchema, type TargetInput, type TargetResult} from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
 import type {
   Border,
   Box,
   BoxNode,
+  ColorMetric,
   DesignRuntime,
   Enricher,
   ImageNode,
+  LiveComponent,
   OcrLine,
   Raster,
   RoleRules,
@@ -28,8 +30,11 @@ import type {
   TargetAdapter,
   TargetModel,
   TargetNode,
+  TargetStore,
+  TextGroup,
   TextNode,
   TextReader,
+  Typography,
 } from '../shared/types.js'
 import {COLOR_METRICS, sampledFills} from './deltas.js'
 import {
@@ -973,4 +978,190 @@ export async function registerTarget(request: {
     text: textResult(enriched),
     next: DESIGN_GUIDE,
   }
+}
+
+type Ink = {height: number; contrast: number}
+type Render = {text: string; font: string; size: number; weight: number; color: string; background: string}
+type TypeJob = {node: TextNode; owner: LiveComponent; color: string; background: string; ink: Box; contrast: number}
+type SizeFound = {size: number; confidence: number}
+
+const REGULAR_WEIGHT = 400
+const BOLD_WEIGHT = 700
+const HALF_STEPS = 2
+const MAX_CONTRAST = rgbDistance({a: [0, 0, 0], b: [255, 255, 255]})
+
+const RENDERED = new Map<string, Ink>()
+
+export async function estimateTypography(input: {
+  groups: TextGroup[]
+  target: TargetModel
+  id: string
+  store: TargetStore
+  page: ServerToolPageAccess
+  color: ColorMetric
+}): Promise<void> {
+  const {page} = input
+  const jobs = typeJobs(input)
+  if (jobs.length === 0) return
+  await renderInks({
+    page,
+    renders: jobs.map((job) => renderAt({job, size: job.owner.styles.fontSize, weight: job.owner.styles.fontWeight})),
+  })
+  const estimates = await Promise.all(jobs.map((job) => estimate({job, page})))
+  await input.store.setTypography({id: input.id, typography: Object.fromEntries(estimates)})
+}
+
+function typeJobs(input: {groups: TextGroup[]; target: TargetModel; color: ColorMetric}): TypeJob[] {
+  const {raster} = input.target
+  const byBox = new Map(
+    input.target.nodes.flatMap((node): [string, TextNode][] =>
+      node.kind === 'text' ? [[boxKey(node.box), node]] : [],
+    ),
+  )
+  const paired = input.groups.flatMap((group) =>
+    group.target.flatMap((box) => {
+      const node = byBox.get(boxKey(box))
+      return node === undefined ? [] : [{node, owner: group.owner}]
+    }),
+  )
+  return uniqBy(paired, (entry) => entry.node.id)
+    .filter((entry) => entry.node.typography?.font !== entry.owner.styles.fontFamily)
+    .map(({node, owner}) => {
+      const area = crop({raster, box: node.box, margin: TOLERANCES.typeHalo})
+      const fills = sampledFills({raster, box: area.box, glyphs: [node.box], color: input.color})
+      const background = rgbAt({raster: area.raster, index: 0})
+      const ink = ownInk({area, background})
+      return {
+        node,
+        owner,
+        color: fills.foreground ?? owner.styles.color,
+        background: fills.background,
+        ink,
+        contrast: contrast({raster, box: ink, background}),
+      }
+    })
+}
+
+function ownInk(input: {area: {raster: Raster; box: Box}; background: Rgb}): Box {
+  const {raster, box} = input.area
+  const {width, height} = raster
+  const mask = Uint8Array.from(range(width * height), (index) => {
+    const pixel = rgbAt({raster, index})
+    const apart = pixel.some(
+      (channel, at) => Math.abs(channel - (input.background[at] ?? channel)) > TOLERANCES.inkTrimThreshold,
+    )
+    return apart ? 1 : 0
+  })
+  const inside = labelRegions({mask, width, height}).regions.filter(
+    (region) =>
+      region.box.x > 0 &&
+      region.box.y > 0 &&
+      region.box.x + region.box.w < width &&
+      region.box.y + region.box.h < height,
+  )
+  if (inside.length === 0) return trimToInk({raster, box: {x: 0, y: 0, w: width, h: height}})
+  const own = union(inside.map((region) => region.box))
+  return {...own, x: own.x + box.x, y: own.y + box.y}
+}
+
+function boxKey(box: Box): string {
+  return `${box.x},${box.y},${box.w},${box.h}`
+}
+
+function renderAt(input: {job: TypeJob; size: number; weight: number}): Render {
+  const {job} = input
+  return {
+    text: job.node.text,
+    font: job.owner.styles.fontFamily,
+    size: input.size,
+    weight: input.weight,
+    color: job.color,
+    background: job.background,
+  }
+}
+
+async function renderInks(input: {page: ServerToolPageAccess; renders: Render[]}): Promise<void> {
+  const missing = uniqBy(
+    input.renders.filter((render) => !RENDERED.has(renderKey(render))),
+    renderKey,
+  )
+  if (missing.length === 0) return
+  const reply = RenderResultSchema.parse(await input.page.call(renderDef.name, {renders: missing}))
+  zip(missing, reply.images).forEach(([render, image]) => {
+    if (render === undefined || image === undefined) return
+    RENDERED.set(renderKey(render), inkOf(decodePng(Buffer.from(image, 'base64'))))
+  })
+}
+
+function renderKey(render: Render): string {
+  return [render.text, render.font, render.color, render.background, render.size, render.weight].join('|')
+}
+
+function inkOf(raster: Raster): Ink {
+  const box = trimToInk({raster, box: {x: 0, y: 0, w: raster.width, h: raster.height}})
+  return {height: box.h, contrast: contrast({raster, box, background: rgbAt({raster, index: 0})})}
+}
+
+function contrast(input: {raster: Raster; box: Box; background: Rgb}): number {
+  const {raster, box, background} = input
+  const area = box.w * box.h
+  if (area <= 0) return 0
+  let total = 0
+  for (let y = box.y; y < box.y + box.h; y += 1) {
+    for (let x = box.x; x < box.x + box.w; x += 1) {
+      total += rgbDistance({a: rgbAt({raster, index: y * raster.width + x}), b: background})
+    }
+  }
+  return total / (area * MAX_CONTRAST)
+}
+
+async function estimate(input: {job: TypeJob; page: ServerToolPageAccess}): Promise<[string, Typography]> {
+  const {job, page} = input
+  const {fontSize, fontWeight, fontFamily, lineHeight} = job.owner.styles
+  const found = await sizeFound({job, page, live: fontSize})
+  const regular = await inkAt({page, render: renderAt({job, size: found.size, weight: REGULAR_WEIGHT})})
+  const ratio = regular.contrast === 0 ? 1 : job.contrast / regular.contrast
+  return [
+    job.node.id,
+    {
+      size: found.size,
+      lineHeight: (lineHeight * found.size) / fontSize,
+      weight: weightBy({ratio, live: fontWeight}),
+      confidence: found.confidence,
+      font: fontFamily,
+    },
+  ]
+}
+
+async function inkAt(input: {page: ServerToolPageAccess; render: Render}): Promise<Ink> {
+  await renderInks({page: input.page, renders: [input.render]})
+  return RENDERED.get(renderKey(input.render)) ?? {height: 0, contrast: 0}
+}
+
+async function sizeFound(input: {job: TypeJob; page: ServerToolPageAccess; live: number}): Promise<SizeFound> {
+  const {job, page, live} = input
+  const wanted = job.ink.h
+  const height = async (size: number): Promise<number> =>
+    (await inkAt({page, render: renderAt({job, size, weight: job.owner.styles.fontWeight})})).height
+  const atLive = await height(live)
+  if (atLive === wanted) return {size: live, confidence: 1}
+  const span = {from: TOLERANCES.typeSearchMin, to: TOLERANCES.typeSearchMax + 1}
+  const low = await lowest({...span, test: async (size) => (await height(size)) >= wanted})
+  const high = (await lowest({...span, test: async (size) => (await height(size)) > wanted})) - 1
+  if (low <= high) return {size: (low + high) / 2, confidence: 1}
+  const ratio = atLive === 0 ? 1 : wanted / atLive
+  return {size: Math.round(live * ratio * HALF_STEPS) / HALF_STEPS, confidence: TOLERANCES.ratioConfidence}
+}
+
+async function lowest(input: {from: number; to: number; test: (size: number) => Promise<boolean>}): Promise<number> {
+  if (input.from >= input.to) return input.from
+  const middle = Math.floor((input.from + input.to) / 2)
+  if (await input.test(middle)) return lowest({...input, to: middle})
+  return lowest({...input, from: middle + 1})
+}
+
+function weightBy(input: {ratio: number; live: number}): number {
+  if (input.ratio >= TOLERANCES.boldCoverage) return BOLD_WEIGHT
+  if (input.ratio <= TOLERANCES.regularCoverage) return REGULAR_WEIGHT
+  return input.live
 }

@@ -38,6 +38,7 @@ function report(input: {target: TargetRecord; body: Pick<DiffReport, 'mismatch' 
     livePath: `${HOME}/${target.id}/live-${at}.png`,
     xray: '',
     warnings: [],
+    sources: [],
     ...input.body,
   }
   return value

@@ -14,7 +14,7 @@ export type SourceLoc = {file: string; line: number; column: number}
 
 export type OcrLine = {box: Box; text: string; confidence: number}
 export type Border = {width: number; color: string}
-type Typography = {size: number; lineHeight: number; weight: number; confidence: number}
+export type Typography = {size: number; lineHeight: number; weight: number; confidence: number; font: string}
 type NodeBase = {id: string; box: Box; within?: string}
 export type TextNode = NodeBase & {
   kind: 'text'
@@ -52,13 +52,16 @@ export type RoleRules = (input: {text: string; neighbours: string[]}) => {role: 
 
 export type Glyph = {text: string; boxes: Box[]}
 
+export type LiveBorder = {width: number; style: string; color: string}
 export type LiveStyles = {
   background: string
   color: string
   fontSize: number
   lineHeight: number
   fontWeight: number
+  fontFamily: string
   radius: number
+  border: LiveBorder
 }
 export type LiveComponent = {
   source: SourceLoc | null
@@ -68,20 +71,24 @@ export type LiveComponent = {
   textBox: Box | null
   glyphs: Glyph[]
   axis: 'row' | 'column' | null
+  columns: number | null
   styles: LiveStyles
   index: number
+  path: string
   children: LiveComponent[]
 }
+export type CapturePath = 'region' | 'snapdom-live' | 'snapdom-mirror'
+export type MeasureSource = 'dom' | 'mirror'
+export type MirrorLimits = {canvases: number; fonts: string[]; inlineWidths: number}
 export type LiveCapture = {
   raster: Raster
   viewport: {width: number; height: number}
   route: string
   components: LiveComponent[]
-}
-export type Capture = {
-  name: string
-  capture(input: {width: number; height: number; page: ServerToolPageAccess}): Promise<LiveCapture>
-  clear(input: {page: ServerToolPageAccess}): Promise<void>
+  capturePath: CapturePath
+  source: MeasureSource
+  masks: Box[]
+  limits?: MirrorLimits
 }
 
 export type PixelRegion = {box: Box; kind: 'changed' | 'shift'; shift?: {dx: number; dy: number}}
@@ -136,6 +143,7 @@ export type Side = {
   prev: Box | null
   next: Box | null
   axis: 'row' | 'column' | null
+  columns: number | null
   textBox: Box | null
   styles: Partial<LiveStyles>
 }
@@ -144,7 +152,9 @@ export type Delta = {
   side?: 'left' | 'right' | 'top' | 'bottom' | 'x' | 'y'
   live: number | string
   target: number | string
-  breakpoint?: boolean
+  source?: MeasureSource
+  confidence?: number
+  width?: number
   warning?: 'sample-data'
 } & Partial<Provenance>
 export type DeltaKind = {kind: DeltaKindName; measure(input: {live: Side; target: Side; color: ColorMetric}): Delta[]}
@@ -223,12 +233,12 @@ export type TargetStore = {
     result: Omit<DiffReport, 'diffImage' | 'livePath'>
   }): Promise<DiffReport>
   lastResult(id: string): Promise<DiffReport | null>
+  setTypography(input: {id: string; typography: Record<string, Typography>}): Promise<void>
   reportPath(path: string): string
 }
 export type DesignRuntime = {
   cwd: string
   store: TargetStore
-  capture: Capture
   comparators: Comparators
   matcher: Matcher
   adapters: TargetAdapter[]

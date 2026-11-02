@@ -1,221 +1,435 @@
 import Specificity, {type SpecificityObject} from '@bramus/specificity'
 import {snapdom} from '@zumer/snapdom'
-import {z} from 'zod'
-import {toolError, defineExtension, type RegisterExtension} from '@conciv/extension'
+import {
+  createCache,
+  createMirror,
+  createSandboxedIframe,
+  rebuildIntoSandboxedIframe,
+  snapshot,
+  stringifyRule,
+} from 'rrweb-snapshot'
+import {defineExtension, type RegisterExtension} from '@conciv/extension'
 import {keepBodyMargins} from '@conciv/extension-page/body-margins'
 import {formatHex, formatHex8, parse} from 'culori'
+import {uniq} from 'es-toolkit'
 import {
-  DESIGN_ERRORS,
   DESIGN_EXTENSION_NAME,
-  tabCaptureDef,
+  measureDef,
+  renderDef,
   winnerDef,
-  type TabCaptureInput,
-  type ViewportResult,
+  type MeasureInput,
+  type MeasureResult,
+  type RenderInput,
+  type RenderResult,
   type WinnerInput,
   type WinnerResult,
 } from './shared/defs.js'
-import {
-  CAPTURE_READY,
-  CAPTURE_REQUEST,
-  designConfig,
-  propertyAliases,
-  SOURCE_ATTR,
-  TOLERANCES,
-} from './shared/tolerances.js'
-import type {Box, Glyph, LiveComponent, LiveStyles, SourceLoc, Winner} from './shared/types.js'
+import {designConfig, propertyAliases, SOURCE_ATTR, TOLERANCES} from './shared/tolerances.js'
+import type {
+  Box,
+  Glyph,
+  LiveBorder,
+  LiveComponent,
+  LiveStyles,
+  MirrorLimits,
+  SourceLoc,
+  Winner,
+} from './shared/types.js'
 
-const captureRequest = z.object({type: z.literal(CAPTURE_REQUEST)})
-const captureReady = z.object({type: z.literal(CAPTURE_READY)})
-const captureReply = z.union([z.object({blob: z.instanceof(Blob)}), z.object({error: z.string()})])
-
-function insideCaptureFrame(): boolean {
-  try {
-    return window.frameElement?.hasAttribute('data-conciv-capture') === true
-  } catch {
-    return false
+declare global {
+  interface Window {
+    CropTarget?: {fromElement(element: Element): Promise<unknown>}
+  }
+  interface MediaStreamTrack {
+    cropTo?(target: unknown): Promise<void>
+  }
+  interface DisplayMediaStreamOptions {
+    preferCurrentTab?: boolean
   }
 }
 
-async function answer(port: MessagePort): Promise<void> {
-  try {
-    const capture = await snapdom(document.documentElement, {dpr: 1, embedFonts: true, plugins: [keepBodyMargins]})
-    port.postMessage({blob: await capture.toBlob({format: 'png'})})
-  } catch (error) {
-    port.postMessage({error: error instanceof Error ? error.message : String(error)})
-  } finally {
-    port.close()
+type Size = {width: number; height: number}
+type PageWindow = Window & typeof globalThis
+type MirrorSlot = {width: number; frame: Promise<HTMLIFrameElement>}
+
+const WIDGET_ROOT_SELECTOR = '[data-conciv-root]'
+const MIRROR_ATTR = 'data-conciv-mirror'
+const MIRROR_BLOCKED = `${WIDGET_ROOT_SELECTOR}, iframe, video, audio, object, embed`
+const OFFSCREEN_STYLE = 'position:fixed;left:-100000px;top:0;pointer-events:none'
+const LIVE_EXCLUDE = [WIDGET_ROOT_SELECTOR, `[${MIRROR_ATTR}]`]
+const MIRROR_EXCLUDE = ['style', 'link']
+const SCRATCH_SIZE = 4096
+const SCRATCH_PAD = 4
+const NORMAL_LINE_HEIGHT = 1.2
+const DATA_URL_COMMA = ','
+const CANVAS_FALLBACK = '#ffffff'
+
+const mirrorSlot: {current: MirrorSlot | null} = {current: null}
+const region: {stream: MediaStream | null} = {stream: null}
+
+const CLIENT_TOOLS = [
+  measureDef.client(measureStep),
+  renderDef.client(renderStep),
+  winnerDef.client(winnerStep),
+] as const
+
+export const design = defineExtension({
+  name: DESIGN_EXTENSION_NAME,
+  configSchema: designConfig,
+  tools: CLIENT_TOOLS,
+}).client(() => ({value: {capturePixels}}))
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof design> {}
+}
+
+export default design
+
+async function measureStep(input: MeasureInput): Promise<MeasureResult> {
+  const size = {width: input.width ?? innerWidth, height: input.height ?? innerHeight}
+  releaseMirror()
+  if (size.width === innerWidth) return measureLive(size)
+  return measureMirror(size)
+}
+
+async function measureLive(size: Size): Promise<MeasureResult> {
+  const components = collectComponents({root: document, size})
+  const masks = canvasBoxes({root: document, size})
+  const shot = size.height <= innerHeight ? await regionShot(size) : null
+  const blob =
+    shot ?? (await snapdomShot({doc: document, size, exclude: LIVE_EXCLUDE, viewport: size.height <= innerHeight}))
+  return {
+    image: await base64(blob),
+    ...size,
+    route: locationRoute(),
+    components,
+    capturePath: shot === null ? 'snapdom-live' : 'region',
+    source: 'dom',
+    masks,
   }
 }
 
-function answerCaptureRequests(): void {
-  if (typeof window === 'undefined' || !insideCaptureFrame()) return
-  window.addEventListener('message', (event) => {
-    const port = event.ports[0]
-    if (event.source !== window.parent || port === undefined) return
-    if (!captureRequest.safeParse(event.data).success) return
-    void answer(port)
-  })
-  window.parent.postMessage({type: CAPTURE_READY}, location.origin)
+async function measureMirror(size: Size): Promise<MeasureResult> {
+  const doc = mirrorDocument(await mirrorAt(size.width))
+  const components = collectComponents({root: doc, size})
+  const masks = canvasBoxes({root: doc, size})
+  const blob = await snapdomShot({doc, size, exclude: MIRROR_EXCLUDE, viewport: false})
+  return {
+    image: await base64(blob),
+    ...size,
+    route: locationRoute(),
+    components,
+    capturePath: 'snapdom-mirror',
+    source: 'mirror',
+    masks,
+    limits: mirrorLimits(doc),
+  }
 }
 
-function frameAnswering(input: {frame: HTMLIFrameElement; signal: AbortSignal}): Promise<void> {
-  return new Promise<void>((resolve) => {
-    const listen = (event: MessageEvent): void => {
-      if (event.source !== input.frame.contentWindow || !captureReady.safeParse(event.data).success) return
-      window.removeEventListener('message', listen)
-      resolve()
-    }
-    window.addEventListener('message', listen)
-    input.signal.addEventListener('abort', () => window.removeEventListener('message', listen), {once: true})
-  })
-}
-
-function requestFrameCapture(frame: HTMLIFrameElement): Promise<Blob> {
-  return new Promise<Blob>((resolve, reject) => {
-    const target = frame.contentWindow
-    if (target === null) return reject(new Error('The capture frame has no window.'))
-    const channel = new MessageChannel()
-    const signal = AbortSignal.timeout(TOLERANCES.frameSettleMs)
-    signal.addEventListener('abort', () => {
-      channel.port1.close()
-      reject(toolError('frame-timeout', {message: DESIGN_ERRORS['frame-timeout'].message}))
-    })
-    channel.port1.addEventListener('message', (event) => {
-      channel.port1.close()
-      const reply = captureReply.safeParse(event.data)
-      if (!reply.success) return reject(new Error('The capture frame sent an unreadable reply.'))
-      if ('error' in reply.data) return reject(new Error(reply.data.error))
-      resolve(reply.data.blob)
-    })
-    channel.port1.start()
-    target.postMessage({type: CAPTURE_REQUEST}, location.origin, [channel.port2])
-  })
-}
-
-const FRAME_SELECTOR = 'iframe[data-conciv-capture]'
-
-type FrameInput = {url: string; width: number; height: number}
-
-function currentFrame(): HTMLIFrameElement | null {
-  return document.querySelector<HTMLIFrameElement>(FRAME_SELECTOR)
-}
-
-function sameFrame(input: {frame: HTMLIFrameElement} & FrameInput): boolean {
-  return (
-    input.frame.getAttribute('src') === input.url &&
-    input.frame.width === String(input.width) &&
-    input.frame.height === String(input.height)
+function releaseMirror(): void {
+  const slot = mirrorSlot.current
+  mirrorSlot.current = null
+  if (slot === null) return
+  void slot.frame.then(
+    (frame) => frame.parentElement?.remove(),
+    () => undefined,
   )
 }
 
-function untilAbort<T>(input: {promise: Promise<T>; signal: AbortSignal}): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const abort = (): void => reject(input.signal.reason)
-    if (input.signal.aborted) return abort()
-    input.signal.addEventListener('abort', abort, {once: true})
-    input.promise.then(resolve, reject).finally(() => input.signal.removeEventListener('abort', abort))
+function mirrorAt(width: number): Promise<HTMLIFrameElement> {
+  const slot = mirrorSlot.current
+  if (slot !== null && slot.width === width) return slot.frame
+  releaseMirror()
+  const frame = buildMirror(width)
+  mirrorSlot.current = {width, frame}
+  return frame
+}
+
+async function buildMirror(width: number): Promise<HTMLIFrameElement> {
+  const source = createMirror()
+  const tree = snapshot(document, {
+    mirror: source,
+    blockSelector: MIRROR_BLOCKED,
+    maskAllInputs: true,
+    inlineStylesheet: true,
+  })
+  if (tree === null) throw new Error('the page could not be snapshotted for the mirror')
+  const host = offscreenHost()
+  const rebuilt = createMirror()
+  const {iframe} = rebuildIntoSandboxedIframe(tree, {
+    root: host,
+    mirror: rebuilt,
+    cache: createCache(),
+    hackCss: false,
+    iframeAttributes: {
+      width: String(width),
+      height: String(innerHeight),
+      style: 'border:0',
+      tabindex: '-1',
+      'aria-hidden': 'true',
+    },
+  })
+  const widget = document.querySelector(WIDGET_ROOT_SELECTOR)
+  const placeholder = widget === null ? null : rebuilt.getNode(source.getId(widget))
+  placeholder?.parentNode?.removeChild(placeholder)
+  await mirrorDocument(iframe).fonts.ready
+  return iframe
+}
+
+function offscreenHost(): HTMLDivElement {
+  const host = document.createElement('div')
+  host.setAttribute(MIRROR_ATTR, '')
+  host.setAttribute('aria-hidden', 'true')
+  host.setAttribute('style', OFFSCREEN_STYLE)
+  document.body.append(host)
+  return host
+}
+
+function mirrorDocument(frame: HTMLIFrameElement): Document {
+  const doc = frame.contentDocument
+  if (doc === null) throw new Error('the mirror frame has no document')
+  return doc
+}
+
+function mirrorLimits(doc: Document): MirrorLimits {
+  const mirrored = new Set([...doc.fonts].map((face) => face.family))
+  const fonts = [...document.fonts]
+    .filter((face) => face.status === 'loaded' && !mirrored.has(face.family))
+    .map((face) => face.family)
+  const inline = [...document.querySelectorAll<HTMLElement>('[style]')].filter(
+    (el) => el.closest(WIDGET_ROOT_SELECTOR) === null && (el.style.width !== '' || el.style.height !== ''),
+  )
+  return {canvases: document.querySelectorAll('canvas').length, fonts: uniq(fonts), inlineWidths: inline.length}
+}
+
+function canvasBoxes(input: {root: Document; size: Size}): Box[] {
+  return [...input.root.querySelectorAll('canvas')]
+    .map((canvas) => clipped({rect: canvas.getBoundingClientRect(), size: input.size}))
+    .filter((box) => box.w > 0 && box.h > 0)
+}
+
+async function capturePixels(): Promise<boolean> {
+  if (window.CropTarget === undefined) return false
+  region.stream = await navigator.mediaDevices.getDisplayMedia({video: true, audio: false, preferCurrentTab: true})
+  return true
+}
+
+async function regionShot(size: Size): Promise<Blob | null> {
+  const track = await croppedTrack()
+  if (track === null) return null
+  const widget = document.querySelector<HTMLElement>(WIDGET_ROOT_SELECTOR)
+  const visibility = widget?.style.visibility ?? ''
+  widget?.style.setProperty('visibility', 'hidden')
+  try {
+    const video = await videoFrame(track)
+    if (video === null) return null
+    const scale = video.videoWidth / innerWidth
+    const canvas = new OffscreenCanvas(size.width, size.height)
+    canvas
+      .getContext('2d')
+      ?.drawImage(video, 0, 0, size.width * scale, size.height * scale, 0, 0, size.width, size.height)
+    video.srcObject = null
+    return canvas.convertToBlob({type: 'image/png'})
+  } finally {
+    widget?.style.setProperty('visibility', visibility)
+  }
+}
+
+async function croppedTrack(): Promise<MediaStreamTrack | null> {
+  const track = region.stream?.getVideoTracks().find((candidate) => candidate.readyState === 'live')
+  const crop = window.CropTarget
+  if (track?.cropTo === undefined || crop === undefined) return null
+  await track.cropTo(await crop.fromElement(document.documentElement))
+  return track
+}
+
+function videoFrame(track: MediaStreamTrack): Promise<HTMLVideoElement | null> {
+  const video = document.createElement('video')
+  video.muted = true
+  video.srcObject = new MediaStream([track])
+  const signal = AbortSignal.timeout(TOLERANCES.captureFrameMs)
+  return new Promise((resolve) => {
+    signal.addEventListener('abort', () => resolve(null), {once: true})
+    video.requestVideoFrameCallback(() => resolve(video))
+    video.play().catch(() => resolve(null))
   })
 }
 
-function loaded(frame: HTMLIFrameElement): Promise<void> {
-  return new Promise<void>((resolve) => frame.addEventListener('load', () => resolve(), {once: true}))
+async function snapdomShot(input: {doc: Document; size: Size; exclude: string[]; viewport: boolean}): Promise<Blob> {
+  const {doc, size} = input
+  const capture = await snapdom(doc.documentElement, {
+    ...(input.viewport ? {clip: 'viewport'} : {}),
+    dpr: 1,
+    exclude: input.exclude,
+    excludeMode: 'remove',
+    embedFonts: true,
+    plugins: [keepBodyMargins],
+  })
+  return composited({blob: await capture.toBlob({format: 'png'}), doc, ...size})
 }
 
-function readDocument(frame: HTMLIFrameElement): Document | null {
-  try {
-    return frame.contentDocument
-  } catch {
-    return null
+async function composited(input: {blob: Blob; doc: Document} & Size): Promise<Blob> {
+  const bitmap = await createImageBitmap(input.blob)
+  const canvas = new OffscreenCanvas(input.width, input.height)
+  const context = canvas.getContext('2d')
+  if (context !== null) {
+    context.fillStyle = canvasBackground(input.doc)
+    context.fillRect(0, 0, input.width, input.height)
+    context.drawImage(bitmap, 0, 0)
   }
+  bitmap.close()
+  return canvas.convertToBlob({type: 'image/png'})
 }
 
-function quietFrames(input: {doc: Document; signal: AbortSignal}): Promise<void> {
-  return new Promise<void>((resolve) => {
-    const seen = {records: 0, quiet: 0}
-    const observer = new MutationObserver((records) => {
-      seen.records += records.length
+function canvasBackground(doc: Document): string {
+  const view = doc.defaultView
+  if (view === null) return CANVAS_FALLBACK
+  const root = view.getComputedStyle(doc.documentElement).backgroundColor
+  if (painted(root)) return root
+  const body = doc.body ? view.getComputedStyle(doc.body).backgroundColor : ''
+  if (painted(body)) return body
+  return CANVAS_FALLBACK
+}
+
+function painted(color: string): boolean {
+  const parsed = parse(color)
+  return parsed !== undefined && (parsed.alpha ?? 1) > 0
+}
+
+function base64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => {
+      const url = typeof reader.result === 'string' ? reader.result : ''
+      resolve(url.slice(url.indexOf(DATA_URL_COMMA) + 1))
     })
-    observer.observe(input.doc.body ?? input.doc.documentElement, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-      characterData: true,
-    })
-    const tick = (): void => {
-      if (input.signal.aborted) {
-        observer.disconnect()
-        return
-      }
-      seen.quiet = seen.records === 0 ? seen.quiet + 1 : 0
-      seen.records = 0
-      if (seen.quiet < 2) {
-        requestAnimationFrame(tick)
-        return
-      }
-      observer.disconnect()
-      resolve()
-    }
-    requestAnimationFrame(tick)
+    reader.addEventListener('error', () => reject(reader.error ?? new Error('The capture could not be read.')))
+    reader.readAsDataURL(blob)
   })
 }
 
-async function settle(input: {frame: HTMLIFrameElement; fresh: boolean}): Promise<void> {
-  const signal = AbortSignal.timeout(TOLERANCES.frameSettleMs)
-  const load = input.fresh ? loaded(input.frame) : Promise.resolve()
-  const answering = input.fresh ? frameAnswering({frame: input.frame, signal}) : Promise.resolve()
-  if (input.fresh) document.body.appendChild(input.frame)
+function locationRoute(): string {
+  return location.pathname + location.search
+}
+
+async function renderStep(input: RenderInput): Promise<RenderResult> {
+  const host = offscreenHost()
   try {
-    await untilAbort({promise: load, signal})
-    const doc = readDocument(input.frame)
-    if (!doc) throw toolError('frame-blocked', {message: DESIGN_ERRORS['frame-blocked'].message})
-    await untilAbort({promise: doc.fonts.ready, signal})
-    await untilAbort({promise: quietFrames({doc, signal}), signal})
-    await untilAbort({promise: answering, signal})
-  } catch (error) {
-    if (!signal.aborted) throw error
-    throw toolError('frame-timeout', {message: DESIGN_ERRORS['frame-timeout'].message})
+    const frame = createSandboxedIframe({
+      root: host,
+      iframeAttributes: {width: String(SCRATCH_SIZE), height: String(SCRATCH_SIZE), style: 'border:0'},
+    })
+    const doc = mirrorDocument(frame)
+    const style = doc.createElement('style')
+    style.textContent = ['body{margin:0}', ...fontFaces()].join('\n')
+    doc.head.append(style)
+    const spans = input.renders.map((render) => {
+      const span = doc.createElement('span')
+      span.textContent = render.text
+      span.setAttribute('style', scratchStyle(render))
+      doc.body.append(span)
+      return span
+    })
+    await Promise.all(input.renders.map((render) => doc.fonts.load(`${render.weight} ${render.size}px ${render.font}`)))
+    await doc.fonts.ready
+    const capture = await snapdom(doc.body, {dpr: 1, exclude: MIRROR_EXCLUDE, excludeMode: 'remove', embedFonts: true})
+    const bitmap = await createImageBitmap(await capture.toBlob({format: 'png'}))
+    const images = await Promise.all(
+      spans.map((span, index) =>
+        cropped({bitmap, rect: span.getBoundingClientRect(), background: input.renders[index]?.background ?? ''}),
+      ),
+    )
+    bitmap.close()
+    return {images}
+  } finally {
+    host.remove()
   }
 }
 
-function captureFrameAt(size: {width: number; height: number}): HTMLIFrameElement | null {
-  const frame = currentFrame()
-  if (frame === null) return null
-  return frame.width === String(size.width) && frame.height === String(size.height) ? frame : null
+function fontFaces(): string[] {
+  return [...document.styleSheets].flatMap((sheet) =>
+    [...(readRules(sheet) ?? [])]
+      .filter((rule) => rule instanceof CSSFontFaceRule)
+      .map((rule) => stringifyRule(rule, sheet.href)),
+  )
 }
 
-function removeCaptureFrame(): void {
-  currentFrame()?.remove()
+function scratchStyle(render: RenderInput['renders'][number]): string {
+  return [
+    'display:block',
+    'width:max-content',
+    'white-space:pre',
+    'line-height:normal',
+    `padding:${SCRATCH_PAD}px`,
+    `margin-bottom:${SCRATCH_PAD}px`,
+    `font-family:${render.font}`,
+    `font-size:${render.size}px`,
+    `font-weight:${render.weight}`,
+    `color:${render.color}`,
+    `background:${render.background}`,
+  ].join(';')
 }
 
-async function ensureCaptureFrame(input: FrameInput): Promise<HTMLIFrameElement> {
-  const existing = currentFrame()
-  if (existing && sameFrame({frame: existing, ...input})) {
-    await settle({frame: existing, fresh: false})
-    return existing
+async function cropped(input: {bitmap: ImageBitmap; rect: DOMRect; background: string}): Promise<string> {
+  const x = Math.floor(input.rect.left)
+  const y = Math.floor(input.rect.top)
+  const w = Math.max(1, Math.ceil(input.rect.right) - x)
+  const h = Math.max(1, Math.ceil(input.rect.bottom) - y)
+  const canvas = new OffscreenCanvas(w, h)
+  const context = canvas.getContext('2d')
+  if (context !== null) {
+    context.fillStyle = input.background
+    context.fillRect(0, 0, w, h)
+    context.drawImage(input.bitmap, x, y, w, h, 0, 0, w, h)
   }
-  removeCaptureFrame()
-  const frame = document.createElement('iframe')
-  frame.setAttribute('inert', '')
-  frame.setAttribute('aria-hidden', 'true')
-  frame.setAttribute('tabindex', '-1')
-  frame.setAttribute('data-conciv-capture', '1')
-  frame.setAttribute('style', 'position:fixed;left:-10000px;top:0;border:0')
-  frame.width = String(input.width)
-  frame.height = String(input.height)
-  frame.src = input.url
-  try {
-    await settle({frame, fresh: true})
-    return frame
-  } catch (error) {
-    frame.remove()
-    throw error
-  }
+  return base64(await canvas.convertToBlob({type: 'image/png'}))
 }
 
-const NORMAL_LINE_HEIGHT = 1.2
+function collectComponents(input: {root: Document; size: Size}): LiveComponent[] {
+  const view = input.root.defaultView
+  if (view === null) return []
+  return collectUnder({el: input.root.documentElement, size: input.size, view, path: ''})
+}
 
-type Viewport = {width: number; height: number}
-type PageWindow = Window & typeof globalThis
+type Walk = {el: Element; size: Size; view: PageWindow; path: string}
+
+function collectUnder(input: Walk): LiveComponent[] {
+  const {el, path} = input
+  const light = [...el.children].map((child, position) => ({child, at: `${path}/${position + 1}`}))
+  const shadow = [...(el.shadowRoot?.children ?? [])].map((child, position) => ({
+    child,
+    at: `${path}/s/${position + 1}`,
+  }))
+  return [...light, ...shadow].flatMap(({child, at}) =>
+    child.hasAttribute(SOURCE_ATTR)
+      ? [componentTree({...input, el: child, path: at})]
+      : collectUnder({...input, el: child, path: at}),
+  )
+}
+
+function componentTree(input: Walk): LiveComponent {
+  const {el, size, view} = input
+  const nodes = ownTextNodes(el)
+  const box = clipped({rect: el.getBoundingClientRect(), size})
+  const style = view.getComputedStyle(el)
+  return {
+    source: readSource(el),
+    tag: el.tagName.toLowerCase(),
+    text: nodes
+      .map((node) => node.textContent ?? '')
+      .join('')
+      .trim(),
+    box,
+    textBox: measureTextBox({nodes, size}),
+    glyphs: measureGlyphs({el, view, bounds: box}),
+    axis: readAxis(el),
+    columns: readColumns(style),
+    styles: readStyles(style),
+    index: siblingIndex(el),
+    path: input.path,
+    children: collectUnder(input),
+  }
+}
 
 function readSource(el: Element): SourceLoc | null {
   const raw = el.getAttribute(SOURCE_ATTR)
@@ -228,43 +442,13 @@ function readSource(el: Element): SourceLoc | null {
   return {file, line, column}
 }
 
-function clipped(input: {rect: DOMRect; viewport: Viewport}): Box {
-  const {rect, viewport} = input
+function clipped(input: {rect: DOMRect; size: Size}): Box {
+  const {rect, size} = input
   const left = Math.max(0, Math.round(rect.left))
   const top = Math.max(0, Math.round(rect.top))
-  const right = Math.min(viewport.width, Math.round(rect.right))
-  const bottom = Math.min(viewport.height, Math.round(rect.bottom))
+  const right = Math.min(size.width, Math.round(rect.right))
+  const bottom = Math.min(size.height, Math.round(rect.bottom))
   return {x: left, y: top, w: Math.max(0, right - left), h: Math.max(0, bottom - top)}
-}
-
-function toHex(color: string): string {
-  const parsed = parse(color)
-  if (parsed === undefined) return color
-  if (parsed.alpha !== undefined && parsed.alpha < 1) return formatHex8(parsed)
-  return formatHex(parsed)
-}
-
-function readStyles(style: CSSStyleDeclaration): LiveStyles {
-  const fontSize = Number.parseFloat(style.fontSize)
-  const lineHeight = Number.parseFloat(style.lineHeight)
-  return {
-    background: toHex(style.backgroundColor),
-    color: toHex(style.color),
-    fontSize,
-    lineHeight: Number.isFinite(lineHeight) ? lineHeight : fontSize * NORMAL_LINE_HEIGHT,
-    fontWeight: Number(style.fontWeight),
-    radius: Number.parseFloat(style.borderTopLeftRadius) || 0,
-  }
-}
-
-function readAxis(el: Element): LiveComponent['axis'] {
-  const parent = el.parentElement
-  const view = el.ownerDocument.defaultView
-  if (parent === null || view === null) return null
-  const style = view.getComputedStyle(parent)
-  if (style.display.includes('grid')) return 'row'
-  if (style.display.includes('flex') && style.flexDirection.startsWith('row')) return 'row'
-  return 'column'
 }
 
 function ownTextNodes(el: Element): Text[] {
@@ -273,7 +457,7 @@ function ownTextNodes(el: Element): Text[] {
   )
 }
 
-function measureTextBox(input: {nodes: Text[]; viewport: Viewport}): Box | null {
+function measureTextBox(input: {nodes: Text[]; size: Size}): Box | null {
   const first = input.nodes[0]
   if (first === undefined) return null
   const rects = input.nodes.map((node) => {
@@ -285,7 +469,18 @@ function measureTextBox(input: {nodes: Text[]; viewport: Viewport}): Box | null 
   const top = Math.min(...rects.map((rect) => rect.top))
   const right = Math.max(...rects.map((rect) => rect.right))
   const bottom = Math.max(...rects.map((rect) => rect.bottom))
-  return clipped({rect: new DOMRect(left, top, right - left, bottom - top), viewport: input.viewport})
+  return clipped({rect: new DOMRect(left, top, right - left, bottom - top), size: input.size})
+}
+
+function measureGlyphs(input: {el: Element; view: PageWindow; bounds: Box}): Glyph[] {
+  const texts = glyphNodes(input).flatMap((node) => {
+    const range = node.ownerDocument.createRange()
+    range.selectNodeContents(node)
+    const boxes = [...range.getClientRects()].flatMap((rect) => glyphBox({rect, bounds: input.bounds}) ?? [])
+    return boxes.length === 0 ? [] : [{text: node.textContent ?? '', boxes}]
+  })
+  const placeholders = placeholderFields(input).flatMap((field) => placeholderGlyph({field}))
+  return [...texts, ...placeholders]
 }
 
 function glyphNodes(input: {el: Element; view: PageWindow}): Text[] {
@@ -334,15 +529,56 @@ function placeholderGlyph(input: {field: HTMLInputElement | HTMLTextAreaElement}
   return [{text: field.placeholder, boxes: [box]}]
 }
 
-function measureGlyphs(input: {el: Element; view: PageWindow; bounds: Box}): Glyph[] {
-  const texts = glyphNodes(input).flatMap((node) => {
-    const range = node.ownerDocument.createRange()
-    range.selectNodeContents(node)
-    const boxes = [...range.getClientRects()].flatMap((rect) => glyphBox({rect, bounds: input.bounds}) ?? [])
-    return boxes.length === 0 ? [] : [{text: node.textContent ?? '', boxes}]
-  })
-  const placeholders = placeholderFields(input).flatMap((field) => placeholderGlyph({field}))
-  return [...texts, ...placeholders]
+function readAxis(el: Element): LiveComponent['axis'] {
+  const parent = el.parentElement
+  const view = el.ownerDocument.defaultView
+  if (parent === null || view === null) return null
+  const style = view.getComputedStyle(parent)
+  if (style.display.includes('grid')) return 'row'
+  if (style.display.includes('flex') && style.flexDirection.startsWith('row')) return 'row'
+  return 'column'
+}
+
+function readColumns(style: CSSStyleDeclaration): number | null {
+  if (!style.display.includes('grid') || style.gridTemplateColumns === 'none') return null
+  const tracks = style.gridTemplateColumns.split(' ').reduce(
+    (state, token) => {
+      if (state.named || token.startsWith('[')) return {...state, named: !token.endsWith(']')}
+      return token === '' ? state : {...state, count: state.count + 1}
+    },
+    {count: 0, named: false},
+  )
+  return tracks.count
+}
+
+function readStyles(style: CSSStyleDeclaration): LiveStyles {
+  const fontSize = Number.parseFloat(style.fontSize)
+  const lineHeight = Number.parseFloat(style.lineHeight)
+  return {
+    background: toHex(style.backgroundColor),
+    color: toHex(style.color),
+    fontSize,
+    lineHeight: Number.isFinite(lineHeight) ? lineHeight : fontSize * NORMAL_LINE_HEIGHT,
+    fontWeight: Number(style.fontWeight),
+    fontFamily: style.fontFamily,
+    radius: Number.parseFloat(style.borderTopLeftRadius) || 0,
+    border: readBorder(style),
+  }
+}
+
+function readBorder(style: CSSStyleDeclaration): LiveBorder {
+  return {
+    width: Number.parseFloat(style.borderTopWidth) || 0,
+    style: style.borderTopStyle,
+    color: toHex(style.borderTopColor),
+  }
+}
+
+function toHex(color: string): string {
+  const parsed = parse(color)
+  if (parsed === undefined) return color
+  if (parsed.alpha !== undefined && parsed.alpha < 1) return formatHex8(parsed)
+  return formatHex(parsed)
 }
 
 function siblingIndex(el: Element): number {
@@ -351,146 +587,21 @@ function siblingIndex(el: Element): number {
   return [...parent.children].indexOf(el) + 1
 }
 
-function componentTree(input: {el: Element; viewport: Viewport; view: PageWindow}): LiveComponent {
-  const {el, viewport} = input
-  const nodes = ownTextNodes(el)
-  const box = clipped({rect: el.getBoundingClientRect(), viewport})
-  return {
-    source: readSource(el),
-    tag: el.tagName.toLowerCase(),
-    text: nodes
-      .map((node) => node.textContent ?? '')
-      .join('')
-      .trim(),
-    box,
-    textBox: measureTextBox({nodes, viewport}),
-    glyphs: measureGlyphs({el, view: input.view, bounds: box}),
-    axis: readAxis(el),
-    styles: readStyles(input.view.getComputedStyle(el)),
-    index: siblingIndex(el),
-    children: collectUnder({el, viewport, view: input.view}),
-  }
-}
-
-function collectUnder(input: {el: Element; viewport: Viewport; view: PageWindow}): LiveComponent[] {
-  return [...input.el.children].flatMap((child) =>
-    child.hasAttribute(SOURCE_ATTR)
-      ? [componentTree({el: child, viewport: input.viewport, view: input.view})]
-      : collectUnder({el: child, viewport: input.viewport, view: input.view}),
+async function winnerStep(input: WinnerInput): Promise<WinnerResult> {
+  const realm = await realmAt(input.width)
+  const element = realm.doc.querySelector(input.selector)
+  if (element === null) return Object.fromEntries(input.properties.map((property) => [property, null]))
+  const scan = scanSheets(realm)
+  return Object.fromEntries(
+    input.properties.map((property) => [property, winningDeclaration({element, property, scan})]),
   )
 }
 
-function collectComponents({root}: {root: Document}): LiveComponent[] {
-  const view = root.defaultView
-  if (view === null) return []
-  const viewport = {width: view.innerWidth, height: view.innerHeight}
-  return collectUnder({el: root.documentElement, viewport, view})
-}
-
-type ClientCapture = {image: string; width: number; height: number; route: string; components: LiveComponent[]}
-
-const DATA_URL_COMMA = ','
-const WIDGET_ROOT_SELECTOR = '[data-conciv-root]'
-const CANVAS_FALLBACK = '#ffffff'
-
-function base64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.addEventListener('load', () => {
-      const url = typeof reader.result === 'string' ? reader.result : ''
-      resolve(url.slice(url.indexOf(DATA_URL_COMMA) + 1))
-    })
-    reader.addEventListener('error', () => reject(reader.error ?? new Error('The capture could not be read.')))
-    reader.readAsDataURL(blob)
-  })
-}
-
-type Size = {width: number; height: number}
-
-function locationRoute(where: Location): string {
-  return where.pathname + where.search
-}
-
-function frameRoute(frame: HTMLIFrameElement): string | null {
-  const where = frame.contentDocument?.location
-  return where ? locationRoute(where) : null
-}
-
-async function frameAtRoute(size: Size): Promise<HTMLIFrameElement> {
-  const input = {url: location.href, ...size}
-  const frame = await ensureCaptureFrame(input)
-  if (frameRoute(frame) === locationRoute(location)) return frame
-  removeCaptureFrame()
-  return ensureCaptureFrame(input)
-}
-
-function painted(color: string): boolean {
-  const parsed = parse(color)
-  return parsed !== undefined && (parsed.alpha ?? 1) > 0
-}
-
-function canvasBackground(doc: Document): string {
-  const view = doc.defaultView
-  if (view === null) return CANVAS_FALLBACK
-  const root = view.getComputedStyle(doc.documentElement).backgroundColor
-  if (painted(root)) return root
-  const body = doc.body ? view.getComputedStyle(doc.body).backgroundColor : ''
-  if (painted(body)) return body
-  return CANVAS_FALLBACK
-}
-
-async function composited(input: {blob: Blob; doc: Document} & Size): Promise<Blob> {
-  const bitmap = await createImageBitmap(input.blob)
-  const canvas = new OffscreenCanvas(input.width, input.height)
-  const context = canvas.getContext('2d')
-  if (context !== null) {
-    context.fillStyle = canvasBackground(input.doc)
-    context.fillRect(0, 0, input.width, input.height)
-    context.drawImage(bitmap, 0, 0)
-  }
-  bitmap.close()
-  return canvas.convertToBlob({type: 'image/png'})
-}
-
-async function captureInFrame(size: Size): Promise<ClientCapture> {
-  const frame = await frameAtRoute(size)
-  const doc = frame.contentDocument
-  if (doc === null) throw toolError('frame-blocked', {message: DESIGN_ERRORS['frame-blocked'].message})
-  const components = collectComponents({root: doc})
-  const blob = await composited({blob: await requestFrameCapture(frame), doc, ...size})
-  return {image: await base64(blob), ...size, route: locationRoute(location), components}
-}
-
-function needsFrame(input: {requested: TabCaptureInput; viewport: Size}): boolean {
-  const {requested, viewport} = input
-  if (requested.width !== undefined && requested.width !== viewport.width) return true
-  return requested.height !== undefined && requested.height !== viewport.height
-}
-
-async function captureStep(input: TabCaptureInput): Promise<ClientCapture | ViewportResult> {
-  const viewport = {width: innerWidth, height: innerHeight}
-  if (input.clear === true) removeCaptureFrame()
-  if (input.probe === true || input.clear === true) return viewport
-  if (needsFrame({requested: input, viewport})) {
-    return captureInFrame({width: input.width ?? viewport.width, height: input.height ?? viewport.height})
-  }
-  const components = collectComponents({root: document})
-  const capture = await snapdom(document.documentElement, {
-    clip: 'viewport',
-    dpr: 1,
-    exclude: [WIDGET_ROOT_SELECTOR],
-    excludeMode: 'remove',
-    embedFonts: true,
-    plugins: [keepBodyMargins],
-  })
-  const blob = await composited({blob: await capture.toBlob({format: 'png'}), doc: document, ...viewport})
-  return {
-    image: await base64(blob),
-    width: viewport.width,
-    height: viewport.height,
-    route: locationRoute(location),
-    components,
-  }
+async function realmAt(width: number | undefined): Promise<Realm> {
+  if (width === undefined || width === innerWidth) return {doc: document, view: window}
+  const view = mirrorDocument(await mirrorAt(width)).defaultView
+  if (view === null) return {doc: document, view: window}
+  return {doc: view.document, view}
 }
 
 type Sheet = Winner['sheet']
@@ -794,39 +905,3 @@ function winningDeclaration(input: WinnerQuery): Winner | null {
   }
   return best.winner
 }
-
-function frameRealm(size: {width: number; height: number}): Realm | null {
-  const view = captureFrameAt(size)?.contentDocument?.defaultView
-  return view ? {doc: view.document, view} : null
-}
-
-function realmAt(size: {width?: number; height?: number}): Realm {
-  const tab: Realm = {doc: document, view: window}
-  return frameRealm({width: size.width ?? innerWidth, height: size.height ?? innerHeight}) ?? tab
-}
-
-function winnerStep(input: WinnerInput): Promise<WinnerResult> {
-  const realm = realmAt({width: input.width, height: input.height})
-  const element = realm.doc.querySelector(input.selector)
-  if (element === null) return Promise.resolve(Object.fromEntries(input.properties.map((property) => [property, null])))
-  const scan = scanSheets(realm)
-  return Promise.resolve(
-    Object.fromEntries(input.properties.map((property) => [property, winningDeclaration({element, property, scan})])),
-  )
-}
-
-const CLIENT_TOOLS = [tabCaptureDef.client(captureStep), winnerDef.client(winnerStep)] as const
-
-answerCaptureRequests()
-
-export const design = defineExtension({
-  name: DESIGN_EXTENSION_NAME,
-  configSchema: designConfig,
-  tools: CLIENT_TOOLS,
-}).client(() => ({value: {}}))
-
-declare module '@conciv/protocol/config-types' {
-  interface ExtensionRegistry extends RegisterExtension<typeof design> {}
-}
-
-export default design

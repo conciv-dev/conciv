@@ -1,4 +1,4 @@
-/* oxlint-disable playwright/no-raw-locators, playwright/prefer-web-first-assertions -- the Task 7 cases read the hidden capture frame and the tab field directly */
+/* oxlint-disable playwright/no-raw-locators, playwright/prefer-web-first-assertions -- these cases read the tab field and the mirror host directly */
 import {existsSync, readFileSync} from 'node:fs'
 import {mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {request as httpRequest} from 'node:http'
@@ -206,7 +206,17 @@ function rawStatus(input: {origin: string; path: string}): Promise<number> {
   })
 }
 
-const NO_STYLES = {background: '', color: '', fontSize: 0, lineHeight: 0, fontWeight: 0, radius: 0}
+const NO_BORDER = {width: 0, style: 'none', color: '#000000'}
+const NO_STYLES = {
+  background: '',
+  color: '',
+  fontSize: 0,
+  lineHeight: 0,
+  fontWeight: 0,
+  fontFamily: '',
+  radius: 0,
+  border: NO_BORDER,
+}
 
 function mapFixture(input: {
   file: string
@@ -236,8 +246,10 @@ function mapFixture(input: {
     textBox: null,
     glyphs: [],
     axis: null,
+    columns: null,
     styles: NO_STYLES,
     index: 1,
+    path: '/1',
     children: [],
   }
   return mapDeclaration({
@@ -320,11 +332,12 @@ it('captures at the requested height when the width equals the tab width', async
   expect([png.width, png.height]).toEqual([1280, 900])
 })
 
-it('stays 1x when the device pixel ratio is 2', async () => {
+it('stays 1x when the device pixel ratio is 2, and captures the live page without a frame', async () => {
   const cdp = await page.context().newCDPSession(page)
   await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1280, height: 720, deviceScaleFactor: 2, mobile: false})
   const result = await call('design_capture', {height: 720})
   expect(decodePng(readFileSync(fileUnder(stateRoot, result.path))).width).toBe(1280)
+  expect(await page.locator('[data-conciv-mirror]').count()).toBe(0)
   await cdp.send('Emulation.clearDeviceMetricsOverride')
 })
 
@@ -547,61 +560,53 @@ it('keeps twenty runs per target besides run 0', async () => {
   expect(names).toContain(runZero)
 }, 360_000)
 
-it('diffs at 390 through an inert hidden frame and leaves the tab untouched', async () => {
+it('diffs a 390 target from a 1280 tab in the mirror and leaves the tab untouched', async () => {
   await goto('/')
   await page.fill('#field', 'typed')
   await call('design_target', {image: target('u1-390')})
   const report = await call('design_diff', {})
-  expect(report.target.width).toBe(390)
+  expect(report).toMatchObject({target: {width: 390}, capturePath: 'snapdom-mirror', sources: ['mirror']})
   expect(report.components.find((c) => c.source?.file === 'src/Cards.tsx')).toBeDefined()
-  const frame = page.locator('iframe[data-conciv-capture]')
-  expect(await frame.count()).toBe(1)
-  expect(await frame.getAttribute('inert')).not.toBeNull()
-  expect(await frame.getAttribute('aria-hidden')).toBe('true')
-  expect(await frame.getAttribute('tabindex')).toBe('-1')
-  expect(
-    await frame.evaluate(
-      (el) =>
-        el instanceof HTMLIFrameElement && el.contentDocument?.querySelector('[data-conciv-script-root]') === null,
-    ),
-  ).toBe(true)
+  const deltas = report.components.flatMap((c) => c.deltas)
+  expect(deltas.length).toBeGreaterThan(0)
+  expect(deltas.every((d) => d.source === 'mirror' && d.width === 390)).toBe(true)
   expect(await page.inputValue('#field')).toBe('typed')
-  await call('design_diff', {})
-  expect(await frame.count()).toBe(1)
+  expect(page.viewportSize()).toEqual({width: 1280, height: 720})
 })
 
-it('a delta present only at 390 is flagged as a breakpoint delta', async () => {
+it('a delta measured at 390 in the mirror names its declaration from the mirror snapshot', async () => {
   await goto('mobile-gap')
-  await call('design_target', {image: target('u1-1280')})
-  await call('design_diff', {})
   await call('design_target', {image: target('u1-390')})
   const mobile = await call('design_diff', {})
   const gap = mobile.components.flatMap((c) => c.deltas).find((d) => d.kind === 'gap-before')
-  expect(gap).toMatchObject({breakpoint: true, file: 'src/card.module.css'})
+  expect(gap).toMatchObject({width: 390, source: 'mirror', file: 'src/card.module.css'})
   expect(gap?.declaration).toBe('gap: 16px')
 })
 
-it('clear removes the frame', async () => {
-  await call('design_clear', {all: true})
-  expect(await page.locator('iframe[data-conciv-capture]').count()).toBe(0)
+it('design_winner with width 390 reads the mirror and names src/card.module.css', async () => {
+  await goto('mobile-gap')
+  const winners = await call('design_winner', {selector: 'section', properties: ['gap'], width: 390})
+  expect(winners['gap']).toMatchObject({
+    value: '16px',
+    conditions: ['@media (max-width: 600px)'],
+    sheet: expect.objectContaining({viteDevId: expect.stringContaining('src/card.module.css')}),
+  })
+  const live = await call('design_winner', {selector: 'section', properties: ['gap']})
+  expect(live['gap']).toMatchObject({value: '8px'})
 })
 
-it('fails inside the cap with the fallback options when the frame is blocked', async () => {
-  await page.route('**/blocked', (route) =>
-    route.fulfill({
-      status: 200,
-      headers: {'content-type': 'text/html', 'x-frame-options': 'DENY'},
-      body: '<p>blocked</p>',
-    }),
-  )
-  await goto('/blocked')
-  await call('design_target', {image: target('u1-390')})
-  const start = Date.now()
-  await expect(rpc.registry.call({name: 'design_diff', input: {}})).rejects.toMatchObject({
-    message: expect.stringContaining('chromium'),
-  })
-  expect(Date.now() - start).toBeLessThan(6_000)
-  await page.unroute('**/blocked')
+it('the unchanged fixture against u1-1280 from a 1392 tab has nothing above tolerance', async () => {
+  await page.setViewportSize({width: 1392, height: 720})
+  try {
+    await goto('target')
+    await call('design_target', {image: target('u1-1280')})
+    const report = await call('design_diff', {})
+    expect(report).toMatchObject({capturePath: 'snapdom-mirror', sources: ['mirror']})
+    expect([report.components, report.unmatched]).toEqual([[], []])
+    expect((await call('design_status', {})).done).toBe(true)
+  } finally {
+    await page.setViewportSize({width: 1280, height: 720})
+  }
 })
 
 describe('x-ray page', () => {
@@ -940,6 +945,7 @@ const StoredModelSchema = z.object({
       role: z.string().optional(),
       within: z.string().optional(),
       box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
+      typography: z.object({size: z.number(), weight: z.number(), confidence: z.number()}).optional(),
     }),
   ),
 })
@@ -1144,8 +1150,10 @@ function glyphComponent(input: {glyphs: {text: string; boxes: Box[]}[]; x?: numb
     textBox: null,
     glyphs: input.glyphs,
     axis: null,
-    styles: {background: '#ffffff', color: '#000000', fontSize: 16, lineHeight: 20, fontWeight: 400, radius: 0},
+    columns: null,
+    styles: {...NO_STYLES, background: '#ffffff', color: '#000000', fontSize: 16, lineHeight: 20, fontWeight: 400},
     index: 1,
+    path: '/1',
     children: [],
   }
 }
@@ -1456,5 +1464,40 @@ describe('current target', () => {
       (error: unknown) => String(error),
     )
     expect(message).toContain('no design target is registered; register the design image with design_target')
+  })
+})
+
+describe('type estimate', () => {
+  it('on type against type-1280 every text node is estimated at its live font size with confidence 1', async () => {
+    await goto('type')
+    const registered = await call('design_target', {image: target('type-1280')})
+    await call('design_diff', {})
+    const live = await page.evaluate(() =>
+      [...document.querySelectorAll('main.type p')].map((element) => {
+        const rect = element.getBoundingClientRect()
+        return {
+          box: {x: rect.x, y: rect.y, w: rect.width, h: rect.height},
+          size: Number.parseFloat(getComputedStyle(element).fontSize),
+        }
+      }),
+    )
+    const texts = (await storedNodes(registered.id)).filter((node) => node.kind === 'text')
+    expect(texts.length).toBe(live.length)
+    const misses = texts.flatMap((node) => {
+      const centre = {x: node.box.x + node.box.w / 2, y: node.box.y + node.box.h / 2, w: 0, h: 0}
+      const element = live.find((candidate) => inside({inner: centre, outer: candidate.box}))
+      const typography = node.typography
+      if (element !== undefined && typography !== undefined) {
+        if (
+          Math.abs(typography.size - element.size) <= 0.5 &&
+          typography.confidence === 1 &&
+          typography.weight === 400
+        ) {
+          return []
+        }
+      }
+      return [{text: node.text, live: element?.size, typography}]
+    })
+    expect(misses).toEqual([])
   })
 })

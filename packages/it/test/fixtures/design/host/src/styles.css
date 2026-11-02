@@ -82,3 +82,20 @@ button {
 .table th {
   height: 34.5px;
 }
+
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('/fonts/source-sans-3-400.woff2') format('woff2');
+  font-weight: 400;
+}
+
+.type {
+  padding: 24px;
+  font-family: 'Source Sans 3', sans-serif;
+  color: #1f2933;
+}
+
+.type p {
+  margin: 0 0 12px;
+  font-weight: 400;
+}

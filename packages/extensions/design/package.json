@@ -94,6 +94,7 @@
     "postcss": "catalog:",
     "ppu-ocv": "catalog:",
     "ppu-paddle-ocr": "catalog:",
+    "rrweb-snapshot": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
