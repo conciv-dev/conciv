@@ -18,7 +18,7 @@ import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
 import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
-import {trustedApiBase, type HubConnection} from '@conciv/app/devframe-link'
+import {hubFor, renderLogin, type HubConnection} from '@conciv/app/devframe-link'
 import {makeNavigationStorage} from './navigation-storage.js'
 import type {ConcivInit} from './mount.js'
 
@@ -291,10 +291,22 @@ function bootConnect(config: BootConnectConfig): BootResult {
   return {dispose: () => runDisposers(disposers), interactive: interactive.promise}
 }
 
-async function bootLinked(config: BootNormalConfig): Promise<BootResult> {
-  const link = await trustedApiBase(config.root, config.apiBase)
-  window.__CONCIV_API_BASE__ = link.apiBase
-  return bootNormal({...config, apiBase: link.apiBase, hub: link.hub})
+function bootLinked(config: BootNormalConfig): BootResult {
+  const hub = hubFor(config.apiBase)
+  window.__CONCIV_API_BASE__ = config.apiBase
+  const booted = bootNormal({...config, hub})
+  const disposeLogin = renderLogin(config.root, hub, config.apiBase, (trustedApiBase) => {
+    if (trustedApiBase === window.__CONCIV_API_BASE__) return
+    window.__CONCIV_API_BASE__ = trustedApiBase
+    booted.rebind?.(trustedApiBase)
+  })
+  return {
+    ...booted,
+    dispose: () => {
+      disposeLogin()
+      booted.dispose()
+    },
+  }
 }
 
 async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
