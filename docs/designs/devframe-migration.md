@@ -927,7 +927,10 @@ createPageScriptChannel({
    Cards, labels and icons do not need to travel, because the widget runs in the same page and
    can look them up by tool id from the extension's client half. The summary, keywords and
    hint feed code mode and the system prompt on the server, so they must be declared on the
-   server side, keyed by tool id. `approval: 'ask'` has no page equivalent; PR 21 already
+   server side, keyed by tool id. Decided: each page tool keeps one shared definition (today's
+   `tool/def.ts` files). The server half lists it in a new `pageTools` field on
+   `defineConcivPlugin`, and the page half registers the in-page channel function with the
+   same definition and its handler. The bridge joins the two by tool id. `approval: 'ask'` has no page equivalent; PR 21 already
    replaces it with Devframe's `safety`.
 4. **Routing differs.** Devframe picks the most recently focused tab. conciv routes a page call
    to the tab bound to the chat session (`env.tabs.ask(sessionId, ...)` in
@@ -942,8 +945,8 @@ createPageScriptChannel({
    page side must wrap errors the way `defineConcivFunction` does (`toWireError`), and the
    bridge already applies `fromWireError`. No test covers this path yet.
 
-The in-page channel needs no new public API. Item 3 does: a server-side declaration of the
-meta for page tools.
+The in-page channel needs no new public API. Item 3 adds one field, `pageTools` on
+`defineConcivPlugin`, approved.
 
 ### PR 19: Settings page and mode switch
 
