@@ -1,4 +1,4 @@
-import type {Page, Route} from 'playwright'
+import type {Page, Route, WebSocketRoute} from 'playwright'
 import {toHttpPath} from '@orpc/client/standard'
 import {rpcObserverFor} from './rpc-observer.js'
 import {engineRoutePath} from './rpc-payload.js'
@@ -6,6 +6,7 @@ import {engineRoutePath} from './rpc-payload.js'
 const FAILURE_BODY = {json: {}, meta: []}
 
 const RPC_PREFIX = '/rpc'
+const HUB_PREFIX = '/__conciv/'
 
 function isRpcRoute(pathname: string): boolean {
   return pathname === RPC_PREFIX || pathname.startsWith(`${RPC_PREFIX}/`)
@@ -108,6 +109,51 @@ export async function holdRpcCalls(page: Page): Promise<RpcHold> {
   return {
     hold: () => {
       held.value = true
+    },
+    release: () => {
+      held.value = false
+    },
+  }
+}
+
+type HubSocketPair = {page: WebSocketRoute; server: WebSocketRoute}
+
+function closeHubSocket(pair: HubSocketPair): void {
+  pair.page
+    .close()
+    .catch((error: unknown) => console.error('[extension-testkit] closing the page hub socket failed', error))
+  pair.server
+    .close()
+    .catch((error: unknown) => console.error('[extension-testkit] closing the engine hub socket failed', error))
+}
+
+function isHubUrl(url: URL): boolean {
+  return url.pathname.startsWith(HUB_PREFIX)
+}
+
+export async function holdHub(page: Page): Promise<RpcHold> {
+  const held = {value: false}
+  const open = new Set<HubSocketPair>()
+
+  await page.route(isHubUrl, async (route) => {
+    if (!held.value) return route.continue()
+    await route.abort('connectionrefused')
+  })
+  await page.routeWebSocket(isHubUrl, (socket) => {
+    if (held.value) {
+      socket.close().catch(() => {})
+      return
+    }
+    const pair = {page: socket, server: socket.connectToServer()}
+    open.add(pair)
+    socket.onClose(() => open.delete(pair))
+  })
+
+  return {
+    hold: () => {
+      held.value = true
+      for (const pair of open) closeHubSocket(pair)
+      open.clear()
     },
     release: () => {
       held.value = false
