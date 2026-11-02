@@ -28,6 +28,7 @@ import {
   type ShellMountOptions,
 } from './helpers.browser.js'
 import {render} from '@solidjs/testing-library'
+import type {HubCommandInput} from './commands/core-control.js'
 import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show} from 'solid-js'
 import {
   AttachmentByMime,
@@ -564,6 +565,76 @@ describe('context tracker', () => {
       expect(host.textContent).toContain('778K')
     })
   })
+})
+
+describe('devframe hub shell', () => {
+  const COMMAND: HubCommandInput = {
+    id: 'conciv-test:say-hello',
+    title: 'Say hello from the hub',
+    reply: {message: 'Hello from the hub command', level: 'success', notify: true},
+  }
+  const core = bootedCore('devframe-hub-shell')
+  const harness = createShellHarness(core)
+
+  afterEach(harness.dispose)
+
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const palette = () => page.getByRole('dialog', {name: 'Commands'})
+  const search = () => palette().getByRole('combobox', {name: 'Search commands'})
+  const notifications = () => page.getByRole('region', {name: /Notifications/})
+
+  async function openHubPanel(): Promise<void> {
+    const sessionId = await createSession(coreRpc(core()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  }
+
+  test('runs a hub command picked in the cmd+K palette and shows its message as a toast', async () => {
+    await coreControl.registerHubCommand(COMMAND)
+    await openHubPanel()
+
+    await editor().click()
+    await userEvent.keyboard('{ControlOrMeta>}k{/ControlOrMeta}')
+    await expect.element(palette()).toBeVisible()
+    await expect.element(palette().getByRole('option', {name: COMMAND.title}), {timeout: 8000}).toBeVisible()
+
+    await search().fill('no such command')
+    await expect.element(palette().getByText('No matching commands')).toBeVisible()
+
+    await search().fill('say hello')
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(notifications().getByText(COMMAND.reply.message), {timeout: 8000}).toBeVisible()
+    await expect.element(palette()).not.toBeInTheDocument()
+    await expect.element(page.getByRole('tab', {name: 'Messages'})).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('closes the palette on Escape and hands focus back to the composer', async () => {
+    await openHubPanel()
+
+    await editor().click()
+    await userEvent.keyboard('{ControlOrMeta>}k{/ControlOrMeta}')
+    await expect.element(search()).toHaveFocus()
+
+    await userEvent.keyboard('{Escape}')
+
+    await expect.element(palette()).not.toBeInTheDocument()
+    await expect.element(editor()).toHaveFocus()
+  }, 30_000)
+
+  test('toasts only the feed messages that ask to notify and arrive after the panel opened', async () => {
+    await coreControl.addHubMessage({message: 'An old notice from before the panel', level: 'info', notify: true})
+    await openHubPanel()
+
+    await coreControl.addHubMessage({message: 'A quiet log line', level: 'info', notify: false})
+    await coreControl.addHubMessage({message: 'The dev server build failed', level: 'error', notify: true})
+
+    await expect
+      .element(page.getByRole('alert').getByText('The dev server build failed'), {timeout: 8000})
+      .toBeVisible()
+    await expect.element(notifications().getByText('A quiet log line')).not.toBeInTheDocument()
+    await expect.element(notifications().getByText('An old notice from before the panel')).not.toBeInTheDocument()
+  }, 30_000)
 })
 
 describe('engine staleness', () => {

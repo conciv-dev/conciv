@@ -39,6 +39,8 @@
     "@conciv/ui-kit-chat-tools": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/ui-kit-tap": "workspace:^",
+    "@devframes/agentic": "catalog:",
+    "@devframes/hub": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/mutation-observer": "^1.2.4",
     "@tanstack/hotkeys": "^0.18.0",
@@ -46,6 +48,7 @@
     "@tanstack/solid-hotkeys": "^0.17.0",
     "@tanstack/solid-query": "catalog:",
     "@tanstack/solid-router": "catalog:",
+    "devframe": "catalog:",
     "lucide-solid": "catalog:",
     "solid-js": "catalog:",
     "zod": "catalog:"

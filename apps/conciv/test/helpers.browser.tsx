@@ -9,7 +9,13 @@ import {
   makeBrowserRpcClient,
 } from '@conciv/contract'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
-import type {BootCoreInput, BootCoreResult, FaultSpec} from './commands/core-control.js'
+import type {
+  BootCoreInput,
+  BootCoreResult,
+  FaultSpec,
+  HubCommandInput,
+  HubMessageInput,
+} from './commands/core-control.js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents} from '@conciv/ai/client'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
@@ -52,6 +58,8 @@ declare module 'vitest/internal/browser' {
     pushSocketsOpened: () => Promise<number>
     outsideReload: (sessionId: string, file: string) => Promise<string>
     setStaleness: (value: EngineStaleness) => Promise<void>
+    addHubMessage: (input: HubMessageInput) => Promise<void>
+    registerHubCommand: (input: HubCommandInput) => Promise<void>
     holdTurn: () => Promise<void>
     holdTools: () => Promise<void>
     releaseTools: () => Promise<void>
