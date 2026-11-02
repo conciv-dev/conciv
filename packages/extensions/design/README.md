@@ -90,6 +90,9 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 - A run whose pairing hits `pairBudgetMs` is `partial`: it is not added to the round history, keeps the `round` and
   `budgetLeft` of the run before, reports `stop: null`, and its `hint` says pairing was cut short and the numbers are
   not comparable.
+- The type estimate asks the page to render its text samples in chunks of `renderChunk` 24, each call bounded by
+  `measureTimeoutMs`; a chunk that fails or times out skips the estimate for its samples and adds a
+  `typography-skipped` warning whose `live` is the number of samples skipped, and the run is still reported.
 - Run 0, the run `design_target` starts, gives the first `stage` and `brief` and is stored for the x-ray, but it is
   never a prior for `stalled` or `oscillating`: the history starts at the first `design_diff`. When `stop` is
   `stalled`, the first brief line names how many items stayed unchanged for two rounds and the first three of them.

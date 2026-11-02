@@ -16,7 +16,7 @@ import type {HostWiring} from '@conciv/extension/host'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 import {keepBodyMargins} from '@conciv/extension-page/body-margins'
 import {formatHex, formatHex8, parse} from 'culori'
-import {uniq} from 'es-toolkit'
+import {sum, uniq} from 'es-toolkit'
 import {
   DESIGN_EXTENSION_NAME,
   measureDef,
@@ -69,6 +69,8 @@ const LIVE_EXCLUDE = [WIDGET_ROOT_SELECTOR, EFFECTS_SELECTOR, `[${PANE_ATTR}]`, 
 const MIRROR_EXCLUDE = ['style', 'link']
 const SCRATCH_SIZE = 4096
 const SCRATCH_PAD = 4
+const SCRATCH_MARGIN = 64
+const GLYPH_WIDTH = 0.75
 const NORMAL_LINE_HEIGHT = 1.2
 const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'
@@ -445,7 +447,7 @@ async function renderStep(input: RenderInput): Promise<RenderResult> {
   try {
     const frame = createSandboxedIframe({
       root: host,
-      iframeAttributes: {width: String(SCRATCH_SIZE), height: String(SCRATCH_SIZE), style: 'border:0'},
+      iframeAttributes: {...scratchSize(input.renders), style: 'border:0'},
     })
     const doc = mirrorDocument(frame)
     const style = doc.createElement('style')
@@ -471,6 +473,15 @@ async function renderStep(input: RenderInput): Promise<RenderResult> {
     return {images}
   } finally {
     host.remove()
+  }
+}
+
+function scratchSize(renders: RenderInput['renders']): {width: string; height: string} {
+  const width = Math.max(0, ...renders.map((render) => render.text.length * render.size * GLYPH_WIDTH))
+  const height = sum(renders.map((render) => render.size * NORMAL_LINE_HEIGHT + SCRATCH_PAD * 3))
+  return {
+    width: String(Math.ceil(Math.min(SCRATCH_SIZE, width + SCRATCH_MARGIN))),
+    height: String(Math.ceil(Math.min(SCRATCH_SIZE, height + SCRATCH_MARGIN))),
   }
 }
 

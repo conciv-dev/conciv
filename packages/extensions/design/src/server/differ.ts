@@ -265,7 +265,7 @@ async function runDiff(request: {
     page,
     color,
   })
-  const matched = paired.matched.map((entry) => withTypography({entry, typography}))
+  const matched = paired.matched.map((entry) => withTypography({entry, typography: typography.estimates}))
   const pairs = pairTree({
     matched,
     components: live.components,
@@ -352,7 +352,7 @@ async function runDiff(request: {
       mismatch: rounded(pixels.mismatch),
       components,
       unmatched,
-      warnings,
+      warnings: [...warnings, ...typographyWarnings({...typography, stamp})],
       segmentation: segmentationQuality(model),
       capturePath: live.capturePath,
       sources: measuredSources(live),
@@ -601,6 +601,23 @@ function warningDeltas(input: {pairs: Pair[]; judged: Map<Pair, TextJudgement>})
     if (found === undefined || found.verdict !== 'sample-data') return []
     return [sourced({delta: {kind: 'text', live: found.live, target: found.target, warning: 'sample-data'}, pair})]
   })
+}
+
+function typographyWarnings(input: {
+  estimates: Record<string, unknown>
+  skipped: number
+  stamp: Pick<Delta, 'source' | 'confidence' | 'width'>
+}): Delta[] {
+  if (input.skipped === 0) return []
+  return [
+    {
+      kind: 'fontSize',
+      live: input.skipped,
+      target: input.skipped + Object.keys(input.estimates).length,
+      warning: 'typography-skipped',
+      ...input.stamp,
+    },
+  ]
 }
 
 function unbuiltEntries(input: {nodes: TargetNode[]; pairedNodes: Set<string>}): Unmatched[] {

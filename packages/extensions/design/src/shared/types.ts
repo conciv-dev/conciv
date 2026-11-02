@@ -185,7 +185,7 @@ export type Delta = {
   confidence?: number
   width?: number
   opinion?: {source: 'takumi'; live: number | string; confidence: number}
-  warning?: 'sample-data'
+  warning?: 'sample-data' | 'typography-skipped'
 } & Partial<Provenance>
 export type DeltaKind = {
   kind: DeltaKindName

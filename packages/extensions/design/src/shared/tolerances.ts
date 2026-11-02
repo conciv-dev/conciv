@@ -18,6 +18,7 @@ export const TOLERANCES = {
   runsKept: 20,
   captureFrameMs: 500,
   measureTimeoutMs: 60_000,
+  renderChunk: 24,
   typeSearchMin: 8,
   typeSearchMax: 56,
   boldCoverage: 1.2,

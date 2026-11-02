@@ -10,7 +10,7 @@ import type {InferenceSession} from 'onnxruntime-web'
 import {Canvas, Contours, cv, ImageProcessor, type CanvasLike} from 'ppu-ocv'
 import {CanvasProcessor, CanvasToolkit} from 'ppu-ocv/canvas'
 import {z} from 'zod'
-import {range, uniqBy, zip} from 'es-toolkit'
+import {chunk, partition, range, uniqBy, zip} from 'es-toolkit'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {DESIGN_GUIDE, renderDef, RenderResultSchema, type TargetInput, type TargetResult} from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
@@ -998,17 +998,15 @@ export async function estimateTypography(input: {
   store: TargetStore
   page: ServerToolPageAccess
   color: ColorMetric
-}): Promise<Record<string, Typography>> {
+}): Promise<{estimates: Record<string, Typography>; skipped: number}> {
   const {page} = input
   const jobs = typeJobs(input)
-  if (jobs.length === 0) return {}
-  await renderInks({
-    page,
-    renders: jobs.map((job) => renderAt({job, size: job.owner.styles.fontSize, weight: job.owner.styles.fontWeight})),
-  })
-  const estimates = Object.fromEntries(await Promise.all(jobs.map((job) => estimate({job, page}))))
+  if (jobs.length === 0) return {estimates: {}, skipped: 0}
+  const skippedKeys = new Set(await renderInks({page, renders: jobs.map(liveRender)}))
+  const [skipped, rendered] = partition(jobs, (job) => skippedKeys.has(renderKey(liveRender(job))))
+  const estimates = Object.fromEntries(await Promise.all(rendered.map((job) => estimate({job, page}))))
   await input.store.setTypography({id: input.id, typography: estimates})
-  return estimates
+  return {estimates, skipped: skipped.length}
 }
 
 function typeJobs(input: {
@@ -1057,6 +1055,10 @@ function ownInk(input: {area: {raster: Raster; box: Box}; background: Rgb}): Box
   return {...own, x: own.x + box.x, y: own.y + box.y}
 }
 
+function liveRender(job: TypeJob): Render {
+  return renderAt({job, size: job.owner.styles.fontSize, weight: job.owner.styles.fontWeight})
+}
+
 function renderAt(input: {job: TypeJob; size: number; weight: number}): Render {
   const {job} = input
   return {
@@ -1069,17 +1071,28 @@ function renderAt(input: {job: TypeJob; size: number; weight: number}): Render {
   }
 }
 
-async function renderInks(input: {page: ServerToolPageAccess; renders: Render[]}): Promise<void> {
+async function renderInks(input: {page: ServerToolPageAccess; renders: Render[]}): Promise<string[]> {
   const missing = uniqBy(
     input.renders.filter((render) => !RENDERED.has(renderKey(render))),
     renderKey,
   )
-  if (missing.length === 0) return
-  const reply = RenderResultSchema.parse(await input.page.call(renderDef.name, {renders: missing}))
-  zip(missing, reply.images).forEach(([render, image]) => {
+  return chunk(missing, TOLERANCES.renderChunk).reduce<Promise<string[]>>(
+    async (before, renders) => [...(await before), ...(await renderChunk({page: input.page, renders}))],
+    Promise.resolve([]),
+  )
+}
+
+async function renderChunk(input: {page: ServerToolPageAccess; renders: Render[]}): Promise<string[]> {
+  const reply = await input.page
+    .call(renderDef.name, {renders: input.renders, timeout: TOLERANCES.measureTimeoutMs})
+    .then((result) => RenderResultSchema.parse(result))
+    .catch(() => null)
+  if (reply === null) return input.renders.map(renderKey)
+  zip(input.renders, reply.images).forEach(([render, image]) => {
     if (render === undefined || image === undefined) return
     RENDERED.set(renderKey(render), inkOf(decodePng(Buffer.from(image, 'base64'))))
   })
+  return []
 }
 
 function renderKey(render: Render): string {

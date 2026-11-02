@@ -1677,6 +1677,18 @@ describe('loop', () => {
     )
   })
 
+  it('a diff on roles, the fixture with the most text runs, renders its type samples without a skip', async ({
+    annotate,
+  }) => {
+    await goto('roles')
+    const registered = await freshTarget('roles-1280')
+    const report = await call('design_diff', {})
+    await annotate(`text runs ${registered.text?.runs ?? 0}, timings ${JSON.stringify(report.timings)}`)
+    expect(report.partial).toBe(false)
+    expect(report.warnings.filter((warning) => warning.warning === 'typography-skipped')).toEqual([])
+    expect(report.timings.measure).toBeLessThan(MEASURE_TIMEOUT_MS)
+  })
+
   it('the default diff output is compact with rows and counts, and full: true holds every component', async ({
     annotate,
   }) => {

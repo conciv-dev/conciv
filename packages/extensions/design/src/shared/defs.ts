@@ -134,9 +134,11 @@ const DeltaSchema = ProvenanceSchema.partial().extend({
     .optional()
     .describe('the same value read from the takumi layout; shown, never scored'),
   warning: z
-    .enum(['sample-data'])
+    .enum(['sample-data', 'typography-skipped'])
     .optional()
-    .describe('the live text is a literal equal to sample data in the design; render it from the data instead'),
+    .describe(
+      'sample-data: the live text is a literal equal to sample data in the design; render it from the data instead. typography-skipped: live is the number of text samples the page did not render, so their type was not estimated',
+    ),
 })
 
 const UnmatchedSchema = z.object({
@@ -235,7 +237,10 @@ export const DiffReportSchema = z.object({
   unmatched: z.array(UnmatchedSchema),
   hint: z.string().optional(),
   route: RouteItemSchema.optional(),
-  warnings: z.array(DeltaSchema).default([]).describe('outside every count; hard-coded sample data to replace'),
+  warnings: z
+    .array(DeltaSchema)
+    .default([])
+    .describe('outside every count; hard-coded sample data to replace, text samples left without a type estimate'),
   segmentation: z
     .enum(['full', 'partial'])
     .optional()
@@ -377,7 +382,10 @@ const MeasureInputSchema = z.object({
   timeout: z.number().int().positive().optional(),
 })
 
-const RenderInputSchema = z.object({renders: z.array(RenderSchema)})
+const RenderInputSchema = z.object({
+  renders: z.array(RenderSchema),
+  timeout: z.number().int().positive().optional(),
+})
 
 export const WinnerInputSchema = z.object({
   selector: z.string().describe('CSS selector of the element'),
