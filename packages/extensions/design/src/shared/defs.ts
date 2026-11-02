@@ -151,7 +151,7 @@ const UnmatchedSchema = z.object({
   label: z.string().optional().describe('the design text of an unbuilt text node, or its kind'),
   stage: z.enum(STAGES).nullable().optional().describe('the stage the entry counts in; null when it is informational'),
   shift: z.object({dx: z.number(), dy: z.number()}).optional().describe('how far an offset entry moved, in px'),
-  node: z.string().optional().describe('the design node of an unbuilt entry'),
+  node: z.string().optional().describe('the design node of an unbuilt or offset entry'),
 })
 
 const ResponsiveSchema = z.object({
@@ -214,6 +214,17 @@ const RouteItemSchema = z
   .object({live: z.string(), target: z.string()})
   .describe('the tab shows another route than the design target; nothing was measured')
 
+const TimingsSchema = z
+  .object({measure: z.number(), compare: z.number(), pair: z.number(), total: z.number()})
+  .describe('milliseconds spent measuring the page, comparing pixels, pairing, and in the whole run')
+
+const RowSchema = z.object({
+  sentence: z.string(),
+  stage: z.enum(STAGES),
+  node: z.string().optional().describe('the design node of the item'),
+  source: SourceLocSchema.optional().describe('the source location of the live element'),
+})
+
 export const DiffReportSchema = z.object({
   target: z.object({id: z.string(), route: z.string().optional(), width: z.number()}),
   mismatch: z.number(),
@@ -242,11 +253,45 @@ export const DiffReportSchema = z.object({
     .default([])
     .describe('unpaired share, structure, content, geometry, paint, residual share; lower is better'),
   responsive: z.array(ResponsiveSchema).default([]).describe('how this design relates to the other designs'),
-  partial: z.boolean().default(false).describe('the run hit its time budget before every node was paired'),
+  partial: z
+    .boolean()
+    .default(false)
+    .describe('pairing hit its time budget before every node was paired; the round was not counted'),
   pinsLost: z.array(z.string()).default([]).describe('pin decisions whose node or element is gone'),
+  timings: TimingsSchema.default({measure: 0, compare: 0, pair: 0, total: 0}),
+  rows: z.array(RowSchema).default([]).describe('the first ten items of the stage, in brief order'),
 })
 
 export type DiffReport = z.infer<typeof DiffReportSchema>
+
+export const CompactReportSchema = DiffReportSchema.pick({
+  target: true,
+  round: true,
+  budgetLeft: true,
+  stage: true,
+  stop: true,
+  score: true,
+  mismatch: true,
+  brief: true,
+  timings: true,
+  rows: true,
+  xray: true,
+  diffImage: true,
+  livePath: true,
+  capturePath: true,
+  sources: true,
+  partial: true,
+  hint: true,
+})
+  .extend({
+    counts: z
+      .object({components: z.number(), unmatched: z.number(), warnings: z.number()})
+      .describe('how many components, unmatched entries and warnings the full report holds'),
+  })
+  .loose()
+  .describe('pass `full: true` for the full report with every component and delta')
+
+export type CompactReport = z.infer<typeof CompactReportSchema>
 
 const StatusReportSchema = z.object({
   route: z.string().optional(),
@@ -316,6 +361,7 @@ export const TargetInputSchema = z.object({
 export const DiffInputSchema = z.object({
   depth: z.number().int().min(1).max(6).default(3).describe('how deep to descend into the component tree'),
   limit: z.number().int().min(1).max(50).default(12).describe('how many components to report'),
+  full: z.boolean().optional().describe('return the full report with every component and delta'),
 })
 
 export const StatusInputSchema = z.object({})
@@ -419,8 +465,8 @@ export const diffDef = designTool({
   running: 'Comparing with the design',
   done: 'Compared with the design',
   input: DiffInputSchema,
-  output: DiffReportSchema,
-  hint: 'fix the first components (sorted by impact) using their source and deltas, then diff again',
+  output: CompactReportSchema,
+  hint: 'fix the brief and rows in order, then diff again',
   keywords: ['design', 'compare', 'pixels', 'deltas', 'visual'],
 })
 

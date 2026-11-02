@@ -13,7 +13,7 @@ import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import {makeExtRpcClient} from '@conciv/extension'
-import {DiffReportSchema, MARK_KINDS, type DiffReport} from '@conciv/extension-design/defs'
+import {CompactReportSchema, MARK_KINDS, type CompactReport} from '@conciv/extension-design/defs'
 import type {XrayRouter} from '@conciv/extension-design/xray-routes'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from '../test/fixtures/design/render-targets.js'
@@ -22,7 +22,6 @@ const HOST_ROOT = fileURLToPath(new URL('../test/fixtures/design/host/', import.
 const ENDPOINT_FILE = 'dev-endpoint.json'
 const TAB_HEIGHT = 720
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
-const TOP_ROWS = 12
 const WIDGET_BOOT = `${react.preambleCode.replace('__BASE__', '/')}\nawait import(${JSON.stringify(EXTENSIONS_ROUTE)})`
 
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
@@ -49,16 +48,14 @@ type Trial = {
 
 type TrialDirs = {stateRoot: string; devEndpointDir: string; temporary: string[]}
 
-type ComponentReport = DiffReport['components'][number]
-
-type Delta = ComponentReport['deltas'][number]
+type Row = CompactReport['rows'][number]
 
 type Command = (input: {trial: Trial; args: string[]}) => Promise<void>
 
 const COMMANDS: Record<string, Command> = {
   diff: async ({trial}) => {
     const started = performance.now()
-    const report = DiffReportSchema.parse(await trial.rpc.registry.call({name: 'design_diff', input: {}}))
+    const report = CompactReportSchema.parse(await trial.rpc.registry.call({name: 'design_diff', input: {}}))
     print(diffTable({report, ms: Math.round(performance.now() - started)}))
   },
   status: async ({trial}) => {
@@ -226,42 +223,30 @@ async function runCommand(input: {trial: Trial; name: string; args: string[]}): 
   )
 }
 
-function diffTable(input: {report: DiffReport; ms: number}): string {
+function diffTable(input: {report: CompactReport; ms: number}): string {
   const {report} = input
+  const {timings, counts} = report
   const head =
     `round ${report.round}  stage ${shown(report.stage)}  stop ${shown(report.stop)}  budgetLeft ${report.budgetLeft}` +
     `  score [${report.score.join(', ')}]  sources ${report.sources.join(',')}` +
     `  capturePath ${shown(report.capturePath)}  partial ${report.partial}  ms ${input.ms}`
-  const deltas = report.components.flatMap((component) => component.deltas.map((delta) => deltaRow({component, delta})))
-  const unmatched = report.unmatched
-    .filter((entry) => Boolean(entry.stage))
-    .map((entry) => [entry.kind, shown(entry.label), '-', '-', shown(entry.node), '-'])
-  const rows = [...unmatched, ...deltas].slice(0, TOP_ROWS)
   return [
     head,
+    `timings measure ${timings.measure}  compare ${timings.compare}  pair ${timings.pair}  total ${timings.total}`,
     numbered(report.brief),
-    table(rows),
-    `rows ${deltas.length} deltas, ${unmatched.length} counted unmatched, ${report.unmatched.length} unmatched in all`,
-    ...report.warnings.map((warning) => `warning ${shown(warning.warning)} ${warning.live}`),
-    ...report.pinsLost.map((pin) => `pin lost ${pin}`),
+    table(report.rows.map(rowCells)),
+    `${counts.components} components, ${counts.unmatched} unmatched, ${counts.warnings} warnings`,
+    ...(report.hint === undefined ? [] : [`hint ${report.hint}`]),
   ].join('\n')
 }
 
-function deltaRow(input: {component: ComponentReport; delta: Delta}): string[] {
-  const {component, delta} = input
+function rowCells(row: Row): string[] {
   return [
-    delta.kind,
-    `${delta.live} -> ${delta.target}`,
-    shown(delta.source),
-    shown(delta.confidence?.toFixed(2)),
-    `${shown(component.nodes?.join(','))} ${component.path ?? component.selector}`,
-    where(delta),
+    row.stage,
+    shown(row.node),
+    row.source === undefined ? '-' : `${row.source.file}:${row.source.line}`,
+    row.sentence,
   ]
-}
-
-function where(delta: Delta): string {
-  if (delta.file === undefined) return '-'
-  return `${delta.file}:${delta.line ?? 0}`
 }
 
 function table(rows: string[][]): string {

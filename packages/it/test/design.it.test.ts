@@ -57,6 +57,8 @@ const COLOR_DELTA_E = 3
 const TILE_GATE = 0.005
 const TILE_MARGIN = 8
 const HOST_STYLES = join(HOST_ROOT, 'src', 'styles.css')
+const PAIR_BUDGET_MS = 20_000
+const MEASURE_TIMEOUT_MS = 60_000
 
 const CatalogSchema = z.array(ToolCommandSignatureSchema)
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
@@ -1649,6 +1651,68 @@ describe('loop', () => {
     const report = await call('design_diff', {})
     expect(report.partial).toBe(false)
     expect([report.components, report.unmatched]).toEqual([[], []])
+  })
+  it('two diffs of an unchanged page after registration have no stop and the third is stalled', async () => {
+    await goto('bordered')
+    await freshTarget('u1-1280')
+    const reports = [await call('design_diff', {}), await call('design_diff', {}), await call('design_diff', {})]
+    expect(reports.map((report) => report.stop)).toEqual([null, null, 'stalled'])
+    const first = reports.at(-1)?.brief[0] ?? ''
+    expect([first.startsWith('stalled: '), first.includes(' items unchanged for 2 rounds')]).toEqual([true, true])
+  })
+
+  it('a diff on bordered times each phase within its own clock and is not partial', async ({annotate}) => {
+    await goto('bordered')
+    await freshTarget('u1-1280')
+    const report = await call('design_diff', {})
+    await annotate(`timings ${JSON.stringify(report.timings)}`)
+    expect(report.partial).toBe(false)
+    expect(report.timings.pair).toBeLessThan(PAIR_BUDGET_MS)
+    expect(report.timings.measure).toBeLessThan(MEASURE_TIMEOUT_MS)
+    expect(report.timings.total).toBeGreaterThanOrEqual(
+      report.timings.measure + report.timings.compare + report.timings.pair,
+    )
+  })
+
+  it('the default diff output is compact with rows and counts, and full: true holds every component', async () => {
+    await goto('bordered')
+    await freshTarget('u1-1280')
+    const compact = await rpc.registry.call({name: 'design_diff', input: {}})
+    expect(compact).toHaveProperty('counts.components')
+    expect(compact).not.toHaveProperty('segmentation')
+    expect(compact).not.toHaveProperty('pinsLost')
+    const {rows, brief} = z
+      .object({rows: z.array(z.object({sentence: z.string(), stage: z.string()})), brief: z.array(z.string())})
+      .parse(compact)
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.length).toBeLessThanOrEqual(10)
+    expect(rows[0]?.sentence).toBe(brief[0])
+    const full = await call('design_diff', {full: true})
+    expect(full.components.flatMap((c) => c.deltas.map((d) => d.kind))).toContain('border')
+  })
+
+  it('hiding a button after two diffs on missing ranks the new unbuilt items before the demoted ones', async () => {
+    await goto('missing')
+    const {id} = await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const second = await call('design_diff', {full: true})
+    const unchanged = new Set(second.rows.flatMap((row) => (row.node === undefined ? [] : [row.node])))
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    const runs = (await runFiles({id, prefix: 'result-'})).length
+    try {
+      await writeFile(HOST_STYLES, `${styles}\n.toolbar button:first-child { display: none !important; }\n`)
+      await expect
+        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
+        .toBeGreaterThan(runs)
+      const third = await call('design_diff', {full: true})
+      const demoted = third.rows.map((row) => row.node !== undefined && unchanged.has(row.node))
+      expect(third.stage).toBe('structure')
+      expect(demoted[0]).toBe(false)
+      expect(demoted).toContain(true)
+      expect(demoted).toEqual(demoted.toSorted((a, b) => Number(a) - Number(b)))
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
   })
 })
 

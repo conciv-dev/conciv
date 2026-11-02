@@ -12,13 +12,14 @@ import type {
   ItemKind,
   Pair,
   Ranker,
+  SourceLoc,
   TargetStore,
   Unmatched,
 } from '../shared/types.js'
 
 type Round = {score: number[]; capturePath: CapturePath | undefined; values: Map<string, number | string>}
 
-type Verdict = Pick<DiffReport, 'stage' | 'brief' | 'round' | 'budgetLeft' | 'stop' | 'score'>
+type Verdict = Pick<DiffReport, 'stage' | 'brief' | 'round' | 'budgetLeft' | 'stop' | 'score' | 'rows'>
 
 export type RunJob = {id: string; session: SessionId; observe: boolean; input: DiffInput}
 
@@ -86,10 +87,11 @@ export function itemsFrom(input: {
       depth: pair.depth,
       value: delta.live,
       sentence: `${componentLabel({tag: pair.live.tag, source: pair.live.source})}: ${deltaSentence(delta)}`,
+      ...located({node: pair.node.id, source: pair.live.source}),
     })),
   )
-  const entries = input.unmatched.map((entry, index): Item => ({
-    key: `${entry.kind}:${boxKey(entry.target ?? entry.live)}:${index}`,
+  const entries = input.unmatched.map((entry): Item => ({
+    key: `${entry.kind}:${entry.node ?? boxKey(entry.target ?? entry.live)}`,
     kind: entry.kind,
     stage: entry.stage ?? null,
     size: entrySize(entry),
@@ -98,6 +100,7 @@ export function itemsFrom(input: {
     depth: 0,
     value: entry.shift === undefined ? boxKey(entry.target ?? entry.live) : `${entry.shift.dx},${entry.shift.dy}`,
     sentence: entrySentence(entry),
+    ...located({node: entry.node, source: entry.source}),
   }))
   return [...deltas, ...entries]
 }
@@ -119,6 +122,7 @@ export function judge(input: {
   ranker: Ranker
   warnings: Delta[]
   color: ColorMetric
+  partial: boolean
 }): Verdict {
   const {items, score, capturePath, priors, round, ranker, warnings, color} = input
   const counted = items.filter((item) => item.stage !== null)
@@ -130,7 +134,9 @@ export function judge(input: {
     ...ranked.filter((item) => !demoted.has(item.key)),
     ...ranked.filter((item) => demoted.has(item.key)),
   ]
+  const stop = input.partial ? null : stopReason({counted, score, capturePath, priors, round, color})
   const brief = [
+    ...(stop === 'stalled' ? [stalledLine(ranker({items: counted.filter((item) => demoted.has(item.key))}))] : []),
     ...ordered.slice(0, TOLERANCES.briefSize).map((item) => item.sentence),
     ...warnings.map(warningSentence),
   ]
@@ -139,8 +145,9 @@ export function judge(input: {
     brief,
     round,
     budgetLeft: Math.max(0, TOLERANCES.roundBudget - round),
-    stop: stopReason({counted, score, capturePath, priors, round, color}),
+    stop,
     score,
+    rows: ordered.slice(0, ROW_LIMIT).flatMap((item) => (item.stage === null ? [] : [row({item, stage: item.stage})])),
   }
 }
 
@@ -210,6 +217,8 @@ type Lane = {running: boolean; pending: (Deferred & {job: RunJob}) | null}
 const SETTLE_TOOL = 'page_hmr'
 const SETTLE_WAIT_MS = 5000
 const SIZE_CAP = 10
+const ROW_LIMIT = 10
+const STALLED_NAMED = 3
 const SCORE_PRECISION = 10_000
 const COLOR_KINDS: ItemKind[] = ['background', 'foreground', 'border']
 
@@ -263,6 +272,28 @@ function entrySentence(entry: Unmatched): string {
       return `move ${what} by ${shift.dx},${shift.dy} px to where the design places it`
     }
   }
+}
+
+function stalledLine(unchanged: Item[]): string {
+  const head = `stalled: ${unchanged.length} items unchanged for ${TOLERANCES.stallRounds} rounds`
+  if (unchanged.length === 0) return head
+  return `${head}: ${unchanged
+    .slice(0, STALLED_NAMED)
+    .map((item) => item.sentence)
+    .join('; ')}`
+}
+
+function row(input: {item: Item; stage: Stage}): DiffReport['rows'][number] {
+  const {item, stage} = input
+  return {sentence: item.sentence, stage, ...located({node: item.node, source: item.source})}
+}
+
+function located(input: {
+  node: string | undefined
+  source: SourceLoc | null | undefined
+}): Pick<Item, 'node' | 'source'> {
+  const {node, source} = input
+  return {...(node === undefined ? {} : {node}), ...(source === null || source === undefined ? {} : {source})}
 }
 
 function warningSentence(delta: Delta): string {

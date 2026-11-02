@@ -158,6 +158,8 @@ export type Item = {
   depth: number
   value: number | string
   sentence: string
+  node?: string
+  source?: SourceLoc
 }
 export type Ranker = (input: {items: Item[]}) => Item[]
 export type Flow = 'row' | 'column'

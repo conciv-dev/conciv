@@ -1,7 +1,7 @@
 import pixelmatch from 'pixelmatch'
 import {diff} from '@blazediff/core'
 import {z} from 'zod'
-import {groupBy, keyBy, range, uniq, uniqBy} from 'es-toolkit'
+import {groupBy, keyBy, pick, range, uniq, uniqBy} from 'es-toolkit'
 import {toolError, type AnyToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {basename} from 'node:path'
@@ -30,6 +30,7 @@ import {
   type CaptureResult,
   type ClearInput,
   type ClearResult,
+  type CompactReport,
   type ComponentReport,
   type DiffInput,
   type DiffReport,
@@ -123,7 +124,7 @@ export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore;
       const fresh = previous?.id !== result.id || history.rounds(result.id).length === 0
       if (fresh) history.reset(result.id)
       await linkTwins({store, id: result.id, session})
-      const first = await runs.trigger({id: result.id, session, observe: fresh, input: DEFAULT_DIFF}).catch(() => null)
+      const first = await runs.trigger({id: result.id, session, observe: false, input: DEFAULT_DIFF}).catch(() => null)
       return first === null ? result : {...result, stage: first.stage, brief: first.brief}
     },
     run: async ({input: query, session}) => {
@@ -149,7 +150,9 @@ export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore;
 
 export const SERVER_STEPS = [
   targetDef.server((input, ctx: DesignContext, request) => ctx.differ.register({input, session: request.sessionId})),
-  diffDef.server((input, ctx: DesignContext, request) => ctx.differ.run({input, session: request.sessionId})),
+  diffDef.server(async (input, ctx: DesignContext, request) =>
+    shaped({report: await ctx.differ.run({input, session: request.sessionId}), full: input.full === true}),
+  ),
   statusDef.server((_input, ctx: DesignContext, request) => ctx.differ.status({session: request.sessionId})),
   captureDef.server(captureStep),
   winnerDef.server(winnerStep),
@@ -213,7 +216,9 @@ async function runDiff(request: {
   const decisions = await design.store.decisions(record.id)
   const model = cssModel(await design.store.model(record.id))
   const dropped = droppedNodes({decisions, nodes: model.nodes})
-  const reading = await measure({width: record.width, height: record.height, timeout: TOLERANCES.runBudgetMs, page})
+  const measureStart = Date.now()
+  const reading = await measure({width: record.width, height: record.height, page})
+  const compareStart = Date.now()
   const droppedBoxes = model.nodes.filter((node) => dropped.has(node.id)).map((node) => node.box)
   const live = {
     ...reading,
@@ -234,9 +239,11 @@ async function runDiff(request: {
     boxes: agreeing.map((box) => expand({box, by: TOLERANCES.glyphHalo + TOLERANCES.blurRadius})),
   })
   const pixels = comparePages({live: masked, target: model.raster, comparator: design.comparators.pixel})
+  const compareEnd = Date.now()
   const nodes = model.nodes.filter((node) => !dropped.has(node.id))
   const pins = pinsFrom(decisions)
   const placements = await twinPlacements({store: design.store, id: record.id})
+  const pairStart = Date.now()
   const paired = design.pairer({
     components: live.components,
     nodes,
@@ -245,8 +252,9 @@ async function runDiff(request: {
     tolerances: TOLERANCES,
     live: live.raster,
     target: model.raster,
-    deadline: started + TOLERANCES.runBudgetMs,
+    deadline: pairStart + TOLERANCES.pairBudgetMs,
   })
+  const pairEnd = Date.now()
   const typography = await estimateTypography({
     texts: paired.matched.flatMap((entry) =>
       entry.node.kind === 'text' ? [{node: entry.node, owner: entry.component}] : [],
@@ -311,18 +319,26 @@ async function runDiff(request: {
     residualShare: residualShare({measured, unmatched, masks: droppedBoxes, page: page0}),
   })
   const rounds = history.rounds(record.id)
+  const advances = job.observe && !paired.partial
   const verdict = judge({
     items,
     score,
     capturePath: live.capturePath,
-    priors: job.observe ? rounds : rounds.slice(0, -1),
-    round: job.observe ? rounds.length : Math.max(0, rounds.length - 1),
+    priors: advances ? rounds : rounds.slice(0, -1),
+    round: advances ? rounds.length + 1 : rounds.length,
     ranker: design.ranker,
     warnings,
     color,
+    partial: paired.partial,
   })
-  if (job.observe) history.append({id: record.id, round: roundRecord({items, score, capturePath: live.capturePath})})
+  if (advances) history.append({id: record.id, round: roundRecord({items, score, capturePath: live.capturePath})})
   const pageWidth = Math.min(live.raster.width, model.raster.width)
+  const timings = {
+    measure: compareStart - measureStart,
+    compare: compareEnd - compareStart,
+    pair: pairEnd - pairStart,
+    total: Date.now() - started,
+  }
   return design.store.writeRun({
     id: record.id,
     live: live.raster,
@@ -330,6 +346,7 @@ async function runDiff(request: {
     pairs: matched.map((entry) => ({node: entry.node.id, path: entry.component.path, confidence: entry.confidence})),
     result: {
       ...verdict,
+      timings,
       target: {id: record.id, ...(record.route === undefined ? {} : {route: record.route}), width: record.width},
       xray: xray.url,
       mismatch: rounded(pixels.mismatch),
@@ -340,12 +357,12 @@ async function runDiff(request: {
       capturePath: live.capturePath,
       sources: measuredSources(live),
       responsive: await responsiveSection({store: design.store, id: record.id, model}),
-      partial: paired.partial || Date.now() - started > TOLERANCES.runBudgetMs,
+      partial: paired.partial,
       pinsLost: pins
         .filter((pin) => !matched.some((entry) => entry.node.id === pin.node && entry.component.path === pin.path))
         .map((pin) => pin.decision),
       ...(live.limits === undefined ? {} : {limits: live.limits}),
-      ...reportHint({attributed: live.components.length > 0, absolute: xray.absolute}),
+      ...reportHint({attributed: live.components.length > 0, absolute: xray.absolute, partial: paired.partial}),
     },
   })
 }
@@ -646,6 +663,7 @@ function offsetEntries(input: {offsets: Offset[]; measured: Measured[]}): Unmatc
         target: pair.targetBox,
         stage: 'geometry',
         shift: rounded2,
+        node: pair.node.id,
         ...(pair.live.source === null ? {} : {source: pair.live.source}),
       },
     ]
@@ -1143,6 +1161,28 @@ type RouteItem = NonNullable<DiffReport['route']>
 
 const HINT = 'no element carries data-conciv-source; the page is not a dev build compiled by the conciv plugin'
 const ORIGIN_HINT = 'the conciv engine origin is unknown, so xray is a path on the engine and not a full url'
+const COMPACT_FIELDS = [
+  'target',
+  'round',
+  'budgetLeft',
+  'stage',
+  'stop',
+  'score',
+  'mismatch',
+  'brief',
+  'timings',
+  'rows',
+  'xray',
+  'diffImage',
+  'livePath',
+  'capturePath',
+  'sources',
+  'partial',
+  'hint',
+] as const satisfies readonly (keyof CompactReport & keyof DiffReport)[]
+const CARRIED_FIELDS = ['components', 'unmatched', 'warnings', 'responsive', 'route'] as const
+const PARTIAL_HINT =
+  'the run was cut short during pairing, so some nodes were never paired and its numbers are not comparable with other rounds; the round was not counted'
 const MISMATCH_PRECISION = 10_000
 
 async function currentTarget(input: {design: DesignRuntime; session: string}): Promise<TargetRecord> {
@@ -1283,14 +1323,29 @@ function sourced(input: {delta: Delta; pair: Pair}): Delta {
   return {...input.delta, via: 'source', file: source.file, line: source.line, column: source.column}
 }
 
-function reportHint(input: {attributed: boolean; absolute: boolean}): {hint?: string} {
-  const hints = [input.attributed ? null : HINT, input.absolute ? null : ORIGIN_HINT].filter((hint) => hint !== null)
+function reportHint(input: {attributed: boolean; absolute: boolean; partial: boolean}): {hint?: string} {
+  const hints = [
+    input.partial ? PARTIAL_HINT : null,
+    input.attributed ? null : HINT,
+    input.absolute ? null : ORIGIN_HINT,
+  ].filter((hint) => hint !== null)
   return hints.length === 0 ? {} : {hint: hints.join('; ')}
 }
 
 function runTime(report: DiffReport): number | null {
   const at = Number(basename(report.livePath).split('-')[1])
   return Number.isFinite(at) ? at : null
+}
+
+function shaped(input: {report: DiffReport; full: boolean}): CompactReport {
+  const {report} = input
+  const counts = {
+    components: report.components.length,
+    unmatched: report.unmatched.length,
+    warnings: report.warnings.length,
+  }
+  if (input.full) return {...report, counts}
+  return {...pick(report, COMPACT_FIELDS), ...pick(report, CARRIED_FIELDS), counts}
 }
 
 async function captureStep(

@@ -78,7 +78,22 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 
 - `design_target` registers a PNG (a file under the project, or base64) as the design of a route at a width. It
   replaces an earlier target of the same route and width.
-- `design_diff` captures the live page and compares it with the target.
+- `design_diff` captures the live page and compares it with the target. It returns the compact report: `target`,
+  `round`, `budgetLeft`, `stage`, `stop`, `score`, `mismatch`, `brief`, `timings`, `counts` (components, unmatched
+  entries and warnings in the full report), `rows` (the first ten items of the stage, in brief order, each with its
+  sentence, stage, design node and source), `xray`, `diffImage`, `livePath`, `capturePath`, `sources`, `partial` and
+  `hint`. For now it also carries `components`, `unmatched`, `warnings`, `responsive` and `route`, which the
+  integration cases read from the default output. `design_diff({full: true})` returns the full report with every
+  component and delta; the store, `design_status` and the x-ray always hold the full one.
+- `timings` gives the milliseconds of one run: `measure` (the page call, bounded by `measureTimeoutMs` 60000),
+  `compare` (text groups, painting over and the pixel compare), `pair` (the pairer, bounded by `pairBudgetMs` 20000
+  counted from the moment pairing starts) and `total`.
+- A run whose pairing hits `pairBudgetMs` is `partial`: it is not added to the round history, keeps the `round` and
+  `budgetLeft` of the run before, reports `stop: null`, and its `hint` says pairing was cut short and the numbers are
+  not comparable.
+- Run 0, the run `design_target` starts, gives the first `stage` and `brief` and is stored for the x-ray, but it is
+  never a prior for `stalled` or `oscillating`: the history starts at the first `design_diff`. When `stop` is
+  `stalled`, the first brief line names how many items stayed unchanged for two rounds and the first three of them.
 - `design_status` reports the session's current target and its last run, and runs nothing. `score` is the tuple
   `[unpairedShare, structure, content, geometry, paint, residualShare]`, compared left to right, lower is better.
   `round` counts the `design_diff` calls since the image was registered or the last run was accepted. `stop` is
