@@ -4,6 +4,7 @@ const port = process.env.NEXT_PUBLIC_CONCIV_PORT
 
 async function startWidget(): Promise<void> {
   window.__CONCIV_API_BASE__ = `http://127.0.0.1:${port}`
+  window.__CONCIV_HUB_BASE__ = window.location.origin
   const [{entries}, {mountConciv}, {dedupeExtensions}] = await Promise.all([
     import('@conciv/app-extensions'),
     import('@conciv/embed'),
@@ -29,6 +30,7 @@ if (typeof window !== 'undefined' && port && process.env.NODE_ENV !== 'productio
 declare global {
   interface Window {
     __CONCIV_API_BASE__?: string
+    __CONCIV_HUB_BASE__?: string
   }
 }
 

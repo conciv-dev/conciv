@@ -18,6 +18,7 @@ import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
 import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
+import {trustedApiBase, type HubConnection} from '@conciv/app/devframe-link'
 import {makeNavigationStorage} from './navigation-storage.js'
 import type {ConcivInit} from './mount.js'
 
@@ -126,6 +127,7 @@ type BootNormalConfig = {
   apiBase: string
   grabProvider?: GrabProvider
   connectMode?: boolean
+  hub?: HubConnection
 }
 
 type MountedRouter = {options: {context: {instances: {extension: ClientExtension; effects: readonly ClientEffect[]}[]}}}
@@ -166,6 +168,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
   const interactive = createInteractiveSignal()
   const router = createConcivRouter({
     rpc,
+    hubConnection: config.hub,
     history: createWebStorageHistory({storage}),
     environment: {rootNode: config.root, document},
     settings: config.settings,
@@ -221,6 +224,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     () => router.options.context.queryClient.clear(),
     driver.dispose,
     closeConnection,
+    () => config.hub?.close(),
     interactive.notify,
   ]
   return {dispose: () => runDisposers(disposers), rebind, interactive: interactive.promise}
@@ -287,17 +291,23 @@ function bootConnect(config: BootConnectConfig): BootResult {
   return {dispose: () => runDisposers(disposers), interactive: interactive.promise}
 }
 
+async function bootLinked(config: BootNormalConfig): Promise<BootResult> {
+  const link = await trustedApiBase(config.root, config.apiBase)
+  window.__CONCIV_API_BASE__ = link.apiBase
+  return bootNormal({...config, apiBase: link.apiBase, hub: link.hub})
+}
+
 async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
   const supplied = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
   const extensions = [pageExtension, ...supplied]
   const settings = initSettings(init)
   const grabProvider = init.grabProvider
   const apiBase = init.apiBase ?? resolveApiBase()
-  if (apiBase) return bootNormal({root, extensions, settings, apiBase, grabProvider})
+  if (apiBase) return bootLinked({root, extensions, settings, apiBase, grabProvider})
   const gate = extensions.find((extension) => extension.connectGate)
   if (!gate?.connectGate) return bootNormal({root, extensions, settings, apiBase, grabProvider})
   const found = await gate.connectGate.preflight()
-  if (found) return bootNormal({root, extensions, settings, apiBase: found, grabProvider, connectMode: true})
+  if (found) return bootLinked({root, extensions, settings, apiBase: found, grabProvider, connectMode: true})
   return bootConnect({root, extensions, settings, grabProvider})
 }
 
