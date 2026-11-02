@@ -83,6 +83,22 @@ button {
   height: 34.5px;
 }
 
+.table.bordered th,
+.table.bordered td {
+  border-bottom-color: #c2410c;
+}
+
+.table.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.table.grid thead,
+.table.grid tbody,
+.table.grid tr {
+  display: contents;
+}
+
 @font-face {
   font-family: 'Source Sans 3';
   src: url('/fonts/source-sans-3-400.woff2') format('woff2');

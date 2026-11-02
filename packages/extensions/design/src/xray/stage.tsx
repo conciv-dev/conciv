@@ -199,7 +199,7 @@ function Outline(props: {row: Row; class: string}): JSX.Element {
           y={shape().y}
           width={shape().w}
           height={shape().h}
-          stroke-dasharray={props.row.unmatched === 'missing' ? DASH : undefined}
+          stroke-dasharray={props.row.unmatched === 'unbuilt' ? DASH : undefined}
           vector-effect="non-scaling-stroke"
         />
       )}

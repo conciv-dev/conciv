@@ -179,7 +179,7 @@ const screenshotTool = screenshotDef.client(screenshot).render(readValueCard)
 
 const waitForHotUpdate = watchHotUpdates(import.meta.hot)
 
-const hmrTool = hmrDef.client((input) => waitForHotUpdate(input.timeout)).render(readValueCard)
+const hmrTool = hmrDef.client((input) => waitForHotUpdate(input)).render(readValueCard)
 
 const locateTool = locateDef
   .client(async (input, ctx) => {

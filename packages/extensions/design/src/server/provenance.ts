@@ -185,7 +185,7 @@ type Candidates = (input: {delta: Delta; axis: LiveComponent['axis']}) => string
 
 const ALIGNMENT = ['justify-content', 'align-items']
 
-const PARENT_PROPERTIES: readonly string[] = ['gap']
+const PARENT_PROPERTIES: readonly string[] = ['gap', 'flex-direction', 'display']
 
 function inset(side: 'left' | 'right' | 'top' | 'bottom'): Candidates {
   const size = side === 'top' || side === 'bottom' ? ['min-height', 'height'] : ['min-width', 'width']
@@ -207,7 +207,6 @@ const DELTA_PROPERTIES = {
   'inset-bottom': inset('bottom'),
   'gap-before': gap(true),
   'gap-after': gap(false),
-  fill: () => ['flex', 'width', 'max-width'],
   align: () => [...ALIGNMENT, 'margin'],
   padding: ({delta}) => (delta.side === 'y' ? ['padding-top', 'padding-bottom'] : ['padding-left', 'padding-right']),
   fontSize: () => ['font-size'],
@@ -216,6 +215,9 @@ const DELTA_PROPERTIES = {
   background: () => ['background-color'],
   foreground: () => ['color'],
   radius: () => ['border-radius'],
+  border: ({delta}) => [`border-${delta.side ?? 'top'}-color`, 'border-color', 'border'],
+  axis: () => ['flex-direction', 'display'],
+  columns: () => ['grid-template-columns'],
   text: () => [],
 } as const satisfies Record<DeltaKindName, Candidates>
 
@@ -643,12 +645,12 @@ export async function readLiveText(input: {cwd: string; source: SourceLoc | null
   return kind === null ? null : {role: kind, literals: found.literals}
 }
 
-type Lookup = {property: string; owner: Pair}
+type Lookup = {property: string; owner: Pick<Pair, 'selector' | 'live'>}
 
 export function lookups(input: {delta: Delta; pair: Pair}): Lookup[] {
   const {delta, pair} = input
   return DELTA_PROPERTIES[delta.kind]({delta, axis: pair.live.axis}).flatMap((property) => {
-    const owner = PARENT_PROPERTIES.includes(property) ? pair.parent : pair
+    const owner = PARENT_PROPERTIES.includes(property) ? pair.host : pair
     return owner === null ? [] : [{property, owner}]
   })
 }

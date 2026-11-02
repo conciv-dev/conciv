@@ -32,11 +32,13 @@ src/
     tolerances.ts      TOLERANCES, designConfig, frame message names, source attribute, property aliases, tolerance counts
   server/
     target.ts          ADAPTERS, TEXT_READERS (PaddleOCR), ENRICHERS, SEGMENTERS, ROLE_RULES and the registration pipeline
-    deltas.ts          DELTA_KINDS, COLOR_METRICS, sampled fills and glyph ink color, sideFrom
+    deltas.ts          DELTA_KINDS (border, axis and columns included), COLOR_METRICS, sampled fills and glyph ink color, sideFrom
     provenance.ts      MAPPERS, mapDeclaration, the CSS source map, JSX site reading and live text roles
     raster.ts          pure pixel and box operations
     store.ts           the target store on disk
-    differ.ts          PIXEL_COMPARATORS, GEOMETRY, MATCHERS, CAPTURES, text groups, unmatched regions, the diff run and the tool bindings
+    pair.ts            PAIRERS (the calibrated vote), RANKERS (impact), the pair tree, alignment offsets and pairTwins
+    loop.ts            items, stages, score, brief and stop rules, round history, the run queue and the HMR settle trigger
+    differ.ts          PIXEL_COMPARATORS, text groups, the diff run, unbuilt, extra and offset entries, and the tool bindings
     xray-routes.ts     HTTP routes for the x-ray
   xray/
     entry.tsx          mount
@@ -71,8 +73,8 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 - `design_target` registers a PNG (a file under the project, or base64) as the design of a route at a width. It
   replaces an earlier target of the same route and width.
 - `design_diff` captures the live page and compares it with the target.
-- `design_status` reports, per registered width, whether the last diff left anything above tolerance. A route is
-  `done` when no component is above tolerance and nothing is unmatched.
+- `design_status` reports the current target's last run: score, round, stop and `done`, which holds when the stop
+  is `done` or the score is no worse than the accepted run's on the same capture path.
 - `design_capture`, `design_winner` and `design_clear` capture the page, name the CSS declaration that wins a
   property, and remove targets.
 

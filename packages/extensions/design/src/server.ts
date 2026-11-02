@@ -7,7 +7,9 @@ import {designConfig, type DesignConfig} from './shared/tolerances.js'
 import {DESIGN_EXTENSION_NAME, DESIGN_GUIDE} from './shared/defs.js'
 import type {CssMap, DesignRuntime} from './shared/types.js'
 import {COLOR_METRICS, DELTA_KINDS} from './server/deltas.js'
-import {createDiffer, GEOMETRY, MATCHERS, PIXEL_COMPARATORS, SERVER_STEPS} from './server/differ.js'
+import {createDiffer, PIXEL_COMPARATORS, SERVER_STEPS} from './server/differ.js'
+import {watchSettled} from './server/loop.js'
+import {PAIRERS, RANKERS} from './server/pair.js'
 import {buildCssMap, MAPPERS} from './server/provenance.js'
 import {createTargetStore} from './server/store.js'
 import {ADAPTERS, destroyPaddle, ENRICHERS, ROLE_RULES, SEGMENTERS, TEXT_READERS} from './server/target.js'
@@ -22,11 +24,11 @@ function pickRuntime(input: {
     cwd: input.server.cwd,
     comparators: {
       pixel: PIXEL_COMPARATORS[config.comparator],
-      geometry: GEOMETRY[config.geometry],
       color: COLOR_METRICS[config.color],
       text: TEXT_READERS[config.text],
     },
-    matcher: MATCHERS[config.matcher],
+    pairer: PAIRERS[config.pairer],
+    ranker: RANKERS[config.ranker],
     adapters: ADAPTERS,
     enrichers: ENRICHERS,
     segmenter: SEGMENTERS[config.segmenter],
@@ -94,8 +96,10 @@ export const design = defineExtension({
       }
     },
   }
+  const differ = createDiffer({runtime, store, page: server.page})
+  const settled = watchSettled({bundler: server.bundler, store, page: server.page, refresh: differ.refresh})
   return {
-    context: {design: runtime, differ: createDiffer({runtime, store, page: server.page})},
+    context: {design: runtime, differ},
     systemPrompt: async ({sessionId}) =>
       (await store.current({session: sessionId})) === null ? undefined : DESIGN_GUIDE,
     router: makeXrayRouter({store, designDir, sourceChangedAt: changes.sourceChangedAt}),
@@ -104,6 +108,7 @@ export const design = defineExtension({
       await destroyPaddle()
       css.dispose()
       changes.dispose()
+      settled()
     },
   }
 })

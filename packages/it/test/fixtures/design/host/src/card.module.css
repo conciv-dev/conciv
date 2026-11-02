@@ -31,3 +31,7 @@
     gap: 16px;
   }
 }
+
+.column {
+  flex-direction: column;
+}

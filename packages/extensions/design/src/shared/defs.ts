@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
 import {defineTool, type ToolBuilder, type ToolErrors} from '@conciv/extension/tool'
+import {TOLERANCES} from './tolerances.js'
 import type {LiveComponent} from './types.js'
 
 export const DESIGN_EXTENSION_NAME = 'design'
@@ -24,7 +25,6 @@ const DELTA_KIND_NAMES = [
   'inset-bottom',
   'gap-before',
   'gap-after',
-  'fill',
   'align',
   'padding',
   'fontSize',
@@ -33,8 +33,19 @@ const DELTA_KIND_NAMES = [
   'background',
   'foreground',
   'radius',
+  'border',
+  'axis',
+  'columns',
   'text',
 ] as const
+
+export const STAGES = ['structure', 'content', 'geometry', 'paint'] as const
+
+export type Stage = (typeof STAGES)[number]
+
+export const STOPS = ['done', 'residual-only', 'oscillating', 'stalled', 'budget'] as const
+
+export type Stop = (typeof STOPS)[number]
 
 const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
 
@@ -62,7 +73,14 @@ export const LiveStylesSchema = z.object({
   fontWeight: z.number(),
   fontFamily: z.string(),
   radius: z.number(),
-  border: z.object({width: z.number(), style: z.string(), color: z.string()}).describe('the top border'),
+  border: z
+    .object({
+      width: z.number(),
+      style: z.string(),
+      color: z.string(),
+      side: z.enum(['top', 'right', 'bottom', 'left']),
+    })
+    .describe('the widest painted border side, the top one when none is painted'),
 })
 
 export const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
@@ -79,6 +97,8 @@ const LiveComponentSchema = z.object({
   axis: z.enum(['row', 'column']).nullable(),
   columns: z.number().nullable().describe('track count of grid-template-columns, null when not a grid'),
   styles: LiveStylesSchema,
+  role: z.string().nullable().describe('the role attribute'),
+  hints: z.array(z.string()).describe('class names and the aria-label, tokens for pairing'),
   index: z.number().describe('position among the DOM siblings, 1-based'),
   path: z.string().describe('sibling positions from the root joined by /, with s entering a shadow root'),
   children: z.array(z.record(z.string(), z.unknown())).describe('nested components of the same shape'),
@@ -109,10 +129,26 @@ const DeltaSchema = ProvenanceSchema.partial().extend({
 })
 
 const UnmatchedSchema = z.object({
-  kind: z.enum(['missing', 'extra']),
+  kind: z
+    .enum(['unbuilt', 'extra', 'offset'])
+    .describe(
+      'unbuilt: a design node nothing renders; extra: an element the design lacks; offset: a misplaced element',
+    ),
   target: BoxSchema.optional(),
   live: BoxSchema.optional(),
   source: SourceLocSchema.optional(),
+  label: z.string().optional().describe('the design text of an unbuilt text node, or its kind'),
+  stage: z.enum(STAGES).nullable().optional().describe('the stage the entry counts in; null when it is informational'),
+  shift: z.object({dx: z.number(), dy: z.number()}).optional().describe('how far an offset entry moved, in px'),
+})
+
+const ResponsiveSchema = z.object({
+  target: z.string().describe('the other design target'),
+  width: z.number(),
+  twins: z.number().describe('nodes of this design with a twin in the other one'),
+  absent: z.array(z.string()).describe('nodes of this design the other one lacks'),
+  reordered: z.array(z.string()).describe('nodes whose reading order changes between the two'),
+  stretched: z.array(z.string()).describe('nodes that span the width in one design and not in the other'),
 })
 
 const WinnerSchema = z.object({
@@ -140,6 +176,8 @@ const TargetResultSchema = z.object({
   height: z.number(),
   scale: z.number(),
   text: z.object({runs: z.number(), error: z.string().optional()}).optional(),
+  stage: z.enum(STAGES).nullable().optional().describe('the stage of run 0, measured at registration'),
+  brief: z.array(z.string()).optional().describe('what to fix first, from run 0'),
   next: z.string(),
 })
 
@@ -176,6 +214,18 @@ export const DiffReportSchema = z.object({
   capturePath: CapturePathSchema.optional().describe('how the pixels of this run were taken'),
   sources: z.array(MeasureSourceSchema).default([]).describe('where the boxes and styles were read'),
   limits: MirrorLimitsSchema.optional().describe('what the mirror could not reproduce'),
+  stage: z.enum(STAGES).nullable().default(null).describe('the stage to fix now: the first with an item'),
+  brief: z.array(z.string()).default([]).describe('what to fix this round, in order'),
+  round: z.number().default(0).describe('design_diff calls since the target was registered'),
+  budgetLeft: z.number().default(TOLERANCES.roundBudget),
+  stop: z.enum(STOPS).nullable().default(null).describe('why the loop ends; null while it goes on'),
+  score: z
+    .array(z.number())
+    .default([])
+    .describe('unpaired share, structure, content, geometry, paint, residual share; lower is better'),
+  responsive: z.array(ResponsiveSchema).default([]).describe('how this design relates to the other designs'),
+  partial: z.boolean().default(false).describe('the run hit its time budget before every node was paired'),
+  pinsLost: z.array(z.string()).default([]).describe('pin decisions whose node or element is gone'),
 })
 
 export type DiffReport = z.infer<typeof DiffReportSchema>
@@ -192,6 +242,10 @@ const StatusReportSchema = z.object({
     }),
   ),
   done: z.boolean(),
+  score: z.array(z.number()).optional(),
+  round: z.number().optional(),
+  stop: z.enum(STOPS).nullable().optional(),
+  acceptedRun: z.string().optional(),
   next: z.string().optional(),
   reregister: z.boolean().optional().describe('the stored target is unreadable; register the design image again'),
 })

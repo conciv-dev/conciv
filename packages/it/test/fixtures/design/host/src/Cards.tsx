@@ -2,7 +2,7 @@ import styles from './card.module.css'
 
 const TITLES = ['Revenue', 'Invoices', 'Customers']
 const TARGET_TITLES = TITLES.filter((title) => title !== 'Invoices')
-export function Cards(props: {variant: string | null}) {
+export function Cards(props: {variant: string | null; column?: boolean}) {
   const titles = props.variant === 'target' || props.variant === 'mobile-gap' ? TARGET_TITLES : TITLES
   function card(title: string) {
     return (
@@ -13,5 +13,6 @@ export function Cards(props: {variant: string | null}) {
     )
   }
   const gap = props.variant === 'mobile-gap' ? styles.mobileGap : ''
-  return <section className={`${styles.cards} ${gap}`}>{titles.map(card)}</section>
+  const column = props.column ? styles.column : ''
+  return <section className={`${styles.cards} ${gap} ${column}`}>{titles.map(card)}</section>
 }
