@@ -1180,7 +1180,6 @@ const COMPACT_FIELDS = [
   'partial',
   'hint',
 ] as const satisfies readonly (keyof CompactReport & keyof DiffReport)[]
-const CARRIED_FIELDS = ['components', 'unmatched', 'warnings', 'responsive', 'route'] as const
 const PARTIAL_HINT =
   'the run was cut short during pairing, so some nodes were never paired and its numbers are not comparable with other rounds; the round was not counted'
 const MISMATCH_PRECISION = 10_000
@@ -1345,7 +1344,7 @@ function shaped(input: {report: DiffReport; full: boolean}): CompactReport {
     warnings: report.warnings.length,
   }
   if (input.full) return {...report, counts}
-  return {...pick(report, COMPACT_FIELDS), ...pick(report, CARRIED_FIELDS), counts}
+  return {...pick(report, COMPACT_FIELDS), counts}
 }
 
 async function captureStep(

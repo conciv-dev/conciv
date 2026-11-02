@@ -100,6 +100,9 @@ function makeCall(rpc: RpcClient): Call {
   function call(name: 'design_winner', input: z.input<typeof WinnerInputSchema>): Promise<WinnerResult>
   function call(name: 'design_clear', input: z.input<typeof ClearInputSchema>): Promise<ClearResult>
   async function call(name: string, input: Record<string, unknown>): Promise<unknown> {
+    if (name === diffDef.name) {
+      return DiffReportSchema.parse(await rpc.registry.call({name, input: {full: true, ...input}}))
+    }
     const def = DESIGN_TOOL_DEFS.find((candidate) => candidate.name === name)
     if (def?.outputSchema === undefined) throw new Error(`no design tool named ${name}`)
     return def.outputSchema.parse(await rpc.registry.call({name, input}))
@@ -1674,13 +1677,21 @@ describe('loop', () => {
     )
   })
 
-  it('the default diff output is compact with rows and counts, and full: true holds every component', async () => {
+  it('the default diff output is compact with rows and counts, and full: true holds every component', async ({
+    annotate,
+  }) => {
     await goto('bordered')
     await freshTarget('u1-1280')
     const compact = await rpc.registry.call({name: 'design_diff', input: {}})
     expect(compact).toHaveProperty('counts.components')
     expect(compact).not.toHaveProperty('segmentation')
     expect(compact).not.toHaveProperty('pinsLost')
+    await annotate(`compact output ${JSON.stringify(compact).length} characters`)
+    expect(
+      ['components', 'unmatched', 'warnings', 'responsive', 'route'].filter((field) =>
+        Object.hasOwn(Object(compact), field),
+      ),
+    ).toEqual([])
     const {rows, brief} = z
       .object({rows: z.array(z.object({sentence: z.string(), stage: z.string()})), brief: z.array(z.string())})
       .parse(compact)

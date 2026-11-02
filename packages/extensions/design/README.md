@@ -82,8 +82,7 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   `round`, `budgetLeft`, `stage`, `stop`, `score`, `mismatch`, `brief`, `timings`, `counts` (components, unmatched
   entries and warnings in the full report), `rows` (the first ten items of the stage, in brief order, each with its
   sentence, stage, design node and source), `xray`, `diffImage`, `livePath`, `capturePath`, `sources`, `partial` and
-  `hint`. For now it also carries `components`, `unmatched`, `warnings`, `responsive` and `route`, which the
-  integration cases read from the default output. `design_diff({full: true})` returns the full report with every
+  `hint`. `design_diff({full: true})` returns the full report with every
   component and delta; the store, `design_status` and the x-ray always hold the full one.
 - `timings` gives the milliseconds of one run: `measure` (the page call, bounded by `measureTimeoutMs` 60000),
   `compare` (text groups, painting over and the pixel compare), `pair` (the pairer, bounded by `pairBudgetMs` 20000
