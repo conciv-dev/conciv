@@ -915,9 +915,12 @@ createPageScriptChannel({
    call them through `context.agent.invoke(id, args)`.
 2. **Syncing needs the MCP flag.** The Devframe client starts the browser tool sync only when
    the connection meta carries `mcp`, and the meta carries `mcp` only when the hub mounts its
-   own MCP route at `<base>__mcp`. The plane passes `mcp: false` today. Turning it on adds
-   Devframe's MCP endpoint beside conciv's `/api/mcp`. Open question: keep both, or let
-   Devframe's route replace conciv's.
+   own MCP route at `<base>__mcp`. The plane passes `mcp: false` today. Devframe's route cannot
+   replace conciv's `/api/mcp`: it refuses requests without an `Origin` header, which the
+   harness CLIs never send, and it has no chat session, which `/api/mcp` reads from request
+   headers for session routing, code mode and the result cap. Decided: mount Devframe's route
+   only to turn the sync on, closed with an empty `allowedOrigins` (to be confirmed against
+   the `@devframes/agentic` source before code lands).
 3. **The page sends only the basic fields.** A synced tool carries `id`, `title`,
    `description`, `safety`, `tags` and an input schema. It has no output schema, and none of
    conciv's `name`, `approval` or `meta` fields (category, label, icon, keywords, hint).
@@ -929,8 +932,9 @@ createPageScriptChannel({
 4. **Routing differs.** Devframe picks the most recently focused tab. conciv routes a page call
    to the tab bound to the chat session (`env.tabs.ask(sessionId, ...)` in
    `packages/core/src/tool-registry.ts`). With two tabs open on two sessions, Devframe's choice
-   can run a tool in the wrong tab. The bridge can pass `client_id` for the session's tab,
-   which needs a map from session to Devframe client id.
+   can run a tool in the wrong tab. Decided: the bridge keeps an internal map from chat session
+   to the Devframe client id of that session's tab and passes it as `client_id` on every page
+   call. Devframe still does the routing; no public API changes.
 5. **The page-change log and captures stay on the server.** `runClientTool` appends every
    mutating page call to the session journal and stores captured screenshots. The bridge does
    this around `context.agent.invoke`, as it does today.
@@ -938,8 +942,8 @@ createPageScriptChannel({
    page side must wrap errors the way `defineConcivFunction` does (`toWireError`), and the
    bridge already applies `fromWireError`. No test covers this path yet.
 
-The in-page channel needs no new public API. Items 3 and 4 do need it: a server-side
-declaration of the meta for page tools, and the session-to-tab map.
+The in-page channel needs no new public API. Item 3 does: a server-side declaration of the
+meta for page tools.
 
 ### PR 19: Settings page and mode switch
 
