@@ -1727,7 +1727,7 @@ describe('rpc wire', () => {
         expect(tools.find((tool) => tool.name === 'fixture_echo')?.description).toBe(ECHO_DESCRIPTION)
         const models = await chatKit().rpc.meta.models(undefined)
         expect(models.models.map((model) => model.id)).toEqual(expect.arrayContaining(['opus', 'sonnet', 'haiku']))
-        expect(models.defaultModel).toBe('sonnet')
+        expect(models.defaultModel).toBe('opus')
       })
     })
 

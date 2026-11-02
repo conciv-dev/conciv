@@ -6,8 +6,8 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 
 ## Interface
 
-- `claude` (`index.ts`): `defineHarness({id: 'claude', binName: 'claude', defaultModel: 'sonnet', ...})` with capabilities `permissionGate: 'callback'`, `systemPrompt: 'file'`, `mcp: 'http'`, `slashCommands: 'live'`, `imageInput: 'fileRef'`, `init: 'files'`, plus resume, transcriptHistory and compaction.
-- `CLAUDE_MODELS` (`index.ts`, not exported): opus, sonnet, haiku (contextWindow 200000) and `claude-fable-5` with `disabled: true`.
+- `claude` (`index.ts`): `defineHarness({id: 'claude', binName: 'claude', defaultModel: 'opus', ...})` with capabilities `permissionGate: 'callback'`, `systemPrompt: 'file'`, `mcp: 'http'`, `slashCommands: 'live'`, `imageInput: 'fileRef'`, `init: 'files'`, plus resume, transcriptHistory and compaction.
+- `claudeSdkModels()` (`sdk.ts`): the account's live model list from the Agent SDK `supportedModels()` (the same list as Claude Code's `/model`), probed once per process and cached. The `default` alias row is dropped; `[1m]` ids get a 1M context window, the rest 200000. A failed probe falls back to opus, sonnet, haiku and is retried on the next call.
 - `CHAT_SYSTEM_PROMPT` (`system-prompt.ts`, re-exported): names `execute_typescript`, `discover_tools`, `external_conciv_ui`; says native `AskUserQuestion` is disabled.
 - `mcpServerConfig(mcpUrl, sessionId?)`, `claudeMcpArgs` (adds `--strict-mcp-config`), `claudeMcpArgsPermissive`, `claudeConnectArgs(ctx)` (`args.ts`).
 - `CLAUDE_ASK_RULES`, `claudeAskSettingsFile()` (`ask-rules.ts`): `permissions.ask` rules for risky git/rm/chmod/chown/sudo Bash commands, written to a temp settings file.
