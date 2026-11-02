@@ -645,13 +645,13 @@ describe('event bus', () => {
 
 describe('page wire', () => {
   describe('page wire envelope', () => {
-    it('carries requestId, name and input and nothing kind-shaped', () => {
-      const parsed = PageQuerySchema.parse({requestId: 'pq1', name: 'page_click', input: {selector: '#go'}})
-      expect(parsed).toEqual({requestId: 'pq1', name: 'page_click', input: {selector: '#go'}})
+    it('carries name and input and nothing kind-shaped', () => {
+      const parsed = PageQuerySchema.parse({name: 'page_click', input: {selector: '#go'}})
+      expect(parsed).toEqual({name: 'page_click', input: {selector: '#go'}})
     })
 
     it('rejects a nameless query', () => {
-      expect(PageQuerySchema.safeParse({requestId: 'pq1', input: {}}).success).toBe(false)
+      expect(PageQuerySchema.safeParse({input: {}}).success).toBe(false)
     })
   })
 })
