@@ -44,6 +44,7 @@ function handshakeResponse(upstream: IncomingMessage): string {
 
 export async function proxyTo(targetBase: string): Promise<ProxyCore> {
   const target = new URL(targetBase)
+  const prefix = target.pathname.replace(/\/$/, '')
   const refused = new Set<string>()
   const piped = new Set<Duplex>()
   const completions: Completion[] = []
@@ -72,7 +73,7 @@ export async function proxyTo(targetBase: string): Promise<ProxyCore> {
       {
         hostname: target.hostname,
         port: target.port,
-        path: req.url,
+        path: `${prefix}${req.url ?? '/'}`,
         method: req.method,
         headers: {...req.headers, host: target.host},
       },
@@ -93,7 +94,7 @@ export async function proxyTo(targetBase: string): Promise<ProxyCore> {
     const proxyReq = httpRequest({
       hostname: target.hostname,
       port: target.port,
-      path: req.url,
+      path: `${prefix}${req.url ?? '/'}`,
       method: req.method,
       headers: {...req.headers, host: target.host},
     })

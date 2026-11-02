@@ -30,7 +30,8 @@
     "./push-wire": "./src/push-wire.ts",
     "./rpc-fault": "./src/rpc-fault.ts",
     "./chat-fault": "./src/chat-fault.ts",
-    "./devframe-faults": "./src/devframe-faults.ts"
+    "./devframe-faults": "./src/devframe-faults.ts",
+    "./trusted-tab": "./src/trusted-tab.ts"
   },
   "scripts": {
     "build": "vite build -c vite.test-host.config.ts",

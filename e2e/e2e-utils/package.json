@@ -7,6 +7,7 @@
   "exports": {
     "./config": "./src/config.ts",
     "./dev-endpoint": "./src/dev-endpoint.ts",
+    "./packed": "./src/packed.ts",
     "./ports": "./src/ports.ts",
     "./widget": "./src/widget.ts"
   },
@@ -14,6 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@conciv/extension-testkit": "workspace:*",
     "@playwright/test": "catalog:"
   },
   "devDependencies": {

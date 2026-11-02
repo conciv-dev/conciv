@@ -1,4 +1,4 @@
-import {mkdtempSync} from 'node:fs'
+import {mkdtempSync, rmSync} from 'node:fs'
 import type {IncomingMessage} from 'node:http'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
@@ -25,6 +25,7 @@ function testHost(stateDir: string, config: unknown): ConcivHost {
     cwd: stateDir,
     stateDir,
     basePath: '',
+    agentPath: '',
     sessions: {
       resumeToken: async () => null,
       recordToken: async () => {},
@@ -68,7 +69,12 @@ export async function serveDevframePlugin(
     devframes: [hostDevframe(options.host ?? testHost(stateDir, options.config)), plugin],
     getStorageDir: (scope) => join(stateDir, scope),
   })
-  await hub.ready
+  const abandon = async (error: unknown): Promise<never> => {
+    await hub.close().catch(() => {})
+    rmSync(stateDir, {recursive: true, force: true})
+    throw error
+  }
+  await hub.ready.catch(abandon)
   const served = await serveHono({
     fetch: hub.handler,
     claimUpgrade: (req: IncomingMessage, socket: Duplex, head: Buffer) => {
@@ -76,7 +82,7 @@ export async function serveDevframePlugin(
       hub.handleUpgrade(req, socket, head)
       return true
     },
-  })
+  }).catch(abandon)
   const url = `http://127.0.0.1:${served.port}${hub.base}`
   const client = nodeClient({url, transport: 'ws'})
   return {
@@ -85,8 +91,12 @@ export async function serveDevframePlugin(
     client,
     close: async () => {
       client.close()
-      await hub.close()
-      await served.close()
+      try {
+        await hub.close()
+      } finally {
+        await served.close()
+        rmSync(stateDir, {recursive: true, force: true})
+      }
     },
   }
 }

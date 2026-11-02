@@ -97,7 +97,7 @@ function isRouter(candidate: unknown): candidate is AnyRouter {
 
 export async function startTerminalServer(
   harness: ServerHarness = bashHarness,
-  opts: {basePath?: string; stateDir?: string} = {},
+  opts: {agentPath?: string; stateDir?: string} = {},
 ): Promise<TerminalTestServer> {
   const stateDir = opts.stateDir ?? concivStateDir(process.cwd())
   const app = new Hono()
@@ -106,7 +106,8 @@ export async function startTerminalServer(
   const api: ServerApi<Record<never, never>> = {
     config: {},
     cwd: process.cwd(),
-    basePath: opts.basePath ?? '',
+    basePath: '',
+    agentPath: opts.agentPath ?? '',
     stateDir,
     sessions,
     harness,

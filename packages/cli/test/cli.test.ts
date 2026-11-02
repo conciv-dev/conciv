@@ -964,6 +964,18 @@ describe('cli', () => {
       const project = projectWith('{"port": "not a number"')
       expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:5173')
     })
+
+    test('prefixes the engine token read walking up from mcp-endpoint.json', () => {
+      const project = projectWith(JSON.stringify({port: 41234}))
+      writeFileSync(join(project.root, '.conciv', 'mcp-endpoint.json'), JSON.stringify({mcpUrl: '', token: 'tok-file'}))
+      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:41234/t/tok-file')
+    })
+
+    test('CONCIV_TOKEN wins over mcp-endpoint.json', () => {
+      const project = projectWith(JSON.stringify({port: 41234}))
+      writeFileSync(join(project.root, '.conciv', 'mcp-endpoint.json'), JSON.stringify({mcpUrl: '', token: 'tok-file'}))
+      expect(engineOrigin(project.nested, {CONCIV_TOKEN: 'tok-env'})).toBe('http://127.0.0.1:41234/t/tok-env')
+    })
   })
 
   describe('prod closure', () => {
