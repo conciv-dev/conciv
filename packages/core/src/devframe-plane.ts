@@ -1,7 +1,9 @@
 import {join} from 'node:path'
 import type {Duplex} from 'node:stream'
 import type {IncomingMessage} from 'node:http'
-import type {ConcivPlugin} from '@conciv/extension'
+import {defineTool, type AnyToolBuilder, type ConcivPlugin} from '@conciv/extension'
+import {fromWireError} from '@conciv/extension/devframe-function'
+import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {CONCIV_HOST_SERVICE, type ConcivHost} from '@conciv/extension/devframe-host'
 import type {ClaimUpgrade} from '@conciv/serve'
 import {initHub, type HubInstance} from '@devframes/hub/initiate'
@@ -11,9 +13,9 @@ import {createMessagesDevframe} from '@devframes/plugin-messages'
 import {createTerminalsDevframe} from '@devframes/plugin-terminals'
 import {defineDevframe, type DevframeDefinition} from 'devframe'
 import type {DevframeAuthHandler} from 'devframe/node/auth'
-import type {DevframeNodeContext} from 'devframe/types'
+import type {AgentTool, DevframeNodeContext} from 'devframe/types'
 import {createInteractiveAuth} from 'devframe/recipes/interactive-auth'
-import type {z} from 'zod'
+import {z} from 'zod'
 import {logError} from './lib/debug.js'
 import {isInheritedToken} from './devframe-trust.js'
 
@@ -45,10 +47,13 @@ export type DevframePlaneOpts = {
   allowedOrigins?: readonly string[]
 }
 
+export type HubAgentTool = {tool: AnyToolBuilder; plugin: string | undefined}
+
 export type DevframePlane = {
   hub: HubInstance
   claimUpgrade: ClaimUpgrade
   publish: Publish
+  agentTools: () => Promise<HubAgentTool[]>
   close: () => Promise<void>
 }
 
@@ -120,6 +125,77 @@ async function publishGroup(
   }
 }
 
+const ConcivAgentSchema = z.object({
+  name: z.string(),
+  approval: z.literal('ask').optional(),
+  meta: z.object({
+    summary: z.string(),
+    category: z.string().optional(),
+    mutating: z.boolean().optional(),
+    mirrors: z.boolean().optional(),
+    keywords: z.array(z.string()).optional(),
+    positional: z.string().optional(),
+    hint: z.string().optional(),
+    icon: z.enum(TOOL_ICON_KEYS).optional(),
+    label: z.object({running: z.string(), done: z.string()}).optional(),
+  }),
+})
+
+const DefinitionSchemasSchema = z.object({args: z.array(z.unknown()).optional(), returns: z.unknown().optional()})
+
+function isZodSchema(schema: unknown): schema is z.ZodType {
+  return typeof schema === 'object' && schema !== null && '_zod' in schema
+}
+
+function isObjectSchema(schema: unknown): schema is z.ZodObject {
+  return isZodSchema(schema) && typeof Reflect.get(schema, 'shape') === 'object'
+}
+
+type AgentCall = {inputSchema: z.ZodObject; wireArgs: (input: object, sessionId: string) => unknown}
+
+function agentCall(args: readonly unknown[] | undefined): AgentCall {
+  const [first] = args ?? []
+  if (args?.length !== 1 || !isObjectSchema(first)) {
+    const positional = Object.fromEntries((args ?? []).map((_schema, index) => [`arg${index}`, z.unknown()]))
+    return {inputSchema: z.object(positional), wireArgs: (input) => input}
+  }
+  if (!('sessionId' in first.shape)) return {inputSchema: first, wireArgs: (input) => [input]}
+  return {inputSchema: first.omit({sessionId: true}), wireArgs: (input, sessionId) => [{...input, sessionId}]}
+}
+
+function agentToolName(functionName: string): string {
+  return functionName.toLowerCase().replace(/[^a-z0-9]+/g, '_')
+}
+
+function registryToolFor(context: DevframeNodeContext, listed: AgentTool, rpcName: string): HubAgentTool {
+  const definition = context.rpc.definitions.get(rpcName)
+  const schemas = DefinitionSchemasSchema.parse(definition ?? {})
+  const declared = ConcivAgentSchema.safeParse(definition?.agent)
+  const call = agentCall(schemas.args)
+  const tool = defineTool({
+    name: declared.success ? declared.data.name : agentToolName(rpcName),
+    description: listed.description,
+    inputSchema: call.inputSchema,
+    outputSchema: isZodSchema(schemas.returns) ? schemas.returns : z.unknown(),
+    ...(declared.data?.approval === undefined ? {} : {approval: declared.data.approval}),
+    meta: declared.success ? declared.data.meta : {summary: listed.description, mutating: listed.safety !== 'read'},
+  }).server(async (input, _context, request) => {
+    try {
+      return await context.agent.invoke(rpcName, call.wireArgs(input, request.sessionId))
+    } catch (error) {
+      throw fromWireError(error)
+    }
+  })
+  return {tool, plugin: declared.success ? rpcName.split(':')[0] : undefined}
+}
+
+async function hubAgentTools(hub: HubInstance): Promise<HubAgentTool[]> {
+  const context = await hub.context
+  return context.agent
+    .list()
+    .tools.flatMap((listed) => (listed.rpcName === undefined ? [] : [registryToolFor(context, listed, listed.rpcName)]))
+}
+
 export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
   const auth = unfilledAuth()
   const queue = new AsyncQueuer<PublishRequest>(
@@ -163,6 +239,7 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
     hub,
     claimUpgrade: claimHubUpgrade(hub),
     publish,
+    agentTools: () => hubAgentTools(hub),
     close: async () => {
       await stopHubSessions(hub)
       await hub.close()
