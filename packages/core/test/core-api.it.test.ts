@@ -1739,11 +1739,11 @@ describe('rpc wire', () => {
 
     describe('tools and models list', () => {
       it('the widget gets every tool with its full description and the harness model list', async () => {
-        const {tools} = await chatKit().rpc.meta.tools(undefined)
+        const {tools} = await chatKit().hub.call('conciv:meta:tools', {})
         expect(tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(FIXTURE_TOOLS))
         expect(tools.every((tool) => tool.description.length > 0)).toBe(true)
         expect(tools.find((tool) => tool.name === 'fixture_echo')?.description).toBe(ECHO_DESCRIPTION)
-        const models = await chatKit().rpc.meta.models(undefined)
+        const models = await chatKit().hub.call('conciv:meta:models', {})
         expect(models.models.map((model) => model.id)).toEqual(expect.arrayContaining(['opus', 'sonnet', 'haiku']))
         expect(models.defaultModel).toBe('sonnet')
       })

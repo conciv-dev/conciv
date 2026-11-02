@@ -251,7 +251,7 @@ describe('core kit seams', () => {
       const kit = await bootCoreKit({id: 'seams-staleness', staleness: () => STALENESS})
       state.kit = kit
 
-      expect(await kit.rpc.meta.engine()).toEqual(STALENESS)
+      expect(await kit.hub.call('conciv:meta:engine', {})).toEqual(STALENESS)
     }, 30_000)
 
     it('lets a non-loopback origin through only when the kit declares it allowed', async () => {

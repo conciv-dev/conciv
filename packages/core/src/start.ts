@@ -161,6 +161,10 @@ export async function start(opts: StartOpts): Promise<Engine> {
     if (!opts.nativePageDir) return undefined
     return tokenScopedBase()
   }
+  const mcpUrl = (): string | undefined => {
+    const base = tokenScopedBase()
+    return base ? `${base}/api/mcp` : undefined
+  }
 
   const appOpts: MakeAppOpts = {
     cfg,
@@ -180,6 +184,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     onShutdown: opts.onShutdown,
     nativePageDir: opts.nativePageDir,
     nativeUrl,
+    mcpUrl,
   }
   const {app, dispose, extensionContexts, hub, claimUpgrade} = await makeApp(appOpts)
 
@@ -206,9 +211,10 @@ export async function start(opts: StartOpts): Promise<Engine> {
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const base = tokenScopedBase()
+  const endpointMcpUrl = mcpUrl()
   try {
-    if (base) {
-      const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: `${base}/api/mcp`})
+    if (endpointMcpUrl) {
+      const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: endpointMcpUrl})
       writePrivateFile(endpoint.path, endpoint.contents)
     }
     if (opts.nativePageDir && base) {

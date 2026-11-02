@@ -5,15 +5,18 @@ import {isPageVerbError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
-import type {RegistryCallErrorName} from '@conciv/contract'
+import {EngineStalenessSchema, SessionIdInputSchema, type RegistryCallErrorName} from '@conciv/contract'
+import {defineConcivFunction} from '@conciv/extension/devframe-function'
+import {ChatCommandsSchema, ChatModelsSchema, ChatToolsSchema} from '@conciv/protocol/chat-types'
 import {widgetCaller} from '../../lib/cors.js'
-import {listCommands} from '../../sessions/commands.js'
+import {listCommands, mcpUrlFor} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
 import {makeSessionOs, os, type RpcDeps} from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
+import type {ServerFunctionsOf} from '../../devframe-plane.js'
 
 export const PAGE_ERROR_NAME = {
   'no-widget': 'NO_PAGE_CLIENT',
@@ -145,20 +148,74 @@ export function makeRpcRouter(deps: RpcDeps) {
       open: sessionOs.editor.open.handler(({input}) => callTool(BUILTIN_OPEN_TOOL, input)),
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },
-    meta: {
-      models: os.meta.models.handler(async () => {
-        const models = await resolveHarnessModels(chat.harness)
-        return {
-          models,
-          defaultModel: chat.harness.defaultModel ?? models[0]?.id ?? null,
-          harness: harnessMetaOf(deps),
-        }
-      }),
-      commands: os.meta.commands.handler(({input, context}) =>
-        listCommands(chat, {sessionId: input.sessionId, origin: context.origin}),
-      ),
-      tools: os.meta.tools.handler(() => ({tools: deps.tools})),
-      engine: os.meta.engine.handler(() => engine.staleness()),
-    },
+    meta: metaRouter(deps),
   })
 }
+
+type MetaDeps = Pick<RpcDeps, 'chat' | 'tools' | 'runtime'>
+
+function metaActions(deps: MetaDeps) {
+  const chat = deps.chat
+  return {
+    models: async () => {
+      const models = await resolveHarnessModels(chat.harness)
+      return {
+        models,
+        defaultModel: chat.harness.defaultModel ?? models[0]?.id ?? null,
+        harness: harnessMetaOf(deps),
+      }
+    },
+    commands: (input: z.infer<typeof SessionIdInputSchema>, mcpUrl: string | undefined) =>
+      listCommands(chat, {sessionId: input.sessionId, mcpUrl}),
+    tools: () => ({tools: deps.tools}),
+    engine: () => deps.runtime.engine.staleness(),
+  }
+}
+
+function metaRouter(deps: MetaDeps) {
+  const actions = metaActions(deps)
+  return {
+    models: os.meta.models.handler(() => actions.models()),
+    commands: os.meta.commands.handler(({input, context}) =>
+      actions.commands(input, mcpUrlFor(deps.chat, context.origin)),
+    ),
+    tools: os.meta.tools.handler(() => actions.tools()),
+    engine: os.meta.engine.handler(() => actions.engine()),
+  }
+}
+
+export function metaFunctions(deps: MetaDeps & {mcpUrl: () => string | undefined}) {
+  const actions = metaActions(deps)
+  return [
+    defineConcivFunction({
+      name: 'conciv:meta:models',
+      type: 'query',
+      input: z.object({}),
+      output: ChatModelsSchema,
+      handler: actions.models,
+    }),
+    defineConcivFunction({
+      name: 'conciv:meta:commands',
+      type: 'query',
+      input: SessionIdInputSchema,
+      output: ChatCommandsSchema,
+      handler: (input) => actions.commands(input, deps.mcpUrl()),
+    }),
+    defineConcivFunction({
+      name: 'conciv:meta:tools',
+      type: 'query',
+      input: z.object({}),
+      output: ChatToolsSchema,
+      handler: actions.tools,
+    }),
+    defineConcivFunction({
+      name: 'conciv:meta:engine',
+      type: 'query',
+      input: z.object({}),
+      output: EngineStalenessSchema,
+      handler: actions.engine,
+    }),
+  ]
+}
+
+export type MetaServerFunctions = ServerFunctionsOf<ReturnType<typeof metaFunctions>>

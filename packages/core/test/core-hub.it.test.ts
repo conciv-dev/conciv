@@ -15,6 +15,10 @@ import {
   type ProbeHost,
 } from '@conciv/harness-testkit/devframe-probe'
 import {SessionId} from '@conciv/protocol/chat-types'
+import type {HarnessCommandsContext} from '@conciv/protocol/harness-types'
+import {makeRpcClient} from '@conciv/contract'
+import {defineHarness} from '@conciv/harness'
+import {nodeClient} from '@conciv/extension/devframe-connection'
 import {defineDevframe} from 'devframe'
 import {chromium, type Browser} from 'playwright'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
@@ -421,5 +425,41 @@ describe('start wires the hub beside oRPC', () => {
     expect((await fetch(`${engine.apiBase}${engine.hub.base}__connection.json`)).status).toBe(200)
     expect((await fetch(`${engine.apiBase}/t/${accessToken}/health`)).status).toBe(200)
     await engine.stop()
+  }, 15_000)
+
+  it('lists harness commands over the hub with the engine mcp url oRPC hands the harness', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-hub-commands-'))
+    const accessToken = crypto.randomUUID()
+    const fake = createFakeHarness({id: 'fake-hub-commands'})
+    const harness = defineHarness({
+      id: fake.id,
+      binName: fake.binName,
+      chatConfig: fake.chatConfig,
+      capabilities: {
+        resume: false,
+        permissionGate: 'none',
+        compaction: false,
+        systemPrompt: 'none',
+        mcp: 'http',
+        imageInput: false,
+        init: 'none',
+        transcriptHistory: false,
+        slashCommands: 'live',
+      },
+      commands: (context: HarnessCommandsContext) =>
+        Promise.resolve([{name: 'mcp-url', description: context.mcpUrl ?? 'no mcp url'}]),
+    })
+    const engine = await start({options: {stateRoot: root}, root, accessToken, launchEditor: () => {}, harness})
+    const hub = nodeClient({url: `${engine.apiBase}${engine.hub.base}`, transport: 'ws', token: accessToken})
+    try {
+      const {sessionId} = await hub.call('conciv:sessions:create', {})
+      const overHub = await hub.call('conciv:meta:commands', {sessionId})
+      const overRpc = await makeRpcClient(`${engine.apiBase}/t/${accessToken}`).meta.commands({sessionId})
+      expect(overHub.commands[0]?.description).toBe(`${engine.apiBase}/t/${accessToken}/api/mcp`)
+      expect(overHub).toEqual(overRpc)
+    } finally {
+      hub.close()
+      await engine.stop()
+    }
   }, 15_000)
 })

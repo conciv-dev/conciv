@@ -59,7 +59,7 @@ import {makeCoreRuntime} from './runtime/core-runtime.js'
 import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
-import {makeRpcRouter} from './api/rpc/router.js'
+import {makeRpcRouter, metaFunctions, type MetaServerFunctions} from './api/rpc/router.js'
 import {makeCompositeRpcRouter, RPC_PREFIX, rpcFetchMiddleware} from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
@@ -74,7 +74,7 @@ import type {ClaimUpgrade} from '@conciv/serve'
 import type {HubInstance} from '@devframes/hub/initiate'
 
 declare module 'devframe' {
-  interface DevframeRpcServerFunctions extends SessionsServerFunctions {}
+  interface DevframeRpcServerFunctions extends SessionsServerFunctions, MetaServerFunctions {}
 }
 
 export type MakeAppOpts = {
@@ -109,6 +109,8 @@ export type MakeAppOpts = {
   nativePageDir?: string
 
   nativeUrl?: () => string | undefined
+
+  mcpUrl?: () => string | undefined
 
   staleness?: () => EngineStaleness
 }
@@ -533,7 +535,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     loginToken: opts.loginToken,
     allowedOrigins: opts.allowedOrigins,
     published: {sessions: () => rpcSessionList(chatDeps, false)},
-    functions: (publish) => sessionsFunctions({chat: chatDeps, runtime, publish}),
+    functions: (publish) => [
+      ...sessionsFunctions({chat: chatDeps, runtime, publish}),
+      ...metaFunctions({chat: chatDeps, tools: toolList, runtime, mcpUrl: opts.mcpUrl ?? (() => undefined)}),
+    ],
   })
   const publishSessions = (): Promise<void> => devframePlane.publish('sessions')
   runStartListeners.push(() => void publishSessions())

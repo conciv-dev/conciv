@@ -15,11 +15,11 @@ function commandSource(name: string): ChatCommand['source'] {
 
 export async function listCommands(
   deps: CommandSource,
-  opts: {sessionId: SessionId; origin: string},
+  opts: {sessionId: SessionId; mcpUrl: string | undefined},
 ): Promise<ChatCommands> {
   const commands = deps.harness.commands
   if (!commands) return {commands: []}
-  const mcpUrl = deps.harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.origin) : undefined
+  const mcpUrl = deps.harness.capabilities.mcp === 'http' ? opts.mcpUrl : undefined
   const list = await commands({cwd: deps.cwd, sessionId: opts.sessionId, mcpUrl})
   return {
     commands: list.map((command) => ({
