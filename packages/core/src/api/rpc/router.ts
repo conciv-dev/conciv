@@ -5,7 +5,15 @@ import {isPageVerbError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
-import {EngineStalenessSchema, SessionIdInputSchema, type RegistryCallErrorName} from '@conciv/contract'
+import {
+  DraftsGetOutputSchema,
+  DraftsSetInputSchema,
+  EngineStalenessSchema,
+  MarkersListOutputSchema,
+  OkSchema,
+  SessionIdInputSchema,
+  type RegistryCallErrorName,
+} from '@conciv/contract'
 import {defineConcivFunction} from '@conciv/extension/devframe-function'
 import {ChatCommandsSchema, ChatModelsSchema, ChatToolsSchema} from '@conciv/protocol/chat-types'
 import {widgetCaller} from '../../lib/cors.js'
@@ -66,29 +74,13 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
 }
 
 export function makeRpcRouter(deps: RpcDeps) {
-  const chat = deps.chat
-  const db = chat.db
   const engine = deps.runtime.engine
   const sessionOs = makeSessionOs(deps)
   return os.router({
     sessions: sessionsRouter(deps),
     chat: chatRouter(deps, sessionOs),
-    drafts: {
-      get: os.drafts.get.handler(async ({input}) => {
-        const rows = await db.select().from(drafts).where(eq(drafts.sessionId, input.sessionId))
-        return rows[0] ?? null
-      }),
-      set: os.drafts.set.handler(async ({input}) => {
-        const row = {...input, updatedAt: Date.now()}
-        await db.insert(drafts).values(row).onConflictDoUpdate({target: drafts.sessionId, set: row})
-        return {ok: true as const}
-      }),
-    },
-    markers: {
-      list: os.markers.list.handler(({input}) =>
-        db.select().from(markers).where(eq(markers.sessionId, input.sessionId)).orderBy(asc(markers.afterTurn)),
-      ),
-    },
+    drafts: draftsRouter(deps),
+    markers: markersRouter(deps),
     navigation: {
       get: os.navigation.get.handler(() => engine.navigation.get()),
       set: os.navigation.set.handler(({input}) => engine.navigation.set(input)),
@@ -219,3 +211,80 @@ export function metaFunctions(deps: MetaDeps & {mcpUrl: () => string | undefined
 }
 
 export type MetaServerFunctions = ServerFunctionsOf<ReturnType<typeof metaFunctions>>
+
+type StoreDeps = Pick<RpcDeps, 'chat'>
+type SessionIdInput = z.infer<typeof SessionIdInputSchema>
+
+function draftsActions(deps: StoreDeps) {
+  const db = deps.chat.db
+  return {
+    get: async (input: SessionIdInput) => {
+      const rows = await db.select().from(drafts).where(eq(drafts.sessionId, input.sessionId))
+      return rows[0] ?? null
+    },
+    set: async (input: z.infer<typeof DraftsSetInputSchema>) => {
+      const row = {...input, updatedAt: Date.now()}
+      await db.insert(drafts).values(row).onConflictDoUpdate({target: drafts.sessionId, set: row})
+      return {ok: true as const}
+    },
+  }
+}
+
+function markersActions(deps: StoreDeps) {
+  const db = deps.chat.db
+  return {
+    list: (input: SessionIdInput) =>
+      db.select().from(markers).where(eq(markers.sessionId, input.sessionId)).orderBy(asc(markers.afterTurn)),
+  }
+}
+
+function draftsRouter(deps: StoreDeps) {
+  const actions = draftsActions(deps)
+  return {
+    get: os.drafts.get.handler(({input}) => actions.get(input)),
+    set: os.drafts.set.handler(({input}) => actions.set(input)),
+  }
+}
+
+function markersRouter(deps: StoreDeps) {
+  const actions = markersActions(deps)
+  return {
+    list: os.markers.list.handler(({input}) => actions.list(input)),
+  }
+}
+
+export function draftsFunctions(deps: StoreDeps) {
+  const actions = draftsActions(deps)
+  return [
+    defineConcivFunction({
+      name: 'conciv:drafts:get',
+      type: 'query',
+      input: SessionIdInputSchema,
+      output: DraftsGetOutputSchema,
+      handler: actions.get,
+    }),
+    defineConcivFunction({
+      name: 'conciv:drafts:set',
+      type: 'action',
+      input: DraftsSetInputSchema,
+      output: OkSchema,
+      handler: actions.set,
+    }),
+  ]
+}
+
+export function markersFunctions(deps: StoreDeps) {
+  const actions = markersActions(deps)
+  return [
+    defineConcivFunction({
+      name: 'conciv:markers:list',
+      type: 'query',
+      input: SessionIdInputSchema,
+      output: MarkersListOutputSchema,
+      handler: actions.list,
+    }),
+  ]
+}
+
+export type DraftsServerFunctions = ServerFunctionsOf<ReturnType<typeof draftsFunctions>>
+export type MarkersServerFunctions = ServerFunctionsOf<ReturnType<typeof markersFunctions>>

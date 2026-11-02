@@ -1364,7 +1364,13 @@ describe('rpc wire', () => {
     describe('turns', () => {
       it('a message streams its reply in one run under the client ids, and a reload shows the same turn', async () => {
         const sessionId = await newSession()
-        await chatKit().rpc.drafts.set({sessionId, text: 'a saved draft', selectionStart: 0, selectionEnd: 0})
+        await chatKit().hub.call('conciv:drafts:set', {
+          sessionId,
+          text: 'a saved draft',
+          selectionStart: 0,
+          selectionEnd: 0,
+        })
+        expect(await chatKit().hub.call('conciv:drafts:get', {sessionId})).toMatchObject({text: 'a saved draft'})
         const ended = nextTurnEnd(sessionId)
         const events = await finished(sessionId, 'hello', {runId: 'client-run', messageId: 'client-user'})
         await ended
@@ -1376,7 +1382,7 @@ describe('rpc wire', () => {
         expect(hydration.messages.map((message) => message.id)).toEqual(['client-user', ...assistantIdsOf(events)])
         expect(hydration).toMatchObject({activeRun: null, lastRun: {runId: 'client-run', phase: 'completed'}})
         expect(await thread(sessionId)).toEqual(hydration.messages)
-        expect(await chatKit().rpc.drafts.get({sessionId})).toBeNull()
+        expect(await chatKit().hub.call('conciv:drafts:get', {sessionId})).toBeNull()
         expect(turnEnds.filter((id) => id === sessionId)).toHaveLength(1)
       })
 
@@ -1763,7 +1769,12 @@ describe('rpc wire', () => {
 
       it('an image is stored exactly as sent, ignores the draft, and stays in history for later turns', async () => {
         const sessionId = await newSession()
-        await chatKit().rpc.drafts.set({sessionId, text: 'a saved draft', selectionStart: 0, selectionEnd: 0})
+        await chatKit().hub.call('conciv:drafts:set', {
+          sessionId,
+          text: 'a saved draft',
+          selectionStart: 0,
+          selectionEnd: 0,
+        })
         await finished(sessionId, {content: [{type: 'text', content: 'what color?'}, IMAGE]})
         await finished(sessionId, 'and the shape?')
         const messages = await thread(sessionId)
@@ -1774,7 +1785,7 @@ describe('rpc wire', () => {
         expect(await threadUserTexts(sessionId)).toEqual(['what color?', 'and the shape?'])
         expect(messages.flatMap((message) => message.parts).filter((part) => part.type === 'image')).toHaveLength(1)
         expect(lastRunOf(sessionId).messages).toContain(ONE_PIXEL_PNG)
-        expect(await chatKit().rpc.drafts.get({sessionId})).toBeNull()
+        expect(await chatKit().hub.call('conciv:drafts:get', {sessionId})).toBeNull()
       })
     })
 
@@ -1921,7 +1932,9 @@ describe('rpc wire', () => {
 
       it('the session list titles, renames, refuses bad input, and forgets deleted sessions', async () => {
         const [kept, removed] = [await newSession(), await newSession()]
-        expect((await chatKit().rpc.markers.list({sessionId: kept})).map((marker) => marker.kind)).toEqual(['new'])
+        expect(
+          (await chatKit().hub.call('conciv:markers:list', {sessionId: kept})).map((marker) => marker.kind),
+        ).toEqual(['new'])
         await finished(kept, 'title from me')
         await finished(removed, 'clear me')
         expect(await sessionMeta(kept)).toMatchObject({origin: 'conciv', title: 'title from me'})
@@ -2484,7 +2497,7 @@ describe('rpc wire', () => {
   }
 
   async function compactMarkers(sessionId: string): Promise<number[]> {
-    const markers = await chatKit().rpc.markers.list({sessionId})
+    const markers = await chatKit().hub.call('conciv:markers:list', {sessionId})
     return markers.filter((marker) => marker.kind === 'compact').map((marker) => marker.afterTurn)
   }
 
