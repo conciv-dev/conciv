@@ -12,6 +12,7 @@ import {createTerminalsDevframe} from '@devframes/plugin-terminals'
 import {defineDevframe, type DevframeDefinition} from 'devframe'
 import type {DevframeAuthHandler} from 'devframe/node/auth'
 import {createInteractiveAuth} from 'devframe/recipes/interactive-auth'
+import {isInheritedToken} from './devframe-trust.js'
 
 const HUB_BASE = '/__conciv/'
 
@@ -96,7 +97,13 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
     allowedOrigins: opts.allowedOrigins,
     getStorageDir: (scope) => join(opts.stateDir, 'devframe', scope),
     configure(ctx) {
-      Object.assign(auth, createInteractiveAuth(ctx, {clientAuthTokens: [loginToken]}))
+      const interactive = createInteractiveAuth(ctx, {clientAuthTokens: [loginToken]})
+      const guarded: DevframeAuthHandler = {
+        ...interactive,
+        authorize: (method, session) =>
+          interactive.authorize(method, session) && !isInheritedToken(ctx, session.meta.clientAuthToken),
+      }
+      Object.assign(auth, guarded)
     },
   })
   return {
