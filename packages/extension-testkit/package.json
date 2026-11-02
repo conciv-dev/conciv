@@ -29,7 +29,8 @@
     "./chat-wire": "./src/chat-wire.ts",
     "./push-wire": "./src/push-wire.ts",
     "./rpc-fault": "./src/rpc-fault.ts",
-    "./chat-fault": "./src/chat-fault.ts"
+    "./chat-fault": "./src/chat-fault.ts",
+    "./devframe-faults": "./src/devframe-faults.ts"
   },
   "scripts": {
     "build": "vite build -c vite.test-host.config.ts",
@@ -50,10 +51,13 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:^",
+    "@devframes/agentic": "catalog:",
+    "@devframes/hub": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@playwright/test": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "devframe": "catalog:",
     "p-timeout": "catalog:",
     "playwright": "catalog:",
     "solid-js": "catalog:",

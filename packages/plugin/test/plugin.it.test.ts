@@ -1,4 +1,4 @@
-import {execFileSync} from 'node:child_process'
+import {execFileSync, spawn, type ChildProcess} from 'node:child_process'
 import {cp, mkdtemp, realpath, writeFile} from 'node:fs/promises'
 import {
   existsSync,
@@ -12,18 +12,22 @@ import {
   cpSync,
   writeFileSync,
 } from 'node:fs'
-import {createServer as createHttpServer, type Server, type ServerResponse} from 'node:http'
+import {createServer as createHttpServer, request as httpRequest, type Server, type ServerResponse} from 'node:http'
 import {createServer as createNetServer} from 'node:net'
-import {tmpdir} from 'node:os'
+import {networkInterfaces, tmpdir} from 'node:os'
+import {stripVTControlCharacters} from 'node:util'
 import {dirname, isAbsolute, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it} from 'vitest'
 import getPort from 'get-port'
 import {chromium, type Browser, type Page} from 'playwright'
+import {getPathMatch} from 'next/dist/shared/lib/router/utils/path-match.js'
+import {prepareDestination} from 'next/dist/shared/lib/router/utils/prepare-destination.js'
 import {expect as expectLocator} from 'playwright/test'
 import {DevTools} from '@vitejs/devtools'
 import {createLogger, createServer, type Plugin, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
+import {pluginFrame, probeScript} from '@conciv/harness-testkit/devframe-probe'
 import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
 import ios from '@conciv/extension-ios'
 import recorder from '@conciv/extension-recorder'
@@ -686,6 +690,122 @@ describe('native page vite boot', () => {
   })
 })
 
+describe('nextjs hub forwarding config', () => {
+  const ENV_KEYS = ['NEXT_PUBLIC_CONCIV_PORT', 'CONCIV_OPTIONS', 'NODE_ENV'] as const
+  const savedEnv: Record<string, string | undefined> = {}
+  let originalCwd = ''
+  let projectRoot = ''
+
+  beforeEach(() => {
+    for (const key of ENV_KEYS) {
+      savedEnv[key] = process.env[key]
+      delete process.env[key]
+    }
+    originalCwd = process.cwd()
+    projectRoot = mkdtempSync(join(tmpdir(), 'conciv-nexthub-'))
+    process.chdir(projectRoot)
+  })
+
+  afterEach(() => {
+    process.chdir(originalCwd)
+    rmSync(projectRoot, {recursive: true, force: true})
+    for (const key of ENV_KEYS) {
+      if (savedEnv[key] === undefined) delete process.env[key]
+      else process.env[key] = savedEnv[key]
+    }
+  })
+
+  const userRoute = {source: '/old', destination: '/new'}
+
+  it('puts the hub ahead of an array of user rewrites, kept in afterFiles', async () => {
+    const config = withConciv({rewrites: async () => [userRoute]}, {port: 3599})
+    const table = await config.rewrites?.()
+    expect(table?.beforeFiles?.[0]).toMatchObject({
+      source: '/__conciv/:path*',
+      destination: 'http://127.0.0.1:3599/__conciv/:path*',
+    })
+    expect(table?.beforeFiles?.[0]?.has?.[0]?.key).toBe('host')
+    expect(table?.afterFiles).toEqual([userRoute])
+  })
+
+  it('keeps an object of user rewrites and goes first in beforeFiles', async () => {
+    const config = withConciv({rewrites: async () => ({beforeFiles: [userRoute], fallback: [userRoute]})}, {port: 3599})
+    const table = await config.rewrites?.()
+    expect(table?.beforeFiles).toHaveLength(2)
+    expect(table?.beforeFiles?.[1]).toEqual(userRoute)
+    expect(table?.fallback).toEqual([userRoute])
+  })
+
+  type Redirect = {source: string; destination: string}
+
+  function redirectTarget(redirects: readonly Redirect[], path: string): string | undefined {
+    const hit = redirects
+      .map((route) => ({route, params: getPathMatch(route.source, {strict: true, removeUnnamedParams: true})(path)}))
+      .find((match) => match.params !== false)
+    if (!hit?.params) return undefined
+    return prepareDestination({
+      appendParamsToQuery: false,
+      destination: hit.route.destination,
+      params: hit.params,
+      query: {},
+    }).newUrl
+  }
+
+  it('strips a trailing slash everywhere but the hub, keeping the user redirects', async () => {
+    const config = withConciv({redirects: async () => [{...userRoute, permanent: false}]}, {port: 3599})
+    expect(config.skipTrailingSlashRedirect).toBe(true)
+    const redirects = (await config.redirects?.()) ?? []
+    expect(redirectTarget(redirects, '/about/')).toBe('/about')
+    expect(redirectTarget(redirects, '/docs/intro/')).toBe('/docs/intro')
+    expect(redirectTarget(redirects, '/__conciv/rpc/')).toBeUndefined()
+    expect(redirectTarget(redirects, '/old')).toBe('/new')
+  })
+
+  it('adds the trailing slash everywhere but the hub when the app sets trailingSlash', async () => {
+    const redirects = (await withConciv({trailingSlash: true}, {port: 3599}).redirects?.()) ?? []
+    expect(redirectTarget(redirects, '/about')).toBe('/about/')
+    expect(redirectTarget(redirects, '/about/')).toBeUndefined()
+    expect(redirectTarget(redirects, '/logo.png/')).toBe('/logo.png')
+    expect(redirectTarget(redirects, '/__conciv')).toBeUndefined()
+    expect(redirectTarget(redirects, '/__conciv/rpc')).toBeUndefined()
+  })
+
+  it('adds no slash redirect of its own when the user turned them off', async () => {
+    const skipped = withConciv({skipTrailingSlashRedirect: true, trailingSlash: true}, {port: 3599})
+    expect(skipped.skipTrailingSlashRedirect).toBe(true)
+    expect(await skipped.redirects?.()).toEqual([])
+  })
+
+  it('forwards to a preset NEXT_PUBLIC_CONCIV_PORT and boots the engine on that same port', async () => {
+    process.env.NEXT_PUBLIC_CONCIV_PORT = '3598'
+    const config = withConciv({}, {port: 3599})
+    const table = await config.rewrites?.()
+    expect(table?.beforeFiles?.[0]?.destination).toBe('http://127.0.0.1:3598/__conciv/:path*')
+    expect(JSON.parse(process.env.CONCIV_OPTIONS ?? '{}').port).toBe(3598)
+    expect(JSON.parse(config.env.CONCIV_OPTIONS ?? '{}').port).toBe(3598)
+  })
+
+  it('keeps the hub rewrite at the root path when the app sets a basePath', async () => {
+    const table = await withConciv({basePath: '/docs'}, {port: 3599}).rewrites?.()
+    expect(table?.beforeFiles?.[0]).toMatchObject({source: '/__conciv/:path*', basePath: false})
+  })
+
+  it('adds no hub rewrite or redirect override to a production build', async () => {
+    process.env.NODE_ENV = 'production'
+    const config = withConciv({redirects: async () => [{...userRoute, permanent: false}]}, {port: 3599})
+    expect(config.rewrites).toBeUndefined()
+    expect(config.skipTrailingSlashRedirect).toBeUndefined()
+    expect(await config.redirects?.()).toEqual([{...userRoute, permanent: false}])
+  })
+
+  it('refuses devframes.add in next.config and points at register in instrumentation', () => {
+    expect(() => withConciv({}, {port: 3599, devframes: {add: [{id: 'added'}]}})).toThrow(/instrumentation\.ts/)
+    expect(process.env.CONCIV_OPTIONS).toBeUndefined()
+    const config = withConciv({}, {port: 3599, devframes: {add: []}})
+    expect(JSON.parse(config.env.CONCIV_OPTIONS ?? '{}')).toEqual({port: 3599})
+  })
+})
+
 describe('nextjs config', () => {
   const SPECIFIER = '@conciv/app-extensions'
   const ENV_KEYS = ['NEXT_PUBLIC_CONCIV_PORT', 'CONCIV_OPTIONS'] as const
@@ -906,13 +1026,16 @@ describe('widget inject', () => {
     })
 
     it('injects the client entry into a streamed text/html response, before </head>', async () => {
-      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
-        res.setHeader('content-type', 'text/html')
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => undefined),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
 
-        res.write('<!doctype html><html><head><title>app</title></head>')
-        res.write('<body><h1>hi</h1></body>')
-        res.end('</html>')
-      })
+          res.write('<!doctype html><html><head><title>app</title></head>')
+          res.write('<body><h1>hi</h1></body>')
+          res.end('</html>')
+        },
+      )
       state.server = server
       const html = await (await fetch(base)).text()
       expect(html).toContain(ENTRY)
@@ -922,11 +1045,14 @@ describe('widget inject', () => {
     })
 
     it('injects when headers arrive via writeHead(status, statusText, flat-array) + end(cb) (flat-array writeHead shape)', async () => {
-      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
-        res.writeHead(200, 'OK', ['content-type', 'text/html; charset=utf-8'])
-        res.write('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')
-        res.end(() => {})
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => undefined),
+        (res) => {
+          res.writeHead(200, 'OK', ['content-type', 'text/html; charset=utf-8'])
+          res.write('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')
+          res.end(() => {})
+        },
+      )
       state.server = server
       const res = await fetch(base)
       const html = await res.text()
@@ -937,10 +1063,13 @@ describe('widget inject', () => {
 
     it('injects the conciv-widget config meta into the SSR html response (the path the site uses)', async () => {
       const widgetConfig = {quickTerminal: {hotkey: ['Alt+k']}}
-      const {server, base} = await startServer(makeWidgetInject(API_BASE, widgetConfig), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => widgetConfig),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')
+        },
+      )
       state.server = server
       const html = await (await fetch(base)).text()
       expect(html).toContain('name="conciv-widget"')
@@ -949,10 +1078,13 @@ describe('widget inject', () => {
     })
 
     it('passes non-html responses through untouched', async () => {
-      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
-        res.setHeader('content-type', 'application/json')
-        res.end(JSON.stringify({ok: true}))
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => undefined),
+        (res) => {
+          res.setHeader('content-type', 'application/json')
+          res.end(JSON.stringify({ok: true}))
+        },
+      )
       state.server = server
       const body = await (await fetch(base)).text()
       expect(body).toBe('{"ok":true}')
@@ -961,10 +1093,13 @@ describe('widget inject', () => {
 
     it('does not double-inject when the html already references the client entry', async () => {
       const preinjected = `<html><head>${ENTRY}</head><body>x</body></html>`
-      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end(preinjected)
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => undefined),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end(preinjected)
+        },
+      )
       state.server = server
       const html = await (await fetch(base)).text()
       const occurrences = html.split(`src="${EXTENSIONS_ROUTE}"`).length - 1
@@ -978,29 +1113,38 @@ describe('widget inject', () => {
     ])('keeps an injected fragment with no head or body as is ($quoting)', async ({settings}) => {
       const fragment = `${settings}<meta name = 'conciv-api-base' content='${API_BASE}'><div>x</div>`
       const entry = `<script type=module src='${EXTENSIONS_ROUTE}'></script>`
-      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end(`${fragment}${entry}`)
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => undefined),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end(`${fragment}${entry}`)
+        },
+      )
       state.server = server
       expect(await (await fetch(base)).text()).toBe(`${fragment}${entry}`)
     })
 
     it('injects a tag whose name only starts like a conciv tag', async () => {
-      const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end('<meta name="conciv-widget-preview" content="x"><div>x</div>')
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => undefined),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end('<meta name="conciv-widget-preview" content="x"><div>x</div>')
+        },
+      )
       state.server = server
       expect(await (await fetch(base)).text()).toContain('<meta name="conciv-widget" content="{}">')
     })
 
     it('adds the missing settings meta when the html already references the client entry', async () => {
       const preinjected = `<html><head>${ENTRY}</head><body>x</body></html>`
-      const {server, base} = await startServer(makeWidgetInject(API_BASE, {surface: 'dock'}), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end(preinjected)
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => ({surface: 'dock'})),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end(preinjected)
+        },
+      )
       state.server = server
       const html = await (await fetch(base)).text()
       expect(html.split(`src="${EXTENSIONS_ROUTE}"`).length - 1).toBe(1)
@@ -1010,14 +1154,32 @@ describe('widget inject', () => {
     it('keeps a settings meta the html already carries', async () => {
       const existing = '<meta name="conciv-widget" content="{}">'
       const preinjected = `<html><head>${existing}${ENTRY}</head><body>x</body></html>`
-      const {server, base} = await startServer(makeWidgetInject(API_BASE, {surface: 'dock'}), (res) => {
-        res.setHeader('content-type', 'text/html')
-        res.end(preinjected)
-      })
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => ({surface: 'dock'})),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end(preinjected)
+        },
+      )
       state.server = server
       const html = await (await fetch(base)).text()
       expect(html.split('name="conciv-widget"').length - 1).toBe(1)
       expect(html).toContain(existing)
+    })
+
+    it('reads the widget settings on every request, so a surface change reaches the next page load', async () => {
+      const current: {surface: 'page' | 'dock'} = {surface: 'dock'}
+      const {server, base} = await startServer(
+        makeWidgetInject(API_BASE, () => ({surface: current.surface})),
+        (res) => {
+          res.setHeader('content-type', 'text/html')
+          res.end('<html><head></head><body>x</body></html>')
+        },
+      )
+      state.server = server
+      expect(await (await fetch(base)).text()).toContain('{&quot;surface&quot;:&quot;dock&quot;}')
+      current.surface = 'page'
+      expect(await (await fetch(base)).text()).toContain('{&quot;surface&quot;:&quot;page&quot;}')
     })
   })
 })
@@ -1613,4 +1775,379 @@ describe('extension load isolation', () => {
     await shown
     await page.close()
   }, 60_000)
+})
+
+const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))
+const PLUGIN_FRAME = '/__conciv/devframes_plugin_terminals/'
+const LAN_ADDRESS = Object.values(networkInterfaces())
+  .flat()
+  .find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address
+
+function hostRequest(
+  port: number,
+  path: string,
+  host: string,
+  upgrade: boolean,
+  address = '127.0.0.1',
+): Promise<number | 'no upgrade'> {
+  const upgradeHeaders = {
+    connection: 'Upgrade',
+    upgrade: 'websocket',
+    'sec-websocket-version': '13',
+    'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==',
+    origin: `http://${host}`,
+  }
+  return new Promise((resolve) => {
+    const outgoing = httpRequest({
+      host: address,
+      localAddress: address,
+      port,
+      path,
+      headers: {host, ...(upgrade ? upgradeHeaders : {})},
+    })
+    outgoing.on('upgrade', (response, socket) => {
+      socket.destroy()
+      resolve(response.statusCode ?? 0)
+    })
+    outgoing.on('response', (response) => {
+      response.resume()
+      resolve(response.statusCode ?? 0)
+    })
+    outgoing.on('error', () => resolve('no upgrade'))
+    if (upgrade)
+      outgoing.setTimeout(3_000, () => {
+        outgoing.destroy()
+        resolve('no upgrade')
+      })
+    outgoing.end()
+  })
+}
+
+function waitForOutput<T>(
+  child: ChildProcess,
+  output: () => string,
+  read: (text: string) => T | undefined,
+): Promise<T> {
+  return new Promise((resolve) => {
+    const found = read(stripVTControlCharacters(output()))
+    if (found !== undefined) return resolve(found)
+    const onData = (): void => {
+      const value = read(stripVTControlCharacters(output()))
+      if (value === undefined) return
+      child.stdout?.off('data', onData)
+      child.stderr?.off('data', onData)
+      resolve(value)
+    }
+    child.stdout?.on('data', onData)
+    child.stderr?.on('data', onData)
+  })
+}
+
+async function stopGroup(child: ChildProcess | undefined): Promise<void> {
+  if (!child?.pid || child.exitCode !== null) return
+  const exited = new Promise((resolve) => child.once('exit', resolve))
+  process.kill(-child.pid, 'SIGTERM')
+  await exited
+}
+
+async function originProbeTab(browser: Browser, page: string): Promise<Page> {
+  const tab = await browser.newPage()
+  await tab.route(`${page}/conciv-probe.js`, async (route) =>
+    route.fulfill({contentType: 'text/javascript', body: await probeScript()}),
+  )
+  await tab.route(`${page}/conciv-probe`, (route) =>
+    route.fulfill({
+      contentType: 'text/html; charset=utf-8',
+      body: '<!doctype html><title>probe</title><script type="module" src="/conciv-probe.js"></script>',
+    }),
+  )
+  await tab.goto(`${page}/conciv-probe`, {waitUntil: 'domcontentloaded'})
+  await tab.waitForFunction(() => 'concivProbe' in window)
+  return tab
+}
+
+async function expectHubForwarded(page: string): Promise<void> {
+  const meta = await fetch(`${page}/__conciv/__connection.json`)
+  expect(meta.status).toBe(200)
+  expect(await meta.json()).toMatchObject({backend: 'websocket', websocket: {path: '/__conciv/__ws'}})
+  const pluginPage = await fetch(`${page}${PLUGIN_FRAME}`, {redirect: 'manual'})
+  expect(pluginPage.status).toBe(200)
+  const asset = (await pluginPage.text()).match(/src="\.\/([^"]+\.js)"/)?.[1]
+  expect(asset).toBeDefined()
+  expect((await fetch(`${page}${PLUGIN_FRAME}${asset}`)).status).toBe(200)
+}
+
+async function loginThenFramedCall(
+  browser: Browser,
+  page: string,
+  code: () => Promise<string>,
+  whileTrusted: (tab: Page) => Promise<void> = async () => {},
+): Promise<void> {
+  const tab = await originProbeTab(browser, page)
+  const sockets: string[] = []
+  tab.on('websocket', (socket) => sockets.push(socket.url()))
+  await tab.evaluate(async () => {
+    window.concivConnection = window.concivProbe.browserClient({baseURL: '/__conciv/'})
+    const client = await window.concivConnection.ready()
+    await client.requestAuthCode()
+  })
+  const trusted = await tab.evaluate(
+    async (otp) => (await window.concivConnection.ready()).requestTrustWithCode(otp),
+    await code(),
+  )
+  expect(trusted).toBe(true)
+  await whileTrusted(tab)
+  const frame = await pluginFrame(tab, PLUGIN_FRAME, await probeScript())
+  const framed = await frame.evaluate(async () => {
+    const client = await window.concivProbe.browserClient({baseURL: '/__conciv/'}).ready()
+    return {trusted: await client.ensureTrusted(3_000).catch(() => false), href: location.href}
+  })
+  expect(framed.trusted).toBe(true)
+  expect(framed.href.startsWith(`${page}${PLUGIN_FRAME}`)).toBe(true)
+  expect(sockets.length).toBeGreaterThan(0)
+  expect(sockets.every((url) => url.startsWith(`${page.replace('http', 'ws')}/__conciv/__ws`))).toBe(true)
+  await tab.close()
+  const stranger = await originProbeTab(browser, page)
+  const refused = await stranger.evaluate(async () => {
+    const client = await window.concivProbe.browserClient({baseURL: '/__conciv/'}).ready()
+    return client.ensureTrusted(300).catch(() => false)
+  })
+  expect(refused).toBe(false)
+  await stranger.close()
+}
+
+function authCode(child: ChildProcess, output: () => string): Promise<string> {
+  return waitForOutput(child, output, (text) => text.match(/auth code\s+(\d{6})/)?.[1])
+}
+
+describe('devframe hub on the vite page origin', () => {
+  const DEV_PORT = 3518
+  const PAGE = `http://127.0.0.1:${DEV_PORT}`
+  let server: ViteDevServer
+  let browser: Browser
+  let root = ''
+
+  beforeAll(async () => {
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-vite-hub-')))
+    writeFileSync(join(root, 'index.html'), '<!doctype html><title>app</title>')
+    server = await createServer({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      appType: 'custom',
+      server: {port: DEV_PORT, strictPort: true, host: true, allowedHosts: true},
+      plugins: [makeViteHook({stateRoot: root, widget: false})],
+    })
+    await server.listen()
+    browser = await chromium.launch({headless: true, args: ['--disable-features=LocalNetworkAccessChecks']})
+  }, 60_000)
+
+  afterAll(async () => {
+    await browser?.close()
+    await server?.close()
+  })
+
+  it('serves the hub meta and plugin pages on the vite port', async () => {
+    await expectHubForwarded(PAGE)
+  })
+
+  it('leaves the rest of the dev server alone', async () => {
+    expect(await hostRequest(DEV_PORT, '/__concivish', `127.0.0.1:${DEV_PORT}`, false)).toBe(404)
+  })
+
+  it.skipIf(LAN_ADDRESS === undefined)('refuses a LAN socket even with a forged loopback host', async () => {
+    const lan = LAN_ADDRESS ?? ''
+    const forged = `127.0.0.1:${DEV_PORT}`
+    expect(await hostRequest(DEV_PORT, '/__conciv/__ws', forged, true)).toBe(101)
+    expect(await hostRequest(DEV_PORT, '/__conciv/__connection.json', forged, false, lan)).toBe(404)
+    expect(await hostRequest(DEV_PORT, '/__conciv/__ws', forged, true, lan)).not.toBe(101)
+  })
+})
+
+declare module 'devframe' {
+  interface DevframeRpcServerFunctions {
+    'added:ping': () => Promise<string>
+  }
+}
+
+const NEXT_BUNDLERS = [
+  {bundler: 'webpack', flags: ['--webpack'], nextPort: 3510, enginePort: 3511},
+  {bundler: 'turbopack', flags: [], nextPort: 3512, enginePort: 3513},
+]
+
+const NEXT_FIXTURE = fileURLToPath(new URL('./fixtures/next-app/', import.meta.url))
+
+function linkNextFixtureModules(): void {
+  const nextPackage = realpathSync(fileURLToPath(new URL('../node_modules/next', import.meta.url)))
+  const modules = join(NEXT_FIXTURE, 'node_modules')
+  rmSync(modules, {recursive: true, force: true})
+  mkdirSync(join(modules, '@conciv'), {recursive: true})
+  symlinkSync(nextPackage, join(modules, 'next'), 'dir')
+  for (const peer of ['react', 'react-dom']) symlinkSync(join(dirname(nextPackage), peer), join(modules, peer), 'dir')
+  const pluginRoot = fileURLToPath(new URL('..', import.meta.url))
+  const installed = join(modules, '@conciv/plugin')
+  mkdirSync(installed)
+  cpSync(join(pluginRoot, 'package.json'), join(installed, 'package.json'))
+  cpSync(join(pluginRoot, 'dist'), join(installed, 'dist'), {recursive: true})
+  symlinkSync(join(pluginRoot, 'node_modules'), join(installed, 'node_modules'), 'dir')
+}
+
+function clearNextFixture(): void {
+  for (const generated of ['.next', 'node_modules', '.conciv', 'next-env.d.ts', 'AGENTS.md', 'CLAUDE.md'])
+    rmSync(join(NEXT_FIXTURE, generated), {recursive: true, force: true})
+}
+
+describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)', ({flags, nextPort, enginePort}) => {
+  const PAGE = `http://127.0.0.1:${nextPort}`
+
+  let next: ChildProcess
+  let output = ''
+  let browser: Browser
+
+  beforeAll(async () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-next-hub-'))
+    clearNextFixture()
+    linkNextFixtureModules()
+    next = spawn(
+      process.execPath,
+      [
+        join(NEXT_FIXTURE, 'node_modules/next/dist/bin/next'),
+        'dev',
+        ...flags,
+        '--port',
+        String(nextPort),
+        '--hostname',
+        '127.0.0.1',
+      ],
+      {
+        cwd: NEXT_FIXTURE,
+        detached: true,
+        env: {
+          ...process.env,
+          NEXT_TELEMETRY_DISABLED: '1',
+          NEXT_PUBLIC_CONCIV_PORT: String(enginePort),
+          CONCIV_OPTIONS: JSON.stringify({port: enginePort, stateRoot}),
+        },
+      },
+    )
+    next.stdout?.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    next.stderr?.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    await waitForOutput(
+      next,
+      () => output,
+      (text) => (text.includes('Ready in') ? true : undefined),
+    )
+    expect((await fetch(`${PAGE}/`)).status, output).toBe(200)
+    browser = await chromium.launch({headless: true, args: ['--disable-features=LocalNetworkAccessChecks']})
+  }, 120_000)
+
+  afterAll(async () => {
+    await browser?.close()
+    await stopGroup(next)
+    clearNextFixture()
+  })
+
+  it('forwards the hub meta, plugin pages and their assets, keeping the trailing slash redirect', async () => {
+    await expectHubForwarded(PAGE)
+    const userRoute = await fetch(`${PAGE}/about/`, {redirect: 'manual'})
+    expect(userRoute.status).toBe(308)
+    expect(userRoute.headers.get('location')).toBe('/about')
+  }, 60_000)
+
+  it('forwards only loopback hosts, so a LAN host gets no hub while the app still serves', async () => {
+    for (const host of [`localhost:${nextPort}`, `127.0.0.1:${nextPort}`, `[::1]:${nextPort}`])
+      expect(await hostRequest(nextPort, '/__conciv/__connection.json', host, false)).toBe(200)
+    const lan = `192.168.1.20:${nextPort}`
+    expect(await hostRequest(nextPort, '/__conciv/__connection.json', lan, false)).toBe(404)
+    expect(await hostRequest(nextPort, PLUGIN_FRAME, lan, false)).toBe(404)
+    expect(await hostRequest(nextPort, '/', lan, false)).toBe(200)
+    expect(await hostRequest(nextPort, '/__conciv/__ws', `127.0.0.1:${nextPort}`, true)).toBe(101)
+    expect(await hostRequest(nextPort, '/__conciv/__ws', lan, true)).toBe('no upgrade')
+  }, 30_000)
+
+  it('logs in over the page-origin websocket, then a plugin iframe is trusted from the stored login', async () => {
+    await loginThenFramedCall(
+      browser,
+      PAGE,
+      () => authCode(next, () => output),
+      async (tab) => {
+        const pong = await tab.evaluate(async () =>
+          window.concivProbe.concivCall(await window.concivConnection.ready())('added:ping'),
+        )
+        expect(pong).toBe('pong')
+      },
+    )
+  }, 60_000)
+})
+
+const DEV_SERVERS = [
+  {server: 'webpack-dev-server', bin: 'webpack', config: 'webpack.config.mjs', devPort: 3514, enginePort: 3515},
+  {server: 'rspack dev server', bin: 'rspack', config: 'rspack.config.mjs', devPort: 3516, enginePort: 3517},
+]
+
+describe.each(DEV_SERVERS)('$server devframe hub on the page origin', ({bin, config, devPort, enginePort}) => {
+  const PAGE = `http://127.0.0.1:${devPort}`
+  const FIXTURE = fileURLToPath(new URL('./fixtures/dev-server-app/', import.meta.url))
+
+  let server: ChildProcess
+  let output = ''
+  let browser: Browser
+
+  beforeAll(async () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-dev-server-hub-'))
+    server = spawn(
+      join(PACKAGE_ROOT, 'node_modules/.bin', bin),
+      ['serve', '--config', config, '--port', String(devPort), '--host', '::'],
+      {
+        cwd: FIXTURE,
+        detached: true,
+        env: {...process.env, CONCIV_OPTIONS: JSON.stringify({port: enginePort, stateRoot})},
+      },
+    )
+    server.stdout?.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    server.stderr?.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    await waitForOutput(
+      server,
+      () => output,
+      (text) => (/compiled successfully/i.test(text) ? true : undefined),
+    )
+    expect((await fetch(`${PAGE}/main.js`)).status).toBe(200)
+    browser = await chromium.launch({headless: true, args: ['--disable-features=LocalNetworkAccessChecks']})
+  }, 60_000)
+
+  afterAll(async () => {
+    await browser?.close()
+    await stopGroup(server)
+  })
+
+  it('forwards the hub meta, plugin pages and their assets on the dev server port', async () => {
+    await expectHubForwarded(PAGE)
+  }, 30_000)
+
+  it.skipIf(LAN_ADDRESS === undefined)(
+    'forwards only loopback sockets, so a LAN client gets no hub while the app still serves',
+    async () => {
+      const lan = LAN_ADDRESS ?? ''
+      expect(await hostRequest(devPort, '/__conciv/__connection.json', `127.0.0.1:${devPort}`, false)).toBe(200)
+      expect(await hostRequest(devPort, '/__conciv/__connection.json', `[::1]:${devPort}`, false, '::1')).toBe(200)
+      expect(await hostRequest(devPort, '/__conciv/__ws', `127.0.0.1:${devPort}`, true)).toBe(101)
+      const forgedHost = `127.0.0.1:${devPort}`
+      expect(await hostRequest(devPort, '/__conciv/__connection.json', forgedHost, false, lan)).toBe(404)
+      expect(await hostRequest(devPort, PLUGIN_FRAME, `${lan}:${devPort}`, false, lan)).toBe(404)
+      expect(await hostRequest(devPort, '/main.js', `${lan}:${devPort}`, false, lan)).toBe(200)
+      expect(await hostRequest(devPort, '/__conciv/__ws', forgedHost, true, lan)).not.toBe(101)
+    },
+  )
+
+  it('logs in over the page-origin websocket, then a plugin iframe is trusted from the stored login', async () => {
+    await loginThenFramedCall(browser, PAGE, () => authCode(server, () => output))
+  }, 30_000)
 })

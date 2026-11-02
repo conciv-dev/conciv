@@ -1,3 +1,5 @@
+import type {ConcivRegisterOptions} from '@conciv/plugin/nextjs'
+
 export * from '@conciv/plugin/nextjs'
 
 const NEXTJS_ENTRY = '@conciv/it/plugin/nextjs'
@@ -9,7 +11,7 @@ const BUILTIN_SERVER_EXTENSIONS = [
   '@conciv/extension-ios',
 ]
 
-export async function register(): Promise<void> {
+export async function register(registerOptions: ConcivRegisterOptions = {}): Promise<void> {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   const {registerWith} = await import('@conciv/plugin/nextjs')
   await registerWith(async () => {
@@ -21,5 +23,5 @@ export async function register(): Promise<void> {
       console.error('conciv: failed to load builtin server extensions', error)
       return {serverExtensions: [], clientEntries: []}
     }
-  })
+  }, registerOptions)
 }

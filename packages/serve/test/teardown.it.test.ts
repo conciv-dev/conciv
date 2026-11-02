@@ -1,8 +1,11 @@
 import {expect, test} from 'vitest'
 import {Hono} from 'hono'
 import {upgradeWebSocket} from '@hono/node-server'
-import WebSocket from 'ws'
-import {serveHono, type ServedHono} from '../src/serve.js'
+import type {ClientRequest} from 'node:http'
+import WebSocket, {WebSocketServer} from 'ws'
+import type {IncomingMessage} from 'node:http'
+import type {Duplex} from 'node:stream'
+import {serveHono, type ClaimUpgrade, type ServedHono} from '../src/serve.js'
 
 const SHORT_DEADLINE_MS = 200
 const UNREACHABLE_DEADLINE_MS = 30_000
@@ -132,3 +135,97 @@ test('a socket admitted while teardown is draining never blocks the close', asyn
   await lateSettled
   expect(late.readyState).not.toBe(WebSocket.OPEN)
 }, 20_000)
+
+function claimPath(path: string, acceptor: WebSocketServer): ClaimUpgrade {
+  return (req, socket, head) => {
+    if (req.url !== path) return false
+    acceptor.handleUpgrade(req, socket, head, (claimed) => claimed.send('claimed'))
+    return true
+  }
+}
+
+function firstMessage(socket: WebSocket): Promise<string> {
+  return new Promise((resolve) => socket.once('message', (data) => resolve(String(data))))
+}
+
+function upgradeStatus(port: number, path: string): Promise<number> {
+  return new Promise((resolve) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}${path}`)
+    socket.once('unexpected-response', (_request: ClientRequest, response: IncomingMessage) => {
+      response.resume()
+      socket.terminate()
+      resolve(response.statusCode ?? 0)
+    })
+    socket.once('error', () => {})
+  })
+}
+
+test('an unmatched upgrade with a claimer present still gets a 4xx from Hono', async () => {
+  const acceptor = new WebSocketServer({noServer: true})
+  const served = await serveHono({
+    fetch: echoApp().fetch,
+    gracefulCloseMs: SHORT_DEADLINE_MS,
+    claimUpgrade: claimPath('/claimed', acceptor),
+  })
+  const status = await upgradeStatus(served.port, '/nowhere')
+  expect(status).toBeGreaterThanOrEqual(400)
+  expect(status).toBeLessThan(500)
+  await served.close()
+  acceptor.close()
+}, 10_000)
+
+test('a claimed upgrade skips Hono while Hono keeps its own sockets', async () => {
+  const acceptor = new WebSocketServer({noServer: true})
+  const honoSawClaimedPath = {value: false}
+  const app = new Hono()
+    .use('/claimed', async (_context, next) => {
+      honoSawClaimedPath.value = true
+      await next()
+    })
+    .route('/', echoApp())
+  const served = await serveHono({
+    fetch: app.fetch,
+    gracefulCloseMs: SHORT_DEADLINE_MS,
+    claimUpgrade: claimPath('/claimed', acceptor),
+  })
+  const claimed = new WebSocket(`ws://127.0.0.1:${served.port}/claimed`)
+  expect(await firstMessage(claimed)).toBe('claimed')
+  expect(honoSawClaimedPath.value).toBe(false)
+  const socket = connect(served.port)
+  await whenOpen(socket)
+  expect(await roundTrip(socket, 'hi')).toBe('echo:hi')
+  await served.close()
+  acceptor.close()
+}, 10_000)
+
+test('a live claimed socket never holds the server open at close', async () => {
+  const acceptor = new WebSocketServer({noServer: true})
+  const served = await serveHono({
+    fetch: echoApp().fetch,
+    gracefulCloseMs: SHORT_DEADLINE_MS,
+    claimUpgrade: claimPath('/claimed', acceptor),
+  })
+  const claimed = new WebSocket(`ws://127.0.0.1:${served.port}/claimed`)
+  await firstMessage(claimed)
+  const closed = whenClosed(claimed)
+  await served.close()
+  await closed
+  acceptor.close()
+}, 10_000)
+
+test('a claimer that throws destroys that socket and leaves the server serving', async () => {
+  const served = await serveHono({
+    fetch: echoApp().fetch,
+    gracefulCloseMs: SHORT_DEADLINE_MS,
+    claimUpgrade: (req: IncomingMessage, _socket: Duplex) => {
+      if (req.url === '/boom') throw new Error('claim failed')
+      return false
+    },
+  })
+  const doomed = new WebSocket(`ws://127.0.0.1:${served.port}/boom`)
+  await new Promise<void>((resolve) => doomed.once('error', () => resolve()))
+  const socket = connect(served.port)
+  await whenOpen(socket)
+  expect(await roundTrip(socket, 'hi')).toBe('echo:hi')
+  await served.close()
+}, 10_000)

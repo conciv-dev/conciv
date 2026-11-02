@@ -1,9 +1,12 @@
-import {serveHono, type ServeFetch} from '@conciv/serve'
+import {randomUUID} from 'node:crypto'
+import {serveHono, type ClaimUpgrade, type ServeFetch} from '@conciv/serve'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/harness'
-import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
+import type {AnyExtension, ConcivPlugin, ExtensionPromptContext} from '@conciv/extension'
+import {isConcivPlugin} from '@conciv/extension/devframe-plugin'
+import type {HubInstance} from '@devframes/hub/initiate'
 import {makeApp, withBuiltinExtensions, type MakeAppOpts} from './app.js'
 
 export type {AppType} from './app.js'
@@ -31,7 +34,7 @@ export type StartOpts = {
   onClientRequest?: () => void
   onShutdown?: () => void
 
-  extensions?: AnyExtension[]
+  extensions?: (AnyExtension | ConcivPlugin)[]
   harness?: HarnessAdapter
   nativePageDir?: string
   devEndpointDir?: string
@@ -39,13 +42,15 @@ export type StartOpts = {
 
 export type Engine = {
   port: number
+  apiBase: string
+  hub: HubInstance
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
   extensionContexts: Record<string, unknown>
 }
 
 type Served = Awaited<ReturnType<typeof serveHono>>
-type FetchHandler = ServeFetch
+type Listener = {fetch: ServeFetch; claimUpgrade: ClaimUpgrade}
 
 const PERSISTED_PORT_ATTEMPTS = 4
 const PERSISTED_PORT_RETRY_MS = 300
@@ -61,10 +66,10 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function reservePort(fetchHandler: FetchHandler, port: number): Promise<Served | undefined> {
+async function reservePort(listener: Listener, port: number): Promise<Served | undefined> {
   for (let attempt = 0; attempt < PERSISTED_PORT_ATTEMPTS; attempt++) {
     try {
-      return await serveHono({fetch: fetchHandler, port})
+      return await serveHono({...listener, port})
     } catch (error) {
       if (!isAddressInUse(error)) throw error
       if (attempt < PERSISTED_PORT_ATTEMPTS - 1) await delay(PERSISTED_PORT_RETRY_MS)
@@ -73,39 +78,31 @@ async function reservePort(fetchHandler: FetchHandler, port: number): Promise<Se
   return undefined
 }
 
-async function servePersistedPort(fetchHandler: FetchHandler, stateFile: string): Promise<Served> {
+async function servePersistedPort(listener: Listener, stateFile: string): Promise<Served> {
   const persisted = readPersistedPort(stateFile)
-  const reused = persisted === undefined ? undefined : await reservePort(fetchHandler, persisted)
+  const reused = persisted === undefined ? undefined : await reservePort(listener, persisted)
   if (reused) return reused
-  return serveHono({fetch: fetchHandler, port: 0})
+  return serveHono({...listener, port: 0})
 }
 
-async function servePreferredPort(fetchHandler: FetchHandler, preferred: number): Promise<Served> {
-  const reserved = await reservePort(fetchHandler, preferred)
+async function servePreferredPort(listener: Listener, preferred: number): Promise<Served> {
+  const reserved = await reservePort(listener, preferred)
   if (reserved) return reserved
-  const serving = await serveHono({fetch: fetchHandler, port: 0})
+  const serving = await serveHono({...listener, port: 0})
   console.warn(
     `conciv: port ${preferred} is already in use, the engine is listening on http://127.0.0.1:${serving.port} instead`,
   )
   return serving
 }
 
-function serveRequestedPort(
-  fetchHandler: FetchHandler,
-  request: PortRequest | undefined,
-  stateFile: string,
-): Promise<Served> {
-  if (request === undefined) return servePersistedPort(fetchHandler, stateFile)
-  if ('exact' in request) return serveHono({fetch: fetchHandler, port: request.exact})
-  return servePreferredPort(fetchHandler, request.preferred)
+function serveRequestedPort(listener: Listener, request: PortRequest | undefined, stateFile: string): Promise<Served> {
+  if (request === undefined) return servePersistedPort(listener, stateFile)
+  if ('exact' in request) return serveHono({...listener, port: request.exact})
+  return servePreferredPort(listener, request.preferred)
 }
 
-async function servePort(
-  fetchHandler: FetchHandler,
-  request: PortRequest | undefined,
-  stateFile: string,
-): Promise<Served> {
-  const serving = await serveRequestedPort(fetchHandler, request, stateFile)
+async function servePort(listener: Listener, request: PortRequest | undefined, stateFile: string): Promise<Served> {
+  const serving = await serveRequestedPort(listener, request, stateFile)
   writePersistedPort(stateFile, serving.port)
   return serving
 }
@@ -123,7 +120,7 @@ export type ComposePromptOpts = ExtensionPromptContext & {extensions?: Record<st
 
 export function composeSystemPrompt(
   base: string | undefined,
-  extensions: readonly AnyExtension[],
+  extensions: readonly Pick<AnyExtension, 'name' | 'systemPrompt'>[],
   opts: ComposePromptOpts,
 ): string {
   const prompts = extensions.map((extension) => extension.systemPrompt?.(opts.extensions?.[extension.name], opts))
@@ -135,7 +132,10 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
 
-  const systemPrompt = composeSystemPrompt(cfg.systemPrompt, withBuiltinExtensions(opts.extensions), {
+  const loaded = opts.extensions ?? []
+  const plugins = loaded.filter(isConcivPlugin)
+  const extensions = loaded.filter((extension): extension is AnyExtension => !isConcivPlugin(extension))
+  const systemPrompt = composeSystemPrompt(cfg.systemPrompt, [...withBuiltinExtensions(extensions), ...plugins], {
     cwd: opts.root,
     extensions: cfg.extensions,
   })
@@ -170,7 +170,9 @@ export async function start(opts: StartOpts): Promise<Engine> {
     openInEditor,
     systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
     systemPromptText: systemPrompt,
-    extensions: opts.extensions,
+    extensions,
+    plugins,
+    loginToken: opts.accessToken ?? randomUUID(),
     extensionConfig: cfg.extensions,
     harness: opts.harness,
     harnessEnv,
@@ -179,7 +181,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     nativeUrl,
   }
-  const {app, dispose, extensionContexts} = await makeApp(appOpts)
+  const {app, dispose, extensionContexts, hub, claimUpgrade} = await makeApp(appOpts)
 
   const notifyClient = onceNotifier(opts.onClientRequest)
   const served = opts.accessToken
@@ -188,12 +190,13 @@ export async function start(opts: StartOpts): Promise<Engine> {
           notifyClient()
           await next()
         })
+        .all(`${hub.base}*`, (context) => hub.handler(context.req.raw))
         .mount(`/t/${opts.accessToken}`, app.fetch)
     : app
-  const fetchHandler: FetchHandler = served.fetch.bind(served)
+  const listener: Listener = {fetch: served.fetch.bind(served), claimUpgrade}
   let serving: Served
   try {
-    serving = await servePort(fetchHandler, opts.port, paths.server)
+    serving = await servePort(listener, opts.port, paths.server)
   } catch (error) {
     await dispose()
     throw error
@@ -226,6 +229,8 @@ export async function start(opts: StartOpts): Promise<Engine> {
   }
   return {
     port,
+    apiBase: `http://127.0.0.1:${port}`,
+    hub,
     cfg,
     extensionContexts,
     stop: async () => {

@@ -1,7 +1,7 @@
-import type {AnyExtension} from '@conciv/extension'
+import type {ClientExtension} from '@conciv/extension'
 import type {ExtensionInstance} from './extension-slots.js'
 
-export function createInstances(extensions: AnyExtension[]): ExtensionInstance[] {
+export function createInstances(extensions: ClientExtension[]): ExtensionInstance[] {
   return extensions.flatMap((extension) => {
     try {
       const result = extension.__client?.()

@@ -47,6 +47,22 @@
     "./rpc-mount": {
       "types": "./dist/rpc-mount.d.ts",
       "import": "./dist/rpc-mount.js"
+    },
+    "./devframe-host": {
+      "types": "./dist/devframe-host.d.ts",
+      "import": "./dist/devframe-host.js"
+    },
+    "./devframe-connection": {
+      "types": "./dist/devframe-connection.d.ts",
+      "import": "./dist/devframe-connection.js"
+    },
+    "./devframe-function": {
+      "types": "./dist/devframe-function.d.ts",
+      "import": "./dist/devframe-function.js"
+    },
+    "./devframe-plugin": {
+      "types": "./dist/devframe-plugin.d.ts",
+      "import": "./dist/devframe-plugin.js"
     }
   },
   "publishConfig": {
@@ -65,8 +81,11 @@
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "@devframes/agentic": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
+    "@tanstack/pacer": "catalog:",
+    "devframe": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"
   },

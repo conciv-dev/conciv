@@ -5,12 +5,13 @@ export type SplitEnv = 'browser' | 'node'
 
 type DeclarationKind = 'extension' | 'tool' | 'attachment'
 
-const CONTRACT_MARKER = /\bdefine(?:Extension|Tool|Attachment)\b/
+const CONTRACT_MARKER = /\bdefine(?:Extension|ConcivPlugin|Tool|Attachment)\b/
 
 const DECLARATION_PACKAGE = '@conciv/extension'
 
 const DECLARATION_CALLS: Record<string, DeclarationKind> = {
   defineExtension: 'extension',
+  defineConcivPlugin: 'extension',
   defineTool: 'tool',
   defineAttachment: 'attachment',
 }

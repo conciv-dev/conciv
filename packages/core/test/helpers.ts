@@ -5,7 +5,7 @@ import {join} from 'node:path'
 import {expect} from 'vitest'
 import {type ChatPlane} from '@conciv/chat'
 import {type ConcivDb} from '@conciv/db'
-import {type AnyExtension} from '@conciv/extension'
+import {type AnyExtension, type ConcivPlugin} from '@conciv/extension'
 import {getHarness, type HarnessAdapter} from '@conciv/harness'
 import {
   type ChatMessage,
@@ -22,6 +22,7 @@ import {type HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {type PageOutcome} from '@conciv/protocol/page-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
+import type {DevframeDefinition} from 'devframe'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {type ResolvedConcivConfig} from '../src/config.js'
@@ -82,6 +83,8 @@ export type BootOverrides = {
   cwd?: string
   claudeHome?: string
   extensions?: AnyExtension[]
+  plugins?: readonly ConcivPlugin[]
+  devframes?: DevframeDefinition[]
   extensionConfig?: Record<string, unknown>
   openInEditor?: (file: string, line?: number) => void
   bridge?: BundlerBridge
@@ -105,6 +108,7 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
     harnessSessionId: undefined,
     systemPrompt: '',
     extensions: undefined,
+    devframes: overrides.devframes,
   }
   return makeApp({
     cfg,
@@ -113,6 +117,7 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
     harness: env.harness,
     claudeHome: overrides.claudeHome,
     extensions: overrides.extensions,
+    plugins: overrides.plugins,
     extensionConfig: overrides.extensionConfig,
     bridge: overrides.bridge,
     firstChunkTimeoutMs: overrides.firstChunkTimeoutMs,
@@ -121,8 +126,8 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
 
 export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
   return async (env) => {
-    const {app, dispose} = await bootMadeApp(env, overrides)
-    return {fetch: app.fetch, dispose}
+    const {app, dispose, hub, claimUpgrade, loginToken} = await bootMadeApp(env, overrides)
+    return {fetch: app.fetch, dispose, hub, claimUpgrade, loginToken}
   }
 }
 

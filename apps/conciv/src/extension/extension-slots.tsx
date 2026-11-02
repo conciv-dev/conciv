@@ -1,10 +1,10 @@
 import {For, type JSX} from 'solid-js'
 import {MountedExtension} from '@conciv/extension/client'
-import type {AnyExtension, ClientEffect, ExtensionSlot} from '@conciv/extension'
+import type {ClientExtension, ClientEffect, ExtensionSlot} from '@conciv/extension'
 import {ExtensionBoundary} from './extension-boundary.js'
 
 export type ExtensionInstance = {
-  extension: AnyExtension
+  extension: ClientExtension
   clientValue: object
   effects: readonly ClientEffect[]
   dispose: () => void

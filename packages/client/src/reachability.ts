@@ -54,14 +54,21 @@ function registerReachabilitySource(): () => void {
   }
 }
 
-export function setupEngineReachability(apiBase: string): () => void {
+export type EngineConnection = {onStatus: (listener: (status: string) => void) => () => void}
+
+export function setupEngineReachability(apiBase: string, connection?: EngineConnection): () => void {
   const releaseSource = registerReachabilitySource()
   const unsubscribeRpc = subscribeRpcReachability(apiBase, (reachable) => hub.setOnline?.(reachable))
+  const unsubscribeConnection = connection?.onStatus((status) => {
+    if (status === 'connected') hub.setOnline?.(true)
+    if (status === 'disconnected') hub.setOnline?.(false)
+  })
   let disposed = false
   return () => {
     if (disposed) return
     disposed = true
     unsubscribeRpc()
+    unsubscribeConnection?.()
     releaseSource()
   }
 }

@@ -2,6 +2,7 @@ export {defineExtension} from './define-extension.js'
 export type {
   AnyExtension,
   AnyToolBuilder,
+  ClientExtension,
   ExtensionBuilder,
   ExtensionMeta,
   RegisterExtension,
@@ -70,3 +71,4 @@ export type {ExtRpcContext} from './ext-rpc.js'
 export {subscriptionIterator} from './server-stream.js'
 export {pageVerbError, isPageVerbError} from './page-errors.js'
 export type {PageVerbError} from './page-errors.js'
+export type {ConcivPlugin} from './devframe-plugin.js'

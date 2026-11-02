@@ -2,6 +2,7 @@ import {existsSync} from 'node:fs'
 import {join} from 'node:path'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {Builtins} from '@conciv/extension-compiler/extensions'
+import {HUB_PATH} from './dev-server-hub.js'
 import {writeExtensionsEntry} from './extensions-entry.js'
 
 export const CONCIV_DEFAULT_PORT = 41700
@@ -15,19 +16,103 @@ type WebpackConfig = {entry?: WebpackEntry; resolve?: {alias?: Record<string, st
 type WebpackContext = {nextRuntime?: string; dev?: boolean; dir?: string; config?: {pageExtensions?: string[]}}
 type WebpackHook = (config: WebpackConfig, context: WebpackContext) => WebpackConfig
 
+type HeaderCondition = {type: 'header'; key: string; value?: string}
+type Route = {source: string; destination: string; has?: HeaderCondition[]; basePath?: false}
+type RedirectRoute = Route & {permanent: boolean; missing?: HeaderCondition[]; locale?: false; basePath?: false}
+type RewriteTable = {beforeFiles?: Route[]; afterFiles?: Route[]; fallback?: Route[]}
+
 type ConfigWithEnv = {
   env?: Record<string, string | undefined>
   serverExternalPackages?: string[]
   turbopack?: TurbopackConfig
   webpack?: WebpackHook
+  rewrites?: () => Promise<Route[] | RewriteTable>
+  redirects?: () => Promise<RedirectRoute[]>
+  skipTrailingSlashRedirect?: boolean
+  trailingSlash?: boolean
+  basePath?: string
 }
 
-type WithConcivResult<T> = Omit<T, 'env' | 'serverExternalPackages' | 'turbopack' | 'webpack'> & {
+type WithConcivResult<T> = Omit<
+  T,
+  'env' | 'serverExternalPackages' | 'turbopack' | 'webpack' | 'rewrites' | 'redirects' | 'skipTrailingSlashRedirect'
+> & {
   env: Record<string, string | undefined>
   serverExternalPackages: string[]
   turbopack?: TurbopackConfig
   webpack?: WebpackHook
+  rewrites?: () => Promise<RewriteTable>
+  redirects?: () => Promise<RedirectRoute[]>
+  skipTrailingSlashRedirect?: boolean
 }
+
+const LOOPBACK_HOST: HeaderCondition = {
+  type: 'header',
+  key: 'host',
+  value: '(localhost|127\\.0\\.0\\.1|\\[::1\\])(:\\d+)?',
+}
+
+const HUB_SEGMENT = HUB_PATH.slice(1)
+
+function basePathRedirect(basePath: string, source: string, destination: string): RedirectRoute[] {
+  if (!basePath) return []
+  return [{source, destination, permanent: true, basePath: false}]
+}
+
+function trailingSlashRedirects(trailingSlash: boolean, basePath: string): RedirectRoute[] {
+  if (trailingSlash)
+    return [
+      ...basePathRedirect(basePath, basePath, `${basePath}/`),
+      {
+        source: `/:file((?!\\.well-known(?:/.*)?)(?!${HUB_SEGMENT}/)(?:[^/]+/)*[^/]+\\.\\w+)/`,
+        destination: '/:file',
+        permanent: true,
+        locale: false,
+        missing: [{type: 'header', key: 'x-nextjs-data'}],
+      },
+      {
+        source: `/:notfile((?!\\.well-known(?:/.*)?)(?!${HUB_SEGMENT}(?:/|$))(?:[^/]+/)*[^/\\.]+)`,
+        destination: '/:notfile/',
+        permanent: true,
+        locale: false,
+      },
+    ]
+  return [
+    ...basePathRedirect(basePath, `${basePath}/`, basePath),
+    {source: `/:path((?!${HUB_SEGMENT}/).+)/`, destination: '/:path', permanent: true, locale: false},
+  ]
+}
+
+function forwardHub(
+  base: ConfigWithEnv,
+  port: string,
+): Pick<ConfigWithEnv, 'redirects' | 'skipTrailingSlashRedirect'> & {rewrites: () => Promise<RewriteTable>} {
+  const hub: Route = {
+    source: `${HUB_PATH}/:path*`,
+    destination: `http://127.0.0.1:${port}${HUB_PATH}/:path*`,
+    has: [LOOPBACK_HOST],
+    basePath: false,
+  }
+  return {
+    skipTrailingSlashRedirect: true,
+    redirects: async () => [
+      ...(base.skipTrailingSlashRedirect
+        ? []
+        : trailingSlashRedirects(base.trailingSlash === true, base.basePath ?? '')),
+      ...((await base.redirects?.()) ?? []),
+    ],
+    rewrites: async () => {
+      const user = (await base.rewrites?.()) ?? []
+      if (Array.isArray(user)) return {beforeFiles: [hub], afterFiles: user}
+      return {...user, beforeFiles: [hub, ...(user.beforeFiles ?? [])]}
+    },
+  }
+}
+
+export type ConcivRegisterOptions = Pick<ConcivConfig, 'devframes'>
+
+const DEVFRAMES_IN_CONFIG =
+  'conciv: devframes.add cannot be set in withConciv, since next.config reaches the engine as JSON and drops each devframe setup function. Pass them to register in instrumentation.ts instead: export const register = () => registerConciv({devframes: {add: [myDevframe]}})'
 
 const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/plugin', '@conciv/core', '@conciv/db', '@conciv/harness']
 const EDGE_REGISTER_ENTRIES = ['@conciv/it/plugin/nextjs', '@conciv/plugin/nextjs']
@@ -56,11 +141,13 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   const baseExternals = base.serverExternalPackages ?? []
   const serverExternalPackages = [...new Set([...baseExternals, ...ENGINE_EXTERNALS])]
   if (options.enabled === false) return {...nextConfig, env: baseEnv, serverExternalPackages}
-  const port = options.port ?? CONCIV_DEFAULT_PORT
-  const resolved: ConcivConfig = {...options, port}
+  const presetPort = Number(process.env.NEXT_PUBLIC_CONCIV_PORT)
+  const port = Number.isInteger(presetPort) && presetPort > 0 ? presetPort : (options.port ?? CONCIV_DEFAULT_PORT)
+  const {devframes, ...serializable} = options
+  if ((devframes?.add?.length ?? 0) > 0) throw new Error(DEVFRAMES_IN_CONFIG)
   const concivEnv = {
     NEXT_PUBLIC_CONCIV_PORT: String(port),
-    CONCIV_OPTIONS: JSON.stringify(resolved),
+    CONCIV_OPTIONS: JSON.stringify({...serializable, port}),
   }
   for (const [key, value] of Object.entries(concivEnv)) {
     if (process.env[key] === undefined) process.env[key] = value
@@ -87,14 +174,19 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
     serverExternalPackages,
     turbopack,
     webpack,
+    ...(process.env.NODE_ENV === 'production' ? {} : forwardHub(base, concivEnv.NEXT_PUBLIC_CONCIV_PORT)),
   }
 }
 
-export async function registerWith(loadBuiltins: () => Promise<Builtins>): Promise<void> {
+export async function registerWith(
+  loadBuiltins: () => Promise<Builtins>,
+  registerOptions: ConcivRegisterOptions = {},
+): Promise<void> {
   if (process.env.NODE_ENV === 'production') return
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
-  const options = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
-  if (options.enabled === false) return
+  const parsed = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
+  if (parsed.enabled === false) return
+  const options: ConcivConfig = {...parsed, ...registerOptions}
   const root = process.cwd()
   try {
     const {watchExtensionsDir} = await import('./extensions-watch.js')
@@ -107,9 +199,9 @@ export async function registerWith(loadBuiltins: () => Promise<Builtins>): Promi
   await makeEngineBooter(options, root, builtins, 'exact')()
 }
 
-export async function register(): Promise<void> {
+export async function register(registerOptions: ConcivRegisterOptions = {}): Promise<void> {
   await registerWith(async () => {
     const {NO_BUILTINS} = await import('@conciv/extension-compiler/extensions')
     return NO_BUILTINS
-  })
+  }, registerOptions)
 }

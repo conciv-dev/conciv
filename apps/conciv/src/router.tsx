@@ -4,7 +4,7 @@ import {QueryClient} from '@tanstack/solid-query'
 import {createEffect, createRoot, onCleanup, type JSX} from 'solid-js'
 import type {RpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
-import type {AnyExtension} from '@conciv/extension'
+import type {ClientExtension} from '@conciv/extension'
 import {setupEngineReachability} from '@conciv/client'
 import {routeTree} from './routeTree.gen'
 import {makeAppData, type AppData} from './data/app-data.js'
@@ -24,7 +24,7 @@ export type ConcivRouterContext = {
   settings: ConcivSettings
   queryClient: QueryClient
   data: AppData
-  extensions: AnyExtension[]
+  extensions: ClientExtension[]
   instances: ExtensionInstance[]
   connected: () => boolean
   connectMode: boolean
@@ -43,7 +43,7 @@ export type ConcivRouterConfig = {
   history: RouterHistory
   environment: ConcivEnvironment
   settings: ConcivSettings
-  extensions?: AnyExtension[]
+  extensions?: ClientExtension[]
   connected?: () => boolean
   connectMode?: boolean
   bindApiBase?: (apiBase: string) => void

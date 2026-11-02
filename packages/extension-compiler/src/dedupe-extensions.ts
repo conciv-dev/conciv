@@ -1,17 +1,18 @@
 import {onMount} from 'solid-js'
-import {defineExtension, getExtensionApi, type AnyExtension} from '@conciv/extension'
+import {defineExtension, getExtensionApi, type AnyExtension, type ConcivPlugin} from '@conciv/extension'
 import {isExtension} from './extension-guard.js'
 
 export type ExtensionEntry = {extension: unknown; source: string}
 export type ExtensionLoader = {source: string; load: () => Promise<unknown>}
 type ExtensionLoadFailure = {source: string; error: unknown}
-export type DedupeResult = {extensions: AnyExtension[]; dropped: Array<{source: string; reason: string}>}
+export type DiscoveredExtension = AnyExtension | ConcivPlugin
+export type DedupeResult = {extensions: DiscoveredExtension[]; dropped: Array<{source: string; reason: string}>}
 
 export const EXTENSION_GLOB = '/conciv/extensions/*.{ts,tsx,js,jsx}'
 
 export function dedupeExtensions(entries: readonly ExtensionEntry[]): DedupeResult {
   const seen = new Set<string>()
-  const extensions: AnyExtension[] = []
+  const extensions: DiscoveredExtension[] = []
   const dropped: Array<{source: string; reason: string}> = []
   for (const {extension, source} of entries) {
     if (!isExtension(extension)) {

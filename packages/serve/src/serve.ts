@@ -1,4 +1,6 @@
 import {once} from 'node:events'
+import type {IncomingMessage} from 'node:http'
+import type {Duplex} from 'node:stream'
 import {serve, upgradeWebSocket, type Http2Bindings, type HttpBindings, type ServerType} from '@hono/node-server'
 import {WebSocketServer} from 'ws'
 import {WS_MAX_PAYLOAD_BYTES} from '@conciv/protocol/rpc-types'
@@ -9,8 +11,11 @@ const SHUTTING_DOWN_CLOSE_CODE = 1001
 
 export type ServeFetch = (request: Request, env: HttpBindings | Http2Bindings) => Response | Promise<Response>
 
+export type ClaimUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => boolean
+
 export type ServeHonoOptions = {
   fetch: ServeFetch
+  claimUpgrade?: ClaimUpgrade
   port?: number
   hostname?: string
   maxPayload?: number
@@ -40,10 +45,38 @@ async function closeLiveSockets(wss: WebSocketServer, timeoutMs: number): Promis
   wss.clients.forEach((socket) => socket.terminate())
 }
 
-function closeServer(server: ServerType, wss: WebSocketServer, gracefulCloseMs: number): () => Promise<void> {
+function trackClaim(req: IncomingMessage, socket: Duplex, head: Buffer, claim: ClaimUpgrade, sockets: Set<Duplex>) {
+  try {
+    if (!claim(req, socket, head)) return false
+  } catch (error) {
+    console.error('conciv: a claimed websocket upgrade failed', error)
+    socket.destroy()
+    return true
+  }
+  sockets.add(socket)
+  socket.once('close', () => sockets.delete(socket))
+  return true
+}
+
+function claimUpgrades(server: ServerType, claim: ClaimUpgrade, sockets: Set<Duplex>): void {
+  const honoListeners = server.listeners('upgrade')
+  server.removeAllListeners('upgrade')
+  server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+    if (trackClaim(req, socket, head, claim, sockets)) return
+    honoListeners.forEach((listener) => Reflect.apply(listener, server, [req, socket, head]))
+  })
+}
+
+function closeServer(
+  server: ServerType,
+  wss: WebSocketServer,
+  claimedSockets: Set<Duplex>,
+  gracefulCloseMs: number,
+): () => Promise<void> {
   return async () => {
     const stopped = new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
     await closeLiveSockets(wss, gracefulCloseMs)
+    claimedSockets.forEach((socket) => socket.destroy())
     if ('closeAllConnections' in server) server.closeAllConnections()
     await stopped
   }
@@ -62,6 +95,8 @@ export async function serveHono(options: ServeHonoOptions): Promise<ServedHono> 
     websocket: {server: wss},
     overrideGlobalObjects: false,
   })
+  const claimedSockets = new Set<Duplex>()
+  if (options.claimUpgrade) claimUpgrades(server, options.claimUpgrade, claimedSockets)
   await new Promise<void>((resolve, reject) => {
     const onListening = () => {
       server.off('error', onError)
@@ -78,6 +113,6 @@ export async function serveHono(options: ServeHonoOptions): Promise<ServedHono> 
     server,
     wss,
     port: boundPort(server, requestedPort),
-    close: closeServer(server, wss, options.gracefulCloseMs ?? GRACEFUL_SOCKET_CLOSE_MS),
+    close: closeServer(server, wss, claimedSockets, options.gracefulCloseMs ?? GRACEFUL_SOCKET_CLOSE_MS),
   }
 }

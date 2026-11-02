@@ -106,8 +106,10 @@ function trailingCallback(args: ReadonlyArray<unknown>): (() => void) | undefine
 
 const NESTED_FETCH_DESTS = new Set(['iframe', 'frame', 'embed', 'object'])
 
-export function makeWidgetInject(apiBase: string, widgetConfig?: ConcivSettingsInit | false): Middleware {
-  const tags = widgetTags(apiBase, widgetConfig)
+export function makeWidgetInject(
+  apiBase: string,
+  widgetConfig: () => ConcivSettingsInit | false | undefined,
+): Middleware {
   return (req, res, next) => {
     const fetchDest = req.headers['sec-fetch-dest']
     if (typeof fetchDest === 'string' && NESTED_FETCH_DESTS.has(fetchDest)) return next()
@@ -159,7 +161,7 @@ export function makeWidgetInject(apiBase: string, widgetConfig?: ConcivSettingsI
       const body = Buffer.concat(chunks).toString('utf8')
 
       const isHtml = String(res.getHeader('content-type') ?? '').includes('text/html')
-      const missing = isHtml ? missingTags(body, tags) : ''
+      const missing = isHtml ? missingTags(body, widgetTags(apiBase, widgetConfig())) : ''
       const out = missing === '' ? body : injectInto(body, missing)
 
       res.write = realWrite

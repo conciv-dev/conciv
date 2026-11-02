@@ -8,10 +8,10 @@ import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
+import {isHubPath, isLoopback} from './dev-server-hub.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
 import {EXTENSIONS_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
-import type {AnyExtension} from '@conciv/extension'
 import {type Builtins, NO_BUILTINS, loadServerExtensions} from '@conciv/extension-compiler/extensions'
 import {
   loadExtensionsModule,
@@ -103,7 +103,7 @@ export function makeViteBridge(server: ViteLike): BundlerBridge {
 function mountWidget(
   server: ViteDevServer,
   apiBase: string,
-  widgetConfig: ConcivSettingsInit | false | undefined,
+  widgetConfig: () => ConcivSettingsInit | false | undefined,
 ): void {
   server.middlewares.stack.unshift({
     route: '',
@@ -123,11 +123,23 @@ function safeOrigin(url: string): string | null {
   }
 }
 
+function mountHub(server: ViteDevServer, hub: Engine['hub']): void {
+  server.middlewares.use((req, res, next) => {
+    if (isHubPath(req.url) && isLoopback(req.socket.remoteAddress)) hub.nodeMiddleware(req, res, next)
+    else next()
+  })
+  server.httpServer?.on('upgrade', (req, socket, head) => {
+    if (req.url?.split('?')[0] !== `${hub.base}__ws`) return
+    if (isLoopback(req.socket.remoteAddress)) hub.handleUpgrade(req, socket, head)
+    else socket.destroy()
+  })
+}
+
 async function bootEngine(
   server: ViteDevServer,
   options: ConcivConfig,
   agentPath: string,
-  extensions: AnyExtension[],
+  extensions: Awaited<ReturnType<typeof loadServerExtensions>>,
   nativePageDir: string | undefined,
 ): Promise<Engine> {
   const {start} = await import('@conciv/core/start')
@@ -224,8 +236,10 @@ type DevToolsContext = {
 
 type DevToolsPlugin = Plugin & {devtools: {setup: (context: DevToolsContext) => void}}
 
-function widgetSettings(widget: ConcivConfig['widget'], docked: boolean): ConcivSettingsInit | false | undefined {
-  if (widget === false || !docked) return widget
+type Surface = 'page' | 'dock'
+
+function widgetSettings(widget: ConcivConfig['widget'], surface: Surface): ConcivSettingsInit | false | undefined {
+  if (widget === false || surface === 'page') return widget
   return {...widget, launcher: false, defaultOpen: true, surface: 'dock'}
 }
 
@@ -237,6 +251,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
   let deferToTsd = false
   let managedExcludes: string[] = []
   let docked = false
+  let surface: Surface = 'page'
   return {
     name: 'conciv',
     apply: 'serve',
@@ -286,6 +301,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
         options.widget !== false &&
         resolveConfig(options, config.root).enabled &&
         config.plugins.some((plugin) => plugin.name === 'vite:devtools')
+      surface = docked ? 'dock' : 'page'
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
     resolveId(id) {
@@ -298,7 +314,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
         apiBase,
         builtins.embedEntry,
         builtins.dedupeEntry,
-        docked ? 'dock' : 'page',
+        surface,
       )
     },
     transform(code, id, opts) {
@@ -310,7 +326,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       handler(_html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         if (!cfg.enabled || !engine) return []
-        return htmlTags(engine.port, {widget: widgetSettings(options.widget, docked)})
+        return htmlTags(engine.port, {widget: widgetSettings(options.widget, surface)})
       },
     },
     async configureServer(server: ViteDevServer) {
@@ -326,7 +342,8 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       )
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
-      mountWidget(server, apiBase, widgetSettings(options.widget, docked))
+      mountWidget(server, apiBase, () => widgetSettings(options.widget, surface))
+      mountHub(server, booted.hub)
       server.httpServer?.on('close', () => void booted.stop())
     },
   }
