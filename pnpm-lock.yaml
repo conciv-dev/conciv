@@ -1125,6 +1125,9 @@ importers:
 
   e2e/e2e-utils:
     dependencies:
+      '@conciv/extension-testkit':
+        specifier: workspace:*
+        version: link:../../packages/extension-testkit
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1

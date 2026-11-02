@@ -602,10 +602,21 @@ describe('native page vite boot', () => {
       expect(state.errors).toEqual([])
     }, 30_000)
 
-    it('asks a fresh tab for the login code, refuses a wrong one and opens the chat after the right one', async () => {
+    it('asks a fresh tab for the login code, refuses a wrong one and restores the saved chat after the right one', async () => {
       const url = state.started?.server.resolvedUrls?.local[0]
+      if (url === undefined) throw new Error('dev server did not start')
+      const opener = await trusted()
+      await opener.goto(url, {waitUntil: 'domcontentloaded'})
+      const openerLauncher = opener.getByRole('button', {name: /conciv chat$/})
+      await openerLauncher.waitFor({timeout: 45_000})
+      if ((await openerLauncher.getAttribute('aria-expanded')) !== 'true') {
+        const saved = opener.waitForResponse((response) => response.url().endsWith('/rpc/navigation/set'))
+        await openerLauncher.click()
+        await saved
+      }
+      await opener.close()
       const tab = await state.browser?.newPage()
-      if (tab === undefined || url === undefined) throw new Error('dev server did not start')
+      if (tab === undefined) throw new Error('browser did not start')
       const errorsBeforeLogin: string[] = []
       tab.on('console', (message) => {
         if (message.type() === 'error') errorsBeforeLogin.push(message.text())
@@ -623,7 +634,6 @@ describe('native page vite boot', () => {
       await code.fill(getTempAuthCode())
       await card.getByRole('button', {name: 'Authorize'}).click()
       await expectLocator(card).toBeHidden()
-      await tab.getByRole('button', {name: /conciv chat$/}).click()
       await tab.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
       await tab.close()
     }, 90_000)

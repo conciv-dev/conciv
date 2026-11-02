@@ -1,9 +1,9 @@
 import {expect, test} from '@playwright/test'
-import {collectFailures, expectWidgetBoots} from '@conciv/e2e-utils/widget'
+import {collectFailures, expectWidgetBoots, gotoTrusted} from '@conciv/e2e-utils/widget'
 
 test('folder-installed tanstack extension boots the widget and shows its composer chip', async ({page}) => {
   const failures = collectFailures(page)
-  await page.goto('/', {waitUntil: 'domcontentloaded'})
+  await gotoTrusted(page, '/')
   await expectWidgetBoots(page, failures)
 
   const chip = page

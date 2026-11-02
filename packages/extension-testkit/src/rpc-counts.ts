@@ -1,5 +1,6 @@
 import type {Page, Request as PageRequest} from 'playwright'
 import {rpcObserverFor} from './rpc-observer.js'
+import {engineRoutePath} from './rpc-payload.js'
 
 const RPC_HTTP_MARKER = '/rpc/'
 const RPC_HTTP_ROOT = '/rpc'
@@ -28,7 +29,7 @@ export function rpcCallMark(page: Page): number {
 export function httpRpcRequestUrls(page: Page): {urls: string[]; dispose: () => void} {
   const urls: string[] = []
   const onRequest = (request: PageRequest): void => {
-    const pathname = new URL(request.url()).pathname
+    const pathname = engineRoutePath(new URL(request.url()).pathname)
     if (pathname.startsWith(RPC_HTTP_MARKER) || pathname === RPC_HTTP_ROOT) urls.push(request.url())
   }
   page.on('request', onRequest)

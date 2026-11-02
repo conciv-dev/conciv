@@ -201,7 +201,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
 
   const rebind = (nextApiBase: string): void => {
     rebindClient(nextApiBase)
-    storage.dispose()
+    void storage.reload()
     setApiBase(nextApiBase)
     router.options.context.queryClient.clear()
     setConnectionGeneration((generation) => generation + 1)
@@ -209,7 +209,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
 
   const boot = {href: router.state.location.href, moved: false}
   const unsubscribeNavigation = router.subscribe('onBeforeNavigate', (event) => {
-    if (event.hrefChanged) boot.moved = true
+    if (event.hrefChanged && event.fromLocation !== undefined) boot.moved = true
   })
   restore.apply = (href) => {
     if (boot.moved || router.state.location.href !== boot.href || router.state.status !== 'idle') return

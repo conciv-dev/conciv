@@ -14,6 +14,6 @@ export async function trustedApiBase(root: string): Promise<string> {
 
 export async function trustedTab(page: Page, options: {root: string}): Promise<string> {
   const apiBase = await trustedApiBase(options.root)
-  await page.addInitScript((base) => Reflect.set(window, '__CONCIV_API_BASE__', base), apiBase)
+  await page.addInitScript((base) => Reflect.set(globalThis, '__CONCIV_API_BASE__', base), apiBase)
   return apiBase
 }

@@ -1,4 +1,5 @@
 import {expect, type ConsoleMessage, type Page} from '@playwright/test'
+import {trustedTab} from '@conciv/extension-testkit/trusted-tab'
 
 export type PageFailures = {
   pageErrors: string[]
@@ -81,4 +82,9 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
     failures.consoleErrors.filter((entry) => !transientOptimizerReload.test(entry)),
     detail,
   ).toEqual([])
+}
+
+export async function gotoTrusted(page: Page, path: string): Promise<void> {
+  await trustedTab(page, {root: process.cwd()})
+  await page.goto(path, {waitUntil: 'domcontentloaded'})
 }
