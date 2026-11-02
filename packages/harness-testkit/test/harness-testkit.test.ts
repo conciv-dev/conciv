@@ -1001,6 +1001,18 @@ describe('conciv devframe layer over a real hub', () => {
         handler: (input, {sessionId}) => ({sessionId, label: input.label}),
       }),
     )
+    ctx.rpc.register(
+      defineConcivFunction({
+        name: 'probe:wide',
+        type: 'query',
+        input: z.object({}),
+        output: z.object({title: z.string(), count: z.number().default(1)}),
+        handler: () => {
+          const toolResult = {title: 'kept', secret: 'dropped', raw: {bytes: 3}}
+          return toolResult
+        },
+      }),
+    )
   })
 
   const call = (client: NodeClient, name: string, input: unknown): Promise<unknown> =>
@@ -1020,6 +1032,12 @@ describe('conciv devframe layer over a real hub', () => {
       code: 'BAD_REQUEST',
       message: expect.stringMatching(/name: Invalid input/),
     })
+    await served.close()
+  }, 10_000)
+
+  it('returns only what the output schema declares, with its defaults', async () => {
+    const served = await serveDevframePlugin(probe.devframe)
+    expect(await call(served.client, 'probe:wide', {})).toEqual({title: 'kept', count: 1})
     await served.close()
   }, 10_000)
 

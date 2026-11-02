@@ -163,7 +163,7 @@ export function defineConcivFunction(spec: WideSpec): unknown {
     setup: (ctx) => ({
       handler: async (raw: unknown): Promise<unknown> => {
         try {
-          return await runHandler(spec, raw, ctx)
+          return spec.output.parse(await runHandler(spec, raw, ctx))
         } catch (error) {
           throw toWireError(error)
         }
