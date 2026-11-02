@@ -31,7 +31,6 @@ import type {
   TargetModel,
   TargetNode,
   TargetStore,
-  TextGroup,
   TextNode,
   TextReader,
   Typography,
@@ -993,38 +992,32 @@ const MAX_CONTRAST = rgbDistance({a: [0, 0, 0], b: [255, 255, 255]})
 const RENDERED = new Map<string, Ink>()
 
 export async function estimateTypography(input: {
-  groups: TextGroup[]
+  texts: {node: TextNode; owner: LiveComponent}[]
   target: TargetModel
   id: string
   store: TargetStore
   page: ServerToolPageAccess
   color: ColorMetric
-}): Promise<void> {
+}): Promise<Record<string, Typography>> {
   const {page} = input
   const jobs = typeJobs(input)
-  if (jobs.length === 0) return
+  if (jobs.length === 0) return {}
   await renderInks({
     page,
     renders: jobs.map((job) => renderAt({job, size: job.owner.styles.fontSize, weight: job.owner.styles.fontWeight})),
   })
-  const estimates = await Promise.all(jobs.map((job) => estimate({job, page})))
-  await input.store.setTypography({id: input.id, typography: Object.fromEntries(estimates)})
+  const estimates = Object.fromEntries(await Promise.all(jobs.map((job) => estimate({job, page}))))
+  await input.store.setTypography({id: input.id, typography: estimates})
+  return estimates
 }
 
-function typeJobs(input: {groups: TextGroup[]; target: TargetModel; color: ColorMetric}): TypeJob[] {
+function typeJobs(input: {
+  texts: {node: TextNode; owner: LiveComponent}[]
+  target: TargetModel
+  color: ColorMetric
+}): TypeJob[] {
   const {raster} = input.target
-  const byBox = new Map(
-    input.target.nodes.flatMap((node): [string, TextNode][] =>
-      node.kind === 'text' ? [[boxKey(node.box), node]] : [],
-    ),
-  )
-  const paired = input.groups.flatMap((group) =>
-    group.target.flatMap((box) => {
-      const node = byBox.get(boxKey(box))
-      return node === undefined ? [] : [{node, owner: group.owner}]
-    }),
-  )
-  return uniqBy(paired, (entry) => entry.node.id)
+  return uniqBy(input.texts, (entry) => entry.node.id)
     .filter((entry) => entry.node.typography?.font !== entry.owner.styles.fontFamily)
     .map(({node, owner}) => {
       const area = crop({raster, box: node.box, margin: TOLERANCES.typeHalo})
@@ -1062,10 +1055,6 @@ function ownInk(input: {area: {raster: Raster; box: Box}; background: Rgb}): Box
   if (inside.length === 0) return trimToInk({raster, box: {x: 0, y: 0, w: width, h: height}})
   const own = union(inside.map((region) => region.box))
   return {...own, x: own.x + box.x, y: own.y + box.y}
-}
-
-function boxKey(box: Box): string {
-  return `${box.x},${box.y},${box.w},${box.h}`
 }
 
 function renderAt(input: {job: TypeJob; size: number; weight: number}): Render {

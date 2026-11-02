@@ -1,5 +1,5 @@
 import {compact} from 'es-toolkit'
-import type {DiffReport} from '../src/shared/defs.js'
+import {DiffReportSchema, type DiffReport} from '../src/shared/defs.js'
 import type {Box, TargetRecord} from '../src/shared/types.js'
 import {assemble, type Delta, type ReportResponse, type XrayData} from '../src/xray/panel.js'
 
@@ -32,30 +32,28 @@ const TARGETS = {
 function report(input: {target: TargetRecord; body: Pick<DiffReport, 'mismatch' | 'components' | 'unmatched'>}) {
   const at = `${Date.now() - RUN_AGE_MS}-${RUN_SUFFIX}`
   const {target} = input
-  const value: DiffReport = {
+  const value: DiffReport = DiffReportSchema.parse({
     target: {id: target.id, route: target.route, width: target.width},
     diffImage: `${HOME}/${target.id}/diff-${at}.png`,
     livePath: `${HOME}/${target.id}/live-${at}.png`,
     xray: '',
-    warnings: [],
-    sources: [],
     ...input.body,
-  }
+  })
   return value
 }
 
 const CARD = {file: 'src/Cards.tsx', line: 9, column: 7}
-const CARD_FILL: Delta = {
-  kind: 'fill',
-  live: 0.329,
-  target: 0.494,
+const CARD_GAP: Delta = {
+  kind: 'gap-after',
+  live: 414,
+  target: 8,
   via: 'css',
   file: 'src/card.module.css',
-  line: 7,
+  line: 3,
   column: 3,
-  selector: '.card',
-  declaration: 'flex: 1',
-  suggest: 'the extra sibling steals a third; remove it and fill matches',
+  selector: '.cards',
+  declaration: 'gap: 8px',
+  suggest: 'the extra sibling sits in the gap; remove it and the gap matches',
 }
 
 const DESKTOP = report({
@@ -95,7 +93,7 @@ const DESKTOP = report({
         target: {x: 24, y: 120, w: 608, h: 80},
         mismatch: 0.0112,
         children: 2,
-        deltas: [CARD_FILL],
+        deltas: [CARD_GAP],
       },
       {
         source: CARD,
@@ -119,7 +117,7 @@ const DESKTOP = report({
             declaration: 'gap: 8px',
             suggest: 'position follows the extra sibling; no edit here',
           },
-          CARD_FILL,
+          CARD_GAP,
         ],
       },
       {

@@ -1,8 +1,8 @@
 import type {ServerApi, ToolRequest} from '@conciv/extension'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import type {DesignConfig} from './tolerances.js'
-import type {DeltaKindName, DiffInput, DiffReport, StatusReport, TargetInput, TargetResult} from './defs.js'
+import type {DesignConfig, Tolerances} from './tolerances.js'
+import type {DeltaKindName, DiffInput, DiffReport, Stage, StatusReport, TargetInput, TargetResult} from './defs.js'
 
 export const ROLES = ['placeholder', 'data', 'unknown'] as const
 export type Role = (typeof ROLES)[number]
@@ -52,7 +52,7 @@ export type RoleRules = (input: {text: string; neighbours: string[]}) => {role: 
 
 export type Glyph = {text: string; boxes: Box[]}
 
-export type LiveBorder = {width: number; style: string; color: string}
+export type LiveBorder = {width: number; style: string; color: string; side: 'top' | 'right' | 'bottom' | 'left'}
 export type LiveStyles = {
   background: string
   color: string
@@ -73,6 +73,8 @@ export type LiveComponent = {
   axis: 'row' | 'column' | null
   columns: number | null
   styles: LiveStyles
+  role: string | null
+  hints: string[]
   index: number
   path: string
   children: LiveComponent[]
@@ -96,10 +98,6 @@ export type PixelComparator = {
   name: string
   compare(input: {a: Raster; b: Raster}): {mismatch: number; mask: Uint8Array; regions: PixelRegion[]; score?: number}
 }
-export type GeometryEstimator = {
-  name: string
-  estimate(input: {live: Raster; target: Raster; liveBox: Box}): {targetBox: Box | null}
-}
 export type ColorMetric = {name: string; distance(input: {a: string; b: string}): number}
 export type TextRun = {box: Box; text: string}
 export type TextGroup = {
@@ -113,38 +111,64 @@ export type TextGroup = {
 export type TextReader = {name: string; read(input: {raster: Raster}): Promise<OcrLine[]>}
 export type Comparators = {
   pixel: PixelComparator
-  geometry: GeometryEstimator
   color: ColorMetric
   text: TextReader
 }
 export type Pair = {
   live: LiveComponent
+  node: TargetNode
+  texts: TextNode[]
+  source: MeasureSource
+  confidence: number
   selector: string
   liveBox: Box
-  targetBox: Box | null
+  targetBox: Box
   mismatch: number
   depth: number
   parent: Pair | null
+  host: {selector: string; live: LiveComponent} | null
   prev: Pair | null
   next: Pair | null
 }
-export type Matcher = {
-  name: string
-  match(input: {live: LiveCapture; target: TargetModel; comparators: Comparators; depth: number}): {
-    mismatch: number
-    mask: Uint8Array
-    pairs: Pair[]
-    matchedTargetBoxes: Box[]
-  }
+export type Matched = {node: TargetNode; component: LiveComponent; confidence: number}
+export type TwinVote = {node: string; path: string; confidence: number}
+export type TwinPair = {node: string; twin: string; confidence: number}
+export type PairRecord = {node: string; path: string; confidence: number}
+export type Pairer = (input: {
+  components: LiveComponent[]
+  nodes: TargetNode[]
+  twinVotes: TwinVote[]
+  pins: {node: string; path: string}[]
+  tolerances: Tolerances
+  live: Raster
+  target: Raster
+  deadline: number
+}) => {matched: Matched[]; partial: boolean}
+export type ItemKind = DeltaKindName | 'unbuilt' | 'extra' | 'offset'
+export type Item = {
+  key: string
+  kind: ItemKind
+  stage: Stage | null
+  size: number
+  confidence: number
+  box: Box
+  depth: number
+  value: number | string
+  sentence: string
 }
+export type Ranker = (input: {items: Item[]}) => Item[]
+export type Flow = 'row' | 'column'
 export type Side = {
   box: Box
   parent: Box | null
   prev: Box | null
   next: Box | null
   axis: 'row' | 'column' | null
+  flow: Flow | null
   columns: number | null
   textBox: Box | null
+  edge: string | null
+  radius: number | null
   styles: Partial<LiveStyles>
 }
 export type Delta = {
@@ -158,7 +182,7 @@ export type Delta = {
   warning?: 'sample-data'
 } & Partial<Provenance>
 export type DeltaKind = {kind: DeltaKindName; measure(input: {live: Side; target: Side; color: ColorMetric}): Delta[]}
-export type Unmatched = {kind: 'missing' | 'extra'; target?: Box; live?: Box; source?: SourceLoc}
+export type Unmatched = DiffReport['unmatched'][number]
 
 export type Winner = {
   selector: string | null
@@ -212,7 +236,7 @@ export type TargetRecord = {
 }
 type DecisionKind = 'pin' | 'excluded' | 'image-slot' | 'accept-delta' | 'tolerance'
 export type Decision = {id: string; kind: DecisionKind; anchor: string; value: string | number | null; at: number}
-export type StoredRun = {run: string; report: DiffReport}
+export type StoredRun = {run: string; report: DiffReport; pairs: PairRecord[]}
 export type TargetStore = {
   put(input: {model: TargetModel; session: string; route?: string; name?: string}): Promise<TargetRecord>
   find(input: {id: string}): Promise<TargetRecord | null>
@@ -225,12 +249,16 @@ export type TargetStore = {
   revoke(input: {id: string; decision: string}): Promise<boolean>
   accept(input: {id: string; run: string}): Promise<TargetRecord>
   latestRun(id: string): Promise<StoredRun | null>
+  run(input: {id: string; run: string}): Promise<StoredRun | null>
+  twins(id: string): Promise<Record<string, TwinPair[]>>
+  setTwins(input: {id: string; other: string; twins: TwinPair[]}): Promise<void>
   writeCapture(input: {png: Uint8Array}): Promise<string>
   writeRun(input: {
     id: string
     live: Raster
     diff: Raster
     result: Omit<DiffReport, 'diffImage' | 'livePath'>
+    pairs: PairRecord[]
   }): Promise<DiffReport>
   lastResult(id: string): Promise<DiffReport | null>
   setTypography(input: {id: string; typography: Record<string, Typography>}): Promise<void>
@@ -240,7 +268,8 @@ export type DesignRuntime = {
   cwd: string
   store: TargetStore
   comparators: Comparators
-  matcher: Matcher
+  pairer: Pairer
+  ranker: Ranker
   adapters: TargetAdapter[]
   enrichers: Enricher[]
   segmenter: Segmenter
@@ -256,6 +285,7 @@ export type XrayLink = {url: string; absolute: boolean}
 export type Differ = {
   register(input: {input: TargetInput; session: SessionId}): Promise<TargetResult>
   run(input: {input: DiffInput; session: SessionId}): Promise<DiffReport>
+  refresh(input: {session: SessionId}): Promise<void>
   status(input: {session: SessionId}): Promise<StatusReport>
 }
 

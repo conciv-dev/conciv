@@ -621,7 +621,7 @@ describe('page tools', () => {
     })
 
     it('reports no hot surface as unsupported', async () => {
-      expect(await watchHotUpdates(undefined)(1000)).toEqual({
+      expect(await watchHotUpdates(undefined)({timeout: 1000})).toEqual({
         supported: false,
         applied: false,
         waitedMs: 0,
@@ -631,14 +631,14 @@ describe('page tools', () => {
 
     it('gives up with an explanation when no update ever arrives', async () => {
       const {hot} = fakeHot()
-      const result = await watchHotUpdates(hot)(60)
+      const result = await watchHotUpdates(hot)({timeout: 60})
       expect(result).toMatchObject({supported: true, applied: false, error: 'the hot update did not land within 60ms'})
       expect(result.waitedMs).toBeGreaterThanOrEqual(50)
     })
 
     it('reports applied when the wait is called before the update even starts', async () => {
       const {hot, fire} = fakeHot()
-      const waited = watchHotUpdates(hot)(500)
+      const waited = watchHotUpdates(hot)({timeout: 500})
       setTimeout(() => fire('vite:beforeUpdate', {type: 'update', updates: []}), 20)
       setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 40)
       expect(await waited).toMatchObject({supported: true, applied: true, error: null})
@@ -649,7 +649,7 @@ describe('page tools', () => {
       const wait = watchHotUpdates(hot)
       fire('vite:beforeUpdate', {type: 'update', updates: []})
       fire('vite:afterUpdate', {type: 'update', updates: []})
-      expect(await wait(500)).toEqual({supported: true, applied: true, waitedMs: 0, error: null})
+      expect(await wait({timeout: 500})).toEqual({supported: true, applied: true, waitedMs: 0, error: null})
     })
 
     it('waits for an update already in flight instead of reporting the one before it', async () => {
@@ -658,7 +658,7 @@ describe('page tools', () => {
       fire('vite:beforeUpdate', {type: 'update', updates: []})
       fire('vite:afterUpdate', {type: 'update', updates: []})
       fire('vite:beforeUpdate', {type: 'update', updates: []})
-      const waited = wait(500)
+      const waited = wait({timeout: 500})
       setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 40)
       const result = await waited
       expect(result).toMatchObject({supported: true, applied: true, error: null})
@@ -669,7 +669,7 @@ describe('page tools', () => {
       const {hot, fire} = fakeHot()
       const wait = watchHotUpdates(hot)
       fire('vite:beforeUpdate', {type: 'update', updates: []})
-      const waited = wait(500)
+      const waited = wait({timeout: 500})
       setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: []}), 50)
       const result = await waited
       expect(result).toMatchObject({supported: true, applied: true, error: null})
@@ -681,16 +681,29 @@ describe('page tools', () => {
       const {hot, fire} = fakeHot()
       const wait = watchHotUpdates(hot)
       fire('vite:beforeUpdate', {type: 'update', updates: []})
-      const waited = wait(500)
+      const waited = wait({timeout: 500})
       fire('vite:error', {type: 'error', err: {message: 'Unexpected token', stack: ''}})
       expect(await waited).toMatchObject({supported: true, applied: false, error: 'Unexpected token'})
+    })
+
+    it('waits for an update at least as recent as since, and ignores an older one', async () => {
+      const {hot, fire} = fakeHot()
+      const wait = watchHotUpdates(hot)
+      fire('vite:afterUpdate', {type: 'update', updates: [{timestamp: 100}]})
+      const waited = wait({timeout: 500, since: 200})
+      fire('vite:afterUpdate', {type: 'update', updates: [{timestamp: 150}]})
+      setTimeout(() => fire('vite:afterUpdate', {type: 'update', updates: [{timestamp: 250}]}), 50)
+      const result = await waited
+      expect(result).toMatchObject({supported: true, applied: true, error: null})
+      expect(result.waitedMs).toBeGreaterThanOrEqual(40)
+      expect(await wait({timeout: 500, since: 250})).toEqual({supported: true, applied: true, waitedMs: 0, error: null})
     })
 
     it('gives up with an explanation when the pending update never lands', async () => {
       const {hot, fire} = fakeHot()
       const wait = watchHotUpdates(hot)
       fire('vite:beforeUpdate', {type: 'update', updates: []})
-      const result = await wait(60)
+      const result = await wait({timeout: 60})
       expect(result).toMatchObject({
         supported: true,
         applied: false,

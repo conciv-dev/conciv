@@ -246,6 +246,10 @@ export const hmrDef = pageTool({
       .positive()
       .default(HOT_UPDATE_WAIT_MS)
       .describe('max wait in ms for a pending update'),
+    since: z.coerce
+      .number()
+      .optional()
+      .describe('epoch ms of a file change; waits until the page has applied a hot update at least this recent'),
   }),
   output: HotUpdateWaitSchema,
 })

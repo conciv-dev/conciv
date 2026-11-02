@@ -206,7 +206,7 @@ function rawStatus(input: {origin: string; path: string}): Promise<number> {
   })
 }
 
-const NO_BORDER = {width: 0, style: 'none', color: '#000000'}
+const NO_BORDER = {width: 0, style: 'none', color: '#000000', side: 'top' as const}
 const NO_STYLES = {
   background: '',
   color: '',
@@ -248,6 +248,8 @@ function mapFixture(input: {
     axis: null,
     columns: null,
     styles: NO_STYLES,
+    role: null,
+    hints: [],
     index: 1,
     path: '/1',
     children: [],
@@ -300,12 +302,16 @@ it('registers a PNG target sized by its header, and the same bytes keep their id
   expect(await readFile(decisions, 'utf8')).toBe(decided)
 })
 
-it('divides the header width of a retina export by the stated scale', async () => {
+it('divides the header width of a retina export by the stated scale and diffs it through alignment', async () => {
   expect(await call('design_target', {image: target('u1-2560'), scale: 2})).toMatchObject({
     width: 1280,
     height: 720,
     scale: 2,
   })
+  await goto('target')
+  const report = await call('design_diff', {})
+  expect([report.components, report.unmatched]).toEqual([[], []])
+  expect(report.stop).toBe('done')
 })
 
 it('clear removes a target by id', async () => {
@@ -362,13 +368,10 @@ it('ranks the toolbar first with an inset delta and reports the missing card, ne
   expect(report.warnings, 'the table cells render from data; the literals left are headers and Create').toEqual([])
 })
 
-it('a recolored toolbar is a background delta and a wider one a fill delta', async () => {
+it('a recolored toolbar is a background delta', async () => {
   await goto('recolor')
   const recolored = (await call('design_diff', {})).components[0]?.deltas
   expect(recolored).toContainEqual(expect.objectContaining({kind: 'background', live: '#f5f5f5', target: '#ffffff'}))
-  expect(recolored?.map((d) => d.kind).toSorted()).toEqual(['background'])
-  await goto('wide')
-  expect((await call('design_diff', {})).components[0]?.deltas.map((d) => d.kind).toSorted()).toEqual(['fill'])
 })
 
 it('an identical page yields no components and no unmatched', async () => {
@@ -758,8 +761,9 @@ describe('x-ray page', () => {
   })
 
   it('a width without a run keeps the panel Run diff and says it was not diffed yet', async () => {
+    await goto('/plain.html')
+    const unrun = await call('design_target', {image: target('u1-390'), name: 'unrun', route: '/'})
     await goto('/')
-    const unrun = await call('design_target', {image: target('u1-390'), name: 'unrun'})
     await call('design_target', {image: target('u1-1280')})
     const report = await call('design_diff', {})
     const url = new URL(report.xray)
@@ -851,18 +855,20 @@ describe('x-ray page', () => {
     await xray.close()
   })
 
-  it('shows the stale badge once the source changes after the diff', async () => {
+  it('a source change runs the diff again, so the stale badge clears', async () => {
     await goto('/')
     const report = await call('design_diff', {})
+    const before = (await call('design_status', {})).targets[0]?.lastAt ?? 0
     const xray = await browser.newPage()
     await xray.goto(report.xray)
     await expectLocator(xray.getByRole('listitem').first()).toBeVisible()
-    await expectLocator(xray.getByText('stale: source changed')).toHaveCount(0)
     await writeFile(HOST_STYLES, await readFile(HOST_STYLES))
-    await expectLocator(async () => {
-      await xray.reload()
-      await expectLocator(xray.getByText('stale: source changed')).toBeVisible({timeout: 1_000})
-    }).toPass({timeout: 10_000})
+    await expect
+      .poll(async () => (await call('design_status', {})).targets[0]?.lastAt ?? 0, {timeout: 15_000})
+      .toBeGreaterThan(before)
+    await xray.reload()
+    await expectLocator(xray.getByRole('listitem').first()).toBeVisible()
+    await expectLocator(xray.getByText('stale: source changed')).toHaveCount(0)
     await xray.close()
   })
 
@@ -1152,6 +1158,8 @@ function glyphComponent(input: {glyphs: {text: string; boxes: Box[]}[]; x?: numb
     axis: null,
     columns: null,
     styles: {...NO_STYLES, background: '#ffffff', color: '#000000', fontSize: 16, lineHeight: 20, fontWeight: 400},
+    role: null,
+    hints: [],
     index: 1,
     path: '/1',
     children: [],
@@ -1499,5 +1507,133 @@ describe('type estimate', () => {
       return [{text: node.text, live: element?.size, typography}]
     })
     expect(misses).toEqual([])
+  })
+})
+
+async function freshTarget(name: string): Promise<TargetResult> {
+  await call('design_clear', {all: true})
+  return call('design_target', {image: target(name)})
+}
+
+function runFiles(input: {id: string; prefix: string}): Promise<string[]> {
+  return readdir(fileUnder(stateRoot, `.conciv/design/${input.id}`)).then((names) =>
+    names.filter((name) => name.startsWith(input.prefix)).toSorted(),
+  )
+}
+
+describe('loop', () => {
+  it('bordered reports a border delta in the paint stage with a short brief at round 1', async () => {
+    await goto('bordered')
+    await freshTarget('u1-1280')
+    const report = await call('design_diff', {})
+    expect(report.components.flatMap((c) => c.deltas.map((d) => d.kind))).toContain('border')
+    expect(report).toMatchObject({stage: 'paint', round: 1})
+    expect(report.brief.length).toBeGreaterThan(0)
+    expect(report.brief.length).toBeLessThanOrEqual(5)
+  })
+
+  it('column reports an axis delta in the structure stage', async () => {
+    await goto('column')
+    await freshTarget('u1-1280')
+    const report = await call('design_diff', {})
+    expect(report.components.flatMap((c) => c.deltas.map((d) => d.kind))).toContain('axis')
+    expect(report.stage).toBe('structure')
+  })
+
+  it('grid reports a columns delta', async () => {
+    await goto('grid')
+    await freshTarget('u1-1280')
+    const report = await call('design_diff', {})
+    expect(report.components.flatMap((c) => c.deltas)).toContainEqual(
+      expect.objectContaining({kind: 'columns', live: 4, target: 3}),
+    )
+  })
+
+  it('nine diffs of an unchanged bordered page stop stalled before the budget', async () => {
+    await goto('bordered')
+    await freshTarget('u1-1280')
+    const stops: (string | null)[] = []
+    for (const _ of Array.from({length: 9})) stops.push((await call('design_diff', {})).stop)
+    expect(stops.at(-1)).toBe('stalled')
+    expect(stops.indexOf('stalled')).toBeLessThan(7)
+    expect(stops).not.toContain('budget')
+  }, 300_000)
+
+  it('saves between two diffs leave the round where design_diff left it', async () => {
+    await goto('bordered')
+    const {id} = await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const styles = await readFile(HOST_STYLES)
+    const runs = (await runFiles({id, prefix: 'result-'})).length
+    for (const _ of Array.from({length: 5})) await writeFile(HOST_STYLES, styles)
+    await expect
+      .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
+      .toBeGreaterThan(runs)
+    expect(await call('design_status', {})).toMatchObject({round: 1})
+  })
+
+  it('an empty page leaves every non-image node unbuilt in the structure stage', async () => {
+    await goto('empty')
+    const {id} = await freshTarget('u1-1280')
+    const report = await call('design_diff', {})
+    const nodes = (await storedNodes(id)).filter((node) => node.kind !== 'image')
+    const unbuilt = report.unmatched.filter((entry) => entry.kind === 'unbuilt')
+    expect(
+      nodes.filter(
+        (node) => !unbuilt.some((entry) => entry.target !== undefined && near({a: entry.target, b: node.box})),
+      ),
+    ).toEqual([])
+    expect(report.stage).toBe('structure')
+  })
+
+  it('shifted pairs the first button and reports a text delta and nothing unbuilt', async () => {
+    await goto('shifted')
+    await freshTarget('u1-1280')
+    const report = await call('design_diff', {})
+    expect(report.components.flatMap((c) => c.deltas)).toContainEqual(
+      expect.objectContaining({kind: 'text', live: 'Make', target: 'Export', file: 'src/Toolbar.tsx'}),
+    )
+    expect(report.unmatched.filter((entry) => entry.kind === 'unbuilt')).toEqual([])
+  })
+
+  it('registering u1-390 then u1-1280 links twins on both and reports a responsive section', async () => {
+    await goto('target')
+    await call('design_clear', {all: true})
+    const narrow = await call('design_target', {image: target('u1-390')})
+    const wide = await call('design_target', {image: target('u1-1280')})
+    const TwinsSchema = z.record(z.string(), z.array(z.object({node: z.string(), twin: z.string()})))
+    const twins = async (id: string) =>
+      TwinsSchema.parse(JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/twins.json`), 'utf8')))
+    expect((await twins(wide.id))[narrow.id]?.length).toBeGreaterThan(0)
+    expect((await twins(narrow.id))[wide.id]?.length).toBeGreaterThan(0)
+    const report = await call('design_diff', {})
+    expect(report.responsive).toContainEqual(expect.objectContaining({target: narrow.id, width: 390}))
+  })
+
+  it('a run after a source edit carries a diff image that differs from the run before', async () => {
+    await goto('target')
+    const {id} = await freshTarget('u1-1280')
+    const first = await call('design_diff', {})
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    const before = (await runFiles({id, prefix: 'diff-'})).length
+    try {
+      await writeFile(HOST_STYLES, `${styles}\n.toolbar { background-color: #fde68a !important; }\n`)
+      await expect
+        .poll(async () => (await runFiles({id, prefix: 'diff-'})).length, {timeout: 15_000})
+        .toBeGreaterThan(before)
+      const latest = (await runFiles({id, prefix: 'diff-'})).at(-1) ?? ''
+      const after = await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`))
+      expect(after.equals(await readFile(fileUnder(stateRoot, first.diffImage)))).toBe(false)
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
+  })
+
+  it('pairs the finished fixture within the run budget and reports no partial run', async () => {
+    await goto('target')
+    await freshTarget('u1-1280')
+    const report = await call('design_diff', {})
+    expect(report.partial).toBe(false)
+    expect([report.components, report.unmatched]).toEqual([[], []])
   })
 })

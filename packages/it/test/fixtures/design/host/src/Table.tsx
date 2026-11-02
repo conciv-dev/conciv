@@ -6,11 +6,13 @@ const ROWS: Row[] = [
 ]
 const ROLE_ROWS: Row[] = [...ROWS, {invoice: 'INV-003', customer: '[Customer Name]', amount: '$1,200'}]
 
-export function Table(props: {variant: string | null}) {
+const LOOKS: Record<string, string> = {bordered: 'table bordered', grid: 'table grid'}
+
+export function Table(props: {variant: string | null; look?: string | null}) {
   const rows = props.variant === 'roles' ? ROLE_ROWS : ROWS
   const hardcoded = props.variant === 'hardcoded'
   return (
-    <table className="table">
+    <table className={LOOKS[props.look ?? ''] ?? 'table'}>
       <thead>
         <tr>
           <th>Invoice</th>

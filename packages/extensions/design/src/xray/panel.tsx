@@ -3,7 +3,7 @@ import {createTimer} from '@solid-primitives/timer'
 import {compact, uniq} from 'es-toolkit'
 import {RelativeTime, SegmentGroup, TooltipIconButton} from '@conciv/ui-kit-system'
 import type {ComponentReport, DeltaKindName, DiffReport} from '../shared/defs.js'
-import {aboveTolerance, componentAboveTolerance, SOURCE_ATTR} from '../shared/tolerances.js'
+import {aboveTolerance, componentAboveTolerance, deltaSentence, SOURCE_ATTR, traced} from '../shared/tolerances.js'
 import type {Box, SourceLoc, TargetNode, TargetRecord} from '../shared/types.js'
 
 export type Delta = ComponentReport['deltas'][number]
@@ -18,7 +18,7 @@ export type Row = {
   target: Box | null
   mismatch: number | null
   deltas: Delta[]
-  unmatched: 'missing' | 'extra' | null
+  unmatched: 'unbuilt' | 'extra' | 'offset' | null
 }
 
 type WidthTab = {target: TargetRecord; off: number | null}
@@ -141,7 +141,6 @@ export function filterRows(input: {rows: Row[]; filter: Filter; query: string}):
     .filter((row) => needle === '' || `${row.label} ${row.selector} ${row.tag}`.toLowerCase().includes(needle))
 }
 
-const SHARE = new Intl.NumberFormat(undefined, {style: 'percent', maximumFractionDigits: 1})
 const AMOUNT = new Intl.NumberFormat(undefined, {maximumFractionDigits: 1})
 
 type BadgeColor = 'orange' | 'red' | 'amber'
@@ -172,7 +171,7 @@ function rowName(row: Row): string {
 
 function deltaValue(input: {delta: Delta; value: number | string}): string {
   if (typeof input.value === 'string') return input.value
-  return input.delta.kind === 'fill' ? SHARE.format(input.value) : AMOUNT.format(input.value)
+  return AMOUNT.format(input.value)
 }
 
 function badgeText(delta: Delta): string {
@@ -185,27 +184,10 @@ function badgeColor(delta: Delta): BadgeColor {
 
 export type View = 'list' | 'capture'
 
-function traced(delta: Delta): boolean {
-  return delta.via !== undefined && delta.via !== 'unknown' && delta.file !== undefined
-}
-
-function where(delta: Delta): string {
-  if (delta.line === undefined) return `${delta.file}`
-  return `${delta.file}:${delta.line}`
-}
-
-function sentence(delta: Delta): string {
-  if (delta.kind === 'text') return `change the text from ${delta.live} to ${delta.target} at ${where(delta)}`
-  const change = `${delta.kind} is ${delta.live} where the design has ${delta.target}`
-  const declared = delta.declaration === undefined ? '' : `, declared as \`${delta.declaration}\``
-  const suggestion = delta.suggest === undefined ? '' : `; ${delta.suggest}`
-  return `${change}, set via ${delta.via} at ${where(delta)}${declared}${suggestion}`
-}
-
 export function fixPrompt(row: Row): string | null {
   const deltas = row.deltas.filter(traced)
   if (deltas.length === 0) return null
-  return `Fix ${row.label} (${row.selector}) to match the design: ${deltas.map(sentence).join('. ')}.`
+  return `Fix ${row.label} (${row.selector}) to match the design: ${deltas.map(deltaSentence).join('. ')}.`
 }
 
 const BADGE_CLASS: Record<BadgeColor | 'green', string> = {
@@ -359,7 +341,8 @@ const PLURAL = new Intl.PluralRules(undefined)
 
 const UNMATCHED_NOTE = {
   extra: 'The live page renders an element the design does not have.',
-  missing: 'The design has an element here that the live page does not render.',
+  unbuilt: 'The design has an element here that the live page does not render.',
+  offset: 'The element renders away from where the design places it.',
 }
 
 function count(input: {value: number; one: string; other: string}): string {
@@ -604,7 +587,7 @@ export function ComponentDetail(props: ComponentDetailProps): JSX.Element {
         </button>
         <Show when={prompt()}>
           {(text) => (
-            <button type="button" class="text-sm btn-primary px-2.5 py-1" onClick={() => copy(text())}>
+            <button type="button" class="text-sm btn-primary py-1 px-2.5" onClick={() => copy(text())}>
               <span class={copied() ? 'i-ph-check' : 'i-ph-copy-duotone'} aria-hidden="true" />
               Copy fix prompt
             </button>

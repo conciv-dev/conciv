@@ -12,6 +12,8 @@ import {
   clearDef,
   DESIGN_GUIDE,
   diffDef,
+  DiffInputSchema,
+  DiffReportSchema,
   GlyphSchema,
   LiveStylesSchema,
   measureDef,
@@ -33,22 +35,21 @@ import {
   type WinnerInput,
   type WinnerResult,
 } from '../shared/defs.js'
-import {aboveTolerance, SOURCE_ATTR, TOLERANCES} from '../shared/tolerances.js'
+import {aboveTolerance, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Box,
   ColorMetric,
-  Comparators,
   CssMap,
+  Decision,
   Delta,
   DesignContext,
   DesignPage,
   DesignRuntime,
   Differ,
-  GeometryEstimator,
   LiveCapture,
   LiveComponent,
   LiveRole,
-  Matcher,
+  Matched,
   Pair,
   PixelComparator,
   PixelRegion,
@@ -56,25 +57,43 @@ import type {
   Role,
   ServerStep,
   TargetModel,
+  TargetNode,
   TargetRecord,
   TargetStore,
   TextGroup,
+  TextNode,
   TextRun,
+  TwinPair,
+  TwinVote,
   Unmatched,
   XrayLink,
 } from '../shared/types.js'
-import {glyphCoreColor, isOpaqueHex, sampledFills, sideFrom} from './deltas.js'
+import {edgeStrip, glyphCoreColor, isOpaqueHex, sideFrom} from './deltas.js'
+import {
+  createHistory,
+  createRuns,
+  deltaSize,
+  itemsFrom,
+  judge,
+  lexicallyWorse,
+  roundRecord,
+  scoreTuple,
+  type RunJob,
+} from './loop.js'
+import {align, pairTree, pairTwins, type Offset, type Shift} from './pair.js'
 import {lookups, mapDeclaration, readLiveText, type LiveText} from './provenance.js'
 import {
   boxBlur,
+  boxMask,
   crop,
   decodePng,
   diffMask,
-  edgeDensity,
+  downscale,
   edgeMap,
   encodePng,
   expand,
   findRegions,
+  maskShare,
   medianColor,
   overlapping,
   paintOver,
@@ -83,6 +102,723 @@ import {
   union,
 } from './raster.js'
 import {estimateTypography, liveRoute, pathnameIn, registerTarget, segmentationQuality} from './target.js'
+
+export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore; page: DesignPage}): Differ {
+  const {store, page} = input
+  const design = {...input.runtime, store}
+  const history = createHistory()
+  const tab = (session: SessionId): ServerToolPageAccess => ({
+    call: (name, query) => page.ask({sessionId: session, name, input: query}),
+  })
+  const runs = createRuns({execute: (job) => runDiff({job, design, page: tab(job.session), history})})
+  return {
+    register: async ({input: target, session}) => {
+      const previous = await store.current({session})
+      const result = await registerTarget({input: target, session, design, page: tab(session)})
+      const fresh = previous?.id !== result.id || history.rounds(result.id).length === 0
+      if (fresh) history.reset(result.id)
+      await linkTwins({store, id: result.id, session})
+      const first = await runs.trigger({id: result.id, session, observe: fresh, input: DEFAULT_DIFF}).catch(() => null)
+      return first === null ? result : {...result, stage: first.stage, brief: first.brief}
+    },
+    run: async ({input: query, session}) => {
+      const record = await currentTarget({design, session})
+      return runs.trigger({id: record.id, session, observe: true, input: query})
+    },
+    refresh: async ({session}) => {
+      const record = await store.current({session})
+      if (record === null) return
+      await runs.trigger({id: record.id, session, observe: false, input: DEFAULT_DIFF})
+    },
+    status: ({session}) => targetStatus({store, session}),
+  }
+}
+
+export const SERVER_STEPS = [
+  targetDef.server((input, ctx: DesignContext, request) => ctx.differ.register({input, session: request.sessionId})),
+  diffDef.server((input, ctx: DesignContext, request) => ctx.differ.run({input, session: request.sessionId})),
+  statusDef.server((_input, ctx: DesignContext, request) => ctx.differ.status({session: request.sessionId})),
+  captureDef.server(captureStep),
+  winnerDef.server(winnerStep),
+  clearDef.server(clearStep),
+] as const satisfies readonly AnyToolBuilder[]
+
+export const PIXEL_COMPARATORS = {
+  blazediff: {name: 'blazediff', compare: blazediffCompare},
+  pixelmatch: {name: 'pixelmatch', compare: pixelmatchCompare},
+} as const satisfies Record<string, PixelComparator>
+
+export function groupText(input: {
+  components: LiveComponent[]
+  runs: TextRun[]
+  live: Raster
+  target: Raster
+  color: ColorMetric
+}): {groups: TextGroup[]; agreeing: Box[]} {
+  const {components, runs, live, target, color} = input
+  if (runs.length === 0) return {groups: [], agreeing: []}
+  const liveItems = flattened(components).flatMap((owner) =>
+    owner.glyphs.map((glyph): TextItem => ({side: 'live', text: glyph.text, boxes: glyph.boxes, owner})),
+  )
+  const targetItems = runs.map((run): TextItem => ({side: 'target', text: run.text, boxes: [run.box], owner: null}))
+  const grouped = connected([...liveItems, ...targetItems]).flatMap(
+    (members) => toGroup({members, live, target, color}) ?? [],
+  )
+  return {groups: grouped.map(({group}) => group), agreeing: grouped.flatMap(({mask}) => mask)}
+}
+
+const DEFAULT_DIFF: DiffInput = DiffInputSchema.parse({})
+const STRETCHED = 0.85
+const GEOMETRY_KINDS: Delta['kind'][] = [
+  'inset-left',
+  'inset-right',
+  'inset-top',
+  'inset-bottom',
+  'gap-before',
+  'gap-after',
+  'padding',
+  'align',
+]
+
+type History = ReturnType<typeof createHistory>
+type Measured = {pair: Pair; deltas: Delta[]}
+type Reported = {pair: Pair; report: ComponentReport}
+
+async function runDiff(request: {
+  job: RunJob
+  design: DesignRuntime
+  page: ServerToolPageAccess
+  history: History
+}): Promise<DiffReport> {
+  const {job, design, page, history} = request
+  const started = Date.now()
+  const record = await design.store.find({id: job.id})
+  if (record === null) throw toolError('no-target', {message: NO_TARGET_MESSAGE})
+  const xray = design.xrayUrl({id: record.id, session: job.session})
+  const route = await otherRoute({record, page})
+  if (route !== null) return refused({record, route, xray})
+  const decisions = await design.store.decisions(record.id)
+  const dropped = droppedNodes(decisions)
+  const model = cssModel(await design.store.model(record.id))
+  const reading = await measure({width: record.width, height: record.height, timeout: TOLERANCES.runBudgetMs, page})
+  const droppedBoxes = model.nodes.filter((node) => dropped.has(node.id)).map((node) => node.box)
+  const live = {
+    ...reading,
+    raster: paintOver({onto: reading.raster, from: model.raster, boxes: [...reading.masks, ...droppedBoxes]}),
+  }
+  const color = design.comparators.color
+  const stamp = {source: live.source, confidence: sourceConfidence(live), width: record.width}
+  const {agreeing} = groupText({
+    components: live.components,
+    runs: targetRuns(model),
+    live: live.raster,
+    target: model.raster,
+    color,
+  })
+  const masked = paintOver({
+    onto: live.raster,
+    from: model.raster,
+    boxes: agreeing.map((box) => expand({box, by: TOLERANCES.glyphHalo + TOLERANCES.blurRadius})),
+  })
+  const pixels = comparePages({live: masked, target: model.raster, comparator: design.comparators.pixel})
+  const nodes = model.nodes.filter((node) => !dropped.has(node.id))
+  const pins = pinsFrom(decisions)
+  const paired = design.pairer({
+    components: live.components,
+    nodes,
+    twinVotes: await twinVotes({store: design.store, id: record.id}),
+    pins,
+    tolerances: TOLERANCES,
+    live: live.raster,
+    target: model.raster,
+    deadline: started + TOLERANCES.runBudgetMs,
+  })
+  const typography = await estimateTypography({
+    texts: paired.matched.flatMap((entry) =>
+      entry.node.kind === 'text' ? [{node: entry.node, owner: entry.component}] : [],
+    ),
+    target: model,
+    id: record.id,
+    store: design.store,
+    page,
+    color,
+  })
+  const matched = paired.matched.map((entry) => withTypography({entry, typography}))
+  const pairs = pairTree({
+    matched,
+    components: live.components,
+    live: live.raster,
+    source: live.source,
+    mismatchAt: (box) => maskShare({...pixels, box: expand({box, by: TOLERANCES.tileMargin})}),
+  })
+  const alignment = align({pairs, live: live.raster, tolerances: TOLERANCES})
+  const judged = await textJudgements({pairs, cwd: design.cwd})
+  const page0 = {x: 0, y: 0, w: live.viewport.width, h: live.viewport.height}
+  const measured = pairs.map((pair): Measured => ({
+    pair,
+    deltas: decided({
+      deltas: [
+        ...measureDeltas({
+          pair,
+          pairs,
+          live: live.raster,
+          target: model.raster,
+          page: page0,
+          design,
+          shift: alignment.global,
+        }),
+        ...textDeltas({pair, judged}),
+      ].map((delta) => ({...delta, ...stamp})),
+      pair,
+      decisions,
+      color,
+    }),
+  }))
+  const pairedNodes = new Set(matched.map((entry) => entry.node.id))
+  const unmatched = [
+    ...unbuiltEntries({nodes, pairedNodes}),
+    ...extraEntries({components: live.components, paired: new Set(matched.map((entry) => entry.component.path))}),
+    ...offsetEntries({offsets: alignment.offsets, measured}),
+  ]
+  const reported = reportedComponents({measured, input: job.input, color})
+  const components = await withProvenance({ranked: reported, design, page, width: record.width, height: record.height})
+  const enriched = new Map(
+    reported.map((entry, index) => [entry.pair, components[index]?.deltas ?? entry.report.deltas]),
+  )
+  const items = itemsFrom({
+    components: measured.map((entry) => ({pair: entry.pair, deltas: enriched.get(entry.pair) ?? entry.deltas})),
+    unmatched,
+    color,
+  })
+  const warnings = warningDeltas({pairs, judged}).map((delta) => ({...delta, ...stamp}))
+  const score = scoreTuple({
+    items,
+    unpairedShare: unpairedShare({unmatched, page: page0}),
+    residualShare: residualShare({measured, unmatched, masks: droppedBoxes, page: page0}),
+  })
+  const rounds = history.rounds(record.id)
+  const verdict = judge({
+    items,
+    score,
+    capturePath: live.capturePath,
+    priors: job.observe ? rounds : rounds.slice(0, -1),
+    round: job.observe ? rounds.length : Math.max(0, rounds.length - 1),
+    ranker: design.ranker,
+    warnings,
+    color,
+  })
+  if (job.observe) history.append({id: record.id, round: roundRecord({items, score, capturePath: live.capturePath})})
+  const pageWidth = Math.min(live.raster.width, model.raster.width)
+  return design.store.writeRun({
+    id: record.id,
+    live: live.raster,
+    diff: paintDiff({live: masked, mask: pixels.mask, width: pageWidth}),
+    pairs: matched.map((entry) => ({node: entry.node.id, path: entry.component.path, confidence: entry.confidence})),
+    result: {
+      ...verdict,
+      target: {id: record.id, ...(record.route === undefined ? {} : {route: record.route}), width: record.width},
+      xray: xray.url,
+      mismatch: rounded(pixels.mismatch),
+      components,
+      unmatched,
+      warnings,
+      segmentation: segmentationQuality(model),
+      capturePath: live.capturePath,
+      sources: [live.source],
+      responsive: await responsiveSection({store: design.store, id: record.id, model}),
+      partial: paired.partial || Date.now() - started > TOLERANCES.runBudgetMs,
+      pinsLost: pins
+        .filter((pin) => !matched.some((entry) => entry.node.id === pin.node && entry.component.path === pin.path))
+        .map((pin) => pin.decision),
+      ...(live.limits === undefined ? {} : {limits: live.limits}),
+      ...reportHint({attributed: live.components.length > 0, absolute: xray.absolute}),
+    },
+  })
+}
+
+function cssModel(model: TargetModel): TargetModel {
+  if (model.scale === 1) return model
+  const by = 1 / model.scale
+  return {
+    ...model,
+    raster: downscale({raster: model.raster, scale: model.scale}),
+    nodes: model.nodes.map((node) => scaledNode({node, by})),
+  }
+}
+
+function scaledNode(input: {node: TargetNode; by: number}): TargetNode {
+  const {node, by} = input
+  const box = scaledBox({box: node.box, by})
+  if (node.kind !== 'text') return {...node, box}
+  return {...node, box, lines: node.lines.map((line) => ({...line, box: scaledBox({box: line.box, by})}))}
+}
+
+function scaledBox(input: {box: Box; by: number}): Box {
+  const {box, by} = input
+  return {x: box.x * by, y: box.y * by, w: box.w * by, h: box.h * by}
+}
+
+function droppedNodes(decisions: Decision[]): Set<string> {
+  return new Set(
+    decisions.filter((entry) => entry.kind === 'excluded' || entry.kind === 'image-slot').map((entry) => entry.anchor),
+  )
+}
+
+function pinsFrom(decisions: Decision[]): {node: string; path: string; decision: string}[] {
+  return decisions
+    .filter((entry) => entry.kind === 'pin')
+    .map((entry) => ({
+      node: entry.anchor,
+      path: typeof entry.value === 'string' ? entry.value : '',
+      decision: entry.id,
+    }))
+}
+
+function comparePages(input: {live: Raster; target: Raster; comparator: PixelComparator}): {
+  mismatch: number
+  mask: Uint8Array
+  width: number
+  height: number
+} {
+  const {live, target, comparator} = input
+  const page = {x: 0, y: 0, w: Math.min(live.width, target.width), h: Math.min(live.height, target.height)}
+  const a = boxBlur({raster: crop({raster: live, box: page}).raster, radius: TOLERANCES.blurRadius})
+  const b = boxBlur({raster: crop({raster: target, box: page}).raster, radius: TOLERANCES.blurRadius})
+  const whole = comparator.compare({a, b})
+  return {mismatch: whole.mismatch, mask: whole.mask, width: page.w, height: page.h}
+}
+
+async function twinVotes(input: {store: TargetStore; id: string}): Promise<TwinVote[]> {
+  const {store, id} = input
+  const twins = await store.twins(id)
+  const votes = await Promise.all(
+    Object.entries(twins).map(async ([other, list]) => {
+      const latest = await store.latestRun(other)
+      if (latest === null) return []
+      const byNode = new Map(latest.pairs.map((entry) => [entry.node, entry]))
+      return list.flatMap((twin): TwinVote[] => {
+        const found = byNode.get(twin.twin)
+        return found === undefined
+          ? []
+          : [{node: twin.node, path: found.path, confidence: twin.confidence * found.confidence}]
+      })
+    }),
+  )
+  return uniqBy(
+    votes.flat().toSorted((a, b) => b.confidence - a.confidence),
+    (vote) => vote.node,
+  )
+}
+
+function withTypography(input: {entry: Matched; typography: Record<string, TextNode['typography']>}): Matched {
+  const {entry, typography} = input
+  if (entry.node.kind !== 'text') return entry
+  const found = typography[entry.node.id]
+  return found === undefined ? entry : {...entry, node: {...entry.node, typography: found}}
+}
+
+function measureDeltas(input: {
+  pair: Pair
+  pairs: Pair[]
+  live: Raster
+  target: Raster
+  page: Box
+  design: DesignRuntime
+  shift: Shift
+}): Delta[] {
+  const {pair, pairs, live, target, page, design, shift} = input
+  const color = design.comparators.color
+  const children = pairs.filter((child) => child.parent === pair)
+  const leaves = pairs.filter(
+    (other) => under({pair: other, ancestor: pair}) && !pairs.some((child) => child.parent === other),
+  )
+  const strip = edgeStrip({pair, raster: live, color, shift: {dx: 0, dy: 0}, toward: 'declared'})
+  const liveSide = sideFrom({
+    pair,
+    from: 'live',
+    children,
+    leaves,
+    page,
+    raster: live,
+    color,
+    glyphs: pair.live.glyphs.flatMap((glyph) => glyph.boxes),
+    window: pair.liveBox,
+    strip,
+  })
+  const targetSide = sideFrom({
+    pair,
+    from: 'target',
+    children,
+    leaves,
+    page,
+    raster: target,
+    color,
+    glyphs: pair.texts.map((node) => node.box),
+    window: moved({box: pair.liveBox, shift}),
+    strip: strip === null ? null : edgeStrip({pair, raster: target, color, shift, toward: 'contrast'}),
+  })
+  return design.deltaKinds.flatMap((kind) => kind.measure({live: liveSide, target: targetSide, color}))
+}
+
+function under(input: {pair: Pair; ancestor: Pair}): boolean {
+  const parent = input.pair.parent
+  if (parent === null) return false
+  return parent === input.ancestor || under({pair: parent, ancestor: input.ancestor})
+}
+
+function moved(input: {box: Box; shift: Shift}): Box {
+  return {...input.box, x: input.box.x + input.shift.dx, y: input.box.y + input.shift.dy}
+}
+
+function decided(input: {deltas: Delta[]; pair: Pair; decisions: Decision[]; color: ColorMetric}): Delta[] {
+  const {pair, decisions, color} = input
+  const anchors = new Set([pair.node.id, ...pair.texts.map((node) => node.id)])
+  const mine = decisions.filter((entry) => anchors.has(entry.anchor))
+  const accepted = new Set(mine.filter((entry) => entry.kind === 'accept-delta').map((entry) => String(entry.value)))
+  const scale = mine.reduce(
+    (found, entry) => (entry.kind === 'tolerance' && typeof entry.value === 'number' ? entry.value : found),
+    1,
+  )
+  return input.deltas
+    .filter((delta) => !accepted.has(delta.kind))
+    .filter((delta) => scale === 1 || deltaSize({delta, color}) > scale)
+}
+
+type TextJudgement = {verdict: TextVerdict; live: string; target: string}
+
+async function textJudgements(input: {pairs: Pair[]; cwd: string}): Promise<Map<Pair, TextJudgement>> {
+  const judged = await Promise.all(
+    input.pairs
+      .filter((pair) => pair.texts.length > 0)
+      .map(async (pair): Promise<[Pair, TextJudgement]> => {
+        const liveText = joinedText(pair.live.glyphs.map((glyph) => glyph.text))
+        const targetText = joinedText(
+          pair.texts.toSorted((a, b) => readingBox({a: a.box, b: b.box})).map((node) => node.text),
+        )
+        const live = await readLiveText({cwd: input.cwd, source: pair.live.source})
+        const roles = new Set(pair.texts.map((node) => node.role ?? 'unknown'))
+        const [only] = roles
+        const role: Role = roles.size === 1 && only !== undefined ? only : 'unknown'
+        const equal =
+          live === null ? folded(liveText) === folded(targetText) : literalsAgree({live, liveText, targetText})
+        return [
+          pair,
+          {
+            verdict: textDelta({live: live?.role ?? 'literal', target: role, equal}),
+            live: liveText,
+            target: targetText,
+          },
+        ]
+      }),
+  )
+  return new Map(judged)
+}
+
+function joinedText(texts: string[]): string {
+  return texts
+    .map((text) => text.trim())
+    .filter((text) => text !== '')
+    .join(' ')
+}
+
+function readingBox(input: {a: Box; b: Box}): number {
+  const {a, b} = input
+  if (sameLine({a, b})) return a.x - b.x
+  return a.y - b.y
+}
+
+function textDeltas(input: {pair: Pair; judged: Map<Pair, TextJudgement>}): Delta[] {
+  const found = input.judged.get(input.pair)
+  if (found === undefined || found.verdict !== 'text') return []
+  return [{kind: 'text', live: found.live, target: found.target}]
+}
+
+function warningDeltas(input: {pairs: Pair[]; judged: Map<Pair, TextJudgement>}): Delta[] {
+  return input.pairs.flatMap((pair) => {
+    const found = input.judged.get(pair)
+    if (found === undefined || found.verdict !== 'sample-data') return []
+    return [sourced({delta: {kind: 'text', live: found.live, target: found.target, warning: 'sample-data'}, pair})]
+  })
+}
+
+function unbuiltEntries(input: {nodes: TargetNode[]; pairedNodes: Set<string>}): Unmatched[] {
+  const {nodes, pairedNodes} = input
+  return nodes
+    .filter((node) => !pairedNodes.has(node.id))
+    .map((node): Unmatched => {
+      const structural = node.kind !== 'image' && (node.within === undefined || pairedNodes.has(node.within))
+      return {
+        kind: 'unbuilt',
+        target: node.box,
+        label: node.kind === 'text' ? `text "${node.text}"` : node.kind,
+        stage: structural ? 'structure' : null,
+      }
+    })
+}
+
+function extraEntries(input: {components: LiveComponent[]; paired: Set<string>}): Unmatched[] {
+  const {paired} = input
+  const pairedPaths = [...paired]
+  return input.components.flatMap((component): Unmatched[] => {
+    const holds = paired.has(component.path) || pairedPaths.some((path) => path.startsWith(`${component.path}/`))
+    if (!holds && paints(component) && large(component.box)) {
+      return [
+        {
+          kind: 'extra',
+          live: component.box,
+          stage: null,
+          ...(component.source === null ? {} : {source: component.source}),
+        },
+      ]
+    }
+    return extraEntries({components: component.children, paired})
+  })
+}
+
+function paints(component: LiveComponent): boolean {
+  return component.glyphs.length > 0 || isOpaqueHex(component.styles.background) || component.styles.border.width > 0
+}
+
+function large(box: Box): boolean {
+  return box.w >= TOLERANCES.unmatchedMinimum && box.h >= TOLERANCES.unmatchedMinimum
+}
+
+function offsetEntries(input: {offsets: Offset[]; measured: Measured[]}): Unmatched[] {
+  const placed = new Set(
+    input.measured
+      .filter((entry) => entry.deltas.some((delta) => GEOMETRY_KINDS.includes(delta.kind)))
+      .map((entry) => entry.pair),
+  )
+  return input.offsets.flatMap(({pair, shift}): Unmatched[] => {
+    const rounded2 = {dx: Math.round(shift.dx), dy: Math.round(shift.dy)}
+    if (pair === null) return [{kind: 'offset', stage: 'geometry', shift: rounded2}]
+    if (placed.has(pair)) return []
+    return [
+      {
+        kind: 'offset',
+        live: pair.liveBox,
+        target: pair.targetBox,
+        stage: 'geometry',
+        shift: rounded2,
+        ...(pair.live.source === null ? {} : {source: pair.live.source}),
+      },
+    ]
+  })
+}
+
+function reportedComponents(input: {measured: Measured[]; input: DiffInput; color: ColorMetric}): Reported[] {
+  const {measured, color} = input
+  const above = measured.filter((entry) => entry.deltas.length > 0 || entry.pair.mismatch >= TOLERANCES.tileGate)
+  const impact = (entry: Measured): number =>
+    Math.max(0, ...entry.deltas.map((delta) => (delta.confidence ?? 1) * deltaSize({delta, color})))
+  return above
+    .map((entry): Reported & {impact: number} => ({
+      pair: entry.pair,
+      impact: impact(entry),
+      report: {
+        source: entry.pair.live.source,
+        tag: entry.pair.live.tag,
+        selector: entry.pair.selector,
+        live: entry.pair.liveBox,
+        target: entry.pair.targetBox,
+        mismatch: rounded(entry.pair.mismatch),
+        deltas: entry.deltas,
+        children: above.filter((child) => child.pair.parent === entry.pair).length,
+      },
+    }))
+    .filter(({report, pair}) => (report.deltas.length > 0 || report.children === 0) && pair.depth <= input.input.depth)
+    .toSorted(
+      (a, b) =>
+        Number(b.report.deltas.length > 0) - Number(a.report.deltas.length > 0) ||
+        b.impact - a.impact ||
+        a.pair.liveBox.y - b.pair.liveBox.y ||
+        a.pair.depth - b.pair.depth,
+    )
+    .slice(0, input.input.limit)
+    .map(({pair, report}) => ({pair, report}))
+}
+
+function unpairedShare(input: {unmatched: Unmatched[]; page: Box}): number {
+  const area = input.unmatched
+    .filter((entry) => entry.kind === 'unbuilt' && entry.stage === 'structure')
+    .reduce((sum, entry) => sum + (entry.target === undefined ? 0 : entry.target.w * entry.target.h), 0)
+  const total = input.page.w * input.page.h
+  return total === 0 ? 0 : Math.min(1, area / total)
+}
+
+function residualShare(input: {measured: Measured[]; unmatched: Unmatched[]; masks: Box[]; page: Box}): number {
+  const {measured, unmatched, masks, page} = input
+  const tiles = measured
+    .filter((entry) => entry.deltas.length === 0 && entry.pair.mismatch >= TOLERANCES.tileGate)
+    .map((entry) => entry.pair.liveBox)
+  const total = page.w * page.h
+  if (tiles.length === 0 || total === 0) return 0
+  const explained = [
+    ...measured.filter((entry) => entry.deltas.length > 0).map((entry) => entry.pair.liveBox),
+    ...unmatched.flatMap((entry) => [entry.target, entry.live].filter((box) => box !== undefined)),
+    ...masks,
+  ]
+  const residual = boxMask({boxes: tiles, area: page})
+  const covered = boxMask({boxes: explained, area: page})
+  const count = residual.reduce((sum, value, index) => sum + (value === 1 && covered[index] !== 1 ? 1 : 0), 0)
+  return count / total
+}
+
+async function responsiveSection(input: {
+  store: TargetStore
+  id: string
+  model: TargetModel
+}): Promise<DiffReport['responsive']> {
+  const {store, id, model} = input
+  const twins = await store.twins(id)
+  const sections = await Promise.all(
+    Object.entries(twins).map(async ([other, list]) => {
+      const record = await store.find({id: other})
+      const otherModel = await store.model(other).then(cssModel, () => null)
+      if (record === null || otherModel === null) return []
+      return [compareSlices({here: model, there: otherModel, twins: list, width: record.width, target: other})]
+    }),
+  )
+  return sections.flat()
+}
+
+function compareSlices(input: {
+  here: TargetModel
+  there: TargetModel
+  twins: TwinPair[]
+  width: number
+  target: string
+}): DiffReport['responsive'][number] {
+  const {here, there, twins, width, target} = input
+  const twinned = new Map(twins.map((twin) => [twin.node, twin.twin]))
+  const thereNodes = new Map(there.nodes.map((node) => [node.id, node]))
+  const hereRanks = ranks(here.nodes.filter((node) => twinned.has(node.id)))
+  const thereRanks = ranks(there.nodes.filter((node) => [...twinned.values()].includes(node.id)))
+  const linked = here.nodes.flatMap((node) => {
+    const twin = thereNodes.get(twinned.get(node.id) ?? '')
+    return twin === undefined ? [] : [{node, twin}]
+  })
+  return {
+    target,
+    width,
+    twins: linked.length,
+    absent: here.nodes.filter((node) => node.kind !== 'image' && !twinned.has(node.id)).map(nodeLabel),
+    reordered: linked
+      .filter(({node, twin}) => hereRanks.get(node.id) !== thereRanks.get(twin.id))
+      .map(({node}) => nodeLabel(node)),
+    stretched: linked
+      .filter(
+        ({node, twin}) =>
+          spans({node, width: here.viewport.width}) !== spans({node: twin, width: there.viewport.width}),
+      )
+      .map(({node}) => nodeLabel(node)),
+  }
+}
+
+function ranks(nodes: TargetNode[]): Map<string, number> {
+  return new Map(nodes.toSorted((a, b) => readingBox({a: a.box, b: b.box})).map((node, index) => [node.id, index]))
+}
+
+function spans(input: {node: TargetNode; width: number}): boolean {
+  return input.node.box.w >= STRETCHED * input.width
+}
+
+function nodeLabel(node: TargetNode): string {
+  if (node.kind === 'text') return node.text
+  return `${node.kind} ${Math.round(node.box.w)}×${Math.round(node.box.h)} at ${Math.round(node.box.x)},${Math.round(node.box.y)}`
+}
+
+async function linkTwins(input: {store: TargetStore; id: string; session: string}): Promise<void> {
+  const {store, id, session} = input
+  const others = (await store.list({})).filter((record) => record.session === session && record.id !== id)
+  if (others.length === 0) return
+  const model = cssModel(await store.model(id))
+  await Promise.all(
+    others.map(async (other) => {
+      const otherModel = await store.model(other.id).then(cssModel, () => null)
+      if (otherModel === null) return
+      const forward = pairTwins({a: model, b: otherModel, tolerances: TOLERANCES})
+      await store.setTwins({id, other: other.id, twins: forward})
+      await store.setTwins({
+        id: other.id,
+        other: id,
+        twins: forward.map((twin) => ({node: twin.twin, twin: twin.node, confidence: twin.confidence})),
+      })
+    }),
+  )
+}
+
+async function targetStatus(input: {store: TargetStore; session: string}): Promise<StatusReport> {
+  const {store} = input
+  const record = await store.current({session: input.session})
+  if (record === null) return {targets: [], done: false}
+  const report = await store.lastResult(record.id)
+  const reregister = await store.model(record.id).then(
+    () => false,
+    () => true,
+  )
+  const done = !reregister && (await finished({store, record, report}))
+  return {
+    ...(record.route === undefined ? {} : {route: record.route}),
+    targets: [{id: record.id, width: record.width, ...runSummary(report)}],
+    done,
+    ...loopState({record, report}),
+    ...(done ? {} : {next: DESIGN_GUIDE}),
+    ...(reregister ? {reregister} : {}),
+  }
+}
+
+function runSummary(report: DiffReport | null): {mismatch: number | null; above: number; lastAt: number | null} {
+  if (report === null) return {mismatch: null, above: 0, lastAt: null}
+  return {mismatch: report.mismatch, above: aboveTolerance(report), lastAt: runTime(report)}
+}
+
+async function finished(input: {
+  store: TargetStore
+  record: TargetRecord
+  report: DiffReport | null
+}): Promise<boolean> {
+  const {store, record, report} = input
+  if (report === null || runTime(report) === null) return false
+  return report.stop === 'done' || acceptedHolds({store, record, report})
+}
+
+async function acceptedHolds(input: {store: TargetStore; record: TargetRecord; report: DiffReport}): Promise<boolean> {
+  const {store, record, report} = input
+  if (record.acceptedRun === undefined) return false
+  const accepted = await store.run({id: record.id, run: record.acceptedRun})
+  if (accepted === null || accepted.report.capturePath !== report.capturePath) return false
+  return !lexicallyWorse({a: report.score, b: accepted.report.score})
+}
+
+function loopState(input: {record: TargetRecord; report: DiffReport | null}): Partial<StatusReport> {
+  const {record, report} = input
+  const accepted = record.acceptedRun === undefined ? {} : {acceptedRun: record.acceptedRun}
+  if (report === null) return accepted
+  return {...accepted, score: report.score, round: report.round, stop: report.stop}
+}
+
+function blazediffCompare(input: {a: Raster; b: Raster}): {mismatch: number; mask: Uint8Array; regions: PixelRegion[]} {
+  const {a, b} = input
+  const output = new Uint8Array(a.data.length)
+  const count = diff(a.data, b.data, output, a.width, a.height, DIFF_OPTIONS)
+  return pixelResult({output, count, width: a.width, height: a.height})
+}
+
+function pixelmatchCompare(input: {a: Raster; b: Raster}): {
+  mismatch: number
+  mask: Uint8Array
+  regions: PixelRegion[]
+} {
+  const {a, b} = input
+  const output = new Uint8Array(a.data.length)
+  const count = pixelmatch(a.data, b.data, output, a.width, a.height, DIFF_OPTIONS)
+  return pixelResult({output, count, width: a.width, height: a.height})
+}
+
+function targetRuns(target: TargetModel): TextRun[] {
+  return target.nodes.flatMap((node) => (node.kind === 'text' ? [{box: node.box, text: node.text}] : []))
+}
 
 const DIFF_OPTIONS = {threshold: 0.1, includeAA: false, diffMask: true} as const
 
@@ -101,125 +837,6 @@ function pixelResult(input: {output: Uint8Array; count: number; width: number; h
   }
 }
 
-const blazediffComparator: PixelComparator = {
-  name: 'blazediff',
-  compare: ({a, b}) => {
-    const output = new Uint8Array(a.data.length)
-    const count = diff(a.data, b.data, output, a.width, a.height, DIFF_OPTIONS)
-    return pixelResult({output, count, width: a.width, height: a.height})
-  },
-}
-
-const pixelmatchComparator: PixelComparator = {
-  name: 'pixelmatch',
-  compare: ({a, b}) => {
-    const output = new Uint8Array(a.data.length)
-    const count = pixelmatch(a.data, b.data, output, a.width, a.height, DIFF_OPTIONS)
-    return pixelResult({output, count, width: a.width, height: a.height})
-  },
-}
-
-const MIN_EDGE_DENSITY = 0.01
-const MIN_RUN_OVERLAP = 0.5
-const EDGE_WIDTH = 2
-
-type Run = {start: number; end: number}
-
-function findRuns(values: Uint32Array): Run[] {
-  const runs: Run[] = []
-  values.forEach((value, index) => {
-    if (value === 0) return
-    const last = runs.at(-1)
-    if (last !== undefined && last.end === index - 1) {
-      last.end = index
-      return
-    }
-    runs.push({start: index, end: index})
-  })
-  return runs
-}
-
-function chooseSpan(input: {runs: Run[]; from: number; to: number}): Run | null {
-  const chosen = input.runs.filter((run) => {
-    const overlap = Math.min(run.end + 1, input.to) - Math.max(run.start, input.from)
-    return overlap >= (run.end - run.start + 1) * MIN_RUN_OVERLAP
-  })
-  if (chosen.length === 0) return null
-  return {start: Math.min(...chosen.map((run) => run.start)), end: Math.max(...chosen.map((run) => run.end))}
-}
-
-function projection(input: {
-  edges: Uint8Array
-  width: number
-  columns: Run
-  rows: Run
-  byColumn: boolean
-}): Uint32Array {
-  const {edges, width, columns, rows, byColumn} = input
-  const out = new Uint32Array(byColumn ? width : edges.length / width)
-  for (let y = rows.start; y <= rows.end; y += 1) {
-    for (let x = columns.start; x <= columns.end; x += 1) {
-      if (edges[y * width + x] !== 1) continue
-      const index = byColumn ? x : y
-      out[index] = (out[index] ?? 0) + 1
-    }
-  }
-  return out
-}
-
-function clamp(input: {from: number; to: number; size: number}): Run | null {
-  const start = Math.max(0, Math.floor(input.from))
-  const end = Math.min(input.size - 1, Math.ceil(input.to) - 1)
-  return end < start ? null : {start, end}
-}
-
-function interior(run: Run): Run | null {
-  return run.end - EDGE_WIDTH < run.start + EDGE_WIDTH
-    ? null
-    : {start: run.start + EDGE_WIDTH, end: run.end - EDGE_WIDTH}
-}
-
-function density(input: {edges: Uint8Array; width: number; columns: Run; rows: Run}): number {
-  const count = projection({...input, byColumn: true}).reduce((sum, value) => sum + value, 0)
-  return count / ((input.columns.end - input.columns.start + 1) * (input.rows.end - input.rows.start + 1))
-}
-
-const edgeProjection: GeometryEstimator = {
-  name: 'edge-projection',
-  estimate: ({target, liveBox}) => {
-    const {width, height} = target
-    const margin = TOLERANCES.tileMargin
-    const edges = edgeMap(target)
-    const allRows = {start: 0, end: height - 1}
-    const tileColumns = clamp({from: liveBox.x - margin, to: liveBox.x + liveBox.w + margin, size: width})
-    const tileRows = clamp({from: liveBox.y - margin, to: liveBox.y + liveBox.h + margin, size: height})
-    const band = clamp({from: liveBox.y, to: liveBox.y + liveBox.h, size: height})
-    if (tileColumns === null || tileRows === null || band === null) return {targetBox: null}
-    if (density({edges, width, columns: tileColumns, rows: tileRows}) < MIN_EDGE_DENSITY) return {targetBox: null}
-    const columns = chooseSpan({
-      runs: findRuns(projection({edges, width, columns: {start: 0, end: width - 1}, rows: band, byColumn: true})),
-      from: liveBox.x,
-      to: liveBox.x + liveBox.w,
-    })
-    if (columns === null) return {targetBox: null}
-    const columnsInterior = interior(columns)
-    if (columnsInterior === null) return {targetBox: null}
-    const rows = chooseSpan({
-      runs: findRuns(projection({edges, width, columns: columnsInterior, rows: allRows, byColumn: false})),
-      from: liveBox.y,
-      to: liveBox.y + liveBox.h,
-    })
-    if (rows === null) return {targetBox: null}
-    const box: Box = {
-      x: columns.start + 1,
-      y: rows.start + 1,
-      w: columns.end - columns.start - 1,
-      h: rows.end - rows.start - 1,
-    }
-    return {targetBox: box.w > 0 && box.h > 0 ? box : null}
-  },
-}
-
 const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
   source: SourceLocSchema.nullable(),
   tag: z.string(),
@@ -230,6 +847,8 @@ const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
   axis: z.enum(['row', 'column']).nullable(),
   columns: z.number().nullable(),
   styles: LiveStylesSchema,
+  role: z.string().nullable(),
+  hints: z.array(z.string()),
   index: z.number(),
   path: z.string(),
   get children() {
@@ -270,160 +889,14 @@ function sourceConfidence(live: LiveCapture): number {
   return TOLERANCES.inlineWidthConfidence
 }
 
-function clip(input: {box: Box; to: Box}): Box {
-  const {box, to} = input
-  const x = Math.max(box.x, to.x)
-  const y = Math.max(box.y, to.y)
-  return {x, y, w: Math.min(box.x + box.w, to.x + to.w) - x, h: Math.min(box.y + box.h, to.y + to.h) - y}
-}
-
-function shift(input: {box: Box; by: Box}): Box {
-  return {...input.box, x: input.box.x + input.by.x, y: input.box.y + input.by.y}
-}
-
-function sameGeometry(input: {a: Box; b: Box}): boolean {
-  const {a, b} = input
-  const edges = [a.x - b.x, a.y - b.y, a.x + a.w - b.x - b.w, a.y + a.h - b.y - b.h]
-  return edges.every((edge) => Math.abs(edge) <= TOLERANCES.geometryPx)
-}
-
-function sourceKey(component: LiveComponent): string | null {
-  const {source} = component
-  return source === null ? null : `${source.file}:${source.line}:${source.column}`
-}
-
-function componentSelector(input: {component: LiveComponent; parent: Pair | null; shared: boolean}): string {
-  const {component, parent, shared} = input
-  const key = sourceKey(component)
-  if (key === null) return parent === null ? component.tag : `${parent.selector} > ${component.tag}`
-  const selector = `[${SOURCE_ATTR}="${key}"]`
-  return shared ? `${selector}:nth-child(${component.index})` : selector
-}
-
-type Pages = {live: Raster; target: Raster; blurredLive: Raster; blurredTarget: Raster; page: Box}
-
-function tileMismatch(input: {pages: Pages; box: Box; comparators: Comparators}): number {
-  const {pages, box, comparators} = input
-  const tile = expand({box, by: TOLERANCES.tileMargin})
-  const a = crop({raster: pages.blurredLive, box: tile}).raster
-  const b = crop({raster: pages.blurredTarget, box: tile}).raster
-  return comparators.pixel.compare({a, b}).mismatch
-}
-
-function estimateTarget(input: {pages: Pages; box: Box; parent: Pair | null; comparators: Comparators}): Box | null {
-  const {pages, box, parent, comparators} = input
-  const window = parent?.targetBox ? expand({box: parent.targetBox, by: TOLERANCES.tileMargin}) : pages.page
-  const target = crop({raster: pages.target, box: window})
-  const live = crop({raster: pages.live, box: window})
-  const origin = target.box
-  const {targetBox} = comparators.geometry.estimate({
-    live: live.raster,
-    target: target.raster,
-    liveBox: {...box, x: box.x - origin.x, y: box.y - origin.y},
-  })
-  return targetBox === null ? null : shift({box: targetBox, by: origin})
-}
-
-function colorAgrees(input: {pages: Pages; pair: Pair; comparators: Comparators}): boolean {
-  const {pages, pair, comparators} = input
-  const declared = pair.live.styles.background
-  if (pair.targetBox === null || !isOpaqueHex(declared)) return true
-  const sampled = sampledFills({
-    raster: pages.target,
-    box: pair.targetBox,
-    glyphs: [pair.targetBox],
-    color: comparators.color,
-  }).background
-  return comparators.color.distance({a: declared, b: sampled}) <= TOLERANCES.declaredColorDeltaE
-}
-
-function matchPairs(input: {
-  components: LiveComponent[]
-  parent: Pair | null
-  depth: number
-  maxDepth: number
-  pages: Pages
-  comparators: Comparators
-}): Pair[] {
-  const {components, parent, depth, maxDepth, pages, comparators} = input
-  const keys = components.map(sourceKey)
-  const siblings = components.flatMap((component, position): Pair[] => {
-    const liveBox = clip({box: component.box, to: pages.page})
-    if (liveBox.w <= 0 || liveBox.h <= 0) return []
-    const mismatch = tileMismatch({pages, box: liveBox, comparators})
-    const equal = mismatch < TOLERANCES.tileGate
-    const key = keys[position] ?? null
-    const shared = key !== null && keys.indexOf(key) !== keys.lastIndexOf(key)
-    return [
-      {
-        live: component,
-        selector: componentSelector({component, parent, shared}),
-        liveBox,
-        targetBox: equal ? liveBox : estimateTarget({pages, box: liveBox, parent, comparators}),
-        mismatch,
-        depth,
-        parent,
-        prev: null,
-        next: null,
-      },
-    ]
-  })
-  siblings.forEach((pair, index) => {
-    pair.prev = siblings[index - 1] ?? null
-    pair.next = siblings[index + 1] ?? null
-  })
-  return siblings.flatMap((pair) => {
-    const descend =
-      depth < maxDepth &&
-      pair.mismatch >= TOLERANCES.tileGate &&
-      pair.targetBox !== null &&
-      sameGeometry({a: pair.liveBox, b: pair.targetBox}) &&
-      colorAgrees({pages, pair, comparators})
-    if (!descend) return [pair]
-    return [
-      pair,
-      ...matchPairs({components: pair.live.children, parent: pair, depth: depth + 1, maxDepth, pages, comparators}),
-    ]
-  })
-}
-
-const tileMatcher: Matcher = {
-  name: 'tile',
-  match: ({live, target, comparators, depth}) => {
-    const page: Box = {
-      x: 0,
-      y: 0,
-      w: Math.min(live.raster.width, target.raster.width),
-      h: Math.min(live.raster.height, target.raster.height),
-    }
-    const liveRaster = crop({raster: live.raster, box: page}).raster
-    const targetRaster = crop({raster: target.raster, box: page}).raster
-    const pages: Pages = {
-      live: liveRaster,
-      target: targetRaster,
-      blurredLive: boxBlur({raster: liveRaster, radius: TOLERANCES.blurRadius}),
-      blurredTarget: boxBlur({raster: targetRaster, radius: TOLERANCES.blurRadius}),
-      page,
-    }
-    const whole = comparators.pixel.compare({a: pages.blurredLive, b: pages.blurredTarget})
-    const pairs = matchPairs({components: live.components, parent: null, depth: 1, maxDepth: depth, pages, comparators})
-    return {
-      mismatch: whole.mismatch,
-      mask: whole.mask,
-      pairs,
-      matchedTargetBoxes: pairs.flatMap((pair) => pair.targetBox ?? []),
-    }
-  },
-}
-
-type Item = {side: 'live' | 'target'; text: string; boxes: Box[]; owner: LiveComponent | null}
+type TextItem = {side: 'live' | 'target'; text: string; boxes: Box[]; owner: LiveComponent | null}
 type Grouped = {group: TextGroup; mask: Box[]}
 
 function flattened(components: LiveComponent[]): LiveComponent[] {
   return components.flatMap((component) => [component, ...flattened(component.children)])
 }
 
-function readingOrder(a: Item, b: Item): number {
+function readingOrder(a: TextItem, b: TextItem): number {
   const first = a.boxes[0]
   const second = b.boxes[0]
   if (first === undefined || second === undefined) return 0
@@ -431,7 +904,7 @@ function readingOrder(a: Item, b: Item): number {
   return first.y - second.y
 }
 
-function joined(items: Item[]): string {
+function joined(items: TextItem[]): string {
   return items
     .map((item) => item.text.trim())
     .filter((text) => text !== '')
@@ -495,9 +968,9 @@ function foundAt(input: {wanted: string[]; among: string[]; from: number}): numb
   )
 }
 
-function misaligned(input: {liveItems: Item[]; targetText: string}): {item: Item; remainder: string} | null {
+function misaligned(input: {liveItems: TextItem[]; targetText: string}): {item: TextItem; remainder: string} | null {
   const target = words(input.targetText)
-  const walk = input.liveItems.reduce<{cursor: number; missing: Item | null}>(
+  const walk = input.liveItems.reduce<{cursor: number; missing: TextItem | null}>(
     (state, item) => {
       if (state.missing !== null) return state
       const wanted = words(item.text)
@@ -510,9 +983,9 @@ function misaligned(input: {liveItems: Item[]; targetText: string}): {item: Item
   return {item: walk.missing, remainder: target.slice(walk.cursor).join(' ')}
 }
 
-type Constituent = {item: Item; trimmed: Box[]; agrees: boolean}
+type Constituent = {item: TextItem; trimmed: Box[]; agrees: boolean}
 
-function constituent(input: {item: Item; live: Raster; target: Raster; color: ColorMetric}): Constituent {
+function constituent(input: {item: TextItem; live: Raster; target: Raster; color: ColorMetric}): Constituent {
   const {item, live, target, color} = input
   const trimmed = item.boxes.map((box) => trimToInk({raster: live, box}))
   const agrees = inkAgrees({live, target, liveBoxes: trimmed, targetBoxes: item.boxes, color})
@@ -526,7 +999,7 @@ function maskedBoxes(input: {constituent: Constituent; targetBoxes: Box[]}): Box
   return [...part.trimmed, ...target]
 }
 
-function connected(items: Item[]): Item[][] {
+function connected(items: TextItem[]): TextItem[][] {
   const parent = items.map((_, index) => index)
   const root = (index: number): number => {
     const above = parent[index] ?? index
@@ -559,14 +1032,14 @@ function agreement(input: {parts: Constituent[]; targetBoxes: Box[]; sameText: b
   }
 }
 
-function attributed(input: {group: TextGroup; liveItems: Item[]; sameText: boolean}): TextGroup {
+function attributed(input: {group: TextGroup; liveItems: TextItem[]; sameText: boolean}): TextGroup {
   const {group, liveItems, sameText} = input
   const missing = sameText ? null : misaligned({liveItems, targetText: group.targetText})
   if (missing === null || missing.item.owner === null) return group
   return {...group, liveText: missing.item.text.trim(), targetText: missing.remainder, owner: missing.item.owner}
 }
 
-function toGroup(input: {members: Item[]; live: Raster; target: Raster; color: ColorMetric}): Grouped | null {
+function toGroup(input: {members: TextItem[]; live: Raster; target: Raster; color: ColorMetric}): Grouped | null {
   const {live, target, color} = input
   const sorted = input.members.toSorted(readingOrder)
   const liveItems = sorted.filter((item) => item.side === 'live')
@@ -582,79 +1055,6 @@ function toGroup(input: {members: Item[]; live: Raster; target: Raster; color: C
   const liveBoxes = liveItems.flatMap((item) => item.boxes)
   const group = {live: liveBoxes, target: targetBoxes, liveText, targetText, agrees, owner}
   return {group: attributed({group, liveItems, sameText}), mask}
-}
-
-function textDiffers(group: TextGroup): boolean {
-  return folded(group.liveText) !== folded(group.targetText)
-}
-
-export function groupText(input: {
-  components: LiveComponent[]
-  runs: TextRun[]
-  live: Raster
-  target: Raster
-  color: ColorMetric
-}): {groups: TextGroup[]; agreeing: Box[]} {
-  const {components, runs, live, target, color} = input
-  if (runs.length === 0) return {groups: [], agreeing: []}
-  const liveItems = flattened(components).flatMap((owner) =>
-    owner.glyphs.map((glyph): Item => ({side: 'live', text: glyph.text, boxes: glyph.boxes, owner})),
-  )
-  const targetItems = runs.map((run): Item => ({side: 'target', text: run.text, boxes: [run.box], owner: null}))
-  const grouped = connected([...liveItems, ...targetItems]).flatMap(
-    (members) => toGroup({members, live, target, color}) ?? [],
-  )
-  return {groups: grouped.map(({group}) => group), agreeing: grouped.flatMap(({mask}) => mask)}
-}
-
-const BLANK_DENSITY = 0.01
-
-function large(box: Box): boolean {
-  return box.w >= TOLERANCES.unmatchedMinimum && box.h >= TOLERANCES.unmatchedMinimum
-}
-
-function blank(input: {raster: Raster; box: Box}): boolean {
-  return edgeDensity(edgeMap(crop(input).raster)) < BLANK_DENSITY
-}
-
-function zeroed(input: {edges: Uint8Array; width: number; height: number; boxes: Box[]}): Uint8Array {
-  const {edges, width, height, boxes} = input
-  boxes.forEach((box) => {
-    const area = expand({box, by: TOLERANCES.tileMargin})
-    const x0 = Math.max(0, Math.floor(area.x))
-    const x1 = Math.min(width, Math.ceil(area.x + area.w))
-    for (let y = Math.max(0, Math.floor(area.y)); y < Math.min(height, Math.ceil(area.y + area.h)); y += 1) {
-      if (x1 > x0) edges.fill(0, y * width + x0, y * width + x1)
-    }
-  })
-  return edges
-}
-
-function unmatchedRegions(input: {target: TargetModel; matched: Box[]; pairs: Pair[]; live: LiveCapture}): Unmatched[] {
-  const {target, matched, pairs, live} = input
-  const {width, height} = target.raster
-  const minimum = TOLERANCES.unmatchedMinimum
-  const missing = findRegions({
-    mask: zeroed({edges: edgeMap(target.raster), width, height, boxes: matched}),
-    width,
-    height,
-    minSize: minimum,
-  })
-    .filter(large)
-    .map((box): Unmatched => ({kind: 'missing', target: box}))
-  const extras = new Set<Pair>()
-  pairs.forEach((pair) => {
-    if (pair.parent !== null && extras.has(pair.parent)) return
-    if (!large(pair.liveBox)) return
-    if (!blank({raster: target.raster, box: pair.liveBox}) || blank({raster: live.raster, box: pair.liveBox})) return
-    extras.add(pair)
-  })
-  const extra = [...extras].map((pair): Unmatched => ({
-    kind: 'extra',
-    live: pair.liveBox,
-    ...(pair.live.source === null ? {} : {source: pair.live.source}),
-  }))
-  return [...missing, ...extra]
 }
 
 type TextVerdict = 'text' | 'sample-data' | null
@@ -695,7 +1095,7 @@ async function otherRoute(input: {record: TargetRecord; page: ServerToolPageAcce
 
 function refused(input: {record: TargetRecord; route: RouteItem; xray: XrayLink}): DiffReport {
   const {record, route, xray} = input
-  return {
+  return DiffReportSchema.parse({
     target: {id: record.id, ...(record.route === undefined ? {} : {route: record.route}), width: record.width},
     mismatch: 0,
     diffImage: '',
@@ -707,7 +1107,7 @@ function refused(input: {record: TargetRecord; route: RouteItem; xray: XrayLink}
     sources: [],
     route,
     hint: `the tab shows ${route.live} but the design target is the design of ${route.target}; navigate the tab to ${route.target}, then diff again`,
-  }
+  })
 }
 
 function paintDiff(input: {live: Raster; mask: Uint8Array; width: number}): Raster {
@@ -724,16 +1124,6 @@ function paintDiff(input: {live: Raster; mask: Uint8Array; width: number}): Rast
 
 function rounded(mismatch: number): number {
   return Math.round(mismatch * MISMATCH_PRECISION) / MISMATCH_PRECISION
-}
-
-function pairArea(pair: Pair): number {
-  return pair.liveBox.w * pair.liveBox.h
-}
-
-type Ranked = {pair: Pair; report: ComponentReport}
-
-function measured(ranked: Ranked): number {
-  return ranked.report.deltas.length > 0 ? 1 : 0
 }
 
 async function resolveWinners(input: {
@@ -762,7 +1152,7 @@ async function resolveWinners(input: {
 }
 
 async function attribute(input: {
-  ranked: Ranked
+  ranked: Reported
   design: DesignRuntime
   page: ServerToolPageAccess
   cssMap: CssMap
@@ -801,7 +1191,7 @@ async function attribute(input: {
 }
 
 async function withProvenance(input: {
-  ranked: Ranked[]
+  ranked: Reported[]
   design: DesignRuntime
   page: ServerToolPageAccess
   width: number
@@ -813,69 +1203,11 @@ async function withProvenance(input: {
   return Promise.all(ranked.map((entry) => attribute({ranked: entry, design, page, cssMap, width, height})))
 }
 
-function targetRuns(target: TargetModel): TextRun[] {
-  return target.nodes.flatMap((node) => (node.kind === 'text' ? [{box: node.box, text: node.text}] : []))
-}
-
-function boxKey(box: Box): string {
-  return `${box.x},${box.y},${box.w},${box.h}`
-}
-
-function groupRole(input: {group: TextGroup; roles: Map<string, Role>}): Role {
-  const found = new Set(input.group.target.map((box) => input.roles.get(boxKey(box)) ?? 'unknown'))
-  const [only] = found
-  return found.size === 1 && only !== undefined ? only : 'unknown'
-}
-
-function literalsAgree(input: {live: LiveText; group: TextGroup}): boolean {
-  const {live, group} = input
-  if (live.role !== 'mixed') return !textDiffers(group)
-  const target = folded(group.targetText)
+function literalsAgree(input: {live: LiveText; liveText: string; targetText: string}): boolean {
+  const {live, liveText, targetText} = input
+  if (live.role !== 'mixed') return folded(liveText) === folded(targetText)
+  const target = folded(targetText)
   return live.literals.every((literal) => target.includes(folded(literal)))
-}
-
-async function verdicts(input: {
-  groups: TextGroup[]
-  target: TargetModel
-  cwd: string
-}): Promise<Map<TextGroup, TextVerdict>> {
-  const {groups, target, cwd} = input
-  const roles = new Map(
-    target.nodes.flatMap((node): [string, Role][] =>
-      node.kind === 'text' ? [[boxKey(node.box), node.role ?? 'unknown']] : [],
-    ),
-  )
-  const judged = await Promise.all(
-    groups.map(async (group): Promise<[TextGroup, TextVerdict]> => {
-      const live = await readLiveText({cwd, source: group.owner.source})
-      const role = groupRole({group, roles})
-      const equal = live === null ? !textDiffers(group) : literalsAgree({live, group})
-      return [group, textDelta({live: live?.role ?? 'literal', target: role, equal})]
-    }),
-  )
-  return new Map(judged)
-}
-
-function warnings(input: {groups: TextGroup[]; judged: Map<TextGroup, TextVerdict>}): Delta[] {
-  return input.groups
-    .filter((group) => input.judged.get(group) === 'sample-data')
-    .map((group) => {
-      const delta: Delta = {kind: 'text', live: group.liveText, target: group.targetText, warning: 'sample-data'}
-      const {source} = group.owner
-      return source === null
-        ? delta
-        : {...delta, via: 'source', file: source.file, line: source.line, column: source.column}
-    })
-}
-
-function ownedTargetGlyphs(input: {groups: TextGroup[]; pair: Pair}): Box[] {
-  return input.groups.filter((group) => group.owner === input.pair.live).flatMap((group) => group.target)
-}
-
-function textDeltas(input: {groups: TextGroup[]; pair: Pair; judged: Map<TextGroup, TextVerdict>}): Delta[] {
-  return input.groups
-    .filter((group) => group.owner === input.pair.live && input.judged.get(group) === 'text')
-    .map((group) => ({kind: 'text', live: group.liveText, target: group.targetText}))
 }
 
 function sourced(input: {delta: Delta; pair: Pair}): Delta {
@@ -889,182 +1221,29 @@ function reportHint(input: {attributed: boolean; absolute: boolean}): {hint?: st
   return hints.length === 0 ? {} : {hint: hints.join('; ')}
 }
 
-async function runDiff(request: {
-  input: DiffInput
-  session: string
-  design: DesignRuntime
-  page: ServerToolPageAccess
-}): Promise<DiffReport> {
-  const {input, session, design, page} = request
-  const record = await currentTarget({design, session})
-  const xray = design.xrayUrl({id: record.id, session})
-  const route = await otherRoute({record, page})
-  if (route !== null) return refused({record, route, xray})
-  const target = await design.store.model(record.id)
-  const reading = await measure({width: record.width, height: record.height, page})
-  const live = {...reading, raster: paintOver({onto: reading.raster, from: target.raster, boxes: reading.masks})}
-  const stamp = {source: live.source, confidence: sourceConfidence(live), width: record.width}
-  const {groups, agreeing} = groupText({
-    components: live.components,
-    runs: targetRuns(target),
-    live: live.raster,
-    target: target.raster,
-    color: design.comparators.color,
-  })
-  const judged = await verdicts({groups, target, cwd: design.cwd})
-  await estimateTypography({groups, target, id: record.id, store: design.store, page, color: design.comparators.color})
-  const masked = paintOver({
-    onto: live.raster,
-    from: target.raster,
-    boxes: agreeing.map((box) => expand({box, by: TOLERANCES.glyphHalo + TOLERANCES.blurRadius})),
-  })
-  const matched = design.matcher.match({
-    live: {...live, raster: masked},
-    target,
-    comparators: design.comparators,
-    depth: input.depth,
-  })
-  const pageBox = {x: 0, y: 0, w: live.viewport.width, h: live.viewport.height}
-  const reported = matched.pairs.filter((pair) => pair.mismatch >= TOLERANCES.tileGate)
-  const ranked = reported
-    .map((pair): Ranked => {
-      const children = matched.pairs.filter((child) => child.parent === pair)
-      const color = design.comparators.color
-      const liveGlyphs = pair.live.glyphs.flatMap((glyph) => glyph.boxes)
-      const targetGlyphs = ownedTargetGlyphs({groups, pair})
-      const liveSide = sideFrom({
-        pair,
-        from: 'live',
-        children,
-        page: pageBox,
-        raster: live.raster,
-        color,
-        glyphs: liveGlyphs,
-      })
-      const targetSide = sideFrom({
-        pair,
-        from: 'target',
-        children,
-        page: pageBox,
-        raster: target.raster,
-        color,
-        glyphs: targetGlyphs,
-      })
-      const kinds =
-        liveSide === null || targetSide === null
-          ? []
-          : design.deltaKinds.flatMap((kind) =>
-              kind.measure({live: liveSide, target: targetSide, color: design.comparators.color}),
-            )
-      const deltas = [...kinds, ...textDeltas({groups, pair, judged})].map((delta) => ({...delta, ...stamp}))
-      return {
-        pair,
-        report: {
-          source: pair.live.source,
-          tag: pair.live.tag,
-          selector: pair.selector,
-          live: pair.liveBox,
-          target: pair.targetBox,
-          mismatch: rounded(pair.mismatch),
-          deltas,
-          children: reported.filter((child) => child.parent === pair).length,
-        },
-      }
-    })
-    .filter(({report}) => report.deltas.length > 0 || report.children === 0)
-    .toSorted(
-      (a, b) => measured(b) - measured(a) || b.pair.mismatch * pairArea(b.pair) - a.pair.mismatch * pairArea(a.pair),
-    )
-    .slice(0, input.limit)
-  const components = await withProvenance({ranked, design, page, width: record.width, height: record.height})
-  return design.store.writeRun({
-    id: record.id,
-    live: live.raster,
-    diff: paintDiff({live: masked, mask: matched.mask, width: Math.min(live.raster.width, target.raster.width)}),
-    result: {
-      target: {id: record.id, ...(record.route === undefined ? {} : {route: record.route}), width: record.width},
-      xray: xray.url,
-      mismatch: rounded(matched.mismatch),
-      components,
-      unmatched: unmatchedRegions({target, matched: matched.matchedTargetBoxes, pairs: matched.pairs, live}),
-      warnings: warnings({groups, judged}).map((delta) => ({...delta, ...stamp})),
-      segmentation: segmentationQuality(target),
-      capturePath: live.capturePath,
-      sources: [live.source],
-      ...(live.limits === undefined ? {} : {limits: live.limits}),
-      ...reportHint({attributed: live.components.length > 0, absolute: xray.absolute}),
-    },
-  })
-}
-
 function runTime(report: DiffReport): number | null {
   const at = Number(basename(report.livePath).split('-')[1])
   return Number.isFinite(at) ? at : null
 }
 
-async function targetStatus(input: {store: TargetStore; session: string}): Promise<StatusReport> {
-  const {store} = input
-  const record = await store.current({session: input.session})
-  if (record === null) return {targets: [], done: false}
-  const report = await store.lastResult(record.id)
-  const reregister = await store.model(record.id).then(
-    () => false,
-    () => true,
-  )
-  const lastAt = report === null ? null : runTime(report)
-  const above = report === null ? 0 : aboveTolerance(report)
-  const done = !reregister && lastAt !== null && above === 0
-  return {
-    ...(record.route === undefined ? {} : {route: record.route}),
-    targets: [{id: record.id, width: record.width, mismatch: report?.mismatch ?? null, above, lastAt}],
-    done,
-    ...(done ? {} : {next: DESIGN_GUIDE}),
-    ...(reregister ? {reregister} : {}),
-  }
-}
-
-const captureStep: ServerStep<CaptureInput, CaptureResult> = async (input, ctx, _request, page) => {
+async function captureStep(
+  ...[input, ctx, , page]: Parameters<ServerStep<CaptureInput, CaptureResult>>
+): Promise<CaptureResult> {
   const live = await measure({height: input.height, timeout: input.timeout, page})
   const path = await ctx.design.store.writeCapture({png: encodePng(live.raster)})
   return {path, width: live.raster.width, height: live.raster.height, route: live.route, components: live.components}
 }
 
-const clearStep: ServerStep<ClearInput, ClearResult> = async (input, ctx, request) => {
+async function clearStep(
+  ...[input, ctx, request]: Parameters<ServerStep<ClearInput, ClearResult>>
+): Promise<ClearResult> {
   const {store} = ctx.design
   const id = input.target ?? (await store.current({session: request.sessionId}))?.id
   return {removed: await store.remove(input.all === true ? {all: true} : {id})}
 }
 
-const winnerStep: ServerStep<WinnerInput, WinnerResult> = async (input, _ctx, _request, page) =>
-  WinnerResultSchema.parse(await page.call(winnerDef.name, input))
-
-export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore; page: DesignPage}): Differ {
-  const {store, page} = input
-  const design = {...input.runtime, store}
-  const tab = (session: SessionId): ServerToolPageAccess => ({
-    call: (name, query) => page.ask({sessionId: session, name, input: query}),
-  })
-  return {
-    register: ({input: target, session}) => registerTarget({input: target, session, design, page: tab(session)}),
-    run: ({input: query, session}) => runDiff({input: query, session, design, page: tab(session)}),
-    status: ({session}) => targetStatus({store, session}),
-  }
+async function winnerStep(
+  ...[input, , , page]: Parameters<ServerStep<WinnerInput, WinnerResult>>
+): Promise<WinnerResult> {
+  return WinnerResultSchema.parse(await page.call(winnerDef.name, input))
 }
-
-export const SERVER_STEPS = [
-  targetDef.server((input, ctx: DesignContext, request) => ctx.differ.register({input, session: request.sessionId})),
-  diffDef.server((input, ctx: DesignContext, request) => ctx.differ.run({input, session: request.sessionId})),
-  statusDef.server((_input, ctx: DesignContext, request) => ctx.differ.status({session: request.sessionId})),
-  captureDef.server(captureStep),
-  winnerDef.server(winnerStep),
-  clearDef.server(clearStep),
-] as const satisfies readonly AnyToolBuilder[]
-
-export const PIXEL_COMPARATORS = {
-  blazediff: blazediffComparator,
-  pixelmatch: pixelmatchComparator,
-} as const satisfies Record<string, PixelComparator>
-
-export const GEOMETRY = {'edge-projection': edgeProjection} as const satisfies Record<string, GeometryEstimator>
-
-export const MATCHERS = {tile: tileMatcher} as const satisfies Record<string, Matcher>

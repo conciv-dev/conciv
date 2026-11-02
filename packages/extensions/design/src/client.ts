@@ -63,6 +63,7 @@ const SCRATCH_PAD = 4
 const NORMAL_LINE_HEIGHT = 1.2
 const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'
+const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 
 const mirrorSlot: {current: MirrorSlot | null} = {current: null}
 const region: {stream: MediaStream | null} = {stream: null}
@@ -425,6 +426,8 @@ function componentTree(input: Walk): LiveComponent {
     axis: readAxis(el),
     columns: readColumns(style),
     styles: readStyles(style),
+    role: el.getAttribute('role'),
+    hints: readHints(el),
     index: siblingIndex(el),
     path: input.path,
     children: collectUnder(input),
@@ -567,11 +570,23 @@ function readStyles(style: CSSStyleDeclaration): LiveStyles {
 }
 
 function readBorder(style: CSSStyleDeclaration): LiveBorder {
-  return {
-    width: Number.parseFloat(style.borderTopWidth) || 0,
-    style: style.borderTopStyle,
-    color: toHex(style.borderTopColor),
-  }
+  const sides = BORDER_SIDES.map((side) => ({
+    side,
+    width: Number.parseFloat(style.getPropertyValue(`border-${side}-width`)) || 0,
+    style: style.getPropertyValue(`border-${side}-style`),
+    color: toHex(style.getPropertyValue(`border-${side}-color`)),
+  }))
+  const visible = sides.filter((side) => side.width > 0 && side.style !== 'none' && side.style !== 'hidden')
+  const widest = visible.reduce<(typeof sides)[number] | undefined>(
+    (best, side) => (best === undefined || side.width > best.width ? side : best),
+    undefined,
+  )
+  return widest ?? sides[0] ?? {side: 'top', width: 0, style: 'none', color: '#000000'}
+}
+
+function readHints(el: Element): string[] {
+  const label = el.getAttribute('aria-label')
+  return [...el.classList, ...(label === null ? [] : [label])]
 }
 
 function toHex(color: string): string {

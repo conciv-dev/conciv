@@ -2,7 +2,9 @@ export function Toolbar(props: ToolbarProps) {
   const style = {...toolbarStyle(props.variant), ...(props.badge ? BADGE : {})}
   return (
     <header className="Lib-toolbar toolbar pl-8" style={style}>
-      {props.spanColor === undefined ? (
+      {props.shifted ? (
+        <button type="button">Make</button>
+      ) : props.spanColor === undefined ? (
         <button type="button" style={buttonStyle({textNoise: props.textNoise, color: props.labelColor})}>
           {props.label ?? 'Export'}
         </button>
@@ -23,6 +25,7 @@ type ToolbarProps = {
   textNoise?: boolean
   label?: string
   spanColor?: string
+  shifted?: boolean
 }
 
 function unsourcedLabel(color: string) {

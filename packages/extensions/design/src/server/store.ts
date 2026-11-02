@@ -10,6 +10,7 @@ import {
   ROLES,
   type Decision,
   type StoredRun,
+  type TwinPair,
   type TargetModel,
   type TargetRecord,
   type TargetStore,
@@ -20,8 +21,9 @@ export const TARGET_FILE = 'target.png'
 const MODEL_FILE = 'model.json'
 const RECORD_FILE = 'record.json'
 const DECISIONS_FILE = 'decisions.json'
+const TWINS_FILE = 'twins.json'
 const CAPTURES_DIR = 'captures'
-const RUN_PREFIXES = ['live-', 'diff-', 'result-']
+const RUN_PREFIXES = ['live-', 'diff-', 'result-', 'pairs-']
 
 const OcrLineSchema = z.object({box: BoxSchema, text: z.string(), confidence: z.number()})
 
@@ -79,6 +81,13 @@ const DecisionsSchema = z.array(
     value: z.union([z.string(), z.number(), z.null()]),
     at: z.number(),
   }),
+)
+
+const PairsSchema = z.array(z.object({node: z.string(), path: z.string(), confidence: z.number()}))
+
+const TwinsSchema = z.record(
+  z.string(),
+  z.array(z.object({node: z.string(), twin: z.string(), confidence: z.number()})),
 )
 
 function stamp(): string {
@@ -185,11 +194,21 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
     await writeFile(join(dir, update.id, DECISIONS_FILE), JSON.stringify(update.decisions))
   }
 
+  async function storedRun(query: {id: string; run: string}): Promise<StoredRun | null> {
+    const {id, run} = query
+    const report = await readJson({path: join(dir, id, `result-${run}.json`), schema: DiffReportSchema})
+    if (report === null) return null
+    const pairs = (await readJson({path: join(dir, id, `pairs-${run}.json`), schema: PairsSchema})) ?? []
+    return {run, report, pairs}
+  }
+
   async function latestRun(id: string): Promise<StoredRun | null> {
     const run = (await runs(join(dir, id))).at(-1)
-    if (run === undefined) return null
-    const report = await readJson({path: join(dir, id, `result-${run}.json`), schema: DiffReportSchema})
-    return report === null ? null : {run, report}
+    return run === undefined ? null : storedRun({id, run})
+  }
+
+  async function twins(id: string): Promise<Record<string, TwinPair[]>> {
+    return (await readJson({path: join(dir, id, TWINS_FILE), schema: TwinsSchema})) ?? {}
   }
 
   function serial<T>(work: () => Promise<T>): Promise<T> {
@@ -246,6 +265,13 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       }),
     accept: ({id, run}) => serial(async () => writeRecord({...(await existing(id)), acceptedRun: run})),
     latestRun,
+    run: storedRun,
+    twins,
+    setTwins: ({id, other, twins: found}) =>
+      serial(async () => {
+        if (!existsSync(join(dir, id))) return
+        await writeFile(join(dir, id, TWINS_FILE), JSON.stringify({...(await twins(id)), [other]: found}))
+      }),
     writeCapture: async ({png}) => {
       const captures = join(dir, CAPTURES_DIR)
       await mkdir(captures, {recursive: true})
@@ -254,7 +280,7 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       await prune({dir: captures, prefix: 'capture-', spared: []})
       return path
     },
-    writeRun: async ({id, live, diff, result}) => {
+    writeRun: async ({id, live, diff, result, pairs}) => {
       const home = join(dir, id)
       await mkdir(home, {recursive: true})
       const at = stamp()
@@ -263,6 +289,7 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       const report: DiffReport = {...result, diffImage: reportPath(diffPath), livePath: reportPath(livePath)}
       await writeFile(livePath, encodePng(live))
       await writeFile(diffPath, encodePng(diff))
+      await writeFile(join(home, `pairs-${at}.json`), JSON.stringify(pairs))
       const pending = join(home, `pending-${at}.json`)
       await writeFile(pending, JSON.stringify(report))
       await rename(pending, join(home, `result-${at}.json`))

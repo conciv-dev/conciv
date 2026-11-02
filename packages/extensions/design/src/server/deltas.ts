@@ -1,8 +1,8 @@
 import {differenceCiede2000, parse} from 'culori'
 import {memoize} from 'es-toolkit'
 import {TOLERANCES} from '../shared/tolerances.js'
-import type {Box, ColorMetric, DeltaKind, LiveStyles, Pair, Raster, Side} from '../shared/types.js'
-import {boxMask, crop, edgeMap, medianColor, pixelHex} from './raster.js'
+import type {Box, ColorMetric, DeltaKind, Flow, LiveBorder, LiveStyles, Pair, Raster, Side} from '../shared/types.js'
+import {boxMask, cornerRadius, crop, edgeMap, medianColor, pixelHex, type Rgb} from './raster.js'
 
 const difference = differenceCiede2000()
 
@@ -144,24 +144,6 @@ function gapKind(before: boolean): DeltaKind {
 const gapBefore = gapKind(true)
 const gapAfter = gapKind(false)
 
-const FILL_PRECISION = 1000
-
-function measureFill(side: Side): number | null {
-  if (side.parent === null || side.parent.w <= 0) return null
-  return Math.round((side.box.w / side.parent.w) * FILL_PRECISION) / FILL_PRECISION
-}
-
-const fill: DeltaKind = {
-  kind: 'fill',
-  measure: ({live, target}) => {
-    const a = measureFill(live)
-    const b = measureFill(target)
-    if (a === null || b === null) return []
-    if (Math.abs(a - b) <= TOLERANCES.fillDifference * Math.max(a, b)) return []
-    return [{kind: 'fill', live: a, target: b}]
-  },
-}
-
 function classifyAlign(side: Side): string | null {
   const insets = measureInsets(side)
   if (insets === null) return null
@@ -207,10 +189,36 @@ const padding: DeltaKind = {
 const radius: DeltaKind = {
   kind: 'radius',
   measure: ({live, target}) => {
-    const a = live.styles.radius
-    const b = target.styles.radius
-    if (a === undefined || b === undefined || !insetDiffers({live: a, target: b})) return []
+    const a = live.radius
+    const b = target.radius
+    if (a === null || b === null || !insetDiffers({live: a, target: b})) return []
     return [{kind: 'radius', live: a, target: b}]
+  },
+}
+
+const border: DeltaKind = {
+  kind: 'border',
+  measure: ({live, target, color}) => {
+    const declared = live.styles.border
+    if (declared === undefined || live.edge === null || target.edge === null) return []
+    if (color.distance({a: live.edge, b: target.edge}) <= TOLERANCES.colorDeltaE) return []
+    return [{kind: 'border', side: declared.side, live: declared.color, target: target.edge}]
+  },
+}
+
+const axis: DeltaKind = {
+  kind: 'axis',
+  measure: ({live, target}) => {
+    if (live.flow === null || target.flow === null || live.flow === target.flow) return []
+    return [{kind: 'axis', live: live.flow, target: target.flow}]
+  },
+}
+
+const columns: DeltaKind = {
+  kind: 'columns',
+  measure: ({live, target}) => {
+    if (live.columns === null || target.columns === null || live.columns === target.columns) return []
+    return [{kind: 'columns', live: live.columns, target: target.columns}]
   },
 }
 
@@ -241,7 +249,6 @@ export const DELTA_KINDS: DeltaKind[] = [
   insetBottom,
   gapBefore,
   gapAfter,
-  fill,
   align,
   padding,
   fontSize,
@@ -250,13 +257,117 @@ export const DELTA_KINDS: DeltaKind[] = [
   background,
   foreground,
   radius,
+  border,
+  axis,
+  columns,
 ]
 
 type From = 'live' | 'target'
 
-function pickBox(input: {pair: Pair | null; from: From}): Box | null {
-  if (input.pair === null) return null
+export function sideFrom(input: {
+  pair: Pair
+  from: From
+  children: Pair[]
+  leaves: Pair[]
+  page: Box
+  raster: Raster
+  color: ColorMetric
+  glyphs: Box[]
+  window: Box
+  strip: Box | null
+}): Side {
+  const {pair, from, children, leaves, page, raster, color, glyphs, window, strip} = input
+  const box = pickBox({pair, from})
+  return {
+    box,
+    parent: pair.parent === null ? page : pickBox({pair: pair.parent, from}),
+    prev: pair.prev === null ? null : pickBox({pair: pair.prev, from}),
+    next: pair.next === null ? null : pickBox({pair: pair.next, from}),
+    axis: pair.live.axis,
+    flow: pair.next === null ? null : flowBetween({a: box, b: pickBox({pair: pair.next, from})}),
+    columns: columnCount({pair, from, leaves}),
+    textBox: contentBox({children, from}),
+    edge:
+      strip === null
+        ? null
+        : medianColor({raster: crop({raster, box: strip}).raster, exclude: new Uint8Array(strip.w * strip.h)}),
+    radius: paintedRadius({raster, box: window}),
+    styles: sideStyles({pair, from, box, raster, color, glyphs}),
+  }
+}
+
+export function edgeStrip(input: {
+  pair: Pair
+  raster: Raster
+  color: ColorMetric
+  shift: {dx: number; dy: number}
+  toward: 'declared' | 'contrast'
+}): Box | null {
+  const {pair, raster, color, shift, toward} = input
+  const declared = pair.live.styles.border
+  if (declared.width <= 0 || declared.style === 'none' || declared.style === 'hidden') return null
+  const box = {...pair.liveBox, x: pair.liveBox.x + shift.dx, y: pair.liveBox.y + shift.dy}
+  const strips = EDGE_OFFSETS.flatMap(
+    (offset) => stripAt({box, side: declared.side, width: declared.width, offset}) ?? [],
+  )
+  const inside = sampledFills({raster, box, glyphs: [box], color}).background
+  const scored = strips.map((strip) => {
+    const seen = medianColor({raster: crop({raster, box: strip}).raster, exclude: new Uint8Array(strip.w * strip.h)})
+    const score =
+      toward === 'declared' ? -color.distance({a: seen, b: declared.color}) : color.distance({a: seen, b: inside})
+    return {strip, score}
+  })
+  const best = scored.reduce<{strip: Box; score: number} | null>(
+    (found, entry) => (found === null || entry.score > found.score ? entry : found),
+    null,
+  )
+  return best?.strip ?? null
+}
+
+const EDGE_OFFSETS = [-1, 0, 1]
+const CORNER_INSET = 2
+const FLOW_BAND = 1
+
+function stripAt(input: {box: Box; side: LiveBorder['side']; width: number; offset: number}): Box | null {
+  const {box, side, offset} = input
+  const width = Math.max(1, Math.round(input.width))
+  const inset = Math.max(CORNER_INSET, width)
+  if (box.w <= inset * 2 || box.h <= inset * 2) return null
+  switch (side) {
+    case 'top':
+      return {x: box.x + inset, y: box.y - offset, w: box.w - inset * 2, h: width}
+    case 'bottom':
+      return {x: box.x + inset, y: box.y + box.h - width + offset, w: box.w - inset * 2, h: width}
+    case 'left':
+      return {x: box.x - offset, y: box.y + inset, w: width, h: box.h - inset * 2}
+    case 'right':
+      return {x: box.x + box.w - width + offset, y: box.y + inset, w: width, h: box.h - inset * 2}
+  }
+}
+
+function pickBox(input: {pair: Pair; from: From}): Box {
   return input.from === 'live' ? input.pair.liveBox : input.pair.targetBox
+}
+
+function flowBetween(input: {a: Box; b: Box}): Flow {
+  const dx = Math.abs(input.b.x + input.b.w / 2 - (input.a.x + input.a.w / 2))
+  const dy = Math.abs(input.b.y + input.b.h / 2 - (input.a.y + input.a.h / 2))
+  return dx > dy ? 'row' : 'column'
+}
+
+function columnCount(input: {pair: Pair; from: From; leaves: Pair[]}): number | null {
+  const {pair, from, leaves} = input
+  if (pair.live.columns === null) return null
+  if (from === 'live') return pair.live.columns
+  const spans = leaves.map((leaf) => leaf.node.box).toSorted((a, b) => a.x - b.x)
+  const bands = spans.reduce<{end: number; count: number}>(
+    (state, box) =>
+      box.x >= state.end - FLOW_BAND
+        ? {end: box.x + box.w, count: state.count + 1}
+        : {end: Math.max(state.end, box.x + box.w), count: state.count},
+    {end: Number.NEGATIVE_INFINITY, count: 0},
+  )
+  return bands.count === 0 ? null : bands.count
 }
 
 function union(boxes: Box[]): Box | null {
@@ -268,8 +379,43 @@ function union(boxes: Box[]): Box | null {
 
 function contentBox(input: {children: Pair[]; from: From}): Box | null {
   const {children, from} = input
-  if (children.some((child) => child.targetBox === null)) return null
-  return union(children.flatMap((pair) => pickBox({pair, from}) ?? []))
+  return union(children.map((pair) => pickBox({pair, from})))
+}
+
+function paintedRadius(input: {raster: Raster; box: Box}): number | null {
+  const {raster} = input
+  const box = {
+    x: Math.round(input.box.x),
+    y: Math.round(input.box.y),
+    w: Math.round(input.box.w),
+    h: Math.round(input.box.h),
+  }
+  const ring = {x: box.x - 1, y: box.y - 1, w: box.w + 2, h: box.h + 2}
+  if (box.w < TOLERANCES.interiorInset * 4 || box.h < TOLERANCES.interiorInset * 4) return null
+  if (ring.x < 0 || ring.y < 0 || ring.x + ring.w > raster.width || ring.y + ring.h > raster.height) return null
+  const interior = crop({
+    raster,
+    box: {
+      x: box.x + TOLERANCES.interiorInset,
+      y: box.y + TOLERANCES.interiorInset,
+      w: box.w - TOLERANCES.interiorInset * 2,
+      h: box.h - TOLERANCES.interiorInset * 2,
+    },
+  }).raster
+  const around = crop({raster, box: ring}).raster
+  const inside = toRgb(medianColor({raster: interior, exclude: edgeMap(interior)}))
+  const outside = toRgb(
+    medianColor({
+      raster: around,
+      exclude: boxMask({boxes: [{x: 1, y: 1, w: box.w, h: box.h}], area: {x: 0, y: 0, w: ring.w, h: ring.h}}),
+    }),
+  )
+  return cornerRadius({raster, box, inside, outside})
+}
+
+function toRgb(color: string): Rgb {
+  const value = Number.parseInt(color.slice(1, OPAQUE_HEX_LENGTH), 16)
+  return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff]
 }
 
 function sideStyles(input: {
@@ -285,38 +431,17 @@ function sideStyles(input: {
   const glyphs = input.glyphs.length === 0 ? [box] : input.glyphs
   const fills = sampledFills({raster, box, glyphs, color: input.color})
   const color = paintsText && fills.foreground !== null ? {color: fills.foreground} : {}
-  if (from === 'target') return {background: fills.background, ...color}
+  if (from === 'target') {
+    const painted =
+      pair.node.kind === 'box' && pair.node.paint !== undefined ? pair.node.paint.background : fills.background
+    return {background: painted, ...color, ...estimatedType(pair)}
+  }
   const {background: declared, color: _declared, ...rest} = pair.live.styles
   return {...rest, ...(isOpaqueHex(declared) ? {background: declared} : {}), ...color}
 }
 
-function neighbourBox(input: {pair: Pair; from: From; step: 'prev' | 'next'}): Box | null {
-  const {pair, from, step} = input
-  const near = pair[step]
-  if (from === 'live' || near === null || near.targetBox !== null) return pickBox({pair: near, from})
-  return neighbourBox({pair: near, from, step})
-}
-
-export function sideFrom(input: {
-  pair: Pair
-  from: From
-  children: Pair[]
-  page: Box
-  raster: Raster
-  color: ColorMetric
-  glyphs: Box[]
-}): Side | null {
-  const {pair, from, children, page, raster, color, glyphs} = input
-  const box = pickBox({pair, from})
-  if (box === null) return null
-  return {
-    box,
-    parent: pair.parent === null ? page : pickBox({pair: pair.parent, from}),
-    prev: neighbourBox({pair, from, step: 'prev'}),
-    next: neighbourBox({pair, from, step: 'next'}),
-    axis: pair.live.axis,
-    columns: from === 'live' ? pair.live.columns : null,
-    textBox: contentBox({children, from}),
-    styles: sideStyles({pair, from, box, raster, color, glyphs}),
-  }
+function estimatedType(pair: Pair): Partial<LiveStyles> {
+  const typography = pair.texts.find((text) => text.typography !== undefined)?.typography
+  if (typography === undefined) return {}
+  return {fontSize: typography.size, lineHeight: typography.lineHeight, fontWeight: typography.weight}
 }

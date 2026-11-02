@@ -103,11 +103,6 @@ export function edgeMap(raster: Raster): Uint8Array {
   return edges
 }
 
-export function edgeDensity(edges: Uint8Array): number {
-  if (edges.length === 0) return 0
-  return edges.reduce((sum, value) => sum + value, 0) / edges.length
-}
-
 function channelMedian(histogram: Uint32Array, count: number): number {
   const half = count / 2
   let seen = 0
@@ -400,4 +395,45 @@ export function union(boxes: Box[]): Box {
     w: Math.max(...boxes.map((box) => box.x + box.w)) - x,
     h: Math.max(...boxes.map((box) => box.y + box.h)) - y,
   }
+}
+
+export function downscale(input: {raster: Raster; scale: number}): Raster {
+  const {raster, scale} = input
+  const width = Math.round(raster.width / scale)
+  const height = Math.round(raster.height / scale)
+  const data = new Uint8Array(width * height * 4)
+  for (let index = 0; index < width * height; index += 1) {
+    const x = index % width
+    data.set(blockMean({raster, scale, x, y: (index - x) / width}), index * 4)
+  }
+  return {width, height, data}
+}
+
+function blockMean(input: {raster: Raster; scale: number; x: number; y: number}): number[] {
+  const {raster, scale, x, y} = input
+  const block = Math.max(1, Math.round(scale))
+  const sums = [0, 0, 0, 0]
+  for (let offset = 0; offset < block * block; offset += 1) {
+    const sx = Math.min(raster.width - 1, Math.floor(x * scale) + (offset % block))
+    const sy = Math.min(raster.height - 1, Math.floor(y * scale) + Math.floor(offset / block))
+    const from = (sy * raster.width + sx) * 4
+    sums.forEach((sum, channel) => {
+      sums[channel] = sum + (raster.data[from + channel] ?? 0)
+    })
+  }
+  return sums.map((sum) => Math.round(sum / (block * block)))
+}
+
+export function maskShare(input: {mask: Uint8Array; width: number; height: number; box: Box}): number {
+  const {mask, width, height, box} = input
+  const x0 = Math.max(0, Math.floor(box.x))
+  const y0 = Math.max(0, Math.floor(box.y))
+  const x1 = Math.min(width, Math.ceil(box.x + box.w))
+  const y1 = Math.min(height, Math.ceil(box.y + box.h))
+  if (x1 <= x0 || y1 <= y0) return 0
+  let count = 0
+  for (let y = y0; y < y1; y += 1) {
+    for (let x = x0; x < x1; x += 1) count += mask[y * width + x] === 1 ? 1 : 0
+  }
+  return count / ((x1 - x0) * (y1 - y0))
 }

@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import type {ComponentReport, DiffReport} from './defs.js'
+import type {Delta} from './types.js'
 
 export const TOLERANCES = {
   geometryPx: 2,
@@ -12,7 +13,6 @@ export const TOLERANCES = {
   blurRadius: 1,
   glyphHalo: 1,
   inkTrimThreshold: 40,
-  fillDifference: 0.05,
   depth: 3,
   limit: 12,
   runsKept: 20,
@@ -31,15 +31,30 @@ export const TOLERANCES = {
   ocrUpsampleBelowPx: 16,
   ocrTileHeight: 1600,
   ocrTileOverlap: 64,
+  roundBudget: 8,
+  stallRounds: 2,
+  briefSize: 5,
+  residualAreaGate: 0.01,
+  runDebounceMs: 150,
+  runBudgetMs: 20_000,
+  pairBoxIou: 0.3,
+  pairBoxArea: 3,
+  pairMargin: 0.08,
+  pairDominance: 0.15,
+  pairFloor: 0.3,
+  pairFloorMargin: 0.1,
+  pairMinWeight: 0.1,
 } as const
+
+export type Tolerances = typeof TOLERANCES
 
 export const LIBRARY_SHEET_MARKER = '/node_modules/'
 
 export const designConfig = z.object({
   comparator: z.enum(['blazediff', 'pixelmatch']).default('blazediff'),
-  geometry: z.enum(['edge-projection']).default('edge-projection'),
   color: z.enum(['ciede2000']).default('ciede2000'),
-  matcher: z.enum(['tile']).default('tile'),
+  pairer: z.enum(['vote']).default('vote'),
+  ranker: z.enum(['impact']).default('impact'),
   text: z.enum(['paddle']).default('paddle'),
   segmenter: z.enum(['threshold']).default('threshold'),
   roles: z.enum(['rules']).default('rules'),
@@ -86,5 +101,24 @@ export function componentAboveTolerance(component: Pick<ComponentReport, 'deltas
 }
 
 export function aboveTolerance(report: Pick<DiffReport, 'components' | 'unmatched'>): number {
-  return report.components.filter(componentAboveTolerance).length + report.unmatched.length
+  const unbuilt = report.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.stage === 'structure')
+  return report.components.filter(componentAboveTolerance).length + unbuilt.length
+}
+
+export function traced(delta: Delta): boolean {
+  return delta.via !== undefined && delta.via !== 'unknown' && delta.file !== undefined
+}
+
+export function deltaSentence(delta: Delta): string {
+  if (delta.kind === 'text') return `change the text from ${delta.live} to ${delta.target}${at(delta)}`
+  const change = `${delta.kind} is ${delta.live} where the design has ${delta.target}`
+  if (!traced(delta)) return change
+  const declared = delta.declaration === undefined ? '' : `, declared as \`${delta.declaration}\``
+  const suggestion = delta.suggest === undefined ? '' : `; ${delta.suggest}`
+  return `${change}, set via ${delta.via}${at(delta)}${declared}${suggestion}`
+}
+
+function at(delta: Delta): string {
+  if (delta.file === undefined) return ''
+  return delta.line === undefined ? ` at ${delta.file}` : ` at ${delta.file}:${delta.line}`
 }
