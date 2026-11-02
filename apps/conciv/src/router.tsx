@@ -5,7 +5,8 @@ import {createEffect, createRoot, onCleanup, type JSX} from 'solid-js'
 import type {RpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import type {ClientExtension} from '@conciv/extension'
-import {setupEngineReachability} from '@conciv/client'
+import {setupEngineReachability, type EngineConnection} from '@conciv/client'
+import type {HubConnection} from './app/devframe-link.js'
 import {routeTree} from './routeTree.gen'
 import {makeAppData, type AppData} from './data/app-data.js'
 import {createHarnessMeta, HarnessMetaContext} from './data/harness-meta.js'
@@ -40,6 +41,7 @@ export type ConcivRouterContext = {
 
 export type ConcivRouterConfig = {
   rpc: RpcClient
+  hubConnection?: HubConnection
   history: RouterHistory
   environment: ConcivEnvironment
   settings: ConcivSettings
@@ -75,16 +77,16 @@ function makeGuardedDisposer(instances: ExtensionInstance[], extra: () => void):
   }
 }
 
-function wireEngineReachability(apiBase: () => string): {dispose: () => void} {
+function wireEngineReachability(apiBase: () => string, hubConnection?: EngineConnection): {dispose: () => void} {
   return createRoot((dispose) => {
     let wiredApiBase = apiBase()
-    let cleanupReachability = setupEngineReachability(wiredApiBase)
+    let cleanupReachability = setupEngineReachability(wiredApiBase, hubConnection)
     createEffect(() => {
       const nextApiBase = apiBase()
       if (nextApiBase === wiredApiBase) return
       cleanupReachability()
       wiredApiBase = nextApiBase
-      cleanupReachability = setupEngineReachability(nextApiBase)
+      cleanupReachability = setupEngineReachability(nextApiBase, hubConnection)
     })
     onCleanup(() => cleanupReachability())
     return {dispose}
@@ -93,13 +95,21 @@ function wireEngineReachability(apiBase: () => string): {dispose: () => void} {
 
 export function createConcivRouter(config: ConcivRouterConfig) {
   const queryClient = new QueryClient()
-  const data = makeAppData(config.rpc, queryClient)
-  const extensions = [highlight, ...(config.extensions ?? [])]
-  const instances = createInstances(extensions)
   const apiBase = config.apiBase ?? (() => '')
   const connected = config.connected ?? (() => true)
-  const reachability = wireEngineReachability(apiBase)
-  const disposeInstances = makeGuardedDisposer(instances, reachability.dispose)
+  const data = makeAppData(
+    config.rpc,
+    config.hubConnection ? {connection: config.hubConnection, connected} : undefined,
+    queryClient,
+  )
+  const extensions = [highlight, ...(config.extensions ?? [])]
+  const instances = createInstances(extensions)
+  const reachability = wireEngineReachability(apiBase, config.hubConnection)
+  const stopHubState = data.readHubState()
+  const disposeInstances = makeGuardedDisposer(instances, () => {
+    stopHubState()
+    reachability.dispose()
+  })
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
     onCleanup(disposeInstances)
     const harness = createHarnessMeta(data, connected, queryClient)
@@ -115,7 +125,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
     defaultErrorComponent,
     Wrap: ConcivRouterWrap,
     context: {
-      rpc: config.rpc,
+      rpc: data.rpc,
       environment: config.environment,
       settings: config.settings,
       queryClient,

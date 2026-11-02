@@ -1,10 +1,15 @@
 import type {Page, Route} from 'playwright'
 import {toHttpPath} from '@orpc/client/standard'
 import {rpcObserverFor} from './rpc-observer.js'
+import {engineRoutePath} from './rpc-payload.js'
 
 const FAILURE_BODY = {json: {}, meta: []}
 
 const RPC_PREFIX = '/rpc'
+
+function isRpcRoute(pathname: string): boolean {
+  return pathname === RPC_PREFIX || pathname.startsWith(`${RPC_PREFIX}/`)
+}
 
 const ANSWER_TIMEOUT_MS = 15_000
 const RELEASED_GATE_STATUS = 200
@@ -27,7 +32,7 @@ function answeredBy(page: Page, path: readonly string[] | undefined, status: num
 }
 
 function pathMatcher(path: readonly string[] | undefined): UrlMatcher {
-  if (!path) return (url) => url.pathname === RPC_PREFIX || url.pathname.startsWith(`${RPC_PREFIX}/`)
+  if (!path) return (url) => isRpcRoute(engineRoutePath(url.pathname))
   const httpPath = toHttpPath(path)
   return (url) => url.pathname.endsWith(httpPath)
 }
@@ -93,7 +98,7 @@ export async function holdRpcCalls(page: Page): Promise<RpcHold> {
   const held = {value: false}
 
   await page.route(
-    (url) => url.pathname.startsWith('/rpc/') || url.pathname === RPC_PREFIX,
+    (url) => isRpcRoute(engineRoutePath(url.pathname)),
     async (route) => {
       if (isPreflight(route) || !held.value) return route.continue()
       await route.abort('connectionrefused')

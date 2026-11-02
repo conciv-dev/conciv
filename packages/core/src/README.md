@@ -6,8 +6,9 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 
 ## Interface
 
-- `start(opts: StartOpts): Promise<Engine>` (`start.ts`): `Engine` = {port, stop, cfg, extensionContexts}
+- `start(opts: StartOpts): Promise<Engine>` (`start.ts`): `Engine` = {port, apiBase, agentBase, loginToken, hub, stop, cfg, extensionContexts}
 - `StartOpts`, `PortRequest` = {exact}|{preferred}, `composeSystemPrompt` (`start.ts`)
+- `makeEngineGate` / `agentPathFor` (`engine-gate.ts`): the `/t/<token>` fetch gate `makeApp` returns as `MadeApp.fetch`
 - `makeApp(opts): Promise<MadeApp>` / `withBuiltinExtensions` / `slug` / `HealthSchema` / `AppType` (`app.ts`)
 - Routes (`app.ts`): `GET /health`, `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `${RPC_PREFIX}/*`, `/api/mcp`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
 - `resolveConfig(options, root)` / `ResolvedConcivConfig` / `defineConfig` (`config.ts`)
@@ -27,7 +28,9 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 
 - `assertAccessToken` (`start.ts`): accessToken must be a UUID
 - `reservePort` (`start.ts`): up to 4 attempts 300ms apart, retrying only on EADDRINUSE; `exact` binds or throws, `preferred` falls back to port 0 with a warning
-- `start` (`start.ts`): with an accessToken the app is mounted under `/t/<token>`; a failed bind or endpoint write disposes the app
+- `makeEngineGate` (`engine-gate.ts`): every route except the hub base, `/health` and `/native*` needs `/t/<token>` with the engine token or (unless `browserLogins: false`) a trusted browser login; anything else gets a 401 with CORS headers
+- `start` (`start.ts`): the engine token is `accessToken` or a fresh UUID; with an accessToken browser logins are refused; `agentBase` carries the token and is written to `mcp-endpoint.json` and `CONCIV_TOKEN`; a failed bind or endpoint write disposes the app
+- `logError` (`lib/debug.ts`): strips `/t/<token>` and `devframe_auth_token` from every engine log line
 - `assertUniqueExtensionSlugs` / `assertUniqueCapabilityNames` (`app.ts`): throw on slug or tool-name collisions
 - `requireHarness` (`app.ts`): defaults to 'claude' and throws if none is registered
 - `mountExtension` (`app.ts`): a failing extension `__server` is logged and skipped

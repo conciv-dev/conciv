@@ -22,7 +22,7 @@ function serverEntry(command: string, port: number, env: Record<string, string> 
 
 export function e2eConfig(
   app: E2EApp,
-  opts: {command: (port: number) => string; timeout?: number},
+  opts: {command: (port: number) => string; timeout?: number; reuseExistingServer?: boolean; appRoot?: string},
 ): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
   const timeout = opts.timeout ?? 90_000
@@ -33,8 +33,13 @@ export function e2eConfig(
     expect: {timeout},
     reporter: reporters(),
     use: {baseURL: `http://localhost:${port}`},
-    webServer: serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port),
-    projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
+    webServer: {
+      ...serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port),
+      ...(opts.reuseExistingServer === undefined ? {} : {reuseExistingServer: opts.reuseExistingServer}),
+    },
+    projects: [
+      {name: 'chromium', metadata: {appRoot: opts.appRoot ?? process.cwd()}, use: {...devices['Desktop Chrome']}},
+    ],
   })
 }
 

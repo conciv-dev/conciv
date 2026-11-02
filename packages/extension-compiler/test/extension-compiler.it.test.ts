@@ -62,7 +62,7 @@ describe('client entry inject', () => {
 
     it('bakes the engine origin into the extensions module as the window global (Next-style seam)', () => {
       const source = extensionsModuleSource(['/abs/a/client.js'], 'http://127.0.0.1:41700')
-      expect(source).toContain('window.__CONCIV_API_BASE__ = "http://127.0.0.1:41700"')
+      expect(source).toContain('window.__CONCIV_API_BASE__ ??= "http://127.0.0.1:41700"')
     })
 
     it('exports a dock renderer instead of mounting on the page when the surface is dock', () => {

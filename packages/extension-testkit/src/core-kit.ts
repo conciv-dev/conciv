@@ -35,7 +35,7 @@ export async function bootCoreKit(opts: {
   })
   const captured: {runtime?: CoreRuntime} = {}
   const kit = await createTestkit(harness, async (env) => {
-    const {app, dispose, runtime, hub, claimUpgrade, loginToken} = await makeApp({
+    const {fetch, dispose, runtime, hub, claimUpgrade, loginToken} = await makeApp({
       cfg: {
         enabled: true,
         widgetUrl: undefined,
@@ -57,7 +57,7 @@ export async function bootCoreKit(opts: {
       nativePageDir: opts.nativePageDir,
     })
     captured.runtime = runtime
-    return {fetch: app.fetch, dispose, hub, claimUpgrade, loginToken}
+    return {fetch, dispose, hub, claimUpgrade, loginToken}
   }).setup()
   const runtime = captured.runtime
   if (!runtime) throw new Error('the core kit booted without capturing the core runtime')
