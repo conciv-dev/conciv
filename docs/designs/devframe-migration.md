@@ -877,6 +877,70 @@ Extension-specific files:
   subscription, effect or render body.
 - **try-it (PR 18)**: client half only; no server file exists.
 
+#### Page tools: what Devframe provides and what conciv adds
+
+Checked against the devframe 1.3.0 source (`dist/in-page-channel`, `dist/browser-agent-rpc-*`,
+`dist/client-agent-*`).
+
+**What Devframe provides.** A page script declares functions on an in-page channel
+(`createPageScriptChannel` from `devframe/in-page-channel`, each function written with
+`defineChannelFunction`). A function with an `agent` field is added to the document's browser
+tool list. The tab's Devframe client sends that list to the node side
+(`devframe:agent:sync-client-tools`) and sends it again on reconnect, focus and visibility
+changes. The node side adds every synced tool to `ctx.agent.list()` through a tool provider,
+plus a built-in `devframe:agent:list-clients` tool that lists the connected tabs. A call runs
+`devframe:agent:invoke-client-tool` on one tab: the tab named in the reserved `client_id`
+argument, or else the visible tab focused most recently. A TanStack tool in this shape:
+
+```ts
+createPageScriptChannel({
+  name: 'tanstack',
+  functions: {
+    navigate: defineChannelFunction({
+      name: 'navigate',
+      type: 'action',
+      agent: {description: 'Navigate the app router to a path.'},
+      args: [NavigateInput],
+      handler: (input) => navigateTo(input),
+    }),
+  },
+})
+```
+
+**What conciv adds.** The source shows six gaps:
+
+1. **The bridge skips page tools.** `hubAgentTools` in `packages/core/src/devframe-plane.ts`
+   keeps only listed tools that have an `rpcName`. Synced page tools have none, so they never
+   reach chat, code mode or conciv's MCP route. The bridge must also take provider tools and
+   call them through `context.agent.invoke(id, args)`.
+2. **Syncing needs the MCP flag.** The Devframe client starts the browser tool sync only when
+   the connection meta carries `mcp`, and the meta carries `mcp` only when the hub mounts its
+   own MCP route at `<base>__mcp`. The plane passes `mcp: false` today. Turning it on adds
+   Devframe's MCP endpoint beside conciv's `/api/mcp`. Open question: keep both, or let
+   Devframe's route replace conciv's.
+3. **The page sends only the basic fields.** A synced tool carries `id`, `title`,
+   `description`, `safety`, `tags` and an input schema. It has no output schema, and none of
+   conciv's `name`, `approval` or `meta` fields (category, label, icon, keywords, hint).
+   Cards, labels and icons do not need to travel, because the widget runs in the same page and
+   can look them up by tool id from the extension's client half. The summary, keywords and
+   hint feed code mode and the system prompt on the server, so they must be declared on the
+   server side, keyed by tool id. `approval: 'ask'` has no page equivalent; PR 21 already
+   replaces it with Devframe's `safety`.
+4. **Routing differs.** Devframe picks the most recently focused tab. conciv routes a page call
+   to the tab bound to the chat session (`env.tabs.ask(sessionId, ...)` in
+   `packages/core/src/tool-registry.ts`). With two tabs open on two sessions, Devframe's choice
+   can run a tool in the wrong tab. The bridge can pass `client_id` for the session's tab,
+   which needs a map from session to Devframe client id.
+5. **The page-change log and captures stay on the server.** `runClientTool` appends every
+   mutating page call to the session journal and stores captured screenshots. The bridge does
+   this around `context.agent.invoke`, as it does today.
+6. **Error codes.** A page handler's thrown error comes back over the tab's RPC connection. The
+   page side must wrap errors the way `defineConcivFunction` does (`toWireError`), and the
+   bridge already applies `fromWireError`. No test covers this path yet.
+
+The in-page channel needs no new public API. Items 3 and 4 do need it: a server-side
+declaration of the meta for page tools, and the session-to-tab map.
+
 ### PR 19: Settings page and mode switch
 
 #### 29. `apps/conciv/src/routes/panel.$sessionId.settings.tsx` and child routes `.index`, `.appearance`, `.agent`, `.tabs`, `.shortcuts`, `.plugins`, `.access` (Create)
