@@ -34,7 +34,7 @@ import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-type
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {imageToolProvisioner} from './image-tool-results.js'
 import {childCards} from './child-cards.js'
-import {codeModeTools, loadIsolateDriver, secretRefusalOf} from './code-mode.js'
+import {codeModeTools, loadIsolateDriver, secretRefusalOf, stoppedWith} from './code-mode.js'
 import {createDelivery, terminalPhaseOf, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 
@@ -418,7 +418,10 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const plan = planned(hooks, turn)
     const granted: {approvals: Approvals} = {approvals: new Map()}
     const approvals = (): Approvals => granted.approvals
-    const coded = driver === null ? null : codeModeTools(driver, plan.codeMode, config.codeModeResult, debug)
+    const coded =
+      driver === null
+        ? null
+        : codeModeTools(stoppedWith(driver, controller.signal, config.log), plan.codeMode, config.codeModeResult, debug)
     const seconds = Math.round(config.firstOutputTimeoutMs / 1000)
     const view: RunMessages = {full: []}
     return chat({

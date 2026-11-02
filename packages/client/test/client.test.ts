@@ -1,5 +1,5 @@
 import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
-import {onlineManager} from '@tanstack/query-core'
+import {onlineManager, QueryObserver, skipToken} from '@tanstack/query-core'
 import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
 import {until} from '@conciv/harness-testkit'
 import {serveDevframePlugin} from '@conciv/harness-testkit/devframe-mounts'
@@ -543,6 +543,19 @@ describe('hub-backed query utils', () => {
     expect(utils.sessions.list.key()).toEqual(plain.sessions.list.key())
     const client = new QueryClient()
     expect(await client.fetchQuery(options)).toEqual([{id: 'from-hub'}])
+  })
+
+  it('keeps a listed query disabled while its input is skipToken, even on an explicit refetch', async () => {
+    const utils = hubQueryUtils(makeQueryUtils(kit.rpc), hubCall(kit), new Set(['sessions']))
+    const observer = new QueryObserver(new QueryClient(), {
+      ...utils.sessions.list.queryOptions({input: skipToken}),
+      retry: false,
+    })
+    const stop = observer.subscribe(() => {})
+    expect(observer.getCurrentResult().fetchStatus).toBe('idle')
+    const refetched = await observer.refetch()
+    expect(refetched.error?.message).toMatch(/skipToken/)
+    stop()
   })
 
   it('sends a mutation of a listed group through the hub', async () => {
