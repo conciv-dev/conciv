@@ -1,44 +1,54 @@
-import type {ToolRequest} from '@conciv/extension'
+import type {ServerApi, ToolRequest} from '@conciv/extension'
+import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import type {DesignConfig} from './config.js'
-import type {DeltaKindName, DiffReport} from './defs.js'
+import type {DesignConfig} from './tolerances.js'
+import type {DeltaKindName, DiffInput, DiffReport, StatusReport, TargetInput, TargetResult} from './defs.js'
 
-export type {DeltaKindName, DiffReport}
+export const ROLES = ['placeholder', 'data', 'unknown'] as const
+export type Role = (typeof ROLES)[number]
+export type LiveRole = 'literal' | 'expression' | 'mixed'
 
 export type Box = {x: number; y: number; w: number; h: number}
 export type Raster = {width: number; height: number; data: Uint8Array}
 export type SourceLoc = {file: string; line: number; column: number}
 
-export type TargetNode = {
-  id: string
-  box: Box
-  kind?: 'frame' | 'text' | 'image' | 'vector' | 'component' | 'unknown'
-  name?: string
-  text?: string
-  fills?: {background?: string; foreground?: string}
-  typography?: {family?: string; size?: number; weight?: number; lineHeight?: number}
-  layout?: {direction?: 'row' | 'column'; gap?: number; padding?: number[]}
+export type OcrLine = {box: Box; text: string; confidence: number}
+export type Border = {width: number; color: string}
+type Typography = {size: number; lineHeight: number; weight: number; confidence: number}
+type NodeBase = {id: string; box: Box; within?: string}
+export type TextNode = NodeBase & {
+  kind: 'text'
+  text: string
+  lines: OcrLine[]
   confidence: number
-  children: TargetNode[]
+  role?: Role
+  roleConfidence?: number
+  typography?: Typography
 }
+export type BoxNode = NodeBase & {kind: 'box'; paint?: {background: string}; border: Border | null; radius: number}
+export type ImageNode = NodeBase & {kind: 'image'}
+export type TargetNode = TextNode | BoxNode | ImageNode
+type TargetRoot = {id: string; box: Box}
 export type TargetModel = {
   id: string
   source: {kind: string; ref: string}
   viewport: {width: number; height: number}
   raster: Raster
-  root: TargetNode
+  root: TargetRoot
+  nodes: TargetNode[]
   scale: number
 }
 export type TargetAdapter = {
   kind: string
   accepts(input: {ref: string; cwd: string}): boolean
-  load(input: {ref: string; width?: number; cwd: string}): Promise<TargetModel>
+  load(input: {ref: string; scale: number; cwd: string}): Promise<TargetModel>
 }
 export type Enricher = {
   name: string
-  applies(node: TargetNode): boolean
-  run(input: {node: TargetNode; raster: Raster}): Promise<Partial<TargetNode>>
+  run(input: {model: TargetModel; raster: Raster; runtime: DesignRuntime}): Promise<TargetNode[]>
 }
+export type Segmenter = {name: string; segment(input: {raster: Raster; nodes: TargetNode[]}): Promise<TargetNode[]>}
+export type RoleRules = (input: {text: string; neighbours: string[]}) => {role: Role; confidence: number}
 
 export type Glyph = {text: string; boxes: Box[]}
 
@@ -70,7 +80,7 @@ export type LiveCapture = {
 }
 export type Capture = {
   name: string
-  capture(input: {route: string; width: number; height: number; page: ServerToolPageAccess}): Promise<LiveCapture>
+  capture(input: {width: number; height: number; page: ServerToolPageAccess}): Promise<LiveCapture>
   clear(input: {page: ServerToolPageAccess}): Promise<void>
 }
 
@@ -93,7 +103,7 @@ export type TextGroup = {
   agrees: boolean
   owner: LiveComponent
 }
-export type TextReader = {name: string; read(input: {raster: Raster}): Promise<TextRun[]>}
+export type TextReader = {name: string; read(input: {raster: Raster}): Promise<OcrLine[]>}
 export type Comparators = {
   pixel: PixelComparator
   geometry: GeometryEstimator
@@ -135,6 +145,7 @@ export type Delta = {
   live: number | string
   target: number | string
   breakpoint?: boolean
+  warning?: 'sample-data'
 } & Partial<Provenance>
 export type DeltaKind = {kind: DeltaKindName; measure(input: {live: Side; target: Side; color: ColorMetric}): Delta[]}
 export type Unmatched = {kind: 'missing' | 'extra'; target?: Box; live?: Box; source?: SourceLoc}
@@ -180,19 +191,30 @@ export type ProvenanceMapper = {
 
 export type TargetRecord = {
   id: string
-  route: string
+  session: string
+  route?: string
   width: number
   height: number
   name?: string
   scale: number
   createdAt: number
+  acceptedRun?: string
 }
+type DecisionKind = 'pin' | 'excluded' | 'image-slot' | 'accept-delta' | 'tolerance'
+export type Decision = {id: string; kind: DecisionKind; anchor: string; value: string | number | null; at: number}
+export type StoredRun = {run: string; report: DiffReport}
 export type TargetStore = {
-  put(input: {model: TargetModel; route: string; width: number; name?: string}): Promise<TargetRecord>
-  find(input: {id?: string; route?: string; width?: number}): Promise<TargetRecord | null>
+  put(input: {model: TargetModel; session: string; route?: string; name?: string}): Promise<TargetRecord>
+  find(input: {id: string}): Promise<TargetRecord | null>
+  current(input: {session: string}): Promise<TargetRecord | null>
   list(input: {route?: string}): Promise<TargetRecord[]>
-  remove(input: {id?: string; route?: string}): Promise<number>
+  remove(input: {id?: string; all?: boolean}): Promise<number>
   model(id: string): Promise<TargetModel>
+  decisions(id: string): Promise<Decision[]>
+  decide(input: {id: string; kind: DecisionKind; anchor: string; value: Decision['value']}): Promise<Decision>
+  revoke(input: {id: string; decision: string}): Promise<boolean>
+  accept(input: {id: string; run: string}): Promise<TargetRecord>
+  latestRun(id: string): Promise<StoredRun | null>
   writeCapture(input: {png: Uint8Array}): Promise<string>
   writeRun(input: {
     id: string
@@ -203,18 +225,6 @@ export type TargetStore = {
   lastResult(id: string): Promise<DiffReport | null>
   reportPath(path: string): string
 }
-export type Registries = {
-  adapters: TargetAdapter[]
-  enrichers: Enricher[]
-  captures: Record<DesignConfig['capture'], Capture>
-  pixel: Record<DesignConfig['comparator'], PixelComparator>
-  geometry: Record<DesignConfig['geometry'], GeometryEstimator>
-  color: Record<DesignConfig['color'], ColorMetric>
-  matchers: Record<DesignConfig['matcher'], Matcher>
-  text: Record<DesignConfig['text'], TextReader>
-  deltaKinds: DeltaKind[]
-  mappers: ProvenanceMapper[]
-}
 export type DesignRuntime = {
   cwd: string
   store: TargetStore
@@ -223,6 +233,8 @@ export type DesignRuntime = {
   matcher: Matcher
   adapters: TargetAdapter[]
   enrichers: Enricher[]
+  segmenter: Segmenter
+  roles: RoleRules
   deltaKinds: DeltaKind[]
   mappers: ProvenanceMapper[]
   cssMap: () => Promise<CssMap>
@@ -231,7 +243,15 @@ export type DesignRuntime = {
 
 export type XrayLink = {url: string; absolute: boolean}
 
-export type DesignContext = {design: DesignRuntime}
+export type Differ = {
+  register(input: {input: TargetInput; session: SessionId}): Promise<TargetResult>
+  run(input: {input: DiffInput; session: SessionId}): Promise<DiffReport>
+  status(input: {session: SessionId}): Promise<StatusReport>
+}
+
+export type DesignPage = ServerApi<DesignConfig>['page']
+
+export type DesignContext = {design: DesignRuntime; differ: Differ}
 
 export type ServerStep<Input, Output> = (
   input: Input,

@@ -1,6 +1,6 @@
 import {join} from 'node:path'
 import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
-import {CONCIV_COMMAND_GUIDE, CONCIV_RANKING_SENTENCE} from '../agent-guide.js'
+import {CONCIV_COMMAND_GUIDE, CONCIV_RANKING_SENTENCE, DESIGN_BULLET} from '../agent-guide.js'
 import {claudeConnectBridgeSource, CLAUDE_CONNECT_BRIDGE_FILE} from './bridge.js'
 import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './names.js'
 
@@ -74,6 +74,36 @@ function skillFile(): string {
     CONCIV_RANKING_SENTENCE,
     '',
     CONCIV_COMMAND_GUIDE,
+    '',
+  ].join('\n')
+}
+
+const DESIGN_SKILL_DESCRIPTION =
+  'Use when the user hands over a design image and asks to build a page from it or make a page match it, such as a PNG mockup, a screenshot of a design or a Figma export. Registers the image as the design target and drives the conciv design diff loop until it stops.'
+
+const DESIGN_SKILL_SOURCES = [
+  'packages/extensions/design/src/shared/defs.ts',
+  'packages/extensions/design/src/server/differ.ts',
+  'packages/extensions/design/src/server/store.ts',
+  'packages/harness-init/src/agent-guide.ts',
+]
+
+export function designSkillFile(): string {
+  return [
+    '---',
+    'name: conciv-design',
+    `description: ${DESIGN_SKILL_DESCRIPTION}`,
+    'metadata:',
+    "  package: '@conciv/skills'",
+    '---',
+    '',
+    '# Building a page from a design image',
+    '',
+    DESIGN_BULLET,
+    '',
+    '## Sources',
+    '',
+    ...DESIGN_SKILL_SOURCES.map((source) => `- \`${source}\``),
     '',
   ].join('\n')
 }

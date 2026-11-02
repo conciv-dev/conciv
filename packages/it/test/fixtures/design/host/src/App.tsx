@@ -38,7 +38,7 @@ export function App() {
         style={requested === 'field-border' ? FIELD_BORDER : undefined}
       />
       <Cards variant={variant} />
-      {variant === 'missing' ? null : <Table />}
+      {variant === 'missing' ? null : <Table variant={variant} />}
     </>
   )
 }

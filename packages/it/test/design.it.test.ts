@@ -23,6 +23,7 @@ import type {} from '@conciv/extension-design/client'
 import {
   CaptureInputSchema,
   ClearInputSchema,
+  DESIGN_GUIDE,
   DESIGN_TOOL_DEFS,
   designVerb,
   diffDef,
@@ -274,31 +275,36 @@ it('declares six design tools with the flags from the spec', async () => {
   expect(diffDef.inputSchema.parse({})).toEqual({depth: 3, limit: 12})
 })
 
-it('registers a PNG target for a route and width, replacing an earlier one', async () => {
-  const first = await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+it('registers a PNG target sized by its header, and the same bytes keep their id and decisions', async () => {
+  const first = await call('design_target', {image: target('u1-1280')})
   expect(first).toMatchObject({route: '/', width: 1280, height: 720, scale: 1})
-  const second = await call('design_target', {image: target('u1-1280'), route: '/', width: 1280, name: 'invoices'})
-  expect(second.id).not.toBe(first.id)
-  expect((await call('design_status', {route: '/'})).targets.map((t) => t.id)).toEqual([second.id])
-  expect(existsSync(fileUnder(stateRoot, `.conciv/design/${first.id}`))).toBe(false)
+  const decisions = fileUnder(stateRoot, `.conciv/design/${first.id}/decisions.json`)
+  const decided = JSON.stringify([{id: 'd1', kind: 'pin', anchor: 'text-0', value: null, at: 1}])
+  await writeFile(decisions, decided)
+  await call('design_target', {image: target('u1-2560'), scale: 2})
+  const second = await call('design_target', {image: target('u1-1280'), name: 'invoices'})
+  expect(second.id).toBe(first.id)
+  expect((await call('design_status', {})).targets.map((t) => t.id)).toEqual([first.id])
+  expect(await readFile(decisions, 'utf8')).toBe(decided)
 })
 
-it('scales a retina export to the registered width and records the scale', async () => {
-  expect(await call('design_target', {image: target('u1-2560'), route: '/retina', width: 1280})).toMatchObject({
+it('divides the header width of a retina export by the stated scale', async () => {
+  expect(await call('design_target', {image: target('u1-2560'), scale: 2})).toMatchObject({
     width: 1280,
     height: 720,
-    scale: 0.5,
+    scale: 2,
   })
 })
 
-it('clear removes the targets of a route', async () => {
-  expect(await call('design_clear', {route: '/retina'})).toEqual({removed: 1})
-  expect((await call('design_status', {route: '/retina'})).targets).toEqual([])
+it('clear removes a target by id', async () => {
+  const retina = await call('design_target', {image: target('u1-2560'), scale: 2})
+  expect(await call('design_clear', {target: retina.id})).toEqual({removed: 1})
+  expect(existsSync(fileUnder(stateRoot, `.conciv/design/${retina.id}`))).toBe(false)
 })
 
 it('captures the live page at the tab width as a 1x PNG with the component tree', async () => {
   await page.setViewportSize({width: 1280, height: 720})
-  const result = await call('design_capture', {width: 1280, height: 720})
+  const result = await call('design_capture', {height: 720})
   const png = decodePng(readFileSync(fileUnder(stateRoot, result.path)))
   expect([png.width, png.height]).toEqual([1280, 720])
   const toolbar = result.components.find((c) => c.source?.file === 'src/Toolbar.tsx')
@@ -309,7 +315,7 @@ it('captures the live page at the tab width as a 1x PNG with the component tree'
 
 it('captures at the requested height when the width equals the tab width', async () => {
   await page.setViewportSize({width: 1280, height: 720})
-  const result = await call('design_capture', {width: 1280, height: 900})
+  const result = await call('design_capture', {height: 900})
   const png = decodePng(readFileSync(fileUnder(stateRoot, result.path)))
   expect([png.width, png.height]).toEqual([1280, 900])
 })
@@ -317,18 +323,18 @@ it('captures at the requested height when the width equals the tab width', async
 it('stays 1x when the device pixel ratio is 2', async () => {
   const cdp = await page.context().newCDPSession(page)
   await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1280, height: 720, deviceScaleFactor: 2, mobile: false})
-  const result = await call('design_capture', {width: 1280, height: 720})
+  const result = await call('design_capture', {height: 720})
   expect(decodePng(readFileSync(fileUnder(stateRoot, result.path))).width).toBe(1280)
   await cdp.send('Emulation.clearDeviceMetricsOverride')
 })
 
-it('design_target takes the live route and width when they are omitted', async () => {
+it('design_target records the live route as a label and the width of the image', async () => {
   expect(await call('design_target', {image: target('u1-1280')})).toMatchObject({route: '/', width: 1280})
 })
 
 it('ranks the toolbar first with an inset delta and reports the missing card, never a width', async () => {
   await goto('/')
-  await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+  await call('design_target', {image: target('u1-1280')})
   const report = await call('design_diff', {})
   expect(report.components[0]?.source).toEqual({file: 'src/Toolbar.tsx', line: 4, column: 5})
   expect(report.components[0]?.deltas).toContainEqual(
@@ -340,6 +346,7 @@ it('ranks the toolbar first with an inset delta and reports the missing card, ne
   )
   expect(report.diffImage.startsWith('.conciv/design/') || isAbsolute(report.diffImage)).toBe(true)
   expect(existsSync(fileUnder(stateRoot, report.diffImage))).toBe(true)
+  expect(report.warnings, 'the table cells render from data; the literals left are headers and Create').toEqual([])
 })
 
 it('a recolored toolbar is a background delta and a wider one a fill delta', async () => {
@@ -360,35 +367,33 @@ it('an identical page yields no components and no unmatched', async () => {
 
 it('a page without source attributes returns a hint and no components', async () => {
   await goto('/plain.html')
-  await call('design_target', {image: target('plain-1280'), route: '/plain.html', width: 1280})
+  await call('design_target', {image: target('plain-1280')})
   const report = await call('design_diff', {})
   expect(report.components).toEqual([])
   expect(report.hint).toContain('data-conciv-source')
 })
 
-it('names the route and width when no target exists', async () => {
-  const message = await rpc.registry.call({name: 'design_diff', input: {width: 1024}}).then(
-    () => '',
-    (error: unknown) => String(error),
-  )
-  expect(message).toContain('design_target')
-  expect(message).toContain('/plain.html')
-  expect(message).toContain('1024')
+it('says no target is registered once every target is cleared', async () => {
+  await call('design_clear', {all: true})
+  await expect(rpc.registry.call({name: 'design_diff', input: {}})).rejects.toMatchObject({code: 'no-target'})
+  expect((await call('design_status', {})).targets).toEqual([])
 })
 
-it('refuses to diff a target while the tab shows another route', async () => {
-  const registered = await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
-  await expect(rpc.registry.call({name: 'design_diff', input: {target: registered.id}})).rejects.toMatchObject({
-    code: 'route-mismatch',
-    message: expect.stringContaining('/plain.html'),
-  })
+it('refuses to diff a target while the tab shows another route, with a route item', async () => {
+  await goto('/')
+  const registered = await call('design_target', {image: target('u1-1280')})
+  await goto('/plain.html')
+  const report = await call('design_diff', {})
+  expect(report.route).toEqual({live: '/plain.html', target: '/'})
+  expect(report.target.id).toBe(registered.id)
+  expect(report.components).toEqual([])
 })
 
 it('the pixelmatch comparator produces the same ranking as blazediff', async () => {
   const other = await boot({config: {comparator: 'pixelmatch'}})
   try {
     await other.goto('/')
-    await other.call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    await other.call('design_target', {image: target('u1-1280')})
     expect((await other.call('design_diff', {})).components[0]?.source?.file).toBe('src/Toolbar.tsx')
   } finally {
     await other.dispose()
@@ -495,54 +500,58 @@ it('inline and sx keys map to the JSX attribute with a spacing suggestion only f
 
 it('a component whose pixels differ without a measured delta is reported and keeps status open', async () => {
   await goto('badge')
-  await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+  await call('design_target', {image: target('u1-1280')})
   const report = await call('design_diff', {})
   expect(report.components).toContainEqual(
     expect.objectContaining({source: expect.objectContaining({file: 'src/Toolbar.tsx'}), tag: 'header', deltas: []}),
   )
-  const status = await call('design_status', {route: '/'})
+  const status = await call('design_status', {})
   expect(status.done).toBe(false)
   expect(status.targets[0]?.above).toBeGreaterThan(0)
 })
 
 it('status flips to done when every width matches', async () => {
   await goto('/')
-  await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+  await call('design_target', {image: target('u1-1280')})
   await call('design_diff', {})
-  expect((await call('design_status', {route: '/'})).done).toBe(false)
+  expect((await call('design_status', {})).done).toBe(false)
   await goto('target')
   await call('design_diff', {})
-  expect(await call('design_status', {route: '/'})).toMatchObject({
+  expect(await call('design_status', {})).toMatchObject({
     done: true,
     targets: [expect.objectContaining({width: 1280, above: 0})],
   })
 })
 
-it('status without a route finds the targets registered for the pathname of the live route', async () => {
+it('status reports the current target of the session with its route label', async () => {
   await goto('target')
-  const registered = await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+  const registered = await call('design_target', {image: target('u1-1280')})
   expect(await call('design_status', {})).toMatchObject({
     route: '/',
     targets: [expect.objectContaining({id: registered.id})],
   })
 })
 
-it('keeps twenty runs per target', async () => {
+it('keeps twenty runs per target besides run 0', async () => {
+  await call('design_diff', {})
+  const current = (await call('design_status', {})).targets[0]
+  expect(current).toBeDefined()
+  if (current === undefined) return
+  const home = fileUnder(stateRoot, `.conciv/design/${current.id}`)
+  const runZero = (await readdir(home)).filter((name) => name.startsWith('result-')).toSorted()[0]
   for (const _ of Array.from({length: 21})) await call('design_diff', {})
-  const first = (await call('design_status', {route: '/'})).targets[0]
-  expect(first).toBeDefined()
-  if (first === undefined) return
-  const names = await readdir(fileUnder(stateRoot, `.conciv/design/${first.id}`))
+  const names = await readdir(home)
   expect(['live-', 'diff-', 'result-'].map((prefix) => names.filter((name) => name.startsWith(prefix)).length)).toEqual(
-    [20, 20, 20],
+    [21, 21, 21],
   )
+  expect(names).toContain(runZero)
 }, 360_000)
 
 it('diffs at 390 through an inert hidden frame and leaves the tab untouched', async () => {
   await goto('/')
   await page.fill('#field', 'typed')
-  await call('design_target', {image: target('u1-390'), route: '/', width: 390})
-  const report = await call('design_diff', {width: 390})
+  await call('design_target', {image: target('u1-390')})
+  const report = await call('design_diff', {})
   expect(report.target.width).toBe(390)
   expect(report.components.find((c) => c.source?.file === 'src/Cards.tsx')).toBeDefined()
   const frame = page.locator('iframe[data-conciv-capture]')
@@ -557,21 +566,23 @@ it('diffs at 390 through an inert hidden frame and leaves the tab untouched', as
     ),
   ).toBe(true)
   expect(await page.inputValue('#field')).toBe('typed')
-  await call('design_diff', {width: 390})
+  await call('design_diff', {})
   expect(await frame.count()).toBe(1)
 })
 
 it('a delta present only at 390 is flagged as a breakpoint delta', async () => {
   await goto('mobile-gap')
-  await call('design_diff', {width: 1280})
-  const mobile = await call('design_diff', {width: 390})
+  await call('design_target', {image: target('u1-1280')})
+  await call('design_diff', {})
+  await call('design_target', {image: target('u1-390')})
+  const mobile = await call('design_diff', {})
   const gap = mobile.components.flatMap((c) => c.deltas).find((d) => d.kind === 'gap-before')
   expect(gap).toMatchObject({breakpoint: true, file: 'src/card.module.css'})
   expect(gap?.declaration).toBe('gap: 16px')
 })
 
 it('clear removes the frame', async () => {
-  await call('design_clear', {route: '/'})
+  await call('design_clear', {all: true})
   expect(await page.locator('iframe[data-conciv-capture]').count()).toBe(0)
 })
 
@@ -584,9 +595,9 @@ it('fails inside the cap with the fallback options when the frame is blocked', a
     }),
   )
   await goto('/blocked')
-  await call('design_target', {image: target('plain-1280'), route: '/blocked', width: 390})
+  await call('design_target', {image: target('u1-390')})
   const start = Date.now()
-  await expect(rpc.registry.call({name: 'design_diff', input: {width: 390}})).rejects.toMatchObject({
+  await expect(rpc.registry.call({name: 'design_diff', input: {}})).rejects.toMatchObject({
     message: expect.stringContaining('chromium'),
   })
   expect(Date.now() - start).toBeLessThan(6_000)
@@ -596,8 +607,8 @@ it('fails inside the cap with the fallback options when the frame is blocked', a
 describe('x-ray page', () => {
   it('a diff report links the x-ray page of its target and the page serves', async () => {
     await goto('target')
-    const registered = await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
-    const report = await call('design_diff', {width: 1280})
+    const registered = await call('design_target', {image: target('u1-1280')})
+    const report = await call('design_diff', {})
     expect(report.xray).toContain(`/api/ext/design/xray/list?target=${registered.id}`)
     const html = await fetch(report.xray)
     expect(html.status).toBe(200)
@@ -606,7 +617,7 @@ describe('x-ray page', () => {
   })
 
   it('serves the run images and refuses paths outside the design dir', async () => {
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const base = new URL(report.xray).origin
     expect((await fetch(`${base}/api/ext/design/files/${report.livePath}`)).headers.get('content-type')).toBe(
       'image/png',
@@ -617,7 +628,7 @@ describe('x-ray page', () => {
 
   it('renders the rail from the last run and opens the inspector on the first component', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const [first, second] = report.components
     expect(first?.source).toBeDefined()
     expect(second?.source).toBeDefined()
@@ -638,7 +649,7 @@ describe('x-ray page', () => {
 
   it('renders one row per component with one badge per delta', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const [first] = report.components
     expect(first?.deltas.length).toBeGreaterThan(0)
     if (first === undefined) return
@@ -654,7 +665,7 @@ describe('x-ray page', () => {
 
   it('j expands the next row and Enter opens its source', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const second = report.components[1]?.source
     expect(second).toBeDefined()
     if (second === undefined || second === null) return
@@ -673,7 +684,7 @@ describe('x-ray page', () => {
 
   it('copy fix prompt writes the prompt', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const kind = report.components[0]?.deltas[0]?.kind
     expect(kind).toBeDefined()
     const xray = await browser.newPage({permissions: ['clipboard-read', 'clipboard-write']})
@@ -686,8 +697,9 @@ describe('x-ray page', () => {
 
   it('viewport chip switches target and keeps the view', async () => {
     await goto('/')
-    const narrow = await call('design_target', {image: target('u1-390'), route: '/', width: 390})
-    const report = await call('design_diff', {width: 1280})
+    const narrow = await call('design_target', {image: target('u1-390')})
+    await call('design_target', {image: target('u1-1280')})
+    const report = await call('design_diff', {})
     const xray = await browser.newPage()
     await xray.goto(capturePage(report.xray))
     await xray.getByRole('radiogroup', {name: 'Viewport'}).getByText('390').click()
@@ -702,7 +714,7 @@ describe('x-ray page', () => {
 
   it('capture view shows the stage', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const xray = await browser.newPage()
     await xray.goto(capturePage(report.xray))
     await expectLocator(xray.getByRole('radio', {name: 'Capture'})).toBeChecked()
@@ -714,7 +726,7 @@ describe('x-ray page', () => {
 
   it('capture view keeps the off count pill off the stage', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const above = report.components.filter(aboveTolerance).length + report.unmatched.length
     const pill = `${above} of ${report.components.length + report.unmatched.length} off`
     const xray = await browser.newPage()
@@ -728,7 +740,7 @@ describe('x-ray page', () => {
 
   it('a row keyed by its source attribute shows the element tag, not the attribute selector', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const first = report.components[0]
     expect(first?.selector).toContain('[data-conciv-source=')
     if (first === undefined) return
@@ -742,8 +754,9 @@ describe('x-ray page', () => {
 
   it('a width without a run keeps the panel Run diff and says it was not diffed yet', async () => {
     await goto('/')
-    const unrun = await call('design_target', {image: target('u1-390'), route: '/', width: 390, name: 'unrun'})
-    const report = await call('design_diff', {width: 1280})
+    const unrun = await call('design_target', {image: target('u1-390'), name: 'unrun'})
+    await call('design_target', {image: target('u1-1280')})
+    const report = await call('design_diff', {})
     const url = new URL(report.xray)
     url.searchParams.set('target', unrun.id)
     const xray = await browser.newPage()
@@ -757,7 +770,7 @@ describe('x-ray page', () => {
 
   it('hovering the select all button shows its tooltip', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const xray = await browser.newPage()
     await xray.goto(report.xray)
     await xray.getByRole('button', {name: 'Select all'}).hover()
@@ -767,8 +780,9 @@ describe('x-ray page', () => {
 
   it('arrow keys switch the viewport and keep focus in the viewport group', async () => {
     await goto('/')
-    const narrow = await call('design_target', {image: target('u1-390'), route: '/', width: 390})
-    const report = await call('design_diff', {width: 1280})
+    const narrow = await call('design_target', {image: target('u1-390')})
+    await call('design_target', {image: target('u1-1280')})
+    const report = await call('design_diff', {})
     const xray = await browser.newPage()
     await xray.goto(report.xray)
     const group = xray.getByRole('radiogroup', {name: 'Viewport'})
@@ -786,7 +800,7 @@ describe('x-ray page', () => {
 
   it('keys 2 and 1 switch the view route and the view selection follows', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const xray = await browser.newPage()
     await xray.goto(report.xray)
     await expectLocator(xray.getByRole('radio', {name: 'List'})).toBeChecked()
@@ -802,7 +816,7 @@ describe('x-ray page', () => {
 
   it('clear search empties the query and shows the rows again', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const url = new URL(report.xray)
     url.searchParams.set('q', 'no-such-component')
     const xray = await browser.newPage()
@@ -817,7 +831,7 @@ describe('x-ray page', () => {
 
   it('a region without a source falls back to its kind and cannot open', async () => {
     await goto('missing')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const region = report.unmatched.find((part) => part.source === undefined)
     expect(region).toBeDefined()
     if (region === undefined) return
@@ -834,7 +848,7 @@ describe('x-ray page', () => {
 
   it('shows the stale badge once the source changes after the diff', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const xray = await browser.newPage()
     await xray.goto(report.xray)
     await expectLocator(xray.getByRole('listitem').first()).toBeVisible()
@@ -848,7 +862,7 @@ describe('x-ray page', () => {
   })
 
   it('keeps a numeric search query from the url', async () => {
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const xray = await browser.newPage()
     await xray.goto(`${report.xray}&q=1280`)
     await expectLocator(xray.getByRole('textbox', {name: 'Search components'})).toHaveValue('1280')
@@ -857,7 +871,7 @@ describe('x-ray page', () => {
 
   it('a component off by paint alone says no property was measured', async () => {
     await goto('badge')
-    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    await call('design_target', {image: target('u1-1280')})
     const report = await call('design_diff', {})
     const index = report.components.findIndex((c) => fromToolbar(c) && c.tag === 'header')
     const header = report.components[index]
@@ -875,7 +889,7 @@ describe('x-ray page', () => {
 
   it('the filter offers no Match choice while the report lists only components off the design', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const xray = await browser.newPage()
     await xray.goto(report.xray)
     await expectLocator(xray.getByRole('checkbox', {name: 'Off'})).toBeVisible()
@@ -886,7 +900,7 @@ describe('x-ray page', () => {
 
   it('moving between rows reads the report once', async () => {
     await goto('/')
-    const report = await call('design_diff', {width: 1280})
+    const report = await call('design_diff', {})
     const xray = await browser.newPage()
     await xray.goto(report.xray)
     const inspector = xray.getByRole('region', {name: 'component'})
@@ -912,22 +926,34 @@ function sameSource(input: {a: LiveComponent['source']; b: LiveComponent['source
 }
 
 async function toolbarButtons(): Promise<LiveComponent[]> {
-  const captured = await call('design_capture', {width: 1280, height: 720})
+  const captured = await call('design_capture', {height: 720})
   const toolbar = captured.components.find((c) => c.source?.file === 'src/Toolbar.tsx')
   return toolbar?.children ?? []
 }
 
 const StoredModelSchema = z.object({
-  root: z.object({
-    children: z.array(
-      z.object({
-        kind: z.string().optional(),
-        text: z.string().optional(),
-        box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
-      }),
-    ),
-  }),
+  nodes: z.array(
+    z.object({
+      id: z.string(),
+      kind: z.enum(['text', 'box', 'image']),
+      text: z.string().optional(),
+      role: z.string().optional(),
+      within: z.string().optional(),
+      box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
+    }),
+  ),
 })
+
+async function storedNodes(id: string): Promise<z.infer<typeof StoredModelSchema>['nodes']> {
+  const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+  return StoredModelSchema.parse(JSON.parse(await readFile(path, 'utf8'))).nodes
+}
+
+function near(input: {a: Box; b: Box}): boolean {
+  const {a, b} = input
+  const edges = [a.x - b.x, a.y - b.y, a.x + a.w - b.x - b.w, a.y + a.h - b.y - b.h]
+  return edges.every((edge) => Math.abs(edge) <= 2)
+}
 
 function inside(input: {inner: LiveComponent['box']; outer: LiveComponent['box']}): boolean {
   const {inner, outer} = input
@@ -991,12 +1017,11 @@ describe('text', () => {
   it('reads the text runs of a target once at registration', async () => {
     await goto('target')
     const [first] = await toolbarButtons()
-    const registered = await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    const registered = await call('design_target', {image: target('u1-1280')})
     expect(registered.text?.runs).toBeGreaterThan(0)
-    const stored = StoredModelSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${registered.id}/model.json`), 'utf8')),
+    const label = (await storedNodes(registered.id)).find(
+      (node) => node.kind === 'text' && node.text?.toLowerCase() === 'export',
     )
-    const label = stored.root.children.find((child) => child.kind === 'text' && child.text?.toLowerCase() === 'export')
     expect(label).toBeDefined()
     expect(first).toBeDefined()
     if (label === undefined || first === undefined) return
@@ -1005,7 +1030,7 @@ describe('text', () => {
 
   it('a recolored label is a foreground delta measured from glyph ink', async () => {
     await goto('text-recolor')
-    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    await call('design_target', {image: target('u1-1280')})
     const [first, second] = await toolbarButtons()
     const report = await call('design_diff', {})
     const foreground = reportedFor({report, component: first})
@@ -1019,22 +1044,22 @@ describe('text', () => {
 
   it('text rendered with a second rasterization is no finding', async () => {
     await goto('textnoise')
-    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    await call('design_target', {image: target('u1-1280')})
     const report = await call('design_diff', {})
     expect(report.components.flatMap((c) => c.deltas)).toEqual([])
     expect(report.components.filter(aboveTolerance)).toEqual([])
-    expect((await call('design_status', {route: '/'})).done).toBe(true)
+    expect((await call('design_status', {})).done).toBe(true)
   })
 
   it('a container whose own paint changed stays reported when its text is noise', async () => {
     await goto('badge-textnoise')
-    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    await call('design_target', {image: target('u1-1280')})
     const report = await call('design_diff', {})
     const header = report.components.find((c) => fromToolbar(c) && c.tag === 'header')
     expect(header?.deltas).toEqual([])
     expect(header?.mismatch).toBeGreaterThanOrEqual(TILE_GATE)
     expect(report.components.filter((c) => fromToolbar(c) && c.tag === 'button').filter(aboveTolerance)).toEqual([])
-    expect((await call('design_status', {route: '/'})).done).toBe(false)
+    expect((await call('design_status', {})).done).toBe(false)
   })
 
   it('a target rendered by another browser matches the page', async () => {
@@ -1050,42 +1075,32 @@ describe('text', () => {
       TILE_GATE,
     )
     await goto('target')
-    await call('design_target', {image: target('u1-1280-firefox'), route: '/', width: 1280})
+    await call('design_target', {image: target('u1-1280-firefox')})
     const report = await call('design_diff', {})
     expect(report.components.filter((c) => fromToolbar(c) && aboveTolerance(c))).toEqual([])
     expect(report.components.flatMap((c) => c.deltas.map((d) => d.kind))).not.toContain('foreground')
     expect(report.components.flatMap((c) => c.deltas.map((d) => d.kind))).not.toContain('text')
-    expect((await call('design_status', {route: '/'})).done).toBe(true)
+    expect((await call('design_status', {})).done).toBe(true)
   })
 
-  it('a changed label is a text delta on the button that paints it', async () => {
+  it('a changed label rendered from an expression is no text delta', async () => {
     await goto('text-changed')
-    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
-    const [first] = await toolbarButtons()
+    await call('design_target', {image: target('u1-1280')})
     const report = await call('design_diff', {})
-    const texts = report.components.flatMap((c) =>
-      c.deltas.filter((d) => d.kind === 'text').map((delta) => ({component: c, delta})),
-    )
-    expect(texts).toHaveLength(1)
-    expect(texts[0]?.component.source).toEqual(first?.source)
-    expect(texts[0]?.delta).toMatchObject({
-      live: 'Download',
-      target: 'Export',
-      via: 'source',
-      file: 'src/Toolbar.tsx',
-    })
+    expect(report.components.flatMap((c) => c.deltas.filter((d) => d.kind === 'text'))).toEqual([])
+    expect(report.warnings).toEqual([])
   })
 
   it('a changed field border stays reported when its placeholder agrees', async () => {
     await goto('field-border')
-    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    await call('design_target', {image: target('u1-1280')})
     const report = await call('design_diff', {})
     expect(report.components.filter((c) => c.tag === 'input').filter(aboveTolerance)).toHaveLength(1)
   })
 
   it('a recolored label inside an unsourced span is a foreground delta on its button', async () => {
     await goto('span-recolor')
-    await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
+    await call('design_target', {image: target('u1-1280')})
     const [first] = await toolbarButtons()
     const report = await call('design_diff', {})
     const foreground = reportedFor({report, component: first})
@@ -1342,5 +1357,104 @@ describe('paddle disposal', () => {
     await Promise.all([queued, disposed])
     expect(settled).toEqual(['read', 'disposed'])
     expect(await paddleReader.read({raster})).toEqual([])
+  })
+})
+
+describe('nodes', () => {
+  it('registering u1-1280 yields box nodes for the toolbar, each card and the table within 2 px', async () => {
+    await goto('target')
+    const captured = await call('design_capture', {height: 720})
+    const registered = await call('design_target', {image: target('u1-1280')})
+    const boxes = (await storedNodes(registered.id)).filter((node) => node.kind === 'box')
+    const wanted = captured.components.filter((c) =>
+      ['src/Toolbar.tsx', 'src/Cards.tsx', 'src/Table.tsx'].includes(c.source?.file ?? ''),
+    )
+    const containers = [
+      ...wanted.filter((c) => c.tag === 'header' || c.tag === 'table'),
+      ...wanted.flatMap((c) => c.children.filter((child) => child.tag === 'article')),
+    ]
+    expect(containers.map((c) => c.tag).toSorted()).toEqual(['article', 'article', 'header', 'table'])
+    expect(containers.filter((c) => !boxes.some((node) => near({a: node.box, b: c.box})))).toEqual([])
+  })
+
+  it('the Export text node is within the first button', async () => {
+    await goto('target')
+    const [first] = await toolbarButtons()
+    const registered = await call('design_target', {image: target('u1-1280')})
+    const nodes = await storedNodes(registered.id)
+    const label = nodes.find((node) => node.kind === 'text' && node.text?.toLowerCase() === 'export')
+    const button = nodes.find((node) => node.id === label?.within)
+    expect(button?.kind).toBe('box')
+    expect(first).toBeDefined()
+    if (button === undefined || first === undefined) return
+    expect(near({a: button.box, b: first.box})).toBe(true)
+  })
+
+  it('roles against roles-1280 reports no text delta and no warning', async () => {
+    await goto('roles')
+    const registered = await call('design_target', {image: target('roles-1280')})
+    const texts = (await storedNodes(registered.id)).filter((node) => node.kind === 'text')
+    const roles = Object.fromEntries(texts.map((node) => [node.text, node.role]))
+    expect(roles).toMatchObject({'[Customer Name]': 'placeholder', '$1,200': 'data', 'INV-001': 'data'})
+    const report = await call('design_diff', {})
+    expect(report.components.flatMap((c) => c.deltas.filter((d) => d.kind === 'text'))).toEqual([])
+    expect(report.warnings).toEqual([])
+  })
+
+  it('hardcoded against hardcoded-1280 reports a sample-data warning and done', async () => {
+    await goto('hardcoded')
+    await call('design_target', {image: target('hardcoded-1280')})
+    const report = await call('design_diff', {})
+    expect(report.warnings).toEqual([
+      expect.objectContaining({kind: 'text', warning: 'sample-data', live: '1,200', file: 'src/Table.tsx'}),
+    ])
+    expect((await call('design_status', {})).done).toBe(true)
+  })
+})
+
+describe('current target', () => {
+  it('design_diff with no argument diffs the newest target of the session', async () => {
+    await goto('/')
+    await call('design_target', {image: target('u1-1280')})
+    const narrow = await call('design_target', {image: target('u1-390')})
+    const report = await call('design_diff', {})
+    expect(report.target).toMatchObject({id: narrow.id, width: 390})
+  })
+
+  it('design_target returns the guide as next', async () => {
+    const {next} = await call('design_target', {image: target('u1-1280')})
+    expect(next).toContain('design_diff')
+    expect(next).toBe(DESIGN_GUIDE)
+  })
+
+  it('design_status reports the current target', async () => {
+    await goto('/')
+    await call('design_target', {image: target('u1-390')})
+    const wide = await call('design_target', {image: target('u1-1280')})
+    await call('design_diff', {})
+    expect(await call('design_status', {})).toMatchObject({
+      targets: [expect.objectContaining({id: wide.id, width: 1280})],
+      done: false,
+      next: expect.stringContaining('design_diff'),
+    })
+  })
+
+  it('a second image becomes current, and registering the first again makes it current with its id', async () => {
+    await goto('target')
+    const first = await call('design_target', {image: target('u1-1280')})
+    const second = await call('design_target', {image: target('u1-1280-firefox')})
+    expect((await call('design_diff', {})).target.id).toBe(second.id)
+    const again = await call('design_target', {image: target('u1-1280')})
+    expect(again.id).toBe(first.id)
+    expect((await call('design_diff', {})).target.id).toBe(first.id)
+  })
+
+  it('design_clear with all then design_diff reports that no target is registered', async () => {
+    await call('design_clear', {all: true})
+    const message = await rpc.registry.call({name: 'design_diff', input: {}}).then(
+      () => '',
+      (error: unknown) => String(error),
+    )
+    expect(message).toContain('no design target is registered; register the design image with design_target')
   })
 })

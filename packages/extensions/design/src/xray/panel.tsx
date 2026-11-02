@@ -1,7 +1,619 @@
-import {For, Show, type JSX} from 'solid-js'
+import {For, onMount, Show, type JSX, createSignal} from 'solid-js'
+import {createTimer} from '@solid-primitives/timer'
+import {compact, uniq} from 'es-toolkit'
 import {RelativeTime, SegmentGroup, TooltipIconButton} from '@conciv/ui-kit-system'
-import {filterChoice, stale, type Filter, type WidthTab, type XrayData} from './data.js'
-import type {View} from './xray-schemas.js'
+import type {ComponentReport, DeltaKindName, DiffReport} from '../shared/defs.js'
+import {aboveTolerance, componentAboveTolerance, SOURCE_ATTR} from '../shared/tolerances.js'
+import type {Box, SourceLoc, TargetNode, TargetRecord} from '../shared/types.js'
+
+export type Delta = ComponentReport['deltas'][number]
+
+export type Row = {
+  key: string
+  label: string
+  source: SourceLoc | null
+  tag: string
+  selector: string
+  live: Box | null
+  target: Box | null
+  mismatch: number | null
+  deltas: Delta[]
+  unmatched: 'missing' | 'extra' | null
+}
+
+type WidthTab = {target: TargetRecord; off: number | null}
+
+export type XrayImages = {target: string; live: string | null; diff: string | null}
+
+export type XrayData = {
+  target: TargetRecord
+  report: DiffReport | null
+  nodes: TargetNode[]
+  images: XrayImages
+  widths: WidthTab[]
+  ranAt: number | null
+  sourceChangedAt: number | null
+}
+
+export type ReportResponse = {
+  target: TargetRecord
+  report: DiffReport | null
+  targetImage: string
+  nodes: TargetNode[]
+  sourceChangedAt: number | null
+}
+
+export function sourceLabel(source: SourceLoc | null): string {
+  if (source === null) return 'no source'
+  return `${source.file}:${source.line}`
+}
+
+export function reportRows(report: DiffReport | null): Row[] {
+  if (report === null) return []
+  const components = report.components.map((component, index): Row => ({
+    key: `${component.selector}#${index}`,
+    label: sourceLabel(component.source),
+    source: component.source,
+    tag: component.tag,
+    selector: component.selector.startsWith(`[${SOURCE_ATTR}=`) ? component.tag : component.selector,
+    live: component.live,
+    target: component.target,
+    mismatch: component.mismatch,
+    deltas: component.deltas,
+    unmatched: null,
+  }))
+  const unmatched = report.unmatched.map((region, index): Row => ({
+    key: `unmatched-${index}`,
+    label: region.source === undefined ? `${region.kind} region` : sourceLabel(region.source),
+    source: region.source ?? null,
+    tag: '',
+    selector: '',
+    live: region.live ?? null,
+    target: region.target ?? null,
+    mismatch: null,
+    deltas: [],
+    unmatched: region.kind,
+  }))
+  return [...components, ...unmatched]
+}
+
+export function rowAboveTolerance(row: Row): boolean {
+  if (row.unmatched !== null || row.mismatch === null) return true
+  return componentAboveTolerance({deltas: row.deltas, mismatch: row.mismatch})
+}
+
+function runTime(report: DiffReport | null): number | null {
+  const name = report?.livePath.split('/').at(-1)
+  if (name === undefined) return null
+  const at = Number(name.split('-')[1])
+  return Number.isFinite(at) ? at : null
+}
+
+export function assemble(input: {
+  current: ReportResponse
+  siblings: ReportResponse[]
+  image: (path: string) => string
+}) {
+  const {current, siblings, image} = input
+  const data: XrayData = {
+    target: current.target,
+    report: current.report,
+    nodes: current.nodes,
+    images: {
+      target: image(current.targetImage),
+      live: current.report === null ? null : image(current.report.livePath),
+      diff: current.report === null ? null : image(current.report.diffImage),
+    },
+    widths: siblings
+      .map((sibling) => ({
+        target: sibling.target,
+        off: sibling.report === null ? null : aboveTolerance(sibling.report),
+      }))
+      .toSorted((a, b) => a.target.width - b.target.width),
+    ranAt: runTime(current.report),
+    sourceChangedAt: current.sourceChangedAt,
+  }
+  return data
+}
+
+export function stale(data: XrayData): boolean {
+  return data.sourceChangedAt !== null && data.ranAt !== null && data.sourceChangedAt > data.ranAt
+}
+
+export const FILTERS = ['all', 'above', 'match', 'none'] as const
+export type Filter = (typeof FILTERS)[number]
+
+type FilterChoice = {above: boolean; match: boolean}
+
+function filterChoice(filter: Filter): FilterChoice {
+  return {above: filter === 'all' || filter === 'above', match: filter === 'all' || filter === 'match'}
+}
+
+function shown(input: {row: Row; filter: Filter}): boolean {
+  const choice = filterChoice(input.filter)
+  return rowAboveTolerance(input.row) ? choice.above : choice.match
+}
+
+export function filterRows(input: {rows: Row[]; filter: Filter; query: string}): Row[] {
+  const needle = input.query.trim().toLowerCase()
+  return input.rows
+    .filter((row) => shown({row, filter: input.filter}))
+    .filter((row) => needle === '' || `${row.label} ${row.selector} ${row.tag}`.toLowerCase().includes(needle))
+}
+
+const SHARE = new Intl.NumberFormat(undefined, {style: 'percent', maximumFractionDigits: 1})
+const AMOUNT = new Intl.NumberFormat(undefined, {maximumFractionDigits: 1})
+
+type BadgeColor = 'orange' | 'red' | 'amber'
+
+const BADGE_COLOR: Partial<Record<DeltaKindName, BadgeColor>> = {
+  background: 'red',
+  foreground: 'red',
+  fontSize: 'amber',
+  lineHeight: 'amber',
+  fontWeight: 'amber',
+}
+
+function baseName(file: string): string {
+  const name = file.split('/').at(-1) ?? file
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(0, dot) : name
+}
+
+function rowTitle(row: Row): string {
+  return row.source === null ? rowName(row) : baseName(row.source.file)
+}
+
+function rowName(row: Row): string {
+  if (row.source !== null) return `${baseName(row.source.file)} ${row.tag}`.trim()
+  if (row.selector !== '') return row.selector
+  return row.label
+}
+
+function deltaValue(input: {delta: Delta; value: number | string}): string {
+  if (typeof input.value === 'string') return input.value
+  return input.delta.kind === 'fill' ? SHARE.format(input.value) : AMOUNT.format(input.value)
+}
+
+function badgeText(delta: Delta): string {
+  return `${delta.kind} ${deltaValue({delta, value: delta.live})} → ${deltaValue({delta, value: delta.target})}`
+}
+
+function badgeColor(delta: Delta): BadgeColor {
+  return BADGE_COLOR[delta.kind] ?? 'orange'
+}
+
+export type View = 'list' | 'capture'
+
+function traced(delta: Delta): boolean {
+  return delta.via !== undefined && delta.via !== 'unknown' && delta.file !== undefined
+}
+
+function where(delta: Delta): string {
+  if (delta.line === undefined) return `${delta.file}`
+  return `${delta.file}:${delta.line}`
+}
+
+function sentence(delta: Delta): string {
+  if (delta.kind === 'text') return `change the text from ${delta.live} to ${delta.target} at ${where(delta)}`
+  const change = `${delta.kind} is ${delta.live} where the design has ${delta.target}`
+  const declared = delta.declaration === undefined ? '' : `, declared as \`${delta.declaration}\``
+  const suggestion = delta.suggest === undefined ? '' : `; ${delta.suggest}`
+  return `${change}, set via ${delta.via} at ${where(delta)}${declared}${suggestion}`
+}
+
+export function fixPrompt(row: Row): string | null {
+  const deltas = row.deltas.filter(traced)
+  if (deltas.length === 0) return null
+  return `Fix ${row.label} (${row.selector}) to match the design: ${deltas.map(sentence).join('. ')}.`
+}
+
+const BADGE_CLASS: Record<BadgeColor | 'green', string> = {
+  orange: 'badge badge-color-orange',
+  red: 'badge badge-color-red',
+  amber: 'badge badge-color-amber',
+  green: 'badge badge-color-green',
+}
+
+const BADGE_SLOT = 'ps-12 flex basis-full flex-wrap gap-1 min-w-0 order-last md:ps-0 md:basis-auto md:order-none'
+
+const ROW_FOCUS = 'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary-500/40'
+
+function StatusBadge(props: {row: Row; fixed: boolean}): JSX.Element {
+  return (
+    <Show
+      when={props.row.unmatched}
+      fallback={<span class={BADGE_CLASS.green}>{props.fixed ? 'fixed' : 'match'}</span>}
+    >
+      {(kind) => <span class={BADGE_CLASS.red}>{kind()}</span>}
+    </Show>
+  )
+}
+
+function DeltaBadge(props: {delta: Delta}): JSX.Element {
+  return (
+    <span role="listitem" class={`${BADGE_CLASS[badgeColor(props.delta)]} transition-colors duration-150`}>
+      {badgeText(props.delta)}
+    </span>
+  )
+}
+
+type ComponentRowProps = {
+  row: Row
+  index: number
+  expanded: boolean
+  fixed: boolean
+  onSelect: (key: string) => void
+  children: (row: Row) => JSX.Element
+}
+
+function ComponentRow(props: ComponentRowProps): JSX.Element {
+  const above = () => rowAboveTolerance(props.row)
+  return (
+    <li>
+      <div
+        role={props.expanded ? 'region' : undefined}
+        aria-label={props.expanded ? `${rowName(props.row)} component` : undefined}
+        class="flex flex-col gap-2"
+      >
+        <div
+          class={`text-sm font-mono px-2 py-1 border border-base rounded flex flex-wrap gap-x-4 gap-y-1 min-w-0 transition items-center relative hover:bg-active ${ROW_FOCUS}  ${props.expanded ? 'bg-active' : ''}  ${above() || props.expanded ? '' : 'op-50 hover:op-75'}`}
+        >
+          <span class="text-xs color-meta text-end shrink-0 w-8 tabular-nums">#{props.index}</span>
+          <button
+            type="button"
+            aria-expanded={props.expanded}
+            class="text-start outline-none flex shrink-0 gap-2 items-center after:content-empty after:inset-0 after:absolute"
+            onClick={() => props.onSelect(props.row.key)}
+          >
+            <span class="i-ph-file-duotone op-75" aria-hidden="true" />
+            {rowTitle(props.row)}
+          </button>
+          <Show when={props.row.source !== null && props.row.selector !== ''}>
+            <span class="color-meta flex-1 basis-0 max-w-64 min-w-0 truncate">{props.row.selector}</span>
+          </Show>
+          <Show
+            when={above() && props.row.unmatched === null}
+            fallback={
+              <span class={BADGE_SLOT}>
+                <StatusBadge row={props.row} fixed={props.fixed} />
+              </span>
+            }
+          >
+            <span role="list" aria-label="Deltas" class={BADGE_SLOT}>
+              <For each={props.row.deltas}>{(delta) => <DeltaBadge delta={delta} />}</For>
+            </span>
+          </Show>
+          <span class="color-meta ms-auto whitespace-nowrap">{sourceLabel(props.row.source)}</span>
+          <span
+            class={`i-ph-caret-down op-50 shrink-0 transition-transform duration-150 motion-reduce:transition-none ${props.expanded ? 'rotate-180' : ''}`}
+            aria-hidden="true"
+          />
+        </div>
+        <Show when={props.expanded}>
+          <div ref={(card) => onMount(() => card.scrollIntoView({block: 'nearest'}))}>{props.children(props.row)}</div>
+        </Show>
+      </div>
+    </li>
+  )
+}
+
+type ComponentRowsProps = {
+  rows: Row[]
+  selected: string | null
+  fixed: Set<string>
+  onSelect: (key: string) => void
+  children: (row: Row) => JSX.Element
+}
+
+export function ComponentRows(props: ComponentRowsProps): JSX.Element {
+  return (
+    <ul role="list" aria-label="Components" class="m-0 p-0 pb-16 pt-4 list-none flex flex-col gap-2">
+      <For each={props.rows}>
+        {(row, index) => (
+          <ComponentRow
+            row={row}
+            index={index()}
+            expanded={props.selected === row.key}
+            fixed={props.fixed.has(row.key)}
+            onSelect={props.onSelect}
+          >
+            {props.children}
+          </ComponentRow>
+        )}
+      </For>
+    </ul>
+  )
+}
+
+export function AbovePill(props: {above: number; total: number}): JSX.Element {
+  return (
+    <p class="text-xs m-0 px-3 py-1 border border-base rounded-full bg-glass:80 bottom-4 left-1/2 fixed z-60 -translate-x-1/2">
+      <span class="op-fade tabular-nums">
+        {props.above} of {props.total} off
+      </span>
+    </p>
+  )
+}
+
+const CONTEXT_PX = 24
+const CROP_MAX_PX = 560
+const COPIED_MS = 1200
+
+const PX_KINDS: DeltaKindName[] = [
+  'inset-left',
+  'inset-right',
+  'inset-top',
+  'inset-bottom',
+  'gap-before',
+  'gap-after',
+  'padding',
+  'fontSize',
+  'lineHeight',
+  'radius',
+]
+
+const COLOR_KINDS: DeltaKindName[] = ['background', 'foreground']
+
+const PLURAL = new Intl.PluralRules(undefined)
+
+const UNMATCHED_NOTE = {
+  extra: 'The live page renders an element the design does not have.',
+  missing: 'The design has an element here that the live page does not render.',
+}
+
+function count(input: {value: number; one: string; other: string}): string {
+  return `${input.value} ${PLURAL.select(input.value) === 'one' ? input.one : input.other}`
+}
+
+function cellValue(input: {delta: Delta; value: number | string}): string {
+  const text = deltaValue(input)
+  if (typeof input.value === 'number' && PX_KINDS.includes(input.delta.kind) && input.value !== 0) return `${text}px`
+  return text
+}
+
+function deltaSource(delta: Delta): SourceLoc | null {
+  if (!traced(delta) || delta.file === undefined) return null
+  return {file: delta.file, line: delta.line ?? 1, column: delta.column ?? 1}
+}
+
+function deltaWhere(delta: Delta): string {
+  return delta.line === undefined ? `${delta.file}` : `${delta.file}:${delta.line}`
+}
+
+type Crop = {x: number; y: number; w: number; h: number}
+
+function cropAround(input: {boxes: Box[]; target: TargetRecord}): Crop {
+  const x = Math.max(Math.min(...input.boxes.map((box) => box.x)) - CONTEXT_PX, 0)
+  const y = Math.max(Math.min(...input.boxes.map((box) => box.y)) - CONTEXT_PX, 0)
+  const right = Math.max(...input.boxes.map((box) => box.x + box.w))
+  const bottom = Math.max(...input.boxes.map((box) => box.y + box.h))
+  return {
+    x,
+    y,
+    w: Math.min(right + CONTEXT_PX, input.target.width) - x,
+    h: Math.min(bottom + CONTEXT_PX, input.target.height) - y,
+  }
+}
+
+function placed(input: {box: Box; crop: Crop}): JSX.CSSProperties {
+  return {
+    left: `${((input.box.x - input.crop.x) / input.crop.w) * 100}%`,
+    top: `${((input.box.y - input.crop.y) / input.crop.h) * 100}%`,
+    width: `${(input.box.w / input.crop.w) * 100}%`,
+    height: `${(input.box.h / input.crop.h) * 100}%`,
+  }
+}
+
+function Swatch(props: {delta: Delta; value: number | string}): JSX.Element {
+  return (
+    <Show when={COLOR_KINDS.includes(props.delta.kind) && typeof props.value === 'string'}>
+      <span
+        class="me-1.5 align-[-1px] border border-base rounded-sm size-2.5 inline-block"
+        style={{background: String(props.value)}}
+        aria-hidden="true"
+      />
+    </Show>
+  )
+}
+
+function SetBy(props: {delta: Delta; onOpen: (source: SourceLoc) => void}): JSX.Element {
+  return (
+    <Show
+      when={deltaSource(props.delta)}
+      fallback={
+        <Show when={props.delta.via} fallback={<span class="color-meta">unknown</span>}>
+          {(via) => <span class="color-meta">{via()}</span>}
+        </Show>
+      }
+    >
+      {(source) => (
+        <span class="flex gap-2 items-center">
+          <Show when={props.delta.declaration} fallback={<span>{props.delta.via}</span>}>
+            {(declaration) => <code class="font-mono px-1 rounded bg-code">{declaration()}</code>}
+          </Show>
+          <button
+            type="button"
+            class="color-meta focus-base rounded transition hover:text-current hover:underline"
+            onClick={() => props.onOpen(source())}
+          >
+            {deltaWhere(props.delta)}
+          </button>
+        </span>
+      )}
+    </Show>
+  )
+}
+
+function noDeltaNote(row: Row): string {
+  if (row.unmatched !== null) return UNMATCHED_NOTE[row.unmatched]
+  if (rowAboveTolerance(row)) return 'The paint differs from the design, but no property delta was measured.'
+  return 'Matches the design.'
+}
+
+function PropertyTable(props: {row: Row; onOpen: (source: SourceLoc) => void}): JSX.Element {
+  return (
+    <Show
+      when={props.row.deltas.length > 0}
+      fallback={<p class="text-sm m-0 op-fade flex-1">{noDeltaNote(props.row)}</p>}
+    >
+      <div class="flex-1 max-w-full min-w-0 overflow-x-auto">
+        <table class="w-full border-collapse">
+          <thead>
+            <tr>
+              <th class="font-semibold px-2 py-1 text-start border-b border-base">Property</th>
+              <th class="font-semibold px-2 py-1 text-start border-b border-base">Live</th>
+              <th class="font-semibold px-2 py-1 text-start border-b border-base">Design</th>
+              <th class="font-semibold px-2 py-1 text-start border-b border-base w-full">Set by</th>
+            </tr>
+          </thead>
+          <tbody class="text-sm font-mono">
+            <For each={props.row.deltas}>
+              {(delta) => (
+                <tr class="border-b border-base last:border-b-0">
+                  <td class="p-2 whitespace-nowrap">{delta.kind}</td>
+                  <td class="p-2 whitespace-nowrap">
+                    <Swatch delta={delta} value={delta.live} />
+                    {cellValue({delta, value: delta.live})}
+                  </td>
+                  <td class="color-active p-2 whitespace-nowrap">
+                    <Swatch delta={delta} value={delta.target} />
+                    {cellValue({delta, value: delta.target})}
+                  </td>
+                  <td class="p-2 whitespace-nowrap">
+                    <SetBy delta={delta} onOpen={props.onOpen} />
+                  </td>
+                </tr>
+              )}
+            </For>
+          </tbody>
+        </table>
+      </div>
+    </Show>
+  )
+}
+
+function CaptureCrop(props: {row: Row; live: string; target: TargetRecord}): JSX.Element {
+  const boxes = () => compact([props.row.live, props.row.target])
+  const crop = () => cropAround({boxes: boxes(), target: props.target})
+  return (
+    <Show when={boxes().length > 0}>
+      <figure class="m-0 flex flex-col gap-1.5 min-w-0" style={{width: `${Math.min(crop().w, CROP_MAX_PX)}px`}}>
+        <figcaption class="text-xs flex flex-wrap gap-3 items-center">
+          <span class="color-meta">Live capture · {props.target.width}</span>
+          <span class="op-75 flex gap-1 items-center">
+            <span class="border border-neutral-400 border-dashed h-2 w-3" aria-hidden="true" />
+            live box
+          </span>
+          <span class="op-75 flex gap-1 items-center">
+            <span class="border border-primary-500 h-2 w-3" aria-hidden="true" />
+            design box
+          </span>
+        </figcaption>
+        <div
+          class="border border-base rounded bg-secondary max-w-full relative overflow-hidden"
+          style={{'aspect-ratio': `${crop().w} / ${crop().h}`}}
+        >
+          <img
+            class="max-w-none absolute"
+            src={props.live}
+            alt={`Live capture around ${rowName(props.row)}`}
+            draggable={false}
+            style={{
+              width: `${(props.target.width / crop().w) * 100}%`,
+              left: `${(-crop().x / crop().w) * 100}%`,
+              top: `${(-crop().y / crop().h) * 100}%`,
+            }}
+          />
+          <Show when={props.row.live}>
+            {(live) => (
+              <span
+                class="outline-1 outline-neutral-400 outline outline-dashed absolute"
+                style={placed({box: live(), crop: crop()})}
+                aria-hidden="true"
+              />
+            )}
+          </Show>
+          <Show when={props.row.target}>
+            {(design) => (
+              <span
+                class="outline-1 outline-primary-500 outline absolute"
+                style={placed({box: design(), crop: crop()})}
+                aria-hidden="true"
+              />
+            )}
+          </Show>
+        </div>
+      </figure>
+    </Show>
+  )
+}
+
+type ComponentDetailProps = {
+  row: Row
+  images: XrayImages
+  target: TargetRecord
+  opening: boolean
+  onOpen: (source: SourceLoc) => void
+  onCopied: (copied: boolean) => void
+}
+
+export function ComponentDetail(props: ComponentDetailProps): JSX.Element {
+  const [copied, setCopied] = createSignal(false)
+  createTimer(
+    () => setCopied(false),
+    () => copied() && COPIED_MS,
+    setTimeout,
+  )
+  const prompt = () => fixPrompt(props.row)
+  const lines = () => uniq(props.row.deltas.flatMap((delta) => (traced(delta) ? [deltaWhere(delta)] : []))).length
+  const copy = (text: string) => {
+    const report = props.onCopied
+    void navigator.clipboard.writeText(text).then(
+      () => {
+        setCopied(true)
+        report(true)
+      },
+      () => report(false),
+    )
+  }
+  return (
+    <div class="xray-rise ms-14 border border-base rounded-lg bg-base overflow-hidden">
+      <div class="p-4 flex flex-wrap gap-6 items-start">
+        <PropertyTable row={props.row} onOpen={props.onOpen} />
+        <Show when={props.images.live}>
+          {(live) => <CaptureCrop row={props.row} live={live()} target={props.target} />}
+        </Show>
+      </div>
+      <div class="px-4 py-3 border-t border-base flex flex-wrap gap-2 items-center justify-end">
+        <span class="text-sm me-auto op-fade">
+          {count({value: props.row.deltas.length, one: 'property', other: 'properties'})} ·{' '}
+          {count({value: lines(), one: 'source line', other: 'source lines'})}
+        </span>
+        <button
+          type="button"
+          class="btn-action-sm"
+          disabled={props.row.source === null || props.opening}
+          title={props.row.source === null ? 'No source position' : undefined}
+          onClick={() => {
+            if (props.row.source !== null) props.onOpen(props.row.source)
+          }}
+        >
+          <span class="i-ph-pencil-simple-duotone" aria-hidden="true" />
+          Open source
+        </button>
+        <Show when={prompt()}>
+          {(text) => (
+            <button type="button" class="text-sm btn-primary px-2.5 py-1" onClick={() => copy(text())}>
+              <span class={copied() ? 'i-ph-check' : 'i-ph-copy-duotone'} aria-hidden="true" />
+              Copy fix prompt
+            </button>
+          )}
+        </Show>
+      </div>
+    </div>
+  )
+}
 
 const MOBILE_WIDTH = 768
 
@@ -108,7 +720,7 @@ export function RunButton(props: {running: boolean; onRun: () => void; primary?:
   )
 }
 
-export type XrayPanelProps = {
+type XrayPanelProps = {
   data: XrayData
   filter: Filter
   query: string

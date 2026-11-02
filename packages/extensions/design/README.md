@@ -10,14 +10,44 @@ The package.json describes this as the design built-in extension, internal to @c
 
 ## Interface
 
-- default `defineConfig` (`tsdown.config.ts`): bundles `src/server.ts`, `src/shared/defs.ts`, `src/server/provenance/mappers.ts`, `src/server/text-groups.ts`, `src/server/comparators/paddle.ts` and `src/server/deltas/colors.ts` as ESM with `dts: false`
+- default `defineConfig` (`tsdown.config.ts`): bundles `src/server.ts`, `src/shared/defs.ts`, `src/server/provenance.ts`, `src/server/differ.ts`, `src/server/target.ts` and `src/server/deltas.ts` as ESM with `dts: false`
 - default `defineConfig` (`vite.config.ts`): library build of `src/client.ts` to `client.js` (ES format), with `emptyOutDir: false` and sourcemaps
 - default `defineConfig` (`vite.xray.config.ts`): builds `src/xray/` into `dist/xray/` with UnoCSS and the Solid plugin; in serve mode it loads `../../it/dist/vite.js` instead of plain Solid
 - default `defineConfig` (`uno.config.ts`): UnoCSS with `presetConciv`, scanning `src/xray/**` and `../../ui-kit-system/src/**`
-- package.json `exports`: `.` (browser maps to client, import maps to server), `./client`, `./server`, `./defs`, `./provenance` (`dist/server/provenance/mappers`), `./text-groups`, `./paddle` (`dist/server/comparators/paddle`), `./colors` (`dist/server/deltas/colors`), `./types` (types only)
+- package.json `exports`: `.` (browser maps to client, import maps to server), `./client`, `./server`, `./defs`, `./provenance` (`dist/server/provenance`), `./text-groups` (`dist/server/differ`), `./paddle` (`dist/server/target`), `./colors` (`dist/server/deltas`), `./types` (types only)
 - package.json script `dev:xray`: runs `vite --config vite.xray.config.ts`
-- Subdirectories:
-  - [src](./src/README.md): Holds the two entry points of the design extension: `client.ts` registers the browser-side tools and the capture-frame responder, and `server.ts` wires up the target store, a lazy CSS source map, the xray router/app and the design runtime context.
+
+## Source tree
+
+Each slot is one interface in `src/shared/types.ts`. Every implementation of a slot is a module-private function or
+object in one file, and that file exports one table of them; `src/server.ts` picks from the tables by `designConfig`.
+
+```text
+src/
+  client.ts            widget entry: capture frame, component tree, snapshot capture, CSS winner, client tools
+  server.ts            extension entry: pickRuntime over the slot tables, CSS map, x-ray routes, dispose
+  shared/
+    defs.ts            tool definitions, wire schemas, errors and messages
+    types.ts           domain types and the slot interfaces
+    tolerances.ts      TOLERANCES, designConfig, frame message names, source attribute, property aliases, tolerance counts
+  server/
+    target.ts          ADAPTERS, TEXT_READERS (PaddleOCR), ENRICHERS, SEGMENTERS, ROLE_RULES and the registration pipeline
+    deltas.ts          DELTA_KINDS, COLOR_METRICS, sampled fills and glyph ink color, sideFrom
+    provenance.ts      MAPPERS, mapDeclaration, the CSS source map, JSX site reading and live text roles
+    raster.ts          pure pixel and box operations
+    store.ts           the target store on disk
+    differ.ts          PIXEL_COMPARATORS, GEOMETRY, MATCHERS, CAPTURES, text groups, unmatched regions, the diff run and the tool bindings
+    xray-routes.ts     HTTP routes for the x-ray
+  xray/
+    entry.tsx          mount
+    router.tsx         routes, search schema, data loading
+    panel.tsx          panel, rows, detail, fix prompt
+    stage.tsx          canvas and stage toolbar
+    states.tsx         loading, empty and error states, shortcuts
+```
+
+`src/client/specificity.d.ts` types `@bramus/specificity`. `src/xray/index.html` and `src/xray/xray.css` are the
+x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with `?fixture=1`.
 
 ## Invariants
 
@@ -28,7 +58,7 @@ The package.json describes this as the design built-in extension, internal to @c
 
 ## Side Effects
 
-- `build` script (package.json): writes dist/ (server.js, shared/defs.js, server/provenance/mappers.js, server/text-groups.js, server/comparators/paddle.js, server/deltas/colors.js, client.js, xray/, .d.ts files); the xray build empties `dist/xray/` (`emptyOutDir: true` in `vite.xray.config.ts`)
+- `build` script (package.json): writes dist/ (server.js, shared/defs.js, server/provenance.js, server/differ.js, server/target.js, server/deltas.js, client.js, xray/, .d.ts files); the xray build empties `dist/xray/` (`emptyOutDir: true` in `vite.xray.config.ts`)
 - `compiler` (`vite.xray.config.ts`): in serve mode it dynamically imports the sibling package build at `../../it/dist/vite.js`
 - `design_target` runs OCR in-process on `onnxruntime-web`; the service is created on first read and disposed with the extension
 

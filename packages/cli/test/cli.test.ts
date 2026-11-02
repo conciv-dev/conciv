@@ -249,7 +249,7 @@ describe('cli', () => {
       it('derives the design verbs offline from the design tool declarations', () => {
         const help = conciv(['tools', 'design', '--help'])
         expect(help.status).toBe(0)
-        expect(help.stdout).toContain('register a design image as the target')
+        expect(help.stdout).toContain('register a design image as the target; its width and height come from the image')
       })
 
       it('shows a verb flags offline', () => {
@@ -311,17 +311,17 @@ describe('cli', () => {
     describe('the CLI reads its commands from the tool declarations', () => {
       it('derives design verbs from the design tool declarations online', async () => {
         await bootCli(cleanups, {extensions: [design]})
-        expect(await helpText(['tools', 'design', '--help'])).toContain('compare the live page with its design target')
+        expect(await helpText(['tools', 'design', '--help'])).toContain(
+          'compare the live page with the current design target',
+        )
       })
 
-      it('sends design diff flags to the server as the tool input', async () => {
-        const kit = await bootCli(cleanups, {extensions: [design]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {pathname: '/cards', search: ''}})
-        expect(await runCli(cliMain, ['tools', 'design', 'diff', '--width', '390', '--limit', '5'])).toBe(1)
-        expect(answer.seen()).toMatchObject({name: 'page_route'})
+      it('design diff with no registered target names the tool that registers one', async () => {
+        await bootCli(cleanups, {extensions: [design]})
+        expect(await runCli(cliMain, ['tools', 'design', 'diff', '--limit', '5'])).toBe(1)
         expect(onlyDocument(written)).toMatchObject({
           ok: false,
-          error: {message: 'no design target for /cards at 390px; register one with design_target'},
+          error: {message: 'no design target is registered; register the design image with design_target'},
         })
       })
 
@@ -357,8 +357,8 @@ describe('cli', () => {
           process.chdir(home)
           rmSync(dir, {recursive: true, force: true})
         })
-        expect(await runCli(cliMain, ['tools', 'design', 'target', './u1.png', '--route', '/', '--width', '1'])).toBe(0)
-        expect(onlyDocument(written)).toMatchObject({ok: true, data: {route: '/', width: 1}})
+        expect(await runCli(cliMain, ['tools', 'design', 'target', './u1.png', '--route', '/'])).toBe(0)
+        expect(onlyDocument(written)).toMatchObject({ok: true, data: {route: '/', width: 1, height: 1}})
       })
 
       it('derives a page verb whose declaration carries card cosmetics the CLI itself ignores', async () => {
