@@ -14,11 +14,12 @@ import {
   diffDef,
   GlyphSchema,
   LiveStylesSchema,
+  measureDef,
+  MeasureResultSchema,
   NO_TARGET_MESSAGE,
   SourceLocSchema,
   statusDef,
   targetDef,
-  ViewportResultSchema,
   winnerDef,
   WinnerResultSchema,
   type CaptureInput,
@@ -29,14 +30,12 @@ import {
   type DiffInput,
   type DiffReport,
   type StatusReport,
-  type ViewportResult,
   type WinnerInput,
   type WinnerResult,
 } from '../shared/defs.js'
 import {aboveTolerance, SOURCE_ATTR, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Box,
-  Capture,
   ColorMetric,
   Comparators,
   CssMap,
@@ -83,7 +82,7 @@ import {
   trimToInk,
   union,
 } from './raster.js'
-import {liveRoute, pathnameIn, registerTarget, segmentationQuality} from './target.js'
+import {estimateTypography, liveRoute, pathnameIn, registerTarget, segmentationQuality} from './target.js'
 
 const DIFF_OPTIONS = {threshold: 0.1, includeAA: false, diffMask: true} as const
 
@@ -221,8 +220,6 @@ const edgeProjection: GeometryEstimator = {
   },
 }
 
-const CAPTURE_TIMEOUT_MS = TOLERANCES.frameSettleMs + TOLERANCES.captureBudgetMs
-
 const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
   source: SourceLocSchema.nullable(),
   tag: z.string(),
@@ -231,37 +228,46 @@ const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
   textBox: BoxSchema.nullable(),
   glyphs: z.array(GlyphSchema),
   axis: z.enum(['row', 'column']).nullable(),
+  columns: z.number().nullable(),
   styles: LiveStylesSchema,
   index: z.number(),
+  path: z.string(),
   get children() {
     return z.array(LiveComponentTreeSchema)
   },
 })
 
-const ClientCaptureSchema = z.object({
-  image: z.string(),
-  width: z.number(),
-  height: z.number(),
-  route: z.string(),
-  components: z.array(LiveComponentTreeSchema),
-})
+const MeasureReplySchema = MeasureResultSchema.extend({components: z.array(LiveComponentTreeSchema)})
 
-const tabCapture: Capture = {
-  name: 'tab',
-  capture: async ({width, height, page}) => {
-    const shot = ClientCaptureSchema.parse(
-      await page.call(captureDef.name, {width, height, timeout: CAPTURE_TIMEOUT_MS}),
-    )
-    return {
-      raster: decodePng(Buffer.from(shot.image, 'base64')),
-      viewport: {width: shot.width, height: shot.height},
-      route: shot.route,
-      components: shot.components,
-    }
-  },
-  clear: async ({page}) => {
-    await page.call(captureDef.name, {clear: true})
-  },
+async function measure(input: {
+  width?: number
+  height?: number
+  timeout?: number
+  page: ServerToolPageAccess
+}): Promise<LiveCapture> {
+  const {width, height, page} = input
+  const reply = MeasureReplySchema.parse(
+    await page.call(measureDef.name, {
+      ...(width === undefined ? {} : {width}),
+      ...(height === undefined ? {} : {height}),
+      timeout: input.timeout ?? TOLERANCES.measureTimeoutMs,
+    }),
+  )
+  return {
+    raster: decodePng(Buffer.from(reply.image, 'base64')),
+    viewport: {width: reply.width, height: reply.height},
+    route: reply.route,
+    components: reply.components,
+    capturePath: reply.capturePath,
+    source: reply.source,
+    masks: reply.masks,
+    ...(reply.limits === undefined ? {} : {limits: reply.limits}),
+  }
+}
+
+function sourceConfidence(live: LiveCapture): number {
+  if (live.limits === undefined || live.limits.inlineWidths === 0) return 1
+  return TOLERANCES.inlineWidthConfidence
 }
 
 function clip(input: {box: Box; to: Box}): Box {
@@ -651,40 +657,6 @@ function unmatchedRegions(input: {target: TargetModel; matched: Box[]; pairs: Pa
   return [...missing, ...extra]
 }
 
-type RunResult = Omit<DiffReport, 'diffImage' | 'livePath'>
-
-function deltaKeys(report: DiffReport): Set<string> {
-  return new Set(
-    report.components.flatMap((component) => component.deltas.map((delta) => `${delta.kind} ${component.selector}`)),
-  )
-}
-
-async function withBreakpoints(input: {
-  result: RunResult
-  record: TargetRecord
-  store: TargetStore
-}): Promise<RunResult> {
-  const {result, record, store} = input
-  const siblings = (await store.list({})).filter(
-    (other) => other.route === record.route && other.width !== record.width,
-  )
-  const others = (await Promise.all(siblings.map((other) => store.lastResult(other.id)))).filter(
-    (report) => report !== null,
-  )
-  if (others.length === 0) return result
-  const seen = others.map(deltaKeys)
-  return {
-    ...result,
-    components: result.components.map((component) => ({
-      ...component,
-      deltas: component.deltas.map((delta) => {
-        const key = `${delta.kind} ${component.selector}`
-        return seen.some((keys) => keys.has(key)) ? delta : {...delta, breakpoint: true}
-      }),
-    })),
-  }
-}
-
 type TextVerdict = 'text' | 'sample-data' | null
 
 function textDelta(input: {live: LiveRole; target: Role; equal: boolean}): TextVerdict {
@@ -732,6 +704,7 @@ function refused(input: {record: TargetRecord; route: RouteItem; xray: XrayLink}
     components: [],
     unmatched: [],
     warnings: [],
+    sources: [],
     route,
     hint: `the tab shows ${route.live} but the design target is the design of ${route.target}; navigate the tab to ${route.target}, then diff again`,
   }
@@ -928,7 +901,9 @@ async function runDiff(request: {
   const route = await otherRoute({record, page})
   if (route !== null) return refused({record, route, xray})
   const target = await design.store.model(record.id)
-  const live = await design.capture.capture({width: record.width, height: record.height, page})
+  const reading = await measure({width: record.width, height: record.height, page})
+  const live = {...reading, raster: paintOver({onto: reading.raster, from: target.raster, boxes: reading.masks})}
+  const stamp = {source: live.source, confidence: sourceConfidence(live), width: record.width}
   const {groups, agreeing} = groupText({
     components: live.components,
     runs: targetRuns(target),
@@ -937,6 +912,7 @@ async function runDiff(request: {
     color: design.comparators.color,
   })
   const judged = await verdicts({groups, target, cwd: design.cwd})
+  await estimateTypography({groups, target, id: record.id, store: design.store, page, color: design.comparators.color})
   const masked = paintOver({
     onto: live.raster,
     from: target.raster,
@@ -980,7 +956,7 @@ async function runDiff(request: {
           : design.deltaKinds.flatMap((kind) =>
               kind.measure({live: liveSide, target: targetSide, color: design.comparators.color}),
             )
-      const deltas = [...kinds, ...textDeltas({groups, pair, judged})]
+      const deltas = [...kinds, ...textDeltas({groups, pair, judged})].map((delta) => ({...delta, ...stamp}))
       return {
         pair,
         report: {
@@ -1005,20 +981,19 @@ async function runDiff(request: {
     id: record.id,
     live: live.raster,
     diff: paintDiff({live: masked, mask: matched.mask, width: Math.min(live.raster.width, target.raster.width)}),
-    result: await withBreakpoints({
-      record,
-      store: design.store,
-      result: {
-        target: {id: record.id, ...(record.route === undefined ? {} : {route: record.route}), width: record.width},
-        xray: xray.url,
-        mismatch: rounded(matched.mismatch),
-        components,
-        unmatched: unmatchedRegions({target, matched: matched.matchedTargetBoxes, pairs: matched.pairs, live}),
-        warnings: warnings({groups, judged}),
-        segmentation: segmentationQuality(target),
-        ...reportHint({attributed: live.components.length > 0, absolute: xray.absolute}),
-      },
-    }),
+    result: {
+      target: {id: record.id, ...(record.route === undefined ? {} : {route: record.route}), width: record.width},
+      xray: xray.url,
+      mismatch: rounded(matched.mismatch),
+      components,
+      unmatched: unmatchedRegions({target, matched: matched.matchedTargetBoxes, pairs: matched.pairs, live}),
+      warnings: warnings({groups, judged}).map((delta) => ({...delta, ...stamp})),
+      segmentation: segmentationQuality(target),
+      capturePath: live.capturePath,
+      sources: [live.source],
+      ...(live.limits === undefined ? {} : {limits: live.limits}),
+      ...reportHint({attributed: live.components.length > 0, absolute: xray.absolute}),
+    },
   })
 }
 
@@ -1048,27 +1023,16 @@ async function targetStatus(input: {store: TargetStore; session: string}): Promi
   }
 }
 
-async function liveViewport({input, page}: {input: CaptureInput; page: ServerToolPageAccess}): Promise<ViewportResult> {
-  const probe = ViewportResultSchema.parse(await page.call(captureDef.name, {probe: true}))
-  return {width: probe.width, height: input.height ?? probe.height}
-}
-
-const captureStep: ServerStep<CaptureInput, CaptureResult | ViewportResult> = async (input, ctx, _request, page) => {
-  if (input.probe === true || input.clear === true) {
-    return ViewportResultSchema.parse(await page.call(captureDef.name, input))
-  }
-  const viewport = await liveViewport({input, page})
-  const live = await ctx.design.capture.capture({width: viewport.width, height: viewport.height, page})
+const captureStep: ServerStep<CaptureInput, CaptureResult> = async (input, ctx, _request, page) => {
+  const live = await measure({height: input.height, timeout: input.timeout, page})
   const path = await ctx.design.store.writeCapture({png: encodePng(live.raster)})
   return {path, width: live.raster.width, height: live.raster.height, route: live.route, components: live.components}
 }
 
-const clearStep: ServerStep<ClearInput, ClearResult> = async (input, ctx, request, page) => {
+const clearStep: ServerStep<ClearInput, ClearResult> = async (input, ctx, request) => {
   const {store} = ctx.design
   const id = input.target ?? (await store.current({session: request.sessionId}))?.id
-  const removed = await store.remove(input.all === true ? {all: true} : {id})
-  await ctx.design.capture.clear({page})
-  return {removed}
+  return {removed: await store.remove(input.all === true ? {all: true} : {id})}
 }
 
 const winnerStep: ServerStep<WinnerInput, WinnerResult> = async (input, _ctx, _request, page) =>
@@ -1104,5 +1068,3 @@ export const PIXEL_COMPARATORS = {
 export const GEOMETRY = {'edge-projection': edgeProjection} as const satisfies Record<string, GeometryEstimator>
 
 export const MATCHERS = {tile: tileMatcher} as const satisfies Record<string, Matcher>
-
-export const CAPTURES = {tab: tabCapture} as const satisfies Record<string, Capture>

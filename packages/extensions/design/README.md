@@ -24,7 +24,7 @@ object in one file, and that file exports one table of them; `src/server.ts` pic
 
 ```text
 src/
-  client.ts            widget entry: capture frame, component tree, snapshot capture, CSS winner, client tools
+  client.ts            widget entry: measurer, mirror, region and snapdom capture, type renders, CSS winner
   server.ts            extension entry: pickRuntime over the slot tables, CSS map, x-ray routes, dispose
   shared/
     defs.ts            tool definitions, wire schemas, errors and messages

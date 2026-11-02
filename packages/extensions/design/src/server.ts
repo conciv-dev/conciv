@@ -7,7 +7,7 @@ import {designConfig, type DesignConfig} from './shared/tolerances.js'
 import {DESIGN_EXTENSION_NAME, DESIGN_GUIDE} from './shared/defs.js'
 import type {CssMap, DesignRuntime} from './shared/types.js'
 import {COLOR_METRICS, DELTA_KINDS} from './server/deltas.js'
-import {CAPTURES, createDiffer, GEOMETRY, MATCHERS, PIXEL_COMPARATORS, SERVER_STEPS} from './server/differ.js'
+import {createDiffer, GEOMETRY, MATCHERS, PIXEL_COMPARATORS, SERVER_STEPS} from './server/differ.js'
 import {buildCssMap, MAPPERS} from './server/provenance.js'
 import {createTargetStore} from './server/store.js'
 import {ADAPTERS, destroyPaddle, ENRICHERS, ROLE_RULES, SEGMENTERS, TEXT_READERS} from './server/target.js'
@@ -20,7 +20,6 @@ function pickRuntime(input: {
   const {config} = input
   return {
     cwd: input.server.cwd,
-    capture: CAPTURES[config.capture],
     comparators: {
       pixel: PIXEL_COMPARATORS[config.comparator],
       geometry: GEOMETRY[config.geometry],

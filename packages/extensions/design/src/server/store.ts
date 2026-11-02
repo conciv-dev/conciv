@@ -35,7 +35,7 @@ const TextNodeSchema = NodeBaseSchema.extend({
   role: z.enum(ROLES).optional(),
   roleConfidence: z.number().optional(),
   typography: z
-    .object({size: z.number(), lineHeight: z.number(), weight: z.number(), confidence: z.number()})
+    .object({size: z.number(), lineHeight: z.number(), weight: z.number(), confidence: z.number(), font: z.string()})
     .optional(),
 })
 
@@ -272,6 +272,17 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       return report
     },
     lastResult: async (id): Promise<DiffReport | null> => (await latestRun(id))?.report ?? null,
+    setTypography: ({id, typography}) =>
+      serial(async () => {
+        const path = join(dir, id, MODEL_FILE)
+        const model = await readJson({path, schema: ModelSchema})
+        if (model === null) return
+        const nodes = model.nodes.map((node) => {
+          const found = typography[node.id]
+          return node.kind === 'text' && found !== undefined ? {...node, typography: found} : node
+        })
+        await writeFile(path, JSON.stringify({...model, nodes}))
+      }),
     reportPath,
   }
 }

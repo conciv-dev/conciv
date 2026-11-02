@@ -16,8 +16,15 @@ export const TOLERANCES = {
   depth: 3,
   limit: 12,
   runsKept: 20,
-  frameSettleMs: 5000,
-  captureBudgetMs: 10_000,
+  captureFrameMs: 500,
+  measureTimeoutMs: 60_000,
+  typeSearchMin: 8,
+  typeSearchMax: 56,
+  boldCoverage: 1.2,
+  regularCoverage: 1.07,
+  ratioConfidence: 0.5,
+  typeHalo: 4,
+  inlineWidthConfidence: 0.5,
   segmentDistance: 10,
   segmentImageShare: 0.3,
   ocrConfidenceFloor: 0.6,
@@ -32,7 +39,6 @@ export const designConfig = z.object({
   comparator: z.enum(['blazediff', 'pixelmatch']).default('blazediff'),
   geometry: z.enum(['edge-projection']).default('edge-projection'),
   color: z.enum(['ciede2000']).default('ciede2000'),
-  capture: z.enum(['tab']).default('tab'),
   matcher: z.enum(['tile']).default('tile'),
   text: z.enum(['paddle']).default('paddle'),
   segmenter: z.enum(['threshold']).default('threshold'),
@@ -40,9 +46,6 @@ export const designConfig = z.object({
 })
 
 export type DesignConfig = z.output<typeof designConfig>
-
-export const CAPTURE_REQUEST = 'conciv-design:capture'
-export const CAPTURE_READY = 'conciv-design:capture-ready'
 
 export const SOURCE_ATTR = 'data-conciv-source'
 

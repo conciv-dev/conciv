@@ -12,9 +12,24 @@ const TARGET_ALIASES = new Set([
   'span-recolor',
 ])
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
+const TYPE_SIZES = [12, 16, 24, 32]
+const TYPE_STRINGS = ['Export the quarterly report', 'EXPORT', '1,240.00']
 
 export function App() {
   const requested = new URLSearchParams(location.search).get('variant')
+  if (requested === 'type') {
+    return (
+      <main className="type">
+        {TYPE_SIZES.flatMap((size) =>
+          TYPE_STRINGS.map((text) => (
+            <p key={`${size}-${text}`} style={{fontSize: size}}>
+              {text}
+            </p>
+          )),
+        )}
+      </main>
+    )
+  }
   const variant = requested !== null && TARGET_ALIASES.has(requested) ? 'target' : requested
   const labelColor = requested === 'text-recolor' ? '#ffd166' : undefined
   const label = requested === 'text-changed' ? 'Download' : 'Export'
