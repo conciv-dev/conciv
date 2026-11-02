@@ -6,6 +6,7 @@ import type {RpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import type {ClientExtension} from '@conciv/extension'
 import {setupEngineReachability, type EngineConnection} from '@conciv/client'
+import type {HubConnection} from './app/devframe-link.js'
 import {routeTree} from './routeTree.gen'
 import {makeAppData, type AppData} from './data/app-data.js'
 import {createHarnessMeta, HarnessMetaContext} from './data/harness-meta.js'
@@ -40,7 +41,7 @@ export type ConcivRouterContext = {
 
 export type ConcivRouterConfig = {
   rpc: RpcClient
-  hubConnection?: EngineConnection
+  hubConnection?: HubConnection
   history: RouterHistory
   environment: ConcivEnvironment
   settings: ConcivSettings
@@ -94,15 +95,22 @@ function wireEngineReachability(apiBase: () => string, hubConnection?: EngineCon
 
 export function createConcivRouter(config: ConcivRouterConfig) {
   const queryClient = new QueryClient()
-  const data = makeAppData(config.rpc, queryClient)
-  const extensions = [highlight, ...(config.extensions ?? [])]
-  const instances = createInstances(extensions)
   const apiBase = config.apiBase ?? (() => '')
   const connected = config.connected ?? (() => true)
+  const data = makeAppData(
+    config.rpc,
+    config.hubConnection ? {connection: config.hubConnection, connected} : undefined,
+    queryClient,
+  )
+  const extensions = [highlight, ...(config.extensions ?? [])]
+  const instances = createInstances(extensions)
   const reachability = wireEngineReachability(apiBase, config.hubConnection)
   const disposeInstances = makeGuardedDisposer(instances, reachability.dispose)
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
     onCleanup(disposeInstances)
+    createEffect(() => {
+      if (connected()) onCleanup(data.readHubState())
+    })
     const harness = createHarnessMeta(data, connected, queryClient)
     return <HarnessMetaContext.Provider value={harness}>{props.children}</HarnessMetaContext.Provider>
   }
@@ -116,7 +124,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
     defaultErrorComponent,
     Wrap: ConcivRouterWrap,
     context: {
-      rpc: config.rpc,
+      rpc: data.rpc,
       environment: config.environment,
       settings: config.settings,
       queryClient,

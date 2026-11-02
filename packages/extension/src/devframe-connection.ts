@@ -1,5 +1,7 @@
 import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
 import type {SharedState} from 'devframe/utils/shared-state'
+import type {ConnectionMeta} from 'devframe/types'
+import {DEVFRAME_CONNECTION_META_FILENAME} from 'devframe/constants'
 import {getDevframeRpcClient, type DevframeRpcClient} from 'devframe/client'
 import {createRpcClient} from 'devframe/rpc/client'
 import {createSseRpcChannel} from 'devframe/rpc/transports/sse-client'
@@ -156,10 +158,17 @@ export function reconnectingClient<Client extends ClosableClient>(
   }
 }
 
+async function connectionMetaOf(baseURL: string): Promise<ConnectionMeta> {
+  const response = await fetch(new URL(DEVFRAME_CONNECTION_META_FILENAME, baseURL))
+  if (!response.ok) throw new Error(`the hub at ${baseURL} answered ${response.status} for its connection meta`)
+  return response.json()
+}
+
 export function browserClient(options: {baseURL: string; authToken?: string}): ReconnectingClient<DevframeRpcClient> {
   return reconnectingClient(async (onDrop) => {
     const client = await getDevframeRpcClient({
       ...options,
+      connectionMeta: await connectionMetaOf(options.baseURL),
       simpleAuth: false,
       webmcp: false,
       otpParam: false,

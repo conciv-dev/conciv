@@ -356,6 +356,32 @@ describe('conciv hub', () => {
     expect(kit.hubInstance.connectionMeta().mcp).toBeUndefined()
   }, 10_000)
 
+  it('connects a page that moves to another engine to that engine, not the first one it met', async () => {
+    const second = await bootKit({}, createFakeHarness({id: 'fake-hub-second'}))
+    const page = await browser.newPage()
+    try {
+      await page.goto(host.url, {waitUntil: 'domcontentloaded'})
+      await page.waitForFunction(() => 'concivProbe' in window)
+      const metaBases = await page.evaluate(
+        async ({firstURL, secondURL}) => {
+          const first = window.concivProbe.browserClient({baseURL: firstURL})
+          const firstBase = (await first.ready()).connection.metaBaseUrl
+          first.close()
+          const next = window.concivProbe.browserClient({baseURL: secondURL})
+          const secondBase = (await next.ready()).connection.metaBaseUrl
+          next.close()
+          return [firstBase, secondBase]
+        },
+        {firstURL: kit.hubUrl, secondURL: second.hubUrl},
+      )
+      expect(metaBases[0]?.startsWith(kit.hubUrl)).toBe(true)
+      expect(metaBases[1]?.startsWith(second.hubUrl)).toBe(true)
+    } finally {
+      await page.close()
+      await second.cleanup()
+    }
+  }, 30_000)
+
   it('registers no WebMCP tool from a page client', async () => {
     const page = await browser.newPage()
     await page.addInitScript(() => {
