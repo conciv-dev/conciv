@@ -1588,7 +1588,7 @@ describe('sessions over the hub', () => {
   test('a sessions call while the engine refuses fails with the attempt in flight', async () => {
     const deadBase = 'http://127.0.0.1:1/conciv'
     const hub = hubFor(deadBase)
-    const data = makeAppData(makeRpcClient(deadBase), {connection: hub, connected: () => true}, new QueryClient())
+    const data = makeAppData(makeRpcClient(deadBase), {connection: () => hub, connected: () => true}, new QueryClient())
     try {
       await expect(data.rpc.sessions.list({includeHidden: true})).rejects.toMatchObject({code: 'DISCONNECTED'})
       await expect(data.rpc.sessions.list({includeHidden: true})).rejects.toMatchObject({code: 'DISCONNECTED'})
