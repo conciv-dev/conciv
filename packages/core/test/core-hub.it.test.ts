@@ -340,7 +340,11 @@ describe('conciv hub', () => {
         const iterator = stream[Symbol.asyncIterator]()
         await iterator.next()
         const reads: number[] = []
-        window.concivProbe.readSharedState<{count: number}>(connection, key, (value) => reads.push(value.count))
+        const firstRead = Promise.withResolvers<void>()
+        window.concivProbe.readSharedState<{count: number}>(connection, key, (value) => {
+          reads.push(value.count)
+          firstRead.resolve()
+        })
         Object.assign(window, {
           ended: iterator.next().then(
             () => 'finished',
@@ -348,6 +352,7 @@ describe('conciv hub', () => {
           ),
           reads,
         })
+        await firstRead.promise
       },
       {channel: TICKS_CHANNEL, key: SHARED_STATE},
     )
