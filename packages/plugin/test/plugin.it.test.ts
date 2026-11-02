@@ -638,29 +638,6 @@ describe('native page vite boot', () => {
       await tab.close()
     }, 90_000)
 
-    it('shows the hub plugin docks as tabs beside the chat and keeps an opened dock alive across a round trip', async () => {
-      const url = state.started?.server.resolvedUrls?.local[0]
-      const tab = await trusted()
-      if (url === undefined) throw new Error('dev server did not start')
-      await tab.goto(url, {waitUntil: 'domcontentloaded'})
-      const launcher = tab.getByRole('button', {name: /conciv chat$/})
-      await launcher.waitFor({timeout: 45_000})
-      if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
-      const chat = tab.getByRole('dialog', {name: 'conciv chat agent'})
-      await chat.getByRole('tab', {name: 'Messages'}).click({timeout: 15_000})
-      const messagesFrame = chat.getByTitle('Messages')
-      const search = messagesFrame.contentFrame().getByPlaceholder(/Search messages/)
-      await search.fill('kept across tabs', {timeout: 15_000})
-      await chat.getByRole('tab', {name: 'Chat', exact: true}).click()
-      await expectLocator(chat.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
-      await expectLocator(messagesFrame).toBeHidden()
-      await chat.getByRole('tab', {name: 'Messages'}).click()
-      await expectLocator(search).toHaveValue('kept across tabs')
-      await expectLocator(chat.getByRole('tab', {name: 'Terminals'})).toBeVisible()
-      await expectLocator(chat.getByRole('tab', {name: 'conciv', exact: true})).toHaveCount(0)
-      await tab.close()
-    }, 90_000)
-
     it('restores the open chat, keeps it usable and names the content blocker when every rrweb module is blocked', async () => {
       const url = state.started?.server.resolvedUrls?.local[0]
       const blockedPage = await trusted()
@@ -754,6 +731,29 @@ describe('native page vite boot', () => {
       await expectLocator(chat.getByRole('button', {name: 'Send to agent'})).toBeVisible()
       await expectLocator(chat.getByText('Recording is paused by your content blocker')).toBeHidden()
       await blockedPage.close()
+    }, 90_000)
+
+    it('shows the hub plugin docks as tabs beside the chat and keeps an opened dock alive across a round trip', async () => {
+      const url = state.started?.server.resolvedUrls?.local[0]
+      const tab = await trusted()
+      if (url === undefined) throw new Error('dev server did not start')
+      await tab.goto(url, {waitUntil: 'domcontentloaded'})
+      const launcher = tab.getByRole('button', {name: /conciv chat$/})
+      await launcher.waitFor({timeout: 45_000})
+      if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
+      const chat = tab.getByRole('dialog', {name: 'conciv chat agent'})
+      await chat.getByRole('tab', {name: 'Messages'}).click({timeout: 15_000})
+      const messagesFrame = chat.getByTitle('Messages')
+      const search = messagesFrame.contentFrame().getByPlaceholder(/Search messages/)
+      await search.fill('kept across tabs', {timeout: 15_000})
+      await chat.getByRole('tab', {name: 'Chat', exact: true}).click()
+      await expectLocator(chat.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+      await expectLocator(messagesFrame).toBeHidden()
+      await chat.getByRole('tab', {name: 'Messages'}).click()
+      await expectLocator(search).toHaveValue('kept across tabs')
+      await expectLocator(chat.getByRole('tab', {name: 'Terminals'})).toBeVisible()
+      await expectLocator(chat.getByRole('tab', {name: 'conciv', exact: true})).toHaveCount(0)
+      await tab.close()
     }, 90_000)
   })
 })
@@ -1385,7 +1385,7 @@ describe('vite devtools dock', () => {
     const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
     await chat.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 45_000})
     await expectLocator(chat.getByRole('tab', {name: /Recorder/})).toBeVisible()
-    await expectLocator(chat.getByRole('tab', {name: /Terminal/})).toBeVisible()
+    await expectLocator(chat.getByRole('tab', {name: 'Terminal', exact: true})).toBeVisible()
     await page.close()
   }, 90_000)
 
