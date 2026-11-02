@@ -8,6 +8,7 @@ import {
   LIST_PANEL_MESSAGE,
 } from './list-panel.js'
 import {Popover} from './popover.js'
+import {TEXT_FIELD_INPUT} from './text-field.js'
 
 declare module 'solid-js' {
   namespace JSX {
@@ -26,7 +27,10 @@ export type AnchoredListboxHandle = {
   handleKeyDown: (event: KeyboardEvent) => boolean
 }
 
-const CONTENT = 'flex flex-col max-h-64 max-w-80 overflow-y-auto overscroll-contain outline-none'
+const CONTENT = 'flex flex-col overflow-y-auto overscroll-contain outline-none'
+const ANCHORED_CONTENT_SIZE = 'max-h-64 max-w-80'
+const INLINE_CONTENT_SIZE = 'max-h-80'
+const SEARCH_INPUT = `${TEXT_FIELD_INPUT} min-h-11 box-border mb-2`
 const ITEM = `${LIST_PANEL_ITEM} flex-col items-stretch gap-0.5 min-h-11 data-[active]:bg-chat-fill-strong data-[active]:text-chat-text`
 const HIDDEN_INPUT = 'sr-only'
 
@@ -123,13 +127,56 @@ function Root(props: {
   )
 }
 
+function SearchRoot(props: {
+  collection: ListCollection<CollectionItem>
+  label: string
+  query: string
+  children: JSX.Element
+  onQueryChange: (query: string) => void
+  onSelect: (value: string) => void
+  inputRef?: (element: HTMLInputElement) => void
+}): JSX.Element {
+  const listbox = useListbox(() => ({
+    collection: props.collection,
+    value: [],
+    loopFocus: true,
+    onSelect: (details) => props.onSelect(details.value),
+  }))
+  createEffect(
+    on(
+      () => props.collection,
+      () => listbox().highlightFirst(),
+    ),
+  )
+  return (
+    <Listbox.RootProvider value={listbox}>
+      <Listbox.Input
+        ref={(element) => props.inputRef?.(element)}
+        class={SEARCH_INPUT}
+        role="combobox"
+        aria-expanded="true"
+        aria-label={props.label}
+        placeholder={props.label}
+        autoHighlight
+        value={props.query}
+        onInput={(event) => props.onQueryChange(event.currentTarget.value)}
+      />
+      {props.children}
+    </Listbox.RootProvider>
+  )
+}
+
 function Label(props: {children: JSX.Element}): JSX.Element {
   return <Listbox.Label class="sr-only">{props.children}</Listbox.Label>
 }
 
-function Content(props: {busy?: boolean; children: JSX.Element}): JSX.Element {
+function Content(props: {busy?: boolean; inline?: boolean; children: JSX.Element}): JSX.Element {
   return (
-    <Listbox.Content class={CONTENT} attr:tabindex={null} aria-busy={props.busy ? 'true' : undefined}>
+    <Listbox.Content
+      class={`${CONTENT}  ${props.inline ? INLINE_CONTENT_SIZE : ANCHORED_CONTENT_SIZE}`}
+      attr:tabindex={null}
+      aria-busy={props.busy ? 'true' : undefined}
+    >
       {props.children}
     </Listbox.Content>
   )
@@ -180,4 +227,4 @@ function Message(props: {children: JSX.Element}): JSX.Element {
   )
 }
 
-export const AnchoredListbox = {Root, Label, Content, ItemGroup, ItemGroupLabel, Item, ItemText, Message}
+export const AnchoredListbox = {Root, SearchRoot, Label, Content, ItemGroup, ItemGroupLabel, Item, ItemText, Message}

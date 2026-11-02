@@ -44,6 +44,8 @@ import {guardedComponent} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 import {useNotices} from '../shell/notice-context.js'
 import {openPipTarget} from '../shell/pip.js'
+import type {HubShell} from '../app/devframe-overlays.js'
+import {DockLayer, createShownDocks, dockIdOfView, dockViewId} from '../extensions/devframe-docks.js'
 
 const RAIL =
   'flex h-15 shrink-0 box-border items-center gap-2.5 pe-3 ps-5 pt-[13px] pb-[13px] [border-block-end:1px_solid_var(--chat-line-soft)]'
@@ -83,6 +85,21 @@ export const Route = createFileRoute('/panel/$sessionId')({
   component: PanelSession,
 })
 
+type PanelRouter = ReturnType<typeof useRouter>
+
+function navigateToView(router: PanelRouter, hubShell: HubShell, sessionId: string, next: string): Promise<void> {
+  const dockId = dockIdOfView(next)
+  if (dockId !== undefined) {
+    hubShell
+      .link()
+      ?.runtime.context.docks.switchEntry(dockId)
+      .catch((error: unknown) => console.error('conciv: selecting the hub dock failed', error))
+    return router.navigate({to: '/panel/$sessionId/dock/$dockId', params: {sessionId, dockId}, replace: true})
+  }
+  if (next === 'chat') return router.navigate({to: '/panel/$sessionId', params: {sessionId}, replace: true})
+  return router.navigate({to: '/panel/$sessionId/$view', params: {sessionId, view: next}, replace: true})
+}
+
 function CloseChatButton(): JSX.Element {
   const panelChrome = usePanelChrome()
   const settings = useSettings()
@@ -107,6 +124,8 @@ function PanelSession(): JSX.Element {
   const router = useRouter()
   const matchRoute = useMatchRoute()
   const viewMatch = matchRoute({to: '/panel/$sessionId/$view'})
+  const dockMatch = matchRoute({to: '/panel/$sessionId/dock/$dockId'})
+  const {shell: hubShell, docks} = createShownDocks()
   const search = Route.useSearch()
   const notices = useNotices()
   const popOut = () => {
@@ -145,31 +164,24 @@ function PanelSession(): JSX.Element {
 
   const views = createMemo(() => collectViews(instances))
   const activeView = () => {
-    const match = viewMatch()
-    return match ? match.view : 'chat'
+    const dock = dockMatch()
+    return dock ? dockViewId(dock.dockId) : (viewMatch() || {view: 'chat'}).view
   }
   const [viewLocks, setViewLocks] = createSignal<Record<string, boolean>>({})
   const setLockedFor = (id: string) => (locked: boolean) => setViewLocks((prev) => ({...prev, [id]: locked}))
   const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
   const leaveGuard = () => running() || viewLocked()
 
-  const tabIndex = (id: string) => (id === 'chat' ? 0 : views().findIndex((view) => view.id === id) + 1)
+  const tabIndex = (id: string) => statusBarViews().findIndex((view) => view.id === id)
   const [slideDir, setSlideDir] = createSignal<'left' | 'right' | null>(null)
   const slideClass = () => (slideDir() === 'right' ? 'anim-tab-right' : slideDir() === 'left' ? 'anim-tab-left' : '')
 
   const switchView = (next: string) => {
     if (next === activeView()) return
     setSlideDir(tabIndex(next) > tabIndex(activeView()) ? 'right' : 'left')
-    const view = views().find((candidate) => candidate.id === next)
+    const view = statusBarViews().find((candidate) => candidate.id === next)
     announce(view ? view.label : 'Chat')
-    if (next === 'chat')
-      void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}, replace: true})
-    else
-      void router.navigate({
-        to: '/panel/$sessionId/$view',
-        params: {sessionId: params().sessionId, view: next},
-        replace: true,
-      })
+    void navigateToView(router, hubShell, params().sessionId, next)
   }
 
   const activate = (id: string) => void router.navigate({to: '/panel/$sessionId', params: {sessionId: id}})
@@ -231,6 +243,7 @@ function PanelSession(): JSX.Element {
       label: view.label,
       icon: view.icon && guardedComponent(view.instance.extension.name, 'silent', view.icon),
     })),
+    ...docks().map((entry) => ({id: dockViewId(entry.id), label: entry.title})),
   ])
 
   const paneValue: PaneContextValue = {
@@ -336,6 +349,12 @@ function PanelSession(): JSX.Element {
         <QueueStrip queue={queue()} />
       </ChatProvider>
       <Outlet />
+      <DockLayer
+        docks={docks()}
+        active={dockIdOfView(activeView())}
+        slideClass={slideClass()}
+        onSlideEnd={() => setSlideDir(null)}
+      />
       <Suspense fallback={<ViewTabsPending />}>
         <StatusBar
           status={sessionStatus()}

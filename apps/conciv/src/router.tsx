@@ -21,6 +21,7 @@ export type ConcivEnvironment = {rootNode: Node; document: Document}
 
 export type ConcivRouterContext = {
   rpc: RpcClient
+  hub?: Accessor<HubConnection>
   environment: ConcivEnvironment
   settings: ConcivSettings
   queryClient: QueryClient
@@ -125,6 +126,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
     Wrap: ConcivRouterWrap,
     context: {
       rpc: data.rpc,
+      hub: config.hubConnection,
       environment: config.environment,
       settings: config.settings,
       queryClient,

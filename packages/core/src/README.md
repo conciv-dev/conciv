@@ -31,6 +31,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `makeEngineGate` (`engine-gate.ts`): every route except the hub base, `/health` and `/native*` needs `/t/<token>` with the engine token or (unless `browserLogins: false`) a trusted browser login; anything else gets a 401 with CORS headers
 - `start` (`start.ts`): the engine token is `accessToken` or a fresh UUID; with an accessToken browser logins are refused; `agentBase` carries the token and is written to `mcp-endpoint.json` and `CONCIV_TOKEN`; a failed bind or endpoint write disposes the app
 - `logError` (`lib/debug.ts`): strips `/t/<token>` and `devframe_auth_token` from every engine log line
+- `makeDevframePlane` (`devframe-plane.ts`): a devframe without client assets gets dock `when: 'false'`, so the widget does not show an empty dock tab
 - `assertUniqueExtensionSlugs` / `assertUniqueCapabilityNames` (`app.ts`): throw on slug or tool-name collisions
 - `requireHarness` (`app.ts`): defaults to 'claude' and throws if none is registered
 - `mountExtension` (`app.ts`): a failing extension `__server` is logged and skipped

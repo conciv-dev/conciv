@@ -71,6 +71,11 @@ function coreDevframe(opts: DevframePlaneOpts, publish: Publish): DevframeDefini
   })
 }
 
+function hideAssetlessDock(devframe: DevframeDefinition): DevframeDefinition {
+  if (devframe.clientAssets) return devframe
+  return {...devframe, dock: {...devframe.dock, when: 'false'}}
+}
+
 function unfilledAuth(): DevframeAuthHandler {
   return {
     rpcFunctions: [],
@@ -140,7 +145,7 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
       createTerminalsDevframe(),
       ...(opts.plugins ?? []).map((plugin) => plugin.devframe),
       ...(opts.devframes ?? []),
-    ],
+    ].map(hideAssetlessDock),
     auth,
     allowedOrigins: opts.allowedOrigins,
     getStorageDir: (scope) => join(opts.stateDir, 'devframe', scope),

@@ -9,6 +9,7 @@ import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {hostPageHasFocus} from '../lib/host-focus.js'
 import {NoticeContextProvider, NoticeSurface} from '../shell/notice-context.js'
 import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
+import {CommandPalette, HubShellProvider} from '../app/devframe-overlays.js'
 import {defaultPanelHeight, panelHeightCap} from './panel-height.js'
 
 const PANEL_POS: Record<TriggerPosition, string> = {
@@ -53,6 +54,7 @@ function PanelLayout(): JSX.Element {
   const panelChrome = usePanelChrome()
   const environment = useEnvironment()
   const search = Route.useSearch()
+  const hub = Route.useRouteContext()().hub
   const position = fabPosition
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const settings = useSettings()
@@ -95,54 +97,57 @@ function PanelLayout(): JSX.Element {
   return (
     <Show when={mounted()}>
       <NoticeContextProvider>
-        <PanelComposerFocusContext.Provider value={composerFocus}>
-          <FocusTrap
-            disabled={docked || !open() || layers.anyOpen()}
-            initialFocus={keepTrapFromFocusing}
-            returnFocusOnDeactivate={false}
-          >
-            <section
-              class={`${PANEL_BASE} ${sheet() ? PANEL_SHEET : `${PANEL_CARD} ${PANEL_POS[position()]}`} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}
-              data-conciv-panel
-              data-conciv-suppressed={suppressed()}
-              style={sheet() ? undefined : {height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
-              role="dialog"
-              aria-label="conciv chat agent"
-              id="conciv-chat-panel"
+        <HubShellProvider hub={hub}>
+          <PanelComposerFocusContext.Provider value={composerFocus}>
+            <FocusTrap
+              disabled={docked || !open() || layers.anyOpen()}
+              initialFocus={keepTrapFromFocusing}
+              returnFocusOnDeactivate={false}
             >
-              <NoticeSurface />
-              <EngineStaleNotice />
-              <EngineUnreachableNotice />
-              <Show when={!sheet()}>
-                <div class={PANEL_TICK_TOP} aria-hidden="true" />
-                <div class={PANEL_TICK_LEFT} aria-hidden="true" />
-                <div
-                  class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
-                  role="separator"
-                  aria-orientation="horizontal"
-                  aria-label="Resize chat height"
-                  aria-valuemin={PANEL_MIN_HEIGHT}
-                  aria-valuenow={Math.round(resizeY.size())}
-                  tabindex={0}
-                  onPointerDown={resizeY.onPointerDown}
-                  onKeyDown={resizeY.onKeyDown}
-                />
-                <div
-                  class={`${RESIZE}  ${RESIZE_X}  ${anchoredRight() ? 'left-0' : 'right-0'}`}
-                  role="separator"
-                  aria-orientation="vertical"
-                  aria-label="Resize chat width"
-                  aria-valuemin={300}
-                  aria-valuenow={Math.round(resizeX.size())}
-                  tabindex={0}
-                  onPointerDown={resizeX.onPointerDown}
-                  onKeyDown={resizeX.onKeyDown}
-                />
-              </Show>
-              <Outlet />
-            </section>
-          </FocusTrap>
-        </PanelComposerFocusContext.Provider>
+              <section
+                class={`${PANEL_BASE} ${sheet() ? PANEL_SHEET : `${PANEL_CARD} ${PANEL_POS[position()]}`} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}
+                data-conciv-panel
+                data-conciv-suppressed={suppressed()}
+                style={sheet() ? undefined : {height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
+                role="dialog"
+                aria-label="conciv chat agent"
+                id="conciv-chat-panel"
+              >
+                <NoticeSurface />
+                <CommandPalette enabled={open()} />
+                <EngineStaleNotice />
+                <EngineUnreachableNotice />
+                <Show when={!sheet()}>
+                  <div class={PANEL_TICK_TOP} aria-hidden="true" />
+                  <div class={PANEL_TICK_LEFT} aria-hidden="true" />
+                  <div
+                    class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
+                    role="separator"
+                    aria-orientation="horizontal"
+                    aria-label="Resize chat height"
+                    aria-valuemin={PANEL_MIN_HEIGHT}
+                    aria-valuenow={Math.round(resizeY.size())}
+                    tabindex={0}
+                    onPointerDown={resizeY.onPointerDown}
+                    onKeyDown={resizeY.onKeyDown}
+                  />
+                  <div
+                    class={`${RESIZE}  ${RESIZE_X}  ${anchoredRight() ? 'left-0' : 'right-0'}`}
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize chat width"
+                    aria-valuemin={300}
+                    aria-valuenow={Math.round(resizeX.size())}
+                    tabindex={0}
+                    onPointerDown={resizeX.onPointerDown}
+                    onKeyDown={resizeX.onKeyDown}
+                  />
+                </Show>
+                <Outlet />
+              </section>
+            </FocusTrap>
+          </PanelComposerFocusContext.Provider>
+        </HubShellProvider>
       </NoticeContextProvider>
     </Show>
   )

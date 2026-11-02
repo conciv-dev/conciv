@@ -1,4 +1,4 @@
-import {For, Show, type Component, type JSX} from 'solid-js'
+import {For, Show, createEffect, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {TabsPrimitive as Tabs, TruncatedText} from '@conciv/ui-kit-system'
 import type {SessionStatus, SessionStatusKind} from '@conciv/ui-kit-chat'
@@ -36,7 +36,7 @@ const DIFF_FILES = '[color:var(--chat-text-3)]'
 const DIFF_ADDS = '[color:var(--chat-success)]'
 const DIFF_DELS = '[color:var(--chat-danger)]'
 const VIEW_GROUP = 'flex-1 flex items-stretch justify-end min-w-0'
-const VIEW_LIST = 'relative flex items-stretch min-w-0'
+const VIEW_LIST = 'relative flex items-stretch min-w-0 overflow-x-auto overscroll-x-contain scrollbar-hidden'
 const VIEW_BTN =
   'flex-none inline-flex items-center gap-1.5 px-2.5 text-[length:var(--chat-text-xs)] font-medium [color:var(--chat-text-2)] bg-transparent [border-block:none] [border-inline-end:none] [border-inline-start:1px_solid_var(--chat-line-soft)] cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:opacity-40 disabled:cursor-default data-[selected]:[color:var(--chat-text-hi)] data-[selected]:[background:var(--chat-fill)]'
 const VIEW_INDICATOR =
@@ -77,6 +77,12 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
           <For each={props.views}>
             {(view, index) => (
               <Tabs.Trigger
+                ref={(trigger) =>
+                  createEffect(() => {
+                    if (props.activeView !== view.id) return
+                    trigger.scrollIntoView({block: 'nearest', inline: 'nearest'})
+                  })
+                }
                 class={VIEW_BTN}
                 value={view.id}
                 disabled={props.disabled && view.id !== props.activeView}

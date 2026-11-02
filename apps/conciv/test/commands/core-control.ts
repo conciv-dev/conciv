@@ -23,6 +23,10 @@ export type BootCoreInput = {
 
 export type BootCoreResult = {base: string; wsBase: string; bootMs: number}
 
+export type HubMessageInput = {message: string; level: 'info' | 'warn' | 'error' | 'success'; notify: boolean}
+
+export type HubCommandInput = {id: string; title: string; reply: HubMessageInput}
+
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
@@ -173,6 +177,20 @@ const outsideReload: BrowserCommand<[string, string]> = (ctx, sessionId, file): 
     () => 'resolved',
     (error: unknown) => (typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : 'error'),
   )
+}
+
+const addHubMessage: BrowserCommand<[HubMessageInput]> = async (ctx, input): Promise<void> => {
+  const context = await kitOf(ctx).hubInstance.context
+  await context.messages.add(input)
+}
+
+const registerHubCommand: BrowserCommand<[HubCommandInput]> = async (ctx, input): Promise<void> => {
+  const context = await kitOf(ctx).hubInstance.context
+  context.commands.register({
+    id: input.id,
+    title: input.title,
+    handler: () => context.messages.add(input.reply),
+  })
 }
 
 const setStaleness: BrowserCommand<[EngineStaleness]> = (ctx, value): void => {
@@ -340,6 +358,8 @@ export const coreCommands = {
   closeCore,
   pushSocketsOpened,
   outsideReload,
+  addHubMessage,
+  registerHubCommand,
   setStaleness,
   holdTurn,
   holdTools,
