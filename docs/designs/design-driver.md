@@ -1,7 +1,7 @@
 # Design driver: from "build this page from this image" to a matching page
 
 - **Author:** Omri Katz (omridevk)
-- **Status:** Proposed (sixth revision; rulings 1 to 22, four EGM review rounds and the as-built notes through step 6 folded in)
+- **Status:** Proposed (seventh revision; rulings 1 to 22, four EGM review rounds, the as-built notes through step 7 and step 8 from the two harness runs folded in)
 - **Date:** 2026-11-02
 
 ---
@@ -623,6 +623,21 @@ As built (PR #703): one file, `client/takumi.ts` (subset check, fonts, serializa
 47. `docs/designs/trials/` (Create): the reference dashboard built from empty; an existing page matched to a re-export; a page at a tab width different from the design. Each records rounds to stop, stop reason, score per round, sources and capture path per round, pins and marks, and where the agent went wrong; each passes when it ends `done` or `residual-only` within the budget. The trials run through `packages/it/scripts/design-trial.ts` (`pnpm trial` in `packages/it`), which boots the fixture host with conciv, registers an image and drives `design_diff`, `design_status`, pins, marks and accept from the command line.
 
 As built (PR #704): the harness is `packages/it/scripts/design-trial.ts` with `diff`, `status`, `pin`, `mark`, `accept`, `screenshot`, `quit` and a `--render` flag that writes the fixture's design images. Two trials pass (`re-export` and `other-width`, `done` at round 2, the latter mirror-only with no resize asked). The build-from-empty trial fails: `budget` at round 8 with content stuck at 197.2 on OCR and type-estimate misreadings. Its record lists eight defects with reproductions, left unfixed: an OCR line spanning several elements becomes an unclearable "build the text" item; a text node pinned to a container compares against the container's empty text; the type estimate reads a filled shape behind light text as ink; a same-string text about 10 px off is "build" rather than "move"; a card with a near-same-box child stays unpaired; a padded pill reports "move by -8,-8" every round; excluding a pinned node reports `pin lost` every round; `design_status` keeps `next` after `stop: budget`. These are the backlog for the next revision.
+
+### Step 8: the loop under a real page
+
+Found by two runs with the real harness on 2026-11-02 (records under the session scratchpad `demo-run-a/findings.md` and `demo-run-stripe/findings.md`): the invoice dashboard (1136 px) and the top 3600 px of stripe.com at 1280. On stripe every `design_diff` returned `components: []`, `partial: true` and the same score, then `stalled`: `runDiff` takes `started` before the measure, the measure of a 3600 px page takes 15 to 40 s, and the pairer gets `deadline = started + runBudgetMs` already in the past, so `runVote` returns before its first assignment. On the dashboard the loop stalled on a frozen tuple while the mismatch improved, and a demotion was lost because unmatched items are keyed by list index. Alternative K (no carry of pairs across rounds) stands: nothing here needs it, and the pairing cost on a real page is unknown until the clock is right.
+
+48. `extensions/design/src/shared/tolerances.ts` (Modify): `runBudgetMs` becomes `pairBudgetMs` 20000, counted from the moment the pairer starts; the measure keeps `measureTimeoutMs` 60000 and is the only thing that waits on the page. `server/differ.ts` (Modify): `started` is taken per phase; the report gains `timings: {measure, compare, pair, total}` in ms (`shared/defs.ts` `DiffReportSchema`, `TimingsSchema`).
+49. `extensions/design/src/server/loop.ts` (Modify): a run with `partial: true` is not appended to the round history, does not advance `round` or spend `budgetLeft`, carries `stop: null`, and its `hint` says which phase was cut short and that nothing paired; run 0 (registration) is never a prior for `stalled` or `oscillating` (history starts at the first `design_diff`); unmatched items are keyed by `node` id (for `offset`, `extra` and image entries by the live or target box), never by list index, so a demotion survives an insertion; when `stop` is `stalled` the brief's first line names the items that did not move (`stalled: <n> items unchanged for 2 rounds: <first three sentences>`).
+50. `extensions/design/src/shared/defs.ts`, `server/tool-bodies.ts` or wherever `design_diff` builds its output (Modify): the default output is the compact report `{target, round, budgetLeft, stage, stop, score, mismatch, brief, timings, counts: {components, unmatched, warnings}, rows, xray, diffImage, livePath, capturePath, sources, partial, hint}` where `rows` is the first ten items of the stage as `{sentence, stage, node?, source?}`; `design_diff({full: true})` returns the full `DiffReport` as today. The tool's declared `outputSchema` is the compact schema, so the description the harness generates is a few hundred characters instead of 29 k. `design_status` is unchanged. The x-ray routes keep reading the full report from the store.
+51. `it/test/design.it.test.ts` (Modify), `describe('loop')` gains:
+    - two `design_diff` calls on an unchanged page after registration report `stop: null`; the third reports `stalled` (run 0 is not a prior).
+    - a `design_diff` on `bordered` carries `timings` with `pair` under `pairBudgetMs` and `measure` under `measureTimeoutMs`, and `partial: false`.
+    - the default `design_diff` output has `rows` and `counts` and no `components`; `design_diff({full: true})` has `components`.
+    - on `empty` against `u1-1280`, two `design_diff` calls then an edit that adds one unbuilt region (a `HOST_STYLES` rewrite that hides a component) keeps the demoted text items demoted: the stage of the third report is not `structure` for those keys, read through `full: true`.
+      Existing cases stay as written; the nine-calls `stalled` case still passes because the stall is counted from the first `design_diff`.
+52. `extensions/design/README.md` (Modify): the compact report, `full`, `timings`, the partial rule and the run-0 rule in the Tools section.
 
 ### Verification Plan
 
