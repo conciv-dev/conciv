@@ -66,6 +66,7 @@ export function reconnectingClient<Client extends ClosableClient>(
   }
 
   async function openLink(): Promise<Link<Client>> {
+    if (!isClosed()) setStatus('connecting')
     const dropSignal = Promise.withResolvers<never>()
     dropSignal.promise.catch(() => {})
     const onDrop = (): void => {
@@ -89,7 +90,6 @@ export function reconnectingClient<Client extends ClosableClient>(
   }
 
   async function connect(): Promise<void> {
-    setStatus('connecting')
     state.retryer = new AsyncRetryer(openLink, {
       backoff: 'exponential',
       baseWait: RECONNECT_BASE_WAIT_MS,
