@@ -518,6 +518,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
   )
 
+  const toolNames = new Set([...toolList.map((tool) => tool.name), ...concivSandboxToolNames()])
+
   const plane = await createChatPlane({
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
@@ -537,7 +539,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       onRunEnd,
       publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
     }),
-    toolNames: new Set([...toolList.map((tool) => tool.name), ...concivSandboxToolNames()]),
+    toolNames,
     capabilities: codeModeCapabilities,
     attachmentExpanders,
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
@@ -658,6 +660,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   try {
     await hub.ready
+    const hubTools = await devframePlane.agentTools()
+    assertUniqueCapabilityNames([
+      ['a conciv assist tool', concivSandboxToolNames()],
+      ['a Devframe agent function', hubTools.map(({tool}) => tool.name)],
+    ])
+    hubTools.forEach(({tool, plugin}) => {
+      registry.register(tool, {owner: `Devframe agent function "${tool.name}"`})
+      toolNames.add(tool.name)
+      if (plugin !== undefined) toolList.push({name: tool.name, description: toolDescription(tool), extension: plugin})
+    })
   } catch (error) {
     await dispose()
     throw error

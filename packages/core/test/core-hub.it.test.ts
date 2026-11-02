@@ -2,9 +2,10 @@
 import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {defineExtension, defineTool} from '@conciv/extension'
 import {concivError, defineConcivFunction} from '@conciv/extension/devframe-function'
 import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
-import {createFakeHarness, type Kit} from '@conciv/harness-testkit'
+import {connectMcpClient, createFakeHarness, type Kit} from '@conciv/harness-testkit'
 import {
   loginTab,
   pluginFrame,
@@ -14,7 +15,7 @@ import {
   trustedTab,
   type ProbeHost,
 } from '@conciv/harness-testkit/devframe-probe'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessCommandsContext} from '@conciv/protocol/harness-types'
 import {makeRpcClient} from '@conciv/contract'
 import {defineHarness} from '@conciv/harness'
@@ -32,6 +33,8 @@ const SHARED_STATE = 'hub-probe:shared'
 const SESSIONS_STATE = 'conciv:sessions'
 const PLUGIN_FRAME = 'devframes_plugin_terminals/'
 
+const gatedRuns: string[] = []
+
 const hubProbe = defineConcivPlugin({id: 'hub-probe', title: 'Hub probe'}).server(async (ctx) => {
   const ticks = ctx.rpc.streaming.create<number>(TICKS_CHANNEL, {replayWindow: 256})
   const shared = await ctx.rpc.sharedState.get<{count: number}>(SHARED_STATE, {initialValue: {count: 0}})
@@ -39,7 +42,12 @@ const hubProbe = defineConcivPlugin({id: 'hub-probe', title: 'Hub probe'}).serve
     defineConcivFunction({
       name: 'hub-probe:defaults',
       type: 'query',
-      agent: {description: 'marks this hub as having an agent surface', safety: 'read'},
+      agent: {
+        name: 'hub_probe_defaults',
+        description: 'marks this hub as having an agent surface',
+        safety: 'read',
+        meta: {summary: 'mark this hub as having an agent surface', category: 'fixture'},
+      },
       input: z.object({count: z.number().default(3)}),
       output: z.object({count: z.number()}),
       handler: (input) => input,
@@ -101,6 +109,56 @@ const hubProbe = defineConcivPlugin({id: 'hub-probe', title: 'Hub probe'}).serve
       handler: (_input, {sessionId}) => ({sessionId}),
     }),
   )
+  ctx.rpc.register(
+    defineConcivFunction({
+      name: 'hub-probe:echo',
+      type: 'query',
+      session: true,
+      agent: {
+        name: 'probe_echo',
+        description: 'Echo a text back with the session it ran under.',
+        meta: {summary: 'echo a text back', category: 'fixture', keywords: ['echo'], icon: 'script'},
+      },
+      input: z.object({text: z.string()}),
+      output: z.object({echoed: z.string(), sessionId: z.string()}),
+      handler: (input, {sessionId}) => ({echoed: input.text, sessionId}),
+    }),
+  )
+  ctx.rpc.register(
+    defineConcivFunction({
+      name: 'hub-probe:gated',
+      type: 'action',
+      agent: {
+        name: 'probe_gated',
+        description: 'A plugin tool that always needs approval.',
+        approval: 'ask',
+        meta: {summary: 'always asks', category: 'fixture', mutating: true},
+      },
+      input: z.object({}),
+      output: z.object({done: z.boolean()}),
+      handler: () => {
+        gatedRuns.push('probe_gated')
+        return {done: true}
+      },
+    }),
+  )
+})
+
+const legacyGate = defineExtension({
+  name: 'legacy-gate',
+  tools: [
+    defineTool({
+      name: 'legacy_gated',
+      description: 'A legacy tool that always needs approval.',
+      inputSchema: z.object({}),
+      outputSchema: z.object({done: z.boolean()}),
+      approval: 'ask',
+      meta: {summary: 'always asks', category: 'fixture', mutating: true},
+    }).server(() => {
+      gatedRuns.push('legacy_gated')
+      return {done: true}
+    }),
+  ],
 })
 
 declare module 'devframe' {
@@ -133,7 +191,10 @@ describe('conciv hub', () => {
   let host: ProbeHost
 
   beforeAll(async () => {
-    kit = await bootKit({plugins: [hubProbe], devframes: [addedDevframe]}, createFakeHarness({id: 'fake-hub'}))
+    kit = await bootKit(
+      {plugins: [hubProbe], devframes: [addedDevframe], extensions: [legacyGate]},
+      createFakeHarness({id: 'fake-hub'}),
+    )
     host = await serveProbeHost()
     browser = await chromium.launch({headless: true})
   }, 60_000)
@@ -451,6 +512,81 @@ describe('conciv hub', () => {
     expect(await kit.hub.call('hub-probe:session', {sessionId})).toEqual({sessionId})
     await expect(kit.hub.call('hub-probe:session', {})).rejects.toMatchObject({code: 'NO_SESSION'})
   }, 10_000)
+
+  async function mcpTools(headers?: Record<string, string>) {
+    const mcp = await connectMcpClient(`${kit.base}/api/mcp`, headers)
+    return {tools: await mcp.tools(), close: () => mcp.close()}
+  }
+
+  async function runOnMcp(
+    name: string,
+    input: Record<string, unknown>,
+    headers?: Record<string, string>,
+  ): Promise<unknown> {
+    const {tools, close} = await mcpTools(headers)
+    try {
+      const tool = tools.find((entry) => entry.name === name)
+      if (!tool?.execute) throw new Error(`${name} not on /api/mcp`)
+      return await tool.execute(input)
+    } finally {
+      await close()
+    }
+  }
+
+  async function executeTypescript(typescriptCode: string, headers?: Record<string, string>): Promise<unknown> {
+    const raw = await runOnMcp('execute_typescript', {typescriptCode}, headers)
+    return z
+      .object({result: z.unknown()})
+      .loose()
+      .parse(JSON.parse(z.string().parse(raw))).result
+  }
+
+  it('lists a plugin agent function in discover_tools, code mode and the tool list under its legacy-style name', async () => {
+    const discovered = JSON.stringify(await runOnMcp('discover_tools', {toolNames: ['probe_echo']}))
+    expect(discovered).toContain('echo a text back')
+    const sessionId = 'conciv_agent_probe'
+    expect(
+      await executeTypescript("return await external_probe_echo({text: 'hi'})", {[CONCIV_SESSION_HEADER]: sessionId}),
+    ).toEqual({echoed: 'hi', sessionId})
+    expect((await kit.rpc.meta.tools()).tools).toContainEqual(
+      expect.objectContaining({name: 'probe_echo', extension: 'hub-probe'}),
+    )
+    expect((await kit.rpc.registry.catalog()).find((entry) => entry.name === 'probe_echo')).toMatchObject({
+      icon: 'script',
+      binding: 'server',
+      reachable: true,
+    })
+  }, 20_000)
+
+  it('keeps an approval-ask plugin tool out of code mode and asks on /api/mcp exactly like a legacy one', async () => {
+    const {tools, close} = await mcpTools()
+    await close()
+    expect(tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(['probe_gated', 'legacy_gated']))
+    expect(await executeTypescript('return [typeof external_probe_gated, typeof external_legacy_gated]')).toEqual([
+      'undefined',
+      'undefined',
+    ])
+    const refusal = async (name: string): Promise<string> =>
+      runOnMcp(name, {}).then(
+        () => 'ran',
+        (error: unknown) => String(error).replace(name, '<tool>'),
+      )
+    const plugin = await refusal('probe_gated')
+    expect(plugin).toContain('needs the user')
+    expect(plugin).toBe(await refusal('legacy_gated'))
+    expect(gatedRuns).toEqual([])
+  }, 20_000)
+
+  it('never lists a function with no agent field, and lists Devframe plugin tools ungated', async () => {
+    const {tools, close} = await mcpTools()
+    await close()
+    expect(tools.map((tool) => tool.name)).not.toContain('devframes_plugin_terminals_list')
+    expect(
+      await executeTypescript(
+        'return [typeof external_hub_probe_fail, typeof external_hub_probe_bump, Array.isArray(await external_devframes_plugin_terminals_list({}))]',
+      ),
+    ).toEqual(['undefined', 'undefined', true])
+  }, 20_000)
 
   it('mounts a devframe added through config', async () => {
     expect(await kit.hub.call('added:ping')).toBe('pong')

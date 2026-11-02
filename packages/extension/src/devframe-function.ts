@@ -6,6 +6,7 @@ import type {DevframeNodeContext, DevframeRpcServerFunctions as TypesViewFunctio
 import {structuredCloneParse} from 'devframe/utils/structured-clone'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {z} from 'zod'
+import type {ToolMeta} from './define-tool.js'
 import {CONCIV_HOST_SERVICE} from './devframe-host.js'
 
 const STRUCTURED_CLONE_FRAME_PREFIX = 's:'
@@ -74,6 +75,12 @@ export function concivRpcOptions(): {deserialize: (raw: string) => unknown} {
 
 type ConcivFunctionKind = 'query' | 'action'
 
+export type ConcivAgentOptions = RpcFunctionAgentOptions & {
+  name: string
+  approval?: 'ask'
+  meta: Omit<ToolMeta, 'capture'>
+}
+
 type FunctionBase<
   NAME extends string,
   TYPE extends ConcivFunctionKind,
@@ -84,7 +91,7 @@ type FunctionBase<
   type: TYPE
   input: INPUT
   output: OUTPUT
-  agent?: RpcFunctionAgentOptions
+  agent?: ConcivAgentOptions
 }
 
 type PlainSpec<
@@ -125,7 +132,7 @@ type ConcivFunction<
   args: readonly [INPUT]
   returns: OUTPUT
   jsonSerializable: true
-  agent?: RpcFunctionAgentOptions
+  agent?: ConcivAgentOptions
 }
 
 function runHandler(spec: WideSpec, raw: unknown, ctx: DevframeNodeContext): unknown {
