@@ -167,7 +167,7 @@ export function reconnectingClient<Client extends ClosableClient>(
 }
 
 async function connectionMetaOf(baseURL: string): Promise<ConnectionMeta> {
-  const response = await fetch(new URL(DEVFRAME_CONNECTION_META_FILENAME, baseURL))
+  const response = await fetch(new URL(DEVFRAME_CONNECTION_META_FILENAME, new URL(baseURL, location.href)))
   if (!response.ok) throw new Error(`the hub at ${baseURL} answered ${response.status} for its connection meta`)
   return response.json()
 }
