@@ -37,7 +37,7 @@ const TargetSchema = z.object({
 })
 const MarkKindSchema = z.enum(MARK_KINDS)
 
-type Options = {route: string; width: number; image?: string; state?: string; port: number}
+type Options = {route: string; width: number; image?: string; state?: string; port: number; agent: boolean}
 
 type Trial = {
   rpc: RpcClient
@@ -101,6 +101,7 @@ async function main(): Promise<void> {
       state: {type: 'string'},
       port: {type: 'string', default: '0'},
       render: {type: 'string'},
+      agent: {type: 'boolean', default: false},
     },
   })
   if (values.render !== undefined) return render(resolve(values.render))
@@ -121,7 +122,7 @@ async function serve(input: {options: Options; commands: string[]}): Promise<voi
   const {options} = input
   const image = requiredImage(options.image)
   const dirs = await trialDirs(options.state)
-  const server = await hostServer({...dirs, port: options.port})
+  const server = await hostServer({...dirs, port: options.port, agent: options.agent})
   const browser = await chromium.launch({args: ['--disable-features=LocalNetworkAccessChecks']})
   try {
     const trial = await open({options, server, browser, devEndpointDir: dirs.devEndpointDir, image})
@@ -155,7 +156,12 @@ async function readCommands(input: {trial: Trial; commands: string[]}): Promise<
   }
 }
 
-async function hostServer(input: {stateRoot: string; devEndpointDir: string; port: number}): Promise<ViteDevServer> {
+async function hostServer(input: {
+  stateRoot: string
+  devEndpointDir: string
+  port: number
+  agent: boolean
+}): Promise<ViteDevServer> {
   const server = await createServer({
     root: HOST_ROOT,
     configFile: false,
@@ -165,8 +171,7 @@ async function hostServer(input: {stateRoot: string; devEndpointDir: string; por
       react(),
       unplugin.vite({
         stateRoot: input.stateRoot,
-        harnessBin: 'true',
-        systemPrompt: false,
+        ...(input.agent ? {} : {harnessBin: 'true', systemPrompt: false}),
         devEndpointDir: input.devEndpointDir,
         extensions: {design: {}},
       }),
