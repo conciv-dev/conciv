@@ -848,7 +848,7 @@ describe('api page page', () => {
     return kit.rpc.registry.call({name, input})
   }
 
-  describe('registry.call page-bus (IT, real server, typed rpc)', () => {
+  describe('registry.call page tabs (IT, real server, typed rpc)', () => {
     const kit = sharedKit(() => bootKit({cwd: tmpdir()}))
     const state: {widget: FakeWidget | undefined} = {widget: undefined}
 
@@ -859,7 +859,7 @@ describe('api page page', () => {
       await cleanupChunks()
     })
 
-    it('reports NO_PAGE_CLIENT when no widget is subscribed', async () => {
+    it('reports NO_PAGE_CLIENT when no tab has joined the session', async () => {
       await expect(callPage(kit(), 'page_route')).rejects.toMatchObject({
         code: 'NO_PAGE_CLIENT',
       })
@@ -876,7 +876,7 @@ describe('api page page', () => {
       expect(data.source).toEqual({file: 'app/page.tsx', line: 17, column: 4})
     })
 
-    it('round-trips a page query: SSE push → widget reply → the query resolves', async () => {
+    it('round-trips a page query: hub call to the tab, the tab reply resolves the query', async () => {
       state.widget = await connectWidget(kit(), () => ({
         ok: true,
         result: {pathname: '/checkout', search: '', href: 'x'},
