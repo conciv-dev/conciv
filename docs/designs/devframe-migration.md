@@ -310,8 +310,9 @@ PR 21  approval prompts replaced by Devframe safety labels
   from both feed code mode and MCP (plugin tools bridged into the old registry by name
   until the agent surface moves). An extension moves in one PR with the same tool names.
 - **Push channel:** page queries move with `captures`/`page` to "server asks one tab"
-  calls. The oRPC `page.queries` and `page.reply` procedures keep reading the old bus until
-  PR 20, so the bus stays too. Chat events become a Devframe stream in PR 9; the
+  calls in PR 7, which also removes the oRPC `page.queries` and `page.reply` procedures and
+  the bus behind them: two transports for one tab reply would split the tab registry. The
+  tab that answers is the one today's bus would pick. Chat events become a Devframe stream in PR 9; the
   `@tanstack/ai` chat transport itself is not touched.
 - **Terminal:** Devframe's Terminals plugin is the default viewer. The extension starts the
   agent as a hub PTY session and keeps resume, busy detection, injection, idle eviction and
