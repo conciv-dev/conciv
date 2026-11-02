@@ -81,6 +81,7 @@ export type ProxyCore = {
   base: string
   port: number
   trafficCount: () => number
+  requestedPaths: () => string[]
   dropConnections: () => void
   close: () => Promise<void>
 }
@@ -98,9 +99,11 @@ export async function proxyTo(targetBase: string, opts: {port?: number} = {}): P
   const target = new URL(targetBase)
   let count = 0
   let upgrades = 0
+  const requestedPaths: string[] = []
   const piped = new Set<Duplex>()
   const server: Server = createServer((req, res) => {
     count += 1
+    requestedPaths.push(req.url ?? '')
     const proxyReq = httpRequest(
       {
         hostname: target.hostname,
@@ -122,6 +125,7 @@ export async function proxyTo(targetBase: string, opts: {port?: number} = {}): P
   })
   server.on('upgrade', (req, clientSocket: Duplex, head: Buffer) => {
     upgrades += 1
+    requestedPaths.push(req.url ?? '')
     piped.add(clientSocket)
     clientSocket.on('close', () => piped.delete(clientSocket))
     const proxyReq = httpRequest({
@@ -150,6 +154,7 @@ export async function proxyTo(targetBase: string, opts: {port?: number} = {}): P
     base: `${base}${target.pathname.replace(/\/$/, '')}`,
     port,
     trafficCount: () => count + upgrades,
+    requestedPaths: () => [...requestedPaths],
     dropConnections: () => {
       for (const socket of piped) socket.destroy()
       piped.clear()

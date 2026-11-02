@@ -16,7 +16,7 @@ import {acquirePushChannel, livePushChannelCount, type PageQueryFrame} from '../
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
 import {hubRoutedRpc, makeQueryUtils, type HubCall} from '../src/query-utils.js'
 import {ORPCError} from '@orpc/client'
-import {isReachabilityError, setupEngineReachability} from '../src/reachability.js'
+import {isReachabilityError, setupEngineReachability, voteEngineProbeSettled} from '../src/reachability.js'
 
 describe('chat client', () => {
   let kit: ClientKit | undefined
@@ -671,6 +671,20 @@ describe('rpc reachability', () => {
 
     it('is true for a transport-level failure', () => {
       expect(isReachabilityError(new TypeError('fetch failed'))).toBe(true)
+    })
+  })
+
+  describe('voteEngineProbeSettled', () => {
+    afterEach(() => onlineManager.setOnline(true))
+
+    it('keeps the engine online when the hub answered the probe with a coded error', () => {
+      voteEngineProbeSettled(false, concivError('INTERNAL_SERVER_ERROR', 'the engine probe threw'))
+      expect(onlineManager.isOnline()).toBe(true)
+    })
+
+    it('marks the engine offline when the hub link dropped under the probe', () => {
+      voteEngineProbeSettled(false, concivError('DISCONNECTED', 'conciv could not reach the engine'))
+      expect(onlineManager.isOnline()).toBe(false)
     })
   })
 })
