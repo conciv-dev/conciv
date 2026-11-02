@@ -1,7 +1,7 @@
 # Design driver: from "build this page from this image" to a matching page
 
 - **Author:** Omri Katz (omridevk)
-- **Status:** Proposed (fifth revision; rulings 1 to 22 and four EGM review rounds folded in)
+- **Status:** Proposed (sixth revision; rulings 1 to 22, four EGM review rounds and the as-built notes through step 6 folded in)
 - **Date:** 2026-11-02
 
 ---
@@ -154,7 +154,7 @@ Checked in the source on 2026-11-01 and 2026-11-02 (review rounds 3 and 4). Path
 
 ## Spikes
 
-Records: `docs/designs/spikes/` (segmentation, segmentation-edges, typography, takumi-layout, and, added by step 0 of the plan, `pairing/` with the pair-spike and interp-spike code and results), `docs/superpowers/specs/2026-11-01-design-text-layer-spike.md` (OCR). Every image measured was a browser render on macOS.
+Records stay outside the repository (spike code is not shipped; the measured conclusions are summarised here and in `docs/designs/design-driver-rulings.md`), except the OCR spike in `docs/superpowers/specs/2026-11-01-design-text-layer-spike.md`. Every image measured was a browser render on macOS.
 
 - **OCR**: PaddleOCR through ppu, shipped in #683; 0.4 to 0.9 s per page in the text-layer spike. Tall pages are read in overlapping tiles; tiles whose glyphs are under 16 px tall are upsampled 2x first; lines under a confidence floor are dropped (at 400 px wide, lines such as `wgnnrtc.` caused the only wrong twins).
 - **Segmentation**: thresholding against the parent background finds every fixture container within 2 px with no spurious box, 33 to 76 ms; on real pages level 1 and 2 containers at 50% and 57% (conciv.dev), 14% and 0% (Stripe), 64% and 33% (the Guardian), 0 to 3 spurious boxes and up to 8 spurious image leaves, 357 to 1164 ms. A box source, not a structure source.
@@ -181,7 +181,19 @@ Records: `docs/designs/spikes/` (segmentation, segmentation-edges, typography, t
 
 ## Technical Plan
 
-Everything lives in `packages/extensions/design` unless stated. Two processes: the server process (`server/`, `tool/`) and the app tab (`client/`, the overlay). Measurement is owned by the always-loaded client (`client.ts`); the overlay is UI.
+Everything lives in `packages/extensions/design` unless stated. Two processes: the server process (`server.ts`, `server/`) and the app tab (`client.tsx`, `client/`, the x-ray under `xray/`). Measurement is owned by the always-loaded client (`client.tsx`); the x-ray is UI. The module structure is `docs/designs/design-extension-structure.md`: one file per slot holding every implementation as a private function and exporting one table; about 20 files in all. Where this document names a file per implementation, read it as a private function in the slot file named in the tree below.
+
+```text
+src/
+  client.tsx           widget entry: measurer, mirror, capture, type renders, CSS winner, the composer button and the pane Surface
+  client/takumi.ts     the takumi second opinion (step 6)
+  server.ts            extension entry: pickRuntime over the slot tables, CSS map, x-ray routes, dispose
+  shared/              defs.ts (tool defs, wire schemas), types.ts (domain types, slot interfaces), tolerances.ts (constants, designConfig, stage and tolerance tables)
+  server/              target.ts (ADAPTERS, TEXT_READERS, ENRICHERS, SEGMENTERS, ROLE_RULES, registration), deltas.ts (DELTA_KINDS, COLOR_METRICS, sideFrom),
+                       provenance.ts (MAPPERS), raster.ts, store.ts, pair.ts (PAIRERS, RANKERS, pair tree, alignment, pairTwins),
+                       loop.ts (items, stages, score, brief, stop, runs, HMR settle), differ.ts (PIXEL_COMPARATORS, the run, tool bindings), xray-routes.ts
+  xray/                entry.tsx, router.tsx (routes, data, the in-tab pane), panel.tsx, decisions.tsx (run bar, pins, marks, accept, capture), heatmap.tsx, stage.tsx, states.tsx
+```
 
 ```text
  app tab                                                    server process
@@ -200,21 +212,21 @@ Everything lives in `packages/extensions/design` unless stated. Two processes: t
 
 A slot exists where this document names a second implementation, present or future.
 
-| Piece         | Contract                                                               | Default                           | Second                   | Registry     |
-| ------------- | ---------------------------------------------------------------------- | --------------------------------- | ------------------------ | ------------ |
-| Image loading | `TargetAdapter` (exists)                                               | `server/adapters/image.ts`        | Figma adapter (future)   | `adapters`   |
-| Target text   | `TextReader` (exists)                                                  | `server/comparators/paddle.ts`    | existing registry        | `text`       |
-| Enrichment    | `Enricher` (exists, contract changes)                                  | `server/enrichers/*.ts`           | existing registry        | `enrichers`  |
-| Target boxes  | `Segmenter: ({raster, nodes}) => Promise<TargetNode[]>`                | `server/segmenters/threshold.ts`  | edge segmenter (future)  | `segmenters` |
-| Text roles    | `RoleRules: ({text, neighbours}) => {role, confidence}`                | `server/roles/rules.ts`           | Jev (future)             | `roles`      |
-| Pairing       | `Pairer: ({components, nodes, twinPairs, pins, tolerances}) => Pair[]` | `server/pairers/vote.ts`          | learned weights (future) | `pairers`    |
-| Ranking       | `Ranker: ({items}) => items`                                           | `server/rankers/impact.ts`        | Jev (future)             | `rankers`    |
-| Pixel compare | `PixelComparator` (exists)                                             | `server/comparators/blazediff.ts` | existing registry        | `pixel`      |
-| Delta kinds   | `DeltaKind` (exists)                                                   | `server/deltas/*.ts`              | existing registry        | `deltaKinds` |
-| Provenance    | `ProvenanceMapper` (exists)                                            | exists                            | existing registry        | `mappers`    |
-| Color         | `ColorMetric` (exists)                                                 | exists                            | existing registry        | `color`      |
+| Piece         | Contract                                                               | Default (private function)          | Second                   | Table               |
+| ------------- | ---------------------------------------------------------------------- | ----------------------------------- | ------------------------ | ------------------- |
+| Image loading | `TargetAdapter` (exists)                                               | image, in `server/target.ts`        | Figma adapter (future)   | `ADAPTERS`          |
+| Target text   | `TextReader` (exists)                                                  | paddle, in `server/target.ts`       | existing table           | `TEXT_READERS`      |
+| Enrichment    | `Enricher` (exists, contract changes)                                  | text, segment, roles, color         | existing table           | `ENRICHERS`         |
+| Target boxes  | `Segmenter: ({raster, nodes}) => Promise<TargetNode[]>`                | threshold, in `server/target.ts`    | edge segmenter (future)  | `SEGMENTERS`        |
+| Text roles    | `RoleRules: ({text, neighbours}) => {role, confidence}`                | rules, in `server/target.ts`        | Jev (future)             | `ROLE_RULES`        |
+| Pairing       | `Pairer: ({components, nodes, twinVotes, pins, tolerances}) => Pair[]` | vote, in `server/pair.ts`           | learned weights (future) | `PAIRERS`           |
+| Ranking       | `Ranker: ({items}) => items`                                           | impact, in `server/pair.ts`         | Jev (future)             | `RANKERS`           |
+| Pixel compare | `PixelComparator` (exists)                                             | blazediff, in `server/differ.ts`    | existing table           | `PIXEL_COMPARATORS` |
+| Delta kinds   | `DeltaKind` (exists)                                                   | one per kind, in `server/deltas.ts` | existing table           | `DELTA_KINDS`       |
+| Provenance    | `ProvenanceMapper` (exists)                                            | in `server/provenance.ts`           | existing table           | `MAPPERS`           |
+| Color         | `ColorMetric` (exists)                                                 | in `server/deltas.ts`               | existing table           | `COLOR_METRICS`     |
 
-Plain functions: the aligner (`server/align.ts`), the type estimator (`client/estimate.ts` and `server/estimate.ts`), the loop policy (`server/stages.ts`), the store (`server/store.ts`, typed by `TargetStore`), the measurer (`client/measurer.ts`), capture (`client/capture.ts`), the mirror (`client/mirror.ts`), twins (`server/twins.ts`). `Matcher`, `GeometryEstimator`, `server/matchers/`, `server/comparators/edge-projection.ts`, the `geometry` and `matcher` config enums and `Comparators.geometry` are deleted; the tile comparator's windowed search stays inside the pixel comparator for the residual.
+Plain functions: alignment and `pairTwins` (`server/pair.ts`), the type estimate (`client.tsx` renders, `server/target.ts` trims and bisects), the loop policy, round history and the run queue (`server/loop.ts`), the store (`server/store.ts`, typed by `TargetStore`), the measurer, capture and the mirror (`client.tsx`). `Matcher`, `GeometryEstimator`, the tile matcher, the edge projection, the `geometry` and `matcher` config enums and `Comparators.geometry` are deleted; the tile comparator's windowed search stays inside the pixel comparator for the residual.
 
 **Composition.** `pickRuntime` (exists) builds `DesignRuntime` from `designConfig`. `createDiffer({runtime, store, page})` (`server/differ.ts`) returns `{register, run, status}`, the only object the tools and the x-ray routes call. `page` is the new `ServerApi.page.ask({sessionId, name, input, timeout})` (core change in `packages/extension` and `packages/core`): it delivers a client tool call to the widgets of a session outside any tool step. The design client registers `design_measure` (`shared/measure.ts` schemas) with `catalog: false`, so the agent never sees it; the differ calls it with `record.session` and `measureTimeoutMs` 60000. Any tab of the session answers; the reply carries the tab's route, and when it differs from the target's recorded route the run is refused with a `route` item instead of a diff. An `hmr-update` carries no session, so it runs the current target of every session that has a subscribed widget. `createMeasurer()` (`client/measurer.ts`) is created once by `client.ts` and owns the mirror, the scratch iframe and capture.
 
@@ -496,9 +508,9 @@ Rule: every call in `design.it.test.ts` that passes `width`, `route` or `target`
 
 Outside the IT: `cli/test/cli.test.ts:249-252, 314-326, 360-361` and `harness-init/test/harness-init.test.ts:612` to the new text and without `--width`.
 
-### Step 0: spike records
+File paths in the items below are the plan as drafted; the code landed in the tree of Technical Plan section 1 (one slot file per table), and every item that names a file per implementation is a private function in the slot file. Each step ends with an "As built" note recording what differs from the item text.
 
-1. `docs/designs/spikes/pairing/` (Create): `pair-spike` (`stages.ts`, `design.ts`, `pair.ts`, `debug.ts`, `pair-design.ts`, `pair-site.ts`, `results.md`) and `interp-spike` results, copied from the scratchpad, with a `README.md` naming what each file measured. No build wiring.
+Step 0 (spike records committed under `docs/designs/spikes/`) was dropped: spike code does not ship.
 
 ### Step 1: core channel; target is an image; current target per session; discovery
 
@@ -521,6 +533,8 @@ Outside the IT: `cli/test/cli.test.ts:249-252, 314-326, 360-361` and `harness-in
     - registering a second image makes it current; registering the first again makes the first current and keeps its id.
     - `design_clear {all: true}` then `design_diff` reports the no-target sentence.
 
+As built (PR #690, with step 2 and the restructure): as the items say; the differ lives in `server/differ.ts` and the tool steps are its bindings, `tool/` is gone.
+
 ### Step 2: the flat list from the image
 
 15. `extensions/design/src/shared/model-schemas.ts` (Move from `store.ts:27-61`, Modify), `shared/types.ts` (Modify): flat `TargetNode`, `Segmenter`, `RoleRules`, `Enricher.run({model, raster, runtime})`; consumers updated: `adapters/image.ts` root kind, `target.ts` `enrich`, `tool/steps/diff.ts:190` (`root.children`), `server/matchers/tile.ts`, `text-groups.ts`, `xray/*`, color enricher, IT `StoredModelSchema`.
@@ -537,6 +551,8 @@ Outside the IT: `cli/test/cli.test.ts:249-252, 314-326, 360-361` and `harness-in
     - `roles` against `roles-1280` reports no `text` delta and no warning.
     - `hardcoded` against `hardcoded-1280` reports a `sample-data` warning and `done`.
 
+As built (PR #690): enrichers, the segmenter and the role rules are private functions in `server/target.ts`; `model-schemas.ts`, `roles.ts`, `config.ts` and the registries folded into `shared/` and `server/target.ts`.
+
 ### Step 3: measurer, mirror, capture every run, sources
 
 24. `extensions/design/src/client/measurer.ts`, `client/mirror.ts`, `client/scratch.ts` (Create), `client/components.ts` (Modify: shadow roots, border in `readStyles`), `client.ts` (Modify: `createMeasurer`, `design_measure` registered with `catalog: false`), `shared/measure.ts` (Create).
@@ -550,6 +566,8 @@ Outside the IT: `cli/test/cli.test.ts:249-252, 314-326, 360-361` and `harness-in
     - `design_capture` returns the live page at 1x at DPR 2 without a frame.
     - on `type` against `type-1280`, every text node's `typography.size` is within 0.5 px of its live font size with confidence 1.
     - `design_winner` with `width: 390` names `src/card.module.css`.
+
+As built (PR #696): the measurer, mirror, capture and type renders live in `client.tsx`; the type estimate's trim and bisection in `server/target.ts`; `design_measure` and `design_render` are hidden client tools; `shared/measure.ts` folded into `shared/defs.ts`.
 
 ### Step 4: pairs, twins, alignment, delta kinds, stage, score, stop, runs
 
@@ -573,6 +591,8 @@ Outside the IT: `cli/test/cli.test.ts:249-252, 314-326, 360-361` and `harness-in
     - a run after an HMR edit (test 835's `HOST_STYLES` rewrite, restored after) carries a diff image different from the previous run's.
     - the pairing of `u1-1280` against the finished fixture completes under `runBudgetMs` and reports no `partial`.
 
+As built (PR #700): pairing, ranking, alignment and `pairTwins` in `server/pair.ts`; items, stages, score, brief, stop, round history, the run queue and the HMR settle in `server/loop.ts`; `deltaSentence` and `traced` in `shared/tolerances.ts`. The HMR handshake runs server to page: the page client records applied update timestamps and the server asks `page_hmr {since}` after the debounce (the bundler bridge cannot publish an event without touching `protocol` and `plugin`). Registration awaits run 0 (a background run 0 raced the test's navigations). Border, radius and axis are read from pixels on both sides. The stage table names stay `gap-before`, `gap-after` and the four `inset-*` kinds. `extra` entries are painting elements of at least 24 px, top-most only; offsets are `unmatched` entries of kind `offset`. The hints voter abstains when no token matches; the floor's median is over the whole candidate pool; ranking weighs measurement confidence. `responsive` is `{target, width, twins, absent[], reordered[], stretched[]}` per other width. Two IT cases were edited beyond the table: the recolor case no longer asserts exact kinds, and "a width without a run" registers from `/plain.html`.
+
 ### Step 5: the overlay
 
 39. `extensions/design/src/client.tsx` (Move from `client.ts`), `vite.config.ts`, `package.json` (Modify: Solid plugin and entry; `solid-js`, `@tanstack/solid-router`, `@conciv/ui-kit-system`, `@unocss/reset` as dependencies), `xray/entry.tsx`, `xray/index.html` (Modify: dev fixture only).
@@ -585,6 +605,8 @@ Outside the IT: `cli/test/cli.test.ts:249-252, 314-326, 360-361` and `harness-in
     - the stale badge is gone after an HMR run.
     - a run with a different `capturePath` is not compared for `stalled`.
 
+As built (PR #702): the pane is `XrayPane` in `xray/router.tsx` (one `createXrayRouter({history, context})` serves the standalone page with browser history and the pane with memory history); pins, marks, accept, Capture pixels and the row outline in `xray/decisions.tsx`; the heat map in `xray/heatmap.tsx`; no `pins.tsx`, `marks.tsx`, `data.ts` or `xray-schemas.ts`. The button sits in the composer's overflow menu like the whiteboard's. The pane is mounted one layer under the widget, so an open chat panel covers part of it (open: open the pane with the chat minimized, or beside it). The new controls are in the in-tab pane only; the standalone page keeps its look. Routes also include `current` and `stamp`; the pane refreshes by asking for the latest run stamp every two seconds. `accept` takes only the target id and starts no run. Excluding or image-slotting a node drops the nodes inside it. Reports carry each component's `nodes` and `path`, and each unbuilt entry's `node`. The pin IT case pins through the route (the grab has no on-page signal a test can wait on).
+
 ### Step 6: takumi second opinion
 
 43. `extensions/design/src/client/sources/takumi.ts`, `client/sources/serialize.ts`, `client/sources/subset.ts` (Create); `package.json`, root `pnpm-workspace.yaml` (Modify: `takumi-paint`, `@takumi-rs/wasm`); `server.ts` (Modify: serves the wasm under the extension's static route); `shared/defs.ts` (Modify: `opinion` on deltas).
@@ -593,16 +615,18 @@ Outside the IT: `cli/test/cli.test.ts:249-252, 314-326, 360-361` and `harness-in
     - `webfont` against `u1-390` stores an `opinion` beside the mirror value on geometry rows.
     - `container` disables takumi and reports `mirror` only.
 
+As built (PR #703): one file, `client/takumi.ts` (subset check, fonts, serialization, paint, boxes); the opinion runs inside `measureMirror` only, so `sources` is `['mirror', 'takumi']` when it ran. The wasm served is takumi-paint's own `takumi_paint_wasm_bg.wasm` (2.9 MB) under `/api/ext/design/takumi/`; `@takumi-rs/wasm` is not a dependency. The inset, gap and align kinds expose `read(side)` and their deltas carry `opinion: {source: 'takumi', live, confidence}`; `offset` is an unmatched entry and carries none. `ComponentReport.twinDisagreement` names the other target and path. Confidence `1 − p95 / 50` with p95 1.7 px wide and 7.4 px under 1000. The client reads the engine's API base from the `Surface` into a module slot. Measured on the fixture at 390: 59 ms for the first opinion, 4 to 6 ms after.
+
 ### Step 7: READMEs and trials
 
-46. `extensions/design/README.md` and `src/**/README.md` (Modify).
-47. `docs/designs/trials/` (Create): the reference dashboard built from empty; an existing page matched to a re-export; a page at a tab width different from the design. Each records rounds to stop, stop reason, score per round, sources and capture path per round, pins and marks, and where the agent went wrong; each passes when it ends `done` or `residual-only` within the budget.
+46. `extensions/design/README.md` (Modify); there are no `src/**/README.md` files (structure rule 4).
+47. `docs/designs/trials/` (Create): the reference dashboard built from empty; an existing page matched to a re-export; a page at a tab width different from the design. Each records rounds to stop, stop reason, score per round, sources and capture path per round, pins and marks, and where the agent went wrong; each passes when it ends `done` or `residual-only` within the budget. The trials run through `packages/it/scripts/design-trial.ts` (`pnpm trial` in `packages/it`), which boots the fixture host with conciv, registers an image and drives `design_diff`, `design_status`, pins, marks and accept from the command line.
 
 ### Verification Plan
 
 - **Build and static**: the gates above per step; `pnpm intent:validate` and `check:refs` in `skills`.
 - **Integration**: every existing case green as rewritten plus `nodes`, `loop`, sources, overlay and takumi cases. The five-rewrites case proves ruling 15; the `u1-390` case proves width never comes from the tab; the 1392 case proves `done` is reachable through the mirror; the `runBudgetMs` case bounds pairing cost.
-- **Manual**: `scripts/loop.ts --reference` from the spike branch, ported under `scripts/`, against the overlay in Chromium (Region Capture granted) and Firefox (snapdom).
+- **Manual**: `pnpm trial` in `packages/it` against the pane in Chromium (Region Capture granted) and Firefox (snapdom); the three trial records under `docs/designs/trials/`.
 
 ---
 
