@@ -60,7 +60,15 @@ import {makeCoreRuntime} from './runtime/core-runtime.js'
 import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
-import {makeRpcRouter, metaFunctions, type MetaServerFunctions} from './api/rpc/router.js'
+import {
+  draftsFunctions,
+  makeRpcRouter,
+  markersFunctions,
+  metaFunctions,
+  type DraftsServerFunctions,
+  type MarkersServerFunctions,
+  type MetaServerFunctions,
+} from './api/rpc/router.js'
 import {makeCompositeRpcRouter, RPC_PREFIX, rpcFetchMiddleware} from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
@@ -76,7 +84,8 @@ import type {ClaimUpgrade} from '@conciv/serve'
 import type {HubInstance} from '@devframes/hub/initiate'
 
 declare module 'devframe' {
-  interface DevframeRpcServerFunctions extends SessionsServerFunctions, MetaServerFunctions {}
+  interface DevframeRpcServerFunctions
+    extends SessionsServerFunctions, MetaServerFunctions, DraftsServerFunctions, MarkersServerFunctions {}
 }
 
 export type MakeAppOpts = {
@@ -555,6 +564,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     functions: (publish) => [
       ...sessionsFunctions({chat: chatDeps, runtime, publish}),
       ...metaFunctions({chat: chatDeps, tools: toolList, runtime, mcpUrl: opts.mcpUrl ?? (() => undefined)}),
+      ...draftsFunctions({chat: chatDeps}),
+      ...markersFunctions({chat: chatDeps}),
     ],
   })
   const publishSessions = (): Promise<void> => devframePlane.publish('sessions')

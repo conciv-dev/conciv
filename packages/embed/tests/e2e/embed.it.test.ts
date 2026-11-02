@@ -1414,7 +1414,9 @@ test.describe('reload continuity', () => {
       await input.press('End')
       await untilPanelDraft(suite.kit(), sessionId, (draft) => draft.text === 'an unsent draft survives')
 
-      expect(await suite.kit().rpc.drafts.get({sessionId})).toMatchObject({text: 'an unsent draft survives'})
+      expect(await suite.kit().hub.call('conciv:drafts:get', {sessionId})).toMatchObject({
+        text: 'an unsent draft survives',
+      })
 
       await page.reload({waitUntil: 'domcontentloaded'})
 

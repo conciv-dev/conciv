@@ -1405,8 +1405,6 @@ describe('quick add pane', () => {
 })
 
 describe('quick refresh', () => {
-  const DRAFT_GET_PATH = ['drafts', 'get']
-
   const core = bootedCore('quick-refresh')
   const harness = createShellHarness(core)
   const faults = trackedFaults()
@@ -1418,16 +1416,42 @@ describe('quick refresh', () => {
 
   test('the quick terminal pane bar carries refresh while the composer is still loading', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    const gate = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+    const gate = await faults.install({kind: 'hub-gate', names: ['conciv:drafts:get']})
     harness.mountShell(`/quick?panes=${sessionId}&focus=0`)
 
     await expect.element(refresh(), {timeout: 8000}).toBeVisible()
+    await coreControl.awaitFaultPending(gate, 1)
     await expect.element(editor()).not.toBeInTheDocument()
 
     await coreControl.releaseFault(gate)
 
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     await expect.element(refresh()).toBeVisible()
+  }, 30_000)
+})
+
+describe('session markers', () => {
+  const core = bootedCore('session-markers')
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const newSessionLine = () => page.getByRole('separator', {name: 'New session'})
+
+  test('the new session divider waits for the marker list the hub serves', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const gate = await faults.install({kind: 'hub-gate', names: ['conciv:markers:list']})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await coreControl.awaitFaultPending(gate, 1)
+    await expect.element(newSessionLine()).not.toBeInTheDocument()
+
+    await coreControl.releaseFault(gate)
+
+    await expect.element(newSessionLine(), {timeout: 8000}).toBeVisible()
   }, 30_000)
 })
 

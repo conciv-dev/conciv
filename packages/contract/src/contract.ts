@@ -112,6 +112,10 @@ export const SessionsModelOutputSchema = z.object({model: z.string()})
 export const sessionsRenameErrors = notFound
 export const sessionsModelErrors = {...notFound, UNKNOWN_MODEL: {message: 'unknown or disabled model'}}
 
+export const DraftsGetOutputSchema = DraftRowSchema.nullable()
+export const DraftsSetInputSchema = DraftRowSchema.omit({updatedAt: true})
+export const MarkersListOutputSchema = z.array(MarkerRowSchema)
+
 export const contract = {
   sessions: {
     list: oc.input(SessionsListInputSchema.nullish()).output(SessionsListOutputSchema),
@@ -125,11 +129,11 @@ export const contract = {
     compact: oc.input(SessionIdInputSchema).output(OkSchema),
   },
   drafts: {
-    get: oc.input(SessionIdInputSchema).output(DraftRowSchema.nullable()),
-    set: oc.input(DraftRowSchema.omit({updatedAt: true})).output(OkSchema),
+    get: oc.input(SessionIdInputSchema).output(DraftsGetOutputSchema),
+    set: oc.input(DraftsSetInputSchema).output(OkSchema),
   },
   markers: {
-    list: oc.input(SessionIdInputSchema).output(z.array(MarkerRowSchema)),
+    list: oc.input(SessionIdInputSchema).output(MarkersListOutputSchema),
   },
   navigation: {
     get: oc.output(NavigationWriteSchema.nullable()),

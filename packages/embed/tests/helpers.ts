@@ -252,7 +252,7 @@ export function untilPanelDraft(
 ): Promise<void> {
   return until(
     async () => {
-      const draft = await kit.rpc.drafts.get({sessionId})
+      const draft = await kit.hub.call('conciv:drafts:get', {sessionId})
       return draft !== null && matches(draft)
     },
     {hangGuardMs: 30_000, intervalMs: 100},
