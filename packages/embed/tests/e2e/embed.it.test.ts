@@ -1244,6 +1244,10 @@ test.describe('rebind', () => {
       await expect(chatBox(page)).toBeVisible({timeout: 30_000})
 
       await expect(apiBaseProbe).toHaveText(proxyB.base, {timeout: 30_000})
+      await until(async () => proxyB.requestedPaths().some((requested) => requested.startsWith('/__conciv/')), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
 
       await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})

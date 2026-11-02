@@ -7,7 +7,7 @@ import type {HubConnection} from '../app/devframe-link.js'
 
 const DEVFRAME_GROUPS: ReadonlySet<string> = new Set(['sessions'])
 
-export type AppHub = {connection: HubConnection; connected: () => boolean}
+export type AppHub = {connection: () => HubConnection; connected: () => boolean}
 
 export type AppData = {
   rpc: RpcClient
@@ -35,8 +35,9 @@ function attemptSettled(connection: HubConnection): Promise<void> {
 function hubCallOf(hub: AppHub): HubCall {
   return async (name, input) => {
     if (!hub.connected()) throw new Error(RPC_UNBOUND_MESSAGE)
-    await attemptSettled(hub.connection)
-    const client = await hub.connection.ready()
+    const connection = hub.connection()
+    await attemptSettled(connection)
+    const client = await connection.ready()
     await client.ensureTrusted()
     return client.scope('conciv').rpc.call(name, input)
   }
@@ -57,6 +58,6 @@ export function makeAppData(rpc: RpcClient, hub: AppHub | undefined, queryClient
     rpc: routed,
     utils,
     invalidateSessions: () => void queryClient.invalidateQueries({queryKey: utils.sessions.list.key()}),
-    readHubState: () => (hub ? readSharedState<object>(hub.connection, 'conciv:sessions', writeSessions) : () => {}),
+    readHubState: () => (hub ? readSharedState<object>(hub.connection(), 'conciv:sessions', writeSessions) : () => {}),
   }
 }

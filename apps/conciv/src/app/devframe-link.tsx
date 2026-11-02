@@ -115,9 +115,12 @@ function HubLogin(props: {client: () => HubClient | undefined; onTrusted: (token
   )
 }
 
+export function hubBaseOf(apiBase: string): string {
+  return `${resolveHubBase(new URL(apiBase, window.location.href).origin)}${HUB_PATH}`
+}
+
 export function hubFor(apiBase: string): HubConnection {
-  const url = new URL(apiBase, window.location.href)
-  return browserClient({baseURL: `${resolveHubBase(url.origin)}${HUB_PATH}`, authToken: tokenOf(apiBase)})
+  return browserClient({baseURL: hubBaseOf(apiBase), authToken: tokenOf(apiBase)})
 }
 
 export function renderLogin(
