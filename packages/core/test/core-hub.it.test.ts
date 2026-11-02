@@ -396,6 +396,24 @@ describe('conciv hub', () => {
     expect(kit.hubInstance.connectionMeta().mcp).toBeUndefined()
   }, 10_000)
 
+  it('connects a page on the hub origin through a path-only base', async () => {
+    const page = await browser.newPage()
+    try {
+      await page.goto(new URL('__connection.json', kit.hubUrl).href, {waitUntil: 'domcontentloaded'})
+      await page.addScriptTag({content: await probeScript(), type: 'module'})
+      await page.waitForFunction(() => 'concivProbe' in window)
+      const metaBase = await page.evaluate(async (baseURL) => {
+        const connection = window.concivProbe.browserClient({baseURL})
+        const base = (await connection.ready()).connection.metaBaseUrl
+        connection.close()
+        return base
+      }, new URL(kit.hubUrl).pathname)
+      expect(metaBase?.startsWith(kit.hubUrl)).toBe(true)
+    } finally {
+      await page.close()
+    }
+  }, 15_000)
+
   it('connects a page that moves to another engine to that engine, not the first one it met', async () => {
     const second = await bootKit({}, createFakeHarness({id: 'fake-hub-second'}))
     const page = await browser.newPage()

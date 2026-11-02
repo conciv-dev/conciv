@@ -6,13 +6,13 @@ import {hubFor, renderLogin, type HubConnection} from './app/devframe-link.js'
 import {parseConcivSettings} from './data/settings.js'
 import {createConcivRouter} from './router.js'
 
-type Link = {apiBase: string; hub?: HubConnection}
+type Link = {apiBase: string; hub?: () => HubConnection}
 
 function linked(core: string): Promise<Link> {
   if (core === '') return Promise.resolve({apiBase: ''})
   const hub = hubFor(core)
   return new Promise((resolve) => {
-    renderLogin(document.body, hub, core, (apiBase) => resolve({apiBase, hub}))
+    renderLogin(document.body, hub, core, (apiBase) => resolve({apiBase, hub: () => hub}))
   })
 }
 

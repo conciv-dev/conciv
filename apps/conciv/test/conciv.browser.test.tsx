@@ -28,6 +28,9 @@ import {
   type ShellMountOptions,
 } from './helpers.browser.js'
 import {render} from '@solidjs/testing-library'
+import {QueryClient} from '@tanstack/solid-query'
+import {hubFor} from '../src/app/devframe-link.js'
+import {makeAppData} from '../src/data/app-data.js'
 import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show} from 'solid-js'
 import {
   AttachmentByMime,
@@ -1581,6 +1584,20 @@ describe('sessions over the hub', () => {
 
     await expect.element(page.getByRole('alert').filter({hasText: 'Rename failed'})).toBeInTheDocument()
   })
+
+  test('a sessions call while the engine refuses fails with the attempt in flight', async () => {
+    const deadBase = 'http://127.0.0.1:1/conciv'
+    const hub = hubFor(deadBase)
+    const data = makeAppData(makeRpcClient(deadBase), {connection: () => hub, connected: () => true}, new QueryClient())
+    try {
+      await expect(data.rpc.sessions.list({includeHidden: true})).rejects.toMatchObject({code: 'DISCONNECTED'})
+      await expect(data.rpc.sessions.list({includeHidden: true})).rejects.toMatchObject({code: 'DISCONNECTED'})
+      hub.close()
+      await expect(data.rpc.sessions.list({includeHidden: true})).rejects.toMatchObject({code: 'DISCONNECTED'})
+    } finally {
+      hub.close()
+    }
+  }, 5_000)
 
   test('the open selector follows a rename and a delete made elsewhere', async () => {
     const rpc = coreRpc(core())
