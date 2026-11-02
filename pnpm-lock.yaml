@@ -3976,6 +3976,9 @@ importers:
       '@conciv/extension-test-runner':
         specifier: workspace:^
         version: link:../extensions/test-runner
+      '@conciv/extension-testkit':
+        specifier: workspace:^
+        version: link:../extension-testkit
       '@conciv/extension-whiteboard':
         specifier: workspace:^
         version: link:../extensions/whiteboard
@@ -4003,6 +4006,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5)
+      devframe:
+        specifier: 'catalog:'
+        version: 1.3.0(@devframes/agentic@1.3.0)(cac@7.1.0)(ocache@0.3.1)(srvx@1.0.8)
       get-port:
         specifier: 'catalog:'
         version: 7.2.0

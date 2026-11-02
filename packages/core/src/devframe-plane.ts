@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {join} from 'node:path'
 import type {Duplex} from 'node:stream'
 import type {IncomingMessage} from 'node:http'
@@ -41,14 +40,13 @@ export type DevframePlaneOpts = {
   functions: (publish: Publish) => readonly CoreFunction[]
   plugins?: readonly ConcivPlugin[]
   devframes?: readonly DevframeDefinition[]
-  loginToken?: string
+  loginToken: string
   allowedOrigins?: readonly string[]
 }
 
 export type DevframePlane = {
   hub: HubInstance
   claimUpgrade: ClaimUpgrade
-  loginToken: string
   publish: Publish
   close: () => Promise<void>
 }
@@ -118,7 +116,6 @@ async function publishGroup(
 
 export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
   const auth = unfilledAuth()
-  const loginToken = opts.loginToken ?? randomUUID()
   const queue = new AsyncQueuer<PublishRequest>(
     async (request) => {
       await publishGroup(hub, opts.published, request.group)
@@ -147,13 +144,12 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
     allowedOrigins: opts.allowedOrigins,
     getStorageDir: (scope) => join(opts.stateDir, 'devframe', scope),
     configure(ctx) {
-      Object.assign(auth, createInteractiveAuth(ctx, {clientAuthTokens: [loginToken]}))
+      Object.assign(auth, createInteractiveAuth(ctx, {clientAuthTokens: [opts.loginToken]}))
     },
   })
   return {
     hub,
     claimUpgrade: claimHubUpgrade(hub),
-    loginToken,
     publish,
     close: async () => {
       await stopHubSessions(hub)

@@ -75,10 +75,10 @@ describe('launch', () => {
       expect(command).toMatch(/'--mcp' 'http:\/\/127\.0\.0\.1:\d+\/api\/mcp'/)
     })
 
-    it('renders a connect command whose mcp url carries the app base path', async () => {
+    it('renders a connect command whose mcp url carries the agent path', async () => {
       const sessionId = `conciv_${randomUUID()}`
       const server = await startTerminalServer(connectingHarness().harness, {
-        basePath: '/t/tok-launch',
+        agentPath: '/t/tok-launch',
         stateDir: tempDir('conciv-launch-state-'),
       })
       started.push(server)
@@ -215,7 +215,7 @@ describe('prefixed serving', () => {
           headers,
           body: JSON.stringify(initialize),
         })
-        expect(unprefixed.status).toBe(404)
+        expect(unprefixed.status).toBe(401)
       },
     )
 
@@ -618,9 +618,9 @@ describe('routes', () => {
       }
     })
 
-    it('spawns with an mcp url that carries the app base path', async () => {
+    it('spawns with an mcp url that carries the agent path', async () => {
       const {harness, captured} = recordingHarness()
-      const dedicated = await startTerminalServer(harness, {basePath: '/t/tok-terminal'})
+      const dedicated = await startTerminalServer(harness, {agentPath: '/t/tok-terminal'})
       try {
         expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})
         expect(captured[0]?.mcpUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/t\/tok-terminal\/api\/mcp$/)
