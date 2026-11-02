@@ -192,14 +192,16 @@ export function readSharedState<Value extends object>(
     reading = new AbortController()
     const {signal} = reading
     const subscribe = async (): Promise<void> => {
-      if (!(await client.ensureTrusted()) || signal.aborted) return
+      if (!(await client.ensureTrusted(0)) || signal.aborted) return
       const state = await client.sharedState.get<Value>(key)
       if (signal.aborted) return
       const publish = (): void => write(state.value())
       signal.addEventListener('abort', state.on('updated', publish), {once: true})
       publish()
     }
-    subscribe().catch((error: unknown) => console.error(`conciv: reading shared state ${key} failed`, error))
+    subscribe().catch((error: unknown) => {
+      if (!signal.aborted) console.error(`conciv: reading shared state ${key} failed`, error)
+    })
   })
   return () => {
     offClient()

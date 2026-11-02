@@ -105,12 +105,13 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const extensions = [highlight, ...(config.extensions ?? [])]
   const instances = createInstances(extensions)
   const reachability = wireEngineReachability(apiBase, config.hubConnection)
-  const disposeInstances = makeGuardedDisposer(instances, reachability.dispose)
+  const stopHubState = data.readHubState()
+  const disposeInstances = makeGuardedDisposer(instances, () => {
+    stopHubState()
+    reachability.dispose()
+  })
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
     onCleanup(disposeInstances)
-    createEffect(() => {
-      if (connected()) onCleanup(data.readHubState())
-    })
     const harness = createHarnessMeta(data, connected, queryClient)
     return <HarnessMetaContext.Provider value={harness}>{props.children}</HarnessMetaContext.Provider>
   }

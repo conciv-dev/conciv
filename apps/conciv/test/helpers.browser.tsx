@@ -324,9 +324,14 @@ type ShellHarness = {
 }
 
 export function createShellHarness(base: () => string): ShellHarness {
-  const mounted: {router: ReturnType<typeof createConcivRouter> | null; hub: HubConnection | null} = {
+  const mounted: {
+    router: ReturnType<typeof createConcivRouter> | null
+    hub: HubConnection | null
+    unmount: () => void
+  } = {
     router: null,
     hub: null,
+    unmount: () => {},
   }
 
   const mountShell = (entry: string, extensions: AnyExtension[] = [], options: ShellMountOptions = {}): void => {
@@ -345,10 +350,12 @@ export function createShellHarness(base: () => string): ShellHarness {
       extensions,
     })
     mounted.router = router
-    render(() => <RouterProvider router={router} />)
+    mounted.unmount = render(() => <RouterProvider router={router} />).unmount
   }
 
   const dispose = (): void => {
+    mounted.unmount()
+    mounted.unmount = () => {}
     if (mounted.router) disposeConcivRouter(mounted.router)
     mounted.router = null
     mounted.hub?.close()
