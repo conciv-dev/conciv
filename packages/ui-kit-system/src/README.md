@@ -12,7 +12,7 @@ Source of the conciv SolidJS design system. Most files wrap `@ark-ui/solid` prim
 - `HoverCard` (`openDelay` 0, `closeDelay` 120, `sideOffset` 6; `hover-card.tsx`).
 - `Dialog`, `DialogApi` (`dialog.tsx`): props `title` or `label`, `open`, `onOpenChange`, `footer`, `role`, `initialFocus`, `restoreFocus` (true), `dismissable` (false), `size` (md/lg/xl), `layer`, `children`.
 - `Loader`, `LoaderSize` (`loader.tsx`): indeterminate Ark Progress.
-- `AnchoredListbox`, `AnchoredListboxHandle` `{listboxId, activeOptionId(), commitHighlighted(), handleKeyDown(event)}`, `AnchoredListboxRect` (`anchored-listbox.tsx`): listbox at a fixed rect that an external input can drive.
+- `AnchoredListbox`, `AnchoredListboxHandle` `{listboxId, activeOptionId(), commitHighlighted(), handleKeyDown(event)}`, `AnchoredListboxRect` (`anchored-listbox.tsx`): listbox at a fixed rect that an external input can drive; `AnchoredListbox.SearchRoot` is the inline variant with its own visible search input (role `combobox`), and `Content inline` drops the popover size cap.
 - `LIST_PANEL`, `LIST_PANEL_ITEM`, `LIST_PANEL_GROUP_LABEL`, `LIST_PANEL_MESSAGE`, `LIST_PANEL_ITEM_LABEL`, `LIST_PANEL_ITEM_DESCRIPTION` (`list-panel.ts`).
 - `createClipboardCopy(options)`, `writeClipboardText(text)`, types `ClipboardCopyStatus`, `ClipboardCopyLabels`, `ClipboardCopyOptions`, `ClipboardCopy` (`clipboard.ts`); `ClipboardCopyButton`, `ClipboardCopyButtonProps`, `ClipboardCopyTooltips` (`clipboard-copy-button.tsx`).
 - `TextField`, `TextArea` (`minRows` 1, `maxRows` 5, `onHeightChange`, `unstyled`), `TextAreaProps` (`text-field.tsx`).
@@ -27,7 +27,7 @@ Source of the conciv SolidJS design system. Most files wrap `@ark-ui/solid` prim
 
 - `Dialog` takes exactly one of `title` or `label` (`DialogName` union), is always `modal`, and closes on Escape or outside click only when `dismissable`. The `layer` prop is declared but not read (`dialog.tsx`).
 - `Button` defaults `type` to `'button'` (`button.tsx`).
-- `AnchoredListbox`: option ids are `${listboxId}-option-${value}`; `commitHighlighted` returns false with nothing highlighted; `handleKeyDown` returns false when the hidden input is not mounted and forwards a cloned event otherwise; the first item is highlighted when `collection` changes; Escape calls `onDismiss`; `onReady` gets the handle on mount and null on cleanup.
+- `AnchoredListbox`: option ids are `${listboxId}-option-${value}`; `commitHighlighted` returns false with nothing highlighted; `handleKeyDown` returns false when the hidden input is not mounted and forwards a cloned event otherwise; the first item is highlighted when `collection` changes; Escape calls `onDismiss`; `onReady` gets the handle on mount and null on cleanup; `SearchRoot` highlights the first item after every query change and selects on Enter.
 - `createClipboardCopy` returns to `'idle'` after `resetMs` (default `RESET_MS` 2000); its status signal uses `equals: false`, and synchronous throws from `writeText` become `'failed'` (`clipboard.ts`).
 - `fitHeight` clamps to `rowHeight * [minRows, maxRows]` and sets `overflowY: 'auto'` only above max; `observeAutosize` refits only on `clientWidth` change, once per animation frame (`autosize.ts`). `TextArea` calls `onHeightChange` only when the height changes.
 - `Loader` always forces `value={null}` (`loader.tsx`).

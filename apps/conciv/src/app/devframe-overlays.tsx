@@ -1,19 +1,12 @@
-import {For, Show, createContext, createMemo, createUniqueId, from, untrack, useContext, type JSX} from 'solid-js'
+import {For, Show, createContext, createMemo, from, untrack, useContext, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import {AsyncQueuer} from '@tanstack/pacer'
-import {Listbox, createListCollection, useListbox, useListboxContext} from '@ark-ui/solid/listbox'
 import {createDevframeClientRuntime, type DevframeClientRuntime} from '@devframes/hub/client'
 import {HUB_EVENTS} from '@devframes/hub/constants'
 import type {DevframeCommandEntry, DevframeDockEntry} from '@devframes/hub/types'
 import type {SharedState} from 'devframe/utils/shared-state'
-import {
-  Dialog,
-  LIST_PANEL_ITEM,
-  LIST_PANEL_ITEM_DESCRIPTION,
-  LIST_PANEL_ITEM_LABEL,
-  LIST_PANEL_MESSAGE,
-} from '@conciv/ui-kit-system'
+import {AnchoredListbox, Dialog, createListCollection} from '@conciv/ui-kit-system'
 import {z} from 'zod'
 import type {HubConnection} from './devframe-link.js'
 import {useLayers} from './context.js'
@@ -163,36 +156,6 @@ function matchesQuery(command: DevframeCommandEntry, query: string): boolean {
   return `${command.title} ${command.description ?? ''}`.toLowerCase().includes(needle)
 }
 
-const PALETTE_CONTENT = 'flex flex-col max-h-80 overflow-y-auto overscroll-contain outline-none -mx-1'
-const PALETTE_INPUT =
-  'w-full min-h-11 box-border px-3 mb-2 text-[0.875rem] text-chat-text bg-chat-fill border border-chat-line rounded-chat-surface-md placeholder:text-chat-text-3 focus-visible:outline-none focus-visible:ring-inset-accent'
-const PALETTE_ITEM = `${LIST_PANEL_ITEM} flex-col items-stretch gap-0.5 min-h-11 data-[active]:bg-chat-fill-strong data-[active]:text-chat-text`
-
-function PaletteItem(props: {command: DevframeCommandEntry}): JSX.Element {
-  const listbox = useListboxContext()
-  const descriptionId = createUniqueId()
-  const active = () => listbox().highlightedValue === props.command.id
-  return (
-    <Listbox.Item
-      item={props.command}
-      highlightOnHover
-      class={PALETTE_ITEM}
-      data-active={active() ? '' : undefined}
-      aria-label={props.command.title}
-      aria-describedby={props.command.description ? descriptionId : undefined}
-    >
-      <Listbox.ItemText class={LIST_PANEL_ITEM_LABEL}>{props.command.title}</Listbox.ItemText>
-      <Show when={props.command.description}>
-        {(text) => (
-          <span id={descriptionId} class={LIST_PANEL_ITEM_DESCRIPTION}>
-            {text()}
-          </span>
-        )}
-      </Show>
-    </Listbox.Item>
-  )
-}
-
 export function CommandPalette(props: {enabled: boolean}): JSX.Element {
   const shell = useHubShell()
   const layers = useLayers()
@@ -231,13 +194,6 @@ export function CommandPalette(props: {enabled: boolean}): JSX.Element {
       .catch(() => notices.notify(`Could not run ${command.title}.`, {key: `hub-command:${id}`, tone: 'danger'}))
   }
 
-  const listbox = useListbox(() => ({
-    collection: collection(),
-    value: [],
-    loopFocus: true,
-    onSelect: (details) => run(details.value),
-  }))
-
   return (
     <TrackedDialog
       label="Commands"
@@ -246,43 +202,31 @@ export function CommandPalette(props: {enabled: boolean}): JSX.Element {
       dismissable
       initialFocus={() => palette.input ?? null}
     >
-      <Listbox.RootProvider value={listbox}>
-        <Listbox.Input
-          ref={(element) => setPalette('input', element)}
-          class={PALETTE_INPUT}
-          role="combobox"
-          aria-expanded="true"
-          aria-label="Search commands"
-          placeholder="Search commands"
-          autoHighlight
-          value={palette.query}
-          onInput={(event) => {
-            setPalette('query', event.currentTarget.value)
-            listbox().highlightFirst()
-          }}
-        />
-        <Show
-          when={shell.link()}
-          fallback={
-            <div role="status" class={LIST_PANEL_MESSAGE}>
-              Connecting to the hub
-            </div>
-          }
-        >
-          <Listbox.Content class={PALETTE_CONTENT} attr:tabindex={null}>
+      <AnchoredListbox.SearchRoot
+        collection={collection()}
+        label="Search commands"
+        query={palette.query}
+        onQueryChange={(query) => setPalette('query', query)}
+        onSelect={run}
+        inputRef={(element) => setPalette('input', element)}
+      >
+        <Show when={shell.link()} fallback={<AnchoredListbox.Message>Connecting to the hub</AnchoredListbox.Message>}>
+          <AnchoredListbox.Content inline>
             <Show
               when={collection().size > 0}
-              fallback={
-                <div role="status" class={LIST_PANEL_MESSAGE}>
-                  No matching commands
-                </div>
-              }
+              fallback={<AnchoredListbox.Message>No matching commands</AnchoredListbox.Message>}
             >
-              <For each={collection().items}>{(command) => <PaletteItem command={command} />}</For>
+              <For each={collection().items}>
+                {(command) => (
+                  <AnchoredListbox.Item item={command} name={command.title} description={command.description}>
+                    <AnchoredListbox.ItemText>{command.title}</AnchoredListbox.ItemText>
+                  </AnchoredListbox.Item>
+                )}
+              </For>
             </Show>
-          </Listbox.Content>
+          </AnchoredListbox.Content>
         </Show>
-      </Listbox.RootProvider>
+      </AnchoredListbox.SearchRoot>
     </TrackedDialog>
   )
 }

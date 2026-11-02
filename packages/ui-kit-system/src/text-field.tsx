@@ -4,7 +4,7 @@ import {applyAutosize, observeAutosize} from './autosize.js'
 
 const ROOT = 'flex flex-col gap-1'
 const LABEL = 'text-[0.75rem] text-chat-text-2 font-chat'
-const INPUT =
+export const TEXT_FIELD_INPUT =
   'w-full font-chat text-[0.8125rem] rounded-chat-surface-md bg-chat-fill text-chat-text [border:1px_solid_var(--chat-line)] py-2 px-3 focus-ring placeholder:text-chat-text-3'
 
 export function TextField(props: JSX.InputHTMLAttributes<HTMLInputElement> & {label?: string}): JSX.Element {
@@ -14,7 +14,7 @@ export function TextField(props: JSX.InputHTMLAttributes<HTMLInputElement> & {la
       <Show when={local.label}>
         <Field.Label class={LABEL}>{local.label}</Field.Label>
       </Show>
-      <Field.Input class={INPUT} {...rest} />
+      <Field.Input class={TEXT_FIELD_INPUT} {...rest} />
     </Field.Root>
   )
 }

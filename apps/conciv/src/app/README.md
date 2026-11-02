@@ -14,6 +14,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `PanelChromeContext`, `usePanelChrome` (`panel-chrome.ts`): panel close handle
 - `makePanelComposerFocus`, `usePanelComposerFocus` (`panel-focus.ts`): tracks the active composer input
 - `EngineReachabilityContext`, `makeEngineReachability`, `useEngineReachability` (`reachability.ts`): `online` and `sustainedOffline` accessors
+- `HubShellProvider`, `useHubShell`, `HubShell`, `HubLink`, `CommandPalette` (`devframe-overlays.tsx`): one Devframe client runtime per trusted hub client, the hub's dock list, hub `notify` messages as toasts, and the Mod+K command palette over the hub's palette commands
 - `usePaneChat` (`use-pane-chat.ts`): `useChatSession` keyed on session id and connection generation
 - `createWarmSession`, `WarmSession` (`warm-session.ts`): resolves the most recently updated session
 
@@ -24,6 +25,9 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `panel-focus.ts:makePanelComposerFocus.release`: clears the handle only if it is still the current one
 - `live-sessions.ts:activityIn`: a null id or no registered pane gives `unmounted`; `running` if any registered pane for that id is working
 - `warm-session.ts:createWarmSession`: the warm id latches once set; queries run only while `connected()`
+- `devframe-overlays.tsx:watchLink`: a new hub client aborts the previous runtime; the runtime starts only after `ensureTrusted(0)` resolves true
+- `devframe-overlays.tsx:watchMessages`: the first (full) message delta never toasts; later entries with `notify` toast once per id and level maps to tone (`error` to `danger`, `debug` to `info`)
+- `devframe-overlays.tsx:CommandPalette`: commands are read when the palette opens; a failed command shows a danger toast
 - `pane-provider.tsx:PaneProvider`: `newSession` calls `props.onNewSession` if given, otherwise creates a session over rpc and navigates to it
 
 ## Side Effects
@@ -31,6 +35,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `pane-provider.tsx:openNewSession`: `rpc.sessions.create`, invalidates the sessions cache, navigates to `/panel/$sessionId`
 - `pane-provider.tsx:PaneProvider`: grab staging calls `rpc.page.symbolicate`
 - `warm-session.ts:createWarmSession`: queries `sessions.list` and `sessions.resolve`
+- `devframe-overlays.tsx`: hub RPC `devframes:plugin:messages:list` on each `messagesUpdated` broadcast, serialized through an `AsyncQueuer`; `Mod+K` hotkey while the panel is open
 - `use-pane-chat.ts:usePaneChat`: opens a chat session through `useChatSession` (`@conciv/client`) against `apiBase`
 
 ## Verification
