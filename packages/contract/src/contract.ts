@@ -50,8 +50,6 @@ export const ChatHydrationSchema = z.object({
 })
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 export const OkSchema = z.object({ok: z.literal(true)})
-export const CHAT_EVENTS_CHANNEL = 'conciv:chat:events'
-export const ChatEventsStreamSchema = z.object({streamId: z.string()})
 export const ChatStopInputSchema = SessionIdInputSchema.extend({runIds: z.array(z.string().min(1))})
 export const ChatPermissionDecisionOutputSchema = OkSchema.extend({startsTurn: z.boolean()})
 export const chatPermissionDecisionErrors = {UNKNOWN_REQUEST: {message: 'no pending approval'}}

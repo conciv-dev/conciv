@@ -16,6 +16,10 @@ const DEVFRAME_GROUPS: ReadonlySet<string> = new Set([
   'page',
   'registry',
   'server',
+  'chat.hydrate',
+  'chat.stop',
+  'chat.permissionDecision',
+  'chat.uiReply',
 ])
 
 export type AppHub = {connection: () => HubConnection; connected: () => boolean; session: () => string | null}

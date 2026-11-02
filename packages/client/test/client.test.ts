@@ -530,6 +530,22 @@ describe('hub-backed query utils', () => {
     stop()
   })
 
+  it('sends a listed procedure through the hub and leaves the rest of its group on oRPC', async () => {
+    const booted = await bootHubKit()
+    const {sessionId} = await booted.rpc.sessions.create(undefined)
+    const listed = new Set(['chat.hydrate'])
+    const hydration = await hubRoutedRpc(unreachableRpc, hubCall(booted), listed).chat.hydrate({sessionId})
+    expect(hydration.activeRun).toBeNull()
+    const unreachableHub: HubCall = () => Promise.reject(new Error('the hub is not on this path'))
+    const abort = new AbortController()
+    const events = await hubRoutedRpc(booted.rpc, unreachableHub, listed).chat.events(
+      {sessionId},
+      {signal: abort.signal},
+    )
+    expect(Symbol.asyncIterator in events).toBe(true)
+    abort.abort()
+  })
+
   it('leaves an unlisted group on oRPC', async () => {
     const booted = await bootHubKit()
     const {sessionId} = await booted.rpc.sessions.create(undefined)

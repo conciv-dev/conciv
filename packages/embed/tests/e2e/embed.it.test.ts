@@ -1360,7 +1360,9 @@ test.describe('recording attachment', () => {
       const persisted = {messages: ''}
       await until(
         async () => {
-          persisted.messages = JSON.stringify((await kit.rpc.chat.hydrate({sessionId: chatSession})).messages)
+          persisted.messages = JSON.stringify(
+            (await kit.hub.call('conciv:chat:hydrate', {sessionId: chatSession})).messages,
+          )
           return persisted.messages.includes('[click]')
         },
         {hangGuardMs: 30_000, intervalMs: 200},

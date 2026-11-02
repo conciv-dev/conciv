@@ -1150,7 +1150,6 @@ describe('editor opening', () => {
 })
 
 describe('panel refresh', () => {
-  const HYDRATE_PATH = ['chat', 'hydrate']
   const REPLY_TEXT = 'the transcript that outlives a refresh'
 
   const coreBase = bootedCore('panel-refresh')
@@ -1177,7 +1176,7 @@ describe('panel refresh', () => {
     await sessionMenu().click()
     await expect.element(refreshRow(), {timeout: 8000}).toBeVisible()
 
-    const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
+    const gate = await faults.install({kind: 'hub-gate', names: ['conciv:chat:hydrate']})
     await refreshRow().click()
     await coreControl.awaitFaultPending(gate, 1)
 

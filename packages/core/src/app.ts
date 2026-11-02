@@ -87,6 +87,7 @@ import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
 import {rpcSessionList, sessionsFunctions, type SessionsServerFunctions} from './api/rpc/sessions.js'
+import {chatFunctions, type ChatServerFunctions} from './api/rpc/chat.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {makeDevframePlane} from './devframe-plane.js'
 import {agentPathFor, makeEngineGate, type GatedFetch} from './engine-gate.js'
@@ -107,7 +108,8 @@ declare module 'devframe' {
       CapturesServerFunctions,
       PageServerFunctions,
       RegistryServerFunctions,
-      ServerServerFunctions {}
+      ServerServerFunctions,
+      ChatServerFunctions {}
 }
 
 export type MakeAppOpts = {
@@ -595,6 +597,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       ...pageFunctions({runtime, tabs: primitives.page.tabs}),
       ...registryFunctions({runtime, chat: chatDeps}),
       ...serverFunctions({runtime, chat: chatDeps}),
+      ...chatFunctions({runtime, chat: chatDeps}),
     ],
   })
   const publishSessions = (): Promise<void> => devframePlane.publish('sessions')

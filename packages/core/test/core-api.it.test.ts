@@ -1535,7 +1535,7 @@ describe('rpc wire', () => {
         const sessionId = await newSession()
         const {seen} = await heldTurn(sessionId, 'stop me', 'stopped-run')
         const ended = nextTurnEnd(sessionId)
-        await chatKit().rpc.chat.stop({sessionId, runIds: ['stopped-run']})
+        await chatKit().hub.call('conciv:chat:stop', {sessionId, runIds: ['stopped-run']})
         expect(['stopping', 'aborted']).toContain((await chatKit().hydrate(sessionId)).lastRun?.phase)
         await ended
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({
@@ -1553,12 +1553,12 @@ describe('rpc wire', () => {
         const sessionId = await newSession()
         await heldTurn(sessionId, 'keep going', 'scoped-next')
         const ended = nextTurnEnd(sessionId)
-        await chatKit().rpc.chat.stop({sessionId, runIds: ['scoped-earlier']})
+        await chatKit().hub.call('conciv:chat:stop', {sessionId, runIds: ['scoped-earlier']})
         expect(await chatKit().hydrate(sessionId)).toMatchObject({
           activeRun: {runId: 'scoped-next'},
           lastRun: {runId: 'scoped-next', phase: 'running'},
         })
-        await chatKit().rpc.chat.stop({sessionId, runIds: ['scoped-next']})
+        await chatKit().hub.call('conciv:chat:stop', {sessionId, runIds: ['scoped-next']})
         await ended
         script().release()
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({runId: 'scoped-next', phase: 'aborted'})
@@ -1734,7 +1734,7 @@ describe('rpc wire', () => {
       it('an unanswered ask never times out and a stop leaves it waiting', async () => {
         const sessionId = await newSession()
         expect(JSON.stringify((await askTurn(sessionId)).all)).not.toMatch(/timed out/)
-        await chatKit().rpc.chat.stop({sessionId, runIds: []})
+        await chatKit().hub.call('conciv:chat:stop', {sessionId, runIds: []})
         expect((await chatKit().hydrate(sessionId)).pendingApprovals.map((ask) => ask.approvalId)).toEqual([ASK_ID])
       })
 
@@ -2097,7 +2097,7 @@ return seen`
         await chatKit().rpc.sessions.list(undefined)
         expect(performance.now() - asked).toBeLessThan(1_000)
         const ended = nextTurnEnd(sessionId)
-        await chatKit().rpc.chat.stop({sessionId, runIds: ['spin-run']})
+        await chatKit().hub.call('conciv:chat:stop', {sessionId, runIds: ['spin-run']})
         await ended
       })
 
@@ -2206,10 +2206,18 @@ return seen`
         await turn.waitFor(isUiCall, GUARD)
         const answer = executeResult('return await external_conciv_ui({kind: "confirm", question: "Proceed?"})')
         await chatKit().join('ui-run').waitFor(isUiCall, GUARD)
-        await chatKit().rpc.chat.uiReply({sessionId: app.mcpSession, toolCallId: uiCallId ?? '', value: 'yes'})
+        await chatKit().hub.call('conciv:chat:uiReply', {
+          sessionId: app.mcpSession,
+          toolCallId: uiCallId ?? '',
+          value: 'yes',
+        })
         expect(await answer).toEqual({answered: true, value: 'yes'})
         await expect(
-          chatKit().rpc.chat.uiReply({sessionId: app.mcpSession, toolCallId: 'no-such-call', value: 'yes'}),
+          chatKit().hub.call('conciv:chat:uiReply', {
+            sessionId: app.mcpSession,
+            toolCallId: 'no-such-call',
+            value: 'yes',
+          }),
         ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
         script().releaseResults()
         await turn.done(GUARD)
@@ -2557,7 +2565,7 @@ return seen`
   }
 
   function decide(sessionId: string, approvalId: string, approved: boolean, scope: 'once' | 'session' = 'once') {
-    return callerWith(sessionId).chat.permissionDecision({approvalId, approved, scope})
+    return chatKit().hub.call('conciv:chat:permissionDecision', {sessionId, approvalId, approved, scope})
   }
 
   function callerWith(sessionId: string) {
