@@ -1,10 +1,10 @@
 import type {ChatCommand, ChatCommands, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
 
-export type CommandSource = {harness: HarnessAdapter; cwd: string; basePath: string}
+export type CommandSource = {harness: HarnessAdapter; cwd: string; agentPath: string}
 
 export function mcpUrlFor(deps: CommandSource, origin: string): string {
-  return `${origin}${deps.basePath}/api/mcp`
+  return `${origin}${deps.agentPath}/api/mcp`
 }
 
 function commandSource(name: string): ChatCommand['source'] {

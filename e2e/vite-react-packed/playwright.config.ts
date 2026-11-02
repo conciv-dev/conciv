@@ -6,6 +6,7 @@ export default defineConfig(
   e2eConfig('vite-react-packed', {
     command: (port) => `pnpm --dir ${JSON.stringify(PACKED_APP_DIR)} exec vite --port ${port} --strictPort --force`,
     reuseExistingServer: false,
+    appRoot: PACKED_APP_DIR,
   }),
   {testDir: '../vite-react/tests'},
 )

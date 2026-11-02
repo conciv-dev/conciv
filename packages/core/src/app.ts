@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto'
 import {existsSync} from 'node:fs'
 import {Hono} from 'hono'
 import {z} from 'zod'
@@ -68,6 +69,7 @@ import {logError} from './lib/debug.js'
 import {rpcSessionList} from './api/rpc/sessions.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {makeDevframePlane} from './devframe-plane.js'
+import {agentPathFor, makeEngineGate, type GatedFetch} from './engine-gate.js'
 import {currentSession, runWithSession} from './runtime/session-context.js'
 import type {OpenInEditor} from './editor/open.js'
 import type {ClaimUpgrade} from '@conciv/serve'
@@ -88,6 +90,8 @@ export type MakeAppOpts = {
   plugins?: readonly ConcivPlugin[]
 
   loginToken?: string
+
+  browserLogins?: boolean
 
   extensionConfig?: Record<string, unknown>
   harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
@@ -282,6 +286,7 @@ export type AppType = ReturnType<typeof composeRoutes>
 
 export type MadeApp = {
   app: AppType
+  fetch: GatedFetch<Parameters<AppType['fetch']>[1]>
   chat: ChatContext
   plane: ChatPlane
   dispose: () => Promise<void>
@@ -323,6 +328,7 @@ export function withBuiltinExtensions(extensions: readonly AnyExtension[] | unde
 }
 
 type HostParts = {
+  agentPath: string
   sessions: ServerSessions
   harness: ServerHarness
   nativeUrl: () => string | undefined
@@ -334,6 +340,7 @@ function makeConcivHost(opts: MakeAppOpts, parts: HostParts): ConcivHost {
   return {
     cwd: opts.cwd,
     basePath: opts.basePath ?? '',
+    agentPath: parts.agentPath,
     stateDir: concivStateDir(opts.cfg.stateRoot),
     sessions: parts.sessions,
     harness: parts.harness,
@@ -352,6 +359,8 @@ function makeConcivHost(opts: MakeAppOpts, parts: HostParts): ConcivHost {
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const extensions = withBuiltinExtensions(opts.extensions)
+  const loginToken = opts.loginToken ?? randomUUID()
+  const agentPath = agentPathFor(loginToken)
 
   assertUniqueExtensionSlugs(extensions)
 
@@ -412,6 +421,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
         basePath: opts.basePath ?? '',
+        agentPath,
         sessions: serverSessions,
         harness: serverHarness,
         symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
@@ -498,7 +508,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const chatDeps: ChatContext = {
     harness,
     cwd: opts.cwd,
-    basePath: opts.basePath ?? '',
+    agentPath,
     claudeHome: opts.claudeHome,
     db,
     plane,
@@ -567,13 +577,20 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const devframePlane = makeDevframePlane({
     stateDir: concivStateDir(opts.cfg.stateRoot),
     cwd: opts.cwd,
-    host: makeConcivHost(opts, {sessions: serverSessions, harness: serverHarness, nativeUrl, chat: chatDeps, runtime}),
+    host: makeConcivHost(opts, {
+      agentPath,
+      sessions: serverSessions,
+      harness: serverHarness,
+      nativeUrl,
+      chat: chatDeps,
+      runtime,
+    }),
     plugins: opts.plugins,
     devframes: opts.cfg.devframes,
-    loginToken: opts.loginToken,
+    loginToken,
     allowedOrigins: opts.allowedOrigins,
   })
-  const {hub, claimUpgrade, loginToken} = devframePlane
+  const {hub, claimUpgrade} = devframePlane
   app.all(`${hub.base}*`, (c) => hub.handler(c.req.raw))
 
   const dispose = async (): Promise<void> => {
@@ -589,5 +606,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     throw error
   }
 
-  return {app, chat: chatDeps, plane, dispose, extensionContexts, runtime, hub, claimUpgrade, loginToken}
+  const fetch = makeEngineGate({
+    fetch: app.fetch,
+    hub,
+    loginToken,
+    browserLogins: opts.browserLogins ?? true,
+    allowedOrigins: opts.allowedOrigins ?? [],
+  })
+  return {app, fetch, chat: chatDeps, plane, dispose, extensionContexts, runtime, hub, claimUpgrade, loginToken}
 }

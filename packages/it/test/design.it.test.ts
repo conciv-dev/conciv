@@ -19,6 +19,7 @@ import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
+import {trustedTab} from '@conciv/extension-testkit/trusted-tab'
 import type {} from '@conciv/extension-design/client'
 import {
   CaptureInputSchema,
@@ -150,6 +151,7 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
   const targetsDir = await mkdtemp(join(tmpdir(), 'conciv-design-targets-'))
   await renderTargets({browser, dir: targetsDir})
   const page = await browser.newPage({viewport: {width: 1280, height: 720}})
+  await trustedTab(page, {root: stateRoot})
   const goto = (to: string): Promise<void> =>
     awaitPagePlaneSubscribed(page, async () => {
       await page.goto(new URL(to.startsWith('/') ? to : `/?variant=${to}`, origin).href, {

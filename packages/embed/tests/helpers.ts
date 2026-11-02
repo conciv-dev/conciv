@@ -147,7 +147,7 @@ export async function proxyTo(targetBase: string, opts: {port?: number} = {}): P
   })
   const {base, port, close} = await listenLocal(server, opts.port ?? 0)
   return {
-    base,
+    base: `${base}${target.pathname.replace(/\/$/, '')}`,
     port,
     trafficCount: () => count + upgrades,
     dropConnections: () => {

@@ -16,7 +16,7 @@ import type {makeRpcRouter} from './router.js'
 export type ChatContext = {
   harness: HarnessAdapter
   cwd: string
-  basePath: string
+  agentPath: string
   claudeHome?: string
   db: ConcivDb
   plane: ChatPlane

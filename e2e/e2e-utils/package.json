@@ -15,6 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@conciv/extension-testkit": "workspace:*",
     "@playwright/test": "catalog:"
   },
   "devDependencies": {

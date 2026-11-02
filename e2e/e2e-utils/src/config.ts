@@ -22,7 +22,7 @@ function serverEntry(command: string, port: number, env: Record<string, string> 
 
 export function e2eConfig(
   app: E2EApp,
-  opts: {command: (port: number) => string; timeout?: number; reuseExistingServer?: boolean},
+  opts: {command: (port: number) => string; timeout?: number; reuseExistingServer?: boolean; appRoot?: string},
 ): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
   const timeout = opts.timeout ?? 90_000
@@ -37,7 +37,9 @@ export function e2eConfig(
       ...serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port),
       ...(opts.reuseExistingServer === undefined ? {} : {reuseExistingServer: opts.reuseExistingServer}),
     },
-    projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
+    projects: [
+      {name: 'chromium', metadata: {appRoot: opts.appRoot ?? process.cwd()}, use: {...devices['Desktop Chrome']}},
+    ],
   })
 }
 
@@ -76,6 +78,7 @@ export function harnessMatrixConfig(opts: {
     ),
     projects: entries.map(([harness, port]) => ({
       name: harness,
+      metadata: {appRoot: join(process.cwd(), `.conciv-${harness}`)},
       use: {...devices['Desktop Chrome'], baseURL: `http://localhost:${port}`},
     })),
   })

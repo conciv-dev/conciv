@@ -219,7 +219,7 @@ describe('extension', () => {
       launchEditor: () => {},
       extensions,
     })
-    return {base: `http://127.0.0.1:${engine.port}`, engine}
+    return {base: engine.agentBase, engine}
   }
 
   async function collectGarbage(): Promise<void> {

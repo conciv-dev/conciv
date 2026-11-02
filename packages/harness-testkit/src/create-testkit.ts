@@ -106,13 +106,14 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
       const app = await boot({stateRoot, cwd: stateRoot, harness})
       const listener = {fetch: app.fetch, claimUpgrade: app.claimUpgrade}
       let served = await serveApp(listener)
-      const base = served.base
-      const wsBase = served.wsBase
+      const agentPath = `/t/${app.loginToken}`
+      const base = `${served.base}${agentPath}`
+      const wsBase = `${served.wsBase}${agentPath}`
       const aborts: AbortController[] = []
       const activeSession = {id: ''}
       const rpc = makeSessionBoundRpcClient(base, () => activeSession.id)
       const bootstrapRpc = makeRpcClient(base)
-      const hubUrl = `${base}${app.hub.base}`
+      const hubUrl = `${served.base}${app.hub.base}`
       const hub = nodeClient({url: hubUrl, transport: 'ws', token: app.loginToken})
 
       const post = (path: string, body: unknown, session?: string): Promise<Response> =>

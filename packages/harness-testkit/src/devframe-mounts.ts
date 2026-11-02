@@ -25,6 +25,7 @@ function testHost(stateDir: string, config: unknown): ConcivHost {
     cwd: stateDir,
     stateDir,
     basePath: '',
+    agentPath: '',
     sessions: {
       resumeToken: async () => null,
       recordToken: async () => {},

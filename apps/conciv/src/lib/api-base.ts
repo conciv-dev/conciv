@@ -1,6 +1,7 @@
 declare global {
   interface Window {
     __CONCIV_API_BASE__?: string
+    __CONCIV_HUB_BASE__?: string
   }
 }
 
@@ -22,4 +23,11 @@ function queryCore(): string {
 
 export function resolveApiBase(): string {
   return window.__CONCIV_API_BASE__ ?? (metaContent('conciv-api-base') || queryCore()) ?? ''
+}
+
+export function resolveHubBase(engineOrigin: string): string {
+  const hint = metaContent('conciv-api-base-hub')
+  if (window.__CONCIV_HUB_BASE__) return window.__CONCIV_HUB_BASE__
+  if (hint) return new URL(hint, window.location.href).origin
+  return engineOrigin
 }

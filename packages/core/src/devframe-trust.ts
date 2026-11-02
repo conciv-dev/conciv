@@ -5,10 +5,14 @@ function trustedTokens(ctx: DevframeNodeContext): Record<string, unknown> {
   return getInternalContext(ctx).storage.auth.value().trusted
 }
 
+export function isTrustedBrowserToken(ctx: DevframeNodeContext, token: string): boolean {
+  return Object.hasOwn(trustedTokens(ctx), token)
+}
+
 export function isBrowserCaller(ctx: DevframeNodeContext): boolean {
   const token = ctx.rpc.getCurrentRpcSession()?.meta.clientAuthToken
   if (token === undefined) return false
-  return Object.hasOwn(trustedTokens(ctx), token)
+  return isTrustedBrowserToken(ctx, token)
 }
 
 export function isInheritedToken(ctx: DevframeNodeContext, token: string | undefined): boolean {
