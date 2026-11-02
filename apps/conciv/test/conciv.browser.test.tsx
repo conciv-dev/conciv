@@ -1737,6 +1737,36 @@ describe('status bar', () => {
       await expect.element(page.getByRole('tab', {name: 'Board'})).toBeDisabled()
       await expect.element(page.getByRole('tab', {name: 'Chat'})).not.toBeDisabled()
     })
+
+    it('scrolls the selected tab into view when the tabs outgrow the bar', async () => {
+      const [activeView, setActiveView] = createSignal('chat')
+      render(() => (
+        <div style={{width: '18rem'}}>
+          <StatusBar
+            status={{kind: 'done', label: 'DONE'}}
+            elapsedLabel="00:12"
+            diff={{files: 0, adds: 0, dels: 0}}
+            views={[
+              {id: 'chat', label: 'Chat'},
+              {id: 'board', label: 'Board'},
+              {id: 'terminal', label: 'Terminal'},
+              {id: 'messages', label: 'Messages'},
+              {id: 'terminals', label: 'Terminals'},
+            ]}
+            activeView={activeView()}
+            onSelectView={setActiveView}
+            disabled={false}
+          />
+        </div>
+      ))
+
+      await expect.element(page.getByRole('tab', {name: 'Chat'})).toBeInViewport({ratio: 0.95})
+      await expect.element(page.getByRole('tab', {name: 'Terminals'})).not.toBeInViewport({ratio: 0.95})
+      setActiveView('terminals')
+      await expect.element(page.getByRole('tab', {name: 'Terminals'})).toBeInViewport({ratio: 0.95})
+      setActiveView('chat')
+      await expect.element(page.getByRole('tab', {name: 'Chat'})).toBeInViewport({ratio: 0.95})
+    })
   })
 })
 
