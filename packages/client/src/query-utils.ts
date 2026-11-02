@@ -1,5 +1,5 @@
 import {createTanstackQueryUtils} from '@orpc/tanstack-query'
-import type {RpcClient} from '@conciv/contract'
+import {contract, type RpcClient} from '@conciv/contract'
 
 export function makeQueryUtils(client: RpcClient) {
   return createTanstackQueryUtils(client)
@@ -9,35 +9,25 @@ export type QueryUtils = ReturnType<typeof makeQueryUtils>
 
 export type HubCall = (name: string, input: unknown) => Promise<unknown>
 
-export type QueryGroup = keyof QueryUtils & string
-
-function hubProcedure<Procedure extends object>(procedure: Procedure, name: string, hub: HubCall): Procedure {
-  return new Proxy(procedure, {
-    get(target, key) {
-      const source: object = target
-      const value = Reflect.get(source, key)
-      if (key === 'queryOptions')
-        return (options?: {input?: unknown}) => ({...value(options), queryFn: () => hub(name, options?.input ?? {})})
-      if (key === 'mutationOptions')
-        return (options?: object) => ({...value(options), mutationFn: (input: unknown) => hub(name, input ?? {})})
-      return value
-    },
-  })
-}
-
 function hubGroup<Group extends object>(group: Group, groupName: string, hub: HubCall): Group {
+  const procedures: unknown = Reflect.get(contract, groupName)
   return new Proxy(group, {
     get(target, key) {
       const source: object = target
-      const procedure = Reflect.get(source, key)
-      if (typeof key !== 'string') return procedure
-      return hubProcedure(procedure, `conciv:${groupName}:${key}`, hub)
+      if (
+        typeof key !== 'string' ||
+        typeof procedures !== 'object' ||
+        procedures === null ||
+        !Object.hasOwn(procedures, key)
+      )
+        return Reflect.get(source, key)
+      return (input?: unknown) => hub(`conciv:${groupName}:${key}`, input ?? {})
     },
   })
 }
 
-export function hubQueryUtils(utils: QueryUtils, hub: HubCall, groups: ReadonlySet<string>): QueryUtils {
-  return new Proxy(utils, {
+export function hubRoutedRpc(rpc: RpcClient, hub: HubCall, groups: ReadonlySet<string>): RpcClient {
+  return new Proxy(rpc, {
     get(target, key) {
       const source: object = target
       const group = Reflect.get(source, key)

@@ -147,7 +147,7 @@ describe('folder install', () => {
       launchEditor: () => {},
       extensions,
     })
-    const apiBase = `http://127.0.0.1:${engine.port}`
+    const apiBase = engine.agentBase
     const callTool = makeCallTool(apiBase, await resolveSession(apiBase))
     const routes = await callTool('tanstack_route_manifest', {})
     expect(Array.isArray(routes)).toBe(true)
@@ -637,7 +637,7 @@ describe('server tools', () => {
       launchEditor: () => {},
       extensions: [tanstackExtension],
     })
-    const apiBase = `http://127.0.0.1:${engine.port}`
+    const apiBase = engine.agentBase
     const session = await resolveSession(apiBase)
     return {engine, callTool: makeCallTool(apiBase, session)}
   }
@@ -765,7 +765,7 @@ describe('serverfn trace', () => {
       launchEditor: () => {},
       extensions: [tanstackExtension],
     })
-    const apiBase = `http://127.0.0.1:${engine.port}`
+    const apiBase = engine.agentBase
     const session = await resolveSession(apiBase)
     return {engine, callTool: makeCallTool(apiBase, session)}
   }

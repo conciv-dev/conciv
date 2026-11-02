@@ -315,6 +315,66 @@ describe('conciv hub', () => {
     await tab.close()
   }, 15_000)
 
+  it('refuses an api call with no token with a 401 the page can read, and serves it under the engine token', async () => {
+    const origin = new URL(kit.hubUrl).origin
+    const refused = await fetch(`${origin}/rpc/sessions/list`, {
+      method: 'POST',
+      headers: {origin: host.url.slice(0, -1), 'content-type': 'application/json'},
+      body: JSON.stringify({json: {}}),
+    })
+    expect(refused.status).toBe(401)
+    expect(refused.headers.get('access-control-allow-origin')).toBe(host.url.slice(0, -1))
+    await expect(makeRpcClient(origin).sessions.list({})).rejects.toThrow()
+    await expect(makeRpcClient(`${origin}/t/${crypto.randomUUID()}`).sessions.list({})).rejects.toThrow()
+    expect(await makeRpcClient(`${origin}/t/${kit.loginToken}`).sessions.list({})).toEqual(expect.any(Array))
+  }, 15_000)
+
+  it('serves an api call under the token of a logged-in tab', async () => {
+    const tab = await trustedTab(browser, host.url, kit.hubUrl)
+    const token = await tab.evaluate(async () => (await window.concivConnection.ready()).connection.authToken)
+    if (!token) throw new Error('the logged-in tab holds no token')
+    const origin = new URL(kit.hubUrl).origin
+    expect(await makeRpcClient(`${origin}/t/${token}`).sessions.list({})).toEqual(expect.any(Array))
+    await tab.close()
+  }, 15_000)
+
+  it('refuses a prototype key in the engine token path with a 401', async () => {
+    const origin = new URL(kit.hubUrl).origin
+    const statuses = await Promise.all(
+      ['constructor', '__proto__', 'toString', 'hasOwnProperty'].map(async (key) => {
+        const response = await fetch(`${origin}/t/${key}/api/mcp`, {
+          method: 'POST',
+          headers: {'content-type': 'application/json'},
+          body: '{}',
+        })
+        return response.status
+      }),
+    )
+    expect(statuses).toEqual([401, 401, 401, 401])
+  }, 15_000)
+
+  it('trusts no tab that presents an object prototype key as its token', async () => {
+    const tab = await browser.newPage()
+    await tab.goto(host.url, {waitUntil: 'domcontentloaded'})
+    await tab.waitForFunction(() => 'concivProbe' in window)
+    const outcomes = await tab.evaluate(async (baseURL) => {
+      const tokens = ['constructor', '__proto__', 'toString', 'hasOwnProperty']
+      return Promise.all(
+        tokens.map(async (authToken) => {
+          const client = await window.concivProbe.browserClient({baseURL, authToken}).ready()
+          return window.concivProbe
+            .concivCall(client)('hub-probe:caller', {})
+            .then(
+              (value) => JSON.stringify(value),
+              () => 'refused',
+            )
+        }),
+      )
+    }, kit.hubUrl)
+    expect(outcomes).toEqual(['refused', 'refused', 'refused', 'refused'])
+    await tab.close()
+  }, 15_000)
+
   it('runs a session function under its session and refuses one with no session', async () => {
     const sessionId = SessionId.parse(await kit.session())
     expect(await kit.hub.call('hub-probe:session', {sessionId})).toEqual({sessionId})
@@ -335,6 +395,32 @@ describe('conciv hub', () => {
     expect(route.status).toBe(404)
     expect(kit.hubInstance.connectionMeta().mcp).toBeUndefined()
   }, 10_000)
+
+  it('connects a page that moves to another engine to that engine, not the first one it met', async () => {
+    const second = await bootKit({}, createFakeHarness({id: 'fake-hub-second'}))
+    const page = await browser.newPage()
+    try {
+      await page.goto(host.url, {waitUntil: 'domcontentloaded'})
+      await page.waitForFunction(() => 'concivProbe' in window)
+      const metaBases = await page.evaluate(
+        async ({firstURL, secondURL}) => {
+          const first = window.concivProbe.browserClient({baseURL: firstURL})
+          const firstBase = (await first.ready()).connection.metaBaseUrl
+          first.close()
+          const next = window.concivProbe.browserClient({baseURL: secondURL})
+          const secondBase = (await next.ready()).connection.metaBaseUrl
+          next.close()
+          return [firstBase, secondBase]
+        },
+        {firstURL: kit.hubUrl, secondURL: second.hubUrl},
+      )
+      expect(metaBases[0]?.startsWith(kit.hubUrl)).toBe(true)
+      expect(metaBases[1]?.startsWith(second.hubUrl)).toBe(true)
+    } finally {
+      await page.close()
+      await second.cleanup()
+    }
+  }, 30_000)
 
   it('registers no WebMCP tool from a page client', async () => {
     const page = await browser.newPage()
@@ -376,7 +462,11 @@ describe('conciv hub', () => {
         const iterator = stream[Symbol.asyncIterator]()
         await iterator.next()
         const reads: number[] = []
-        window.concivProbe.readSharedState<{count: number}>(connection, key, (value) => reads.push(value.count))
+        const firstRead = Promise.withResolvers<void>()
+        window.concivProbe.readSharedState<{count: number}>(connection, key, (value) => {
+          reads.push(value.count)
+          firstRead.resolve()
+        })
         Object.assign(window, {
           ended: iterator.next().then(
             () => 'finished',
@@ -384,6 +474,7 @@ describe('conciv hub', () => {
           ),
           reads,
         })
+        await firstRead.promise
       },
       {channel: TICKS_CHANNEL, key: SHARED_STATE},
     )
@@ -411,6 +502,43 @@ describe('start wires the hub beside oRPC', () => {
     await engine.stop()
     await expect(fetch(`${engine.apiBase}/health`)).rejects.toThrow()
   }, 15_000)
+
+  it('hands agents a token-prefixed base and keeps the api base token-free', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-hub-agent-base-'))
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      launchEditor: () => {},
+      harness: createFakeHarness({id: 'fake-hub-agent-base'}),
+    })
+    expect(engine.agentBase).toBe(`${engine.apiBase}/t/${engine.loginToken}`)
+    expect((await fetch(`${engine.agentBase}/rpc/sessions/list`, {method: 'POST'})).status).not.toBe(401)
+    expect((await fetch(`${engine.apiBase}/rpc/sessions/list`, {method: 'POST'})).status).toBe(401)
+    expect((await fetch(`${engine.apiBase}/native`)).status).not.toBe(401)
+    await engine.stop()
+  }, 15_000)
+
+  it('accepts only the access token when one is set, not a browser login', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-hub-access-only-'))
+    const accessToken = crypto.randomUUID()
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      accessToken,
+      launchEditor: () => {},
+      harness: createFakeHarness({id: 'fake-hub-access-only'}),
+    })
+    const browser = await chromium.launch({headless: true})
+    const host = await serveProbeHost()
+    const tab = await trustedTab(browser, host.url, `${engine.apiBase}${engine.hub.base}`)
+    const token = await tab.evaluate(async () => (await window.concivConnection.ready()).connection.authToken)
+    await expect(makeRpcClient(`${engine.apiBase}/t/${token}`).sessions.list({})).rejects.toThrow()
+    expect(await makeRpcClient(`${engine.apiBase}/t/${accessToken}`).sessions.list({})).toEqual(expect.any(Array))
+    await tab.close()
+    await host.close()
+    await browser.close()
+    await engine.stop()
+  }, 20_000)
 
   it('keeps the hub outside the access token prefix', async () => {
     const root = mkdtempSync(join(tmpdir(), 'conciv-hub-token-'))

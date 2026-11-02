@@ -15,6 +15,7 @@ export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; inj
 export function htmlTags(corePort: number, opts: {widget?: ConcivSettingsInit | false}): HtmlTag[] {
   const base: HtmlTag[] = [
     {tag: 'meta', attrs: {name: 'conciv-api-base', content: `http://127.0.0.1:${corePort}`}, injectTo: 'head'},
+    {tag: 'meta', attrs: {name: 'conciv-api-base-hub', content: '/'}, injectTo: 'head'},
   ]
   if (opts.widget === false) return base
   return [
@@ -32,13 +33,16 @@ function metaPresent(name: string): (html: string) => boolean {
 }
 
 function widgetTags(apiBase: string, widgetConfig?: ConcivSettingsInit | false): WidgetTag[] {
-  const base = {
-    present: metaPresent('conciv-api-base'),
-    html: `<meta name="conciv-api-base" content="${escapeAttr(apiBase)}">`,
-  }
-  if (widgetConfig === false) return [base]
+  const base = [
+    {
+      present: metaPresent('conciv-api-base'),
+      html: `<meta name="conciv-api-base" content="${escapeAttr(apiBase)}">`,
+    },
+    {present: metaPresent('conciv-api-base-hub'), html: '<meta name="conciv-api-base-hub" content="/">'},
+  ]
+  if (widgetConfig === false) return base
   return [
-    base,
+    ...base,
     {
       present: metaPresent('conciv-widget'),
       html: `<meta name="conciv-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">`,

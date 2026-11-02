@@ -6,8 +6,12 @@ import {isRetryableRpcFailure, subscribeRpcReachability} from '@conciv/contract'
 
 export const ENGINE_OFFLINE_GRACE_MS = 1000
 
+function isAnsweredHubError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'ConcivError' && Reflect.get(error, 'code') !== 'DISCONNECTED'
+}
+
 export function isReachabilityError(error: unknown): boolean {
-  return !(error instanceof ORPCError)
+  return !(error instanceof ORPCError) && !isAnsweredHubError(error)
 }
 
 type OnlineSetup = (setOnline: (online: boolean) => void) => (() => void) | undefined

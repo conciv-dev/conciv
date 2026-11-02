@@ -11,20 +11,23 @@ export type CallGate = {arrived: Promise<void>; release: () => void}
 export type CallRecord = {name: string; input: unknown}
 export type CallObserver = {calls: () => CallRecord[]; stop: () => void}
 export type CallCursor = {count: () => number}
+export type CallCompletion = {completed: Promise<void>; stop: () => void}
 
 async function wrapCalls(kit: FaultKit, names: readonly string[], wrap: Wrap): Promise<() => void> {
   const context = await kit.hubInstance.context
   const {rpc} = context
-  const restores = await Promise.all(
+  const targets = await Promise.all(
     names.map(async (name) => {
       const definition = rpc.get(name)
       if (!definition) throw new Error(`no hub function named ${name} to wrap`)
       const invoke: Invoke = await getRpcHandler(definition, context)
-      rpc.update({...definition, setup: undefined, handler: (...args: unknown[]) => wrap(invoke, args, name)})
-      return () => rpc.update(definition)
+      return {name, definition, invoke}
     }),
   )
-  return () => restores.forEach((restore) => restore())
+  targets.forEach(({name, definition, invoke}) =>
+    rpc.update({...definition, setup: undefined, handler: (...args: unknown[]) => wrap(invoke, args, name)}),
+  )
+  return () => targets.forEach(({definition}) => rpc.update(definition))
 }
 
 export async function failCalls(kit: FaultKit, names: readonly string[], code = 'FAULT_INJECTED'): Promise<CallFault> {
@@ -67,6 +70,16 @@ export async function gateCalls(kit: FaultKit, names: readonly string[]): Promis
       gate.resolve()
     },
   }
+}
+
+export async function awaitCompletedCall(kit: FaultKit, names: readonly string[]): Promise<CallCompletion> {
+  const completed = Promise.withResolvers<void>()
+  const stop = await wrapCalls(kit, names, async (invoke, args) => {
+    const result = await invoke(...args)
+    completed.resolve()
+    return result
+  })
+  return {completed: completed.promise, stop}
 }
 
 export async function observeCalls(kit: FaultKit, pattern: RegExp): Promise<CallObserver> {

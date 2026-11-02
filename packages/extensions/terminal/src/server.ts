@@ -56,7 +56,7 @@ function resumable({server}: TerminalRuntime, harnessSessionId: HarnessSessionId
 }
 
 function apiBase(runtime: TerminalRuntime, context: RpcContext): string {
-  return `${context.origin}${runtime.server.basePath}`
+  return `${context.origin}${runtime.server.agentPath}`
 }
 
 async function connectContext(

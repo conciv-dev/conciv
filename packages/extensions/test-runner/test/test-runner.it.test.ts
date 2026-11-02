@@ -51,7 +51,7 @@ describe('extension', () => {
       launchEditor: () => {},
       extensions,
     })
-    return {base: `http://127.0.0.1:${engine.port}`, engine}
+    return {base: engine.agentBase, engine}
   }
 
   function callViaSandbox(base: string, name: string, input: unknown): Promise<unknown> {
@@ -135,7 +135,7 @@ describe('extension', () => {
         launchEditor: () => {},
         extensions,
       })
-      const base = `http://127.0.0.1:${engine.port}`
+      const base = engine.agentBase
       try {
         await expect(runnerClient(base).run({})).rejects.toMatchObject({
           code: 'UNAVAILABLE',
@@ -296,7 +296,7 @@ describe('tool catalog', () => {
       launchEditor: () => {},
       extensions,
     })
-    return {base: `http://127.0.0.1:${engine.port}`, engine}
+    return {base: engine.agentBase, engine}
   }
 
   function runSandbox(base: string, typescriptCode: string): Promise<unknown> {

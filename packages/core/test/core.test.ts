@@ -1,3 +1,4 @@
+import {spawnSync} from 'node:child_process'
 import {mkdtempSync, rmSync, readFileSync, statSync, writeFileSync, mkdirSync, utimesSync} from 'node:fs'
 import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
@@ -660,7 +661,7 @@ describe('engine stamp', () => {
     })
   })
 
-  const EndpointSchema = z.object({mcpUrl: z.string()})
+  const EndpointSchema = z.object({mcpUrl: z.string(), token: z.string()})
 
   function recordedEndpoint(root: string): z.infer<typeof EndpointSchema> {
     return EndpointSchema.parse(JSON.parse(readFileSync(join(statePaths(root).dir, 'mcp-endpoint.json'), 'utf8')))
@@ -679,8 +680,9 @@ describe('engine stamp', () => {
       try {
         const engine = await start({options: {harnessBin: 'true', stateRoot: root}, root, launchEditor: () => {}})
         try {
-          const {mcpUrl} = recordedEndpoint(root)
-          expect(mcpUrl).toBe(`http://127.0.0.1:${engine.port}/api/mcp`)
+          const {mcpUrl, token} = recordedEndpoint(root)
+          expect(token).toBe(engine.loginToken)
+          expect(mcpUrl).toBe(`http://127.0.0.1:${engine.port}/t/${engine.loginToken}/api/mcp`)
           expect(statSync(join(statePaths(root).dir, 'mcp-endpoint.json')).mode & 0o777).toBe(0o600)
           const response = await fetch(mcpUrl, {
             method: 'POST',
@@ -716,6 +718,44 @@ describe('engine stamp', () => {
       }
     })
   })
+})
+
+describe('engine log redaction', () => {
+  const LEAKY_ENGINE = `
+import {start} from '@conciv/core'
+import {defineExtension} from '@conciv/extension'
+const leaky = defineExtension({name: 'leaky'}).server((server) => {
+  throw new Error('cannot reach ' + server.agentPath + '/api?devframe_auth_token=' + process.env.LEAK_TOKEN)
+})
+const root = process.env.LEAK_ROOT
+const engine = await start({
+  options: {harnessBin: 'true', stateRoot: root},
+  root,
+  accessToken: process.env.LEAK_TOKEN,
+  launchEditor: () => {},
+  extensions: [leaky],
+})
+await engine.stop()
+`
+
+  it('strips the engine token from a real engine log line', () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-engine-redact-'))
+    const token = crypto.randomUUID()
+    try {
+      const run = spawnSync(process.execPath, ['--input-type=module', '-e', LEAKY_ENGINE], {
+        cwd: join(import.meta.dirname, '..'),
+        env: {...process.env, LEAK_ROOT: root, LEAK_TOKEN: token},
+        encoding: 'utf8',
+        timeout: 20_000,
+      })
+      expect(run.status).toBe(0)
+      expect(run.stderr).toContain('extension "leaky" failed to mount')
+      expect(run.stderr).toContain('/t/<redacted>/api?devframe_auth_token=<redacted>')
+      expect(run.stderr).not.toContain(token)
+    } finally {
+      rmSync(root, {recursive: true, force: true})
+    }
+  }, 25_000)
 })
 
 describe('page bus inflight teardown', () => {

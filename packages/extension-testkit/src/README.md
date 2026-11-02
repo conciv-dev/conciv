@@ -20,8 +20,8 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `pagePlaneWatchFor` / `awaitPagePlaneSubscribed` / `PagePlaneWatch` (`page-plane.ts`): per-page watch that resolves once the push socket on PUSH_WS_PATH sends a 'ready' frame
 - `observeRpc` / `rpcObserverFor` / `RpcObserver` / `RpcCallRecord` / `RpcCallFilter` / `RpcInputPattern` (`rpc-observer.ts`): records HTTP oRPC calls by procedure path; supports mark, completed(filter), startedCount, completedCount, socketCount, dispose
 - `rpcCallCursor` / `rpcCallMark` / `httpRpcRequestUrls` / `RpcCallCursor` (`rpc-counts.ts`): counts RPC calls since a mark and collects /rpc request URLs
-- `watchRpcWire` / `RpcWireWatch` (`rpc-wire.ts`): waits for sessions.list and sessions.resolve traffic
 - `failRpcCalls` / `abortRpcCalls` / `holdRpcCalls` / `gateRpcCalls` / `RpcFaultInjector` / `RpcHold` / `RpcGate` (`rpc-fault.ts`): Playwright route-based RPC fault injection (error status, abort, toggleable hold, capture-and-release gate)
+- `failCalls` / `abortCalls` / `holdCalls` / `gateCalls` / `awaitCompletedCall` / `observeCalls` / `callCount` / `callCursor` (`devframe-faults.ts`): hub-side faults and waits that wrap named `conciv:*` devframe functions on the kit's hub (coded failure, dropped link, hold, capture-and-release gate, first completed call, call records)
 - `failChatTurns` / `dropChatTurns` / `ChatTurnFault` (`chat-fault.ts`): makes POSTs to CHAT_SSE_PATH return an error status (default 500) or abort them
 - `watchChatWire` / `ChatWireWatch` / `ChatTurnFrame` / `ChatTransport` / `ChatWirePart` (`chat-wire.ts`): captures chat turns sent over the CHAT_WS_PATH websocket or CHAT_SSE_PATH POSTs; exposes nextTurn and socket counters
 - `watchPushWire` / `PushWireWatch` (`push-wire.ts`): counts push sockets and collects approval ids from 'chat' push frames

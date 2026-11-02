@@ -17,7 +17,7 @@ type WebpackContext = {nextRuntime?: string; dev?: boolean; dir?: string; config
 type WebpackHook = (config: WebpackConfig, context: WebpackContext) => WebpackConfig
 
 type HeaderCondition = {type: 'header'; key: string; value?: string}
-type Route = {source: string; destination: string; has?: HeaderCondition[]}
+type Route = {source: string; destination: string; has?: HeaderCondition[]; basePath?: false}
 type RedirectRoute = Route & {permanent: boolean; missing?: HeaderCondition[]; locale?: false; basePath?: false}
 type RewriteTable = {beforeFiles?: Route[]; afterFiles?: Route[]; fallback?: Route[]}
 
@@ -91,6 +91,7 @@ function forwardHub(
     source: `${HUB_PATH}/:path*`,
     destination: `http://127.0.0.1:${port}${HUB_PATH}/:path*`,
     has: [LOOPBACK_HOST],
+    basePath: false,
   }
   return {
     skipTrailingSlashRedirect: true,
@@ -107,6 +108,11 @@ function forwardHub(
     },
   }
 }
+
+export type ConcivRegisterOptions = Pick<ConcivConfig, 'devframes'>
+
+const DEVFRAMES_IN_CONFIG =
+  'conciv: devframes.add cannot be set in withConciv, since next.config reaches the engine as JSON and drops each devframe setup function. Pass them to register in instrumentation.ts instead: export const register = () => registerConciv({devframes: {add: [myDevframe]}})'
 
 const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/plugin', '@conciv/core', '@conciv/db', '@conciv/harness']
 const EDGE_REGISTER_ENTRIES = ['@conciv/it/plugin/nextjs', '@conciv/plugin/nextjs']
@@ -135,16 +141,17 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   const baseExternals = base.serverExternalPackages ?? []
   const serverExternalPackages = [...new Set([...baseExternals, ...ENGINE_EXTERNALS])]
   if (options.enabled === false) return {...nextConfig, env: baseEnv, serverExternalPackages}
-  const port = options.port ?? CONCIV_DEFAULT_PORT
-  const resolved: ConcivConfig = {...options, port}
+  const presetPort = Number(process.env.NEXT_PUBLIC_CONCIV_PORT)
+  const port = Number.isInteger(presetPort) && presetPort > 0 ? presetPort : (options.port ?? CONCIV_DEFAULT_PORT)
+  const {devframes, ...serializable} = options
+  if ((devframes?.add?.length ?? 0) > 0) throw new Error(DEVFRAMES_IN_CONFIG)
   const concivEnv = {
     NEXT_PUBLIC_CONCIV_PORT: String(port),
-    CONCIV_OPTIONS: JSON.stringify(resolved),
+    CONCIV_OPTIONS: JSON.stringify({...serializable, port}),
   }
   for (const [key, value] of Object.entries(concivEnv)) {
     if (process.env[key] === undefined) process.env[key] = value
   }
-  const effectivePort = process.env.NEXT_PUBLIC_CONCIV_PORT ?? concivEnv.NEXT_PUBLIC_CONCIV_PORT
   const generated = writeExtensionsEntry(process.cwd())
   const baseTurbopack = base.turbopack ?? {}
   const turbopack: TurbopackConfig = {
@@ -163,19 +170,23 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   }
   return {
     ...nextConfig,
-    env: {...baseEnv, ...concivEnv, NEXT_PUBLIC_CONCIV_PORT: effectivePort},
+    env: {...baseEnv, ...concivEnv},
     serverExternalPackages,
     turbopack,
     webpack,
-    ...forwardHub(base, effectivePort),
+    ...(process.env.NODE_ENV === 'production' ? {} : forwardHub(base, concivEnv.NEXT_PUBLIC_CONCIV_PORT)),
   }
 }
 
-export async function registerWith(loadBuiltins: () => Promise<Builtins>): Promise<void> {
+export async function registerWith(
+  loadBuiltins: () => Promise<Builtins>,
+  registerOptions: ConcivRegisterOptions = {},
+): Promise<void> {
   if (process.env.NODE_ENV === 'production') return
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
-  const options = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
-  if (options.enabled === false) return
+  const parsed = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
+  if (parsed.enabled === false) return
+  const options: ConcivConfig = {...parsed, ...registerOptions}
   const root = process.cwd()
   try {
     const {watchExtensionsDir} = await import('./extensions-watch.js')
@@ -188,9 +199,9 @@ export async function registerWith(loadBuiltins: () => Promise<Builtins>): Promi
   await makeEngineBooter(options, root, builtins, 'exact')()
 }
 
-export async function register(): Promise<void> {
+export async function register(registerOptions: ConcivRegisterOptions = {}): Promise<void> {
   await registerWith(async () => {
     const {NO_BUILTINS} = await import('@conciv/extension-compiler/extensions')
     return NO_BUILTINS
-  })
+  }, registerOptions)
 }

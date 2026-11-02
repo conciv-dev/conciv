@@ -150,9 +150,9 @@ export default whiteboard
 
 `.client(factory)`'s return `{value, effects?, dispose?}` — `value` is merged into what
 `getExtensionApi(name).useContext()` / your own `useContext` return, typed. `.server(factory)`
-receives a `ServerApi<Config>` (`config`, `cwd`, `basePath`, `stateDir`, `sessions`, `harness`,
+receives a `ServerApi<Config>` (`config`, `cwd`, `basePath`, `agentPath`, `stateDir`, `sessions`, `harness`,
 `page`, `tools`, `symbolicate`, `bundler?`, `nativeUrl()` —
-`packages/extension/src/types.ts:96-108`) and returns `{context, router?, app?, turnEnd?, dispose?}`:
+`packages/extension/src/types.ts:100-111`) and returns `{context, router?, app?, turnEnd?, dispose?}`:
 `context` feeds your tools' server handlers, `router` is an oRPC router mounted at
 `/rpc/ext/<name>` (see RPC below), `app` is an optional Hono app for anything a tool result can't
 carry (SSE, uploads), `dispose` runs at shutdown.

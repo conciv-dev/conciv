@@ -9,6 +9,7 @@
     "./settings": "./src/data/settings.ts",
     "./shadow": "./src/lib/shadow.ts",
     "./api-base": "./src/lib/api-base.ts",
+    "./devframe-link": "./src/app/devframe-link.tsx",
     "./styles.css": "./src/styles.css"
   },
   "scripts": {

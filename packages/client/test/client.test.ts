@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {onlineManager} from '@tanstack/query-core'
+import {onlineManager, QueryObserver, skipToken} from '@tanstack/query-core'
 import {defineConcivPlugin} from '@conciv/extension/devframe-plugin'
+import {concivError} from '@conciv/extension/devframe-function'
 import {until} from '@conciv/harness-testkit'
 import {serveDevframePlugin} from '@conciv/harness-testkit/devframe-mounts'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -13,7 +14,7 @@ import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {acquirePushChannel, livePushChannelCount, type PageQueryFrame} from '../src/push-channel.js'
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
-import {hubQueryUtils, makeQueryUtils, type HubCall} from '../src/query-utils.js'
+import {hubRoutedRpc, makeQueryUtils, type HubCall} from '../src/query-utils.js'
 import {ORPCError} from '@orpc/client'
 import {isReachabilityError, setupEngineReachability} from '../src/reachability.js'
 
@@ -540,7 +541,7 @@ describe('hub-backed query utils', () => {
     const booted = await bootHubKit()
     const {sessionId} = await booted.rpc.sessions.create(undefined)
     const plain = makeQueryUtils(unreachableRpc)
-    const utils = hubQueryUtils(plain, hubCall(booted), new Set(['sessions']))
+    const utils = makeQueryUtils(hubRoutedRpc(unreachableRpc, hubCall(booted), new Set(['sessions'])))
     const options = utils.sessions.list.queryOptions({input: {includeHidden: false}})
     expect(options.queryKey).toEqual(plain.sessions.list.queryOptions({input: {includeHidden: false}}).queryKey)
     expect(utils.sessions.list.key()).toEqual(plain.sessions.list.key())
@@ -548,22 +549,51 @@ describe('hub-backed query utils', () => {
     expect(sessions.map((meta: SessionMeta) => meta.id)).toContain(sessionId)
   })
 
-  it('sends a mutation of a listed group through the hub', async () => {
+  it('sends a mutation and a direct call of a listed group through the hub', async () => {
     const booted = await bootHubKit()
-    const utils = hubQueryUtils(makeQueryUtils(unreachableRpc), hubCall(booted), new Set(['sessions']))
-    const observer = new MutationObserver(new QueryClient(), utils.sessions.create.mutationOptions())
-    const {sessionId} = await observer.mutate({})
+    const rpc = hubRoutedRpc(unreachableRpc, hubCall(booted), new Set(['sessions']))
+    const observer = new MutationObserver(new QueryClient(), makeQueryUtils(rpc).sessions.create.mutationOptions())
+    const created = await observer.mutate({})
+    const direct = await rpc.sessions.create(undefined)
     const listed = await booted.rpc.sessions.list({includeHidden: true})
-    expect(listed.map((meta: SessionMeta) => meta.id)).toContain(sessionId)
+    expect(listed.map((meta: SessionMeta) => meta.id)).toEqual(
+      expect.arrayContaining([created.sessionId, direct.sessionId]),
+    )
+  })
+
+  it('treats an error the hub answered with a code as answered, and a dropped hub link as unreachable', async () => {
+    const booted = await bootHubKit()
+    const refused: unknown = await hubCall(booted)('conciv:sessions:rename', {sessionId: 42, title: 'refused'}).catch(
+      (error: unknown) => error,
+    )
+    expect(isReachabilityError(refused)).toBe(false)
+    expect(isReachabilityError(concivError('DISCONNECTED', 'the connection to the conciv engine dropped'))).toBe(true)
+  })
+
+  it('keeps a listed query disabled while its input is skipToken, even on an explicit refetch', async () => {
+    const booted = await bootHubKit()
+    const utils = makeQueryUtils(hubRoutedRpc(unreachableRpc, hubCall(booted), new Set(['sessions'])))
+    const observer = new QueryObserver(new QueryClient(), {
+      ...utils.sessions.list.queryOptions({input: skipToken}),
+      retry: false,
+    })
+    const stop = observer.subscribe(() => {})
+    expect(observer.getCurrentResult().fetchStatus).toBe('idle')
+    const refetched = await observer.refetch()
+    expect(refetched.error?.message).toMatch(/skipToken/)
+    stop()
   })
 
   it('leaves an unlisted group on oRPC', async () => {
     const booted = await bootHubKit()
     const {sessionId} = await booted.rpc.sessions.create(undefined)
     const unreachableHub: HubCall = () => Promise.reject(new Error('the hub is not on this path'))
-    const utils = hubQueryUtils(makeQueryUtils(booted.rpc), unreachableHub, new Set())
-    const listed = await new QueryClient().fetchQuery(utils.sessions.list.queryOptions({input: {includeHidden: true}}))
+    const rpc = hubRoutedRpc(booted.rpc, unreachableHub, new Set())
+    const listed = await new QueryClient().fetchQuery(
+      makeQueryUtils(rpc).sessions.list.queryOptions({input: {includeHidden: true}}),
+    )
     expect(listed.map((meta: SessionMeta) => meta.id)).toContain(sessionId)
+    expect((await rpc.sessions.list({includeHidden: true})).map((meta: SessionMeta) => meta.id)).toContain(sessionId)
   })
 })
 
