@@ -9,7 +9,7 @@
 - `design` / default export (`client.ts`): client extension `design` with `configSchema: designConfig`, `tools: CLIENT_TOOLS`, client value `{}`
 - module augmentation of `ExtensionRegistry` in `@conciv/protocol/config-types` (`client.ts`): registers `typeof design` for typed config
 - `design` / default export (`server.ts`): server extension `design` with `tools: SERVER_STEPS`; returns `context: {design: DesignRuntime}`, `router` (from `makeXrayRouter`), `app` (from `makeXrayApp` with `pageDir` = `xray/` next to the built module) and `dispose`
-- `xrayUrl` (`server.ts`): builds the token-free path `/api/ext/design/xray/list?target=<id>&session=<session>`; the widget prefixes it with its own API base
+- `xrayUrl` (`server.ts`): builds `<origin or basePath>/api/ext/design/xray?target=<id>&session=<session>` and sets `absolute` to whether `server.nativeUrl()` returned an origin
 - Subdirectories:
   - [server](./server/README.md): Server-side core of the design extension: an on-disk target store, PNG raster utilities, x-ray HTTP/oRPC routes, the delta-kind list, the registry wiring, breakpoint tagging and detection of unmatched regions.
   - [shared](./shared/README.md): Code shared by the client and server: zod schemas and tool definitions for the six `design_*` tools, the extension config schema, the error catalog, tolerance constants, iframe message names, CSS property alias helpers, and the TypeScript types for the runtime, store, comparators and provenance.

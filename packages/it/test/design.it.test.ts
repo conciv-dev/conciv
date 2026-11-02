@@ -77,7 +77,6 @@ type Kit = {
   browser: Browser
   page: Page
   origin: string
-  apiBase: string
   stateRoot: string
   targetsDir: string
   call: Call
@@ -167,7 +166,6 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
     browser,
     page,
     origin,
-    apiBase,
     stateRoot,
     targetsDir,
     call: makeCall(rpc),
@@ -186,10 +184,6 @@ function target(name: string): string {
   return join(kit.targetsDir, `${name}.png`)
 }
 
-function xrayHref(path: string): string {
-  return `${kit.apiBase}${path}`
-}
-
 function capturePage(xray: string): string {
   const url = new URL(xray)
   return new URL(`capture${url.search}`, url).href
@@ -199,10 +193,10 @@ function fileUnder(root: string, relative: string): string {
   return isAbsolute(relative) ? relative : join(root, relative)
 }
 
-function rawStatus(input: {base: string; path: string}): Promise<number> {
-  const url = new URL(input.base)
+function rawStatus(input: {origin: string; path: string}): Promise<number> {
+  const url = new URL(input.origin)
   return new Promise((resolve, reject) => {
-    const sent = httpRequest({host: url.hostname, port: url.port, path: `${url.pathname}${input.path}`}, (response) => {
+    const sent = httpRequest({host: url.hostname, port: url.port, path: input.path}, (response) => {
       response.resume()
       resolve(response.statusCode ?? 0)
     })
@@ -605,20 +599,20 @@ describe('x-ray page', () => {
     const registered = await call('design_target', {image: target('u1-1280'), route: '/', width: 1280})
     const report = await call('design_diff', {width: 1280})
     expect(report.xray).toContain(`/api/ext/design/xray/list?target=${registered.id}`)
-    const html = await fetch(xrayHref(report.xray))
+    const html = await fetch(report.xray)
     expect(html.status).toBe(200)
     expect(await html.text()).toContain('<script type="module"')
-    expect((await fetch(xrayHref(report.xray).replace(registered.id, 'nope'))).status).toBe(404)
+    expect((await fetch(report.xray.replace(registered.id, 'nope'))).status).toBe(404)
   })
 
   it('serves the run images and refuses paths outside the design dir', async () => {
     const report = await call('design_diff', {width: 1280})
-    const base = kit.apiBase
+    const base = new URL(report.xray).origin
     expect((await fetch(`${base}/api/ext/design/files/${report.livePath}`)).headers.get('content-type')).toBe(
       'image/png',
     )
-    expect(await rawStatus({base, path: '/api/ext/design/files/../../package.json'})).toBe(404)
-    expect(await rawStatus({base, path: '/api/ext/design/files//etc/hosts'})).toBe(404)
+    expect(await rawStatus({origin: base, path: '/api/ext/design/files/../../package.json'})).toBe(404)
+    expect(await rawStatus({origin: base, path: '/api/ext/design/files//etc/hosts'})).toBe(404)
   })
 
   it('renders the rail from the last run and opens the inspector on the first component', async () => {
@@ -630,7 +624,7 @@ describe('x-ray page', () => {
     if (first?.source === undefined || first.source === null) return
     if (second?.source === undefined || second.source === null) return
     const xray = await browser.newPage()
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     const row = xray.getByRole('listitem').first()
     await row.waitFor()
     expect(await row.textContent()).toContain(first.source.file)
@@ -649,7 +643,7 @@ describe('x-ray page', () => {
     expect(first?.deltas.length).toBeGreaterThan(0)
     if (first === undefined) return
     const xray = await browser.newPage()
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     const rows = xray.getByRole('button', {expanded: true}).or(xray.getByRole('button', {expanded: false}))
     await expectLocator(rows).toHaveCount(report.components.length + report.unmatched.length)
     const badges = xray.getByRole('listitem').first().getByRole('list', {name: 'Deltas'}).getByRole('listitem')
@@ -665,7 +659,7 @@ describe('x-ray page', () => {
     expect(second).toBeDefined()
     if (second === undefined || second === null) return
     const xray = await browser.newPage()
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     await expectLocator(xray.getByRole('region', {name: 'component'})).toBeVisible()
     await xray.keyboard.press('j')
     const name = second.file.split('/').at(-1)?.split('.')[0] ?? second.file
@@ -683,7 +677,7 @@ describe('x-ray page', () => {
     const kind = report.components[0]?.deltas[0]?.kind
     expect(kind).toBeDefined()
     const xray = await browser.newPage({permissions: ['clipboard-read', 'clipboard-write']})
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     await xray.getByRole('button', {name: 'Copy fix prompt'}).click()
     await expectLocator(xray.getByRole('status').filter({hasText: 'copied'})).toHaveText('Fix prompt copied')
     expect(await xray.evaluate(() => navigator.clipboard.readText())).toContain(`${kind}`)
@@ -695,7 +689,7 @@ describe('x-ray page', () => {
     const narrow = await call('design_target', {image: target('u1-390'), route: '/', width: 390})
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
-    await xray.goto(capturePage(xrayHref(report.xray)))
+    await xray.goto(capturePage(report.xray))
     await xray.getByRole('radiogroup', {name: 'Viewport'}).getByText('390').click()
     await expectLocator(xray.getByRole('radio', {name: '390'})).toBeChecked()
     await expectLocator(xray).toHaveURL(
@@ -710,7 +704,7 @@ describe('x-ray page', () => {
     await goto('/')
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
-    await xray.goto(capturePage(xrayHref(report.xray)))
+    await xray.goto(capturePage(report.xray))
     await expectLocator(xray.getByRole('radio', {name: 'Capture'})).toBeChecked()
     await expectLocator(xray.getByRole('radio', {name: 'Slider'})).toBeChecked()
     await expectLocator(xray.getByRole('radio', {name: 'Side by side'})).toBeVisible()
@@ -724,9 +718,9 @@ describe('x-ray page', () => {
     const above = report.components.filter(aboveTolerance).length + report.unmatched.length
     const pill = `${above} of ${report.components.length + report.unmatched.length} off`
     const xray = await browser.newPage()
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     await expectLocator(xray.getByText(pill)).toBeVisible()
-    await xray.goto(capturePage(xrayHref(report.xray)))
+    await xray.goto(capturePage(report.xray))
     await expectLocator(xray.getByRole('figure')).toContainText('Live over design')
     await expectLocator(xray.getByText(pill)).toHaveCount(0)
     await xray.close()
@@ -739,7 +733,7 @@ describe('x-ray page', () => {
     expect(first?.selector).toContain('[data-conciv-source=')
     if (first === undefined) return
     const xray = await browser.newPage()
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     const row = xray.getByRole('listitem').first()
     await expectLocator(row.getByText(first.tag, {exact: true})).toBeVisible()
     await expectLocator(row).not.toContainText('data-conciv-source')
@@ -750,7 +744,7 @@ describe('x-ray page', () => {
     await goto('/')
     const unrun = await call('design_target', {image: target('u1-390'), route: '/', width: 390, name: 'unrun'})
     const report = await call('design_diff', {width: 1280})
-    const url = new URL(xrayHref(report.xray))
+    const url = new URL(report.xray)
     url.searchParams.set('target', unrun.id)
     const xray = await browser.newPage()
     await xray.goto(url.toString())
@@ -765,7 +759,7 @@ describe('x-ray page', () => {
     await goto('/')
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     await xray.getByRole('button', {name: 'Select all'}).hover()
     await expectLocator(xray.getByRole('tooltip')).toHaveText('Select all')
     await xray.close()
@@ -776,7 +770,7 @@ describe('x-ray page', () => {
     const narrow = await call('design_target', {image: target('u1-390'), route: '/', width: 390})
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     const group = xray.getByRole('radiogroup', {name: 'Viewport'})
     const desktop = group.getByRole('radio', {name: '1280'})
     await expectLocator(desktop).toBeChecked()
@@ -794,7 +788,7 @@ describe('x-ray page', () => {
     await goto('/')
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     await expectLocator(xray.getByRole('radio', {name: 'List'})).toBeChecked()
     await xray.getByRole('radiogroup', {name: 'Viewport'}).getByRole('radio', {checked: true}).focus()
     await xray.keyboard.press('2')
@@ -809,7 +803,7 @@ describe('x-ray page', () => {
   it('clear search empties the query and shows the rows again', async () => {
     await goto('/')
     const report = await call('design_diff', {width: 1280})
-    const url = new URL(xrayHref(report.xray))
+    const url = new URL(report.xray)
     url.searchParams.set('q', 'no-such-component')
     const xray = await browser.newPage()
     await xray.goto(url.toString())
@@ -828,7 +822,7 @@ describe('x-ray page', () => {
     expect(region).toBeDefined()
     if (region === undefined) return
     const xray = await browser.newPage()
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     await xray
       .getByRole('button', {name: `${region.kind} region`})
       .first()
@@ -842,7 +836,7 @@ describe('x-ray page', () => {
     await goto('/')
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     await expectLocator(xray.getByRole('listitem').first()).toBeVisible()
     await expectLocator(xray.getByText('stale: source changed')).toHaveCount(0)
     await writeFile(HOST_STYLES, await readFile(HOST_STYLES))
@@ -856,7 +850,7 @@ describe('x-ray page', () => {
   it('keeps a numeric search query from the url', async () => {
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
-    await xray.goto(`${xrayHref(report.xray)}&q=1280`)
+    await xray.goto(`${report.xray}&q=1280`)
     await expectLocator(xray.getByRole('textbox', {name: 'Search components'})).toHaveValue('1280')
     await xray.close()
   })
@@ -869,7 +863,7 @@ describe('x-ray page', () => {
     const header = report.components[index]
     expect(header?.deltas).toEqual([])
     if (header === undefined) return
-    const url = new URL(xrayHref(report.xray))
+    const url = new URL(report.xray)
     url.searchParams.set('component', `${header.selector}#${index}`)
     const xray = await browser.newPage()
     await xray.goto(url.toString())
@@ -883,7 +877,7 @@ describe('x-ray page', () => {
     await goto('/')
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     await expectLocator(xray.getByRole('checkbox', {name: 'Off'})).toBeVisible()
     await expectLocator(xray.getByRole('checkbox', {name: 'Match'})).toHaveCount(0)
     await expectLocator(xray.getByRole('button', {name: 'Invert selection'})).toHaveCount(0)
@@ -894,7 +888,7 @@ describe('x-ray page', () => {
     await goto('/')
     const report = await call('design_diff', {width: 1280})
     const xray = await browser.newPage()
-    await xray.goto(xrayHref(report.xray))
+    await xray.goto(report.xray)
     const inspector = xray.getByRole('region', {name: 'component'})
     await inspector.waitFor()
     const reads: string[] = []
