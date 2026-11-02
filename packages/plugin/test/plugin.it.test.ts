@@ -1877,7 +1877,12 @@ async function expectHubForwarded(page: string): Promise<void> {
   expect((await fetch(`${page}${PLUGIN_FRAME}${asset}`)).status).toBe(200)
 }
 
-async function loginThenFramedCall(browser: Browser, page: string, code: () => Promise<string>): Promise<void> {
+async function loginThenFramedCall(
+  browser: Browser,
+  page: string,
+  code: () => Promise<string>,
+  whileTrusted: (tab: Page) => Promise<void> = async () => {},
+): Promise<void> {
   const tab = await originProbeTab(browser, page)
   const sockets: string[] = []
   tab.on('websocket', (socket) => sockets.push(socket.url()))
@@ -1891,6 +1896,7 @@ async function loginThenFramedCall(browser: Browser, page: string, code: () => P
     await code(),
   )
   expect(trusted).toBe(true)
+  await whileTrusted(tab)
   const frame = await pluginFrame(tab, PLUGIN_FRAME, await probeScript())
   const framed = await frame.evaluate(async () => {
     const client = await window.concivProbe.browserClient({baseURL: '/__conciv/'}).ready()
@@ -1958,14 +1964,41 @@ describe('devframe hub on the vite page origin', () => {
   })
 })
 
+declare module 'devframe' {
+  interface DevframeRpcServerFunctions {
+    'added:ping': () => Promise<string>
+  }
+}
+
 const NEXT_BUNDLERS = [
   {bundler: 'webpack', flags: ['--webpack'], nextPort: 3510, enginePort: 3511},
   {bundler: 'turbopack', flags: [], nextPort: 3512, enginePort: 3513},
 ]
 
+const NEXT_FIXTURE = fileURLToPath(new URL('./fixtures/next-app/', import.meta.url))
+
+function linkNextFixtureModules(): void {
+  const nextPackage = realpathSync(fileURLToPath(new URL('../node_modules/next', import.meta.url)))
+  const modules = join(NEXT_FIXTURE, 'node_modules')
+  rmSync(modules, {recursive: true, force: true})
+  mkdirSync(join(modules, '@conciv'), {recursive: true})
+  symlinkSync(nextPackage, join(modules, 'next'), 'dir')
+  for (const peer of ['react', 'react-dom']) symlinkSync(join(dirname(nextPackage), peer), join(modules, peer), 'dir')
+  const pluginRoot = fileURLToPath(new URL('..', import.meta.url))
+  const installed = join(modules, '@conciv/plugin')
+  mkdirSync(installed)
+  cpSync(join(pluginRoot, 'package.json'), join(installed, 'package.json'))
+  cpSync(join(pluginRoot, 'dist'), join(installed, 'dist'), {recursive: true})
+  symlinkSync(join(pluginRoot, 'node_modules'), join(installed, 'node_modules'), 'dir')
+}
+
+function clearNextFixture(): void {
+  for (const generated of ['.next', 'node_modules', '.conciv', 'next-env.d.ts', 'AGENTS.md', 'CLAUDE.md'])
+    rmSync(join(NEXT_FIXTURE, generated), {recursive: true, force: true})
+}
+
 describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)', ({flags, nextPort, enginePort}) => {
   const PAGE = `http://127.0.0.1:${nextPort}`
-  const EXAMPLE = fileURLToPath(new URL('../../../apps/examples/nextjs-app/', import.meta.url))
 
   let next: ChildProcess
   let output = ''
@@ -1973,12 +2006,21 @@ describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)'
 
   beforeAll(async () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-next-hub-'))
-    rmSync(join(EXAMPLE, '.next'), {recursive: true, force: true})
+    clearNextFixture()
+    linkNextFixtureModules()
     next = spawn(
-      join(EXAMPLE, 'node_modules/.bin/next'),
-      ['dev', ...flags, '--port', String(nextPort), '--hostname', '127.0.0.1'],
+      process.execPath,
+      [
+        join(NEXT_FIXTURE, 'node_modules/next/dist/bin/next'),
+        'dev',
+        ...flags,
+        '--port',
+        String(nextPort),
+        '--hostname',
+        '127.0.0.1',
+      ],
       {
-        cwd: EXAMPLE,
+        cwd: NEXT_FIXTURE,
         detached: true,
         env: {
           ...process.env,
@@ -1999,13 +2041,14 @@ describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)'
       () => output,
       (text) => (text.includes('Ready in') ? true : undefined),
     )
-    expect((await fetch(`${PAGE}/`)).status).toBe(200)
+    expect((await fetch(`${PAGE}/`)).status, output).toBe(200)
     browser = await chromium.launch({headless: true, args: ['--disable-features=LocalNetworkAccessChecks']})
   }, 120_000)
 
   afterAll(async () => {
     await browser?.close()
     await stopGroup(next)
+    clearNextFixture()
   })
 
   it('forwards the hub meta, plugin pages and their assets, keeping the trailing slash redirect', async () => {
@@ -2027,7 +2070,17 @@ describe.each(NEXT_BUNDLERS)('nextjs devframe hub on the page origin ($bundler)'
   }, 30_000)
 
   it('logs in over the page-origin websocket, then a plugin iframe is trusted from the stored login', async () => {
-    await loginThenFramedCall(browser, PAGE, () => authCode(next, () => output))
+    await loginThenFramedCall(
+      browser,
+      PAGE,
+      () => authCode(next, () => output),
+      async (tab) => {
+        const pong = await tab.evaluate(async () =>
+          window.concivProbe.concivCall(await window.concivConnection.ready())('added:ping'),
+        )
+        expect(pong).toBe('pong')
+      },
+    )
   }, 60_000)
 })
 
