@@ -78,6 +78,7 @@ export function harnessMatrixConfig(opts: {
     ),
     projects: entries.map(([harness, port]) => ({
       name: harness,
+      metadata: {appRoot: join(process.cwd(), `.conciv-${harness}`)},
       use: {...devices['Desktop Chrome'], baseURL: `http://localhost:${port}`},
     })),
   })
