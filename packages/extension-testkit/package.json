@@ -25,7 +25,6 @@
     "./serve-host": "./src/serve-host.ts",
     "./navigation-state": "./src/navigation-state.ts",
     "./rpc-counts": "./src/rpc-counts.ts",
-    "./rpc-wire": "./src/rpc-wire.ts",
     "./chat-wire": "./src/chat-wire.ts",
     "./push-wire": "./src/push-wire.ts",
     "./rpc-fault": "./src/rpc-fault.ts",
