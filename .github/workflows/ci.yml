@@ -146,9 +146,14 @@ jobs:
       # wait is bounded and never fails the step by itself. Poll ActiveState rather
       # than `is-active`: apt-daily is Type=oneshot, so it reports `activating` for
       # its whole run and `is-active` would say "not active" while it holds the lock.
+      # apt itself waits up to 10 minutes for the dpkg lock instead of failing at
+      # once. The install attempts carry no per-attempt timeout: on a slow mirror a
+      # killed `playwright install` left its sudo apt-get running with the lock held,
+      # so every retry failed. The step's timeout-minutes bounds the whole loop.
       - if: matrix.chromium
         shell: bash
         run: |
+          echo 'DPkg::Lock::Timeout "600";' | sudo tee /etc/apt/apt.conf.d/99-lock-timeout
           sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer || true
           deadline=$((SECONDS + 600))
           while [ "$SECONDS" -lt "$deadline" ]; do
@@ -164,12 +169,12 @@ jobs:
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do pnpm exec playwright install --with-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
       - timeout-minutes: 17
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do pnpm exec playwright install-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
       - run: pnpm exec conciv-ci-shards run
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
@@ -383,8 +388,13 @@ jobs:
       # wait is bounded and never fails the step by itself. Poll ActiveState rather
       # than `is-active`: apt-daily is Type=oneshot, so it reports `activating` for
       # its whole run and `is-active` would say "not active" while it holds the lock.
+      # apt itself waits up to 10 minutes for the dpkg lock instead of failing at
+      # once. The install attempts carry no per-attempt timeout: on a slow mirror a
+      # killed `playwright install` left its sudo apt-get running with the lock held,
+      # so every retry failed. The step's timeout-minutes bounds the whole loop.
       - shell: bash
         run: |
+          echo 'DPkg::Lock::Timeout "600";' | sudo tee /etc/apt/apt.conf.d/99-lock-timeout
           sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer || true
           deadline=$((SECONDS + 600))
           while [ "$SECONDS" -lt "$deadline" ]; do
@@ -400,12 +410,12 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do pnpm exec playwright install --with-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
       - timeout-minutes: 17
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do pnpm exec playwright install-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
       # Alone on its own runner: nothing else competes for chromium/vite/cpu, so the merged suite's
       # maxWorkers:2 is safe and the heavy solid-streamdown cold-load has headroom. Dependency
       # builds are capped so a cold turbo cache (lockfile change) can't OOM chrome mid-run.
@@ -513,8 +523,13 @@ jobs:
       # wait is bounded and never fails the step by itself. Poll ActiveState rather
       # than `is-active`: apt-daily is Type=oneshot, so it reports `activating` for
       # its whole run and `is-active` would say "not active" while it holds the lock.
+      # apt itself waits up to 10 minutes for the dpkg lock instead of failing at
+      # once. The install attempts carry no per-attempt timeout: on a slow mirror a
+      # killed `playwright install` left its sudo apt-get running with the lock held,
+      # so every retry failed. The step's timeout-minutes bounds the whole loop.
       - shell: bash
         run: |
+          echo 'DPkg::Lock::Timeout "600";' | sudo tee /etc/apt/apt.conf.d/99-lock-timeout
           sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer || true
           deadline=$((SECONDS + 600))
           while [ "$SECONDS" -lt "$deadline" ]; do
@@ -530,12 +545,12 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do pnpm exec playwright install --with-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
       - timeout-minutes: 17
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do pnpm exec playwright install-deps chromium firefox && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
       # Real harness CLIs for the e2e/harnesses turn matrix: unauthenticated turns must
       # surface a visible error (proving spawn + stream + error plumbing), never hang or
       # vanish. pi is a stub harness and never spawns its binary. Only the shard that
