@@ -118,5 +118,5 @@ export function voteEngineProbeSettled(succeeded: boolean, error?: unknown): voi
     onlineManager.setOnline(true)
     return
   }
-  onlineManager.setOnline(!isRetryableRpcFailure(true, error))
+  onlineManager.setOnline(!(isReachabilityError(error) && isRetryableRpcFailure(true, error)))
 }

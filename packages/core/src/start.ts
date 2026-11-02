@@ -164,6 +164,10 @@ export async function start(opts: StartOpts): Promise<Engine> {
     if (!opts.nativePageDir) return undefined
     return agentBase()
   }
+  const mcpUrl = (): string | undefined => {
+    const base = agentBase()
+    return base ? `${base}/api/mcp` : undefined
+  }
 
   const appOpts: MakeAppOpts = {
     cfg,
@@ -183,6 +187,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     onShutdown: opts.onShutdown,
     nativePageDir: opts.nativePageDir,
     nativeUrl,
+    mcpUrl,
   }
   const {fetch, dispose, extensionContexts, hub, claimUpgrade} = await makeApp(appOpts)
 

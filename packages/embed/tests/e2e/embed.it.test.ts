@@ -36,18 +36,20 @@ import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-a
 import {watchChatWire} from '@conciv/extension-testkit/chat-wire'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder'
 import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
-import {holdRpcCalls, failRpcCalls} from '@conciv/extension-testkit/rpc-fault'
+import {holdRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {Buffer} from 'node:buffer'
 import type {DraftRow} from '@conciv/contract'
-import {awaitCompletedCall, gateCalls} from '@conciv/extension-testkit/devframe-faults'
+import {abortCalls, awaitCompletedCall, failCalls, gateCalls} from '@conciv/extension-testkit/devframe-faults'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/extension-testkit/connect-handshake'
 import {makeExtRpcClient} from '@conciv/extension'
 
 const SESSIONS_LIST_CALL = 'conciv:sessions:list'
+const ENGINE_PROBE_CALL = 'conciv:meta:engine'
+const MODELS_CALL = 'conciv:meta:models'
 
 test.describe('embed boot', () => {
   const ASSISTANT_TEXT = 'Hello from conciv'
@@ -674,10 +676,12 @@ test.describe('idle fetch heartbeat', () => {
       listed.stop()
 
       hold.hold()
+      const probe = await abortCalls(suite.kit(), [ENGINE_PROBE_CALL])
 
       const notice = page.getByText('conciv lost connection to the engine.')
       await expect(notice).toBeVisible({timeout: UNREACHABLE_TIMEOUT_MS})
 
+      probe.repair()
       hold.release()
 
       await expect(notice).not.toBeVisible({timeout: RECOVERY_TIMEOUT_MS})
@@ -715,6 +719,7 @@ test.describe('mid session outage', () => {
       await composer.fill('a message queued during the outage')
 
       hold.hold()
+      const probe = await abortCalls(kit, [ENGINE_PROBE_CALL])
 
       const notice = page.getByText('conciv lost connection to the engine.')
       await expect(notice).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
@@ -722,6 +727,7 @@ test.describe('mid session outage', () => {
       await expect(disabledSend).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
       await expect(disabledSend).toBeDisabled()
 
+      probe.repair()
       hold.release()
 
       await expect(notice).not.toBeVisible({timeout: MOUNT_TIMEOUT_MS})
@@ -743,7 +749,7 @@ test.describe('model selector', () => {
 
     test('offers a retry when meta.models fails and recovers on retry', async ({page}) => {
       test.setTimeout(180_000)
-      const models = await failRpcCalls(page, {path: ['meta', 'models']})
+      const models = await failCalls(suite.kit(), [MODELS_CALL])
       await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
       await openPanel(page)
 

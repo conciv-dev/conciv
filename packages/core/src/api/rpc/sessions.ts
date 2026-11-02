@@ -60,7 +60,7 @@ function cleanTitle(title: string): string {
     .slice(0, 120)
 }
 
-export function harnessMetaOf(deps: RpcDeps) {
+export function harnessMetaOf(deps: Pick<RpcDeps, 'chat'>) {
   return {
     id: deps.chat.harness.id,
     name: deps.chat.harness.displayName ?? deps.chat.harness.id,

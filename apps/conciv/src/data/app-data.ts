@@ -5,7 +5,7 @@ import {readSharedState} from '@conciv/extension/devframe-connection'
 import {concivError} from '@conciv/extension/devframe-function'
 import type {HubConnection} from '../app/devframe-link.js'
 
-const DEVFRAME_GROUPS: ReadonlySet<string> = new Set(['sessions'])
+const DEVFRAME_GROUPS: ReadonlySet<string> = new Set(['sessions', 'meta'])
 
 export type AppHub = {connection: () => HubConnection; connected: () => boolean}
 
