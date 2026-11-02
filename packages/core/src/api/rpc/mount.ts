@@ -11,6 +11,7 @@ import type {HarnessAdapter} from '@conciv/harness'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
 import {runWithSession} from '../../runtime/session-context.js'
+import type {Publish} from '../../devframe-plane.js'
 import type {makeRpcRouter} from './router.js'
 
 export type ChatContext = {
@@ -29,6 +30,7 @@ export type RpcDeps = {
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>
   staleness: () => EngineStaleness
+  publish: Publish
 }
 
 export const os = implement(contract).$context<RpcContext>()

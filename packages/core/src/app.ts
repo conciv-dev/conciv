@@ -65,13 +65,17 @@ import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
-import {rpcSessionList} from './api/rpc/sessions.js'
+import {rpcSessionList, sessionsFunctions, type SessionsServerFunctions} from './api/rpc/sessions.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {makeDevframePlane} from './devframe-plane.js'
 import {currentSession, runWithSession} from './runtime/session-context.js'
 import type {OpenInEditor} from './editor/open.js'
 import type {ClaimUpgrade} from '@conciv/serve'
 import type {HubInstance} from '@devframes/hub/initiate'
+
+declare module 'devframe' {
+  interface DevframeRpcServerFunctions extends SessionsServerFunctions {}
+}
 
 export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
@@ -520,6 +524,17 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
 
+  const devframePlane = makeDevframePlane({
+    stateDir: concivStateDir(opts.cfg.stateRoot),
+    cwd: opts.cwd,
+    host: makeConcivHost(opts, {sessions: serverSessions, harness: serverHarness, nativeUrl, chat: chatDeps, runtime}),
+    plugins: opts.plugins,
+    devframes: opts.cfg.devframes,
+    loginToken: opts.loginToken,
+    allowedOrigins: opts.allowedOrigins,
+    published: {sessions: () => rpcSessionList(chatDeps, false)},
+    functions: (publish) => sessionsFunctions({chat: chatDeps, runtime, publish}),
+  })
   const rpc = makeRpcRouter({
     chat: chatDeps,
     tools: toolList,
@@ -527,6 +542,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
+    publish: devframePlane.publish,
   })
 
   const compositeRpc = makeCompositeRpcRouter(
@@ -564,15 +580,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)
   })
 
-  const devframePlane = makeDevframePlane({
-    stateDir: concivStateDir(opts.cfg.stateRoot),
-    cwd: opts.cwd,
-    host: makeConcivHost(opts, {sessions: serverSessions, harness: serverHarness, nativeUrl, chat: chatDeps, runtime}),
-    plugins: opts.plugins,
-    devframes: opts.cfg.devframes,
-    loginToken: opts.loginToken,
-    allowedOrigins: opts.allowedOrigins,
-  })
   const {hub, claimUpgrade, loginToken} = devframePlane
   app.all(`${hub.base}*`, (c) => hub.handler(c.req.raw))
 
@@ -588,6 +595,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     await dispose()
     throw error
   }
+  await devframePlane.publish('sessions')
 
   return {app, chat: chatDeps, plane, dispose, extensionContexts, runtime, hub, claimUpgrade, loginToken}
 }

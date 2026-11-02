@@ -25,6 +25,7 @@ import {bootKit} from './helpers.js'
 
 const TICKS_CHANNEL = 'hub-probe:ticks'
 const SHARED_STATE = 'hub-probe:shared'
+const SESSIONS_STATE = 'conciv:sessions'
 const PLUGIN_FRAME = 'devframes_plugin_terminals/'
 
 const hubProbe = defineConcivPlugin({id: 'hub-probe', title: 'Hub probe'}).server(async (ctx) => {
@@ -199,6 +200,28 @@ describe('conciv hub', () => {
     await kit.hub.call('hub-probe:bump', {})
     expect(await Promise.all(seen)).toEqual([1, 1])
     await Promise.all(tabs.map((tab) => tab.close()))
+  }, 15_000)
+
+  it('publishes the session list to shared state when a session changes', async () => {
+    const tab = await trustedTab(browser, host.url, kit.hubUrl)
+    const seen = tab.evaluate(
+      ({key, title}) =>
+        new Promise<string>((resolve) => {
+          window.concivProbe.readSharedState<{id: string; title: string}[]>(window.concivConnection, key, (value) => {
+            const match = value.find((meta) => meta.title === title)
+            if (match) resolve(match.id)
+          })
+        }),
+      {key: SESSIONS_STATE, title: 'published title'},
+    )
+    const renamed = async (): Promise<string> => {
+      const {sessionId} = await kit.hub.call('conciv:sessions:create', {})
+      await kit.hub.call('conciv:sessions:rename', {sessionId, title: 'published title'})
+      return sessionId
+    }
+    const [seenId, sessionId] = await Promise.all([seen, renamed()])
+    expect(seenId).toBe(sessionId)
+    await tab.close()
   }, 15_000)
 
   it('stops writing shared state once the reader is released', async () => {

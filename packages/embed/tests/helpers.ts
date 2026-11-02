@@ -343,9 +343,9 @@ export async function switchToSessionByTitle(page: Page, title: string): Promise
 }
 
 export async function openPanelOnNewSession(page: Page, suite: WidgetSuite): Promise<string> {
-  const {sessionId} = await suite.kit().rpc.sessions.create()
+  const {sessionId} = await suite.kit().hub.call('conciv:sessions:create', {})
   const title = `session under test ${sessionId.slice(-12)}`
-  await suite.kit().rpc.sessions.rename({sessionId, title})
+  await suite.kit().hub.call('conciv:sessions:rename', {sessionId, title})
   await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
   await openPanel(page)
   await switchToSessionByTitle(page, title)

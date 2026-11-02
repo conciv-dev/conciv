@@ -238,7 +238,7 @@ describe('core kit seams', () => {
       })
       state.kit = kit
 
-      const sessions = await kit.rpc.sessions.list({})
+      const sessions = await kit.hub.call('conciv:sessions:list', {})
       const adopted = sessions.find((meta) => meta.native?.nativeId === 'native-1')
 
       expect(adopted?.origin).toBe('external')

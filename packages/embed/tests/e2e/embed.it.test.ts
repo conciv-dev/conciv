@@ -836,7 +836,7 @@ test.describe('native widget', () => {
 
   test.beforeAll(async () => {
     kit = await bootCoreKit({id: 'fake-native', text: 'Hello from conciv', nativePageDir: nativeDistDir})
-    sessionId = (await kit.rpc.sessions.create()).sessionId
+    sessionId = (await kit.hub.call('conciv:sessions:create', {})).sessionId
   })
 
   test.afterAll(async () => {
@@ -1332,7 +1332,7 @@ test.describe('recording attachment', () => {
       await page.getByRole('button', {name: 'Send message'}).click()
       await expect(page.getByText('Recording received').first()).toBeVisible({timeout: 30_000})
 
-      const sessions = await kit.rpc.sessions.list()
+      const sessions = await kit.hub.call('conciv:sessions:list', {})
       const chatSession = sessions[0]?.id
       if (!chatSession) throw new Error('widget session not found')
       const persisted = {messages: ''}
@@ -1642,9 +1642,9 @@ test.describe('virtualize threshold cliff', () => {
   }
 
   async function measureSwitch(page: import('@playwright/test').Page, exchanges: number): Promise<{rowCount: number}> {
-    const {sessionId} = await suite.kit().rpc.sessions.create()
+    const {sessionId} = await suite.kit().hub.call('conciv:sessions:create', {})
     const title = `cliff ${exchanges} ${sessionId.slice(-8)}`
-    await suite.kit().rpc.sessions.rename({sessionId, title})
+    await suite.kit().hub.call('conciv:sessions:rename', {sessionId, title})
     await seedExchanges(sessionId, exchanges)
 
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
