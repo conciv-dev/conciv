@@ -18,5 +18,10 @@ export default defineConfig(async ({command}) => ({
   root: local('src/xray/'),
   base: './',
   plugins: [await compiler(command), UnoCSS({configFile: local('uno.config.ts')})],
-  build: {outDir: local('dist/xray/'), emptyOutDir: true, sourcemap: true},
+  build: {
+    outDir: local('dist/xray/'),
+    emptyOutDir: true,
+    sourcemap: true,
+    rollupOptions: {output: {assetFileNames: 'assets/[name][extname]'}},
+  },
 }))

@@ -1,6 +1,6 @@
 import {z} from 'zod'
-import type {ComponentReport, DiffReport} from './defs.js'
-import type {Delta} from './types.js'
+import type {ComponentReport, DiffReport, Stage} from './defs.js'
+import type {Delta, ItemKind} from './types.js'
 
 export const TOLERANCES = {
   geometryPx: 2,
@@ -63,6 +63,35 @@ export const designConfig = z.object({
 export type DesignConfig = z.output<typeof designConfig>
 
 export const SOURCE_ATTR = 'data-conciv-source'
+export const PANE_ATTR = 'data-conciv-design-pane'
+
+export function kindStage(kind: ItemKind): Stage | null {
+  return KIND_STAGES[kind]
+}
+
+const KIND_STAGES = {
+  unbuilt: 'structure',
+  axis: 'structure',
+  columns: 'structure',
+  text: 'content',
+  fontSize: 'content',
+  lineHeight: 'content',
+  fontWeight: 'content',
+  offset: 'geometry',
+  'inset-left': 'geometry',
+  'inset-right': 'geometry',
+  'inset-top': 'geometry',
+  'inset-bottom': 'geometry',
+  'gap-before': 'geometry',
+  'gap-after': 'geometry',
+  padding: 'geometry',
+  align: 'geometry',
+  background: 'paint',
+  foreground: 'paint',
+  radius: 'paint',
+  border: 'paint',
+  extra: null,
+} as const satisfies Record<ItemKind, Stage | null>
 
 const SIDES = [
   ['left', 'inline-start'],

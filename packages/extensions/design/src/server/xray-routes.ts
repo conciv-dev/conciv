@@ -4,29 +4,50 @@ import {ORPCError, os} from '@orpc/server'
 import {Hono, type Context} from 'hono'
 import {getMimeType} from 'hono/utils/mime'
 import {z} from 'zod'
+import {SessionId} from '@conciv/protocol/chat-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
-import type {TargetStore} from '../shared/types.js'
+import {MARK_KINDS} from '../shared/defs.js'
+import type {Differ, TargetStore} from '../shared/types.js'
 import {TARGET_FILE} from './store.js'
 
 const PAGE_FILE = 'index.html'
 const NOT_BUILT = 'the x-ray page is not built; build @conciv/extension-design'
 const NonEmptySchema = z.string().min(1)
+const TargetSchema = z.object({id: NonEmptySchema})
+const RunSchema = TargetSchema.extend({session: SessionId})
 
 const xrayOs = os.$context<RpcContext>()
 
-export function makeXrayRouter(input: {store: TargetStore; designDir: string; sourceChangedAt: () => number | null}) {
-  const {store, designDir, sourceChangedAt} = input
+export function makeXrayRouter(input: {
+  store: TargetStore
+  differ: Pick<Differ, 'capture' | 'accept'>
+  designDir: string
+  sourceChangedAt: () => number | null
+}) {
+  const {store, differ, designDir, sourceChangedAt} = input
+  const decided = async (run: {id: string; session: SessionId}) => ({
+    report: await differ.capture(run).catch(() => null),
+  })
   return xrayOs.router({
     xray: {
       targets: xrayOs
         .input(z.object({route: z.string().optional()}))
         .handler(({input: filter}) => store.list(filter.route === undefined ? {} : {route: filter.route})),
-      report: xrayOs.input(z.object({id: z.string()})).handler(async ({input: query}) => {
+      current: xrayOs.input(z.object({session: z.string()})).handler(({input: query}) => store.current(query)),
+      stamp: xrayOs.input(TargetSchema).handler(async ({input: query}) => ({
+        run: (await store.latestRun(query.id))?.run ?? null,
+        sourceChangedAt: sourceChangedAt(),
+      })),
+      report: xrayOs.input(TargetSchema).handler(async ({input: query}) => {
         const target = await store.find({id: query.id})
         if (target === null) throw new ORPCError('NOT_FOUND', {message: `no design target with id ${query.id}`})
+        const latest = await store.latestRun(target.id)
         return {
           target,
-          report: await store.lastResult(target.id),
+          report: latest?.report ?? null,
+          pairs: latest?.pairs ?? [],
+          decisions: await store.decisions(target.id),
+          twins: await store.twins(target.id),
           targetImage: store.reportPath(join(designDir, target.id, TARGET_FILE)),
           nodes: await store.model(target.id).then(
             (model) => model.nodes,
@@ -35,6 +56,42 @@ export function makeXrayRouter(input: {store: TargetStore; designDir: string; so
           sourceChangedAt: sourceChangedAt(),
         }
       }),
+      pin: xrayOs
+        .input(RunSchema.extend({node: NonEmptySchema, path: NonEmptySchema}))
+        .handler(async ({input: request}) => {
+          const decision = await store.decide({id: request.id, kind: 'pin', anchor: request.node, value: request.path})
+          return {decision, ...(await decided(request))}
+        }),
+      unpin: xrayOs.input(RunSchema.extend({decision: NonEmptySchema})).handler(async ({input: request}) => {
+        const revoked = await store.revoke({id: request.id, decision: request.decision})
+        return {revoked, ...(await decided(request))}
+      }),
+      mark: xrayOs
+        .input(
+          RunSchema.extend({
+            kind: z.enum(MARK_KINDS),
+            node: NonEmptySchema,
+            value: z.union([z.string(), z.number()]).optional(),
+          }),
+        )
+        .handler(async ({input: request}) => {
+          const decision = await store.decide({
+            id: request.id,
+            kind: request.kind,
+            anchor: request.node,
+            value: request.value ?? null,
+          })
+          return {decision, ...(await decided(request))}
+        }),
+      revoke: xrayOs.input(RunSchema.extend({decision: NonEmptySchema})).handler(async ({input: request}) => {
+        const revoked = await store.revoke({id: request.id, decision: request.decision})
+        return {revoked, ...(await decided(request))}
+      }),
+      accept: xrayOs.input(TargetSchema).handler(async ({input: request}) => {
+        const target = await differ.accept({id: request.id})
+        return {target, report: await store.lastResult(target.id)}
+      }),
+      capture: xrayOs.input(RunSchema).handler(({input: request}) => differ.capture(request)),
     },
   })
 }

@@ -102,7 +102,7 @@ export const design = defineExtension({
     context: {design: runtime, differ},
     systemPrompt: async ({sessionId}) =>
       (await store.current({session: sessionId})) === null ? undefined : DESIGN_GUIDE,
-    router: makeXrayRouter({store, designDir, sourceChangedAt: changes.sourceChangedAt}),
+    router: makeXrayRouter({store, differ, designDir, sourceChangedAt: changes.sourceChangedAt}),
     app: makeXrayApp({store, pageDir: fileURLToPath(new URL('xray/', import.meta.url)), designDir, cwd: server.cwd}),
     dispose: async () => {
       await destroyPaddle()

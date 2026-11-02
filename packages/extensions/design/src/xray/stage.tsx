@@ -359,6 +359,7 @@ type StageProps = {
   view: StageView
   scale: number
   fitted: boolean
+  designLayer?: JSX.Element
   actions: StageActions
 }
 
@@ -441,6 +442,7 @@ export function Stage(props: StageProps): JSX.Element {
     <Shot label="Design" src={props.images.target} failure={failed(props.images.target) ? FAILURE.design : null}>
       <Picture src={props.images.target} alt="Design" />
       <NodeLayer nodes={props.nodes} target={props.target} />
+      {props.designLayer}
     </Shot>
   )
   const LiveShot = () => (

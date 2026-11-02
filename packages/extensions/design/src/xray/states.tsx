@@ -55,16 +55,22 @@ function busyTarget(target: EventTarget | null): boolean {
   return typing(target) || insideOverlay(target)
 }
 
+function origin(event: KeyboardEvent): EventTarget | null {
+  return event.composedPath()[0] ?? event.target
+}
+
 function ignored(event: KeyboardEvent): boolean {
-  return event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || busyTarget(event.target)
+  return event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || busyTarget(origin(event))
 }
 
 function bodyOnly(event: KeyboardEvent): boolean {
-  return event.target === document.body || event.target === document.documentElement
+  const target = origin(event)
+  return target === document.body || target === document.documentElement
 }
 
 function expandedRow(event: KeyboardEvent): boolean {
-  return event.target instanceof HTMLButtonElement && event.target.getAttribute('aria-expanded') === 'true'
+  const target = origin(event)
+  return target instanceof HTMLButtonElement && target.getAttribute('aria-expanded') === 'true'
 }
 
 export function createShortcuts(actions: ShortcutActions): void {
@@ -140,6 +146,16 @@ export function LoadError(props: {message: string; onRetry: () => void}): JSX.El
         </button>
       </EmptyState>
     </div>
+  )
+}
+
+export function NoTarget(): JSX.Element {
+  return (
+    <EmptyState icon="i-ph-image-duotone" title="No design target in this session">
+      <p class="text-sm m-0 op-fade max-w-80 text-pretty">
+        Ask the agent to match this page to a design image; it registers the image with design_target.
+      </p>
+    </EmptyState>
   )
 }
 

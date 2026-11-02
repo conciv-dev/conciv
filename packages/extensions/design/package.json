@@ -63,6 +63,9 @@
     "./types": {
       "types": "./dist/shared/types.d.ts"
     },
+    "./xray-routes": {
+      "types": "./dist/server/xray-routes.d.ts"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -79,14 +82,19 @@
   "dependencies": {
     "@blazediff/core": "catalog:",
     "@bramus/specificity": "catalog:",
+    "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/extension-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
     "@orpc/server": "catalog:",
+    "@tanstack/solid-router": "catalog:",
     "@zumer/snapdom": "catalog:",
     "culori": "catalog:",
     "es-toolkit": "catalog:",
     "hono": "catalog:",
+    "lucide-solid": "catalog:",
     "onnxruntime-web": "catalog:",
     "oxc-parser": "catalog:",
     "pixelmatch": "catalog:",
@@ -95,25 +103,25 @@
     "ppu-ocv": "catalog:",
     "ppu-paddle-ocr": "catalog:",
     "rrweb-snapshot": "catalog:",
+    "solid-js": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/contract": "workspace:^",
-    "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@iconify-json/ph": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/timer": "catalog:",
-    "@tanstack/solid-router": "catalog:",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
     "@types/pngjs": "catalog:",
     "@unocss/reset": "catalog:",
-    "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
   }
 }

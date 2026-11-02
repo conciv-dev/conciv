@@ -12,6 +12,8 @@ export const DESIGN_GUIDE =
   'A design target is registered. Call `design_diff` to measure the live page against it, fix the brief, run it again, and stop when `stop` is set. Do not judge a design match from a screenshot.'
 
 export const NO_TARGET_MESSAGE = 'no design target is registered; register the design image with design_target'
+export const MARK_KINDS = ['excluded', 'image-slot', 'accept-delta', 'tolerance'] as const
+export const NO_RUN_MESSAGE = 'the design target has no run yet; run design_diff before accepting'
 
 export function designVerb(name: string): string {
   if (!name.startsWith(DESIGN_TOOL_PREFIX)) throw new Error(`"${name}" is not a design tool`)
@@ -140,6 +142,7 @@ const UnmatchedSchema = z.object({
   label: z.string().optional().describe('the design text of an unbuilt text node, or its kind'),
   stage: z.enum(STAGES).nullable().optional().describe('the stage the entry counts in; null when it is informational'),
   shift: z.object({dx: z.number(), dy: z.number()}).optional().describe('how far an offset entry moved, in px'),
+  node: z.string().optional().describe('the design node of an unbuilt entry'),
 })
 
 const ResponsiveSchema = z.object({
@@ -190,6 +193,8 @@ const ComponentReportSchema = z.object({
   mismatch: z.number(),
   deltas: z.array(DeltaSchema),
   children: z.number(),
+  nodes: z.array(z.string()).optional().describe('the design nodes paired with this component'),
+  path: z.string().optional().describe('where the component sits in the page tree'),
 })
 
 const RouteItemSchema = z

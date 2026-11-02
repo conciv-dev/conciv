@@ -286,6 +286,8 @@ export type Differ = {
   register(input: {input: TargetInput; session: SessionId}): Promise<TargetResult>
   run(input: {input: DiffInput; session: SessionId}): Promise<DiffReport>
   refresh(input: {session: SessionId}): Promise<void>
+  capture(input: {id: string; session: SessionId}): Promise<DiffReport>
+  accept(input: {id: string}): Promise<TargetRecord>
   status(input: {session: SessionId}): Promise<StatusReport>
 }
 

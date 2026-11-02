@@ -6,15 +6,15 @@ source location that sets each value.
 
 ## Overview
 
-The package.json describes this as the design built-in extension, internal to @conciv/it. It holds a target image per route and width, reads the target's text once with OCR, captures the live page at that width and returns ranked component deltas with style provenance. The root exports pick a browser condition (dist/client.js) or an import condition (dist/server.js), with subpaths ./client, ./server, ./defs, ./provenance, ./text-groups, ./paddle, ./colors and ./types. The `build` script runs four steps in order: tsdown, vite build (client), vite build with vite.xray.config.ts (xray page into dist/xray), then tsc declaration emit (which excludes src/xray).
+The package.json describes this as the design built-in extension, internal to @conciv/it. It holds a target image per route and width, reads the target's text once with OCR, captures the live page at that width and returns ranked component deltas with style provenance. The root exports pick a browser condition (dist/client.js) or an import condition (dist/server.js), with subpaths ./client, ./server, ./defs, ./provenance, ./text-groups, ./paddle, ./colors, ./types and ./xray-routes (types of the x-ray router). The `build` script runs four steps in order: tsdown, vite build (client), vite build with vite.xray.config.ts (xray page into dist/xray), then tsc declaration emit (src/**/*.ts and src/client.tsx, which pulls in the x-ray modules it mounts).
 
 ## Interface
 
 - default `defineConfig` (`tsdown.config.ts`): bundles `src/server.ts`, `src/shared/defs.ts`, `src/server/provenance.ts`, `src/server/differ.ts`, `src/server/target.ts` and `src/server/deltas.ts` as ESM with `dts: false`
-- default `defineConfig` (`vite.config.ts`): library build of `src/client.ts` to `client.js` (ES format), with `emptyOutDir: false` and sourcemaps
-- default `defineConfig` (`vite.xray.config.ts`): builds `src/xray/` into `dist/xray/` with UnoCSS and the Solid plugin; in serve mode it loads `../../it/dist/vite.js` instead of plain Solid
+- default `defineConfig` (`vite.config.ts`): library build of `src/client.tsx` with the Solid plugin to `client.js` (ES format), with `emptyOutDir: false` and sourcemaps
+- default `defineConfig` (`vite.xray.config.ts`): builds `src/xray/` into `dist/xray/` with UnoCSS and the Solid plugin, the stylesheet at the stable name `assets/index.css` that the in-tab pane links; in serve mode it loads `../../it/dist/vite.js` instead of plain Solid
 - default `defineConfig` (`uno.config.ts`): UnoCSS with `presetConciv`, scanning `src/xray/**` and `../../ui-kit-system/src/**`
-- package.json `exports`: `.` (browser maps to client, import maps to server), `./client`, `./server`, `./defs`, `./provenance` (`dist/server/provenance`), `./text-groups` (`dist/server/differ`), `./paddle` (`dist/server/target`), `./colors` (`dist/server/deltas`), `./types` (types only)
+- package.json `exports`: `.` (browser maps to client, import maps to server), `./client`, `./server`, `./defs`, `./provenance` (`dist/server/provenance`), `./text-groups` (`dist/server/differ`), `./paddle` (`dist/server/target`), `./colors` (`dist/server/deltas`), `./types` and `./xray-routes` (types only)
 - package.json script `dev:xray`: runs `vite --config vite.xray.config.ts`
 
 ## Source tree
@@ -24,7 +24,8 @@ object in one file, and that file exports one table of them; `src/server.ts` pic
 
 ```text
 src/
-  client.ts            widget entry: measurer, mirror, region and snapdom capture, type renders, CSS winner
+  client.tsx           widget entry: measurer, mirror, region and snapdom capture, type renders, CSS winner,
+                       the composer button and the Surface that mounts the x-ray pane in the tab
   server.ts            extension entry: pickRuntime over the slot tables, CSS map, x-ray routes, dispose
   shared/
     defs.ts            tool definitions, wire schemas, errors and messages
@@ -39,11 +40,14 @@ src/
     pair.ts            PAIRERS (the calibrated vote), RANKERS (impact), the pair tree, alignment offsets and pairTwins
     loop.ts            items, stages, score, brief and stop rules, round history, the run queue and the HMR settle trigger
     differ.ts          PIXEL_COMPARATORS, text groups, the diff run, unbuilt, extra and offset entries, and the tool bindings
-    xray-routes.ts     HTTP routes for the x-ray
+    xray-routes.ts     HTTP routes for the x-ray: targets, current, stamp, report, pin, unpin, mark, revoke,
+                       accept and capture
   xray/
     entry.tsx          mount
-    router.tsx         routes, search schema, data loading
+    router.tsx         routes, search schema, data loading, the in-tab pane (memory history)
     panel.tsx          panel, rows, detail, fix prompt
+    decisions.tsx      the run bar, pins, marks, accept, Capture pixels, the row outline
+    heatmap.tsx        node by registered width, worst stage per cell
     stage.tsx          canvas and stage toolbar
     states.tsx         loading, empty and error states, shortcuts
 ```
@@ -55,7 +59,7 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 
 - `rollupOptions.external` (`vite.config.ts`) treats imports matching solid-js, zod, @conciv/, lucide-solid, rrweb, @rrweb/, @tanstack/, @orpc/, @zumer/ or @bramus/ as external unless the import path contains `.css`
 - `renderBuiltUrl` (`vite.xray.config.ts`) prefixes HTML asset URLs with `xray/` and uses relative URLs for JS and CSS
-- `exclude: ["src/xray/**"]` (`tsconfig.build.json`): no declarations are emitted for the xray page
+- `tsconfig.build.json` includes `src/client.tsx`; the x-ray modules it imports get declarations, `src/xray/entry.tsx` does not
 - `ppu-paddle-ocr`, `ppu-ocv` and `onnxruntime-web` are pinned exactly (see [OCR engine](#ocr-engine))
 
 ## Side Effects
