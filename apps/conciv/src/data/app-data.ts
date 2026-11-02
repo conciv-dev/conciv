@@ -5,9 +5,9 @@ import {readSharedState} from '@conciv/extension/devframe-connection'
 import {concivError} from '@conciv/extension/devframe-function'
 import type {HubConnection} from '../app/devframe-link.js'
 
-const DEVFRAME_GROUPS: ReadonlySet<string> = new Set(['sessions', 'meta'])
+const DEVFRAME_GROUPS: ReadonlySet<string> = new Set(['sessions', 'meta', 'drafts', 'markers', 'navigation', 'editor'])
 
-export type AppHub = {connection: () => HubConnection; connected: () => boolean}
+export type AppHub = {connection: () => HubConnection; connected: () => boolean; session: () => string | null}
 
 export type AppData = {
   rpc: RpcClient
@@ -32,6 +32,12 @@ function attemptSettled(connection: HubConnection): Promise<void> {
   return settled.promise.finally(offStatus)
 }
 
+function withSession(input: unknown, sessionId: string | null): unknown {
+  if (sessionId === null || typeof input !== 'object' || input === null || Object.hasOwn(input, 'sessionId'))
+    return input
+  return {...input, sessionId}
+}
+
 function hubCallOf(hub: AppHub): HubCall {
   return async (name, input) => {
     if (!hub.connected()) throw new Error(RPC_UNBOUND_MESSAGE)
@@ -39,7 +45,7 @@ function hubCallOf(hub: AppHub): HubCall {
     await attemptSettled(connection)
     const client = await connection.ready()
     await client.ensureTrusted()
-    return client.scope('conciv').rpc.call(name, input)
+    return client.scope('conciv').rpc.call(name, withSession(input, hub.session()))
   }
 }
 

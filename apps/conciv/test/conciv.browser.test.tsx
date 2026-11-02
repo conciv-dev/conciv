@@ -1089,6 +1089,63 @@ describe('panel connect', () => {
   }, 30_000)
 })
 
+const EDITOR_PROBE_NAME = 'editor-probe'
+const EDITOR_PROBE_FILE = 'src/thing.ts'
+
+function EditorProbe(): JSX.Element {
+  const openEditor = getExtensionApi(EDITOR_PROBE_NAME).useOpenEditor()
+  return (
+    <button type="button" onClick={() => openEditor(EDITOR_PROBE_FILE, 3)}>
+      Open the probe file
+    </button>
+  )
+}
+
+const editorProbe = defineExtension({
+  name: EDITOR_PROBE_NAME,
+  views: [{id: 'editor-probe', label: 'Editor probe', Component: EditorProbe}],
+}).client(() => ({value: {}}))
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof editorProbe> {}
+}
+
+describe('editor opening', () => {
+  const core = bootedCore('editor-opening')
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  const probeTab = () => page.getByRole('tab', {name: 'Editor probe', exact: true})
+  const openProbeFile = () => page.getByRole('button', {name: 'Open the probe file'})
+  const couldNotOpen = () => page.getByText(`could not open ${EDITOR_PROBE_FILE} in the editor`)
+
+  test('opening a file the hub refuses shows the could-not-open toast', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await faults.install({kind: 'hub-fail', names: ['conciv:editor:open']})
+    harness.mountShell(`/panel/${sessionId}?open=true`, [editorProbe])
+
+    await expect.element(probeTab(), {timeout: 8000}).toBeVisible()
+    await probeTab().click()
+    await openProbeFile().click()
+
+    await expect.element(couldNotOpen(), {timeout: 8000}).toBeVisible()
+  }, 30_000)
+
+  test('opening a file runs the hub function inside the active session', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const completed = await faults.install({kind: 'hub-completed', names: ['conciv:editor:open']})
+    harness.mountShell(`/panel/${sessionId}?open=true`, [editorProbe])
+
+    await expect.element(probeTab(), {timeout: 8000}).toBeVisible()
+    await probeTab().click()
+    await openProbeFile().click()
+
+    await coreControl.awaitFaultPending(completed, 1)
+  }, 30_000)
+})
+
 describe('panel refresh', () => {
   const HYDRATE_PATH = ['chat', 'hydrate']
   const REPLY_TEXT = 'the transcript that outlives a refresh'
@@ -1493,8 +1550,6 @@ describe('quick add pane', () => {
 })
 
 describe('quick refresh', () => {
-  const DRAFT_GET_PATH = ['drafts', 'get']
-
   const core = bootedCore('quick-refresh')
   const harness = createShellHarness(core)
   const faults = trackedFaults()
@@ -1506,16 +1561,42 @@ describe('quick refresh', () => {
 
   test('the quick terminal pane bar carries refresh while the composer is still loading', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    const gate = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+    const gate = await faults.install({kind: 'hub-gate', names: ['conciv:drafts:get']})
     harness.mountShell(`/quick?panes=${sessionId}&focus=0`)
 
     await expect.element(refresh(), {timeout: 8000}).toBeVisible()
+    await coreControl.awaitFaultPending(gate, 1)
     await expect.element(editor()).not.toBeInTheDocument()
 
     await coreControl.releaseFault(gate)
 
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     await expect.element(refresh()).toBeVisible()
+  }, 30_000)
+})
+
+describe('session markers', () => {
+  const core = bootedCore('session-markers')
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const newSessionLine = () => page.getByRole('separator', {name: 'New session'})
+
+  test('the new session divider waits for the marker list the hub serves', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const gate = await faults.install({kind: 'hub-gate', names: ['conciv:markers:list']})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await coreControl.awaitFaultPending(gate, 1)
+    await expect.element(newSessionLine()).not.toBeInTheDocument()
+
+    await coreControl.releaseFault(gate)
+
+    await expect.element(newSessionLine(), {timeout: 8000}).toBeVisible()
   }, 30_000)
 })
 
@@ -1676,7 +1757,11 @@ describe('sessions over the hub', () => {
   test('a sessions call while the engine refuses fails with the attempt in flight', async () => {
     const deadBase = 'http://127.0.0.1:1/conciv'
     const hub = hubFor(deadBase)
-    const data = makeAppData(makeRpcClient(deadBase), {connection: () => hub, connected: () => true}, new QueryClient())
+    const data = makeAppData(
+      makeRpcClient(deadBase),
+      {connection: () => hub, connected: () => true, session: () => null},
+      new QueryClient(),
+    )
     try {
       await expect(data.rpc.sessions.list({includeHidden: true})).rejects.toMatchObject({code: 'DISCONNECTED'})
       await expect(data.rpc.sessions.list({includeHidden: true})).rejects.toMatchObject({code: 'DISCONNECTED'})
