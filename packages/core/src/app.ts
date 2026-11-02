@@ -61,17 +61,21 @@ import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
 import {openSourceFromFrames, type OpenSourceFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {
+  capturesFunctions,
   draftsFunctions,
   editorFunctions,
   makeRpcRouter,
   markersFunctions,
   metaFunctions,
   navigationFunctions,
+  pageFunctions,
+  type CapturesServerFunctions,
   type DraftsServerFunctions,
   type EditorServerFunctions,
   type MarkersServerFunctions,
   type MetaServerFunctions,
   type NavigationServerFunctions,
+  type PageServerFunctions,
 } from './api/rpc/router.js'
 import {makeCompositeRpcRouter, RPC_PREFIX, rpcFetchMiddleware} from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
@@ -95,7 +99,9 @@ declare module 'devframe' {
       DraftsServerFunctions,
       MarkersServerFunctions,
       NavigationServerFunctions,
-      EditorServerFunctions {}
+      EditorServerFunctions,
+      CapturesServerFunctions,
+      PageServerFunctions {}
 }
 
 export type MakeAppOpts = {
@@ -494,7 +500,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] => [
     ...registryCapabilities(
-      registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
+      registry.whenPageConnected(() => primitives.page.tabs.connected(sessionId)).sandboxTools(),
       scopedToolCall,
     ),
     ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
@@ -579,6 +585,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       ...markersFunctions({chat: chatDeps}),
       ...navigationFunctions({runtime}),
       ...editorFunctions({openFromFrames}),
+      ...capturesFunctions({runtime}),
+      ...pageFunctions({runtime, tabs: primitives.page.tabs}),
     ],
   })
   const publishSessions = (): Promise<void> => devframePlane.publish('sessions')
@@ -617,7 +625,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       onShutdown: opts.onShutdown,
       plane,
       push: {
-        queries: (sessionId, signal) => runtime.forSession(sessionId).page.queries(signal),
         events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
       },
     },

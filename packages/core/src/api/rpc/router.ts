@@ -1,6 +1,15 @@
 import {z} from 'zod'
 import {asc, eq} from 'drizzle-orm'
-import {isPageFailure, OpenSourceResultSchema, OpenSourceSchema, type PageErrorCode} from '@conciv/protocol/page-types'
+import {
+  isPageFailure,
+  OpenSourceResultSchema,
+  OpenSourceSchema,
+  PAGE_QUERY_FUNCTION,
+  SymbolicateSchema,
+  type PageErrorCode,
+} from '@conciv/protocol/page-types'
+import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
+import type {DevframeNodeContext} from 'devframe/types'
 import {isPageVerbError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
@@ -14,15 +23,18 @@ import {
   NavigationGetOutputSchema,
   NavigationSetOutputSchema,
   OkSchema,
+  PageChangesOutputSchema,
+  PageSymbolicateOutputSchema,
   SessionIdInputSchema,
   type RegistryCallErrorName,
 } from '@conciv/contract'
-import {defineConcivFunction} from '@conciv/extension/devframe-function'
+import {concivError, defineConcivFunction} from '@conciv/extension/devframe-function'
 import {
   ChatCommandsSchema,
   ChatModelsSchema,
   ChatToolsSchema,
   NavigationWriteSchema,
+  SessionId,
   type NavigationWrite,
 } from '@conciv/protocol/chat-types'
 import {widgetCaller} from '../../lib/cors.js'
@@ -34,6 +46,7 @@ import {makeSessionOs, os, type RpcDeps, type SessionOs} from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import type {ServerFunctionsOf} from '../../devframe-plane.js'
+import type {PageTab, PageTabs} from '../../page-bus.js'
 
 export const PAGE_ERROR_NAME = {
   'no-widget': 'NO_PAGE_CLIENT',
@@ -103,24 +116,8 @@ export function makeRpcRouter(deps: RpcDeps) {
         }
       }),
     },
-    captures: {
-      list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),
-    },
-    page: {
-      symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),
-      changes: sessionOs.page.changes.handler(({context}) => context.session.page.changes()),
-      clearChanges: sessionOs.page.clearChanges.handler(async ({context}) => {
-        await context.session.page.clearChanges()
-        return {ok: true as const}
-      }),
-      queries: sessionOs.page.queries.handler(({context, signal}) =>
-        context.session.page.queries(signal ?? new AbortController().signal),
-      ),
-      reply: sessionOs.page.reply.handler(({input, context, errors}) => {
-        if (!context.session.page.reply(input.requestId, input.outcome)) throw errors.UNKNOWN_REQUEST()
-        return {ok: true as const}
-      }),
-    },
+    captures: capturesRouter(deps),
+    page: pageRouter(deps, sessionOs),
     server: {
       config: sessionOs.server.config.handler(({errors}) => callTool(BUILTIN_SERVER_TOOL.server_config, {}, errors)),
       resolve: sessionOs.server.resolve.handler(({input, errors}) =>
@@ -372,3 +369,124 @@ export function editorFunctions(deps: EditorDeps) {
 }
 
 export type EditorServerFunctions = ServerFunctionsOf<ReturnType<typeof editorFunctions>>
+
+type RuntimeDeps = Pick<RpcDeps, 'runtime'>
+
+function capturesActions(deps: RuntimeDeps) {
+  return {
+    list: (input: SessionIdInput) => deps.runtime.forSession(input.sessionId).captures.list(),
+  }
+}
+
+function capturesRouter(deps: RuntimeDeps) {
+  const actions = capturesActions(deps)
+  return {
+    list: os.captures.list.handler(({input}) => actions.list(input)),
+  }
+}
+
+export function capturesFunctions(deps: RuntimeDeps) {
+  const actions = capturesActions(deps)
+  return [
+    defineConcivFunction({
+      name: 'conciv:captures:list',
+      type: 'query',
+      input: SessionIdInputSchema,
+      output: SessionCapturesSchema,
+      handler: actions.list,
+    }),
+  ]
+}
+
+export type CapturesServerFunctions = ServerFunctionsOf<ReturnType<typeof capturesFunctions>>
+
+function pageActions(deps: RuntimeDeps) {
+  return {
+    symbolicate: (input: z.infer<typeof SymbolicateSchema>) => deps.runtime.engine.symbolicate(input.frames),
+    changes: (sessionId: SessionId) => deps.runtime.forSession(sessionId).page.changes(),
+    clearChanges: async (sessionId: SessionId) => {
+      await deps.runtime.forSession(sessionId).page.clearChanges()
+      return {ok: true as const}
+    },
+  }
+}
+
+function pageRouter(deps: RuntimeDeps, sessionOs: SessionOs) {
+  const actions = pageActions(deps)
+  return {
+    symbolicate: os.page.symbolicate.handler(({input}) => actions.symbolicate(input)),
+    changes: sessionOs.page.changes.handler(({context}) => actions.changes(context.session.id)),
+    clearChanges: sessionOs.page.clearChanges.handler(({context}) => actions.clearChanges(context.session.id)),
+  }
+}
+
+const PageJoinedSchema = z.object({joined: SessionId})
+
+function socketOpen(peer: object): boolean {
+  if (!('websocket' in peer)) return false
+  const socket = peer.websocket
+  return typeof socket === 'object' && socket !== null && 'readyState' in socket && socket.readyState === WebSocket.OPEN
+}
+
+function joiningTab(ctx: DevframeNodeContext): PageTab {
+  const caller = ctx.rpc.getCurrentRpcSession()
+  const peer = caller?.meta.peer
+  if (caller === undefined || peer === undefined || caller.meta.isTrusted !== true)
+    throw concivError('BAD_REQUEST', 'a page joins over a trusted websocket hub connection')
+  return {
+    id: caller.meta.id,
+    live: () => caller.meta.isTrusted === true && socketOpen(peer),
+    query: (query) => caller.rpc.$call(PAGE_QUERY_FUNCTION, query),
+  }
+}
+
+export function pageFunctions(deps: RuntimeDeps & {tabs: PageTabs}) {
+  const actions = pageActions(deps)
+  return [
+    defineConcivFunction({
+      name: 'conciv:page:symbolicate',
+      type: 'query',
+      input: SymbolicateSchema,
+      output: PageSymbolicateOutputSchema,
+      handler: actions.symbolicate,
+    }),
+    defineConcivFunction({
+      name: 'conciv:page:changes',
+      type: 'query',
+      session: true,
+      input: z.object({}).loose(),
+      output: PageChangesOutputSchema,
+      handler: (_input, call) => actions.changes(call.sessionId),
+    }),
+    defineConcivFunction({
+      name: 'conciv:page:clearChanges',
+      type: 'action',
+      session: true,
+      input: z.object({}).loose(),
+      output: OkSchema,
+      handler: (_input, call) => actions.clearChanges(call.sessionId),
+    }),
+    defineConcivFunction({
+      name: 'conciv:page:join',
+      type: 'action',
+      input: SessionIdInputSchema,
+      output: PageJoinedSchema,
+      handler: (input, call) => {
+        deps.tabs.join(input.sessionId, joiningTab(call.ctx))
+        return {joined: input.sessionId}
+      },
+    }),
+    defineConcivFunction({
+      name: 'conciv:page:leave',
+      type: 'action',
+      input: SessionIdInputSchema,
+      output: OkSchema,
+      handler: (input, call) => {
+        deps.tabs.leave(input.sessionId, joiningTab(call.ctx).id)
+        return {ok: true as const}
+      },
+    }),
+  ]
+}
+
+export type PageServerFunctions = ServerFunctionsOf<ReturnType<typeof pageFunctions>>

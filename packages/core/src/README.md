@@ -2,7 +2,7 @@
 
 ## Overview
 
-Top-level engine modules. `start` resolves config, builds the Hono app with `makeApp`, binds a port (persisted, preferred or exact) and writes the endpoint files. `makeApp` mounts extensions, the tool registry, the chat plane, RPC, MCP, push and health routes. Supporting modules cover config resolution, the per-session page bus, the built-in tool registry, runtime re-exports and tool-card exports.
+Top-level engine modules. `start` resolves config, builds the Hono app with `makeApp`, binds a port (persisted, preferred or exact) and writes the endpoint files. `makeApp` mounts extensions, the tool registry, the chat plane, RPC, MCP, push and health routes. Supporting modules cover config resolution, the per-session page tabs, the built-in tool registry, runtime re-exports and tool-card exports.
 
 ## Interface
 
@@ -14,7 +14,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `resolveConfig(options, root)` / `ResolvedConcivConfig` / `defineConfig` (`config.ts`)
 - `CoreRuntime`, `EngineScope`, `SessionScope`, `ScopedToolCall`, `session` (`runtime.ts`)
 - `CodeRunCard`, `codeRunTool`, `EXECUTE_TOOL_NAME`, `coreToolCards` (`cards.tsx`)
-- `makePageBus(timeoutMs=5000)` / `pageQueryStream` / `makeJournal` / `PageEnv` (`page-bus.ts`)
+- `makePageTabs(timeoutMs=5000)` / `PAGE_QUERY_FUNCTION` / `makeJournal` / `PageEnv` (`page-bus.ts`): a page query goes to every live joined tab of the session and the first reply wins
 - `makeBuiltinRegistry(deps)` / `toolFailureFromPage` (`tool-registry.ts`)
 - Subdirectories:
   - api: [./api/README.md](./api/README.md) - MCP, push and native-page routes

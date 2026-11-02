@@ -2,6 +2,7 @@ import {from, onCleanup, onMount, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {browserClient} from '@conciv/extension/devframe-connection'
+import {PAGE_QUERY_FUNCTION} from '@conciv/protocol/page-types'
 import {Button, Dialog, EnvironmentProvider, TextField} from '@conciv/ui-kit-system'
 import {resolveHubBase} from '../lib/api-base.js'
 
@@ -117,6 +118,36 @@ function HubLogin(props: {client: () => HubClient | undefined; onTrusted: (token
 
 export function hubBaseOf(apiBase: string): string {
   return `${resolveHubBase(new URL(apiBase, window.location.href).origin)}${HUB_PATH}`
+}
+
+async function joinPage(client: HubClient, sessionId: string, signal: AbortSignal): Promise<void> {
+  if (!(await client.ensureTrusted(0)) || signal.aborted) return
+  const page = client.scope('conciv').rpc
+  await page.call('conciv:page:join', {sessionId})
+  if (signal.aborted) await page.call('conciv:page:leave', {sessionId})
+}
+
+export function servePage(
+  hub: HubConnection,
+  sessionId: string,
+  answer: (query: unknown) => Promise<unknown>,
+): () => void {
+  const serving = new AbortController()
+  const offClient = hub.onClient((client) => {
+    client.client.register({name: PAGE_QUERY_FUNCTION, type: 'action', handler: answer}, true)
+    joinPage(client, sessionId, serving.signal).catch((error: unknown) => {
+      if (!serving.signal.aborted) console.error(`conciv: joining the page to session ${sessionId} failed`, error)
+    })
+  })
+  return () => {
+    offClient()
+    serving.abort()
+    if (hub.status() !== 'connected') return
+    hub
+      .ready()
+      .then((client) => client.scope('conciv').rpc.call('conciv:page:leave', {sessionId}))
+      .catch(() => {})
+  }
 }
 
 export function hubFor(apiBase: string): HubConnection {

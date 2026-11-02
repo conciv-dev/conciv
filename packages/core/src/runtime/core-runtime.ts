@@ -6,7 +6,6 @@ import type {ToolRequest} from '@conciv/extension'
 import {navigation, sessionCaptures, writeToolCapture, type ConcivDb} from '@conciv/db'
 import {symbolicateFrames} from '../editor/symbolicate.js'
 import type {ChatPlane} from '@conciv/chat'
-import {pageQueryStream} from '../page-bus.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
 import type {CoreRuntime, EngineScope, SessionScope, ToolCatalog} from './scope-types.js'
@@ -73,7 +72,7 @@ function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
 function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
   const {page, registry, stream} = deps.primitives
   const model = deps.model(id)
-  const view = registry.whenPageConnected(() => page.bus.connected(id))
+  const view = registry.whenPageConnected(() => page.tabs.connected(id))
   const requestFor = (toolCallId: string | undefined): ToolRequest =>
     toolCallId === undefined ? {sessionId: id, model} : {sessionId: id, model, toolCallId}
   return {
@@ -85,10 +84,8 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       catalog: view.catalog,
     },
     page: {
-      ask: async (name, input) => (await page.bus.ask(id, {name, input})).result,
-      queries: (signal) => pageQueryStream(page.bus, id, signal),
-      reply: (requestId, outcome) => page.bus.resolve(id, requestId, outcome),
-      connected: () => page.bus.connected(id),
+      ask: async (name, input) => (await page.tabs.ask(id, {name, input})).result,
+      connected: () => page.tabs.connected(id),
       changes: () => page.journal.list(id),
       clearChanges: () => page.journal.clear(id),
     },
@@ -124,8 +121,6 @@ function established(raw: SessionScope): SessionScope {
     page: {
       ...raw.page,
       ask: inScope(raw.page.ask),
-      queries: inScope(raw.page.queries),
-      reply: inScope(raw.page.reply),
       changes: inScope(raw.page.changes),
       clearChanges: inScope(raw.page.clearChanges),
     },

@@ -16,7 +16,6 @@ import {
   OpenSourceResultSchema,
   OpenSourceSchema,
   PageChangeEntrySchema,
-  PageReplySchema,
   SourceLocSchema,
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
@@ -116,6 +115,8 @@ export const DraftsSetInputSchema = DraftRowSchema.omit({updatedAt: true})
 export const MarkersListOutputSchema = z.array(MarkerRowSchema)
 export const NavigationGetOutputSchema = NavigationWriteSchema.nullable()
 export const NavigationSetOutputSchema = z.object({ok: z.literal(true), applied: z.boolean()})
+export const PageSymbolicateOutputSchema = SourceLocSchema.nullable()
+export const PageChangesOutputSchema = z.array(PageChangeEntrySchema)
 
 export const contract = {
   sessions: {
@@ -164,14 +165,9 @@ export const contract = {
     list: oc.input(SessionIdInputSchema).output(SessionCapturesSchema),
   },
   page: {
-    symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
-    changes: oc.output(z.array(PageChangeEntrySchema)),
+    symbolicate: oc.input(SymbolicateSchema).output(PageSymbolicateOutputSchema),
+    changes: oc.output(PageChangesOutputSchema),
     clearChanges: oc.output(OkSchema),
-    queries: oc.output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
-    reply: oc
-      .errors({UNKNOWN_REQUEST: {message: 'no pending request'}})
-      .input(PageReplySchema)
-      .output(OkSchema),
   },
   server: {
     config: oc.errors(noBundler).output(BundlerConfigSchema),

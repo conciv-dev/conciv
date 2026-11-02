@@ -1,6 +1,7 @@
 import {
   isPageFailure,
   PageErrorSchema,
+  PageQuerySchema,
   type PageError,
   type PageOutcome,
   type PageQuery,
@@ -10,7 +11,12 @@ import {startConsoleBuffer} from './console-buffer.js'
 import type {Refs} from './page-snapshot.js'
 import {makePageToolDispatcher} from './page-tool-dispatcher.js'
 
-export type PageDriver = {execute: (query: PageQuery) => Promise<PageOutcome>; refs: Refs; dispose: () => void}
+export type PageDriver = {
+  execute: (query: PageQuery) => Promise<PageOutcome>
+  answer: (query: unknown) => Promise<PageOutcome>
+  refs: Refs
+  dispose: () => void
+}
 
 function pageErrorOf(error: unknown): PageError {
   if (!isPageFailure(error)) {
@@ -39,10 +45,16 @@ export function makeDomPageDriver(
     }
   }
 
+  function answer(query: unknown): Promise<PageOutcome> {
+    const parsed = PageQuerySchema.safeParse(query)
+    if (parsed.success) return execute(parsed.data)
+    return Promise.resolve({ok: false, error: {code: 'invalid-args', message: 'the page query does not parse'}})
+  }
+
   function dispose(): void {
     for (const effect of effects) if (effect.enabled()) effect.set(false)
     disposeConsoleBuffer()
   }
 
-  return {execute, refs, dispose}
+  return {execute, answer, refs, dispose}
 }

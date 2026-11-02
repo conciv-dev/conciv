@@ -157,22 +157,14 @@ export async function hydratedSnapshot(kit: Kit, sessionId: string): Promise<Sna
 export type FakeWidget = {end: () => void; seen: () => string[]}
 
 export async function connectWidget(kit: Kit, answerFor: (name: string) => PageOutcome): Promise<FakeWidget> {
-  const ctrl = new AbortController()
   const seen: string[] = []
-  const iterator = await kit.rpc.page.queries(undefined, {signal: ctrl.signal})
-  void (async () => {
-    try {
-      for await (const {requestId, query} of iterator) {
-        const name =
-          typeof query === 'object' && query !== null && 'name' in query && typeof query.name === 'string'
-            ? query.name
-            : ''
-        seen.push(name)
-        void kit.rpc.page.reply({requestId, outcome: answerFor(name)}).catch(() => {})
-      }
-    } catch {}
-  })()
-  return {end: () => ctrl.abort(), seen: () => [...seen]}
+  const tab = await kit.pageTab((query) => {
+    const name =
+      typeof query === 'object' && query !== null && 'name' in query && typeof query.name === 'string' ? query.name : ''
+    seen.push(name)
+    return answerFor(name)
+  })
+  return {end: () => tab.close(), seen: () => [...seen]}
 }
 
 export type ResumeScenarioOpts = {

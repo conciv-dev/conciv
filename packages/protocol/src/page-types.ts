@@ -2,7 +2,6 @@ import {z} from 'zod'
 import {PageCaptureBundleSchema} from './element-capture-types.js'
 
 export const PageQuerySchema = z.object({
-  requestId: z.string().optional(),
   name: z.string().min(1).describe('registry tool name whose client body runs in the page'),
   input: z.record(z.string(), z.unknown()).describe('schema-validated input for the named tool'),
 })
@@ -10,6 +9,8 @@ export const PageQuerySchema = z.object({
 export type PageQuery = z.infer<typeof PageQuerySchema>
 
 export const PAGE_REPORTED_ERROR_CODES = ['unknown-verb', 'invalid-args', 'handler-error'] as const
+export const PAGE_QUERY_FUNCTION = 'conciv:page:query'
+
 export const PAGE_TRANSPORT_ERROR_CODES = ['no-widget', 'timeout'] as const
 export const PAGE_ERROR_CODES = [...PAGE_REPORTED_ERROR_CODES, ...PAGE_TRANSPORT_ERROR_CODES] as const
 export type PageErrorCode = (typeof PAGE_ERROR_CODES)[number]
@@ -28,7 +29,7 @@ export const PageErrorSchema = z.object({
 })
 export type PageError = z.infer<typeof PageErrorSchema>
 
-const PageOutcomeSchema = z.discriminatedUnion('ok', [
+export const PageOutcomeSchema = z.discriminatedUnion('ok', [
   z.object({
     ok: z.literal(true),
     result: z.record(z.string(), z.unknown()).default({}),
@@ -50,9 +51,6 @@ export function pageFailure(code: PageErrorCode, message: string, raised?: PageR
 export function isPageFailure(value: unknown): value is PageFailure {
   return value instanceof Error && 'isPageFailure' in value && value.isPageFailure === true
 }
-
-export const PageReplySchema = z.object({requestId: z.string(), outcome: PageOutcomeSchema})
-export type PageReply = z.infer<typeof PageReplySchema>
 
 export const PageChangeEntrySchema = z.object({
   seq: z.number(),

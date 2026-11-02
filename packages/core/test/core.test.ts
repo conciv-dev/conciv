@@ -34,7 +34,7 @@ import {symbolicateFrame} from '../src/editor/symbolicate.js'
 import {readDevEndpoint, removeDevEndpoint, writeDevEndpoint} from '../src/lib/dev-endpoint.js'
 import {makeStalenessProbe} from '../src/lib/engine-stamp.js'
 import {statePaths} from '../src/lib/state-paths.js'
-import {makePageBus} from '../src/page-bus.js'
+import {makePageTabs, type PageTab} from '../src/page-bus.js'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
 import {makeSessionPrimitives, type SessionPrimitives} from '../src/runtime/primitives.js'
 import {type CoreRuntime} from '../src/runtime/scope-types.js'
@@ -758,30 +758,25 @@ await engine.stop()
   }, 25_000)
 })
 
-describe('page bus inflight teardown', () => {
+describe('page tabs inflight teardown', () => {
   const SESSION = SessionId.parse('conciv_inflight')
 
-  function requestIdOf(frames: unknown[]): string {
-    const found = frames.flatMap((frame) =>
-      typeof frame === 'object' && frame !== null && 'requestId' in frame && typeof frame.requestId === 'string'
-        ? [frame.requestId]
-        : [],
-    )[0]
-    if (found === undefined) throw new Error('the bus emitted no request frame')
-    return found
+  function heldTab(id: number): {tab: PageTab; reply: (outcome: unknown) => void} {
+    const pending = Promise.withResolvers<unknown>()
+    return {tab: {id, live: () => true, query: () => pending.promise}, reply: pending.resolve}
   }
 
-  it('a reply still settles the in-flight ask after the asking widget unsubscribes and a fresh one attaches', async () => {
-    const bus = makePageBus(2000)
-    const frames: unknown[] = []
-    const unsubscribe = bus.subscribe(SESSION, (frame) => frames.push(frame))
-    const answered = bus.ask(SESSION, {name: 'fixture_click', input: {}})
+  it('a reply still settles the in-flight ask after the asking tab leaves and a fresh one joins', async () => {
+    const tabs = makePageTabs(2000)
+    const asking = heldTab(1)
+    tabs.join(SESSION, asking.tab)
+    const answered = tabs.ask(SESSION, {name: 'fixture_click', input: {}})
     await Promise.resolve()
 
-    unsubscribe()
-    bus.subscribe(SESSION, () => {})
+    tabs.leave(SESSION, 1)
+    tabs.join(SESSION, heldTab(2).tab)
 
-    expect(bus.resolve(SESSION, requestIdOf(frames), {ok: true, result: {clicked: 'yes'}})).toBe(true)
+    asking.reply({ok: true, result: {clicked: 'yes'}})
     await expect(answered).resolves.toEqual({result: {clicked: 'yes'}})
   }, 10_000)
 })
@@ -832,17 +827,10 @@ describe('runtime ambient session', () => {
     return {runtime, primitives}
   }
 
-  function requestIdOf(frame: unknown): string | null {
-    if (typeof frame !== 'object' || frame === null || !('requestId' in frame)) return null
-    return typeof frame.requestId === 'string' ? frame.requestId : null
-  }
-
   function widgetOn(primitives: SessionPrimitives, id: SessionId, reply: Record<string, unknown>): () => void {
-    return primitives.page.bus.subscribe(id, (frame) => {
-      const requestId = requestIdOf(frame)
-      if (requestId === null) return
-      queueMicrotask(() => primitives.page.bus.resolve(id, requestId, {ok: true, result: reply}))
-    })
+    const tabId = Math.random()
+    primitives.page.tabs.join(id, {id: tabId, live: () => true, query: async () => ({ok: true, result: reply})})
+    return () => primitives.page.tabs.leave(id, tabId)
   }
 
   function reachableIn(catalog: {list: () => {name: string; reachable: boolean}[]}, name: string): boolean | undefined {

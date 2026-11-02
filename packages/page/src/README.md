@@ -2,13 +2,11 @@
 
 ## Overview
 
-The DOM side of the page plane. `startPagePlane` reads page queries from the engine and answers them with a page driver that dispatches to client tools, keeps element refs and a console buffer, and returns captures. Also exports the React bridge, snapshot, dehydrate and toast helpers.
+The DOM side of the page plane. The widget answers each `conciv:page:query` hub call with a page driver that dispatches to client tools, keeps element refs and a console buffer, and returns captures. Also exports the React bridge, snapshot, dehydrate and toast helpers.
 
 ## Interface
 
-- `index.ts:startPagePlane({source, driver?, tools?})` - serves page queries until `dispose()`.
-- `index.ts:servePageQueries` - for each query that parses with `PageQuerySchema`, runs `driver.execute` and replies with `{requestId, outcome}`; `PageQuerySource` type.
-- `page-driver.ts:makeDomPageDriver({tools?, effects?, refs?})` - `PageDriver` with `execute(query)`, `refs`, `dispose()`.
+- `page-driver.ts:makeDomPageDriver({tools?, effects?, refs?})` - `PageDriver` with `execute(query)`, `answer(query)` (parses an untrusted query first), `refs`, `dispose()`.
 - `page-tool-dispatcher.ts:makePageToolDispatcher` - dispatches a query to the client tool with the same `name`; `PageToolAnswer`, `PageToolDispatch`.
 - `page-snapshot.ts:buildSnapshot` / `addRef` / `describeElement` / `roleOf` / `accessibleNameOf` / `DOM_CAP` (20000) - accessibility-style snapshots and refs.
 - `element-descriptor.ts:isSensitiveField` / `MASKED_VALUE` (`***`) / `elementDescriptor`.
@@ -25,7 +23,7 @@ The DOM side of the page plane. `startPagePlane` reads page queries from the eng
 
 ## Invariants
 
-- `index.ts:servePageQueries` - queries that fail `PageQuerySchema` are skipped; reply failures are swallowed.
+- `page-driver.ts:answer` - a query that fails `PageQuerySchema` answers `{ok: false, error: {code: 'invalid-args'}}`.
 - `page-driver.ts:execute` - never throws; errors become `{ok: false, error}`.
 - `page-tool-dispatcher.ts` - an unknown tool name fails with `unknownVerb`; a locator with no `ref`, `selector` or `name` fails with `badArgs('no target: pass ref, selector, or name')`.
 - `element-descriptor.ts:isSensitiveField` - `type=password` or an `autocomplete` containing `cc-`, `one-time-code`, `current-password` or `new-password` is sensitive.

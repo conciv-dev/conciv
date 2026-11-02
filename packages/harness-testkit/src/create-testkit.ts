@@ -12,6 +12,7 @@ import {ChatContentPartSchema, CONCIV_SESSION_HEADER, type ChatContentPart} from
 import {makeChatSockets, type TurnMessage} from './chat-turn.js'
 import {makeRunStream, type RunStream} from './run-stream.js'
 import {makeCallTool} from './call-tool.js'
+import {openPageTab, type OpenPageTab, type PageTabAnswer} from './page-tab.js'
 import {makeRpcClient, makeSessionBoundRpcClient, type RpcClient} from './session.js'
 import type {TestHarness} from './create-test-harness.js'
 
@@ -57,6 +58,7 @@ export type Kit = {
   get: (path: string, session?: string) => Promise<Response>
   invokeTool: (name: string, input: unknown, opts: {instruction: string}, session?: string) => Promise<RunStream>
   callTool: (name: string, input: unknown, session?: string) => Promise<unknown>
+  pageTab: (answer: PageTabAnswer, session?: string) => Promise<OpenPageTab>
   restartServer: () => Promise<void>
   cleanup: () => Promise<void>
 }
@@ -110,6 +112,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
       const base = `${served.base}${agentPath}`
       const wsBase = `${served.wsBase}${agentPath}`
       const aborts: AbortController[] = []
+      const pageTabs: OpenPageTab[] = []
       const activeSession = {id: ''}
       const rpc = makeSessionBoundRpcClient(base, () => activeSession.id)
       const bootstrapRpc = makeRpcClient(base)
@@ -182,12 +185,18 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
           return stream
         },
         callTool,
+        pageTab: async (answer, session) => {
+          const tab = await openPageTab({hubUrl, token: app.loginToken, sessionId: await sessionFor(session), answer})
+          pageTabs.push(tab)
+          return tab
+        },
         restartServer: async () => {
           await served.close()
           served = await serveApp(listener, {port: served.port})
         },
         cleanup: async () => {
           sockets.closeAll()
+          for (const tab of pageTabs) tab.close()
           for (const abort of aborts) abort.abort()
           const stopLiveSessions = async () => {
             const sessions = (await rpc.sessions.list({includeHidden: true}).catch(() => [])) ?? []

@@ -2,7 +2,7 @@ import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ConcivDb} from '@conciv/db'
 import {createSessionBus, type SessionBus} from '../sessions/session-bus.js'
-import {makeJournal, makePageBus, type CaptureSink, type PageEnv} from '../page-bus.js'
+import {makeJournal, makePageTabs, type CaptureSink, type PageEnv} from '../page-bus.js'
 import {makeBuiltinRegistry} from '../tool-registry.js'
 
 export type SessionPrimitives = {
@@ -23,7 +23,7 @@ export function makeSessionPrimitives(deps: SessionPrimitivesDeps): SessionPrimi
   const page: PageEnv = {
     journal: makeJournal(deps.db),
     root: deps.root,
-    bus: makePageBus(),
+    tabs: makePageTabs(),
     storeCapture: deps.storeCapture,
   }
   return {

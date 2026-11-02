@@ -13,7 +13,7 @@ import {writeFile} from 'node:fs/promises'
 import {request as httpRequest} from 'node:http'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
-import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEach} from 'vitest'
+import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEach, onTestFinished} from 'vitest'
 import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {cappedValue} from '@conciv/chat'
@@ -795,15 +795,17 @@ describe('api page agent page tool', () => {
 
       await execute({verb: 'fill', selector: '#email', value: 'a@b.c'})
       await annotate('stage: the page.changes rpc call')
-      const afterAgent = ChangesSchema.parse(await kit.rpc.page.changes(undefined, {signal}))
+      const afterAgent = ChangesSchema.parse(
+        await kit.hub.call('conciv:page:changes', {sessionId: await kit.session()}),
+      )
       expect(afterAgent).toMatchObject([{verb: 'page_fill', selector: '#email', args: {value: 'a@b.c'}}])
 
       await annotate('stage: the page.clearChanges rpc call')
-      await kit.rpc.page.clearChanges(undefined, {signal})
+      await kit.hub.call('conciv:page:clearChanges', {sessionId: await kit.session()})
       await annotate('stage: the cli page_fill rpc call')
       await kit.rpc.registry.call({name: 'page_fill', input: {selector: '#email', value: 'a@b.c'}}, {signal})
       await annotate('stage: the page.changes rpc call')
-      const afterCli = ChangesSchema.parse(await kit.rpc.page.changes(undefined, {signal}))
+      const afterCli = ChangesSchema.parse(await kit.hub.call('conciv:page:changes', {sessionId: await kit.session()}))
       expect(afterAgent).toEqual(afterCli)
     }, 30_000)
   })
@@ -973,7 +975,7 @@ describe('api page tool capture', () => {
       const {sessionId, call} = await capturing()
       await call('page_fill', {selector: '#email', value: SECRET})
 
-      const stored = await kit().rpc.captures.list({sessionId})
+      const stored = await kit().hub.call('conciv:captures:list', {sessionId})
       expect(stored.captures.map((row) => row.kind).toSorted()).toEqual(['after', 'before'])
       const ids = new Set(stored.captures.map((row) => row.toolCallId))
       expect(ids.size).toBe(1)
@@ -993,7 +995,7 @@ describe('api page tool capture', () => {
       const {sessionId, call} = await capturing()
       await call('page_fill', {selector: '#email', value: SECRET})
       await kit().hub.call('conciv:sessions:delete', {sessionId})
-      const stored = await kit().rpc.captures.list({sessionId})
+      const stored = await kit().hub.call('conciv:captures:list', {sessionId})
       expect(stored.captures).toEqual([])
       expect(stored.cssBundles).toEqual({})
     })
@@ -1096,14 +1098,14 @@ describe('rpc symbolicate', () => {
 
     it('maps a bundle frame back to its original file, line and column', async () => {
       const fileName = await chunk('hero-chunk.js', 'src/components/landing/hero.tsx', 42, 5)
-      const loc = await kit().rpc.page.symbolicate({frames: [{fileName, line: 2, column: 1}]})
+      const loc = await kit().hub.call('conciv:page:symbolicate', {frames: [{fileName, line: 2, column: 1}]})
       expect(loc).toEqual({file: 'src/components/landing/hero.tsx', line: 42, column: 5})
     })
 
     it('skips node_modules frames and answers with the first project frame', async () => {
       const vendor = await chunk('vendor-chunk.js', 'node_modules/react-dom/client.js', 10, 0)
       const app = await chunk('app-chunk.js', 'src/app.tsx', 8, 2)
-      const loc = await kit().rpc.page.symbolicate({
+      const loc = await kit().hub.call('conciv:page:symbolicate', {
         frames: [
           {fileName: vendor, line: 2, column: 1},
           {fileName: app, line: 2, column: 1},
@@ -1113,7 +1115,9 @@ describe('rpc symbolicate', () => {
     })
 
     it('refuses a frame that escapes the project root', async () => {
-      const loc = await kit().rpc.page.symbolicate({frames: [{fileName: '../outside.js', line: 1, column: 1}]})
+      const loc = await kit().hub.call('conciv:page:symbolicate', {
+        frames: [{fileName: '../outside.js', line: 1, column: 1}],
+      })
       expect(loc).toBeNull()
     })
   })
@@ -1139,18 +1143,13 @@ describe('rpc wire', () => {
       const kit = sharedKit(() => bootKit({}, createTestHarness(requireClaude())))
 
       it('registry.call reports PAGE_TIMEOUT when the page never replies', async () => {
-        const abort = new AbortController()
-        const iterator = await kit().rpc.page.queries(undefined, {signal: abort.signal})
-        const consumed = iterator.next()
-        await new Promise((resolve) => setTimeout(resolve, 50))
+        const tab = await kit().pageTab(() => new Promise(() => {}))
         await expect(
           kit().rpc.registry.call({name: 'page_wait', input: {selector: 'body', timeout: 100}}),
         ).rejects.toMatchObject({
           code: 'PAGE_TIMEOUT',
         })
-        abort.abort()
-        await consumed.catch(() => {})
-        await iterator.return(undefined).catch(() => {})
+        tab.close()
       })
 
       it('server reads and widget writes without a bundler bridge report NO_BUNDLER', async () => {
@@ -1160,28 +1159,55 @@ describe('rpc wire', () => {
         await expect(widget.server.reload({file: 'src/a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
       })
 
-      it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
-        await expect(
-          kit().rpc.page.reply({requestId: 'pq-nope', outcome: {ok: true, result: {}}}),
-        ).rejects.toMatchObject({
-          code: 'UNKNOWN_REQUEST',
-        })
+      it('a page reply carrying a transport code only the server may produce fails as HANDLER_ERROR, so the page cannot forge one', async () => {
+        for (const code of PAGE_TRANSPORT_ERROR_CODES) {
+          const tab = await kit().pageTab(() => ({ok: false, error: {code, message: 'boom'}}))
+          await expect(
+            kit().rpc.registry.call({name: 'page_wait', input: {selector: 'body', timeout: 100}}),
+          ).rejects.toMatchObject({code: 'HANDLER_ERROR'})
+          tab.close()
+          await tab.closed
+        }
+      })
+    })
+
+    describe('which tab answers a page query', () => {
+      const kit = sharedKit(() => bootKit({}, createTestHarness(requireClaude())))
+      const pageWait = () => kit().rpc.registry.call({name: 'page_text', input: {selector: 'body'}})
+      const answering = (text: string) => () => ({ok: true, result: {text}})
+
+      const openTab = async (answer: Parameters<Kit['pageTab']>[0]) => {
+        const tab = await kit().pageTab(answer)
+        onTestFinished(() => tab.close())
+        return tab
+      }
+
+      it('every joined tab of the session gets the query and the first reply wins', async () => {
+        await openTab(answering('first tab'))
+        await openTab(() => new Promise(() => {}))
+        await expect(pageWait()).resolves.toEqual({text: 'first tab'})
       })
 
-      it('page.reply refuses a transport code only the server may produce, so the page cannot forge one', async () => {
-        const statuses: number[] = []
-        const sessionId = await kit().session()
-        for (const code of PAGE_TRANSPORT_ERROR_CODES) {
-          const response = await fetch(`${kit().base}/rpc/page/reply`, {
-            method: 'POST',
-            headers: {'content-type': 'application/json', [CONCIV_SESSION_HEADER]: sessionId},
-            body: JSON.stringify({
-              json: {requestId: 'pq-nope', outcome: {ok: false, error: {code, message: 'boom'}}},
-            }),
-          })
-          statuses.push(response.status)
-        }
-        expect(statuses).toEqual(PAGE_TRANSPORT_ERROR_CODES.map(() => 400))
+      it('a tab that closes mid-query leaves the other tab to answer', async () => {
+        await openTab(
+          () => new Promise((settle) => setTimeout(() => settle({ok: true, result: {text: 'slow tab'}}), 300)),
+        )
+        const closing = await openTab(() => {
+          setTimeout(() => closing.close(), 0)
+          return new Promise(() => {})
+        })
+        await expect(pageWait()).resolves.toEqual({text: 'slow tab'})
+      })
+
+      it('a reloaded tab answers in place of the closed one, and with no open tab the query fails NO_PAGE_CLIENT at once', async () => {
+        const before = await openTab(answering('before reload'))
+        before.close()
+        await before.closed
+        const started = performance.now()
+        await expect(pageWait()).rejects.toMatchObject({code: 'NO_PAGE_CLIENT'})
+        expect(performance.now() - started).toBeLessThan(500)
+        await openTab(answering('after reload'))
+        await expect(pageWait()).resolves.toEqual({text: 'after reload'})
       })
     })
 

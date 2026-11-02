@@ -5,10 +5,7 @@ import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PushFrame} from '@conciv/protocol
 import type {UpgradeWebSocket, WSContext} from 'hono/ws'
 import {logError} from '../lib/debug.js'
 
-export type PageQuery = {requestId: string; query: unknown}
-
 export type PushDeps = {
-  queries: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<PageQuery>
   events: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<ChatEvent>
 }
 
@@ -41,11 +38,6 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
           }
           const sessionId = requested.data
           send({channel: 'ready'})
-          pump(
-            deps.queries(sessionId, abort.signal),
-            ({requestId, query}) => send({channel: 'page', requestId, query}),
-            'page query',
-          )
           pump(deps.events(sessionId, abort.signal), (chunk) => send({channel: 'chat', chunk}), 'session event')
         },
         onMessage: (_event, ws) => {

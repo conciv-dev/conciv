@@ -3,10 +3,7 @@ import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema, type PushFrame} from '@conciv/protocol/push-types'
 import {relayedValues} from './stream-relay.js'
 
-export type PageQueryFrame = {requestId: string; query: unknown}
-
 export type PushChannel = {
-  queries: (abortSignal?: AbortSignal) => AsyncGenerator<PageQueryFrame>
   events: (abortSignal?: AbortSignal) => AsyncGenerator<ChatEvent>
   dispose: () => void
 }
@@ -60,14 +57,6 @@ export function openPushChannel(options: PushChannelOptions): PushChannel {
     }
   }
   return {
-    queries: (abortSignal) =>
-      relayedValues<PageQueryFrame>(
-        (emit) =>
-          subscribe((frame) => {
-            if (frame.channel === 'page') emit({requestId: frame.requestId, query: frame.query})
-          }),
-        abortSignal,
-      ),
     events: (abortSignal) =>
       relayedValues<ChatEvent>(
         (emit) =>
@@ -102,7 +91,6 @@ export function acquirePushChannel(options: PushChannelOptions): PushChannel {
   entry.refs += 1
   shared.set(key, entry)
   return {
-    queries: (abortSignal) => entry.channel.queries(abortSignal),
     events: (abortSignal) => entry.channel.events(abortSignal),
     dispose: () => releasePushChannel(key),
   }

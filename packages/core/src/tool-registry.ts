@@ -17,7 +17,7 @@ export type BuiltinRegistryDeps = {
 export function makeBuiltinRegistry(deps: BuiltinRegistryDeps): ToolRegistry {
   const registry = createToolRegistry({
     pageCaller: (tool, input, request) => runClientTool(deps.page, tool, input, request),
-    isAnyPageConnected: () => deps.page.bus.anySubscriber(),
+    isAnyPageConnected: () => deps.page.tabs.anyConnected(),
   })
   for (const tool of BUILTIN_SERVER_TOOLS) {
     registry.register(tool, {owner: 'a built-in server tool', context: {bundler: deps.bundler}})
@@ -53,7 +53,7 @@ async function runClientTool(
   const record = PageToolInputSchema.parse(input ?? {})
   const sessionId = session().id
   try {
-    const answer = await env.bus.ask(sessionId, {name: tool.name, input: record})
+    const answer = await env.tabs.ask(sessionId, {name: tool.name, input: record})
     await storeCapture(env, request, answer)
     const data = answer.result
     if (tool.mutating) {

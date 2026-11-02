@@ -24,7 +24,7 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 ## Invariants
 
 - `sessions.rename` requires `title` of 1-120 characters and declares `NOT_FOUND`; `sessions.model` declares `NOT_FOUND` and `UNKNOWN_MODEL` (`contract.ts`).
-- `chat.stop` requires `runIds` to be non-empty strings; `chat.permissionDecision`, `chat.uiReply` and `page.reply` declare `UNKNOWN_REQUEST` (`contract.ts`).
+- `chat.stop` requires `runIds` to be non-empty strings; `chat.permissionDecision` and `chat.uiReply` declare `UNKNOWN_REQUEST` (`contract.ts`).
 - Every `server.*` procedure declares `NO_BUNDLER`; `server.reload` and `server.restart` also declare `APPROVAL_DENIED`; `restart.force` defaults to `false` (`contract.ts`).
 - `registry.call` requires a non-empty `name` and `input` as `record<string, unknown>`, and declares the `registryCallErrors` set (`contract.ts`).
 - `editor.open` requires `line` to be an integer >= 1 when present (`EditorOpenInputSchema`).

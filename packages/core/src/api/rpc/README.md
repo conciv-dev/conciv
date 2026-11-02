@@ -11,7 +11,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - RPC `chat.events` (streaming), `chat.hydrate`, `chat.stop`, `chat.permissionDecision`, `chat.uiReply` (`chat.ts`, `chatRouter`)
 - RPC `drafts.get`, `drafts.set`, `markers.list`, `navigation.get`, `navigation.set`, `captures.list` (`router.ts`)
 - RPC `registry.catalog`, `registry.call` (`router.ts`)
-- RPC `page.symbolicate`, `page.changes`, `page.clearChanges`, `page.queries` (streaming), `page.reply` (`router.ts`)
+- RPC `page.symbolicate`, `page.changes`, `page.clearChanges` (`router.ts`); hub functions `conciv:captures:list`, `conciv:page:symbolicate`, `conciv:page:changes`, `conciv:page:clearChanges`, `conciv:page:join`, `conciv:page:leave` (`router.ts`)
 - RPC `server.config`, `.resolve`, `.graph`, `.transform`, `.urls`, `.reload`, `.restart` (`router.ts`): each calls the matching `BUILTIN_SERVER_TOOLS` entry
 - RPC `editor.open`, `editor.openFromFrames` (`router.ts`)
 - RPC `meta.models`, `meta.commands`, `meta.tools`, `meta.engine` (`router.ts`)
@@ -24,7 +24,8 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - `registry.call` (`router.ts`): UNKNOWN_TOOL when the session has no such tool; page errors map through `PAGE_ERROR_NAME`
 - `refuseUnapproved` (`router.ts`): skipped for widget-origin callers; tools with `approval: 'ask'` go through `plane.admitCall` and throw APPROVAL_DENIED on refusal (registry.call, server.reload, server.restart)
 - `callTool` (`router.ts`): throws when a tool has no outputSchema and parses output with it; `NO_BUNDLER` maps to the NO_BUNDLER error
-- `page.reply`, `chat.permissionDecision`, `chat.uiReply` (`router.ts`, `chat.ts`): UNKNOWN_REQUEST when nothing is pending
+- `chat.permissionDecision`, `chat.uiReply` (`chat.ts`): UNKNOWN_REQUEST when nothing is pending
+- `conciv:page:join` / `conciv:page:leave` (`router.ts`): BAD_REQUEST unless the caller is a trusted websocket hub session
 - `sessions.rename` / `sessions.model` (`sessions.ts`): NOT_FOUND without a row; `model` throws UNKNOWN_MODEL for a missing or disabled model
 - `cleanTitle` (`sessions.ts`): strips control characters, collapses whitespace, truncates to 120 characters
 - `sessions.create` (`sessions.ts`): ids are `conciv_<uuid>` validated with `SessionId.parse`

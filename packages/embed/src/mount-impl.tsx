@@ -1,8 +1,7 @@
 import {createEffect, createMemo, createRoot, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
-import {acquirePushChannel} from '@conciv/client'
+import {makeBrowserRpcClient} from '@conciv/contract'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import {
   collectClientEffects,
@@ -13,12 +12,12 @@ import {
 } from '@conciv/extension'
 import pageExtension from '@conciv/extension-page/client'
 import type {GrabProvider} from '@conciv/grab'
-import {installReactBridge, makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
+import {installReactBridge, makeDomPageDriver, reactBridge, type PageDriver} from '@conciv/page'
 import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
 import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
-import {hasLoginToken, hubBaseOf, hubFor, renderLogin, type HubConnection} from '@conciv/app/devframe-link'
+import {hasLoginToken, hubBaseOf, hubFor, renderLogin, servePage, type HubConnection} from '@conciv/app/devframe-link'
 import {makeNavigationStorage} from './navigation-storage.js'
 import type {ConcivInit} from './mount.js'
 
@@ -72,30 +71,37 @@ function runDisposers(disposers: Array<() => void>): void {
 
 type SessionPagePlaneConfig = {
   session: () => string | null
-  apiBase: () => string
-  rpc: RpcClient
+  hub: () => HubConnection | undefined
   driver: () => PageDriver
-  redoOnChange: () => unknown
 }
 
 function startSessionPagePlane(config: SessionPagePlaneConfig): {dispose: () => void} {
   return createRoot((dispose) => {
     createEffect(() => {
-      config.redoOnChange()
       const sessionId = config.session()
-      const apiBase = config.apiBase()
-      if (!sessionId || apiBase === '') return
-      const channel = acquirePushChannel({apiBase, sessionId})
-      const plane = startPagePlane({
-        source: {queries: channel.queries, reply: (input) => config.rpc.page.reply(input)},
-        driver: config.driver(),
-      })
-      onCleanup(() => {
-        plane.dispose()
-        channel.dispose()
-      })
+      const hub = config.hub()
+      if (!sessionId || hub === undefined) return
+      const driver = config.driver()
+      onCleanup(servePage(hub, sessionId, (query) => driver.answer(query)))
     })
     return {dispose}
+  })
+}
+
+function createBoundHub(apiBase: Accessor<string>): {hub: Accessor<HubConnection | undefined>; close: () => void} {
+  return createRoot((dispose) => {
+    const hub = createMemo<HubConnection | undefined>((previous) => {
+      previous?.close()
+      const bound = apiBase()
+      return bound === '' ? undefined : hubFor(bound)
+    })
+    return {
+      hub,
+      close: () => {
+        hub()?.close()
+        dispose()
+      },
+    }
   })
 }
 
@@ -180,10 +186,8 @@ function bootNormal(config: BootNormalConfig): BootResult {
   const activeSession = makeActiveSessionBinding((session) =>
     startSessionPagePlane({
       session,
-      apiBase,
-      rpc,
+      hub: () => followed?.hub(),
       driver: () => driver,
-      redoOnChange: connectionGeneration,
     }),
   )
 
@@ -266,13 +270,12 @@ function bootConnect(config: BootConnectConfig): BootResult {
   const deferred = makeBrowserRpcClient(() => null, {session: () => activeSession.read()})
   let boundApiBase: string | undefined
   const [apiBase, setApiBase] = createSignal('')
+  const bound = createBoundHub(apiBase)
   const activeSession = makeActiveSessionBinding((session) =>
     startSessionPagePlane({
       session,
-      apiBase,
-      rpc: deferred.rpc,
+      hub: bound.hub,
       driver: () => driver,
-      redoOnChange: apiBase,
     }),
   )
   const bindApiBase = (nextApiBase: string) => {
@@ -311,6 +314,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
     () => router.options.context.queryClient.clear(),
     driver.dispose,
     deferred.close,
+    bound.close,
     interactive.notify,
   ]
   return {dispose: () => runDisposers(disposers), interactive: interactive.promise}
