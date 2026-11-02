@@ -1,7 +1,12 @@
 import {defineConfig} from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/server.ts', 'src/client.ts', 'src/testkit.ts'],
+  entry: {
+    server: 'src/server.ts',
+    client: 'src/client.ts',
+    testkit: 'src/testkit.ts',
+    'quickjs-worker': 'src/server/quickjs-worker.ts',
+  },
   format: 'esm',
   fixedExtension: false,
   dts: true,

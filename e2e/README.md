@@ -46,6 +46,16 @@ touches none of this is fine.
 | `nextjs-component`      | copy of `nextjs`           | `@conciv/react` under app router: RSC `'use client'` boundary   |
 | `vite-preact-component` | copy of `vite-react`       | `@conciv/preact` `<ConcivWidget/>` path, plugin `widget: false` |
 | `vite-solid-component`  | copy of `vite-solid`       | `@conciv/solid` `<ConcivWidget/>` path, plugin `widget: false`  |
+| `vite-react-packed`     | copy of `vite-react`       | published-tarball pnpm install, catches dist/packaging bugs     |
+
+`vite-react-packed` installs conciv the way an npm user does, using the packing helpers in
+`e2e-utils/src/packed.ts` (shared with `nextjs/packed`). Its `test:e2e` runs `install-packed.ts` first:
+it builds and `pnpm pack`s `@conciv/it`'s workspace dependency closure, copies `index.html`, `src/` and
+`public/` from `vite-react` into a temp dir outside the workspace, generates the `package.json` and
+`vite.config.ts`, overrides each `@conciv/*` to its tarball and runs `pnpm install` there, seeded from
+the committed `fixture-lock.yaml` and checked for drift. When a registry dependency changes, refresh it
+with `pnpm --filter conciv-e2e-vite-react-packed run update-packed-lockfile`. Playwright runs from
+`e2e/vite-react-packed`; only the vite dev server runs in the temp copy.
 
 `e2e-utils` holds the shared Playwright config factory, the widget boot assertions, and the fixed
 port registry (`src/ports.ts`) so suites can run side by side.
