@@ -272,6 +272,7 @@ function mapFixture(input: {
     index: 1,
     path: '/1',
     drawn: false,
+    placeholder: null,
     children: [],
   }
   return mapDeclaration({
@@ -1290,6 +1291,7 @@ function glyphComponent(input: {glyphs: {text: string; boxes: Box[]}[]; x?: numb
     index: 1,
     path: '/1',
     drawn: false,
+    placeholder: null,
     children: [],
   }
 }
@@ -2604,14 +2606,21 @@ function slotPicture(input: {source: string; slot: Box; picture: string}): strin
 
 async function drawnDiff(): Promise<{
   drawn: number
+  paired: number
+  unbuilt: Box[]
   warnings: DiffReport['warnings']
   mismatch: number
   brief: string[]
 }> {
   const raw = await rpc.registry.call({name: 'design_diff', input: {full: true}})
   const report = DiffReportSchema.parse(raw)
+  const {counts} = CompactReportSchema.parse(raw)
   return {
-    drawn: CompactReportSchema.parse(raw).counts.drawn,
+    drawn: counts.drawn,
+    paired: counts.paired,
+    unbuilt: report.unmatched.flatMap((entry) =>
+      entry.kind === 'unbuilt' && entry.target !== undefined ? [entry.target] : [],
+    ),
     warnings: report.warnings.filter((warning) => warning.warning === 'svg-drawn'),
     mismatch: report.mismatch,
     brief: report.brief,
@@ -2861,6 +2870,7 @@ describe('icons', () => {
     const placeholder = await readFile(fileUnder(stateRoot, status.placeholderPath ?? ''), 'utf8')
     const slot = daybreakSlot(await storedNodes(id))
     const source = await readFile(STRIPE_SOURCE, 'utf8')
+    const registered = await drawnDiff()
     try {
       await writeFile(PLACEHOLDER_SOURCE, placeholder)
       await rewrite({id, file: STRIPE_SOURCE, text: slotPicture({source, slot, picture: PLACEHOLDER_TAG})})
@@ -2869,11 +2879,14 @@ describe('icons', () => {
       await rewrite({id, file: STRIPE_SOURCE, text: slotPicture({source, slot, picture: DRAWN_SVG})})
       const drawn = await drawnDiff()
       await annotate(
-        `slot ${JSON.stringify(slot)} placeholder drawn ${placed.drawn} mismatch ${placed.mismatch}; svg drawn ${drawn.drawn} mismatch ${drawn.mismatch} warnings ${JSON.stringify(drawn.warnings)} brief ${JSON.stringify(drawn.brief.slice(0, 3))}`,
+        `slot ${JSON.stringify(slot)} paired ${registered.paired} -> ${placed.paired} placeholder drawn ${placed.drawn} mismatch ${placed.mismatch}; svg drawn ${drawn.drawn} mismatch ${drawn.mismatch} warnings ${JSON.stringify(drawn.warnings)} brief ${JSON.stringify(drawn.brief.slice(0, 3))}`,
       )
       expect(status.next).toContain(`copy ${status.placeholderPath} into the page's source`)
       expect(rendered).toBe(true)
       expect([placed.drawn, placed.warnings]).toEqual([0, []])
+      expect(registered.unbuilt).toContainEqual(slot)
+      expect(placed.paired).toBe(registered.paired + 1)
+      expect(placed.unbuilt).not.toContainEqual(slot)
       expect(drawn.drawn).toBe(1)
       expect(drawn.warnings.map((warning) => warning.file?.endsWith('Stripe.tsx'))).toEqual([true])
       expect(

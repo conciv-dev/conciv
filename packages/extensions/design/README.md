@@ -329,7 +329,10 @@ source and use <Placeholder kind=…> for every image and icon line`, and the x-
   small centred glyph per kind, in CSS only. The file is written for React at registration and rewritten for Solid
   on the first run whose measure reports a Solid page (sourced elements and vite dev ids, no React fiber). The compact
   report and `design_status` carry its path as `placeholderPath`, and `DESIGN_GUIDE` tells the agent never to draw
-  an icon, logo or illustration.
+  an icon, logo or illustration. Its root carries `data-conciv-placeholder="<kind>"`, which the measure reports as the
+  component's `placeholder` (null elsewhere); pairing counts a placeholder as media, like an `img`, so an image node
+  pairs with the placeholder in its slot by box and order. Such a pair keeps its geometry deltas and drops paint and
+  content ones.
 - **Drawn pictures.** The measure marks a component `drawn` when it is an `<svg>` with a path, polygon or circle
   inside, an `<img>` whose `src` is a `data:` url, or a `<canvas>`. A drawn component that pairs with an image node,
   or whose box lies inside one, raises one `svg-drawn` warning (`svg (src/Landing.tsx:120): drawn svg; replace it

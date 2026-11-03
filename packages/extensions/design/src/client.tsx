@@ -29,7 +29,15 @@ import {
   type WinnerInput,
   type WinnerResult,
 } from './shared/defs.js'
-import {designConfig, KEY_ATTR, PANE_ATTR, propertyAliases, SOURCE_ATTR, TOLERANCES} from './shared/tolerances.js'
+import {
+  designConfig,
+  KEY_ATTR,
+  PANE_ATTR,
+  PLACEHOLDER_ATTR,
+  propertyAliases,
+  SOURCE_ATTR,
+  TOLERANCES,
+} from './shared/tolerances.js'
 import type {
   Box,
   Framework,
@@ -42,6 +50,7 @@ import type {
   SourceLoc,
   Winner,
 } from './shared/types.js'
+import {PLACEHOLDER_KINDS} from './shared/types.js'
 import {XrayPane} from './xray/router.js'
 import {secondOpinion} from './client/takumi.js'
 
@@ -592,6 +601,7 @@ function componentTree(input: Walk): LiveComponent {
     index: siblingIndex(el),
     path: input.path,
     drawn: drawnPicture(el),
+    placeholder: PLACEHOLDER_KINDS.find((kind) => kind === el.getAttribute(PLACEHOLDER_ATTR)) ?? null,
     children: collectUnder(input),
   }
 }

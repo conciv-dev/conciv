@@ -14,7 +14,7 @@ import {
   NodeLayoutSchema,
   type DiffReport,
 } from '../shared/defs.js'
-import {iconSized, TOLERANCES} from '../shared/tolerances.js'
+import {iconSized, PLACEHOLDER_ATTR, TOLERANCES} from '../shared/tolerances.js'
 import {
   ROLES,
   type Decision,
@@ -583,7 +583,7 @@ function placeholderSource(framework: Framework): string {
     '  const hue = hash(props.label ?? props.kind) % 360',
     `  const glyph: ${style} = {...GLYPHS[props.kind], background: \`hsl(\${hue} 28% 74% / 0.75)\`}`,
     '  return (',
-    `    <div aria-hidden="true" style={${object(PLACEHOLDER_ROOT)}}>`,
+    `    <div aria-hidden="true" ${PLACEHOLDER_ATTR}={props.kind} style={${object(PLACEHOLDER_ROOT)}}>`,
     '      <div style={glyph}>',
     `        {props.kind === 'image' ? <div style={${object(PLACEHOLDER_SPOT)}} /> : null}`,
     '      </div>',

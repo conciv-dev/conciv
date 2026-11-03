@@ -39,11 +39,12 @@ import {
   type DiffInput,
   type DiffReport,
   type Ledger,
+  type Stage,
   type StatusReport,
   type WinnerInput,
   type WinnerResult,
 } from '../shared/defs.js'
-import {aboveTolerance, CONFUSABLES, iconSized, TOLERANCES} from '../shared/tolerances.js'
+import {aboveTolerance, CONFUSABLES, iconSized, kindStage, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Box,
   ColorMetric,
@@ -85,6 +86,7 @@ import type {
   Unmatched,
   XrayLink,
 } from '../shared/types.js'
+import {PLACEHOLDER_KINDS} from '../shared/types.js'
 import {edgeStrip, glyphCoreColor, isOpaqueHex, opinionSide, sideFrom} from './deltas.js'
 import {
   changeReport,
@@ -411,10 +413,12 @@ async function runDiff(request: {
   const measured = pairs.map((pair): Measured => ({
     pair,
     deltas: decided({
-      deltas: [...(measures.get(pair)?.deltas ?? []), ...textDeltas({pair, judged})].map((delta) => ({
-        ...delta,
-        ...stamp,
-      })),
+      deltas: slotDeltas({pair, deltas: [...(measures.get(pair)?.deltas ?? []), ...textDeltas({pair, judged})]}).map(
+        (delta) => ({
+          ...delta,
+          ...stamp,
+        }),
+      ),
       pair,
       decisions,
       color,
@@ -1172,6 +1176,14 @@ function readingBox(input: {a: Box; b: Box}): number {
   return a.y - b.y
 }
 
+function slotDeltas(input: {pair: Pair; deltas: Delta[]}): Delta[] {
+  const {pair, deltas} = input
+  if (pair.node.kind !== 'image' || pair.live.placeholder === null) return deltas
+  return deltas.filter((delta) => !SLOT_STAGES.has(kindStage(delta.kind)))
+}
+
+const SLOT_STAGES = new Set<Stage | null>(['paint', 'content'])
+
 function textDeltas(input: {pair: Pair; judged: Map<Pair, TextJudgement>}): Delta[] {
   const found = input.judged.get(input.pair)
   if (found === undefined || found.verdict !== 'text') return []
@@ -1686,6 +1698,7 @@ const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
   path: z.string(),
   opinion: OpinionSchema.optional(),
   drawn: z.boolean().default(false),
+  placeholder: z.enum(PLACEHOLDER_KINDS).nullable().default(null),
   get children() {
     return z.array(LiveComponentTreeSchema)
   },

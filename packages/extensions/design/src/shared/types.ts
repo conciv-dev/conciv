@@ -18,6 +18,8 @@ import type {
 export const ROLES = ['placeholder', 'data', 'unknown'] as const
 export type Role = (typeof ROLES)[number]
 export type LiveRole = 'literal' | 'expression' | 'mixed'
+export const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
+export type PlaceholderKind = (typeof PLACEHOLDER_KINDS)[number]
 
 export type Box = {x: number; y: number; w: number; h: number}
 export type Raster = {width: number; height: number; data: Uint8Array}
@@ -104,6 +106,7 @@ export type LiveComponent = {
   path: string
   opinion?: Opinion
   drawn: boolean
+  placeholder: PlaceholderKind | null
   children: LiveComponent[]
 }
 export type Opinion = {box: Box; confidence: number}
