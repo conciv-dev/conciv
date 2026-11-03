@@ -1,4 +1,4 @@
-import {Show, type JSX} from 'solid-js'
+import {Show, untrack, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {consumeOtpFromUrl} from 'devframe/client'
 import {browserClient} from '@conciv/extension/devframe-connection'
@@ -8,14 +8,14 @@ import {resolveHubBase} from '../lib/api-base.js'
 export type HubConnection = ReturnType<typeof browserClient>
 type HubClient = Awaited<ReturnType<HubConnection['ready']>>
 
-type LoginPhase = 'locked' | 'exchanging' | 'trusted'
+type LoginPhase = 'checking' | 'unreachable' | 'locked' | 'exchanging' | 'trusted'
 type LoginNotice = 'none' | 'mismatch' | 'newCode' | 'failed' | 'requestFailed'
 type LoginState = {phase: LoginPhase; dialogOpen: boolean; notice: LoginNotice}
 
 export type HubLogin = {
   state: LoginState
-  locked: () => boolean
-  open: () => void
+  awaitingCode: () => boolean
+  request: (open: () => void) => void
   close: () => void
   edit: () => void
   submit: (code: string) => Promise<boolean>
@@ -53,11 +53,18 @@ export function makeHubLogin(
   onTrusted: (trustedApiBase: string) => void,
 ): HubLogin {
   const origin = new URL(apiBase, window.location.href).origin
-  const [state, setState] = createStore<LoginState>({phase: 'locked', dialogOpen: false, notice: 'none'})
+  const [state, setState] = createStore<LoginState>({phase: 'checking', dialogOpen: false, notice: 'none'})
+  const pending: {open: (() => void) | null} = {open: null}
+  const runPending = (): void => {
+    const requested = pending.open
+    pending.open = null
+    requested?.()
+  }
 
   const trust = (token: string): void => {
     setState({phase: 'trusted', dialogOpen: false, notice: 'none'})
     onTrusted(`${origin}/t/${token}`)
+    runPending()
   }
 
   const followTrust =
@@ -69,10 +76,16 @@ export function makeHubLogin(
         trust(token)
         return
       }
-      if (!trusted) setState('phase', 'locked')
+      setState('phase', 'locked')
+      if (pending.open && !state.dialogOpen) showDialog()
     }
 
   const unsubscribe = {trust: (): void => {}}
+  const offStatus = hub.onStatus((status) => {
+    if (status !== 'disconnected' || untrack(() => state.phase) !== 'checking') return
+    setState('phase', 'unreachable')
+    runPending()
+  })
   const offClient = hub.onClient((client) => {
     unsubscribe.trust()
     unsubscribe.trust = client.events.on('rpc:is-trusted:updated', followTrust(client))
@@ -110,19 +123,34 @@ export function makeHubLogin(
       )
   }
 
-  hub.ready().catch(() => setState('notice', 'failed'))
+  const showDialog = (): void => {
+    setState({dialogOpen: true, notice: 'none'})
+    requestCode(false)
+  }
+
+  hub.ready().catch(() => {
+    setState('phase', 'unreachable')
+    runPending()
+  })
   const otp = consumeOtpFromUrl()
   if (otp) void submit(otp)
 
   return {
     state,
-    locked: () => state.phase !== 'trusted',
-    open: () => {
-      if (state.phase === 'trusted') return
-      setState({dialogOpen: true, notice: 'none'})
-      requestCode(false)
+    awaitingCode: () => state.phase === 'locked' || state.phase === 'exchanging',
+    request: (open) => {
+      if (state.phase === 'trusted' || state.phase === 'unreachable') {
+        open()
+        return
+      }
+      pending.open = open
+      if (state.phase === 'checking') return
+      showDialog()
     },
-    close: () => setState('dialogOpen', false),
+    close: () => {
+      pending.open = null
+      setState('dialogOpen', false)
+    },
     edit: () => {
       if (state.notice === 'mismatch') setState('notice', 'none')
     },
@@ -130,6 +158,7 @@ export function makeHubLogin(
     reissue: () => requestCode(true),
     dispose: () => {
       offClient()
+      offStatus()
       unsubscribe.trust()
     },
   }

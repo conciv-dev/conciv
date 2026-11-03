@@ -233,7 +233,15 @@ function RootChrome(props: {
       }),
     )
   }
-  const openPanel = () => {
+  const whenUnlocked = (action: () => void): void => {
+    if (props.login) {
+      props.login.request(action)
+      return
+    }
+    action()
+  }
+
+  const showPanel = () => {
     if (!panelOpen()) hostRestoreTarget = rootEl ? hostFocusTarget(rootEl) : null
     if (panelMatch() || connectMatch()) {
       void setShutter(router, true)
@@ -267,16 +275,9 @@ function RootChrome(props: {
       pendingFabFocus = true
     })
   }
-  const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
-  const locked = () => props.login?.locked() ?? false
-  const launch = () => {
-    const login = props.login
-    if (login?.locked()) {
-      login.open()
-      return
-    }
-    togglePanel()
-  }
+  const openPanel = () => whenUnlocked(showPanel)
+  const togglePanel = () => (panelOpen() ? closePanel() : openPanel())
+  const locked = () => props.login?.awaitingCode() ?? false
   const revealDock = (): boolean =>
     settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
 
@@ -308,22 +309,25 @@ function RootChrome(props: {
   const eventBus = createEventBus()
   const panelCommands = createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID})
 
+  const handleOpenCommand = () => {
+    revealDock()
+    openPanel()
+  }
+  const handleToggleCommand = () => {
+    if (!revealDock()) return togglePanel()
+    openPanel()
+  }
+
   onMount(() => {
     const dockedShutterClosed = settings.surface === 'dock' && panelMatch() && !shutterOpen()
     if (dockedShutterClosed || (settings.defaultOpen && closedMatch())) void openPanel()
     makeEventListener(window, 'resize', reportPanelState)
     const unsubscribes = [
-      panelCommands.on('open', () => {
-        revealDock()
-        void openPanel()
-      }),
+      panelCommands.on('open', handleOpenCommand),
       panelCommands.on('close', () => {
         if (panelOpen()) closePanel()
       }),
-      panelCommands.on('toggle', () => {
-        if (!revealDock()) return togglePanel()
-        void openPanel()
-      }),
+      panelCommands.on('toggle', handleToggleCommand),
     ]
     eventBus.start()
     notifyInteractive()
@@ -363,7 +367,7 @@ function RootChrome(props: {
     router.history.back()
   }
 
-  const toggleQuick = () => {
+  const switchQuick = () => {
     if (!connected()) return
     const revealed = revealDock()
     if (quickMatch()) {
@@ -376,6 +380,8 @@ function RootChrome(props: {
       replace: settings.surface !== 'dock' && Boolean(panelMatch()),
     })
   }
+  const toggleQuick = () => whenUnlocked(switchQuick)
+
   if (settings.quickTerminal.enabled) {
     for (const binding of settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
   }
@@ -398,7 +404,7 @@ function RootChrome(props: {
           suppressed={suppressed}
           fab={props.fab}
           locked={locked}
-          onToggle={launch}
+          onToggle={togglePanel}
         />
       </Show>
       <Show when={props.login}>{(login) => <AuthorizeDialog login={login()} />}</Show>

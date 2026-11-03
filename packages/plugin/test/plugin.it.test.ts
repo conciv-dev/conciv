@@ -683,6 +683,26 @@ describe('native page vite boot', () => {
       await tab.close()
     }, 90_000)
 
+    it('shows the login instead of the panel when a panel command opens a locked conciv, and opens the panel after the right code', async () => {
+      const url = state.started?.server.resolvedUrls?.local[0]
+      const tab = await state.browser?.newPage()
+      if (url === undefined || tab === undefined) throw new Error('dev server did not start')
+      await tab.goto(url, {waitUntil: 'domcontentloaded'})
+      await expectLocator(tab.getByRole('button', {name: 'Authorize conciv'})).toBeVisible({timeout: 45_000})
+      const card = tab.getByRole('dialog', {name: 'Authorize conciv'})
+      await tab.evaluate(() => {
+        window.dispatchEvent(
+          new CustomEvent('conciv-dispatch-event', {detail: {type: 'panel:open', payload: null, pluginId: 'panel'}}),
+        )
+      })
+      await expectLocator(card).toBeVisible()
+      await expectLocator(tab.getByText("conciv couldn't reach the engine", {exact: false})).toBeHidden()
+      await typeCode(card, getTempAuthCode())
+      await expectLocator(card).toBeHidden()
+      await expectLocator(tab.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 15_000})
+      await tab.close()
+    }, 90_000)
+
     it('unlocks a fresh tab from the magic link code in the page fragment', async () => {
       const url = state.started?.server.resolvedUrls?.local[0]
       const tab = await state.browser?.newPage()
