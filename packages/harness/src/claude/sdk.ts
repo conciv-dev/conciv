@@ -95,20 +95,26 @@ function toHarnessModels(models: ModelInfo[]): HarnessModel[] {
   return rows.map((model) => toHarnessModel(model, aliasFamilies))
 }
 
+function listedModels(models: ModelInfo[]): HarnessModel[] {
+  const listed = toHarnessModels(models)
+  if (listed.length === 0) throw new Error('the Agent SDK listed no Claude models')
+  return listed
+}
+
 function rememberModels(models: ModelInfo[]): void {
-  modelsCache.pending ??= Promise.resolve(toHarnessModels(models))
+  const listed = toHarnessModels(models)
+  if (listed.length > 0) modelsCache.pending ??= Promise.resolve(listed)
 }
 
 const modelsCache: {pending?: Promise<HarnessModel[]>} = {}
 
 export function claudeSdkModels(): Promise<HarnessModel[]> {
-  modelsCache.pending ??= probe({cwd: process.cwd()}).then(
-    (init) => toHarnessModels(init.models),
-    (error: unknown) => {
+  modelsCache.pending ??= probe({cwd: process.cwd()})
+    .then((init) => listedModels(init.models))
+    .catch((error: unknown) => {
       delete modelsCache.pending
       throw error
-    },
-  )
+    })
   return modelsCache.pending
 }
 

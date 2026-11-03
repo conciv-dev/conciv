@@ -86,10 +86,11 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
     slash: {
       label: 'Commands',
       items: async (query) => {
-        const data = await queryClient.ensureQueryData(
-          appData.utils.meta.commands.queryOptions({input: {sessionId: props.sessionId}}),
-        )
-        const harnessEntries = data.commands.filter((command) => !widgetNames.has(command.name)).map(commandEntry)
+        const harnessCommands = await queryClient
+          .ensureQueryData(appData.utils.meta.commands.queryOptions({input: {sessionId: props.sessionId}}))
+          .then((data) => data.commands)
+          .catch(() => [])
+        const harnessEntries = harnessCommands.filter((command) => !widgetNames.has(command.name)).map(commandEntry)
         return matchingItems([...widgetEntries, ...harnessEntries], query, matcher())
       },
     },

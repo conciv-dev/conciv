@@ -2,6 +2,7 @@ import {mkdtempSync, rmSync, readFileSync, statSync, writeFileSync, mkdirSync, u
 import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {setImmediate} from 'node:timers/promises'
 import {describe, it, expect, afterEach, afterAll, beforeAll, test, beforeEach} from 'vitest'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {createToolCallChunks} from '@conciv/ai/testkit'
@@ -580,7 +581,8 @@ describe('saved harness models', () => {
     )
     expect(await resolveHarnessModels(harness)).toEqual([OPUS])
     live.resolve([OPUS, SONNET])
-    await expect.poll(() => savedFile()).toEqual([OPUS, SONNET])
+    await setImmediate()
+    expect(savedFile()).toEqual([OPUS, SONNET])
     expect(await resolveHarnessModels(harness)).toEqual([OPUS, SONNET])
   })
 
@@ -612,6 +614,16 @@ describe('saved harness models', () => {
       dir,
     )
     await expect(resolveHarnessModels(harness)).rejects.toThrow('probe failed')
+    expect(await resolveHarnessModels(harness)).toEqual([OPUS])
+  })
+
+  it('retries after an empty list when nothing is saved', async () => {
+    const outcomes: Listed[][] = [[], [OPUS]]
+    const harness = withSavedModels(
+      harnessListing(async () => outcomes.shift() ?? []),
+      dir,
+    )
+    await expect(resolveHarnessModels(harness)).rejects.toThrow('listed no models')
     expect(await resolveHarnessModels(harness)).toEqual([OPUS])
   })
 })

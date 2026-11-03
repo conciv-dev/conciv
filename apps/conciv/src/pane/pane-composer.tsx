@@ -133,7 +133,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
             </span>
           }
         >
-          {props.prompt}
+          {(prompt) => prompt()}
         </Show>
         <ComposerInputAdapter
           placeholder={placeholder()}

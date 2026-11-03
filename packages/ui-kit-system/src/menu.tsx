@@ -1,4 +1,4 @@
-import {splitProps, type ComponentProps} from 'solid-js'
+import {mergeProps, splitProps, type ComponentProps} from 'solid-js'
 import {Menu as Ark, useMenu as useArkMenu, type UseMenuProps, type UseMenuReturn} from '@ark-ui/solid/menu'
 import {LIST_PANEL, LIST_PANEL_GROUP_LABEL, LIST_PANEL_ITEM} from './list-panel.js'
 
@@ -16,7 +16,13 @@ function Root(props: ComponentProps<typeof Ark.Root>) {
 export type MenuMachine = UseMenuReturn
 
 export function useMenu(props: UseMenuProps = {}): MenuMachine {
-  return useArkMenu({...props, positioning: {...POSITIONING, ...props.positioning}})
+  return useArkMenu(
+    mergeProps(props, {
+      get positioning() {
+        return {...POSITIONING, ...props.positioning}
+      },
+    }),
+  )
 }
 
 function Content(props: ComponentProps<typeof Ark.Content>) {

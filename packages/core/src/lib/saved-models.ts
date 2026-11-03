@@ -31,18 +31,17 @@ export function withSavedModels(adapter: HarnessAdapter, stateDir: string): Harn
   const path = join(stateDir, `${adapter.id}-models.json`)
   const state: {saved: HarnessModel[] | null; refreshing?: Promise<HarnessModel[]>} = {saved: readSaved(path)}
   function refresh(): Promise<HarnessModel[]> {
-    state.refreshing ??= resolveHarnessModels(adapter).then(
-      (listed) => {
+    state.refreshing ??= resolveHarnessModels(adapter)
+      .then((listed) => {
         if (listed.length === 0) throw new Error(`${adapter.id} listed no models`)
         state.saved = listed
         writeSaved(path, listed)
         return listed
-      },
-      (error: unknown) => {
+      })
+      .catch((error: unknown) => {
         delete state.refreshing
         throw error
-      },
-    )
+      })
     return state.refreshing
   }
   function models(): Promise<HarnessModel[]> {
