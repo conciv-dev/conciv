@@ -44,7 +44,7 @@ export type BoxNode = NodeBase & {
   border: Border | null
   radius: number
 }
-export type ImageNode = NodeBase & {kind: 'image'}
+export type ImageNode = NodeBase & {kind: 'image'; holds: number}
 export type TargetNode = TextNode | BoxNode | ImageNode
 type TargetRoot = {id: string; box: Box; layout?: ContainerLayout}
 export type DesignSection = {id: string; kind: TargetNode['kind']; line: string; box: Box; nodes: string[]}

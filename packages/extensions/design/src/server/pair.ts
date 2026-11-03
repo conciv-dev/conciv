@@ -974,7 +974,7 @@ function makePair(input: {
   const {component, entries, selector, parent, host, depth, live, source, mismatchAt} = input
   const texts = entries.flatMap((entry) => (entry.node.kind === 'text' ? [entry.node] : []))
   const boxed = entries.find((entry) => entry.node.kind !== 'text')
-  const node = (boxed ?? entries[0])?.node ?? {id: component.path, kind: 'image', box: component.box}
+  const node = (boxed ?? entries[0])?.node ?? {id: component.path, kind: 'image', box: component.box, holds: 0}
   const pair: Pair = {
     live: component,
     node,

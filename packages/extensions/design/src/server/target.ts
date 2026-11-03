@@ -10,7 +10,7 @@ import type {InferenceSession} from 'onnxruntime-web'
 import {Canvas, Contours, cv, ImageProcessor, type CanvasLike} from 'ppu-ocv'
 import {CanvasProcessor, CanvasToolkit} from 'ppu-ocv/canvas'
 import {z} from 'zod'
-import {chunk, partition, range, uniqBy, zip} from 'es-toolkit'
+import {chunk, countBy, partition, range, uniqBy, zip} from 'es-toolkit'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {DESIGN_GUIDE, renderDef, RenderResultSchema, type TargetInput, type TargetResult} from '../shared/defs.js'
 import {iconSized, TOLERANCES} from '../shared/tolerances.js'
@@ -651,7 +651,7 @@ function border(input: {raster: Raster; box: Box; fill: Rgb}): Border | null {
 }
 
 function imageNode(box: Box): ImageNode {
-  return {id: nodeId({kind: 'image', box}), kind: 'image', box}
+  return {id: nodeId({kind: 'image', box}), kind: 'image', box, holds: 0}
 }
 
 type Measured = {fill: Rgb; dominant: number; cover: number; plain: boolean}
@@ -963,9 +963,29 @@ const segmentEnricher: Enricher = {
   run: async ({model, raster, runtime}) => {
     if (model.nodes.some((node) => node.kind === 'box')) return model.nodes
     const found = await runtime.segmenter.segment({raster, nodes: model.nodes})
-    const nodes = [...model.nodes, ...found]
+    const nodes = pictured([...model.nodes, ...found].filter((node) => !glyphNoise(node)))
     return nodes.map((node) => within({node, nodes}))
   },
+}
+
+function glyphNoise(node: TargetNode): boolean {
+  return node.kind === 'image' && node.box.w < TOLERANCES.glyphNoise && node.box.h < TOLERANCES.glyphNoise
+}
+
+function picture(node: TargetNode): boolean {
+  return node.kind === 'image' && node.box.w >= TOLERANCES.iconSlotSide && node.box.h >= TOLERANCES.iconSlotSide
+}
+
+function pictured(nodes: TargetNode[]): TargetNode[] {
+  const pictures = nodes.filter(picture).toSorted((a, b) => surface(a.box) - surface(b.box))
+  const holder = (node: TargetNode): string =>
+    node.kind === 'text' ? (pictures.find((image) => holds({outer: image.box, inner: node.box}))?.id ?? '') : ''
+  const held = countBy(nodes, holder)
+  return nodes.flatMap((node): TargetNode[] => {
+    if (holder(node) !== '') return []
+    if (node.kind !== 'image') return [node]
+    return [{...node, holds: held[node.id] ?? 0}]
+  })
 }
 
 const rolesEnricher: Enricher = {

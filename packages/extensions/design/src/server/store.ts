@@ -76,7 +76,7 @@ const BoxNodeSchema = NodeBaseSchema.extend({
   radius: z.number(),
 })
 
-const ImageNodeSchema = NodeBaseSchema.extend({kind: z.literal('image')})
+const ImageNodeSchema = NodeBaseSchema.extend({kind: z.literal('image'), holds: z.number().default(0)})
 
 const TargetNodeSchema = z.discriminatedUnion('kind', [TextNodeSchema, BoxNodeSchema, ImageNodeSchema])
 
@@ -453,9 +453,13 @@ function documentOrder(a: StoredNode, b: StoredNode): number {
 function nodeLine(input: {node: StoredNode; scale: number}): string {
   const {node, scale} = input
   if (node.kind === 'image')
-    return `${iconSized(node.box) ? 'icon' : 'image'} ${sized({box: node.box, scale})} placeholder`
+    return `${iconSized(node.box) ? 'icon' : 'image'} ${sized({box: node.box, scale})} placeholder${heldPhrase(node.holds)}`
   if (node.kind === 'text') return textLine({node, scale})
   return `box ${sized({box: node.box, scale})}${layoutPhrase(node.layout)}${paintPhrase(node)}`
+}
+
+function heldPhrase(holds: number): string {
+  return holds > 0 ? ` (holds ${holds} text lines)` : ''
 }
 
 function textLine(input: {node: Extract<StoredNode, {kind: 'text'}>; scale: number}): string {

@@ -1000,6 +1000,7 @@ const StoredModelSchema = z.object({
       id: z.string(),
       kind: z.enum(['text', 'box', 'image']),
       text: z.string().optional(),
+      holds: z.number().optional(),
       role: z.string().optional(),
       within: z.string().optional(),
       box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
@@ -2500,6 +2501,8 @@ describe('ledger', () => {
 
 const ICON_SIDE = 24
 const ICON_SLOT_SIDE = 48
+const GLYPH_NOISE = 12
+const GEOMETRY_PX = 2
 const LATIN_END = 0x24f
 const DAYBREAK = 'Daybreak Yoga'
 const DAYBREAK_TAG = `<b>${DAYBREAK}</b>`
@@ -2533,6 +2536,16 @@ function agentIcon(slot: Box): string {
   const left = Math.round(slot.x + slot.w / 2 - AGENT_ICON_SIDE / 2)
   const top = Math.round(slot.y + slot.h / 2 - AGENT_ICON_SIDE / 2)
   return `<span className="icon" aria-hidden="true" style={{position: 'absolute', left: ${left}, top: ${top}, width: ${AGENT_ICON_SIDE}, height: ${AGENT_ICON_SIDE}, borderRadius: '50%', background: '#7a73ff'}} />${DAYBREAK_TAG}`
+}
+
+function enclosedIn(input: {inner: Box; outer: Box}): boolean {
+  const {inner, outer} = input
+  return (
+    inner.x >= outer.x - GEOMETRY_PX &&
+    inner.y >= outer.y - GEOMETRY_PX &&
+    inner.x + inner.w <= outer.x + outer.w + GEOMETRY_PX &&
+    inner.y + inner.h <= outer.y + outer.h + GEOMETRY_PX
+  )
 }
 
 function under(input: {box: Box; side: number}): boolean {
@@ -2831,6 +2844,39 @@ describe('icons', () => {
     expect(outline.some((line) => line.trim().startsWith('icon '))).toBe(true)
     expect(brief.filter((line) => line.includes('icon') || quotesOneCharacter(line))).toEqual([])
     expect(icons).toBeGreaterThanOrEqual(3)
+  }, 240_000)
+
+  it('a picture keeps the text inside it, the outline says how many lines it holds, and glyph noise is dropped', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const nodes = await storedNodes(id)
+    const pictures = nodes.filter(
+      (node) => node.kind === 'image' && node.box.w >= ICON_SLOT_SIDE && node.box.h >= ICON_SLOT_SIDE,
+    )
+    const texts = nodes.filter((node) => node.kind === 'text')
+    const strays = texts.filter((text) => pictures.some((image) => enclosedIn({inner: text.box, outer: image.box})))
+    const noise = nodes.filter((node) => node.kind === 'image' && under({box: node.box, side: GLYPH_NOISE}))
+    const [hero] = pictures.toSorted((a, b) => b.box.w * b.box.h - a.box.w * a.box.h)
+    const held = pictures.reduce((sum, node) => sum + (node.holds ?? 0), 0)
+    const status = await call('design_status', {})
+    const outline = await outlineLines(status)
+    const compact = CompactReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {}}))
+    const nonImage = nodes.filter((node) => node.kind !== 'image').length
+    await annotate(
+      `texts ${texts.length} pictures ${JSON.stringify(pictures.map((node) => ({box: node.box, holds: node.holds})))} held ${held} hero ${JSON.stringify(hero?.box)} holds ${hero?.holds} noise ${noise.length} counts.unbuilt ${compact.counts.unbuilt} non-image nodes ${nonImage}`,
+    )
+    expect(strays).toEqual([])
+    expect(noise).toEqual([])
+    expect(hero?.holds ?? 0).toBeGreaterThan(0)
+    expect(
+      outline.filter((line) =>
+        line.includes(`image ${hero?.box.w}x${hero?.box.h} placeholder (holds ${hero?.holds} text lines)`),
+      ),
+    ).toHaveLength(1)
+    expect(outline.filter((line) => line.includes('(holds 0 text lines)'))).toEqual([])
+    expect(compact.counts.unbuilt).toBeLessThanOrEqual(nonImage)
   }, 240_000)
 
   it('an icon the agent renders inside the lilac card fills an icon slot', async ({annotate}) => {

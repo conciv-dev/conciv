@@ -192,6 +192,11 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   it at will, it stays `unbuilt` in the ledger and is counted in `counts.icons`, and it never makes a brief line, a
   score weight or a hold on the stage, nor does a container or run made only of icon slots. A live element under
   `iconSlotSide` that pairs nothing and sits inside a paired node's box is not an `extra`.
+- **Pictures.** At segmentation, after the text and box passes and before the layout pass, an image under `glyphNoise`
+  12 on both sides is noise and dropped, and a text node whose box lies inside an image at or above `iconSlotSide` on
+  both sides (within `geometryPx` slack) belongs to that picture: it is removed from the model's nodes, so it is in no
+  outline line, ledger row, unbuilt entry, unpaired share or section. The smallest such image counts it in `holds`.
+  The design's script (see Icons) is still read from every OCR line.
 - **`painted`.** The measure reads each element's `position`, and `sizing: {width, height}` as `fixed` when the
   element's own rule or inline style sets the property to a px length (the same own-declaration read as
   `design_winner`, never the computed px), else `auto`. When the outermost absolutely or fixed positioned elements
@@ -316,7 +321,8 @@ estimate it reads `size ~56`, the ink height over `capRatio` (calibrated on the 
 size read from the ink alone; a box reads
 `box 1280x72 row gap 29 align center padding 0 48, background #fff, border 1 #e3e8ee, radius 8` (its size in CSS px,
 the layout from the layout pass, its paint); an image slot reads `image 480x320 placeholder`, and one under
-`iconSlotSide` on both sides reads `icon 24x24 placeholder`. The model holds no text colour, so
+`iconSlotSide` on both sides reads `icon 24x24 placeholder`; an image that held text lines at segmentation says how
+many: `image 787x825 placeholder (holds 12 text lines)`. The model holds no text colour, so
 no colour is written. The same model gives the same file. The compact report and `design_status` carry `designPath`,
 `design_diff({full: true})` carries the lines as `design`, `design_status.next` at round 0 reads `read <designPath>
 for the whole design before building; the brief lists what to fix first; copy <placeholderPath> into the page's
