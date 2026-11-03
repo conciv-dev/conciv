@@ -1,5 +1,6 @@
-import {For, Show, createEffect, type Component, type JSX} from 'solid-js'
+import {For, Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {makeResizeObserver} from '@solid-primitives/resize-observer'
 import {TabsPrimitive as Tabs, TruncatedText} from '@conciv/ui-kit-system'
 import type {SessionStatus, SessionStatusKind} from '@conciv/ui-kit-chat'
 import {viewTabId, viewTabPanelId} from './view-tab-ids.js'
@@ -45,7 +46,16 @@ const VIEW_HINT =
   'chat-view-btn-hint [font-family:var(--chat-mono)] text-[9px] [color:var(--chat-hint)] ps-[9px] [border-inline-start:1px_solid_var(--chat-frame-line)]'
 const VIEW_LABEL = 'chat-view-btn-label [font-family:var(--chat-font)] truncate max-w-24'
 
+function revealTab(trigger: Element): void {
+  trigger.scrollIntoView({block: 'nearest', inline: 'nearest'})
+}
+
 export function StatusBar(props: StatusBarProps): JSX.Element {
+  const laidOutTabs = makeResizeObserver((entries) =>
+    entries
+      .filter((entry) => entry.target.getAttribute('aria-selected') === 'true')
+      .forEach((entry) => revealTab(entry.target)),
+  )
   return (
     <div class={BAR} role="toolbar" aria-label="Session status">
       <span class={`${CHIP_BASE} ${CHIP[props.status.kind]}`} role="status" title={props.status.reason}>
@@ -77,12 +87,8 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
           <For each={props.views}>
             {(view, index) => (
               <Tabs.Trigger
-                ref={(trigger) =>
-                  createEffect(() => {
-                    if (props.activeView !== view.id) return
-                    trigger.scrollIntoView({block: 'nearest', inline: 'nearest'})
-                  })
-                }
+                ref={(trigger) => laidOutTabs.observe(trigger)}
+                onClick={(event) => revealTab(event.currentTarget)}
                 class={VIEW_BTN}
                 value={view.id}
                 disabled={props.disabled && view.id !== props.activeView}

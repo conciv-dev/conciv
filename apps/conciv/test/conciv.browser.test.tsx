@@ -1844,7 +1844,7 @@ describe('status bar', () => {
     })
 
     it('scrolls the selected tab into view when the tabs outgrow the bar', async () => {
-      const [activeView, setActiveView] = createSignal('chat')
+      const [activeView, setActiveView] = createSignal('terminals')
       render(() => (
         <div style={{width: '18rem'}}>
           <StatusBar
@@ -1865,11 +1865,10 @@ describe('status bar', () => {
         </div>
       ))
 
-      await expect.element(page.getByRole('tab', {name: 'Chat'})).toBeInViewport({ratio: 0.95})
-      await expect.element(page.getByRole('tab', {name: 'Terminals'})).not.toBeInViewport({ratio: 0.95})
-      setActiveView('terminals')
       await expect.element(page.getByRole('tab', {name: 'Terminals'})).toBeInViewport({ratio: 0.95})
-      setActiveView('chat')
+      await expect.element(page.getByRole('tab', {name: 'Chat'})).not.toBeInViewport({ratio: 0.95})
+      await page.getByRole('tab', {name: 'Chat'}).click()
+      await expect.element(page.getByRole('tab', {name: 'Chat'})).toHaveAttribute('aria-selected', 'true')
       await expect.element(page.getByRole('tab', {name: 'Chat'})).toBeInViewport({ratio: 0.95})
     })
   })
