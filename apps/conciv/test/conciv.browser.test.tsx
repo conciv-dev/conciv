@@ -1,7 +1,7 @@
 import '../src/styles.css'
 import {expect, test, vi, it, afterEach, describe} from 'vitest'
 import {page, userEvent, page as browserPage} from 'vitest/browser'
-import {CONCIV_SESSION_HEADER, HarnessSessionId} from '@conciv/protocol/chat-types'
+import {CONCIV_SESSION_HEADER, HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
 import {ChatPane} from '../src/pane/chat-pane.js'
@@ -552,11 +552,12 @@ describe('composer overflow', () => {
 })
 
 describe('model menu', () => {
+  const EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
   const MODELS = [
-    {id: 'opus', name: 'Opus 5.5', group: 'Claude'},
-    {id: 'sonnet', name: 'Sonnet 5.5', group: 'Claude'},
-    {id: 'claude-opus-4-7', name: 'Opus 4.7', group: 'Older versions'},
-    {id: 'claude-sonnet-4-6', name: 'Sonnet 4.6', group: 'Older versions'},
+    {id: 'opus', name: 'Opus 5.5', group: 'Claude', efforts: EFFORTS},
+    {id: 'sonnet', name: 'Sonnet 5.5', group: 'Claude', efforts: EFFORTS},
+    {id: 'claude-opus-4-7', name: 'Opus 4.7', group: 'Older versions', efforts: EFFORTS},
+    {id: 'claude-haiku-4-5', name: 'Haiku 4.5', group: 'Older versions'},
   ]
 
   const core = bootedCore('model-menu', {models: MODELS})
@@ -565,6 +566,8 @@ describe('model menu', () => {
   const prompt = (name: string) => page.getByRole('button', {name: `Model: ${name}`})
   const model = (name: string) => page.getByRole('menuitemradio', {name})
   const menu = (name: string | RegExp) => page.getByRole('menu', {name})
+  const effort = (name: string) => page.getByRole('menuitemradio', {name, exact: true})
+  const effortGroup = () => page.getByRole('group', {name: 'Effort'})
 
   async function mountModelMenu(): Promise<void> {
     const sessionId = await createSession(coreRpc(core()))
@@ -575,7 +578,7 @@ describe('model menu', () => {
   test('the prompt names the current model and the overflow menu no longer lists models', async () => {
     await mountModelMenu()
 
-    await expect.element(prompt('Opus 5.5')).toHaveTextContent('opus❯')
+    await expect.element(prompt('Opus 5.5')).toHaveTextContent('opus 5.5❯')
 
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
     await expect.element(page.getByRole('menuitem', {name: 'Compress the conversation'})).toBeVisible()
@@ -589,7 +592,7 @@ describe('model menu', () => {
     await expect.element(model('Opus 5.5')).toHaveAttribute('aria-checked', 'true')
     await userEvent.click(model('Sonnet 5.5'))
 
-    await expect.element(prompt('Sonnet 5.5')).toHaveTextContent('sonnet❯')
+    await expect.element(prompt('Sonnet 5.5')).toHaveTextContent('sonnet 5.5❯')
     await expect.element(menu(/^Model:/)).not.toBeInTheDocument()
 
     await userEvent.click(prompt('Sonnet 5.5'))
@@ -601,7 +604,7 @@ describe('model menu', () => {
 
     await userEvent.click(prompt('Opus 5.5'))
     await expect.element(menu('Model: Opus 5.5')).toHaveFocus()
-    await userEvent.keyboard('{End}{ArrowRight}')
+    await userEvent.keyboard('{Home}{ArrowDown}{ArrowDown}{ArrowRight}')
     await expect.element(menu('Older versions')).toHaveFocus()
     await userEvent.keyboard('{Enter}')
 
@@ -609,6 +612,52 @@ describe('model menu', () => {
     await userEvent.click(prompt('Opus 4.7'))
     await userEvent.hover(page.getByRole('menuitem', {name: 'Older versions'}))
     await expect.element(model('Opus 4.7')).toHaveAttribute('aria-checked', 'true')
+  })
+
+  test('picking an effort keeps the menu open, names it on the prompt, and default clears it', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(effortGroup()).toBeVisible()
+    await expect.element(effort('default')).toHaveAttribute('aria-checked', 'true')
+    await userEvent.click(effort('high'))
+
+    await expect.element(prompt('Opus 5.5, effort high')).toHaveTextContent('opus 5.5 · high❯')
+    await expect.element(menu(/^Model:/)).toBeVisible()
+    await expect.element(effort('high')).toHaveAttribute('aria-checked', 'true')
+
+    await userEvent.click(effort('default'))
+    await expect.element(prompt('Opus 5.5')).toHaveTextContent('opus 5.5❯')
+    await expect.element(prompt('Opus 5.5')).not.toHaveTextContent('·')
+    await expect.element(menu(/^Model:/)).toBeVisible()
+  })
+
+  test('the effort is reached by keyboard from the menu', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(menu('Model: Opus 5.5')).toHaveFocus()
+    await userEvent.keyboard('{End}{Enter}')
+
+    await expect.element(prompt('Opus 5.5, effort max')).toHaveTextContent('opus 5.5 · max❯')
+    await expect.element(effort('max')).toHaveAttribute('aria-checked', 'true')
+  })
+
+  test('an older model without effort hides the effort row and clears the effort', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await userEvent.click(effort('high'))
+    await expect.element(prompt('Opus 5.5, effort high')).toHaveTextContent('opus 5.5 · high❯')
+
+    await userEvent.hover(page.getByRole('menuitem', {name: 'Older versions'}))
+    await userEvent.click(model('Haiku 4.5'))
+
+    await expect.element(prompt('Haiku 4.5')).toHaveTextContent('haiku 4.5❯')
+    await expect.element(prompt('Haiku 4.5')).not.toHaveTextContent('·')
+    await userEvent.click(prompt('Haiku 4.5'))
+    await expect.element(model('Sonnet 5.5')).toBeVisible()
+    await expect.element(effortGroup()).not.toBeInTheDocument()
   })
 })
 

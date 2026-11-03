@@ -6,6 +6,7 @@ import {resolveHarnessModels} from '@conciv/harness'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
 import {
   createRow,
+  ensureRow,
   listSessionMetas,
   openNativeRow,
   resolveRow,
@@ -51,6 +52,10 @@ export function sessionsRouter(deps: RpcDeps) {
   const chat = deps.chat
   const db = chat.db
   const scope = {db, harnessKind: chat.harness.id, cwd: chat.cwd}
+  const ensuredRow = async (sessionId: SessionId) => {
+    await ensureRow(db, sessionId, scope.harnessKind, scope.cwd)
+    return rowById(db, sessionId)
+  }
   return {
     list: os.sessions.list.handler(({input}) => rpcSessionList(chat, input?.includeHidden ?? false)),
     create: os.sessions.create.handler(async () => {
@@ -90,12 +95,32 @@ export function sessionsRouter(deps: RpcDeps) {
       return {ok: true as const}
     }),
     model: os.sessions.model.handler(async ({input, errors}) => {
-      if (!(await rowById(db, input.sessionId))) throw errors.NOT_FOUND()
+      const row = await ensuredRow(input.sessionId)
+      if (!row) throw errors.NOT_FOUND()
       const models = await resolveHarnessModels(chat.harness)
       const found = models.find((model) => model.id === input.model && !model.disabled)
       if (!found) throw errors.UNKNOWN_MODEL()
-      await db.update(sessions).set({model: input.model, updatedAt: Date.now()}).where(eq(sessions.id, input.sessionId))
+      const effort = row.effort !== null && found.efforts?.includes(row.effort) ? row.effort : null
+      await db
+        .update(sessions)
+        .set({model: input.model, effort, updatedAt: Date.now()})
+        .where(eq(sessions.id, input.sessionId))
       return {model: input.model}
+    }),
+    effort: os.sessions.effort.handler(async ({input, errors}) => {
+      const row = await ensuredRow(input.sessionId)
+      if (!row) throw errors.NOT_FOUND()
+      if (input.effort !== null) {
+        const models = await resolveHarnessModels(chat.harness)
+        const modelId = row.model ?? chat.harness.defaultModel ?? models[0]?.id
+        const current = models.find((model) => model.id === modelId)
+        if (!current?.efforts?.includes(input.effort)) throw errors.UNSUPPORTED_EFFORT()
+      }
+      await db
+        .update(sessions)
+        .set({effort: input.effort, updatedAt: Date.now()})
+        .where(eq(sessions.id, input.sessionId))
+      return {effort: input.effort}
     }),
     compact: os.sessions.compact.handler(async ({input}) => {
       await deps.runtime.forSession(input.sessionId).run.compact()

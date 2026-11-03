@@ -83,6 +83,7 @@ function toHarnessModel(model: ModelInfo, aliasFamilies: ReadonlySet<string>): H
     name: versioned ? version : model.displayName,
     description: versioned ? summary.join(' · ') : model.description,
     group: superseded ? OLDER_GROUP : CURRENT_GROUP,
+    ...(model.supportsEffort && model.supportedEffortLevels?.length ? {efforts: model.supportedEffortLevels} : {}),
   }
 }
 

@@ -1,5 +1,5 @@
 import type {ChatMessage} from './chat-message-types.js'
-import type {HarnessSessionId, SessionId} from './chat-types.js'
+import type {HarnessSessionId, ReasoningEffort, SessionId} from './chat-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
@@ -28,6 +28,7 @@ export type HarnessModel = {
   group?: string
   disabled?: boolean
   contextWindow?: number
+  efforts?: ReasoningEffort[]
 }
 
 export type HarnessModels = HarnessModel[] | (() => HarnessModel[] | Promise<HarnessModel[]>)

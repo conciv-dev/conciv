@@ -187,7 +187,7 @@ function sessionPort(
   return {
     row: (sessionId) => {
       const row = currentRow(db, sessionId)
-      return row === null ? null : {model: row.model, nativeId: row.harnessSessionId, cwd: row.cwd}
+      return row === null ? null : {model: row.model, effort: row.effort, nativeId: row.harnessSessionId, cwd: row.cwd}
     },
     ensure: (sessionId) => ensureRow(db, sessionId, rows.harnessKind, rows.cwd),
     recordNativeId: (sessionId, nativeId) => recordNativeId(db, sessionId, nativeId),

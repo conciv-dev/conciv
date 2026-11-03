@@ -8,6 +8,7 @@ import {
   readFileSync,
   readdirSync,
 } from 'node:fs'
+import {randomUUID} from 'node:crypto'
 import {writeFile} from 'node:fs/promises'
 import {request as httpRequest} from 'node:http'
 import {tmpdir} from 'node:os'
@@ -1398,6 +1399,39 @@ describe('rpc wire', () => {
         expect(new Set(after.map((message) => message.id)).size).toBe(after.length)
       })
 
+      it('the chosen effort reaches the turn as reasoning, and a model without effort clears it', async () => {
+        const sessionId = await newSession()
+        const {models} = await chatKit().rpc.meta.models(undefined)
+        const plain = models.find((model) => model.efforts === undefined)
+        if (plain === undefined) throw new Error('every listed model supports effort')
+        expect(await chatKit().rpc.sessions.effort({sessionId, effort: 'high'})).toEqual({effort: 'high'})
+        expect(await sessionMeta(sessionId)).toMatchObject({effort: 'high'})
+        script().scriptTurn({toolCalls: [], text: 'thought hard'})
+        await finished(sessionId, 'think about it')
+        expect(lastRunOf(sessionId)).toMatchObject({model: undefined, reasoning: 'high'})
+
+        await chatKit().rpc.sessions.effort({sessionId, effort: null})
+        script().scriptTurn({toolCalls: [], text: 'default effort'})
+        await finished(sessionId, 'again')
+        expect(lastRunOf(sessionId).reasoning).toBeUndefined()
+
+        await chatKit().rpc.sessions.effort({sessionId, effort: 'max'})
+        await chatKit().rpc.sessions.model({sessionId, model: plain.id})
+        expect(await sessionMeta(sessionId)).toMatchObject({model: plain.id, effort: null})
+        await expect(chatKit().rpc.sessions.effort({sessionId, effort: 'high'})).rejects.toMatchObject({
+          code: 'UNSUPPORTED_EFFORT',
+        })
+      })
+
+      it('a session that has not run a turn yet takes a model and an effort', async () => {
+        const sessionId = SessionId.parse(`conciv_${randomUUID()}`)
+        expect(await chatKit().rpc.sessions.effort({sessionId, effort: 'high'})).toEqual({effort: 'high'})
+        expect(
+          await chatKit().rpc.sessions.model({sessionId: SessionId.parse(`conciv_${randomUUID()}`), model: 'sonnet'}),
+        ).toEqual({model: 'sonnet'})
+        expect(await sessionMeta(sessionId)).toMatchObject({model: null, effort: 'high'})
+      })
+
       it('an empty message is answered with a visible "empty" error', async () => {
         const events = await finished(await newSession(), '')
         expect(events.errors().join(' ')).toMatch(/empty/i)
@@ -2145,6 +2179,7 @@ describe('rpc wire', () => {
     sessionId: string
     kind: 'chat' | 'compact'
     model: string | undefined
+    reasoning: string | undefined
     resumeSessionId: string | null
     messages: string
     tools: string[]
@@ -2306,6 +2341,7 @@ describe('rpc wire', () => {
               sessionId: deps.sessionId,
               kind: deps.kind,
               model: deps.model,
+              reasoning: options.reasoning?.level,
               resumeSessionId: deps.resumeSessionId,
               messages: JSON.stringify(options.messages),
               tools: (options.tools ?? []).map((tool) => tool.name),

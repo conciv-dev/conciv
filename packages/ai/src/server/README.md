@@ -7,6 +7,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 ## Interface
 
 - `chat-server.ts:createChatServer` - async factory returning a `ChatServer` (delivery plus `stop`, `endRuns`, `settled`, `hydrate`, `codeRunner`).
+- `chat-server.ts:TurnPlan.reasoning` - passed to `chat({reasoning})`; the adapter maps it for its model (`--effort` or `MAX_THINKING_TOKENS` for claude-code) and drops it for a model it has no reasoning data for.
 - `chat-server.ts:ChatStores` / `TurnHooks` / `TurnPlan` / `ChatServerConfig` / `ChatThread` / `CodeRunner` / `Approvals` - exported types.
 - `chat-server.ts:toolApprovalId` - `approvalId({provider: 'conciv', kind: 'tool', target: name})`.
 - `chat-server.ts:approvalNeeded` - returns an Error telling the model to retry once the user approves.

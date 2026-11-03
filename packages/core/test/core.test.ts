@@ -278,7 +278,7 @@ describe('chat plane', () => {
 
   function sessionPort(): SessionPort {
     return {
-      row: () => ({model: null, nativeId: null, cwd: '/workspace'}),
+      row: () => ({model: null, effort: null, nativeId: null, cwd: '/workspace'}),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
