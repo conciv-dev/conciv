@@ -258,7 +258,6 @@ describe('attachment widget', () => {
 })
 
 describe('chat pane', () => {
-  const HYDRATE_PATH = ['chat', 'hydrate']
   const UNSCRIPTED_REPLY = 'an unscripted reply'
 
   const core = bootedCore('chat-pane', {text: UNSCRIPTED_REPLY})
@@ -379,7 +378,7 @@ describe('chat pane', () => {
 
   test('the initial load shows a conversation skeleton until the snapshot arrives', async () => {
     const {sessionId} = await newSession()
-    const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
+    const gate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
     mountChatPane(sessionId)
 
     await expect.element(skeleton()).toBeVisible()
@@ -438,8 +437,10 @@ describe('chat pane', () => {
 
     await expect.element(page.getByRole('button', {name: 'Remove from queue'})).not.toBeInTheDocument()
     await expect.element(page.getByText('queued while running')).toBeVisible()
-    await expect.element(stopButton()).toBeVisible()
     await expect.element(input()).toHaveTextContent('draft kept in place')
+    await expect.element(page.getByText(UNSCRIPTED_REPLY).nth(1)).toBeVisible()
+    await coreControl.releaseTurn()
+    await expect.element(stopButton()).not.toBeInTheDocument()
   })
 })
 
@@ -999,7 +1000,6 @@ describe('panel connect', () => {
 })
 
 describe('panel refresh', () => {
-  const HYDRATE_PATH = ['chat', 'hydrate']
   const REPLY_TEXT = 'the transcript that outlives a refresh'
 
   const coreBase = bootedCore('panel-refresh')
@@ -1026,7 +1026,7 @@ describe('panel refresh', () => {
     await sessionMenu().click()
     await expect.element(refreshRow(), {timeout: 8000}).toBeVisible()
 
-    const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
+    const gate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
     await refreshRow().click()
     await coreControl.awaitFaultPending(gate, 1)
 
