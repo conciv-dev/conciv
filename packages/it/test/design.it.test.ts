@@ -256,6 +256,8 @@ function mapFixture(input: {
   }
   const component: LiveComponent = {
     source: {file: input.file, line: input.line, column: input.column},
+    key: null,
+    owner: null,
     tag: 'div',
     text: '',
     box: {x: 0, y: 0, w: 0, h: 0},
@@ -1207,6 +1209,8 @@ function painted(input: {inks: Ink[]}): Raster {
 function glyphComponent(input: {glyphs: {text: string; boxes: Box[]}[]; x?: number}): LiveComponent {
   return {
     source: {file: 'src/App.tsx', line: 1, column: input.x ?? 1},
+    key: null,
+    owner: null,
     tag: 'span',
     text: '',
     box: {x: 0, y: 0, w: 200, h: 100},
@@ -2111,6 +2115,26 @@ async function storedPairs(input: {id: string; run: string}): Promise<Map<string
   return new Map(pairs.map((pair) => [pair.node, pair.path]))
 }
 
+const INSERTED_LINES = 'const insertedFirst = 1\nconst insertedSecond = 2\nconst insertedThird = 3\n'
+const KeyedPairsSchema = z.array(
+  z.object({
+    node: z.string(),
+    path: z.string(),
+    fingerprint: z.object({
+      key: z.string().nullable().default(null),
+      source: z.object({file: z.string(), line: z.number()}).nullable(),
+    }),
+  }),
+)
+
+type KeyedPair = z.infer<typeof KeyedPairsSchema>[number]
+
+async function keyedPairs(input: {id: string; run: string}): Promise<Map<string, KeyedPair>> {
+  const path = fileUnder(stateRoot, `.conciv/design/${input.id}/pairs-${input.run}.json`)
+  const pairs = KeyedPairsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+  return new Map(pairs.map((pair) => [pair.node, pair]))
+}
+
 function reportRun(report: DiffReport): string {
   const name = report.livePath.split('/').at(-1) ?? ''
   return name.slice('live-'.length, -'.png'.length)
@@ -2285,6 +2309,42 @@ describe('ledger', () => {
       expect(removed.changes.lost.length).toBeGreaterThan(0)
     } finally {
       await writeFile(STRIPE_STYLES, styles)
+      await writeFile(STRIPE_SOURCE, source)
+    }
+  }, 300_000)
+
+  it('three lines inserted at the top of Stripe.tsx keep every key, lose nothing and keep the element of every done node', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const full = await call('design_diff', {})
+    const before = await keyedPairs({id, run: reportRun(full)})
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await rewrite({id, file: STRIPE_SOURCE, text: `${INSERTED_LINES}${source}`})
+      const shifted = await call('design_diff', {})
+      const after = await keyedPairs({id, run: reportRun(shifted)})
+      const ledger = await storedLedger(id)
+      const done = Object.entries(ledger.nodes).flatMap(([node, entry]) => (entry.status === 'done' ? [node] : []))
+      const sample = [...before.values()].find(
+        (pair) =>
+          pair.fingerprint.key !== null && pair.fingerprint.source?.file.endsWith('Stripe.tsx') && after.has(pair.node),
+      )
+      const shiftedPair = sample === undefined ? undefined : after.get(sample.node)
+      const changedPath = done.filter((node) => before.has(node) && before.get(node)?.path !== after.get(node)?.path)
+      await annotate(
+        `sample ${JSON.stringify(sample)} after ${JSON.stringify(shiftedPair)} changes ${JSON.stringify(shifted.changes).slice(0, 3000)} carried ${JSON.stringify(shifted.timings.carried)} done ${done.length}`,
+      )
+      if (sample === undefined) throw new Error('no keyed pair in Stripe.tsx')
+      expect(shiftedPair?.fingerprint.key).toBe(sample.fingerprint.key)
+      expect(shiftedPair?.fingerprint.source?.line).toBe((sample.fingerprint.source?.line ?? 0) + 3)
+      expect(shifted.changes.lost).toEqual([])
+      expect(shifted.changes.regressed).toEqual([])
+      expect(done.length).toBeGreaterThan(0)
+      expect(shifted.timings.carried.pairs).toBeGreaterThanOrEqual(done.length)
+      expect(changedPath).toEqual([])
+    } finally {
       await writeFile(STRIPE_SOURCE, source)
     }
   }, 300_000)

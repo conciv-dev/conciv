@@ -1,4 +1,4 @@
-import {median, words} from 'es-toolkit'
+import {median, minBy, words} from 'es-toolkit'
 import {parse} from 'culori'
 import {SOURCE_ATTR, TOLERANCES, type Tolerances} from '../shared/tolerances.js'
 import type {
@@ -30,10 +30,19 @@ export const RANKERS = {impact: impactRanker} as const satisfies Record<string, 
 export function fingerprint(component: LiveComponent): Fingerprint {
   return {
     source: component.source,
+    key: component.key,
+    owner: component.owner,
     tag: component.tag,
     textHash: fnv(folded(component.glyphs.map((glyph) => glyph.text).join(' '))),
     box: component.box,
   }
+}
+
+export function keyedSame(input: {a: Fingerprint; b: Fingerprint; margin: number}): boolean {
+  const {a, b} = input
+  if (a.textHash !== b.textHash || !withinMargin(input)) return false
+  if (a.key !== null && a.key === b.key) return true
+  return a.owner !== null && a.owner === b.owner
 }
 
 export function glyphRun(node: TargetNode): boolean {
@@ -269,7 +278,9 @@ function carriedViews(input: {
       if (wanted.source === null && candidate.key !== record.path) return false
       return samePrint({a: found, b: wanted, margin})
     })
-    const candidate = matches.find((entry) => entry.key === record.path) ?? matches[0]
+    const candidate =
+      matches.find((entry) => entry.key === record.path) ??
+      minBy(matches, (entry) => Math.hypot(entry.box.x - wanted.box.x, entry.box.y - wanted.box.y))
     return candidate === undefined ? [] : [{node, candidate, score: record.confidence}]
   })
 }
@@ -280,14 +291,21 @@ function underTouched(input: {touched: Set<string>; view: View; components: Map<
 }
 
 function samePrint(input: {a: Fingerprint; b: Fingerprint; margin: number}): boolean {
-  const {a, b, margin} = input
-  const edges = [a.box.x - b.box.x, a.box.y - b.box.y, a.box.w - b.box.w, a.box.h - b.box.h]
+  const {a, b} = input
+  if (keyedSame(input)) return true
+  if (a.key !== null || b.key !== null) return false
   return (
     a.tag === b.tag &&
     a.textHash === b.textHash &&
     locationKey(a.source) === locationKey(b.source) &&
-    edges.every((edge) => Math.abs(edge) <= margin)
+    withinMargin(input)
   )
+}
+
+function withinMargin(input: {a: Fingerprint; b: Fingerprint; margin: number}): boolean {
+  const {a, b, margin} = input
+  const edges = [a.box.x - b.box.x, a.box.y - b.box.y, a.box.w - b.box.w, a.box.h - b.box.h]
+  return edges.every((edge) => Math.abs(edge) <= margin)
 }
 
 function locationKey(source: Fingerprint['source']): string {

@@ -143,6 +143,8 @@ export const OpinionSchema = z
 
 const LiveComponentSchema = z.object({
   source: SourceLocSchema.nullable(),
+  key: z.string().nullable().describe('the data-conciv-key the compiler stamped, null without the stamp'),
+  owner: z.string().nullable().describe('the component owner path from the root, null when the framework is unknown'),
   tag: z.string(),
   text: z.string(),
   box: BoxSchema,
@@ -322,8 +324,10 @@ const RowSchema = z.object({
   crop: CropSchema.optional(),
 })
 
-const FingerprintSchema = z.object({
+export const FingerprintSchema = z.object({
   source: SourceLocSchema.nullable(),
+  key: z.string().nullable().default(null),
+  owner: z.string().nullable().default(null),
   tag: z.string(),
   textHash: z.string(),
   box: BoxSchema,

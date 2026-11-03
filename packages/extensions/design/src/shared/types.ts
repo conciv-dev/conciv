@@ -79,6 +79,8 @@ export type LiveStyles = {
 type Sizing = 'fixed' | 'auto'
 export type LiveComponent = {
   source: SourceLoc | null
+  key: string | null
+  owner: string | null
   tag: string
   text: string
   box: Box
@@ -149,7 +151,14 @@ export type Pair = {
 export type Matched = {node: TargetNode; component: LiveComponent; confidence: number}
 export type TwinVote = {node: string; path: string; confidence: number}
 export type TwinPair = {node: string; twin: string; confidence: number}
-export type Fingerprint = {source: SourceLoc | null; tag: string; textHash: string; box: Box}
+export type Fingerprint = {
+  source: SourceLoc | null
+  key: string | null
+  owner: string | null
+  tag: string
+  textHash: string
+  box: Box
+}
 export type PairRecord = {node: string; path: string; confidence: number; fingerprint?: Fingerprint}
 export type Touched = Set<string> | 'all'
 export type TileRecord = {hash: string; mismatch: number; mask?: string}
