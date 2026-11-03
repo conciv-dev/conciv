@@ -1,4 +1,4 @@
-import {readdir, stat, readFile} from 'node:fs/promises'
+import {open, readdir, stat, readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {z} from 'zod'
@@ -414,29 +414,45 @@ export function parseSessionMeta(id: string, jsonl: string, mtime: number): Harn
 const MAX_SESSIONS = 50
 const SUMMARY_TAIL = 12
 
-const factHandles = new Map<string, JsonlFoldHandle<SessionFacts>>()
+const IDENTITY_BYTES = 256
 
-function factHandle(path: string): JsonlFoldHandle<SessionFacts> {
+type FactEntry = {identity: string; handle: JsonlFoldHandle<SessionFacts>}
+
+const factHandles = new Map<string, FactEntry>()
+
+async function fileIdentity(path: string, inode: number): Promise<string> {
+  const file = await open(path, 'r')
+  try {
+    const head = Buffer.alloc(IDENTITY_BYTES)
+    const {bytesRead} = await file.read(head, 0, IDENTITY_BYTES, 0)
+    return `${inode}:${head.toString('utf8', 0, bytesRead)}`
+  } finally {
+    await file.close()
+  }
+}
+
+function factHandle(path: string, identity: string): JsonlFoldHandle<SessionFacts> {
   const known = factHandles.get(path)
-  if (known) return known
+  if (known && known.identity === identity) return known.handle
   const handle = makeJsonlFoldHandle<SessionFacts>({
     parser: {empty: emptyFacts, foldLine: foldFactsLine},
     resolvePath: async () => path,
   })
-  factHandles.set(path, handle)
+  factHandles.set(path, {identity, handle})
   return handle
 }
 
 function forgetOutside(dir: string, kept: ReadonlySet<string>): void {
-  for (const [path, handle] of factHandles) {
+  for (const path of factHandles.keys()) {
     if (dirname(path) !== dir || kept.has(path)) continue
-    handle.close()
     factHandles.delete(path)
   }
 }
 
-async function sessionFacts(path: string): Promise<SessionFacts> {
-  const chunk = await factHandle(path)
+async function sessionFacts(path: string, inode: number): Promise<SessionFacts> {
+  const identity = await fileIdentity(path, inode).catch(() => null)
+  if (identity === null) return emptyFacts()
+  const chunk = await factHandle(path, identity)
     .read()
     .catch(() => null)
   if (!chunk?.ok) return emptyFacts()
@@ -455,17 +471,20 @@ export async function listSessions(cwd: string, home: string = homedir()): Promi
     await Promise.all(
       names.map(async (name) => {
         try {
-          return {name, mtime: (await stat(join(dir, name))).mtimeMs}
+          const info = await stat(join(dir, name))
+          return {name, mtime: info.mtimeMs, inode: info.ino}
         } catch {
           return null
         }
       }),
     )
-  ).filter((entry): entry is {name: string; mtime: number} => entry !== null)
+  ).filter((entry): entry is {name: string; mtime: number; inode: number} => entry !== null)
   const top = stamped.toSorted((a, b) => b.mtime - a.mtime).slice(0, MAX_SESSIONS)
   forgetOutside(dir, new Set(top.map((f) => join(dir, f.name))))
   return Promise.all(
-    top.map(async (f) => metaFromFold(f.name.replace(/\.jsonl$/, ''), await sessionFacts(join(dir, f.name)), f.mtime)),
+    top.map(async (f) =>
+      metaFromFold(f.name.replace(/\.jsonl$/, ''), await sessionFacts(join(dir, f.name), f.inode), f.mtime),
+    ),
   )
 }
 

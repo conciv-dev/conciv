@@ -801,16 +801,24 @@ describe('claude history', () => {
       rmSync(home, {recursive: true, force: true})
     })
 
-    it('parses only bytes appended since the previous list', async () => {
+    it('folds a transcript fresh when it is rewritten in place or replaced by another file', async () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const cwd = '/proj/append-only'
+      const cwd = '/proj/replaced'
       seed(home, cwd, 'live', userLine('alpha ask'), 1000)
       await listSessions(cwd, home)
       const path = transcriptPath(cwd, 'live', home)
       writeFileSync(path, userLine('omega ask') + assistantLine('m1', 'answer'))
       stamp(home, cwd, 'live', 1100)
-      const [meta] = await listSessions(cwd, home)
-      expect(meta).toMatchObject({derivedTitle: 'alpha ask', messageCount: 2, lastMessage: 'answer'})
+      const [rewritten] = await listSessions(cwd, home)
+      expect(rewritten).toEqual(expectedMeta(home, cwd, 'live'))
+      expect(rewritten).toMatchObject({derivedTitle: 'omega ask', messageCount: 2, lastMessage: 'answer'})
+      const replacement = `${path}.next`
+      writeFileSync(replacement, userLine('omega ask') + resultLine(7, 8) + assistantLine('m9', 'a different answer'))
+      renameSync(replacement, path)
+      stamp(home, cwd, 'live', 1200)
+      const [replaced] = await listSessions(cwd, home)
+      expect(replaced).toEqual(expectedMeta(home, cwd, 'live'))
+      expect(replaced).toMatchObject({messageCount: 2, totalTokens: 15, lastMessage: 'a different answer'})
       rmSync(home, {recursive: true, force: true})
     })
 

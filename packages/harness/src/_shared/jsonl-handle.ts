@@ -138,7 +138,7 @@ export function makeJsonlFoldHandle<State>(source: JsonlFoldSource<State>): Json
     return {ok: true, ...revisionOf(found.info), fold: state.fold, tail, replaced}
   }
 
-  const reads = {last: Promise.resolve<JsonlFoldChunk<State> | TranscriptFailure | null>(null)}
+  const reads = {settled: Promise.resolve()}
 
   return {
     async revision(): Promise<TranscriptRevision | TranscriptFailure> {
@@ -149,8 +149,11 @@ export function makeJsonlFoldHandle<State>(source: JsonlFoldSource<State>): Json
       return revisionOf(found.info)
     },
     read(): Promise<JsonlFoldChunk<State> | TranscriptFailure> {
-      const next = reads.last.then(readOnce, readOnce)
-      reads.last = next
+      const next = reads.settled.then(readOnce)
+      reads.settled = next.then(
+        () => undefined,
+        () => undefined,
+      )
       return next
     },
     close(): void {

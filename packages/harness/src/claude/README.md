@@ -27,7 +27,7 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 - `sessionSummary`, `transcriptMessages` and `observeTranscript` refuse session ids whose path escapes `transcriptRoot` (`withinProject` via `containedPath`).
 - History skips sidechain records (`isSidechain`), machinery records in user turns (`isFromMachinery`), `INTERNAL_MARKERS`, `SYNTHETIC_MARKERS` and `MACHINERY_XML_BLOCK`; assistant records sharing `message.id` are merged and tool results attach to the last assistant message (`foldAssistantTurn`, `foldUserTurn`).
 - `MAX_TITLE` 80, `MAX_PREVIEW` 200, `MAX_SESSIONS` 50 (`history.ts`).
-- `listSessions` keeps one `makeJsonlFoldHandle` per listed transcript for the module lifetime (`factHandles`), folds only appended lines into session facts (no message list), folds the unterminated tail into a copy so its output equals `parseSessionMeta` on the whole file, and closes and drops the handles of that directory's transcripts outside the newest `MAX_SESSIONS` on each call (`forgetOutside`).
+- `listSessions` keeps one `makeJsonlFoldHandle` per listed transcript for the module lifetime (`factHandles`), folds only appended lines into session facts (no message list), folds the unterminated tail into a copy so its output equals `parseSessionMeta` on the whole file, re-folds a transcript from the start when its identity (inode plus the first `IDENTITY_BYTES` 256 bytes) changes, and drops the entries of that directory's transcripts outside the newest `MAX_SESSIONS` on each call without closing them, so an overlapping list can finish its read (`forgetOutside`).
 - Slash commands are probed once per cwd and cached (`commandsByCwd`, `sdk.ts`).
 
 ## Side Effects

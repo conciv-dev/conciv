@@ -23,7 +23,7 @@ Helpers shared by the harness adapters: the `HarnessAdapter` contract type, an A
 - `defineStubHarness` capabilities are fixed to `transcriptHistory: false`, `compaction: false`, `slashCommands: 'none'`, `init: 'none'` (`stub.ts`).
 - `containedPath` returns null when the relative step is `''`, starts with `..`, or is absolute (the root itself is rejected); it resolves symlinks with `realpathSync`, falling back to the parent (`contained-path.ts`).
 - `transcriptPathWithin` returns null when `history.transcriptPath` is undefined or `withinProject` is false.
-- `makeJsonlHandle` consumes only complete newline-terminated lines; when the file shrinks it resets offset and fold; `replaced` is true for reads from offset 0; `verifyHead` runs once on up to `HEAD_BYTES` (65536); a closed handle returns `'unreadable'`; ENOENT maps to `'missing'`, other errors to `'unreadable'`; a revision is `${size}:${mtimeMs}`; overlapping `read()` calls on one handle run one after another, so each appended line is folded once (`jsonl-handle.ts`).
+- `makeJsonlHandle` consumes only complete newline-terminated lines; when the file shrinks it resets offset and fold; `replaced` is true for reads from offset 0; `verifyHead` runs once on up to `HEAD_BYTES` (65536); a closed handle returns `'unreadable'`; ENOENT maps to `'missing'`, other errors to `'unreadable'`; a revision is `${size}:${mtimeMs}`; overlapping `read()` calls on one handle run one after another through a completion-only promise, so each appended line is folded once and no finished chunk is retained (`jsonl-handle.ts`).
 
 ## Side Effects
 
