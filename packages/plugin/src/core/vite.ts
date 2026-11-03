@@ -226,14 +226,17 @@ const CONCIV_MARK_URI =
 
 const ENGINE_ACCESS = 'conciv:engine-access'
 
-function engineAccessFunction(grant: (key: string) => Promise<string>): RpcFunctionDefinitionAny {
+function engineAccessFunction(grant: (token: string) => Promise<string>): RpcFunctionDefinitionAny {
   return defineRpcFunction({
     name: ENGINE_ACCESS,
     type: 'action',
     jsonSerializable: true,
     setup: (context) => ({
-      handler: (): Promise<string> =>
-        grant(context.rpc.getCurrentRpcSession()?.meta.clientAuthToken ?? 'without-client-auth'),
+      handler: async (): Promise<string> => {
+        const token = context.rpc.getCurrentRpcSession()?.meta.clientAuthToken
+        if (token === undefined) throw new Error('conciv: engine access needs a DevTools session token')
+        return grant(token)
+      },
     }),
   })
 }
@@ -277,9 +280,9 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       setup(context) {
         if (!docked) return
         context.rpc.register(
-          engineAccessFunction(async (key) => {
+          engineAccessFunction(async (token) => {
             if (!engine) throw new Error('conciv: the engine is not running yet')
-            return engine.grantBrowserAccess(key)
+            return engine.grantBrowserAccess(token)
           }),
         )
         context.docks.register({
