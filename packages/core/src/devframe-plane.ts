@@ -68,7 +68,7 @@ function coreDevframe(opts: DevframePlaneOpts, publish: Publish): DevframeDefini
     homepage: 'https://conciv.dev',
     description: 'conciv engine',
     importMetaUrl: import.meta.url,
-    services: [{package: '@devframes/service-open', options: {roots: [opts.cwd]}}],
+    services: [{package: '@devframes/service-open'}],
     setup(ctx) {
       ctx.services.provide(CONCIV_HOST_SERVICE, opts.host)
       opts.functions(publish).forEach((definition) => ctx.rpc.register(definition))
