@@ -1,4 +1,5 @@
 import {Show, Suspense, type JSX} from 'solid-js'
+import Lock from 'lucide-solid/icons/lock'
 import {Tooltip} from '@conciv/ui-kit-system'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import type {DraggablePosition} from '../lib/draggable-position.js'
@@ -17,6 +18,8 @@ const FAB_BASE =
   'fixed size-13 rounded-chat-pill border border-chat-line bg-chat-panel text-chat-accent text-[1.375rem] cursor-pointer pointer-events-auto shadow-chat-lg inline-flex items-center justify-center trans-lift anim-fab focus-ring [@media(hover:hover)_and_(pointer:fine)]:hover:[transform:translateY(-0.125rem)] [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-chat-hover active:[transform:translateY(0)_scale(0.94)]'
 const FAB_BUSY = 'conciv-fab-busy absolute -inset-[0.1875rem] rounded-chat-pill pointer-events-none'
 const FAB_ATTN = 'border-2 border-chat-accent anim-fab-ring'
+const FAB_LOCK =
+  'absolute -bottom-0.5 -end-0.5 size-5 rounded-chat-pill border border-chat-line bg-chat-panel text-chat-text-2 inline-flex items-center justify-center pointer-events-none'
 const FAB_DRAGGING = 'transition-none z-[2147483647] cursor-grabbing'
 
 function fabClass(position: TriggerPosition, dragging: boolean): string {
@@ -27,7 +30,8 @@ function tooltipPlacement(position: TriggerPosition): 'left' | 'right' {
   return position.endsWith('-left') ? 'right' : 'left'
 }
 
-function fabLabel(open: boolean): string {
+function fabLabel(open: boolean, locked: boolean): string {
+  if (locked) return 'Authorize conciv'
   return open ? 'Minimize conciv chat' : 'Open conciv chat'
 }
 
@@ -37,6 +41,7 @@ export function ShellFab(props: {
   working: () => boolean
   suppressed: () => '' | undefined
   fab: DraggablePosition
+  locked: () => boolean
   onToggle: () => void
 }): JSX.Element {
   return (
@@ -48,10 +53,11 @@ export function ShellFab(props: {
         data-conciv-fab
         data-conciv-suppressed={props.suppressed()}
         style={props.fab.dragStyle()}
-        aria-label={fabLabel(props.open())}
+        aria-label={fabLabel(props.open(), props.locked())}
         aria-busy={props.working()}
-        aria-expanded={props.open()}
-        aria-controls="conciv-chat-panel"
+        aria-haspopup={props.locked() ? 'dialog' : undefined}
+        aria-expanded={props.locked() ? undefined : props.open()}
+        aria-controls={props.locked() ? undefined : 'conciv-chat-panel'}
         onPointerDown={(event) => props.fab.onPointerDown(event)}
         onClick={() => {
           if (!props.fab.consumeClick()) props.onToggle()
@@ -63,9 +69,14 @@ export function ShellFab(props: {
           </Show>
         </Suspense>
         <FabRobot open={props.open} working={props.working} />
+        <Show when={props.locked()}>
+          <span class={FAB_LOCK} aria-hidden="true">
+            <Lock class="size-3" />
+          </span>
+        </Show>
       </Tooltip.Trigger>
       <Tooltip.Positioner>
-        <Tooltip.Content>{fabLabel(props.open())}</Tooltip.Content>
+        <Tooltip.Content>{fabLabel(props.open(), props.locked())}</Tooltip.Content>
       </Tooltip.Positioner>
     </Tooltip.Root>
   )

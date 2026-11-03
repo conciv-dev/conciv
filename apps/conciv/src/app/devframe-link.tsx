@@ -1,118 +1,52 @@
-import {from, onCleanup, onMount, Show, type JSX} from 'solid-js'
+import {untrack, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import {render} from 'solid-js/web'
+import {consumeOtpFromUrl} from 'devframe/client'
 import {browserClient} from '@conciv/extension/devframe-connection'
-import {Button, Dialog, EnvironmentProvider, TextField} from '@conciv/ui-kit-system'
+import {Button, Dialog, PinInput} from '@conciv/ui-kit-system'
 import {resolveHubBase} from '../lib/api-base.js'
+
+declare module 'devframe/types' {
+  interface DevframeRpcServerFunctions {
+    'conciv:engine-access': () => Promise<string>
+  }
+}
 
 export type HubConnection = ReturnType<typeof browserClient>
 type HubClient = Awaited<ReturnType<HubConnection['ready']>>
 
+type LoginPhase = 'checking' | 'unreachable' | 'locked' | 'exchanging' | 'trusted'
+type LoginNotice = 'none' | 'mismatch' | 'newCode' | 'failed' | 'requestFailed'
+type LoginState = {phase: LoginPhase; dialogOpen: boolean; notice: LoginNotice}
+
+export type HubLogin = {
+  state: LoginState
+  awaitingCode: () => boolean
+  request: (open: () => void) => void
+  close: () => void
+  edit: () => void
+  submit: (code: string) => Promise<boolean>
+  reissue: () => void
+  dispose: () => void
+}
+
 const HUB_PATH = '/__conciv/'
+const ENGINE_ACCESS = 'conciv:engine-access'
 const TOKEN_SEGMENT = /\/t\/([^/]+)/
 const CODE_LENGTH = 6
 
-function reportFailure(what: string): (error: unknown) => void {
-  return (error) => console.error(`conciv: ${what}`, error)
+const NOTICE_TEXT: Record<Exclude<LoginNotice, 'none'>, string> = {
+  mismatch: "That code didn't match. Check your terminal and try again.",
+  newCode: 'A new code was printed in your terminal.',
+  failed: 'Something went wrong while authorizing. Please try again.',
+  requestFailed: 'Could not request a new code. Please try again.',
 }
 
 function tokenOf(apiBase: string): string | undefined {
   return TOKEN_SEGMENT.exec(new URL(apiBase, window.location.href).pathname)?.[1]
 }
 
-export function hasLoginToken(apiBase: string): boolean {
-  return tokenOf(apiBase) !== undefined
-}
-
-function AuthorizeCard(props: {client: HubClient; onTrusted: (token: string) => void}): JSX.Element {
-  const [form, setForm] = createStore({code: '', refused: false})
-  onMount(() => void props.client.requestAuthCode().catch(reportFailure('requesting a login code failed')))
-  const submit = async (event: SubmitEvent): Promise<void> => {
-    event.preventDefault()
-    const trusted = await props.client.requestTrustWithCode(form.code).catch(() => false)
-    setForm('refused', !trusted)
-    const token = props.client.connection.authToken
-    if (trusted && token) props.onTrusted(token)
-  }
-  return (
-    <Dialog title="Authorize conciv" open>
-      <form aria-label="Authorize conciv" class="flex flex-col gap-3" onSubmit={(event) => void submit(event)}>
-        <p class="text-sm text-chat-text-2 m-0">
-          conciv can read your project, run tools and open your editor. Enter the 6-digit code printed in the terminal
-          that runs your dev server.
-        </p>
-        <TextField
-          label="Code"
-          name="code"
-          inputmode="numeric"
-          autocomplete="one-time-code"
-          maxLength={CODE_LENGTH}
-          value={form.code}
-          aria-invalid={form.refused}
-          onInput={(event) => setForm({code: event.currentTarget.value.replace(/\D/g, ''), refused: false})}
-        />
-        <Show when={form.refused}>
-          <p role="alert" class="text-sm text-chat-danger m-0">
-            That code did not match. Check the terminal and try again.
-          </p>
-        </Show>
-        <Button type="submit" disabled={form.code.length < CODE_LENGTH}>
-          Authorize
-        </Button>
-        <Button
-          variant="link"
-          size="bare"
-          class="self-start"
-          onClick={() =>
-            void props.client.requestAuthCode({reissue: true}).catch(reportFailure('reissuing a login code failed'))
-          }
-        >
-          Send a new code
-        </Button>
-      </form>
-    </Dialog>
-  )
-}
-
-function unauthorizedOf(client: HubClient): () => boolean | undefined {
-  return from<boolean>((set) => {
-    set(client.status === 'unauthorized')
-    return client.events.on('connection:status', (next) => set(next === 'unauthorized'))
-  })
-}
-
-function watchTrust(client: HubClient, onTrusted: (token: string) => void): () => void {
-  const trust = (trusted: boolean | null): void => {
-    const token = client.connection.authToken
-    if (trusted && token) onTrusted(token)
-  }
-  trust(client.isTrusted)
-  return client.events.on('rpc:is-trusted:updated', trust)
-}
-
-function AuthorizeGate(props: {
-  client: HubClient
-  unauthorized: () => boolean | undefined
-  onTrusted: (token: string) => void
-}): JSX.Element {
-  onMount(() => onCleanup(watchTrust(props.client, props.onTrusted)))
-  return (
-    <Show when={props.unauthorized()}>
-      <AuthorizeCard client={props.client} onTrusted={props.onTrusted} />
-    </Show>
-  )
-}
-
-function connectedClientOf(hub: HubConnection): () => HubClient | undefined {
-  return from<HubClient>((set) => hub.onClient((next) => set(() => next)))
-}
-
-function HubLogin(props: {client: () => HubClient | undefined; onTrusted: (token: string) => void}): JSX.Element {
-  return (
-    <Show when={props.client()} keyed>
-      {(ready) => <AuthorizeGate client={ready} unauthorized={unauthorizedOf(ready)} onTrusted={props.onTrusted} />}
-    </Show>
-  )
+export function tokenBearingApiBase(apiBase: string): string | null {
+  return tokenOf(apiBase) === undefined ? null : apiBase
 }
 
 export function hubBaseOf(apiBase: string): string {
@@ -123,32 +57,190 @@ export function hubFor(apiBase: string): HubConnection {
   return browserClient({baseURL: hubBaseOf(apiBase), authToken: tokenOf(apiBase)})
 }
 
-export function renderLogin(
-  mount: Node,
+export function makeHubLogin(
   hub: HubConnection,
   apiBase: string,
-  onTrusted: (trustedApiBase: string) => void,
-): () => void {
-  hub.ready().catch(reportFailure('the hub connection failed'))
-  if (hasLoginToken(apiBase)) {
-    onTrusted(apiBase)
-    return () => {}
-  }
+  onTrusted: (trustedApiBase: string) => Promise<void>,
+  engineAccess: boolean,
+): HubLogin {
   const origin = new URL(apiBase, window.location.href).origin
-  const host = document.createElement('div')
-  host.className = 'font-chat text-chat-text'
-  mount.appendChild(host)
-  const rootNode = host.getRootNode()
-  const dispose = render(() => {
-    const client = connectedClientOf(hub)
-    return (
-      <EnvironmentProvider value={() => rootNode}>
-        <HubLogin client={client} onTrusted={(token) => onTrusted(`${origin}/t/${token}`)} />
-      </EnvironmentProvider>
-    )
-  }, host)
-  return () => {
-    dispose()
-    host.remove()
+  const [state, setState] = createStore<LoginState>({phase: 'checking', dialogOpen: false, notice: 'none'})
+  const pending: {open: (() => void) | null} = {open: null}
+  const runPending = (): void => {
+    const requested = pending.open
+    pending.open = null
+    requested?.()
   }
+
+  const trust = (token: string): void => {
+    setState({phase: 'trusted', dialogOpen: false, notice: 'none'})
+    void onTrusted(`${origin}/t/${token}`).then(runPending, runPending)
+  }
+
+  const lock = (): void => {
+    setState('phase', 'locked')
+    if (pending.open && !untrack(() => state.dialogOpen)) showDialog()
+  }
+
+  const accept = (client: HubClient): void => {
+    const token = client.connection.authToken
+    if (!engineAccess) {
+      if (token) trust(token)
+      else lock()
+      return
+    }
+    client.call(ENGINE_ACCESS).then(trust, () => {
+      setState('phase', 'unreachable')
+      runPending()
+    })
+  }
+
+  const followTrust =
+    (client: HubClient) =>
+    (trusted: boolean | null): void => {
+      if (state.phase === 'exchanging') return
+      if (trusted) accept(client)
+      else lock()
+    }
+
+  const unsubscribe = {trust: (): void => {}}
+  const offStatus = hub.onStatus((status) => {
+    if (status !== 'disconnected' || untrack(() => state.phase) !== 'checking') return
+    setState('phase', 'unreachable')
+    runPending()
+  })
+  const offClient = hub.onClient((client) => {
+    unsubscribe.trust()
+    unsubscribe.trust = client.events.on('rpc:is-trusted:updated', followTrust(client))
+    if (client.isTrusted) followTrust(client)(true)
+  })
+
+  const exchange = async (code: string): Promise<boolean> => {
+    setState({phase: 'exchanging', notice: 'none'})
+    const client = await hub.ready()
+    const trusted = await client.requestTrustWithCode(code)
+    if (trusted && (engineAccess || client.connection.authToken)) {
+      accept(client)
+      return true
+    }
+    setState({phase: 'locked', notice: 'mismatch'})
+    return false
+  }
+
+  const submit = (code: string): Promise<boolean> =>
+    exchange(code).catch(() => {
+      setState({phase: 'locked', notice: 'failed'})
+      return false
+    })
+
+  const requestCode = (reissue: boolean): void => {
+    hub
+      .ready()
+      .then((client) => client.requestAuthCode({reissue}))
+      .then(
+        () => {
+          if (reissue) setState('notice', 'newCode')
+        },
+        () => setState('notice', 'requestFailed'),
+      )
+  }
+
+  const showDialog = (): void => {
+    setState({dialogOpen: true, notice: 'none'})
+    requestCode(false)
+  }
+
+  hub.ready().catch(() => {
+    setState('phase', 'unreachable')
+    runPending()
+  })
+  const otp = consumeOtpFromUrl()
+  if (otp) void submit(otp)
+
+  return {
+    state,
+    awaitingCode: () => state.phase === 'locked' || state.phase === 'exchanging',
+    request: (open) => {
+      if (state.phase === 'trusted' || state.phase === 'unreachable') {
+        open()
+        return
+      }
+      pending.open = open
+      if (state.phase === 'checking') return
+      showDialog()
+    },
+    close: () => {
+      pending.open = null
+      setState('dialogOpen', false)
+    },
+    edit: () => {
+      if (state.notice === 'mismatch') setState('notice', 'none')
+    },
+    submit,
+    reissue: () => requestCode(true),
+    dispose: () => {
+      offClient()
+      offStatus()
+      unsubscribe.trust()
+    },
+  }
+}
+
+export function AuthorizeDialog(props: {login: HubLogin}): JSX.Element {
+  const notice = (): string | undefined => {
+    const current = props.login.state.notice
+    return current === 'none' ? undefined : NOTICE_TEXT[current]
+  }
+  const alerting = (): boolean => props.login.state.notice !== 'none' && props.login.state.notice !== 'newCode'
+  return (
+    <div class="font-chat text-chat-text">
+      <Dialog
+        title="Authorize conciv"
+        open={props.login.state.dialogOpen}
+        onOpenChange={(open) => {
+          if (!open) props.login.close()
+        }}
+        dismissable
+        footer={
+          <div class="flex items-center justify-between gap-3">
+            <Button variant="link" size="bare" class="min-h-11" onClick={() => props.login.reissue()}>
+              Send a new code
+            </Button>
+            <Button variant="outline" onClick={() => props.login.close()}>
+              Close
+            </Button>
+          </div>
+        }
+      >
+        <div class="flex flex-col gap-3">
+          <p class="text-sm text-chat-text-2 m-0">
+            conciv can access your server, read your filesystem, and run commands. Confirm it's you before continuing.
+          </p>
+          <p class="text-sm text-chat-text m-0">Find the 6-digit code printed in your terminal.</p>
+          <PinInput
+            label="Enter your one-time authorization code"
+            length={CODE_LENGTH}
+            invalid={props.login.state.notice === 'mismatch'}
+            digitLabel={(position, length) => `Digit ${position} of ${length}`}
+            onValueChange={(value) => {
+              if (value.some((digit) => digit !== '')) props.login.edit()
+            }}
+            onValueComplete={(code, controls) =>
+              void props.login.submit(code).then((trusted) => {
+                if (!trusted) controls.clear()
+              })
+            }
+          />
+          <div class="grid min-h-[2lh] text-sm">
+            <p role="alert" class="[grid-area:1/1] text-chat-danger m-0">
+              {alerting() ? notice() : ''}
+            </p>
+            <p role="status" class="[grid-area:1/1] text-chat-text-2 m-0">
+              {alerting() ? '' : notice()}
+            </p>
+          </div>
+        </div>
+      </Dialog>
+    </div>
+  )
 }

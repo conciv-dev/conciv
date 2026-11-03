@@ -75,7 +75,7 @@ import type {OpenInEditor} from './editor/open.js'
 import type {ClaimUpgrade} from '@conciv/serve'
 import type {HubInstance} from '@devframes/hub/initiate'
 
-declare module 'devframe' {
+declare module 'devframe/types' {
   interface DevframeRpcServerFunctions extends SessionsServerFunctions, MetaServerFunctions {}
 }
 
