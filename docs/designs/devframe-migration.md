@@ -137,7 +137,17 @@ slots), and remove conciv's own versions one group at a time while both paths ke
 ### Decisions taken during the stack (2026-11-03)
 
 - **Next.js loopback check.** The dev-server guard matched the `Host` header, which a caller
-  can set to anything. It checks the connection's socket address instead.
+  can set to anything. Next.js gives rewrites and middleware no socket address, so the guard
+  cannot be fixed there. The hub limits the login instead: 10 wrong codes per 5 minutes and 3
+  new codes per minute (`limitLogin` in `packages/core/src/devframe-plane.ts`).
+- **Widget login.** Nothing appears on page load. The widget asks the hub whether the browser is
+  trusted; a missing, wrong or stale `/t/` token counts as untrusted. While untrusted, the
+  launcher shows a lock and every way of opening conciv (launcher, panel commands, hotkey,
+  `defaultOpen`) shows one dismissable login dialog with an Ark `PinInput`. When the engine
+  cannot be reached at all, opening shows the existing error screen with Retry, not the login.
+  Tests get trust from the testkit token or a real code; there is no test override.
+- **Vite DevTools dock login.** The DevTools login is the only login in the dock. Tests run with
+  DevTools' default `clientAuth: true` and log in through its magic link.
 - **design.it x-ray test.** It stays red under the login gate; the x-ray area is being
   redesigned separately.
 - **Preset API base.** An API base already set on the page wins over a preset's (`??=`).
@@ -783,6 +793,37 @@ delegate auth object, and a plugin wrapping another plugin's registered function
   `webpack-cli` 7.2.3, `webpack-dev-server` 6.1.0, `@rspack/core` 2.2.9, `@rspack/cli` 2.2.9,
   `@rspack/dev-server` 2.2.2. Fallow ignores the fixture folder and the four bin-only
   packages. Next example adds `dependenciesMeta.injected` for `@conciv/it`.
+
+### PR 1c: One hub in the Vite DevTools dock
+
+Problem found while building PR 1b. In the dock, the page holds two Devframe hubs: the DevTools
+hub and conciv's own hub at `/__conciv/`. Devframe assumes one hub per page. Its client keeps
+one connection on `globalThis.__DEVFRAME_CONNECTION__` and one token in
+`localStorage['__DEVFRAME_CONNECTION_AUTH_TOKEN__']`, and the two hubs overwrite each other:
+
+- conciv's token replaced the DevTools token, so after a reload DevTools showed "Unauthorized".
+  The current stopgap (PR 2, `7c9e22106`) makes `conciv:engine-access` trust and return the
+  caller's own DevTools token, so both hubs use one token.
+- conciv's client also replaces the shared connection, so a same-origin DevTools iframe such as
+  the Terminals dock can pick up conciv's connection. No test covers this yet.
+
+Decided (2026-11-03): in the dock, conciv uses the DevTools hub only.
+
+- The conciv Vite plugin registers conciv's hub functions and shared state on the DevTools hub
+  in `devtools.setup(context)`, from the same definitions the conciv plane registers today.
+  The page surface keeps conciv's own hub; only the dock changes.
+- The docked widget connects only to the DevTools hub, through the connection Devframe already
+  stores on the page. It opens no second client, so nothing is overwritten.
+- The engine's HTTP gate accepts a token that the DevTools hub trusts, by checking the DevTools
+  context's trust store as a second source next to conciv's (`isTrustedBrowserToken`). The gate
+  logic is otherwise unchanged. `conciv:engine-access`, `grantBrowserAccess` and the separate
+  DevTools hub client in `mount-impl.tsx` are removed.
+- Tests: the dock ITs keep logging in through the DevTools magic link. Add one that opens the
+  Terminals dock and conciv on one page and checks both work after a reload.
+
+Open for the build: whether shared state (`conciv:sessions`) registered on the DevTools hub
+needs a different key prefix, and which hub context the conciv plane functions read from when
+they are registered on DevTools. The implementer reports both before writing code.
 
 ### PRs 2 to 9: core procedure groups
 
