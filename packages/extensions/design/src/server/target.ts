@@ -1383,7 +1383,7 @@ function typeJobs(input: {
 }): TypeJob[] {
   const {raster} = input.target
   return uniqBy(input.texts, (entry) => entry.node.id)
-    .filter((entry) => entry.node.typography?.font !== entry.owner.styles.fontFamily)
+    .filter((entry) => needsEstimate({typography: entry.node.typography, live: entry.owner.styles.fontFamily}))
     .map(({node, owner}) => {
       const area = crop({raster, box: node.box, margin: TOLERANCES.typeHalo})
       const fills = sampledFills({raster, box: area.box, glyphs: [node.box], color: input.color})
@@ -1398,6 +1398,17 @@ function typeJobs(input: {
         contrast: contrast({raster, box: ink, background}),
       }
     })
+}
+
+function needsEstimate(input: {typography: Typography | undefined; live: string}): boolean {
+  const {typography} = input
+  if (typography === undefined) return true
+  if (typography.confidence === 1) return false
+  return firstFamily(typography.font) !== firstFamily(input.live)
+}
+
+function firstFamily(stack: string): string {
+  return (stack.split(',')[0] ?? '').replaceAll('"', '').replaceAll("'", '').trim().toLowerCase()
 }
 
 function ownInk(input: {area: {raster: Raster; box: Box}; background: Rgb}): Box {

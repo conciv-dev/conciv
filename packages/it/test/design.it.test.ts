@@ -44,6 +44,7 @@ import {
   type WinnerResult,
 } from '@conciv/extension-design/defs'
 import {mapDeclaration} from '@conciv/extension-design/provenance'
+import {createTargetStore} from '@conciv/extension-design/store'
 import {glyphCoreColor} from '@conciv/extension-design/colors'
 import {destroyPaddle, paddleReader, trimToInk} from '@conciv/extension-design/paddle'
 import {groupText, sameWords} from '@conciv/extension-design/text-groups'
@@ -1661,6 +1662,22 @@ describe('type estimate', () => {
       return [{text: node.text, live: element?.size, typography}]
     })
     expect(misses).toEqual([])
+  })
+
+  it('typography stored with confidence 1 is kept, and the fontSize delta names its size', async () => {
+    await goto('type')
+    const {id} = await freshTarget('type-1280')
+    const first = (await storedNodes(id)).find((node) => node.kind === 'text')
+    if (first === undefined) throw new Error('type-1280 has no text node')
+    const exact = {size: 20, lineHeight: 25, weight: 400, confidence: 1, font: 'Source Sans 3'}
+    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
+    await store.setTypography({id, typography: {[first.id]: exact}})
+    const report = await call('design_diff', {})
+    const kept = (await storedNodes(id)).find((node) => node.id === first.id)
+    expect(kept?.typography).toEqual({size: exact.size, weight: exact.weight, confidence: exact.confidence})
+    expect(report.components.flatMap((component) => component.deltas)).toContainEqual(
+      expect.objectContaining({kind: 'fontSize', target: exact.size}),
+    )
   })
 })
 

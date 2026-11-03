@@ -450,12 +450,19 @@ type Run = ContainerLayout['runs'][number]
 
 function pairSentence(input: {delta: Delta; pair: Pair}): string {
   const {delta, pair} = input
+  if (delta.kind === 'fontSize') return deltaSentence({...delta, target: `${delta.target}${linesPhrase(pair)}`})
   if (delta.kind !== 'sizing') return deltaSentence(delta)
   const width = Math.round(pair.liveBox.w)
   const declared = traced(delta) && delta.declaration !== undefined ? `, declared as \`${delta.declaration}\`` : ''
   const where = delta.file === undefined ? '' : ` at ${delta.file}${delta.line === undefined ? '' : `:${delta.line}`}`
   const rule = delta.target === 'fill' ? 'fill the row (flex: 1)' : 'fit its content'
   return `let the ${pair.live.tag} ${rule}; it is sized ${width} px${declared}${where}`
+}
+
+function linesPhrase(pair: Pair): string {
+  const text = pair.texts.find((candidate) => candidate.typography !== undefined)
+  if (text?.typography === undefined || text.lines.length < 2) return ''
+  return ` (${text.lines.length} lines of ${Math.round(text.typography.lineHeight)} px)`
 }
 
 function entrySentence(input: {entry: Unmatched; tree: Tree; unbuilt: Unbuilt}): string {

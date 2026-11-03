@@ -44,6 +44,10 @@
       "types": "./dist/shared/defs.d.ts",
       "import": "./dist/shared/defs.js"
     },
+    "./store": {
+      "types": "./dist/server/store.d.ts",
+      "import": "./dist/server/store.js"
+    },
     "./provenance": {
       "types": "./dist/server/provenance.d.ts",
       "import": "./dist/server/provenance.js"
