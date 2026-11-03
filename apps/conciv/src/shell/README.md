@@ -14,7 +14,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `makeLayerStack()`, `LayerStack` (`dialogs.ts`): tracks open dialogs and whether any hides the page
 - `EffectsSurface({instances})` (`effects-surface.tsx`): portals extension effects into a fixed shadow host on `document.body`
 - `ErrorScreen`, `defaultErrorComponent`, `EmptyStateSlot`, `RefreshButton` (`error-screen.tsx`, `default-error-component.tsx`, `empty-state.tsx`, `refresh-button.tsx`)
-- `PendingPane`, `SessionPillPending`, `SessionTitlePending`, `UsagePending`, `ViewTabsPending`, `ComposerActionsPending` (`pending.tsx`)
+- `PendingPane`, `SessionPillPending`, `UsagePending`, `ComposerActionsPending` (`pending.tsx`)
 - `classifyRpcError(error, transportMessage, genericMessage)` (`rpc-error-message.ts`)
 - `escapeInTerminal(scopeEl)` (`terminal-focus.ts`): true when focus is inside `[data-terminal-screen]`
 

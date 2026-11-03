@@ -39,7 +39,7 @@ import {ContextSummary} from '../pane/context-tracker.js'
 import {QueueStrip} from '../pane/queue-strip.js'
 import {StatusBar, type StatusBarView} from '../pane/status-bar.js'
 import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
-import {SessionPillPending, SessionTitlePending, UsagePending, ViewTabsPending} from '../shell/pending.js'
+import {SessionPillPending, UsagePending} from '../shell/pending.js'
 import {guardedComponent} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 import {useNotices} from '../shell/notice-context.js'
@@ -138,10 +138,12 @@ function PanelSession(): JSX.Element {
     ),
   )
 
+  const chat = usePaneChat(() => params().sessionId)
   const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
-  const row = () => (sessions.data ?? []).find((session) => session.id === params().sessionId)
+  const row = () =>
+    sessions.isPending ? undefined : sessions.data?.find((session) => session.id === params().sessionId)
   const usage = () => row()?.usage ?? null
-  const running = () => row()?.running ?? false
+  const running = () => row()?.running ?? chat().runInProgress()
 
   const views = createMemo(() => collectViews(instances))
   const activeView = () => {
@@ -189,7 +191,6 @@ function PanelSession(): JSX.Element {
       running() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
   })
 
-  const chat = usePaneChat(() => params().sessionId)
   const coordinator = makeRefreshCoordinator({
     chat,
     sessionId: () => params().sessionId,
@@ -259,9 +260,7 @@ function PanelSession(): JSX.Element {
             </span>
             <span class="chat-rail-context-narrow">{lastTask() ? 'LAST' : 'ACTIVE'}</span>
           </span>
-          <Suspense fallback={<SessionTitlePending />}>
-            <TruncatedText class={RAIL_TITLE} text={taskTitle()} side="bottom" />
-          </Suspense>
+          <TruncatedText class={RAIL_TITLE} text={taskTitle()} side="bottom" />
         </div>
         <Popover.Root positioning={{placement: 'bottom-end'}}>
           <TooltipIconButtonSlot tooltip={sessionMenuLabel()}>
@@ -336,17 +335,15 @@ function PanelSession(): JSX.Element {
         <QueueStrip queue={queue()} />
       </ChatProvider>
       <Outlet />
-      <Suspense fallback={<ViewTabsPending />}>
-        <StatusBar
-          status={sessionStatus()}
-          elapsedLabel={elapsedLabel()}
-          diff={diff()}
-          views={statusBarViews()}
-          activeView={activeView()}
-          onSelectView={switchView}
-          disabled={leaveGuard()}
-        />
-      </Suspense>
+      <StatusBar
+        status={sessionStatus()}
+        elapsedLabel={elapsedLabel()}
+        diff={diff()}
+        views={statusBarViews()}
+        activeView={activeView()}
+        onSelectView={switchView}
+        disabled={leaveGuard()}
+      />
     </PaneContext.Provider>
   )
 }

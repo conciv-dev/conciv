@@ -1083,6 +1083,20 @@ describe('panel refresh', () => {
   const refreshingMenu = () => page.getByRole('button', {name: 'Refreshing the conversation'})
   const refreshRow = () => page.getByRole('button', {name: 'Refresh the conversation'})
 
+  test('a session list still loading never hides the title or the view tabs behind skeletons', async () => {
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    await coreControl.scriptTurn({toolCalls: [], text: REPLY_TEXT})
+    await runTurn(coreBase(), sessionId, 'seed the transcript')
+    const gate = await faults.install({kind: 'gate', path: ['sessions', 'list']})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(gate, 1)
+
+    await expect.element(reply(), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByRole('banner').getByText('New session', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('tab', {name: 'Chat', exact: true})).toBeVisible()
+  })
+
   test('refreshing the conversation dismisses the menu, shows progress, and keeps the transcript', async () => {
     const rpc = coreRpc(coreBase())
     const sessionId = await createSession(rpc)
