@@ -243,8 +243,9 @@ changes the time of a run, never its answer.
 - **The ledger.** `ledger.json` sits next to `model.json` and holds one row per design node across runs: `status`,
   `since` (the run the status was reached in), `pair` (the last known live pairing: `path`, `fingerprint`,
   `confidence` and the `run` that confirmed it, kept after the element is gone until a new pair replaces it) and
-  `item` (the node's worst current item: `stage`, `size`, `sentence`). Every run that is counted rewrites it after
-  the items are known and before the result file is written; a repeated round, an unanswered page and a `partial` run
+  `item` (the node's worst current item: `stage`, `size`, `sentence`). The ledger is written when a run becomes a
+  round, by `design_diff` or when a settled run is promoted to the round; a save between rounds measures against the
+  last round's ledger and writes nothing. A repeated round, an unanswered page and a `partial` run
   leave it as it was. A target without the file starts with every node `unbuilt`. Nodes excluded or marked as an image
   slot keep the row they had.
 - **Statuses.** `done` when the node is paired and no item names it; `paired` when it is paired with at least one item;

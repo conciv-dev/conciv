@@ -268,6 +268,7 @@ type Settled = {
   measured: Measured[]
   placements: Placement[]
   hinted: Omit<Parameters<typeof reportHint>[0], 'cut'> & {paired: number}
+  ledger: Ledger | null
 }
 
 async function answeredDiff(request: Parameters<typeof runDiff>[0] & {unanswered: Set<string>}): Promise<DiffReport> {
@@ -440,8 +441,7 @@ async function runDiff(request: {
   const run = newStamp()
   const round = advances ? rounds.length + 1 : rounds.length
   const nodeCrop = (node: string): string => cropUrl({xray: xray.url, node, run})
-  const {changes, changed, counts, save} = ledgerStep({
-    target: record.id,
+  const {changes, changed, counts, ledger} = ledgerStep({
     earlier,
     partial: paired.partial,
     facts: {run, round, nodes, matched, items, decisions},
@@ -475,7 +475,7 @@ async function runDiff(request: {
   clock.lap('encode')
   const timings = {...clock.timings(), carried: {pairs: paired.carried, tiles: pixels.carried}}
   const hinted = {attributed: live.components.length > 0, absolute: xray.absolute, partial: paired.partial}
-  await save(design.store)
+  if (advances && ledger !== null) await design.store.writeLedger({id: record.id, ledger})
   const report = await design.store.writeRun({
     id: record.id,
     run,
@@ -529,6 +529,7 @@ async function runDiff(request: {
     rawTiles,
     textMasks: texts.masks,
     measures: new Map([...measures.values()].map((entry) => [entry.key, entry.deltas])),
+    ledger,
   })
   return report
 }
@@ -724,13 +725,15 @@ async function countedRound(input: {
     ...reportHint({...hinted, cut: {listed, shown: reported.length, paired}}),
   }
   await design.store.amend({id: record.id, run: settled.run, report})
+  if (settled.ledger !== null) {
+    await design.store.writeLedger({id: record.id, ledger: {...settled.ledger, round: rounds.length + 1}})
+  }
   history.append({id: record.id, round: roundRecord({items, score, capturePath, capture: settled.capture, report})})
   latest.set(record.id, {...settled, observe: true, report})
   return report
 }
 
 function ledgerStep(input: {
-  target: string
   earlier: Ledger | null
   partial: boolean
   facts: Omit<Parameters<typeof nextLedger>[0], 'earlier' | 'components'>
@@ -741,7 +744,7 @@ function ledgerStep(input: {
   changes: Changes
   changed: Judging['changed']
   counts: DiffReport['ledger']
-  save: (store: TargetStore) => Promise<void>
+  ledger: Ledger | null
 } {
   const {earlier, tree} = input
   if (input.partial) {
@@ -749,7 +752,7 @@ function ledgerStep(input: {
       changes: NO_CHANGES,
       changed: {line: null, regressed: new Set()},
       counts: ledgerCounts(earlier),
-      save: async () => undefined,
+      ledger: null,
     }
   }
   const next = nextLedger({...input.facts, earlier, components: input.components})
@@ -759,7 +762,7 @@ function ledgerStep(input: {
     changes,
     changed: {line, regressed: new Set(next.changes.regressed)},
     counts: ledgerCounts(next.ledger),
-    save: (store) => store.writeLedger({id: input.target, ledger: next.ledger}),
+    ledger: next.ledger,
   }
 }
 

@@ -2196,6 +2196,36 @@ describe('ledger', () => {
     }
   }, 300_000)
 
+  it('two saves between rounds write no ledger; the next round reports changes since the last round', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    await call('design_diff', {})
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    const card = lilacNodes({ledger: await storedLedger(id), source, status: 'done'})
+    expect(card.length).toBeGreaterThan(0)
+    const styles = await readFile(STRIPE_STYLES, 'utf8')
+    try {
+      await rewrite({id, file: STRIPE_STYLES, text: `${styles}\n.${LILAC_CLASS} { display: none; }\n`})
+      await rewrite({id, file: STRIPE_STYLES, text: styles})
+      const round = await call('design_diff', {})
+      const ledger = await storedLedger(id)
+      const listed = (changes: {node: string}[]): string[] =>
+        changes.flatMap((change) => (card.includes(change.node) ? [change.node] : []))
+      await annotate(
+        `ledger run ${ledger.run} report ${reportRun(round)} changes ${JSON.stringify(round.changes).slice(0, 3000)} brief ${JSON.stringify(round.brief.slice(0, 2))}`,
+      )
+      expect(ledger.run).toBe(reportRun(round))
+      expect(listed(round.changes.regressed)).toEqual([])
+      expect(listed(round.changes.lost)).toEqual([])
+      expect(listed(round.changes.done)).toEqual([])
+      expect(round.brief[0]?.startsWith('since round 1')).toBe(true)
+    } finally {
+      await writeFile(STRIPE_STYLES, styles)
+    }
+  }, 300_000)
+
   it('registration writes the design outline, one line per node plus the root, and the full report carries it', async () => {
     await goto('stripe')
     const {id} = await freshTarget('stripe-1280')
