@@ -96,6 +96,7 @@ export function createEngineLogin(options: EngineLoginOptions): EngineLogin {
   const resume = async (): Promise<Outcome> => {
     const stored = readStorage<string | undefined>(storageKey, (raw) => raw, undefined)
     const candidates = [engine.token, await sourcedToken(), stored].filter((token) => token !== undefined)
+    if (candidates.length === 0) await fetch(`${engine.root}/health`, {signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)})
     for (const token of candidates) {
       if (!(await trusts(token))) continue
       if (token !== engine.token) writeStorage(storageKey, token)
@@ -189,6 +190,7 @@ export function createEngineLogin(options: EngineLoginOptions): EngineLogin {
     setUi({attempt, requestNotice: 'none', edited: false})
     await refetch()
     const result = await latest.run
+    setUi('edited', false)
     settle(result)
     return result.phase === 'trusted'
   }

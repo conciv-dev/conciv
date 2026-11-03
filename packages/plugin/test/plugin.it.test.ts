@@ -31,6 +31,8 @@ import terminal from '@conciv/extension-terminal'
 import testRunner from '@conciv/extension-test-runner'
 import whiteboard from '@conciv/extension-whiteboard'
 import type {BundlerDiagnostic} from '@conciv/protocol/bundler-types'
+import {readTrustedBrowsers} from '@conciv/protocol/engine-trust'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {installConcivBinShim} from '../src/core/bin-shim.js'
 import {makeEngineBooter} from '../src/core/boot.js'
 import {generateExtensionsEntrySource, writeExtensionsEntry} from '../src/core/extensions-entry.js'
@@ -1072,6 +1074,7 @@ describe('vite devtools dock', () => {
     builtins: Builtins = NO_BUILTINS,
     root = realpathSync(dirs.tempDir('conciv-dock-')),
     hostHead = '',
+    clientAuth = false,
   ): Promise<string> {
     if (!existsSync(join(root, 'node_modules', '@conciv', 'it'))) linkConcivIt(root)
     writeFileSync(
@@ -1092,7 +1095,7 @@ describe('vite devtools dock', () => {
             dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
           },
         ),
-        DevTools({clientAuth: false}),
+        DevTools({clientAuth}),
       ],
     })
     servers.push(server)
@@ -1114,6 +1117,38 @@ describe('vite devtools dock', () => {
     await entry.dispatchEvent('click')
     await chat.getByRole('textbox').first().waitFor()
     await page.close()
+  }, 60_000)
+
+  it('trusts the dock through Vite DevTools and records it in the trust file', async () => {
+    const root = realpathSync(dirs.tempDir('conciv-dock-'))
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    await page.goto(await dockServer(undefined, NO_BUILTINS, root), {waitUntil: 'domcontentloaded'})
+    await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
+    await page.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 30_000})
+    expect(await page.getByRole('button', {name: 'Authorize conciv'}).count()).toBe(0)
+    expect(readTrustedBrowsers(concivStateDir(root))).toEqual([expect.objectContaining({browser: 'via Vite DevTools'})])
+    await page.close()
+  }, 60_000)
+
+  it('refuses conciv:engine-token to a raw WebSocket that never logged in to Vite DevTools', async () => {
+    const root = realpathSync(dirs.tempDir('conciv-dock-'))
+    const base = await dockServer(undefined, NO_BUILTINS, root, '', true)
+    await fetch(base)
+    const socket = new WebSocket(`${base.replace('http', 'ws')}__devtools/__ws`)
+    const reply = new Promise<string>((resolve, reject) => {
+      socket.addEventListener('message', (event) => {
+        if (String(event.data).includes('engine-token-probe')) resolve(String(event.data))
+      })
+      socket.addEventListener('error', () => reject(new Error('the DevTools socket failed')))
+    })
+    socket.addEventListener('open', () =>
+      socket.send(JSON.stringify({t: 'q', i: 'engine-token-probe', m: 'conciv:engine-token', a: []})),
+    )
+    const answer = await reply
+    socket.close()
+    expect(answer).toContain('engine-token-probe')
+    expect(answer).toContain('DF0036')
+    expect(readTrustedBrowsers(concivStateDir(root))).toEqual([])
   }, 60_000)
 
   it('keeps the hidden conciv pane unfocusable while another dock entry is open', async () => {

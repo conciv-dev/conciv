@@ -1510,7 +1510,7 @@ describe('engine login', () => {
     await expect.element(firstDigit()).toBeVisible()
     const code = await coreControl.printedCode()
     await userEvent.type(firstDigit(), code === '000000' ? '111111' : '000000')
-    await expect.element(page.getByRole('alert')).toHaveTextContent("That code didn't match")
+    await expect.element(dialog().getByRole('alert')).toMatchTextContent(/That code didn.t match/)
     await expect.element(firstDigit()).toHaveValue('')
     await userEvent.type(firstDigit(), code)
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
