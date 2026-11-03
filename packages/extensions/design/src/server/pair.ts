@@ -256,12 +256,14 @@ function carriedViews(input: {
   margin: number
 }): Assignment[] {
   const {records, touched, nodes, candidates, components, margin} = input
-  if (touched === 'all') return []
   const byNode = new Map(nodes.map((node) => [node.key, node]))
-  const scanned = candidates.toSorted(
-    (a, b) =>
-      Number(underTouched({touched, view: b, components})) - Number(underTouched({touched, view: a, components})),
-  )
+  const scanned =
+    touched === 'all'
+      ? candidates
+      : candidates.toSorted(
+          (a, b) =>
+            Number(underTouched({touched, view: b, components})) - Number(underTouched({touched, view: a, components})),
+        )
   const prints = new Map(
     scanned.flatMap((candidate): [string, Fingerprint][] => {
       const component = components.get(candidate.key)

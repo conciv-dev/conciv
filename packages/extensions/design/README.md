@@ -257,8 +257,8 @@ whose copy is all literals gets no `replace the hard-coded sample` line.
 ## Live loop
 
 Every save already starts a run: an `hmr-update` from the bundler, the `page_hmr` settle, then a run with
-`observe: false`. A run after an edit reuses what the edit did not touch, keyed by content hashes, so a carry
-changes the time of a run, never its answer.
+`observe: false`. A run reuses what did not change since the run before, keyed by content hashes and fingerprints,
+and a pair, once made, stays until its element is gone.
 
 - **One run per burst.** Settle runs wait for `settleQuiet` 800 ms with no further `hmr-update`, so a burst of saves
   starts one run, and a settle waits for the settle before it to finish. A burst whose files are all unknown to the
@@ -270,7 +270,8 @@ changes the time of a run, never its answer.
 
 - **Touched files.** Each target's run lane keeps the files of every `hmr-update` since its last run started, relative
   to the project; a run takes the set and clears it. A run with no `hmr-update` since the run before (an agent
-  `design_diff`, an x-ray capture, a decision) gets `touched: all` and reuses nothing.
+  `design_diff`, an x-ray capture, a decision) gets `touched: all`, which only leaves the carry scan unordered: the
+  pairs and tiles are carried all the same.
 - **Pairs.** Each entry of `pairs-<run>.json` carries the live element's `fingerprint`: `source`, `key` (the
   `data-conciv-key` the compiler stamps next to `data-conciv-source`: a hash of the file, the enclosing function, the
   element name, its static class and its static text, with an ordinal among equal hashes in the file), `owner` (the
@@ -337,7 +338,10 @@ changes the time of a run, never its answer.
   fingerprint still finds its element, then the greedy loop. The ledger carries only the pairs the run that wrote it
   confirmed: a dead pair seeded before the greedy loop changes what the loop takes for the other nodes, so a page
   moved and moved back would not score as it did the first time. A dead fingerprint stays in the ledger for `lost`
-  and its node goes back to the greedy loop. A run with nothing touched since the run before carries nothing.
+  and its node goes back to the greedy loop. The carry does not depend on `touched`: a pair stays while a live
+  element has its fingerprint, so a whole-file rewrite, a section diff or a diff after a settle keeps every pair whose
+  element is still there, `timings.carried.pairs` counts the pairs honored, and `changes.lost` lists only nodes whose
+  element disappeared.
 
 ## Design outline
 

@@ -2600,7 +2600,108 @@ describe('ledger', () => {
       await writeFile(STRIPE_SOURCE, source)
     }
   }, 300_000)
+
+  it('a wholesale rewrite of Cards.tsx with a decision after it keeps every pair whose element is still there and loses nothing', async ({
+    annotate,
+  }) => {
+    await goto('/')
+    const {id} = await freshTarget('u1-1280')
+    const first = await call('design_diff', {})
+    const before = await taggedPairs({id, run: reportRun(first)})
+    const kept = [...before.values()]
+      .filter((pair) => pair.fingerprint.source?.file.endsWith('Cards.tsx') === true)
+      .slice(0, KEPT_PAIRS)
+    expect(kept).toHaveLength(KEPT_PAIRS)
+    const source = await readFile(CARDS_SOURCE, 'utf8')
+    try {
+      await rewrite({id, file: CARDS_SOURCE, text: CARDS_REWRITTEN})
+      const marked = (await storedNodes(id)).find((node) => !kept.some((pair) => pair.node === node.id))
+      if (marked === undefined) throw new Error('the u1-1280 target has no node outside the kept pairs')
+      await xrayRpc.xray.mark({id, kind: 'tolerance', node: marked.id, value: 1, session: kit.session})
+      const second = await call('design_diff', {})
+      const after = await taggedPairs({id, run: reportRun(second)})
+      const site = (pair: TaggedPair | undefined): [string | undefined, string | undefined] => [
+        pair?.fingerprint.source?.file,
+        pair?.fingerprint.tag,
+      ]
+      await annotate(
+        `paired ${first.paired} then ${second.paired} carried ${JSON.stringify(second.timings.carried)} lost ${JSON.stringify(second.changes.lost)}`,
+      )
+      expect(second.paired).toBeGreaterThanOrEqual(first.paired)
+      expect(second.timings.carried.pairs).toBeGreaterThanOrEqual(KEPT_PAIRS)
+      expect(kept.map((pair) => site(after.get(pair.node)))).toEqual(kept.map(site))
+      expect(second.changes.lost).toEqual([])
+    } finally {
+      await writeFile(CARDS_SOURCE, source)
+    }
+  }, 300_000)
 })
+
+const KEPT_PAIRS = 3
+const CARDS_SOURCE = join(HOST_ROOT, 'src', 'Cards.tsx')
+const CARDS_REWRITTEN = `import styles from './card.module.css'
+
+const TITLES = [
+  'Revenue',
+  'Invoices',
+  'Customers',
+]
+const TARGET_TITLES = TITLES.filter(
+  (title) => title !== 'Invoices',
+)
+
+export function Cards(props: {variant: string | null; column?: boolean}) {
+  const titles =
+    props.variant === 'target' || props.variant === 'mobile-gap'
+      ? TARGET_TITLES
+      : TITLES
+
+  function card(title: string) {
+    return (
+      <article
+        key={title}
+        className={styles.card}
+      >
+        <div style={{display: 'contents'}}>
+          <h2>
+            {title}
+          </h2>
+          <p>
+            {title.length * 1000}
+          </p>
+        </div>
+      </article>
+    )
+  }
+
+  const gap = props.variant === 'mobile-gap' ? styles.mobileGap : ''
+  const column = props.column ? styles.column : ''
+
+  return (
+    <section className={\`\${styles.cards} \${gap} \${column}\`}>
+      {titles.map(card)}
+    </section>
+  )
+}
+`
+const TaggedPairsSchema = z.array(
+  z.object({
+    node: z.string(),
+    path: z.string(),
+    fingerprint: z.object({
+      tag: z.string(),
+      source: z.object({file: z.string()}).nullable(),
+    }),
+  }),
+)
+
+type TaggedPair = z.infer<typeof TaggedPairsSchema>[number]
+
+async function taggedPairs(input: {id: string; run: string}): Promise<Map<string, TaggedPair>> {
+  const path = fileUnder(stateRoot, `.conciv/design/${input.id}/pairs-${input.run}.json`)
+  const pairs = TaggedPairsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+  return new Map(pairs.map((pair) => [pair.node, pair]))
+}
 
 const ICON_SIDE = 24
 const ICON_SLOT_SIDE = 48
