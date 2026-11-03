@@ -1,11 +1,11 @@
 import {createRouter} from '@tanstack/solid-router'
 import type {RouterHistory} from '@tanstack/solid-router'
-import {QueryClient} from '@tanstack/solid-query'
-import {createEffect, createRoot, onCleanup, type Accessor, type JSX} from 'solid-js'
+import {QueryClient, onlineManager} from '@tanstack/solid-query'
+import {createEffect, createMemo, createRoot, from, onCleanup, type Accessor, type JSX} from 'solid-js'
 import type {RpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import type {ClientExtension} from '@conciv/extension'
-import {setupEngineReachability} from '@conciv/client'
+import {engineReachability} from '@conciv/client'
 import type {HubConnection} from './app/devframe-link.js'
 import {routeTree} from './routeTree.gen'
 import {makeAppData, type AppData} from './data/app-data.js'
@@ -21,7 +21,7 @@ export type ConcivEnvironment = {rootNode: Node; document: Document}
 
 export type ConcivRouterContext = {
   rpc: RpcClient
-  hub?: Accessor<HubConnection>
+  hub?: Accessor<HubConnection | undefined>
   environment: ConcivEnvironment
   settings: ConcivSettings
   queryClient: QueryClient
@@ -35,6 +35,7 @@ export type ConcivRouterContext = {
   grabProvider?: GrabProvider
   apiBase: () => string
   connectionGeneration: () => number
+  engineOnline: Accessor<boolean>
   bindActiveSession?: (read: () => string | null) => void
   disposeInstances: () => void
   notifyInteractive: () => void
@@ -42,7 +43,7 @@ export type ConcivRouterContext = {
 
 export type ConcivRouterConfig = {
   rpc: RpcClient
-  hubConnection?: Accessor<HubConnection>
+  hubConnection?: Accessor<HubConnection | undefined>
   history: RouterHistory
   environment: ConcivEnvironment
   settings: ConcivSettings
@@ -80,13 +81,15 @@ function makeGuardedDisposer(instances: ExtensionInstance[], extra: () => void):
 
 function wireEngineConnection(
   apiBase: () => string,
-  hubConnection: Accessor<HubConnection> | undefined,
+  hubConnection: Accessor<HubConnection | undefined> | undefined,
   data: AppData,
-): () => void {
+): {online: Accessor<boolean>; dispose: () => void} {
   return createRoot((dispose) => {
-    createEffect(() => onCleanup(setupEngineReachability(apiBase(), hubConnection?.())))
+    const reachability = createMemo(() =>
+      from(engineReachability(apiBase(), hubConnection?.()), onlineManager.isOnline()),
+    )
     createEffect(() => onCleanup(data.readHubState()))
-    return dispose
+    return {online: () => reachability()(), dispose}
   })
 }
 
@@ -108,8 +111,8 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   }
   const extensions = [highlight, ...(config.extensions ?? [])]
   const instances = createInstances(extensions)
-  const disposeEngineConnection = wireEngineConnection(apiBase, config.hubConnection, data)
-  const disposeInstances = makeGuardedDisposer(instances, disposeEngineConnection)
+  const engineConnection = wireEngineConnection(apiBase, config.hubConnection, data)
+  const disposeInstances = makeGuardedDisposer(instances, engineConnection.dispose)
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
     onCleanup(disposeInstances)
     const harness = createHarnessMeta(data, connected, queryClient)
@@ -140,6 +143,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       grabProvider: config.grabProvider,
       apiBase,
       connectionGeneration: config.connectionGeneration ?? (() => 0),
+      engineOnline: engineConnection.online,
       bindActiveSession,
       disposeInstances,
       notifyInteractive: config.notifyInteractive ?? (() => {}),

@@ -1,5 +1,5 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import {engineOnline, sustainedEngineOffline} from '@conciv/client'
+import {sustainedEngineOffline} from '@conciv/client'
 
 export type EngineReachability = {
   online: Accessor<boolean>
@@ -8,8 +8,8 @@ export type EngineReachability = {
 
 export const EngineReachabilityContext = createContext<EngineReachability>()
 
-export function makeEngineReachability(): EngineReachability {
-  return {online: engineOnline(), sustainedOffline: sustainedEngineOffline()}
+export function makeEngineReachability(online: Accessor<boolean>): EngineReachability {
+  return {online, sustainedOffline: sustainedEngineOffline(online)}
 }
 
 export function useEngineReachability(): EngineReachability {
