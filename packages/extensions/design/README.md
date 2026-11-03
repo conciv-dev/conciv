@@ -91,7 +91,9 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   component and delta; the store, `design_status` and the x-ray always hold the full one. When the components
   list was cut to `limit`, `hint` reads `showing 12 of 89 paired components, those with deltas first; full: true
   lists every one`, so a short list is not read as the number of pairs. `full: true` lifts the `limit` cut, so the
-  full report lists every reported component.
+  full report lists every reported component. `design_diff({section})` takes a section id from
+  `design_status.sections` and returns the report of that section only (see [Sections](#sections)); an unknown id is
+  an `unknown-section` error naming the known ids.
 - `timings` gives the whole milliseconds of one run per phase, 0 for a phase the run skipped, and
   `carried: {pairs, tiles}`, the pairs and 64 px tiles the run reused from the run before (see
   [Live loop](#live-loop)); both are 0 on a run that reused nothing. The result file holds the same timings.
@@ -144,7 +146,9 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   stop is `done`, or when an accepted run exists and the last run's score is not worse than the accepted run's on
   the same capture path. `acceptedRun` names the run accepted from the overlay. While not done the result carries
   `next`, the guide line telling the agent to call `design_diff`; `reregister` is set when the stored target can no
-  longer be read.
+  longer be read. `sections` lists the sections in document order as `{id, kind, line, ledger}`: the node id, its
+  kind, its outline line without the `section` prefix, and the ledger counts over its subtree (zeros before the
+  first ledger).
 - `design_capture`, `design_winner` and `design_clear` capture the page, name the CSS declaration that wins a
   property, and remove targets.
 
@@ -338,6 +342,21 @@ source and use <Placeholder kind=…> for every image and icon line`, and the x-
   reads the first and last stop of the first `linear-gradient` in `background-image`; a live gradient whose ends
   differ from the design's by more than `colorDeltaE`, or a solid fill against a design gradient, is one `background`
   delta naming both ends, and a live gradient against a solid design compares its first stop.
+
+## Sections
+
+A section is a top-level node of the design tree: a node whose `within` is unset or names no node, a child of the
+root. Its outline line starts with `section <id>` (the node id) before the node line, as in `section 4f1c2a7e box
+1280x72 row gap 29 align center, background #fff`; a text at the top level is its own section, and nested lines carry
+no prefix. A section is a view, not a run: `design_diff({section})` runs the whole page as always (store, round,
+budget, history and ledger are untouched by the scope), then filters the report to the section's subtree, the nodes
+reachable through `within` from the section id. `items`, `rows`, `unmatched`, `changes` and `ledger` keep the subtree's
+nodes; an item, entry or warning with no node is kept when its box lies inside the section's box, and a component when
+it is paired to a subtree node or lies inside that box. `brief`, `stage`, `score` and `rows` are judged again over the
+kept items with no round history, and `stop` is `done` when no kept item is above tolerance and pairing was not cut short, else null; `stalled` and
+`oscillating` read the rounds, so they stay whole-page, in `page: {stop, stage, score}`. The report echoes `section:
+{id, line}` and `scope: section`. Several agents can each build one section against the same target; splitting the
+page and writing its skeleton first is the harness's business.
 
 ## Sources
 

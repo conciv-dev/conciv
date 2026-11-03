@@ -1016,6 +1016,7 @@ const LaidOutModelSchema = z.object({
   nodes: z.array(
     z.object({
       id: z.string(),
+      within: z.string().optional(),
       kind: z.enum(['text', 'box', 'image']),
       box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
       layout: z.object({size: z.string()}).optional(),
@@ -2588,6 +2589,107 @@ async function paintItems(id: string): Promise<{size: number; sentence: string}[
 function placeholderRendered(): Promise<boolean> {
   return page.evaluate(() => document.querySelector('[data-conciv-source*="Placeholder.tsx"]') !== null)
 }
+
+const HERO_TEXT = '"Access borderless'
+const UNKNOWN_SECTION = 'no-such-section'
+
+type Section = NonNullable<StatusReport['sections']>[number]
+type StoredNode = Awaited<ReturnType<typeof storedNodes>>[number]
+
+async function outlineLines(status: StatusReport): Promise<string[]> {
+  return (await readFile(fileUnder(stateRoot, status.designPath ?? ''), 'utf8')).split('\n')
+}
+
+function sectionLine(input: {lines: string[]; section: Section}): number {
+  return input.lines.indexOf(`  section ${input.section.id} ${input.section.line}`)
+}
+
+function sectionHolding(input: {nodes: StoredNode[]; node: string}): string {
+  const found = input.nodes.find((candidate) => candidate.id === input.node)
+  if (found === undefined) return input.node
+  if (found.within === undefined || !input.nodes.some((candidate) => candidate.id === found.within)) return found.id
+  return sectionHolding({nodes: input.nodes, node: found.within})
+}
+
+function reportedNodes(report: DiffReport): string[] {
+  const {done, regressed, paired, lost, moved} = report.changes
+  return [
+    ...report.rows.flatMap((row) => (row.node === undefined ? [] : [row.node])),
+    ...report.unmatched.flatMap((entry) => (entry.node === undefined ? [] : [entry.node])),
+    ...[...done, ...regressed, ...paired, ...lost, ...moved].map((change) => change.node),
+  ]
+}
+
+async function heroSection(): Promise<{sections: Section[]; lines: string[]; hero: Section}> {
+  const status = await call('design_status', {})
+  const sections = status.sections ?? []
+  const lines = await outlineLines(status)
+  const title = lines.findIndex((line) => line.includes(HERO_TEXT))
+  const hero = sections.findLast((section) => sectionLine({lines, section}) < title)
+  if (hero === undefined) throw new Error('no section holds the hero title')
+  return {sections, lines, hero}
+}
+
+describe('sections', () => {
+  it('lists the top-level nodes as sections and scopes a diff to the hero section', async ({annotate}) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const {sections, lines, hero} = await heroSection()
+    const at = sections.map((section) => sectionLine({lines, section}))
+    await annotate(`sections ${JSON.stringify(sections.map((section) => ({id: section.id, line: section.line})))}`)
+    expect(sections.length).toBeGreaterThanOrEqual(4)
+    expect(at.filter((index) => index < 0)).toEqual([])
+    expect(at).toEqual(at.toSorted((a, b) => a - b))
+    const nodes = await storedNodes(id)
+    const whole = await call('design_diff', {})
+    const scoped = await call('design_diff', {section: hero.id})
+    const strays = reportedNodes(scoped).filter((node) => sectionHolding({nodes, node}) !== hero.id)
+    await annotate(
+      `whole rows ${whole.rows.length} brief ${JSON.stringify(whole.brief)} stop ${whole.stop}; scoped rows ${scoped.rows.length} brief ${JSON.stringify(scoped.brief)} stop ${scoped.stop} page ${JSON.stringify(scoped.page)}`,
+    )
+    expect(scoped.section).toEqual({id: hero.id, line: hero.line})
+    expect(strays).toEqual([])
+    expect(scoped.brief.join('\n').length).toBeLessThan(whole.brief.join('\n').length)
+    expect(scoped.page?.stop).toBe(whole.stop)
+    const unknown = await call('design_diff', {section: UNKNOWN_SECTION}).then(
+      () => '',
+      (error: unknown) => String(error),
+    )
+    expect(unknown).toContain(UNKNOWN_SECTION)
+    expect(sections.filter((section) => !unknown.includes(section.id))).toEqual([])
+  }, 300_000)
+
+  it('hiding the lilac card regresses its nodes in its own section and none in the hero section', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    await call('design_diff', {})
+    const {hero} = await heroSection()
+    const nodes = await storedNodes(id)
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    const card = lilacNodes({ledger: await storedLedger(id), source, status: 'done'})
+    const [first] = card
+    if (first === undefined) throw new Error('the lilac card has no done node')
+    const holder = sectionHolding({nodes, node: first})
+    const held = card.filter((node) => sectionHolding({nodes, node}) === holder)
+    expect(holder).not.toBe(hero.id)
+    const styles = await readFile(STRIPE_STYLES, 'utf8')
+    try {
+      await rewrite({id, file: STRIPE_STYLES, text: `${styles}\n.${LILAC_CLASS} { display: none; }\n`})
+      const hidden = await call('design_diff', {section: holder})
+      const regressed = hidden.changes.regressed.map((change) => change.node)
+      const elsewhere = await call('design_diff', {section: hero.id})
+      await annotate(
+        `card section ${holder} regressed ${regressed.length} of ${held.length}; hero regressed ${elsewhere.changes.regressed.length}`,
+      )
+      expect(held.filter((node) => !regressed.includes(node))).toEqual([])
+      expect(elsewhere.changes.regressed).toEqual([])
+    } finally {
+      await writeFile(STRIPE_STYLES, styles)
+    }
+  }, 300_000)
+})
 
 async function iconCount(): Promise<{icons: number; brief: string[]}> {
   const compact = CompactReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {}}))

@@ -47,6 +47,7 @@ export type BoxNode = NodeBase & {
 export type ImageNode = NodeBase & {kind: 'image'}
 export type TargetNode = TextNode | BoxNode | ImageNode
 type TargetRoot = {id: string; box: Box; layout?: ContainerLayout}
+export type DesignSection = {id: string; kind: TargetNode['kind']; line: string; box: Box; nodes: string[]}
 export type TargetModel = {
   id: string
   source: {kind: string; ref: string}
@@ -231,6 +232,7 @@ export type Delta = {
   source?: MeasureSource
   confidence?: number
   width?: number
+  box?: Box
   opinion?: {source: 'takumi'; live: number | string; confidence: number}
   warning?: 'sample-data' | 'typography-skipped' | 'svg-drawn'
 } & Partial<Provenance>
@@ -328,6 +330,7 @@ export type TargetStore = {
   placeholderPath(id: string): string
   writePlaceholder(input: {id: string; framework: Framework}): Promise<void>
   design(id: string): Promise<string[]>
+  sections(id: string): Promise<DesignSection[]>
   reportPath(path: string): string
 }
 export type DesignRuntime = {

@@ -1,7 +1,7 @@
 import pixelmatch from 'pixelmatch'
 import {diff} from '@blazediff/core'
 import {z} from 'zod'
-import {groupBy, keyBy, omit, pick, range, uniq, uniqBy} from 'es-toolkit'
+import {groupBy, keyBy, mapValues, omit, pick, range, uniq, uniqBy} from 'es-toolkit'
 import {isPageVerbError, toolError, type AnyToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {createHash} from 'node:crypto'
@@ -37,7 +37,6 @@ import {
   type CompactReport,
   type ComponentReport,
   type DiffInput,
-  type Changes,
   type DiffReport,
   type Ledger,
   type StatusReport,
@@ -55,6 +54,7 @@ import type {
   DesignContext,
   DesignPage,
   DesignRuntime,
+  DesignSection,
   Framework,
   Differ,
   LiveCapture,
@@ -87,7 +87,6 @@ import type {
 } from '../shared/types.js'
 import {edgeStrip, glyphCoreColor, isOpaqueHex, opinionSide, sideFrom} from './deltas.js'
 import {
-  changeLine,
   changeReport,
   createHistory,
   createRuns,
@@ -159,7 +158,12 @@ export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore;
     },
     run: async ({input: query, session}) => {
       const record = await currentTarget({design, session})
-      return runs.trigger({id: record.id, session, observe: true, input: query})
+      const section = query.section === undefined ? null : await knownSection({store, id: record.id, query})
+      const report = await runs.trigger({id: record.id, session, observe: true, input: query})
+      if (section === null) return report
+      const settled = settledRuns.get(record.id)
+      const ledger = settled?.ledger ?? (await store.ledger(record.id))
+      return sectionReport({report, section, settled, ledger})
     },
     refresh: async ({session}) => {
       const record = await store.current({session})
@@ -453,7 +457,7 @@ async function runDiff(request: {
   const run = newStamp()
   const round = advances ? rounds.length + 1 : rounds.length
   const nodeCrop = (node: string): string => cropUrl({xray: xray.url, node, run})
-  const {changes, changed, counts, ledger} = ledgerStep({
+  const {changed, counts, ledger} = ledgerStep({
     earlier,
     partial: paired.partial,
     facts: {run, round, nodes, matched, items, decisions},
@@ -516,7 +520,7 @@ async function runDiff(request: {
       responsive: await responsiveSection({store: design.store, id: record.id, model}),
       partial: paired.partial,
       paired: matched.length,
-      changes,
+      changes: changed.changes,
       ledger: counts,
       designPath: design.store.designPath(record.id),
       placeholderPath: design.store.placeholderPath(record.id),
@@ -755,29 +759,80 @@ function ledgerStep(input: {
   tree: Tree
   crop: (node: string) => string
 }): {
-  changes: Changes
   changed: Judging['changed']
   counts: DiffReport['ledger']
   ledger: Ledger | null
 } {
   const {earlier, tree} = input
   if (input.partial) {
-    return {
-      changes: NO_CHANGES,
-      changed: {line: null, regressed: new Set()},
-      counts: ledgerCounts(earlier),
-      ledger: null,
-    }
+    return {changed: {changes: NO_CHANGES, since: null}, counts: ledgerCounts(earlier), ledger: null}
   }
   const next = nextLedger({...input.facts, earlier, components: input.components})
-  const changes = changeReport({...next, tree, crop: input.crop})
-  const line = earlier === null ? null : changeLine({changes, round: earlier.round})
   return {
-    changes,
-    changed: {line, regressed: new Set(next.changes.regressed)},
+    changed: {changes: changeReport({...next, tree, crop: input.crop}), since: earlier?.round ?? null},
     counts: ledgerCounts(next.ledger),
     ledger: next.ledger,
   }
+}
+
+async function knownSection(input: {store: TargetStore; id: string; query: DiffInput}): Promise<DesignSection> {
+  const sections = await input.store.sections(input.id)
+  const found = sections.find((section) => section.id === input.query.section)
+  if (found !== undefined) return found
+  throw toolError('unknown-section', {
+    message: `the design has no section ${input.query.section}; the sections are ${sections.map((section) => section.id).join(', ')}`,
+  })
+}
+
+function sectionReport(input: {
+  report: DiffReport
+  section: DesignSection
+  settled: Settled | undefined
+  ledger: Ledger | null
+}): DiffReport {
+  const {report, section, settled} = input
+  const nodes = new Set(section.nodes)
+  const inside = (box: Box | undefined): boolean => box !== undefined && enclosed({inner: box, outer: section.box})
+  const held = (entry: {node?: string | undefined; box?: Box | undefined}): boolean =>
+    entry.node === undefined ? inside(entry.box) : nodes.has(entry.node)
+  const unmatched = report.unmatched.filter((entry) => held({node: entry.node, box: entry.target ?? entry.live}))
+  const changes = mapValues(report.changes, (list) => list.filter((change) => nodes.has(change.node)))
+  const scoped: DiffReport = {
+    ...report,
+    components: report.components.filter(
+      (component) => (component.nodes ?? []).some((node) => nodes.has(node)) || inside(component.live),
+    ),
+    unmatched,
+    warnings: report.warnings.filter((warning) => inside(warning.box)),
+    changes,
+    ledger: subtreeCounts({ledger: input.ledger, nodes: section.nodes}),
+    section: {id: section.id, line: section.line},
+    scope: 'section',
+    page: {stop: report.stop, stage: report.stage, score: report.score},
+  }
+  if (settled === undefined) return scoped
+  const items = settled.judging.items.filter(held)
+  const measured = settled.measured.filter((entry) => nodes.has(entry.pair.node.id))
+  const verdict = judge({
+    ...settled.judging,
+    items,
+    score: scoreTuple({
+      items,
+      unpairedShare: unpairedShare({unmatched, page: section.box}),
+      residualShare: residualShare({measured, unmatched, masks: [], page: section.box}),
+    }),
+    warnings: settled.judging.warnings.filter((warning) => inside(warning.box)),
+    changed: {...settled.judging.changed, changes},
+    priors: [],
+    round: report.round,
+  })
+  const open = settled.judging.partial || items.some((item) => item.stage !== null)
+  return {...scoped, ...verdict, stop: open ? null : 'done', paired: measured.length}
+}
+
+function subtreeCounts(input: {ledger: Ledger | null; nodes: string[]}): DiffReport['ledger'] {
+  const {ledger} = input
+  return ledgerCounts(ledger === null ? null : {...ledger, nodes: pick(ledger.nodes, input.nodes)})
 }
 
 function carriedPairs(input: {earlier: Ledger | null; previous: StoredRun | null}): PairRecord[] {
@@ -1141,7 +1196,12 @@ async function warningDeltas(input: {
       if (found === undefined || found.verdict !== 'sample-data') return []
       const marked = pair.texts.some((node) => node.role === 'placeholder')
       if (!marked && !(await rendersData({pair, parent: parents.get(pair.live.path), cwd}))) return []
-      return [sourced({delta: {kind: 'text', live: found.live, target: found.target, warning: 'sample-data'}, pair})]
+      return [
+        sourced({
+          delta: {kind: 'text', live: found.live, target: found.target, warning: 'sample-data', box: pair.liveBox},
+          pair,
+        }),
+      ]
     }),
   )
   return flagged.flat()
@@ -1168,6 +1228,7 @@ function drawnWarnings(input: {pairs: Pair[]; components: LiveComponent[]; nodes
         target: `<Placeholder kind="${kind}" />`,
         warning: 'svg-drawn',
         selector: component.tag,
+        box: component.box,
         ...(component.source === null
           ? {}
           : {via: 'source', file: component.source.file, line: component.source.line, column: component.source.column}),
@@ -1502,12 +1563,19 @@ async function targetStatus(input: {
     () => true,
   )
   const done = !reregister && (await finished({store, record, report}))
+  const ledger = await store.ledger(record.id)
   return {
     ...(record.route === undefined ? {} : {route: record.route}),
     targets: [{id: record.id, width: record.width, ...runSummary(report)}],
     done,
     ...loopState({record, report}),
-    ledger: ledgerCounts(await store.ledger(record.id)),
+    ledger: ledgerCounts(ledger),
+    sections: (await store.sections(record.id)).map((section) => ({
+      id: section.id,
+      kind: section.kind,
+      line: section.line,
+      ledger: subtreeCounts({ledger, nodes: section.nodes}),
+    })),
     ...(report === null ? {} : {changes: report.changes}),
     designPath: store.designPath(record.id),
     placeholderPath: store.placeholderPath(record.id),
