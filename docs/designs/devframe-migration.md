@@ -842,8 +842,12 @@ Each extension PR:
 #### 27. `packages/extensions/<name>/src/client.ts(x)` and `src/client/` (Modify)
 
 - **Type / Scope**: Extension client.
-- **Proposed Changes**: `.client({...})` with today's shape; RPC calls move to `concivCall`
-  through `packages/extension/src/ext-rpc.ts`.
+- **Proposed Changes**: `.client({...})` with today's shape. Calls to the extension's own
+  server functions go through a `call` method added to the object `getExtensionApi(id)`
+  returns (`packages/extension/src/extension-api.ts`), typed from `ConcivServerFunctions` and
+  carried on the widget's one hub connection: `getExtensionApi('whiteboard').call(
+  'whiteboard:list', input)`. No new export; `makeExtRpcClient` (`ext-rpc.ts`) is deleted in
+  PR 20 once no extension uses it.
 
 #### 28. `packages/extensions/<name>/test/*` (Modify)
 
