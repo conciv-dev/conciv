@@ -1,6 +1,7 @@
-import {For, Show, type Component, type JSX} from 'solid-js'
+import {For, Show, onCleanup, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {makeResizeObserver} from '@solid-primitives/resize-observer'
+import {useRouter} from '@tanstack/solid-router'
 import {TabsPrimitive as Tabs, TruncatedText} from '@conciv/ui-kit-system'
 import type {SessionStatus, SessionStatusKind} from '@conciv/ui-kit-chat'
 import {viewTabId, viewTabPanelId} from './view-tab-ids.js'
@@ -56,6 +57,15 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
       .filter((entry) => entry.target.getAttribute('aria-selected') === 'true')
       .forEach((entry) => revealTab(entry.target)),
   )
+  const router = useRouter()
+  const revealSelectedOnNavigation = (tabList: HTMLDivElement): void => {
+    onCleanup(
+      router.subscribe('onRendered', () => {
+        const selected = tabList.querySelector('[aria-selected="true"]')
+        if (selected) revealTab(selected)
+      }),
+    )
+  }
   return (
     <div class={BAR} role="toolbar" aria-label="Session status">
       <span class={`${CHIP_BASE} ${CHIP[props.status.kind]}`} role="status" title={props.status.reason}>
@@ -83,7 +93,7 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
         activationMode="manual"
         ids={{trigger: viewTabId, content: viewTabPanelId}}
       >
-        <Tabs.List class={VIEW_LIST}>
+        <Tabs.List ref={revealSelectedOnNavigation} class={VIEW_LIST}>
           <For each={props.views}>
             {(view, index) => (
               <Tabs.Trigger

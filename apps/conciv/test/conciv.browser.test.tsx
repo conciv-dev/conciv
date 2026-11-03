@@ -87,6 +87,14 @@ import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import type {RunClockSource} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {StatusBar} from '../src/pane/status-bar.jsx'
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  useParams,
+} from '@tanstack/solid-router'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
@@ -1794,9 +1802,20 @@ describe('sessions over the hub', () => {
 })
 
 describe('status bar', () => {
+  function renderRouted(view: () => JSX.Element, path = '/chat') {
+    const rootRoute = createRootRoute({component: view})
+    const viewRoute = createRoute({getParentRoute: () => rootRoute, path: '$view'})
+    const router = createRouter({
+      routeTree: rootRoute.addChildren([viewRoute]),
+      history: createMemoryHistory({initialEntries: [path]}),
+    })
+    render(() => <RouterProvider router={router} />)
+    return router
+  }
+
   function mountDynamic(): (status: SessionStatus) => void {
     const [status, setStatus] = createSignal<SessionStatus>({kind: 'running', label: 'RUNNING'})
-    render(() => (
+    renderRouted(() => (
       <StatusBar
         status={status()}
         elapsedLabel="00:12"
@@ -1820,7 +1839,7 @@ describe('status bar', () => {
     })
 
     function mountViews(activeView: string, onSelectView: (id: string) => void = () => {}, disabled = false) {
-      render(() => (
+      renderRouted(() => (
         <StatusBar
           status={{kind: 'done', label: 'DONE'}}
           elapsedLabel="00:12"
@@ -1843,21 +1862,23 @@ describe('status bar', () => {
       await expect.element(page.getByRole('tab', {name: 'Chat'})).not.toBeDisabled()
     })
 
+    const overflowingViews = [
+      {id: 'chat', label: 'Chat'},
+      {id: 'board', label: 'Board'},
+      {id: 'terminal', label: 'Terminal'},
+      {id: 'messages', label: 'Messages'},
+      {id: 'terminals', label: 'Terminals'},
+    ]
+
     it('scrolls the selected tab into view when the tabs outgrow the bar', async () => {
       const [activeView, setActiveView] = createSignal('terminals')
-      render(() => (
+      renderRouted(() => (
         <div style={{width: '18rem'}}>
           <StatusBar
             status={{kind: 'done', label: 'DONE'}}
             elapsedLabel="00:12"
             diff={{files: 0, adds: 0, dels: 0}}
-            views={[
-              {id: 'chat', label: 'Chat'},
-              {id: 'board', label: 'Board'},
-              {id: 'terminal', label: 'Terminal'},
-              {id: 'messages', label: 'Messages'},
-              {id: 'terminals', label: 'Terminals'},
-            ]}
+            views={overflowingViews}
             activeView={activeView()}
             onSelectView={setActiveView}
             disabled={false}
@@ -1868,6 +1889,32 @@ describe('status bar', () => {
       await expect.element(page.getByRole('tab', {name: 'Terminals'})).toBeInViewport({ratio: 0.95})
       await expect.element(page.getByRole('tab', {name: 'Chat'})).not.toBeInViewport({ratio: 0.95})
       await page.getByRole('tab', {name: 'Chat'}).click()
+      await expect.element(page.getByRole('tab', {name: 'Chat'})).toHaveAttribute('aria-selected', 'true')
+      await expect.element(page.getByRole('tab', {name: 'Chat'})).toBeInViewport({ratio: 0.95})
+    })
+
+    it('scrolls the newly selected tab into view when a navigation changes the view from outside the strip', async () => {
+      function RoutedStatusBar(): JSX.Element {
+        const params = useParams({strict: false})
+        return (
+          <div style={{width: '18rem'}}>
+            <StatusBar
+              status={{kind: 'done', label: 'DONE'}}
+              elapsedLabel="00:12"
+              diff={{files: 0, adds: 0, dels: 0}}
+              views={overflowingViews}
+              activeView={params().view ?? 'chat'}
+              onSelectView={() => {}}
+              disabled={false}
+            />
+          </div>
+        )
+      }
+      const router = renderRouted(RoutedStatusBar, '/terminals')
+
+      await expect.element(page.getByRole('tab', {name: 'Terminals'})).toBeInViewport({ratio: 0.95})
+      await expect.element(page.getByRole('tab', {name: 'Chat'})).not.toBeInViewport({ratio: 0.95})
+      router.history.push('/chat')
       await expect.element(page.getByRole('tab', {name: 'Chat'})).toHaveAttribute('aria-selected', 'true')
       await expect.element(page.getByRole('tab', {name: 'Chat'})).toBeInViewport({ratio: 0.95})
     })
