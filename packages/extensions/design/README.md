@@ -210,6 +210,11 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
 - **`sizing`.** A paired element whose design node is `fill` or `fit` and whose live `sizing.width` is `fixed` gets
   one `sizing` delta in the geometry stage (`live: fixed`, `target: fill | fit`), briefed as the rule: `let the
   article fill the row (flex: 1); it is sized 400 px`, or `let the button fit its content; it is sized 112 px`.
+- **`axis`.** Measured on containers only: a paired element whose live component has children compares the
+  direction its children are laid out in (the `axis` they measure, `null` read as column) with its design node's
+  `layout.direction` (`stack` read as column, `grid` as row). A mismatch is one `axis` delta in the structure stage on
+  the container, `axis is column where the design has row`, traced to the container's own `flex-direction` or
+  `display`. A leaf never carries one.
 
 ## Pairing
 

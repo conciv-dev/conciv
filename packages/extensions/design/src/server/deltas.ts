@@ -340,7 +340,7 @@ export function sideFrom(input: {
     prev: pair.prev === null ? null : pickBox({pair: pair.prev, from}),
     next: pair.next === null ? null : pickBox({pair: pair.next, from}),
     axis: pair.live.axis,
-    flow: pair.next === null ? null : flowBetween({a: box, b: pickBox({pair: pair.next, from})}),
+    flow: directionOn({pair, from}),
     columns: columnCount({pair, from, leaves}),
     textBox: contentBox({children, from}),
     edge:
@@ -431,10 +431,16 @@ function pickBox(input: {pair: Pair; from: From}): Box {
   return input.from === 'live' ? input.pair.liveBox : input.pair.targetBox
 }
 
-function flowBetween(input: {a: Box; b: Box}): Flow {
-  const dx = Math.abs(input.b.x + input.b.w / 2 - (input.a.x + input.a.w / 2))
-  const dy = Math.abs(input.b.y + input.b.h / 2 - (input.a.y + input.a.h / 2))
-  return dx > dy ? 'row' : 'column'
+function directionOn(input: {pair: Pair; from: From}): Flow | null {
+  const {pair, from} = input
+  const [first] = pair.live.children
+  if (first === undefined) return null
+  if (from === 'live') return first.axis ?? 'column'
+  const direction = pair.node.layout?.direction
+  if (direction === undefined) return null
+  if (direction === 'stack') return 'column'
+  if (direction === 'grid') return 'row'
+  return direction
 }
 
 function columnCount(input: {pair: Pair; from: From; leaves: Pair[]}): number | null {
