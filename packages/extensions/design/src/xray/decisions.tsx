@@ -174,6 +174,14 @@ export function DecisionBar(props: {
           <For each={report()?.brief}>{(item) => <li>{item}</li>}</For>
         </ol>
       </Show>
+      <Show when={props.data.design.length > 0}>
+        <details class="text-sm">
+          <summary class="op-fade cursor-pointer">Design outline · {props.data.design.length} lines</summary>
+          <pre aria-label="Design outline" class="text-xs font-mono m-0 mt-2 max-h-80 overflow-auto">
+            {props.data.design.join('\n')}
+          </pre>
+        </details>
+      </Show>
       <div role="radiogroup" aria-label="Decide" class="flex flex-wrap gap-2 items-center">
         <For each={DECISION_MODES}>
           {(mode) => (

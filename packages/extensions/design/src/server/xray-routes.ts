@@ -55,6 +55,7 @@ export function makeXrayRouter(input: {
           decisions: await store.decisions(target.id),
           twins: await store.twins(target.id),
           ledger: await store.ledger(target.id),
+          design: await store.design(target.id),
           targetImage: store.reportPath(join(designDir, target.id, TARGET_FILE)),
           nodes: await store.model(target.id).then(
             (model) => model.nodes,

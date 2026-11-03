@@ -179,9 +179,11 @@ export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore;
 
 export const SERVER_STEPS = [
   targetDef.server((input, ctx: DesignContext, request) => ctx.differ.register({input, session: request.sessionId})),
-  diffDef.server(async (input, ctx: DesignContext, request) =>
-    shaped({report: await ctx.differ.run({input, session: request.sessionId}), full: input.full === true}),
-  ),
+  diffDef.server(async (input, ctx: DesignContext, request) => {
+    const report = await ctx.differ.run({input, session: request.sessionId})
+    if (input.full !== true) return shaped({report, design: null})
+    return shaped({report, design: await ctx.design.store.design(report.target.id)})
+  }),
   statusDef.server((_input, ctx: DesignContext, request) => ctx.differ.status({session: request.sessionId})),
   captureDef.server(captureStep),
   winnerDef.server(winnerStep),
@@ -503,6 +505,7 @@ async function runDiff(request: {
       paired: matched.length,
       changes,
       ledger: counts,
+      designPath: design.store.designPath(record.id),
       pinsLost: pins
         .filter((pin) => !matched.some((entry) => entry.node.id === pin.node && entry.component.path === pin.path))
         .map((pin) => pin.decision),
@@ -1440,14 +1443,26 @@ async function targetStatus(input: {
     ...loopState({record, report}),
     ledger: ledgerCounts(await store.ledger(record.id)),
     ...(report === null ? {} : {changes: report.changes}),
-    ...statusNext({done, unanswered: input.unanswered.has(record.id)}),
+    designPath: store.designPath(record.id),
+    ...statusNext({
+      done,
+      unanswered: input.unanswered.has(record.id),
+      first: (report?.round ?? 0) === 0,
+      designPath: store.designPath(record.id),
+    }),
     ...(reregister ? {reregister} : {}),
   }
 }
 
-function statusNext(input: {done: boolean; unanswered: boolean}): {next?: string} {
+function statusNext(input: {done: boolean; unanswered: boolean; first: boolean; designPath: string}): {
+  next?: string
+} {
   if (input.unanswered) return {next: UNANSWERED_HINT}
-  return input.done ? {} : {next: DESIGN_GUIDE}
+  if (input.done) return {}
+  if (input.first) {
+    return {next: `read ${input.designPath} for the whole design before building; the brief lists what to fix first`}
+  }
+  return {next: DESIGN_GUIDE}
 }
 
 function runSummary(report: DiffReport | null): {mismatch: number | null; above: number; lastAt: number | null} {
@@ -1782,6 +1797,7 @@ const COMPACT_FIELDS = [
   'hint',
   'painted',
   'changes',
+  'designPath',
 ] as const satisfies readonly (keyof CompactReport & keyof DiffReport)[]
 const DETACHED_POSITIONS = ['absolute', 'fixed']
 const CONTAINER_FIELDS = ['gap', 'align', 'wrap', 'padding'] as const
@@ -1956,7 +1972,7 @@ function runTime(report: DiffReport): number | null {
   return Number.isFinite(at) ? at : null
 }
 
-function shaped(input: {report: DiffReport; full: boolean}): CompactReport {
+function shaped(input: {report: DiffReport; design: string[] | null}): CompactReport {
   const {report} = input
   const counts = {
     components: report.components.length,
@@ -1967,7 +1983,7 @@ function shaped(input: {report: DiffReport; full: boolean}): CompactReport {
     done: report.ledger.done,
     regressed: report.ledger.regressed,
   }
-  if (input.full) return {...report, counts}
+  if (input.design !== null) return {...report, design: input.design, counts}
   return {...pick(report, COMPACT_FIELDS), counts}
 }
 

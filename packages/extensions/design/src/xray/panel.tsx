@@ -71,6 +71,7 @@ export type XrayData = {
   pairs: PairRecord[]
   twins: Record<string, TwinPair[]>
   ledger: Ledger | null
+  design: string[]
 }
 
 export type ReportResponse = {
@@ -83,6 +84,7 @@ export type ReportResponse = {
   pairs: PairRecord[]
   twins: Record<string, TwinPair[]>
   ledger: Ledger | null
+  design: string[]
 }
 
 export function sourceLabel(source: SourceLoc | null): string {
@@ -238,6 +240,7 @@ export function assemble(input: {
     pairs: current.pairs,
     twins: current.twins,
     ledger: current.ledger,
+    design: current.design,
   }
   return data
 }

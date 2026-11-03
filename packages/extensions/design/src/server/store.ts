@@ -32,6 +32,8 @@ const MODEL_FILE = 'model.json'
 const RECORD_FILE = 'record.json'
 const DECISIONS_FILE = 'decisions.json'
 const LEDGER_FILE = 'ledger.json'
+const DESIGN_FILE = 'design.txt'
+const INDENT = '  '
 const TWINS_FILE = 'twins.json'
 const CAPTURES_DIR = 'captures'
 const RUN_PREFIXES = ['live-', 'diff-', 'result-', 'pairs-', 'tiles-']
@@ -207,6 +209,7 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
     await mkdir(home, {recursive: true})
     await writeFile(join(home, TARGET_FILE), encodePng(raster))
     await writeFile(join(home, MODEL_FILE), JSON.stringify(rest))
+    await writeFile(join(home, DESIGN_FILE), designOutline(rest).join('\n'))
     return writeRecord({
       id: model.id,
       session,
@@ -364,7 +367,94 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
           return node.kind === 'text' && found !== undefined ? {...node, typography: found} : node
         })
         await writeFile(path, JSON.stringify({...model, nodes}))
+        await writeFile(join(dir, id, DESIGN_FILE), designOutline({...model, nodes}).join('\n'))
       }),
+    designPath: (id) => reportPath(join(dir, id, DESIGN_FILE)),
+    design: async (id) => {
+      const text = await readFile(join(dir, id, DESIGN_FILE), 'utf8').catch(() => null)
+      return text === null ? [] : text.split('\n')
+    },
     reportPath,
   }
+}
+
+type StoredModel = z.infer<typeof ModelSchema>
+type StoredNode = StoredModel['nodes'][number]
+
+function designOutline(model: StoredModel): string[] {
+  const {scale} = model
+  const ids = new Set(model.nodes.map((node) => node.id))
+  const top = model.nodes.filter((node) => node.within === undefined || !ids.has(node.within))
+  const root = `page ${sized({box: model.root.box, scale})}${layoutPhrase(model.root.layout)}`
+  return [root, ...outlineLines({nodes: model.nodes, children: top, depth: 1, scale})]
+}
+
+function outlineLines(input: {nodes: StoredNode[]; children: StoredNode[]; depth: number; scale: number}): string[] {
+  const {nodes, depth, scale} = input
+  return input.children
+    .toSorted(documentOrder)
+    .flatMap((node) => [
+      `${INDENT.repeat(depth)}${nodeLine({node, scale})}`,
+      ...outlineLines({nodes, children: nodes.filter((child) => child.within === node.id), depth: depth + 1, scale}),
+    ])
+}
+
+function documentOrder(a: StoredNode, b: StoredNode): number {
+  return (
+    (a.layout?.index ?? 0) - (b.layout?.index ?? 0) ||
+    a.box.y - b.box.y ||
+    a.box.x - b.box.x ||
+    a.id.localeCompare(b.id)
+  )
+}
+
+function nodeLine(input: {node: StoredNode; scale: number}): string {
+  const {node, scale} = input
+  if (node.kind === 'image') return `image ${sized({box: node.box, scale})}`
+  if (node.kind === 'text') return textLine(node)
+  return `box ${sized({box: node.box, scale})}${layoutPhrase(node.layout)}${paintPhrase(node)}`
+}
+
+function textLine(node: Extract<StoredNode, {kind: 'text'}>): string {
+  const type = node.typography === undefined ? '' : ` ${Math.round(node.typography.size)}/${node.typography.weight}`
+  const role = node.role === undefined || node.role === 'unknown' ? '' : ` ${node.role}`
+  return `text "${foldedText(node.text)}"${type}${role}`
+}
+
+function paintPhrase(node: Extract<StoredNode, {kind: 'box'}>): string {
+  const paint = [
+    node.paint === undefined ? null : `background ${node.paint.background}`,
+    node.border === null ? null : `border ${node.border.width} ${node.border.color}`,
+    node.radius > 0 ? `radius ${node.radius}` : null,
+  ].filter((part) => part !== null)
+  return paint.length === 0 ? '' : `, ${paint.join(', ')}`
+}
+
+function layoutPhrase(layout: Partial<z.infer<typeof ContainerLayoutSchema>> | undefined): string {
+  if (layout?.direction === undefined) return ''
+  const gap = layout.gap === undefined ? '' : ` gap ${layout.gap.px}`
+  const align = layout.align === undefined ? '' : ` align ${layout.align}`
+  const sides = layout.padding === undefined ? [] : paddingSides(layout.padding)
+  const padding = sides.every((side) => side === 0) ? '' : ` padding ${sides.join(' ')}`
+  return ` ${layout.direction}${gap}${align}${layout.wrap === true ? ' wrapping' : ''}${padding}`
+}
+
+function paddingSides(padding: z.infer<typeof ContainerLayoutSchema>['padding']): number[] {
+  const {top, right, bottom, left} = padding
+  if (top !== bottom || right !== left) return [top, right, bottom, left]
+  return top === right ? [top] : [top, right]
+}
+
+function sized(input: {box: StoredNode['box']; scale: number}): string {
+  const {box, scale} = input
+  return `${Math.round(box.w / scale)}x${Math.round(box.h / scale)}`
+}
+
+function foldedText(text: string): string {
+  return text
+    .split('\n')
+    .flatMap((line) => line.split('\t'))
+    .flatMap((part) => part.split(' '))
+    .filter((word) => word !== '')
+    .join(' ')
 }

@@ -418,6 +418,11 @@ export const DiffReportSchema = z.object({
   rows: z.array(RowSchema).default([]).describe('the first ten items of the stage, in brief order'),
   changes: ChangesSchema.default(NO_CHANGES),
   ledger: LedgerCountsSchema.default(NO_COUNTS),
+  designPath: z
+    .string()
+    .default('')
+    .describe('the design as an indented outline, one line per node; read it before building'),
+  design: z.array(z.string()).optional().describe('the lines of the design outline, with full: true'),
 })
 
 export type DiffReport = z.infer<typeof DiffReportSchema>
@@ -442,6 +447,7 @@ export const CompactReportSchema = DiffReportSchema.pick({
   hint: true,
   painted: true,
   changes: true,
+  designPath: true,
 })
   .extend({
     counts: z
@@ -483,6 +489,7 @@ const StatusReportSchema = z.object({
   reregister: z.boolean().optional().describe('the stored target is unreadable; register the design image again'),
   ledger: LedgerCountsSchema.optional(),
   changes: ChangesSchema.optional().describe('what the latest run changed'),
+  designPath: z.string().optional().describe('the design as an indented outline, one line per node'),
 })
 
 const CaptureResultSchema = z.object({

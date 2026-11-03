@@ -2196,6 +2196,31 @@ describe('ledger', () => {
     }
   }, 300_000)
 
+  it('registration writes the design outline, one line per node plus the root, and the full report carries it', async () => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const status = await call('design_status', {})
+    const designPath = status.designPath ?? ''
+    expect(designPath.endsWith(`${id}/design.txt`)).toBe(true)
+    expect(status.next).toBe(
+      `read ${designPath} for the whole design before building; the brief lists what to fix first`,
+    )
+    const lines = (await readFile(fileUnder(stateRoot, designPath), 'utf8')).split('\n')
+    expect(lines.length).toBe((await storedNodes(id)).length + 1)
+    const access = lines.find((line) => line.includes('"Access borderless'))
+    expect(
+      access
+        ?.trim()
+        .split(' ')
+        .some(
+          (word) => word.includes('/') && word.split('/').every((part) => part !== '' && Number.isFinite(Number(part))),
+        ),
+    ).toBe(true)
+    const report = await call('design_diff', {})
+    expect(report.design).toEqual(lines)
+    expect(report.designPath).toBe(designPath)
+  }, 240_000)
+
   it('three css edits keep the element of every done node and lose nothing; removing the card loses its elements', async ({
     annotate,
   }) => {

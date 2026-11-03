@@ -304,6 +304,8 @@ export type TargetStore = {
   }): Promise<DiffReport>
   lastResult(id: string): Promise<DiffReport | null>
   setTypography(input: {id: string; typography: Record<string, Typography>}): Promise<void>
+  designPath(id: string): string
+  design(id: string): Promise<string[]>
   reportPath(path: string): string
 }
 export type DesignRuntime = {

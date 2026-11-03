@@ -82,8 +82,10 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   replaces an earlier target of the same route and width.
 - `design_diff` captures the live page and compares it with the target. It returns the compact report: `target`,
   `round`, `budgetLeft`, `stage`, `stop`, `score`, `mismatch`, `brief`, `timings`, `counts` (components listed, nodes
-  `paired` in the run, `unbuilt` entries, unmatched entries and warnings in the full report), `rows` (the first ten items of the stage, in brief order, each with its
-  sentence, stage, design node and source), `xray`, `diffImage`, `livePath`, `capturePath`, `sources`, `partial` and
+  `paired` in the run, `unbuilt` entries, unmatched entries and warnings in the full report, ledger nodes `done` and
+  `regressed`), `rows` (the first ten items of the stage, in brief order, each with its sentence, stage, design node,
+  source and `crop`), `changes` (see [Ledger](#ledger)), `designPath` (see [Design outline](#design-outline)), `xray`,
+  `diffImage`, `livePath`, `capturePath`, `sources`, `partial` and
   `hint`. `design_diff({full: true})` returns the full report with every
   component and delta; the store, `design_status` and the x-ray always hold the full one. When the components
   list was cut to `limit`, `hint` reads `showing 12 of 89 paired components, those with deltas first; full: true
@@ -270,6 +272,19 @@ changes the time of a run, never its answer.
   confirmed: a dead pair seeded before the greedy loop changes what the loop takes for the other nodes, so a page
   moved and moved back would not score as it did the first time. A dead fingerprint stays in the ledger for `lost`
   and its node goes back to the greedy loop. A run with nothing touched since the run before carries nothing.
+
+## Design outline
+
+Registration writes `design.txt` next to `model.json`, and a run that estimates type rewrites it: the design tree as
+an indented outline in document order (layout index, then top, then left), one line per node under a `page WxH` line
+for the root, children indented two spaces under their `within`. A text reads `text "Access borderless" 56/700 data`
+(the folded text, size/weight once the type estimate knows them, the role when it is not `unknown`); a box reads
+`box 1280x72 row gap 29 align center padding 0 48, background #fff, border 1 #e3e8ee, radius 8` (its size in CSS px,
+the layout from the layout pass, its paint); an image slot reads `image 480x320`. The model holds no text colour, so
+no colour is written. The same model gives the same file. The compact report and `design_status` carry `designPath`,
+`design_diff({full: true})` carries the lines as `design`, `design_status.next` at round 0 reads `read <designPath>
+for the whole design before building; the brief lists what to fix first`, and the x-ray shows the outline under the
+brief.
 
 ## Sources
 
