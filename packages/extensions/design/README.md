@@ -90,8 +90,8 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   `hint`. `design_diff({full: true})` returns the full report with every
   component and delta; the store, `design_status` and the x-ray always hold the full one. When the components
   list was cut to `limit`, `hint` reads `showing 12 of 89 paired components, those with deltas first; full: true
-  lists every one`, so a short list is not read as the number of pairs. `full: true` lifts the `limit` cut, so the
-  full report lists every reported component. `design_diff({section})` takes a section id from
+  lists up to limit of each and truncated says how many more`, so a short list is not read as the number of pairs. `full: true` cuts `components` and `unmatched`
+  to `limit` entries each and reports the entries cut as `truncated: {components, unmatched}`. `design_diff({section})` takes a section id from
   `design_status.sections` and returns the report of that section only (see [Sections](#sections)); an unknown id is
   an `unknown-section` error naming the known ids.
 - `timings` gives the whole milliseconds of one run per phase, 0 for a phase the run skipped, and

@@ -1953,8 +1953,19 @@ describe('loop', () => {
     expect(rows.length).toBeGreaterThan(0)
     expect(rows.length).toBeLessThanOrEqual(10)
     expect(rows[0]?.sentence).toBe(brief[0])
-    const full = await call('design_diff', {full: true})
+    const full = await call('design_diff', {full: true, limit: 60})
     expect(full.components.flatMap((c) => c.deltas.map((d) => d.kind))).toContain('border')
+  })
+
+  it('a full stripe report with limit 60 is cut to 60 entries a list and answers under 256 KiB', async ({annotate}) => {
+    await goto('stripe')
+    await freshTarget('stripe-1280')
+    const report = await call('design_diff', {full: true, limit: 60})
+    const size = JSON.stringify(report).length
+    await annotate(`full stripe report ${size} characters, truncated ${JSON.stringify(report.truncated)}`)
+    expect(report.components.length).toBeLessThanOrEqual(60)
+    expect(report.unmatched.length).toBeLessThanOrEqual(60)
+    expect(size).toBeLessThan(262144)
   })
 
   it('an empty page against u1-1280 is briefed as a row of cards, never as boxes at coordinates', async () => {

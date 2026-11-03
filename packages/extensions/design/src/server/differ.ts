@@ -190,7 +190,7 @@ export const SERVER_STEPS = [
   diffDef.server(async (input, ctx: DesignContext, request) => {
     const report = await ctx.differ.run({input, session: request.sessionId})
     const design = input.full === true ? await ctx.design.store.design(report.target.id) : null
-    const compact = shaped({report, design})
+    const compact = shaped({report, design, limit: input.limit})
     return ctx.design.blind ? omit(compact, BLIND_FIELDS) : compact
   }),
   statusDef.server((_input, ctx: DesignContext, request) => ctx.differ.status({session: request.sessionId})),
@@ -2148,7 +2148,7 @@ function reportHint(input: {
     input.partial ? PARTIAL_HINT : null,
     cut.listed <= cut.shown
       ? null
-      : `showing ${cut.shown} of ${cut.paired} paired components, those with deltas first; full: true lists every one`,
+      : `showing ${cut.shown} of ${cut.paired} paired components, those with deltas first; full: true lists up to limit of each and truncated says how many more`,
     input.attributed ? null : HINT,
     input.absolute ? null : ORIGIN_HINT,
   ].filter((hint) => hint !== null)
@@ -2160,7 +2160,7 @@ function runTime(report: DiffReport): number | null {
   return Number.isFinite(at) ? at : null
 }
 
-function shaped(input: {report: DiffReport; design: string[] | null}): CompactReport {
+function shaped(input: {report: DiffReport; design: string[] | null; limit: number}): CompactReport {
   const {report} = input
   const counts = {
     components: report.components.length,
@@ -2176,7 +2176,19 @@ function shaped(input: {report: DiffReport; design: string[] | null}): CompactRe
     regressed: report.ledger.regressed,
     drawn: report.warnings.filter((warning) => warning.warning === 'svg-drawn').length,
   }
-  if (input.design !== null) return {...report, design: input.design, counts}
+  if (input.design !== null) {
+    return {
+      ...report,
+      components: report.components.slice(0, input.limit),
+      unmatched: report.unmatched.slice(0, input.limit),
+      truncated: {
+        components: Math.max(0, report.components.length - input.limit),
+        unmatched: Math.max(0, report.unmatched.length - input.limit),
+      },
+      design: input.design,
+      counts,
+    }
+  }
   return {...pick(report, COMPACT_FIELDS), counts}
 }
 
