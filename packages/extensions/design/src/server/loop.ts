@@ -289,7 +289,12 @@ export function watchSettled(input: {
   touch: (input: {file: string}) => void
 }): () => void {
   const {bundler, store, page, refresh, touch} = input
-  const state: {timer: ReturnType<typeof setTimeout> | null; since: number} = {timer: null, since: 0}
+  const state: {
+    timer: ReturnType<typeof setTimeout> | null
+    since: number
+    files: Set<string>
+    flight: Promise<void>
+  } = {timer: null, since: 0, files: new Set<string>(), flight: Promise.resolve()}
   const settle = async (since: number): Promise<void> => {
     const sessions = new Set((await store.list({})).map((record) => record.session).filter(isSessionId))
     await Promise.all(
@@ -304,17 +309,28 @@ export function watchSettled(input: {
   const unsubscribe = bundler?.subscribe?.((diagnostic) => {
     if (diagnostic.kind !== 'hmr-update') return
     touch({file: diagnostic.file})
+    state.files.add(diagnostic.file)
     if (state.timer === null) state.since = diagnostic.timestamp - TOLERANCES.runDebounceMs
     if (state.timer !== null) clearTimeout(state.timer)
     state.timer = setTimeout(() => {
       state.timer = null
-      void settle(state.since)
-    }, TOLERANCES.runDebounceMs)
+      const files = [...state.files]
+      state.files.clear()
+      if (outsidePage({bundler, files})) return
+      const since = state.since
+      state.flight = state.flight.then(() => settle(since)).catch(() => undefined)
+    }, TOLERANCES.settleQuiet)
   })
   return () => {
     if (state.timer !== null) clearTimeout(state.timer)
     unsubscribe?.()
   }
+}
+
+function outsidePage(input: {bundler: BundlerBridge | undefined; files: string[]}): boolean {
+  const {bundler, files} = input
+  if (bundler === undefined) return false
+  return files.every((file) => bundler.moduleGraph(file).length === 0)
 }
 
 type Deferred = {promise: Promise<DiffReport>; resolve: (report: DiffReport) => void; reject: (error: unknown) => void}

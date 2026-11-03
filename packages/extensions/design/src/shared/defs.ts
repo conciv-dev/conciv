@@ -309,6 +309,10 @@ const CarriedSchema = z
 
 const PhaseSchema = z.number().default(0)
 
+const LongestTaskSchema = z
+  .number()
+  .describe('the longest main-thread task in whole ms the page ran while the live page was measured')
+
 export const TimingsSchema = z
   .object({
     capture: PhaseSchema,
@@ -324,6 +328,7 @@ export const TimingsSchema = z
     write: PhaseSchema,
     total: PhaseSchema,
     carried: CarriedSchema.default({pairs: 0, tiles: 0}),
+    longestTask: LongestTaskSchema.optional(),
   })
   .describe('whole milliseconds spent in each phase of the run, zero for a phase the run skipped')
 
@@ -570,6 +575,7 @@ export const MeasureResultSchema = z.object({
     .nullable()
     .default(null)
     .describe('react when a measured element carries a fiber, solid when the page has vite dev ids and none does'),
+  longestTask: LongestTaskSchema.optional(),
 })
 
 const RenderSchema = z.object({
