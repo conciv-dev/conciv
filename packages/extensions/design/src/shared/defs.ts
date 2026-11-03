@@ -445,7 +445,10 @@ export const DiffReportSchema = z.object({
   paired: z.number().default(0).describe('design nodes paired with a live element in this run'),
   pinsLost: z.array(z.string()).default([]).describe('pin decisions whose node or element is gone'),
   timings: TimingsSchema.default(TimingsSchema.parse({})),
-  rows: z.array(RowSchema).default([]).describe('the first ten items of the stage, in brief order'),
+  rows: z
+    .array(RowSchema)
+    .default([])
+    .describe('the first ten items of the stage, in brief order, then the next stage items the brief carries'),
   changes: ChangesSchema.default(NO_CHANGES),
   ledger: LedgerCountsSchema.default(NO_COUNTS),
   designPath: z

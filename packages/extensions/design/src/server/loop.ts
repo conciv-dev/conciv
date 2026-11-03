@@ -189,6 +189,7 @@ export function judge(input: {
   const dirtied = new Set(changed.changes.regressed.map((change) => change.node))
   const regressed = (item: Item): boolean => item.node !== undefined && dirtied.has(item.node)
   const ordered = [...kept.filter(regressed), ...kept.filter((item) => !regressed(item))]
+  const following = nextItems({counted, stage, ranker})
   const stop = input.partial ? null : stopReason({counted, score, capturePath, capture, priors, round, stage})
   const flipped = flippedBack({counted, priors, color})
   const brief = [
@@ -200,6 +201,7 @@ export function judge(input: {
     ...(flipped === null ? [] : [flippedLine({items: ranker({items: flipped.items}), round: flipped.round})]),
     ...warnings.map(warningSentence),
     ...ordered.slice(0, TOLERANCES.briefSize).map((item) => item.sentence),
+    ...following.map((item) => `${item.stage} next: ${item.sentence}`),
   ]
   return {
     stage,
@@ -208,10 +210,19 @@ export function judge(input: {
     budgetLeft: Math.max(0, TOLERANCES.roundBudget - round),
     stop,
     score,
-    rows: ordered
-      .slice(0, ROW_LIMIT)
-      .flatMap((item) => (item.stage === null ? [] : [row({item, stage: item.stage, crop})])),
+    rows: [...ordered.slice(0, ROW_LIMIT), ...following].flatMap((item) =>
+      item.stage === null ? [] : [row({item, stage: item.stage, crop})],
+    ),
   }
+}
+
+function nextItems(input: {counted: Item[]; stage: Stage | null; ranker: Ranker}): Item[] {
+  const {counted, stage, ranker} = input
+  if (stage === null) return []
+  const later = STAGES.slice(STAGES.indexOf(stage) + 1)
+  const next = later.find((candidate) => counted.some((item) => item.stage === candidate))
+  if (next === undefined) return []
+  return ranker({items: counted.filter((item) => item.stage === next)}).slice(0, TOLERANCES.briefNext)
 }
 
 export function changeReport(input: {
@@ -484,7 +495,7 @@ function unbuiltSentence(input: {entry: Unmatched; tree: Tree; unbuilt: Unbuilt}
 function leafSentence(input: {node: TargetNode; tree: Tree}): string {
   const {node, tree} = input
   const seat = placement({node, tree})
-  const size = node.layout === undefined ? '' : ` (${node.layout.size})`
+  const size = leafSize(node)
   const subject = named({node, tree}) ? label({node, tree}) : article(node)
   if (seat === null) return `build ${subject}${size}`
   if (seat.index > TOLERANCES.ordinalLimit) {
@@ -713,6 +724,14 @@ function allUnbuilt(input: {tree: Tree; id: string; unbuilt: Unbuilt}): boolean 
 
 function paintedLine(count: number): string {
   return `painted: ${count} elements are absolutely positioned; lay the page out with flow, flex or grid and let the browser place them`
+}
+
+function leafSize(node: TargetNode): string {
+  if (node.kind === 'box') {
+    const paint = node.paint === undefined ? '' : ` ${node.paint.background}`
+    return ` ${Math.round(node.box.w)}x${Math.round(node.box.h)}${paint}`
+  }
+  return node.layout === undefined ? '' : ` (${node.layout.size})`
 }
 
 function stalledLine(input: {stage: Stage; score: number[]; unchanged: Item[]}): string {
