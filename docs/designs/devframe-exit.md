@@ -106,17 +106,24 @@ The behaviour Omri already approved on the stack carries over unchanged:
   link, stale token rejected by the backend, unreachable engine.
 - The harness testkit gives test pages a trusted token through the real exchange. No bypass flag.
 
-### Open decision for Omri
+### Inside the Vite DevTools dock: one login (decided 2026-11-04)
 
-**Login inside the Vite DevTools dock.** With Vite DevTools' default `clientAuth: true`, the user already
-logs in to DevTools. conciv in the dock would then ask for its own code too.
+A browser logged in to Vite DevTools gets a conciv token without a second code, through public API only.
+Proved on spike branch `spike/dock-trust` (never merged):
 
-- (a) Two logins.
-- (b) conciv trusts a browser the DevTools hub trusts. This needs Vite DevTools' trust store: an internal
-  again.
-- (c) Make the dock entry a page served by the engine, so one conciv login covers both.
-
-To be asked before Piece 1 starts.
+- conciv's existing `devtools.setup(context)` registers `conciv:engine-token` with `context.rpc.register`.
+  The Devframe hub inside Vite DevTools serves a method without the `anonymous:` prefix only to a trusted
+  connection (documented rule, `devframe/src/constants.ts` `ANONYMOUS_RPC_PREFIX`), so reaching the handler
+  is the proof of DevTools login.
+- The handler mints a conciv token, writes it to conciv's own trust file with "via Vite DevTools" as the
+  browser description, and returns it.
+- The dock renderer calls it through the `context.rpc` it already receives (`DockClientScriptContext`),
+  stores the token like a code login would, and is trusted.
+- Before login, DevTools does not show the dock list at all, so the dock never runs untrusted.
+- Imports: none beyond `node:crypto`; no `hub-internals`, no DevTools trust files.
+- The spike's refusal evidence came from the client refusing its own call. The production test must also
+  send the call over a raw WebSocket before login and assert the server refuses it.
+- Revoking the DevTools login does not revoke the conciv token; `conciv auth revoke` does.
 
 ## Piece 2: Playwright report from a file
 
@@ -185,7 +192,7 @@ design x-ray tests alone.
 
 1. Piece 2 and Piece 5, both small and independent.
 2. Piece 7, the audit, which is read-only until approved.
-3. Piece 1, after the dock-login decision.
+3. Piece 1.
 4. Pieces 3, 4 and 6.
 
 ## Not kept
