@@ -1003,6 +1003,7 @@ const StoredModelSchema = z.object({
       role: z.string().optional(),
       within: z.string().optional(),
       box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
+      radius: z.number().optional(),
       typography: z.object({size: z.number(), weight: z.number(), confidence: z.number()}).optional(),
       paint: z
         .object({
@@ -2918,6 +2919,41 @@ describe('icons', () => {
       expect(solid.map((item) => item.size > 1)).toEqual([true])
       expect(report.score[4]).toBeGreaterThan(0)
       expect(report.score[4]).toBeGreaterThanOrEqual(solid[0]?.size ?? Number.POSITIVE_INFINITY)
+    } finally {
+      await writeFile(STRIPE_SOURCE, source)
+      await page.setViewportSize({width: 1280, height: 720})
+    }
+  }, 240_000)
+
+  it('a square gradient box reads radius 0 on both sides; the solid box rounded 23 is the only radius item', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    await page.setViewportSize(GRADIENT_SIZE)
+    await writeGradientDesign()
+    const {id} = await freshTarget(GRADIENT_DESIGN)
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await rewrite({
+        id,
+        file: STRIPE_SOURCE,
+        text: GRADIENT_PAGE.replace("background: '#635bff'", "background: '#635bff', borderRadius: 23"),
+      })
+      const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
+      const radii = report.components.flatMap((component) =>
+        component.deltas
+          .filter((delta) => delta.kind === 'radius')
+          .map((delta) => ({x: component.live.x, live: delta.live, target: delta.target})),
+      )
+      const boxes = (await storedNodes(id)).flatMap((node) =>
+        node.kind === 'box' ? [{x: node.box.x, radius: node.radius}] : [],
+      )
+      await annotate(`radius deltas ${JSON.stringify(radii)} design boxes ${JSON.stringify(boxes)}`)
+      expect(boxes.toSorted((a, b) => a.x - b.x)).toEqual([
+        {x: VERTICAL_BOX.x, radius: 0},
+        {x: HORIZONTAL_BOX.x, radius: 0},
+      ])
+      expect(radii).toEqual([{x: VERTICAL_BOX.x, live: 23, target: 0}])
     } finally {
       await writeFile(STRIPE_SOURCE, source)
       await page.setViewportSize({width: 1280, height: 720})
