@@ -10,10 +10,16 @@ import {createConcivRouter} from './router.js'
 function engineLink(core: string) {
   const [link, setLink] = createStore<{apiBase: string | null}>({apiBase: null})
   const hub = hubFor(core)
-  const login = makeHubLogin(hub, core, (trustedApiBase) => {
-    window.__CONCIV_API_BASE__ = trustedApiBase
-    setLink('apiBase', trustedApiBase)
-  })
+  const login = makeHubLogin(
+    hub,
+    core,
+    (trustedApiBase) => {
+      window.__CONCIV_API_BASE__ = trustedApiBase
+      setLink('apiBase', trustedApiBase)
+      return Promise.resolve()
+    },
+    false,
+  )
   return {link, hub, login}
 }
 

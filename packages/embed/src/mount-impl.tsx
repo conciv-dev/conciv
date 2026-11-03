@@ -34,7 +34,7 @@ declare global {
   }
 }
 
-type BootResult = {dispose: () => void; rebind?: (apiBase: string) => void; interactive: Promise<void>}
+type BootResult = {dispose: () => void; rebind?: (apiBase: string) => Promise<void>; interactive: Promise<void>}
 
 function createInteractiveSignal(): {promise: Promise<void>; notify: () => void} {
   let notify = () => {}
@@ -201,12 +201,12 @@ function bootNormal(config: BootNormalConfig): BootResult {
     paint.dispose()
   }
 
-  const rebind = (nextApiBase: string): void => {
+  const rebind = (nextApiBase: string): Promise<void> => {
     rebindClient(nextApiBase)
     setApiBase(nextApiBase)
     router.options.context.queryClient.clear()
     setConnectionGeneration((generation) => generation + 1)
-    void storage.reload().then(() => router.invalidate())
+    return storage.reload().then(() => router.invalidate())
   }
 
   const boot = {href: router.state.location.href, moved: false}
@@ -297,12 +297,17 @@ function bootConnect(config: BootConnectConfig): BootResult {
 function bootLinked(config: BootNormalConfig & {apiBase: string}): BootResult {
   const hub = hubFor(config.apiBase)
   const bound = {apiBase: tokenBearingApiBase(config.apiBase)}
-  const login = makeHubLogin(hub, config.apiBase, (trustedApiBase) => {
-    window.__CONCIV_API_BASE__ = trustedApiBase
-    if (trustedApiBase === bound.apiBase) return
-    bound.apiBase = trustedApiBase
-    booted.rebind?.(trustedApiBase)
-  })
+  const login = makeHubLogin(
+    hub,
+    config.apiBase,
+    (trustedApiBase) => {
+      window.__CONCIV_API_BASE__ = trustedApiBase
+      if (trustedApiBase === bound.apiBase) return Promise.resolve()
+      bound.apiBase = trustedApiBase
+      return booted.rebind?.(trustedApiBase) ?? Promise.resolve()
+    },
+    config.settings.surface === 'dock',
+  )
   const booted = bootNormal({...config, apiBase: bound.apiBase, hub, login})
   return {
     ...booted,

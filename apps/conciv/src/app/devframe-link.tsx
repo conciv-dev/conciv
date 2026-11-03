@@ -5,6 +5,12 @@ import {browserClient} from '@conciv/extension/devframe-connection'
 import {Button, Dialog, PinInput} from '@conciv/ui-kit-system'
 import {resolveHubBase} from '../lib/api-base.js'
 
+declare module 'devframe/types' {
+  interface DevframeRpcServerFunctions {
+    'conciv:engine-access': () => Promise<string>
+  }
+}
+
 export type HubConnection = ReturnType<typeof browserClient>
 type HubClient = Awaited<ReturnType<HubConnection['ready']>>
 
@@ -24,6 +30,7 @@ export type HubLogin = {
 }
 
 const HUB_PATH = '/__conciv/'
+const ENGINE_ACCESS = 'conciv:engine-access'
 const TOKEN_SEGMENT = /\/t\/([^/]+)/
 const CODE_LENGTH = 6
 
@@ -50,7 +57,8 @@ export function hubFor(apiBase: string): HubConnection {
 export function makeHubLogin(
   hub: HubConnection,
   apiBase: string,
-  onTrusted: (trustedApiBase: string) => void,
+  onTrusted: (trustedApiBase: string) => Promise<void>,
+  engineAccess: boolean,
 ): HubLogin {
   const origin = new URL(apiBase, window.location.href).origin
   const [state, setState] = createStore<LoginState>({phase: 'checking', dialogOpen: false, notice: 'none'})
@@ -63,21 +71,33 @@ export function makeHubLogin(
 
   const trust = (token: string): void => {
     setState({phase: 'trusted', dialogOpen: false, notice: 'none'})
-    onTrusted(`${origin}/t/${token}`)
-    runPending()
+    void onTrusted(`${origin}/t/${token}`).then(runPending, runPending)
+  }
+
+  const lock = (): void => {
+    setState('phase', 'locked')
+    if (pending.open && !untrack(() => state.dialogOpen)) showDialog()
+  }
+
+  const accept = (client: HubClient): void => {
+    const token = client.connection.authToken
+    if (!engineAccess) {
+      if (token) trust(token)
+      else lock()
+      return
+    }
+    client.call(ENGINE_ACCESS).then(trust, () => {
+      setState('phase', 'unreachable')
+      runPending()
+    })
   }
 
   const followTrust =
     (client: HubClient) =>
     (trusted: boolean | null): void => {
       if (state.phase === 'exchanging') return
-      const token = client.connection.authToken
-      if (trusted && token) {
-        trust(token)
-        return
-      }
-      setState('phase', 'locked')
-      if (pending.open && !state.dialogOpen) showDialog()
+      if (trusted) accept(client)
+      else lock()
     }
 
   const unsubscribe = {trust: (): void => {}}
@@ -96,9 +116,8 @@ export function makeHubLogin(
     setState({phase: 'exchanging', notice: 'none'})
     const client = await hub.ready()
     const trusted = await client.requestTrustWithCode(code)
-    const token = client.connection.authToken
-    if (trusted && token) {
-      trust(token)
+    if (trusted && (engineAccess || client.connection.authToken)) {
+      accept(client)
       return true
     }
     setState({phase: 'locked', notice: 'mismatch'})

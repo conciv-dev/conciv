@@ -318,9 +318,13 @@ function RootChrome(props: {
     openPanel()
   }
 
+  const opensOnLoad = () =>
+    (settings.surface === 'dock' && panelMatch() && !shutterOpen()) || (settings.defaultOpen && closedMatch())
   onMount(() => {
-    const dockedShutterClosed = settings.surface === 'dock' && panelMatch() && !shutterOpen()
-    if (dockedShutterClosed || (settings.defaultOpen && closedMatch())) void openPanel()
+    if (opensOnLoad())
+      whenUnlocked(() => {
+        if (opensOnLoad()) showPanel()
+      })
     makeEventListener(window, 'resize', reportPanelState)
     const unsubscribes = [
       panelCommands.on('open', handleOpenCommand),
