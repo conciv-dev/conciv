@@ -33,6 +33,7 @@ import {
   openSync,
   renameSync,
   writeSync,
+  statSync,
 } from 'node:fs'
 import {tmpdir, homedir} from 'node:os'
 import {join} from 'node:path'
@@ -753,6 +754,122 @@ describe('claude history', () => {
 
     it('returns [] for a missing dir', async () => {
       expect(await listSessions('/no/such', mkdtempSync(join(tmpdir(), 'conciv-home-')))).toEqual([])
+    })
+  })
+
+  describe('listSessions folds each transcript incrementally', () => {
+    const userLine = (text: string) => JSON.stringify({type: 'user', message: {content: text}}) + '\n'
+    const assistantLine = (id: string, text: string) =>
+      JSON.stringify({type: 'assistant', message: {id, content: [{type: 'text', text}]}}) + '\n'
+    const resultLine = (input: number, output: number) =>
+      JSON.stringify({type: 'result', usage: {input_tokens: input, output_tokens: output}}) + '\n'
+
+    function expectedMeta(home: string, cwd: string, id: string) {
+      const path = transcriptPath(cwd, id, home)
+      return parseSessionMeta(id, readFileSync(path, 'utf8'), statSync(path).mtimeMs)
+    }
+
+    function stamp(home: string, cwd: string, id: string, mtimeSec: number) {
+      const path = transcriptPath(cwd, id, home)
+      utimesSync(path, mtimeSec, mtimeSec)
+      return path
+    }
+
+    it('lists twice equal, then reflects appended lines and a completed partial line', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const cwd = '/proj/incremental'
+      seed(home, cwd, 'live', userLine('first ask') + assistantLine('m1', 'first answer') + resultLine(3, 4), 1000)
+      seed(home, cwd, 'other', userLine('other ask'), 900)
+      const first = await listSessions(cwd, home)
+      expect(await listSessions(cwd, home)).toEqual(first)
+      expect(first).toEqual([expectedMeta(home, cwd, 'live'), expectedMeta(home, cwd, 'other')])
+      const path = transcriptPath(cwd, 'live', home)
+      appendFileSync(path, assistantLine('m1', 'more of the answer') + userLine('second ask') + resultLine(10, 20))
+      appendFileSync(
+        path,
+        JSON.stringify({type: 'assistant', message: {id: 'm2', content: [{type: 'text', text: 'tail'}]}}),
+      )
+      stamp(home, cwd, 'live', 1100)
+      const appended = await listSessions(cwd, home)
+      expect(appended[0]).toEqual(expectedMeta(home, cwd, 'live'))
+      expect(appended[0]).toMatchObject({messageCount: 4, lastMessage: 'tail', totalTokens: 37})
+      appendFileSync(path, '\n' + userLine('third ask'))
+      stamp(home, cwd, 'live', 1200)
+      const completed = await listSessions(cwd, home)
+      expect(completed[0]).toEqual(expectedMeta(home, cwd, 'live'))
+      expect(completed[0]).toMatchObject({messageCount: 5, lastMessage: 'third ask'})
+      rmSync(home, {recursive: true, force: true})
+    })
+
+    it('parses only bytes appended since the previous list', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const cwd = '/proj/append-only'
+      seed(home, cwd, 'live', userLine('alpha ask'), 1000)
+      await listSessions(cwd, home)
+      const path = transcriptPath(cwd, 'live', home)
+      writeFileSync(path, userLine('omega ask') + assistantLine('m1', 'answer'))
+      stamp(home, cwd, 'live', 1100)
+      const [meta] = await listSessions(cwd, home)
+      expect(meta).toMatchObject({derivedTitle: 'alpha ask', messageCount: 2, lastMessage: 'answer'})
+      rmSync(home, {recursive: true, force: true})
+    })
+
+    it('resets when a transcript is truncated or rewritten shorter', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const cwd = '/proj/reset'
+      seed(
+        home,
+        cwd,
+        'live',
+        userLine('long original ask') + assistantLine('m1', 'long original answer') + resultLine(50, 50),
+        1000,
+      )
+      expect((await listSessions(cwd, home))[0]).toMatchObject({messageCount: 2, totalTokens: 100})
+      const path = transcriptPath(cwd, 'live', home)
+      writeFileSync(path, '')
+      stamp(home, cwd, 'live', 1100)
+      const truncated = await listSessions(cwd, home)
+      expect(truncated[0]).toEqual(expectedMeta(home, cwd, 'live'))
+      expect(truncated[0]).toMatchObject({messageCount: 0, totalTokens: 0, derivedTitle: ''})
+      writeFileSync(path, userLine('fresh ask') + resultLine(1, 2))
+      stamp(home, cwd, 'live', 1200)
+      await listSessions(cwd, home)
+      writeFileSync(path, userLine('short'))
+      stamp(home, cwd, 'live', 1300)
+      const rewritten = await listSessions(cwd, home)
+      expect(rewritten[0]).toEqual(expectedMeta(home, cwd, 'live'))
+      expect(rewritten[0]).toMatchObject({messageCount: 1, totalTokens: 0, derivedTitle: 'short'})
+      rmSync(home, {recursive: true, force: true})
+    })
+
+    it('forgets a transcript that drops out of the newest 50', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const cwd = '/proj/evict'
+      seed(home, cwd, 'evicted', userLine('stale ask'), 1000)
+      expect((await listSessions(cwd, home))[0]).toMatchObject({derivedTitle: 'stale ask'})
+      for (let i = 0; i < 50; i++) seed(home, cwd, `n${String(i).padStart(2, '0')}`, userLine(`t${i}`), 2000 + i)
+      const pushedOut = await listSessions(cwd, home)
+      expect(pushedOut.some((s) => s.id === 'evicted')).toBe(false)
+      const path = transcriptPath(cwd, 'evicted', home)
+      writeFileSync(path, userLine('replacement ask, longer than before') + assistantLine('m1', 'replacement answer'))
+      stamp(home, cwd, 'evicted', 3000)
+      const back = await listSessions(cwd, home)
+      expect(back[0]).toEqual(expectedMeta(home, cwd, 'evicted'))
+      expect(back[0]).toMatchObject({derivedTitle: 'replacement ask, longer than before', messageCount: 2})
+      rmSync(home, {recursive: true, force: true})
+    })
+
+    it('overlapping lists fold each appended line once', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const cwd = '/proj/overlap'
+      seed(home, cwd, 'live', userLine('ask') + resultLine(1, 1), 1000)
+      const lists = await Promise.all([listSessions(cwd, home), listSessions(cwd, home), listSessions(cwd, home)])
+      expect(lists.map((list) => list[0])).toEqual([1, 2, 3].map(() => expectedMeta(home, cwd, 'live')))
+      appendFileSync(transcriptPath(cwd, 'live', home), resultLine(5, 5))
+      stamp(home, cwd, 'live', 1100)
+      const again = await Promise.all([listSessions(cwd, home), listSessions(cwd, home)])
+      expect(again.map((list) => list[0]?.totalTokens)).toEqual([12, 12])
+      rmSync(home, {recursive: true, force: true})
     })
   })
 

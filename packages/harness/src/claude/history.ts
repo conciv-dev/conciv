@@ -1,6 +1,6 @@
 import {readdir, stat, readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {z} from 'zod'
 import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
@@ -11,7 +11,7 @@ import type {
   TranscriptHandle,
 } from '@conciv/protocol/harness-types'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
-import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
+import {makeJsonlFoldHandle, makeJsonlHandle, transcriptFailure, type JsonlFoldHandle} from '../_shared/jsonl-handle.js'
 import {containedPath} from '../_shared/contained-path.js'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
@@ -159,9 +159,9 @@ const ResultRecordSchema = z
   .loose()
 const StampedRecordSchema = z.object({timestamp: z.string().optional()}).loose()
 
-type ClaudeFold = {
-  messages: ChatMessage[]
+type SessionFacts = {
   openAssistantId: string | null
+  lastRole: 'user' | 'assistant' | null
   count: number
   title: string | null
   lastText: string | null
@@ -170,10 +170,17 @@ type ClaudeFold = {
   createdAt: number | undefined
 }
 
-function emptyFold(): ClaudeFold {
+type ClaudeFold = SessionFacts & {messages: ChatMessage[]}
+
+type TurnFold<State extends SessionFacts> = {
+  user(state: State, parts: ChatPart[], human: ChatPart[] | null, nativeId: string | undefined): void
+  assistant(state: State, claudeId: string | undefined, parts: ChatPart[], nativeId: string | undefined): void
+}
+
+function emptyFacts(): SessionFacts {
   return {
-    messages: [],
     openAssistantId: null,
+    lastRole: null,
     count: 0,
     title: null,
     lastText: null,
@@ -183,35 +190,39 @@ function emptyFold(): ClaudeFold {
   }
 }
 
+function emptyFold(): ClaudeFold {
+  return {...emptyFacts(), messages: []}
+}
+
 function condense(text: string, max: number): string {
   return text.replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
-function foldModel(state: ClaudeFold, record: unknown): void {
+function foldModel(state: SessionFacts, record: unknown): void {
   const system = SystemRecordSchema.safeParse(record)
   if (system.success && system.data.model) state.model = system.data.model
 }
 
-function foldTokens(state: ClaudeFold, record: unknown): void {
+function foldTokens(state: SessionFacts, record: unknown): void {
   const result = ResultRecordSchema.safeParse(record)
   if (!result.success || !result.data.usage) return
   state.totalTokens += (result.data.usage.input_tokens ?? 0) + (result.data.usage.output_tokens ?? 0)
 }
 
-function foldCreatedAt(state: ClaudeFold, record: unknown): void {
+function foldCreatedAt(state: SessionFacts, record: unknown): void {
   if (state.createdAt !== undefined) return
   const stamped = StampedRecordSchema.safeParse(record)
   const ms = stamped.success && stamped.data.timestamp ? Date.parse(stamped.data.timestamp) : NaN
   if (!Number.isNaN(ms)) state.createdAt = ms
 }
 
-function foldFacts(state: ClaudeFold, record: unknown): void {
+function foldFacts(state: SessionFacts, record: unknown): void {
   foldModel(state, record)
   foldTokens(state, record)
   foldCreatedAt(state, record)
 }
 
-function foldPreview(state: ClaudeFold, spoken: ChatPart[] | null, fromUser: boolean): void {
+function foldPreview(state: SessionFacts, spoken: ChatPart[] | null, fromUser: boolean): void {
   if (!spoken || isInternal(spoken)) return
   const text = firstText(spoken)
   if (text === null) return
@@ -219,14 +230,14 @@ function foldPreview(state: ClaudeFold, spoken: ChatPart[] | null, fromUser: boo
   state.lastText = condense(text, MAX_PREVIEW)
 }
 
-function pushMessage(
-  state: ClaudeFold,
-  role: 'user' | 'assistant',
-  parts: ChatPart[],
-  nativeId: string | undefined,
-): void {
+function openTurn(state: SessionFacts, role: 'user' | 'assistant', claudeId: string | null): void {
+  state.openAssistantId = claudeId
+  state.lastRole = role
   state.count += 1
-  state.messages.push({id: nativeId ?? `h${state.count}`, role, parts})
+}
+
+function continuesAssistantTurn(state: SessionFacts, claudeId: string | undefined): boolean {
+  return Boolean(claudeId) && claudeId === state.openAssistantId && state.lastRole === 'assistant'
 }
 
 function foldUserTurn(
@@ -239,8 +250,8 @@ function foldUserTurn(
   const lastAssistant = state.messages.findLast((m) => m.role === 'assistant')
   if (lastAssistant) lastAssistant.parts.push(...results)
   if (!human) return
-  state.openAssistantId = null
-  pushMessage(state, 'user', human, nativeId)
+  openTurn(state, 'user', null)
+  state.messages.push({id: nativeId ?? `h${state.count}`, role: 'user', parts: human})
 }
 
 function foldAssistantTurn(
@@ -250,38 +261,57 @@ function foldAssistantTurn(
   nativeId: string | undefined,
 ): void {
   const open = state.messages.at(-1)
-  if (claudeId && claudeId === state.openAssistantId && open?.role === 'assistant') {
+  if (continuesAssistantTurn(state, claudeId) && open) {
     open.parts.push(...parts)
     return
   }
-  state.openAssistantId = claudeId ?? null
-  pushMessage(state, 'assistant', parts, nativeId)
+  openTurn(state, 'assistant', claudeId ?? null)
+  state.messages.push({id: nativeId ?? `h${state.count}`, role: 'assistant', parts})
 }
 
-function foldUserRecord(state: ClaudeFold, record: TranscriptRecord): void {
+const MESSAGE_TURNS: TurnFold<ClaudeFold> = {user: foldUserTurn, assistant: foldAssistantTurn}
+
+const FACT_TURNS: TurnFold<SessionFacts> = {
+  user(state, _parts, human) {
+    if (human) openTurn(state, 'user', null)
+  },
+  assistant(state, claudeId) {
+    if (!continuesAssistantTurn(state, claudeId)) openTurn(state, 'assistant', claudeId ?? null)
+  },
+}
+
+function foldUserRecord<State extends SessionFacts>(
+  turns: TurnFold<State>,
+  state: State,
+  record: TranscriptRecord,
+): void {
   const parts = partsFrom(record.message?.content)
   const human = humanMessageParts(record, parts)
   foldPreview(state, human, true)
   if (parts.length === 0 || isInternal(parts)) return
-  foldUserTurn(state, parts, human, record.uuid)
+  turns.user(state, parts, human, record.uuid)
 }
 
-function foldAssistantRecord(state: ClaudeFold, record: TranscriptRecord): void {
+function foldAssistantRecord<State extends SessionFacts>(
+  turns: TurnFold<State>,
+  state: State,
+  record: TranscriptRecord,
+): void {
   const parts = partsFrom(record.message?.content)
   foldPreview(state, parts, false)
   if (parts.length === 0 || isInternal(parts)) return
-  foldAssistantTurn(state, record.message?.id, parts, record.uuid)
+  turns.assistant(state, record.message?.id, parts, record.uuid)
 }
 
-function foldRecord(state: ClaudeFold, record: TranscriptRecord): void {
+function foldRecord<State extends SessionFacts>(turns: TurnFold<State>, state: State, record: TranscriptRecord): void {
   if (record.type === 'user') {
-    foldUserRecord(state, record)
+    foldUserRecord(turns, state, record)
     return
   }
-  if (record.type === 'assistant') foldAssistantRecord(state, record)
+  if (record.type === 'assistant') foldAssistantRecord(turns, state, record)
 }
 
-function foldLine(state: ClaudeFold, line: string): ClaudeFold {
+function foldLineWith<State extends SessionFacts>(turns: TurnFold<State>, state: State, line: string): State {
   const trimmed = line.trim()
   if (!trimmed) return state
   const raw = parseJsonOrNull(trimmed)
@@ -289,8 +319,16 @@ function foldLine(state: ClaudeFold, line: string): ClaudeFold {
   const parsed = TranscriptRecordSchema.safeParse(raw)
   if (parsed.success && parsed.data.isSidechain === true) return state
   foldFacts(state, raw)
-  if (parsed.success) foldRecord(state, parsed.data)
+  if (parsed.success) foldRecord(turns, state, parsed.data)
   return state
+}
+
+function foldLine(state: ClaudeFold, line: string): ClaudeFold {
+  return foldLineWith(MESSAGE_TURNS, state, line)
+}
+
+function foldFactsLine(state: SessionFacts, line: string): SessionFacts {
+  return foldLineWith(FACT_TURNS, state, line)
 }
 
 function foldTranscript(jsonl: string): ClaudeFold {
@@ -356,12 +394,12 @@ export function nameFromTranscript(jsonl: string): string | null {
   return name
 }
 
-function metaFromFold(id: string, state: ClaudeFold, mtime: number): HarnessSessionMeta {
+function metaFromFold(id: string, state: SessionFacts, mtime: number): HarnessSessionMeta {
   return {
     id: HarnessSessionId.parse(id),
     derivedTitle: state.title ?? '',
     updatedAt: Math.round(mtime),
-    messageCount: state.messages.length,
+    messageCount: state.count,
     model: state.model,
     totalTokens: state.totalTokens,
     lastMessage: state.lastText,
@@ -375,6 +413,35 @@ export function parseSessionMeta(id: string, jsonl: string, mtime: number): Harn
 
 const MAX_SESSIONS = 50
 const SUMMARY_TAIL = 12
+
+const factHandles = new Map<string, JsonlFoldHandle<SessionFacts>>()
+
+function factHandle(path: string): JsonlFoldHandle<SessionFacts> {
+  const known = factHandles.get(path)
+  if (known) return known
+  const handle = makeJsonlFoldHandle<SessionFacts>({
+    parser: {empty: emptyFacts, foldLine: foldFactsLine},
+    resolvePath: async () => path,
+  })
+  factHandles.set(path, handle)
+  return handle
+}
+
+function forgetOutside(dir: string, kept: ReadonlySet<string>): void {
+  for (const [path, handle] of factHandles) {
+    if (dirname(path) !== dir || kept.has(path)) continue
+    handle.close()
+    factHandles.delete(path)
+  }
+}
+
+async function sessionFacts(path: string): Promise<SessionFacts> {
+  const chunk = await factHandle(path)
+    .read()
+    .catch(() => null)
+  if (!chunk?.ok) return emptyFacts()
+  return foldFactsLine({...chunk.fold}, chunk.tail)
+}
 
 export async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
   const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd))
@@ -396,11 +463,9 @@ export async function listSessions(cwd: string, home: string = homedir()): Promi
     )
   ).filter((entry): entry is {name: string; mtime: number} => entry !== null)
   const top = stamped.toSorted((a, b) => b.mtime - a.mtime).slice(0, MAX_SESSIONS)
+  forgetOutside(dir, new Set(top.map((f) => join(dir, f.name))))
   return Promise.all(
-    top.map(async (f) => {
-      const raw = await readFile(join(dir, f.name), 'utf8').catch(() => '')
-      return parseSessionMeta(f.name.replace(/\.jsonl$/, ''), raw, f.mtime)
-    }),
+    top.map(async (f) => metaFromFold(f.name.replace(/\.jsonl$/, ''), await sessionFacts(join(dir, f.name)), f.mtime)),
   )
 }
 

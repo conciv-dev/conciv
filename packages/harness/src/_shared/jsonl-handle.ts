@@ -12,16 +12,31 @@ import type {
 const HEAD_BYTES = 65_536
 const NEWLINE = 0x0a
 
-export type JsonlParser<State> = {
+type JsonlFold<State> = {
   empty(): State
   foldLine(state: State, line: string): State
+}
+
+export type JsonlParser<State> = JsonlFold<State> & {
   messages(state: State): ChatMessage[]
 }
 
-export type JsonlSource<State> = {
-  parser: JsonlParser<State>
+type JsonlFoldSource<State> = {
+  parser: JsonlFold<State>
   resolvePath(): Promise<string | TranscriptFailure>
   verifyHead?(head: string): TranscriptFailure | null
+}
+
+export type JsonlSource<State> = JsonlFoldSource<State> & {
+  parser: JsonlParser<State>
+}
+
+type JsonlFoldChunk<State> = TranscriptRevision & {ok: true; fold: State; tail: string; replaced: boolean}
+
+export type JsonlFoldHandle<State> = {
+  revision(): Promise<TranscriptRevision | TranscriptFailure>
+  read(): Promise<JsonlFoldChunk<State> | TranscriptFailure>
+  close(): void
 }
 
 export function transcriptFailure(reason: TranscriptFailureReason, detail: string): TranscriptFailure {
@@ -73,7 +88,7 @@ function revisionOf(info: Stats): TranscriptRevision {
   return {rev: `${info.size}:${info.mtimeMs}`, changedAt: info.mtimeMs}
 }
 
-export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHandle {
+export function makeJsonlFoldHandle<State>(source: JsonlFoldSource<State>): JsonlFoldHandle<State> {
   const state = {closed: false, path: '', offset: 0, verified: false, fold: source.parser.empty()}
 
   const pathOf = async (): Promise<string | TranscriptFailure> => {
@@ -104,6 +119,27 @@ export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHa
     return null
   }
 
+  const readOnce = async (): Promise<JsonlFoldChunk<State> | TranscriptFailure> => {
+    const found = await located()
+    if ('ok' in found) return found
+    const problem = await verify(found.path, found.info.size)
+    if (problem) return problem
+    if (found.info.size < state.offset) {
+      state.offset = 0
+      state.fold = source.parser.empty()
+    }
+    const replaced = state.offset === 0
+    const buffer = await readBytes(found.path, state.offset, found.info.size - state.offset)
+    if ('ok' in buffer) return buffer
+    const complete = completeLines(buffer)
+    for (const line of complete.text.split('\n')) state.fold = source.parser.foldLine(state.fold, line)
+    state.offset += complete.bytes
+    const tail = buffer.toString('utf8', complete.bytes)
+    return {ok: true, ...revisionOf(found.info), fold: state.fold, tail, replaced}
+  }
+
+  const reads = {last: Promise.resolve<JsonlFoldChunk<State> | TranscriptFailure | null>(null)}
+
   return {
     async revision(): Promise<TranscriptRevision | TranscriptFailure> {
       const found = await located()
@@ -112,22 +148,10 @@ export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHa
       if (problem) return problem
       return revisionOf(found.info)
     },
-    async read(): Promise<TranscriptChunk | TranscriptFailure> {
-      const found = await located()
-      if ('ok' in found) return found
-      const problem = await verify(found.path, found.info.size)
-      if (problem) return problem
-      if (found.info.size < state.offset) {
-        state.offset = 0
-        state.fold = source.parser.empty()
-      }
-      const replaced = state.offset === 0
-      const buffer = await readBytes(found.path, state.offset, found.info.size - state.offset)
-      if ('ok' in buffer) return buffer
-      const complete = completeLines(buffer)
-      for (const line of complete.text.split('\n')) state.fold = source.parser.foldLine(state.fold, line)
-      state.offset += complete.bytes
-      return {ok: true, ...revisionOf(found.info), messages: source.parser.messages(state.fold), replaced}
+    read(): Promise<JsonlFoldChunk<State> | TranscriptFailure> {
+      const next = reads.last.then(readOnce, readOnce)
+      reads.last = next
+      return next
     },
     close(): void {
       state.closed = true
@@ -136,5 +160,24 @@ export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHa
       state.verified = false
       state.fold = source.parser.empty()
     },
+  }
+}
+
+export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHandle {
+  const folds = makeJsonlFoldHandle(source)
+  return {
+    revision: folds.revision,
+    async read(): Promise<TranscriptChunk | TranscriptFailure> {
+      const chunk = await folds.read()
+      if (!chunk.ok) return chunk
+      return {
+        ok: true,
+        rev: chunk.rev,
+        changedAt: chunk.changedAt,
+        messages: source.parser.messages(chunk.fold),
+        replaced: chunk.replaced,
+      }
+    },
+    close: folds.close,
   }
 }
