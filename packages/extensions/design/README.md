@@ -84,8 +84,8 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   `round`, `budgetLeft`, `stage`, `stop`, `score`, `mismatch`, `brief`, `timings`, `counts` (components listed, nodes
   `paired` in the run, `unbuilt` entries, `icons` (the unbuilt entries that are icon slots, see [Layout](#layout)),
   unmatched entries and warnings in the full report, ledger nodes `done` and `regressed`, `drawn` pictures, see
-  [Design outline](#design-outline)), `rows` (the first ten items of the stage, in brief order, each with its sentence, stage, design node,
-  source and `crop`), `changes` (see [Ledger](#ledger)), `designPath` and `placeholderPath` (see [Design outline](#design-outline)), `xray`,
+  [Design outline](#design-outline)), `rows` (the first ten items of the stage, in brief order, then the next stage's rows the brief carries, each
+  with its sentence, stage, design node, source and `crop`), `changes` (see [Ledger](#ledger)), `designPath` and `placeholderPath` (see [Design outline](#design-outline)), `xray`,
   `diffImage`, `livePath`, `capturePath`, `sources`, `partial` and
   `hint`. `design_diff({full: true})` returns the full report with every
   component and delta; the store, `design_status` and the x-ray always hold the full one. When the components
@@ -128,6 +128,10 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 - The type estimate asks the page to render its text samples in chunks of `renderChunk` 24, each call bounded by
   `measureTimeoutMs`; a chunk that fails or times out skips the estimate for its samples and adds a
   `typography-skipped` warning whose `live` is the number of samples skipped, and the run is still reported.
+- After the current stage's lines the brief carries the top `briefNext` (2) items of the next stage that has items,
+  each prefixed with its stage, `geometry next: h1 (src/Landing.tsx:59): ...`, so an item the agent cannot act on
+  never hides what comes after it. Stage, score, stop and the stall and oscillation reads count the current stage
+  only.
 - Run 0, the run `design_target` starts, gives the first `stage` and `brief` and is stored for the x-ray, but it is
   never a prior for `stalled` or `oscillating`: the history starts at the first `design_diff`.
 - `stalled` reads the same stage total: the run stalls when, for `stallRounds` rounds in a row under the current
@@ -172,8 +176,10 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   container whose children are all unbuilt is one line for the subtree (`build a column inside ...: "Revenue" (fit),
   "7000" (fit); gap 16`) and its children leave the items until it pairs; a run of unbuilt siblings is one line
   (`build a row of 2 cards under ...`) whose size is the sum of theirs; a leaf is `build the text "Payments" (fit) as
-  the 2nd item in the row inside ...`. A px number reaches the brief only in a delta on a paired element, and as
-  the position of an `extra` or `offset` entry, which point at a live element.
+  the 2nd item in the row inside ...`, and a box with no children is its size and background, `build a box 241x29
+  #ffe0d1 near "US bank account"` (`build a box 241x29 near ...` when it has no paint). Otherwise a px number reaches
+  the brief only in a delta on a paired element, and as the position of an `extra` or `offset` entry, which point at
+  a live element.
 - **Anchors.** A line never points at a node that has no name of its own (a box with no text inside, an image): a
   run or node whose previous sibling or parent is unnamed, and a leaf whose parent is unnamed or is the page, is
   anchored to the nearest design text above it (smaller `y`, overlapping x range, the closest, glyph runs skipped),

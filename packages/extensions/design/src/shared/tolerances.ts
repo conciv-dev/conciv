@@ -37,6 +37,7 @@ export const TOLERANCES = {
   roundBudget: 8,
   stallRounds: 2,
   briefSize: 5,
+  briefNext: 2,
   residualAreaGate: 0.01,
   runDebounceMs: 150,
   pairBudgetMs: 20_000,

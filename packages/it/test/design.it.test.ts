@@ -2008,7 +2008,44 @@ describe('loop', () => {
       await writeFile(HOST_STYLES, styles)
     }
   })
+
+  it('a page with structure and geometry rows briefs the top two geometry rows after the structure rows', async ({
+    annotate,
+  }) => {
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    try {
+      await writeFile(
+        HOST_STYLES,
+        `${styles}\n.toolbar button:first-child { display: none !important; }\n.field { width: 200px !important; }\n.table { width: 90% !important; }\n`,
+      )
+      await goto('target')
+      await freshTarget('u1-1280')
+      const report = await call('design_diff', {})
+      await annotate(
+        `brief ${JSON.stringify(report.brief)} rows ${JSON.stringify(report.rows.map((row) => row.stage))}`,
+      )
+      expect(report.stage).toBe('structure')
+      expect(report.brief.slice(-2).map((line) => line.startsWith('geometry next: '))).toEqual([true, true])
+      expect(report.rows.slice(-2).map((row) => row.stage)).toEqual(['geometry', 'geometry'])
+      expect(report.rows.filter((row) => row.stage === 'geometry')).toHaveLength(2)
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
+  })
+
+  it('an unbuilt box with no children is briefed by its size and background', async ({annotate}) => {
+    await goto('empty')
+    const {id} = await freshTarget('stripe-1280')
+    const box = (await storedNodes(id)).find((node) => node.id === STRIPE_BANK_BOX)
+    const report = await call('design_diff', {section: STRIPE_BANK_BOX})
+    await annotate(`box ${JSON.stringify(box)} brief ${JSON.stringify(report.brief)}`)
+    const sentence = `build a box ${Math.round(box?.box.w ?? 0)}x${Math.round(box?.box.h ?? 0)} ${box?.paint?.background ?? ''} `
+    expect(report.brief.filter((line) => line.startsWith(sentence))).toHaveLength(1)
+    expect(report.brief.filter((line) => line.includes('(fixed)'))).toEqual([])
+  })
 })
+
+const STRIPE_BANK_BOX = 'd9b175e8'
 
 const STRIPE_STYLES = join(HOST_ROOT, 'src', 'stripe.css')
 const EDITED_INK = '#c2410c'
