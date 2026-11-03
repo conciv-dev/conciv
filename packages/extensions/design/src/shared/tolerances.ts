@@ -72,6 +72,7 @@ export const designConfig = z.object({
 export type DesignConfig = z.output<typeof designConfig>
 
 export const SOURCE_ATTR = 'data-conciv-source'
+export const KEY_ATTR = 'data-conciv-key'
 export const PANE_ATTR = 'data-conciv-design-pane'
 
 export function kindTolerance(kind: DeltaKindName): number {

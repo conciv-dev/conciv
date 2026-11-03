@@ -8,9 +8,9 @@ import {
   BoxSchema,
   ContainerLayoutSchema,
   DiffReportSchema,
+  FingerprintSchema,
   LedgerSchema,
   NodeLayoutSchema,
-  SourceLocSchema,
   type DiffReport,
 } from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
@@ -106,9 +106,7 @@ const PairsSchema: z.ZodType<PairRecord[]> = z.array(
     node: z.string(),
     path: z.string(),
     confidence: z.number(),
-    fingerprint: z
-      .object({source: SourceLocSchema.nullable(), tag: z.string(), textHash: z.string(), box: BoxSchema})
-      .optional(),
+    fingerprint: FingerprintSchema.optional(),
   }),
 )
 

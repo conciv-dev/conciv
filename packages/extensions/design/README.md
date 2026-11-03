@@ -215,10 +215,17 @@ changes the time of a run, never its answer.
 - **Touched files.** Each target's run lane keeps the files of every `hmr-update` since its last run started, relative
   to the project; a run takes the set and clears it. A run with no `hmr-update` since the run before (an agent
   `design_diff`, an x-ray capture, a decision) gets `touched: all` and reuses nothing.
-- **Pairs.** Each entry of `pairs-<run>.json` carries the live element's `fingerprint`: `source`, `tag`, `textHash`
-  (fnv of the folded element text) and `box`. A pair of the run before is carried when its design node is still in
-  the model, a live element sits at the same source (or the same path when it has none) with the same tag and text
-  hash and a box within `tileMargin`, whatever file the edit touched: the fingerprint is the proof that the element did
+- **Pairs.** Each entry of `pairs-<run>.json` carries the live element's `fingerprint`: `source`, `key` (the
+  `data-conciv-key` the compiler stamps next to `data-conciv-source`: a hash of the file, the enclosing function, the
+  element name, its static class and its static text, with an ordinal among equal hashes in the file), `owner` (the
+  component path from the root, `Stripe[0] > Card[2] > h3[0]` from the React fiber chain, null when the framework is
+  unknown), `tag`, `textHash` (fnv of the folded element text) and `box`. The source line is an address for reading
+  the site; the key is the element's identity, so an edit that shifts lines changes no key. A pair of the run before is
+  carried when its design node is still in the model and a live element has the same key, or else the same owner path
+  (JSX moved to another file or into an extracted component), with the same text hash and a box within `tileMargin`;
+  copies with one key and one text go to the nearest box. Without a key on either side, a live element must sit at the
+  same source (or the same path when it has none) with the same tag and text hash and a box within `tileMargin`,
+  whatever file the edit touched: the fingerprint is the proof that the element did
   not change, so on a one-file page an edit that moves nothing else carries everything else. The touched files only
   order the scan, candidates under them first. Pins are applied first, then the carried
   pairs seed the pairer's state as a greedy take would and the greedy loop pairs the rest. The voters are calibrated
@@ -255,9 +262,11 @@ changes the time of a run, never its answer.
   and revokes it with the same button. `design_status.ledger` and the full report's `ledger` count the nodes per
   status, and the compact report's `counts` carries `done` and `regressed`.
 - **Changes.** `changes` compares the ledger before the run with the ledger after it: `done` (newly clean), `regressed`
-  (newly dirty or unpaired), `paired` (paired for the first time), `lost` (the element the node was paired to in the run
-  before has no element left with the same source file and line and text hash) and `moved` (that element is still
-  there, its box outside `tileMargin` of the stored one). Each entry is `{node, sentence, crop}`; accepted nodes are
+  (newly dirty or unpaired), `paired` (paired for the first time), `lost` (the node has no pair in the run and the
+  element it was paired to in the run before is not found by the fingerprint rule of the carry) and `moved` (the run's
+  pair box, or for an unpaired node the element still found, lies outside `tileMargin` of the stored one). A node
+  paired in the run is never `lost`, and a node that stays clean is `done` whichever element it pairs; its stored
+  fingerprint, line included, is the run's. Each entry is `{node, sentence, crop}`; accepted nodes are
   never listed. When a ledger existed before the run, the first brief line is the summary, `since round 2: 12
   done, 3 regressed ("Daybreak Yoga" lost its element), 5 paired` (second, after the `stalled` line, when the run
   stalled), and the stage's items of regressed nodes rank first.
