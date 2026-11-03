@@ -54,6 +54,7 @@ const PROMPT = `inline-flex items-center gap-[6px] min-h-7 -ms-1.5 px-1.5 rounde
 const PROMPT_MODEL = 'max-w-[32ch] truncate text-chat-text-3'
 const PROMPT_GLYPH = 'text-chat-accent'
 const ROW = `${LIST_PANEL_ITEM} data-[highlighted]:bg-chat-fill-strong data-[highlighted]:text-chat-text data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed`
+const SUBMENU = 'max-h-[var(--available-height)] overflow-y-auto overscroll-contain'
 const SLOT = 'size-5 shrink-0 grid place-items-center'
 const ROW_TEXT = 'flex-1 min-w-0 truncate'
 const EFFORT_ROW = 'flex items-center gap-1 pe-0.5'
@@ -223,7 +224,7 @@ function ModelSubmenu(props: RowsProps & {name: string}): JSX.Element {
         <ChevronRight class="size-4 block shrink-0 text-chat-text-3" aria-hidden="true" />
       </Menu.TriggerItem>
       <Menu.Positioner>
-        <Menu.Content>
+        <Menu.Content class={SUBMENU}>
           <ModelRows {...rows} />
         </Menu.Content>
       </Menu.Positioner>
