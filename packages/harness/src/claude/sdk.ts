@@ -1,6 +1,7 @@
 import {
   query,
   type ModelInfo,
+  type SDKControlInitializeResponse,
   type SDKUserMessage,
   type SlashCommand,
   type Options,
@@ -43,18 +44,24 @@ export function __commandsCacheSet(cwd: string, commands: HarnessCommand[]): voi
   commandsByCwd.set(cwd, commands)
 }
 
-async function probeCommands(ctx: HarnessCommandsContext): Promise<SlashCommand[]> {
+async function probe(options: Options): Promise<SDKControlInitializeResponse> {
   const input = makeInputQueue()
+  const session = query({prompt: input.stream, options})
+  try {
+    return await session.initializationResult()
+  } finally {
+    input.end()
+    void session.interrupt().catch(() => {})
+  }
+}
+
+async function probeCommands(ctx: HarnessCommandsContext): Promise<SlashCommand[]> {
   const options: Options = {cwd: ctx.cwd, permissionMode: 'acceptEdits'}
   if (ctx.mcpUrl) options.mcpServers = mcpServerConfig(ctx.mcpUrl, ctx.sessionId)
   if (CONCIV_PLUGIN_DIR) options.plugins = [{type: 'local', path: CONCIV_PLUGIN_DIR}]
-  const probe = query({prompt: input.stream, options})
-  try {
-    return await probe.supportedCommands()
-  } finally {
-    input.end()
-    void probe.interrupt().catch(() => {})
-  }
+  const init = await probe(options)
+  rememberModels(init.models)
+  return init.commands
 }
 
 const DEFAULT_CONTEXT_WINDOW = 200_000
@@ -64,12 +71,6 @@ const LONG_CONTEXT_WINDOW = 1_000_000
 const CURRENT_GROUP = 'Claude'
 
 const OLDER_GROUP = 'Older versions'
-
-const FALLBACK_MODELS: HarnessModel[] = [
-  {id: 'opus', name: 'Opus', description: 'Best for everyday, complex tasks'},
-  {id: 'sonnet', name: 'Sonnet', description: 'Efficient for routine tasks'},
-  {id: 'haiku', name: 'Haiku', description: 'Fastest for quick answers'},
-].map((model) => ({...model, group: CURRENT_GROUP, contextWindow: DEFAULT_CONTEXT_WINDOW}))
 
 const PINNED_PREFIX = 'claude-'
 
@@ -90,32 +91,26 @@ function toHarnessModel(model: ModelInfo, aliasFamilies: ReadonlySet<string>): H
   }
 }
 
-async function probeModels(): Promise<ModelInfo[]> {
-  const input = makeInputQueue()
-  const probe = query({prompt: input.stream, options: {cwd: process.cwd()}})
-  try {
-    return await probe.supportedModels()
-  } finally {
-    input.end()
-    void probe.interrupt().catch(() => {})
-  }
+function toHarnessModels(models: ModelInfo[]): HarnessModel[] {
+  const rows = models.filter((model) => model.value !== 'default')
+  const aliasFamilies = new Set(
+    rows.filter((model) => !model.value.startsWith(PINNED_PREFIX)).map((model) => familyOf(model.value)),
+  )
+  return rows.map((model) => toHarnessModel(model, aliasFamilies))
+}
+
+function rememberModels(models: ModelInfo[]): void {
+  modelsCache.pending ??= Promise.resolve(toHarnessModels(models))
 }
 
 const modelsCache: {pending?: Promise<HarnessModel[]>} = {}
 
 export function claudeSdkModels(): Promise<HarnessModel[]> {
-  modelsCache.pending ??= probeModels().then(
-    (models) => {
-      const rows = models.filter((model) => model.value !== 'default')
-      const aliasFamilies = new Set(
-        rows.filter((model) => !model.value.startsWith(PINNED_PREFIX)).map((model) => familyOf(model.value)),
-      )
-      const listed = rows.map((model) => toHarnessModel(model, aliasFamilies))
-      return listed.length > 0 ? listed : FALLBACK_MODELS
-    },
-    () => {
+  modelsCache.pending ??= probe({cwd: process.cwd()}).then(
+    (init) => toHarnessModels(init.models),
+    (error: unknown) => {
       delete modelsCache.pending
-      return FALLBACK_MODELS
+      throw error
     },
   )
   return modelsCache.pending

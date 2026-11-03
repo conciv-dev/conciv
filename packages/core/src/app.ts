@@ -21,6 +21,7 @@ import {
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness, transcriptPathWithin} from '@conciv/harness'
+import {withSavedModels} from './lib/saved-models.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
@@ -312,7 +313,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   assertUniqueExtensionSlugs(extensions)
 
-  const harness = opts.harness ?? requireHarness(opts.cfg.harness)
+  const harness = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), concivStateDir(opts.cfg.stateRoot))
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   const planeRef: {current: ChatPlane | null} = {current: null}

@@ -144,10 +144,19 @@ function titleOf(messages: ModelMessage[]): string {
     .slice(0, TITLE_MAX_CHARS)
 }
 
-async function contextWindowFor(harness: HarnessAdapter, modelId: string | null): Promise<number | undefined> {
+async function contextWindowFor(
+  harness: HarnessAdapter,
+  modelId: string | null,
+  log: TurnDeps['log'],
+): Promise<number | undefined> {
   if (modelId === null) return undefined
-  const models = await resolveHarnessModels(harness)
-  return models.find((model) => model.id === modelId)?.contextWindow
+  try {
+    const models = await resolveHarnessModels(harness)
+    return models.find((model) => model.id === modelId)?.contextWindow
+  } catch (error) {
+    log(`[chat] model list unavailable, usage recorded without a context window: ${String(error)}`)
+    return undefined
+  }
 }
 
 async function contextTokensOf(deps: TurnDeps, sessionId: SessionId): Promise<number | undefined> {
@@ -241,7 +250,7 @@ export function turnHooks(
       const usage = toTokenUsage(reported)
       if (usage === undefined) return
       const modelId = deps.sessions.row(sessionId)?.model ?? deps.harness.defaultModel ?? null
-      const contextWindow = await contextWindowFor(deps.harness, modelId)
+      const contextWindow = await contextWindowFor(deps.harness, modelId, deps.log)
       await deps.sessions.recordUsage(sessionId, {
         ...tokenUsageToSnapshot(usage),
         ...(modelId === null ? {} : {modelId}),
