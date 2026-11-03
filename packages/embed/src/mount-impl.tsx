@@ -149,14 +149,12 @@ function bootNormal(config: BootNormalConfig): BootResult {
   }))
   const [connectionGeneration, setConnectionGeneration] = createSignal(0)
   const [rebound, setApiBase] = createSignal<string | null>(null)
-  const engineBase = (): string | null => rebound() ?? login.apiBase()
-  const apiBase = (): string => engineBase() ?? ''
+  const apiBase = (): string => rebound() ?? login.apiBase() ?? ''
   const {
     rpc,
     rebind: rebindClient,
     close: closeConnection,
-    // oxlint-disable-next-line solid/reactivity
-  } = makeBrowserRpcClient(engineBase, {session: () => activeSession.read()})
+  } = makeBrowserRpcClient(login.apiBase, {session: () => activeSession.read()})
 
   const activeSession = makeActiveSessionBinding((session) =>
     startSessionPagePlane({

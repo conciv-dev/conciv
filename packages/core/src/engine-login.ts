@@ -194,6 +194,15 @@ function refusal(allowedOrigins: readonly string[]): Hono<{Variables: CorsVars}>
     .all('*', (c) => c.json({message: 'unauthorized'}, 401))
 }
 
+function presentedToken(
+  pathname: string,
+  authorization: string | null,
+): {token: string | undefined; path: string | undefined} {
+  const match = TOKEN_PATH.exec(pathname)
+  if (match) return {token: match[1], path: match[2] ?? '/'}
+  return {token: BEARER.exec(authorization ?? '')?.[1], path: undefined}
+}
+
 export function makeEngineGate<Env>(opts: {
   fetch: GatedFetch<Env>
   trusted: EngineTrust
@@ -204,12 +213,11 @@ export function makeEngineGate<Env>(opts: {
   return (request, env) => {
     const url = new URL(request.url)
     if (isOpenPath(url.pathname)) return opts.fetch(request, env)
-    const match = TOKEN_PATH.exec(url.pathname)
-    const token = match?.[1] ?? BEARER.exec(request.headers.get('authorization') ?? '')?.[1]
-    if (token === undefined || !opts.trusted(token)) return refuse.fetch(request)
+    const presented = presentedToken(url.pathname, request.headers.get('authorization'))
+    if (presented.token === undefined || !opts.trusted(presented.token)) return refuse.fetch(request)
     opts.onTrusted?.()
-    if (match === null) return opts.fetch(request, env)
-    url.pathname = match[2] ?? '/'
+    if (presented.path === undefined) return opts.fetch(request, env)
+    url.pathname = presented.path
     return opts.fetch(new Request(url, request), env)
   }
 }
