@@ -16,7 +16,6 @@ import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {QueryClient, QueryClientProvider} from '@tanstack/solid-query'
 import {type AppContextValue, AppContext} from '../src/app/context.js'
 import {makeLiveSessions} from '../src/app/live-sessions.js'
-import {makePaneChat} from '../src/app/use-pane-chat.js'
 import {createWarmSession} from '../src/app/warm-session.js'
 import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {parseConcivSettings} from '../src/data/settings.js'
@@ -158,6 +157,7 @@ type AppContextValueOptions = {
   sessionId?: string
   announce?: (message: string) => void
   instances?: ExtensionInstance[]
+  transport?: ChatTransportPreference
 }
 
 function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
@@ -169,12 +169,21 @@ function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
   const announce = options.announce
   const data = makeAppData(rpc, queryClient)
   const connected = () => true
+  const liveSessions = makeLiveSessions({
+    rpc,
+    apiBase: () => options.base,
+    generation: () => 0,
+    transport: () => options.transport,
+    appData: data,
+    queryClient,
+    announce: (message) => announce?.(message),
+  })
   return {
     rpc,
     settings: parseConcivSettings(''),
     environment: {rootNode: document, document},
     data,
-    liveSessions: makeLiveSessions(),
+    liveSessions,
     warmSession: createWarmSession(data, connected, queryClient),
     queryClient,
     announce: (message) => announce?.(message),
@@ -229,25 +238,16 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   const instances = createInstances(options.extensions ?? [])
   const [announced, setAnnounced] = createSignal<string[]>([])
   const [width, setWidth] = createSignal(options.width ?? DEFAULT_PANE_WIDTH_PX)
-  const app = makeAppContextValue({
-    base: options.base,
-    sessionId: options.sessionId,
-    announce: (message) => setAnnounced((entries) => [...entries, message]),
-    instances,
-  })
-  const {rpc, data, queryClient} = app
   const chatRoot = createRoot((disposeChat) => {
-    const chat = makePaneChat({
-      rpc,
-      apiBase: () => options.base,
-      sessionId: () => options.sessionId,
-      generation: () => 0,
-      transport: () => options.transport,
-      liveSessions: app.liveSessions,
-      appData: data,
-      queryClient,
-      announce: app.announce,
+    const app = makeAppContextValue({
+      base: options.base,
+      sessionId: options.sessionId,
+      announce: (message) => setAnnounced((entries) => [...entries, message]),
+      instances,
+      transport: options.transport,
     })
+    const {data, queryClient} = app
+    const chat = app.liveSessions.open(() => options.sessionId)
     const coordinator = makeRefreshCoordinator({
       chat,
       sessionId: () => options.sessionId,
@@ -255,8 +255,10 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
       queryClient,
       announce: app.announce,
     })
-    return {chat, coordinator, dispose: disposeChat}
+    return {app, chat, coordinator, dispose: disposeChat}
   })
+  const {app} = chatRoot
+  const {rpc, data, queryClient} = app
   const pane: PaneContextValue = {
     sessionId: () => options.sessionId,
     running: () => false,

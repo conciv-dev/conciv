@@ -24,7 +24,6 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 - `panel.$sessionId.tsx:Route.beforeLoad`: a param that fails `isSessionId` is resolved through `rpc.sessions.resolve` and redirected with `replace: true`
 - `panel.$sessionId.$view.tsx:Route.beforeLoad`: an unknown view id redirects to `/panel/$sessionId`
 - `quick.tsx:Route.beforeLoad`: redirects to `/` when `settings.quickTerminal.enabled` is false
-- `panel.$sessionId.tsx:useBlocker`: navigation to another session's `/panel` path is blocked while a run is in progress; view tabs of the same session stay reachable
 - `pip.$sessionId.tsx:PipSession`: if the popup cannot open, returns inline with `popOut: 'lost'`; closing the popup (`pagehide`) returns inline
 - `routeTree.gen.ts` (in `../`) is regenerated from these files by `pnpm generate-routes`
 

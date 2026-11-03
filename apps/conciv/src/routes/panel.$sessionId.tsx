@@ -1,4 +1,4 @@
-import {Outlet, createFileRoute, redirect, useBlocker, useMatchRoute, useRouter} from '@tanstack/solid-router'
+import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
 import {Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
@@ -27,10 +27,10 @@ import {
   useDisconnect,
   useGrabProvider,
   useInstances,
+  usePaneChat,
   useSettings,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
-import {usePaneChat} from '../app/use-pane-chat.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
@@ -82,10 +82,6 @@ export const Route = createFileRoute('/panel/$sessionId')({
   },
   component: PanelSession,
 })
-
-function sessionOf(location: {params: object}): unknown {
-  return 'sessionId' in location.params ? location.params.sessionId : undefined
-}
 
 function CloseChatButton(): JSX.Element {
   const panelChrome = usePanelChrome()
@@ -185,11 +181,6 @@ function PanelSession(): JSX.Element {
 
   const grabStaging = makeGrabStaging({
     ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input)),
-  })
-
-  useBlocker({
-    shouldBlockFn: ({current, next}) =>
-      running() && next.pathname.startsWith('/panel') && sessionOf(next) !== sessionOf(current),
   })
 
   const chat = usePaneChat(() => params().sessionId)

@@ -1108,15 +1108,19 @@ describe('panel view tabs', () => {
     const narration = () => page.getByText('Responding…', {exact: true})
     const chatPanel = () => page.getByRole('tabpanel', {name: 'Chat'})
 
-    test('the view tabs stay open mid-turn and Chat shows the finished reply once on return', async () => {
+    async function mountHeldTurn(sessionId: string): Promise<Awaited<ReturnType<typeof sendTurn>>> {
       await page.viewport(1000, 900)
-      const sessionId = await createSession(coreRpc(coreBase()))
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
       const turn = await sendTurn(coreBase(), sessionId, 'start a long turn')
       harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
       await expect.element(narration()).toBeVisible()
+      return turn
+    }
+
+    test('the view tabs stay open mid-turn and Chat shows the finished reply once on return', async () => {
+      const turn = await mountHeldTurn(await createSession(coreRpc(coreBase())))
 
       await expect.element(notesTab()).toBeEnabled()
       await notesTab().click()
@@ -1139,6 +1143,36 @@ describe('panel view tabs', () => {
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(FOLLOW_UP_TEXT), {timeout: 8000}).toBeVisible()
       await expect.element(page.getByText(STREAMED_TEXT)).toBeVisible()
+    }, 30_000)
+
+    test('another session can open mid-turn and the left run still settles in the background', async () => {
+      const rpc = coreRpc(coreBase())
+      const [running, other] = [await createSession(rpc), await createSession(rpc)]
+      await rpc.sessions.rename({sessionId: running, title: 'the running session'})
+      await rpc.sessions.rename({sessionId: other, title: 'the other session'})
+      const turn = await mountHeldTurn(running)
+      const option = (name: RegExp) => page.getByRole('option', {name})
+      const openSessions = async (active: string) => {
+        await page.getByRole('button', {name: 'Session options'}).click()
+        await page.getByRole('button', {name: `Session: ${active}`}).click()
+      }
+
+      await openSessions('the running session')
+      await option(/^the other session/).click()
+      await expect.element(page.getByText('How can I help you today?'), {timeout: 8000}).toBeVisible()
+      await expect.element(page.getByText('conciv replied.')).not.toBeInTheDocument()
+
+      await coreControl.releaseTurn()
+      await turn.awaitTurnEnd()
+      turn.close()
+      await expect.element(launcher()).toHaveAttribute('aria-busy', 'false')
+      await expect.element(page.getByText('conciv replied.'), {timeout: 8000}).toBeInTheDocument()
+      await openSessions('the other session')
+      await expect.element(option(/^the running session(?!.*running)/), {timeout: 8000}).toBeVisible()
+
+      await option(/^the running session/).click()
+      await expect.element(chatPanel().getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+      await expect.element(chatPanel().getByText('start a long turn')).toBeVisible()
     }, 30_000)
   })
 
