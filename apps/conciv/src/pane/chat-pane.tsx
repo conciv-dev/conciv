@@ -33,7 +33,7 @@ import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {MarkerRow} from '@conciv/contract'
-import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments, returnUnsentToDraft} from './pane-attachments.js'
@@ -113,6 +113,8 @@ const StoppedMetadataSchema = z.object({tanstack: z.object({stopReason: z.litera
 function isStoppedTurn(message: ChatMessage | undefined): boolean {
   return message?.role === 'assistant' && StoppedMetadataSchema.safeParse(message.metadata).success
 }
+
+type ModelMenuOpener = 'prompt' | 'command' | null
 
 export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Element {
   const rpc = useRpc()
@@ -227,8 +229,20 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
 
   const compacting = messaging.compacting
 
-  const triggerSources = useComposerTriggerSources(sessionId)
   const focusInput = () => requestAnimationFrame(() => inputHandle()?.focus())
+  const [modelMenuOpener, setModelMenuOpener] = createSignal<ModelMenuOpener>(null)
+  const changeModelMenu = (open: boolean) => {
+    if (!open && modelMenuOpener() === 'command') focusInput()
+    setModelMenuOpener(open ? 'prompt' : null)
+  }
+  const commandSources = useComposerTriggerSources({
+    sessionId,
+    openModelMenu: () => setModelMenuOpener('command'),
+  })
+  const sendOrRunCommand = async (content: string | SendContent): Promise<void> => {
+    if (typeof content === 'string' && commandSources.runTyped(content)) return
+    await messaging.onSend(content)
+  }
   const insert = (text: string) => {
     inputHandle()?.append(text)
     focusInput()
@@ -289,7 +303,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
         <ToolProvider value={toolCtx}>
           <ComposerHandlersProvider
             value={{
-              onSend: messaging.onSend,
+              onSend: sendOrRunCommand,
               onSendError: messaging.onSendError,
               onCancel: () =>
                 void chat.interruptAndFlush().then((unsent) => returnUnsentToDraft(unsent, {insert, addFile: attach})),
@@ -367,8 +381,14 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                             onSelectionChange={storage().noteSelection}
                             initialSelection={storage().restoredSelection}
                             busy={compacting() ? <CompactSpinner /> : undefined}
-                            triggers={triggerSources}
-                            prompt={<SessionModelPrompt sessionId={sessionId} />}
+                            triggers={commandSources.triggers}
+                            prompt={
+                              <SessionModelPrompt
+                                sessionId={sessionId}
+                                open={modelMenuOpener() !== null}
+                                onOpenChange={changeModelMenu}
+                              />
+                            }
                           >
                             <Suspense fallback={<ComposerActionsPending />}>
                               <ComposerActions

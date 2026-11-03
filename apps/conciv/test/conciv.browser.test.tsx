@@ -560,7 +560,13 @@ describe('model menu', () => {
     {id: 'claude-haiku-4-5', name: 'Haiku 4.5', group: 'Older versions'},
   ]
 
-  const core = bootedCore('model-menu', {models: MODELS})
+  const HARNESS_COMMANDS = [
+    {name: 'model', description: 'Set the AI model for Claude Code'},
+    {name: 'deploy', description: 'Ship the branch'},
+  ]
+  const REPLY = 'a model menu reply'
+
+  const core = bootedCore('model-menu', {models: MODELS, commands: HARNESS_COMMANDS, text: REPLY})
   const keep = keptPane()
 
   const prompt = (name: string) => page.getByRole('button', {name: `Model: ${name}`})
@@ -568,12 +574,83 @@ describe('model menu', () => {
   const menu = (name: string | RegExp) => page.getByRole('menu', {name})
   const effort = (name: string) => page.getByRole('menuitemradio', {name, exact: true})
   const effortGroup = () => page.getByRole('group', {name: 'Effort'})
+  const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
   async function mountModelMenu(): Promise<void> {
     const sessionId = await createSession(coreRpc(core()))
     keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
-    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    await expect.element(input()).toBeVisible()
   }
+
+  test('the slash list shows /model once, the built-in command replacing the harness one', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(input())
+    await userEvent.keyboard('/model')
+
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/modelSwitch the model')
+    expect(page.getByRole('option').elements()).toHaveLength(1)
+  })
+
+  test('/model and Enter opens the model menu, empties the composer and sends nothing', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(input())
+    await userEvent.keyboard('/model')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/modelSwitch the model')
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(menu('Model: Opus 5.5')).toHaveFocus()
+    await expect.element(input()).not.toHaveTextContent()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu('Model: Opus 5.5')).not.toBeInTheDocument()
+    await expect.element(input()).toHaveFocus()
+
+    await userEvent.keyboard('hello')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText(REPLY)).toBeVisible()
+    expect(page.getByText(REPLY).elements()).toHaveLength(1)
+    await expect.element(page.getByText('/model')).not.toBeInTheDocument()
+  })
+
+  test('/model typed with the menu dismissed and sent opens the model menu instead of reaching the agent', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(input())
+    await userEvent.keyboard('/model')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/modelSwitch the model')
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
+    await expect.element(input()).toHaveTextContent('/model')
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(menu('Model: Opus 5.5')).toHaveFocus()
+    await expect.element(input()).not.toHaveTextContent()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(input()).toHaveFocus()
+    await userEvent.keyboard('hello')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText(REPLY)).toBeVisible()
+    expect(page.getByText(REPLY).elements()).toHaveLength(1)
+    await expect.element(page.getByText('/model')).not.toBeInTheDocument()
+  })
+
+  test('a harness command still inserts a chip and is sent to the agent', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(input())
+    await userEvent.keyboard('/deploy')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/deployShip the branch')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(input().getByText('/deploy')).toBeVisible()
+    await expect.element(menu(/^Model:/)).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText(REPLY)).toBeVisible()
+    await expect.element(input()).not.toHaveTextContent()
+  })
 
   test('the prompt names the current model and the overflow menu no longer lists models', async () => {
     await mountModelMenu()

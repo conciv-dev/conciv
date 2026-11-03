@@ -166,7 +166,11 @@ function ModelSubmenu(props: {
   )
 }
 
-export function SessionModelPrompt(props: {sessionId: string}): JSX.Element {
+export function SessionModelPrompt(props: {
+  sessionId: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
   const announce = useAnnounce()
@@ -214,7 +218,11 @@ export function SessionModelPrompt(props: {sessionId: string}): JSX.Element {
     <div class={PROMPT_SLOT}>
       <Suspense fallback={<PlainPrompt />}>
         <Show when={failed() || models().length > 0} fallback={<PlainPrompt />}>
-          <Menu.Root positioning={{placement: 'top-start'}}>
+          <Menu.Root
+            positioning={{placement: 'top-start'}}
+            open={props.open}
+            onOpenChange={(details) => props.onOpenChange(details.open)}
+          >
             <Menu.Trigger
               asChild={(triggerProps) => (
                 <Button
