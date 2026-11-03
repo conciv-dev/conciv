@@ -1,4 +1,5 @@
 import {Cards} from './Cards'
+import {Stripe} from './Stripe'
 import {Table} from './Table'
 import {Toolbar} from './Toolbar'
 
@@ -29,6 +30,7 @@ export function App() {
   document.documentElement.className = (requested === null ? undefined : LOOK_CLASSES[requested]) ?? ''
   if (requested === 'empty') return null
   if (requested === 'dashboard') return <main className="dashboard" />
+  if (requested === 'stripe') return <Stripe />
   if (requested === 'type') {
     return (
       <main className="type">

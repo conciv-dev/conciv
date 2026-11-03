@@ -86,7 +86,7 @@ import {
   scoreTuple,
   type RunJob,
 } from './loop.js'
-import {align, pairTree, pairTwins, type Offset, type Shift} from './pair.js'
+import {align, glyphRun, pairTree, pairTwins, type Offset, type Shift} from './pair.js'
 import {lookups, mapDeclaration, readLiveText, type LiveText} from './provenance.js'
 import {
   boxBlur,
@@ -302,7 +302,7 @@ async function runDiff(request: {
     ...extraEntries({components: live.components, paired: new Set(matched.map((entry) => entry.component.path))}),
     ...offsetEntries({offsets: alignment.offsets, measured}),
   ]
-  const reported = reportedComponents({measured, input: job.input, color, placements})
+  const {reported, listed} = reportedComponents({measured, input: job.input, color, placements})
   const components = await withProvenance({ranked: reported, design, page, width: record.width, height: record.height})
   const enriched = new Map(
     reported.map((entry, index) => [entry.pair, components[index]?.deltas ?? entry.report.deltas]),
@@ -358,11 +358,17 @@ async function runDiff(request: {
       sources: measuredSources(live),
       responsive: await responsiveSection({store: design.store, id: record.id, model}),
       partial: paired.partial,
+      paired: matched.length,
       pinsLost: pins
         .filter((pin) => !matched.some((entry) => entry.node.id === pin.node && entry.component.path === pin.path))
         .map((pin) => pin.decision),
       ...(live.limits === undefined ? {} : {limits: live.limits}),
-      ...reportHint({attributed: live.components.length > 0, absolute: xray.absolute, partial: paired.partial}),
+      ...reportHint({
+        attributed: live.components.length > 0,
+        absolute: xray.absolute,
+        partial: paired.partial,
+        cut: {listed, shown: reported.length, paired: matched.length},
+      }),
     },
   })
 }
@@ -625,7 +631,8 @@ function unbuiltEntries(input: {nodes: TargetNode[]; pairedNodes: Set<string>}):
   return nodes
     .filter((node) => !pairedNodes.has(node.id))
     .map((node): Unmatched => {
-      const structural = node.kind !== 'image' && (node.within === undefined || pairedNodes.has(node.within))
+      const structural =
+        node.kind !== 'image' && !glyphRun(node) && (node.within === undefined || pairedNodes.has(node.within))
       return {
         kind: 'unbuilt',
         target: node.box,
@@ -692,12 +699,12 @@ function reportedComponents(input: {
   input: DiffInput
   color: ColorMetric
   placements: Placement[]
-}): Reported[] {
+}): {reported: Reported[]; listed: number} {
   const {measured, color, placements} = input
   const above = measured.filter((entry) => entry.deltas.length > 0 || entry.pair.mismatch >= TOLERANCES.tileGate)
   const impact = (entry: Measured): number =>
     Math.max(0, ...entry.deltas.map((delta) => (delta.confidence ?? 1) * deltaSize({delta, color})))
-  return above
+  const ranked = above
     .map((entry): Reported & {impact: number} => ({
       pair: entry.pair,
       impact: impact(entry),
@@ -723,8 +730,10 @@ function reportedComponents(input: {
         a.pair.liveBox.y - b.pair.liveBox.y ||
         a.pair.depth - b.pair.depth,
     )
-    .slice(0, input.input.limit)
-    .map(({pair, report}) => ({pair, report}))
+  return {
+    reported: ranked.slice(0, input.input.limit).map(({pair, report}) => ({pair, report})),
+    listed: ranked.length,
+  }
 }
 
 function twinDisagreement(input: {pair: Pair; placements: Placement[]}): Pick<ComponentReport, 'twinDisagreement'> {
@@ -1339,9 +1348,18 @@ function sourced(input: {delta: Delta; pair: Pair}): Delta {
   return {...input.delta, via: 'source', file: source.file, line: source.line, column: source.column}
 }
 
-function reportHint(input: {attributed: boolean; absolute: boolean; partial: boolean}): {hint?: string} {
+function reportHint(input: {
+  attributed: boolean
+  absolute: boolean
+  partial: boolean
+  cut: {listed: number; shown: number; paired: number}
+}): {hint?: string} {
+  const {cut} = input
   const hints = [
     input.partial ? PARTIAL_HINT : null,
+    cut.listed <= cut.shown
+      ? null
+      : `showing ${cut.shown} of ${cut.paired} paired components, those with deltas first; full: true lists every one`,
     input.attributed ? null : HINT,
     input.absolute ? null : ORIGIN_HINT,
   ].filter((hint) => hint !== null)
@@ -1357,6 +1375,8 @@ function shaped(input: {report: DiffReport; full: boolean}): CompactReport {
   const {report} = input
   const counts = {
     components: report.components.length,
+    paired: report.paired,
+    unbuilt: report.unmatched.filter((entry) => entry.kind === 'unbuilt').length,
     unmatched: report.unmatched.length,
     warnings: report.warnings.length,
   }

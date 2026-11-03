@@ -262,6 +262,7 @@ export const DiffReportSchema = z.object({
     .boolean()
     .default(false)
     .describe('pairing hit its time budget before every node was paired; the round was not counted'),
+  paired: z.number().default(0).describe('design nodes paired with a live element in this run'),
   pinsLost: z.array(z.string()).default([]).describe('pin decisions whose node or element is gone'),
   timings: TimingsSchema.default({measure: 0, compare: 0, pair: 0, total: 0}),
   rows: z.array(RowSchema).default([]).describe('the first ten items of the stage, in brief order'),
@@ -290,8 +291,16 @@ export const CompactReportSchema = DiffReportSchema.pick({
 })
   .extend({
     counts: z
-      .object({components: z.number(), unmatched: z.number(), warnings: z.number()})
-      .describe('how many components, unmatched entries and warnings the full report holds'),
+      .object({
+        components: z.number(),
+        paired: z.number(),
+        unbuilt: z.number(),
+        unmatched: z.number(),
+        warnings: z.number(),
+      })
+      .describe(
+        'how many components the full report lists, how many nodes paired, how many are unbuilt, and how many unmatched entries and warnings the full report holds',
+      ),
   })
   .loose()
   .describe('pass `full: true` for the full report with every component and delta')

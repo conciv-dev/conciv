@@ -79,11 +79,13 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 - `design_target` registers a PNG (a file under the project, or base64) as the design of a route at a width. It
   replaces an earlier target of the same route and width.
 - `design_diff` captures the live page and compares it with the target. It returns the compact report: `target`,
-  `round`, `budgetLeft`, `stage`, `stop`, `score`, `mismatch`, `brief`, `timings`, `counts` (components, unmatched
-  entries and warnings in the full report), `rows` (the first ten items of the stage, in brief order, each with its
+  `round`, `budgetLeft`, `stage`, `stop`, `score`, `mismatch`, `brief`, `timings`, `counts` (components listed, nodes
+  `paired` in the run, `unbuilt` entries, unmatched entries and warnings in the full report), `rows` (the first ten items of the stage, in brief order, each with its
   sentence, stage, design node and source), `xray`, `diffImage`, `livePath`, `capturePath`, `sources`, `partial` and
   `hint`. `design_diff({full: true})` returns the full report with every
-  component and delta; the store, `design_status` and the x-ray always hold the full one.
+  component and delta; the store, `design_status` and the x-ray always hold the full one. When the components
+  list was cut to `limit`, `hint` reads `showing 12 of 89 paired components, those with deltas first; full: true
+  lists every one`, so a short list is not read as the number of pairs.
 - `timings` gives the milliseconds of one run: `measure` (the page call, bounded by `measureTimeoutMs` 60000),
   `compare` (text groups, painting over and the pixel compare), `pair` (the pairer, bounded by `pairBudgetMs` 20000
   counted from the moment pairing starts) and `total`.
@@ -106,6 +108,19 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   longer be read.
 - `design_capture`, `design_winner` and `design_clear` capture the page, name the CSS declaration that wins a
   property, and remove targets.
+
+## Pairing
+
+The vote pairer scores every design node against every compatible live element and takes the best pair first.
+
+- A text node takes an element only when the centre of the node's box lies inside the element's box grown by
+  `tileMargin`. The test runs on every claim once geometry is trusted, and on every claim after the first while it
+  is not, so an OCR line 1 px outside its element, or one straddling two elements, still pairs.
+- A voter's weight is its base times how often it agrees with the base-weight consensus, counted only over design
+  nodes whose consensus top score is at least `pairFloor`.
+- A text node whose text voter and structure voter both abstain (a single glyph under 14 px whose parent is not
+  paired) is refused: kind, style, geometry and pixel alone never pair it. An unpaired glyph is `unbuilt` with
+  `stage: null`, outside the score.
 
 ## Sources
 

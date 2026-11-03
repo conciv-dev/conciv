@@ -23,6 +23,10 @@ export const PAIRERS = {vote: votePairer} as const satisfies Record<string, Pair
 
 export const RANKERS = {impact: impactRanker} as const satisfies Record<string, Ranker>
 
+export function glyphRun(node: TargetNode): boolean {
+  return node.kind === 'text' && glyphSized({text: folded(node.text), box: node.box})
+}
+
 export type Shift = {dx: number; dy: number}
 
 export type Offset = {pair: Pair | null; shift: Shift}
@@ -390,9 +394,8 @@ function elementGate(input: {node: View; candidate: View; state: State; toleranc
     return iou({a: node.box, b: candidate.box}) >= tolerances.pairBoxIou && area < tolerances.pairBoxArea
   }
   const reach = expand({box: candidate.box, by: tolerances.tileMargin})
-  if (state.trusted.has('geometry') && !holds({outer: reach, inner: node.box})) return false
-  const held = state.texts.get(candidate.key)
-  return held === undefined || holds({outer: reach, inner: node.box})
+  const within = holds({outer: reach, inner: {...centre(node.box), w: 0, h: 0}})
+  return within || (!state.trusted.has('geometry') && !state.texts.has(candidate.key))
 }
 
 function oneToOne(input: {node: View; candidate: View; state: State}): boolean {
@@ -452,7 +455,7 @@ function calibrate(input: VoteInput): Map<VoterName, number> {
       (best, entry) => (best === null || entry.score > best.score ? entry : best),
       null,
     )
-    if (consensus === null) return []
+    if (consensus === null || consensus.score < input.tolerances.pairFloor) return []
     return input.voters.flatMap((voter) => {
       const own = pool.filter((entry) => entry.votes[voter.name] !== null)
       if (own.length === 0 || consensus.votes[voter.name] === null) return []
@@ -546,7 +549,7 @@ function greedy(input: {
     const node = views.get(key)
     if (node === undefined) return []
     const top = list[0]
-    if (top === undefined || !passes({list, floor: pools.get(key) ?? 0, state, tolerances})) return []
+    if (top === undefined || !passes({node, list, floor: pools.get(key) ?? 0, state, tolerances})) return []
     return [{node, top}]
   })
   const best = ready.reduce<(typeof ready)[number] | null>(
@@ -583,10 +586,11 @@ function descends(input: {view: View; from: View}): boolean {
   return parent === input.from || descends({view: parent, from: input.from})
 }
 
-function passes(input: {list: Scored[]; floor: number; state: State; tolerances: Tolerances}): boolean {
-  const {list, floor, state, tolerances} = input
+function passes(input: {node: View; list: Scored[]; floor: number; state: State; tolerances: Tolerances}): boolean {
+  const {node, list, floor, state, tolerances} = input
   const [top, runner] = list
   if (top === undefined) return false
+  if (node.kind === 'text' && top.votes.text === null && top.votes.structure === null) return false
   if (top.score < tolerances.pairFloor || top.score < floor + tolerances.pairFloorMargin) return false
   if (runner === undefined || top.score - runner.score >= tolerances.pairMargin) return true
   return dominates({top, runner, trusted: state.trusted, tolerances})
@@ -605,10 +609,14 @@ function dominates(input: {top: Scored; runner: Scored; trusted: Set<VoterName>;
 function textVote(input: {node: View; candidate: View; context: Context}): number | null {
   const {node, candidate, context} = input
   if (node.kind !== 'text' || node.text === '') return null
-  if (node.text.length === 1 && node.box.h < GLYPH_RUN_HEIGHT) return null
+  if (glyphSized(node)) return null
   if (candidate.media && holds({outer: candidate.box, inner: node.box})) return 1 - bestText({node, context})
   if (candidate.text === '') return 0
   return similarity({a: node.text, b: candidate.text})
+}
+
+function glyphSized(input: {text: string; box: Box}): boolean {
+  return input.text.length === 1 && input.box.h < GLYPH_RUN_HEIGHT
 }
 
 function bestText(input: {node: View; context: Context}): number {

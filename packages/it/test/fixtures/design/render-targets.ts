@@ -1,4 +1,4 @@
-import {readFile, writeFile} from 'node:fs/promises'
+import {copyFile, readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
@@ -7,6 +7,7 @@ import {PNG} from 'pngjs'
 import {createServer} from 'vite'
 
 const HOST_ROOT = fileURLToPath(new URL('host/', import.meta.url))
+const STORED = ['stripe-1280'] as const
 const FIREFOX_SHOT = {name: 'u1-1280-firefox', path: '/?variant=target', width: 1280, height: 720} as const
 
 const SHOTS = [
@@ -78,4 +79,9 @@ export async function renderTargets(input: {browser: Browser; dir: string}): Pro
   }
   const retina = upscale2x(PNG.sync.read(await readFile(join(input.dir, 'u1-1280.png'))))
   await writeFile(join(input.dir, 'u1-2560.png'), PNG.sync.write(retina))
+  await Promise.all(
+    STORED.map((name) =>
+      copyFile(fileURLToPath(new URL(`${name}.png`, import.meta.url)), join(input.dir, `${name}.png`)),
+    ),
+  )
 }

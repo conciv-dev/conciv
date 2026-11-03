@@ -25,6 +25,7 @@ import type {XrayRouter} from '@conciv/extension-design/xray-routes'
 import {
   CaptureInputSchema,
   ClearInputSchema,
+  CompactReportSchema,
   DESIGN_GUIDE,
   DESIGN_TOOL_DEFS,
   designVerb,
@@ -1539,6 +1540,29 @@ function runFiles(input: {id: string; prefix: string}): Promise<string[]> {
     names.filter((name) => name.startsWith(input.prefix)).toSorted(),
   )
 }
+
+const STRIPE_REBUILT = ['bb458f09', 'da931653', '2332a289', 'ed1ee3d9']
+const StoredPairsSchema = z.array(z.object({node: z.string(), path: z.string()}))
+
+describe('pairing', () => {
+  it('stripe against stripe-1280 pairs the rebuilt headings and no single glyph', async ({annotate}) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const compact = CompactReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {}}))
+    await annotate(`counts ${JSON.stringify(compact.counts)}`)
+    const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+    const pairs = StoredPairsSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
+    )
+    const paired = new Set(pairs.map((pair) => pair.node))
+    const glyphs = (await storedNodes(id)).filter(
+      (node) => paired.has(node.id) && node.kind === 'text' && (node.text ?? '').trim().length === 1,
+    )
+    expect(compact.counts.paired).toBeGreaterThanOrEqual(92)
+    expect(STRIPE_REBUILT.filter((node) => !paired.has(node))).toEqual([])
+    expect(glyphs).toEqual([])
+  })
+})
 
 describe('loop', () => {
   it('bordered reports a border delta in the paint stage with a short brief at round 1', async () => {
