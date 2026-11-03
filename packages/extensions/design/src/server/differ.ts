@@ -2,7 +2,7 @@ import pixelmatch from 'pixelmatch'
 import {diff} from '@blazediff/core'
 import {z} from 'zod'
 import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
-import {groupBy, keyBy, mapValues, omit, pick, range, uniq, uniqBy} from 'es-toolkit'
+import {groupBy, keyBy, mapValues, omit, partition, pick, range, uniq, uniqBy} from 'es-toolkit'
 import {isPageVerbError, toolError, type AnyToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {createHash} from 'node:crypto'
@@ -997,17 +997,11 @@ function comparePages(input: {
     if (box === undefined || tile.hash !== hashes[index] || tile.mask === undefined) return
     unpackMask({packed: tile.mask, mask, width, box})
   })
-  clusters({grid, changed}).forEach((cluster) =>
-    compareTiles({
-      live,
-      target,
-      comparator,
-      mask,
-      width,
-      clock,
-      boxes: cluster.flatMap((index) => boxes[index] ?? []),
-    }),
-  )
+  compareAreas({
+    clusters: clusters({grid, changed}).map((cluster) => cluster.flatMap((index) => boxes[index] ?? [])),
+    width,
+    height,
+  }).forEach((area) => compareTiles({live, target, comparator, mask, width, clock, ...area}))
   const tiles = hashes.map((hash, index): TileRecord => {
     const kept = reusable[index]
     if (kept !== undefined && kept.hash === hash) return kept
@@ -1053,22 +1047,48 @@ function sameGrid(input: {a: Pick<Grid, 'side' | 'width' | 'height'>; b: Grid}):
   return a.side === b.side && a.width === b.width && a.height === b.height
 }
 
+type CompareArea = {area: Box; boxes: Box[]}
+
+function compareAreas(input: {clusters: Box[][]; width: number; height: number}): CompareArea[] {
+  const {width, height} = input
+  return input.clusters
+    .filter((boxes) => boxes.length > 0)
+    .map((boxes): CompareArea => {
+      const reach = expand({box: union(boxes), by: TOLERANCES.tileSide})
+      const x = Math.max(0, reach.x)
+      const y = Math.max(0, reach.y)
+      return {
+        area: {x, y, w: Math.min(width, reach.x + reach.w) - x, h: Math.min(height, reach.y + reach.h) - y},
+        boxes,
+      }
+    })
+    .reduce((kept: CompareArea[], next) => absorbed({kept, next}), [])
+}
+
+function absorbed(input: {kept: CompareArea[]; next: CompareArea}): CompareArea[] {
+  const {kept, next} = input
+  const [touching, apart] = partition(kept, (other) => intersection({a: other.area, b: next.area}) !== null)
+  if (touching.length === 0) return [...kept, next]
+  return absorbed({
+    kept: apart,
+    next: {
+      area: union([next.area, ...touching.map((other) => other.area)]),
+      boxes: [...next.boxes, ...touching.flatMap((other) => other.boxes)],
+    },
+  })
+}
+
 function compareTiles(input: {
   live: Raster
   target: Raster
   comparator: PixelComparator
   mask: Uint8Array
   width: number
+  area: Box
   boxes: Box[]
   clock: Clock
 }): void {
-  const {live, target, comparator, mask, width, boxes, clock} = input
-  if (boxes.length === 0) return
-  const height = Math.min(live.height, target.height)
-  const reach = expand({box: union(boxes), by: TOLERANCES.tileSide})
-  const x = Math.max(0, reach.x)
-  const y = Math.max(0, reach.y)
-  const area = {x, y, w: Math.min(width, reach.x + reach.w) - x, h: Math.min(height, reach.y + reach.h) - y}
+  const {live, target, comparator, mask, width, area, boxes, clock} = input
   const a = boxBlur({raster: crop({raster: live, box: area}).raster, radius: TOLERANCES.blurRadius})
   const b = boxBlur({raster: crop({raster: target, box: area}).raster, radius: TOLERANCES.blurRadius})
   const compared = comparator.compare({a, b})
