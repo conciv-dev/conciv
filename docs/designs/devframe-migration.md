@@ -813,7 +813,9 @@ Group-specific files:
   (`StartOpts.launchEditor`, `makeEditorOpener`), `packages/try/src/connect.ts`,
   `packages/extension-testkit/src/boot-server.ts`, `packages/plugin/package.json` and its
   tsdown external (Modify, remove `launch-editor`). Opening goes through
-  `@devframes/service-open`, which refuses paths outside the project.
+  `@devframes/service-open` with its defaults: it opens paths under the hub's
+  `workspaceRoot` and refuses the rest. No extra `roots`. Decided: follow Devframe's
+  behaviour, including for files outside the app folder in a monorepo.
 - **captures and page (PR 7)**: `packages/core/src/page-bus.ts` (Modify: bus removed; `makeJournal`
   and the types used by `runtime/core-runtime.ts`, `scope-types.ts`, `primitives.ts` and
   `tool-registry.ts` stay); `packages/core/src/api/push.ts`,
