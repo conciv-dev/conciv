@@ -22,7 +22,13 @@ import type {
 import {placement, type Seat, type Tree} from './layout.js'
 import {union} from './raster.js'
 
-type Round = {score: number[]; capturePath: CapturePath | undefined; values: Map<string, number | string>}
+export type Round = {
+  score: number[]
+  capturePath: CapturePath | undefined
+  values: Map<string, number | string>
+  capture: string
+  report: DiffReport
+}
 
 type Verdict = Pick<DiffReport, 'stage' | 'brief' | 'round' | 'budgetLeft' | 'stop' | 'score' | 'rows'>
 
@@ -173,11 +179,19 @@ export function judge(input: {
   }
 }
 
-export function roundRecord(input: {items: Item[]; score: number[]; capturePath: CapturePath | undefined}): Round {
+export function roundRecord(input: {
+  items: Item[]
+  score: number[]
+  capturePath: CapturePath | undefined
+  capture: string
+  report: DiffReport
+}): Round {
   return {
     score: input.score,
     capturePath: input.capturePath,
     values: new Map(input.items.filter((item) => item.stage !== null).map((item) => [item.key, item.value])),
+    capture: input.capture,
+    report: input.report,
   }
 }
 

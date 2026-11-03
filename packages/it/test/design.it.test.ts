@@ -571,7 +571,15 @@ it('keeps twenty runs per target besides run 0', async () => {
   if (current === undefined) return
   const home = fileUnder(stateRoot, `.conciv/design/${current.id}`)
   const runZero = (await readdir(home)).filter((name) => name.startsWith('result-')).toSorted()[0]
-  for (const _ of Array.from({length: 21})) await call('design_diff', {})
+  const styles = await readFile(HOST_STYLES, 'utf8')
+  try {
+    for (const round of Array.from({length: 21}, (_, index) => index)) {
+      await repaint({id: current.id, styles, round})
+      await call('design_diff', {})
+    }
+  } finally {
+    await writeFile(HOST_STYLES, styles)
+  }
   const names = await readdir(home)
   expect(['live-', 'diff-', 'result-'].map((prefix) => names.filter((name) => name.startsWith(prefix)).length)).toEqual(
     [21, 21, 21],
@@ -1592,6 +1600,14 @@ function runFiles(input: {id: string; prefix: string}): Promise<string[]> {
   )
 }
 
+async function repaint(input: {id: string; styles: string; round: number}): Promise<void> {
+  const {id, styles, round} = input
+  const before = (await runFiles({id, prefix: 'result-'})).at(-1)
+  const dot = `body::after { content: ''; position: fixed; right: 0; bottom: 0; width: 1px; height: 1px; background: rgb(238 241 ${200 + round}); }`
+  await writeFile(HOST_STYLES, `${styles}\n${dot}\n`)
+  await expect.poll(async () => (await runFiles({id, prefix: 'result-'})).at(-1), {timeout: 15_000}).not.toBe(before)
+}
+
 const STRIPE_REBUILT = ['bb458f09', 'da931653', '2332a289', 'ed1ee3d9']
 const StoredPairsSchema = z.array(z.object({node: z.string(), path: z.string()}))
 
@@ -1643,11 +1659,19 @@ describe('loop', () => {
     )
   })
 
-  it('nine diffs of an unchanged bordered page stop stalled before the budget', async () => {
+  it('nine diffs of a bordered page with a non-improving edit before each stop stalled before the budget', async () => {
     await goto('bordered')
-    await freshTarget('u1-1280')
+    const {id} = await freshTarget('u1-1280')
+    const styles = await readFile(HOST_STYLES, 'utf8')
     const stops: (string | null)[] = []
-    for (const _ of Array.from({length: 9})) stops.push((await call('design_diff', {})).stop)
+    try {
+      for (const round of Array.from({length: 9}, (_, index) => index)) {
+        if (round > 0) await repaint({id, styles, round})
+        stops.push((await call('design_diff', {})).stop)
+      }
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
     expect(stops.at(-1)).toBe('stalled')
     expect(stops.indexOf('stalled')).toBeLessThan(7)
     expect(stops).not.toContain('budget')
@@ -1723,6 +1747,18 @@ describe('loop', () => {
     }
   })
 
+  it('two diffs of an unchanged page report the same round and say the page has not changed', async () => {
+    await goto('bordered')
+    await freshTarget('u1-1280')
+    const first = await call('design_diff', {})
+    const second = await call('design_diff', {})
+    expect([second.round, second.budgetLeft, second.hint]).toEqual([
+      first.round,
+      first.budgetLeft,
+      'the page has not changed since the last diff',
+    ])
+  })
+
   it('pairs the finished fixture within the run budget and reports no partial run', async () => {
     await goto('target')
     await freshTarget('u1-1280')
@@ -1730,10 +1766,19 @@ describe('loop', () => {
     expect(report.partial).toBe(false)
     expect([report.components, report.unmatched]).toEqual([[], []])
   })
-  it('two diffs of an unchanged page after registration have no stop and the third is stalled', async () => {
+  it('two diffs after registration with a non-improving edit between have no stop and the third is stalled', async () => {
     await goto('bordered')
-    await freshTarget('u1-1280')
-    const reports = [await call('design_diff', {}), await call('design_diff', {}), await call('design_diff', {})]
+    const {id} = await freshTarget('u1-1280')
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    const reports: DiffReport[] = []
+    try {
+      for (const round of Array.from({length: 3}, (_, index) => index)) {
+        if (round > 0) await repaint({id, styles, round})
+        reports.push(await call('design_diff', {}))
+      }
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
     expect(reports.map((report) => report.stop)).toEqual([null, null, 'stalled'])
     const first = reports.at(-1)?.brief[0] ?? ''
     expect([first.startsWith('stalled: '), first.includes(' items unchanged for 2 rounds')]).toEqual([true, true])
@@ -1823,11 +1868,12 @@ describe('loop', () => {
     await goto('missing')
     const {id} = await freshTarget('u1-1280')
     await call('design_diff', {})
-    const second = await call('design_diff', {full: true})
-    const unchanged = new Set(second.rows.flatMap((row) => (row.node === undefined ? [] : [row.node])))
     const styles = await readFile(HOST_STYLES, 'utf8')
-    const runs = (await runFiles({id, prefix: 'result-'})).length
     try {
+      await repaint({id, styles, round: 1})
+      const second = await call('design_diff', {full: true})
+      const unchanged = new Set(second.rows.flatMap((row) => (row.node === undefined ? [] : [row.node])))
+      const runs = (await runFiles({id, prefix: 'result-'})).length
       await writeFile(HOST_STYLES, `${styles}\n.toolbar button:first-child { display: none !important; }\n`)
       await expect
         .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})

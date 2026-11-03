@@ -93,6 +93,9 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 - A run whose pairing hits `pairBudgetMs` is `partial`: it is not added to the round history, keeps the `round` and
   `budgetLeft` of the run before, reports `stop: null`, and its `hint` says pairing was cut short and the numbers are
   not comparable.
+- A `design_diff` whose live capture (the pixels and the decisions) hashes the same as the last round's does not
+  advance `round` or spend `budgetLeft`, and leaves the history and the stall priors as they were: it repeats the
+  last round's report with fresh `timings` and `hint: the page has not changed since the last diff`.
 - The type estimate asks the page to render its text samples in chunks of `renderChunk` 24, each call bounded by
   `measureTimeoutMs`; a chunk that fails or times out skips the estimate for its samples and adds a
   `typography-skipped` warning whose `live` is the number of samples skipped, and the run is still reported.

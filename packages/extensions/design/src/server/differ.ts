@@ -4,6 +4,7 @@ import {z} from 'zod'
 import {groupBy, keyBy, pick, range, uniq, uniqBy} from 'es-toolkit'
 import {toolError, type AnyToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
+import {createHash} from 'node:crypto'
 import {basename} from 'node:path'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {
@@ -84,6 +85,7 @@ import {
   lexicallyWorse,
   roundRecord,
   scoreTuple,
+  type Round,
   type RunJob,
 } from './loop.js'
 import {align, glyphRun, pairTree, pairTwins, type Offset, type Shift} from './pair.js'
@@ -219,6 +221,10 @@ async function runDiff(request: {
   const dropped = droppedNodes({decisions, nodes: model.nodes})
   const measureStart = Date.now()
   const reading = await measure({width: record.width, height: record.height, page})
+  const capture = createHash('sha256').update(reading.raster.data).update(JSON.stringify(decisions)).digest('hex')
+  const rounds = history.rounds(record.id)
+  const repeated = repeatedRound({rounds, capture, observe: job.observe, started, measureStart})
+  if (repeated !== null) return repeated
   const compareStart = Date.now()
   const droppedBoxes = model.nodes.filter((node) => dropped.has(node.id)).map((node) => node.box)
   const live = {
@@ -322,7 +328,6 @@ async function runDiff(request: {
     unpairedShare: unpairedShare({unmatched, page: page0}),
     residualShare: residualShare({measured, unmatched, masks: droppedBoxes, page: page0}),
   })
-  const rounds = history.rounds(record.id)
   const advances = job.observe && !paired.partial
   const verdict = judge({
     items,
@@ -336,7 +341,6 @@ async function runDiff(request: {
     color,
     partial: paired.partial,
   })
-  if (advances) history.append({id: record.id, round: roundRecord({items, score, capturePath: live.capturePath})})
   const pageWidth = Math.min(live.raster.width, model.raster.width)
   const timings = {
     measure: compareStart - measureStart,
@@ -344,7 +348,7 @@ async function runDiff(request: {
     pair: pairEnd - pairStart,
     total: Date.now() - started,
   }
-  return design.store.writeRun({
+  const report = await design.store.writeRun({
     id: record.id,
     live: live.raster,
     diff: paintDiff({live: masked, mask: pixels.mask, width: pageWidth}),
@@ -377,6 +381,27 @@ async function runDiff(request: {
       }),
     },
   })
+  if (advances) {
+    history.append({id: record.id, round: roundRecord({items, score, capturePath: live.capturePath, capture, report})})
+  }
+  return report
+}
+
+function repeatedRound(input: {
+  rounds: Round[]
+  capture: string
+  observe: boolean
+  started: number
+  measureStart: number
+}): DiffReport | null {
+  const previous = input.rounds.at(-1)
+  if (!input.observe || previous === undefined || previous.capture !== input.capture) return null
+  const now = Date.now()
+  return {
+    ...previous.report,
+    hint: UNCHANGED_HINT,
+    timings: {measure: now - input.measureStart, compare: 0, pair: 0, total: now - input.started},
+  }
 }
 
 function cssModel(model: TargetModel): TargetModel {
@@ -1230,6 +1255,7 @@ function textDelta(input: {live: LiveRole; target: Role; equal: boolean}): TextV
 type RouteItem = NonNullable<DiffReport['route']>
 
 const HINT = 'no element carries data-conciv-source; the page is not a dev build compiled by the conciv plugin'
+const UNCHANGED_HINT = 'the page has not changed since the last diff'
 const ORIGIN_HINT = 'the conciv engine origin is unknown, so xray is a path on the engine and not a full url'
 const COMPACT_FIELDS = [
   'target',
