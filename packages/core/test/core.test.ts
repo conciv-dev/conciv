@@ -984,6 +984,13 @@ describe('engine login', () => {
         expect(await refused(`${origin}/t/${made.agentToken}${route.path}`, route.method), route.path).toBe(false)
       }
       expect(OPEN_PATHS).toEqual(['/health', '/auth/check', '/auth/code', '/auth/exchange', '/native', '/native/*'])
+      const upgrade = (prefix: string): Promise<string> =>
+        new Promise((resolve) => {
+          const socket = new WebSocket(`${origin.replace('http', 'ws')}${prefix}/push-ws`)
+          socket.addEventListener('open', () => resolve('open'))
+          socket.addEventListener('error', () => resolve('refused'))
+        })
+      expect([await upgrade(''), await upgrade(`/t/${made.agentToken}`)]).toEqual(['refused', 'open'])
     } finally {
       await served.close()
       await made.dispose()
