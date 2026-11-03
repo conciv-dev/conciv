@@ -697,7 +697,7 @@ describe('launch actions', () => {
 
     await expect.element(page.getByText('Opened in Claude.')).toBeVisible()
     expect(await coreControl.terminalLaunches()).toBe(1)
-    expect(await coreControl.rpcCallCount(LAUNCH_PATH)).toBe(1)
+    await expect.poll(() => coreControl.rpcCallCount(LAUNCH_PATH)).toBe(1)
   })
 
   test('when the terminal cannot open, the connect command is offered instead', async () => {
@@ -709,7 +709,7 @@ describe('launch actions', () => {
     await page.getByText('Open in Claude').click()
 
     await expect.element(page.getByText(/Command copied|Run in your terminal: cd .*'claude' '--resume'/)).toBeVisible()
-    expect((await coreControl.rpcCallCount(CONNECT_COMMAND_PATH)) - before).toBe(1)
+    await expect.poll(() => coreControl.rpcCallCount(CONNECT_COMMAND_PATH)).toBe(before + 1)
   })
 
   test('a launch failure is surfaced instead of swallowed', async () => {
