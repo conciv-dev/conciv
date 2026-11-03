@@ -2229,7 +2229,7 @@ describe('live loop', () => {
     }
   }, 240_000)
 
-  it('a diff with no edit since the carried run carries nothing and gives the same answer', async () => {
+  it('a diff with no edit since the carried run carries its pairs and tiles and gives the same answer', async () => {
     await goto('stripe')
     const {id} = await freshTarget('stripe-1280')
     const styles = await readFile(STRIPE_STYLES, 'utf8')
@@ -2241,7 +2241,8 @@ describe('live loop', () => {
       await xrayRpc.xray.mark({id, kind: 'tolerance', node: node.id, value: 1, session: kit.session})
       const full = await call('design_diff', {})
       expect(carried.timings.carried.pairs).toBeGreaterThan(0)
-      expect(full.timings.carried).toEqual({pairs: 0, tiles: 0})
+      expect(full.timings.carried.pairs).toBeGreaterThan(0)
+      expect(full.timings.carried.tiles).toBeGreaterThan(0)
       expect([full.score, full.mismatch, full.paired]).toEqual([carried.score, carried.mismatch, carried.paired])
       expect(componentMismatch(full)).toEqual(componentMismatch(carried))
     } finally {
