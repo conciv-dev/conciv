@@ -1,7 +1,7 @@
 import {createRouter} from '@tanstack/solid-router'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient, onlineManager} from '@tanstack/solid-query'
-import {createEffect, createMemo, createRoot, from, onCleanup, type Accessor, type JSX} from 'solid-js'
+import {createMemo, createRoot, from, onCleanup, type Accessor, type JSX} from 'solid-js'
 import type {RpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import type {ClientExtension} from '@conciv/extension'
@@ -84,10 +84,11 @@ function wireEngineConnection(
   data: AppData,
 ): {online: Accessor<boolean>; dispose: () => void} {
   return createRoot((dispose) => {
-    const reachability = createMemo(() =>
-      from(engineReachability(apiBase(), hubConnection?.()), onlineManager.isOnline()),
-    )
-    createEffect(() => onCleanup(data.readHubState()))
+    const reachability = createMemo(() => {
+      const connection = hubConnection?.()
+      if (connection) onCleanup(data.readHubState(connection))
+      return from(engineReachability(apiBase(), connection), onlineManager.isOnline())
+    })
     return {online: () => reachability()(), dispose}
   })
 }
