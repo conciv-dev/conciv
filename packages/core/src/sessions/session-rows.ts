@@ -15,7 +15,7 @@ import {
   SessionRecordSchema,
 } from '@conciv/protocol/chat-types'
 import type {HarnessSessionMeta} from '@conciv/protocol/harness-types'
-import {chatThreads, sessions, type ConcivDb} from '@conciv/db'
+import {anchorKey, chatMetadata, chatThreads, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {logError} from '../lib/debug.js'
 
@@ -228,11 +228,26 @@ export async function sweepEmptyRows(db: ConcivDb): Promise<void> {
     )
 }
 
+export function switchRowHarness(db: ConcivDb, id: SessionId, harnessKind: string): void {
+  db.transaction((tx) => {
+    tx.update(sessions)
+      .set({harnessKind, harnessSessionId: null, model: null, updatedAt: Date.now()})
+      .where(eq(sessions.id, id))
+      .run()
+    tx.delete(chatMetadata)
+      .where(and(eq(chatMetadata.namespace, TRANSCRIPT_NAMESPACE), eq(chatMetadata.key, anchorKey(id))))
+      .run()
+  })
+}
+
+export type NativeList = {harnessKind: string; list: HarnessSessionMeta[]}
+
+type NativeEntry = {harnessKind: string; meta: HarnessSessionMeta}
+
 export type SessionListInput = {
   db: ConcivDb
-  harnessKind: string
   cwd: string
-  nativeList: HarnessSessionMeta[]
+  nativeLists: NativeList[]
   running: ReadonlySet<string>
   model: (sessionId: SessionId) => string | null
   includeHidden: boolean
@@ -256,9 +271,12 @@ function rowFacts(row: SessionRecord, native: HarnessSessionMeta | undefined, st
   }
 }
 
+const nativeKey = (harnessKind: string, nativeId: string): string => JSON.stringify([harnessKind, nativeId])
+
 function rowMeta(row: SessionRecord, native: HarnessSessionMeta | undefined, input: CountedListInput): SessionMeta {
   return {
     ...rowFacts(row, native, input.storedCounts.get(row.id)),
+    harnessKind: row.harnessKind,
     id: row.id,
     running: input.running.has(row.id),
     origin: row.origin === 'external' ? 'external' : 'conciv',
@@ -270,16 +288,16 @@ function rowMeta(row: SessionRecord, native: HarnessSessionMeta | undefined, inp
   }
 }
 
-async function materializeNative(native: HarnessSessionMeta, input: CountedListInput): Promise<SessionMeta> {
-  const scope: RowScope = {db: input.db, harnessKind: input.harnessKind, cwd: input.cwd}
+async function materializeNative(native: NativeEntry, input: CountedListInput): Promise<SessionMeta> {
+  const scope: RowScope = {db: input.db, harnessKind: native.harnessKind, cwd: input.cwd}
   const {sessionId} = await openNativeRow(scope, {
-    harnessKind: input.harnessKind,
+    harnessKind: native.harnessKind,
     cwd: input.cwd,
-    nativeId: native.id,
+    nativeId: native.meta.id,
   })
   const row = await rowById(input.db, sessionId)
   if (row === null) throw new Error(`session row "${sessionId}" vanished while listing native sessions`)
-  return rowMeta(row, native, input)
+  return rowMeta(row, native.meta, input)
 }
 
 export async function listSessionMetas(input: SessionListInput): Promise<SessionMeta[]> {
@@ -294,17 +312,26 @@ export async function listSessionMetas(input: SessionListInput): Promise<Session
     })
     .filter((row) => sameCwd(row.cwd, input.cwd))
     .filter((row) => input.includeHidden || row.deletedAt === null)
-  const nativeById = new Map(input.nativeList.map((native) => [native.id, native]))
+  const natives = input.nativeLists.flatMap(({harnessKind, list}) => list.map((meta) => ({harnessKind, meta})))
+  const nativeByKey = new Map(natives.map((native) => [nativeKey(native.harnessKind, native.meta.id), native.meta]))
   const stored = await input.db
     .select({threadId: chatThreads.threadId, count: sql<number>`json_array_length(${chatThreads.messagesJson})`})
     .from(chatThreads)
   const counted = {...input, storedCounts: new Map(stored.map((thread) => [thread.threadId, thread.count]))}
-  const claimed = new Set(rows.flatMap((row) => (row.harnessSessionId ? [row.harnessSessionId] : [])))
+  const claimed = new Set(
+    rows.flatMap((row) => (row.harnessSessionId ? [nativeKey(row.harnessKind, row.harnessSessionId)] : [])),
+  )
   const ours = rows.map((row) =>
-    rowMeta(row, row.harnessSessionId ? nativeById.get(row.harnessSessionId) : undefined, counted),
+    rowMeta(
+      row,
+      row.harnessSessionId ? nativeByKey.get(nativeKey(row.harnessKind, row.harnessSessionId)) : undefined,
+      counted,
+    ),
   )
   const unmaterialized = await Promise.all(
-    input.nativeList.filter((native) => !claimed.has(native.id)).map((native) => materializeNative(native, counted)),
+    natives
+      .filter((native) => !claimed.has(nativeKey(native.harnessKind, native.meta.id)))
+      .map((native) => materializeNative(native, counted)),
   )
   return [...ours, ...unmaterialized].toSorted((a, b) => b.updatedAt - a.updatedAt)
 }

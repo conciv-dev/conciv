@@ -3,7 +3,7 @@ import {Hono} from 'hono'
 import {upgradeWebSocket} from '@hono/node-server'
 import {os} from '@orpc/server'
 import {z} from 'zod'
-import {defineExtension, type ServerApi} from '@conciv/extension'
+import {defineExtension, type ServerApi, type ServerHarness} from '@conciv/extension'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext, HarnessConnectPlan, TerminalOpener} from '@conciv/protocol/harness-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
@@ -50,9 +50,16 @@ function applyControl(session: TtySession, control: TtyClientControl | null, tex
   return false
 }
 
-function resumable({server}: TerminalRuntime, harnessSessionId: HarnessSessionId | null): boolean {
+function resumable(harness: ServerHarness, harnessSessionId: HarnessSessionId | null): boolean {
   if (!harnessSessionId) return false
-  return server.harness.transcriptExists?.(harnessSessionId) ?? true
+  return harness.transcriptExists?.(harnessSessionId) ?? true
+}
+
+function liveTty({server, tty}: TerminalRuntime, sessionId: SessionId): TtySession | undefined {
+  const alive = tty.get(sessionId)
+  if (alive === undefined || alive.owner === server.harness(sessionId).id) return alive
+  tty.close(sessionId)
+  return undefined
 }
 
 function apiBase(runtime: TerminalRuntime, context: RpcContext): string {
@@ -72,7 +79,7 @@ async function connectContext(
     stateDir: server.stateDir,
     concivSessionId: sessionId,
     harnessSessionId,
-    resume: resumable(runtime, harnessSessionId),
+    resume: resumable(server.harness(sessionId), harnessSessionId),
     owned: true,
     model: model ?? (await server.sessions.model(sessionId)),
     mcpUrl: `${base}/api/mcp`,
@@ -94,7 +101,7 @@ async function connectPlanFor(
   model: string | null,
   base: string,
 ): Promise<HarnessConnectPlan | null> {
-  const plan = runtime.server.harness.connectPlan
+  const plan = runtime.server.harness(sessionId).connectPlan
   if (!plan) return null
   const harnessSessionId = await runtime.server.sessions.resumeToken(sessionId)
   return plan(await connectContext(runtime, sessionId, harnessSessionId, model, base))
@@ -107,12 +114,13 @@ async function openTtySession(
   base: string,
 ): Promise<void> {
   const {server, tty} = runtime
-  const ttyCommand = server.harness.ttyCommand
-  if (!ttyCommand) throw new Error(`harness "${server.harness.id}" has no terminal mode`)
+  const harness = server.harness(sessionId)
+  const ttyCommand = harness.ttyCommand
+  if (!ttyCommand) throw new Error(`harness "${harness.id}" has no terminal mode`)
   const harnessSessionId = await mintHarnessSession(runtime, sessionId)
   const ctx = await connectContext(runtime, sessionId, harnessSessionId, size.model ?? null, base)
-  server.harness.release?.(sessionId)
-  const session = tty.open(sessionId, ttyCommand(ctx), server.cwd)
+  harness.release?.(sessionId)
+  const session = tty.open(sessionId, ttyCommand(ctx), server.cwd, harness.id)
   if (size.cols && size.rows) session.resize(size.cols, size.rows)
   if (ctx.resume) session.inject('\u001b[2m\u2500 conciv: resumed session \u2500\u001b[0m')
 }
@@ -134,10 +142,9 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
       .input(TerminalOpenRequestSchema.extend(SessionInputSchema.shape))
       .output(z.object({alive: z.boolean()}))
       .handler(async ({input, context, errors}) => {
-        const {server, tty} = runtime
         const {sessionId, ...size} = input
-        if (!server.harness.ttyCommand) throw errors.NO_TTY()
-        if (reuseAlive(tty.get(sessionId), size)) return {alive: true}
+        if (!runtime.server.harness(sessionId).ttyCommand) throw errors.NO_TTY()
+        if (reuseAlive(liveTty(runtime, sessionId), size)) return {alive: true}
         await openTtySession(runtime, sessionId, size, apiBase(runtime, context))
         return {alive: true}
       }),
@@ -146,16 +153,15 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
       .input(SessionInputSchema)
       .output(z.object({alive: z.boolean()}))
       .handler(({input, errors}) => {
-        const {tty} = runtime
-        if (tty.get(input.sessionId)?.busy()) throw errors.BUSY()
-        tty.close(input.sessionId)
+        if (liveTty(runtime, input.sessionId)?.busy()) throw errors.BUSY()
+        runtime.tty.close(input.sessionId)
         return {alive: false}
       }),
     state: terminalOs
       .input(SessionInputSchema)
       .output(TerminalStateSchema)
       .handler(({input}) => {
-        const session = runtime.tty.get(input.sessionId)
+        const session = liveTty(runtime, input.sessionId)
         const payload: TerminalState = {alive: Boolean(session) && !session?.exited(), busy: session?.busy() ?? false}
         return payload
       }),
@@ -197,11 +203,11 @@ const app = new Hono<TerminalEnv>().get(
     await next()
   },
   upgradeWebSocket((c) => {
-    const {tty} = c.var.terminal
+    const runtime = c.var.terminal
     const url = new URL(c.req.url)
     const sessionOf = () => {
       const parsed = SessionId.safeParse(url.searchParams.get('session'))
-      return parsed.success ? tty.get(parsed.data) : undefined
+      return parsed.success ? liveTty(runtime, parsed.data) : undefined
     }
     let detach: (() => void) | null = null
     return {

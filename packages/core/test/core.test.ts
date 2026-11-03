@@ -279,7 +279,7 @@ describe('chat plane', () => {
 
   function sessionPort(): SessionPort {
     return {
-      row: () => ({model: null, effort: null, nativeId: null, cwd: '/workspace'}),
+      row: () => ({model: null, effort: null, nativeId: null, cwd: '/workspace', harnessKind: 'fake-cli'}),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
@@ -306,7 +306,7 @@ describe('chat plane', () => {
       db,
       stateRoot: options.root,
       cwd: options.root,
-      harness: options.harness,
+      harnessFor: () => options.harness,
       systemPrompt: options.systemPrompt ?? {},
       sessions: sessionPort(),
       toolNames: new Set(),

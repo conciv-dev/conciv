@@ -1,4 +1,5 @@
 import {existsSync} from 'node:fs'
+import {homedir} from 'node:os'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
@@ -21,6 +22,7 @@ import {
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness, transcriptPathWithin} from '@conciv/harness'
+import {detectHarnesses} from '@conciv/harness-init/detect'
 import {withSavedModels} from './lib/saved-models.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
@@ -87,6 +89,8 @@ export type MakeAppOpts = {
 
   harness?: HarnessAdapter
 
+  harnesses?: readonly HarnessAdapter[]
+
   onShutdown?: () => void
 
   firstChunkTimeoutMs?: number
@@ -123,6 +127,17 @@ function requireHarness(id: string): HarnessAdapter {
   const found = getHarness(id) ?? getHarness('claude')
   if (!found) throw new Error('no harness registered (built-in claude missing)')
   return found
+}
+
+function detectedHarnesses(): HarnessAdapter[] {
+  return detectHarnesses({PATH: process.env.PATH ?? '', HOME: homedir()}).flatMap((found) => {
+    const adapter = getHarness(found.id)
+    return adapter ? [adapter] : []
+  })
+}
+
+function availableHarnesses(boot: HarnessAdapter, others: readonly HarnessAdapter[]): HarnessAdapter[] {
+  return [boot, ...others.filter((adapter) => adapter.id !== boot.id)]
 }
 
 function symbolicable(frame: {
@@ -187,7 +202,15 @@ function sessionPort(
   return {
     row: (sessionId) => {
       const row = currentRow(db, sessionId)
-      return row === null ? null : {model: row.model, effort: row.effort, nativeId: row.harnessSessionId, cwd: row.cwd}
+      return row === null
+        ? null
+        : {
+            model: row.model,
+            effort: row.effort,
+            nativeId: row.harnessSessionId,
+            cwd: row.cwd,
+            harnessKind: row.harnessKind,
+          }
     },
     ensure: (sessionId) => ensureRow(db, sessionId, rows.harnessKind, rows.cwd),
     recordNativeId: (sessionId, nativeId) => recordNativeId(db, sessionId, nativeId),
@@ -313,7 +336,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   assertUniqueExtensionSlugs(extensions)
 
-  const harness = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), concivStateDir(opts.cfg.stateRoot))
+  const stateDir = concivStateDir(opts.cfg.stateRoot)
+  const harness = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir)
+  const harnesses = availableHarnesses(
+    harness,
+    (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses())).map((adapter) => withSavedModels(adapter, stateDir)),
+  )
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   const planeRef: {current: ChatPlane | null} = {current: null}
@@ -329,6 +357,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
   const {registry, stream} = primitives
   const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
+  const harnessFor = (sessionId: SessionId): HarnessAdapter => {
+    const kind = currentRow(db, sessionId)?.harnessKind
+    return harnesses.find((adapter) => adapter.id === kind) ?? harness
+  }
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
     runtime.forSession(request.sessionId).tools.call(name, input, {toolCallId: request.toolCallId})
 
@@ -342,7 +374,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
-  const serverHarness = makeServerHarness(harness, opts.cwd, opts.claudeHome)
+  const serverHarness = (sessionId: SessionId): ServerHarness =>
+    makeServerHarness(harnessFor(sessionId), opts.cwd, opts.claudeHome)
   const nativeUrl = opts.nativeUrl ?? ((): string | undefined => undefined)
 
   function assembleMounted(extension: AnyExtension, result: ServerResult<unknown> | undefined) {
@@ -430,7 +463,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const plane = await createChatPlane({
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
-    harness,
+    harnessFor,
     harnessEnv: opts.harnessEnv,
     claudeHome: opts.claudeHome,
     systemPrompt: {
@@ -454,7 +487,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
   planeRef.current = plane
   const chatDeps: ChatContext = {
-    harness,
+    defaultHarness: harness,
+    harnesses,
+    harnessFor,
     cwd: opts.cwd,
     basePath: opts.basePath ?? '',
     claudeHome: opts.claudeHome,

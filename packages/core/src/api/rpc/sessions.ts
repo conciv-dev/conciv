@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {and, eq, isNull} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
-import {SessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
-import {resolveHarnessModels} from '@conciv/harness'
+import {SessionId, type HarnessMeta, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
 import {
   createRow,
@@ -12,19 +12,29 @@ import {
   resolveRow,
   restoreRow,
   rowById,
+  switchRowHarness,
   tombstoneRow,
+  type NativeList,
 } from '../../sessions/session-rows.js'
+import {logError} from '../../lib/debug.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
 
+async function nativeListOf(chat: ChatContext, harness: HarnessAdapter): Promise<NativeList> {
+  const history = harness.history
+  if (!harness.capabilities.transcriptHistory || history === undefined) return {harnessKind: harness.id, list: []}
+  try {
+    return {harnessKind: harness.id, list: await history.list(chat.cwd, chat.claudeHome)}
+  } catch (error) {
+    logError(`[core] listing the ${harness.id} native sessions failed: ${String(error)}`)
+    return {harnessKind: harness.id, list: []}
+  }
+}
+
 export async function rpcSessionList(chat: ChatContext, includeHidden: boolean): Promise<SessionMeta[]> {
-  const history = chat.harness.history
-  const nativeList =
-    chat.harness.capabilities.transcriptHistory && history ? await history.list(chat.cwd, chat.claudeHome) : []
   return listSessionMetas({
     db: chat.db,
-    harnessKind: chat.harness.id,
     cwd: chat.cwd,
-    nativeList,
+    nativeLists: await Promise.all(chat.harnesses.map((harness) => nativeListOf(chat, harness))),
     running: await chat.plane.running(),
     model: (sessionId) => modelOf(chat.db, sessionId),
     includeHidden,
@@ -39,19 +49,19 @@ function cleanTitle(title: string): string {
     .slice(0, 120)
 }
 
-export function harnessMetaOf(deps: RpcDeps) {
+export function harnessMetaOf(harness: HarnessAdapter): HarnessMeta {
   return {
-    id: deps.chat.harness.id,
-    name: deps.chat.harness.displayName ?? deps.chat.harness.id,
-    canLaunch: Boolean(deps.chat.harness.connect),
-    imageInput: deps.chat.harness.capabilities.imageInput,
+    id: harness.id,
+    name: harness.displayName ?? harness.id,
+    canLaunch: Boolean(harness.connect),
+    imageInput: harness.capabilities.imageInput,
   }
 }
 
 export function sessionsRouter(deps: RpcDeps) {
   const chat = deps.chat
   const db = chat.db
-  const scope = {db, harnessKind: chat.harness.id, cwd: chat.cwd}
+  const scope = {db, harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
   const ensuredRow = async (sessionId: SessionId) => {
     await ensureRow(db, sessionId, scope.harnessKind, scope.cwd)
     return rowById(db, sessionId)
@@ -63,7 +73,7 @@ export function sessionsRouter(deps: RpcDeps) {
   async function switchModel(sessionId: SessionId, model: string): Promise<'switched' | 'missing' | 'unknown'> {
     const row = await ensuredRow(sessionId)
     if (!row) return 'missing'
-    const models = await resolveHarnessModels(chat.harness)
+    const models = await resolveHarnessModels(chat.harnessFor(sessionId))
     const found = models.find((candidate) => candidate.id === model && !candidate.disabled)
     if (!found) return 'unknown'
     const effort = row.effort !== null && found.efforts?.includes(row.effort) ? row.effort : null
@@ -82,8 +92,9 @@ export function sessionsRouter(deps: RpcDeps) {
     const row = await ensuredRow(sessionId)
     if (!row) return 'missing'
     if (effort !== null) {
-      const models = await resolveHarnessModels(chat.harness)
-      const modelId = row.model ?? chat.harness.defaultModel ?? models[0]?.id
+      const harness = chat.harnessFor(sessionId)
+      const models = await resolveHarnessModels(harness)
+      const modelId = row.model ?? harness.defaultModel ?? models[0]?.id
       const current = models.find((model) => model.id === modelId)
       if (!current?.efforts?.includes(effort)) return 'unsupported'
     }
@@ -143,6 +154,16 @@ export function sessionsRouter(deps: RpcDeps) {
       if (outcome === 'missing') throw errors.NOT_FOUND()
       if (outcome === 'unsupported') throw errors.UNSUPPORTED_EFFORT()
       return {effort: input.effort}
+    }),
+    switchHarness: os.sessions.switchHarness.handler(async ({input, errors}) => {
+      const row = await rowById(db, input.sessionId)
+      if (!row) throw errors.NOT_FOUND()
+      const target = chat.harnesses.find((harness) => harness.id === input.harnessId)
+      if (!target) throw errors.UNKNOWN_HARNESS()
+      if (row.harnessKind === target.id) return {harnessId: target.id}
+      if (await chat.plane.live(input.sessionId)) throw errors.SESSION_RUNNING()
+      switchRowHarness(db, input.sessionId, target.id)
+      return {harnessId: target.id}
     }),
     compact: os.sessions.compact.handler(async ({input}) => {
       await deps.runtime.forSession(input.sessionId).run.compact()

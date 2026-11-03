@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import {eq} from 'drizzle-orm'
 import {join} from 'node:path'
 import {Hono} from 'hono'
 import type {UpgradeWebSocket} from 'hono/ws'
@@ -6,14 +7,14 @@ import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/pro
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
 import type {ChatHydration} from '@conciv/contract'
-import {markers, type ConcivDb} from '@conciv/db'
-import {CHAT_SSE_PATH, CHAT_WS_PATH, type SessionId} from '@conciv/protocol/chat-types'
+import {chatRuns, markers, type ConcivDb} from '@conciv/db'
+import {CHAT_SSE_PATH, CHAT_WS_PATH, SessionId} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {createApprovalStore, createUiChannel, type ApprovalDecision, type ApprovalScope} from './approvals.js'
 import {cappedValue, chatToolSet, type CodeCapability} from './code-mode.js'
 import {clearThread, runningThreadIds} from './stores.js'
-import {createTranscriptImporter, normalizedMessages, toolNameNormalizer} from './transcript.js'
+import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {turnHooks, type TurnDeps} from './turn.js'
 
 export {
@@ -78,18 +79,20 @@ export type ChatPlane = {
 }
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
-  const stores = drizzleChatStores(deps.db)
+  const stores = drizzleChatStores(deps.db, {harnessOf: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id})
   const approvals = createApprovalStore(stores.metadata)
   const ui = createUiChannel()
   const transcripts = createTranscriptImporter({
-    harness: deps.harness,
+    harnessFor: deps.harnessFor,
     stores,
     claudeHome: deps.claudeHome,
     toolNames: deps.toolNames,
     log: deps.log,
     native: (sessionId) => {
       const row = deps.sessions.row(sessionId)
-      return row === null || row.nativeId === null ? null : {nativeId: row.nativeId, cwd: row.cwd}
+      return row === null || row.nativeId === null
+        ? null
+        : {nativeId: row.nativeId, cwd: row.cwd, harnessKind: row.harnessKind}
     },
   })
   const server = await createChatServer({
@@ -117,8 +120,14 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       await transcripts.sync(sessionId)
     }
     const thread = await server.hydrate(sessionId)
+    const messages = normalizedMessages(thread.messages, normalize)
+    const runs = await deps.db
+      .select({runId: chatRuns.runId, harnessId: chatRuns.harnessId})
+      .from(chatRuns)
+      .where(eq(chatRuns.threadId, sessionId))
     return {
-      messages: normalizedMessages(thread.messages, normalize),
+      messages,
+      messageHarness: messageHarnesses(messages, Object.fromEntries(runs.map((run) => [run.runId, run.harnessId]))),
       activeRun: thread.activeRun,
       lastRun: thread.lastRun,
       pendingApprovals: await approvals.pending(sessionId),

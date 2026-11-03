@@ -146,14 +146,19 @@ export function makeRpcRouter(deps: RpcDeps) {
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },
     meta: {
-      models: os.meta.models.handler(async () => {
-        const models = await resolveHarnessModels(chat.harness)
+      models: os.meta.models.handler(async ({input}) => {
+        const harness = chat.harnessFor(input.sessionId)
+        const models = await resolveHarnessModels(harness)
         return {
           models,
-          defaultModel: chat.harness.defaultModel ?? models[0]?.id ?? null,
-          harness: harnessMetaOf(deps),
+          defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
+          harness: harnessMetaOf(harness),
         }
       }),
+      harnesses: os.meta.harnesses.handler(() => ({
+        harnesses: chat.harnesses.map(harnessMetaOf),
+        defaultHarness: chat.defaultHarness.id,
+      })),
       commands: os.meta.commands.handler(({input, context}) =>
         listCommands(chat, {sessionId: input.sessionId, origin: context.origin}),
       ),

@@ -28,7 +28,8 @@ describe('boot server', () => {
   test('boots a real extension server reachable over HTTP', async () => {
     const {apiBase, stop} = await bootExtensionServer(ping)
     try {
-      const models = await makeRpcClient(apiBase).meta.models()
+      const rpc = makeRpcClient(apiBase)
+      const models = await rpc.meta.models({sessionId: (await rpc.sessions.create()).sessionId})
       expect(models.harness.id.length).toBeGreaterThan(0)
     } finally {
       await stop()
@@ -39,7 +40,8 @@ describe('boot server', () => {
     const harness = createFakeHarness({id: 'fake-ext-boot', text: 'ok'})
     const {apiBase, stop} = await bootExtensionServer(ping, {harness})
     try {
-      const models = await makeRpcClient(apiBase).meta.models()
+      const rpc = makeRpcClient(apiBase)
+      const models = await rpc.meta.models({sessionId: (await rpc.sessions.create()).sessionId})
       expect(models.harness.id).toBe('fake-ext-boot')
     } finally {
       await stop()

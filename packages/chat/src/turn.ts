@@ -17,6 +17,7 @@ export type SessionRow = {
   effort: ReasoningEffort | null
   nativeId: HarnessSessionId | null
   cwd: string
+  harnessKind: string
 }
 
 export type SessionPort = {
@@ -38,7 +39,7 @@ export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) 
 export type TurnDeps = {
   cwd: string
   claudeHome?: string
-  harness: HarnessAdapter
+  harnessFor: (sessionId: SessionId) => HarnessAdapter
   harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
   systemPrompt: SystemPromptSources
   sessions: SessionPort
@@ -68,9 +69,14 @@ export function systemTextOf(
   }
 }
 
-function resumableToken(deps: TurnDeps, token: HarnessSessionId | null): HarnessSessionId | null {
-  if (token === null || !deps.harness.capabilities.resume) return null
-  const history = deps.harness.history
+function resumableToken(deps: TurnDeps, harness: HarnessAdapter, row: SessionRow | null): HarnessSessionId | null {
+  if (row === null || row.harnessKind !== harness.id) return null
+  return livingToken(deps, harness, row.nativeId)
+}
+
+function livingToken(deps: TurnDeps, harness: HarnessAdapter, token: HarnessSessionId | null): HarnessSessionId | null {
+  if (token === null || !harness.capabilities.resume) return null
+  const history = harness.history
   if (history === undefined) return token
   if (history.withinProject && !history.withinProject(deps.cwd, token, deps.claudeHome)) return null
   if (history.transcriptPath === undefined) return token
@@ -150,8 +156,10 @@ function titleOf(messages: ModelMessage[]): string {
 }
 
 async function contextTokensOf(deps: TurnDeps, sessionId: SessionId): Promise<number | undefined> {
-  const history = deps.harness.history
-  const nativeId = deps.sessions.row(sessionId)?.nativeId ?? null
+  const harness = deps.harnessFor(sessionId)
+  const history = harness.history
+  const row = deps.sessions.row(sessionId)
+  const nativeId = row?.harnessKind === harness.id ? row.nativeId : null
   if (!history?.contextTokens || !history.transcriptPath || nativeId === null) return undefined
   const path = transcriptPathWithin(history, deps.cwd, nativeId, deps.claudeHome)
   if (path === null || !existsSync(path)) return undefined
@@ -168,15 +176,16 @@ export function turnHooks(
   context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter},
 ): TurnHooks {
   const normalize = toolNameNormalizer(deps.toolNames)
-  const systemText = systemTextOf(deps.systemPrompt, deps.harness.capabilities.systemPrompt, deps.log)
   return {
     plan: (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
+      const harness = deps.harnessFor(sessionId)
+      const systemText = systemTextOf(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
       const row = deps.sessions.row(sessionId)
       const model = row?.model ?? null
-      const resumeSessionId = resumableToken(deps, row?.nativeId ?? null)
+      const resumeSessionId = resumableToken(deps, harness, row)
       const toolSet = chatToolSet(deps.capabilities(sessionId), {sessionId, model})
-      const config = deps.harness.chatConfig({
+      const config = harness.chatConfig({
         cwd: deps.cwd,
         sessionId,
         resumeSessionId,
@@ -208,7 +217,7 @@ export function turnHooks(
           return turn.kind === 'compact' ? messages : expandedLastUser(messages, deps)
         },
         providerMessages: async (messages) => {
-          const asked = turn.kind === 'compact' ? [...messages, compactPrompt(deps.harness)] : messages
+          const asked = turn.kind === 'compact' ? [...messages, compactPrompt(harness)] : messages
           const prepared = resumeSessionId === null ? asked : fromLastUser(asked)
           return config.prepareMessages?.(prepared) ?? prepared
         },
@@ -240,7 +249,7 @@ export function turnHooks(
       const sessionId = SessionId.parse(turn.threadId)
       const usage = toTokenUsage(reported)
       if (usage === undefined) return
-      const modelId = deps.sessions.row(sessionId)?.model ?? deps.harness.defaultModel ?? null
+      const modelId = deps.sessions.row(sessionId)?.model ?? deps.harnessFor(sessionId).defaultModel ?? null
       await deps.sessions.recordUsage(sessionId, {
         ...tokenUsageToSnapshot(usage),
         ...(modelId === null ? {} : {modelId}),

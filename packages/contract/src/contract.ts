@@ -3,6 +3,7 @@ import {z} from 'zod'
 import {type ChatEvent, RunLifecycleSchema} from '@conciv/protocol/chat-event-types'
 import {
   ChatCommandsSchema,
+  ChatHarnessesSchema,
   ChatHistorySchema,
   ChatModelsSchema,
   ChatToolsSchema,
@@ -45,6 +46,7 @@ const ChatPendingApprovalSchema = z.object({
 export type ChatPendingApproval = z.infer<typeof ChatPendingApprovalSchema>
 export const ChatHydrationSchema = z.object({
   messages: ChatHistorySchema,
+  messageHarness: z.record(z.string(), z.string()),
   activeRun: z.object({runId: z.string()}).nullable(),
   lastRun: RunLifecycleSchema.nullable(),
   pendingApprovals: z.array(ChatPendingApprovalSchema),
@@ -124,6 +126,14 @@ export const contract = {
       .input(SessionIdInput.extend({effort: ReasoningEffortSchema.nullable()}))
       .output(z.object({effort: ReasoningEffortSchema.nullable()})),
     compact: oc.input(SessionIdInput).output(Ok),
+    switchHarness: oc
+      .errors({
+        ...notFound,
+        UNKNOWN_HARNESS: {message: 'that harness is not available'},
+        SESSION_RUNNING: {message: 'the session has a run in progress'},
+      })
+      .input(SessionIdInput.extend({harnessId: z.string().min(1)}))
+      .output(z.object({harnessId: z.string()})),
   },
   drafts: {
     get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
@@ -198,7 +208,8 @@ export const contract = {
     openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
   },
   meta: {
-    models: oc.output(ChatModelsSchema),
+    models: oc.input(SessionIdInput).output(ChatModelsSchema),
+    harnesses: oc.output(ChatHarnessesSchema),
     commands: oc.input(SessionIdInput).output(ChatCommandsSchema),
     tools: oc.output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),

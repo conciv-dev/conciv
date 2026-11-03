@@ -71,6 +71,7 @@ import {opencode} from '../src/opencode/index.js'
 import {storagePath, opencodeHistory} from '../src/opencode/history.js'
 import {pi} from '../src/pi/index.js'
 import {encodeSessionDir, sessionsDir, piHistory} from '../src/pi/history.js'
+import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 
 describe('acp harnesses', () => {
   const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
@@ -1951,6 +1952,51 @@ describe('pi history', () => {
       expect(pi.connect?.plan(context()).argv).toEqual(['pi'])
     })
   })
+})
+
+describe('replayed history from another harness', () => {
+  const pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+  const foreignHistory: ModelMessage[] = [
+    {
+      role: 'user',
+      content: [
+        {type: 'text', content: 'what is in this screenshot?'},
+        {type: 'image', source: {type: 'data', value: pixel, mimeType: 'image/png'}},
+      ],
+    },
+    {
+      role: 'assistant',
+      content: 'reading the file first',
+      toolCalls: [
+        {
+          id: 'call_minted_elsewhere',
+          type: 'function',
+          function: {name: 'mcp__other__Read', arguments: '{"path":"a.ts"}'},
+        },
+      ],
+    },
+    {role: 'tool', toolCallId: 'call_minted_elsewhere', content: 'export const a = 1'},
+    {role: 'assistant', content: 'a red square'},
+    {role: 'user', content: 'what did I ask you first?'},
+  ]
+
+  it.each([claude, codex, geminiCli, opencode, pi].map((adapter) => [adapter.id, adapter] as const))(
+    '%s takes a history with foreign tool calls and earlier images and keeps the question last',
+    (_id, adapter) => {
+      const cwd = mkdtempSync(join(tmpdir(), 'replay-'))
+      const config = adapter.chatConfig({
+        cwd,
+        sessionId: SessionId.parse('conciv_replay'),
+        resumeSessionId: null,
+        env: {},
+        kind: 'chat',
+      })
+      const prepared = config.prepareMessages?.(foreignHistory) ?? foreignHistory
+      expect(prepared.slice(0, -1)).toEqual(foreignHistory.slice(0, -1))
+      expect(prepared.at(-1)?.role).toBe('user')
+      expect(lastUserModelText(prepared)).toBe('what did I ask you first?')
+    },
+  )
 })
 
 describe('registry', () => {

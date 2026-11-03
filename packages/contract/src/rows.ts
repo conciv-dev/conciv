@@ -17,6 +17,7 @@ export const SessionMetaSchema = z.object({
   effort: ReasoningEffortSchema.nullable(),
   hidden: z.boolean(),
   native: NativeSessionRefSchema.nullable(),
+  harnessKind: z.string(),
 })
 export type SessionMeta = z.infer<typeof SessionMetaSchema>
 
