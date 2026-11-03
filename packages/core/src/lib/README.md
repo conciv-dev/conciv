@@ -11,6 +11,7 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 - `DevEndpointSchema` / `DevEndpoint` (`dev-endpoint.ts`): {apiBase, token: string|null, pid}
 - `defaultDevEndpointDir` / `writePrivateFile` / `writeDevEndpoint` / `readDevEndpoint` / `removeDevEndpoint` (`dev-endpoint.ts`): `<dir>/dev-endpoint.json`, default dir ~/.conciv
 - `makeStalenessProbe` / `loadedModules` / `engineStaleness` / `TrackedModule` (`engine-stamp.ts`): {stale, changed, tracked, bootedAt, fingerprint}
+- `runInOrder` / `ShutdownStep` (`shutdown.ts`): runs steps one after another, keeps going past failures, rethrows them as one `AggregateError`
 - `writeText` (`fs.ts`): mkdir -p then write
 - `readPersistedPort` / `writePersistedPort` / `isAddressInUse` (`server-port.ts`)
 - `statePaths` / `StatePaths` (`state-paths.ts`): {dir, systemPrompt: chat-system-prompt.txt, server: server.json} under `concivStateDir(stateRoot)`
