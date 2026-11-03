@@ -324,17 +324,20 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       await prune({dir: captures, prefix: 'capture-', spared: []})
       return path
     },
-    writeRun: async ({id, live, diff, result, pairs, tiles}) => {
+    writeRun: async ({id, images, result, pairs, tiles}) => {
+      const started = performance.now()
       const home = join(dir, id)
       await mkdir(home, {recursive: true})
       const at = stamp()
       const livePath = join(home, `live-${at}.png`)
       const diffPath = join(home, `diff-${at}.png`)
-      const report: DiffReport = {...result, diffImage: reportPath(diffPath), livePath: reportPath(livePath)}
-      await writeFile(livePath, encodePng(live))
-      await writeFile(diffPath, encodePng(diff))
+      await writeFile(livePath, images.live)
+      await writeFile(diffPath, images.diff)
       await writeFile(join(home, `pairs-${at}.json`), JSON.stringify(pairs))
       await writeFile(join(home, `tiles-${at}.json`), JSON.stringify(tiles))
+      const write = Math.round(performance.now() - started)
+      const timings = {...result.timings, write, total: result.timings.total + write}
+      const report: DiffReport = {...result, timings, diffImage: reportPath(diffPath), livePath: reportPath(livePath)}
       await writeResult({home, at, report})
       const record = await find({id})
       const spared = [(await runs(home))[0], record?.acceptedRun].filter((run) => run !== undefined)

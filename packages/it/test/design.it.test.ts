@@ -1633,6 +1633,24 @@ describe('pairing', () => {
 })
 
 describe('loop', () => {
+  it('stripe is briefed against named anchors, never the box, a high ordinal or a hard-coded sample', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    await freshTarget('stripe-1280')
+    const report = await call('design_diff', {})
+    await annotate(`brief ${JSON.stringify(report.brief.slice(0, 5))}`)
+    expect(
+      report.brief.filter(
+        (line) => line.includes('the box:') || line.includes('the box (') || highOrdinals(line).length > 0,
+      ),
+    ).toEqual([])
+    expect(
+      report.warnings.filter((warning) => warning.warning === 'sample-data').map((warning) => warning.live),
+      'only the counter beside the chips the page maps from an array',
+    ).toEqual(['0/500'])
+  })
+
   it('bordered reports a border delta in the paint stage with a short brief at round 1', async () => {
     await goto('bordered')
     await freshTarget('u1-1280')
@@ -1794,7 +1812,7 @@ describe('loop', () => {
     expect(report.timings.pair).toBeLessThan(PAIR_BUDGET_MS)
     expect(report.timings.measure).toBeLessThan(MEASURE_TIMEOUT_MS)
     expect(report.timings.total).toBeGreaterThanOrEqual(
-      report.timings.measure + report.timings.compare + report.timings.pair,
+      report.timings.measure + report.timings.mask + report.timings.regions + report.timings.pair,
     )
   })
 
@@ -1895,12 +1913,46 @@ const STRIPE_STYLES = join(HOST_ROOT, 'src', 'stripe.css')
 const EDITED_INK = '#c2410c'
 const LIVE_LOOP_MS = 8000
 const TilesFileSchema = z.object({columns: z.number(), rows: z.number()})
+const StoredTimingsSchema = z.object({timings: z.record(z.string(), z.unknown())})
+const STRIPE_RUN_MS = 10_000
+const STRIPE_SOURCE = join(HOST_ROOT, 'src', 'Stripe.tsx')
+const EDITED_HEADING = 'Get Stripe product recommendations'
+const ORDINAL_SUFFIXES = ['st', 'nd', 'rd', 'th']
+const ORDINAL_LIMIT = 9
+const CARD_ROW_MOVES = [null, 40, null, 40, 20]
+const TIMED_PHASES = [
+  'capture',
+  'decode',
+  'measure',
+  'mask',
+  'regions',
+  'pair',
+  'typography',
+  'deltas',
+  'judge',
+  'encode',
+  'write',
+  'total',
+]
 
 async function editStripe(input: {id: string; styles: string}): Promise<void> {
   const {id, styles} = input
+  await rewrite({id, file: STRIPE_STYLES, text: `${styles}\n.g-lilac .card-head h3 { color: ${EDITED_INK}; }\n`})
+}
+
+async function rewrite(input: {id: string; file: string; text: string}): Promise<void> {
+  const {id, file, text} = input
   const before = (await runFiles({id, prefix: 'result-'})).at(-1)
-  await writeFile(STRIPE_STYLES, `${styles}\n.g-lilac .card-head h3 { color: ${EDITED_INK}; }\n`)
+  await writeFile(file, text)
   await expect.poll(async () => (await runFiles({id, prefix: 'result-'})).at(-1), {timeout: 60_000}).not.toBe(before)
+}
+
+function highOrdinals(line: string): string[] {
+  return line.split(' ').filter((word) => {
+    const bare = word.split(':')[0] ?? ''
+    const suffixed = ORDINAL_SUFFIXES.some((suffix) => bare.endsWith(suffix))
+    return suffixed && Number(bare.slice(0, -2)) > ORDINAL_LIMIT
+  })
 }
 
 async function tileCount(id: string): Promise<number> {
@@ -1941,6 +1993,63 @@ describe('live loop', () => {
         ),
       )
       expect(edited.length).toBeGreaterThan(0)
+    } finally {
+      await writeFile(STRIPE_STYLES, styles)
+    }
+  }, 240_000)
+
+  it('a one-line text edit in Stripe.tsx carries the pairs it did not touch', async ({annotate}) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    await call('design_diff', {})
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await rewrite({id, file: STRIPE_SOURCE, text: source.replace(EDITED_HEADING, 'Get Stripe product picks')})
+      const report = await call('design_diff', {})
+      await annotate(`carried ${JSON.stringify(report.timings.carried)} paired ${report.paired}`)
+      expect(report.timings.carried.pairs).toBeGreaterThanOrEqual(80)
+    } finally {
+      await writeFile(STRIPE_SOURCE, source)
+    }
+  }, 240_000)
+
+  it('moving the card row down and back never stops on the best total, and a third reversal stops', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const styles = await readFile(STRIPE_STYLES, 'utf8')
+    const reports: DiffReport[] = []
+    try {
+      for (const move of CARD_ROW_MOVES) {
+        const css = move === null ? styles : `${styles}\n.grid { margin-top: ${move}px; }\n`
+        if (reports.length > 0) await rewrite({id, file: STRIPE_STYLES, text: css})
+        reports.push(await call('design_diff', {}))
+      }
+    } finally {
+      await writeFile(STRIPE_STYLES, styles)
+    }
+    await annotate(
+      `stops ${JSON.stringify(reports.map((report) => report.stop))} scores ${JSON.stringify(reports.map((report) => [report.stage, report.score]))}`,
+    )
+    expect(reports.map((report) => report.stop)).toEqual([null, null, null, null, 'oscillating'])
+  }, 300_000)
+
+  it('a stripe run after a css edit times every phase and finishes under 10 s', async ({annotate}) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    await call('design_diff', {})
+    const styles = await readFile(STRIPE_STYLES, 'utf8')
+    try {
+      await editStripe({id, styles})
+      const report = await call('design_diff', {})
+      const latest = (await runFiles({id, prefix: 'result-'})).at(-1) ?? ''
+      const stored = StoredTimingsSchema.parse(
+        JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
+      )
+      await annotate(`timings ${JSON.stringify(stored.timings)}`)
+      expect(TIMED_PHASES.filter((phase) => typeof stored.timings[phase] !== 'number')).toEqual([])
+      expect(report.timings.total).toBeLessThan(STRIPE_RUN_MS)
     } finally {
       await writeFile(STRIPE_STYLES, styles)
     }

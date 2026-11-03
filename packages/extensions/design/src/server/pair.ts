@@ -249,8 +249,12 @@ function carriedViews(input: {
   const {records, touched, nodes, candidates, components, margin} = input
   if (touched === 'all') return []
   const byNode = new Map(nodes.map((node) => [node.key, node]))
+  const scanned = candidates.toSorted(
+    (a, b) =>
+      Number(underTouched({touched, view: b, components})) - Number(underTouched({touched, view: a, components})),
+  )
   const prints = new Map(
-    candidates.flatMap((candidate): [string, Fingerprint][] => {
+    scanned.flatMap((candidate): [string, Fingerprint][] => {
       const component = components.get(candidate.key)
       return component === undefined ? [] : [[candidate.key, fingerprint(component)]]
     }),
@@ -259,8 +263,7 @@ function carriedViews(input: {
     const wanted = record.fingerprint
     const node = byNode.get(record.node)
     if (wanted === undefined || node === undefined) return []
-    if (wanted.source !== null && touched.has(wanted.source.file)) return []
-    const matches = candidates.filter((candidate) => {
+    const matches = scanned.filter((candidate) => {
       const found = prints.get(candidate.key)
       if (found === undefined) return false
       if (wanted.source === null && candidate.key !== record.path) return false
@@ -269,6 +272,11 @@ function carriedViews(input: {
     const candidate = matches.find((entry) => entry.key === record.path) ?? matches[0]
     return candidate === undefined ? [] : [{node, candidate, score: record.confidence}]
   })
+}
+
+function underTouched(input: {touched: Set<string>; view: View; components: Map<string, LiveComponent>}): boolean {
+  const file = input.components.get(input.view.key)?.source?.file
+  return file !== undefined && input.touched.has(file)
 }
 
 function samePrint(input: {a: Fingerprint; b: Fingerprint; margin: number}): boolean {

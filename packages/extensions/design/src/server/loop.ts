@@ -21,6 +21,7 @@ import type {
   Unmatched,
 } from '../shared/types.js'
 import {placement, type Seat, type Tree} from './layout.js'
+import {glyphRun} from './pair.js'
 import {union} from './raster.js'
 
 export type Round = {
@@ -166,10 +167,12 @@ export function judge(input: {
     ...ranked.filter((item) => !demoted.has(item.key)),
     ...ranked.filter((item) => demoted.has(item.key)),
   ]
-  const stop = input.partial ? null : stopReason({counted, score, capturePath, priors, round, color})
+  const stop = input.partial ? null : stopReason({counted, score, capturePath, priors, round, stage})
+  const flipped = flippedBack({counted, priors, color})
   const brief = [
     ...(input.painted === null ? [] : [paintedLine(input.painted.count)]),
     ...(stop === 'stalled' ? [stalledLine(ranker({items: counted.filter((item) => demoted.has(item.key))}))] : []),
+    ...(flipped === null ? [] : [flippedLine({items: ranker({items: flipped.items}), round: flipped.round})]),
     ...ordered.slice(0, TOLERANCES.briefSize).map((item) => item.sentence),
     ...warnings.map(warningSentence),
   ]
@@ -262,6 +265,15 @@ const SETTLE_WAIT_MS = 5000
 const SIZE_CAP = 10
 const ROW_LIMIT = 10
 const STALLED_NAMED = 3
+const ANCHOR_LENGTH = 40
+const FLIPPED_NAMED = 3
+const REVERSALS_TO_STOP = 2
+const STAGE_TOLERANCES: Record<Stage, number> = {
+  structure: 1,
+  content: 1,
+  geometry: TOLERANCES.geometryPx,
+  paint: TOLERANCES.colorDeltaE,
+}
 const SCORE_PRECISION = 10_000
 const COLOR_KINDS: ItemKind[] = ['background', 'foreground', 'border']
 const LISTED = 6
@@ -361,9 +373,16 @@ function leafSentence(input: {node: TargetNode; tree: Tree}): string {
   const {node, tree} = input
   const seat = placement({node, tree})
   const size = node.layout === undefined ? '' : ` (${node.layout.size})`
-  if (seat === null) return `build ${label({node, tree})}${size}`
-  const where = seat.parent === null ? 'on the page' : `inside ${label({node: seat.parent, tree})}`
-  return `build ${label({node, tree})}${size} as the ${ordinal(seat.index)} item in the ${seat.direction} ${where}`
+  const subject = named({node, tree}) ? label({node, tree}) : article(node)
+  if (seat === null) return `build ${subject}${size}`
+  if (seat.index > TOLERANCES.ordinalLimit) {
+    return `build ${subject}${size}${anchorPhrase({box: node.box, tree, word: 'near'})}`
+  }
+  const where =
+    seat.parent !== null && named({node: seat.parent, tree})
+      ? ` inside ${label({node: seat.parent, tree})}`
+      : anchorPhrase({box: node.box, tree, word: 'under'})
+  return `build ${subject}${size} as the ${ordinal(seat.index)} item in the ${seat.direction}${where}`
 }
 
 function runItem(input: {run: Run; tree: Tree; unbuilt: Unbuilt}): Item {
@@ -393,9 +412,10 @@ function runItem(input: {run: Run; tree: Tree; unbuilt: Unbuilt}): Item {
 function runSentence(input: {run: Run; members: TargetNode[]; tree: Tree}): string {
   const {run, members, tree} = input
   const [first] = members
-  const where = first === undefined ? '' : placePhrase({node: first, tree})
+  const box = members.length === 0 ? undefined : union(members.map((member) => member.box))
+  const where = first === undefined ? '' : placePhrase({node: first, tree, box})
   const props = properties({layout: {gap: run.gap, align: run.align}, children: members})
-  const holds = members.flatMap((member, position) => {
+  const holds = members.slice(0, TOLERANCES.ordinalLimit).flatMap((member, position) => {
     const texts = textsIn({tree, node: member}).slice(0, LISTED)
     return texts.length === 0 ? [] : [`${ordinal(position + 1)}: ${texts.map(quoted).join(', ')}`]
   })
@@ -461,13 +481,50 @@ function childPhrase(input: {node: TargetNode; tree: Tree}): string {
   return `${name} (gap ${gap.px})`
 }
 
-function placePhrase(input: {node: TargetNode; tree: Tree}): string {
+function placePhrase(input: {node: TargetNode; tree: Tree; box?: Box | undefined}): string {
   const {node, tree} = input
   const seat = placement({node, tree})
   if (seat === null) return ''
   const previous = previousSibling({node, tree, seat})
-  if (previous !== undefined) return ` ${followWord({tree, seat})} ${label({node: previous, tree})}`
-  return seat.parent === null ? ' at the top of the page' : ` inside ${label({node: seat.parent, tree})}`
+  if (previous !== undefined && named({node: previous, tree})) {
+    return ` ${followWord({tree, seat})} ${label({node: previous, tree})}`
+  }
+  if (previous === undefined && seat.parent === null) return ' at the top of the page'
+  if (previous === undefined && seat.parent !== null && named({node: seat.parent, tree})) {
+    return ` inside ${label({node: seat.parent, tree})}`
+  }
+  return anchorPhrase({box: input.box ?? node.box, tree, word: 'under'})
+}
+
+function anchorPhrase(input: {box: Box; tree: Tree; word: 'under' | 'near'}): string {
+  const {box, tree, word} = input
+  const [nearest] = tree.nodes
+    .flatMap((node) => (node.kind === 'text' && above({text: node, box}) ? [node] : []))
+    .toSorted((a, b) => box.y - a.box.y - (box.y - b.box.y))
+  if (nearest === undefined) return ' at the top of the page'
+  return ` ${word} ${quoted(clipped(nearest.text))}`
+}
+
+function above(input: {text: TextNode; box: Box}): boolean {
+  const {text, box} = input
+  const overlaps = text.box.x < box.x + box.w && text.box.x + text.box.w > box.x
+  return overlaps && text.box.y < box.y && !glyphRun(text) && text.text.trim() !== ''
+}
+
+function clipped(text: string): string {
+  const trimmed = text.trim()
+  return trimmed.length <= ANCHOR_LENGTH ? trimmed : `${trimmed.slice(0, ANCHOR_LENGTH).trimEnd()}…`
+}
+
+function named(input: {node: TargetNode; tree: Tree}): boolean {
+  const {node, tree} = input
+  if (node.kind === 'text') return true
+  if (node.kind === 'image') return false
+  return textsIn({tree, node}).length > 0
+}
+
+function article(node: TargetNode): string {
+  return node.kind === 'image' ? 'an image' : 'a box'
 }
 
 function previousSibling(input: {node: TargetNode; tree: Tree; seat: Seat}): TargetNode | undefined {
@@ -600,29 +657,74 @@ function stopReason(input: {
   capturePath: CapturePath | undefined
   priors: Round[]
   round: number
-  color: ColorMetric
+  stage: Stage | null
 }): Stop | null {
-  const {counted, score, capturePath, priors, round, color} = input
+  const {counted, score, capturePath, priors, round, stage} = input
   if (counted.length === 0) {
     return (score.at(-1) ?? 0) < TOLERANCES.residualAreaGate ? 'done' : 'residual-only'
   }
-  if (oscillating({counted, priors, color})) return 'oscillating'
+  if (stage !== null && oscillating({score, priors, stage})) return 'oscillating'
   if (stalled({score, capturePath, priors})) return 'stalled'
   if (round >= TOLERANCES.roundBudget) return 'budget'
   return null
 }
 
-function oscillating(input: {counted: Item[]; priors: Round[]; color: ColorMetric}): boolean {
+function oscillating(input: {score: number[]; priors: Round[]; stage: Stage}): boolean {
+  const {score, priors, stage} = input
+  const at = 1 + STAGES.indexOf(stage)
+  const totals = [...priors.map((round) => round.score[at] ?? 0), score[at] ?? 0]
+  const tolerance = STAGE_TOLERANCES[stage]
+  const chain = totals.reduce<{lowest: number; reversals: number}>(
+    (state, total, index) => {
+      if (total <= state.lowest) return {lowest: total, reversals: 0}
+      const reversed = reversal({first: totals[index - 2], second: totals[index - 1], now: total, tolerance})
+      return {lowest: state.lowest, reversals: reversed ? state.reversals + 1 : 0}
+    },
+    {lowest: Number.POSITIVE_INFINITY, reversals: 0},
+  )
+  return chain.reversals >= REVERSALS_TO_STOP
+}
+
+function reversal(input: {
+  first: number | undefined
+  second: number | undefined
+  now: number
+  tolerance: number
+}): boolean {
+  const {first, second, now, tolerance} = input
+  if (first === undefined || second === undefined) return false
+  const previousMove = second - first
+  const move = now - second
+  return previousMove !== 0 && Math.abs(move) > tolerance && Math.sign(move) !== Math.sign(previousMove)
+}
+
+function flippedBack(input: {counted: Item[]; priors: Round[]; color: ColorMetric}): {
+  items: Item[]
+  round: number
+} | null {
   const {counted, priors, color} = input
   const previous = priors.at(-1)
   const earlier = priors.at(-2)
-  if (previous === undefined || earlier === undefined) return false
-  return counted.some((item) => {
+  if (previous === undefined || earlier === undefined) return null
+  const items = counted.filter((item) => {
     const last = previous.values.get(item.key)
-    const before = earlier.values.get(item.key)
-    if (last === undefined || before === undefined) return false
-    return !same({a: item.value, b: last, color}) && same({a: item.value, b: before, color})
+    const older = earlier.values.get(item.key)
+    if (last === undefined || older === undefined) return false
+    return !same({a: item.value, b: last, color}) && same({a: item.value, b: older, color})
   })
+  return items.length === 0 ? null : {items, round: earlier.report.round}
+}
+
+function flippedLine(input: {items: Item[]; round: number}): string {
+  const {items, round} = input
+  const head =
+    items.length === 1
+      ? `1 item moved back to its round-${round} value`
+      : `${items.length} items moved back to their round-${round} values`
+  return `${head}: ${items
+    .slice(0, FLIPPED_NAMED)
+    .map((item) => item.sentence)
+    .join('; ')}`
 }
 
 function stalled(input: {score: number[]; capturePath: CapturePath | undefined; priors: Round[]}): boolean {
