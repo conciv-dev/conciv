@@ -5,7 +5,7 @@ import type {ConcivPlugin} from '@conciv/extension'
 import {CONCIV_HOST_SERVICE, type ConcivHost} from '@conciv/extension/devframe-host'
 import type {ClaimUpgrade} from '@conciv/serve'
 import {initHub, type HubInstance} from '@devframes/hub/initiate'
-import {AsyncQueuer} from '@tanstack/pacer'
+import {AsyncQueuer, RateLimiter} from '@tanstack/pacer'
 import type {DevframePtyTerminalSession, DevframeTerminalSession} from '@devframes/hub/types'
 import {createMessagesDevframe} from '@devframes/plugin-messages'
 import {createTerminalsDevframe} from '@devframes/plugin-terminals'
@@ -13,11 +13,15 @@ import {defineDevframe, type DevframeDefinition} from 'devframe'
 import type {DevframeAuthHandler} from 'devframe/node/auth'
 import type {DevframeNodeContext} from 'devframe/types'
 import {createInteractiveAuth} from 'devframe/recipes/interactive-auth'
-import type {z} from 'zod'
+import {z} from 'zod'
 import {logError} from './lib/debug.js'
 import {isInheritedToken} from './devframe-trust.js'
 
 const HUB_BASE = '/__conciv/'
+const EXCHANGE_METHOD = 'anonymous:devframe:auth:exchange'
+const REQUEST_CODE_METHOD = 'anonymous:devframe:auth:request-code'
+const ExchangeResult = z.object({authToken: z.string().nullable()})
+const RequestCodeInput = z.object({reissue: z.boolean().optional()})
 
 export type PublishedGroup = 'sessions'
 
@@ -81,6 +85,47 @@ function unfilledAuth(): DevframeAuthHandler {
   }
 }
 
+type AuthFunction = DevframeAuthHandler['rpcFunctions'][number]
+
+type LoginLimits = {
+  failedExchanges: RateLimiter<() => void>
+  codeReissues: RateLimiter<() => void>
+}
+
+function loginLimits(): LoginLimits {
+  return {
+    failedExchanges: new RateLimiter(() => {}, {limit: 10, window: 5 * 60_000, windowType: 'sliding'}),
+    codeReissues: new RateLimiter(() => {}, {limit: 3, window: 60_000, windowType: 'sliding'}),
+  }
+}
+
+function limitLogin(definition: AuthFunction, limits: LoginLimits): AuthFunction {
+  const handler = definition.handler
+  if (!handler) return definition
+  if (definition.name === EXCHANGE_METHOD)
+    return {
+      ...definition,
+      handler: (...args: unknown[]) => {
+        if (limits.failedExchanges.getRemainingInWindow() === 0)
+          throw new Error('too many wrong login codes, try again in a few minutes')
+        const result = handler(...args)
+        if (ExchangeResult.safeParse(result).data?.authToken === null) limits.failedExchanges.maybeExecute()
+        return result
+      },
+    }
+  if (definition.name === REQUEST_CODE_METHOD)
+    return {
+      ...definition,
+      handler: (...args: unknown[]) => {
+        const reissue = RequestCodeInput.safeParse(args[0]).data?.reissue === true
+        if (reissue && !limits.codeReissues.maybeExecute())
+          throw new Error('too many new login codes, try again in a minute')
+        return handler(...args)
+      },
+    }
+  return definition
+}
+
 function claimHubUpgrade(hub: HubInstance): ClaimUpgrade {
   const socketPath = `${hub.base}__ws`
   return (req: IncomingMessage, socket: Duplex, head: Buffer) => {
@@ -117,6 +162,7 @@ async function publishGroup(
 
 export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
   const auth = unfilledAuth()
+  const limits = loginLimits()
   const queue = new AsyncQueuer<PublishRequest>(
     async (request) => {
       await publishGroup(hub, opts.published, request.group)
@@ -148,6 +194,7 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
       const interactive = createInteractiveAuth(ctx, {clientAuthTokens: [opts.loginToken]})
       const guarded: DevframeAuthHandler = {
         ...interactive,
+        rpcFunctions: interactive.rpcFunctions.map((definition) => limitLogin(definition, limits)),
         authorize: (method, session) =>
           interactive.authorize(method, session) && !isInheritedToken(ctx, session.meta.clientAuthToken),
       }
@@ -159,6 +206,8 @@ export function makeDevframePlane(opts: DevframePlaneOpts): DevframePlane {
     claimUpgrade: claimHubUpgrade(hub),
     publish,
     close: async () => {
+      limits.failedExchanges.reset()
+      limits.codeReissues.reset()
       await stopHubSessions(hub)
       await hub.close()
     },
