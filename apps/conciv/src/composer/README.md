@@ -8,7 +8,7 @@ Composer toolbar: element grab, new session, compact and terminal launch actions
 
 - `ComposerActions` (`actions.tsx`): grab element, new session, compact, `LaunchMenu`
 - `LaunchMenu` (`launch-menu.tsx`): `Open in <harness>`, `Copy command`, or a retry item when failed
-- `SessionModelPrompt({sessionId, open, onOpenChange})` (`model-selector.tsx`): the composer prompt (`opus 5.5 · high ❯`) and its Ark menu, open state controlled by the pane (the prompt or `/model` opens it): one radio row per model of the first group, later groups as submenus, and below a separator an `Effort` row of `menuitemradio` segments (`default`, then the current model's `efforts`; `medium` reads `med`)
+- `useModelMenu(onClose)`, `SessionModelPrompt({sessionId, menu})` (`model-selector.tsx`): the model menu machine (`useMenu` from ui-kit-system, so the pane can open it for `/model`; `onClose` runs whenever it closes) and the composer prompt (`opus 5.5 · high ❯`) that renders it through `Menu.RootProvider`: one radio row per model of the first group, later groups as submenus, and below a separator an `Effort` row of `menuitemradio` segments (`default`, then the current model's `efforts`; `medium` reads `med`)
 - `SessionSelector` (`session-selector.tsx`): session combobox (`pill` | `bar`) with Today/Yesterday/Earlier groups, search, rename, new session
 - `terminalRpc`, `TerminalRpc` (`terminal-rpc.ts`): `makeExtRpcClient<TerminalRouter>(resolveApiBase(), 'terminal')`
 

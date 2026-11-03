@@ -26,7 +26,7 @@ export {
   type TooltipIconButtonProps,
   type TooltipIconButtonSlotProps,
 } from './tooltip-icon-button.js'
-export {Menu} from './menu.js'
+export {Menu, useMenu, type MenuMachine} from './menu.js'
 export {
   LIST_PANEL,
   LIST_PANEL_GROUP_LABEL,

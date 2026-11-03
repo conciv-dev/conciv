@@ -1,7 +1,7 @@
 import {createEffect, createMemo, For, Match, on, Show, splitProps, Suspense, Switch, type JSX} from 'solid-js'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {groupBy} from 'es-toolkit'
-import {Button, LIST_PANEL_ITEM, Menu} from '@conciv/ui-kit-system'
+import {Button, LIST_PANEL_ITEM, Menu, useMenu, type MenuMachine} from '@conciv/ui-kit-system'
 import RotateCw from 'lucide-solid/icons/rotate-cw'
 import Check from 'lucide-solid/icons/check'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
@@ -166,17 +166,25 @@ function ModelSubmenu(props: {
   )
 }
 
+export function useModelMenu(onClose: () => void): MenuMachine {
+  return useMenu({
+    positioning: {placement: 'top-start'},
+    onOpenChange: (details) => {
+      if (!details.open) onClose()
+    },
+  })
+}
+
 type SessionModelPromptProps = {
   sessionId: string
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  menu: MenuMachine
 }
 
 export function SessionModelPrompt(props: SessionModelPromptProps): JSX.Element {
   return (
     <div class={PROMPT_SLOT}>
       <Suspense fallback={<PlainPrompt />}>
-        <SessionModelMenu sessionId={props.sessionId} open={props.open} onOpenChange={props.onOpenChange} />
+        <SessionModelMenu sessionId={props.sessionId} menu={props.menu} />
       </Suspense>
     </div>
   )
@@ -228,11 +236,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
 
   return (
     <Show when={failed() || models().length > 0} fallback={<PlainPrompt />}>
-      <Menu.Root
-        positioning={{placement: 'top-start'}}
-        open={props.open}
-        onOpenChange={(details) => props.onOpenChange(details.open)}
-      >
+      <Menu.RootProvider value={props.menu}>
         <Menu.Trigger
           asChild={(triggerProps) => (
             <Button
@@ -285,7 +289,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
             </Switch>
           </Menu.Content>
         </Menu.Positioner>
-      </Menu.Root>
+      </Menu.RootProvider>
     </Show>
   )
 }

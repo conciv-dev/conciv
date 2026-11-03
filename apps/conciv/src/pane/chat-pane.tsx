@@ -51,7 +51,7 @@ import {guardedToolCards} from '../extension/extension-boundary.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
-import {SessionModelPrompt} from '../composer/model-selector.js'
+import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage} from './draft-storage.js'
 import {useSessionCaptures} from './session-captures.js'
@@ -113,8 +113,6 @@ const StoppedMetadataSchema = z.object({tanstack: z.object({stopReason: z.litera
 function isStoppedTurn(message: ChatMessage | undefined): boolean {
   return message?.role === 'assistant' && StoppedMetadataSchema.safeParse(message.metadata).success
 }
-
-type ModelMenuOpener = 'prompt' | 'command' | null
 
 export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Element {
   const rpc = useRpc()
@@ -230,14 +228,17 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const compacting = messaging.compacting
 
   const focusInput = () => requestAnimationFrame(() => inputHandle()?.focus())
-  const [modelMenuOpener, setModelMenuOpener] = createSignal<ModelMenuOpener>(null)
-  const changeModelMenu = (open: boolean) => {
-    if (!open && modelMenuOpener() === 'command') focusInput()
-    setModelMenuOpener(open ? 'prompt' : null)
-  }
+  let openedByCommand = false
+  const modelMenu = useModelMenu(() => {
+    if (openedByCommand) focusInput()
+    openedByCommand = false
+  })
   const commandSources = useComposerTriggerSources({
     sessionId,
-    openModelMenu: () => setModelMenuOpener('command'),
+    openModelMenu: () => {
+      openedByCommand = true
+      modelMenu.api().setOpen(true)
+    },
   })
   const sendOrRunCommand = async (content: string | SendContent): Promise<void> => {
     if (typeof content === 'string' && commandSources.runTyped(content)) return
@@ -382,13 +383,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                             initialSelection={storage().restoredSelection}
                             busy={compacting() ? <CompactSpinner /> : undefined}
                             triggers={commandSources.triggers}
-                            prompt={
-                              <SessionModelPrompt
-                                sessionId={sessionId}
-                                open={modelMenuOpener() !== null}
-                                onOpenChange={changeModelMenu}
-                              />
-                            }
+                            prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} />}
                           >
                             <Suspense fallback={<ComposerActionsPending />}>
                               <ComposerActions
