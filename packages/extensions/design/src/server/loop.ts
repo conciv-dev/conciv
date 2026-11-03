@@ -159,6 +159,7 @@ export function judge(input: {
   items: Item[]
   score: number[]
   capturePath: CapturePath | undefined
+  capture: string
   priors: Round[]
   round: number
   ranker: Ranker
@@ -169,7 +170,7 @@ export function judge(input: {
   changed: {line: string | null; regressed: Set<string>}
   crop: (node: string) => string
 }): Verdict {
-  const {items, score, capturePath, priors, round, ranker, warnings, color, changed, crop} = input
+  const {items, score, capturePath, capture, priors, round, ranker, warnings, color, changed, crop} = input
   const counted = items.filter((item) => item.stage !== null)
   const demoted = new Set(counted.filter((item) => unchangedLately({item, priors, color})).map((item) => item.key))
   const chosen = counted.filter((item) => !demoted.has(item.key))
@@ -178,10 +179,12 @@ export function judge(input: {
   const kept = [...ranked.filter((item) => !demoted.has(item.key)), ...ranked.filter((item) => demoted.has(item.key))]
   const regressed = (item: Item): boolean => item.node !== undefined && changed.regressed.has(item.node)
   const ordered = [...kept.filter(regressed), ...kept.filter((item) => !regressed(item))]
-  const stop = input.partial ? null : stopReason({counted, score, capturePath, priors, round, stage})
+  const stop = input.partial ? null : stopReason({counted, score, capturePath, capture, priors, round, stage})
   const flipped = flippedBack({counted, priors, color})
   const brief = [
-    ...(stop === 'stalled' ? [stalledLine(ranker({items: counted.filter((item) => demoted.has(item.key))}))] : []),
+    ...(stop === 'stalled' && stage !== null
+      ? [stalledLine({stage, score, unchanged: ranker({items: counted.filter((item) => demoted.has(item.key))})})]
+      : []),
     ...(changed.line === null ? [] : [changed.line]),
     ...(input.painted === null ? [] : [paintedLine(input.painted.count)]),
     ...(flipped === null ? [] : [flippedLine({items: ranker({items: flipped.items}), round: flipped.round})]),
@@ -660,10 +663,12 @@ function paintedLine(count: number): string {
   return `painted: ${count} elements are absolutely positioned; lay the page out with flow, flex or grid and let the browser place them`
 }
 
-function stalledLine(unchanged: Item[]): string {
-  const head = `stalled: ${unchanged.length} items unchanged for ${TOLERANCES.stallRounds} rounds`
+function stalledLine(input: {stage: Stage; score: number[]; unchanged: Item[]}): string {
+  const {stage, score, unchanged} = input
+  const total = score[stageColumn(stage)] ?? 0
+  const head = `stalled: the ${stage} total held at ${total} for ${TOLERANCES.stallRounds} rounds`
   if (unchanged.length === 0) return head
-  return `${head}: ${unchanged
+  return `${head}; ${unchanged.length} items unchanged, first: ${unchanged
     .slice(0, STALLED_NAMED)
     .map((item) => item.sentence)
     .join('; ')}`
@@ -723,23 +728,24 @@ function stopReason(input: {
   counted: Item[]
   score: number[]
   capturePath: CapturePath | undefined
+  capture: string
   priors: Round[]
   round: number
   stage: Stage | null
 }): Stop | null {
-  const {counted, score, capturePath, priors, round, stage} = input
+  const {counted, score, capturePath, capture, priors, round, stage} = input
   if (counted.length === 0) {
     return (score.at(-1) ?? 0) < TOLERANCES.residualAreaGate ? 'done' : 'residual-only'
   }
   if (stage !== null && oscillating({score, priors, stage})) return 'oscillating'
-  if (stalled({score, capturePath, priors})) return 'stalled'
+  if (stage !== null && stalled({score, capturePath, capture, priors, stage})) return 'stalled'
   if (round >= TOLERANCES.roundBudget) return 'budget'
   return null
 }
 
 function oscillating(input: {score: number[]; priors: Round[]; stage: Stage}): boolean {
   const {score, priors, stage} = input
-  const at = 1 + STAGES.indexOf(stage)
+  const at = stageColumn(stage)
   const totals = [...priors.map((round) => round.score[at] ?? 0), score[at] ?? 0]
   const tolerance = STAGE_TOLERANCES[stage]
   const chain = totals.reduce<{lowest: number; reversals: number}>(
@@ -795,13 +801,32 @@ function flippedLine(input: {items: Item[]; round: number}): string {
     .join('; ')}`
 }
 
-function stalled(input: {score: number[]; capturePath: CapturePath | undefined; priors: Round[]}): boolean {
-  const path = input.priors.filter((round) => round.capturePath === input.capturePath)
-  const chain = [...path.slice(-TOLERANCES.stallRounds).map((round) => round.score), input.score]
+function stalled(input: {
+  score: number[]
+  capturePath: CapturePath | undefined
+  capture: string
+  priors: Round[]
+  stage: Stage
+}): boolean {
+  const {score, capturePath, capture, priors, stage} = input
+  const at = stageColumn(stage)
+  const tolerance = STAGE_TOLERANCES[stage]
+  const path = priors.filter((round) => round.capturePath === capturePath)
+  const chain = [
+    ...path
+      .slice(-TOLERANCES.stallRounds)
+      .map((round) => ({score: round.score, capture: round.capture, stage: round.report.stage})),
+    {score, capture, stage},
+  ]
   if (chain.length <= TOLERANCES.stallRounds) return false
-  return chain.slice(1).every((score, index) => !lexicallyLess({a: score, b: chain[index] ?? score}))
+  return chain.slice(1).every((entry, index) => {
+    const before = chain[index]
+    if (before === undefined || entry.stage !== stage || before.stage !== stage) return false
+    if (entry.capture === before.capture) return false
+    return Math.abs((entry.score[at] ?? 0) - (before.score[at] ?? 0)) < tolerance
+  })
 }
 
-function lexicallyLess(input: {a: number[]; b: number[]}): boolean {
-  return lexicallyWorse({a: input.b, b: input.a})
+function stageColumn(stage: Stage): number {
+  return 1 + STAGES.indexOf(stage)
 }

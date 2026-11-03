@@ -1800,8 +1800,38 @@ describe('loop', () => {
     }
     expect(reports.map((report) => report.stop)).toEqual([null, null, 'stalled'])
     const first = reports.at(-1)?.brief[0] ?? ''
-    expect([first.startsWith('stalled: '), first.includes(' items unchanged for 2 rounds')]).toEqual([true, true])
+    expect([first.startsWith('stalled: the paint total held at '), first.includes(' for 2 rounds')]).toEqual([
+      true,
+      true,
+    ])
   })
+
+  it('three css edits that each move the structure total of stripe are never stalled', async ({annotate}) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const styles = await readFile(STRIPE_STYLES, 'utf8')
+    const reports: DiffReport[] = []
+    try {
+      for (const move of STRUCTURE_MOVES) {
+        const css = move === null ? styles : `${styles}\n.grid { margin-top: ${move}px; }\n`
+        if (reports.length > 0) await rewrite({id, file: STRIPE_STYLES, text: css})
+        reports.push(await call('design_diff', {}))
+      }
+    } finally {
+      await writeFile(STRIPE_STYLES, styles)
+    }
+    await annotate(
+      `rounds ${JSON.stringify(reports.map((report) => [report.stop, report.stage, report.score[1], report.brief[0]]))}`,
+    )
+    const totals = reports.map((report) => report.score[1] ?? 0)
+    expect(reports.map((report) => report.stage)).toEqual(STRUCTURE_MOVES.map(() => 'structure'))
+    expect(totals.slice(1).map((total, index) => Math.abs(total - (totals[index] ?? total)) >= 1)).toEqual([
+      true,
+      true,
+      true,
+    ])
+    expect(reports.map((report) => report.stop)).toEqual([null, null, null, null])
+  }, 300_000)
 
   it('a diff on bordered times each phase within its own clock and is not partial', async ({annotate}) => {
     await goto('bordered')
@@ -1920,6 +1950,7 @@ const EDITED_HEADING = 'Get Stripe product recommendations'
 const ORDINAL_SUFFIXES = ['st', 'nd', 'rd', 'th']
 const ORDINAL_LIMIT = 9
 const CARD_ROW_MOVES = [null, 40, null, 40, 20]
+const STRUCTURE_MOVES = [null, 40, 80, 120]
 const TIMED_PHASES = [
   'capture',
   'decode',

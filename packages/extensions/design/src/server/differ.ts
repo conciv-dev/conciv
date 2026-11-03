@@ -453,6 +453,7 @@ async function runDiff(request: {
     items,
     score,
     capturePath: live.capturePath,
+    capture,
     ranker: design.ranker,
     warnings,
     painted,

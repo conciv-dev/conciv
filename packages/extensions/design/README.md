@@ -126,8 +126,10 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   `measureTimeoutMs`; a chunk that fails or times out skips the estimate for its samples and adds a
   `typography-skipped` warning whose `live` is the number of samples skipped, and the run is still reported.
 - Run 0, the run `design_target` starts, gives the first `stage` and `brief` and is stored for the x-ray, but it is
-  never a prior for `stalled` or `oscillating`: the history starts at the first `design_diff`. When `stop` is
-  `stalled`, the first brief line names how many items stayed unchanged for two rounds and the first three of them.
+  never a prior for `stalled` or `oscillating`: the history starts at the first `design_diff`.
+- `stalled` reads the same stage total: the run stalls when, for `stallRounds` rounds in a row under the current
+  stage, the capture changed and the total moved by less than the stage's tolerance, and the first brief line says so
+  (`stalled: the structure total held at 121 for 2 rounds; 348 items unchanged, first: ...`).
 - `oscillating` reads the counted total of the current stage, the stage's entry in `score`, across the rounds. A round
   is a reversal when its total moved the opposite way from the previous round's move by more than the stage's
   tolerance (1 item for structure and content, `geometryPx` for geometry, `colorDeltaE` for paint); the stop needs
