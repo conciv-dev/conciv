@@ -568,6 +568,7 @@ describe('model menu', () => {
 
   const core = bootedCore('model-menu', {models: MODELS, commands: HARNESS_COMMANDS, text: REPLY})
   const keep = keptPane()
+  const faults = trackedFaults()
 
   const prompt = (name: string) => page.getByRole('button', {name: `Model: ${name}`})
   const model = (name: string) => page.getByRole('menuitemradio', {name})
@@ -581,6 +582,22 @@ describe('model menu', () => {
     keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
     await expect.element(input()).toBeVisible()
   }
+
+  test('the composer takes typing while the model list still loads, and keeps text and focus once it arrives', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await faults.install({kind: 'gate', path: ['meta', 'models']})
+    keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+
+    await expect.element(input()).toBeVisible()
+    await input().fill('typed before the models arrived')
+    await expect.element(input()).toHaveFocus()
+
+    await faults.releaseAll()
+
+    await expect.element(prompt('Opus 5.5')).toBeVisible()
+    await expect.element(input()).toHaveTextContent('typed before the models arrived')
+    await expect.element(input()).toHaveFocus()
+  })
 
   test('the slash list shows /model once, the built-in command replacing the harness one', async () => {
     await mountModelMenu()

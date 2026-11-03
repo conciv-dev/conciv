@@ -166,11 +166,23 @@ function ModelSubmenu(props: {
   )
 }
 
-export function SessionModelPrompt(props: {
+type SessionModelPromptProps = {
   sessionId: string
   open: boolean
   onOpenChange: (open: boolean) => void
-}): JSX.Element {
+}
+
+export function SessionModelPrompt(props: SessionModelPromptProps): JSX.Element {
+  return (
+    <div class={PROMPT_SLOT}>
+      <Suspense fallback={<PlainPrompt />}>
+        <SessionModelMenu sessionId={props.sessionId} open={props.open} onOpenChange={props.onOpenChange} />
+      </Suspense>
+    </div>
+  )
+}
+
+function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
   const announce = useAnnounce()
@@ -215,69 +227,65 @@ export function SessionModelPrompt(props: {
   )
 
   return (
-    <div class={PROMPT_SLOT}>
-      <Suspense fallback={<PlainPrompt />}>
-        <Show when={failed() || models().length > 0} fallback={<PlainPrompt />}>
-          <Menu.Root
-            positioning={{placement: 'top-start'}}
-            open={props.open}
-            onOpenChange={(details) => props.onOpenChange(details.open)}
-          >
-            <Menu.Trigger
-              asChild={(triggerProps) => (
-                <Button
-                  {...triggerProps()}
-                  variant="plain"
-                  size="none"
-                  class={PROMPT}
-                  aria-label={failed() ? MODELS_UNAVAILABLE : promptAriaLabel(current(), value(), effort())}
-                >
-                  <Show when={!failed()}>
-                    <span class={PROMPT_MODEL}>{promptLabel(current(), value(), effort())}</span>
-                  </Show>
-                  <Glyph />
-                </Button>
-              )}
-            />
-            <Menu.Positioner>
-              <Menu.Content>
-                <Switch>
-                  <Match when={failed()}>
-                    <Menu.Item value="retry" onSelect={() => void meta.refetch()}>
-                      <RotateCw class="size-4 block" aria-hidden="true" />
-                      {`${MODELS_UNAVAILABLE}: ${RETRY_LABEL}`}
-                    </Menu.Item>
-                  </Match>
-                  <Match when={groups()[0]}>
-                    {(first) => (
-                      <>
-                        <Menu.ItemGroup>
-                          <Menu.ItemGroupLabel>{MENU_LABEL}</Menu.ItemGroupLabel>
-                          <ModelRows models={first().models} value={value()} onSelect={select} />
-                        </Menu.ItemGroup>
-                        <Show when={groups().length > 1}>
+    <Show when={failed() || models().length > 0} fallback={<PlainPrompt />}>
+      <Menu.Root
+        positioning={{placement: 'top-start'}}
+        open={props.open}
+        onOpenChange={(details) => props.onOpenChange(details.open)}
+      >
+        <Menu.Trigger
+          asChild={(triggerProps) => (
+            <Button
+              {...triggerProps()}
+              variant="plain"
+              size="none"
+              class={PROMPT}
+              aria-label={failed() ? MODELS_UNAVAILABLE : promptAriaLabel(current(), value(), effort())}
+            >
+              <Show when={!failed()}>
+                <span class={PROMPT_MODEL}>{promptLabel(current(), value(), effort())}</span>
+              </Show>
+              <Glyph />
+            </Button>
+          )}
+        />
+        <Menu.Positioner>
+          <Menu.Content>
+            <Switch>
+              <Match when={failed()}>
+                <Menu.Item value="retry" onSelect={() => void meta.refetch()}>
+                  <RotateCw class="size-4 block" aria-hidden="true" />
+                  {`${MODELS_UNAVAILABLE}: ${RETRY_LABEL}`}
+                </Menu.Item>
+              </Match>
+              <Match when={groups()[0]}>
+                {(first) => (
+                  <>
+                    <Menu.ItemGroup>
+                      <Menu.ItemGroupLabel>{MENU_LABEL}</Menu.ItemGroupLabel>
+                      <ModelRows models={first().models} value={value()} onSelect={select} />
+                    </Menu.ItemGroup>
+                    <Show when={groups().length > 1}>
+                      <Menu.Separator class="border-none" />
+                    </Show>
+                    <For each={groups().slice(1)}>
+                      {(group) => <ModelSubmenu group={group} value={value()} onSelect={select} />}
+                    </For>
+                    <Show when={current()?.efforts}>
+                      {(efforts) => (
+                        <>
                           <Menu.Separator class="border-none" />
-                        </Show>
-                        <For each={groups().slice(1)}>
-                          {(group) => <ModelSubmenu group={group} value={value()} onSelect={select} />}
-                        </For>
-                        <Show when={current()?.efforts}>
-                          {(efforts) => (
-                            <>
-                              <Menu.Separator class="border-none" />
-                              <EffortRow efforts={efforts()} value={effort()} onSelect={selectEffort} />
-                            </>
-                          )}
-                        </Show>
-                      </>
-                    )}
-                  </Match>
-                </Switch>
-              </Menu.Content>
-            </Menu.Positioner>
-          </Menu.Root>
-        </Show>
-      </Suspense>
-    </div>
+                          <EffortRow efforts={efforts()} value={effort()} onSelect={selectEffort} />
+                        </>
+                      )}
+                    </Show>
+                  </>
+                )}
+              </Match>
+            </Switch>
+          </Menu.Content>
+        </Menu.Positioner>
+      </Menu.Root>
+    </Show>
   )
 }
