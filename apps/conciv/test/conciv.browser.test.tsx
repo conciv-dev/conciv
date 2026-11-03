@@ -917,7 +917,7 @@ describe('harness switching', () => {
     await userEvent.click(menuitem('Harness: Beta'))
 
     await expect
-      .element(confirmDialog().getByText(/^Switching to Beta sends this chat’s history \(about \d+ tokens?\)\.$/))
+      .element(confirmDialog().getByText('Switching to Beta sends this chat’s history (about 8 tokens).'))
       .toBeVisible()
     await userEvent.click(page.getByRole('button', {name: 'Cancel'}))
     await expect.element(confirmDialog()).not.toBeInTheDocument()

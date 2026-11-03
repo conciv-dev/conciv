@@ -21,7 +21,6 @@ import ChevronRight from 'lucide-solid/icons/chevron-right'
 import {ComposerActions as Action} from '@conciv/ui-kit-chat'
 import {ReasoningEffortSchema, type HarnessModelInfo, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
-import {contextUsedTokens} from '@conciv/protocol/usage-types'
 import {useAnnounce, useAppData, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {
@@ -344,7 +343,6 @@ function switchFailure(error: unknown, target: HarnessMeta): string {
 }
 
 export function SessionHarnessSwitcher(props: {sessionId: string; running: boolean}): JSX.Element {
-  const appData = useAppData()
   const rpc = useRpc()
   const announce = useAnnounce()
   const notices = useNotices()
@@ -353,13 +351,9 @@ export function SessionHarnessSwitcher(props: {sessionId: string; running: boole
   const harnesses = useHarnesses()
   const current = useSessionHarness(() => props.sessionId)
   const refetchSessionHarness = useRefetchSessionHarness()
-  const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
   const [confirming, setConfirming] = createSignal<HarnessMeta | null>(null)
 
-  const historyTokens = () => {
-    const usage = (sessions.data ?? []).find((session) => session.id === props.sessionId)?.usage
-    return (usage ? contextUsedTokens(usage) : undefined) ?? estimatedTokens(pane.chat().messages())
-  }
+  const historyTokens = () => estimatedTokens(pane.chat().messages())
   const switchHarness = useMutation(() => ({
     mutationFn: (target: HarnessMeta) => rpc.sessions.switchHarness({sessionId: props.sessionId, harnessId: target.id}),
     onSuccess: async (_switched: {harnessId: string}, target: HarnessMeta) => {

@@ -19,7 +19,7 @@ Composer toolbar: element grab, new session, compact and terminal launch actions
 - `actions.tsx:openExternal`: tries `terminal.launch`; on `ok: false` falls back to `terminal.connectCommand` and copies the command
 - `actions.tsx:launchFailure`: error code `NO_CONNECT` maps to `<harness> can’t be opened in a terminal.`
 - `model-selector.tsx:SessionModelPrompt`: shown model falls back session model, then `meta.defaultModel`, then null; the prompt shows ` · <effort>` only when the session effort is one the current model lists; the Effort row is hidden when the current model has no `efforts`; picking an effort keeps the menu open (`closeOnSelect={false}`), picking a model closes it; `default` clears the effort to null
-- `model-selector.tsx:SessionHarnessSwitcher`: renders only when `meta.harnesses` lists more than one harness; disabled while a run is in progress or a switch is pending; an empty chat switches at once, a chat with messages first confirms with the history size (session context tokens, else text length / 4)
+- `model-selector.tsx:SessionHarnessSwitcher`: renders only when `meta.harnesses` lists more than one harness; disabled while a run is in progress or a switch is pending; an empty chat switches at once, a chat with messages first confirms with the history size estimated from the messages' text length / 4 (never the session's context usage, which counts the old harness's system prompt and tools)
 - `session-selector.tsx:SessionSelector`: rows name their harness only when more than one harness is available
 - `session-selector.tsx:commitRename`: no rename when the trimmed draft is empty or unchanged
 - `session-selector.tsx:select`: selecting the active id or an empty id does nothing
