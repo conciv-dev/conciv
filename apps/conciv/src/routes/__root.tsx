@@ -171,7 +171,7 @@ function RootComponent() {
                 politeMessage={politeMessage}
                 assertiveMessage={assertiveMessage}
               />
-              <Show when={app.connected()}>
+              <Show when={app.login?.apiBase() !== null}>
                 <EffectsSurface instances={app.instances} />
               </Show>
             </HostApiProvider>

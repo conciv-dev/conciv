@@ -390,7 +390,9 @@ test.describe('dead engine boot', () => {
     }) => {
       test.setTimeout(90_000)
       const dead = await reserveDeadPort()
-      const host = await serveHost(() => hostPage({apiBase: dead.base, widget: '{"quickTerminal":false}'}))
+      const host = await serveHost(() =>
+        hostPage({apiBase: `${dead.base}${new URL(kit.base).pathname}`, widget: '{"quickTerminal":false}'}),
+      )
       let proxy: ProxyCore | null = null
       try {
         await page.goto(host.base, {waitUntil: 'domcontentloaded'})

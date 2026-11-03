@@ -174,7 +174,8 @@ export function createEngineLogin(options: EngineLoginOptions): EngineLogin {
   const apiBase = createMemo<string | null>(() => {
     const current = outcome.loading ? undefined : outcome()
     if (current?.phase === 'trusted') return `${engine.root}/t/${current.token}`
-    if (current?.phase === 'unreachable') return engine.root
+    if (current?.phase === 'unreachable')
+      return engine.token === undefined ? engine.root : `${engine.root}/t/${engine.token}`
     return null
   })
 
