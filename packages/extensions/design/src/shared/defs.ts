@@ -206,10 +206,10 @@ const DeltaSchema = ProvenanceSchema.partial().extend({
     .optional()
     .describe('the same value read from the takumi layout; shown, never scored'),
   warning: z
-    .enum(['sample-data', 'typography-skipped', 'svg-drawn'])
+    .enum(['sample-data', 'typography-skipped', 'svg-drawn', 'page-error'])
     .optional()
     .describe(
-      'sample-data: the live text is a literal equal to sample data in the design; render it from the data instead. typography-skipped: live is the number of text samples the page did not render, so their type was not estimated. svg-drawn: a picture the page draws where the design has an image or icon slot; replace it with the Placeholder',
+      'sample-data: the live text is a literal equal to sample data in the design; render it from the data instead. typography-skipped: live is the number of text samples the page did not render, so their type was not estimated. svg-drawn: a picture the page draws where the design has an image or icon slot; replace it with the Placeholder. page-error: live is the error the dev server shows instead of the page; the run counted nothing',
     ),
 })
 
@@ -588,6 +588,7 @@ export const MeasureResultSchema = z.object({
     .default(null)
     .describe('react when a measured element carries a fiber, solid when the page has vite dev ids and none does'),
   longestTask: LongestTaskSchema.optional(),
+  pageError: z.string().optional().describe('the first line of the dev server error overlay covering the page'),
 })
 
 const RenderSchema = z.object({

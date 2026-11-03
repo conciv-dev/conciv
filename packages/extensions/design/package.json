@@ -89,6 +89,7 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@orpc/server": "catalog:",
+    "@tanstack/pacer": "catalog:",
     "@tanstack/solid-router": "catalog:",
     "@zumer/snapdom": "catalog:",
     "culori": "catalog:",

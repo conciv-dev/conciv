@@ -2248,6 +2248,38 @@ describe('live loop', () => {
       await writeFile(STRIPE_STYLES, styles)
     }
   }, 240_000)
+
+  it('an edit that imports a missing file is a page error: no round, no result file, the brief says the page did not render', async () => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const first = await call('design_diff', {})
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await writeFile(STRIPE_SOURCE, `import './missing-design-fixture'\n${source}`)
+      await expect
+        .poll(() => page.evaluate(() => document.querySelector('vite-error-overlay') !== null), {timeout: 30_000})
+        .toBe(true)
+      const results = await runFiles({id, prefix: 'result-'})
+      const report = await call('design_diff', {})
+      expect(report.warnings.map((warning) => warning.warning)).toEqual(['page-error'])
+      expect(report.brief[0]?.startsWith('the page did not render: ')).toBe(true)
+      expect([report.round, report.budgetLeft]).toEqual([first.round, first.budgetLeft])
+      expect(await runFiles({id, prefix: 'result-'})).toEqual(results)
+    } finally {
+      await writeFile(STRIPE_SOURCE, source)
+    }
+  }, 240_000)
+
+  it('a run started right after a full reload waits for the widget to register and measures', async () => {
+    await goto('stripe')
+    await freshTarget('stripe-1280')
+    await page.reload({waitUntil: 'domcontentloaded'})
+    const pending = call('design_diff', {})
+    await injectWidget(page, kit.apiBase)
+    const report = await pending
+    expect(report.partial).toBe(false)
+    expect(report.paired).toBeGreaterThan(0)
+  }, 240_000)
 })
 
 const LedgerFileSchema = z.object({

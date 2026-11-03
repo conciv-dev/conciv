@@ -63,6 +63,8 @@ export const TOLERANCES = {
   glyphNoise: 12,
   sectionGap: 64,
   regionGap: 32,
+  widgetWait: 8000,
+  widgetPoll: 250,
 } as const
 
 export type Tolerances = typeof TOLERANCES

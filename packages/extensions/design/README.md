@@ -127,6 +127,13 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   `timings` holding only the elapsed measure, and `hint: the page tab is hidden; bring it to the foreground and run
   design_diff again; <the page error>`, for example `...; design_measure: no widget answered on session "<id>": 1
   hidden, 0 silent`. Until the next diff that measures, `design_status.next` is that same first sentence.
+- A run first pings the widget (`page_ping`) every `widgetPoll` 250 ms until one is connected to the session or
+  `widgetWait` 8 s pass, so a run started during a full reload waits for the widget to register; after the wait the
+  measure fails with the same `no-widget` error as before.
+- A measure taken while the dev server shows its error overlay (`vite-error-overlay`) carries `pageError`, the first
+  line of the overlay's message. Such a run is not a round: no result file, no history entry, no ledger write, no carry.
+  It returns the previous round's report (or run 0's) with `stop: null`, no `changes`, one `page-error` warning whose
+  `live` is the message, and `brief: ["the page did not render: <message>"]`.
 - The type estimate asks the page to render its text samples in chunks of `renderChunk` 24, each call bounded by
   `measureTimeoutMs`; a chunk that fails or times out skips the estimate for its samples and adds a
   `typography-skipped` warning whose `live` is the number of samples skipped, and the run is still reported.
@@ -301,8 +308,8 @@ changes the time of a run, never its answer.
   `confidence` and the `run` that confirmed it, kept after the element is gone until a new pair replaces it) and
   `item` (the node's worst current item: `stage`, `size`, `sentence`). The ledger is written when a run becomes a
   round, by `design_diff` or when a settled run is promoted to the round; a save between rounds measures against the
-  last round's ledger and writes nothing. A repeated round, an unanswered page and a `partial` run
-  leave it as it was. A target without the file starts with every node `unbuilt`. Nodes excluded or marked as an image
+  last round's ledger and writes nothing. A repeated round, an unanswered page, a page error and a `partial`
+  run leave it as it was. A target without the file starts with every node `unbuilt`. Nodes excluded or marked as an image
   slot keep the row they had.
 - **Statuses.** `done` when the node is paired and no item names it; `paired` when it is paired with at least one item;
   `unbuilt` while it was never paired; `regressed` when a node that was paired, `done` or `accepted` has an item again
