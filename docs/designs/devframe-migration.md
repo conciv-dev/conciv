@@ -844,10 +844,12 @@ Each extension PR:
 - **Type / Scope**: Extension client.
 - **Proposed Changes**: `.client({...})` with today's shape. Calls to the extension's own
   server functions go through a `call` method added to the object `getExtensionApi(id)`
-  returns (`packages/extension/src/extension-api.ts`), typed from `ConcivServerFunctions` and
-  carried on the widget's one hub connection: `getExtensionApi('whiteboard').call(
-  'whiteboard:list', input)`. No new export; `makeExtRpcClient` (`ext-rpc.ts`) is deleted in
-  PR 20 once no extension uses it.
+  returns (`packages/extension/src/extension-api.ts`), carried on the widget's one hub
+  connection. The call is scoped to the extension id, the same rule as Devframe's scoped node
+  context (`qualifyName`): `getExtensionApi('whiteboard').call('list', input)` sends
+  `whiteboard:list`. Its types are the `ConcivServerFunctions` entries whose names start with
+  `<id>:`, with the prefix stripped, so a name outside the extension is a type error. No new
+  export; `makeExtRpcClient` (`ext-rpc.ts`) is deleted in PR 20 once no extension uses it.
 
 #### 28. `packages/extensions/<name>/test/*` (Modify)
 
