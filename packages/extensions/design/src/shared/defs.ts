@@ -473,6 +473,9 @@ export const CompactReportSchema = DiffReportSchema.pick({
   placeholderPath: true,
 })
   .extend({
+    diffImage: z.string().optional().describe('the diff image of this run; absent in a blind run'),
+    livePath: z.string().optional().describe('the live capture of this run; absent in a blind run'),
+    capturePath: CapturePathSchema.optional().describe('how the pixels of this run were taken; absent in a blind run'),
     counts: z
       .object({
         components: z.number(),

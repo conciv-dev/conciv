@@ -437,6 +437,23 @@ it('the pixelmatch comparator produces the same ranking as blazediff', async () 
   }
 })
 
+it('a blind diff returns its brief without the live and diff images', async () => {
+  const other = await boot({config: {blind: true}})
+  try {
+    await other.goto('/')
+    await other.call('design_target', {image: target('u1-1280')})
+    const report = z
+      .object({brief: z.array(z.string())})
+      .loose()
+      .parse(await other.rpc.registry.call({name: 'design_diff', input: {}}))
+    expect(report.brief.length).toBeGreaterThan(0)
+    expect(report).not.toHaveProperty('livePath')
+    expect(report).not.toHaveProperty('diffImage')
+  } finally {
+    await other.dispose()
+  }
+})
+
 it('names the winning declaration per property with media, inline, inherited and library sheets', async () => {
   await goto('/')
   const winners = await call('design_winner', {
