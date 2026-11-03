@@ -9,6 +9,12 @@ export function isTrustedBrowserToken(ctx: DevframeNodeContext, token: string): 
   return Object.hasOwn(trustedTokens(ctx), token)
 }
 
+export function trustBrowserToken(ctx: DevframeNodeContext, token: string, from: string): void {
+  getInternalContext(ctx).storage.auth.mutate((state) => {
+    state.trusted[token] = {authToken: token, ua: from, origin: from, timestamp: Date.now()}
+  })
+}
+
 export function isBrowserCaller(ctx: DevframeNodeContext): boolean {
   const token = ctx.rpc.getCurrentRpcSession()?.meta.clientAuthToken
   if (token === undefined) return false

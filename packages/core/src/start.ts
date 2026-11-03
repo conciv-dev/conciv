@@ -1,4 +1,4 @@
-import {randomUUID} from 'node:crypto'
+import {createHmac, randomUUID} from 'node:crypto'
 import {serveHono, type ClaimUpgrade, type ServeFetch} from '@conciv/serve'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
@@ -8,6 +8,7 @@ import {isConcivPlugin} from '@conciv/extension/devframe-plugin'
 import type {HubInstance} from '@devframes/hub/initiate'
 import {makeApp, withBuiltinExtensions, type MakeAppOpts} from './app.js'
 import {agentPathFor} from './engine-gate.js'
+import {trustBrowserToken} from './devframe-trust.js'
 
 export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
@@ -47,6 +48,7 @@ export type Engine = {
   agentBase: string
   loginToken: string
   hub: HubInstance
+  grantBrowserAccess: (key: string) => Promise<string>
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
   extensionContexts: Record<string, unknown>
@@ -236,6 +238,11 @@ export async function start(opts: StartOpts): Promise<Engine> {
     agentBase: base,
     loginToken,
     hub,
+    grantBrowserAccess: async (key) => {
+      const token = createHmac('sha256', loginToken).update(key).digest('hex').slice(0, 32)
+      trustBrowserToken(await hub.context, token, 'Vite DevTools')
+      return token
+    },
     cfg,
     extensionContexts,
     stop: async () => {

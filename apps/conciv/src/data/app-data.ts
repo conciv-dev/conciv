@@ -17,7 +17,7 @@ export type AppData = {
   rpc: RpcClient
   utils: QueryUtils
   invalidateSessions: () => void
-  readHubState: () => () => void
+  readHubState: (connection: HubConnection) => () => void
 }
 
 function unreachable(): Error {
@@ -54,12 +54,6 @@ function hubCallOf(hub: AppHub): HubCall {
   }
 }
 
-function readSessionsState(hub: AppHub | undefined, write: (value: unknown) => void): () => void {
-  const connection = hub?.connection()
-  if (!connection) return () => {}
-  return readSharedState<object>(connection, 'conciv:sessions', write)
-}
-
 export function makeAppData(rpc: RpcClient, hub: AppHub | undefined, queryClient: QueryClient): AppData {
   const routed = hub ? hubRoutedRpc(rpc, hubCallOf(hub), DEVFRAME_GROUPS) : rpc
   const utils = makeQueryUtils(routed)
@@ -75,6 +69,6 @@ export function makeAppData(rpc: RpcClient, hub: AppHub | undefined, queryClient
     rpc: routed,
     utils,
     invalidateSessions: () => void queryClient.invalidateQueries({queryKey: utils.sessions.list.key()}),
-    readHubState: () => readSessionsState(hub, writeSessions),
+    readHubState: (connection) => readSharedState<object>(connection, 'conciv:sessions', writeSessions),
   }
 }
