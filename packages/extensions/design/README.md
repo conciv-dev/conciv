@@ -98,7 +98,7 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   | `decode`     | decoding the snapshot PNG                                                                        |
   | `capture`    | the capture hash and painting the page's masks and dropped nodes over the live raster            |
   | `mask`       | text groups, painting agreeing text over, tile hashes and the pixel compare of the changed tiles |
-  | `regions`    | the changed regions of the compared tiles                                                        |
+  | `regions`    | reserved, currently 0                                                                            |
   | `pair`       | the pairer, bounded by `pairBudgetMs` 20000 counted from the moment pairing starts               |
   | `typography` | the type estimate of the paired texts                                                            |
   | `deltas`     | the pair tree, alignment, text verdicts, deltas, provenance, unmatched entries and the score     |

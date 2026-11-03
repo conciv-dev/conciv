@@ -865,8 +865,6 @@ function compareTiles(input: {
   const b = boxBlur({raster: crop({raster: target, box: area}).raster, radius: TOLERANCES.blurRadius})
   const compared = comparator.compare({a, b})
   clock.lap('mask')
-  findRegions({mask: compared.mask, width: a.width, height: a.height, minSize: 1})
-  clock.lap('regions')
   boxes.forEach((box) => copyMask({from: compared.mask, fromArea: area, onto: mask, width, box}))
 }
 
