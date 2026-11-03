@@ -14,6 +14,7 @@ import type {ExtensionInstance} from './extension/extension-slots.js'
 import {createInstances} from './extension/create-instances.js'
 import highlight from './extensions/highlight.js'
 import {PendingPane} from './shell/pending.js'
+import type {HubLogin} from './app/devframe-link.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
 
 export type ConcivEnvironment = {rootNode: Node; document: Document}
@@ -36,6 +37,7 @@ export type ConcivRouterContext = {
   bindActiveSession?: (read: () => string | null) => void
   disposeInstances: () => void
   notifyInteractive: () => void
+  login?: HubLogin
 }
 
 export type ConcivRouterConfig = {
@@ -54,6 +56,7 @@ export type ConcivRouterConfig = {
   connectionGeneration?: () => number
   bindActiveSession?: (read: () => string | null) => void
   notifyInteractive?: () => void
+  login?: HubLogin
 }
 
 function disposeExtensionInstances(instances: ExtensionInstance[]): void {
@@ -133,6 +136,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       bindActiveSession: config.bindActiveSession,
       disposeInstances,
       notifyInteractive: config.notifyInteractive ?? (() => {}),
+      login: config.login,
     },
   })
 }

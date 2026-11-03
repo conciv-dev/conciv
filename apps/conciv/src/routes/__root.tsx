@@ -41,6 +41,7 @@ import {createWarmSession} from '../app/warm-session.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../app/reachability.js'
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
+import {AuthorizeDialog, type HubLogin} from '../app/devframe-link.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
 import {toRawHotkey} from '../lib/hotkey.js'
@@ -169,6 +170,7 @@ function RootComponent() {
                 activeSession={activeSession}
                 politeMessage={politeMessage}
                 assertiveMessage={assertiveMessage}
+                login={app.login}
               />
               <EffectsSurface instances={app.instances} />
             </HostApiProvider>
@@ -184,6 +186,7 @@ function RootChrome(props: {
   activeSession: () => string | null
   politeMessage: () => string
   assertiveMessage: () => string
+  login?: HubLogin
 }) {
   const settings = useSettings()
   const theme = useHostTheme()
@@ -265,6 +268,15 @@ function RootChrome(props: {
     })
   }
   const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
+  const locked = () => props.login?.locked() ?? false
+  const launch = () => {
+    const login = props.login
+    if (login?.locked()) {
+      login.open()
+      return
+    }
+    togglePanel()
+  }
   const revealDock = (): boolean =>
     settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
 
@@ -385,9 +397,11 @@ function RootChrome(props: {
           working={working}
           suppressed={suppressed}
           fab={props.fab}
-          onToggle={togglePanel}
+          locked={locked}
+          onToggle={launch}
         />
       </Show>
+      <Show when={props.login}>{(login) => <AuthorizeDialog login={login()} />}</Show>
       <div class="sr-only" role="status" aria-live="polite">
         {props.politeMessage()}
       </div>

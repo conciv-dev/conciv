@@ -18,7 +18,7 @@ import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
 import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
-import {hasLoginToken, hubFor, renderLogin, type HubConnection} from '@conciv/app/devframe-link'
+import {hubFor, makeHubLogin, tokenBearingApiBase, type HubConnection, type HubLogin} from '@conciv/app/devframe-link'
 import {makeNavigationStorage} from './navigation-storage.js'
 import type {ConcivInit} from './mount.js'
 
@@ -128,6 +128,7 @@ type BootNormalConfig = {
   grabProvider?: GrabProvider
   connectMode?: boolean
   hub?: HubConnection
+  login?: HubLogin
 }
 
 type MountedRouter = {options: {context: {instances: {extension: ClientExtension; effects: readonly ClientEffect[]}[]}}}
@@ -170,6 +171,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
   const router = createConcivRouter({
     rpc,
     hubConnection: config.hub,
+    login: config.login,
     history: createWebStorageHistory({storage}),
     environment: {rootNode: config.root, document},
     settings: config.settings,
@@ -201,10 +203,10 @@ function bootNormal(config: BootNormalConfig): BootResult {
 
   const rebind = (nextApiBase: string): void => {
     rebindClient(nextApiBase)
-    void storage.reload()
     setApiBase(nextApiBase)
     router.options.context.queryClient.clear()
     setConnectionGeneration((generation) => generation + 1)
+    void storage.reload().then(() => router.invalidate())
   }
 
   const boot = {href: router.state.location.href, moved: false}
@@ -294,17 +296,18 @@ function bootConnect(config: BootConnectConfig): BootResult {
 
 function bootLinked(config: BootNormalConfig & {apiBase: string}): BootResult {
   const hub = hubFor(config.apiBase)
-  window.__CONCIV_API_BASE__ = config.apiBase
-  const booted = bootNormal({...config, apiBase: hasLoginToken(config.apiBase) ? config.apiBase : null, hub})
-  const disposeLogin = renderLogin(config.root, hub, config.apiBase, (trustedApiBase) => {
-    if (trustedApiBase === window.__CONCIV_API_BASE__) return
+  const bound = {apiBase: tokenBearingApiBase(config.apiBase)}
+  const login = makeHubLogin(hub, config.apiBase, (trustedApiBase) => {
     window.__CONCIV_API_BASE__ = trustedApiBase
+    if (trustedApiBase === bound.apiBase) return
+    bound.apiBase = trustedApiBase
     booted.rebind?.(trustedApiBase)
   })
+  const booted = bootNormal({...config, apiBase: bound.apiBase, hub, login})
   return {
     ...booted,
     dispose: () => {
-      disposeLogin()
+      login.dispose()
       booted.dispose()
     },
   }

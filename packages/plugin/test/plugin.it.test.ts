@@ -28,7 +28,7 @@ import {DevTools} from '@vitejs/devtools'
 import {createLogger, createServer, type Plugin, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
 import {pluginFrame, probeScript} from '@conciv/harness-testkit/devframe-probe'
-import {trustedTab} from '@conciv/extension-testkit/trusted-tab'
+import {trustedApiBase, trustedTab} from '@conciv/extension-testkit/trusted-tab'
 import {getTempAuthCode} from 'devframe/node/auth'
 import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
 import ios from '@conciv/extension-ios'
@@ -602,7 +602,14 @@ describe('native page vite boot', () => {
       expect(state.errors).toEqual([])
     }, 30_000)
 
-    it('asks a fresh tab for the login code, refuses a wrong one and restores the saved chat after the right one', async () => {
+    const typeCode = async (card: ReturnType<Page['getByRole']>, code: string): Promise<void> => {
+      await card.getByRole('textbox', {name: 'Digit 1 of 6'}).click()
+      await card.page().keyboard.type(code)
+    }
+
+    const wrongCode = (): string => (getTempAuthCode() === '000000' ? '111111' : '000000')
+
+    it('keeps a fresh tab locked without a popup, opens a dismissable login from the launcher and restores the saved chat after the right code', async () => {
       const url = state.started?.server.resolvedUrls?.local[0]
       if (url === undefined) throw new Error('dev server did not start')
       const opener = await trusted()
@@ -622,19 +629,64 @@ describe('native page vite boot', () => {
         if (message.type() === 'error') errorsBeforeLogin.push(message.text())
       })
       await tab.goto(url, {waitUntil: 'domcontentloaded'})
+      const locked = tab.getByRole('button', {name: 'Authorize conciv'})
+      await expectLocator(locked).toBeVisible({timeout: 45_000})
       const card = tab.getByRole('dialog', {name: 'Authorize conciv'})
-      await expectLocator(card).toBeVisible({timeout: 45_000})
-      const code = card.getByRole('textbox', {name: 'Code'})
-      await code.fill(getTempAuthCode() === '000000' ? '111111' : '000000')
-      await card.getByRole('button', {name: 'Authorize'}).click()
+      await expectLocator(card).toBeHidden()
+      await tab.getByRole('button', {name: '0', exact: true}).click()
+      await expectLocator(tab.getByRole('button', {name: '1', exact: true})).toBeVisible()
+
+      await locked.click()
+      await expectLocator(card).toBeVisible()
+      await expectLocator(card.getByText('Find the 6-digit code printed in your terminal.')).toBeVisible()
+      await tab.keyboard.press('Escape')
+      await expectLocator(card).toBeHidden()
+      await expectLocator(locked).toBeVisible()
+
+      await locked.click()
+      await expectLocator(card).toBeVisible()
+      await card.getByRole('button', {name: 'Close'}).click()
+      await expectLocator(card).toBeHidden()
+      await expectLocator(locked).toBeVisible()
+
+      await locked.click()
+      await typeCode(card, wrongCode())
       await expectLocator(card.getByRole('alert')).toHaveText(
-        'That code did not match. Check the terminal and try again.',
+        "That code didn't match. Check your terminal and try again.",
       )
       expect(errorsBeforeLogin).toEqual([])
-      await code.fill(getTempAuthCode())
-      await card.getByRole('button', {name: 'Authorize'}).click()
+      await typeCode(card, getTempAuthCode())
       await expectLocator(card).toBeHidden()
       await tab.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
+      await tab.close()
+    }, 90_000)
+
+    it('treats a stale engine token in the page as untrusted and unlocks after the code', async () => {
+      const url = state.started?.server.resolvedUrls?.local[0]
+      const root = state.started?.root
+      const tab = await state.browser?.newPage()
+      if (url === undefined || root === undefined || tab === undefined) throw new Error('dev server did not start')
+      const stale = `${new URL(await trustedApiBase(root)).origin}/t/stale-token`
+      await tab.addInitScript((base) => Reflect.set(globalThis, '__CONCIV_API_BASE__', base), stale)
+      await tab.goto(url, {waitUntil: 'domcontentloaded'})
+      const locked = tab.getByRole('button', {name: 'Authorize conciv'})
+      await expectLocator(locked).toBeVisible({timeout: 45_000})
+      const card = tab.getByRole('dialog', {name: 'Authorize conciv'})
+      await expectLocator(card).toBeHidden()
+      await locked.click()
+      await typeCode(card, getTempAuthCode())
+      await expectLocator(card).toBeHidden()
+      await expectLocator(tab.getByRole('button', {name: /conciv chat$/})).toBeVisible({timeout: 15_000})
+      await tab.close()
+    }, 90_000)
+
+    it('unlocks a fresh tab from the magic link code in the page fragment', async () => {
+      const url = state.started?.server.resolvedUrls?.local[0]
+      const tab = await state.browser?.newPage()
+      if (url === undefined || tab === undefined) throw new Error('dev server did not start')
+      await tab.goto(`${url}#devframe_otp=${getTempAuthCode()}`, {waitUntil: 'domcontentloaded'})
+      await expectLocator(tab.getByRole('button', {name: /conciv chat$/})).toBeVisible({timeout: 45_000})
+      await expectLocator(tab.getByRole('dialog', {name: 'Authorize conciv'})).toBeHidden()
       await tab.close()
     }, 90_000)
 
@@ -1819,6 +1871,7 @@ describe('extension load isolation', () => {
     await server.listen()
     const address = server.httpServer?.address()
     const page = await browser.newPage()
+    await trustedTab(page, {root})
     await page.route(/blocked-extension\.js/, (route) => route.abort('blockedbyclient'))
     await page.goto(`http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`, {
       waitUntil: 'domcontentloaded',
