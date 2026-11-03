@@ -10,7 +10,7 @@ import type {InferenceSession} from 'onnxruntime-web'
 import {Canvas, Contours, cv, ImageProcessor, type CanvasLike} from 'ppu-ocv'
 import {CanvasProcessor, CanvasToolkit} from 'ppu-ocv/canvas'
 import {z} from 'zod'
-import {chunk, countBy, partition, range, uniqBy, zip} from 'es-toolkit'
+import {chunk, countBy, groupBy, partition, range, uniqBy, zip} from 'es-toolkit'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {DESIGN_GUIDE, renderDef, RenderResultSchema, type TargetInput, type TargetResult} from '../shared/defs.js'
 import {iconSized, TOLERANCES} from '../shared/tolerances.js'
@@ -43,6 +43,7 @@ import {
   cornerRadius,
   crop,
   decodePng,
+  encloses,
   encodePng,
   expand,
   hex,
@@ -925,17 +926,6 @@ function surface(box: Box): number {
   return box.w * box.h
 }
 
-function holds(input: {outer: Box; inner: Box}): boolean {
-  const {outer, inner} = input
-  const slack = TOLERANCES.geometryPx
-  return (
-    inner.x >= outer.x - slack &&
-    inner.y >= outer.y - slack &&
-    inner.x + inner.w <= outer.x + outer.w + slack &&
-    inner.y + inner.h <= outer.y + outer.h + slack
-  )
-}
-
 function within(input: {node: TargetNode; nodes: TargetNode[]}): TargetNode {
   const {node, nodes} = input
   const [smallest] = nodes
@@ -944,7 +934,7 @@ function within(input: {node: TargetNode; nodes: TargetNode[]}): TargetNode {
         other.kind === 'box' &&
         other.id !== node.id &&
         surface(other.box) > surface(node.box) &&
-        holds({outer: other.box, inner: node.box}),
+        encloses({outer: other.box, inner: node.box}),
     )
     .toSorted((a, b) => surface(a.box) - surface(b.box))
   return smallest === undefined ? node : {...node, within: smallest.id}
@@ -984,7 +974,7 @@ function pictured(input: {nodes: TargetNode[]; raster: Raster}): TargetNode[] {
   const pictures = nodes.filter(picture).toSorted((a, b) => surface(a.box) - surface(b.box))
   const holder = (node: TargetNode): string => {
     if (node.kind !== 'text') return ''
-    const image = pictures.find((candidate) => holds({outer: candidate.box, inner: node.box}))
+    const image = pictures.find((candidate) => encloses({outer: candidate.box, inner: node.box}))
     if (image === undefined || flatHalo({node, nodes, raster})) return ''
     return image.id
   }
@@ -1002,7 +992,7 @@ function flatHalo(input: {node: TargetNode; nodes: TargetNode[]; raster: Raster}
   const band = expand({box: node.box, by: TOLERANCES.glyphHalo})
   const others = nodes.filter(
     (other) =>
-      other.id !== node.id && overlapping({a: other.box, b: band}) && !holds({outer: other.box, inner: node.box}),
+      other.id !== node.id && overlapping({a: other.box, b: band}) && !encloses({outer: other.box, inner: node.box}),
   )
   const indices = haloIndices({raster, box: node.box, others: others.map((other) => other.box)})
   if (indices.length === 0) return false
@@ -1079,13 +1069,20 @@ const regionsEnricher: Enricher = {
       scale: model.scale,
     })
     const placed = pictures.map((picture) => ({id: picture.id, within: holder({box: picture.box, regions})}))
-    const parents = new Map([...seats, ...placed].map((seat) => [seat.id, seat.within]))
+    const holding = new Set(placed.map((seat) => seat.within))
+    const flanked = regions
+      .filter((region) => holding.has(region.id))
+      .reduce<Carving>((carving, region) => beside({carving, region, nodes: model.nodes, scale: model.scale}), {
+        seats: [...seats, ...placed],
+        regions,
+      })
+    const parents = new Map(flanked.seats.map((seat) => [seat.id, seat.within]))
     return Promise.resolve([
       ...model.nodes.map((node) => {
         const parent = parents.get(node.id)
         return parent === undefined ? node : {...node, within: parent}
       }),
-      ...regions,
+      ...grown({carving: flanked, nodes: model.nodes}),
     ])
   },
 }
@@ -1120,6 +1117,48 @@ function carve(input: {
     seats: carvings.flatMap((carving) => carving.seats),
     regions: carvings.flatMap((carving) => carving.regions),
   }
+}
+
+function beside(input: {carving: Carving; region: BoxNode; nodes: TargetNode[]; scale: number}): Carving {
+  const {carving, region} = input
+  const seated = new Set(carving.seats.filter((seat) => seat.within === region.id).map((seat) => seat.id))
+  const direct = [
+    ...input.nodes.filter((node) => seated.has(node.id)),
+    ...carving.regions.filter((child) => child.within === region.id),
+  ]
+  const groups = bands({members: direct, along: 'x', gap: TOLERANCES.regionGap * input.scale})
+  if (groups.length < 2) return carving
+  const wraps = groups
+    .filter((group) => group.length > 1)
+    .map((group) => ({group, wrap: regionNode({members: group, parent: region.id})}))
+  const moved = new Map(wraps.flatMap(({group, wrap}) => group.map((node) => [node.id, wrap.id])))
+  return {
+    seats: carving.seats.map((seat) => ({id: seat.id, within: moved.get(seat.id) ?? seat.within})),
+    regions: [
+      ...carving.regions.map((child) => {
+        const parent = moved.get(child.id)
+        return parent === undefined ? child : {...child, within: parent}
+      }),
+      ...wraps.map(({wrap}) => wrap),
+    ],
+  }
+}
+
+function grown(input: {carving: Carving; nodes: TargetNode[]}): BoxNode[] {
+  const {carving} = input
+  const boxes = new Map(input.nodes.map((node) => [node.id, node.box]))
+  const members = groupBy(carving.seats, (seat) => seat.within ?? '')
+  const nested = groupBy(carving.regions, (region) => region.within ?? '')
+  const span = (region: BoxNode): Box =>
+    union([
+      region.box,
+      ...(members[region.id] ?? []).flatMap((seat) => {
+        const box = boxes.get(seat.id)
+        return box === undefined ? [] : [box]
+      }),
+      ...(nested[region.id] ?? []).map(span),
+    ])
+  return carving.regions.map((region) => ({...region, box: span(region)}))
 }
 
 function bandStart(input: {box: Box; along: Along}): number {

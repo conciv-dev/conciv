@@ -250,6 +250,7 @@ function agreeingText(input: {
 }
 
 const DEFAULT_DIFF: DiffInput = DiffInputSchema.parse({})
+const UNBUILT_SECTION_BRIEF = 'nothing of this section is built yet'
 const STRETCHED = 0.85
 const GEOMETRY_KINDS: Delta['kind'][] = [
   'inset-left',
@@ -886,8 +887,10 @@ function sectionReport(input: {
     priors: [],
     round: report.round,
   })
-  const open = settled.judging.partial || items.some((item) => item.stage !== null)
-  return {...scoped, ...verdict, stop: open ? null : 'done', paired: measured.length}
+  const unbuilt = measured.length === 0 && items.length > 0
+  const open = unbuilt || settled.judging.partial || items.some((item) => item.stage !== null)
+  const brief = unbuilt ? [UNBUILT_SECTION_BRIEF, ...verdict.brief] : verdict.brief
+  return {...scoped, ...verdict, brief, stop: open ? null : 'done', paired: measured.length}
 }
 
 function subtreeCounts(input: {ledger: Ledger | null; nodes: string[]}): DiffReport['ledger'] {

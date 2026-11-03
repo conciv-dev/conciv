@@ -415,6 +415,17 @@ export function sameLine(input: {a: Box; b: Box}): boolean {
   return sharedLength({start: a.y, length: a.h, otherStart: b.y, otherLength: b.h}) >= Math.min(a.h, b.h) / 2
 }
 
+export function encloses(input: {outer: Box; inner: Box}): boolean {
+  const {outer, inner} = input
+  const slack = TOLERANCES.geometryPx
+  return (
+    inner.x >= outer.x - slack &&
+    inner.y >= outer.y - slack &&
+    inner.x + inner.w <= outer.x + outer.w + slack &&
+    inner.y + inner.h <= outer.y + outer.h + slack
+  )
+}
+
 export function union(boxes: Box[]): Box {
   const x = Math.min(...boxes.map((box) => box.x))
   const y = Math.min(...boxes.map((box) => box.y))
