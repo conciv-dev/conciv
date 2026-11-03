@@ -176,7 +176,7 @@ export function judge(input: {
   painted: DiffReport['painted']
   color: ColorMetric
   partial: boolean
-  changed: {line: string | null; regressed: Set<string>}
+  changed: {changes: Changes; since: number | null}
   crop: (node: string) => string
 }): Verdict {
   const {items, score, capturePath, capture, priors, round, ranker, warnings, color, changed, crop} = input
@@ -186,7 +186,8 @@ export function judge(input: {
   const stage = firstStage(chosen) ?? firstStage(counted)
   const ranked = ranker({items: counted.filter((item) => item.stage === stage)})
   const kept = [...ranked.filter((item) => !demoted.has(item.key)), ...ranked.filter((item) => demoted.has(item.key))]
-  const regressed = (item: Item): boolean => item.node !== undefined && changed.regressed.has(item.node)
+  const dirtied = new Set(changed.changes.regressed.map((change) => change.node))
+  const regressed = (item: Item): boolean => item.node !== undefined && dirtied.has(item.node)
   const ordered = [...kept.filter(regressed), ...kept.filter((item) => !regressed(item))]
   const stop = input.partial ? null : stopReason({counted, score, capturePath, capture, priors, round, stage})
   const flipped = flippedBack({counted, priors, color})
@@ -194,7 +195,7 @@ export function judge(input: {
     ...(stop === 'stalled' && stage !== null
       ? [stalledLine({stage, score, unchanged: ranker({items: counted.filter((item) => demoted.has(item.key))})})]
       : []),
-    ...(changed.line === null ? [] : [changed.line]),
+    ...(changed.since === null ? [] : [changeLine({changes: changed.changes, round: changed.since})]),
     ...(input.painted === null ? [] : [paintedLine(input.painted.count)]),
     ...(flipped === null ? [] : [flippedLine({items: ranker({items: flipped.items}), round: flipped.round})]),
     ...warnings.map(warningSentence),
@@ -241,19 +242,6 @@ export function changeReport(input: {
       entry({node, says: (subject) => `${subject} moved by ${shift.dx},${shift.dy} px`}),
     ),
   }
-}
-
-export function changeLine(input: {changes: Changes; round: number}): string {
-  const {changes, round} = input
-  const [first] = changes.regressed
-  const parts = [
-    changes.done.length === 0 ? null : `${changes.done.length} done`,
-    first === undefined ? null : `${changes.regressed.length} regressed (${clipped(first.sentence)})`,
-    changes.paired.length === 0 ? null : `${changes.paired.length} paired`,
-    changes.lost.length === 0 ? null : `${changes.lost.length} lost`,
-    changes.moved.length === 0 ? null : `${changes.moved.length} moved`,
-  ].filter((part) => part !== null)
-  return `since round ${round}: ${parts.length === 0 ? 'no node changed' : parts.join(', ')}`
 }
 
 export function roundRecord(input: {
@@ -358,6 +346,19 @@ const NOUNS = {
   box: ['box', 'boxes'],
   card: ['card', 'cards'],
 } as const
+
+function changeLine(input: {changes: Changes; round: number}): string {
+  const {changes, round} = input
+  const [first] = changes.regressed
+  const parts = [
+    changes.done.length === 0 ? null : `${changes.done.length} done`,
+    first === undefined ? null : `${changes.regressed.length} regressed (${clipped(first.sentence)})`,
+    changes.paired.length === 0 ? null : `${changes.paired.length} paired`,
+    changes.lost.length === 0 ? null : `${changes.lost.length} lost`,
+    changes.moved.length === 0 ? null : `${changes.moved.length} moved`,
+  ].filter((part) => part !== null)
+  return `since round ${round}: ${parts.length === 0 ? 'no node changed' : parts.join(', ')}`
+}
 
 function applied(reply: unknown): boolean {
   return typeof reply === 'object' && reply !== null && 'applied' in reply && reply.applied === true

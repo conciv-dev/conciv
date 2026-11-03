@@ -3,6 +3,7 @@ import {existsSync} from 'node:fs'
 import {mkdir, readdir, readFile, rename, rm, writeFile} from 'node:fs/promises'
 import {join, relative} from 'node:path'
 import {toolError} from '@conciv/extension'
+import {groupBy, mapValues} from 'es-toolkit'
 import {z} from 'zod'
 import {
   BoxSchema,
@@ -25,6 +26,7 @@ import {
   type TargetModel,
   type TargetRecord,
   type TargetStore,
+  type DesignSection,
 } from '../shared/types.js'
 import {decodePng, encodePng} from './raster.js'
 
@@ -36,6 +38,7 @@ const LEDGER_FILE = 'ledger.json'
 const DESIGN_FILE = 'design.txt'
 const PLACEHOLDER_FILE = 'placeholder.tsx'
 const INDENT = '  '
+const SECTION_DEPTH = 1
 const TWINS_FILE = 'twins.json'
 const CAPTURES_DIR = 'captures'
 const RUN_PREFIXES = ['live-', 'diff-', 'result-', 'pairs-', 'tiles-']
@@ -387,6 +390,10 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       const text = await readFile(join(dir, id, DESIGN_FILE), 'utf8').catch(() => null)
       return text === null ? [] : text.split('\n')
     },
+    sections: async (id) => {
+      const model = await readJson({path: join(dir, id, MODEL_FILE), schema: ModelSchema})
+      return model === null ? [] : designSections(model)
+    },
     reportPath,
   }
 }
@@ -396,10 +403,13 @@ type StoredNode = StoredModel['nodes'][number]
 
 function designOutline(model: StoredModel): string[] {
   const {scale} = model
-  const ids = new Set(model.nodes.map((node) => node.id))
-  const top = model.nodes.filter((node) => node.within === undefined || !ids.has(node.within))
   const root = `page ${sized({box: model.root.box, scale})}${layoutPhrase(model.root.layout)}`
-  return [root, ...outlineLines({nodes: model.nodes, children: top, depth: 1, scale})]
+  return [root, ...outlineLines({nodes: model.nodes, children: topNodes(model), depth: SECTION_DEPTH, scale})]
+}
+
+function topNodes(model: StoredModel): StoredNode[] {
+  const ids = new Set(model.nodes.map((node) => node.id))
+  return model.nodes.filter((node) => node.within === undefined || !ids.has(node.within))
 }
 
 function outlineLines(input: {nodes: StoredNode[]; children: StoredNode[]; depth: number; scale: number}): string[] {
@@ -407,9 +417,28 @@ function outlineLines(input: {nodes: StoredNode[]; children: StoredNode[]; depth
   return input.children
     .toSorted(documentOrder)
     .flatMap((node) => [
-      `${INDENT.repeat(depth)}${nodeLine({node, scale})}`,
+      `${INDENT.repeat(depth)}${depth === SECTION_DEPTH ? `section ${node.id} ` : ''}${nodeLine({node, scale})}`,
       ...outlineLines({nodes, children: nodes.filter((child) => child.within === node.id), depth: depth + 1, scale}),
     ])
+}
+
+function designSections(model: StoredModel): DesignSection[] {
+  const {scale} = model
+  const children = groupBy(model.nodes, (node) => node.within ?? '')
+  return topNodes(model)
+    .toSorted(documentOrder)
+    .map((node) => ({
+      id: node.id,
+      kind: node.kind,
+      line: nodeLine({node, scale}),
+      box: mapValues(node.box, (value) => Math.round(value / scale)),
+      nodes: [node.id, ...descendants({children, id: node.id})],
+    }))
+}
+
+function descendants(input: {children: Record<string, StoredNode[]>; id: string}): string[] {
+  const {children} = input
+  return (children[input.id] ?? []).flatMap((child) => [child.id, ...descendants({children, id: child.id})])
 }
 
 function documentOrder(a: StoredNode, b: StoredNode): number {

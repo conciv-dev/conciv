@@ -195,6 +195,7 @@ const DeltaSchema = ProvenanceSchema.partial().extend({
   source: MeasureSourceSchema.optional().describe('dom when read in the tab, mirror when read in the mirror'),
   confidence: z.number().optional(),
   width: z.number().optional().describe('the design width the delta was measured at'),
+  box: BoxSchema.optional().describe('the live box of the element a warning is about'),
   opinion: z
     .object({source: z.literal('takumi'), live: z.union([z.number(), z.string()]), confidence: z.number()})
     .optional()
@@ -391,6 +392,7 @@ export type Changes = z.infer<typeof ChangesSchema>
 
 export const NO_CHANGES: Changes = {done: [], regressed: [], paired: [], lost: [], moved: []}
 const NO_COUNTS: LedgerCounts = {unbuilt: 0, paired: 0, done: 0, regressed: 0, accepted: 0}
+const NODE_KINDS = ['text', 'box', 'image'] as const
 
 export const DiffReportSchema = z.object({
   target: z.object({id: z.string(), route: z.string().optional(), width: z.number()}),
@@ -445,6 +447,15 @@ export const DiffReportSchema = z.object({
     .default('')
     .describe('the Placeholder component every image and icon slot takes; copy it into the page source'),
   design: z.array(z.string()).optional().describe('the lines of the design outline, with full: true'),
+  section: z
+    .object({id: z.string(), line: z.string()})
+    .optional()
+    .describe('the section the report is scoped to: its id and its outline line'),
+  scope: z.literal('section').optional().describe('set when the report lists one section only'),
+  page: z
+    .object({stop: z.enum(STOPS).nullable(), stage: z.enum(STAGES).nullable(), score: z.array(z.number())})
+    .optional()
+    .describe('the whole-page stop, stage and score of a section report'),
 })
 
 export type DiffReport = z.infer<typeof DiffReportSchema>
@@ -471,6 +482,9 @@ export const CompactReportSchema = DiffReportSchema.pick({
   changes: true,
   designPath: true,
   placeholderPath: true,
+  section: true,
+  scope: true,
+  page: true,
 })
   .extend({
     diffImage: z.string().optional().describe('the diff image of this run; absent in a blind run'),
@@ -519,6 +533,17 @@ const StatusReportSchema = z.object({
   changes: ChangesSchema.optional().describe('what the latest run changed'),
   designPath: z.string().optional().describe('the design as an indented outline, one line per node'),
   placeholderPath: z.string().optional().describe('the Placeholder component every image and icon slot takes'),
+  sections: z
+    .array(
+      z.object({
+        id: z.string(),
+        kind: z.enum(NODE_KINDS),
+        line: z.string().describe('the outline line of the section without its section prefix'),
+        ledger: LedgerCountsSchema,
+      }),
+    )
+    .optional()
+    .describe('the top-level nodes of the design in document order; pass an id to design_diff as section'),
 })
 
 const CaptureResultSchema = z.object({
@@ -575,6 +600,10 @@ export const DiffInputSchema = z.object({
   depth: z.number().int().min(1).max(6).default(3).describe('how deep to descend into the component tree'),
   limit: z.number().int().min(1).max(50).default(12).describe('how many components to report'),
   full: z.boolean().optional().describe('return the full report with every component and delta'),
+  section: z
+    .string()
+    .optional()
+    .describe('a section id from design_status.sections; the run stays whole-page, the report lists that section only'),
 })
 
 export const StatusInputSchema = z.object({})
@@ -612,6 +641,7 @@ export const ClearInputSchema = z.object({
 export const DESIGN_ERRORS = {
   'image-unreadable': {message: 'image is neither a PNG file nor PNG base64'},
   'no-target': {message: NO_TARGET_MESSAGE},
+  'unknown-section': {message: 'the design has no section with that id'},
 } satisfies ToolErrors
 
 type DesignToolDef<Shape extends z.ZodRawShape, Out extends z.ZodType> = ToolBuilder<
