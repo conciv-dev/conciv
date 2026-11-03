@@ -2,7 +2,7 @@ import {z} from 'zod'
 import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
 import {defineTool, type ToolBuilder, type ToolErrors} from '@conciv/extension/tool'
 import {TOLERANCES} from './tolerances.js'
-import type {LiveComponent} from './types.js'
+import {PLACEHOLDER_KINDS, type LiveComponent} from './types.js'
 
 export const DESIGN_EXTENSION_NAME = 'design'
 
@@ -174,6 +174,11 @@ const LiveComponentSchema = z.object({
     .boolean()
     .default(false)
     .describe('an svg with path, polygon or circle children, an img with a data: src, or a canvas'),
+  placeholder: z
+    .enum(PLACEHOLDER_KINDS)
+    .nullable()
+    .default(null)
+    .describe('the kind of the Placeholder whose root this is, null for any other element'),
   children: z.array(z.record(z.string(), z.unknown())).describe('nested components of the same shape'),
 })
 

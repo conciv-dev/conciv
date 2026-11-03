@@ -413,7 +413,7 @@ function viewTree(input: {components: LiveComponent[]; parent: View | null}): Bu
       tokens: elementTokens(component),
       parent,
       rank: spread({index, count: components.length}),
-      media: MEDIA_TAGS.has(component.tag),
+      media: mediaElement(component),
       children: [],
     }
     const children = viewTree({components: component.children, parent: view})
@@ -440,10 +440,14 @@ function sameBox(input: {a: Box; b: Box}): boolean {
 
 function elementClass(input: {component: LiveComponent; lines: Box[]}): KindClass {
   const {component, lines} = input
-  if (MEDIA_TAGS.has(component.tag)) return 'media'
+  if (mediaElement(component)) return 'media'
   if (CONTROL_TAGS.has(component.tag) || CONTROL_ROLES.has(component.role ?? '')) return 'control'
   if (lines.length === 0) return 'container'
   return component.styles.fontSize >= HEADING_INK / INK_SHARE ? 'heading' : 'text'
+}
+
+function mediaElement(component: LiveComponent): boolean {
+  return MEDIA_TAGS.has(component.tag) || component.placeholder !== null
 }
 
 function elementTokens(component: LiveComponent): string[] {
