@@ -869,8 +869,10 @@ describe('harness switching', () => {
     ],
   })
   const keep = keptPane()
+  const shell = createShellHarness(core)
 
   afterEach(async () => {
+    shell.dispose()
     await coreControl.releaseTurn()
   })
 
@@ -941,6 +943,25 @@ describe('harness switching', () => {
     await expect.element(harnessLabel('Alpha')).toBeVisible()
     await expect.element(harnessLabel('Beta')).toBeVisible()
   })
+
+  test('in the real panel the confirm opens over the open panel and confirming switches', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await runTurn(core(), sessionId, 'first question')
+    shell.mountShell(`/panel/${sessionId}?open=true`)
+    const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+    await expect.element(panel.getByText('Hello from conciv'), {timeout: 8000}).toBeVisible()
+
+    await userEvent.click(trigger())
+    await userEvent.click(menuitem('Harness: Beta'))
+
+    await expect.element(confirmDialog()).toBeVisible()
+    await expect.element(panel.getByText('Hello from conciv')).toBeVisible()
+    await userEvent.click(confirmDialog().getByRole('button', {name: 'Switch to Beta'}))
+    await expect.element(confirmDialog()).not.toBeInTheDocument()
+    await userEvent.click(trigger())
+    await expect.element(menuitem('Harness: Beta (current)')).toBeVisible()
+    await expect.element(panel.getByText('Hello from conciv')).toBeVisible()
+  }, 30_000)
 
   test('the switcher is disabled while a run is streaming', async () => {
     const sessionId = await createSession(coreRpc(core()))

@@ -410,6 +410,7 @@ export function SessionHarnessSwitcher(props: {sessionId: string; running: boole
             }}
             title="Switch harness?"
             role="alertdialog"
+            layer="inline"
             dismissable
             footer={
               <div class="flex gap-2 justify-end">
