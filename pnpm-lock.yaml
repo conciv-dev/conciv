@@ -543,6 +543,9 @@ importers:
       '@tanstack/solid-router':
         specifier: 'catalog:'
         version: 1.170.43(solid-js@1.9.17)
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
       lucide-solid:
         specifier: 'catalog:'
         version: 1.64.0(solid-js@1.9.17)

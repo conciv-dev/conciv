@@ -61,20 +61,31 @@ const DEFAULT_CONTEXT_WINDOW = 200_000
 
 const LONG_CONTEXT_WINDOW = 1_000_000
 
+const CURRENT_GROUP = 'Claude'
+
+const OLDER_GROUP = 'Older versions'
+
 const FALLBACK_MODELS: HarnessModel[] = [
   {id: 'opus', name: 'Opus', description: 'Best for everyday, complex tasks'},
   {id: 'sonnet', name: 'Sonnet', description: 'Efficient for routine tasks'},
   {id: 'haiku', name: 'Haiku', description: 'Fastest for quick answers'},
-].map((model) => ({...model, group: 'Claude', contextWindow: DEFAULT_CONTEXT_WINDOW}))
+].map((model) => ({...model, group: CURRENT_GROUP, contextWindow: DEFAULT_CONTEXT_WINDOW}))
 
-function toHarnessModel(model: ModelInfo): HarnessModel {
+const PINNED_PREFIX = 'claude-'
+
+function familyOf(value: string): string {
+  return value.replace(PINNED_PREFIX, '').split(/[-[]/)[0] ?? value
+}
+
+function toHarnessModel(model: ModelInfo, aliasFamilies: ReadonlySet<string>): HarnessModel {
   const [version, ...summary] = model.description.split(' · ')
   const versioned = version !== undefined && summary.length > 0
+  const superseded = model.value.startsWith(PINNED_PREFIX) && aliasFamilies.has(familyOf(model.value))
   return {
     id: model.value,
     name: versioned ? version : model.displayName,
     description: versioned ? summary.join(' · ') : model.description,
-    group: 'Claude',
+    group: superseded ? OLDER_GROUP : CURRENT_GROUP,
     contextWindow: model.value.endsWith('[1m]') ? LONG_CONTEXT_WINDOW : DEFAULT_CONTEXT_WINDOW,
   }
 }
@@ -95,7 +106,11 @@ const modelsCache: {pending?: Promise<HarnessModel[]>} = {}
 export function claudeSdkModels(): Promise<HarnessModel[]> {
   modelsCache.pending ??= probeModels().then(
     (models) => {
-      const listed = models.filter((model) => model.value !== 'default').map(toHarnessModel)
+      const rows = models.filter((model) => model.value !== 'default')
+      const aliasFamilies = new Set(
+        rows.filter((model) => !model.value.startsWith(PINNED_PREFIX)).map((model) => familyOf(model.value)),
+      )
+      const listed = rows.map((model) => toHarnessModel(model, aliasFamilies))
       return listed.length > 0 ? listed : FALLBACK_MODELS
     },
     () => {

@@ -45,6 +45,7 @@
     "@tanstack/solid-hotkeys": "^0.17.0",
     "@tanstack/solid-query": "catalog:",
     "@tanstack/solid-router": "catalog:",
+    "es-toolkit": "catalog:",
     "lucide-solid": "catalog:",
     "solid-js": "catalog:",
     "zod": "catalog:"

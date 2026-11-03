@@ -551,6 +551,67 @@ describe('composer overflow', () => {
   })
 })
 
+describe('model menu', () => {
+  const MODELS = [
+    {id: 'opus', name: 'Opus 5.5', group: 'Claude'},
+    {id: 'sonnet', name: 'Sonnet 5.5', group: 'Claude'},
+    {id: 'claude-opus-4-7', name: 'Opus 4.7', group: 'Older versions'},
+    {id: 'claude-sonnet-4-6', name: 'Sonnet 4.6', group: 'Older versions'},
+  ]
+
+  const core = bootedCore('model-menu', {models: MODELS})
+  const keep = keptPane()
+
+  const prompt = (name: string) => page.getByRole('button', {name: `Model: ${name}`})
+  const model = (name: string) => page.getByRole('menuitemradio', {name})
+  const menu = (name: string | RegExp) => page.getByRole('menu', {name})
+
+  async function mountModelMenu(): Promise<void> {
+    const sessionId = await createSession(coreRpc(core()))
+    keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+  }
+
+  test('the prompt names the current model and the overflow menu no longer lists models', async () => {
+    await mountModelMenu()
+
+    await expect.element(prompt('Opus 5.5')).toHaveTextContent('opus❯')
+
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await expect.element(page.getByRole('menuitem', {name: 'Compress the conversation'})).toBeVisible()
+    await expect.element(page.getByRole('menuitem', {name: /^Model:/})).not.toBeInTheDocument()
+  })
+
+  test('picking a model from the prompt menu switches the session and renames the prompt', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(model('Opus 5.5')).toHaveAttribute('aria-checked', 'true')
+    await userEvent.click(model('Sonnet 5.5'))
+
+    await expect.element(prompt('Sonnet 5.5')).toHaveTextContent('sonnet❯')
+    await expect.element(menu(/^Model:/)).not.toBeInTheDocument()
+
+    await userEvent.click(prompt('Sonnet 5.5'))
+    await expect.element(model('Sonnet 5.5')).toHaveAttribute('aria-checked', 'true')
+  })
+
+  test('an older model is reached by keyboard through the Older versions submenu', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(menu('Model: Opus 5.5')).toHaveFocus()
+    await userEvent.keyboard('{End}{ArrowRight}')
+    await expect.element(menu('Older versions')).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(prompt('Opus 4.7')).toHaveTextContent('opus 4.7❯')
+    await userEvent.click(prompt('Opus 4.7'))
+    await userEvent.hover(page.getByRole('menuitem', {name: 'Older versions'}))
+    await expect.element(model('Opus 4.7')).toHaveAttribute('aria-checked', 'true')
+  })
+})
+
 describe('context tracker', () => {
   function mount(usage: UsageSnapshot | null): HTMLElement {
     return render(() => <ContextTracker usage={usage} />).container

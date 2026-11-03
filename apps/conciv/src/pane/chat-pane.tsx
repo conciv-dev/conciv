@@ -51,6 +51,7 @@ import {guardedToolCards} from '../extension/extension-boundary.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
+import {SessionModelPrompt} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage} from './draft-storage.js'
 import {useSessionCaptures} from './session-captures.js'
@@ -367,6 +368,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                             initialSelection={storage().restoredSelection}
                             busy={compacting() ? <CompactSpinner /> : undefined}
                             triggers={triggerSources}
+                            prompt={<SessionModelPrompt sessionId={sessionId} />}
                           >
                             <Suspense fallback={<ComposerActionsPending />}>
                               <ComposerActions

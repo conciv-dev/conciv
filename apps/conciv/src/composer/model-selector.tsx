@@ -1,103 +1,116 @@
-import {createEffect, createMemo, For, Match, on, Show, splitProps, Switch, type JSX} from 'solid-js'
+import {createEffect, createMemo, For, Match, on, Show, splitProps, Suspense, Switch, type JSX} from 'solid-js'
 import {useQuery, useMutation} from '@tanstack/solid-query'
-import {Button} from '@conciv/ui-kit-system'
+import {groupBy} from 'es-toolkit'
+import {Button, LIST_PANEL_ITEM, Menu} from '@conciv/ui-kit-system'
 import RotateCw from 'lucide-solid/icons/rotate-cw'
 import Check from 'lucide-solid/icons/check'
-import {ComposerActions as Action, ModelSelector, useModelSelectorContext, type ModelOption} from '@conciv/ui-kit-chat'
+import ChevronRight from 'lucide-solid/icons/chevron-right'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useRpc} from '../app/context.js'
 
 const MODELS_UNAVAILABLE = 'Couldn’t load models'
 const RETRY_LABEL = 'Retry loading models'
-const TOUCH = 'min-h-11 px-3'
+const SWITCH_FAILED = 'Could not switch model'
+const MENU_LABEL = 'Model'
 
-function toOption(model: HarnessModelInfo): ModelOption {
-  return {id: model.id, name: model.name, description: model.description, disabled: model.disabled}
+const PROMPT_FONT = '[font-family:var(--chat-mono)] text-[13px] leading-[1.45]'
+const PROMPT_SLOT = 'flex-none flex items-center min-w-[10ch] min-h-7 select-none'
+const PROMPT = `inline-flex items-center gap-[6px] min-h-7 -ms-1.5 px-1.5 rounded-[var(--chat-radius-sm)] focus-ring trans-bg hover:bg-chat-fill-strong data-[state=open]:bg-chat-fill-strong ${PROMPT_FONT}`
+const PROMPT_MODEL = 'max-w-[16ch] truncate text-chat-text-3'
+const PROMPT_GLYPH = 'text-chat-accent'
+const ROW = `${LIST_PANEL_ITEM} data-[highlighted]:bg-chat-fill-strong data-[highlighted]:text-chat-text data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed`
+const SLOT = 'size-5 shrink-0 grid place-items-center'
+const ROW_TEXT = 'flex-1 min-w-0 truncate'
+
+type ModelGroup = {name: string; models: HarnessModelInfo[]}
+
+function promptLabel(model: HarnessModelInfo | undefined, id: string | null): string {
+  if (!model) return id ?? ''
+  const name = model.name.toLowerCase()
+  return name.length < model.id.length ? name : model.id
 }
 
-function groupsOf(
-  options: readonly ModelOption[],
-  groupById: Map<string, string>,
-): {name: string; items: ModelOption[]}[] {
-  const order: string[] = []
-  const byGroup = new Map<string, ModelOption[]>()
-  for (const option of options) {
-    const group = groupById.get(option.id) ?? 'Models'
-    const bucket = byGroup.get(group)
-    if (bucket) bucket.push(option)
-    else {
-      byGroup.set(group, [option])
-      order.push(group)
-    }
-  }
-  return order.map((name) => ({name, items: byGroup.get(name) ?? []}))
+function modelGroups(models: readonly HarnessModelInfo[]): ModelGroup[] {
+  return Object.entries(groupBy(models, (model) => model.group ?? '')).map(([name, members]) => ({
+    name,
+    models: members,
+  }))
 }
 
-function GroupedModelList(props: {models: ReadonlyArray<HarnessModelInfo>}): JSX.Element {
-  const context = useModelSelectorContext()
-  const groupById = createMemo(() => new Map(props.models.map((model) => [model.id, model.group ?? 'Models'])))
+function Glyph(): JSX.Element {
   return (
-    <Show
-      when={context.filteredModels().length > 0}
-      fallback={<div class="text-xs text-chat-text-3 px-2 py-2.5">No models match</div>}
-    >
-      <For each={groupsOf(context.filteredModels(), groupById())}>
-        {(group) => (
-          <ModelSelector.Group label={group.name}>
-            <For each={group.items}>{(model) => <ModelSelector.Item model={model} />}</For>
-          </ModelSelector.Group>
-        )}
-      </For>
-    </Show>
+    <span class={PROMPT_GLYPH} aria-hidden="true">
+      ❯
+    </span>
   )
 }
 
-export function ModelSelectorView(props: {
-  models: ReadonlyArray<HarnessModelInfo>
+function PlainPrompt(): JSX.Element {
+  return (
+    <span class={PROMPT_FONT}>
+      <Glyph />
+    </span>
+  )
+}
+
+function ModelRows(props: {
+  models: readonly HarnessModelInfo[]
   value: string | null
-  failed: boolean
-  retrying: boolean
-  onRetry: () => void
   onSelect: (model: string) => void
 }): JSX.Element {
-  const [local] = splitProps(props, ['models', 'value', 'failed', 'retrying', 'onRetry', 'onSelect'])
-  const options = createMemo(() => local.models.map(toOption))
+  const [local] = splitProps(props, ['models', 'value', 'onSelect'])
   return (
-    <Switch>
-      <Match when={local.failed && local.models.length === 0}>
-        <Button
-          variant="outline"
-          size="sm"
-          class={`shrink-0 gap-1.5 ${TOUCH}`}
-          aria-label={RETRY_LABEL}
-          aria-busy={local.retrying}
-          onClick={() => local.onRetry()}
-        >
-          <RotateCw class="size-4 block" aria-hidden="true" />
-          {MODELS_UNAVAILABLE}
-        </Button>
-      </Match>
-      <Match when={local.models.length > 0}>
-        <ModelSelector.Root
-          models={options()}
-          value={local.value ?? undefined}
-          onValueChange={(id) => local.onSelect(id)}
-        >
-          <ModelSelector.Trigger />
-          <ModelSelector.Content>
-            <ModelSelector.Search placeholder="Search models…" />
-            <div class="flex-1 overflow-y-auto">
-              <GroupedModelList models={local.models} />
-            </div>
-            <ModelSelector.Effort />
-          </ModelSelector.Content>
-        </ModelSelector.Root>
-      </Match>
-    </Switch>
+    <Menu.RadioItemGroup value={local.value ?? ''} onValueChange={(details) => local.onSelect(details.value)}>
+      <For each={local.models}>
+        {(model) => (
+          <Menu.RadioItem
+            class={ROW}
+            value={model.id}
+            valueText={model.name}
+            disabled={model.disabled}
+            title={model.description}
+          >
+            <span class={SLOT}>
+              <Menu.ItemIndicator>
+                <Check class="size-4 block" aria-hidden="true" />
+              </Menu.ItemIndicator>
+            </span>
+            <Menu.ItemText class={ROW_TEXT}>{model.name}</Menu.ItemText>
+          </Menu.RadioItem>
+        )}
+      </For>
+    </Menu.RadioItemGroup>
   )
 }
 
-export function SessionModelSelector(props: {sessionId: string}): JSX.Element {
+function ModelSubmenu(props: {
+  group: ModelGroup
+  value: string | null
+  onSelect: (model: string) => void
+}): JSX.Element {
+  const [local] = splitProps(props, ['group', 'value', 'onSelect'])
+  const holdsValue = () => local.group.models.some((model) => model.id === local.value)
+  return (
+    <Menu.Root positioning={{placement: 'right-start'}}>
+      <Menu.TriggerItem class={ROW}>
+        <span class={SLOT}>
+          <Show when={holdsValue()}>
+            <Check class="size-4 block" aria-hidden="true" />
+          </Show>
+        </span>
+        <span class={ROW_TEXT}>{local.group.name}</span>
+        <ChevronRight class="size-4 block shrink-0 text-chat-text-3" aria-hidden="true" />
+      </Menu.TriggerItem>
+      <Menu.Positioner>
+        <Menu.Content>
+          <ModelRows models={local.group.models} value={local.value} onSelect={local.onSelect} />
+        </Menu.Content>
+      </Menu.Positioner>
+    </Menu.Root>
+  )
+}
+
+export function SessionModelPrompt(props: {sessionId: string}): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
   const announce = useAnnounce()
@@ -105,7 +118,7 @@ export function SessionModelSelector(props: {sessionId: string}): JSX.Element {
   const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
   const setModel = useMutation(() => ({
     mutationFn: (model: string) => rpc.sessions.model({sessionId: props.sessionId, model}),
-    onError: () => announce('Could not switch model', true),
+    onError: () => announce(SWITCH_FAILED, true),
     onSettled: () => appData.invalidateSessions(),
   }))
 
@@ -114,42 +127,74 @@ export function SessionModelSelector(props: {sessionId: string}): JSX.Element {
     const row = (sessions.data ?? []).find((session) => session.id === props.sessionId)
     return row?.model ?? meta.data?.defaultModel ?? null
   }
+  const current = createMemo(() => models().find((model) => model.id === value()))
+  const groups = createMemo(() => modelGroups(models()))
+  const failed = () => meta.isError && models().length === 0
+  const select = (model: string) => {
+    if (model === value()) return
+    setModel.mutate(model)
+  }
   createEffect(
     on(
       () => meta.isError,
-      (failed) => {
-        if (failed) announce(MODELS_UNAVAILABLE)
+      (isError) => {
+        if (isError) announce(MODELS_UNAVAILABLE)
       },
     ),
   )
 
   return (
-    <Action.Action priority={5} disabled={() => meta.isPending}>
-      <Show
-        when={!(meta.isError && models().length === 0)}
-        fallback={
-          <Action.ActionMenuItem label={`${MODELS_UNAVAILABLE}: ${RETRY_LABEL}`} onSelect={() => void meta.refetch()}>
-            <RotateCw class="size-4 block" aria-hidden="true" />
-          </Action.ActionMenuItem>
-        }
-      >
-        <For each={models()}>
-          {(model) => (
-            <Action.ActionMenuItem
-              label={model.disabled ? `Model: ${model.name} (unavailable)` : `Model: ${model.name}`}
-              disabled={model.disabled}
-              onSelect={() => {
-                if (model.disabled) return
-                setModel.mutate(model.id)
-              }}
-            >
-              <Show when={model.id === value()} fallback={<span class="size-4 block" aria-hidden="true" />}>
-                <Check class="size-4 block" aria-hidden="true" />
-              </Show>
-            </Action.ActionMenuItem>
-          )}
-        </For>
-      </Show>
-    </Action.Action>
+    <div class={PROMPT_SLOT}>
+      <Suspense fallback={<PlainPrompt />}>
+        <Show when={failed() || models().length > 0} fallback={<PlainPrompt />}>
+          <Menu.Root positioning={{placement: 'top-start'}}>
+            <Menu.Trigger
+              asChild={(triggerProps) => (
+                <Button
+                  {...triggerProps()}
+                  variant="plain"
+                  size="none"
+                  class={PROMPT}
+                  aria-label={failed() ? MODELS_UNAVAILABLE : `Model: ${current()?.name ?? value() ?? ''}`}
+                >
+                  <Show when={!failed()}>
+                    <span class={PROMPT_MODEL}>{promptLabel(current(), value())}</span>
+                  </Show>
+                  <Glyph />
+                </Button>
+              )}
+            />
+            <Menu.Positioner>
+              <Menu.Content>
+                <Switch>
+                  <Match when={failed()}>
+                    <Menu.Item value="retry" onSelect={() => void meta.refetch()}>
+                      <RotateCw class="size-4 block" aria-hidden="true" />
+                      {`${MODELS_UNAVAILABLE}: ${RETRY_LABEL}`}
+                    </Menu.Item>
+                  </Match>
+                  <Match when={groups()[0]}>
+                    {(first) => (
+                      <>
+                        <Menu.ItemGroup>
+                          <Menu.ItemGroupLabel>{MENU_LABEL}</Menu.ItemGroupLabel>
+                          <ModelRows models={first().models} value={value()} onSelect={select} />
+                        </Menu.ItemGroup>
+                        <Show when={groups().length > 1}>
+                          <Menu.Separator class="border-none" />
+                        </Show>
+                        <For each={groups().slice(1)}>
+                          {(group) => <ModelSubmenu group={group} value={value()} onSelect={select} />}
+                        </For>
+                      </>
+                    )}
+                  </Match>
+                </Switch>
+              </Menu.Content>
+            </Menu.Positioner>
+          </Menu.Root>
+        </Show>
+      </Suspense>
+    </div>
   )
 }
