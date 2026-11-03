@@ -238,11 +238,16 @@ describe('api engine staleness di', () => {
   async function serveWithProbe(staleness: () => EngineStaleness): Promise<ServedApp> {
     const root = mkdtempSync(join(tmpdir(), 'conciv-staleness-di-'))
     dirs.push(root)
-    const {app, dispose} = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}, staleness})
+    const {fetch, dispose, agentToken} = await makeApp({
+      cfg: resolveConfig({}, root),
+      cwd: root,
+      openInEditor: () => {},
+      staleness,
+    })
     state.dispose = dispose
-    const served = await serveApp(app.fetch)
+    const served = await serveApp(fetch)
     state.served = served
-    return served
+    return {...served, base: `${served.base}/t/${agentToken}`}
   }
 
   describe('engine staleness dependency injection (IT, real http)', () => {
@@ -460,7 +465,7 @@ describe('api extension server surfaces', () => {
         interval: 25,
       })
 
-      expect(server.basePath).toBe('')
+      expect(server.basePath).toMatch(/^\/t\/[0-9a-f-]{36}$/)
       expect(server.harness.id).toBe('claude')
       expect(typeof server.harness.ttyCommand).toBe('function')
       const noSuchToken = HarnessSessionId.parse('no-such-token')

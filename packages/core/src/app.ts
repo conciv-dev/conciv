@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto'
 import {existsSync} from 'node:fs'
 import {Hono} from 'hono'
 import {z} from 'zod'
@@ -63,12 +64,15 @@ import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
 import {engineStaleness} from './lib/engine-stamp.js'
+import {agentPath, authRoutes, makeCodeStore, makeEngineGate, makeEngineTrust, type GatedFetch} from './engine-login.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
   cwd: string
-  basePath?: string
+  agentToken?: string
+  print?: (text: string) => void
+  onTrusted?: () => void
   bridge?: BundlerBridge
   openInEditor: OpenInEditor
   systemPromptFile?: string
@@ -239,7 +243,13 @@ export type CoreVars = CorsVars & {harnessId: string} & McpVars
 function composeRoutes(
   vars: CoreVars,
   rpc: CompositeRpcRouter,
-  deps: {staleness: () => EngineStaleness; onShutdown?: () => void; push: PushDeps; plane: ChatPlane},
+  deps: {
+    staleness: () => EngineStaleness
+    onShutdown?: () => void
+    push: PushDeps
+    plane: ChatPlane
+    auth: ReturnType<typeof authRoutes>
+  },
 ) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
@@ -255,6 +265,7 @@ function composeRoutes(
     })
     .use(corsMiddleware())
     .get('/health', (c) => c.json(HealthSchema.parse({ok: true, harness: vars.harnessId, engine: deps.staleness()})))
+    .route('/', deps.auth)
     .post('/api/shutdown', (c) => {
       if (!deps.onShutdown) return c.json({message: 'shutdown not supported'}, 404)
       setTimeout(deps.onShutdown, 50)
@@ -268,8 +279,12 @@ function composeRoutes(
 
 export type AppType = ReturnType<typeof composeRoutes>
 
+export type EngineFetch = GatedFetch<unknown>
+
 export type MadeApp = {
   app: AppType
+  fetch: EngineFetch
+  agentToken: string
   chat: ChatContext
   plane: ChatPlane
   dispose: () => Promise<void>
@@ -313,6 +328,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   assertUniqueExtensionSlugs(extensions)
 
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
+  const agentToken = opts.agentToken ?? randomUUID()
+  const basePath = agentPath(agentToken)
+  const stateDir = concivStateDir(opts.cfg.stateRoot)
+  const trusted = makeEngineTrust(agentToken, stateDir)
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   const planeRef: {current: ChatPlane | null} = {current: null}
@@ -365,10 +384,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   async function mountExtension(extension: AnyExtension): Promise<ReturnType<typeof assembleMounted> | null> {
     try {
       const result = await extension.__server?.({
-        stateDir: concivStateDir(opts.cfg.stateRoot),
+        stateDir,
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
-        basePath: opts.basePath ?? '',
+        basePath,
         sessions: serverSessions,
         harness: serverHarness,
         symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
@@ -455,7 +474,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const chatDeps: ChatContext = {
     harness,
     cwd: opts.cwd,
-    basePath: opts.basePath ?? '',
+    basePath,
     claudeHome: opts.claudeHome,
     db,
     plane,
@@ -508,6 +527,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       staleness,
       onShutdown: opts.onShutdown,
       plane,
+      auth: authRoutes({
+        codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
+        trusted,
+        stateDir,
+        now: Date.now,
+      }),
       push: {
         queries: (sessionId, signal) => runtime.forSession(sessionId).page.queries(signal),
         events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
@@ -526,5 +551,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     db.$client.close()
   }
 
-  return {app, chat: chatDeps, plane, dispose, extensionContexts, runtime}
+  const fetch = makeEngineGate<unknown>({
+    fetch: (request, env) => app.fetch(request, env),
+    trusted,
+    allowedOrigins: opts.allowedOrigins ?? [],
+    onTrusted: opts.onTrusted,
+  })
+
+  return {app, fetch, agentToken, chat: chatDeps, plane, dispose, extensionContexts, runtime}
 }

@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import pTimeout from 'p-timeout'
 import {serveApp} from './serve-app.js'
+import {loginThroughTerminal} from './login.js'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatContentPartSchema, CONCIV_SESSION_HEADER, type ChatContentPart} from '@conciv/protocol/chat-types'
 import {makeChatSockets, type TurnMessage} from './chat-turn.js'
@@ -20,6 +21,7 @@ export type BootEnv = {
   stateRoot: string
   cwd: string
   harness: HarnessAdapter
+  print: (text: string) => void
 }
 export type BootedApp = {
   fetch: (request: Request) => Response | Promise<Response>
@@ -32,6 +34,9 @@ export type ChatMessage = Record<string, unknown>
 export type Kit = {
   base: string
   wsBase: string
+  origin: string
+  token: string
+  terminal: () => string
   stateRoot: string
   rpc: RpcClient
   session: (id?: string) => Promise<string>
@@ -93,10 +98,13 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
   return {
     setup: async () => {
       const stateRoot = options.stateRoot ?? mkdtempSync(join(tmpdir(), 'conciv-kit-'))
-      const app = await boot({stateRoot, cwd: stateRoot, harness})
+      const printed: string[] = []
+      const terminal = (): string => printed.join('\n')
+      const app = await boot({stateRoot, cwd: stateRoot, harness, print: (text) => printed.push(text)})
       let served = await serveApp(app.fetch)
-      const base = served.base
-      const wsBase = served.wsBase
+      const token = await loginThroughTerminal(served.base, terminal)
+      const base = `${served.base}/t/${token}`
+      const wsBase = `${served.wsBase}/t/${token}`
       const aborts: AbortController[] = []
       const activeSession = {id: ''}
       const rpc = makeSessionBoundRpcClient(base, () => activeSession.id)
@@ -137,6 +145,9 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
       return {
         base,
         wsBase,
+        origin: served.base,
+        token,
+        terminal,
         stateRoot,
         rpc,
         session: (id) => (id ? resolve(id) : Promise.resolve(activeSession.id)),

@@ -92,7 +92,7 @@ export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter =
   return createTestkit(harness, bootCoreApp(overrides)).setup()
 }
 
-export type BootEnv = {stateRoot: string; cwd: string; harness: HarnessAdapter}
+export type BootEnv = {stateRoot: string; cwd: string; harness: HarnessAdapter; print: (text: string) => void}
 
 export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promise<MadeApp> {
   const cfg: ResolvedConcivConfig = {
@@ -107,6 +107,7 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
     extensions: undefined,
   }
   return makeApp({
+    print: env.print,
     cfg,
     cwd: overrides.cwd ?? env.cwd,
     openInEditor: overrides.openInEditor ?? (() => {}),
@@ -121,8 +122,8 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
 
 export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
   return async (env) => {
-    const {app, dispose} = await bootMadeApp(env, overrides)
-    return {fetch: app.fetch, dispose}
+    const {fetch, dispose} = await bootMadeApp(env, overrides)
+    return {fetch, dispose}
   }
 }
 
@@ -138,7 +139,7 @@ export type ChatFixture = {
 export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promise<ChatFixture> {
   const harness = createTestHarness(requireClaude())
   const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-fixture-'))
-  const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness})
+  const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
   const sessionId = SessionId.parse('conciv_fixture')
   if (opts.seedSession !== false) await ensureRow(made.chat.db, sessionId, harness.id, stateRoot)
   return {plane: made.plane, db: made.chat.db, harness, sessionId, stateRoot, dispose: made.dispose}

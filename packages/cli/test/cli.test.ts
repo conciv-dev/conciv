@@ -13,6 +13,8 @@ import {design} from '@conciv/extension-design/server'
 import {createServer as createHttpServer, type Server} from 'node:http'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {engineOrigin} from '../src/engine-origin.js'
+import {runRevoke} from '../src/auth.js'
+import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {initCommand, runInitCommand} from '../src/init.js'
 import {type Detected, detectFramework, detectProject, type Framework} from '../src/init/detect.js'
 import {execFileOutcome} from '../src/init/exec.js'
@@ -963,6 +965,37 @@ describe('cli', () => {
     test('a malformed server.json falls through to 5173 instead of throwing', () => {
       const project = projectWith('{"port": "not a number"')
       expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:5173')
+    })
+
+    test('scopes the origin to the engine token from server.json, and CONCIV_TOKEN wins over it', () => {
+      const project = projectWith(JSON.stringify({port: 41234, token: 'from-file'}))
+      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:41234/t/from-file')
+      expect(engineOrigin(project.nested, {CONCIV_TOKEN: 'from-env'})).toBe('http://127.0.0.1:41234/t/from-env')
+    })
+
+    test('auth revoke lists, revokes one and revokes every trusted browser', () => {
+      const project = projectWith(JSON.stringify({port: 41234}))
+      const stateDir = join(project.root, '.conciv')
+      const kept = grantBrowser(stateDir, {browser: 'Chrome 1', origin: 'http://localhost:1'}, 1)
+      grantBrowser(stateDir, {browser: 'Firefox 2', origin: 'http://localhost:2'}, 2)
+      const [first, second] = readTrustedBrowsers(stateDir)
+      expect(runRevoke({all: false, cwd: project.nested})).toEqual({
+        report: 'json',
+        data: {revoked: [], trusted: [first, second]},
+      })
+      expect(runRevoke({id: second?.id, all: false, cwd: project.nested})).toEqual({
+        report: 'json',
+        data: {revoked: [second], trusted: [first]},
+      })
+      expect(isTrustedBrowser(stateDir, kept)).toBe(true)
+      expect(() => runRevoke({id: 'nope', all: false, cwd: project.nested})).toThrow(
+        'no trusted browser has the id "nope"',
+      )
+      expect(runRevoke({all: true, cwd: project.nested})).toEqual({
+        report: 'json',
+        data: {revoked: [first], trusted: []},
+      })
+      expect(isTrustedBrowser(stateDir, kept)).toBe(false)
     })
   })
 

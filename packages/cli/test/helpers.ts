@@ -32,7 +32,8 @@ function bootCliApp(extras: BootExtras): BootApp {
       systemPrompt: '',
       extensions: undefined,
     }
-    const {app, dispose} = await makeApp({
+    const {fetch, dispose} = await makeApp({
+      print: env.print,
       cfg,
       cwd: env.cwd,
       openInEditor: extras.openInEditor ?? (() => {}),
@@ -40,7 +41,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       bridge: extras.bridge,
       extensions: extras.extensions,
     })
-    return {fetch: app.fetch, dispose}
+    return {fetch, dispose}
   }
 }
 
@@ -48,9 +49,11 @@ export async function bootCli(cleanups: (() => Promise<void>)[], extras: BootExt
   const kit = await createTestkit(createFakeHarness(), bootCliApp(extras)).setup()
   cleanups.push(() => {
     delete process.env.CONCIV_SESSION_ID
+    delete process.env.CONCIV_TOKEN
     return kit.cleanup()
   })
   process.env.CONCIV_PORT = new URL(kit.base).port
+  process.env.CONCIV_TOKEN = kit.token
   process.env.CONCIV_SESSION_ID = await kit.session()
   return kit
 }
