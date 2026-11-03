@@ -297,18 +297,29 @@ describe('dialog layout', () => {
     expect(clicked).toEqual(['last', 'done'])
   })
 
+  it('opens over the page from inside a transformed, clipped row, fully in view', async () => {
+    mountStyled(() => (
+      <div style={{transform: 'translateY(0)', height: '24px', overflow: 'hidden'}}>
+        <Dialog open label="Screen recording replay">
+          <For each={ROWS.slice(0, 8)}>{(row) => <p>{row}</p>}</For>
+        </Dialog>
+      </div>
+    ))
+
+    await expect.element(page.getByRole('dialog', {name: 'Screen recording replay'})).toBeInViewport({ratio: 1})
+  })
+
   it('scrolls a long command sideways inside the dialog instead of widening the layout', async () => {
-    const host = mountStyled(() => (
+    mountStyled(() => (
       <Dialog open title="Connect a running session">
         <code>{LONG_COMMAND}</code>
       </Dialog>
     ))
     await expect.element(page.getByText(LONG_COMMAND)).toBeVisible()
 
-    const command = host.querySelector('code')
+    const command = page.getByText(LONG_COMMAND).element()
     const content = page.getByRole('dialog').element()
     const layerBehind = content.parentElement
-    if (command === null) throw new Error('the dialog rendered no command')
     if (layerBehind === null) throw new Error('the dialog rendered no layer behind it')
     const scrolled = scrollableAncestors(command, content).map((element) => {
       element.scrollLeft = 400

@@ -25,7 +25,7 @@ Source of the conciv SolidJS design system. Most files wrap `@ark-ui/solid` prim
 
 ## Invariants
 
-- `Dialog` takes exactly one of `title` or `label` (`DialogName` union), is always `modal`, and closes on Escape or outside click only when `dismissable`. The `layer` prop is declared but not read (`dialog.tsx`).
+- `Dialog` takes exactly one of `title` or `label` (`DialogName` union), is always `modal`, and closes on Escape or outside click only when `dismissable`. Its backdrop and positioner portal into the environment's shadow root (or the document body), so a dialog opened inside a transformed or clipped ancestor such as a virtualized thread row still covers the viewport. The `layer` prop is declared but not read (`dialog.tsx`).
 - `Button` defaults `type` to `'button'` (`button.tsx`).
 - `AnchoredListbox`: option ids are `${listboxId}-option-${value}`; `commitHighlighted` returns false with nothing highlighted; `handleKeyDown` returns false when the hidden input is not mounted and forwards a cloned event otherwise; the first item is highlighted when `collection` changes; Escape calls `onDismiss`; `onReady` gets the handle on mount and null on cleanup.
 - `createClipboardCopy` returns to `'idle'` after `resetMs` (default `RESET_MS` 2000); its status signal uses `equals: false`, and synchronous throws from `writeText` become `'failed'` (`clipboard.ts`).

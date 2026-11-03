@@ -1,5 +1,7 @@
 import {Show, type JSX} from 'solid-js'
+import {Portal} from 'solid-js/web'
 import {Dialog as Ark} from '@ark-ui/solid/dialog'
+import {useEnvironmentContext} from '@ark-ui/solid/environment'
 
 const BACKDROP = 'fixed inset-0 z-[2147483646] [background:var(--chat-backdrop)]'
 const POSITIONER = 'fixed inset-0 z-[2147483647] flex items-start justify-center p-4 overflow-y-auto'
@@ -32,6 +34,11 @@ export function Dialog(
     children: JSX.Element
   },
 ): JSX.Element {
+  const environment = useEnvironmentContext()
+  const layer = (): Node => {
+    const root = environment().getRootNode()
+    return root instanceof ShadowRoot ? root : environment().getDocument().body
+  }
   return (
     <Ark.Root
       open={props.open}
@@ -43,25 +50,27 @@ export function Dialog(
       initialFocusEl={props.initialFocus}
       restoreFocus={props.restoreFocus ?? true}
     >
-      <Ark.Backdrop class={BACKDROP} />
-      <Ark.Positioner class={POSITIONER}>
-        <Ark.Content
-          class={`${CONTENT_SIZE[props.size ?? 'md']}  ${CONTENT_BASE}`}
-          aria-label={props.title === undefined ? props.label : undefined}
-        >
-          <div class={SHELL}>
-            <Show when={props.title}>
-              {(title) => (
-                <div class={HEADER}>
-                  <Ark.Title class={TITLE}>{title()}</Ark.Title>
-                </div>
-              )}
-            </Show>
-            <div class={BODY}>{props.children}</div>
-            <Show when={props.footer}>{(footer) => <div class={FOOTER}>{footer()}</div>}</Show>
-          </div>
-        </Ark.Content>
-      </Ark.Positioner>
+      <Portal mount={layer()}>
+        <Ark.Backdrop class={BACKDROP} />
+        <Ark.Positioner class={POSITIONER}>
+          <Ark.Content
+            class={`${CONTENT_SIZE[props.size ?? 'md']}  ${CONTENT_BASE}`}
+            aria-label={props.title === undefined ? props.label : undefined}
+          >
+            <div class={SHELL}>
+              <Show when={props.title}>
+                {(title) => (
+                  <div class={HEADER}>
+                    <Ark.Title class={TITLE}>{title()}</Ark.Title>
+                  </div>
+                )}
+              </Show>
+              <div class={BODY}>{props.children}</div>
+              <Show when={props.footer}>{(footer) => <div class={FOOTER}>{footer()}</div>}</Show>
+            </div>
+          </Ark.Content>
+        </Ark.Positioner>
+      </Portal>
     </Ark.Root>
   )
 }
