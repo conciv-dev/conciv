@@ -952,8 +952,11 @@ function within(input: {node: TargetNode; nodes: TargetNode[]}): TargetNode {
 
 export function segmentationQuality(model: Pick<TargetModel, 'nodes' | 'viewport'>): Segmentation {
   const page = model.viewport.width * model.viewport.height
+  const regionIds = new Set(
+    model.nodes.flatMap((node) => (node.kind === 'box' && node.paint === undefined ? [node.id] : [])),
+  )
   const covered = model.nodes
-    .filter((node) => node.kind === 'image' && node.within === undefined)
+    .filter((node) => node.kind === 'image' && (node.within === undefined || regionIds.has(node.within)))
     .reduce((sum, node) => sum + surface(node.box), 0)
   return page > 0 && covered / page > TOLERANCES.segmentImageShare ? 'partial' : 'full'
 }
@@ -1027,6 +1030,141 @@ const colorEnricher: Enricher = {
     ),
 }
 
+const regionsEnricher: Enricher = {
+  name: 'regions',
+  run: ({model}) => {
+    const [pictures, members] = partition(
+      model.nodes.filter((node) => node.within === undefined),
+      (node) => node.kind === 'image',
+    )
+    const {seats, regions} = carve({
+      members,
+      parent: undefined,
+      along: 'y',
+      depth: 1,
+      scale: model.scale,
+    })
+    const placed = pictures.map((picture) => ({id: picture.id, within: holder({box: picture.box, regions})}))
+    const parents = new Map([...seats, ...placed].map((seat) => [seat.id, seat.within]))
+    return Promise.resolve([
+      ...model.nodes.map((node) => {
+        const parent = parents.get(node.id)
+        return parent === undefined ? node : {...node, within: parent}
+      }),
+      ...regions,
+    ])
+  },
+}
+
+type Along = 'x' | 'y'
+type Seat = {id: string; within: string | undefined}
+type Carving = {seats: Seat[]; regions: BoxNode[]}
+
+const REGION_DEPTH = 3
+
+function carve(input: {
+  members: TargetNode[]
+  parent: string | undefined
+  along: Along
+  depth: number
+  scale: number
+}): Carving {
+  const {members, parent, along, depth, scale} = input
+  const gap = (parent === undefined ? TOLERANCES.sectionGap : TOLERANCES.regionGap) * scale
+  const seated: Carving = {seats: members.map((node) => ({id: node.id, within: parent})), regions: []}
+  if (depth > REGION_DEPTH || members.length < 2) return seated
+  const groups = absorbed({groups: bands({members, along, gap}), along})
+  const next: Along = along === 'y' ? 'x' : 'y'
+  if (groups.length < 2) return carve({...input, along: next, depth: depth + 1})
+  const carvings = groups.map((group): Carving => {
+    if (group.length < 2) return {seats: group.map((node) => ({id: node.id, within: parent})), regions: []}
+    const region = regionNode({members: group, parent})
+    const inner = carve({members: group, parent: region.id, along: next, depth: depth + 1, scale})
+    return {seats: inner.seats, regions: [region, ...inner.regions]}
+  })
+  return {
+    seats: carvings.flatMap((carving) => carving.seats),
+    regions: carvings.flatMap((carving) => carving.regions),
+  }
+}
+
+function bandStart(input: {box: Box; along: Along}): number {
+  return input.along === 'y' ? input.box.y : input.box.x
+}
+
+function bandEnd(input: {box: Box; along: Along}): number {
+  return input.along === 'y' ? input.box.y + input.box.h : input.box.x + input.box.w
+}
+
+function bands(input: {members: TargetNode[]; along: Along; gap: number}): TargetNode[][] {
+  const {along, gap} = input
+  return input.members
+    .toSorted((a, b) => bandStart({box: a.box, along}) - bandStart({box: b.box, along}))
+    .reduce<{groups: TargetNode[][]; end: number}>(
+      (sweep, node) => {
+        const last = sweep.groups.at(-1)
+        if (last === undefined || bandStart({box: node.box, along}) - sweep.end >= gap) {
+          return {groups: [...sweep.groups, [node]], end: bandEnd({box: node.box, along})}
+        }
+        last.push(node)
+        return {groups: sweep.groups, end: Math.max(sweep.end, bandEnd({box: node.box, along}))}
+      },
+      {groups: [], end: 0},
+    ).groups
+}
+
+function absorbed(input: {groups: TargetNode[][]; along: Along}): TargetNode[][] {
+  const {groups, along} = input
+  const index = groups.findIndex((group) => group.length === 1 && group[0]?.kind !== 'box')
+  const lone = groups[index]
+  if (groups.length < 2 || lone === undefined) return groups
+  const span = union(lone.map((node) => node.box))
+  const before = groups[index - 1]
+  const after = groups[index + 1]
+  const gapBefore =
+    before === undefined
+      ? Infinity
+      : bandStart({box: span, along}) - bandEnd({box: union(before.map((node) => node.box)), along})
+  const gapAfter =
+    after === undefined
+      ? Infinity
+      : bandStart({box: union(after.map((node) => node.box)), along}) - bandEnd({box: span, along})
+  const into = gapBefore <= gapAfter ? index - 1 : index + 1
+  const merged = groups.flatMap((group, position) => {
+    if (position === index) return []
+    if (position === into) return [[...group, ...lone]]
+    return [group]
+  })
+  return absorbed({groups: merged, along})
+}
+
+function holder(input: {box: Box; regions: BoxNode[]}): string | undefined {
+  const [best] = input.regions
+    .map((region) => {
+      const shared = intersect({box: input.box, region: region.box})
+      return {
+        region,
+        area: shared === null ? 0 : surface(shared),
+        distance: edgeDistance({a: input.box, b: region.box}),
+      }
+    })
+    .toSorted((a, b) => b.area - a.area || a.distance - b.distance || surface(a.region.box) - surface(b.region.box))
+  return best?.region.id
+}
+
+function edgeDistance(input: {a: Box; b: Box}): number {
+  const {a, b} = input
+  const across = Math.max(0, a.x - (b.x + b.w), b.x - (a.x + a.w))
+  const down = Math.max(0, a.y - (b.y + b.h), b.y - (a.y + a.h))
+  return Math.hypot(across, down)
+}
+
+function regionNode(input: {members: TargetNode[]; parent: string | undefined}): BoxNode {
+  const box = union(input.members.map((node) => node.box))
+  const node: BoxNode = {id: nodeId({kind: 'box', box}), kind: 'box', box, border: null, radius: 0}
+  return input.parent === undefined ? node : {...node, within: input.parent}
+}
+
 type FillShape = {kind: 'solid'} | {kind: 'picture'} | {kind: 'gradient'; gradient: DesignGradient}
 type Axis = DesignGradient['axis']
 
@@ -1092,7 +1230,7 @@ function smooth(input: {means: string[]; color: ColorMetric}): boolean {
   })
 }
 
-export const ENRICHERS: Enricher[] = [textEnricher, segmentEnricher, rolesEnricher, colorEnricher]
+export const ENRICHERS: Enricher[] = [textEnricher, segmentEnricher, rolesEnricher, colorEnricher, regionsEnricher]
 
 export const ADAPTERS: TargetAdapter[] = [imageAdapter]
 
