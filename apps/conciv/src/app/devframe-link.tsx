@@ -10,15 +10,15 @@ type HubClient = Awaited<ReturnType<HubConnection['ready']>>
 
 type LoginPhase = 'locked' | 'exchanging' | 'trusted'
 type LoginNotice = 'none' | 'mismatch' | 'newCode' | 'failed' | 'requestFailed'
-type LoginState = {phase: LoginPhase; dialogOpen: boolean; notice: LoginNotice; code: string[]}
+type LoginState = {phase: LoginPhase; dialogOpen: boolean; notice: LoginNotice}
 
 export type HubLogin = {
   state: LoginState
   locked: () => boolean
   open: () => void
   close: () => void
-  setCode: (code: string[]) => void
-  submit: (code: string) => void
+  edit: () => void
+  submit: (code: string) => Promise<boolean>
   reissue: () => void
   dispose: () => void
 }
@@ -53,10 +53,10 @@ export function makeHubLogin(
   onTrusted: (trustedApiBase: string) => void,
 ): HubLogin {
   const origin = new URL(apiBase, window.location.href).origin
-  const [state, setState] = createStore<LoginState>({phase: 'locked', dialogOpen: false, notice: 'none', code: []})
+  const [state, setState] = createStore<LoginState>({phase: 'locked', dialogOpen: false, notice: 'none'})
 
   const trust = (token: string): void => {
-    setState({phase: 'trusted', dialogOpen: false, notice: 'none', code: []})
+    setState({phase: 'trusted', dialogOpen: false, notice: 'none'})
     onTrusted(`${origin}/t/${token}`)
   }
 
@@ -79,21 +79,24 @@ export function makeHubLogin(
     if (client.isTrusted) followTrust(client)(true)
   })
 
-  const exchange = async (code: string): Promise<void> => {
+  const exchange = async (code: string): Promise<boolean> => {
     setState({phase: 'exchanging', notice: 'none'})
     const client = await hub.ready()
     const trusted = await client.requestTrustWithCode(code)
     const token = client.connection.authToken
     if (trusted && token) {
       trust(token)
-      return
+      return true
     }
-    setState({phase: 'locked', notice: 'mismatch', code: []})
+    setState({phase: 'locked', notice: 'mismatch'})
+    return false
   }
 
-  const submit = (code: string): void => {
-    exchange(code).catch(() => setState({phase: 'locked', notice: 'failed', code: []}))
-  }
+  const submit = (code: string): Promise<boolean> =>
+    exchange(code).catch(() => {
+      setState({phase: 'locked', notice: 'failed'})
+      return false
+    })
 
   const requestCode = (reissue: boolean): void => {
     hub
@@ -101,7 +104,7 @@ export function makeHubLogin(
       .then((client) => client.requestAuthCode({reissue}))
       .then(
         () => {
-          if (reissue) setState({notice: 'newCode', code: []})
+          if (reissue) setState('notice', 'newCode')
         },
         () => setState('notice', 'requestFailed'),
       )
@@ -109,18 +112,20 @@ export function makeHubLogin(
 
   hub.ready().catch(() => setState('notice', 'failed'))
   const otp = consumeOtpFromUrl()
-  if (otp) submit(otp)
+  if (otp) void submit(otp)
 
   return {
     state,
     locked: () => state.phase !== 'trusted',
     open: () => {
       if (state.phase === 'trusted') return
-      setState({dialogOpen: true, notice: 'none', code: []})
+      setState({dialogOpen: true, notice: 'none'})
       requestCode(false)
     },
     close: () => setState('dialogOpen', false),
-    setCode: (code) => setState({code, notice: state.notice === 'mismatch' ? 'none' : state.notice}),
+    edit: () => {
+      if (state.notice === 'mismatch') setState('notice', 'none')
+    },
     submit,
     reissue: () => requestCode(true),
     dispose: () => {
@@ -164,12 +169,16 @@ export function AuthorizeDialog(props: {login: HubLogin}): JSX.Element {
           <PinInput
             label="Enter your one-time authorization code"
             length={CODE_LENGTH}
-            value={props.login.state.code}
             invalid={props.login.state.notice === 'mismatch'}
-            autoFocus
             digitLabel={(position, length) => `Digit ${position} of ${length}`}
-            onValueChange={(code) => props.login.setCode(code)}
-            onValueComplete={(code) => props.login.submit(code)}
+            onValueChange={(value) => {
+              if (value.some((digit) => digit !== '')) props.login.edit()
+            }}
+            onValueComplete={(code, controls) =>
+              void props.login.submit(code).then((trusted) => {
+                if (!trusted) controls.clear()
+              })
+            }
           />
           <Show when={notice()}>
             {(text) => (

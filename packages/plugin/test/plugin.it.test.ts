@@ -655,7 +655,10 @@ describe('native page vite boot', () => {
         "That code didn't match. Check your terminal and try again.",
       )
       expect(errorsBeforeLogin).toEqual([])
-      await typeCode(card, getTempAuthCode())
+      const firstDigit = card.getByRole('textbox', {name: 'Digit 1 of 6'})
+      await expectLocator(firstDigit).toBeFocused()
+      await expectLocator(firstDigit.and(tab.locator(':focus-visible'))).toBeVisible()
+      await tab.keyboard.type(getTempAuthCode())
       await expectLocator(card).toBeHidden()
       await tab.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
       await tab.close()

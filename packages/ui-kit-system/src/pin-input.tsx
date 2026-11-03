@@ -1,4 +1,4 @@
-import {createEffect, Index, on, splitProps, type JSX} from 'solid-js'
+import {Index, splitProps, type JSX} from 'solid-js'
 import {PinInput as Ark, usePinInput} from '@ark-ui/solid/pin-input'
 
 const ROOT = 'flex flex-col gap-1'
@@ -30,15 +30,15 @@ function DigitInput(props: InputProps): JSX.Element {
   )
 }
 
+export type PinInputControls = {clear: () => void}
+
 export type PinInputProps = {
   label: string
   length: number
-  value: string[]
-  onValueChange: (value: string[]) => void
-  onValueComplete: (code: string) => void
+  onValueChange?: (value: string[]) => void
+  onValueComplete: (code: string, controls: PinInputControls) => void
   digitLabel: (position: number, length: number) => string
   invalid?: boolean
-  autoFocus?: boolean
 }
 
 export function PinInput(props: PinInputProps): JSX.Element {
@@ -46,23 +46,12 @@ export function PinInput(props: PinInputProps): JSX.Element {
     otp: true,
     type: 'numeric',
     count: props.length,
-    value: [...props.value],
     invalid: props.invalid,
-    autoFocus: props.autoFocus,
     placeholder: '',
     translations: {inputLabel: (index, length) => props.digitLabel(index + 1, length)},
-    onValueChange: (details) => props.onValueChange(details.value),
-    onValueComplete: (details) => props.onValueComplete(details.valueAsString),
+    onValueChange: (details) => props.onValueChange?.(details.value),
+    onValueComplete: (details) => props.onValueComplete(details.valueAsString, {clear: () => pin().clearValue()}),
   }))
-  createEffect(
-    on(
-      () => props.value.some((digit) => digit !== ''),
-      (filled, wasFilled) => {
-        if (wasFilled && !filled) pin().focus()
-      },
-      {defer: true},
-    ),
-  )
   return (
     <Ark.RootProvider value={pin} class={ROOT}>
       <Ark.Label class={LABEL}>{props.label}</Ark.Label>

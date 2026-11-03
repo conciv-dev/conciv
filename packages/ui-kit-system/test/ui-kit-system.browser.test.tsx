@@ -755,16 +755,17 @@ describe('pin input', () => {
   afterEach(cleanupMounts)
 
   function PinHarness(): ReturnType<typeof PinInput> {
-    const [form, setForm] = createStore<{code: string[]; completed: string}>({code: [], completed: ''})
+    const [form, setForm] = createStore({completed: ''})
     return (
       <div>
         <PinInput
           label="Authorization code"
           length={6}
-          value={form.code}
           digitLabel={(position, length) => `Digit ${position} of ${length}`}
-          onValueChange={(code) => setForm('code', code)}
-          onValueComplete={(code) => setForm({completed: code, code: []})}
+          onValueComplete={(code, controls) => {
+            setForm('completed', code)
+            controls.clear()
+          }}
         />
         <p>{form.completed === '' ? 'waiting' : `completed ${form.completed}`}</p>
       </div>
