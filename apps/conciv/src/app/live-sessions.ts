@@ -1,4 +1,4 @@
-import {createMemo, createSignal, mapArray, onCleanup, untrack, type Accessor} from 'solid-js'
+import {createMemo, mapArray, onCleanup, untrack, type Accessor} from 'solid-js'
 import type {QueryClient} from '@tanstack/solid-query'
 import {createStore} from 'solid-js/store'
 import {useChatSession, type ChatSession, type ChatTransportPreference} from '@conciv/client'
@@ -30,29 +30,31 @@ type RunWatch = {live: string | null; sent: boolean; settled: string | null}
 const IDLE_RUN: RunWatch = {live: null, sent: false, settled: null}
 
 export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
-  const [openers, setOpeners] = createSignal<Accessor<string>[]>([])
-  const [runs, setRuns] = createStore<Record<string, RunWatch>>({})
-  const opened = createMemo(() => openers().map((sessionId) => sessionId()))
+  const [state, setState] = createStore<{openers: Accessor<string>[]; runs: Record<string, RunWatch>}>({
+    openers: [],
+    runs: {},
+  })
+  const opened = createMemo(() => state.openers.map((sessionId) => sessionId()))
   const watched = createMemo(() =>
-    Object.entries(runs).flatMap(([sessionId, run]) => (run.live !== null || run.sent ? [sessionId] : [])),
+    Object.entries(state.runs).flatMap(([sessionId, run]) => (run.live !== null || run.sent ? [sessionId] : [])),
   )
   const sessionIds = createMemo(() => [...new Set([...opened(), ...watched()])])
 
-  const runOf = (sessionId: string): RunWatch => runs[sessionId] ?? IDLE_RUN
+  const runOf = (sessionId: string): RunWatch => state.runs[sessionId] ?? IDLE_RUN
 
-  const markSent = (sessionId: string, sent: boolean) => setRuns(sessionId, {...runOf(sessionId), sent})
+  const markSent = (sessionId: string, sent: boolean) => setState('runs', sessionId, {...runOf(sessionId), sent})
 
   const start = (sessionId: string, lifecycle: RunLifecycle) => {
     const run = runOf(sessionId)
     if (lifecycle.runId === run.live || lifecycle.runId === run.settled) return
-    setRuns(sessionId, {live: lifecycle.runId, sent: false, settled: run.settled})
+    setState('runs', sessionId, {live: lifecycle.runId, sent: false, settled: run.settled})
   }
 
   const finish = (sessionId: string, lifecycle: RunLifecycle) => {
     const run = runOf(sessionId)
     const ours = lifecycle.runId === run.live || run.sent
     if (lifecycle.runId === run.settled || !ours) return
-    setRuns(sessionId, {live: null, sent: lifecycle.runId === run.live && run.sent, settled: lifecycle.runId})
+    setState('runs', sessionId, {live: null, sent: lifecycle.runId === run.live && run.sent, settled: lifecycle.runId})
     deps.appData.invalidateSessions()
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.markers.list.key({input: {sessionId}})})
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.captures.list.key({input: {sessionId}})})
@@ -102,8 +104,8 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       return entry.chat().runInProgress() ? 'running' : 'idle'
     },
     open(sessionId) {
-      setOpeners((list) => [...list, sessionId])
-      onCleanup(() => setOpeners((list) => list.filter((entry) => entry !== sessionId)))
+      setState('openers', (list) => [...list, sessionId])
+      onCleanup(() => setState('openers', (list) => list.filter((entry) => entry !== sessionId)))
       return () => {
         const entry = chatOf(sessionId())
         if (!entry) throw new Error(`no live chat for session ${sessionId()}`)
