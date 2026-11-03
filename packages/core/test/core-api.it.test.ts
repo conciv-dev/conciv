@@ -51,6 +51,7 @@ import {
   type McpTool,
 } from '@conciv/harness-testkit'
 import {claude} from '@conciv/harness/claude'
+import {codex as codexHarness} from '@conciv/harness/codex'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {type ChatEvent, ChatEventType, sessionRunEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -89,6 +90,7 @@ import {
   chunkWithInlineMap,
   cleanupChunks,
   hydratedSnapshot,
+  runTurn,
   userTexts,
   type FakeWidget,
 } from './helpers.js'
@@ -525,6 +527,59 @@ describe('api installed harnesses', () => {
       rmSync(root, {recursive: true, force: true})
     }
   })
+})
+
+describe('api codex turns', () => {
+  const saved = {PATH: process.env.PATH, HOME: process.env.HOME}
+  const root = mkdtempSync(join(tmpdir(), 'conciv-codex-turns-'))
+  const bin = join(root, 'bin')
+  const fakeCodex = [
+    '#!/bin/sh',
+    'cat > /dev/null',
+    'count_file="$(dirname "$0")/count"',
+    'count=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 ))',
+    'echo "$count" > "$count_file"',
+    `echo '{"type":"thread.started","thread_id":"codex-thread-1"}'`,
+    `echo '{"type":"item.started","item":{"id":"item_0","type":"command_execution","command":"ls","aggregated_output":"","status":"in_progress"}}'`,
+    `echo '{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"ls","aggregated_output":"listed","exit_code":0,"status":"completed"}}'`,
+    `echo '{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"answer '"$count"'"}}'`,
+    `echo '{"type":"turn.completed","usage":{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1}}'`,
+  ].join('\n')
+  beforeAll(() => {
+    mkdirSync(bin)
+    mkdirSync(join(root, 'home'))
+    writeFileSync(join(bin, 'codex'), fakeCodex, {mode: 0o755})
+    process.env.PATH = `${bin}:${saved.PATH ?? ''}`
+    process.env.HOME = join(root, 'home')
+  })
+  const kit = sharedKit(() => createTestkit(codexHarness, bootCoreApp()).setup())
+
+  afterAll(() => {
+    process.env.PATH = saved.PATH
+    process.env.HOME = saved.HOME
+    rmSync(root, {recursive: true, force: true})
+  })
+
+  it('keeps every codex reply under its own question although codex numbers its items from item_0 each turn', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    for (const question of ['first question', 'second question', 'third question']) {
+      await runTurn(kit(), question, sessionId)
+    }
+    const snapshot = await hydratedSnapshot(kit(), sessionId)
+    const shown = snapshot.messages.map((message) => ({
+      role: message.role,
+      text: message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(' '),
+      toolCalls: message.parts.filter((part) => part.type === 'tool-call').length,
+    }))
+    expect(shown).toEqual([
+      {role: 'user', text: 'first question', toolCalls: 0},
+      {role: 'assistant', text: 'answer 1', toolCalls: 1},
+      {role: 'user', text: 'second question', toolCalls: 0},
+      {role: 'assistant', text: 'answer 2', toolCalls: 1},
+      {role: 'user', text: 'third question', toolCalls: 0},
+      {role: 'assistant', text: 'answer 3', toolCalls: 1},
+    ])
+  }, 30_000)
 })
 
 describe('api harness switching', () => {

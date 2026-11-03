@@ -1101,9 +1101,9 @@ describe('codex history', () => {
   describe('codex rollout parsing', () => {
     it('builds a user/assistant spine with tool calls and their outputs', async () => {
       expect(await history().messages(PROJECT, SESSION, state.home)).toEqual([
-        {id: 'h1', role: 'user', parts: [{type: 'text', content: 'list the files'}]},
+        {id: `${SESSION}:h1`, role: 'user', parts: [{type: 'text', content: 'list the files'}]},
         {
-          id: 'h2',
+          id: `${SESSION}:h2`,
           role: 'assistant',
           parts: [
             {
@@ -1126,6 +1126,21 @@ describe('codex history', () => {
           ],
         },
       ])
+    })
+
+    it('gives two codex sessions of one project disjoint message ids', async () => {
+      const second = HarnessSessionId.parse('019fb340-0000-7000-8000-000000000002')
+      await seedRollout(
+        `rollout-2026-07-30T17-00-00-${second}.jsonl`,
+        ROLLOUT_LINES.map((line) =>
+          line.type === 'session_meta' ? {...line, payload: {...line.payload, session_id: second, id: second}} : line,
+        ),
+      )
+      const first = await history().messages(PROJECT, SESSION, state.home)
+      const next = await history().messages(PROJECT, second, state.home)
+      expect(next.map((message) => message.role)).toEqual(['user', 'assistant'])
+      const firstIds = new Set(first.map((message) => message.id))
+      expect(next.filter((message) => firstIds.has(message.id))).toEqual([])
     })
 
     it('reads the context tokens from the last token_count event', () => {
@@ -2338,15 +2353,15 @@ describe('transcript handles', () => {
       const raw = fixture('codex-rollout.jsonl')
       const whole = join(state.rollouts, 'whole-file.jsonl')
       writeFileSync(whole, raw)
-      seedThread('whole-file', whole)
-      expect(await codexHistory.messages(CODEX_CWD, HarnessSessionId.parse('whole-file'), state.home)).toEqual(
+      seedThread(CODEX_SESSION, whole)
+      expect(await codexHistory.messages(CODEX_CWD, HarnessSessionId.parse(CODEX_SESSION), state.home)).toEqual(
         expected.messages,
       )
 
       const path = join(state.rollouts, 'equivalence.jsonl')
       writeFileSync(path, '')
-      seedThread('equivalence', path)
-      const handle = observe('equivalence')
+      seedThread(CODEX_SESSION, path)
+      const handle = observe(CODEX_SESSION)
       expect(await foldLineByLine(handle, path, raw.split('\n').filter(Boolean))).toEqual(expected.messages)
       handle.close()
     })

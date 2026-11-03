@@ -1,4 +1,6 @@
-import {codex as codexAdapter} from '@conciv/ai/server'
+import {randomUUID} from 'node:crypto'
+import {codex as codexAdapter, type TextAdapter} from '@conciv/ai/server'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {defineHarness, type HarnessChatConfig} from '../_shared/contract.js'
 import {definedEntries} from '../_shared/env.js'
@@ -10,13 +12,37 @@ const BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 const bridgeApproveConfig = {[`mcp_servers.${BRIDGED_MCP_SERVER_NAME}.default_tools_approval_mode`]: '"approve"'}
 
+function runScopedChunk(chunk: ChatEvent, runId: string): ChatEvent {
+  if ('toolCallId' in chunk && typeof chunk.toolCallId === 'string') {
+    return {...chunk, toolCallId: `${runId}:${chunk.toolCallId}`}
+  }
+  if ('messageId' in chunk && typeof chunk.messageId === 'string') {
+    return {...chunk, messageId: `${runId}:${chunk.messageId}`}
+  }
+  return chunk
+}
+
+async function* runScopedStream(stream: AsyncIterable<ChatEvent>, runId: string): AsyncIterable<ChatEvent> {
+  for await (const chunk of stream) yield runScopedChunk(chunk, runId)
+}
+
+function runScopedIds(adapter: TextAdapter): TextAdapter {
+  const chatStream: TextAdapter['chatStream'] = (options) =>
+    runScopedStream(adapter.chatStream(options), options.runId ?? randomUUID())
+  return new Proxy(adapter, {
+    get: (target, key, receiver) => (key === 'chatStream' ? chatStream : Reflect.get(target, key, receiver)),
+  })
+}
+
 const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: codexAdapter(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
-    sandboxMode: 'workspace-write',
-    approvalPolicy: 'never',
-    ...(deps.hasTools ? {config: bridgeApproveConfig} : {}),
-    env: definedEntries(deps.env),
-  }),
+  adapter: runScopedIds(
+    codexAdapter(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
+      sandboxMode: 'workspace-write',
+      approvalPolicy: 'never',
+      ...(deps.hasTools ? {config: bridgeApproveConfig} : {}),
+      env: definedEntries(deps.env),
+    }),
+  ),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
 })
 
