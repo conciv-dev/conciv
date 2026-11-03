@@ -952,8 +952,11 @@ function within(input: {node: TargetNode; nodes: TargetNode[]}): TargetNode {
 
 export function segmentationQuality(model: Pick<TargetModel, 'nodes' | 'viewport'>): Segmentation {
   const page = model.viewport.width * model.viewport.height
+  const regionIds = new Set(
+    model.nodes.flatMap((node) => (node.kind === 'box' && node.paint === undefined ? [node.id] : [])),
+  )
   const covered = model.nodes
-    .filter((node) => node.kind === 'image' && node.within === undefined)
+    .filter((node) => node.kind === 'image' && (node.within === undefined || regionIds.has(node.within)))
     .reduce((sum, node) => sum + surface(node.box), 0)
   return page > 0 && covered / page > TOLERANCES.segmentImageShare ? 'partial' : 'full'
 }
@@ -1005,6 +1008,83 @@ const colorEnricher: Enricher = {
         return {...node, paint: {background}}
       }),
     ),
+}
+
+const regionsEnricher: Enricher = {
+  name: 'regions',
+  run: ({model}) => {
+    const {seats, regions} = carve({
+      members: model.nodes.filter((node) => node.within === undefined),
+      parent: undefined,
+      along: 'y',
+      depth: 1,
+      gap: TOLERANCES.regionGap * model.scale,
+    })
+    const parents = new Map(seats.map((seat) => [seat.id, seat.within]))
+    return Promise.resolve([
+      ...model.nodes.map((node) => {
+        const parent = parents.get(node.id)
+        return parent === undefined ? node : {...node, within: parent}
+      }),
+      ...regions,
+    ])
+  },
+}
+
+type Along = 'x' | 'y'
+type Seat = {id: string; within: string | undefined}
+type Carving = {seats: Seat[]; regions: BoxNode[]}
+
+const REGION_DEPTH = 3
+
+function carve(input: {
+  members: TargetNode[]
+  parent: string | undefined
+  along: Along
+  depth: number
+  gap: number
+}): Carving {
+  const {members, parent, along, depth, gap} = input
+  const seated: Carving = {seats: members.map((node) => ({id: node.id, within: parent})), regions: []}
+  if (depth > REGION_DEPTH || members.length < 2) return seated
+  const groups = bands({members, along, gap})
+  const next: Along = along === 'y' ? 'x' : 'y'
+  if (groups.length < 2) return carve({...input, along: next, depth: depth + 1})
+  const carvings = groups.map((group): Carving => {
+    if (group.length < 2) return {seats: group.map((node) => ({id: node.id, within: parent})), regions: []}
+    const region = regionNode({members: group, parent})
+    const inner = carve({members: group, parent: region.id, along: next, depth: depth + 1, gap})
+    return {seats: inner.seats, regions: [region, ...inner.regions]}
+  })
+  return {
+    seats: carvings.flatMap((carving) => carving.seats),
+    regions: carvings.flatMap((carving) => carving.regions),
+  }
+}
+
+function bands(input: {members: TargetNode[]; along: Along; gap: number}): TargetNode[][] {
+  const {along, gap} = input
+  const from = (box: Box): number => (along === 'y' ? box.y : box.x)
+  const to = (box: Box): number => (along === 'y' ? box.y + box.h : box.x + box.w)
+  return input.members
+    .toSorted((a, b) => from(a.box) - from(b.box))
+    .reduce<{groups: TargetNode[][]; end: number}>(
+      (sweep, node) => {
+        const last = sweep.groups.at(-1)
+        if (last === undefined || from(node.box) - sweep.end >= gap) {
+          return {groups: [...sweep.groups, [node]], end: to(node.box)}
+        }
+        last.push(node)
+        return {groups: sweep.groups, end: Math.max(sweep.end, to(node.box))}
+      },
+      {groups: [], end: 0},
+    ).groups
+}
+
+function regionNode(input: {members: TargetNode[]; parent: string | undefined}): BoxNode {
+  const box = union(input.members.map((node) => node.box))
+  const node: BoxNode = {id: nodeId({kind: 'box', box}), kind: 'box', box, border: null, radius: 0}
+  return input.parent === undefined ? node : {...node, within: input.parent}
 }
 
 type FillShape = {kind: 'solid'} | {kind: 'picture'} | {kind: 'gradient'; gradient: DesignGradient}
@@ -1072,7 +1152,7 @@ function smooth(input: {means: string[]; color: ColorMetric}): boolean {
   })
 }
 
-export const ENRICHERS: Enricher[] = [textEnricher, segmentEnricher, rolesEnricher, colorEnricher]
+export const ENRICHERS: Enricher[] = [textEnricher, segmentEnricher, rolesEnricher, colorEnricher, regionsEnricher]
 
 export const ADAPTERS: TargetAdapter[] = [imageAdapter]
 

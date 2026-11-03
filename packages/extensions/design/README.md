@@ -348,9 +348,14 @@ source and use <Placeholder kind=…> for every image and icon line`, and the x-
 ## Sections
 
 A section is a top-level node of the design tree: a node whose `within` is unset or names no node, a child of the
-root. Its outline line starts with `section <id>` (the node id) before the node line, as in `section 4f1c2a7e box
-1280x72 row gap 29 align center, background #fff`; a text at the top level is its own section, and nested lines carry
-no prefix. A section is a view, not a run: `design_diff({section})` runs the whole page as always (store, round,
+root. The `regions` enricher, run after `color` and before the layout pass, groups the root's children into regions by
+whitespace: a horizontal band of free space at least `regionGap` (40 css px) tall that no child crosses is a cut, and
+the children between two cuts form a region when there are at least two of them. Inside each region the cut is made
+again with vertical bands, then horizontal once more, to a depth of three; a cut that leaves one group is no cut. A
+region is a box with no paint, its box the union of its members, and its members' `within` set to it; a node that
+already has a `within` keeps it. Its outline line starts with `section <id>` (the node id) before the node line, as in
+`section 4f1c2a7e box 1280x72 row gap 29 align center`; a node no region took is its own section, and nested lines
+carry no prefix. A section is a view, not a run: `design_diff({section})` runs the whole page as always (store, round,
 budget, history and ledger are untouched by the scope), then filters the report to the section's subtree, the nodes
 reachable through `within` from the section id. `items`, `rows`, `unmatched`, `changes` and `ledger` keep the subtree's
 nodes; an item, entry or warning with no node is kept when its box lies inside the section's box, and a component when

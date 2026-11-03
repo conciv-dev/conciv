@@ -2743,6 +2743,29 @@ async function heroSection(): Promise<{sections: Section[]; lines: string[]; her
 }
 
 describe('sections', () => {
+  it('cuts the stripe page into regions and keeps the hero title and picture in the hero region', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const {sections, hero} = await heroSection()
+    const nodes = await storedNodes(id)
+    const held = nodes.filter((node) => sectionHolding({nodes, node: node.id}) === hero.id)
+    const loose = nodes.filter((node) => node.kind === 'text' && node.within === undefined)
+    const widest = nodes
+      .filter((node) => node.kind === 'image')
+      .toSorted((a, b) => b.box.w * b.box.h - a.box.w * a.box.h)
+      .at(0)
+    await annotate(
+      `sections ${sections.length} ${JSON.stringify(sections.map((section) => section.line))}; loose texts ${JSON.stringify(loose.map((node) => node.text))}`,
+    )
+    expect(sections.length).toBeGreaterThanOrEqual(5)
+    expect(sections.length).toBeLessThanOrEqual(15)
+    expect(loose).toEqual([])
+    expect(held.some((node) => node.text?.includes('Financial infrastructure') === true)).toBe(true)
+    expect(held.some((node) => node.id === widest?.id)).toBe(true)
+  }, 300_000)
+
   it('lists the top-level nodes as sections and scopes a diff to the hero section', async ({annotate}) => {
     await goto('stripe')
     const {id} = await freshTarget('stripe-1280')

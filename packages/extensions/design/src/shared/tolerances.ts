@@ -57,6 +57,7 @@ export const TOLERANCES = {
   iconSide: 24,
   iconTextFloor: 0.8,
   iconSlotSide: 48,
+  regionGap: 40,
 } as const
 
 export type Tolerances = typeof TOLERANCES
