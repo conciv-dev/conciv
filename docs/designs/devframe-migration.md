@@ -134,6 +134,21 @@ slots), and remove conciv's own versions one group at a time while both paths ke
   host, and the `/t/<token>` gate puts tokens in engine URLs. Tokens must not reach logs:
   the engine strips `/t/<token>` and `devframe_auth_token` from anything it logs.
 
+### Decisions taken during the stack (2026-11-03)
+
+- **Next.js loopback check.** The dev-server guard matched the `Host` header, which a caller
+  can set to anything. It checks the connection's socket address instead.
+- **design.it x-ray test.** It stays red under the login gate; the x-ray area is being
+  redesigned separately.
+- **Preset API base.** An API base already set on the page wins over a preset's (`??=`).
+- **Terminals assets.** Devframe's Terminals panel gets its offline assets package, so it
+  loads without a CDN.
+- **Raw Solid effects added in the stack.** The shell tab scroll, the two effects in the
+  router and the hub close inside `createMemo` are replaced with `@solid-primitives` helpers.
+  Any case no helper fits goes back to the maintainer with the exact code.
+- **Chat events.** `chat.events` stays on oRPC until the `@tanstack/ai` socket work replaces
+  it; no Devframe stream is built for it.
+
 ## Technical Plan (Architecture)
 
 ### Shape at the end
