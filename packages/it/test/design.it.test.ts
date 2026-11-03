@@ -2573,6 +2573,7 @@ describe('ledger', () => {
 const ICON_SIDE = 24
 const ICON_SLOT_SIDE = 48
 const GLYPH_NOISE = 12
+const PAINTED_OVER = ['Guide me']
 const GEOMETRY_PX = 2
 const LATIN_END = 0x24f
 const DAYBREAK = 'Daybreak Yoga'
@@ -2947,7 +2948,7 @@ describe('icons', () => {
     expect(icons).toBeGreaterThanOrEqual(3)
   }, 240_000)
 
-  it('a picture keeps the text inside it, the outline says how many lines it holds, and glyph noise is dropped', async ({
+  it('a picture counts the text it paints around, the outline says how many lines it holds, and glyph noise is dropped', async ({
     annotate,
   }) => {
     await goto('stripe')
@@ -2957,7 +2958,6 @@ describe('icons', () => {
       (node) => node.kind === 'image' && node.box.w >= ICON_SLOT_SIDE && node.box.h >= ICON_SLOT_SIDE,
     )
     const texts = nodes.filter((node) => node.kind === 'text')
-    const strays = texts.filter((text) => pictures.some((image) => enclosedIn({inner: text.box, outer: image.box})))
     const noise = nodes.filter((node) => node.kind === 'image' && under({box: node.box, side: GLYPH_NOISE}))
     const [hero] = pictures.toSorted((a, b) => b.box.w * b.box.h - a.box.w * a.box.h)
     const held = pictures.reduce((sum, node) => sum + (node.holds ?? 0), 0)
@@ -2968,7 +2968,6 @@ describe('icons', () => {
     await annotate(
       `texts ${texts.length} pictures ${JSON.stringify(pictures.map((node) => ({box: node.box, holds: node.holds})))} held ${held} hero ${JSON.stringify(hero?.box)} holds ${hero?.holds} noise ${noise.length} counts.unbuilt ${compact.counts.unbuilt} non-image nodes ${nonImage}`,
     )
-    expect(strays).toEqual([])
     expect(noise).toEqual([])
     expect(hero?.holds ?? 0).toBeGreaterThan(0)
     expect(
@@ -2978,6 +2977,40 @@ describe('icons', () => {
     ).toHaveLength(1)
     expect(outline.filter((line) => line.includes('(holds 0 text lines)'))).toEqual([])
     expect(compact.counts.unbuilt).toBeLessThanOrEqual(nonImage)
+  }, 240_000)
+
+  it('a picture owns only the text it paints around: the nav, the buttons and the logo row stay text', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const nodes = await storedNodes(id)
+    const [hero] = nodes
+      .filter((node) => node.kind === 'image' && node.box.w >= ICON_SLOT_SIDE && node.box.h >= ICON_SLOT_SIDE)
+      .toSorted((a, b) => b.box.w * b.box.h - a.box.w * a.box.h)
+    const texts = nodes.flatMap((node) => (node.kind === 'text' ? [node.text ?? ''] : []))
+    const covered = nodes.flatMap((node) =>
+      node.kind === 'text' && hero !== undefined && enclosedIn({inner: node.box, outer: hero.box})
+        ? [node.text ?? '']
+        : [],
+    )
+    await annotate(
+      `texts ${texts.length} hero ${JSON.stringify(hero?.box)} holds ${hero?.holds} covered ${JSON.stringify(covered)}`,
+    )
+    expect(covered).toEqual(
+      expect.arrayContaining([
+        'Pricing',
+        'Sign in',
+        'Contact sales',
+        'Ford',
+        'coinbase',
+        'shopify',
+        '6 sales reps available',
+      ]),
+    )
+    expect(texts.filter((text) => PAINTED_OVER.includes(text))).toEqual([])
+    expect(hero?.holds ?? 0).toBeGreaterThanOrEqual(PAINTED_OVER.length)
+    expect(texts.length).toBeGreaterThanOrEqual(150)
   }, 240_000)
 
   it('an icon the agent renders inside the lilac card fills an icon slot', async ({annotate}) => {

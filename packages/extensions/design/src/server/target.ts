@@ -966,7 +966,7 @@ const segmentEnricher: Enricher = {
   run: async ({model, raster, runtime}) => {
     if (model.nodes.some((node) => node.kind === 'box')) return model.nodes
     const found = await runtime.segmenter.segment({raster, nodes: model.nodes})
-    const nodes = pictured([...model.nodes, ...found].filter((node) => !glyphNoise(node)))
+    const nodes = pictured({nodes: [...model.nodes, ...found].filter((node) => !glyphNoise(node)), raster})
     return nodes.map((node) => within({node, nodes}))
   },
 }
@@ -979,16 +979,50 @@ function picture(node: TargetNode): boolean {
   return node.kind === 'image' && node.box.w >= TOLERANCES.iconSlotSide && node.box.h >= TOLERANCES.iconSlotSide
 }
 
-function pictured(nodes: TargetNode[]): TargetNode[] {
+function pictured(input: {nodes: TargetNode[]; raster: Raster}): TargetNode[] {
+  const {nodes, raster} = input
   const pictures = nodes.filter(picture).toSorted((a, b) => surface(a.box) - surface(b.box))
-  const holder = (node: TargetNode): string =>
-    node.kind === 'text' ? (pictures.find((image) => holds({outer: image.box, inner: node.box}))?.id ?? '') : ''
-  const held = countBy(nodes, holder)
-  return nodes.flatMap((node): TargetNode[] => {
-    if (holder(node) !== '') return []
+  const holder = (node: TargetNode): string => {
+    if (node.kind !== 'text') return ''
+    const image = pictures.find((candidate) => holds({outer: candidate.box, inner: node.box}))
+    if (image === undefined || flatHalo({node, nodes, raster})) return ''
+    return image.id
+  }
+  const owners = nodes.map((node) => ({node, owner: holder(node)}))
+  const held = countBy(owners, ({owner}) => owner)
+  return owners.flatMap(({node, owner}): TargetNode[] => {
+    if (owner !== '') return []
     if (node.kind !== 'image') return [node]
     return [{...node, holds: held[node.id] ?? 0}]
   })
+}
+
+function flatHalo(input: {node: TargetNode; nodes: TargetNode[]; raster: Raster}): boolean {
+  const {node, nodes, raster} = input
+  const band = expand({box: node.box, by: TOLERANCES.glyphHalo})
+  const others = nodes.filter(
+    (other) =>
+      other.id !== node.id && overlapping({a: other.box, b: band}) && !holds({outer: other.box, inner: node.box}),
+  )
+  const indices = haloIndices({raster, box: node.box, others: others.map((other) => other.box)})
+  if (indices.length === 0) return false
+  return share({raster, indices, color: medianRgb({raster, indices})}) >= OUTLINE_DOMINANT
+}
+
+function haloIndices(input: {raster: Raster; box: Box; others: Box[]}): number[] {
+  const {raster, box, others} = input
+  const band = crop({raster, box, margin: TOLERANCES.glyphHalo}).box
+  const covered = [box, ...others].map((other) => crop({raster, box: other}).box)
+  return range(band.y, band.y + band.h).flatMap((y) =>
+    range(band.x, band.x + band.w).flatMap((x) =>
+      covered.some((area) => covers({area, x, y})) ? [] : [y * raster.width + x],
+    ),
+  )
+}
+
+function covers(input: {area: Box; x: number; y: number}): boolean {
+  const {area, x, y} = input
+  return x >= area.x && x < area.x + area.w && y >= area.y && y < area.y + area.h
 }
 
 const rolesEnricher: Enricher = {
