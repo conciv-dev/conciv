@@ -31,6 +31,7 @@ export type HubLogin = {
 }
 
 const HUB_PATH = '/__conciv/'
+const DEVTOOLS_HUB_PATH = '/__devtools/'
 const ENGINE_ACCESS = 'conciv:engine-access'
 const TOKEN_SEGMENT = /\/t\/([^/]+)/
 const CODE_LENGTH = 6
@@ -42,7 +43,7 @@ const NOTICE_TEXT: Record<Exclude<LoginNotice, 'none'>, string> = {
   requestFailed: 'Could not request a new code. Please try again.',
 }
 
-function tokenOf(apiBase: string): string | undefined {
+export function tokenOf(apiBase: string): string | undefined {
   return TOKEN_SEGMENT.exec(new URL(apiBase, window.location.href).pathname)?.[1]
 }
 
@@ -89,6 +90,10 @@ export function servePage(
 
 export function hubFor(apiBase: string): HubConnection {
   return browserClient({baseURL: hubBaseOf(apiBase), authToken: tokenOf(apiBase)})
+}
+
+export function devtoolsHub(): HubConnection {
+  return browserClient({baseURL: new URL(DEVTOOLS_HUB_PATH, window.location.href).href})
 }
 
 export function makeHubLogin(
