@@ -1,4 +1,4 @@
-import {createHmac, randomUUID} from 'node:crypto'
+import {randomUUID} from 'node:crypto'
 import {serveHono, type ClaimUpgrade, type ServeFetch} from '@conciv/serve'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
@@ -48,7 +48,7 @@ export type Engine = {
   agentBase: string
   loginToken: string
   hub: HubInstance
-  grantBrowserAccess: (key: string) => Promise<string>
+  grantBrowserAccess: (token: string) => Promise<string>
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
   extensionContexts: Record<string, unknown>
@@ -238,8 +238,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     agentBase: base,
     loginToken,
     hub,
-    grantBrowserAccess: async (key) => {
-      const token = createHmac('sha256', loginToken).update(key).digest('hex').slice(0, 32)
+    grantBrowserAccess: async (token) => {
       trustBrowserToken(await hub.context, token, 'Vite DevTools')
       return token
     },

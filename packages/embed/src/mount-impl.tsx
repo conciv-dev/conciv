@@ -18,11 +18,13 @@ import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
 import {
+  devtoolsHub,
   hubBaseOf,
   hubFor,
   makeHubLogin,
   servePage,
   tokenBearingApiBase,
+  tokenOf,
   type HubConnection,
   type HubLogin,
 } from '@conciv/app/devframe-link'
@@ -141,20 +143,25 @@ type BootNormalConfig = {
   apiBase: string | null
   grabProvider?: GrabProvider
   connectMode?: boolean
-  hub?: Required<HubLink>
+  hub?: HubLink
   login?: HubLogin
 }
 
 type HubLink = {apiBase: string; connection?: HubConnection}
 
+function relinks(previous: HubLink, nextApiBase: string): boolean {
+  if (hubBaseOf(nextApiBase) !== hubBaseOf(previous.apiBase)) return true
+  return previous.connection === undefined && tokenOf(nextApiBase) !== tokenOf(previous.apiBase)
+}
+
 function createFollowedHub(
-  initial: Required<HubLink>,
+  initial: HubLink,
   apiBase: Accessor<string | null>,
 ): {hub: Accessor<HubConnection | undefined>; close: () => void} {
   return createRoot((dispose) => {
     const link = createMemo<HubLink>((previous) => {
       const nextApiBase = apiBase()
-      if (nextApiBase === null || hubBaseOf(nextApiBase) === hubBaseOf(previous.apiBase)) return previous
+      if (nextApiBase === null || !relinks(previous, nextApiBase)) return previous
       return {apiBase: nextApiBase}
     }, initial)
     const connections = createMemo(
@@ -334,7 +341,8 @@ function bootConnect(config: BootConnectConfig): BootResult {
 }
 
 function bootLinked(config: BootNormalConfig & {apiBase: string}): BootResult {
-  const hub = hubFor(config.apiBase)
+  const docked = config.settings.surface === 'dock'
+  const hub = docked ? devtoolsHub() : hubFor(config.apiBase)
   const bound = {apiBase: tokenBearingApiBase(config.apiBase)}
   const login = makeHubLogin(
     hub,
@@ -345,14 +353,16 @@ function bootLinked(config: BootNormalConfig & {apiBase: string}): BootResult {
       bound.apiBase = trustedApiBase
       return booted.rebind?.(trustedApiBase) ?? Promise.resolve()
     },
-    config.settings.surface === 'dock',
+    docked,
   )
-  const booted = bootNormal({...config, apiBase: bound.apiBase, hub: {apiBase: config.apiBase, connection: hub}, login})
+  const followed: HubLink = docked ? {apiBase: config.apiBase} : {apiBase: config.apiBase, connection: hub}
+  const booted = bootNormal({...config, apiBase: bound.apiBase, hub: followed, login})
   return {
     ...booted,
     dispose: () => {
       login.dispose()
       booted.dispose()
+      if (docked) hub.close()
     },
   }
 }
