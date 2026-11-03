@@ -35,6 +35,7 @@ src/
     tolerances.ts      TOLERANCES, designConfig, frame message names, source attribute, property aliases, tolerance counts
   server/
     target.ts          ADAPTERS, TEXT_READERS (PaddleOCR), ENRICHERS, SEGMENTERS, ROLE_RULES and the registration pipeline
+    layout.ts          the layout pass over the segmented tree (direction, gap, align, wrap, padding, runs, sizes)
     deltas.ts          DELTA_KINDS (border, axis and columns included), COLOR_METRICS, sampled fills and glyph ink color, sideFrom
     provenance.ts      MAPPERS, mapDeclaration, the CSS source map, JSX site reading and live text roles
     raster.ts          pure pixel and box operations
@@ -108,6 +109,40 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   longer be read.
 - `design_capture`, `design_winner` and `design_clear` capture the page, name the CSS declaration that wins a
   property, and remove targets.
+
+## Layout
+
+The design dictates a layout; a pixel box is metadata on a layout node, never the ask.
+
+- **The layout pass** runs once per registration, after enrichment, and is stored in `model.json`: on the root and on
+  every node with children a `layout` with `direction` (`row` when the children sit on one line, `column` when the
+  lines stack and share a left, centre or right edge, `grid` when the lines fall on one column lattice, `stack`
+  otherwise, and for a single child), `gap` (`{px, uniform}`, the median distance between consecutive children on the
+  direction axis), `align` on the cross axis (`start`, `center`, `end`, or `stretch` when the children span it),
+  `wrap` (a row whose children continue on a second line of the same lattice), `padding` (the inset from the box to
+  the union of its children, per side) and `runs` (the lines of a column or stack that hold several children, each a
+  row with its own gap and align). Every node also carries its `index` in reading order and its `size` in the
+  parent: `fill` when the children of a row share its width equally, `fit` for text and for a box that hugs its
+  text, `fixed` otherwise. Tolerance `layoutTolerance` 4 px, in CSS px whatever the image scale. No pixel is read.
+- **Sentences.** An unbuilt entry carries `layout` (its own when it has children, else its parent's direction, its
+  index there and its size) and its brief line names the layout, never x, y, width or height: a container with
+  some children built is `build a row of 2 cards under ...: equal width, gap 8, align stretch, padding 0 40`; a
+  container whose children are all unbuilt is one line for the subtree (`build a column inside ...: "Revenue" (fit),
+  "7000" (fit); gap 16`) and its children leave the items until it pairs; a run of unbuilt siblings is one line
+  (`build a row of 2 cards under ...`) whose size is the sum of theirs; a leaf is `build the text "Payments" (fit) as
+  the 2nd item in the row inside ...`. A px number reaches the brief only in a delta on a paired element, and as
+  the position of an `extra` or `offset` entry, which point at a live element.
+- **`painted`.** The measure reads each element's `position`, and `sizing: {width, height}` as `fixed` when the
+  element's own rule or inline style sets the property to a px length (the same own-declaration read as
+  `design_winner`, never the computed px), else `auto`. When the outermost absolutely or fixed positioned elements
+  (parent not positioned) are more than `paintedShare` 0.1 of the measured components or more than `paintedCount`
+  3, the report carries `painted: {count, total, sources}` (null otherwise; a `Delta` warning has no room for the
+  count and the sources, so it sits beside `warnings`), it is never scored, and the brief's first line is
+  `painted: <count> elements are absolutely positioned; lay the page out with flow, flex or grid and let the browser
+  place them`.
+- **`sizing`.** A paired element whose design node is `fill` or `fit` and whose live `sizing.width` is `fixed` gets
+  one `sizing` delta in the geometry stage (`live: fixed`, `target: fill | fit`), briefed as the rule: `let the
+  article fill the row (flex: 1); it is sized 400 px`, or `let the button fit its content; it is sized 112 px`.
 
 ## Pairing
 

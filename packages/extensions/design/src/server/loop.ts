@@ -1,7 +1,8 @@
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {isSessionId, type SessionId} from '@conciv/protocol/chat-types'
-import {STAGES, type DiffInput, type DiffReport, type Stage, type Stop} from '../shared/defs.js'
-import {deltaSentence, kindStage, kindTolerance, TOLERANCES} from '../shared/tolerances.js'
+import {STAGES, type ContainerLayout, type DiffInput, type DiffReport, type Stage, type Stop} from '../shared/defs.js'
+import {keyBy, uniq} from 'es-toolkit'
+import {deltaSentence, kindStage, kindTolerance, TOLERANCES, traced} from '../shared/tolerances.js'
 import type {
   Box,
   CapturePath,
@@ -13,9 +14,13 @@ import type {
   Pair,
   Ranker,
   SourceLoc,
+  TargetNode,
   TargetStore,
+  TextNode,
   Unmatched,
 } from '../shared/types.js'
+import {placement, type Seat, type Tree} from './layout.js'
+import {union} from './raster.js'
 
 type Round = {score: number[]; capturePath: CapturePath | undefined; values: Map<string, number | string>}
 
@@ -74,8 +79,9 @@ export function itemsFrom(input: {
   components: {pair: Pair; deltas: Delta[]}[]
   unmatched: Unmatched[]
   color: ColorMetric
+  tree: Tree
 }): Item[] {
-  const {color} = input
+  const {color, tree} = input
   const deltas = input.components.flatMap(({pair, deltas: found}) =>
     found.map((delta): Item => ({
       key: `${pair.node.id}:${delta.kind}${delta.side === undefined ? '' : `:${delta.side}`}`,
@@ -86,23 +92,37 @@ export function itemsFrom(input: {
       box: pair.liveBox,
       depth: pair.depth,
       value: delta.live,
-      sentence: `${componentLabel({tag: pair.live.tag, source: pair.live.source})}: ${deltaSentence(delta)}`,
+      sentence: `${componentLabel({tag: pair.live.tag, source: pair.live.source})}: ${pairSentence({delta, pair})}`,
       ...located({node: pair.node.id, source: pair.live.source}),
     })),
   )
-  const entries = input.unmatched.map((entry): Item => ({
-    key: `${entry.kind}:${entry.node ?? boxKey(entry.target ?? entry.live)}`,
-    kind: entry.kind,
-    stage: entry.stage ?? null,
-    size: entrySize(entry),
-    confidence: 1,
-    box: entry.target ?? entry.live ?? {x: 0, y: 0, w: 0, h: 0},
-    depth: 0,
-    value: entry.shift === undefined ? boxKey(entry.target ?? entry.live) : `${entry.shift.dx},${entry.shift.dy}`,
-    sentence: entrySentence(entry),
-    ...located({node: entry.node, source: entry.source}),
-  }))
-  return [...deltas, ...entries]
+  const unbuilt = keyBy(
+    input.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.node !== undefined),
+    (entry) => entry.node ?? '',
+  )
+  const runs = [tree.root.layout?.runs ?? [], ...tree.nodes.map((node) => node.layout?.runs ?? [])]
+    .flat()
+    .filter((run) => run.children.every((id) => unbuilt[id]?.stage === 'structure'))
+  const complete = tree.nodes.filter((node) => node.id in unbuilt && allUnbuilt({tree, id: node.id, unbuilt}))
+  const covered = new Set([
+    ...runs.flatMap((run) => run.children),
+    ...complete.flatMap((node) => descendantsIn({tree, id: node.id}).map((child) => child.id)),
+  ])
+  const entries = input.unmatched
+    .filter((entry) => entry.kind !== 'unbuilt' || entry.node === undefined || !covered.has(entry.node))
+    .map((entry): Item => ({
+      key: `${entry.kind}:${entry.node ?? boxKey(entry.target ?? entry.live)}`,
+      kind: entry.kind,
+      stage: entry.stage ?? null,
+      size: entrySize(entry),
+      confidence: 1,
+      box: entry.target ?? entry.live ?? {x: 0, y: 0, w: 0, h: 0},
+      depth: 0,
+      value: entry.shift === undefined ? boxKey(entry.target ?? entry.live) : `${entry.shift.dx},${entry.shift.dy}`,
+      sentence: entrySentence({entry, tree, unbuilt}),
+      ...located({node: entry.node, source: entry.source}),
+    }))
+  return [...deltas, ...entries, ...runs.map((run) => runItem({run, tree, unbuilt}))]
 }
 
 export function scoreTuple(input: {items: Item[]; unpairedShare: number; residualShare: number}): number[] {
@@ -121,6 +141,7 @@ export function judge(input: {
   round: number
   ranker: Ranker
   warnings: Delta[]
+  painted: DiffReport['painted']
   color: ColorMetric
   partial: boolean
 }): Verdict {
@@ -136,6 +157,7 @@ export function judge(input: {
   ]
   const stop = input.partial ? null : stopReason({counted, score, capturePath, priors, round, color})
   const brief = [
+    ...(input.painted === null ? [] : [paintedLine(input.painted.count)]),
     ...(stop === 'stalled' ? [stalledLine(ranker({items: counted.filter((item) => demoted.has(item.key))}))] : []),
     ...ordered.slice(0, TOLERANCES.briefSize).map((item) => item.sentence),
     ...warnings.map(warningSentence),
@@ -221,6 +243,14 @@ const ROW_LIMIT = 10
 const STALLED_NAMED = 3
 const SCORE_PRECISION = 10_000
 const COLOR_KINDS: ItemKind[] = ['background', 'foreground', 'border']
+const LISTED = 6
+const ORDINAL_SUFFIXES: Partial<Record<number, string>> = {1: 'st', 2: 'nd', 3: 'rd'}
+const NOUNS = {
+  text: ['text', 'texts'],
+  image: ['image', 'images'],
+  box: ['box', 'boxes'],
+  card: ['card', 'cards'],
+} as const
 
 function applied(reply: unknown): boolean {
   return typeof reply === 'object' && reply !== null && 'applied' in reply && reply.applied === true
@@ -259,10 +289,24 @@ function place(box: Box | undefined): string {
   return ` at ${Math.round(box.x)},${Math.round(box.y)} (${Math.round(box.w)}×${Math.round(box.h)})`
 }
 
-function entrySentence(entry: Unmatched): string {
+type Unbuilt = Record<string, Unmatched>
+type Run = ContainerLayout['runs'][number]
+
+function pairSentence(input: {delta: Delta; pair: Pair}): string {
+  const {delta, pair} = input
+  if (delta.kind !== 'sizing') return deltaSentence(delta)
+  const width = Math.round(pair.liveBox.w)
+  const declared = traced(delta) && delta.declaration !== undefined ? `, declared as \`${delta.declaration}\`` : ''
+  const where = delta.file === undefined ? '' : ` at ${delta.file}${delta.line === undefined ? '' : `:${delta.line}`}`
+  const rule = delta.target === 'fill' ? 'fill the row (flex: 1)' : 'fit its content'
+  return `let the ${pair.live.tag} ${rule}; it is sized ${width} px${declared}${where}`
+}
+
+function entrySentence(input: {entry: Unmatched; tree: Tree; unbuilt: Unbuilt}): string {
+  const {entry, tree, unbuilt} = input
   switch (entry.kind) {
     case 'unbuilt':
-      return `build the ${entry.label ?? 'element'} the design shows${place(entry.target)}`
+      return unbuiltSentence({entry, tree, unbuilt})
     case 'extra':
       return `${componentLabel({tag: 'the element', source: entry.source})} renders${place(entry.live)} where the design shows nothing; remove it or match the design`
     case 'offset': {
@@ -272,6 +316,213 @@ function entrySentence(entry: Unmatched): string {
       return `move ${what} by ${shift.dx},${shift.dy} px to where the design places it`
     }
   }
+}
+
+function unbuiltSentence(input: {entry: Unmatched; tree: Tree; unbuilt: Unbuilt}): string {
+  const {entry, tree, unbuilt} = input
+  const node = tree.nodes.find((candidate) => candidate.id === entry.node)
+  if (node === undefined) return `build the ${entry.label ?? 'element'} the design shows`
+  const children = childrenIn({tree, id: node.id})
+  if (children.length === 0) return leafSentence({node, tree})
+  const layout = node.layout
+  const props = properties({layout, children})
+  if (allUnbuilt({tree, id: node.id, unbuilt}) && loneText(children) === null) {
+    const listed = children.slice(0, LISTED).map((child) => childPhrase({node: child, tree}))
+    const more = children.length > LISTED ? [`and ${children.length - LISTED} more`] : []
+    const tail = props.length === 0 ? '' : `; ${props.join(', ')}`
+    return `build ${containerName({node, tree, withCount: false})}${placePhrase({node, tree})}: ${[...listed, ...more].join(', ')}${tail}`
+  }
+  const tail = props.length === 0 ? '' : `: ${props.join(', ')}`
+  return `build ${containerName({node, tree, withCount: true})}${placePhrase({node, tree})}${tail}`
+}
+
+function leafSentence(input: {node: TargetNode; tree: Tree}): string {
+  const {node, tree} = input
+  const seat = placement({node, tree})
+  const size = node.layout === undefined ? '' : ` (${node.layout.size})`
+  if (seat === null) return `build ${label({node, tree})}${size}`
+  const where = seat.parent === null ? 'on the page' : `inside ${label({node: seat.parent, tree})}`
+  return `build ${label({node, tree})}${size} as the ${ordinal(seat.index)} item in the ${seat.direction} ${where}`
+}
+
+function runItem(input: {run: Run; tree: Tree; unbuilt: Unbuilt}): Item {
+  const {run, tree, unbuilt} = input
+  const members = run.children.flatMap((id) => tree.nodes.filter((node) => node.id === id))
+  const entries = run.children.flatMap((id) => {
+    const entry = unbuilt[id]
+    return entry === undefined ? [] : [entry]
+  })
+  const boxes = entries.flatMap((entry) => (entry.target === undefined ? [] : [entry.target]))
+  const box = boxes.length === 0 ? {x: 0, y: 0, w: 0, h: 0} : union(boxes)
+  const [first] = members
+  return {
+    key: `unbuilt:${run.children.join('+')}`,
+    kind: 'unbuilt',
+    stage: 'structure',
+    size: entries.reduce((total, entry) => total + entrySize(entry), 0),
+    confidence: 1,
+    box,
+    depth: 0,
+    value: boxKey(box),
+    sentence: runSentence({run, members, tree}),
+    ...located({node: first?.id, source: undefined}),
+  }
+}
+
+function runSentence(input: {run: Run; members: TargetNode[]; tree: Tree}): string {
+  const {run, members, tree} = input
+  const [first] = members
+  const where = first === undefined ? '' : placePhrase({node: first, tree})
+  const props = properties({layout: {gap: run.gap, align: run.align}, children: members})
+  const holds = members.flatMap((member, position) => {
+    const texts = textsIn({tree, node: member}).slice(0, LISTED)
+    return texts.length === 0 ? [] : [`${ordinal(position + 1)}: ${texts.map(quoted).join(', ')}`]
+  })
+  const contents = holds.length === 0 ? '' : `; ${holds.join('; ')}`
+  return `build a row of ${countPhrase({nodes: members, tree})}${where}: ${props.join(', ')}${contents}`
+}
+
+function properties(input: {layout: Partial<ContainerLayout> | undefined; children: TargetNode[]}): string[] {
+  const {layout, children} = input
+  if (layout === undefined) return []
+  return [
+    ...equalWidth(children),
+    ...gapPhrase({gap: layout.gap, children}),
+    ...(layout.align === undefined ? [] : [`align ${layout.align}`]),
+    ...(layout.wrap === true ? ['wrapping'] : []),
+    ...paddingPhrase(layout.padding),
+  ]
+}
+
+function equalWidth(children: TargetNode[]): string[] {
+  const filled = children.length > 1 && children.every((child) => child.layout?.size === 'fill')
+  return filled ? ['equal width'] : []
+}
+
+function gapPhrase(input: {gap: ContainerLayout['gap'] | undefined; children: TargetNode[]}): string[] {
+  const {gap, children} = input
+  if (gap === undefined || children.length < 2) return []
+  return [gap.uniform ? `gap ${gap.px}` : `gaps around ${gap.px}`]
+}
+
+function paddingPhrase(padding: ContainerLayout['padding'] | undefined): string[] {
+  if (padding === undefined) return []
+  const sides = shorthand(padding)
+  return sides.every((side) => side === 0) ? [] : [`padding ${sides.join(' ')}`]
+}
+
+function shorthand(padding: ContainerLayout['padding']): number[] {
+  const {top, right, bottom, left} = padding
+  if (top !== bottom || right !== left) return [top, right, bottom, left]
+  return top === right ? [top] : [top, right]
+}
+
+function containerName(input: {node: TargetNode; tree: Tree; withCount: boolean}): string {
+  const {node, tree} = input
+  const children = childrenIn({tree, id: node.id})
+  const direction = node.layout?.direction ?? 'stack'
+  const only = loneText(children)
+  if (only !== null) return `a box with ${quoted(only.text)}`
+  if (!input.withCount) return `a ${direction}`
+  return `a ${direction} of ${countPhrase({nodes: children, tree})}`
+}
+
+function childPhrase(input: {node: TargetNode; tree: Tree}): string {
+  const {node, tree} = input
+  const size = node.layout === undefined ? '' : ` (${node.layout.size})`
+  if (node.kind === 'text') return `${quoted(node.text)}${size}`
+  if (node.kind === 'image') return `an image${size}`
+  const children = childrenIn({tree, id: node.id})
+  if (children.length === 0) return `a box${size}`
+  const name = containerName({node, tree, withCount: true})
+  const gap = node.layout?.gap
+  if (children.length === 1 || gap === undefined) return `${name}${size}`
+  return `${name} (gap ${gap.px})`
+}
+
+function placePhrase(input: {node: TargetNode; tree: Tree}): string {
+  const {node, tree} = input
+  const seat = placement({node, tree})
+  if (seat === null) return ''
+  const previous = previousSibling({node, tree, seat})
+  if (previous !== undefined) return ` ${followWord({tree, seat})} ${label({node: previous, tree})}`
+  return seat.parent === null ? ' at the top of the page' : ` inside ${label({node: seat.parent, tree})}`
+}
+
+function previousSibling(input: {node: TargetNode; tree: Tree; seat: Seat}): TargetNode | undefined {
+  const {node, tree, seat} = input
+  const index = node.layout?.index ?? 0
+  return childrenIn({tree, id: seat.parent?.id}).find((sibling) => sibling.layout?.index === index - 1)
+}
+
+function followWord(input: {tree: Tree; seat: Seat}): string {
+  const {tree, seat} = input
+  const direction = (seat.parent === null ? tree.root.layout : seat.parent.layout)?.direction
+  return direction === 'row' || direction === 'grid' ? 'after' : 'under'
+}
+
+function label(input: {node: TargetNode; tree: Tree}): string {
+  const {node, tree} = input
+  if (node.kind === 'text') return `the text ${quoted(node.text)}`
+  if (node.kind === 'image') return 'the image'
+  const [text] = textsIn({tree, node})
+  return text === undefined ? 'the box' : `the box with ${quoted(text)}`
+}
+
+function countPhrase(input: {nodes: TargetNode[]; tree: Tree}): string {
+  const {nodes, tree} = input
+  const nouns = uniq(nodes.map((node) => noun({node, tree})))
+  const [only] = nouns
+  if (nouns.length !== 1 || only === undefined) return `${nodes.length} items`
+  return nodes.length === 1 ? `1 ${only[0]}` : `${nodes.length} ${only[1]}`
+}
+
+function noun(input: {node: TargetNode; tree: Tree}): readonly [string, string] {
+  const {node, tree} = input
+  if (node.kind === 'text') return NOUNS.text
+  if (node.kind === 'image') return NOUNS.image
+  const children = childrenIn({tree, id: node.id})
+  return children.length === 0 || loneText(children) !== null ? NOUNS.box : NOUNS.card
+}
+
+function loneText(children: TargetNode[]): TextNode | null {
+  const [only] = children
+  return children.length === 1 && only?.kind === 'text' ? only : null
+}
+
+function textsIn(input: {tree: Tree; node: TargetNode}): string[] {
+  return descendantsIn({tree: input.tree, id: input.node.id}).flatMap((node) =>
+    node.kind === 'text' ? [node.text] : [],
+  )
+}
+
+function quoted(text: string): string {
+  return `"${text}"`
+}
+
+function ordinal(index: number): string {
+  const teen = index % 100 >= 11 && index % 100 <= 13
+  const suffix = teen ? 'th' : (ORDINAL_SUFFIXES[index % 10] ?? 'th')
+  return `${index}${suffix}`
+}
+
+function childrenIn(input: {tree: Tree; id: string | undefined}): TargetNode[] {
+  return input.tree.nodes
+    .filter((node) => node.within === input.id)
+    .toSorted((a, b) => (a.layout?.index ?? 0) - (b.layout?.index ?? 0))
+}
+
+function descendantsIn(input: {tree: Tree; id: string}): TargetNode[] {
+  return childrenIn(input).flatMap((node) => [node, ...descendantsIn({tree: input.tree, id: node.id})])
+}
+
+function allUnbuilt(input: {tree: Tree; id: string; unbuilt: Unbuilt}): boolean {
+  const children = childrenIn({tree: input.tree, id: input.id})
+  return children.length > 0 && children.every((child) => child.id in input.unbuilt)
+}
+
+function paintedLine(count: number): string {
+  return `painted: ${count} elements are absolutely positioned; lay the page out with flow, flex or grid and let the browser place them`
 }
 
 function stalledLine(unchanged: Item[]): string {

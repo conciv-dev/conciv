@@ -75,6 +75,7 @@ const NORMAL_LINE_HEIGHT = 1.2
 const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
+const PX_UNIT = 'px'
 
 const TAKUMI_WASM = 'takumi_paint_wasm_bg.wasm'
 
@@ -527,10 +528,11 @@ async function cropped(input: {bitmap: ImageBitmap; rect: DOMRect; background: s
 function collectComponents(input: {root: Document; size: Size}): LiveComponent[] {
   const view = input.root.defaultView
   if (view === null) return []
-  return collectUnder({el: input.root.documentElement, size: input.size, view, path: ''})
+  const scan = scanSheets({doc: input.root, view})
+  return collectUnder({el: input.root.documentElement, size: input.size, view, path: '', scan})
 }
 
-type Walk = {el: Element; size: Size; view: PageWindow; path: string}
+type Walk = {el: Element; size: Size; view: PageWindow; path: string; scan: Scan}
 
 function collectUnder(input: Walk): LiveComponent[] {
   const {el, path} = input
@@ -563,7 +565,7 @@ function componentTree(input: Walk): LiveComponent {
     glyphs: measureGlyphs({el, view, bounds: box}),
     axis: readAxis(el),
     columns: readColumns(style),
-    styles: readStyles(style),
+    styles: readStyles({style, element: el, scan: input.scan}),
     role: el.getAttribute('role'),
     hints: readHints(el),
     index: siblingIndex(el),
@@ -692,7 +694,8 @@ function readColumns(style: CSSStyleDeclaration): number | null {
   return tracks.count
 }
 
-function readStyles(style: CSSStyleDeclaration): LiveStyles {
+function readStyles(input: {style: CSSStyleDeclaration; element: Element; scan: Scan}): LiveStyles {
+  const {style} = input
   const fontSize = Number.parseFloat(style.fontSize)
   const lineHeight = Number.parseFloat(style.lineHeight)
   return {
@@ -703,8 +706,25 @@ function readStyles(style: CSSStyleDeclaration): LiveStyles {
     fontWeight: Number(style.fontWeight),
     fontFamily: style.fontFamily,
     radius: Number.parseFloat(style.borderTopLeftRadius) || 0,
+    position: style.position,
+    sizing: {width: ownSizing({...input, property: 'width'}), height: ownSizing({...input, property: 'height'})},
     border: readBorder(style),
   }
+}
+
+function ownSizing(input: {element: Element; scan: Scan; property: string}): LiveStyles['sizing']['width'] {
+  const winner = winningDeclaration({element: input.element, property: input.property, scan: input.scan})
+  if (winner === null || winner.inherited) return 'auto'
+  return pxLength(winner.value) ? 'fixed' : 'auto'
+}
+
+function pxLength(value: string): boolean {
+  const trimmed = value.trim()
+  return (
+    trimmed.endsWith(PX_UNIT) &&
+    trimmed.length > PX_UNIT.length &&
+    Number.isFinite(Number(trimmed.slice(0, -PX_UNIT.length)))
+  )
 }
 
 function readBorder(style: CSSStyleDeclaration): LiveBorder {

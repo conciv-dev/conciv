@@ -36,6 +36,7 @@ import type {
   Typography,
 } from '../shared/types.js'
 import {COLOR_METRICS, sampledFills} from './deltas.js'
+import {laidOut} from './layout.js'
 import {
   cornerRadius,
   crop,
@@ -963,7 +964,7 @@ export async function registerTarget(request: {
   const enriched = await enrich({model: loaded, design})
   const route = await routeLabel({route: input.route, page})
   const record = await design.store.put({
-    model: enriched.model,
+    model: laidOut(enriched.model),
     session,
     ...(route === undefined ? {} : {route}),
     ...(input.name === undefined ? {} : {name: input.name}),

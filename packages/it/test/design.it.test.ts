@@ -228,6 +228,8 @@ const NO_STYLES = {
   fontWeight: 0,
   fontFamily: '',
   radius: 0,
+  position: 'static',
+  sizing: {width: 'auto' as const, height: 'auto' as const},
   border: NO_BORDER,
 }
 
@@ -976,6 +978,32 @@ const StoredModelSchema = z.object({
   ),
 })
 
+const LaidOutModelSchema = z.object({
+  root: z.object({
+    layout: z
+      .object({
+        runs: z.array(
+          z.object({
+            direction: z.string(),
+            children: z.array(z.string()),
+            gap: z.object({px: z.number(), uniform: z.boolean()}),
+            align: z.string(),
+            wrap: z.boolean(),
+          }),
+        ),
+      })
+      .optional(),
+  }),
+  nodes: z.array(
+    z.object({
+      id: z.string(),
+      kind: z.enum(['text', 'box', 'image']),
+      box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
+      layout: z.object({size: z.string()}).optional(),
+    }),
+  ),
+})
+
 async function storedNodes(id: string): Promise<z.infer<typeof StoredModelSchema>['nodes']> {
   const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
   return StoredModelSchema.parse(JSON.parse(await readFile(path, 'utf8'))).nodes
@@ -1413,6 +1441,29 @@ describe('nodes', () => {
     expect(containers.filter((c) => !boxes.some((node) => near({a: node.box, b: c.box})))).toEqual([])
   })
 
+  it('the layout pass records the u1-1280 cards as a row of two that fill it', async () => {
+    await goto('target')
+    const captured = await call('design_capture', {height: 720})
+    const registered = await call('design_target', {image: target('u1-1280')})
+    const model = LaidOutModelSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${registered.id}/model.json`), 'utf8')),
+    )
+    const articles = captured.components
+      .filter((c) => c.source?.file === 'src/Cards.tsx')
+      .flatMap((c) => c.children.filter((child) => child.tag === 'article'))
+    const cards = model.nodes
+      .filter((node) => node.kind === 'box' && articles.some((article) => near({a: node.box, b: article.box})))
+      .toSorted((a, b) => a.box.x - b.box.x)
+    expect(cards.map((card) => card.layout?.size)).toEqual(['fill', 'fill'])
+    expect(model.root.layout?.runs).toContainEqual({
+      direction: 'row',
+      children: cards.map((card) => card.id),
+      gap: {px: 8, uniform: true},
+      align: 'stretch',
+      wrap: false,
+    })
+  })
+
   it('the Export text node is within the first button', async () => {
     await goto('target')
     const [first] = await toolbarButtons()
@@ -1736,6 +1787,36 @@ describe('loop', () => {
     expect(rows[0]?.sentence).toBe(brief[0])
     const full = await call('design_diff', {full: true})
     expect(full.components.flatMap((c) => c.deltas.map((d) => d.kind))).toContain('border')
+  })
+
+  it('an empty page against u1-1280 is briefed as a row of cards, never as boxes at coordinates', async () => {
+    await goto('empty')
+    await freshTarget('u1-1280')
+    const report = await call('design_diff', {})
+    expect(report.brief[0]).toContain('a row of 2 cards')
+    expect(report.brief.filter((line) => line.includes('×') || line.includes('at 0,'))).toEqual([])
+  })
+
+  it('painted cards report the painted warning first and a sizing delta on each paired card', async () => {
+    await goto('painted')
+    await freshTarget('u1-1280')
+    const report = await call('design_diff', {limit: 50, depth: 6})
+    expect(report.painted).toMatchObject({count: 3})
+    expect(report.painted?.sources.map((source) => source.file)).toEqual(['src/App.tsx', 'src/App.tsx', 'src/App.tsx'])
+    expect(report.brief[0]?.startsWith('painted: 3 elements are absolutely positioned')).toBe(true)
+    const cards = report.components.filter((c) => c.tag === 'article' && (c.nodes?.length ?? 0) > 0)
+    expect(cards.length).toBeGreaterThanOrEqual(2)
+    expect(
+      cards.filter((c) => !c.deltas.some((d) => d.kind === 'sizing' && d.live === 'fixed' && d.target === 'fill')),
+    ).toEqual([])
+  })
+
+  it('the default fixture against u1-1280 reports no painted warning and no sizing delta', async () => {
+    await goto('/')
+    await freshTarget('u1-1280')
+    const report = await call('design_diff', {limit: 50, depth: 6})
+    expect(report.painted).toBeNull()
+    expect(report.components.flatMap((c) => c.deltas.filter((d) => d.kind === 'sizing'))).toEqual([])
   })
 
   it('hiding a button after two diffs on missing ranks the new unbuilt items before the demoted ones', async () => {

@@ -48,6 +48,9 @@ export const TOLERANCES = {
   takumiP95: {wide: 1.7, narrow: 7.4},
   takumiNarrowBelow: 1000,
   opinionBudgetMs: 2000,
+  layoutTolerance: 4,
+  paintedShare: 0.1,
+  paintedCount: 3,
 } as const
 
 export type Tolerances = typeof TOLERANCES
@@ -94,6 +97,7 @@ const KIND_STAGES = {
   unbuilt: 'structure',
   axis: 'structure',
   columns: 'structure',
+  sizing: 'geometry',
   text: 'content',
   fontSize: 'content',
   lineHeight: 'content',

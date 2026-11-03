@@ -9,7 +9,7 @@ export const DESIGN_EXTENSION_NAME = 'design'
 export const DESIGN_TOOL_PREFIX = 'design_'
 
 export const DESIGN_GUIDE =
-  'A design target is registered. Call `design_diff` to measure the live page against it, fix the brief, run it again, and stop when `stop` is set. Do not judge a design match from a screenshot.'
+  'A design target is registered. Call `design_diff` to measure the live page against it, fix the brief, run it again, and stop when `stop` is set. Do not judge a design match from a screenshot. The brief names rows, columns, gaps and sizing rules; build with flow, flex and grid, never from coordinates.'
 
 export const NO_TARGET_MESSAGE = 'no design target is registered; register the design image with design_target'
 export const MARK_KINDS = ['excluded', 'image-slot', 'accept-delta', 'tolerance'] as const
@@ -38,6 +38,7 @@ const DELTA_KIND_NAMES = [
   'border',
   'axis',
   'columns',
+  'sizing',
   'text',
 ] as const
 
@@ -67,6 +68,47 @@ export const BoxSchema = z.object({x: z.number(), y: z.number(), w: z.number(), 
 
 export const SourceLocSchema = z.object({file: z.string(), line: z.number(), column: z.number()})
 
+const DirectionSchema = z.enum(['row', 'column', 'grid', 'stack'])
+
+const SizeSchema = z.enum(['fill', 'fit', 'fixed'])
+
+const GapSchema = z
+  .object({px: z.number(), uniform: z.boolean()})
+  .describe('the median distance between consecutive children; uniform when every gap is within tolerance of it')
+
+const AlignSchema = z.enum(['start', 'center', 'end', 'stretch'])
+
+const PaddingSchema = z.object({top: z.number(), right: z.number(), bottom: z.number(), left: z.number()})
+
+const RunSchema = z
+  .object({
+    direction: z.literal('row'),
+    children: z.array(z.string()),
+    gap: GapSchema,
+    align: AlignSchema,
+    wrap: z.boolean(),
+  })
+  .describe('children of a column or stack that sit on one line, in reading order')
+
+export const ContainerLayoutSchema = z.object({
+  direction: DirectionSchema,
+  gap: GapSchema,
+  align: AlignSchema.describe('on the cross axis'),
+  wrap: z.boolean(),
+  padding: PaddingSchema.describe('the inset from the box to the union of its children'),
+  runs: z.array(RunSchema),
+})
+
+export const NodeLayoutSchema = ContainerLayoutSchema.partial().extend({
+  size: SizeSchema.describe('on the direction axis of the parent'),
+  index: z.number().describe('1-based position among the parent children in reading order'),
+})
+
+export type ContainerLayout = z.infer<typeof ContainerLayoutSchema>
+export type NodeLayout = z.infer<typeof NodeLayoutSchema>
+
+const SizingSchema = z.enum(['fixed', 'auto'])
+
 export const LiveStylesSchema = z.object({
   background: z.string(),
   color: z.string(),
@@ -75,6 +117,10 @@ export const LiveStylesSchema = z.object({
   fontWeight: z.number(),
   fontFamily: z.string(),
   radius: z.number(),
+  position: z.string(),
+  sizing: z
+    .object({width: SizingSchema, height: SizingSchema})
+    .describe('fixed when the element own rule or inline style sets the property to a px length'),
   border: z
     .object({
       width: z.number(),
@@ -154,6 +200,20 @@ const UnmatchedSchema = z.object({
   stage: z.enum(STAGES).nullable().optional().describe('the stage the entry counts in; null when it is informational'),
   shift: z.object({dx: z.number(), dy: z.number()}).optional().describe('how far an offset entry moved, in px'),
   node: z.string().optional().describe('the design node of an unbuilt or offset entry'),
+  layout: z
+    .object({
+      direction: DirectionSchema,
+      size: SizeSchema,
+      index: z.number().optional(),
+      gap: GapSchema.optional(),
+      align: AlignSchema.optional(),
+      wrap: z.boolean().optional(),
+      padding: PaddingSchema.optional(),
+    })
+    .optional()
+    .describe(
+      'an unbuilt container: its own layout; an unbuilt child: the direction of its parent, its 1-based index there and its size',
+    ),
 })
 
 const ResponsiveSchema = z.object({
@@ -216,6 +276,12 @@ const RouteItemSchema = z
   .object({live: z.string(), target: z.string()})
   .describe('the tab shows another route than the design target; nothing was measured')
 
+const PaintedSchema = z.object({
+  count: z.number().describe('outermost absolutely or fixed positioned elements whose parent is not positioned'),
+  total: z.number().describe('measured components'),
+  sources: z.array(SourceLocSchema),
+})
+
 const TimingsSchema = z
   .object({measure: z.number(), compare: z.number(), pair: z.number(), total: z.number()})
   .describe('milliseconds spent measuring the page, comparing pixels, pairing, and in the whole run')
@@ -241,6 +307,9 @@ export const DiffReportSchema = z.object({
     .array(DeltaSchema)
     .default([])
     .describe('outside every count; hard-coded sample data to replace, text samples left without a type estimate'),
+  painted: PaintedSchema.nullable()
+    .default(null)
+    .describe('the page is laid out by absolute positioning; outside every count'),
   segmentation: z
     .enum(['full', 'partial'])
     .optional()
@@ -288,6 +357,7 @@ export const CompactReportSchema = DiffReportSchema.pick({
   sources: true,
   partial: true,
   hint: true,
+  painted: true,
 })
   .extend({
     counts: z
