@@ -27,6 +27,7 @@ Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed Ty
 - `runExecute` (`mcp.ts`): output failing `ExecuteResultSchema` becomes 'the sandbox returned an unreadable result'; error codes are decoded only when listed in `runner.declaredCodes`
 - `cappedParts` / `cappedText` (`mcp.ts`): text over `RESULT_CAP_CHARS` becomes a truncation envelope
 - `pushRoutes` (`push.ts`): closes with 1008 when `sessionId` fails `SessionId.safeParse`
+- Page frames on a push socket (`page-bus.ts` `ask`): a request whose timeout (declared + 1000, else the bus default 5000) is above 5000 ms is preceded by a `page_ping` frame to every subscriber with a 1000 ms budget, sent in parallel. The request goes only to subscribers that answered and whose `visibility` is not `hidden`. When none did, the ask throws `no-live-widget` with `no widget answered on session "<id>": <n> hidden, <n> silent`. A subscriber silent on three pings in a row is unsubscribed, and `connected` counts only subscribers under three silent pings. The widget answers `page_ping` with `{visibility, route, width, since}` (`since`: ms since its last animation frame, null before the first), and any other request from a hidden tab at once with `page-hidden`: 'the page tab is hidden; bring it to the foreground'. Neither reply waits on a timer or a frame.
 - `makeNativePageApp` (`native-page.ts`): only the two `NativeFileSchema` filenames are served; anything else is 404
 
 ## Side Effects

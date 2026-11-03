@@ -1,5 +1,7 @@
 import {
   isPageFailure,
+  PAGE_HIDDEN_MESSAGE,
+  PAGE_PING_TOOL,
   PageErrorSchema,
   type PageError,
   type PageOutcome,
@@ -30,6 +32,9 @@ export function makeDomPageDriver(
   const dispatch = makePageToolDispatcher(deps.tools ?? [], refs, consoleBuf, effects)
 
   async function execute(query: PageQuery): Promise<PageOutcome> {
+    if (document.visibilityState === 'hidden' && query.name !== PAGE_PING_TOOL) {
+      return {ok: false, error: {code: 'page-hidden', message: PAGE_HIDDEN_MESSAGE}}
+    }
     try {
       const answer = await dispatch(query)
       if (answer.capture === undefined) return {ok: true, result: answer.result}

@@ -746,6 +746,63 @@ describe('page bus inflight teardown', () => {
   }, 10_000)
 })
 
+describe('page bus ping before a long ask', () => {
+  const SESSION = SessionId.parse('conciv_ping')
+  const LONG = {name: 'fixture_measure', input: {timeout: 6000}}
+
+  function framed(frame: unknown): {requestId: string; name: string} | null {
+    if (typeof frame !== 'object' || frame === null) return null
+    if (!('requestId' in frame) || typeof frame.requestId !== 'string') return null
+    if (!('name' in frame) || typeof frame.name !== 'string') return null
+    return {requestId: frame.requestId, name: frame.name}
+  }
+
+  function widget(input: {bus: ReturnType<typeof makePageBus>; visibility: 'visible' | 'hidden'; seen: string[]}) {
+    return input.bus.subscribe(SESSION, (frame) => {
+      const query = framed(frame)
+      if (query === null) return
+      input.seen.push(query.name)
+      const result =
+        query.name === 'page_ping'
+          ? {visibility: input.visibility, route: '/', width: 1280, since: 16}
+          : {measured: input.visibility}
+      queueMicrotask(() => input.bus.resolve(SESSION, query.requestId, {ok: true, result}))
+    })
+  }
+
+  it('sends the request only to the widget that answered the ping and is not hidden', async () => {
+    const bus = makePageBus()
+    const visible: string[] = []
+    const hidden: string[] = []
+    const silent: string[] = []
+    widget({bus, visibility: 'visible', seen: visible})
+    widget({bus, visibility: 'hidden', seen: hidden})
+    bus.subscribe(SESSION, (frame) => silent.push(framed(frame)?.name ?? ''))
+    await expect(bus.ask(SESSION, LONG)).resolves.toEqual({result: {measured: 'visible'}})
+    expect([visible, hidden, silent]).toEqual([['page_ping', 'fixture_measure'], ['page_ping'], ['page_ping']])
+  }, 5000)
+
+  it('names the hidden and silent widgets when none can do the work', async () => {
+    const bus = makePageBus()
+    widget({bus, visibility: 'hidden', seen: []})
+    bus.subscribe(SESSION, () => {})
+    await expect(bus.ask(SESSION, LONG)).rejects.toThrow(
+      'no widget answered on session "conciv_ping": 1 hidden, 1 silent',
+    )
+  }, 5000)
+
+  it('unsubscribes a widget silent on three pings in a row and reports the session unconnected', async () => {
+    const bus = makePageBus()
+    bus.subscribe(SESSION, () => {})
+    await expect(bus.ask(SESSION, LONG)).rejects.toThrow('0 hidden, 1 silent')
+    await expect(bus.ask(SESSION, LONG)).rejects.toThrow('0 hidden, 1 silent')
+    expect(bus.connected(SESSION)).toBe(true)
+    await expect(bus.ask(SESSION, LONG)).rejects.toThrow('0 hidden, 1 silent')
+    expect(bus.connected(SESSION)).toBe(false)
+    await expect(bus.ask(SESSION, LONG)).rejects.toThrow('no widget connected to session "conciv_ping"')
+  }, 8000)
+})
+
 describe('runtime ambient session', () => {
   const SESSION_A = SessionId.parse('conciv_ambient_a')
   const SESSION_B = SessionId.parse('conciv_ambient_b')

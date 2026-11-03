@@ -25,7 +25,8 @@ The DOM side of the page plane. `startPagePlane` reads page queries from the eng
 
 ## Invariants
 
-- `index.ts:servePageQueries` - queries that fail `PageQuerySchema` are skipped; reply failures are swallowed.
+- `index.ts:servePageQueries` - a query that fails `PageQuerySchema` is answered with `invalid-args`; reply failures are swallowed.
+- `page-driver.ts:execute` - while `document.visibilityState` is 'hidden', every query except `page_ping` is answered at once with `page-hidden`, without running its handler; a handler that throws is answered with its error.
 - `page-driver.ts:execute` - never throws; errors become `{ok: false, error}`.
 - `page-tool-dispatcher.ts` - an unknown tool name fails with `unknownVerb`; a locator with no `ref`, `selector` or `name` fails with `badArgs('no target: pass ref, selector, or name')`.
 - `element-descriptor.ts:isSensitiveField` - `type=password` or an `autocomplete` containing `cc-`, `one-time-code`, `current-password` or `new-password` is sensitive.

@@ -26,9 +26,14 @@ export async function servePageQueries(
   signal: AbortSignal,
 ): Promise<void> {
   for await (const item of source.queries(signal)) {
-    const parsed = PageQuerySchema.safeParse(item.query)
-    if (!parsed.success) continue
     const requestId = item.requestId
+    const parsed = PageQuerySchema.safeParse(item.query)
+    if (!parsed.success) {
+      void source
+        .reply({requestId, outcome: {ok: false, error: {code: 'invalid-args', message: parsed.error.message}}})
+        .catch(() => {})
+      continue
+    }
     void driver.execute(parsed.data).then((outcome) => source.reply({requestId, outcome}).catch(() => {}))
   }
 }

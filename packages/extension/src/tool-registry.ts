@@ -112,6 +112,8 @@ const PAGE_FAILURE_TO_TRANSPORT: Record<PageErrorCode, string> = {
   'unknown-verb': 'UNKNOWN_TOOL',
   'invalid-args': 'INVALID_ARGS',
   'handler-error': 'HANDLER_ERROR',
+  'page-hidden': 'NO_PAGE_CLIENT',
+  'no-live-widget': 'NO_PAGE_CLIENT',
 }
 
 export type ForwardedPageTool = {name: string; mutating: boolean}

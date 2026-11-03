@@ -25,6 +25,7 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `failChatTurns` / `dropChatTurns` / `ChatTurnFault` (`chat-fault.ts`): makes POSTs to CHAT_SSE_PATH return an error status (default 500) or abort them
 - `watchChatWire` / `ChatWireWatch` / `ChatTurnFrame` / `ChatTransport` / `ChatWirePart` (`chat-wire.ts`): captures chat turns sent over the CHAT_WS_PATH websocket or CHAT_SSE_PATH POSTs; exposes nextTurn and socket counters
 - `watchPushWire` / `PushWireWatch` (`push-wire.ts`): counts push sockets and collects approval ids from 'chat' push frames
+- `holdSilentSubscriber` (`push-wire.ts`): opens a raw push socket for a session, resolves on its 'ready' frame and never answers a page query; `close` drops it
 - `procedurePathOf` / `rpcPayload` (`rpc-payload.ts`): splits a URL path into decoded segments and deserializes an oRPC StandardRPC body
 - `makeFakeFrameworkAdapter` / `FrameworkAdapterOverrides` (`framework-fake.ts`): `defineFrameworkAdapter` with canned tanstack-start client, server, queryCache and serverFunctions data, deep-merged with overrides
 - `currentHref` (`navigation-state.ts`): reads the persisted navigation entry href through kit.rpc.navigation.get, '' if none

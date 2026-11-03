@@ -98,6 +98,12 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 - A `design_diff` whose live capture (the pixels and the decisions) hashes the same as the last round's does not
   advance `round` or spend `budgetLeft`, and leaves the history and the stall priors as they were: it repeats the
   last round's report with fresh `timings` and `hint: the page has not changed since the last diff`.
+- A `design_diff` whose measure fails with `page-hidden` (the tab is hidden) or `no-live-widget` (no subscriber
+  answered the engine's ping, see `core/src/api/README.md`) is not a run: no result file, no history entry, `round`
+  and `budgetLeft` as before. It returns the previous round's report (or run 0's) with `partial: true`, `stop: null`,
+  `timings` holding only the elapsed measure, and `hint: the page tab is hidden; bring it to the foreground and run
+  design_diff again; <the page error>`, for example `...; design_measure: no widget answered on session "<id>": 1
+  hidden, 0 silent`. Until the next diff that measures, `design_status.next` is that same first sentence.
 - The type estimate asks the page to render its text samples in chunks of `renderChunk` 24, each call bounded by
   `measureTimeoutMs`; a chunk that fails or times out skips the estimate for its samples and adds a
   `typography-skipped` warning whose `live` is the number of samples skipped, and the run is still reported.

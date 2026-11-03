@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {PAGE_PING_TOOL, PagePingResultSchema} from '@conciv/protocol/page-types'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
 import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import {defineTool, type ToolBuilder, type ToolErrors, type ToolMeta} from '@conciv/extension/tool'
@@ -61,6 +62,7 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   capture?: ToolCaptureMode
   keywords?: readonly string[]
   errors?: ToolErrors
+  catalog?: boolean
 }): PageToolDef<Shape, Out> {
   return defineTool({
     name: `page_${spec.verb}`,
@@ -80,6 +82,7 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
       capture: spec.capture ?? CAPTURE_BY_CATEGORY[spec.category],
       keywords: spec.keywords ?? [],
       ...('selector' in spec.input.shape ? {positional: 'selector'} : {}),
+      ...(spec.catalog === undefined ? {} : {catalog: spec.catalog}),
     },
   })
 }
@@ -105,6 +108,19 @@ export const routeDef = pageTool({
   keywords: ['url', 'location'],
   input: noInput,
   output: z.object({pathname: z.string(), search: z.string(), href: z.string()}),
+})
+
+export const pingDef = pageTool({
+  verb: pageVerbOfTool(PAGE_PING_TOOL),
+  summary: 'report whether the page tab can do work: its visibility, route, width and the age of its last frame',
+  category: 'read',
+  icon: 'read',
+  label: {running: 'Pinging the page', done: 'Pinged the page'},
+  hint: 'sent by the engine before a long page request; answers at once, even from a hidden tab',
+  keywords: ['ping', 'visibility', 'alive'],
+  input: noInput,
+  output: PagePingResultSchema,
+  catalog: false,
 })
 
 export const domDef = pageTool({

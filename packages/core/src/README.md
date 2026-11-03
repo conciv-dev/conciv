@@ -35,7 +35,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `onError` (`app.ts`): HTTPException keeps its status; anything else is 500 'internal error'
 - `/api/shutdown` (`app.ts`): 404 without `onShutdown`
 - `resolveConfig` (`config.ts`): session ids must pass `isSessionId` / `isHarnessSessionId`; harness defaults to 'claude'
-- `ask` (`page-bus.ts`): 'no-widget' without a subscriber, 'timeout' on expiry
+- `ask` (`page-bus.ts`): 'no-widget' without a subscriber, 'timeout' on expiry; above 5000 ms it pings first and throws 'no-live-widget' when no subscriber answered (see `api/README.md`)
 - `runClientTool` (`tool-registry.ts`): mutating page tools append a journal entry after success
 
 ## Side Effects

@@ -1,4 +1,10 @@
-import {pageFailure, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
+import {
+  PAGE_PING_TOOL,
+  pageFailure,
+  PagePingResultSchema,
+  type PageOutcome,
+  type PageQuery,
+} from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageCaptureBundle} from '@conciv/protocol/element-capture-types'
 import {appendPageChange, clearPageChanges, pageChangesFor, type ConcivDb} from '@conciv/db'
@@ -79,11 +85,24 @@ export type CaptureSink = (params: {
 
 export type PageEnv = {journal: Journal; root: string; bus: PageBus; storeCapture: CaptureSink}
 
-type SessionPage = {pending: Pending<PageOutcome>; subscribers: Set<(frame: unknown) => void>}
+type Subscriber = {emit: (frame: unknown) => void; silent: number; unsubscribe: () => void}
+
+type SessionPage = {pending: Pending<PageOutcome>; subscribers: Set<Subscriber>}
+
+type PingAnswer = 'live' | 'hidden' | 'silent'
+
+const PING_ABOVE_MS = 5000
+const PING_BUDGET_MS = 1000
+const SILENT_LIMIT = 3
 
 export function makePageBus(timeoutMs = 5000): PageBus {
   const bySession = new Map<SessionId, SessionPage>()
   const idState = {n: 0}
+
+  const nextRequestId = (): string => {
+    idState.n += 1
+    return `pq${idState.n}`
+  }
 
   const pageOf = (sessionId: SessionId): SessionPage => {
     const existing = bySession.get(sessionId)
@@ -98,13 +117,50 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     if (bySession.get(sessionId) === page) bySession.delete(sessionId)
   }
 
+  const live = (page: SessionPage | undefined): boolean =>
+    [...(page?.subscribers ?? [])].some((subscriber) => subscriber.silent < SILENT_LIMIT)
+
   function subscribe(sessionId: SessionId, emit: (frame: unknown) => void): () => void {
     const page = pageOf(sessionId)
-    page.subscribers.add(emit)
-    return () => {
-      page.subscribers.delete(emit)
-      dropIfIdle(sessionId, page)
+    const subscriber: Subscriber = {
+      emit,
+      silent: 0,
+      unsubscribe: () => {
+        page.subscribers.delete(subscriber)
+        dropIfIdle(sessionId, page)
+      },
     }
+    page.subscribers.add(subscriber)
+    return subscriber.unsubscribe
+  }
+
+  async function ping(page: SessionPage, subscriber: Subscriber): Promise<PingAnswer> {
+    const requestId = nextRequestId()
+    subscriber.emit({requestId, name: PAGE_PING_TOOL, input: {}})
+    const outcome = await page.pending.await(requestId, PING_BUDGET_MS).catch(() => null)
+    if (outcome === null) {
+      subscriber.silent += 1
+      if (subscriber.silent >= SILENT_LIMIT) subscriber.unsubscribe()
+      return 'silent'
+    }
+    subscriber.silent = 0
+    if (!outcome.ok) return outcome.error.code === 'page-hidden' ? 'hidden' : 'live'
+    const state = PagePingResultSchema.safeParse(outcome.result)
+    return state.success && state.data.visibility === 'hidden' ? 'hidden' : 'live'
+  }
+
+  async function liveSubscribers(sessionId: SessionId, page: SessionPage): Promise<Subscriber[]> {
+    const subscribers = [...page.subscribers]
+    const answers = await Promise.all(subscribers.map((subscriber) => ping(page, subscriber)))
+    const answering = subscribers.filter((_subscriber, index) => answers[index] === 'live')
+    if (answering.length > 0) return answering
+    const hidden = answers.filter((answer) => answer === 'hidden').length
+    const silent = answers.filter((answer) => answer === 'silent').length
+    dropIfIdle(sessionId, page)
+    throw pageFailure(
+      'no-live-widget',
+      `no widget answered on session "${sessionId}": ${hidden} hidden, ${silent} silent`,
+    )
   }
 
   async function ask(sessionId: SessionId, request: PageAsk): Promise<PageAnswer> {
@@ -113,11 +169,11 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     if (page === undefined || page.subscribers.size === 0) {
       throw pageFailure('no-widget', `no widget connected to session "${sessionId}"`)
     }
-    idState.n += 1
-    const requestId = `pq${idState.n}`
     const declared = timeout ?? query.input['timeout']
     const ms = typeof declared === 'number' ? declared + 1000 : timeoutMs
-    for (const emit of page.subscribers) emit({requestId, ...query})
+    const targets = ms > PING_ABOVE_MS ? await liveSubscribers(sessionId, page) : [...page.subscribers]
+    const requestId = nextRequestId()
+    for (const subscriber of targets) subscriber.emit({requestId, ...query})
     const outcome = await page.pending
       .await(requestId, ms)
       .catch(() => {
@@ -131,8 +187,8 @@ export function makePageBus(timeoutMs = 5000): PageBus {
 
   return {
     ask,
-    connected: (sessionId) => (bySession.get(sessionId)?.subscribers.size ?? 0) > 0,
-    anySubscriber: () => [...bySession.values()].some((page) => page.subscribers.size > 0),
+    connected: (sessionId) => live(bySession.get(sessionId)),
+    anySubscriber: () => [...bySession.values()].some(live),
     resolve: (sessionId, requestId, outcome) => bySession.get(sessionId)?.pending.resolve(requestId, outcome) ?? false,
     subscribe,
   }

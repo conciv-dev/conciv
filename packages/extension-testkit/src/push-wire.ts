@@ -1,6 +1,6 @@
 import type {Page, WebSocket as PageWebSocket} from 'playwright'
 import {approvalIds} from '@conciv/harness-testkit'
-import {PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
+import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 
 export type PushWireWatch = {
   opened: () => number
@@ -41,4 +41,21 @@ export function watchPushWire(page: Page): PushWireWatch {
     liveSockets: () => sockets.count - sockets.closed,
     approvalIdsPushed: () => approvals,
   }
+}
+
+export async function holdSilentSubscriber(input: {apiBase: string; sessionId: string}): Promise<{close: () => void}> {
+  const url = new URL(`${input.apiBase}${PUSH_WS_PATH}`)
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  url.searchParams.set(PUSH_SESSION_PARAM, input.sessionId)
+  const socket = new WebSocket(url)
+  await new Promise<void>((resolve, reject) => {
+    socket.addEventListener('message', (event) => {
+      const frame = PushFrameSchema.safeParse(parsedJson(String(event.data)))
+      if (frame.success && frame.data.channel === 'ready') resolve()
+    })
+    socket.addEventListener('error', () => reject(new Error(`the push socket on ${url.href} failed to open`)), {
+      once: true,
+    })
+  })
+  return {close: () => socket.close()}
 }

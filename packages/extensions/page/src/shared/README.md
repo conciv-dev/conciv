@@ -7,7 +7,8 @@ defs.ts builds each tool with a private `pageTool` helper around `defineTool`. T
 ## Interface
 
 - `PAGE_EXTENSION_NAME` = 'page', `PAGE_TOOL_PREFIX` = 'page_' (`defs.ts`)
-- `PAGE_TOOL_DEFS` (`defs.ts`): const tuple of all 40 defs, in the same order as `PAGE_CLIENT_TOOLS`
+- `PAGE_TOOL_DEFS` (`defs.ts`): const tuple of the 40 catalog defs, in the same order as `PAGE_CLIENT_TOOLS` after its leading `page_ping`
+- `pingDef` (`defs.ts`): `page_ping`, `catalog: false`, output `PagePingResultSchema` from `@conciv/protocol/page-types`; the engine sends it before a long page request
 - individual defs (`defs.ts`): `routeDef`, `domDef`, `queryDef`, `consoleDef`, `textDef`, `valueDef`, `attrDef`, `existsDef`, `snapshotDef`, `screenshotDef`, `hmrDef`, `locateDef`, `inspectDef`, `treeDef`, `findDef`, `overrideDef`, `trackDef`, `effectDef`, `waitDef`, `reloadDef`, `clickDef`, `hoverDef`, `scrollDef`, `submitDef`, `fillDef`, `selectDef`, `checkDef`, `uncheckDef`, `pressDef`, `setattrDef`, `removeattrDef`, `addclassDef`, `removeclassDef`, `setstyleDef`, `settextDef`, `sethtmlDef`, `removeDef`, `insertDef`, `cssDef`, `evalDef`
 - `PAGE_ACT_TOOL_NAMES` (`defs.ts`): set of names of defs whose `meta.mutating` is true
 - `pageVerbOfTool(name)`, `pageToolMetaOf(verb)`, `pageVerbGerund(verb)` (`defs.ts`): convert between verb and tool name, and look up metadata or the label's first word

@@ -6,7 +6,7 @@ bodies.ts pairs each shared def with a DOM or React-bridge implementation runnin
 
 ## Interface
 
-- `PAGE_CLIENT_TOOLS` (`bodies.ts`): readonly `AnyToolBuilder[]` with client bodies for page_route, dom, query, console, text, value, attr, exists, snapshot, screenshot, hmr, locate, tree, inspect, override, find, track, effect, wait, reload, click, fill, select, check, uncheck, press, hover, scroll, submit, setattr, removeattr, addclass, removeclass, setstyle, settext, sethtml, remove, insert, css and eval
+- `PAGE_CLIENT_TOOLS` (`bodies.ts`): readonly `AnyToolBuilder[]` with client bodies for page_ping (answers from the stored age of the last animation frame, never waiting on one), page_route, dom, query, console, text, value, attr, exists, snapshot, screenshot, hmr, locate, tree, inspect, override, find, track, effect, wait, reload, click, fill, select, check, uncheck, press, hover, scroll, submit, setattr, removeattr, addclass, removeclass, setstyle, settext, sethtml, remove, insert, css and eval
 - `screenshot()` (`screenshot.ts`): returns `PageScreenshot` `{image (base64 webp), width, height}`
 - `watchHotUpdates(hot)` (`hmr.ts`): returns `(timeoutMs) => Promise<HotUpdateWait>`; `HotSurface` type
 - `keepBodyMargins` (`body-margins.ts`): `SnapdomPlugin` named `keep-body-margins`

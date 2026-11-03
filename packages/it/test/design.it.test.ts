@@ -19,6 +19,7 @@ import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
+import {holdSilentSubscriber} from '@conciv/extension-testkit/push-wire'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {} from '@conciv/extension-design/client'
 import type {XrayRouter} from '@conciv/extension-design/xray-routes'
@@ -1964,6 +1965,63 @@ describe('live loop', () => {
       await writeFile(STRIPE_STYLES, styles)
     }
   }, 240_000)
+})
+
+const HIDDEN_HINT = 'the page tab is hidden; bring it to the foreground and run design_diff again'
+const UNANSWERED_MS = 2000
+
+function hideTab(hidden: boolean): Promise<void> {
+  return page.evaluate((hide) => {
+    if (hide) Object.defineProperty(document, 'visibilityState', {configurable: true, get: () => 'hidden'})
+    if (!hide) Reflect.deleteProperty(document, 'visibilityState')
+    document.dispatchEvent(new Event('visibilitychange'))
+  }, hidden)
+}
+
+async function timedDiff(): Promise<{report: DiffReport; elapsed: number}> {
+  const started = Date.now()
+  const report = await call('design_diff', {})
+  return {report, elapsed: Date.now() - started}
+}
+
+describe('page', () => {
+  it('a hidden tab answers design_diff at once with the hidden hint and writes no result', async ({annotate}) => {
+    await goto('/')
+    const {id} = await freshTarget('u1-1280')
+    const before = await runFiles({id, prefix: 'result-'})
+    await hideTab(true)
+    try {
+      const {report, elapsed} = await timedDiff()
+      const status = await call('design_status', {})
+      await annotate(`hidden: ${elapsed} ms, hint ${report.hint ?? ''}`)
+      expect(elapsed).toBeLessThan(UNANSWERED_MS)
+      expect(report.hint?.startsWith(HIDDEN_HINT)).toBe(true)
+      expect(report.hint).toContain('1 hidden, 0 silent')
+      expect([report.partial, report.stop, report.round]).toEqual([true, null, 0])
+      expect(await runFiles({id, prefix: 'result-'})).toEqual(before)
+      expect(status.next).toBe(HIDDEN_HINT)
+    } finally {
+      await hideTab(false)
+    }
+  })
+
+  it('a silent second widget on the session costs one ping budget, not the measure timeout', async ({annotate}) => {
+    await goto('/')
+    await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const baseline = await timedDiff()
+    const silent = await holdSilentSubscriber({apiBase: kit.apiBase, sessionId: kit.session})
+    try {
+      const {report, elapsed} = await timedDiff()
+      await annotate(`baseline ${baseline.elapsed} ms, with a silent widget ${elapsed} ms`)
+      expect(report.hint ?? '').not.toContain(HIDDEN_HINT)
+      expect(report.partial).toBe(false)
+      expect(elapsed).toBeLessThan(baseline.elapsed + UNANSWERED_MS)
+      expect((await call('design_status', {})).next).not.toBe(HIDDEN_HINT)
+    } finally {
+      silent.close()
+    }
+  })
 })
 
 const PANE_NAME = 'Design x-ray'

@@ -2,7 +2,7 @@ import pixelmatch from 'pixelmatch'
 import {diff} from '@blazediff/core'
 import {z} from 'zod'
 import {groupBy, keyBy, omit, pick, range, uniq, uniqBy} from 'es-toolkit'
-import {toolError, type AnyToolBuilder} from '@conciv/extension'
+import {isPageVerbError, toolError, type AnyToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {createHash} from 'node:crypto'
 import {basename, relative} from 'node:path'
@@ -131,8 +131,10 @@ export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore;
     call: (name, query) => page.ask({sessionId: session, name, input: query}),
   })
   const settledRuns = new Map<string, Settled>()
+  const unanswered = new Set<string>()
   const runs = createRuns({
-    execute: ({job, touched}) => runDiff({job, touched, design, page: tab(job.session), history, latest: settledRuns}),
+    execute: ({job, touched}) =>
+      answeredDiff({job, touched, design, page: tab(job.session), history, latest: settledRuns, unanswered}),
   })
   return {
     register: async ({input: target, session}) => {
@@ -162,7 +164,7 @@ export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore;
       history.reset(id)
       return record
     },
-    status: ({session}) => targetStatus({store, session}),
+    status: ({session}) => targetStatus({store, session, unanswered}),
   }
 }
 
@@ -227,6 +229,20 @@ type Settled = {
   measured: Measured[]
   placements: Placement[]
   hinted: Omit<Parameters<typeof reportHint>[0], 'cut'> & {paired: number}
+}
+
+async function answeredDiff(request: Parameters<typeof runDiff>[0] & {unanswered: Set<string>}): Promise<DiffReport> {
+  const {job, unanswered} = request
+  const started = Date.now()
+  try {
+    const report = await runDiff(request)
+    unanswered.delete(job.id)
+    return report
+  } catch (error) {
+    if (!unansweredPage(error)) throw error
+    unanswered.add(job.id)
+    return unansweredRound({...request, error, started})
+  }
 }
 
 async function runDiff(request: {
@@ -442,6 +458,49 @@ async function runDiff(request: {
     hinted: {...hinted, paired: matched.length},
   })
   return report
+}
+
+function unansweredPage(error: unknown): error is Error {
+  return isPageVerbError(error) && UNANSWERED_CODES.has(error.code)
+}
+
+async function unansweredRound(input: {
+  error: Error
+  job: RunJob
+  history: History
+  latest: Map<string, Settled>
+  design: DesignRuntime
+  started: number
+}): Promise<DiffReport> {
+  const {job, design, started} = input
+  const previous =
+    input.history.rounds(job.id).at(-1)?.report ??
+    input.latest.get(job.id)?.report ??
+    (await design.store.lastResult(job.id)) ??
+    (await emptyReport({job, design}))
+  const elapsed = Date.now() - started
+  return {
+    ...previous,
+    partial: true,
+    stop: null,
+    hint: `${UNANSWERED_HINT}; ${input.error.message}`,
+    timings: {measure: elapsed, compare: 0, pair: 0, total: elapsed, carried: {pairs: 0, tiles: 0}},
+  }
+}
+
+async function emptyReport(input: {job: RunJob; design: DesignRuntime}): Promise<DiffReport> {
+  const {job, design} = input
+  const record = await design.store.find({id: job.id})
+  if (record === null) throw toolError('no-target', {message: NO_TARGET_MESSAGE})
+  return DiffReportSchema.parse({
+    target: {id: record.id, ...(record.route === undefined ? {} : {route: record.route}), width: record.width},
+    mismatch: 0,
+    diffImage: '',
+    livePath: '',
+    xray: design.xrayUrl({id: record.id, session: job.session}).url,
+    components: [],
+    unmatched: [],
+  })
 }
 
 function countable(input: {settled: Settled; capture: string}): boolean {
@@ -1090,7 +1149,11 @@ async function linkTwins(input: {store: TargetStore; id: string; session: string
   )
 }
 
-async function targetStatus(input: {store: TargetStore; session: string}): Promise<StatusReport> {
+async function targetStatus(input: {
+  store: TargetStore
+  session: string
+  unanswered: Set<string>
+}): Promise<StatusReport> {
   const {store} = input
   const record = await store.current({session: input.session})
   if (record === null) return {targets: [], done: false}
@@ -1105,9 +1168,14 @@ async function targetStatus(input: {store: TargetStore; session: string}): Promi
     targets: [{id: record.id, width: record.width, ...runSummary(report)}],
     done,
     ...loopState({record, report}),
-    ...(done ? {} : {next: DESIGN_GUIDE}),
+    ...statusNext({done, unanswered: input.unanswered.has(record.id)}),
     ...(reregister ? {reregister} : {}),
   }
+}
+
+function statusNext(input: {done: boolean; unanswered: boolean}): {next?: string} {
+  if (input.unanswered) return {next: UNANSWERED_HINT}
+  return input.done ? {} : {next: DESIGN_GUIDE}
 }
 
 function runSummary(report: DiffReport | null): {mismatch: number | null; above: number; lastAt: number | null} {
@@ -1424,6 +1492,8 @@ type RouteItem = NonNullable<DiffReport['route']>
 
 const HINT = 'no element carries data-conciv-source; the page is not a dev build compiled by the conciv plugin'
 const UNCHANGED_HINT = 'the page has not changed since the last diff'
+const UNANSWERED_HINT = 'the page tab is hidden; bring it to the foreground and run design_diff again'
+const UNANSWERED_CODES: ReadonlySet<string> = new Set(['page-hidden', 'no-live-widget'])
 const ORIGIN_HINT = 'the conciv engine origin is unknown, so xray is a path on the engine and not a full url'
 const COMPACT_FIELDS = [
   'target',

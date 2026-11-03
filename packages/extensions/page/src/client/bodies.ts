@@ -55,6 +55,7 @@ import {
   valueDef,
   waitDef,
   hmrDef,
+  pingDef,
 } from '../shared/defs.js'
 import {actCard} from './cards/act-card.js'
 import {consoleCard} from './cards/console-card.js'
@@ -142,6 +143,15 @@ const routeTool = routeDef
     href: location.href,
   }))
   .render(readValueCard)
+
+const frameAge = watchFrames()
+
+const pingTool = pingDef.client(() => ({
+  visibility: document.visibilityState === 'hidden' ? 'hidden' : 'visible',
+  route: `${location.pathname}${location.search}`,
+  width: window.innerWidth,
+  since: frameAge(),
+}))
 
 const consoleTool = consoleDef.client((input, ctx) => ({entries: ctx.consoleEntries(input.since)})).render(consoleCard)
 
@@ -474,6 +484,7 @@ const evalTool = evalDef
   .render(editLiveCard)
 
 export const PAGE_CLIENT_TOOLS: readonly AnyToolBuilder[] = [
+  pingTool,
   routeTool,
   domTool,
   queryTool,
@@ -515,3 +526,14 @@ export const PAGE_CLIENT_TOOLS: readonly AnyToolBuilder[] = [
   cssTool,
   evalTool,
 ]
+
+function watchFrames(): () => number | null {
+  const seen: {at: number | null} = {at: null}
+  if (typeof requestAnimationFrame !== 'function') return () => null
+  const tick = (at: number): void => {
+    seen.at = at
+    requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+  return () => (seen.at === null ? null : Math.round(performance.now() - seen.at))
+}

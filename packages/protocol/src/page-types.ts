@@ -9,8 +9,21 @@ export const PageQuerySchema = z.object({
 
 export type PageQuery = z.infer<typeof PageQuerySchema>
 
-export const PAGE_REPORTED_ERROR_CODES = ['unknown-verb', 'invalid-args', 'handler-error'] as const
-export const PAGE_TRANSPORT_ERROR_CODES = ['no-widget', 'timeout'] as const
+export const PAGE_PING_TOOL = 'page_ping'
+
+export const PAGE_HIDDEN_MESSAGE = 'the page tab is hidden; bring it to the foreground'
+
+export const PagePingResultSchema = z.object({
+  visibility: z.enum(['visible', 'hidden']),
+  route: z.string(),
+  width: z.number(),
+  since: z.number().nullable().describe('ms since the last animation frame the widget saw; null before the first'),
+})
+
+export type PagePingResult = z.infer<typeof PagePingResultSchema>
+
+export const PAGE_REPORTED_ERROR_CODES = ['unknown-verb', 'invalid-args', 'handler-error', 'page-hidden'] as const
+export const PAGE_TRANSPORT_ERROR_CODES = ['no-widget', 'timeout', 'no-live-widget'] as const
 export const PAGE_ERROR_CODES = [...PAGE_REPORTED_ERROR_CODES, ...PAGE_TRANSPORT_ERROR_CODES] as const
 export type PageErrorCode = (typeof PAGE_ERROR_CODES)[number]
 export type PageReportedErrorCode = (typeof PAGE_REPORTED_ERROR_CODES)[number]

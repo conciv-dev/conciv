@@ -21,6 +21,8 @@ export const PAGE_ERROR_NAME = {
   'unknown-verb': 'UNKNOWN_TOOL',
   'invalid-args': 'INVALID_ARGS',
   'handler-error': 'HANDLER_ERROR',
+  'page-hidden': 'NO_PAGE_CLIENT',
+  'no-live-widget': 'NO_PAGE_CLIENT',
 } as const satisfies Record<PageErrorCode, RegistryCallErrorName>
 
 type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string}) => Error>
