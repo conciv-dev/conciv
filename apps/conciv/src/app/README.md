@@ -13,7 +13,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `PaneProvider` (`pane-provider.tsx`): builds the pane context for a `sessionId` (chat, refresh, grab staging, attachments, `newSession`)
 - `PanelChromeContext`, `usePanelChrome` (`panel-chrome.ts`): panel close handle
 - `makePanelComposerFocus`, `usePanelComposerFocus` (`panel-focus.ts`): tracks the active composer input
-- `EngineReachabilityContext`, `makeEngineReachability`, `useEngineReachability` (`reachability.ts`): `online` and `sustainedOffline` accessors
+- `EngineReachabilityContext`, `makeEngineReachability`, `useEngineReachability` (`reachability.ts`): `online` (the router's `engineOnline`) and `sustainedOffline` accessors
 - `HubShellProvider`, `useHubShell`, `HubShell`, `HubLink`, `CommandPalette` (`devframe-overlays.tsx`): one Devframe client runtime per trusted hub client, the hub's dock list, hub `notify` messages as toasts, and the Mod+K command palette over the hub's palette commands
 - `usePaneChat` (`use-pane-chat.ts`): `useChatSession` keyed on session id and connection generation
 - `createWarmSession`, `WarmSession` (`warm-session.ts`): resolves the most recently updated session
