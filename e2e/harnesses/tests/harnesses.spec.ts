@@ -38,7 +38,9 @@ test('full app boots with the configured harness and exposes its real model cata
     const prompt = page.getByRole('button', {name: new RegExp(`^Model: ${escapeRegex(harness.model)}(,|$)`)})
     await expect(prompt).toBeVisible()
     await prompt.click()
-    await expect(page.getByRole('menuitemradio', {name: harness.model, exact: true, checked: true})).toBeVisible()
+    await expect(
+      page.getByRole('option', {name: new RegExp(`^${escapeRegex(harness.model)}`), selected: true}),
+    ).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(composerTextbox).toBeVisible()
   } else {

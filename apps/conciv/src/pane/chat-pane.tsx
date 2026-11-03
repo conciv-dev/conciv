@@ -228,17 +228,10 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const compacting = messaging.compacting
 
   const focusInput = () => requestAnimationFrame(() => inputHandle()?.focus())
-  let openedByCommand = false
-  const modelMenu = useModelMenu(() => {
-    if (openedByCommand) focusInput()
-    openedByCommand = false
-  })
+  const modelMenu = useModelMenu(focusInput)
   const commandSources = useComposerTriggerSources({
     sessionId,
-    openModelMenu: () => {
-      openedByCommand = true
-      modelMenu.api().setOpen(true)
-    },
+    openModelMenu: () => modelMenu().setOpen(true),
   })
   const sendOrRunCommand = async (content: string | SendContent): Promise<void> => {
     if (typeof content === 'string' && commandSources.runTyped(content)) return

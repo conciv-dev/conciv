@@ -571,10 +571,13 @@ describe('model menu', () => {
   const faults = trackedFaults()
 
   const prompt = (name: string) => page.getByRole('button', {name: `Model: ${name}`})
-  const model = (name: string) => page.getByRole('menuitemradio', {name})
-  const menu = (name: string | RegExp) => page.getByRole('menu', {name})
-  const effort = (name: string) => page.getByRole('menuitemradio', {name, exact: true})
-  const effortGroup = () => page.getByRole('group', {name: 'Effort'})
+  const panel = () => page.getByRole('dialog', {name: 'Model'})
+  const models = (name = 'Model') => page.getByRole('listbox', {name, exact: true})
+  const model = (name: string) => page.getByRole('option', {name: new RegExp(`^${name.replace('.', '\\.')}`)})
+  const older = () => page.getByRole('button', {name: 'Older versions'})
+  const effortGroup = () => page.getByRole('radiogroup', {name: 'Effort'})
+  const effort = (name: string) => effortGroup().getByText(name, {exact: true})
+  const checkedEffort = (name: string) => effortGroup().getByRole('radio', {name, exact: true, checked: true})
   const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
   async function mountModelMenu(): Promise<void> {
@@ -617,11 +620,11 @@ describe('model menu', () => {
     await expect.element(page.getByRole('option').first()).toHaveTextContent('/modelSwitch the model')
     await userEvent.keyboard('{Enter}')
 
-    await expect.element(menu('Model: Opus 5.5')).toHaveFocus()
+    await expect.element(models()).toHaveFocus()
     await expect.element(input()).not.toHaveTextContent()
 
     await userEvent.keyboard('{Escape}')
-    await expect.element(menu('Model: Opus 5.5')).not.toBeInTheDocument()
+    await expect.element(panel()).not.toBeInTheDocument()
     await expect.element(input()).toHaveFocus()
 
     await userEvent.keyboard('hello')
@@ -642,7 +645,7 @@ describe('model menu', () => {
     await expect.element(input()).toHaveTextContent('/model')
     await userEvent.keyboard('{Enter}')
 
-    await expect.element(menu('Model: Opus 5.5')).toHaveFocus()
+    await expect.element(models()).toHaveFocus()
     await expect.element(input()).not.toHaveTextContent()
 
     await userEvent.keyboard('{Escape}')
@@ -662,7 +665,7 @@ describe('model menu', () => {
     await expect.element(page.getByRole('option').first()).toHaveTextContent('/deployShip the branch')
     await userEvent.keyboard('{Enter}')
     await expect.element(input().getByText('/deploy')).toBeVisible()
-    await expect.element(menu(/^Model:/)).not.toBeInTheDocument()
+    await expect.element(panel()).not.toBeInTheDocument()
 
     await userEvent.keyboard('{Enter}')
     await expect.element(page.getByText(REPLY)).toBeVisible()
@@ -672,83 +675,107 @@ describe('model menu', () => {
   test('the prompt names the current model and the overflow menu no longer lists models', async () => {
     await mountModelMenu()
 
-    await expect.element(prompt('Opus 5.5')).toHaveTextContent('opus 5.5❯')
+    await expect.element(prompt('Opus 5.5')).toHaveTextContent('Opus 5.5')
 
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
     await expect.element(page.getByRole('menuitem', {name: 'Compress the conversation'})).toBeVisible()
     await expect.element(page.getByRole('menuitem', {name: /^Model:/})).not.toBeInTheDocument()
   })
 
-  test('picking a model from the prompt menu switches the session and renames the prompt', async () => {
+  test('picking a model from the prompt menu switches the session, renames the prompt and focuses the composer', async () => {
     await mountModelMenu()
 
     await userEvent.click(prompt('Opus 5.5'))
-    await expect.element(model('Opus 5.5')).toHaveAttribute('aria-checked', 'true')
+    await expect.element(model('Opus 5.5')).toHaveAttribute('aria-selected', 'true')
     await userEvent.click(model('Sonnet 5.5'))
 
-    await expect.element(prompt('Sonnet 5.5')).toHaveTextContent('sonnet 5.5❯')
-    await expect.element(menu(/^Model:/)).not.toBeInTheDocument()
+    await expect.element(prompt('Sonnet 5.5')).toHaveTextContent('Sonnet 5.5')
+    await expect.element(panel()).not.toBeInTheDocument()
+    await expect.element(input()).toHaveFocus()
 
     await userEvent.click(prompt('Sonnet 5.5'))
-    await expect.element(model('Sonnet 5.5')).toHaveAttribute('aria-checked', 'true')
+    await expect.element(model('Sonnet 5.5')).toHaveAttribute('aria-selected', 'true')
   })
 
-  test('an older model is reached by keyboard through the Older versions submenu', async () => {
+  test('the arrow keys move from the current model and Enter picks it', async () => {
     await mountModelMenu()
 
     await userEvent.click(prompt('Opus 5.5'))
-    await expect.element(menu('Model: Opus 5.5')).toHaveFocus()
-    await userEvent.keyboard('{Home}{ArrowDown}{ArrowDown}{ArrowRight}')
-    await expect.element(menu('Older versions')).toHaveFocus()
-    await userEvent.keyboard('{Enter}')
+    await expect.element(models()).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}{Enter}')
 
-    await expect.element(prompt('Opus 4.7')).toHaveTextContent('opus 4.7❯')
-    await userEvent.click(prompt('Opus 4.7'))
-    await userEvent.hover(page.getByRole('menuitem', {name: 'Older versions'}))
-    await expect.element(model('Opus 4.7')).toHaveAttribute('aria-checked', 'true')
+    await expect.element(prompt('Sonnet 5.5')).toBeVisible()
+    await expect.element(input()).toHaveFocus()
   })
 
-  test('picking an effort keeps the menu open, names it on the prompt, and default clears it', async () => {
+  test('an older model is reached by keyboard through the Older versions section', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(models()).toHaveFocus()
+    await userEvent.keyboard('{Tab}')
+    await expect.element(older()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(model('Opus 4.7')).toBeVisible()
+    await userEvent.keyboard('{Tab}')
+    await expect.element(models('Older versions')).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+
+    await expect.element(prompt('Opus 4.7')).toHaveTextContent('Opus 4.7')
+    await userEvent.click(prompt('Opus 4.7'))
+    await expect.element(model('Opus 4.7')).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('picking an effort keeps the panel open and names it on the prompt', async () => {
     await mountModelMenu()
 
     await userEvent.click(prompt('Opus 5.5'))
     await expect.element(effortGroup()).toBeVisible()
-    await expect.element(effort('default')).toHaveAttribute('aria-checked', 'true')
-    await userEvent.click(effort('high'))
+    await expect.element(page.getByText('Using the model’s default effort.')).toBeVisible()
+    await userEvent.click(effort('Medium'))
 
-    await expect.element(prompt('Opus 5.5, effort high')).toHaveTextContent('opus 5.5 · high❯')
-    await expect.element(menu(/^Model:/)).toBeVisible()
-    await expect.element(effort('high')).toHaveAttribute('aria-checked', 'true')
-
-    await userEvent.click(effort('default'))
-    await expect.element(prompt('Opus 5.5')).toHaveTextContent('opus 5.5❯')
-    await expect.element(prompt('Opus 5.5')).not.toHaveTextContent('·')
-    await expect.element(menu(/^Model:/)).toBeVisible()
+    await expect.element(prompt('Opus 5.5, effort Medium')).toHaveTextContent('Opus 5.5Medium')
+    await expect.element(panel()).toBeVisible()
+    await expect.element(checkedEffort('Medium')).toBeInTheDocument()
   })
 
-  test('the effort is reached by keyboard from the menu', async () => {
+  test('High+ is its own effort segment', async () => {
     await mountModelMenu()
 
     await userEvent.click(prompt('Opus 5.5'))
-    await expect.element(menu('Model: Opus 5.5')).toHaveFocus()
-    await userEvent.keyboard('{End}{Enter}')
+    await userEvent.click(effort('High+'))
 
-    await expect.element(prompt('Opus 5.5, effort max')).toHaveTextContent('opus 5.5 · max❯')
-    await expect.element(effort('max')).toHaveAttribute('aria-checked', 'true')
+    await expect.element(prompt('Opus 5.5, effort High+')).toHaveTextContent('Opus 5.5High+')
+    await expect.element(checkedEffort('High+')).toBeInTheDocument()
+    await expect.element(page.getByText('Thinks even longer than High. Slower again, uses more tokens.')).toBeVisible()
+  })
+
+  test('the effort track takes the arrow keys', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await userEvent.click(effort('Medium'))
+    await expect.element(checkedEffort('Medium')).toBeInTheDocument()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(prompt('Opus 5.5, effort High')).toBeVisible()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(prompt('Opus 5.5, effort High+')).toBeVisible()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(prompt('Opus 5.5, effort Max')).toBeVisible()
   })
 
   test('an older model without effort hides the effort row and clears the effort', async () => {
     await mountModelMenu()
 
     await userEvent.click(prompt('Opus 5.5'))
-    await userEvent.click(effort('high'))
-    await expect.element(prompt('Opus 5.5, effort high')).toHaveTextContent('opus 5.5 · high❯')
+    await userEvent.click(effort('High'))
+    await expect.element(prompt('Opus 5.5, effort High')).toBeVisible()
 
-    await userEvent.hover(page.getByRole('menuitem', {name: 'Older versions'}))
+    await userEvent.click(older())
     await userEvent.click(model('Haiku 4.5'))
 
-    await expect.element(prompt('Haiku 4.5')).toHaveTextContent('haiku 4.5❯')
-    await expect.element(prompt('Haiku 4.5')).not.toHaveTextContent('·')
+    await expect.element(prompt('Haiku 4.5')).toHaveTextContent('Haiku 4.5')
+    await expect.element(prompt('Haiku 4.5')).not.toHaveTextContent('High')
     await userEvent.click(prompt('Haiku 4.5'))
     await expect.element(model('Sonnet 5.5')).toBeVisible()
     await expect.element(effortGroup()).not.toBeInTheDocument()
