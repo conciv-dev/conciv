@@ -82,8 +82,8 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   replaces an earlier target of the same route and width.
 - `design_diff` captures the live page and compares it with the target. It returns the compact report: `target`,
   `round`, `budgetLeft`, `stage`, `stop`, `score`, `mismatch`, `brief`, `timings`, `counts` (components listed, nodes
-  `paired` in the run, `unbuilt` entries, unmatched entries and warnings in the full report, ledger nodes `done` and
-  `regressed`), `rows` (the first ten items of the stage, in brief order, each with its sentence, stage, design node,
+  `paired` in the run, `unbuilt` entries, `icons` (the unbuilt entries that are icon slots, see [Layout](#layout)),
+  unmatched entries and warnings in the full report, ledger nodes `done` and `regressed`), `rows` (the first ten items of the stage, in brief order, each with its sentence, stage, design node,
   source and `crop`), `changes` (see [Ledger](#ledger)), `designPath` (see [Design outline](#design-outline)), `xray`,
   `diffImage`, `livePath`, `capturePath`, `sources`, `partial` and
   `hint`. `design_diff({full: true})` returns the full report with every
@@ -131,7 +131,7 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 - `oscillating` reads the counted total of the current stage, the stage's entry in `score`, across the rounds. A round
   is a reversal when its total moved the opposite way from the previous round's move by more than the stage's
   tolerance (1 item for structure and content, `geometryPx` for geometry, `colorDeltaE` for paint); the stop needs
-  two reversals in a row. A round whose total is the lowest of the run never stops and clears the chain. Items whose
+  two reversals in a row. A round whose total beats the lowest of the run by more than the stage's tolerance is a new best: it never stops and clears the chain; a tie or a smaller dip is a reversal like any other. Items whose
   value went back to the one of two rounds before are a brief line (`3 items moved back to their round-2 values:
   ...`, the first three by rank), never a stop on their own.
 - `design_status` reports the session's current target and its last run, and runs nothing. `score` is the tuple
@@ -173,6 +173,18 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   quoted and cut at 40 characters: `build a row of 3 texts under "financial tools — designed to work…"`. A leaf
   whose ordinal would be above `ordinalLimit` 9 is placed `near` that text instead (`build a box (fixed) near
   "Daybreak Yoga"`), and a built unnamed node is `a box` or `an image`.
+- **Icons.** OCR reads icons and glyph-sized marks as text, so registration splits each OCR line before it becomes
+  a text node: a leading or trailing run of one or two characters is a glyph when it holds a character outside the
+  design's script (above U+024F, General Punctuation excepted, when nine in ten of the design's characters are
+  Latin), when it is one character whose ink box is under `iconSide` 24 on both sides, or when the whole line is
+  under three characters and read below `iconTextFloor` 0.8. A `%` or a currency sign is never a glyph. A glyph is
+  an `image` node on its ink box (the trimmed share of the line box, split by character count) and the rest of the
+  line stays text (`血 US bank account` is an image and `US bank account`); a line of nothing but glyphs is one image.
+  The box pass makes a segmented box with no text and no box inside it, under `iconSlotSide` 48 on both sides, an
+  image too. An image under `iconSlotSide` is an icon slot: `design.txt` writes it as `icon 24x24`, the agent fills
+  it at will, it stays `unbuilt` in the ledger and is counted in `counts.icons`, and it never makes a brief line, a
+  score weight or a hold on the stage, nor does a container or run made only of icon slots. A live element under
+  `iconSlotSide` that pairs nothing and sits inside a paired node's box is not an `extra`.
 - **`painted`.** The measure reads each element's `position`, and `sizing: {width, height}` as `fixed` when the
   element's own rule or inline style sets the property to a px length (the same own-declaration read as
   `design_winner`, never the computed px), else `auto`. When the outermost absolutely or fixed positioned elements
@@ -281,7 +293,8 @@ an indented outline in document order (layout index, then top, then left), one l
 for the root, children indented two spaces under their `within`. A text reads `text "Access borderless" 56/700 data`
 (the folded text, size/weight once the type estimate knows them, the role when it is not `unknown`); a box reads
 `box 1280x72 row gap 29 align center padding 0 48, background #fff, border 1 #e3e8ee, radius 8` (its size in CSS px,
-the layout from the layout pass, its paint); an image slot reads `image 480x320`. The model holds no text colour, so
+the layout from the layout pass, its paint); an image slot reads `image 480x320`, and one under `iconSlotSide` on
+both sides reads `icon 24x24`. The model holds no text colour, so
 no colour is written. The same model gives the same file. The compact report and `design_status` carry `designPath`,
 `design_diff({full: true})` carries the lines as `design`, `design_status.next` at round 0 reads `read <designPath>
 for the whole design before building; the brief lists what to fix first`, and the x-ray shows the outline under the
@@ -377,6 +390,9 @@ All in `src/shared/tolerances.ts`.
 | `tileMargin`       | 8     | growth of the trimmed union whose median is the ink background                    |
 | `tileSide`         | 64    | side of the pixel tiles the compare caches across runs                            |
 | `blurRadius`       | 1     | added to `glyphHalo` when painting over agreeing boxes                            |
+| `iconSide`         | 24    | a one-character OCR run whose ink is under this on both sides is an icon          |
+| `iconTextFloor`    | 0.8   | an OCR line under three characters read below this confidence is an icon          |
+| `iconSlotSide`     | 48    | an image node under this on both sides is an icon slot that never holds a stage   |
 
 ## Blind spots
 

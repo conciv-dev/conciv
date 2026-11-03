@@ -13,7 +13,7 @@ import {z} from 'zod'
 import {chunk, partition, range, uniqBy, zip} from 'es-toolkit'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {DESIGN_GUIDE, renderDef, RenderResultSchema, type TargetInput, type TargetResult} from '../shared/defs.js'
-import {TOLERANCES} from '../shared/tolerances.js'
+import {iconSized, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Border,
   Box,
@@ -324,6 +324,7 @@ const CURRENCY_RANGES: ReadonlyArray<readonly [number, number]> = [
   [0x20a0, 0x20cf],
 ]
 const DATE_PARTS = 3
+const PERCENT = '%'
 
 function codePoint(character: string): number {
   return character.codePointAt(0) ?? 0
@@ -365,7 +366,7 @@ function isCurrencyAmount(text: string): boolean {
 }
 
 function isPercentage(text: string): boolean {
-  return text.endsWith('%') && isNumber(text.slice(0, -1).trim())
+  return text.endsWith(PERCENT) && isNumber(text.slice(0, -1).trim())
 }
 
 function isDate(text: string): boolean {
@@ -412,7 +413,7 @@ const MAX_DEPTH = 6
 const MAX_BORDER = 4
 
 type Found = BoxNode | ImageNode
-type Level = {raster: Raster; region: Box; background: Rgb; depth: number; text: Box[]}
+type Level = {raster: Raster; region: Box; background: Rgb; depth: number; text: Box[]; marks: Box[]}
 
 function median(values: number[]): number {
   const sorted = values.toSorted((a, b) => a - b)
@@ -488,7 +489,7 @@ function threshold(level: Level): Uint8Array {
       mask[y * region.w + x] = rgbDistance({a: pixel, b: background}) > TOLERANCES.segmentDistance ? 1 : 0
     }
   }
-  level.text.forEach((glyphs) => {
+  level.marks.forEach((glyphs) => {
     const area = intersect({box: glyphs, region})
     if (area === null) return
     const local = {x: area.x - region.x, y: area.y - region.y, w: area.w, h: area.h}
@@ -683,7 +684,18 @@ function boxNode(input: {level: Level; raw: Box; fill: Rgb; edge: Border | null}
     radius: cornerRadius({raster, box, inside: fill, outside: background}),
   }
   const inner = inset({box, by: CHILD_INSET})
-  return [node, ...children({raster, region: inner, background: fill, depth: depth + 1, text: level.text})]
+  const found = children({
+    raster,
+    region: inner,
+    background: fill,
+    depth: depth + 1,
+    text: level.text,
+    marks: level.marks,
+  })
+  const empty =
+    !found.some((child) => child.kind === 'box') && !level.text.some((text) => overlapping({a: box, b: text}))
+  if (empty && iconSized(box)) return [imageNode(box), ...found]
+  return [node, ...found]
 }
 
 function classify(input: {level: Level; raw: Box; rectangular: boolean}): Found[] {
@@ -713,10 +725,10 @@ const thresholdSegmenter: Segmenter = {
   segment: ({raster, nodes}) => {
     const page = {x: 0, y: 0, w: raster.width, h: raster.height}
     const background = medianRgb({raster, indices: borderIndices({width: raster.width, box: page})})
-    const text = nodes.flatMap((node) =>
-      node.kind === 'text' ? [expand({box: node.box, by: TOLERANCES.glyphHalo})] : [],
-    )
-    return Promise.resolve(children({raster, region: page, background, depth: 1, text}))
+    const haloed = (node: TargetNode): Box => expand({box: node.box, by: TOLERANCES.glyphHalo})
+    const text = nodes.filter((node) => node.kind === 'text').map(haloed)
+    const marks = nodes.filter((node) => node.kind !== 'box').map(haloed)
+    return Promise.resolve(children({raster, region: page, background, depth: 1, text, marks}))
   },
 }
 
@@ -813,13 +825,93 @@ const textEnricher: Enricher = {
     const lines = read
       .flat()
       .filter((line) => line.confidence >= TOLERANCES.ocrConfidenceFloor && line.text.trim() !== '')
-      .map((line) => ({...line, box: trimToInk({raster, box: line.box})}))
-      .reduce<OcrLine[]>(
-        (kept, line) => (kept.some((other) => overlapping({a: other.box, b: line.box})) ? kept : [...kept, line]),
+    const latin = latinDesign(lines)
+    const kept = lines
+      .flatMap((line) => lineParts({line, raster, latin}))
+      .reduce<Part[]>(
+        (found, part) =>
+          found.some((other) => overlapping({a: other.line.box, b: part.line.box})) ? found : [...found, part],
         [],
       )
-    return [...model.nodes, ...rows(lines).map(textNode)]
+    const [glyphs, words] = partition(kept, (part) => part.glyph)
+    return [
+      ...model.nodes,
+      ...rows(words.map((part) => part.line)).map(textNode),
+      ...glyphs.map((part) => imageNode(part.line.box)),
+    ]
   },
+}
+
+type Part = {line: OcrLine; glyph: boolean}
+
+const LATIN_END = 0x24f
+const LATIN_SHARE = 0.9
+const PUNCTUATION_START = 0x2000
+const PUNCTUATION_END = 0x206f
+const GLYPH_LENGTH = 2
+const UNSURE_LENGTH = 3
+
+function inked(character: string): boolean {
+  return character.trim() !== ''
+}
+
+function latinDesign(lines: OcrLine[]): boolean {
+  const characters = lines.flatMap((line) => Array.from(line.text)).filter(inked)
+  const latin = characters.filter((character) => !isForeign(character)).length
+  return characters.length > 0 && latin >= characters.length * LATIN_SHARE
+}
+
+function lineParts(input: {line: OcrLine; raster: Raster; latin: boolean}): Part[] {
+  const {line, raster, latin} = input
+  const characters = Array.from(line.text)
+  const first = characters.findIndex(inked)
+  const last = characters.findLastIndex(inked) + 1
+  const piece = (span: {from: number; to: number}): OcrLine => ({
+    text: characters.slice(span.from, span.to).join('').trim(),
+    confidence: line.confidence,
+    box: trimToInk({raster, box: shareBox({box: line.box, ...span, count: characters.length})}),
+  })
+  const whole = piece({from: 0, to: characters.length})
+  const blanks = range(first, last).filter((index) => !inked(characters[index] ?? ''))
+  const firstBlank = blanks[0]
+  const lastBlank = blanks.at(-1)
+  if (firstBlank === undefined || lastBlank === undefined)
+    return [{line: whole, glyph: isGlyph({run: whole, whole, latin})}]
+  const lead = piece({from: 0, to: firstBlank + 1})
+  const trail = piece({from: lastBlank, to: characters.length})
+  const leading = isGlyph({run: lead, whole, latin})
+  const trailing = isGlyph({run: trail, whole, latin})
+  const rest = piece({from: leading ? firstBlank + 1 : 0, to: trailing ? lastBlank : characters.length})
+  if (rest.text === '') return [{line: whole, glyph: true}]
+  return [
+    ...(leading ? [{line: lead, glyph: true}] : []),
+    {line: rest, glyph: false},
+    ...(trailing ? [{line: trail, glyph: true}] : []),
+  ]
+}
+
+function shareBox(input: {box: Box; from: number; to: number; count: number}): Box {
+  const {box, from, to, count} = input
+  return {x: box.x + (box.w * from) / count, y: box.y, w: (box.w * (to - from)) / count, h: box.h}
+}
+
+function isGlyph(input: {run: OcrLine; whole: OcrLine; latin: boolean}): boolean {
+  const {run, whole, latin} = input
+  const characters = Array.from(run.text)
+  if (characters.length > GLYPH_LENGTH || characters.every(isSign)) return false
+  const foreign = latin && characters.some(isForeign)
+  const small = characters.length === 1 && run.box.w < TOLERANCES.iconSide && run.box.h < TOLERANCES.iconSide
+  const unsure = Array.from(whole.text).length < UNSURE_LENGTH && whole.confidence < TOLERANCES.iconTextFloor
+  return foreign || small || unsure
+}
+
+function isForeign(character: string): boolean {
+  const point = codePoint(character)
+  return point > LATIN_END && (point < PUNCTUATION_START || point > PUNCTUATION_END)
+}
+
+function isSign(character: string): boolean {
+  return character === PERCENT || isCurrency(character)
 }
 
 type Segmentation = 'full' | 'partial'
@@ -864,7 +956,7 @@ export function segmentationQuality(model: Pick<TargetModel, 'nodes' | 'viewport
 const segmentEnricher: Enricher = {
   name: 'segment',
   run: async ({model, raster, runtime}) => {
-    if (model.nodes.some((node) => node.kind !== 'text')) return model.nodes
+    if (model.nodes.some((node) => node.kind === 'box')) return model.nodes
     const found = await runtime.segmenter.segment({raster, nodes: model.nodes})
     const nodes = [...model.nodes, ...found]
     return nodes.map((node) => within({node, nodes}))

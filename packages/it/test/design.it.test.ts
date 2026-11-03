@@ -2013,7 +2013,7 @@ describe('live loop', () => {
     }
   }, 240_000)
 
-  it('moving the card row down and back never stops on the best total, and a third reversal stops', async ({
+  it('moving the card row down and back is two reversals and stops oscillating at the second; a return to the best total is not a new best', async ({
     annotate,
   }) => {
     await goto('stripe')
@@ -2032,7 +2032,7 @@ describe('live loop', () => {
     await annotate(
       `stops ${JSON.stringify(reports.map((report) => report.stop))} scores ${JSON.stringify(reports.map((report) => [report.stage, report.score]))}`,
     )
-    expect(reports.map((report) => report.stop)).toEqual([null, null, null, null, 'oscillating'])
+    expect(reports.map((report) => report.stop)).toEqual([null, null, null, 'oscillating', 'oscillating'])
   }, 300_000)
 
   it('a stripe run after a css edit times every phase and finishes under 10 s', async ({annotate}) => {
@@ -2285,6 +2285,101 @@ describe('ledger', () => {
       expect(removed.changes.lost.length).toBeGreaterThan(0)
     } finally {
       await writeFile(STRIPE_STYLES, styles)
+      await writeFile(STRIPE_SOURCE, source)
+    }
+  }, 300_000)
+})
+
+const ICON_SIDE = 24
+const ICON_SLOT_SIDE = 48
+const LATIN_END = 0x24f
+const DAYBREAK = 'Daybreak Yoga'
+const DAYBREAK_TAG = `<b>${DAYBREAK}</b>`
+const AGENT_ICON_SIDE = 20
+const PUNCTUATION_START = 0x2000
+const PUNCTUATION_END = 0x206f
+
+function foreign(character: string): boolean {
+  const point = character.codePointAt(0) ?? 0
+  return point > LATIN_END && (point < PUNCTUATION_START || point > PUNCTUATION_END)
+}
+
+function daybreakSlot(nodes: z.infer<typeof StoredModelSchema>['nodes']): Box {
+  const texts = nodes.filter((node) => node.kind === 'text' && node.text === DAYBREAK)
+  const slot = nodes.find(
+    (node) =>
+      node.kind === 'image' &&
+      under({box: node.box, side: ICON_SLOT_SIDE}) &&
+      texts.some(
+        (text) =>
+          node.box.x + node.box.w <= text.box.x + 2 &&
+          text.box.x - node.box.x - node.box.w <= ICON_SIDE &&
+          Math.abs(node.box.y + node.box.h / 2 - text.box.y - text.box.h / 2) <= text.box.h,
+      ),
+  )
+  if (slot === undefined) throw new Error('the design has no icon slot beside Daybreak Yoga')
+  return slot.box
+}
+
+function agentIcon(slot: Box): string {
+  const left = Math.round(slot.x + slot.w / 2 - AGENT_ICON_SIDE / 2)
+  const top = Math.round(slot.y + slot.h / 2 - AGENT_ICON_SIDE / 2)
+  return `<span className="icon" aria-hidden="true" style={{position: 'absolute', left: ${left}, top: ${top}, width: ${AGENT_ICON_SIDE}, height: ${AGENT_ICON_SIDE}, borderRadius: '50%', background: '#7a73ff'}} />${DAYBREAK_TAG}`
+}
+
+function under(input: {box: Box; side: number}): boolean {
+  return input.box.w < input.side && input.box.h < input.side
+}
+
+function quotesOneCharacter(line: string): boolean {
+  return line.split('"').some((part, index) => index % 2 === 1 && Array.from(part).length === 1)
+}
+
+async function iconCount(): Promise<{icons: number; brief: string[]}> {
+  const compact = CompactReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {}}))
+  return {icons: compact.counts.icons, brief: compact.brief}
+}
+
+describe('icons', () => {
+  it('registration stores icon reads as image nodes, outlines them as icons and briefs none of them', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id, text} = await freshTarget('stripe-1280')
+    const nodes = await storedNodes(id)
+    const texts = nodes.flatMap((node) => (node.kind === 'text' ? [{text: node.text ?? '', box: node.box}] : []))
+    const slots = nodes.filter((node) => node.kind === 'image' && under({box: node.box, side: ICON_SLOT_SIDE}))
+    const status = await call('design_status', {})
+    const outline = (await readFile(fileUnder(stateRoot, status.designPath ?? ''), 'utf8')).split('\n')
+    const {icons, brief} = await iconCount()
+    await annotate(
+      `text nodes ${texts.length} (runs ${text?.runs ?? 0}) icon slots ${slots.length} ${JSON.stringify(slots.map((node) => node.box))} counts.icons ${icons} brief ${JSON.stringify(brief.slice(0, 5))}`,
+    )
+    expect(texts.filter((node) => Array.from(node.text).some(foreign))).toEqual([])
+    expect(
+      texts.filter((node) => Array.from(node.text.trim()).length === 1 && under({box: node.box, side: ICON_SIDE})),
+    ).toEqual([])
+    expect(slots.length).toBeGreaterThanOrEqual(3)
+    expect(outline.some((line) => line.trim().startsWith('icon '))).toBe(true)
+    expect(brief.filter((line) => line.includes('icon') || quotesOneCharacter(line))).toEqual([])
+    expect(icons).toBeGreaterThanOrEqual(3)
+  }, 240_000)
+
+  it('an icon the agent renders inside the lilac card fills an icon slot', async ({annotate}) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const registered = await iconCount()
+    const slot = daybreakSlot(await storedNodes(id))
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await rewrite({id, file: STRIPE_SOURCE, text: source.replace(DAYBREAK_TAG, agentIcon(slot))})
+      const built = await iconCount()
+      await annotate(
+        `slot ${JSON.stringify(slot)} counts.icons ${registered.icons} -> ${built.icons} brief ${JSON.stringify(built.brief.slice(0, 5))}`,
+      )
+      expect(registered.icons).toBeGreaterThanOrEqual(3)
+      expect(built.icons).toBeLessThanOrEqual(registered.icons - 1)
+    } finally {
       await writeFile(STRIPE_SOURCE, source)
     }
   }, 300_000)

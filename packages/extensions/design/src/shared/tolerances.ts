@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import type {ComponentReport, DeltaKindName, DiffReport, Stage} from './defs.js'
-import type {Delta, ItemKind} from './types.js'
+import type {Box, Delta, ItemKind} from './types.js'
 
 export const TOLERANCES = {
   geometryPx: 2,
@@ -53,6 +53,9 @@ export const TOLERANCES = {
   paintedShare: 0.1,
   paintedCount: 3,
   ordinalLimit: 9,
+  iconSide: 24,
+  iconTextFloor: 0.8,
+  iconSlotSide: 48,
 } as const
 
 export type Tolerances = typeof TOLERANCES
@@ -159,6 +162,10 @@ export function componentAboveTolerance(component: Pick<ComponentReport, 'deltas
 export function aboveTolerance(report: Pick<DiffReport, 'components' | 'unmatched'>): number {
   const unbuilt = report.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.stage === 'structure')
   return report.components.filter(componentAboveTolerance).length + unbuilt.length
+}
+
+export function iconSized(box: Box): boolean {
+  return box.w < TOLERANCES.iconSlotSide && box.h < TOLERANCES.iconSlotSide
 }
 
 export function traced(delta: Delta): boolean {

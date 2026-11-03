@@ -13,7 +13,7 @@ import {
   SourceLocSchema,
   type DiffReport,
 } from '../shared/defs.js'
-import {TOLERANCES} from '../shared/tolerances.js'
+import {iconSized, TOLERANCES} from '../shared/tolerances.js'
 import {
   ROLES,
   type Decision,
@@ -410,7 +410,7 @@ function documentOrder(a: StoredNode, b: StoredNode): number {
 
 function nodeLine(input: {node: StoredNode; scale: number}): string {
   const {node, scale} = input
-  if (node.kind === 'image') return `image ${sized({box: node.box, scale})}`
+  if (node.kind === 'image') return `${iconSized(node.box) ? 'icon' : 'image'} ${sized({box: node.box, scale})}`
   if (node.kind === 'text') return textLine(node)
   return `box ${sized({box: node.box, scale})}${layoutPhrase(node.layout)}${paintPhrase(node)}`
 }

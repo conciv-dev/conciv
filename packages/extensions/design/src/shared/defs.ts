@@ -455,13 +455,14 @@ export const CompactReportSchema = DiffReportSchema.pick({
         components: z.number(),
         paired: z.number(),
         unbuilt: z.number(),
+        icons: z.number(),
         unmatched: z.number(),
         warnings: z.number(),
         done: z.number(),
         regressed: z.number(),
       })
       .describe(
-        'how many components the full report lists, how many nodes paired, how many are unbuilt, how many unmatched entries and warnings the full report holds, and how many nodes the ledger holds done and regressed',
+        'how many components the full report lists, how many nodes paired, how many are unbuilt, how many of the unbuilt are icon slots the agent may fill at will, how many unmatched entries and warnings the full report holds, and how many nodes the ledger holds done and regressed',
       ),
   })
   .loose()

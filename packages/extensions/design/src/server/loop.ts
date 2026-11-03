@@ -11,7 +11,7 @@ import {
   type Stop,
 } from '../shared/defs.js'
 import {keyBy, uniq} from 'es-toolkit'
-import {deltaSentence, kindStage, kindTolerance, TOLERANCES, traced} from '../shared/tolerances.js'
+import {deltaSentence, iconSized, kindStage, kindTolerance, TOLERANCES, traced} from '../shared/tolerances.js'
 import type {
   Box,
   CapturePath,
@@ -118,6 +118,10 @@ export function itemsFrom(input: {
       ...located({node: pair.node.id, source: pair.live.source}),
     })),
   )
+  const slots = new Set(tree.nodes.filter(iconSlot).map((node) => node.id))
+  const unmatched = input.unmatched.filter(
+    (entry) => entry.kind !== 'unbuilt' || entry.node === undefined || !slots.has(entry.node),
+  )
   const unbuilt = keyBy(
     input.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.node !== undefined),
     (entry) => entry.node ?? '',
@@ -125,12 +129,17 @@ export function itemsFrom(input: {
   const runs = [tree.root.layout?.runs ?? [], ...tree.nodes.map((node) => node.layout?.runs ?? [])]
     .flat()
     .filter((run) => run.children.every((id) => unbuilt[id]?.stage === 'structure'))
-  const complete = tree.nodes.filter((node) => node.id in unbuilt && allUnbuilt({tree, id: node.id, unbuilt}))
+  const complete = tree.nodes.filter(
+    (node) =>
+      node.id in unbuilt &&
+      allUnbuilt({tree, id: node.id, unbuilt}) &&
+      childrenIn({tree, id: node.id}).some((child) => !slots.has(child.id)),
+  )
   const covered = new Set([
     ...runs.flatMap((run) => run.children),
     ...complete.flatMap((node) => descendantsIn({tree, id: node.id}).map((child) => child.id)),
   ])
-  const entries = input.unmatched
+  const entries = unmatched
     .filter((entry) => entry.kind !== 'unbuilt' || entry.node === undefined || !covered.has(entry.node))
     .map((entry): Item => ({
       key: `${entry.kind}:${entry.node ?? boxKey(entry.target ?? entry.live)}`,
@@ -352,6 +361,10 @@ function capped(value: number): number {
 
 function rounded(value: number): number {
   return Math.round(value * SCORE_PRECISION) / SCORE_PRECISION
+}
+
+function iconSlot(node: TargetNode): boolean {
+  return node.kind === 'image' && iconSized(node.box)
 }
 
 function boxKey(box: Box | undefined): string {
@@ -744,7 +757,7 @@ function oscillating(input: {score: number[]; priors: Round[]; stage: Stage}): b
   const tolerance = STAGE_TOLERANCES[stage]
   const chain = totals.reduce<{lowest: number; reversals: number}>(
     (state, total, index) => {
-      if (total <= state.lowest) return {lowest: total, reversals: 0}
+      if (total < state.lowest - tolerance) return {lowest: total, reversals: 0}
       const reversed = reversal({first: totals[index - 2], second: totals[index - 1], now: total, tolerance})
       return {lowest: state.lowest, reversals: reversed ? state.reversals + 1 : 0}
     },

@@ -43,7 +43,7 @@ import {
   type WinnerInput,
   type WinnerResult,
 } from '../shared/defs.js'
-import {aboveTolerance, TOLERANCES} from '../shared/tolerances.js'
+import {aboveTolerance, iconSized, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Box,
   ColorMetric,
@@ -413,7 +413,11 @@ async function runDiff(request: {
   const tree = {root: model.root, nodes}
   const unmatched = [
     ...unbuiltEntries({tree, pairedNodes}),
-    ...extraEntries({components: live.components, paired: new Set(matched.map((entry) => entry.component.path))}),
+    ...extraEntries({
+      components: live.components,
+      paired: new Set(matched.map((entry) => entry.component.path)),
+      cards: matched.map((entry) => entry.node.box),
+    }),
     ...offsetEntries({offsets: alignment.offsets, measured}),
   ]
   const {reported, listed} = reportedComponents({measured, input: job.input, color, placements})
@@ -1213,11 +1217,14 @@ function outermostPositioned(input: {components: LiveComponent[]; parentPosition
   })
 }
 
-function extraEntries(input: {components: LiveComponent[]; paired: Set<string>}): Unmatched[] {
-  const {paired} = input
+function extraEntries(input: {components: LiveComponent[]; paired: Set<string>; cards: Box[]}): Unmatched[] {
+  const {paired, cards} = input
   const pairedPaths = [...paired]
   return input.components.flatMap((component): Unmatched[] => {
     const holds = paired.has(component.path) || pairedPaths.some((path) => path.startsWith(`${component.path}/`))
+    if (!holds && iconSized(component.box) && cards.some((card) => enclosed({inner: component.box, outer: card}))) {
+      return []
+    }
     if (!holds && paints(component) && large(component.box)) {
       return [
         {
@@ -1228,8 +1235,19 @@ function extraEntries(input: {components: LiveComponent[]; paired: Set<string>})
         },
       ]
     }
-    return extraEntries({components: component.children, paired})
+    return extraEntries({components: component.children, paired, cards})
   })
+}
+
+function enclosed(input: {inner: Box; outer: Box}): boolean {
+  const {inner, outer} = input
+  const slack = TOLERANCES.geometryPx
+  return (
+    inner.x >= outer.x - slack &&
+    inner.y >= outer.y - slack &&
+    inner.x + inner.w <= outer.x + outer.w + slack &&
+    inner.y + inner.h <= outer.y + outer.h + slack
+  )
 }
 
 function paints(component: LiveComponent): boolean {
@@ -1981,6 +1999,10 @@ function shaped(input: {report: DiffReport; design: string[] | null}): CompactRe
     components: report.components.length,
     paired: report.paired,
     unbuilt: report.unmatched.filter((entry) => entry.kind === 'unbuilt').length,
+    icons: report.unmatched.filter(
+      (entry) =>
+        entry.kind === 'unbuilt' && entry.label === 'image' && entry.target !== undefined && iconSized(entry.target),
+    ).length,
     unmatched: report.unmatched.length,
     warnings: report.warnings.length,
     done: report.ledger.done,
