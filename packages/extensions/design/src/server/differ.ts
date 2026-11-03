@@ -1,12 +1,14 @@
 import pixelmatch from 'pixelmatch'
 import {diff} from '@blazediff/core'
 import {z} from 'zod'
+import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
 import {groupBy, keyBy, mapValues, omit, pick, range, uniq, uniqBy} from 'es-toolkit'
 import {isPageVerbError, toolError, type AnyToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {createHash} from 'node:crypto'
 import {basename, relative} from 'node:path'
 import type {SessionId} from '@conciv/protocol/chat-types'
+import {PAGE_PING_TOOL} from '@conciv/protocol/page-types'
 import {
   BLIND_FIELDS,
   BoxSchema,
@@ -307,6 +309,7 @@ async function runDiff(request: {
   const record = await design.store.find({id: job.id})
   if (record === null) throw toolError('no-target', {message: NO_TARGET_MESSAGE})
   const xray = design.xrayUrl({id: record.id, session: job.session})
+  await widgetConnected(page)
   const route = await otherRoute({record, page})
   if (route !== null) return refused({record, route, xray})
   const decisions = await design.store.decisions(record.id)
@@ -315,6 +318,7 @@ async function runDiff(request: {
   clock.skip()
   const reply = await askMeasure({width: record.width, height: record.height, page})
   clock.lap('measure')
+  if (reply.pageError !== undefined) return pageErrorRound({...request, message: reply.pageError})
   const reading = liveCapture(reply)
   await matchPlaceholder({store: design.store, id: record.id, framework: reading.framework})
   clock.lap('decode')
@@ -572,13 +576,8 @@ async function unansweredRound(input: {
   design: DesignRuntime
   started: number
 }): Promise<DiffReport> {
-  const {job, design, started} = input
-  const previous =
-    input.history.rounds(job.id).at(-1)?.report ??
-    input.latest.get(job.id)?.report ??
-    (await design.store.lastResult(job.id)) ??
-    (await emptyReport({job, design}))
-  const elapsed = Date.now() - started
+  const previous = await previousReport(input)
+  const elapsed = Date.now() - input.started
   return {
     ...previous,
     partial: true,
@@ -586,6 +585,55 @@ async function unansweredRound(input: {
     hint: `${UNANSWERED_HINT}; ${input.error.message}`,
     timings: TimingsSchema.parse({measure: elapsed, total: elapsed}),
   }
+}
+
+async function pageErrorRound(input: {
+  message: string
+  job: RunJob
+  history: History
+  latest: Map<string, Settled>
+  design: DesignRuntime
+}): Promise<DiffReport> {
+  const {message} = input
+  const previous = await previousReport(input)
+  return {
+    ...omit(previous, ['hint']),
+    stop: null,
+    changes: NO_CHANGES,
+    warnings: [{kind: 'text', warning: 'page-error', live: message, target: ''}],
+    brief: [`${PAGE_ERROR_BRIEF}: ${message}`],
+  }
+}
+
+async function previousReport(input: {
+  job: RunJob
+  history: History
+  latest: Map<string, Settled>
+  design: DesignRuntime
+}): Promise<DiffReport> {
+  const {job, design} = input
+  return (
+    input.history.rounds(job.id).at(-1)?.report ??
+    input.latest.get(job.id)?.report ??
+    (await design.store.lastResult(job.id)) ??
+    (await emptyReport({job, design}))
+  )
+}
+
+async function widgetConnected(page: ServerToolPageAccess): Promise<void> {
+  const retryer = new AsyncRetryer(() => pingWidget(page), {
+    backoff: 'fixed',
+    baseWait: TOLERANCES.widgetPoll,
+    maxAttempts: Math.ceil(TOLERANCES.widgetWait / TOLERANCES.widgetPoll) + 1,
+    throwOnError: false,
+  })
+  await retryer.execute()
+}
+
+async function pingWidget(page: ServerToolPageAccess): Promise<void> {
+  await page.call(PAGE_PING_TOOL, {}).catch((error: unknown) => {
+    if (isPageVerbError(error) && error.code === 'no-widget') throw error
+  })
 }
 
 async function emptyReport(input: {job: RunJob; design: DesignRuntime}): Promise<DiffReport> {
@@ -1945,6 +1993,7 @@ const HINT = 'no element carries data-conciv-source; the page is not a dev build
 const KEPT_GLYPHS: ReadonlySet<string> = new Set(['%', '$', '€', '£', '¥', '¢', '₪', '₹', '₩', '₽', '₺'])
 const UNCHANGED_HINT = 'the page has not changed since the last diff'
 const UNANSWERED_HINT = 'the page tab is hidden; bring it to the foreground and run design_diff again'
+const PAGE_ERROR_BRIEF = 'the page did not render'
 const UNANSWERED_CODES: ReadonlySet<string> = new Set(['page-hidden', 'no-live-widget'])
 const ORIGIN_HINT = 'the conciv engine origin is unknown, so xray is a path on the engine and not a full url'
 const COMPACT_FIELDS = [

@@ -89,6 +89,9 @@ const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 const PX_UNIT = 'px'
 const REACT_FIBER = '__reactFiber'
 const VITE_DEV_ID = '[data-vite-dev-id]'
+const VITE_ERROR_OVERLAY = 'vite-error-overlay'
+const OVERLAY_MESSAGE = '.message-body'
+const OVERLAY_FALLBACK = 'the dev server shows an error overlay'
 const DRAWN_SHAPES = 'path, polygon, circle'
 const DATA_URL = 'data:'
 const LINEAR_GRADIENT = 'linear-gradient('
@@ -191,8 +194,17 @@ export default design
 async function measureStep(input: MeasureInput): Promise<MeasureResult> {
   const size = {width: input.width ?? innerWidth, height: input.height ?? innerHeight}
   releaseMirror()
-  if (size.width === innerWidth) return measureLive(size)
-  return measureMirror(size)
+  const pageError = overlayError()
+  const measured = size.width === innerWidth ? await measureLive(size) : await measureMirror(size)
+  return pageError === null ? measured : {...measured, pageError}
+}
+
+function overlayError(): string | null {
+  const overlay = document.querySelector(VITE_ERROR_OVERLAY)
+  if (overlay === null) return null
+  const text = overlay.shadowRoot?.querySelector(OVERLAY_MESSAGE)?.textContent ?? ''
+  const lines = text.split('\n').map((line) => line.trim())
+  return lines.find((line) => line !== '') ?? OVERLAY_FALLBACK
 }
 
 async function measureLive(size: Size): Promise<MeasureResult> {

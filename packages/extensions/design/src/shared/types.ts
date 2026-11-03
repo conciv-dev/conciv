@@ -237,7 +237,7 @@ export type Delta = {
   width?: number
   box?: Box
   opinion?: {source: 'takumi'; live: number | string; confidence: number}
-  warning?: 'sample-data' | 'typography-skipped' | 'svg-drawn'
+  warning?: 'sample-data' | 'typography-skipped' | 'svg-drawn' | 'page-error'
 } & Partial<Provenance>
 export type DeltaKind = {
   kind: DeltaKindName
