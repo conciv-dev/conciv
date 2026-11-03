@@ -1013,14 +1013,19 @@ const colorEnricher: Enricher = {
 const regionsEnricher: Enricher = {
   name: 'regions',
   run: ({model}) => {
+    const [pictures, members] = partition(
+      model.nodes.filter((node) => node.within === undefined),
+      (node) => node.kind === 'image',
+    )
     const {seats, regions} = carve({
-      members: model.nodes.filter((node) => node.within === undefined),
+      members,
       parent: undefined,
       along: 'y',
       depth: 1,
       gap: TOLERANCES.regionGap * model.scale,
     })
-    const parents = new Map(seats.map((seat) => [seat.id, seat.within]))
+    const placed = pictures.map((picture) => ({id: picture.id, within: holder({box: picture.box, regions})}))
+    const parents = new Map([...seats, ...placed].map((seat) => [seat.id, seat.within]))
     return Promise.resolve([
       ...model.nodes.map((node) => {
         const parent = parents.get(node.id)
@@ -1047,11 +1052,10 @@ function carve(input: {
   const {members, parent, along, depth, gap} = input
   const seated: Carving = {seats: members.map((node) => ({id: node.id, within: parent})), regions: []}
   if (depth > REGION_DEPTH || members.length < 2) return seated
-  const groups = bands({members, along, gap})
+  const groups = absorbed({groups: bands({members, along, gap}), along})
   const next: Along = along === 'y' ? 'x' : 'y'
   if (groups.length < 2) return carve({...input, along: next, depth: depth + 1})
   const carvings = groups.map((group): Carving => {
-    if (group.length < 2) return {seats: group.map((node) => ({id: node.id, within: parent})), regions: []}
     const region = regionNode({members: group, parent})
     const inner = carve({members: group, parent: region.id, along: next, depth: depth + 1, gap})
     return {seats: inner.seats, regions: [region, ...inner.regions]}
@@ -1062,23 +1066,62 @@ function carve(input: {
   }
 }
 
+function bandStart(input: {box: Box; along: Along}): number {
+  return input.along === 'y' ? input.box.y : input.box.x
+}
+
+function bandEnd(input: {box: Box; along: Along}): number {
+  return input.along === 'y' ? input.box.y + input.box.h : input.box.x + input.box.w
+}
+
 function bands(input: {members: TargetNode[]; along: Along; gap: number}): TargetNode[][] {
   const {along, gap} = input
-  const from = (box: Box): number => (along === 'y' ? box.y : box.x)
-  const to = (box: Box): number => (along === 'y' ? box.y + box.h : box.x + box.w)
   return input.members
-    .toSorted((a, b) => from(a.box) - from(b.box))
+    .toSorted((a, b) => bandStart({box: a.box, along}) - bandStart({box: b.box, along}))
     .reduce<{groups: TargetNode[][]; end: number}>(
       (sweep, node) => {
         const last = sweep.groups.at(-1)
-        if (last === undefined || from(node.box) - sweep.end >= gap) {
-          return {groups: [...sweep.groups, [node]], end: to(node.box)}
+        if (last === undefined || bandStart({box: node.box, along}) - sweep.end >= gap) {
+          return {groups: [...sweep.groups, [node]], end: bandEnd({box: node.box, along})}
         }
         last.push(node)
-        return {groups: sweep.groups, end: Math.max(sweep.end, to(node.box))}
+        return {groups: sweep.groups, end: Math.max(sweep.end, bandEnd({box: node.box, along}))}
       },
       {groups: [], end: 0},
     ).groups
+}
+
+function absorbed(input: {groups: TargetNode[][]; along: Along}): TargetNode[][] {
+  const {groups, along} = input
+  const index = groups.findIndex((group) => group.length === 1)
+  const lone = groups[index]
+  if (groups.length < 2 || lone === undefined) return groups
+  const span = union(lone.map((node) => node.box))
+  const before = groups[index - 1]
+  const after = groups[index + 1]
+  const gapBefore =
+    before === undefined
+      ? Infinity
+      : bandStart({box: span, along}) - bandEnd({box: union(before.map((node) => node.box)), along})
+  const gapAfter =
+    after === undefined
+      ? Infinity
+      : bandStart({box: union(after.map((node) => node.box)), along}) - bandEnd({box: span, along})
+  const into = gapBefore <= gapAfter ? index - 1 : index + 1
+  const merged = groups.flatMap((group, position) => {
+    if (position === index) return []
+    if (position === into) return [[...group, ...lone]]
+    return [group]
+  })
+  return absorbed({groups: merged, along})
+}
+
+function holder(input: {box: Box; regions: BoxNode[]}): string | undefined {
+  const [best] = input.regions
+    .map((region) => ({region, shared: intersect({box: input.box, region: region.box})}))
+    .flatMap(({region, shared}) => (shared === null ? [] : [{region, area: surface(shared)}]))
+    .toSorted((a, b) => b.area - a.area || surface(a.region.box) - surface(b.region.box))
+  return best?.region.id
 }
 
 function regionNode(input: {members: TargetNode[]; parent: string | undefined}): BoxNode {
