@@ -17,8 +17,9 @@ import {
 import {SessionId} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {defineDevframe} from 'devframe'
-import {chromium, type Browser} from 'playwright'
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {getTempAuthCode} from 'devframe/node/auth'
+import {chromium, type Browser, type Page} from 'playwright'
+import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
 import {isBrowserCaller} from '../src/devframe-trust.js'
@@ -433,6 +434,77 @@ describe('conciv hub', () => {
     })
     await tab.close()
   }, 20_000)
+})
+
+describe('conciv hub login limits', () => {
+  let kit: Kit
+  let browser: Browser
+  let host: ProbeHost
+
+  beforeAll(async () => {
+    host = await serveProbeHost()
+    browser = await chromium.launch({headless: true})
+  }, 30_000)
+
+  beforeEach(async () => {
+    kit = await bootKit({}, createFakeHarness({id: 'fake-hub-limits'}))
+  }, 30_000)
+
+  afterEach(async () => {
+    await kit.cleanup()
+  })
+
+  afterAll(async () => {
+    await browser.close()
+    await host.close()
+  })
+
+  const exchange = (tab: Page, code: string): Promise<string> =>
+    tab.evaluate(async (candidate) => {
+      const client = await window.concivConnection.ready()
+      return client.requestTrustWithCode(candidate).then(
+        (trusted) => (trusted ? 'trusted' : 'wrong'),
+        () => 'refused',
+      )
+    }, code)
+
+  const requestCode = (tab: Page, reissue: boolean): Promise<string> =>
+    tab.evaluate(async (fresh) => {
+      const client = await window.concivConnection.ready()
+      return client.requestAuthCode({reissue: fresh}).then(
+        () => 'served',
+        () => 'refused',
+      )
+    }, reissue)
+
+  it('logs a tab in with the right code after a few wrong ones', async () => {
+    const tab = await probeTab(browser, host.url, kit.hubUrl)
+    expect([await exchange(tab, 'wrong'), await exchange(tab, 'wrong')]).toEqual(['wrong', 'wrong'])
+    expect(await exchange(tab, getTempAuthCode())).toBe('trusted')
+    await tab.close()
+  }, 15_000)
+
+  it('refuses a code exchange after ten failed ones inside the window, even with the right code', async () => {
+    const tab = await probeTab(browser, host.url, kit.hubUrl)
+    const failures = await Array.from({length: 10}).reduce<Promise<string[]>>(
+      async (previous) => [...(await previous), await exchange(tab, 'wrong')],
+      Promise.resolve([]),
+    )
+    expect(failures).toEqual(Array.from({length: 10}, () => 'wrong'))
+    expect(await exchange(tab, getTempAuthCode())).toBe('refused')
+    await tab.close()
+  }, 15_000)
+
+  it('refuses a fourth code reissue inside a minute and still answers a plain code request', async () => {
+    const tab = await probeTab(browser, host.url, kit.hubUrl)
+    const outcomes = await Array.from({length: 4}).reduce<Promise<string[]>>(
+      async (previous) => [...(await previous), await requestCode(tab, true)],
+      Promise.resolve([]),
+    )
+    expect(outcomes).toEqual(['served', 'served', 'served', 'refused'])
+    expect(await requestCode(tab, false)).toBe('served')
+    await tab.close()
+  }, 15_000)
 })
 
 describe('start wires the hub beside oRPC', () => {
