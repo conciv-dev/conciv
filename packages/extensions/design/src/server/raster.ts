@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto'
-import {range} from 'es-toolkit'
+import {clamp, range} from 'es-toolkit'
 import {PNG} from 'pngjs'
 import {TOLERANCES} from '../shared/tolerances.js'
 import type {Box, Raster} from '../shared/types.js'
@@ -303,23 +303,51 @@ export function inkCoverage(input: {raster: Raster; box: Box; background: Rgb; t
 
 function cornerDepth(input: {
   raster: Raster
+  box: Box
   corner: {x: number; y: number}
   step: {x: number; y: number}
   inside: Rgb
   outside: Rgb
   limit: number
 }): number {
-  const {raster, corner, step, inside, outside, limit} = input
-  const span = rgbDistance({a: inside, b: outside})
-  if (span === 0) return 0
+  const {raster, box, corner, step, inside, outside, limit} = input
   let depth = 0
   for (let i = 0; i < limit; i += 1) {
-    const index = (corner.y + step.y * i) * raster.width + corner.x + step.x * i
-    const covered = Math.min(1, rgbDistance({a: rgbAt({raster, index}), b: outside}) / span)
+    const x = corner.x + step.x * i
+    const y = corner.y + step.y * i
+    const fill = fillAt({raster, box, x, y, inside})
+    const span = rgbDistance({a: fill, b: outside})
+    if (span === 0) return depth
+    const covered = Math.min(1, rgbDistance({a: rgbAt({raster, index: y * raster.width + x}), b: outside}) / span)
     depth += 1 - covered
     if (covered >= 1) break
   }
   return depth
+}
+
+function fillAt(input: {raster: Raster; box: Box; x: number; y: number; inside: Rgb}): Rgb {
+  const {raster, box, x, y, inside} = input
+  const inset = TOLERANCES.interiorInset
+  if (box.w <= inset * 2 || box.h <= inset * 2) return inside
+  const rows = range(box.y + inset, box.y + box.h - inset)
+  const columns = range(box.x + inset, box.x + box.w - inset)
+  const at = {
+    x: clamp(x, box.x + inset, box.x + box.w - inset - 1),
+    y: clamp(y, box.y + inset, box.y + box.h - inset - 1),
+  }
+  const column = lineMedian({raster, indices: rows.map((row) => row * raster.width + at.x)})
+  const row = lineMedian({raster, indices: columns.map((across) => at.y * raster.width + across)})
+  const channel = (c: 0 | 1 | 2): number => Math.min(255, Math.max(0, column[c] + row[c] - inside[c]))
+  return [channel(0), channel(1), channel(2)]
+}
+
+function lineMedian(input: {raster: Raster; indices: number[]}): Rgb {
+  const {raster, indices} = input
+  const channel = (c: number): number => {
+    const sorted = indices.map((index) => raster.data[index * 4 + c] ?? 0).toSorted((a, b) => a - b)
+    return sorted[Math.floor(sorted.length / 2)] ?? 0
+  }
+  return [channel(0), channel(1), channel(2)]
 }
 
 export function cornerRadius(input: {raster: Raster; box: Box; inside: Rgb; outside: Rgb}): number {
@@ -334,7 +362,7 @@ export function cornerRadius(input: {raster: Raster; box: Box; inside: Rgb; outs
     {corner: {x: right, y: bottom}, step: {x: -1, y: -1}},
   ]
   const depths = corners
-    .map(({corner, step}) => cornerDepth({raster, corner, step, inside, outside, limit}))
+    .map(({corner, step}) => cornerDepth({raster, box, corner, step, inside, outside, limit}))
     .toSorted((a, b) => a - b)
   const median = ((depths[1] ?? 0) + (depths[2] ?? 0)) / 2
   return Math.round(median / DIAGONAL_SHARE)
