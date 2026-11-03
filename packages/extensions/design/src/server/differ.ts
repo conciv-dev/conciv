@@ -44,7 +44,7 @@ import {
   type WinnerInput,
   type WinnerResult,
 } from '../shared/defs.js'
-import {aboveTolerance, iconSized, TOLERANCES} from '../shared/tolerances.js'
+import {aboveTolerance, CONFUSABLES, iconSized, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Box,
   ColorMetric,
@@ -465,6 +465,7 @@ async function runDiff(request: {
     items,
     score,
     capturePath: live.capturePath,
+    capture,
     ranker: design.ranker,
     warnings,
     painted,
@@ -1089,7 +1090,7 @@ async function textJudgements(input: {pairs: Pair[]; cwd: string}): Promise<Map<
         const [only] = roles
         const role: Role = roles.size === 1 && only !== undefined ? only : 'unknown'
         const equal =
-          live === null ? folded(liveText) === folded(targetText) : literalsAgree({live, liveText, targetText})
+          live === null ? sameWords(liveText) === sameWords(targetText) : literalsAgree({live, liveText, targetText})
         return [
           pair,
           {
@@ -1601,6 +1602,8 @@ function pixelResult(input: {output: Uint8Array; count: number; width: number; h
 
 const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
   source: SourceLocSchema.nullable(),
+  key: z.string().nullable(),
+  owner: z.string().nullable(),
   tag: z.string(),
   text: z.string(),
   box: BoxSchema,
@@ -1850,6 +1853,7 @@ function textDelta(input: {live: LiveRole; target: Role; equal: boolean}): TextV
 type RouteItem = NonNullable<DiffReport['route']>
 
 const HINT = 'no element carries data-conciv-source; the page is not a dev build compiled by the conciv plugin'
+const KEPT_GLYPHS: ReadonlySet<string> = new Set(['%', '$', '€', '£', '¥', '¢', '₪', '₹', '₩', '₽', '₺'])
 const UNCHANGED_HINT = 'the page has not changed since the last diff'
 const UNANSWERED_HINT = 'the page tab is hidden; bring it to the foreground and run design_diff again'
 const UNANSWERED_CODES: ReadonlySet<string> = new Set(['page-hidden', 'no-live-widget'])
@@ -2016,9 +2020,26 @@ async function withProvenance(input: {
 
 function literalsAgree(input: {live: LiveText; liveText: string; targetText: string}): boolean {
   const {live, liveText, targetText} = input
-  if (live.role !== 'mixed') return folded(liveText) === folded(targetText)
-  const target = folded(targetText)
-  return live.literals.every((literal) => target.includes(folded(literal)))
+  if (live.role !== 'mixed') return sameWords(liveText) === sameWords(targetText)
+  const target = sameWords(targetText)
+  return live.literals.every((literal) => target.includes(sameWords(literal)))
+}
+
+export function sameWords(text: string): string {
+  const points = Array.from(text.trim()).flatMap((point) => Array.from(CONFUSABLES[point] ?? point))
+  if (!points.some(casedLetter)) return folded(points.join(''))
+  const start = loneGlyph(points[0]) ? 1 : 0
+  const end = loneGlyph(points.at(-1)) ? points.length - 1 : points.length
+  return folded(points.slice(start, end).join(''))
+}
+
+function casedLetter(point: string): boolean {
+  return point.toLowerCase() !== point.toUpperCase()
+}
+
+function loneGlyph(point: string | undefined): boolean {
+  if (point === undefined || casedLetter(point) || KEPT_GLYPHS.has(point)) return false
+  return point < '0' || point > '9'
 }
 
 function sourced(input: {delta: Delta; pair: Pair}): Delta {

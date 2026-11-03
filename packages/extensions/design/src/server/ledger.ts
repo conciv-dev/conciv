@@ -2,7 +2,7 @@ import {countBy, maxBy, minBy} from 'es-toolkit'
 import {type Ledger, type LedgerCounts, type LedgerEntry, type NodeStatus} from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
 import type {Decision, Fingerprint, Item, LiveComponent, Matched, PairRecord, TargetNode} from '../shared/types.js'
-import {fingerprint, type Shift} from './pair.js'
+import {fingerprint, keyedSame, type Shift} from './pair.js'
 
 export type LedgerChanges = {
   done: string[]
@@ -50,7 +50,7 @@ export function nextLedger(input: {
   const current = Object.fromEntries(entries)
   const ledger = {run, round: input.round, nodes: {...earlier?.nodes, ...current}}
   if (earlier === null) return {ledger, changes: {done: [], regressed: [], paired: [], lost: [], moved: []}}
-  return {ledger, changes: changesBetween({earlier, current, components: input.components})}
+  return {ledger, changes: changesBetween({earlier, current, found, components: input.components})}
 }
 
 export function ledgerPairs(ledger: Ledger | null): PairRecord[] {
@@ -99,6 +99,7 @@ function livePair(input: {match: Matched; run: string}): LedgerEntry['pair'] {
 function changesBetween(input: {
   earlier: Ledger
   current: Record<string, LedgerEntry>
+  found: Map<string, Matched>
   components: LiveComponent[]
 }): LedgerChanges {
   const {earlier, current} = input
@@ -107,9 +108,11 @@ function changesBetween(input: {
   const newly = (status: NodeStatus): string[] =>
     listed.filter(([node, entry]) => entry.status === status && was(node) !== status).map(([node]) => node)
   const prints = flattened(input.components).map(fingerprintAt)
-  const sightings = listed.flatMap(([node]) => {
+  const sightings = listed.flatMap(([node, entry]) => {
     const pair = earlier.nodes[node]?.pair
     if (pair === undefined || pair === null || pair.run !== earlier.run) return []
+    const now = input.found.has(node) ? entry.pair : null
+    if (now !== null) return [{node, sighting: sighted({box: now.fingerprint.box, wanted: pair.fingerprint})}]
     return [{node, sighting: nearestSighting({wanted: pair.fingerprint, path: pair.path, prints})}]
   })
   return {
@@ -142,7 +145,11 @@ function nearestSighting(input: {
     ({print}) => Math.hypot(print.box.x - wanted.box.x, print.box.y - wanted.box.y),
   )
   if (nearest === undefined) return null
-  const {box} = nearest.print
+  return sighted({box: nearest.print.box, wanted})
+}
+
+function sighted(input: {box: Fingerprint['box']; wanted: Fingerprint}): {shift: Shift; outside: boolean} {
+  const {box, wanted} = input
   const edges = [box.x - wanted.box.x, box.y - wanted.box.y, box.w - wanted.box.w, box.h - wanted.box.h]
   return {
     shift: {dx: Math.round(box.x - wanted.box.x), dy: Math.round(box.y - wanted.box.y)},
@@ -151,6 +158,12 @@ function nearestSighting(input: {
 }
 
 function sameElement(input: {a: Fingerprint; b: Fingerprint; path: string; wantedPath: string}): boolean {
+  const {a, b} = input
+  if (keyedSame({a, b, margin: TOLERANCES.tileMargin})) return true
+  return a.key === null && b.key === null && unkeyedSame(input)
+}
+
+function unkeyedSame(input: {a: Fingerprint; b: Fingerprint; path: string; wantedPath: string}): boolean {
   const {a, b} = input
   if (a.textHash !== b.textHash) return false
   if (b.source === null) return a.source === null && a.tag === b.tag && input.path === input.wantedPath

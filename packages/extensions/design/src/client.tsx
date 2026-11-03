@@ -29,7 +29,7 @@ import {
   type WinnerInput,
   type WinnerResult,
 } from './shared/defs.js'
-import {designConfig, PANE_ATTR, propertyAliases, SOURCE_ATTR, TOLERANCES} from './shared/tolerances.js'
+import {designConfig, KEY_ATTR, PANE_ATTR, propertyAliases, SOURCE_ATTR, TOLERANCES} from './shared/tolerances.js'
 import type {
   Box,
   Framework,
@@ -574,6 +574,8 @@ function componentTree(input: Walk): LiveComponent {
   const style = view.getComputedStyle(el)
   return {
     source: readSource(el),
+    key: el.getAttribute(KEY_ATTR),
+    owner: ownerPath(el),
     tag: el.tagName.toLowerCase(),
     text: nodes
       .map((node) => node.textContent ?? '')
@@ -610,6 +612,43 @@ function readSource(el: Element): SourceLoc | null {
   const file = parts.join(':')
   if (!file || !Number.isFinite(line) || !Number.isFinite(column)) return null
   return {file, line, column}
+}
+
+const FIBER_PREFIX = '__reactFiber$'
+const DEV_ID_ATTR = 'data-vite-dev-id'
+
+function ownerPath(el: Element): string | null {
+  const fiber = Object.entries(el).find(([name]) => name.startsWith(FIBER_PREFIX))?.[1]
+  if (fiber !== undefined) return reactOwner({el, fiber: fields(fiber)})
+  const devId = el.closest(`[${DEV_ID_ATTR}]`)?.getAttribute(DEV_ID_ATTR) ?? null
+  return devId === null ? null : `${devId}[${siblingIndex(el)}]`
+}
+
+function reactOwner(input: {el: Element; fiber: Record<string, unknown>}): string {
+  const {el, fiber} = input
+  return [...componentChain(fields(fiber.return)), `${el.tagName.toLowerCase()}[${fiberIndex(fiber)}]`].join(' > ')
+}
+
+function componentChain(fiber: Record<string, unknown>): string[] {
+  if (Object.keys(fiber).length === 0) return []
+  const above = componentChain(fields(fiber.return))
+  const name = componentName(fiber.type)
+  if (name === null) return above
+  return [...above, `${name}[${typeof fiber.key === 'string' ? fiber.key : fiberIndex(fiber)}]`]
+}
+
+function componentName(type: unknown): string | null {
+  if (typeof type !== 'function') return null
+  if ('displayName' in type && typeof type.displayName === 'string') return type.displayName
+  return type.name === '' ? null : type.name
+}
+
+function fiberIndex(fiber: Record<string, unknown>): number {
+  return typeof fiber.index === 'number' ? fiber.index : 0
+}
+
+function fields(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null ? Object.fromEntries(Object.entries(value)) : {}
 }
 
 function clipped(input: {rect: DOMRect; size: Size}): Box {

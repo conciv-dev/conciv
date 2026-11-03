@@ -216,6 +216,8 @@ describe('inject source', () => {
   const sourceValues = (code: string): string[] =>
     [...code.matchAll(/data-conciv-source="([^"]+)"/g)].map((m) => m[1] ?? '')
 
+  const keyValues = (code: string): string[] => [...code.matchAll(/data-conciv-key="([^"]+)"/g)].map((m) => m[1] ?? '')
+
   describe('addSourceToJsx', () => {
     it('stamps a host element with data-conciv-source="<relpath>:<line>:<col>"', () => {
       const code = `export const A = () => <div className="x">hi</div>\n`
@@ -228,7 +230,9 @@ describe('inject source', () => {
     it('handles self-closing elements', () => {
       const code = `export const B = () => <img src="a.png" />\n`
       const out = addSourceToJsx(code, `${ROOT}/src/B.tsx`, ROOT)
-      expect(out!.code).toMatch(/<img src="a\.png"\s+data-conciv-source="src\/B\.tsx:1:\d+"\s*\/>/)
+      expect(out!.code).toMatch(
+        /<img src="a\.png"\s+data-conciv-source="src\/B\.tsx:1:\d+"\s+data-conciv-key="[0-9a-f.]+"\s*\/>/,
+      )
     })
 
     it('skips Fragments', () => {
@@ -285,6 +289,36 @@ describe('inject source', () => {
 
       expect(sourceValues(server!.code)).toEqual(sourceValues(client!.code))
       expect(sourceValues(client!.code)).toContain('App.tsx:5:7')
+    })
+
+    it('stamps a data-conciv-key that a line insertion leaves as it was', () => {
+      const code = [
+        'export function Card() {',
+        '  return (',
+        '    <section className="card">',
+        '      <h3>Pricing</h3>',
+        '    </section>',
+        '  )',
+        '}',
+        '',
+      ].join('\n')
+      const before = addSourceToJsx(code, `${ROOT}/src/Card.tsx`, ROOT)
+      const after = addSourceToJsx(
+        `const unused = 1\nconst other = 2\nconst third = 3\n${code}`,
+        `${ROOT}/src/Card.tsx`,
+        ROOT,
+      )
+      expect(keyValues(before?.code ?? '')).toHaveLength(2)
+      expect(keyValues(after?.code ?? '')).toEqual(keyValues(before?.code ?? ''))
+      expect(sourceValues(after?.code ?? '')).toEqual(['src/Card.tsx:6:5', 'src/Card.tsx:7:7'])
+    })
+
+    it('keys two sibling divs apart by their static className', () => {
+      const code = `export const F = () => <main><div className="a" /><div className="b" /></main>\n`
+      const [main, a, b] = keyValues(addSourceToJsx(code, `${ROOT}/src/F.tsx`, ROOT)?.code ?? '')
+      expect(main).toBeDefined()
+      expect(a).toBeDefined()
+      expect(a).not.toBe(b)
     })
   })
 })

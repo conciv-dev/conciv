@@ -28,21 +28,48 @@ function elementName(name: Node): string {
   return name.name ?? ''
 }
 
-function collectOpenings(node: Node, out: Node[]): void {
-  if (!node || typeof node !== 'object') return
-  if (Array.isArray(node)) {
-    for (const child of node) collectOpenings(child, out)
-    return
-  }
-  if (node.type === 'JSXOpeningElement') out.push(node)
-  for (const key in node) {
-    if (key === 'type' || key === 'parent') continue
-    const v = node[key]
-    if (v && typeof v === 'object') collectOpenings(v, out)
+type Opening = {node: Node; children: Node[]; scope: string}
+
+const FUNCTION_TYPES = new Set(['ArrowFunctionExpression', 'FunctionExpression'])
+
+function scopeName(node: Node, scope: string): string {
+  return declaredName(node) || scope
+}
+
+function declaredName(node: Node): string {
+  switch (node.type) {
+    case 'FunctionDeclaration':
+    case 'FunctionExpression':
+      return identifierName(node.id)
+    case 'VariableDeclarator':
+      return FUNCTION_TYPES.has(node.init?.type) ? identifierName(node.id) : ''
+    case 'MethodDefinition':
+      return identifierName(node.key)
+    default:
+      return ''
   }
 }
 
-function parseOpenings(file: string, code: string): Node[] | null {
+function identifierName(node: Node): string {
+  return node?.type === 'Identifier' ? node.name : ''
+}
+
+function collectOpenings(node: Node, scope: string, out: Opening[]): void {
+  if (!node || typeof node !== 'object') return
+  if (Array.isArray(node)) {
+    for (const child of node) collectOpenings(child, scope, out)
+    return
+  }
+  const inner = scopeName(node, scope)
+  if (node.type === 'JSXElement') out.push({node: node.openingElement, children: node.children, scope: inner})
+  for (const key in node) {
+    if (key === 'type' || key === 'parent') continue
+    const v = node[key]
+    if (v && typeof v === 'object') collectOpenings(v, inner, out)
+  }
+}
+
+function parseOpenings(file: string, code: string): Opening[] | null {
   let parsed: ReturnType<typeof parseSync>
   try {
     parsed = parseSync(file, code, {sourceType: 'module', lang: file.endsWith('.tsx') ? 'tsx' : 'jsx'})
@@ -50,8 +77,8 @@ function parseOpenings(file: string, code: string): Node[] | null {
     return null
   }
   if (parsed.errors.length > 0) return null
-  const openings: Node[] = []
-  collectOpenings(parsed.program, openings)
+  const openings: Opening[] = []
+  collectOpenings(parsed.program, '', openings)
   return openings
 }
 
@@ -65,7 +92,7 @@ function diskPositions(file: string, expected: number): {line: number; column: n
   const openings = parseOpenings(file, raw)
   if (!openings || openings.length !== expected) return null
   const loc = makeLocator(raw)
-  return openings.map((node) => loc(node.start))
+  return openings.map((opening) => loc(opening.node.start))
 }
 
 function hasSourceAttr(node: Node): boolean {
@@ -94,18 +121,64 @@ export function addSourceToJsx(
   const diskLocs = diskPositions(file, openings.length)
   const loc = makeLocator(code)
   const s = new MagicString(code)
+  const seen = new Map<string, number>()
   let changed = false
-  for (let i = 0; i < openings.length; i++) {
-    const node = openings[i]
+  for (const [i, opening] of openings.entries()) {
+    const {node} = opening
     const name = elementName(node.name)
     if (name === '' || name === 'Fragment' || name === 'React.Fragment') continue
     if (hasSourceAttr(node)) continue
     const {line, column} = diskLocs ? (diskLocs[i] ?? loc(node.start)) : loc(node.start)
+    const key = elementKey({rel, name, opening, seen})
 
-    const attr = ` data-conciv-source=${JSON.stringify(`${rel}:${line}:${column}`)}`
+    const attr = ` data-conciv-source=${JSON.stringify(`${rel}:${line}:${column}`)} data-conciv-key=${JSON.stringify(key)}`
     s.appendLeft(node.selfClosing ? node.end - 2 : node.end - 1, attr)
     changed = true
   }
   if (!changed) return null
   return {code: s.toString(), map: s.generateMap({source: file, hires: true})}
+}
+
+function elementKey(input: {rel: string; name: string; opening: Opening; seen: Map<string, number>}): string {
+  const {opening, seen} = input
+  const hash = fnv1a(
+    [input.rel, opening.scope, input.name, staticClass(opening.node), staticText(opening.children)].join('|'),
+  )
+  const ordinal = seen.get(hash) ?? 0
+  seen.set(hash, ordinal + 1)
+  return ordinal === 0 ? hash : `${hash}.${ordinal}`
+}
+
+function fnv1a(text: string): string {
+  let hash = 0x811c9dc5
+  for (const character of text) hash = Math.imul(hash ^ (character.codePointAt(0) ?? 0), 0x01000193) >>> 0
+  return hash.toString(16).padStart(8, '0')
+}
+
+function staticClass(node: Node): string {
+  const attribute = (Array.isArray(node.attributes) ? node.attributes : []).find(
+    (a: Node) =>
+      a.type === 'JSXAttribute' &&
+      a.name?.type === 'JSXIdentifier' &&
+      (a.name.name === 'className' || a.name.name === 'class'),
+  )
+  const value = attribute?.value
+  return value?.type === 'Literal' && typeof value.value === 'string' ? value.value : ''
+}
+
+function staticText(children: Node[]): string {
+  return children
+    .filter((child) => child?.type === 'JSXText' && typeof child.value === 'string')
+    .map((child) => folded(child.value))
+    .filter((text) => text !== '')
+    .join(' ')
+}
+
+function folded(text: string): string {
+  return [...text]
+    .map((character) => (character.trim() === '' ? ' ' : character))
+    .join('')
+    .split(' ')
+    .filter((word) => word !== '')
+    .join(' ')
 }
