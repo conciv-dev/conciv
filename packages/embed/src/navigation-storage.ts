@@ -20,7 +20,11 @@ export type NavigationStorage = WebStorage & {restored: Promise<void>; dispose: 
 
 type NavigationStorageState = {cache: string | null; lastStamp: number; wroteLocally: boolean; cancelled: boolean}
 
-export function makeNavigationStorage(rpc: NavigationRpc, onRestore: (href: string) => void): NavigationStorage {
+export function makeNavigationStorage(
+  rpc: NavigationRpc,
+  ready: Promise<unknown>,
+  onRestore: (href: string) => void,
+): NavigationStorage {
   const state: NavigationStorageState = {cache: null, lastStamp: 0, wroteLocally: false, cancelled: false}
   const stamp = (): number => {
     state.lastStamp = Math.max(Date.now(), state.lastStamp + 1)
@@ -32,8 +36,8 @@ export function makeNavigationStorage(rpc: NavigationRpc, onRestore: (href: stri
     },
     {wait: WRITE_DELAY_MS},
   )
-  const restored = rpc.navigation
-    .get(undefined)
+  const restored = ready
+    .then(() => rpc.navigation.get(undefined))
     .catch(() => null)
     .then((initial) => {
       if (state.cancelled || state.wroteLocally || !initial) return

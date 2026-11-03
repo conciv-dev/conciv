@@ -416,7 +416,7 @@ describe('api extension router', () => {
     const client = makeExtRpcClient<ProbeRouter>(kit().base, 'router-probe')
     const result = await client.ping({value: 'hello'})
     expect(result.pong).toBe('hello')
-    expect(result.origin).toBe(kit().base)
+    expect(result.origin).toBe(kit().origin)
   })
 
   test('a non-loopback Origin is rejected on the extension rpc mount', async () => {

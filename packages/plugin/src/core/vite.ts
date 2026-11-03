@@ -4,6 +4,7 @@ import type {IncomingMessage, ServerResponse} from 'node:http'
 import type {ErrorPayload, Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge, type BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import {grantBrowser} from '@conciv/protocol/engine-trust'
 import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
@@ -141,6 +142,7 @@ async function bootEngine(
     extensions,
     nativePageDir,
     devEndpointDir: options.devEndpointDir,
+    print: (text) => server.config.logger.info(text),
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
   })
 }
@@ -220,6 +222,9 @@ type DevToolsContext = {
       renderer: {importFrom: string; importName: string}
     }) => void
   }
+  rpc: {
+    register: (definition: {name: string; type: 'action'; handler: () => string}) => void
+  }
 }
 
 type DevToolsPlugin = Plugin & {devtools: {setup: (context: DevToolsContext) => void}}
@@ -237,6 +242,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
   let deferToTsd = false
   let managedExcludes: string[] = []
   let docked = false
+  let devServer: ViteDevServer | undefined
   return {
     name: 'conciv',
     apply: 'serve',
@@ -250,6 +256,16 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
           icon: CONCIV_MARK_URI,
           type: 'custom-render',
           renderer: {importFrom: EXTENSIONS_ROUTE, importName: 'default'},
+        })
+        context.rpc.register({
+          name: 'conciv:engine-token',
+          type: 'action',
+          handler: () =>
+            grantBrowser(
+              concivStateDir(resolveConfig(options, root).stateRoot),
+              {browser: 'via Vite DevTools', origin: (devServer && devOrigins(devServer)[0]) ?? 'Vite DevTools'},
+              Date.now(),
+            ),
         })
       },
     },
@@ -326,6 +342,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       )
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
+      devServer = server
       mountWidget(server, apiBase, widgetSettings(options.widget, docked))
       server.httpServer?.on('close', () => void booted.stop())
     },

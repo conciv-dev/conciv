@@ -1476,6 +1476,71 @@ describe('reachability flows', () => {
   }, 30_000)
 })
 
+describe('engine login', () => {
+  const core = bootedCore('engine-login')
+  const harness = createShellHarness(core)
+  const origin = (): string => new URL(core()).origin
+  const storageKey = (): string => `conciv:engine-token:${origin()}`
+
+  afterEach(() => {
+    harness.dispose()
+    localStorage.removeItem(storageKey())
+  })
+
+  const locked = () => page.getByRole('button', {name: 'Authorize conciv'})
+  const opener = () => page.getByRole('button', {name: 'Open conciv chat'})
+  const dialog = () => page.getByRole('dialog', {name: 'Authorize conciv'})
+  const firstDigit = () => page.getByRole('textbox', {name: 'Digit 1 of 6'})
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+
+  test('nothing pops up on load, the locked launcher opens the code dialog, and Escape dismisses it', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await expect.element(locked()).toBeVisible()
+    await expect.element(dialog()).not.toBeInTheDocument()
+    await locked().click()
+    await expect.element(dialog()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(dialog()).not.toBeInTheDocument()
+    await expect.element(locked()).toBeVisible()
+  })
+
+  test('a wrong code is refused inline and clears the boxes, and the printed code opens the panel', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await locked().click()
+    await expect.element(firstDigit()).toBeVisible()
+    const code = await coreControl.printedCode()
+    await userEvent.type(firstDigit(), code === '000000' ? '111111' : '000000')
+    await expect.element(page.getByRole('alert')).toHaveTextContent("That code didn't match")
+    await expect.element(firstDigit()).toHaveValue('')
+    await userEvent.type(firstDigit(), code)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await expect.element(dialog()).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('the magic link logs in on load and is removed from the URL', async () => {
+    const code = await coreControl.requestCode()
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#conciv_otp=${code}`)
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await expect.element(opener()).toBeVisible()
+    expect(window.location.hash).toBe('')
+    expect(localStorage.getItem(storageKey())).not.toBeNull()
+  })
+
+  test('a stored token the engine no longer trusts locks the launcher and is forgotten', async () => {
+    localStorage.setItem(storageKey(), 'a-token-the-engine-never-granted')
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await expect.element(locked()).toBeVisible()
+    expect(localStorage.getItem(storageKey())).toBeNull()
+  })
+
+  test('an unreachable engine opens the panel onto the error screen instead of the login', async () => {
+    harness.mountShell('/', [], {login: {apiBase: 'http://127.0.0.1:9'}})
+    await opener().click()
+    await expect.element(page.getByText(/couldn.t reach the engine/), {timeout: 8000}).toBeVisible()
+    await expect.element(dialog()).not.toBeInTheDocument()
+  }, 30_000)
+})
+
 describe('route boundary', () => {
   const core = bootedCore('route-boundary')
   const harness = createShellHarness(core)

@@ -22,7 +22,7 @@ import getPort from 'get-port'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
 import {DevTools} from '@vitejs/devtools'
-import {createLogger, createServer, type Plugin, type ViteDevServer} from 'vite'
+import {createServer, type Plugin, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
 import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
 import ios from '@conciv/extension-ios'
@@ -38,7 +38,14 @@ import {watchExtensionsDir} from '../src/core/extensions-watch.js'
 import {CONCIV_DEFAULT_PORT, withConciv} from '../src/core/nextjs.js'
 import {makeViteBridge, makeViteHook} from '../src/core/vite.js'
 import {EXTENSIONS_ROUTE, type Middleware, makeWidgetInject} from '../src/core/widget-middleware.js'
-import {devServers, installConcivPackage, pageApiBase, type StartedDevServer} from './helpers/dev-servers.js'
+import {
+  capturedLogger,
+  devServers,
+  installConcivPackage,
+  magicLinkUrl,
+  pageApiBase,
+  type StartedDevServer,
+} from './helpers/dev-servers.js'
 
 describe('bin shim', () => {
   describe('installConcivBinShim', () => {
@@ -559,10 +566,17 @@ describe('native page vite boot', () => {
       await servers.stopAll()
     })
 
+    const trustedUrl = async (): Promise<string> => {
+      const started = state.started
+      const url = started?.server.resolvedUrls?.local[0]
+      if (started === undefined || url === undefined) throw new Error('dev server did not start')
+      return magicLinkUrl(started, url)
+    }
+
     it('mounts the widget without a CommonJS interop error', async () => {
       const page = state.page
-      const url = state.started?.server.resolvedUrls?.local[0]
-      if (page === undefined || url === undefined) throw new Error('dev server did not start')
+      if (page === undefined) throw new Error('dev server did not start')
+      const url = await trustedUrl()
       const failure = Promise.withResolvers<string>()
       page.on('console', (message) => {
         if (message.type() === 'error' && message.text().startsWith('[conciv]')) failure.resolve(message.text())
@@ -590,9 +604,9 @@ describe('native page vite boot', () => {
     }, 30_000)
 
     it('restores the open chat, keeps it usable and names the content blocker when every rrweb module is blocked', async () => {
-      const url = state.started?.server.resolvedUrls?.local[0]
+      const url = await trustedUrl()
       const blockedPage = await state.browser?.newPage()
-      if (blockedPage === undefined || url === undefined) throw new Error('dev server did not start')
+      if (blockedPage === undefined) throw new Error('dev server did not start')
       await blockedPage.route(/rrweb/, (route) => route.abort('blockedbyclient'))
       await blockedPage.goto(url, {waitUntil: 'domcontentloaded'})
       const chat = blockedPage.getByRole('dialog', {name: 'conciv chat agent'})
@@ -614,9 +628,9 @@ describe('native page vite boot', () => {
     }, 90_000)
 
     it('runs a page tool once and promptly while rrweb-snapshot is still loading', async () => {
-      const url = state.started?.server.resolvedUrls?.local[0]
+      const url = await trustedUrl()
       const slowPage = await state.browser?.newPage()
-      if (slowPage === undefined || url === undefined) throw new Error('dev server did not start')
+      if (slowPage === undefined) throw new Error('dev server did not start')
       await slowPage.route(/rrweb-snapshot/, () => new Promise<void>(() => {}))
       await slowPage.goto(url, {waitUntil: 'domcontentloaded'})
       await slowPage.getByRole('button', {name: /conciv chat$/}).waitFor({timeout: 45_000})
@@ -633,9 +647,9 @@ describe('native page vite boot', () => {
     }, 90_000)
 
     it('retries a failed rrweb-snapshot load on the next page tool and names the content blocker once', async () => {
-      const url = state.started?.server.resolvedUrls?.local[0]
+      const url = await trustedUrl()
       const blockedPage = await state.browser?.newPage()
-      if (blockedPage === undefined || url === undefined) throw new Error('dev server did not start')
+      if (blockedPage === undefined) throw new Error('dev server did not start')
       const gate = {open: false}
       await blockedPage.route(/rrweb-snapshot/, (route) =>
         gate.open ? route.continue() : route.abort('blockedbyclient'),
@@ -671,9 +685,9 @@ describe('native page vite boot', () => {
     }, 90_000)
 
     it('keeps recording and its actions when only the replay player is blocked', async () => {
-      const url = state.started?.server.resolvedUrls?.local[0]
+      const url = await trustedUrl()
       const blockedPage = await state.browser?.newPage()
-      if (blockedPage === undefined || url === undefined) throw new Error('dev server did not start')
+      if (blockedPage === undefined) throw new Error('dev server did not start')
       await blockedPage.route(/rrweb-player/, (route) => route.abort('blockedbyclient'))
       await blockedPage.goto(url, {waitUntil: 'domcontentloaded'})
       const chat = blockedPage.getByRole('dialog', {name: 'conciv chat agent'})
@@ -1258,7 +1272,7 @@ describe('vite devtools dock', () => {
     const floatingUrl = floating.server.resolvedUrls?.local[0]
     if (floatingUrl === undefined) throw new Error('dev server did not start')
     const floatingPage = await browser.newPage({viewport: {width: 1280, height: 800}})
-    await floatingPage.goto(floatingUrl, {waitUntil: 'domcontentloaded'})
+    await floatingPage.goto(await magicLinkUrl(floating, floatingUrl), {waitUntil: 'domcontentloaded'})
     await floatingPage.getByRole('button', {name: /conciv chat$/}).click({timeout: 45_000})
     const floatingComposer = floatingPage.getByRole('textbox', {name: 'Message the conciv agent'})
     await floatingComposer.waitFor()
@@ -1290,7 +1304,7 @@ describe('vite devtools dock', () => {
   }, 60_000)
 
   it('shows the inline chat after a pop-out started from the quick terminal of a closed widget closes', async () => {
-    const {server} = await dirs.start(
+    const quickServer = await dirs.start(
       {},
       {
         ...realBuiltins,
@@ -1299,11 +1313,12 @@ describe('vite devtools dock', () => {
       },
       realpathSync(dirs.tempDir('conciv-quick-')),
     )
+    const {server} = quickServer
     writeFileSync(join(server.config.root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
     const url = server.resolvedUrls?.local[0]
     if (url === undefined) throw new Error('dev server did not start')
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-    await page.goto(url, {waitUntil: 'domcontentloaded'})
+    await page.goto(await magicLinkUrl(quickServer, url), {waitUntil: 'domcontentloaded'})
     await page.getByRole('button', {name: /conciv chat$/}).waitFor({timeout: 45_000})
     const quick = page.getByRole('dialog', {name: 'conciv quick terminal'})
     await expectLocator(async () => {
@@ -1369,10 +1384,19 @@ describe('vite devtools dock', () => {
       const builtins = prepare(root)
       const logged: string[] = []
       const remember = (message: string): void => void logged.push(message)
+      const printed = capturedLogger()
       const server = await createServer({
         root,
         configFile: false,
-        customLogger: {...createLogger('silent'), info: remember, warn: remember, warnOnce: remember},
+        customLogger: {
+          ...printed.logger,
+          info: (message) => {
+            remember(message)
+            printed.logger.info(message)
+          },
+          warn: remember,
+          warnOnce: remember,
+        },
         server: {host: '127.0.0.1', port: 0},
         plugins: [makeViteHook({enabled: true, stateRoot: root}, builtins)],
       })
@@ -1390,7 +1414,7 @@ describe('vite devtools dock', () => {
         if (message.type() === 'warning') warnings.push(message.text())
       })
       const recorderPlayer = page.waitForResponse(/rrweb-player/, {timeout: 60_000})
-      await page.goto(url, {waitUntil: 'domcontentloaded'})
+      await page.goto(await magicLinkUrl({server, root, terminal: printed.text}, url), {waitUntil: 'domcontentloaded'})
       await page.getByRole('button', {name: /conciv chat$/}).click({timeout: 45_000})
       const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
       await chat.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})

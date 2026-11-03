@@ -38,6 +38,7 @@ import {NoticeContextProvider, NoticeSurface} from '../src/shell/notice-context.
 import {onlineManager} from '@tanstack/query-core'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
+import {createEngineLogin, type EngineLoginOptions} from '../src/app/engine-login.js'
 import {afterAll, afterEach, beforeAll, expect} from 'vitest'
 import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
 import {ChatPane} from '../src/pane/chat-pane.js'
@@ -49,6 +50,8 @@ declare module 'vitest/internal/browser' {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
     closeCore: () => Promise<void>
     pushSocketsOpened: () => Promise<number>
+    printedCode: () => Promise<string>
+    requestCode: () => Promise<string>
     outsideReload: (sessionId: string, file: string) => Promise<string>
     setStaleness: (value: EngineStaleness) => Promise<void>
     holdTurn: () => Promise<void>
@@ -315,7 +318,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   }
 }
 
-export type ShellMountOptions = {transport?: ChatTransportPreference}
+export type ShellMountOptions = {transport?: ChatTransportPreference; login?: EngineLoginOptions}
 
 type ShellHarness = {
   mountShell: (entry: string, extensions?: AnyExtension[], options?: ShellMountOptions) => void
@@ -323,19 +326,30 @@ type ShellHarness = {
 }
 
 export function createShellHarness(base: () => string): ShellHarness {
-  const mounted: {router: ReturnType<typeof createConcivRouter> | null} = {router: null}
+  const mounted: {router: ReturnType<typeof createConcivRouter> | null; disposeLogin: () => void} = {
+    router: null,
+    disposeLogin: () => {},
+  }
 
   const mountShell = (entry: string, extensions: AnyExtension[] = [], options: ShellMountOptions = {}): void => {
-    const apiBase = base()
-    window.__CONCIV_API_BASE__ = apiBase
+    const login =
+      options.login &&
+      createRoot((disposeLogin) => {
+        mounted.disposeLogin = disposeLogin
+        return createEngineLogin(options.login ?? {apiBase: base()})
+      })
+    const apiBase = (): string => (login ? (login.apiBase() ?? '') : base())
+    window.__CONCIV_API_BASE__ = base()
     const router = createConcivRouter({
-      rpc: makeBrowserRpcClient(apiBase).rpc,
+      rpc: makeBrowserRpcClient(() => (login ? login.apiBase() : base())).rpc,
       history: createMemoryHistory({initialEntries: [entry]}),
       environment: {rootNode: document, document},
       settings: parseConcivSettings(options.transport ? JSON.stringify({transport: options.transport}) : ''),
-      apiBase: () => apiBase,
+      apiBase,
+      connected: () => apiBase() !== '',
       connectionGeneration: () => 0,
       extensions,
+      login,
     })
     mounted.router = router
     render(() => <RouterProvider router={router} />)
@@ -344,6 +358,7 @@ export function createShellHarness(base: () => string): ShellHarness {
   const dispose = (): void => {
     if (mounted.router) disposeConcivRouter(mounted.router)
     mounted.router = null
+    mounted.disposeLogin()
     closeBrowserRpcConnection(base())
     onlineManager.setOnline(true)
     delete window.__CONCIV_API_BASE__

@@ -20,7 +20,7 @@ export type BootCoreInput = {
   allowedOrigins?: string[]
 }
 
-export type BootCoreResult = {base: string; wsBase: string; bootMs: number}
+export type BootCoreResult = {base: string; wsBase: string; origin: string; bootMs: number}
 
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
@@ -141,7 +141,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
   state.kit = kit
   state.calls = rpcCallCursor(ctx.page)
   state.push = watchPushWire(ctx.page)
-  return {base: kit.base, wsBase: kit.wsBase, bootMs: Date.now() - startedAt}
+  return {base: kit.base, wsBase: kit.wsBase, origin: kit.origin, bootMs: Date.now() - startedAt}
 }
 
 const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
@@ -161,6 +161,22 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
 }
 
 const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => pushOf(ctx).opened()
+
+const printedCode: BrowserCommand<[]> = (ctx): string => {
+  const code = [
+    ...kitOf(ctx)
+      .terminal()
+      .matchAll(/#conciv_otp=(\d{6})/g),
+  ].at(-1)?.[1]
+  if (code === undefined) throw new Error('the engine printed no login code')
+  return code
+}
+
+const requestCode: BrowserCommand<[]> = async (ctx): Promise<string> => {
+  const kit = kitOf(ctx)
+  const {requestPrintedCode} = await testkitOf(ctx)
+  return requestPrintedCode(kit.origin, kit.terminal)
+}
 
 const outsideReload: BrowserCommand<[string, string]> = (ctx, sessionId, file): Promise<string> => {
   const rpc = makeRpcClient(kitOf(ctx).base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
@@ -283,6 +299,8 @@ export const coreCommands = {
   bootCore,
   closeCore,
   pushSocketsOpened,
+  printedCode,
+  requestCode,
   outsideReload,
   setStaleness,
   holdTurn,

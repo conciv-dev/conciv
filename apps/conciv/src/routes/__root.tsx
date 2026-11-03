@@ -41,6 +41,7 @@ import {createWarmSession} from '../app/warm-session.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../app/reachability.js'
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
+import {EngineLoginDialog} from '../app/engine-login.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
 import {toRawHotkey} from '../lib/hotkey.js'
@@ -185,6 +186,7 @@ function RootChrome(props: {
   politeMessage: () => string
   assertiveMessage: () => string
 }) {
+  const login = Route.useRouteContext()().login
   const settings = useSettings()
   const theme = useHostTheme()
   const layers = useLayers()
@@ -230,7 +232,14 @@ function RootChrome(props: {
       }),
     )
   }
-  const openPanel = () => {
+  const whenUnlocked = (action: () => void): void => {
+    if (login) {
+      login.request(action)
+      return
+    }
+    action()
+  }
+  const showPanel = () => {
     if (!panelOpen()) hostRestoreTarget = rootEl ? hostFocusTarget(rootEl) : null
     if (panelMatch() || connectMatch()) {
       void setShutter(router, true)
@@ -264,7 +273,12 @@ function RootChrome(props: {
       pendingFabFocus = true
     })
   }
-  const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
+  const openPanel = () => whenUnlocked(showPanel)
+  const togglePanel = () => (panelOpen() ? closePanel() : openPanel())
+  const locked = () => {
+    const phase = login?.phase()
+    return phase === 'locked' || phase === 'exchanging'
+  }
   const revealDock = (): boolean =>
     settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
 
@@ -297,20 +311,24 @@ function RootChrome(props: {
   const panelCommands = createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID})
 
   onMount(() => {
-    const dockedShutterClosed = settings.surface === 'dock' && panelMatch() && !shutterOpen()
-    if (dockedShutterClosed || (settings.defaultOpen && closedMatch())) void openPanel()
+    const opensOnLoad = () =>
+      (settings.surface === 'dock' && panelMatch() && !shutterOpen()) || (settings.defaultOpen && closedMatch())
+    if (opensOnLoad())
+      whenUnlocked(() => {
+        if (opensOnLoad()) showPanel()
+      })
     makeEventListener(window, 'resize', reportPanelState)
     const unsubscribes = [
       panelCommands.on('open', () => {
         revealDock()
-        void openPanel()
+        openPanel()
       }),
       panelCommands.on('close', () => {
         if (panelOpen()) closePanel()
       }),
       panelCommands.on('toggle', () => {
         if (!revealDock()) return togglePanel()
-        void openPanel()
+        openPanel()
       }),
     ]
     eventBus.start()
@@ -351,7 +369,7 @@ function RootChrome(props: {
     router.history.back()
   }
 
-  const toggleQuick = () => {
+  const switchQuick = () => {
     if (!connected()) return
     const revealed = revealDock()
     if (quickMatch()) {
@@ -364,6 +382,7 @@ function RootChrome(props: {
       replace: settings.surface !== 'dock' && Boolean(panelMatch()),
     })
   }
+  const toggleQuick = () => whenUnlocked(switchQuick)
   if (settings.quickTerminal.enabled) {
     for (const binding of settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
   }
@@ -385,9 +404,11 @@ function RootChrome(props: {
           working={working}
           suppressed={suppressed}
           fab={props.fab}
+          locked={locked}
           onToggle={togglePanel}
         />
       </Show>
+      <Show when={login}>{(current) => <EngineLoginDialog login={current()} />}</Show>
       <div class="sr-only" role="status" aria-live="polite">
         {props.politeMessage()}
       </div>

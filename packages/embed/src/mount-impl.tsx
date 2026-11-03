@@ -18,6 +18,7 @@ import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
 import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
+import {createEngineLogin} from '@conciv/app/engine-login'
 import {makeNavigationStorage} from './navigation-storage.js'
 import type {ConcivInit} from './mount.js'
 
@@ -126,6 +127,7 @@ type BootNormalConfig = {
   apiBase: string
   grabProvider?: GrabProvider
   connectMode?: boolean
+  engineToken?: () => Promise<string>
 }
 
 type MountedRouter = {options: {context: {instances: {extension: AnyExtension; effects: readonly ClientEffect[]}[]}}}
@@ -141,14 +143,20 @@ function mountedClientEffects(router: MountedRouter): ClientEffect[] {
 }
 
 function bootNormal(config: BootNormalConfig): BootResult {
+  const login = createRoot((dispose) => ({
+    ...createEngineLogin({apiBase: config.apiBase, tokenSource: config.engineToken}),
+    dispose,
+  }))
+  const [connectionGeneration, setConnectionGeneration] = createSignal(0)
+  const [rebound, setApiBase] = createSignal<string | null>(null)
+  const engineBase = (): string | null => rebound() ?? login.apiBase()
+  const apiBase = (): string => engineBase() ?? ''
   const {
     rpc,
     rebind: rebindClient,
     close: closeConnection,
-  } = makeBrowserRpcClient(config.apiBase, {session: () => activeSession.read()})
-
-  const [connectionGeneration, setConnectionGeneration] = createSignal(0)
-  const [apiBase, setApiBase] = createSignal(config.apiBase)
+    // oxlint-disable-next-line solid/reactivity
+  } = makeBrowserRpcClient(engineBase, {session: () => activeSession.read()})
 
   const activeSession = makeActiveSessionBinding((session) =>
     startSessionPagePlane({
@@ -161,7 +169,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
   )
 
   const restore: {apply: (href: string) => void} = {apply: () => {}}
-  const storage = makeNavigationStorage(rpc, (href) => restore.apply(href))
+  const storage = makeNavigationStorage(rpc, login.ready, (href) => restore.apply(href))
   const hostRouter = window.__TSR_ROUTER__
   const interactive = createInteractiveSignal()
   const router = createConcivRouter({
@@ -170,7 +178,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     environment: {rootNode: config.root, document},
     settings: config.settings,
     extensions: config.extensions,
-    connected: () => true,
+    connected: () => apiBase() !== '',
     connectMode: config.connectMode,
     disconnect: config.connectMode ? makeDisconnect(apiBase) : undefined,
     grabProvider: config.grabProvider,
@@ -178,6 +186,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     connectionGeneration,
     bindActiveSession: activeSession.bind,
     notifyInteractive: interactive.notify,
+    login,
   })
   window.__TSR_ROUTER__ = hostRouter
   const driver = makeDomPageDriver({tools: mountedClientTools(router), effects: mountedClientEffects(router)})
@@ -221,6 +230,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     () => router.options.context.queryClient.clear(),
     driver.dispose,
     closeConnection,
+    login.dispose,
     interactive.notify,
   ]
   return {dispose: () => runDisposers(disposers), rebind, interactive: interactive.promise}
@@ -292,8 +302,9 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
   const extensions = [pageExtension, ...supplied]
   const settings = initSettings(init)
   const grabProvider = init.grabProvider
+  const engineToken = init.engineToken
   const apiBase = init.apiBase ?? resolveApiBase()
-  if (apiBase) return bootNormal({root, extensions, settings, apiBase, grabProvider})
+  if (apiBase) return bootNormal({root, extensions, settings, apiBase, grabProvider, engineToken})
   const gate = extensions.find((extension) => extension.connectGate)
   if (!gate?.connectGate) return bootNormal({root, extensions, settings, apiBase, grabProvider})
   const found = await gate.connectGate.preflight()

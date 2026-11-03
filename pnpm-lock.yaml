@@ -3916,6 +3916,9 @@ importers:
       '@conciv/extension-whiteboard':
         specifier: workspace:^
         version: link:../extensions/whiteboard
+      '@conciv/harness-testkit':
+        specifier: workspace:^
+        version: link:../harness-testkit
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
