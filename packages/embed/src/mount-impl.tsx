@@ -1,4 +1,4 @@
-import {createEffect, createMemo, createRoot, createSignal, onCleanup, type Accessor} from 'solid-js'
+import {createEffect, createMemo, createRoot, createSignal, mapArray, onCleanup, type Accessor} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
@@ -127,29 +127,32 @@ type BootNormalConfig = {
   apiBase: string | null
   grabProvider?: GrabProvider
   connectMode?: boolean
-  hub?: LinkedHub
+  hub?: Required<HubLink>
 }
 
-type LinkedHub = {base: string; connection: HubConnection}
+type HubLink = {apiBase: string; connection?: HubConnection}
 
 function createFollowedHub(
-  initial: LinkedHub,
+  initial: Required<HubLink>,
   apiBase: Accessor<string | null>,
-): {hub: Accessor<HubConnection>; close: () => void} {
+): {hub: Accessor<HubConnection | undefined>; close: () => void} {
   return createRoot((dispose) => {
-    const linked = createMemo<LinkedHub>((previous) => {
+    const link = createMemo<HubLink>((previous) => {
       const nextApiBase = apiBase()
-      if (nextApiBase === null || hubBaseOf(nextApiBase) === previous.base) return previous
-      previous.connection.close()
-      return {base: hubBaseOf(nextApiBase), connection: hubFor(nextApiBase)}
+      if (nextApiBase === null || hubBaseOf(nextApiBase) === hubBaseOf(previous.apiBase)) return previous
+      return {apiBase: nextApiBase}
     }, initial)
-    return {
-      hub: () => linked().connection,
-      close: () => {
-        linked().connection.close()
-        dispose()
-      },
-    }
+    const connections = createMemo(
+      mapArray(
+        () => [link()],
+        (current) => {
+          const connection = current.connection ?? hubFor(current.apiBase)
+          onCleanup(() => connection.close())
+          return connection
+        },
+      ),
+    )
+    return {hub: () => connections()[0], close: dispose}
   })
 }
 
@@ -322,7 +325,7 @@ function bootLinked(config: BootNormalConfig & {apiBase: string}): BootResult {
   const booted = bootNormal({
     ...config,
     apiBase: hasLoginToken(config.apiBase) ? config.apiBase : null,
-    hub: {base: hubBaseOf(config.apiBase), connection: hub},
+    hub: {apiBase: config.apiBase, connection: hub},
   })
   const disposeLogin = renderLogin(config.root, hub, config.apiBase, (trustedApiBase) => {
     if (trustedApiBase === window.__CONCIV_API_BASE__) return
