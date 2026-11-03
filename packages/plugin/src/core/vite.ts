@@ -182,12 +182,15 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
   '@conciv/solid-streamdown > unified',
   '@conciv/solid-diffs > @pierre/diffs',
   '@conciv/solid-diffs > @pierre/diffs/worker',
+  '@conciv/solid-diffs > @tanstack/solid-pacer',
   '@conciv/mascot > gsap',
   '@conciv/mascot > gsap/MotionPathPlugin',
   'bippy',
   'bippy/source',
   'react-grab',
 ].map((chain) => `@conciv/it > @conciv/embed > ${chain}`)
+
+const EMBED_SOLID_RUNTIME = ['solid-js', 'solid-js/web', 'solid-js/store']
 
 const RECORDER_LATE_DISCOVERED_DEPENDENCIES = ['rrweb', 'rrweb-player', '@rrweb/rrweb-plugin-console-record'].map(
   (dependency) => `@conciv/it > @conciv/extension-recorder > ${dependency}`,
@@ -265,6 +268,9 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
           ...base.optimizeDeps,
           include: [
             ...base.optimizeDeps.include,
+            ...EMBED_SOLID_RUNTIME.filter((id) => !base.optimizeDeps.exclude.includes(id)).map(
+              (id) => `@conciv/it > @conciv/embed > ${id}`,
+            ),
             ...EMBED_LATE_DISCOVERED_DEPENDENCIES,
             ...RECORDER_LATE_DISCOVERED_DEPENDENCIES,
           ],
