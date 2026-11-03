@@ -9,6 +9,7 @@ export const TOLERANCES = {
   tileGate: 0.005,
   unmatchedMinimum: 24,
   tileMargin: 8,
+  tileSide: 64,
   interiorInset: 4,
   blurRadius: 1,
   glyphHalo: 1,

@@ -3,25 +3,38 @@ import {parse} from 'culori'
 import {SOURCE_ATTR, TOLERANCES, type Tolerances} from '../shared/tolerances.js'
 import type {
   Box,
+  Fingerprint,
   Item,
   LiveComponent,
   Matched,
   MeasureSource,
   Pair,
   Pairer,
+  PairRecord,
   Ranker,
   Raster,
   TargetModel,
   TargetNode,
   TextNode,
+  Touched,
   TwinPair,
   TwinVote,
 } from '../shared/types.js'
 import {expand, sameLine, trimToInk, type Rgb} from './raster.js'
+import {fnv} from './target.js'
 
 export const PAIRERS = {vote: votePairer} as const satisfies Record<string, Pairer>
 
 export const RANKERS = {impact: impactRanker} as const satisfies Record<string, Ranker>
+
+export function fingerprint(component: LiveComponent): Fingerprint {
+  return {
+    source: component.source,
+    tag: component.tag,
+    textHash: fnv(folded(component.glyphs.map((glyph) => glyph.text).join(' '))),
+    box: component.box,
+  }
+}
 
 export function glyphRun(node: TargetNode): boolean {
   return node.kind === 'text' && glyphSized({text: folded(node.text), box: node.box})
@@ -43,6 +56,7 @@ export function pairTwins(input: {a: TargetModel; b: TargetModel; tolerances: To
     gate: oneToOne,
     context: emptyContext({nodeRaster: a.raster, candidateRaster: b.raster, candidates, twinVotes: []}),
     pins: [],
+    carried: [],
     tolerances,
     deadline: Number.POSITIVE_INFINITY,
   })
@@ -145,6 +159,7 @@ type VoteInput = {
   gate: Gate
   context: Context
   pins: {node: string; path: string}[]
+  carried: Assignment[]
   tolerances: Tolerances
   deadline: number
 }
@@ -189,6 +204,7 @@ const VOTERS: Voter[] = [
 function votePairer(input: Parameters<Pairer>[0]): ReturnType<Pairer> {
   const nodes = nodeViews(input.nodes)
   const candidates = elementViews(input.components)
+  const components = new Map(flatten(input.components).map((component) => [component.path, component]))
   const result = runVote({
     nodes,
     candidates,
@@ -202,17 +218,72 @@ function votePairer(input: Parameters<Pairer>[0]): ReturnType<Pairer> {
       twinVotes: input.twinVotes,
     }),
     pins: input.pins,
+    carried: carriedViews({
+      records: input.carried,
+      touched: input.touched,
+      nodes,
+      candidates,
+      components,
+      margin: input.tolerances.tileMargin,
+    }),
     tolerances: input.tolerances,
     deadline: input.deadline,
   })
-  const components = new Map(flatten(input.components).map((component) => [component.path, component]))
   const targets = new Map(input.nodes.map((node) => [node.id, node]))
   const matched = result.matched.flatMap(({node, candidate, score}): Matched[] => {
     const component = components.get(candidate.key)
     const target = targets.get(node.key)
     return component === undefined || target === undefined ? [] : [{node: target, component, confidence: score}]
   })
-  return {matched, partial: result.partial}
+  return {matched, partial: result.partial, carried: result.carried}
+}
+
+function carriedViews(input: {
+  records: PairRecord[]
+  touched: Touched
+  nodes: View[]
+  candidates: View[]
+  components: Map<string, LiveComponent>
+  margin: number
+}): Assignment[] {
+  const {records, touched, nodes, candidates, components, margin} = input
+  if (touched === 'all') return []
+  const byNode = new Map(nodes.map((node) => [node.key, node]))
+  const prints = new Map(
+    candidates.flatMap((candidate): [string, Fingerprint][] => {
+      const component = components.get(candidate.key)
+      return component === undefined ? [] : [[candidate.key, fingerprint(component)]]
+    }),
+  )
+  return records.flatMap((record): Assignment[] => {
+    const wanted = record.fingerprint
+    const node = byNode.get(record.node)
+    if (wanted === undefined || node === undefined) return []
+    if (wanted.source !== null && touched.has(wanted.source.file)) return []
+    const matches = candidates.filter((candidate) => {
+      const found = prints.get(candidate.key)
+      if (found === undefined) return false
+      if (wanted.source === null && candidate.key !== record.path) return false
+      return samePrint({a: found, b: wanted, margin})
+    })
+    const candidate = matches.find((entry) => entry.key === record.path) ?? matches[0]
+    return candidate === undefined ? [] : [{node, candidate, score: record.confidence}]
+  })
+}
+
+function samePrint(input: {a: Fingerprint; b: Fingerprint; margin: number}): boolean {
+  const {a, b, margin} = input
+  const edges = [a.box.x - b.box.x, a.box.y - b.box.y, a.box.w - b.box.w, a.box.h - b.box.h]
+  return (
+    a.tag === b.tag &&
+    a.textHash === b.textHash &&
+    locationKey(a.source) === locationKey(b.source) &&
+    edges.every((edge) => Math.abs(edge) <= margin)
+  )
+}
+
+function locationKey(source: Fingerprint['source']): string {
+  return source === null ? '' : `${source.file}:${source.line}:${source.column}`
 }
 
 function impactRanker(input: {items: Item[]}): Item[] {
@@ -425,7 +496,7 @@ function holds(input: {outer: Box; inner: Box}): boolean {
   )
 }
 
-function runVote(input: VoteInput): {matched: Assignment[]; partial: boolean} {
+function runVote(input: VoteInput): {matched: Assignment[]; partial: boolean; carried: number} {
   const weights = calibrate(input)
   const trusted = new Set(
     input.voters.filter((voter) => (weights.get(voter.name) ?? 0) >= voter.base / 2).map((voter) => voter.name),
@@ -438,13 +509,26 @@ function runVote(input: VoteInput): {matched: Assignment[]; partial: boolean} {
     ]),
   )
   const pinned = pinsFirst({input, state})
+  const carried = carryFirst({input, state})
   const lists = new Map(
     input.nodes
       .filter((node) => !input.context.assigned.has(node.key))
       .map((node) => [node.key, scoredList({input, weights, state, node})]),
   )
   const views = new Map(input.nodes.map((node) => [node.key, node]))
-  return greedy({input, weights, state, pools, lists, views, matched: pinned})
+  const result = greedy({input, weights, state, pools, lists, views, matched: [...pinned, ...carried]})
+  return {...result, carried: carried.length}
+}
+
+function carryFirst(input: {input: VoteInput; state: State}): Assignment[] {
+  const {state} = input
+  const {carried, context} = input.input
+  return carried.flatMap((entry) => {
+    if (context.assigned.has(entry.node.key)) return []
+    if (entry.node.kind !== 'text' && state.boxes.has(entry.candidate.key)) return []
+    take({node: entry.node, candidate: entry.candidate, state, context})
+    return [entry]
+  })
 }
 
 function calibrate(input: VoteInput): Map<VoterName, number> {

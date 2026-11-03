@@ -147,7 +147,8 @@ export function DecisionBar(props: {
         <Show when={report()}>
           {(run) => (
             <span class="text-sm op-fade tabular-nums">
-              round {run().round} · {run().budgetLeft} left
+              round {run().round} · {run().budgetLeft} left · {run().timings.carried.pairs} pairs and{' '}
+              {run().timings.carried.tiles} tiles carried
             </span>
           )}
         </Show>

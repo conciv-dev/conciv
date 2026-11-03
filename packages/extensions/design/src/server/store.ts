@@ -4,12 +4,21 @@ import {mkdir, readdir, readFile, rename, rm, writeFile} from 'node:fs/promises'
 import {join, relative} from 'node:path'
 import {toolError} from '@conciv/extension'
 import {z} from 'zod'
-import {BoxSchema, ContainerLayoutSchema, DiffReportSchema, NodeLayoutSchema, type DiffReport} from '../shared/defs.js'
+import {
+  BoxSchema,
+  ContainerLayoutSchema,
+  DiffReportSchema,
+  NodeLayoutSchema,
+  SourceLocSchema,
+  type DiffReport,
+} from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
 import {
   ROLES,
   type Decision,
+  type PairRecord,
   type StoredRun,
+  type TileCache,
   type TwinPair,
   type TargetModel,
   type TargetRecord,
@@ -23,7 +32,7 @@ const RECORD_FILE = 'record.json'
 const DECISIONS_FILE = 'decisions.json'
 const TWINS_FILE = 'twins.json'
 const CAPTURES_DIR = 'captures'
-const RUN_PREFIXES = ['live-', 'diff-', 'result-', 'pairs-']
+const RUN_PREFIXES = ['live-', 'diff-', 'result-', 'pairs-', 'tiles-']
 
 const OcrLineSchema = z.object({box: BoxSchema, text: z.string(), confidence: z.number()})
 
@@ -88,7 +97,25 @@ const DecisionsSchema = z.array(
   }),
 )
 
-const PairsSchema = z.array(z.object({node: z.string(), path: z.string(), confidence: z.number()}))
+const PairsSchema: z.ZodType<PairRecord[]> = z.array(
+  z.object({
+    node: z.string(),
+    path: z.string(),
+    confidence: z.number(),
+    fingerprint: z
+      .object({source: SourceLocSchema.nullable(), tag: z.string(), textHash: z.string(), box: BoxSchema})
+      .optional(),
+  }),
+)
+
+const TilesSchema: z.ZodType<TileCache> = z.object({
+  side: z.number(),
+  columns: z.number(),
+  rows: z.number(),
+  width: z.number(),
+  height: z.number(),
+  tiles: z.array(z.object({hash: z.string(), mismatch: z.number(), mask: z.string().optional()})),
+})
 
 const TwinsSchema = z.record(
   z.string(),
@@ -207,6 +234,12 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
     return {run, report, pairs}
   }
 
+  async function writeResult(written: {home: string; at: string; report: DiffReport}): Promise<void> {
+    const pending = join(written.home, `pending-${written.at}.json`)
+    await writeFile(pending, JSON.stringify(written.report))
+    await rename(pending, join(written.home, `result-${written.at}.json`))
+  }
+
   async function latestRun(id: string): Promise<StoredRun | null> {
     const run = (await runs(join(dir, id))).at(-1)
     return run === undefined ? null : storedRun({id, run})
@@ -271,6 +304,12 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
     accept: ({id, run}) => serial(async () => writeRecord({...(await existing(id)), acceptedRun: run})),
     latestRun,
     run: storedRun,
+    tiles: ({id, run}) => readJson({path: join(dir, id, `tiles-${run}.json`), schema: TilesSchema}),
+    amend: async ({id, run, report}) => {
+      const home = join(dir, id)
+      if (!existsSync(join(home, `result-${run}.json`))) return
+      await writeResult({home, at: run, report})
+    },
     twins,
     setTwins: ({id, other, twins: found}) =>
       serial(async () => {
@@ -285,7 +324,7 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       await prune({dir: captures, prefix: 'capture-', spared: []})
       return path
     },
-    writeRun: async ({id, live, diff, result, pairs}) => {
+    writeRun: async ({id, live, diff, result, pairs, tiles}) => {
       const home = join(dir, id)
       await mkdir(home, {recursive: true})
       const at = stamp()
@@ -295,9 +334,8 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
       await writeFile(livePath, encodePng(live))
       await writeFile(diffPath, encodePng(diff))
       await writeFile(join(home, `pairs-${at}.json`), JSON.stringify(pairs))
-      const pending = join(home, `pending-${at}.json`)
-      await writeFile(pending, JSON.stringify(report))
-      await rename(pending, join(home, `result-${at}.json`))
+      await writeFile(join(home, `tiles-${at}.json`), JSON.stringify(tiles))
+      await writeResult({home, at, report})
       const record = await find({id})
       const spared = [(await runs(home))[0], record?.acceptedRun].filter((run) => run !== undefined)
       await Promise.all(RUN_PREFIXES.map((prefix) => prune({dir: home, prefix, spared})))

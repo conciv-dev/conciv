@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto'
 import {range} from 'es-toolkit'
 import {PNG} from 'pngjs'
 import {TOLERANCES} from '../shared/tolerances.js'
@@ -436,4 +437,72 @@ export function maskShare(input: {mask: Uint8Array; width: number; height: numbe
     for (let x = x0; x < x1; x += 1) count += mask[y * width + x] === 1 ? 1 : 0
   }
   return count / ((x1 - x0) * (y1 - y0))
+}
+
+export type Grid = {side: number; columns: number; rows: number; width: number; height: number}
+
+export function tileGrid(input: {width: number; height: number; side: number}): Grid {
+  const {width, height, side} = input
+  return {side, columns: Math.ceil(width / side), rows: Math.ceil(height / side), width, height}
+}
+
+export function tileBox(input: {grid: Grid; index: number}): Box {
+  const {grid, index} = input
+  const column = index % grid.columns
+  const row = (index - column) / grid.columns
+  const x = column * grid.side
+  const y = row * grid.side
+  return {x, y, w: Math.min(grid.side, grid.width - x), h: Math.min(grid.side, grid.height - y)}
+}
+
+export function tileHashes(input: {raster: Raster; grid: Grid; margin: number}): string[] {
+  const {raster, grid, margin} = input
+  return range(grid.columns * grid.rows).map((index) => {
+    const box = tileBox({grid, index})
+    const x0 = Math.max(0, box.x - margin)
+    const x1 = Math.min(grid.width, box.x + box.w + margin)
+    const hash = createHash('sha1')
+    range(Math.max(0, box.y - margin), Math.min(grid.height, box.y + box.h + margin)).forEach((y) => {
+      hash.update(raster.data.subarray((y * raster.width + x0) * 4, (y * raster.width + x1) * 4))
+    })
+    return hash.digest('base64')
+  })
+}
+
+export function packMask(input: {mask: Uint8Array; width: number; box: Box}): string {
+  const {mask, width, box} = input
+  const bits = new Uint8Array(Math.ceil((box.w * box.h) / 8))
+  range(box.w * box.h).forEach((cell) => {
+    const column = cell % box.w
+    const row = (cell - column) / box.w
+    if (mask[(box.y + row) * width + box.x + column] !== 1) return
+    bits[cell >> 3] = (bits[cell >> 3] ?? 0) | (1 << (cell & 7))
+  })
+  return Buffer.from(bits).toString('base64')
+}
+
+export function unpackMask(input: {packed: string; mask: Uint8Array; width: number; box: Box}): void {
+  const {mask, width, box} = input
+  const bits = Buffer.from(input.packed, 'base64')
+  range(box.w * box.h).forEach((cell) => {
+    if (((bits[cell >> 3] ?? 0) & (1 << (cell & 7))) === 0) return
+    const column = cell % box.w
+    mask[(box.y + (cell - column) / box.w) * width + box.x + column] = 1
+  })
+}
+
+export function copyMask(input: {from: Uint8Array; fromArea: Box; onto: Uint8Array; width: number; box: Box}): void {
+  const {from, fromArea, onto, width, box} = input
+  range(box.h).forEach((row) => {
+    const start = (box.y + row - fromArea.y) * fromArea.w + box.x - fromArea.x
+    onto.set(from.subarray(start, start + box.w), (box.y + row) * width + box.x)
+  })
+}
+
+export function maskCount(input: {mask: Uint8Array; width: number; box: Box}): number {
+  const {mask, width, box} = input
+  return range(box.h).reduce((total, row) => {
+    const start = (box.y + row) * width + box.x
+    return total + mask.subarray(start, start + box.w).reduce((sum, value) => sum + value, 0)
+  }, 0)
 }

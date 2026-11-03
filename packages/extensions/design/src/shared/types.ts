@@ -149,17 +149,30 @@ export type Pair = {
 export type Matched = {node: TargetNode; component: LiveComponent; confidence: number}
 export type TwinVote = {node: string; path: string; confidence: number}
 export type TwinPair = {node: string; twin: string; confidence: number}
-export type PairRecord = {node: string; path: string; confidence: number}
+export type Fingerprint = {source: SourceLoc | null; tag: string; textHash: string; box: Box}
+export type PairRecord = {node: string; path: string; confidence: number; fingerprint?: Fingerprint}
+export type Touched = Set<string> | 'all'
+export type TileRecord = {hash: string; mismatch: number; mask?: string}
+export type TileCache = {
+  side: number
+  columns: number
+  rows: number
+  width: number
+  height: number
+  tiles: TileRecord[]
+}
 export type Pairer = (input: {
   components: LiveComponent[]
   nodes: TargetNode[]
   twinVotes: TwinVote[]
   pins: {node: string; path: string}[]
+  carried: PairRecord[]
+  touched: Touched
   tolerances: Tolerances
   live: Raster
   target: Raster
   deadline: number
-}) => {matched: Matched[]; partial: boolean}
+}) => {matched: Matched[]; partial: boolean; carried: number}
 export type ItemKind = DeltaKindName | 'unbuilt' | 'extra' | 'offset'
 export type Item = {
   key: string
@@ -274,6 +287,8 @@ export type TargetStore = {
   accept(input: {id: string; run: string}): Promise<TargetRecord>
   latestRun(id: string): Promise<StoredRun | null>
   run(input: {id: string; run: string}): Promise<StoredRun | null>
+  tiles(input: {id: string; run: string}): Promise<TileCache | null>
+  amend(input: {id: string; run: string; report: DiffReport}): Promise<void>
   twins(id: string): Promise<Record<string, TwinPair[]>>
   setTwins(input: {id: string; other: string; twins: TwinPair[]}): Promise<void>
   writeCapture(input: {png: Uint8Array}): Promise<string>
@@ -283,6 +298,7 @@ export type TargetStore = {
     diff: Raster
     result: Omit<DiffReport, 'diffImage' | 'livePath'>
     pairs: PairRecord[]
+    tiles: TileCache
   }): Promise<DiffReport>
   lastResult(id: string): Promise<DiffReport | null>
   setTypography(input: {id: string; typography: Record<string, Typography>}): Promise<void>
@@ -310,6 +326,7 @@ export type Differ = {
   register(input: {input: TargetInput; session: SessionId}): Promise<TargetResult>
   run(input: {input: DiffInput; session: SessionId}): Promise<DiffReport>
   refresh(input: {session: SessionId}): Promise<void>
+  touch(input: {file: string}): void
   capture(input: {id: string; session: SessionId}): Promise<DiffReport>
   accept(input: {id: string}): Promise<TargetRecord>
   status(input: {session: SessionId}): Promise<StatusReport>

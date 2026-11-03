@@ -282,8 +282,18 @@ const PaintedSchema = z.object({
   sources: z.array(SourceLocSchema),
 })
 
+const CarriedSchema = z
+  .object({pairs: z.number(), tiles: z.number()})
+  .describe('pairs and pixel tiles reused from the run before because the edit did not touch them')
+
 const TimingsSchema = z
-  .object({measure: z.number(), compare: z.number(), pair: z.number(), total: z.number()})
+  .object({
+    measure: z.number(),
+    compare: z.number(),
+    pair: z.number(),
+    total: z.number(),
+    carried: CarriedSchema.default({pairs: 0, tiles: 0}),
+  })
   .describe('milliseconds spent measuring the page, comparing pixels, pairing, and in the whole run')
 
 const RowSchema = z.object({
@@ -333,7 +343,7 @@ export const DiffReportSchema = z.object({
     .describe('pairing hit its time budget before every node was paired; the round was not counted'),
   paired: z.number().default(0).describe('design nodes paired with a live element in this run'),
   pinsLost: z.array(z.string()).default([]).describe('pin decisions whose node or element is gone'),
-  timings: TimingsSchema.default({measure: 0, compare: 0, pair: 0, total: 0}),
+  timings: TimingsSchema.default({measure: 0, compare: 0, pair: 0, total: 0, carried: {pairs: 0, tiles: 0}}),
   rows: z.array(RowSchema).default([]).describe('the first ten items of the stage, in brief order'),
 })
 

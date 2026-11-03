@@ -1890,6 +1890,82 @@ describe('loop', () => {
   })
 })
 
+const STRIPE_STYLES = join(HOST_ROOT, 'src', 'stripe.css')
+const EDITED_INK = '#c2410c'
+const LIVE_LOOP_MS = 8000
+const TilesFileSchema = z.object({columns: z.number(), rows: z.number()})
+
+async function editStripe(input: {id: string; styles: string}): Promise<void> {
+  const {id, styles} = input
+  const before = (await runFiles({id, prefix: 'result-'})).at(-1)
+  await writeFile(STRIPE_STYLES, `${styles}\n.g-lilac .card-head h3 { color: ${EDITED_INK}; }\n`)
+  await expect.poll(async () => (await runFiles({id, prefix: 'result-'})).at(-1), {timeout: 60_000}).not.toBe(before)
+}
+
+async function tileCount(id: string): Promise<number> {
+  const latest = (await runFiles({id, prefix: 'tiles-'})).at(-1) ?? ''
+  const grid = TilesFileSchema.parse(
+    JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
+  )
+  return grid.columns * grid.rows
+}
+
+function componentMismatch(report: DiffReport): Record<string, number> {
+  return Object.fromEntries(report.components.map((component) => [component.path ?? '', component.mismatch]))
+}
+
+describe('live loop', () => {
+  it('one stripe.css edit re-pairs and recompares only what it touched and reports the edited colour', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const full = await call('design_diff', {})
+    const styles = await readFile(STRIPE_STYLES, 'utf8')
+    try {
+      await editStripe({id, styles})
+      const carried = await call('design_diff', {})
+      const tiles = await tileCount(id)
+      await annotate(
+        `full ${JSON.stringify(full.timings)} paired ${full.paired}; carried ${JSON.stringify(carried.timings)} paired ${carried.paired}; tiles ${tiles}`,
+      )
+      expect(carried.timings.total).toBeLessThan(LIVE_LOOP_MS)
+      expect(carried.timings.carried.pairs).toBeGreaterThanOrEqual(80)
+      expect(carried.timings.carried.tiles).toBeGreaterThanOrEqual(0.9 * tiles)
+      expect(carried.paired).toBe(full.paired)
+      const edited = carried.components.flatMap((component) =>
+        component.deltas.filter(
+          (delta) =>
+            delta.kind === 'foreground' && typeof delta.live === 'string' && colorDistance(delta.live, EDITED_INK) < 10,
+        ),
+      )
+      expect(edited.length).toBeGreaterThan(0)
+    } finally {
+      await writeFile(STRIPE_STYLES, styles)
+    }
+  }, 240_000)
+
+  it('a diff with no edit since the carried run carries nothing and gives the same answer', async () => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const styles = await readFile(STRIPE_STYLES, 'utf8')
+    try {
+      await editStripe({id, styles})
+      const carried = await call('design_diff', {})
+      const [node] = await storedNodes(id)
+      if (node === undefined) throw new Error('the stripe target has no nodes')
+      await xrayRpc.xray.mark({id, kind: 'tolerance', node: node.id, value: 1, session: kit.session})
+      const full = await call('design_diff', {})
+      expect(carried.timings.carried.pairs).toBeGreaterThan(0)
+      expect(full.timings.carried).toEqual({pairs: 0, tiles: 0})
+      expect([full.score, full.mismatch, full.paired]).toEqual([carried.score, carried.mismatch, carried.paired])
+      expect(componentMismatch(full)).toEqual(componentMismatch(carried))
+    } finally {
+      await writeFile(STRIPE_STYLES, styles)
+    }
+  }, 240_000)
+})
+
 const PANE_NAME = 'Design x-ray'
 
 async function openPane() {

@@ -86,10 +86,12 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   `hint`. `design_diff({full: true})` returns the full report with every
   component and delta; the store, `design_status` and the x-ray always hold the full one. When the components
   list was cut to `limit`, `hint` reads `showing 12 of 89 paired components, those with deltas first; full: true
-  lists every one`, so a short list is not read as the number of pairs.
+  lists every one`, so a short list is not read as the number of pairs. `full: true` lifts the `limit` cut, so the
+  full report lists every reported component.
 - `timings` gives the milliseconds of one run: `measure` (the page call, bounded by `measureTimeoutMs` 60000),
   `compare` (text groups, painting over and the pixel compare), `pair` (the pairer, bounded by `pairBudgetMs` 20000
-  counted from the moment pairing starts) and `total`.
+  counted from the moment pairing starts), `total` and `carried: {pairs, tiles}`, the pairs and 64 px tiles the run
+  reused from the run before (see [Live loop](#live-loop)); both are 0 on a run that reused nothing.
 - A run whose pairing hits `pairBudgetMs` is `partial`: it is not added to the round history, keeps the `round` and
   `budgetLeft` of the run before, reports `stop: null`, and its `hint` says pairing was cut short and the numbers are
   not comparable.
@@ -159,6 +161,36 @@ The vote pairer scores every design node against every compatible live element a
 - A text node whose text voter and structure voter both abstain (a single glyph under 14 px whose parent is not
   paired) is refused: kind, style, geometry and pixel alone never pair it. An unpaired glyph is `unbuilt` with
   `stage: null`, outside the score.
+
+## Live loop
+
+Every save already starts a run: an `hmr-update` from the bundler, `runDebounceMs` 150, the `page_hmr` settle, then a
+run with `observe: false`. A run after an edit reuses what the edit did not touch, keyed by content hashes, so a carry
+changes the time of a run, never its answer.
+
+- **Touched files.** Each target's run lane keeps the files of every `hmr-update` since its last run started, relative
+  to the project; a run takes the set and clears it. A run with no `hmr-update` since the run before (an agent
+  `design_diff`, an x-ray capture, a decision) gets `touched: all` and reuses nothing.
+- **Pairs.** Each entry of `pairs-<run>.json` carries the live element's `fingerprint`: `source`, `tag`, `textHash`
+  (fnv of the folded element text) and `box`. A pair of the run before is carried when its design node is still in
+  the model, a live element sits at the same source (or the same path when it has none) with the same tag and text
+  hash and a box within `tileMargin`, and its source file is not touched. Pins are applied first, then the carried
+  pairs seed the pairer's state as a greedy take would and the greedy loop pairs the rest. The voters are calibrated
+  and the pool medians taken over every node and element, as in a full run: calibrating over what the carry left
+  paired 93 nodes on the stripe page where a full run pairs 92, and a carry must not change the answer. An entry without a fingerprint carries nothing.
+- **Tiles.** The page is cut into tiles of `tileSide` 64 px, and each tile is hashed over the masked live pixels it
+  reads (the tile grown by the blur radius plus 2 px for the antialiasing check). `tiles-<run>.json` holds the grid
+  and, per tile, its hash, its mismatch share and, when any pixel differs, its mask bits packed in base64; masks are
+  stored rather than recomputed because the unchanged tiles' mask feeds `mismatchAt`, the residual and the diff
+  image, and recomputing it is the blur and compare the cache skips. Tiles whose hash matches the run before take
+  its mask; the changed tiles are blurred and compared on their union grown by one tile, so the region finder and
+  every per-box `mismatch` give the numbers a full compare gives. A first run, or a page of another size, computes
+  every tile.
+- **The agent's diff after a save.** A `design_diff` with no `hmr-update` since the last run, when that run was an
+  `observe: false` run whose capture hash (the pixels and the decisions) equals the page now, captures once and
+  counts that run as the round: it is judged against the round history, its `components` are listed again for the
+  agent's `limit`, `depth` and `full`, its result file is rewritten with the new `round`, and its `timings` are the
+  settled run's. A diff whose capture equals the last round's repeats that round, as above.
 
 ## Sources
 
@@ -248,6 +280,7 @@ All in `src/shared/tolerances.ts`.
 | `geometryPx`       | 2     | edge distance allowed between a group's trimmed live and target box unions        |
 | `colorDeltaE`      | 3     | ink color agreement and ink mask threshold                                        |
 | `tileMargin`       | 8     | growth of the trimmed union whose median is the ink background                    |
+| `tileSide`         | 64    | side of the pixel tiles the compare caches across runs                            |
 | `blurRadius`       | 1     | added to `glyphHalo` when painting over agreeing boxes                            |
 
 ## Blind spots

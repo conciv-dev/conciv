@@ -100,7 +100,13 @@ export const design = defineExtension({
     },
   }
   const differ = createDiffer({runtime, store, page: server.page})
-  const settled = watchSettled({bundler: server.bundler, store, page: server.page, refresh: differ.refresh})
+  const settled = watchSettled({
+    bundler: server.bundler,
+    store,
+    page: server.page,
+    refresh: differ.refresh,
+    touch: differ.touch,
+  })
   return {
     context: {design: runtime, differ},
     systemPrompt: async ({sessionId}) =>

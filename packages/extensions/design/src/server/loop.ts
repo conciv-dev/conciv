@@ -17,6 +17,7 @@ import type {
   TargetNode,
   TargetStore,
   TextNode,
+  Touched,
   Unmatched,
 } from '../shared/types.js'
 import {placement, type Seat, type Tree} from './layout.js'
@@ -34,8 +35,9 @@ type Verdict = Pick<DiffReport, 'stage' | 'brief' | 'round' | 'budgetLeft' | 'st
 
 export type RunJob = {id: string; session: SessionId; observe: boolean; input: DiffInput}
 
-export function createRuns(input: {execute: (job: RunJob) => Promise<DiffReport>}): {
+export function createRuns(input: {execute: (input: {job: RunJob; touched: Touched}) => Promise<DiffReport>}): {
   trigger: (job: RunJob) => Promise<DiffReport>
+  touch: (input: {file: string}) => void
 } {
   const lanes = new Map<string, Lane>()
   const start = (lane: Lane): void => {
@@ -43,8 +45,10 @@ export function createRuns(input: {execute: (job: RunJob) => Promise<DiffReport>
     if (next === null || lane.running) return
     lane.pending = null
     lane.running = true
+    const touched: Touched = lane.touched.size === 0 ? 'all' : new Set(lane.touched)
+    lane.touched.clear()
     input
-      .execute(next.job)
+      .execute({job: next.job, touched})
       .then(next.resolve, next.reject)
       .finally(() => {
         lane.running = false
@@ -52,8 +56,9 @@ export function createRuns(input: {execute: (job: RunJob) => Promise<DiffReport>
       })
   }
   return {
+    touch: ({file}) => lanes.forEach((lane) => lane.touched.add(file)),
     trigger: (job) => {
-      const lane = lanes.get(job.id) ?? {running: false, pending: null}
+      const lane = lanes.get(job.id) ?? {running: false, pending: null, touched: new Set<string>()}
       lanes.set(job.id, lane)
       const waiting = lane.pending
       if (waiting !== null) {
@@ -217,8 +222,9 @@ export function watchSettled(input: {
   store: TargetStore
   page: DesignPage
   refresh: (input: {session: SessionId}) => Promise<unknown>
+  touch: (input: {file: string}) => void
 }): () => void {
-  const {bundler, store, page, refresh} = input
+  const {bundler, store, page, refresh, touch} = input
   const state: {timer: ReturnType<typeof setTimeout> | null; since: number} = {timer: null, since: 0}
   const settle = async (since: number): Promise<void> => {
     const sessions = new Set((await store.list({})).map((record) => record.session).filter(isSessionId))
@@ -233,6 +239,7 @@ export function watchSettled(input: {
   }
   const unsubscribe = bundler?.subscribe?.((diagnostic) => {
     if (diagnostic.kind !== 'hmr-update') return
+    touch({file: diagnostic.file})
     if (state.timer === null) state.since = diagnostic.timestamp - TOLERANCES.runDebounceMs
     if (state.timer !== null) clearTimeout(state.timer)
     state.timer = setTimeout(() => {
@@ -248,7 +255,7 @@ export function watchSettled(input: {
 
 type Deferred = {promise: Promise<DiffReport>; resolve: (report: DiffReport) => void; reject: (error: unknown) => void}
 
-type Lane = {running: boolean; pending: (Deferred & {job: RunJob}) | null}
+type Lane = {running: boolean; pending: (Deferred & {job: RunJob}) | null; touched: Set<string>}
 
 const SETTLE_TOOL = 'page_hmr'
 const SETTLE_WAIT_MS = 5000
