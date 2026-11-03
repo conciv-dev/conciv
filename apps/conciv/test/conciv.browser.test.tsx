@@ -40,6 +40,7 @@ import {
   ComposerActionsHost,
   type SessionStatus,
   useComposer,
+  createTextAttachmentAdapter,
 } from '@conciv/ui-kit-chat'
 import './utilities.css'
 import '@conciv/ui-kit-chat/theme/tokens.css'
@@ -928,6 +929,74 @@ describe('pane composer stopping', () => {
       await expect.element(send).toBeVisible()
       await expect.element(send).toHaveTextContent('Send⏎')
     })
+  })
+})
+
+describe('pane composer attachments', () => {
+  function stagedNote(name: string) {
+    return {id: name, type: 'document', name, contentType: 'text/plain', data: btoa(name)}
+  }
+
+  function mountWithStagedNotes(text: string, initialSelection?: {start: number; end: number}) {
+    const storage = memoryStorage()
+    storage.setItem(
+      'attachments',
+      JSON.stringify({text, quote: null, attachments: [stagedNote('first.txt'), stagedNote('second.txt')]}),
+    )
+    const inputs: ComposerInputHandle[] = []
+    const chat = () =>
+      createChat({
+        threadId: 'pane-composer-attachments',
+        connection: storyConnection({chunks: createTextChunks('done')}),
+      })
+    render(() => (
+      <EngineReachabilityContext.Provider value={{online: () => true, sustainedOffline: () => false}}>
+        <ChatProvider chat={chat()}>
+          <ComposerHandlersProvider value={{}}>
+            <PaneComposer
+              draftStorage={storage}
+              draftKey="attachments"
+              placeholder="Ask anything…"
+              inputLabel="Message"
+              attachmentAdapter={createTextAttachmentAdapter()}
+              initialSelection={initialSelection}
+              onInputReady={(handle) => inputs.push(handle)}
+            />
+          </ComposerHandlersProvider>
+        </ChatProvider>
+      </EngineReachabilityContext.Provider>
+    ))
+    return {focus: () => inputs[0]?.focus()}
+  }
+
+  const removeButton = (name: string) => page.getByRole('button', {name: `Remove ${name}`})
+  const input = () => page.getByRole('textbox', {name: 'Message'})
+
+  it('Backspace with the caret at the start removes the attachments one by one, last first', async () => {
+    const composer = mountWithStagedNotes('keep me', {start: 0, end: 0})
+    await expect.element(removeButton('second.txt')).toBeVisible()
+    composer.focus()
+    await expect.element(input()).toHaveFocus()
+
+    await userEvent.keyboard('{Backspace}')
+    await expect.element(removeButton('second.txt')).not.toBeInTheDocument()
+    await expect.element(removeButton('first.txt')).toBeVisible()
+
+    await userEvent.keyboard('{Backspace}')
+    await expect.element(removeButton('first.txt')).not.toBeInTheDocument()
+    await expect.element(input()).toHaveTextContent('keep me')
+  })
+
+  it('Backspace after text deletes the text and leaves the attachments staged', async () => {
+    const composer = mountWithStagedNotes('hi')
+    await expect.element(removeButton('second.txt')).toBeVisible()
+    composer.focus()
+    await expect.element(input()).toHaveFocus()
+
+    await userEvent.keyboard('{Backspace}')
+    await expect.element(input()).toHaveTextContent('h')
+    await expect.element(removeButton('first.txt')).toBeVisible()
+    await expect.element(removeButton('second.txt')).toBeVisible()
   })
 })
 
