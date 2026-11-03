@@ -1092,6 +1092,7 @@ describe('panel view tabs', () => {
     await expect.element(skeleton()).not.toBeInTheDocument()
 
     await coreControl.releaseFault(gate)
+    await expect.element(page.getByText('conciv replied.')).not.toBeInTheDocument()
   }, 30_000)
 
   describe('during a running turn', () => {
@@ -1145,12 +1146,19 @@ describe('panel view tabs', () => {
       await expect.element(page.getByText(STREAMED_TEXT)).toBeVisible()
     }, 30_000)
 
-    test('another session can open mid-turn and the left run still settles in the background', async () => {
+    test('another session can open right after Send and the left run still settles in the background', async () => {
       const rpc = coreRpc(coreBase())
       const [running, other] = [await createSession(rpc), await createSession(rpc)]
       await rpc.sessions.rename({sessionId: running, title: 'the running session'})
       await rpc.sessions.rename({sessionId: other, title: 'the other session'})
-      const turn = await mountHeldTurn(running)
+      await page.viewport(1000, 900)
+      await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      await expect.element(composer(), {timeout: 8000}).toBeVisible()
+      const unsent = await faults.install({kind: 'chat-gate'})
+      await composer().fill('start a long turn')
+      await userEvent.keyboard('{Enter}')
+      await coreControl.awaitFaultPending(unsent, 1)
       const option = (name: RegExp) => page.getByRole('option', {name})
       const openSessions = async (active: string) => {
         await page.getByRole('button', {name: 'Session options'}).click()
@@ -1162,11 +1170,9 @@ describe('panel view tabs', () => {
       await expect.element(page.getByText('How can I help you today?'), {timeout: 8000}).toBeVisible()
       await expect.element(page.getByText('conciv replied.')).not.toBeInTheDocument()
 
-      await coreControl.releaseTurn()
-      await turn.awaitTurnEnd()
-      turn.close()
-      await expect.element(launcher()).toHaveAttribute('aria-busy', 'false')
+      await coreControl.releaseFault(unsent)
       await expect.element(page.getByText('conciv replied.'), {timeout: 8000}).toBeInTheDocument()
+      await expect.element(launcher()).toHaveAttribute('aria-busy', 'false')
       await openSessions('the other session')
       await expect.element(option(/^the running session(?!.*running)/), {timeout: 8000}).toBeVisible()
 

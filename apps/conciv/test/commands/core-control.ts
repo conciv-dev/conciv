@@ -1,7 +1,7 @@
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import {makeRpcClient, type EngineStaleness} from '@conciv/contract'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
@@ -27,6 +27,7 @@ export type FaultSpec =
   | {kind: 'abort'; path?: string[]}
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
+  | {kind: 'chat-gate'}
 
 type Fault = {
   pending: () => number
@@ -231,6 +232,39 @@ function trackedFault(handle: string, kind: FaultSpec['kind'], injector: Injecto
   }
 }
 
+type Route = Parameters<Parameters<BrowserCommandContext['page']['route']>[1]>[0]
+
+async function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
+  const held: {open: boolean; routes: Route[]; waiters: {count: number; deliver: () => void}[]} = {
+    open: false,
+    routes: [],
+    waiters: [],
+  }
+  const matcher = (url: URL): boolean => url.pathname.endsWith(CHAT_SSE_PATH)
+  const handler = async (route: Route): Promise<void> => {
+    if (held.open || route.request().method() !== 'POST') return route.continue()
+    held.routes.push(route)
+    for (const waiter of held.waiters.filter((entry) => held.routes.length >= entry.count)) waiter.deliver()
+  }
+  await ctx.page.route(matcher, handler)
+  const open = async (): Promise<void> => {
+    held.open = true
+    await Promise.all(held.routes.splice(0).map((route) => route.continue().catch(() => {})))
+  }
+  return {
+    pending: () => held.routes.length,
+    awaitCaptured: (count) =>
+      held.routes.length >= count
+        ? Promise.resolve()
+        : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
+    release: open,
+    dispose: async () => {
+      await open()
+      await ctx.page.unroute(matcher, handler)
+    },
+  }
+}
+
 const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<string> => {
   const state = stateOf(ctx)
   const {abortRpcCalls, failChatTurns, failRpcCalls, gateRpcCalls} = await testkitOf(ctx)
@@ -238,6 +272,10 @@ const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<str
   const handle = `fault-${state.handles.count}`
   if (spec.kind === 'gate') {
     state.faults.set(handle, await gateRpcCalls(ctx.page, spec.path ? {path: spec.path} : {}))
+    return handle
+  }
+  if (spec.kind === 'chat-gate') {
+    state.faults.set(handle, await gateChatTurns(ctx))
     return handle
   }
   if (spec.kind === 'chat-refused') {

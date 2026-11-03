@@ -1,5 +1,6 @@
 import {createMemo, createSignal, mapArray, onCleanup, untrack, type Accessor} from 'solid-js'
 import type {QueryClient} from '@tanstack/solid-query'
+import {createStore} from 'solid-js/store'
 import {useChatSession, type ChatSession, type ChatTransportPreference} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
@@ -24,18 +25,34 @@ export type LiveSessionsDeps = {
 
 type LiveChat = {sessionId: string; chat: Accessor<ChatSession>}
 
+type RunWatch = {live: string | null; sent: boolean; settled: string | null}
+
+const IDLE_RUN: RunWatch = {live: null, sent: false, settled: null}
+
 export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const [openers, setOpeners] = createSignal<Accessor<string>[]>([])
-  const [running, setRunning] = createSignal<string[]>([])
+  const [runs, setRuns] = createStore<Record<string, RunWatch>>({})
   const opened = createMemo(() => openers().map((sessionId) => sessionId()))
-  const sessionIds = createMemo(() => [...new Set([...opened(), ...running()])])
+  const watched = createMemo(() =>
+    Object.entries(runs).flatMap(([sessionId, run]) => (run.live !== null || run.sent ? [sessionId] : [])),
+  )
+  const sessionIds = createMemo(() => [...new Set([...opened(), ...watched()])])
 
-  const noteRun = (sessionId: string, lifecycle: RunLifecycle | null) => {
-    const active = lifecycle !== null && !isRunPhaseTerminal(lifecycle.phase)
-    setRunning((ids) => (active ? [...new Set([...ids, sessionId])] : ids.filter((id) => id !== sessionId)))
+  const runOf = (sessionId: string): RunWatch => runs[sessionId] ?? IDLE_RUN
+
+  const markSent = (sessionId: string, sent: boolean) => setRuns(sessionId, {...runOf(sessionId), sent})
+
+  const start = (sessionId: string, lifecycle: RunLifecycle) => {
+    const run = runOf(sessionId)
+    if (lifecycle.runId === run.live || lifecycle.runId === run.settled) return
+    setRuns(sessionId, {live: lifecycle.runId, sent: false, settled: run.settled})
   }
 
-  const settle = (sessionId: string, lifecycle: RunLifecycle) => {
+  const finish = (sessionId: string, lifecycle: RunLifecycle) => {
+    const run = runOf(sessionId)
+    const ours = lifecycle.runId === run.live || run.sent
+    if (lifecycle.runId === run.settled || !ours) return
+    setRuns(sessionId, {live: null, sent: lifecycle.runId === run.live && run.sent, settled: lifecycle.runId})
     deps.appData.invalidateSessions()
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.markers.list.key({input: {sessionId}})})
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.captures.list.key({input: {sessionId}})})
@@ -43,7 +60,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   }
 
   const liveChat = (sessionId: string): LiveChat => {
-    const chat = createMemo(() => {
+    const chat = createMemo((): ChatSession => {
       deps.generation()
       const session = useChatSession({
         rpc: deps.rpc,
@@ -51,17 +68,26 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
         sessionId,
         connection: {
           transport: deps.transport(),
-          onHydrated: (hydration) => noteRun(sessionId, hydration.lastRun),
-          onLifecycle: (lifecycle) => {
-            if (isRunPhaseTerminal(lifecycle.phase)) settle(sessionId, lifecycle)
-            noteRun(sessionId, lifecycle)
+          onHydrated: (hydration) => {
+            if (hydration.lastRun && !isRunPhaseTerminal(hydration.lastRun.phase)) start(sessionId, hydration.lastRun)
           },
+          onLifecycle: (lifecycle) =>
+            isRunPhaseTerminal(lifecycle.phase) ? finish(sessionId, lifecycle) : start(sessionId, lifecycle),
         },
       })
       onCleanup(() => {
         if (untrack(session.runInProgress)) deps.appData.invalidateSessions()
       })
-      return session
+      return {
+        ...session,
+        sendMessage: (...message) => {
+          markSent(sessionId, true)
+          return session.sendMessage(...message).catch((error: unknown) => {
+            markSent(sessionId, false)
+            throw error
+          })
+        },
+      }
     })
     return {sessionId, chat}
   }
