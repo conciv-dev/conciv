@@ -1740,6 +1740,25 @@ describe('loop', () => {
     expect(report.stage).toBe('structure')
   })
 
+  it('a column container against a design row carries the one axis delta at its line, and a row container none', async () => {
+    await goto('column')
+    await freshTarget('u1-1280')
+    const column = await call('design_diff', {limit: 50, depth: 6})
+    const turned = column.components.filter((component) => component.deltas.some((delta) => delta.kind === 'axis'))
+    expect(turned.map((component) => component.source)).toEqual([
+      expect.objectContaining({file: 'src/Cards.tsx', line: 17}),
+    ])
+    expect(column.rows.filter((row) => row.sentence.includes('axis is'))).toEqual([
+      expect.objectContaining({
+        sentence: expect.stringContaining('axis is column where the design has row'),
+        source: expect.objectContaining({file: 'src/Cards.tsx', line: 17}),
+      }),
+    ])
+    await goto('target')
+    const row = await call('design_diff', {limit: 50, depth: 6})
+    expect(row.components.flatMap((component) => component.deltas.filter((delta) => delta.kind === 'axis'))).toEqual([])
+  })
+
   it('grid reports a columns delta', async () => {
     await goto('grid')
     await freshTarget('u1-1280')

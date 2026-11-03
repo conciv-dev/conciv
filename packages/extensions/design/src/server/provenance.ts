@@ -185,7 +185,7 @@ type Candidates = (input: {delta: Delta; axis: LiveComponent['axis']}) => string
 
 const ALIGNMENT = ['justify-content', 'align-items']
 
-const PARENT_PROPERTIES: readonly string[] = ['gap', 'flex-direction', 'display']
+const PARENT_PROPERTIES: readonly string[] = ['gap']
 
 function inset(side: 'left' | 'right' | 'top' | 'bottom'): Candidates {
   const size = side === 'top' || side === 'bottom' ? ['min-height', 'height'] : ['min-width', 'width']
