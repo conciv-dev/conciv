@@ -1,7 +1,7 @@
 import {createRouter} from '@tanstack/solid-router'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient, onlineManager} from '@tanstack/solid-query'
-import {createEffect, createMemo, createRoot, from, onCleanup, type Accessor, type JSX} from 'solid-js'
+import {createMemo, createRoot, from, onCleanup, type Accessor, type JSX} from 'solid-js'
 import type {RpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import type {ClientExtension} from '@conciv/extension'
@@ -15,6 +15,7 @@ import type {ExtensionInstance} from './extension/extension-slots.js'
 import {createInstances} from './extension/create-instances.js'
 import highlight from './extensions/highlight.js'
 import {PendingPane} from './shell/pending.js'
+import type {HubLogin} from './app/devframe-link.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
 
 export type ConcivEnvironment = {rootNode: Node; document: Document}
@@ -38,6 +39,7 @@ export type ConcivRouterContext = {
   bindActiveSession?: (read: () => string | null) => void
   disposeInstances: () => void
   notifyInteractive: () => void
+  login?: HubLogin
 }
 
 export type ConcivRouterConfig = {
@@ -56,6 +58,7 @@ export type ConcivRouterConfig = {
   connectionGeneration?: () => number
   bindActiveSession?: (read: () => string | null) => void
   notifyInteractive?: () => void
+  login?: HubLogin
 }
 
 function disposeExtensionInstances(instances: ExtensionInstance[]): void {
@@ -84,10 +87,11 @@ function wireEngineConnection(
   data: AppData,
 ): {online: Accessor<boolean>; dispose: () => void} {
   return createRoot((dispose) => {
-    const reachability = createMemo(() =>
-      from(engineReachability(apiBase(), hubConnection?.()), onlineManager.isOnline()),
-    )
-    createEffect(() => onCleanup(data.readHubState()))
+    const reachability = createMemo(() => {
+      const connection = hubConnection?.()
+      if (connection) onCleanup(data.readHubState(connection))
+      return from(engineReachability(apiBase(), connection), onlineManager.isOnline())
+    })
     return {online: () => reachability()(), dispose}
   })
 }
@@ -145,6 +149,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       bindActiveSession,
       disposeInstances,
       notifyInteractive: config.notifyInteractive ?? (() => {}),
+      login: config.login,
     },
   })
 }

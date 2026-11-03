@@ -1,5 +1,7 @@
 import {dirname, join} from 'node:path'
 import {readdirSync} from 'node:fs'
+import {defineRpcFunction} from 'devframe'
+import type {RpcFunctionDefinitionAny} from 'devframe/rpc'
 import type {IncomingMessage, ServerResponse} from 'node:http'
 import type {ErrorPayload, Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge, type BundlerDiagnostic} from '@conciv/protocol/bundler-types'
@@ -222,7 +224,22 @@ function embedChunks(embedEntry: string): string[] {
 const CONCIV_MARK_URI =
   'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0iI0Q3MjYzRCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJjb25jaXYiPjx0aXRsZT5jb25jaXY8L3RpdGxlPjxwYXRoIGQ9Ik0xNS4xIDE0LjYzSDQ4LjlBNi4zMiA2LjMyIDAgMCAxIDU1LjIyIDIwLjk1VjQzLjY1QTYuMzIgNi4zMiAwIDAgMSA0OC45IDQ5Ljk3SDI3LjM5TDE4IDU4LjE3TDE4IDQ5Ljk3SDE1LjFBNi4zMiA2LjMyIDAgMCAxIDguNzggNDMuNjVWMjAuOTVBNi4zMiA2LjMyIDAgMCAxIDE1LjEgMTQuNjNaTTUuMDY1IDI2LjI5Mkg1LjA2NUEyLjA5IDIuMDkgMCAwIDEgNy4xNTUgMjguMzgyVjM2LjIxOEEyLjA5IDIuMDkgMCAwIDEgNS4wNjUgMzguMzA4SDUuMDY1QTIuMDkgMi4wOSAwIDAgMSAyLjk3NSAzNi4yMThWMjguMzgyQTIuMDkgMi4wOSAwIDAgMSA1LjA2NSAyNi4yOTJaTTU4LjkzNSAyNi4yOTJINTguOTM1QTIuMDkgMi4wOSAwIDAgMSA2MS4wMjUgMjguMzgyVjM2LjIxOEEyLjA5IDIuMDkgMCAwIDEgNTguOTM1IDM4LjMwOEg1OC45MzVBMi4wOSAyLjA5IDAgMCAxIDU2Ljg0NSAzNi4yMThWMjguMzgyQTIuMDkgMi4wOSAwIDAgMSA1OC45MzUgMjYuMjkyWk00MS44MTUgNC45TDQ0LjIwNSA0LjlMNDQuMjA1IDE2LjYzTDQxLjgxNSAxNi42M1pNNDAuMDIgNC45QTIuOTkgMi45OSAwIDEgMSA0NiA0LjlBMi45OSAyLjk5IDAgMSAxIDQwLjAyIDQuOVpNMTguMDYgMjUuMzRMMjQuOTIxIDMyLjMxTDE4LjA2IDM5LjI4TDIwLjk2IDQyLjE4TDMwLjcxOSAzMi4zMUwyMC45NiAyMi40NFpNMzIuNTEgMzguNkwzMi41MSA0Mi4xOEw0NiA0Mi4xOEw0NiAzOC42WiIvPjwvc3ZnPg=='
 
+const ENGINE_ACCESS = 'conciv:engine-access'
+
+function engineAccessFunction(grant: (key: string) => Promise<string>): RpcFunctionDefinitionAny {
+  return defineRpcFunction({
+    name: ENGINE_ACCESS,
+    type: 'action',
+    jsonSerializable: true,
+    setup: (context) => ({
+      handler: (): Promise<string> =>
+        grant(context.rpc.getCurrentRpcSession()?.meta.clientAuthToken ?? 'without-client-auth'),
+    }),
+  })
+}
+
 type DevToolsContext = {
+  rpc: {register: (definition: RpcFunctionDefinitionAny) => void}
   docks: {
     register: (entry: {
       id: string
@@ -259,6 +276,12 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     devtools: {
       setup(context) {
         if (!docked) return
+        context.rpc.register(
+          engineAccessFunction(async (key) => {
+            if (!engine) throw new Error('conciv: the engine is not running yet')
+            return engine.grantBrowserAccess(key)
+          }),
+        )
         context.docks.register({
           id: 'conciv',
           title: 'conciv',
