@@ -12,7 +12,7 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that pic
 - `chatSocketUrl` / `chatEventsUrl` / `socketOpens` (`chat-connection.ts`)
 - `useChatSession(options)` (`use-chat-session.ts`): `createChatSession` with chatConnection, `rpc.chat.stop` and `rpc.chat.permissionDecision`
 - `openPushChannel` / `acquirePushChannel` / `PushChannel` / `pushSocketUrl` / `livePushChannelCount` (`push-channel.ts`)
-- `setupEngineReachability` / `engineOnline` / `sustainedEngineOffline` / `isReachabilityError` / `engineProbeRefetchInterval` / `subscribeEngineOnline` / `voteEngineProbeSettled` (`reachability.ts`)
+- `setupEngineReachability` / `engineReachability` / `sustainedEngineOffline` / `isReachabilityError` / `engineProbeRefetchInterval` / `subscribeEngineOnline` / `voteEngineProbeSettled` (`reachability.ts`)
 - `ENGINE_OFFLINE_GRACE_MS` = 1000, `ENGINE_PROBE_INTERVAL_MS` = 2000, `ENGINE_HEARTBEAT_INTERVAL_MS` = 30000 (`reachability.ts`)
 - `index.ts`: re-exports the modules above; `stream-relay.ts` helpers are internal
 
@@ -33,7 +33,7 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that pic
 - `close` (`chat-connection.ts`): closes every tracked WebSocket
 - `hydrate` / SSE (`chat-connection.ts`): fetch calls and the `rpc.chat.hydrate` RPC
 - `openPushChannel` (`push-channel.ts`): partysocket ReconnectingWebSocket; module-level shared channel map
-- `setupEngineReachability` (`reachability.ts`): sets the onlineManager event listener and window online/offline listeners
+- `setupEngineReachability` / `engineReachability` subscribe (`reachability.ts`): sets the onlineManager event listener and window online/offline listeners
 - `useChatSession` (`use-chat-session.ts`): calls `rpc.chat.stop` and `rpc.chat.permissionDecision`
 
 ## Verification

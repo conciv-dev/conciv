@@ -21,7 +21,7 @@ import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {parseConcivSettings} from '../src/data/settings.js'
 import {makeLayerStack} from '../src/shell/dialogs.js'
 import type {ExtensionInstance} from '../src/extension/extension-slots.js'
-import {createMemo, createRoot, createSignal, type JSX} from 'solid-js'
+import {createMemo, createRoot, createSignal, from, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import '../src/lib/api-base.js'
 import {HostApiProvider} from '@conciv/extension/host'
@@ -274,7 +274,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     dispose: disposeHarness,
   }))
   const reachabilityRoot = createRoot((disposeReachability) => ({
-    reachability: makeEngineReachability(),
+    reachability: makeEngineReachability(from((set) => onlineManager.subscribe(set), onlineManager.isOnline())),
     dispose: disposeReachability,
   }))
   const mounted = render(() => (
