@@ -46,7 +46,7 @@ import {
 import {mapDeclaration} from '@conciv/extension-design/provenance'
 import {glyphCoreColor} from '@conciv/extension-design/colors'
 import {destroyPaddle, paddleReader, trimToInk} from '@conciv/extension-design/paddle'
-import {groupText} from '@conciv/extension-design/text-groups'
+import {groupText, sameWords} from '@conciv/extension-design/text-groups'
 import type {Box, ColorMetric, LiveComponent, Provenance, Raster, TextRun, Winner} from '@conciv/extension-design/types'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from './fixtures/design/render-targets.js'
@@ -1179,7 +1179,46 @@ describe('text', () => {
     expect(colorDistance(String(foreground?.live), '#ffd166')).toBeLessThanOrEqual(COLOR_DELTA_E)
     expect(colorDistance(String(foreground?.target), '#ffffff')).toBeLessThanOrEqual(COLOR_DELTA_E)
   })
+
+  it('a confusable or lone chevron beside a button label is the same text as the design reads', async ({annotate}) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    await call('design_diff', {})
+    const before = await buttonTextItems(id)
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await rewrite({
+        id,
+        file: STRIPE_SOURCE,
+        text: source.replace('>Contact sales<', '>Contact sales ›<').replace('>Get started ›<', '>Get started<'),
+      })
+      await call('design_diff', {})
+      const after = await buttonTextItems(id)
+      await annotate(`content items before ${JSON.stringify(before)} after ${JSON.stringify(after)}`)
+      expect([before, after]).toEqual([[], []])
+      expect(sameWords('Get started >')).toBe(sameWords('Get started'))
+    } finally {
+      await writeFile(STRIPE_SOURCE, source)
+    }
+  }, 240_000)
 })
+
+const BUTTON_LABELS = ['Contact sales', 'Get started']
+const LedgerItemsSchema = z.object({
+  nodes: z.record(z.string(), z.object({item: z.object({stage: z.string(), sentence: z.string()}).nullable()})),
+})
+
+async function buttonTextItems(id: string): Promise<string[]> {
+  const path = fileUnder(stateRoot, `.conciv/design/${id}/ledger.json`)
+  const ledger = LedgerItemsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+  return Object.values(ledger.nodes).flatMap((entry) =>
+    entry.item !== null &&
+    entry.item.stage === 'content' &&
+    BUTTON_LABELS.some((label) => entry.item?.sentence.includes(label))
+      ? [entry.item.sentence]
+      : [],
+  )
+}
 
 const WHITE = [255, 255, 255] as const
 const BLACK = [0, 0, 0] as const

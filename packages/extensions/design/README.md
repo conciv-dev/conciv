@@ -202,6 +202,10 @@ The vote pairer scores every design node against every compatible live element a
 
 ## Sample data
 
+Before a live text is compared with its design text both are folded through `CONFUSABLES` (`›` and `>`, dashes,
+curly quotes, `…`, `×`, bullets) and a lone leading or trailing glyph outside the Latin script is dropped, so
+`Contact sales ›` against `Contact sales >` is no text delta; the sentences keep the raw texts.
+
 A text verdict of `sample-data` (a literal in the source whose design text has the `data` or `placeholder` role)
 becomes a warning only when the paired element sits in a container that renders at least one sibling from an
 expression: provenance reads each sibling's JSX and a sibling whose text has no literal (`expression` or `mixed`)
