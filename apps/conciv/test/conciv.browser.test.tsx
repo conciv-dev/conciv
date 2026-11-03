@@ -1094,6 +1094,54 @@ describe('panel view tabs', () => {
     await coreControl.releaseFault(gate)
   }, 30_000)
 
+  describe('during a running turn', () => {
+    const STREAMED_TEXT = 'the reply that streams while the notes tab is open'
+    const FOLLOW_UP_TEXT = 'the follow-up reply after returning to chat'
+
+    afterEach(async () => {
+      await coreControl.releaseTurn()
+    })
+
+    const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+    const launcher = () => page.getByRole('button', {name: 'Minimize conciv chat'})
+    const narration = () => page.getByText('Responding…', {exact: true})
+    const chatPanel = () => page.getByRole('tabpanel', {name: 'Chat'})
+
+    test('the view tabs stay open mid-turn and Chat shows the finished reply once on return', async () => {
+      await page.viewport(1000, 900)
+      const sessionId = await createSession(coreRpc(coreBase()))
+      await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+      await coreControl.holdTurn()
+      const turn = await sendTurn(coreBase(), sessionId, 'start a long turn')
+      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+      await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+      await expect.element(narration()).toBeVisible()
+
+      await expect.element(notesTab()).toBeEnabled()
+      await notesTab().click()
+      await expect.element(notes(), {timeout: 8000}).toBeVisible()
+      await expect.element(launcher()).toHaveAttribute('aria-busy', 'true')
+
+      await coreControl.releaseTurn()
+      await turn.awaitTurnEnd()
+      turn.close()
+      await expect.element(launcher(), {timeout: 8000}).toHaveAttribute('aria-busy', 'false')
+
+      await chatTab().click()
+      await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+      await expect.element(chatPanel().getByText('start a long turn')).toBeVisible()
+      await expect.element(narration()).not.toBeInTheDocument()
+      await expect.element(stopButton()).not.toBeInTheDocument()
+
+      await coreControl.scriptTurn({toolCalls: [], text: FOLLOW_UP_TEXT})
+      await composer().fill('a follow-up after the switch')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText(FOLLOW_UP_TEXT), {timeout: 8000}).toBeVisible()
+      await expect.element(page.getByText(STREAMED_TEXT)).toBeVisible()
+    }, 30_000)
+  })
+
   describe('a crashing extension', () => {
     const RECOVERED_BODY = 'the recovered tab body'
     const AFTER_TOOLS_TEXT = 'the thread kept going after the tools'
@@ -1597,7 +1645,7 @@ describe('status bar', () => {
       ))
     }
 
-    it('locks the tabs the leave guard blocks while keeping the active one reachable', async () => {
+    it('locks the tabs a view lock blocks while keeping the active one reachable', async () => {
       mountViews('chat', () => {}, true)
 
       await expect.element(page.getByRole('tab', {name: 'Board'})).toBeDisabled()

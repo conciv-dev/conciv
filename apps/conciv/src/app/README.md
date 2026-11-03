@@ -14,7 +14,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `PanelChromeContext`, `usePanelChrome` (`panel-chrome.ts`): panel close handle
 - `makePanelComposerFocus`, `usePanelComposerFocus` (`panel-focus.ts`): tracks the active composer input
 - `EngineReachabilityContext`, `makeEngineReachability`, `useEngineReachability` (`reachability.ts`): `online` and `sustainedOffline` accessors
-- `usePaneChat` (`use-pane-chat.ts`): `useChatSession` keyed on session id and connection generation
+- `usePaneChat` (`use-pane-chat.ts`), `makePaneChat(deps)`: `useChatSession` keyed on session id and connection generation, with its run activity tracked for as long as the session is open
 - `createWarmSession`, `WarmSession` (`warm-session.ts`): resolves the most recently updated session
 
 ## Invariants
@@ -31,7 +31,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `pane-provider.tsx:openNewSession`: `rpc.sessions.create`, invalidates the sessions cache, navigates to `/panel/$sessionId`
 - `pane-provider.tsx:PaneProvider`: grab staging calls `rpc.page.symbolicate`
 - `warm-session.ts:createWarmSession`: queries `sessions.list` and `sessions.resolve`
-- `use-pane-chat.ts:usePaneChat`: opens a chat session through `useChatSession` (`@conciv/client`) against `apiBase`
+- `use-pane-chat.ts:usePaneChat`: opens a chat session through `useChatSession` (`@conciv/client`) against `apiBase`; when a run settles it invalidates `sessions.list`, `markers.list` and `captures.list` and announces the reply, whichever view tab is showing
 
 ## Verification
 

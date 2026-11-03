@@ -16,19 +16,20 @@ import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {QueryClient, QueryClientProvider} from '@tanstack/solid-query'
 import {type AppContextValue, AppContext} from '../src/app/context.js'
 import {makeLiveSessions} from '../src/app/live-sessions.js'
+import {makePaneChat} from '../src/app/use-pane-chat.js'
 import {createWarmSession} from '../src/app/warm-session.js'
 import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {parseConcivSettings} from '../src/data/settings.js'
 import {makeLayerStack} from '../src/shell/dialogs.js'
 import type {ExtensionInstance} from '../src/extension/extension-slots.js'
-import {createMemo, createRoot, createSignal, type JSX} from 'solid-js'
+import {createRoot, createSignal, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import '../src/lib/api-base.js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {EngineReachabilityContext, makeEngineReachability} from '../src/app/reachability.js'
 import type {AnyExtension} from '@conciv/extension'
 import type {Grab, GrabProvider} from '@conciv/grab'
-import {useChatSession, type ChatTransportPreference} from '@conciv/client'
+import type {ChatTransportPreference} from '@conciv/client'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../src/app/pane-context.js'
 import {createInstances} from '../src/extension/create-instances.js'
 import {makeGrabStaging} from '../src/pane/grab-staging.js'
@@ -236,14 +237,17 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   })
   const {rpc, data, queryClient} = app
   const chatRoot = createRoot((disposeChat) => {
-    const chat = createMemo(() =>
-      useChatSession({
-        rpc,
-        apiBase: options.base,
-        sessionId: options.sessionId,
-        ...(options.transport === undefined ? {} : {connection: {transport: options.transport}}),
-      }),
-    )
+    const chat = makePaneChat({
+      rpc,
+      apiBase: () => options.base,
+      sessionId: () => options.sessionId,
+      generation: () => 0,
+      transport: () => options.transport,
+      liveSessions: app.liveSessions,
+      appData: data,
+      queryClient,
+      announce: app.announce,
+    })
     const coordinator = makeRefreshCoordinator({
       chat,
       sessionId: () => options.sessionId,

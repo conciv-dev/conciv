@@ -83,6 +83,10 @@ export const Route = createFileRoute('/panel/$sessionId')({
   component: PanelSession,
 })
 
+function sessionOf(location: {params: object}): unknown {
+  return 'sessionId' in location.params ? location.params.sessionId : undefined
+}
+
 function CloseChatButton(): JSX.Element {
   const panelChrome = usePanelChrome()
   const settings = useSettings()
@@ -151,7 +155,6 @@ function PanelSession(): JSX.Element {
   const [viewLocks, setViewLocks] = createSignal<Record<string, boolean>>({})
   const setLockedFor = (id: string) => (locked: boolean) => setViewLocks((prev) => ({...prev, [id]: locked}))
   const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
-  const leaveGuard = () => running() || viewLocked()
 
   const tabIndex = (id: string) => (id === 'chat' ? 0 : views().findIndex((view) => view.id === id) + 1)
   const [slideDir, setSlideDir] = createSignal<'left' | 'right' | null>(null)
@@ -186,7 +189,7 @@ function PanelSession(): JSX.Element {
 
   useBlocker({
     shouldBlockFn: ({current, next}) =>
-      running() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
+      running() && next.pathname.startsWith('/panel') && sessionOf(next) !== sessionOf(current),
   })
 
   const chat = usePaneChat(() => params().sessionId)
@@ -344,7 +347,7 @@ function PanelSession(): JSX.Element {
           views={statusBarViews()}
           activeView={activeView()}
           onSelectView={switchView}
-          disabled={leaveGuard()}
+          disabled={viewLocked()}
         />
       </Suspense>
     </PaneContext.Provider>
