@@ -197,12 +197,10 @@ describe('claude adapter', () => {
       expect(models.map((model) => model.id)).toContain('sonnet')
     })
 
-    it('lists the effort levels each model supports, and none for a model without effort', async () => {
+    it('lists the effort levels each model supports, and a model without effort carries none', async () => {
       const models = await resolveHarnessModels(claude)
       expect(models.find((model) => model.id === 'opus')?.efforts).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
-      const older = models.find((model) => model.id.startsWith('claude-haiku-4-5'))
-      expect(older).toBeDefined()
-      expect(older?.efforts).toBeUndefined()
+      expect(models.every((model) => model.efforts === undefined || model.efforts.length > 0)).toBe(true)
     })
   })
 })

@@ -58,9 +58,10 @@ import {
   CONCIV_SESSION_HEADER,
   CHAT_WS_PATH,
   CONCIV_CLAUDE_SESSION_HEADER,
+  type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
-import {type HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {type HarnessChatDeps, type HarnessModel} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -1403,7 +1404,7 @@ describe('rpc wire', () => {
         const sessionId = await newSession()
         const {models} = await chatKit().rpc.meta.models(undefined)
         const plain = models.find((model) => model.efforts === undefined)
-        if (plain === undefined) throw new Error('every listed model supports effort')
+        if (plain === undefined) throw new Error('the chat harness lists no model without effort')
         expect(await chatKit().rpc.sessions.effort({sessionId, effort: 'high'})).toEqual({effort: 'high'})
         expect(await sessionMeta(sessionId)).toMatchObject({effort: 'high'})
         script().scriptTurn({toolCalls: [], text: 'thought hard'})
@@ -2225,6 +2226,14 @@ return seen`
 
   type TurnInput = string | Record<string, unknown>
 
+  const ALL_EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
+  const CHAT_MODELS: HarnessModel[] = [
+    {id: 'opus', name: 'Opus 5.5', group: 'Claude', efforts: ALL_EFFORTS},
+    {id: 'sonnet', name: 'Sonnet 5.5', group: 'Claude', efforts: ALL_EFFORTS},
+    {id: 'haiku', name: 'Haiku 5.5', group: 'Claude', efforts: ALL_EFFORTS},
+    {id: 'claude-haiku-4-5', name: 'Haiku 4.5', group: 'Older versions'},
+  ]
+
   type SharedApp = {
     kit: Kit | null
     harness: TestHarness | null
@@ -2376,6 +2385,7 @@ return seen`
   function recordingHarness(base: TestHarness): TestHarness {
     return {
       ...base,
+      models: CHAT_MODELS,
       chatConfig: (deps: HarnessChatDeps) => {
         const failure = cli.launchFailures.shift()
         if (failure !== undefined) throw new Error(failure)
