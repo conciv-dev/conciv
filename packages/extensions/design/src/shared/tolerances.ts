@@ -39,6 +39,8 @@ export const TOLERANCES = {
   briefSize: 5,
   residualAreaGate: 0.01,
   runDebounceMs: 150,
+  settleQuiet: 800,
+  measureChunk: 200,
   pairBudgetMs: 20_000,
   pairBoxIou: 0.3,
   pairBoxArea: 3,

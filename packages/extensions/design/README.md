@@ -96,7 +96,9 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   an `unknown-section` error naming the known ids.
 - `timings` gives the whole milliseconds of one run per phase, 0 for a phase the run skipped, and
   `carried: {pairs, tiles}`, the pairs and 64 px tiles the run reused from the run before (see
-  [Live loop](#live-loop)); both are 0 on a run that reused nothing. The result file holds the same timings.
+  [Live loop](#live-loop)); both are 0 on a run that reused nothing. A run that measured the live page also gives
+  `longestTask`, the longest main-thread task in ms the page ran during the measure. The result file holds the same
+  timings.
 
   | Phase        | What it covers                                                                                   |
   | ------------ | ------------------------------------------------------------------------------------------------ |
@@ -236,9 +238,17 @@ whose copy is all literals gets no `replace the hard-coded sample` line.
 
 ## Live loop
 
-Every save already starts a run: an `hmr-update` from the bundler, `runDebounceMs` 150, the `page_hmr` settle, then a
-run with `observe: false`. A run after an edit reuses what the edit did not touch, keyed by content hashes, so a carry
+Every save already starts a run: an `hmr-update` from the bundler, the `page_hmr` settle, then a run with
+`observe: false`. A run after an edit reuses what the edit did not touch, keyed by content hashes, so a carry
 changes the time of a run, never its answer.
+
+- **One run per burst.** Settle runs wait for `settleQuiet` 800 ms with no further `hmr-update`, so a burst of saves
+  starts one run, and a settle waits for the settle before it to finish. A burst whose files are all unknown to the
+  bundler's module graph (nothing the page imports: a note, a result file) starts no run.
+- **The tab stays responsive.** The measure walks the DOM in chunks of `measureChunk` 200 elements and yields to the
+  page between chunks (`scheduler.yield()`, else a `setTimeout(0)`), the mirror's walk included (its iframe is laid out
+  on the page's main thread), and snapdom starts in a `requestIdleCallback` with a 500 ms timeout. The live measure
+  watches `longtask` entries and returns the longest as `longestTask`; the report carries it as `timings.longestTask`.
 
 - **Touched files.** Each target's run lane keeps the files of every `hmr-update` since its last run started, relative
   to the project; a run takes the set and clears it. A run with no `hmr-update` since the run before (an agent

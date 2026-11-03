@@ -494,7 +494,11 @@ async function runDiff(request: {
     diff: encodePng(paintDiff({live: masked, mask: pixels.mask, width: pageWidth})),
   }
   clock.lap('encode')
-  const timings = {...clock.timings(), carried: {pairs: paired.carried, tiles: pixels.carried}}
+  const timings = {
+    ...clock.timings(),
+    carried: {pairs: paired.carried, tiles: pixels.carried},
+    ...(reply.longestTask === undefined ? {} : {longestTask: reply.longestTask}),
+  }
   const hinted = {attributed: live.components.length > 0, absolute: xray.absolute, partial: paired.partial}
   if (advances && ledger !== null) await design.store.writeLedger({id: record.id, ledger})
   const report = await design.store.writeRun({
@@ -680,8 +684,12 @@ function measureKey(input: {pair: Pair; pairs: Pair[]; shift: Shift}): string {
   })
 }
 
-type Phase = keyof Omit<DiffReport['timings'], 'total' | 'carried'>
-type Clock = {lap: (phase: Phase) => void; skip: () => void; timings: () => Omit<DiffReport['timings'], 'carried'>}
+type Phase = keyof Omit<DiffReport['timings'], 'total' | 'carried' | 'longestTask'>
+type Clock = {
+  lap: (phase: Phase) => void
+  skip: () => void
+  timings: () => Omit<DiffReport['timings'], 'carried' | 'longestTask'>
+}
 
 function startClock(): Clock {
   const started = performance.now()

@@ -95,6 +95,8 @@ const LINEAR_GRADIENT = 'linear-gradient('
 const RGB_TOKEN = 'rgb'
 const HEX_TOKEN = '#'
 const TOKEN_ENDS = [' ', ',', ')']
+const IDLE_TIMEOUT_MS = 500
+const LONG_TASK = 'longtask'
 
 const TAKUMI_WASM = 'takumi_paint_wasm_bg.wasm'
 
@@ -194,13 +196,16 @@ async function measureStep(input: MeasureInput): Promise<MeasureResult> {
 }
 
 async function measureLive(size: Size): Promise<MeasureResult> {
-  const components = collectComponents({root: document, size})
+  const longestTask = watchLongTasks()
+  const components = await collectComponents({root: document, size})
   const masks = canvasBoxes({root: document, size})
   const shot = size.height <= innerHeight ? await regionShot(size) : null
   const blob =
     shot ?? (await snapdomShot({doc: document, size, exclude: LIVE_EXCLUDE, viewport: size.height <= innerHeight}))
+  const image = await base64(blob)
+  const longest = longestTask()
   return {
-    image: await base64(blob),
+    image,
     ...size,
     route: locationRoute(),
     components,
@@ -209,12 +214,28 @@ async function measureLive(size: Size): Promise<MeasureResult> {
     masks,
     opinion: false,
     framework: pageFramework(),
+    ...(longest === null ? {} : {longestTask: longest}),
+  }
+}
+
+function watchLongTasks(): () => number | null {
+  if (!PerformanceObserver.supportedEntryTypes.includes(LONG_TASK)) return () => null
+  const longest = {ms: 0}
+  const record = (entries: PerformanceEntryList): void => {
+    longest.ms = Math.max(longest.ms, ...entries.map((entry) => entry.duration))
+  }
+  const observer = new PerformanceObserver((list) => record(list.getEntries()))
+  observer.observe({type: LONG_TASK})
+  return () => {
+    record(observer.takeRecords())
+    observer.disconnect()
+    return Math.round(longest.ms)
   }
 }
 
 async function measureMirror(size: Size): Promise<MeasureResult> {
   const doc = mirrorDocument(await mirrorAt(size.width))
-  const measured = collectComponents({root: doc, size})
+  const measured = await collectComponents({root: doc, size})
   const masks = canvasBoxes({root: doc, size})
   const opinion = await secondOpinion({doc, ...size, components: measured, wasm: takumiWasm()})
   const blob = await snapdomShot({doc, size, exclude: MIRROR_EXCLUDE, viewport: false})
@@ -416,6 +437,7 @@ function videoFrame(track: MediaStreamTrack): Promise<HTMLVideoElement | null> {
 
 async function snapdomShot(input: {doc: Document; size: Size; exclude: string[]; viewport: boolean}): Promise<Blob> {
   const {doc, size} = input
+  await idle()
   const capture = await snapdom(doc.documentElement, {
     ...(input.viewport ? {clip: 'viewport'} : {}),
     dpr: 1,
@@ -553,30 +575,48 @@ async function cropped(input: {bitmap: ImageBitmap; rect: DOMRect; background: s
   return base64(await canvas.convertToBlob({type: 'image/png'}))
 }
 
-function collectComponents(input: {root: Document; size: Size}): LiveComponent[] {
+async function collectComponents(input: {root: Document; size: Size}): Promise<LiveComponent[]> {
   const view = input.root.defaultView
   if (view === null) return []
   const scan = scanSheets({doc: input.root, view})
-  return collectUnder({el: input.root.documentElement, size: input.size, view, path: '', scan})
+  return collectUnder({el: input.root.documentElement, size: input.size, view, path: '', scan, walked: {count: 0}})
 }
 
-type Walk = {el: Element; size: Size; view: PageWindow; path: string; scan: Scan}
+type Walk = {el: Element; size: Size; view: PageWindow; path: string; scan: Scan; walked: {count: number}}
 
-function collectUnder(input: Walk): LiveComponent[] {
+function collectUnder(input: Walk): Promise<LiveComponent[]> {
   const {el, path} = input
   const light = [...el.children].map((child, position) => ({child, at: `${path}/${position + 1}`}))
   const shadow = [...(el.shadowRoot?.children ?? [])].map((child, position) => ({
     child,
     at: `${path}/s/${position + 1}`,
   }))
-  return [...light, ...shadow].flatMap(({child, at}) =>
-    child.hasAttribute(SOURCE_ATTR)
-      ? [componentTree({...input, el: child, path: at})]
-      : collectUnder({...input, el: child, path: at}),
-  )
+  return [...light, ...shadow].reduce<Promise<LiveComponent[]>>(async (done, {child, at}) => {
+    const collected = await done
+    await paced(input.walked)
+    const found = child.hasAttribute(SOURCE_ATTR)
+      ? [await componentTree({...input, el: child, path: at})]
+      : await collectUnder({...input, el: child, path: at})
+    return collected.concat(found)
+  }, Promise.resolve([]))
 }
 
-function componentTree(input: Walk): LiveComponent {
+async function paced(walked: {count: number}): Promise<void> {
+  walked.count += 1
+  if (walked.count % TOLERANCES.measureChunk === 0) await yieldToPage()
+}
+
+function yieldToPage(): Promise<void> {
+  if ('scheduler' in globalThis && 'yield' in scheduler) return scheduler.yield()
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+function idle(): Promise<void> {
+  if (!('requestIdleCallback' in globalThis)) return Promise.resolve()
+  return new Promise((resolve) => requestIdleCallback(() => resolve(), {timeout: IDLE_TIMEOUT_MS}))
+}
+
+async function componentTree(input: Walk): Promise<LiveComponent> {
   const {el, size, view} = input
   const nodes = ownTextNodes(el)
   const box = clipped({rect: el.getBoundingClientRect(), size})
@@ -602,7 +642,7 @@ function componentTree(input: Walk): LiveComponent {
     path: input.path,
     drawn: drawnPicture(el),
     placeholder: PLACEHOLDER_KINDS.find((kind) => kind === el.getAttribute(PLACEHOLDER_ATTR)) ?? null,
-    children: collectUnder(input),
+    children: await collectUnder(input),
   }
 }
 
