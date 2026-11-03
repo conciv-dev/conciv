@@ -2561,6 +2561,30 @@ async function writeGradientDesign(): Promise<void> {
   await writeFile(target(GRADIENT_DESIGN), PNG.sync.write(png))
 }
 
+const GRADIENT_PAGE = `export function Stripe() {
+  return (
+    <main style={{margin: -24, height: 420, display: 'grid', gridTemplateColumns: '280px 240px', gridTemplateRows: '140px', columnGap: 40, padding: 40, background: '#ffffff'}}>
+      <div style={{background: '#635bff'}} />
+      <div style={{backgroundImage: 'linear-gradient(to right, #f6d1c3, #b093f4)'}} />
+    </main>
+  )
+}
+`
+const PaintItemsSchema = z.object({
+  nodes: z.record(
+    z.string(),
+    z.object({item: z.object({stage: z.string(), size: z.number(), sentence: z.string()}).nullable()}),
+  ),
+})
+
+async function paintItems(id: string): Promise<{size: number; sentence: string}[]> {
+  const path = fileUnder(stateRoot, `.conciv/design/${id}/ledger.json`)
+  const ledger = PaintItemsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+  return Object.values(ledger.nodes).flatMap((entry) =>
+    entry.item !== null && entry.item.stage === 'paint' ? [{size: entry.item.size, sentence: entry.item.sentence}] : [],
+  )
+}
+
 function placeholderRendered(): Promise<boolean> {
   return page.evaluate(() => document.querySelector('[data-conciv-source*="Placeholder.tsx"]') !== null)
 }
@@ -2662,6 +2686,29 @@ describe('icons', () => {
       1,
     )
     expect(outline.filter((line) => line.trim().startsWith('image 200x140 placeholder'))).toHaveLength(1)
+  }, 240_000)
+
+  it('a solid live box against the vertical gradient is a background item sized by its ends', async ({annotate}) => {
+    await goto('stripe')
+    await page.setViewportSize(GRADIENT_SIZE)
+    await writeGradientDesign()
+    const {id} = await freshTarget(GRADIENT_DESIGN)
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await rewrite({id, file: STRIPE_SOURCE, text: GRADIENT_PAGE})
+      const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
+      const items = await paintItems(id)
+      const solid = items.filter((item) => item.sentence.includes('gradient #') && item.sentence.includes('#635bff'))
+      await annotate(
+        `paint items ${JSON.stringify(items)} score ${JSON.stringify(report.score)} brief ${JSON.stringify(report.brief.slice(0, 5))}`,
+      )
+      expect(solid.map((item) => item.size > 1)).toEqual([true])
+      expect(report.score[4]).toBeGreaterThan(0)
+      expect(report.score[4]).toBeGreaterThanOrEqual(solid[0]?.size ?? Number.POSITIVE_INFINITY)
+    } finally {
+      await writeFile(STRIPE_SOURCE, source)
+      await page.setViewportSize({width: 1280, height: 720})
+    }
   }, 240_000)
 
   it('the stripe design has no single-axis gradient box and its hero is not turned into an image', async ({

@@ -10,7 +10,7 @@ import {
   type Stage,
   type Stop,
 } from '../shared/defs.js'
-import {keyBy, uniq} from 'es-toolkit'
+import {keyBy, uniq, zip} from 'es-toolkit'
 import {deltaSentence, iconSized, kindStage, kindTolerance, TOLERANCES, traced} from '../shared/tolerances.js'
 import type {
   Box,
@@ -282,6 +282,10 @@ export function lexicallyWorse(input: {a: number[]; b: number[]}): boolean {
 export function deltaSize(input: {delta: Delta; color: ColorMetric}): number {
   const {delta, color} = input
   const {live, target} = delta
+  const gradient = [live, target].some((paint) => typeof paint === 'string' && paint.startsWith(GRADIENT_WORD))
+  if (delta.kind === 'background' && gradient && typeof live === 'string' && typeof target === 'string') {
+    return capped(gradientDistance({live, target, color}) / TOLERANCES.colorDeltaE)
+  }
   if (COLOR_KINDS.includes(delta.kind) && typeof live === 'string' && typeof target === 'string') {
     return capped(color.distance({a: live, b: target}) / TOLERANCES.colorDeltaE)
   }
@@ -345,6 +349,7 @@ const STAGE_TOLERANCES: Record<Stage, number> = {
 }
 const SCORE_PRECISION = 10_000
 const COLOR_KINDS: ItemKind[] = ['background', 'foreground', 'border']
+const GRADIENT_WORD = 'gradient '
 const LISTED = 6
 const ORDINAL_SUFFIXES: Partial<Record<number, string>> = {1: 'st', 2: 'nd', 3: 'rd'}
 const NOUNS = {
@@ -356,6 +361,23 @@ const NOUNS = {
 
 function applied(reply: unknown): boolean {
   return typeof reply === 'object' && reply !== null && 'applied' in reply && reply.applied === true
+}
+
+function gradientDistance(input: {live: string; target: string; color: ColorMetric}): number {
+  const {live, target, color} = input
+  const shown = paintEnds(live)
+  const design = paintEnds(target)
+  const pairs =
+    shown.length === design.length
+      ? zip(shown, design).map(([a, b]) => ({a, b}))
+      : shown.flatMap((a) => design.map((b) => ({a, b})))
+  return Math.max(...pairs.map((pair) => color.distance(pair)))
+}
+
+function paintEnds(paint: string): string[] {
+  if (!paint.startsWith(GRADIENT_WORD)) return [paint]
+  const [, from = paint, , to = paint] = paint.split(' ')
+  return [from, to]
 }
 
 function capped(value: number): number {
