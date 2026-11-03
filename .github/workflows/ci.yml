@@ -176,7 +176,7 @@ jobs:
       # Playwright keeps a trace.zip per failed embed IT (trace: retain-on-failure);
       # ship them so CI-only failures can be root-caused from the trace instead of
       # guessed at. Direct directory path, never a packages/** glob (see below).
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
           name: playwright-traces-${{ matrix.shard }}
@@ -192,7 +192,7 @@ jobs:
         if: always()
         env:
           SHARD_NAME: ${{ matrix.shard }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: test-results-${{ matrix.shard }}
@@ -232,7 +232,7 @@ jobs:
         if: github.event_name == 'pull_request'
       - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports --timings ci-test-timings.json
         if: github.event_name == 'push'
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'push'
         with:
           name: ci-test-timings
@@ -308,7 +308,7 @@ jobs:
       # Reports every package + the conciv.dev Cloudflare worker (Δ vs main), and fails only if the
       # worker exceeds its 3 MiB gzip free-plan limit (over it `wrangler deploy` fails with 10027).
       - run: pnpm exec conciv-bundle-size --output bundle-size.json --baseline bundle-size-baseline.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'push'
         with:
           name: bundle-size-baseline
@@ -579,7 +579,7 @@ jobs:
         if: always()
         env:
           SHARD_NAME: ${{ matrix.shard }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: e2e-results-${{ matrix.shard }}
@@ -611,7 +611,7 @@ jobs:
         if: github.event_name == 'pull_request'
       - run: node packages/vitest-config/src/ci-shards.ts summarize --task e2e e2e-reports --timings e2e-test-timings.json
         if: github.event_name == 'push'
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'push'
         with:
           name: e2e-test-timings
