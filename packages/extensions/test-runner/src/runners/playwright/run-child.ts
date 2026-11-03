@@ -1,6 +1,8 @@
 import {spawn} from 'node:child_process'
 import {createRequire} from 'node:module'
 import {join} from 'node:path'
+import {tmpdir} from 'node:os'
+import {mkdtemp, readFile, rm} from 'node:fs/promises'
 import {writeSync} from 'node:fs'
 import type {Summary, TestError, TestRow} from '../../shared/events.js'
 import type {ChildMessage} from '../../runner/child-protocol.js'
@@ -31,19 +33,35 @@ function resolveCli(cwd: string): string {
   throw new Error('playwright not found in the app (install @playwright/test)')
 }
 
-type CliResult = {report: string; stderr: string; code: number | null; signal: NodeJS.Signals | null}
+type CliOutput = {stdout: string; stderr: string; code: number | null; signal: NodeJS.Signals | null}
+type CliResult = CliOutput & {report: string}
 
-function runCli(cwd: string, cliArgs: string[]): Promise<CliResult> {
+function spawnCli(cwd: string, cliArgs: string[], reportFile: string): Promise<CliOutput> {
   const cliPath = resolveCli(cwd)
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [cliPath, 'test', ...cliArgs, '--reporter=json'], {cwd, env: process.env})
-    let report = ''
+    const child = spawn(process.execPath, [cliPath, 'test', ...cliArgs, '--reporter=json'], {
+      cwd,
+      env: {...process.env, PLAYWRIGHT_JSON_OUTPUT_FILE: reportFile},
+    })
+    let stdout = ''
     let stderr = ''
-    child.stdout?.on('data', (d: Buffer) => (report += d.toString()))
+    child.stdout?.on('data', (d: Buffer) => (stdout += d.toString()))
     child.stderr?.on('data', (d: Buffer) => (stderr += d.toString()))
     child.on('error', reject)
-    child.on('close', (code, signal) => resolve({report, stderr, code, signal}))
+    child.on('close', (code, signal) => resolve({stdout, stderr, code, signal}))
   })
+}
+
+async function runCli(cwd: string, cliArgs: string[]): Promise<CliResult> {
+  const reportDir = await mkdtemp(join(tmpdir(), 'conciv-playwright-report-'))
+  try {
+    const reportFile = join(reportDir, 'report.json')
+    const output = await spawnCli(cwd, cliArgs, reportFile)
+    const report = await readFile(reportFile, 'utf8').catch(() => '')
+    return {...output, report}
+  } finally {
+    await rm(reportDir, {recursive: true, force: true})
+  }
 }
 
 const OUTPUT_TAIL_LENGTH = 500
@@ -55,7 +73,7 @@ function tail(text: string): string {
 function describeMissingReport(cliResult: CliResult): string {
   const parts = [`exit code ${cliResult.code}, signal ${cliResult.signal}`]
   if (cliResult.stderr.trim()) parts.push(`stderr: ${tail(cliResult.stderr.trim())}`)
-  if (cliResult.report.trim()) parts.push(`stdout: ${tail(cliResult.report.trim())}`)
+  if (cliResult.stdout.trim()) parts.push(`stdout: ${tail(cliResult.stdout.trim())}`)
   return `playwright produced no JSON report (${parts.join(', ')})`
 }
 
