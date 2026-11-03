@@ -738,7 +738,7 @@ test.describe('model selector', () => {
 
     test('offers a retry when the model menu fails to load and recovers on retry', async ({page}) => {
       test.setTimeout(180_000)
-      const models = await failRpcCalls(page, {path: ['meta', 'harnesses']})
+      const models = await failRpcCalls(page, {path: ['meta', 'models']})
       await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
       await openPanel(page)
 
