@@ -14,6 +14,8 @@ import {SKINS, type SkinName} from '../src/skins.js'
 import type {SchemePair, Skin} from '../src/skin-contract.js'
 import {contrastRatio, type SkinSchemeAnchorName} from './wcag.js'
 import {TextArea} from '../src/text-field.js'
+import {PinInput} from '../src/pin-input.js'
+import {createStore} from 'solid-js/store'
 import {Menu} from '../src/menu.js'
 import {TooltipIconButtonSlot} from '../src/tooltip-icon-button.js'
 import {TruncatedText} from '../src/truncated-text.js'
@@ -746,6 +748,57 @@ describe('text field', () => {
       await settle()
       expect(heights).toHaveLength(1)
     })
+  })
+})
+
+describe('pin input', () => {
+  afterEach(cleanupMounts)
+
+  function PinHarness(): ReturnType<typeof PinInput> {
+    const [form, setForm] = createStore({completed: ''})
+    return (
+      <div>
+        <PinInput
+          label="Authorization code"
+          length={6}
+          digitLabel={(position, length) => `Digit ${position} of ${length}`}
+          onValueComplete={(code, controls) => {
+            setForm('completed', code)
+            controls.clear()
+          }}
+        />
+        <p>{form.completed === '' ? 'waiting' : `completed ${form.completed}`}</p>
+      </div>
+    )
+  }
+
+  it('moves through the digits as they are typed, completes, and returns to the first digit once cleared', async () => {
+    mountStyled(() => <PinHarness />)
+    await userEvent.click(page.getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await userEvent.keyboard('123456')
+    await expect.element(page.getByText('completed 123456')).toBeInTheDocument()
+    await userEvent.keyboard('654321')
+    await expect.element(page.getByText('completed 654321')).toBeInTheDocument()
+  })
+
+  it('takes a code typed straight into a dialog opened from a button in the same shadow root', async () => {
+    mountInShadow((root) => {
+      const [dialog, setDialog] = createStore({open: false})
+      return (
+        <EnvironmentProvider value={() => root}>
+          <button type="button" onClick={() => setDialog('open', true)}>
+            Authorize
+          </button>
+          <Dialog title="Authorize" open={dialog.open} onOpenChange={(open) => setDialog('open', open)} dismissable>
+            <PinHarness />
+          </Dialog>
+        </EnvironmentProvider>
+      )
+    })
+    await userEvent.click(page.getByRole('button', {name: 'Authorize'}))
+    await expect.element(page.getByRole('textbox', {name: 'Digit 1 of 6'})).toBeVisible()
+    await userEvent.keyboard('123456')
+    await expect.element(page.getByText('completed 123456')).toBeInTheDocument()
   })
 })
 
