@@ -852,12 +852,18 @@ Each extension PR:
 
 Extension-specific files:
 
-- **terminal (PR 10)**: `src/server/pty-sessions.ts`, `src/server/spawn-helper-fix.ts` (Delete);
-  `src/server/osc-busy.ts`, `frame-injector.ts`, `launch.ts` (Modify: read the hub PTY
-  session's output stream); `src/client/terminal-panel-view.tsx`, `terminal-actions.tsx`
-  (Modify: read and write the hub PTY session; the view registers only when the extension's
-  `enabled` config is true, default false; when true, the agent session is started unlisted
-  in the Terminals plugin); `package.json` (Modify: remove `@lydell/node-pty`).
+- **terminal (PR 10)**: conciv keeps running the agent's PTY (`src/server/pty-sessions.ts`,
+  `@lydell/node-pty`, `spawn-helper-fix.ts` stay), so `osc-busy.ts` and `frame-injector.ts`
+  keep reading its output live. Each session is handed to Devframe with
+  `ctx.terminals.register({id, title, status, interactive: true, restartable: false, stream,
+  write, resize})`, where `stream` is a `ReadableStream` the PTY's data feeds and `write` /
+  `resize` call the PTY. Devframe's Terminals panel then shows the session and its typing
+  reaches the PTY (`hub:terminals:write` accepts any registered session with a `write`
+  function, checked in `@devframes/hub` 1.3.0). The `/tty` websocket goes away;
+  `src/client/terminal-panel-view.tsx`, `terminal-actions.tsx` (Modify) read the hub session
+  instead. `startPtySession` is not used: the hub locks its output stream, so the server could
+  not read it, and it offers no way to keep a session unlisted. The view registers only when
+  the extension's `enabled` config is true, default false.
   `packages/ui-kit-terminal/src/model.ts` (Modify: websocket half removed). Agent env vars
   are unset through `/usr/bin/env -u`; POSIX only, as the harness CLIs are today.
 - **test-runner (PR 11)**: `vitest.config.ts` (Modify: globalSetup uses `serveDevframePlugin`);
