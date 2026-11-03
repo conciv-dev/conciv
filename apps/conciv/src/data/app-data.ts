@@ -7,7 +7,7 @@ import type {HubConnection} from '../app/devframe-link.js'
 
 const DEVFRAME_GROUPS: ReadonlySet<string> = new Set(['sessions'])
 
-export type AppHub = {connection: () => HubConnection; connected: () => boolean}
+export type AppHub = {connection: () => HubConnection | undefined; connected: () => boolean}
 
 export type AppData = {
   rpc: RpcClient
@@ -36,11 +36,18 @@ function hubCallOf(hub: AppHub): HubCall {
   return async (name, input) => {
     if (!hub.connected()) throw new Error(RPC_UNBOUND_MESSAGE)
     const connection = hub.connection()
+    if (!connection) throw unreachable()
     await attemptSettled(connection)
     const client = await connection.ready()
     await client.ensureTrusted()
     return client.scope('conciv').rpc.call(name, input)
   }
+}
+
+function readSessionsState(hub: AppHub | undefined, write: (value: unknown) => void): () => void {
+  const connection = hub?.connection()
+  if (!connection) return () => {}
+  return readSharedState<object>(connection, 'conciv:sessions', write)
 }
 
 export function makeAppData(rpc: RpcClient, hub: AppHub | undefined, queryClient: QueryClient): AppData {
@@ -58,6 +65,6 @@ export function makeAppData(rpc: RpcClient, hub: AppHub | undefined, queryClient
     rpc: routed,
     utils,
     invalidateSessions: () => void queryClient.invalidateQueries({queryKey: utils.sessions.list.key()}),
-    readHubState: () => (hub ? readSharedState<object>(hub.connection(), 'conciv:sessions', writeSessions) : () => {}),
+    readHubState: () => readSessionsState(hub, writeSessions),
   }
 }

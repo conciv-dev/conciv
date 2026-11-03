@@ -142,7 +142,7 @@ function RootComponent() {
     window.dispatchEvent(new CustomEvent(CONNECTION_CHANGED_EVENT, {detail: {connected: isConnected}}))
   })
 
-  const reachability = makeEngineReachability()
+  const reachability = makeEngineReachability(app.engineOnline)
 
   return (
     <EnvironmentProvider value={() => app.environment.rootNode}>

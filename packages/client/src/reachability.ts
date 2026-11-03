@@ -77,14 +77,27 @@ export function setupEngineReachability(apiBase: string, connection?: EngineConn
   }
 }
 
-export function engineOnline(): Accessor<boolean> {
-  const [online, setOnline] = createSignal(onlineManager.isOnline())
-  onCleanup(onlineManager.subscribe(setOnline))
-  return online
+export function engineReachability(
+  apiBase: string,
+  connection?: EngineConnection,
+): {subscribe: (listener: (online: boolean) => void) => () => void} {
+  return {
+    subscribe: (listener) => {
+      const teardown = setupEngineReachability(apiBase, connection)
+      const unsubscribe = onlineManager.subscribe(listener)
+      listener(onlineManager.isOnline())
+      return () => {
+        unsubscribe()
+        teardown()
+      }
+    },
+  }
 }
 
-export function sustainedEngineOffline(graceMs = ENGINE_OFFLINE_GRACE_MS): Accessor<boolean> {
-  const online = engineOnline()
+export function sustainedEngineOffline(
+  online: Accessor<boolean>,
+  graceMs = ENGINE_OFFLINE_GRACE_MS,
+): Accessor<boolean> {
   const [sustained, setSustained] = createSignal(false)
   const offlineDebouncer = new Debouncer(() => setSustained(true), {wait: graceMs})
   createEffect(() => {
