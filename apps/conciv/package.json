@@ -43,6 +43,7 @@
     "@devframes/hub": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/mutation-observer": "^1.2.4",
+    "@solid-primitives/resize-observer": "catalog:",
     "@tanstack/hotkeys": "^0.18.0",
     "@tanstack/pacer": "catalog:",
     "@tanstack/solid-hotkeys": "^0.17.0",

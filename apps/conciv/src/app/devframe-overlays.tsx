@@ -126,10 +126,11 @@ function liveDocks(state: SharedState<DevframeDockEntry[]>): () => readonly Devf
   })
 }
 
-function createHubShell(hub: Accessor<HubConnection> | undefined, notify: Notify): HubShell {
+function createHubShell(hub: Accessor<HubConnection | undefined> | undefined, notify: Notify): HubShell {
   if (!hub) return EMPTY_SHELL
   const linkOfConnection = createMemo(() => {
     const connection = hub()
+    if (!connection) return () => undefined
     return from<HubLink>((set) => watchLink(connection, notify, (next) => set(() => next)))
   })
   const link = () => linkOfConnection()()
@@ -141,7 +142,7 @@ function createHubShell(hub: Accessor<HubConnection> | undefined, notify: Notify
 }
 
 export function HubShellProvider(props: {
-  hub: Accessor<HubConnection> | undefined
+  hub: Accessor<HubConnection | undefined> | undefined
   children: JSX.Element
 }): JSX.Element {
   const notices = useNotices()

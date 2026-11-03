@@ -28,7 +28,7 @@ import {DevTools} from '@vitejs/devtools'
 import {createLogger, createServer, type Plugin, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
 import {pluginFrame, probeScript} from '@conciv/harness-testkit/devframe-probe'
-import {trustedTab} from '@conciv/extension-testkit/trusted-tab'
+import {trustedApiBase, trustedTab} from '@conciv/extension-testkit/trusted-tab'
 import {getTempAuthCode} from 'devframe/node/auth'
 import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
 import ios from '@conciv/extension-ios'
@@ -602,7 +602,14 @@ describe('native page vite boot', () => {
       expect(state.errors).toEqual([])
     }, 30_000)
 
-    it('asks a fresh tab for the login code, refuses a wrong one and restores the saved chat after the right one', async () => {
+    const typeCode = async (card: ReturnType<Page['getByRole']>, code: string): Promise<void> => {
+      await card.getByRole('textbox', {name: 'Digit 1 of 6'}).click()
+      await card.page().keyboard.type(code)
+    }
+
+    const wrongCode = (): string => (getTempAuthCode() === '000000' ? '111111' : '000000')
+
+    it('keeps a fresh tab locked without a popup, opens a dismissable login from the launcher and restores the saved chat after the right code', async () => {
       const url = state.started?.server.resolvedUrls?.local[0]
       if (url === undefined) throw new Error('dev server did not start')
       const opener = await trusted()
@@ -622,19 +629,90 @@ describe('native page vite boot', () => {
         if (message.type() === 'error') errorsBeforeLogin.push(message.text())
       })
       await tab.goto(url, {waitUntil: 'domcontentloaded'})
+      const locked = tab.getByRole('button', {name: 'Authorize conciv'})
+      await expectLocator(locked).toBeVisible({timeout: 45_000})
       const card = tab.getByRole('dialog', {name: 'Authorize conciv'})
-      await expectLocator(card).toBeVisible({timeout: 45_000})
-      const code = card.getByRole('textbox', {name: 'Code'})
-      await code.fill(getTempAuthCode() === '000000' ? '111111' : '000000')
-      await card.getByRole('button', {name: 'Authorize'}).click()
+      await expectLocator(card).toBeHidden()
+      await tab.getByRole('button', {name: '0', exact: true}).click()
+      await expectLocator(tab.getByRole('button', {name: '1', exact: true})).toBeVisible()
+
+      await locked.click()
+      await expectLocator(card).toBeVisible()
+      await expectLocator(card.getByText('Find the 6-digit code printed in your terminal.')).toBeVisible()
+      await tab.keyboard.press('Escape')
+      await expectLocator(card).toBeHidden()
+      await expectLocator(locked).toBeVisible()
+
+      await locked.click()
+      await expectLocator(card).toBeVisible()
+      await card.getByRole('button', {name: 'Close'}).click()
+      await expectLocator(card).toBeHidden()
+      await expectLocator(locked).toBeVisible()
+
+      await locked.click()
+      await expectLocator(card.getByText('Find the 6-digit code printed in your terminal.')).toBeVisible()
+      const heightBefore = (await card.boundingBox())?.height
+      await typeCode(card, wrongCode())
       await expectLocator(card.getByRole('alert')).toHaveText(
-        'That code did not match. Check the terminal and try again.',
+        "That code didn't match. Check your terminal and try again.",
       )
+      expect((await card.boundingBox())?.height).toBe(heightBefore)
       expect(errorsBeforeLogin).toEqual([])
-      await code.fill(getTempAuthCode())
-      await card.getByRole('button', {name: 'Authorize'}).click()
+      const firstDigit = card.getByRole('textbox', {name: 'Digit 1 of 6'})
+      await expectLocator(firstDigit).toBeFocused()
+      await expectLocator(firstDigit.and(tab.locator(':focus-visible'))).toBeVisible()
+      await tab.keyboard.type(getTempAuthCode())
       await expectLocator(card).toBeHidden()
       await tab.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
+      await tab.close()
+    }, 90_000)
+
+    it('treats a stale engine token in the page as untrusted and unlocks after the code', async () => {
+      const url = state.started?.server.resolvedUrls?.local[0]
+      const root = state.started?.root
+      const tab = await state.browser?.newPage()
+      if (url === undefined || root === undefined || tab === undefined) throw new Error('dev server did not start')
+      const stale = `${new URL(await trustedApiBase(root)).origin}/t/stale-token`
+      await tab.addInitScript((base) => Reflect.set(globalThis, '__CONCIV_API_BASE__', base), stale)
+      await tab.goto(url, {waitUntil: 'domcontentloaded'})
+      const locked = tab.getByRole('button', {name: 'Authorize conciv'})
+      await expectLocator(locked).toBeVisible({timeout: 45_000})
+      const card = tab.getByRole('dialog', {name: 'Authorize conciv'})
+      await expectLocator(card).toBeHidden()
+      await locked.click()
+      await typeCode(card, getTempAuthCode())
+      await expectLocator(card).toBeHidden()
+      await expectLocator(tab.getByRole('button', {name: /conciv chat$/})).toBeVisible({timeout: 15_000})
+      await tab.close()
+    }, 90_000)
+
+    it('shows the login instead of the panel when a panel command opens a locked conciv, and opens the panel after the right code', async () => {
+      const url = state.started?.server.resolvedUrls?.local[0]
+      const tab = await state.browser?.newPage()
+      if (url === undefined || tab === undefined) throw new Error('dev server did not start')
+      await tab.goto(url, {waitUntil: 'domcontentloaded'})
+      await expectLocator(tab.getByRole('button', {name: 'Authorize conciv'})).toBeVisible({timeout: 45_000})
+      const card = tab.getByRole('dialog', {name: 'Authorize conciv'})
+      await tab.evaluate(() => {
+        window.dispatchEvent(
+          new CustomEvent('conciv-dispatch-event', {detail: {type: 'panel:open', payload: null, pluginId: 'panel'}}),
+        )
+      })
+      await expectLocator(card).toBeVisible()
+      await expectLocator(tab.getByText("conciv couldn't reach the engine", {exact: false})).toBeHidden()
+      await typeCode(card, getTempAuthCode())
+      await expectLocator(card).toBeHidden()
+      await expectLocator(tab.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 15_000})
+      await tab.close()
+    }, 90_000)
+
+    it('unlocks a fresh tab from the magic link code in the page fragment', async () => {
+      const url = state.started?.server.resolvedUrls?.local[0]
+      const tab = await state.browser?.newPage()
+      if (url === undefined || tab === undefined) throw new Error('dev server did not start')
+      await tab.goto(`${url}#devframe_otp=${getTempAuthCode()}`, {waitUntil: 'domcontentloaded'})
+      await expectLocator(tab.getByRole('button', {name: /conciv chat$/})).toBeVisible({timeout: 45_000})
+      await expectLocator(tab.getByRole('dialog', {name: 'Authorize conciv'})).toBeHidden()
       await tab.close()
     }, 90_000)
 
@@ -1255,7 +1333,6 @@ describe('widget inject', () => {
 describe('vite devtools dock', () => {
   const servers: ViteDevServer[] = []
   const dirs = devServers()
-  const dockRoots = new Map<string, string>()
   let browser: Browser
 
   beforeAll(async () => {
@@ -1309,26 +1386,51 @@ describe('vite devtools dock', () => {
             dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
           },
         ),
-        DevTools({clientAuth: false}),
+        DevTools(),
       ],
     })
     servers.push(server)
     await server.listen()
     const address = server.httpServer?.address()
     const url = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`
-    dockRoots.set(url, root)
     return url
   }
 
-  async function trustedGoto(page: Page, url: string, root = dockRoots.get(url)): Promise<void> {
-    if (root === undefined) throw new Error(`no state root for ${url}`)
+  async function trustedGoto(page: Page, url: string, root: string): Promise<void> {
     await trustedTab(page, {root})
     await page.goto(url, {waitUntil: 'domcontentloaded'})
   }
 
+  async function devtoolsGoto(page: Page, url: string): Promise<void> {
+    await page.goto(`${url}#devframe_otp=${getTempAuthCode()}`, {waitUntil: 'domcontentloaded'})
+  }
+
+  it('keeps conciv out of an unauthorized dock and opens a usable chat after the DevTools magic link login', async () => {
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    const refused: string[] = []
+    page.on('response', (response) => {
+      if (response.status() === 401) refused.push(response.url())
+    })
+    const url = await dockServer()
+    await page.goto(url, {waitUntil: 'domcontentloaded'})
+    await expectLocator(page.getByRole('button', {name: 'Unauthorized'})).toBeVisible({timeout: 45_000})
+    await expectLocator(page.getByRole('button', {name: 'conciv'})).toHaveCount(0)
+    await devtoolsGoto(page, url)
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click', undefined, {timeout: 45_000})
+    const composer = page
+      .getByRole('dialog', {name: 'conciv chat agent'})
+      .getByRole('textbox', {name: 'Message the conciv agent'})
+    await composer.click({timeout: 30_000})
+    await expectLocator(composer).toBeFocused()
+    await expectLocator(page.getByText('Unauthorized')).toHaveCount(0)
+    expect(refused).toEqual([])
+    await page.close()
+  }, 90_000)
+
   it('fills the dock panel with the widget and keeps it there when the dock entry is reopened', async () => {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-    await trustedGoto(page, await dockServer())
+    await devtoolsGoto(page, await dockServer())
     const entry = page.getByRole('button', {name: 'conciv'})
     await entry.dispatchEvent('click')
     const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
@@ -1343,7 +1445,7 @@ describe('vite devtools dock', () => {
 
   it('keeps the hidden conciv pane unfocusable while another dock entry is open', async () => {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-    await trustedGoto(page, await dockServer())
+    await devtoolsGoto(page, await dockServer())
     const entry = page.getByRole('button', {name: 'conciv'})
     await entry.dispatchEvent('click')
     const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -1360,7 +1462,7 @@ describe('vite devtools dock', () => {
 
   it('follows the color mode chosen in the DevTools settings', async () => {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-    await trustedGoto(page, await dockServer())
+    await devtoolsGoto(page, await dockServer())
     const concivHost = page.locator('[data-conciv-root]')
     const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
     const chooseColorMode = async (mode: 'Light' | 'Dark'): Promise<void> => {
@@ -1380,7 +1482,7 @@ describe('vite devtools dock', () => {
 
   it('fills the dock panel with the chat and the builtin extension tabs on a host with the real builtins', async () => {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-    await trustedGoto(page, await dockServer(undefined, realBuiltins))
+    await devtoolsGoto(page, await dockServer(undefined, realBuiltins))
     await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
     const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
     await chat.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 45_000})
@@ -1391,7 +1493,7 @@ describe('vite devtools dock', () => {
 
   it('returns to the chat when the quick terminal opened by hotkey from a freshly opened dock chat closes', async () => {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-    await trustedGoto(page, await dockServer(undefined, realBuiltins))
+    await devtoolsGoto(page, await dockServer(undefined, realBuiltins))
     await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
     const panelComposer = page
       .getByRole('dialog', {name: 'conciv chat agent'})
@@ -1411,7 +1513,7 @@ describe('vite devtools dock', () => {
     }
 
     async function openDockThenHide(page: Page, hide: (page: Page) => Promise<void>): Promise<void> {
-      await trustedGoto(page, await dockServer(undefined, realBuiltins))
+      await devtoolsGoto(page, await dockServer(undefined, realBuiltins))
       await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
       const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
       await composer.waitFor({timeout: 45_000})
@@ -1512,7 +1614,7 @@ describe('vite devtools dock', () => {
     await floatingPage.close()
     await floating.server.close()
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-    await trustedGoto(page, await dockServer(undefined, NO_BUILTINS, root))
+    await devtoolsGoto(page, await dockServer(undefined, NO_BUILTINS, root))
     await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
     await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
     await page.close()
@@ -1521,7 +1623,7 @@ describe('vite devtools dock', () => {
   it('runs as the dock when the host html already carries a conciv-widget meta', async () => {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
     const url = await dockServer(undefined, NO_BUILTINS, undefined, '<meta name="conciv-widget" content="{}">')
-    await trustedGoto(page, url)
+    await devtoolsGoto(page, url)
     await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
     await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
     expect(await page.getByRole('button', {name: /Open conciv chat|Close chat/}).count()).toBe(0)
@@ -1663,7 +1765,7 @@ describe('vite devtools dock', () => {
 
   it('registers no dock entry when the widget is off', async () => {
     const page = await browser.newPage()
-    await trustedGoto(page, await dockServer(false))
+    await devtoolsGoto(page, await dockServer(false))
     await page.getByRole('button', {name: 'Settings'}).waitFor()
     expect(await page.getByRole('button', {name: 'conciv'}).count()).toBe(0)
     await page.close()
@@ -1715,7 +1817,7 @@ describe('vite devtools dock', () => {
     it('opens the pop-out from the session menu while the click still allows popups', async () => {
       const page = await browser.newPage({viewport: {width: 1280, height: 800}})
       await allowPopupsOnlyDuringAClick(page)
-      await trustedGoto(page, await dockServer())
+      await devtoolsGoto(page, await dockServer())
       await openDockChat(page)
       const popupPage = await popOut(page)
       await expectWorkingComposer(popupPage)
@@ -1725,7 +1827,7 @@ describe('vite devtools dock', () => {
     it('offers pop out again when the browser blocks the window, and opens it from that action', async () => {
       const page = await browser.newPage({viewport: {width: 1280, height: 800}})
       await allowPopupsOnlyDuringAClick(page)
-      await trustedGoto(page, await dockServer())
+      await devtoolsGoto(page, await dockServer())
       await openDockChat(page)
       await page.evaluate(() => Reflect.set(window, 'popupsBlocked', true))
       await page.getByRole('button', {name: 'Session options'}).click()
@@ -1741,7 +1843,7 @@ describe('vite devtools dock', () => {
 
     it('shows a popped-out state in the dock that brings the chat back', async () => {
       const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-      await trustedGoto(page, await dockServer())
+      await devtoolsGoto(page, await dockServer())
       await openDockChat(page)
       const popupPage = await popOut(page)
       await expectLocator(page.getByText('Chat is popped out')).toBeVisible()
@@ -1754,7 +1856,7 @@ describe('vite devtools dock', () => {
 
     it('re-attaches to the still-open pop-out after the page reloads', async () => {
       const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-      await trustedGoto(page, await dockServer())
+      await devtoolsGoto(page, await dockServer())
       await openDockChat(page)
       const popupPage = await popOut(page)
       await page.reload({waitUntil: 'domcontentloaded'})
@@ -1765,7 +1867,7 @@ describe('vite devtools dock', () => {
 
     it('returns to the inline chat when the user closes the pop-out after a reload', async () => {
       const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-      await trustedGoto(page, await dockServer())
+      await devtoolsGoto(page, await dockServer())
       await openDockChat(page)
       const popupPage = await popOut(page)
       await page.reload({waitUntil: 'domcontentloaded'})
@@ -1779,7 +1881,7 @@ describe('vite devtools dock', () => {
     it('falls back to the inline chat with a pop out again action when the pop-out cannot be restored', async () => {
       const url = await dockServer()
       const first = await browser.newPage({viewport: {width: 1280, height: 800}})
-      await trustedGoto(first, url)
+      await devtoolsGoto(first, url)
       await openDockChat(first)
       const stale = await popOut(first)
       await first.close()
@@ -1790,7 +1892,7 @@ describe('vite devtools dock', () => {
         window.open = (...args: Parameters<typeof window.open>) =>
           Reflect.get(window, 'popupsAllowed') === true ? open(...args) : null
       })
-      await trustedGoto(page, url)
+      await devtoolsGoto(page, url)
       await openDockChat(page)
       await page.evaluate(() => Reflect.set(window, 'popupsAllowed', true))
       const popup = page.waitForEvent('popup')
@@ -1842,6 +1944,7 @@ describe('extension load isolation', () => {
     await server.listen()
     const address = server.httpServer?.address()
     const page = await browser.newPage()
+    await trustedTab(page, {root})
     await page.route(/blocked-extension\.js/, (route) => route.abort('blockedbyclient'))
     await page.goto(`http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`, {
       waitUntil: 'domcontentloaded',
