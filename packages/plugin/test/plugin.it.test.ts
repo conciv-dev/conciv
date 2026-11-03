@@ -1147,7 +1147,7 @@ describe('vite devtools dock', () => {
     const answer = await reply
     socket.close()
     expect(answer).toContain('engine-token-probe')
-    expect(answer).toContain('DF0036')
+    expect(answer).toContain('the caller is not authorized')
     expect(readTrustedBrowsers(concivStateDir(root))).toEqual([])
   }, 60_000)
 
@@ -1641,10 +1641,11 @@ describe('extension load isolation', () => {
     writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title><h1>host</h1>')
     const blockedEntry = join(root, 'blocked-extension.js')
     writeFileSync(blockedEntry, "export default {name: 'blocked'}\n")
+    const printed = capturedLogger()
     const server = await createServer({
       root,
       configFile: false,
-      logLevel: 'silent',
+      customLogger: printed.logger,
       server: {host: '127.0.0.1', port: 0},
       plugins: [
         makeViteHook(
@@ -1663,9 +1664,8 @@ describe('extension load isolation', () => {
     const address = server.httpServer?.address()
     const page = await browser.newPage()
     await page.route(/blocked-extension\.js/, (route) => route.abort('blockedbyclient'))
-    await page.goto(`http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`, {
-      waitUntil: 'domcontentloaded',
-    })
+    const url = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`
+    await page.goto(await magicLinkUrl({server, root, terminal: printed.text}, url), {waitUntil: 'domcontentloaded'})
     const notice = page.getByText(/blocked-extension.*failed to load.*content blocker/)
     const shown = notice.waitFor({timeout: 45_000})
     await page.getByRole('button', {name: /conciv chat$/}).waitFor({timeout: 45_000})
