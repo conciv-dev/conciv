@@ -1999,7 +1999,9 @@ describe('loop', () => {
         .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
         .toBeGreaterThan(runs)
       const third = await call('design_diff', {full: true})
-      const demoted = third.rows.map((row) => row.node !== undefined && unchanged.has(row.node))
+      const demoted = third.rows
+        .filter((row) => row.stage === third.stage)
+        .map((row) => row.node !== undefined && unchanged.has(row.node))
       expect(third.stage).toBe('structure')
       expect(demoted[0]).toBe(false)
       expect(demoted).toContain(true)
