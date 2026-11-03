@@ -18,6 +18,7 @@ import type {
   ColorMetric,
   Delta,
   DesignPage,
+  DesignSection,
   Item,
   ItemKind,
   Pair,
@@ -42,7 +43,9 @@ export type Round = {
   report: DiffReport
 }
 
-type Verdict = Pick<DiffReport, 'stage' | 'brief' | 'round' | 'budgetLeft' | 'stop' | 'score' | 'rows'>
+type Verdict = Pick<DiffReport, 'stage' | 'brief' | 'round' | 'stop' | 'score' | 'rows'>
+
+export type SectionBudget = {id: string; roundsUsed: number; open: boolean; spent: boolean}
 
 export type RunJob = {id: string; session: SessionId; observe: boolean; input: DiffInput}
 
@@ -177,6 +180,7 @@ export function judge(input: {
   color: ColorMetric
   partial: boolean
   changed: {changes: Changes; since: number | null}
+  sections: DesignSection[]
   crop: (node: string) => string
 }): Verdict {
   const {items, score, capturePath, capture, priors, round, ranker, warnings, color, changed, crop} = input
@@ -190,7 +194,12 @@ export function judge(input: {
   const regressed = (item: Item): boolean => item.node !== undefined && dirtied.has(item.node)
   const ordered = [...kept.filter(regressed), ...kept.filter((item) => !regressed(item))]
   const following = nextItems({counted, stage, ranker})
-  const stop = input.partial ? null : stopReason({counted, score, capturePath, capture, priors, round, stage})
+  const budgets = sectionBudgets({
+    sections: input.sections,
+    items,
+    changes: [...priors.map((prior) => prior.report.changes), changed.changes],
+  })
+  const stop = input.partial ? null : stopReason({counted, score, capturePath, capture, priors, budgets, stage})
   const flipped = flippedBack({counted, priors, color})
   const brief = [
     ...(stop === 'stalled' && stage !== null
@@ -207,13 +216,52 @@ export function judge(input: {
     stage,
     brief,
     round,
-    budgetLeft: Math.max(0, TOLERANCES.roundBudget - round),
     stop,
     score,
     rows: [...ordered.slice(0, ROW_LIMIT), ...following].flatMap((item) =>
       item.stage === null ? [] : [row({item, stage: item.stage, crop})],
     ),
   }
+}
+
+export function sectionBudgets(input: {sections: DesignSection[]; items: Item[]; changes: Changes[]}): SectionBudget[] {
+  return input.sections.map((section) => {
+    const nodes = new Set(section.nodes)
+    const roundsUsed = input.changes.filter((changes) => touchesSection({changes, nodes})).length
+    const open = input.items.some((item) => item.stage !== null && heldBy({item, section, nodes}))
+    return {id: section.id, roundsUsed, open, spent: open && roundsUsed >= TOLERANCES.roundBudget}
+  })
+}
+
+export function heldBy(input: {
+  item: {node?: string | undefined; box?: Box | undefined}
+  section: DesignSection
+  nodes: Set<string>
+}): boolean {
+  const {item, section, nodes} = input
+  if (item.node !== undefined) return nodes.has(item.node)
+  return item.box !== undefined && enclosed({inner: item.box, outer: section.box})
+}
+
+export function enclosed(input: {inner: Box; outer: Box}): boolean {
+  const {inner, outer} = input
+  const slack = TOLERANCES.geometryPx
+  return (
+    inner.x >= outer.x - slack &&
+    inner.y >= outer.y - slack &&
+    inner.x + inner.w <= outer.x + outer.w + slack &&
+    inner.y + inner.h <= outer.y + outer.h + slack
+  )
+}
+
+function touchesSection(input: {changes: Changes; nodes: Set<string>}): boolean {
+  const {done, regressed, paired, lost, moved} = input.changes
+  return [...done, ...regressed, ...paired, ...lost, ...moved].some((change) => input.nodes.has(change.node))
+}
+
+function budgetSpent(budgets: SectionBudget[]): boolean {
+  const open = budgets.filter((budget) => budget.open)
+  return open.length > 0 && open.every((budget) => budget.spent)
 }
 
 function nextItems(input: {counted: Item[]; stage: Stage | null; ranker: Ranker}): Item[] {
@@ -808,16 +856,16 @@ function stopReason(input: {
   capturePath: CapturePath | undefined
   capture: string
   priors: Round[]
-  round: number
+  budgets: SectionBudget[]
   stage: Stage | null
 }): Stop | null {
-  const {counted, score, capturePath, capture, priors, round, stage} = input
+  const {counted, score, capturePath, capture, priors, budgets, stage} = input
   if (counted.length === 0) {
     return (score.at(-1) ?? 0) < TOLERANCES.residualAreaGate ? 'done' : 'residual-only'
   }
   if (stage !== null && oscillating({score, priors, stage})) return 'oscillating'
   if (stage !== null && stalled({score, capturePath, capture, priors, stage})) return 'stalled'
-  if (round >= TOLERANCES.roundBudget) return 'budget'
+  if (budgetSpent(budgets)) return 'budget'
   return null
 }
 

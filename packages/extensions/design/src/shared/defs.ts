@@ -1,7 +1,6 @@
 import {z} from 'zod'
 import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
 import {defineTool, type ToolBuilder, type ToolErrors} from '@conciv/extension/tool'
-import {TOLERANCES} from './tolerances.js'
 import {PLACEHOLDER_KINDS, type LiveComponent} from './types.js'
 
 export const DESIGN_EXTENSION_NAME = 'design'
@@ -431,7 +430,6 @@ export const DiffReportSchema = z.object({
   stage: z.enum(STAGES).nullable().default(null).describe('the stage to fix now: the first with an item'),
   brief: z.array(z.string()).default([]).describe('what to fix this round, in order'),
   round: z.number().default(0).describe('design_diff calls since the target was registered'),
-  budgetLeft: z.number().default(TOLERANCES.roundBudget),
   stop: z.enum(STOPS).nullable().default(null).describe('why the loop ends; null while it goes on'),
   score: z
     .array(z.number())
@@ -480,7 +478,6 @@ export type DiffReport = z.infer<typeof DiffReportSchema>
 export const CompactReportSchema = DiffReportSchema.pick({
   target: true,
   round: true,
-  budgetLeft: true,
   stage: true,
   stop: true,
   score: true,
@@ -557,6 +554,9 @@ const StatusReportSchema = z.object({
         kind: z.enum(NODE_KINDS),
         line: z.string().describe('the outline line of the section without its section prefix'),
         ledger: LedgerCountsSchema,
+        roundsUsed: z
+          .number()
+          .describe('counted rounds whose changes touched a node of the section; at the round budget it stops'),
       }),
     )
     .optional()

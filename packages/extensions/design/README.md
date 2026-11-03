@@ -81,7 +81,7 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 - `design_target` registers a PNG (a file under the project, or base64) as the design of a route at a width. It
   replaces an earlier target of the same route and width.
 - `design_diff` captures the live page and compares it with the target. It returns the compact report: `target`,
-  `round`, `budgetLeft`, `stage`, `stop`, `score`, `mismatch`, `brief`, `timings`, `counts` (components listed, nodes
+  `round`, `stage`, `stop`, `score`, `mismatch`, `brief`, `timings`, `counts` (components listed, nodes
   `paired` in the run, `unbuilt` entries, `icons` (the unbuilt entries that are icon slots, see [Layout](#layout)),
   unmatched entries and warnings in the full report, ledger nodes `done` and `regressed`, `drawn` pictures, see
   [Design outline](#design-outline)), `rows` (the first ten items of the stage, in brief order, then the next stage's rows the brief carries, each
@@ -115,15 +115,15 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   | `write`      | the pairs, tiles and result files                                                                |
   | `total`      | the whole run                                                                                    |
 
-- A run whose pairing hits `pairBudgetMs` is `partial`: it is not added to the round history, keeps the `round` and
-  `budgetLeft` of the run before, reports `stop: null`, and its `hint` says pairing was cut short and the numbers are
+- A run whose pairing hits `pairBudgetMs` is `partial`: it is not added to the round history, keeps the `round` of the
+  run before, reports `stop: null`, and its `hint` says pairing was cut short and the numbers are
   not comparable.
 - A `design_diff` whose live capture (the pixels and the decisions) hashes the same as the last round's does not
-  advance `round` or spend `budgetLeft`, and leaves the history and the stall priors as they were: it repeats the
+  advance `round`, and leaves the history and the stall priors as they were: it repeats the
   last round's report with fresh `timings` and `hint: the page has not changed since the last diff`.
 - A `design_diff` whose measure fails with `page-hidden` (the tab is hidden) or `no-live-widget` (no subscriber
   answered the engine's ping, see `core/src/api/README.md`) is not a run: no result file, no history entry, `round`
-  and `budgetLeft` as before. It returns the previous round's report (or run 0's) with `partial: true`, `stop: null`,
+  as before. It returns the previous round's report (or run 0's) with `partial: true`, `stop: null`,
   `timings` holding only the elapsed measure, and `hint: the page tab is hidden; bring it to the foreground and run
   design_diff again; <the page error>`, for example `...; design_measure: no widget answered on session "<id>": 1
   hidden, 0 silent`. Until the next diff that measures, `design_status.next` is that same first sentence.
@@ -152,6 +152,12 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   two reversals in a row. A round whose total beats the lowest of the run by more than the stage's tolerance is a new best: it never stops and clears the chain; a tie or a smaller dip is a reversal like any other. Items whose
   value went back to the one of two rounds before are a brief line (`3 items moved back to their round-2 values:
   ...`, the first three by rank), never a stop on their own.
+- `budget` is a stall detector scoped per section, read from the round history. A section's rounds used are the
+  counted rounds whose `changes` (done, regressed, paired, lost or moved) hold a node of its subtree; a round whose
+  changes are all empty counts for no section. A section with open items stops with `budget` when its rounds used
+  reach `roundBudget` (8), and the page stops with `budget` only when every section with open items has. An item
+  with no node belongs to the section whose box holds it; one no section holds counts for none. The reports carry no
+  budget: `design_status.sections` lists each section's `roundsUsed`.
 - `design_status` reports the session's current target and its last run, and runs nothing. `score` is the tuple
   `[unpairedShare, structure, content, geometry, paint, residualShare]`, compared left to right, lower is better.
   `round` counts the `design_diff` calls since the image was registered or the last run was accepted. `stop` is
@@ -159,9 +165,9 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   stop is `done`, or when an accepted run exists and the last run's score is not worse than the accepted run's on
   the same capture path. `acceptedRun` names the run accepted from the overlay. While not done the result carries
   `next`, the guide line telling the agent to call `design_diff`; `reregister` is set when the stored target can no
-  longer be read. `sections` lists the sections in document order as `{id, kind, line, ledger}`: the node id, its
-  kind, its outline line without the `section` prefix, and the ledger counts over its subtree (zeros before the
-  first ledger).
+  longer be read. `sections` lists the sections in document order as `{id, kind, line, ledger, roundsUsed}`: the node
+  id, its kind, its outline line without the `section` prefix, the ledger counts over its subtree (zeros before the
+  first ledger), and the counted rounds that changed a node of it (see `budget` above).
 - `design_capture`, `design_winner` and `design_clear` capture the page, name the CSS declaration that wins a
   property, and remove targets.
 
@@ -396,11 +402,12 @@ none. A region is a box with no paint, its box the union of its text and box mem
 it; a node that already has a `within` keeps it. Its outline line starts with `section <id>` (the node id) before the node line, as in
 `section 4f1c2a7e box 1280x72 row gap 29 align center`; a node no region took is its own section, and nested lines
 carry no prefix. A section is a view, not a run: `design_diff({section})` runs the whole page as always (store, round,
-budget, history and ledger are untouched by the scope), then filters the report to the section's subtree, the nodes
+history and ledger are untouched by the scope), then filters the report to the section's subtree, the nodes
 reachable through `within` from the section id. `items`, `rows`, `unmatched`, `changes` and `ledger` keep the subtree's
 nodes; an item, entry or warning with no node is kept when its box lies inside the section's box, and a component when
 it is paired to a subtree node or lies inside that box. `brief`, `stage`, `score` and `rows` are judged again over the
-kept items with no round history, and `stop` is `done` when no kept item is above tolerance and pairing was not cut short, else null; `stalled` and
+kept items with no round history, and `stop` is `done` when no kept item is above tolerance and pairing was not cut short, `budget` when the section
+has spent its rounds, else null; `stalled` and
 `oscillating` read the rounds, so they stay whole-page, in `page: {stop, stage, score}`. The report echoes `section:
 {id, line}` and `scope: section`. Several agents can each build one section against the same target; splitting the
 page and writing its skeleton first is the harness's business.
