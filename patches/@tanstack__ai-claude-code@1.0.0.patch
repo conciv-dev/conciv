@@ -1,3 +1,54 @@
+diff --git a/dist/esm/adapters/text.js b/dist/esm/adapters/text.js
+index e815d6377affbd8c64fde7f9f81ecb4b2ba7d31d..9593bed44794b050a92f23e84b8d16e884865257 100644
+--- a/dist/esm/adapters/text.js
++++ b/dist/esm/adapters/text.js
+@@ -2,7 +2,7 @@ import { buildPrompt } from "../messages/prompt.js";
+ import { translateSdkStream } from "../stream/translate.js";
+ import { mapPolicyToClaudeFlags } from "./policy-map.js";
+ import { projectClaudeWorkspace } from "./projection.js";
+-import { CLAUDE_CODE_MODEL_REASONING } from "../model-meta.js";
++import { CLAUDE_CODE_MODEL_REASONING, EFFORT_LOW_TO_MAX } from "../model-meta.js";
+ import { CLAUDE_JSON_SCHEMA_PLACEHOLDER, CLAUDE_RUNNER_SOURCE } from "./claude-run-source.js";
+ import { EventType, normalizeSystemPrompts } from "@tanstack/ai";
+ import { appendOutputSchemaInstruction, reasoningBudget, resolveReasoning, toRunErrorRawEvent } from "@tanstack/ai/adapter-internals";
+@@ -52,7 +52,7 @@ function bridgeToMcpConfig(bridge) {
+ 	} } });
+ }
+ /** The models that take `--effort`. The same list as the Anthropic adapter's adaptive thinking. */
+-var EFFORT_MODELS = /^(opus|sonnet)$|opus-4-[6-9]|sonnet-4-[6-9]|opus-5|sonnet-5|fable-5/;
++var EFFORT_MODELS = /^(opus|sonnet|haiku|fable)$|opus-4-[6-9]|sonnet-4-[6-9]|opus-5|sonnet-5|haiku-5|fable-5/;
+ /**
+ * The CLI settings for `chat({ reasoning })`, from the Claude Code docs:
+ * - Claude 4.6 and later, and the `opus` and `sonnet` aliases:
+@@ -61,7 +61,7 @@ var EFFORT_MODELS = /^(opus|sonnet)$|opus-4-[6-9]|sonnet-4-[6-9]|opus-5|sonnet-5
+ *   table when the request sets none), or `0` for `off`.
+ */
+ function claudeCodeReasoning(model, request) {
+-	const resolved = resolveReasoning(request, CLAUDE_CODE_MODEL_REASONING[model]);
++	const resolved = resolveReasoning(request, CLAUDE_CODE_MODEL_REASONING[model] ?? (EFFORT_MODELS.test(model) ? EFFORT_LOW_TO_MAX : void 0));
+ 	if (!resolved) return {
+ 		args: [],
+ 		env: {}
+diff --git a/dist/esm/model-meta.js b/dist/esm/model-meta.js
+index 9dbdd9bd0dbf1af37c1de87cff013e96b9034e9a..d50b51c7b16544cb26fe0c127975fe9479449d02 100644
+--- a/dist/esm/model-meta.js
++++ b/dist/esm/model-meta.js
+@@ -55,10 +55,11 @@ var CLAUDE_CODE_MODEL_REASONING = {
+ 	"claude-sonnet-4-6": BUDGET_LOW_TO_HIGH_MAX,
+ 	"claude-haiku-4-5": BUDGET_OFF_TO_HIGH,
+ 	opus: EFFORT_LOW_TO_MAX,
+-	sonnet: BUDGET_LOW_TO_HIGH_MAX,
+-	haiku: BUDGET_OFF_TO_HIGH
++	sonnet: EFFORT_LOW_TO_MAX,
++	haiku: EFFORT_LOW_TO_MAX,
++	fable: EFFORT_LOW_TO_MAX
+ };
+ //#endregion
+-export { CLAUDE_CODE_MODELS, CLAUDE_CODE_MODEL_REASONING };
++export { CLAUDE_CODE_MODELS, CLAUDE_CODE_MODEL_REASONING, EFFORT_LOW_TO_MAX };
+ 
+ //# sourceMappingURL=model-meta.js.map
+\ No newline at end of file
 diff --git a/dist/esm/stream/translate.js b/dist/esm/stream/translate.js
 index 21140549d20dfba046925617d35008ee0b1c4abe..b4c5e78f243ac35c33151f21b80dd6af353e0ffd 100644
 --- a/dist/esm/stream/translate.js
