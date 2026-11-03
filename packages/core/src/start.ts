@@ -172,6 +172,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     systemPromptText: systemPrompt,
     extensions: opts.extensions,
     extensionConfig: cfg.extensions,
+    withhold: opts.options.withhold,
     harness: opts.harness,
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,

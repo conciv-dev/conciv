@@ -181,6 +181,7 @@ async function hostServer(input: {
         ...(input.agent ? {} : {harnessBin: 'true', systemPrompt: false}),
         devEndpointDir: input.devEndpointDir,
         extensions: {design: {blind: input.blind}},
+        withhold: input.blind ? ['page_screenshot'] : [],
       }),
     ],
   })

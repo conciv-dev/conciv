@@ -19,7 +19,7 @@ import {SessionId, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {z} from 'zod'
 import {readDevEndpoint} from '../src/lib/dev-endpoint.js'
 import {start, type Engine} from '../src/start.js'
-import {assertTurnAndResume, requireClaude, bootKit, runTurn, runReal} from './helpers.js'
+import {assertTurnAndResume, requireClaude, bootKit, connectWidget, runTurn, runReal} from './helpers.js'
 
 describe('claude tanstack', () => {
   const runReal = !process.env.CI
@@ -202,6 +202,72 @@ describe('registry extension tools', () => {
 
     it('refuses to boot a tool declared without meta and an output schema instead of forwarding it', async () => {
       await expect(bootKit({extensions: [acme, legacy]})).rejects.toThrow(/acme_dial/)
+    })
+  })
+})
+
+describe('withheld capability', () => {
+  const ScreenshotPartsSchema = z.array(z.looseObject({type: z.string(), content: z.string().optional()}))
+
+  async function discoverAll(kit: Kit, names: string[]): Promise<string> {
+    const client = await connectMcpClient(`${kit.base}/api/mcp`, {[CONCIV_SESSION_HEADER]: await kit.session()})
+    try {
+      const tool = (await client.tools()).find((entry) => entry.name === 'discover_tools')
+      if (tool === undefined) throw new Error('discover_tools is not on /api/mcp')
+      return JSON.stringify(await tool.execute({toolNames: names}))
+    } finally {
+      await client.close()
+    }
+  }
+
+  describe('a host withholds page_screenshot from the model', () => {
+    const shared: {kit: Kit | undefined} = {kit: undefined}
+
+    beforeAll(async () => {
+      shared.kit = await bootKit({cwd: mkdtempSync(join(tmpdir(), 'conciv-withhold-')), withhold: ['page_screenshot']})
+    })
+
+    afterAll(async () => {
+      await shared.kit?.cleanup()
+    })
+
+    function kit(): Kit {
+      if (shared.kit === undefined) throw new Error('the app did not boot')
+      return shared.kit
+    }
+
+    it('leaves page_screenshot out of the sandbox the model codes against', async () => {
+      const session = await kit().session()
+      const seen = await makeRunTypescript(
+        kit().base,
+        session,
+      )('return [typeof external_page_screenshot, typeof external_page_snapshot].join(",")')
+      expect(seen).toBe('undefined,function')
+    })
+
+    it('leaves page_screenshot out of the catalog discover_tools searches', async () => {
+      const found = await discoverAll(kit(), ['page_screenshot', 'page_snapshot'])
+      expect(found).toContain('declare function external_page_snapshot')
+      expect(found).toContain("Unknown tool: 'page_screenshot'")
+      expect(found).not.toContain('external_page_screenshot')
+    })
+
+    it('still answers page_screenshot over rpc', async () => {
+      const widget = await connectWidget(kit(), () => ({
+        ok: true,
+        result: {image: Buffer.from('webp').toString('base64'), width: 4, height: 3},
+      }))
+      try {
+        const parts = ScreenshotPartsSchema.parse(await kit().rpc.registry.call({name: 'page_screenshot', input: {}}))
+        expect(parts.map((part) => part.type)).toEqual(['image', 'text'])
+        expect(parts[1]?.content).toContain('screenshots')
+      } finally {
+        widget.end()
+      }
+    })
+
+    it('refuses to boot when a withheld name is not a mounted capability', async () => {
+      await expect(bootKit({withhold: ['page_screenshoot']})).rejects.toThrow(/page_screenshoot.*page_screenshot/s)
     })
   })
 })

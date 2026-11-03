@@ -45,6 +45,8 @@ export interface ConcivConfig {
   devEndpointDir?: string
 
   systemPrompt?: string | boolean
+
+  withhold?: string[]
   claudePath?: string
   claudeSessionId?: string
 }

@@ -78,6 +78,8 @@ export type MakeAppOpts = {
   extensions?: AnyExtension[]
 
   extensionConfig?: Record<string, unknown>
+
+  withhold?: string[]
   harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
 
   claudeHome?: string
@@ -212,6 +214,16 @@ function registryBackedTool(tool: AnyToolBuilder, call: ScopedToolCall): Extensi
     errors: declaredToolErrors(tool),
     execute: (input: unknown, request: ToolRequest) => call(tool.name, input, request),
   }
+}
+
+function withheldCapabilities(input: {withhold: readonly string[]; known: readonly string[]}): ReadonlySet<string> {
+  const unmounted = input.withhold.filter((name) => !input.known.includes(name))
+  if (unmounted.length > 0) {
+    throw new Error(
+      `cannot withhold ${unmounted.join(', ')}: not a mounted capability; the mounted capabilities are ${input.known.join(', ')}`,
+    )
+  }
+  return new Set(input.withhold)
 }
 
 function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
@@ -427,13 +439,19 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   registerExtensionTools(registry, mounted)
 
-  const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] => [
-    ...registryCapabilities(
-      registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
-      scopedToolCall,
-    ),
-    ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
-  ]
+  const withheld = withheldCapabilities({
+    withhold: opts.withhold ?? [],
+    known: [...registry.sandboxTools().map((tool) => tool.name), ...concivSandboxToolNames()],
+  })
+
+  const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] =>
+    [
+      ...registryCapabilities(
+        registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
+        scopedToolCall,
+      ),
+      ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
+    ].filter((capability) => !withheld.has(capability.name))
 
   const toolList: ChatTool[] = mounted.flatMap((entry) =>
     entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
