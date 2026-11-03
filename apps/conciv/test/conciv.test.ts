@@ -53,7 +53,8 @@ describe('draft storage', () => {
   }
 
   test('clamps noted offsets that fall beyond the persisted text', async ({kit, core, sessionId}) => {
-    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+    const draftStorage = makeDraftStorage(makeRpcClient(core.base), sessionId)
+    await draftStorage.restore(() => {}, new AbortController().signal)
 
     draftStorage.noteSelection({start: 40, end: 44})
     draftStorage.storage.setItem('any', composerDraft('short'))
@@ -66,6 +67,33 @@ describe('draft storage', () => {
       selectionStart: 5,
       selectionEnd: 5,
     })
+  })
+
+  test('typing and clearing before the server draft arrives never erases it', async ({kit, core, sessionId}) => {
+    await seedDraft(kit.rpc, sessionId, {text: 'kept on the server'})
+    const draftStorage = makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+    draftStorage.storage.setItem('any', composerDraft('typed early'))
+    draftStorage.storage.setItem('any', composerDraft(''))
+    const restored: string[] = []
+    await draftStorage.restore((draft) => restored.push(draft.text), new AbortController().signal)
+
+    expect(restored).toEqual(['kept on the server'])
+    expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: 'kept on the server'})
+  })
+
+  test('the latest text typed before the server draft arrives is written once it has', async ({
+    kit,
+    core,
+    sessionId,
+  }) => {
+    const draftStorage = makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+    draftStorage.storage.setItem('any', composerDraft('typed while loading'))
+    await draftStorage.restore(() => {}, new AbortController().signal)
+    await core.awaitRequest(DRAFTS_SET_PATH)
+
+    expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: 'typed while loading'})
   })
 
   test('appends to the stored draft on a new line with the caret at the end', async ({kit, core, sessionId}) => {
@@ -85,8 +113,11 @@ describe('draft storage', () => {
     await seedDraft(kit.rpc, sessionId, {text: 'unreachable at boot'})
     core.fail(DRAFTS_GET_PATH)
 
-    const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+    const draftStorage = makeDraftStorage(makeRpcClient(core.base), sessionId)
+    const restored: string[] = []
+    await draftStorage.restore((draft) => restored.push(draft.text), new AbortController().signal)
 
+    expect(restored).toEqual([])
     expect(draftStorage.storage.getItem('any')).toBeNull()
 
     core.repair()

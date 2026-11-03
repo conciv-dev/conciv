@@ -31,7 +31,6 @@ export type PaneComposerProps = {
   triggers?: ComposerTriggerSources
   onInputReady?: (handle: ComposerInputHandle) => void
   onSelectionChange?: (offsets: SelectionOffsets) => void
-  initialSelection?: SelectionOffsets
   attachmentAdapter?: AttachmentAdapter
   AttachmentComponent?: Component<{removable?: boolean}>
 }
@@ -135,7 +134,6 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
           triggers={props.triggers}
           onReady={receiveInputHandle}
           onSelectionChange={props.onSelectionChange}
-          initialSelection={props.initialSelection}
         />
         <ComposerActionsHost maxInlineAuto={MAX_INLINE_AUTO_ACTIONS} onOverflowDismissed={() => inputHandle?.focus()}>
           <ComposerActions.Trigger>

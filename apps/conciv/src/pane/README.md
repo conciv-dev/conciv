@@ -28,7 +28,7 @@ The chat pane for one session: transcript, composer with attachments and element
 - `send-checks.ts:checkSend`: refuses empty content and sends while busy; more than `MAX_CONTENT_PARTS` (16) parts, a JSON payload over `WS_RPC_PAYLOAD_BUDGET_BYTES`, or an unreachable engine are refused with a warning and the message stays in the composer
 - `use-pane-messaging.ts:usePaneMessaging`: a failed `checkSend` verdict throws `sendRejection(verdict)` before any rpc call
 - `refresh-coordinator.ts:makeRefreshCoordinator`: a refresh while one is running is ignored
-- `draft-storage.ts:makeDraftStorage`: writes are debounced by 300 ms (`WRITE_DELAY_MS`); clearing a non-empty draft cancels the pending write and persists the cleared draft immediately
+- `draft-storage.ts:makeDraftStorage`: the composer renders at once with an empty draft; `restore` reads `rpc.drafts.get` and hands the row to `restoreDraft` (text and selection only into an untouched composer, attachments merged by id); no write reaches the server before that restore settles, then the latest typed draft is written; writes are debounced by 300 ms (`WRITE_DELAY_MS`); clearing a non-empty draft persists the cleared draft immediately
 - `queue-strip.tsx:QueueStrip`: shows at most 3 queued messages (`VISIBLE_LIMIT`), the rest as an overflow count
 - `session-activity.ts:trackSessionActivity`: sessions are invalidated on unmount only if the pane was observed active
 

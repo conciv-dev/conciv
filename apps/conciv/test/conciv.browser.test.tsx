@@ -332,6 +332,53 @@ describe('chat pane', () => {
     await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
   })
 
+  describe('the composer never waits on the server draft', () => {
+    const DRAFT_GET_PATH = ['drafts', 'get']
+
+    test('a stalled draft read still renders a composer that accepts typing', async () => {
+      const {sessionId} = await newSession()
+      await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toBeVisible()
+      await input().fill('typed while the draft is loading')
+      await expect.element(input()).toHaveTextContent('typed while the draft is loading')
+    })
+
+    test('a server draft that arrives late fills a composer the user has not touched', async () => {
+      const {rpc, sessionId} = await newSession()
+      await seedDraft(rpc, sessionId, {
+        text: 'restored once the read lands',
+        attachments: [persistedGrab('grab-late', HERO_GRAB)],
+      })
+      const gate = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+      mountChatPane(sessionId, grabOptions(HERO_GRAB))
+      await expect.element(input()).toBeVisible()
+
+      await coreControl.releaseFault(gate)
+
+      await expect.element(input()).toHaveTextContent('restored once the read lands')
+      await expect.element(snapshot()).toBeVisible()
+    })
+
+    test('a server draft that arrives after the user typed keeps their text and adds its attachments', async () => {
+      const {rpc, sessionId} = await newSession()
+      await seedDraft(rpc, sessionId, {
+        text: 'the stale server text',
+        attachments: [persistedGrab('grab-merged', HERO_GRAB)],
+      })
+      const gate = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+      mountChatPane(sessionId, grabOptions(HERO_GRAB))
+      await input().fill('what the user typed first')
+
+      await coreControl.releaseFault(gate)
+
+      await expect.element(snapshot()).toBeVisible()
+      await expect.element(input()).toHaveTextContent('what the user typed first')
+      await expect.element(input()).not.toHaveTextContent('the stale server text')
+    })
+  })
+
   test('a rejected send keeps the draft in the composer and tells the user why', async () => {
     const {sessionId} = await newSession()
     await faults.install({kind: 'chat-refused', status: 500})
@@ -1498,13 +1545,13 @@ describe('quick refresh', () => {
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const refresh = () => page.getByRole('button', {name: 'Refresh the conversation'})
 
-  test('the quick terminal pane bar carries refresh while the composer is still loading', async () => {
+  test('the quick terminal pane bar carries refresh and a usable composer while the draft is still loading', async () => {
     const sessionId = await createSession(coreRpc(core()))
     const gate = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
     harness.mountShell(`/quick?panes=${sessionId}&focus=0`)
 
     await expect.element(refresh(), {timeout: 8000}).toBeVisible()
-    await expect.element(editor()).not.toBeInTheDocument()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
 
     await coreControl.releaseFault(gate)
 
