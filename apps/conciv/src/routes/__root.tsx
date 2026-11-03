@@ -171,7 +171,9 @@ function RootComponent() {
                 politeMessage={politeMessage}
                 assertiveMessage={assertiveMessage}
               />
-              <EffectsSurface instances={app.instances} />
+              <Show when={app.connected()}>
+                <EffectsSurface instances={app.instances} />
+              </Show>
             </HostApiProvider>
           </EngineReachabilityContext.Provider>
         </AppContext.Provider>

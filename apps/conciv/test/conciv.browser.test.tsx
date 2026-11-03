@@ -1476,6 +1476,17 @@ describe('reachability flows', () => {
   }, 30_000)
 })
 
+const SURFACE_PROBE_NAME = 'surface-probe'
+
+const surfaceProbe = defineExtension({
+  name: SURFACE_PROBE_NAME,
+  Surface: () => <p>surface probe on {getExtensionApi(SURFACE_PROBE_NAME).useApiBase()()}</p>,
+}).client(() => ({value: {}}))
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof surfaceProbe> {}
+}
+
 describe('engine login', () => {
   const core = bootedCore('engine-login')
   const harness = createShellHarness(core)
@@ -1525,6 +1536,15 @@ describe('engine login', () => {
     expect(window.location.hash).toBe('')
     expect(localStorage.getItem(storageKey())).not.toBeNull()
   })
+
+  test('extension surfaces start only once the engine trusts the page, on the trusted base', async () => {
+    harness.mountShell('/', [surfaceProbe], {login: {apiBase: origin()}})
+    await expect.element(locked()).toBeVisible()
+    await expect.element(page.getByText(/surface probe on/)).not.toBeInTheDocument()
+    await locked().click()
+    await userEvent.type(firstDigit(), await coreControl.printedCode())
+    await expect.element(page.getByText(`surface probe on ${origin()}/t/`, {exact: false})).toBeInTheDocument()
+  }, 30_000)
 
   test('a stored token the engine no longer trusts locks the launcher and is forgotten', async () => {
     localStorage.setItem(storageKey(), 'a-token-the-engine-never-granted')
