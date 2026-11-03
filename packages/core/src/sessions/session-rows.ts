@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {and, desc, eq, inArray, isNull, sql} from 'drizzle-orm'
+import {z} from 'zod'
 import type {SessionMeta} from '@conciv/contract'
 import type {
   HarnessSessionId,
@@ -228,8 +229,32 @@ export async function sweepEmptyRows(db: ConcivDb): Promise<void> {
     )
 }
 
+const EARLIER_NATIVES_NAMESPACE = 'conciv.session.earlierNatives'
+
+const EarlierNativesSchema = z.array(z.object({harnessKind: z.string(), nativeId: HarnessSessionIdSchema})).catch([])
+
 export function switchRowHarness(db: ConcivDb, id: SessionId, harnessKind: string): void {
   db.transaction((tx) => {
+    const outgoing = tx
+      .select({harnessKind: sessions.harnessKind, nativeId: sessions.harnessSessionId})
+      .from(sessions)
+      .where(eq(sessions.id, id))
+      .get()
+    if (outgoing?.nativeId) {
+      const stored = tx
+        .select({valueJson: chatMetadata.valueJson})
+        .from(chatMetadata)
+        .where(and(eq(chatMetadata.namespace, EARLIER_NATIVES_NAMESPACE), eq(chatMetadata.key, id)))
+        .get()
+      const valueJson = [
+        ...EarlierNativesSchema.parse(stored?.valueJson),
+        {harnessKind: outgoing.harnessKind, nativeId: outgoing.nativeId},
+      ]
+      tx.insert(chatMetadata)
+        .values({namespace: EARLIER_NATIVES_NAMESPACE, key: id, valueJson})
+        .onConflictDoUpdate({target: [chatMetadata.namespace, chatMetadata.key], set: {valueJson}})
+        .run()
+    }
     tx.update(sessions)
       .set({harnessKind, harnessSessionId: null, model: null, updatedAt: Date.now()})
       .where(eq(sessions.id, id))
@@ -238,6 +263,19 @@ export function switchRowHarness(db: ConcivDb, id: SessionId, harnessKind: strin
       .where(and(eq(chatMetadata.namespace, TRANSCRIPT_NAMESPACE), eq(chatMetadata.key, anchorKey(id))))
       .run()
   })
+}
+
+async function earlierNatives(db: ConcivDb): Promise<{sessionId: string; key: string}[]> {
+  const stored = await db
+    .select({key: chatMetadata.key, valueJson: chatMetadata.valueJson})
+    .from(chatMetadata)
+    .where(eq(chatMetadata.namespace, EARLIER_NATIVES_NAMESPACE))
+  return stored.flatMap(({key, valueJson}) =>
+    EarlierNativesSchema.parse(valueJson).map((earlier) => ({
+      sessionId: key,
+      key: nativeKey(earlier.harnessKind, earlier.nativeId),
+    })),
+  )
 }
 
 export type NativeList = {harnessKind: string; list: HarnessSessionMeta[]}
@@ -300,8 +338,20 @@ async function materializeNative(native: NativeEntry, input: CountedListInput): 
   return rowMeta(row, native.meta, input)
 }
 
+async function restoredOwnerMeta(
+  owner: SessionRecord,
+  nativeByKey: ReadonlyMap<string, HarnessSessionMeta>,
+  input: CountedListInput,
+): Promise<SessionMeta> {
+  await restoreRow(input.db, owner.id)
+  const native = owner.harnessSessionId
+    ? nativeByKey.get(nativeKey(owner.harnessKind, owner.harnessSessionId))
+    : undefined
+  return rowMeta({...owner, deletedAt: null}, native, input)
+}
+
 export async function listSessionMetas(input: SessionListInput): Promise<SessionMeta[]> {
-  const rows = (await input.db.select().from(sessions))
+  const inCwd = (await input.db.select().from(sessions))
     .map((row) => SessionRecordSchema.safeParse(row))
     .flatMap((parsed) => {
       if (parsed.success) return [parsed.data]
@@ -311,16 +361,23 @@ export async function listSessionMetas(input: SessionListInput): Promise<Session
       return []
     })
     .filter((row) => sameCwd(row.cwd, input.cwd))
-    .filter((row) => input.includeHidden || row.deletedAt === null)
+  const listed = (row: SessionRecord): boolean => input.includeHidden || row.deletedAt === null
+  const rows = inCwd.filter(listed)
+  const rowsById = new Map<string, SessionRecord>(inCwd.map((row) => [row.id, row]))
   const natives = input.nativeLists.flatMap(({harnessKind, list}) => list.map((meta) => ({harnessKind, meta})))
   const nativeByKey = new Map(natives.map((native) => [nativeKey(native.harnessKind, native.meta.id), native.meta]))
   const stored = await input.db
     .select({threadId: chatThreads.threadId, count: sql<number>`json_array_length(${chatThreads.messagesJson})`})
     .from(chatThreads)
   const counted = {...input, storedCounts: new Map(stored.map((thread) => [thread.threadId, thread.count]))}
-  const claimed = new Set(
-    rows.flatMap((row) => (row.harnessSessionId ? [nativeKey(row.harnessKind, row.harnessSessionId)] : [])),
+  const earlierOwners = (await earlierNatives(input.db)).flatMap(({sessionId, key}): [string, SessionRecord][] => {
+    const owner = rowsById.get(sessionId)
+    return owner ? [[key, owner]] : []
+  })
+  const currentOwners = inCwd.flatMap((row): [string, SessionRecord][] =>
+    row.harnessSessionId ? [[nativeKey(row.harnessKind, row.harnessSessionId), row]] : [],
   )
+  const ownerByKey = new Map([...earlierOwners, ...currentOwners])
   const ours = rows.map((row) =>
     rowMeta(
       row,
@@ -328,10 +385,18 @@ export async function listSessionMetas(input: SessionListInput): Promise<Session
       counted,
     ),
   )
-  const unmaterialized = await Promise.all(
-    natives
-      .filter((native) => !claimed.has(nativeKey(native.harnessKind, native.meta.id)))
-      .map((native) => materializeNative(native, counted)),
+  const owned = natives.map((native) => ({
+    native,
+    owner: ownerByKey.get(nativeKey(native.harnessKind, native.meta.id)),
+  }))
+  const hiddenOwners = new Map(
+    owned.flatMap(({owner}): [string, SessionRecord][] => (owner && !listed(owner) ? [[owner.id, owner]] : [])),
   )
-  return [...ours, ...unmaterialized].toSorted((a, b) => b.updatedAt - a.updatedAt)
+  const restored = await Promise.all(
+    [...hiddenOwners.values()].map((owner) => restoredOwnerMeta(owner, nativeByKey, counted)),
+  )
+  const unmaterialized = await Promise.all(
+    owned.filter(({owner}) => owner === undefined).map(({native}) => materializeNative(native, counted)),
+  )
+  return [...ours, ...restored, ...unmaterialized].toSorted((a, b) => b.updatedAt - a.updatedAt)
 }

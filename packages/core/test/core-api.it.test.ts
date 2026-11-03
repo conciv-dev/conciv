@@ -64,7 +64,7 @@ import {
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
-import {type HarnessChatDeps, type HarnessModel} from '@conciv/protocol/harness-types'
+import {type HarnessChatDeps, type HarnessModel, type HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -522,6 +522,9 @@ describe('api harness switching', () => {
   const alpha = recorded(
     createFakeHarness({id: 'alpha', displayName: 'Alpha', resume: true, models: [{id: 'a-model', name: 'A'}]}),
   )
+  const betaTranscripts: HarnessSessionMeta[] = [
+    {id: NATIVE_BETA, derivedTitle: 'a beta session', updatedAt: 5, messageCount: 2},
+  ]
   const beta = recorded(
     createFakeHarness({
       id: 'beta',
@@ -529,7 +532,7 @@ describe('api harness switching', () => {
       resume: true,
       models: [{id: 'b-model', name: 'B'}],
       commands: [{name: 'beta-command', description: 'only beta has it'}],
-      history: [{id: NATIVE_BETA, derivedTitle: 'a beta session', updatedAt: 5, messageCount: 2}],
+      history: betaTranscripts,
     }),
   )
   const made: {app: MadeApp | null} = {app: null}
@@ -662,6 +665,42 @@ describe('api harness switching', () => {
     const before = row(sessionId)
     expect(await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'alpha'})).toEqual({harnessId: 'alpha'})
     expect(row(sessionId)).toEqual(before)
+  })
+
+  it('a native transcript a session owned before a switch never lists as a separate session, and never resumes', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
+    await turn(sessionId, 'written into a beta transcript')
+    const owned = row(sessionId)?.harnessSessionId
+    if (!owned) throw new Error('the beta turn recorded no native session')
+    betaTranscripts.push({
+      id: HarnessSessionId.parse(owned),
+      derivedTitle: 'the owned transcript',
+      updatedAt: 6,
+      messageCount: 2,
+    })
+    const listings = async (includeHidden: boolean) => {
+      const listed = await kit().rpc.sessions.list({includeHidden})
+      return {
+        owner: listed.filter((meta) => meta.id === sessionId).length,
+        phantoms: listed.filter((meta) => meta.id !== sessionId && meta.native?.nativeId === owned).length,
+      }
+    }
+
+    await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'alpha'})
+    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
+    expect(await turn(sessionId, 'back on alpha')).toMatchObject({harness: 'alpha', resumeSessionId: null})
+    await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
+    const returned = await turn(sessionId, 'back on beta')
+    expect(returned).toMatchObject({harness: 'beta', resumeSessionId: null})
+    expect(returned.sent).toContain('written into a beta transcript')
+    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
+
+    await kit().rpc.sessions.delete({sessionId})
+    expect(await listings(true)).toEqual({owner: 1, phantoms: 0})
+    expect(row(sessionId)?.deletedAt).not.toBeNull()
+    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
+    expect(row(sessionId)?.deletedAt).toBeNull()
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
