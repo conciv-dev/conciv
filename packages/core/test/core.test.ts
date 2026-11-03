@@ -586,7 +586,7 @@ describe('saved harness models', () => {
     expect(await resolveHarnessModels(harness)).toEqual([OPUS, SONNET])
   })
 
-  it('keeps the saved list when the live list fails or comes back empty', async () => {
+  it('keeps the saved list when the live list fails', async () => {
     await resolveHarnessModels(
       withSavedModels(
         harnessListing(async () => [OPUS]),
@@ -598,12 +598,33 @@ describe('saved harness models', () => {
       dir,
     )
     expect(await resolveHarnessModels(failing)).toEqual([OPUS])
-    const empty = withSavedModels(
-      harnessListing(async () => []),
+    expect(savedFile()).toEqual([OPUS])
+  })
+
+  it('an empty live list replaces the saved one, so a harness with nothing usable stops offering models', async () => {
+    await resolveHarnessModels(
+      withSavedModels(
+        harnessListing(async () => [OPUS]),
+        dir,
+      ),
+    )
+    const live = Promise.withResolvers<Listed[]>()
+    const emptied = withSavedModels(
+      harnessListing(() => live.promise),
       dir,
     )
-    expect(await resolveHarnessModels(empty)).toEqual([OPUS])
-    expect(savedFile()).toEqual([OPUS])
+    expect(await resolveHarnessModels(emptied)).toEqual([OPUS])
+    live.resolve([])
+    await setImmediate()
+    expect(await resolveHarnessModels(emptied)).toEqual([])
+    expect(
+      await resolveHarnessModels(
+        withSavedModels(
+          harnessListing(async () => []),
+          dir,
+        ),
+      ),
+    ).toEqual([])
   })
 
   it('reports the failure when nothing is saved and retries on the next call', async () => {
@@ -617,14 +638,12 @@ describe('saved harness models', () => {
     expect(await resolveHarnessModels(harness)).toEqual([OPUS])
   })
 
-  it('retries after an empty list when nothing is saved', async () => {
-    const outcomes: Listed[][] = [[], [OPUS]]
+  it('answers an empty list when the live list is empty and nothing is saved', async () => {
     const harness = withSavedModels(
-      harnessListing(async () => outcomes.shift() ?? []),
+      harnessListing(async () => []),
       dir,
     )
-    await expect(resolveHarnessModels(harness)).rejects.toThrow('listed no models')
-    expect(await resolveHarnessModels(harness)).toEqual([OPUS])
+    expect(await resolveHarnessModels(harness)).toEqual([])
   })
 })
 

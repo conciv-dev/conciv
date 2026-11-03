@@ -162,3 +162,19 @@ becomes the one place to pick both the model and the harness.
 - `/model` (the extension slash command on `claude-live-models`) opens this same menu.
 - The per-message harness labels, the confirm dialog, the session-list harness names and the Codex reply-id fix
   from the earlier commits stay.
+
+## Revision 3 (2026-11-03): searchable menu, usable OpenCode list
+
+Omri, on seeing the OpenCode "More models" submenu with 335 rows and no search: unacceptable.
+
+- The model menu gets a search field at the top that filters rows across every harness as you type (model
+  name, model id and harness name, case-insensitive). Typing goes to the field, arrows move through the
+  filtered rows, Enter picks, Escape clears then closes. Built on the Ark primitive that supports filtering
+  (Combobox, as the session selector uses), never a hand-rolled filter over a Menu. The effort row stays.
+- With an empty query the menu shows each harness's main models only (as in Revision 2). A query searches every
+  model of every harness, including those behind "Older versions" / "More models".
+- OpenCode lists only models it can actually run on this machine: providers with credentials (`opencode auth
+  list`, provider API key environment variables OpenCode reads) plus providers that need none. Region and
+  routing duplicates of one model (US/EU/AU/JP/Global, the same model via several providers) collapse to one
+  row; the provider shows only when two usable providers offer the same model. If nothing is usable, the
+  OpenCode group says so instead of listing models that will fail.

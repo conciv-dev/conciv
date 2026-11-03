@@ -1542,6 +1542,104 @@ describe('opencode models', () => {
     ])
   })
 
+  it('collapses region and routing duplicates of one model to one row, preferring the global route', async () => {
+    await fakeOpencode(
+      verbose([
+        {
+          providerID: 'amazon-bedrock',
+          id: 'anthropic.claude-haiku-5-5',
+          name: 'Claude Haiku 5.5',
+          release_date: '2026-10-07',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'au.anthropic.claude-haiku-5-5',
+          name: 'Claude Haiku 5.5 (AU)',
+          release_date: '2026-10-07',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'eu.anthropic.claude-haiku-5-5',
+          name: 'Claude Haiku 5.5 (EU)',
+          release_date: '2026-10-07',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'global.anthropic.claude-haiku-5-5',
+          name: 'Claude Haiku 5.5 (Global)',
+          release_date: '2026-10-07',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'us.anthropic.claude-haiku-5-5',
+          name: 'Claude Haiku 5.5 (US)',
+          release_date: '2026-10-07',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'au.anthropic.claude-opus-4-6-v1',
+          name: 'AU Anthropic Claude Opus 4.6',
+          release_date: '2026-02-05',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'us.anthropic.claude-opus-4-6-v1',
+          name: 'Claude Opus 4.6 (US)',
+          release_date: '2026-02-05',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'anthropic.claude-opus-4-6-v1',
+          name: 'Claude Opus 4.6',
+          release_date: '2026-02-05',
+        },
+        {providerID: 'amazon-bedrock', id: 'us.moonshotai.kimi-k3', name: 'Kimi K3 (US)', release_date: '2026-07-16'},
+        {
+          providerID: 'amazon-bedrock',
+          id: 'global.moonshotai.kimi-k3',
+          name: 'Kimi K3 (Global)',
+          release_date: '2026-07-16',
+        },
+        {providerID: 'amazon-bedrock', id: 'openai.gpt-oss-120b', name: 'gpt-oss-120b', release_date: '2025-08-05'},
+        {providerID: 'amazon-bedrock', id: 'openai.gpt-oss-120b-1:0', name: 'gpt-oss-120b', release_date: '2025-08-05'},
+        {providerID: 'opencode-go', id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5', release_date: '2026-10-07'},
+      ]),
+    )
+
+    expect(await resolveHarnessModels(opencode)).toEqual([
+      {
+        id: 'amazon-bedrock/global.anthropic.claude-haiku-5-5',
+        name: 'Claude Haiku 5.5 · amazon-bedrock',
+        description: 'amazon-bedrock',
+        group: 'OpenCode',
+      },
+      {
+        id: 'opencode-go/claude-haiku-5-5',
+        name: 'Claude Haiku 5.5 · opencode-go',
+        description: 'opencode-go',
+        group: 'OpenCode',
+      },
+      {
+        id: 'amazon-bedrock/global.moonshotai.kimi-k3',
+        name: 'Kimi K3 (Global)',
+        description: 'amazon-bedrock',
+        group: 'OpenCode',
+      },
+      {
+        id: 'amazon-bedrock/anthropic.claude-opus-4-6-v1',
+        name: 'Claude Opus 4.6',
+        description: 'amazon-bedrock',
+        group: 'OpenCode',
+      },
+      {
+        id: 'amazon-bedrock/openai.gpt-oss-120b',
+        name: 'gpt-oss-120b',
+        description: 'amazon-bedrock',
+        group: 'OpenCode',
+      },
+    ])
+  })
+
   it('rejects when the opencode CLI fails, so the saved list stays in use', async () => {
     await fakeOpencode('', 1)
 

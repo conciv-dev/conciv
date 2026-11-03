@@ -32,8 +32,27 @@ function parsedBlock(block: string): ListedModel[] {
   }
 }
 
+const REGION_ROUTE = /^(global|us|us-gov|eu|apac|au|jp|ca|in)\./
+
 function newestFirst(left: ListedModel, right: ListedModel): number {
   return (right.release_date ?? '').localeCompare(left.release_date ?? '')
+}
+
+function routeKey(model: ListedModel): string {
+  return `${model.providerID}/${model.id.replace(REGION_ROUTE, '')}`
+}
+
+function oneRoute(routes: ListedModel[]): ListedModel[] {
+  const unrouted = routes.find((route) => !REGION_ROUTE.test(route.id))
+  const chosen = routes.find((route) => route.id.startsWith('global.')) ?? unrouted ?? routes[0]
+  return chosen ? [{...chosen, name: unrouted?.name ?? chosen.name}] : []
+}
+
+function distinctModels(listed: ListedModel[]): ListedModel[] {
+  const routed = Object.values(Object.groupBy(listed, routeKey)).flatMap((routes) => oneRoute(routes ?? []))
+  return Object.values(Object.groupBy(routed, (model) => `${model.providerID}/${model.name}`)).flatMap(
+    (same) => same?.slice(0, 1) ?? [],
+  )
 }
 
 export async function opencodeModels(): Promise<HarnessModel[]> {
@@ -41,10 +60,12 @@ export async function opencodeModels(): Promise<HarnessModel[]> {
     timeout: LISTING_TIMEOUT_MS,
     maxBuffer: LISTING_BUFFER_BYTES,
   })
-  const listed = (stdout.match(MODEL_BLOCK) ?? [])
-    .flatMap(parsedBlock)
-    .filter((model) => model.status !== 'deprecated')
-    .toSorted(newestFirst)
+  const listed = distinctModels(
+    (stdout.match(MODEL_BLOCK) ?? [])
+      .flatMap(parsedBlock)
+      .filter((model) => model.status !== 'deprecated')
+      .toSorted(newestFirst),
+  )
   const byName = Object.groupBy(listed, (model) => model.name)
   return listed.map((model) => ({
     id: `${model.providerID}/${model.id}`,

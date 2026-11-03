@@ -7,7 +7,7 @@ import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {logError} from './debug.js'
 import {writePrivateFile} from './dev-endpoint.js'
 
-const SavedModelsSchema = z.array(HarnessModelSchema).min(1)
+const SavedModelsSchema = z.array(HarnessModelSchema)
 
 function readSaved(path: string): HarnessModel[] | null {
   try {
@@ -33,7 +33,6 @@ export function withSavedModels(adapter: HarnessAdapter, stateDir: string): Harn
   function refresh(): Promise<HarnessModel[]> {
     state.refreshing ??= resolveHarnessModels(adapter)
       .then((listed) => {
-        if (listed.length === 0) throw new Error(`${adapter.id} listed no models`)
         state.saved = listed
         writeSaved(path, listed)
         return listed

@@ -256,7 +256,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
     sessionId,
     openModelMenu: () => {
       openedByCommand = true
-      modelMenu.api().setOpen(true)
+      modelMenu.setOpen(true)
     },
   })
   const sendOrRunCommand = async (content: string | SendContent): Promise<void> => {

@@ -2,11 +2,13 @@ import {expect, test} from '@playwright/test'
 import {collectFailures, expectWidgetBoots} from '@conciv/e2e-utils/widget'
 import type {HarnessApp} from '@conciv/e2e-utils/ports'
 
-const expected: Record<HarnessApp, {model: string; provider?: string} | null> = {
+type ExpectedModel = {model: string; usable?: false}
+
+const expected: Record<HarnessApp, ExpectedModel | null> = {
   claude: {model: 'Opus 5.5'},
   codex: {model: 'gpt-5.3-codex'},
   'gemini-cli': {model: 'gemini-3-pro-preview'},
-  opencode: {model: 'Claude Sonnet 4.5', provider: 'opencode'},
+  opencode: {model: 'opencode/claude-sonnet-4-5', usable: false},
   pi: null,
 }
 
@@ -14,8 +16,7 @@ const isHarnessName = (name: string): name is HarnessApp => Object.hasOwn(expect
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-const modelName = (harness: {model: string; provider?: string}): string =>
-  `${escapeRegex(harness.model)}${harness.provider ? `( · ${escapeRegex(harness.provider)})?` : ''}( \\([^)]+\\))?`
+const modelName = (harness: ExpectedModel): string => `${escapeRegex(harness.model)}( \\([^)]+\\))?`
 
 const outcomePattern: Record<HarnessApp, RegExp> = {
   claude: /^Agent process exited with code 1$/m,
@@ -41,9 +42,20 @@ test('full app boots with the configured harness and exposes its real model cata
     const prompt = page.getByRole('button', {name: new RegExp(`^Model: ${modelName(harness)}(,|$)`)})
     await expect(prompt).toBeVisible()
     await prompt.click()
-    await expect(
-      page.getByRole('menuitemradio', {name: new RegExp(`^${modelName(harness)}$`), checked: true}),
-    ).toBeVisible()
+    await expect(page.getByRole('combobox', {name: 'Search models'})).toBeFocused()
+    if (harness.usable === false) {
+      await expect(page.getByRole('option', {selected: true})).toHaveCount(0)
+      await expect(
+        page
+          .getByRole('group', {name: /^(OpenCode|Model)$/})
+          .getByRole('option')
+          .first(),
+      ).toBeVisible()
+    } else {
+      await expect(
+        page.getByRole('option', {name: new RegExp(`^${modelName(harness)}$`), selected: true}),
+      ).toBeVisible()
+    }
     await page.keyboard.press('Escape')
     await expect(composerTextbox).toBeVisible()
   } else {
