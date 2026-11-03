@@ -60,6 +60,24 @@ export const TOLERANCES = {
 
 export type Tolerances = typeof TOLERANCES
 
+export const CONFUSABLES: Record<string, string> = {
+  '›': '>',
+  '»': '>',
+  '‹': '<',
+  '«': '<',
+  '—': '-',
+  '–': '-',
+  '“': '"',
+  '”': '"',
+  '„': '"',
+  '‘': "'",
+  '’': "'",
+  '…': '...',
+  '×': 'x',
+  '•': '-',
+  '·': '-',
+}
+
 export const LIBRARY_SHEET_MARKER = '/node_modules/'
 
 export const designConfig = z.object({

@@ -46,7 +46,7 @@ import {
 import {mapDeclaration} from '@conciv/extension-design/provenance'
 import {glyphCoreColor} from '@conciv/extension-design/colors'
 import {destroyPaddle, paddleReader, trimToInk} from '@conciv/extension-design/paddle'
-import {groupText} from '@conciv/extension-design/text-groups'
+import {groupText, sameWords} from '@conciv/extension-design/text-groups'
 import type {Box, ColorMetric, LiveComponent, Provenance, Raster, TextRun, Winner} from '@conciv/extension-design/types'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from './fixtures/design/render-targets.js'
@@ -1181,7 +1181,46 @@ describe('text', () => {
     expect(colorDistance(String(foreground?.live), '#ffd166')).toBeLessThanOrEqual(COLOR_DELTA_E)
     expect(colorDistance(String(foreground?.target), '#ffffff')).toBeLessThanOrEqual(COLOR_DELTA_E)
   })
+
+  it('a confusable or lone chevron beside a button label is the same text as the design reads', async ({annotate}) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    await call('design_diff', {})
+    const before = await buttonTextItems(id)
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await rewrite({
+        id,
+        file: STRIPE_SOURCE,
+        text: source.replace('>Contact sales<', '>Contact sales ›<').replace('>Get started ›<', '>Get started<'),
+      })
+      await call('design_diff', {})
+      const after = await buttonTextItems(id)
+      await annotate(`content items before ${JSON.stringify(before)} after ${JSON.stringify(after)}`)
+      expect([before, after]).toEqual([[], []])
+      expect(sameWords('Get started >')).toBe(sameWords('Get started'))
+    } finally {
+      await writeFile(STRIPE_SOURCE, source)
+    }
+  }, 240_000)
 })
+
+const BUTTON_LABELS = ['Contact sales', 'Get started']
+const LedgerItemsSchema = z.object({
+  nodes: z.record(z.string(), z.object({item: z.object({stage: z.string(), sentence: z.string()}).nullable()})),
+})
+
+async function buttonTextItems(id: string): Promise<string[]> {
+  const path = fileUnder(stateRoot, `.conciv/design/${id}/ledger.json`)
+  const ledger = LedgerItemsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+  return Object.values(ledger.nodes).flatMap((entry) =>
+    entry.item !== null &&
+    entry.item.stage === 'content' &&
+    BUTTON_LABELS.some((label) => entry.item?.sentence.includes(label))
+      ? [entry.item.sentence]
+      : [],
+  )
+}
 
 const WHITE = [255, 255, 255] as const
 const BLACK = [0, 0, 0] as const
@@ -1804,8 +1843,38 @@ describe('loop', () => {
     }
     expect(reports.map((report) => report.stop)).toEqual([null, null, 'stalled'])
     const first = reports.at(-1)?.brief[0] ?? ''
-    expect([first.startsWith('stalled: '), first.includes(' items unchanged for 2 rounds')]).toEqual([true, true])
+    expect([first.startsWith('stalled: the paint total held at '), first.includes(' for 2 rounds')]).toEqual([
+      true,
+      true,
+    ])
   })
+
+  it('three css edits that each move the structure total of stripe are never stalled', async ({annotate}) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const styles = await readFile(STRIPE_STYLES, 'utf8')
+    const reports: DiffReport[] = []
+    try {
+      for (const move of STRUCTURE_MOVES) {
+        const css = move === null ? styles : `${styles}\n.grid { margin-top: ${move}px; }\n`
+        if (reports.length > 0) await rewrite({id, file: STRIPE_STYLES, text: css})
+        reports.push(await call('design_diff', {}))
+      }
+    } finally {
+      await writeFile(STRIPE_STYLES, styles)
+    }
+    await annotate(
+      `rounds ${JSON.stringify(reports.map((report) => [report.stop, report.stage, report.score[1], report.brief[0]]))}`,
+    )
+    const totals = reports.map((report) => report.score[1] ?? 0)
+    expect(reports.map((report) => report.stage)).toEqual(STRUCTURE_MOVES.map(() => 'structure'))
+    expect(totals.slice(1).map((total, index) => Math.abs(total - (totals[index] ?? total)) >= 1)).toEqual([
+      true,
+      true,
+      true,
+    ])
+    expect(reports.map((report) => report.stop)).toEqual([null, null, null, null])
+  }, 300_000)
 
   it('a diff on bordered times each phase within its own clock and is not partial', async ({annotate}) => {
     await goto('bordered')
@@ -1924,6 +1993,7 @@ const EDITED_HEADING = 'Get Stripe product recommendations'
 const ORDINAL_SUFFIXES = ['st', 'nd', 'rd', 'th']
 const ORDINAL_LIMIT = 9
 const CARD_ROW_MOVES = [null, 40, null, 40, 20]
+const STRUCTURE_MOVES = [null, 40, 80, 120]
 const TIMED_PHASES = [
   'capture',
   'decode',
