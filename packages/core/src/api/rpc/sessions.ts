@@ -95,7 +95,7 @@ export function sessionsRouter(deps: RpcDeps) {
     const written = await db
       .update(sessions)
       .set({model, effort, updatedAt: Date.now()})
-      .where(and(eq(sessions.id, sessionId), sameEffort(row.effort)))
+      .where(and(eq(sessions.id, sessionId), eq(sessions.harnessKind, row.harnessKind), sameEffort(row.effort)))
       .returning({id: sessions.id})
     return written.length > 0 ? 'switched' : switchModel(sessionId, model)
   }
@@ -116,7 +116,7 @@ export function sessionsRouter(deps: RpcDeps) {
     const written = await db
       .update(sessions)
       .set({effort, updatedAt: Date.now()})
-      .where(and(eq(sessions.id, sessionId), sameModel(row.model)))
+      .where(and(eq(sessions.id, sessionId), eq(sessions.harnessKind, row.harnessKind), sameModel(row.model)))
       .returning({id: sessions.id})
     return written.length > 0 ? 'switched' : switchEffort(sessionId, effort)
   }

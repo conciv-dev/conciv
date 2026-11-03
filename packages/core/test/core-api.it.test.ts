@@ -849,6 +849,70 @@ describe('api harness switching', () => {
     const imported = listed.find((meta) => meta.native?.nativeId === NATIVE_BETA)
     expect(imported).toMatchObject({harnessKind: 'beta', native: {harnessKind: 'beta', nativeId: NATIVE_BETA}})
   })
+
+  function racedApp() {
+    const pendingListings: Array<() => void> = []
+    const slow: FakeHarness = {
+      ...createFakeHarness({id: 'slow', displayName: 'Slow'}),
+      models: () => {
+        const listing = Promise.withResolvers<HarnessModel[]>()
+        pendingListings.push(() => listing.resolve([{id: 'slow-model', name: 'Slow', efforts: ['high']}]))
+        return listing.promise
+      },
+    }
+    const quick = createFakeHarness({id: 'quick', displayName: 'Quick', models: [{id: 'quick-model', name: 'Q'}]})
+    const raced: {app: MadeApp | null} = {app: null}
+    const racedKit = sharedKit(() =>
+      createTestkit(slow, async (env) => {
+        const app = await bootMadeApp(env, {harnesses: [quick]})
+        raced.app = app
+        return {fetch: app.app.fetch, dispose: app.dispose}
+      }).setup(),
+    )
+    return {
+      kit: racedKit,
+      row: (sessionId: string) => {
+        if (raced.app === null) throw new Error('the app did not boot')
+        return raced.app.chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()
+      },
+      whileListingSlowModels: async (change: Promise<unknown>, sessionId: SessionId) => {
+        const settled = change.then(
+          (value) => ({status: 'fulfilled', value}),
+          (reason: unknown) => ({status: 'rejected', reason}),
+        )
+        await vi.waitFor(() => expect(pendingListings.length).toBe(1), {timeout: 2000, interval: 5})
+        await racedKit().rpc.sessions.switchHarness({sessionId, harnessId: 'quick'})
+        pendingListings.splice(0).forEach((release) => release())
+        return settled
+      },
+    }
+  }
+
+  describe('a model change racing a harness switch', () => {
+    const raced = racedApp()
+    it('a model validated against the old harness never lands on the new one', async () => {
+      const sessionId = (await raced.kit().rpc.sessions.create()).sessionId
+      const outcome = await raced.whileListingSlowModels(
+        raced.kit().rpc.sessions.model({sessionId, model: 'slow-model'}),
+        sessionId,
+      )
+      expect(outcome).toMatchObject({status: 'rejected', reason: {code: 'UNKNOWN_MODEL'}})
+      expect(raced.row(sessionId)).toMatchObject({harnessKind: 'quick', model: null, effort: null})
+    })
+  })
+
+  describe('an effort change racing a harness switch', () => {
+    const raced = racedApp()
+    it('an effort validated against the old harness never lands on the new one', async () => {
+      const sessionId = (await raced.kit().rpc.sessions.create()).sessionId
+      const outcome = await raced.whileListingSlowModels(
+        raced.kit().rpc.sessions.effort({sessionId, effort: 'high'}),
+        sessionId,
+      )
+      expect(outcome).toMatchObject({status: 'rejected', reason: {code: 'UNSUPPORTED_EFFORT'}})
+      expect(raced.row(sessionId)).toMatchObject({harnessKind: 'quick', model: null, effort: null})
+    })
+  })
 })
 
 describe('api extension server', () => {
