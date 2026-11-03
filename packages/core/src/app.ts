@@ -131,6 +131,7 @@ function requireHarness(id: string): HarnessAdapter {
 
 function detectedHarnesses(): HarnessAdapter[] {
   return detectHarnesses({PATH: process.env.PATH ?? '', HOME: homedir()}).flatMap((found) => {
+    if (found.via !== 'path') return []
     const adapter = getHarness(found.id)
     return adapter ? [adapter] : []
   })

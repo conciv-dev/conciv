@@ -497,6 +497,36 @@ describe('api extension server surfaces', () => {
   }, 30_000)
 })
 
+describe('api installed harnesses', () => {
+  const saved = {PATH: process.env.PATH, HOME: process.env.HOME}
+
+  afterEach(() => {
+    process.env.PATH = saved.PATH
+    process.env.HOME = saved.HOME
+  })
+
+  it('offers a harness for switching only when its binary is on PATH, not for a config directory alone', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-installed-harnesses-'))
+    const bin = join(root, 'bin')
+    const home = join(root, 'home')
+    mkdirSync(bin)
+    mkdirSync(join(home, '.gemini'), {recursive: true})
+    writeFileSync(join(bin, 'codex'), '', {mode: 0o755})
+    process.env.PATH = bin
+    process.env.HOME = home
+    const {app, dispose} = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})
+    const served = await serveApp(app.fetch)
+    try {
+      const {harnesses} = await makeRpcClient(served.base).meta.harnesses()
+      expect(harnesses.map((harness) => harness.id)).toEqual(['claude', 'codex'])
+    } finally {
+      await served.close()
+      await dispose()
+      rmSync(root, {recursive: true, force: true})
+    }
+  })
+})
+
 describe('api harness switching', () => {
   type SeenTurn = {harness: string; resumeSessionId: HarnessSessionId | null; model: string | undefined; sent: string}
   const seen: SeenTurn[] = []
