@@ -134,3 +134,31 @@ conversation so far, and the message log shows which harness produced each assis
   tag and backfill. Browser test in the widget's existing browser test file for switcher, confirm dialog and
   labels. No new test files (`conciv/test-file-budget`), no mocks.
 - Changeset covering the published packages touched.
+
+## Revision 2 (2026-11-03): one model menu across harnesses, stacked on `claude-live-models`
+
+Decided by Omri: the separate "Harness: X" rows in the composer overflow go away. The model menu that
+`claude-live-models` puts on the composer prompt (`SessionModelPrompt` / `SessionModelMenu` in
+`apps/conciv/src/composer/model-selector.tsx`: Ark Menu, radio items, "Older versions" submenu, effort row)
+becomes the one place to pick both the model and the harness.
+
+- This branch is rebased onto `claude-live-models` and shipped as a PR stacked on it.
+- Each row is a model labelled with its harness in parentheses, e.g. "Opus 5.5 (Claude Code)", "Sol (Codex)".
+  The parentheses are what tell apart the same model offered by two harnesses (OpenCode can run Opus too).
+- Rows are grouped per available harness. Each harness shows its main models on top: the pattern
+  `claude-live-models` uses for Claude (newest model of each family; the rest under "Older versions"). A harness
+  whose list is long (OpenCode lists many providers) shows its default and newest models; the rest go under a
+  "More models" submenu for that harness. Never one flat list of everything.
+- Picking a model of the session's current harness sets the model, exactly as on `claude-live-models` today.
+- Picking a model of another harness is a harness switch with that model: same confirm when the chat has
+  messages, then `sessions.switchHarness` and `sessions.model` for the picked model (or one RPC taking both;
+  the switch must not leave the session on the new harness's default model when the user picked another).
+  Disabled while a reply is streaming. An empty chat switches without a dialog.
+- The prompt label shows the current model and harness the same way, e.g. `opus 5.5 (claude code) · high ❯`.
+- The effort row shows only the efforts the selected model supports, per harness.
+- The model lists for the other harnesses come from each harness's own live model source, cached the same way
+  `claude-live-models` caches Claude's (`withSavedModels`, stale-while-revalidate), so opening the menu never
+  waits on a slow CLI probe. One request returns the menu for all available harnesses.
+- `/model` (the extension slash command on `claude-live-models`) opens this same menu.
+- The per-message harness labels, the confirm dialog, the session-list harness names and the Codex reply-id fix
+  from the earlier commits stay.
