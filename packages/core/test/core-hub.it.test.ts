@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import {mkdtempSync} from 'node:fs'
+import {existsSync, mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {defineExtension, defineTool} from '@conciv/extension'
@@ -20,6 +20,7 @@ import type {HarnessCommandsContext} from '@conciv/protocol/harness-types'
 import {makeRpcClient} from '@conciv/contract'
 import {defineHarness} from '@conciv/harness'
 import {nodeClient} from '@conciv/extension/devframe-connection'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {defineDevframe} from 'devframe'
 import {chromium, type Browser} from 'playwright'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
@@ -590,6 +591,13 @@ describe('conciv hub', () => {
 
   it('mounts a devframe added through config', async () => {
     expect(await kit.hub.call('added:ping')).toBe('pong')
+  }, 10_000)
+
+  it('serves the terminals panel from the installed assets package, with no CDN cache', async () => {
+    const panel = await fetch(`${kit.hubUrl}${PLUGIN_FRAME}`)
+    expect(panel.status).toBe(200)
+    expect(await panel.text()).toContain('<html')
+    expect(existsSync(join(concivStateDir(kit.stateRoot), 'devframe', 'project', '.remote-assets'))).toBe(false)
   }, 10_000)
 
   it('answers on no MCP route', async () => {
