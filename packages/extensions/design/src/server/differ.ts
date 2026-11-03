@@ -108,6 +108,7 @@ import {
   union,
 } from './raster.js'
 import {estimateTypography, liveRoute, pathnameIn, registerTarget, segmentationQuality} from './target.js'
+import {placement, type Tree} from './layout.js'
 
 export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore; page: DesignPage}): Differ {
   const {store, page} = input
@@ -297,8 +298,9 @@ async function runDiff(request: {
     }),
   }))
   const pairedNodes = new Set(matched.map((entry) => entry.node.id))
+  const tree = {root: model.root, nodes}
   const unmatched = [
-    ...unbuiltEntries({nodes, pairedNodes}),
+    ...unbuiltEntries({tree, pairedNodes}),
     ...extraEntries({components: live.components, paired: new Set(matched.map((entry) => entry.component.path))}),
     ...offsetEntries({offsets: alignment.offsets, measured}),
   ]
@@ -311,8 +313,10 @@ async function runDiff(request: {
     components: measured.map((entry) => ({pair: entry.pair, deltas: enriched.get(entry.pair) ?? entry.deltas})),
     unmatched,
     color,
+    tree,
   })
   const warnings = warningDeltas({pairs, judged}).map((delta) => ({...delta, ...stamp}))
+  const painted = paintedPage(live.components)
   const score = scoreTuple({
     items,
     unpairedShare: unpairedShare({unmatched, page: page0}),
@@ -328,6 +332,7 @@ async function runDiff(request: {
     round: advances ? rounds.length + 1 : rounds.length,
     ranker: design.ranker,
     warnings,
+    painted,
     color,
     partial: paired.partial,
   })
@@ -353,6 +358,7 @@ async function runDiff(request: {
       components,
       unmatched,
       warnings: [...warnings, ...typographyWarnings({...typography, stamp})],
+      painted,
       segmentation: segmentationQuality(model),
       capturePath: live.capturePath,
       sources: measuredSources(live),
@@ -620,20 +626,58 @@ function typographyWarnings(input: {
   ]
 }
 
-function unbuiltEntries(input: {nodes: TargetNode[]; pairedNodes: Set<string>}): Unmatched[] {
-  const {nodes, pairedNodes} = input
-  return nodes
+function unbuiltEntries(input: {tree: Tree; pairedNodes: Set<string>}): Unmatched[] {
+  const {tree, pairedNodes} = input
+  return tree.nodes
     .filter((node) => !pairedNodes.has(node.id))
     .map((node): Unmatched => {
       const structural = node.kind !== 'image' && (node.within === undefined || pairedNodes.has(node.within))
+      const layout = entryLayout({node, tree})
       return {
         kind: 'unbuilt',
         target: node.box,
         label: node.kind === 'text' ? `text "${node.text}"` : node.kind,
         stage: structural ? 'structure' : null,
         node: node.id,
+        ...(layout === null ? {} : {layout}),
       }
     })
+}
+
+function entryLayout(input: {node: TargetNode; tree: Tree}): Unmatched['layout'] | null {
+  const {node, tree} = input
+  const own = node.layout
+  if (own === undefined) return null
+  const {direction, size} = own
+  if (direction !== undefined) return {direction, size, ...pick(own, CONTAINER_FIELDS)}
+  const seat = placement({node, tree})
+  return seat === null ? null : {direction: seat.direction, index: seat.index, size}
+}
+
+function paintedPage(components: LiveComponent[]): DiffReport['painted'] {
+  const total = flattened(components).length
+  const outermost = outermostPositioned({components, parentPositioned: false})
+  const share = total === 0 ? 0 : outermost.length / total
+  if (outermost.length <= TOLERANCES.paintedCount && share <= TOLERANCES.paintedShare) return null
+  return {
+    count: outermost.length,
+    total,
+    sources: uniqBy(
+      outermost.flatMap((component) => (component.source === null ? [] : [component.source])),
+      (source) => `${source.file}:${source.line}:${source.column}`,
+    ),
+  }
+}
+
+function outermostPositioned(input: {components: LiveComponent[]; parentPositioned: boolean}): LiveComponent[] {
+  return input.components.flatMap((component) => {
+    const {position} = component.styles
+    const own = DETACHED_POSITIONS.includes(position) && !input.parentPositioned ? [component] : []
+    return [
+      ...own,
+      ...outermostPositioned({components: component.children, parentPositioned: position !== STATIC_POSITION}),
+    ]
+  })
 }
 
 function extraEntries(input: {components: LiveComponent[]; paired: Set<string>}): Unmatched[] {
@@ -1196,7 +1240,11 @@ const COMPACT_FIELDS = [
   'sources',
   'partial',
   'hint',
+  'painted',
 ] as const satisfies readonly (keyof CompactReport & keyof DiffReport)[]
+const DETACHED_POSITIONS = ['absolute', 'fixed']
+const CONTAINER_FIELDS = ['gap', 'align', 'wrap', 'padding'] as const
+const STATIC_POSITION = 'static'
 const PARTIAL_HINT =
   'the run was cut short during pairing, so some nodes were never paired and its numbers are not comparable with other rounds; the round was not counted'
 const MISMATCH_PRECISION = 10_000

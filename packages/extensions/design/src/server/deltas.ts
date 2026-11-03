@@ -219,6 +219,14 @@ const axis: DeltaKind = {
   },
 }
 
+const sizing: DeltaKind = {
+  kind: 'sizing',
+  measure: ({live, target}) => {
+    if (live.size !== 'fixed' || (target.size !== 'fill' && target.size !== 'fit')) return []
+    return [{kind: 'sizing', live: 'fixed', target: target.size}]
+  },
+}
+
 const columns: DeltaKind = {
   kind: 'columns',
   measure: ({live, target}) => {
@@ -265,6 +273,7 @@ export const DELTA_KINDS: DeltaKind[] = [
   border,
   axis,
   columns,
+  sizing,
 ]
 
 type From = 'live' | 'target'
@@ -297,6 +306,7 @@ export function sideFrom(input: {
         ? null
         : medianColor({raster: crop({raster, box: strip}).raster, exclude: new Uint8Array(strip.w * strip.h)}),
     radius: paintedRadius({raster, box: window}),
+    size: sizeOn({pair, from}),
     styles: sideStyles({pair, from, box, raster, color, glyphs}),
   }
 }
@@ -363,6 +373,12 @@ function stripAt(input: {box: Box; side: LiveBorder['side']; width: number; offs
     case 'right':
       return {x: box.x + box.w - width + offset, y: box.y + inset, w: width, h: box.h - inset * 2}
   }
+}
+
+function sizeOn(input: {pair: Pair; from: From}): Side['size'] {
+  const {pair, from} = input
+  if (from === 'target') return pair.node.layout?.size ?? null
+  return pair.live.styles.sizing.width === 'fixed' ? 'fixed' : null
 }
 
 function opinionBox(pair: Pair | null): Box | null {

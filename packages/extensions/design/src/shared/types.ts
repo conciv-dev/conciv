@@ -2,7 +2,17 @@ import type {ServerApi, ToolRequest} from '@conciv/extension'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {DesignConfig, Tolerances} from './tolerances.js'
-import type {DeltaKindName, DiffInput, DiffReport, Stage, StatusReport, TargetInput, TargetResult} from './defs.js'
+import type {
+  ContainerLayout,
+  DeltaKindName,
+  DiffInput,
+  DiffReport,
+  NodeLayout,
+  Stage,
+  StatusReport,
+  TargetInput,
+  TargetResult,
+} from './defs.js'
 
 export const ROLES = ['placeholder', 'data', 'unknown'] as const
 export type Role = (typeof ROLES)[number]
@@ -15,7 +25,7 @@ export type SourceLoc = {file: string; line: number; column: number}
 export type OcrLine = {box: Box; text: string; confidence: number}
 export type Border = {width: number; color: string}
 export type Typography = {size: number; lineHeight: number; weight: number; confidence: number; font: string}
-type NodeBase = {id: string; box: Box; within?: string}
+type NodeBase = {id: string; box: Box; within?: string; layout?: NodeLayout}
 export type TextNode = NodeBase & {
   kind: 'text'
   text: string
@@ -28,7 +38,7 @@ export type TextNode = NodeBase & {
 export type BoxNode = NodeBase & {kind: 'box'; paint?: {background: string}; border: Border | null; radius: number}
 export type ImageNode = NodeBase & {kind: 'image'}
 export type TargetNode = TextNode | BoxNode | ImageNode
-type TargetRoot = {id: string; box: Box}
+type TargetRoot = {id: string; box: Box; layout?: ContainerLayout}
 export type TargetModel = {
   id: string
   source: {kind: string; ref: string}
@@ -61,8 +71,11 @@ export type LiveStyles = {
   fontWeight: number
   fontFamily: string
   radius: number
+  position: string
+  sizing: {width: Sizing; height: Sizing}
   border: LiveBorder
 }
+type Sizing = 'fixed' | 'auto'
 export type LiveComponent = {
   source: SourceLoc | null
   tag: string
@@ -174,6 +187,7 @@ export type Side = {
   textBox: Box | null
   edge: string | null
   radius: number | null
+  size: NodeLayout['size'] | null
   styles: Partial<LiveStyles>
 }
 export type Delta = {

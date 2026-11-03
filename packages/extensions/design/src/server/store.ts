@@ -4,7 +4,7 @@ import {mkdir, readdir, readFile, rename, rm, writeFile} from 'node:fs/promises'
 import {join, relative} from 'node:path'
 import {toolError} from '@conciv/extension'
 import {z} from 'zod'
-import {BoxSchema, DiffReportSchema, type DiffReport} from '../shared/defs.js'
+import {BoxSchema, ContainerLayoutSchema, DiffReportSchema, NodeLayoutSchema, type DiffReport} from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
 import {
   ROLES,
@@ -27,7 +27,12 @@ const RUN_PREFIXES = ['live-', 'diff-', 'result-', 'pairs-']
 
 const OcrLineSchema = z.object({box: BoxSchema, text: z.string(), confidence: z.number()})
 
-const NodeBaseSchema = z.object({id: z.string(), box: BoxSchema, within: z.string().optional()})
+const NodeBaseSchema = z.object({
+  id: z.string(),
+  box: BoxSchema,
+  within: z.string().optional(),
+  layout: NodeLayoutSchema.optional(),
+})
 
 const TextNodeSchema = NodeBaseSchema.extend({
   kind: z.literal('text'),
@@ -56,7 +61,7 @@ const ModelSchema = z.object({
   id: z.string(),
   source: z.object({kind: z.string(), ref: z.string()}),
   viewport: z.object({width: z.number(), height: z.number()}),
-  root: z.object({id: z.string(), box: BoxSchema}),
+  root: z.object({id: z.string(), box: BoxSchema, layout: ContainerLayoutSchema.optional()}),
   nodes: z.array(TargetNodeSchema),
   scale: z.number(),
 })

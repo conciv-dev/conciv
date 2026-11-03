@@ -1,3 +1,4 @@
+import cardStyles from './card.module.css'
 import {Cards} from './Cards'
 import {Table} from './Table'
 import {Toolbar} from './Toolbar'
@@ -65,9 +66,28 @@ export function App() {
         placeholder="Search invoices"
         style={requested === 'field-border' ? FIELD_BORDER : undefined}
       />
-      <Cards variant={variant} column={requested === 'column'} />
+      {requested === 'painted' ? <PaintedCards /> : <Cards variant={variant} column={requested === 'column'} />}
       {variant === 'missing' ? null : <Table variant={variant} look={requested} />}
       {requested === 'container' ? <style>{CONTAINER_CSS}</style> : null}
     </>
+  )
+}
+
+function PaintedCards() {
+  return (
+    <section style={{height: 86}}>
+      <article className={cardStyles.card} style={{position: 'absolute', left: 24, top: 148, width: 612, height: 86}}>
+        <h2>Revenue</h2>
+        <p>7000</p>
+      </article>
+      <article className={cardStyles.card} style={{position: 'absolute', left: 24, top: 380, width: 612, height: 86}}>
+        <h2>Invoices</h2>
+        <p>8000</p>
+      </article>
+      <article className={cardStyles.card} style={{position: 'absolute', left: 644, top: 148, width: 612, height: 86}}>
+        <h2>Customers</h2>
+        <p>9000</p>
+      </article>
+    </section>
   )
 }

@@ -218,6 +218,7 @@ const DELTA_PROPERTIES = {
   border: ({delta}) => [`border-${delta.side ?? 'top'}-color`, 'border-color', 'border'],
   axis: () => ['flex-direction', 'display'],
   columns: () => ['grid-template-columns'],
+  sizing: () => ['width'],
   text: () => [],
 } as const satisfies Record<DeltaKindName, Candidates>
 
