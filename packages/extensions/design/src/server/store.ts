@@ -17,6 +17,7 @@ import {iconSized, TOLERANCES} from '../shared/tolerances.js'
 import {
   ROLES,
   type Decision,
+  type Framework,
   type PairRecord,
   type StoredRun,
   type TileCache,
@@ -33,6 +34,7 @@ const RECORD_FILE = 'record.json'
 const DECISIONS_FILE = 'decisions.json'
 const LEDGER_FILE = 'ledger.json'
 const DESIGN_FILE = 'design.txt'
+const PLACEHOLDER_FILE = 'placeholder.tsx'
 const INDENT = '  '
 const TWINS_FILE = 'twins.json'
 const CAPTURES_DIR = 'captures'
@@ -61,7 +63,12 @@ const TextNodeSchema = NodeBaseSchema.extend({
 
 const BoxNodeSchema = NodeBaseSchema.extend({
   kind: z.literal('box'),
-  paint: z.object({background: z.string()}).optional(),
+  paint: z
+    .object({
+      background: z.string(),
+      gradient: z.object({from: z.string(), to: z.string(), axis: z.enum(['vertical', 'horizontal'])}).optional(),
+    })
+    .optional(),
   border: z.object({width: z.number(), color: z.string()}).nullable(),
   radius: z.number(),
 })
@@ -210,6 +217,7 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
     await writeFile(join(home, TARGET_FILE), encodePng(raster))
     await writeFile(join(home, MODEL_FILE), JSON.stringify(rest))
     await writeFile(join(home, DESIGN_FILE), designOutline(rest).join('\n'))
+    await writeFile(join(home, PLACEHOLDER_FILE), placeholderSource('react'))
     return writeRecord({
       id: model.id,
       session,
@@ -370,6 +378,13 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
         await writeFile(join(dir, id, DESIGN_FILE), designOutline({...model, nodes}).join('\n'))
       }),
     designPath: (id) => reportPath(join(dir, id, DESIGN_FILE)),
+    placeholderPath: (id) => reportPath(join(dir, id, PLACEHOLDER_FILE)),
+    writePlaceholder: async ({id, framework}) => {
+      const path = join(dir, id, PLACEHOLDER_FILE)
+      const source = placeholderSource(framework)
+      if (!existsSync(join(dir, id)) || (await readFile(path, 'utf8').catch(() => null)) === source) return
+      await writeFile(path, source)
+    },
     design: async (id) => {
       const text = await readFile(join(dir, id, DESIGN_FILE), 'utf8').catch(() => null)
       return text === null ? [] : text.split('\n')
@@ -410,7 +425,8 @@ function documentOrder(a: StoredNode, b: StoredNode): number {
 
 function nodeLine(input: {node: StoredNode; scale: number}): string {
   const {node, scale} = input
-  if (node.kind === 'image') return `${iconSized(node.box) ? 'icon' : 'image'} ${sized({box: node.box, scale})}`
+  if (node.kind === 'image')
+    return `${iconSized(node.box) ? 'icon' : 'image'} ${sized({box: node.box, scale})} placeholder`
   if (node.kind === 'text') return textLine(node)
   return `box ${sized({box: node.box, scale})}${layoutPhrase(node.layout)}${paintPhrase(node)}`
 }
@@ -423,11 +439,18 @@ function textLine(node: Extract<StoredNode, {kind: 'text'}>): string {
 
 function paintPhrase(node: Extract<StoredNode, {kind: 'box'}>): string {
   const paint = [
-    node.paint === undefined ? null : `background ${node.paint.background}`,
+    backgroundPhrase(node.paint),
     node.border === null ? null : `border ${node.border.width} ${node.border.color}`,
     node.radius > 0 ? `radius ${node.radius}` : null,
   ].filter((part) => part !== null)
   return paint.length === 0 ? '' : `, ${paint.join(', ')}`
+}
+
+function backgroundPhrase(paint: Extract<StoredNode, {kind: 'box'}>['paint']): string | null {
+  if (paint === undefined) return null
+  if (paint.gradient === undefined) return `background ${paint.background}`
+  const {from, to, axis} = paint.gradient
+  return `background gradient ${from} to ${to} ${axis}`
 }
 
 function layoutPhrase(layout: Partial<z.infer<typeof ContainerLayoutSchema>> | undefined): string {
@@ -457,4 +480,103 @@ function foldedText(text: string): string {
     .flatMap((part) => part.split(' '))
     .filter((word) => word !== '')
     .join(' ')
+}
+
+const PLACEHOLDER_IMPORTS: Record<Framework, {line: string; style: string}> = {
+  react: {line: "import type {CSSProperties} from 'react'", style: 'CSSProperties'},
+  solid: {line: "import type {JSX} from 'solid-js'", style: 'JSX.CSSProperties'},
+}
+
+const PLACEHOLDER_GLYPHS: Record<string, [string, string][]> = {
+  icon: [
+    ['width', "'40%'"],
+    ['height', "'40%'"],
+    ['border-radius', "'22%'"],
+  ],
+  logo: [
+    ['width', "'62%'"],
+    ['height', "'28%'"],
+    ['border-radius', "'999px'"],
+  ],
+  image: [
+    ['width', "'48%'"],
+    ['height', "'38%'"],
+    ['border-radius', "'12%'"],
+    ['display', "'flex'"],
+    ['align-items', "'center'"],
+    ['justify-content', "'center'"],
+  ],
+  avatar: [
+    ['width', "'42%'"],
+    ['height', "'42%'"],
+    ['border-radius', "'50%'"],
+  ],
+}
+
+const PLACEHOLDER_ROOT: [string, string][] = [
+  ['width', "'100%'"],
+  ['height', "'100%'"],
+  ['box-sizing', "'border-box'"],
+  ['display', "'flex'"],
+  ['align-items', "'center'"],
+  ['justify-content', "'center'"],
+  ['overflow', "'hidden'"],
+  ['border-radius', "props.kind === 'avatar' ? '50%' : '8px'"],
+  ['background', '`linear-gradient(135deg, hsl(${hue} 32% 94%), hsl(${(hue + 40) % 360} 32% 86%))`'],
+  ['aspect-ratio', 'props.ratio === undefined ? undefined : String(props.ratio)'],
+]
+
+const PLACEHOLDER_SPOT: [string, string][] = [
+  ['width', "'38%'"],
+  ['height', "'48%'"],
+  ['border-radius', "'50%'"],
+  ['background', '`hsl(${hue} 30% 93%)`'],
+]
+
+function placeholderSource(framework: Framework): string {
+  const {line, style} = PLACEHOLDER_IMPORTS[framework]
+  const object = (entries: [string, string][]): string => styleObject({framework, entries})
+  const glyphs = Object.entries(PLACEHOLDER_GLYPHS).map(([kind, entries]) => `  ${kind}: ${object(entries)},`)
+  return [
+    line,
+    '',
+    "type PlaceholderKind = 'icon' | 'logo' | 'image' | 'avatar'",
+    '',
+    'type PlaceholderProps = {kind: PlaceholderKind; label?: string; ratio?: number}',
+    '',
+    `const GLYPHS: Record<PlaceholderKind, ${style}> = {`,
+    ...glyphs,
+    '}',
+    '',
+    'export function Placeholder(props: PlaceholderProps) {',
+    '  const hue = hash(props.label ?? props.kind) % 360',
+    `  const glyph: ${style} = {...GLYPHS[props.kind], background: \`hsl(\${hue} 28% 74% / 0.75)\`}`,
+    '  return (',
+    `    <div aria-hidden="true" style={${object(PLACEHOLDER_ROOT)}}>`,
+    '      <div style={glyph}>',
+    `        {props.kind === 'image' ? <div style={${object(PLACEHOLDER_SPOT)}} /> : null}`,
+    '      </div>',
+    '    </div>',
+    '  )',
+    '}',
+    '',
+    'function hash(text: string): number {',
+    '  return [...text].reduce(',
+    '    (value, character) => Math.imul(value ^ (character.codePointAt(0) ?? 0), 16777619) >>> 0,',
+    '    2166136261,',
+    '  )',
+    '}',
+    '',
+  ].join('\n')
+}
+
+function styleObject(input: {framework: Framework; entries: [string, string][]}): string {
+  const pairs = input.entries.map(([name, value]) => `${styleKey({framework: input.framework, name})}: ${value}`)
+  return `{${pairs.join(', ')}}`
+}
+
+function styleKey(input: {framework: Framework; name: string}): string {
+  if (input.framework === 'solid') return `'${input.name}'`
+  const [first = '', ...rest] = input.name.split('-')
+  return [first, ...rest.map((word) => `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`)].join('')
 }

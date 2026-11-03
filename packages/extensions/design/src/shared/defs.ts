@@ -9,7 +9,7 @@ export const DESIGN_EXTENSION_NAME = 'design'
 export const DESIGN_TOOL_PREFIX = 'design_'
 
 export const DESIGN_GUIDE =
-  'A design target is registered. Call `design_diff` to measure the live page against it, fix the brief, run it again, and stop when `stop` is set. Do not judge a design match from a screenshot. The brief names rows, columns, gaps and sizing rules; build with flow, flex and grid, never from coordinates.'
+  'A design target is registered. Call `design_diff` to measure the live page against it, fix the brief, run it again, and stop when `stop` is set. Do not judge a design match from a screenshot. The brief names rows, columns, gaps and sizing rules; build with flow, flex and grid, never from coordinates. Never draw icons, logos or illustrations: no inline <svg> paths, no data urls, no CSS shapes copied from the image; every image and icon slot takes the Placeholder. Gradients are CSS.'
 
 export const NO_TARGET_MESSAGE = 'no design target is registered; register the design image with design_target'
 export const MARK_KINDS = ['excluded', 'image-slot', 'accept-delta', 'tolerance', 'accept-node'] as const
@@ -133,6 +133,11 @@ export const LiveStylesSchema = z.object({
       side: z.enum(['top', 'right', 'bottom', 'left']),
     })
     .describe('the widest painted border side, the top one when none is painted'),
+  gradient: z
+    .object({from: z.string(), to: z.string()})
+    .nullable()
+    .default(null)
+    .describe('the first and last stop of the first linear-gradient in background-image, null when there is none'),
 })
 
 export const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
@@ -158,6 +163,10 @@ const LiveComponentSchema = z.object({
   index: z.number().describe('position among the DOM siblings, 1-based'),
   path: z.string().describe('sibling positions from the root joined by /, with s entering a shadow root'),
   opinion: OpinionSchema.optional(),
+  drawn: z
+    .boolean()
+    .default(false)
+    .describe('an svg with path, polygon or circle children, an img with a data: src, or a canvas'),
   children: z.array(z.record(z.string(), z.unknown())).describe('nested components of the same shape'),
 })
 
@@ -184,10 +193,10 @@ const DeltaSchema = ProvenanceSchema.partial().extend({
     .optional()
     .describe('the same value read from the takumi layout; shown, never scored'),
   warning: z
-    .enum(['sample-data', 'typography-skipped'])
+    .enum(['sample-data', 'typography-skipped', 'svg-drawn'])
     .optional()
     .describe(
-      'sample-data: the live text is a literal equal to sample data in the design; render it from the data instead. typography-skipped: live is the number of text samples the page did not render, so their type was not estimated',
+      'sample-data: the live text is a literal equal to sample data in the design; render it from the data instead. typography-skipped: live is the number of text samples the page did not render, so their type was not estimated. svg-drawn: a picture the page draws where the design has an image or icon slot; replace it with the Placeholder',
     ),
 })
 
@@ -422,6 +431,10 @@ export const DiffReportSchema = z.object({
     .string()
     .default('')
     .describe('the design as an indented outline, one line per node; read it before building'),
+  placeholderPath: z
+    .string()
+    .default('')
+    .describe('the Placeholder component every image and icon slot takes; copy it into the page source'),
   design: z.array(z.string()).optional().describe('the lines of the design outline, with full: true'),
 })
 
@@ -448,6 +461,7 @@ export const CompactReportSchema = DiffReportSchema.pick({
   painted: true,
   changes: true,
   designPath: true,
+  placeholderPath: true,
 })
   .extend({
     counts: z
@@ -460,9 +474,10 @@ export const CompactReportSchema = DiffReportSchema.pick({
         warnings: z.number(),
         done: z.number(),
         regressed: z.number(),
+        drawn: z.number(),
       })
       .describe(
-        'how many components the full report lists, how many nodes paired, how many are unbuilt, how many of the unbuilt are icon slots the agent may fill at will, how many unmatched entries and warnings the full report holds, and how many nodes the ledger holds done and regressed',
+        'how many components the full report lists, how many nodes paired, how many are unbuilt, how many of the unbuilt are icon slots the agent may fill at will, how many unmatched entries and warnings the full report holds, how many nodes the ledger holds done and regressed, and how many pictures the page draws where the design has an image or icon slot',
       ),
   })
   .loose()
@@ -491,6 +506,7 @@ const StatusReportSchema = z.object({
   ledger: LedgerCountsSchema.optional(),
   changes: ChangesSchema.optional().describe('what the latest run changed'),
   designPath: z.string().optional().describe('the design as an indented outline, one line per node'),
+  placeholderPath: z.string().optional().describe('the Placeholder component every image and icon slot takes'),
 })
 
 const CaptureResultSchema = z.object({
@@ -512,6 +528,11 @@ export const MeasureResultSchema = z.object({
   masks: z.array(BoxSchema),
   limits: MirrorLimitsSchema.optional(),
   opinion: z.boolean().describe('takumi laid the mirror out as a second opinion'),
+  framework: z
+    .enum(['react', 'solid'])
+    .nullable()
+    .default(null)
+    .describe('react when a measured element carries a fiber, solid when the page has vite dev ids and none does'),
 })
 
 const RenderSchema = z.object({

@@ -83,8 +83,9 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 - `design_diff` captures the live page and compares it with the target. It returns the compact report: `target`,
   `round`, `budgetLeft`, `stage`, `stop`, `score`, `mismatch`, `brief`, `timings`, `counts` (components listed, nodes
   `paired` in the run, `unbuilt` entries, `icons` (the unbuilt entries that are icon slots, see [Layout](#layout)),
-  unmatched entries and warnings in the full report, ledger nodes `done` and `regressed`), `rows` (the first ten items of the stage, in brief order, each with its sentence, stage, design node,
-  source and `crop`), `changes` (see [Ledger](#ledger)), `designPath` (see [Design outline](#design-outline)), `xray`,
+  unmatched entries and warnings in the full report, ledger nodes `done` and `regressed`, `drawn` pictures, see
+  [Design outline](#design-outline)), `rows` (the first ten items of the stage, in brief order, each with its sentence, stage, design node,
+  source and `crop`), `changes` (see [Ledger](#ledger)), `designPath` and `placeholderPath` (see [Design outline](#design-outline)), `xray`,
   `diffImage`, `livePath`, `capturePath`, `sources`, `partial` and
   `hint`. `design_diff({full: true})` returns the full report with every
   component and delta; the store, `design_status` and the x-ray always hold the full one. When the components
@@ -293,12 +294,35 @@ an indented outline in document order (layout index, then top, then left), one l
 for the root, children indented two spaces under their `within`. A text reads `text "Access borderless" 56/700 data`
 (the folded text, size/weight once the type estimate knows them, the role when it is not `unknown`); a box reads
 `box 1280x72 row gap 29 align center padding 0 48, background #fff, border 1 #e3e8ee, radius 8` (its size in CSS px,
-the layout from the layout pass, its paint); an image slot reads `image 480x320`, and one under `iconSlotSide` on
-both sides reads `icon 24x24`. The model holds no text colour, so
+the layout from the layout pass, its paint); an image slot reads `image 480x320 placeholder`, and one under
+`iconSlotSide` on both sides reads `icon 24x24 placeholder`. The model holds no text colour, so
 no colour is written. The same model gives the same file. The compact report and `design_status` carry `designPath`,
 `design_diff({full: true})` carries the lines as `design`, `design_status.next` at round 0 reads `read <designPath>
-for the whole design before building; the brief lists what to fix first`, and the x-ray shows the outline under the
-brief.
+for the whole design before building; the brief lists what to fix first; copy <placeholderPath> into the page's
+source and use <Placeholder kind=…> for every image and icon line`, and the x-ray shows the outline under the brief.
+
+- **Placeholders.** An image adapter cannot hand over a picture, so registration writes `placeholder.tsx` next to
+  `design.txt`: a `Placeholder` component with props `kind` (`icon`, `logo`, `image` or `avatar`), an optional
+  `label` and an optional `ratio` (the `aspect-ratio` when the parent has no height). It fills its parent, is
+  `aria-hidden`, and draws a rounded two-tone fill whose hues come from an FNV hash of `label` (or `kind`) with a
+  small centred glyph per kind, in CSS only. The file is written for React at registration and rewritten for Solid
+  on the first run whose measure reports a Solid page (sourced elements and vite dev ids, no React fiber). The compact
+  report and `design_status` carry its path as `placeholderPath`, and `DESIGN_GUIDE` tells the agent never to draw
+  an icon, logo or illustration.
+- **Drawn pictures.** The measure marks a component `drawn` when it is an `<svg>` with a path, polygon or circle
+  inside, an `<img>` whose `src` is a `data:` url, or a `<canvas>`. A drawn component that pairs with an image node,
+  or whose box lies inside one, raises one `svg-drawn` warning (`svg (src/Landing.tsx:120): drawn svg; replace it
+  with <Placeholder kind="icon" />`, `icon` when the slot is under `iconSlotSide`, else `image`), counted as
+  `counts.drawn`. Warnings lead the brief, before the stage items. Every image node and icon slot is painted with the
+  design's pixels in the compare, so neither a placeholder nor a drawing costs mismatch; the warning is the only cost.
+- **Gradients.** The paint pass reads a box's interior, inset by `geometryPx` and its radius and with its children
+  cut out, as row means and column means. When the first and last mean differ by more than `colorDeltaE` along
+  exactly one axis and every neighbouring pair of means on it is within `colorDeltaE`, the box has
+  `paint.gradient: {from, to, axis}` and the outline reads `background gradient #635bff to #00d4ff vertical`. A
+  childless box whose fill varies along both axes, or unevenly, is a picture and becomes an image node. The measure
+  reads the first and last stop of the first `linear-gradient` in `background-image`; a live gradient whose ends
+  differ from the design's by more than `colorDeltaE`, or a solid fill against a design gradient, is one `background`
+  delta naming both ends, and a live gradient against a solid design compares its first stop.
 
 ## Sources
 

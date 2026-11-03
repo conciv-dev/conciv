@@ -36,7 +36,14 @@ export type TextNode = NodeBase & {
   roleConfidence?: number
   typography?: Typography
 }
-export type BoxNode = NodeBase & {kind: 'box'; paint?: {background: string}; border: Border | null; radius: number}
+export type Gradient = {from: string; to: string}
+export type DesignGradient = Gradient & {axis: 'vertical' | 'horizontal'}
+export type BoxNode = NodeBase & {
+  kind: 'box'
+  paint?: {background: string; gradient?: DesignGradient}
+  border: Border | null
+  radius: number
+}
 export type ImageNode = NodeBase & {kind: 'image'}
 export type TargetNode = TextNode | BoxNode | ImageNode
 type TargetRoot = {id: string; box: Box; layout?: ContainerLayout}
@@ -75,6 +82,7 @@ export type LiveStyles = {
   position: string
   sizing: {width: Sizing; height: Sizing}
   border: LiveBorder
+  gradient: Gradient | null
 }
 type Sizing = 'fixed' | 'auto'
 export type LiveComponent = {
@@ -92,6 +100,7 @@ export type LiveComponent = {
   index: number
   path: string
   opinion?: Opinion
+  drawn: boolean
   children: LiveComponent[]
 }
 export type Opinion = {box: Box; confidence: number}
@@ -108,7 +117,9 @@ export type LiveCapture = {
   masks: Box[]
   limits?: MirrorLimits
   opinion: boolean
+  framework: Framework | null
 }
+export type Framework = 'react' | 'solid'
 
 export type PixelComparator = {
   name: string
@@ -212,7 +223,7 @@ export type Delta = {
   confidence?: number
   width?: number
   opinion?: {source: 'takumi'; live: number | string; confidence: number}
-  warning?: 'sample-data' | 'typography-skipped'
+  warning?: 'sample-data' | 'typography-skipped' | 'svg-drawn'
 } & Partial<Provenance>
 export type DeltaKind = {
   kind: DeltaKindName
@@ -305,6 +316,8 @@ export type TargetStore = {
   lastResult(id: string): Promise<DiffReport | null>
   setTypography(input: {id: string; typography: Record<string, Typography>}): Promise<void>
   designPath(id: string): string
+  placeholderPath(id: string): string
+  writePlaceholder(input: {id: string; framework: Framework}): Promise<void>
   design(id: string): Promise<string[]>
   reportPath(path: string): string
 }

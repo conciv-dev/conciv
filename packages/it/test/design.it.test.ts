@@ -232,6 +232,7 @@ const NO_STYLES = {
   position: 'static',
   sizing: {width: 'auto' as const, height: 'auto' as const},
   border: NO_BORDER,
+  gradient: null,
 }
 
 function mapFixture(input: {
@@ -268,6 +269,7 @@ function mapFixture(input: {
     hints: [],
     index: 1,
     path: '/1',
+    drawn: false,
     children: [],
   }
   return mapDeclaration({
@@ -983,6 +985,12 @@ const StoredModelSchema = z.object({
       within: z.string().optional(),
       box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
       typography: z.object({size: z.number(), weight: z.number(), confidence: z.number()}).optional(),
+      paint: z
+        .object({
+          background: z.string(),
+          gradient: z.object({from: z.string(), to: z.string(), axis: z.string()}).optional(),
+        })
+        .optional(),
     }),
   ),
 })
@@ -1219,6 +1227,7 @@ function glyphComponent(input: {glyphs: {text: string; boxes: Box[]}[]; x?: numb
     hints: [],
     index: 1,
     path: '/1',
+    drawn: false,
     children: [],
   }
 }
@@ -2233,7 +2242,7 @@ describe('ledger', () => {
     const designPath = status.designPath ?? ''
     expect(designPath.endsWith(`${id}/design.txt`)).toBe(true)
     expect(status.next).toBe(
-      `read ${designPath} for the whole design before building; the brief lists what to fix first`,
+      `read ${designPath} for the whole design before building; the brief lists what to fix first; copy ${status.placeholderPath} into the page's source and use <Placeholder kind=…> for every image and icon line`,
     )
     const lines = (await readFile(fileUnder(stateRoot, designPath), 'utf8')).split('\n')
     expect(lines.length).toBe((await storedNodes(id)).length + 1)
@@ -2335,6 +2344,97 @@ function quotesOneCharacter(line: string): boolean {
   return line.split('"').some((part, index) => index % 2 === 1 && Array.from(part).length === 1)
 }
 
+const PLACEHOLDER_SOURCE = join(HOST_ROOT, 'src', 'Placeholder.tsx')
+const PLACEHOLDER_IMPORT = "import {Placeholder} from './Placeholder'"
+const PLACEHOLDER_TAG = '<Placeholder kind="icon" />'
+const DRAWN_SVG =
+  '<svg width="20" height="20" viewBox="0 0 20 20"><path d="M2 10 L10 2 L18 10 L10 18 Z" fill="#7a73ff" /></svg>'
+const HERO_TITLE = 'Financial infrastructure'
+
+function slotPicture(input: {source: string; slot: Box; picture: string}): string {
+  const {source, slot, picture} = input
+  const left = Math.round(slot.x + slot.w / 2 - AGENT_ICON_SIDE / 2)
+  const top = Math.round(slot.y + slot.h / 2 - AGENT_ICON_SIDE / 2)
+  const wrapped = `<span style={{position: 'absolute', left: ${left}, top: ${top}, width: ${AGENT_ICON_SIDE}, height: ${AGENT_ICON_SIDE}}}>${picture}</span>${DAYBREAK_TAG}`
+  return `${PLACEHOLDER_IMPORT}\n${source.replace(DAYBREAK_TAG, wrapped)}`
+}
+
+async function drawnDiff(): Promise<{
+  drawn: number
+  warnings: DiffReport['warnings']
+  mismatch: number
+  brief: string[]
+}> {
+  const raw = await rpc.registry.call({name: 'design_diff', input: {full: true}})
+  const report = DiffReportSchema.parse(raw)
+  return {
+    drawn: CompactReportSchema.parse(raw).counts.drawn,
+    warnings: report.warnings.filter((warning) => warning.warning === 'svg-drawn'),
+    mismatch: report.mismatch,
+    brief: report.brief,
+  }
+}
+
+function contains(input: {outer: Box; inner: Box}): boolean {
+  const {outer, inner} = input
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.w <= outer.x + outer.w &&
+    inner.y + inner.h <= outer.y + outer.h
+  )
+}
+
+const GRADIENT_DESIGN = 'gradients-640'
+const GRADIENT_SIZE = {width: 640, height: 420}
+const VERTICAL_BOX = {x: 40, y: 40, w: 280, h: 140}
+const HORIZONTAL_BOX = {x: 360, y: 40, w: 240, h: 140}
+const PICTURE_BOX = {x: 40, y: 230, w: 200, h: 140}
+const CHECKER = 20
+
+type Channels = [number, number, number]
+
+function blend(input: {from: Channels; to: Channels; at: number}): Channels {
+  const {from, to, at} = input
+  const mixed = (channel: 0 | 1 | 2): number => Math.round(from[channel] + (to[channel] - from[channel]) * at)
+  return [mixed(0), mixed(1), mixed(2)]
+}
+
+function paintBox(input: {png: PNG; box: Box; paint: (dx: number, dy: number) => Channels}): void {
+  const {png, box, paint} = input
+  Array.from({length: box.h * box.w}, (_, index) => index).forEach((index) => {
+    const dx = index % box.w
+    const dy = Math.floor(index / box.w)
+    png.data.set(paint(dx, dy), ((box.y + dy) * png.width + box.x + dx) * 4)
+  })
+}
+
+async function writeGradientDesign(): Promise<void> {
+  const png = new PNG(GRADIENT_SIZE)
+  png.data.fill(255)
+  paintBox({
+    png,
+    box: VERTICAL_BOX,
+    paint: (_, dy) => blend({from: [0x63, 0x5b, 0xff], to: [0x00, 0xd4, 0xff], at: dy / (VERTICAL_BOX.h - 1)}),
+  })
+  paintBox({
+    png,
+    box: HORIZONTAL_BOX,
+    paint: (dx) => blend({from: [0xff, 0xd9, 0xbd], to: [0xa7, 0x8b, 0xfa], at: dx / (HORIZONTAL_BOX.w - 1)}),
+  })
+  paintBox({
+    png,
+    box: PICTURE_BOX,
+    paint: (dx, dy) =>
+      (Math.floor(dx / CHECKER) + Math.floor(dy / CHECKER)) % 2 === 0 ? [30, 60, 200] : [240, 160, 40],
+  })
+  await writeFile(target(GRADIENT_DESIGN), PNG.sync.write(png))
+}
+
+function placeholderRendered(): Promise<boolean> {
+  return page.evaluate(() => document.querySelector('[data-conciv-source*="Placeholder.tsx"]') !== null)
+}
+
 async function iconCount(): Promise<{icons: number; brief: string[]}> {
   const compact = CompactReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {}}))
   return {icons: compact.counts.icons, brief: compact.brief}
@@ -2383,6 +2483,80 @@ describe('icons', () => {
       await writeFile(STRIPE_SOURCE, source)
     }
   }, 300_000)
+
+  it('the Placeholder compiles into the lilac card and costs nothing; an svg drawn there warns once at the same mismatch', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const status = await call('design_status', {})
+    const placeholder = await readFile(fileUnder(stateRoot, status.placeholderPath ?? ''), 'utf8')
+    const slot = daybreakSlot(await storedNodes(id))
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await writeFile(PLACEHOLDER_SOURCE, placeholder)
+      await rewrite({id, file: STRIPE_SOURCE, text: slotPicture({source, slot, picture: PLACEHOLDER_TAG})})
+      const rendered = await placeholderRendered()
+      const placed = await drawnDiff()
+      await rewrite({id, file: STRIPE_SOURCE, text: slotPicture({source, slot, picture: DRAWN_SVG})})
+      const drawn = await drawnDiff()
+      await annotate(
+        `slot ${JSON.stringify(slot)} placeholder drawn ${placed.drawn} mismatch ${placed.mismatch}; svg drawn ${drawn.drawn} mismatch ${drawn.mismatch} warnings ${JSON.stringify(drawn.warnings)} brief ${JSON.stringify(drawn.brief.slice(0, 3))}`,
+      )
+      expect(status.next).toContain(`copy ${status.placeholderPath} into the page's source`)
+      expect(rendered).toBe(true)
+      expect([placed.drawn, placed.warnings]).toEqual([0, []])
+      expect(drawn.drawn).toBe(1)
+      expect(drawn.warnings.map((warning) => warning.file?.endsWith('Stripe.tsx'))).toEqual([true])
+      expect(
+        drawn.brief.filter((line) => line.includes('drawn svg; replace it with <Placeholder kind="icon" />')),
+      ).toHaveLength(1)
+      expect(drawn.mismatch).toBe(placed.mismatch)
+    } finally {
+      await writeFile(STRIPE_SOURCE, source)
+      await rm(PLACEHOLDER_SOURCE, {force: true})
+    }
+  }, 300_000)
+
+  it('a smooth fill along one axis is a gradient with two ends; an uneven fill is an image', async ({annotate}) => {
+    await goto('stripe')
+    await writeGradientDesign()
+    const {id} = await freshTarget(GRADIENT_DESIGN)
+    const nodes = await storedNodes(id)
+    const status = await call('design_status', {})
+    const outline = (await readFile(fileUnder(stateRoot, status.designPath ?? ''), 'utf8')).split('\n')
+    const gradients = nodes.flatMap((node) => (node.paint?.gradient === undefined ? [] : [node.paint.gradient]))
+    await annotate(`gradients ${JSON.stringify(gradients)} outline ${JSON.stringify(outline)}`)
+    expect(gradients.map((gradient) => gradient.axis).toSorted()).toEqual(['horizontal', 'vertical'])
+    expect(outline.filter((line) => line.includes('background gradient #') && line.includes(' vertical'))).toHaveLength(
+      1,
+    )
+    expect(outline.filter((line) => line.trim().startsWith('image 200x140 placeholder'))).toHaveLength(1)
+  }, 240_000)
+
+  it('the stripe design has no single-axis gradient box and its hero is not turned into an image', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const nodes = await storedNodes(id)
+    const status = await call('design_status', {})
+    const outline = (await readFile(fileUnder(stateRoot, status.designPath ?? ''), 'utf8')).split('\n')
+    const title = nodes.find((node) => node.kind === 'text' && (node.text ?? '').startsWith(HERO_TITLE))
+    const gradients = nodes.flatMap((node) =>
+      node.paint?.gradient === undefined ? [] : [{box: node.box, gradient: node.paint.gradient}],
+    )
+    const covering = nodes.filter(
+      (node) => node.kind === 'image' && title !== undefined && contains({outer: node.box, inner: title.box}),
+    )
+    await annotate(
+      `hero title ${JSON.stringify(title?.box)} within ${title?.within ?? 'the page'}; boxes ${JSON.stringify(nodes.filter((node) => node.kind === 'box').map((node) => node.paint))}; gradients ${JSON.stringify(gradients)}`,
+    )
+    expect(title).toBeDefined()
+    expect(gradients).toEqual([])
+    expect(outline.filter((line) => line.includes('background gradient'))).toEqual([])
+    expect(covering).toEqual([])
+  }, 240_000)
 })
 
 const HIDDEN_HINT = 'the page tab is hidden; bring it to the foreground and run design_diff again'

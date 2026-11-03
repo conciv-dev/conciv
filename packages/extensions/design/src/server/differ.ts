@@ -54,6 +54,7 @@ import type {
   DesignContext,
   DesignPage,
   DesignRuntime,
+  Framework,
   Differ,
   LiveCapture,
   LiveComponent,
@@ -307,6 +308,7 @@ async function runDiff(request: {
   const reply = await askMeasure({width: record.width, height: record.height, page})
   clock.lap('measure')
   const reading = liveCapture(reply)
+  await matchPlaceholder({store: design.store, id: record.id, framework: reading.framework})
   clock.lap('decode')
   const capture = createHash('sha256').update(reading.raster.data).update(JSON.stringify(decisions)).digest('hex')
   const rounds = history.rounds(record.id)
@@ -339,7 +341,10 @@ async function runDiff(request: {
   const masked = paintOver({
     onto: live.raster,
     from: model.raster,
-    boxes: agreeing.map((box) => expand({box, by: TOLERANCES.glyphHalo + TOLERANCES.blurRadius})),
+    boxes: [
+      ...agreeing.map((box) => expand({box, by: TOLERANCES.glyphHalo + TOLERANCES.blurRadius})),
+      ...model.nodes.filter((node) => node.kind === 'image').map((node) => node.box),
+    ],
   })
   const pixels = comparePages({
     live: masked,
@@ -431,9 +436,10 @@ async function runDiff(request: {
     color,
     tree,
   })
-  const warnings = (await warningDeltas({pairs, judged, components: live.components, cwd: design.cwd})).map(
-    (delta) => ({...delta, ...stamp}),
-  )
+  const warnings = [
+    ...drawnWarnings({pairs, components: live.components, nodes}),
+    ...(await warningDeltas({pairs, judged, components: live.components, cwd: design.cwd})),
+  ].map((delta) => ({...delta, ...stamp}))
   const painted = paintedPage(live.components)
   const score = scoreTuple({
     items,
@@ -510,6 +516,7 @@ async function runDiff(request: {
       changes,
       ledger: counts,
       designPath: design.store.designPath(record.id),
+      placeholderPath: design.store.placeholderPath(record.id),
       pinsLost: pins
         .filter((pin) => !matched.some((entry) => entry.node.id === pin.node && entry.component.path === pin.path))
         .map((pin) => pin.decision),
@@ -1137,6 +1144,41 @@ async function warningDeltas(input: {
   return flagged.flat()
 }
 
+async function matchPlaceholder(input: {store: TargetStore; id: string; framework: Framework | null}): Promise<void> {
+  if (input.framework !== 'solid') return
+  await input.store.writePlaceholder({id: input.id, framework: input.framework})
+}
+
+function drawnWarnings(input: {pairs: Pair[]; components: LiveComponent[]; nodes: TargetNode[]}): Delta[] {
+  const slots = input.nodes.filter((node) => node.kind === 'image')
+  const paired = new Map(input.pairs.map((pair) => [pair.live.path, pair.node]))
+  return flattened(input.components).flatMap((component): Delta[] => {
+    if (!component.drawn) return []
+    const own = paired.get(component.path)
+    const slot = own?.kind === 'image' ? own : slots.find((node) => enclosed({inner: component.box, outer: node.box}))
+    if (slot === undefined) return []
+    const kind = iconSized(slot.box) ? 'icon' : 'image'
+    return [
+      {
+        kind: 'background',
+        live: drawnLabel(component.tag),
+        target: `<Placeholder kind="${kind}" />`,
+        warning: 'svg-drawn',
+        selector: component.tag,
+        ...(component.source === null
+          ? {}
+          : {via: 'source', file: component.source.file, line: component.source.line, column: component.source.column}),
+      },
+    ]
+  })
+}
+
+function drawnLabel(tag: string): string {
+  if (tag === 'svg') return 'drawn svg'
+  if (tag === 'img') return 'drawn data url'
+  return 'drawn canvas'
+}
+
 async function rendersData(input: {pair: Pair; parent: LiveComponent | undefined; cwd: string}): Promise<boolean> {
   const {pair, parent, cwd} = input
   if (parent === undefined) return false
@@ -1465,23 +1507,33 @@ async function targetStatus(input: {
     ledger: ledgerCounts(await store.ledger(record.id)),
     ...(report === null ? {} : {changes: report.changes}),
     designPath: store.designPath(record.id),
+    placeholderPath: store.placeholderPath(record.id),
     ...statusNext({
       done,
       unanswered: input.unanswered.has(record.id),
       first: (report?.round ?? 0) === 0,
       designPath: store.designPath(record.id),
+      placeholderPath: store.placeholderPath(record.id),
     }),
     ...(reregister ? {reregister} : {}),
   }
 }
 
-function statusNext(input: {done: boolean; unanswered: boolean; first: boolean; designPath: string}): {
+function statusNext(input: {
+  done: boolean
+  unanswered: boolean
+  first: boolean
+  designPath: string
+  placeholderPath: string
+}): {
   next?: string
 } {
   if (input.unanswered) return {next: UNANSWERED_HINT}
   if (input.done) return {}
   if (input.first) {
-    return {next: `read ${input.designPath} for the whole design before building; the brief lists what to fix first`}
+    return {
+      next: `read ${input.designPath} for the whole design before building; the brief lists what to fix first; copy ${input.placeholderPath} into the page's source and use <Placeholder kind=…> for every image and icon line`,
+    }
   }
   return {next: DESIGN_GUIDE}
 }
@@ -1560,6 +1612,7 @@ const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
   index: z.number(),
   path: z.string(),
   opinion: OpinionSchema.optional(),
+  drawn: z.boolean().default(false),
   get children() {
     return z.array(LiveComponentTreeSchema)
   },
@@ -1595,6 +1648,7 @@ function liveCapture(reply: MeasureReply): LiveCapture {
     source: reply.source,
     masks: reply.masks,
     opinion: reply.opinion,
+    framework: reply.framework,
     ...(reply.limits === undefined ? {} : {limits: reply.limits}),
   }
 }
@@ -1819,6 +1873,7 @@ const COMPACT_FIELDS = [
   'painted',
   'changes',
   'designPath',
+  'placeholderPath',
 ] as const satisfies readonly (keyof CompactReport & keyof DiffReport)[]
 const DETACHED_POSITIONS = ['absolute', 'fixed']
 const CONTAINER_FIELDS = ['gap', 'align', 'wrap', 'padding'] as const
@@ -2007,6 +2062,7 @@ function shaped(input: {report: DiffReport; design: string[] | null}): CompactRe
     warnings: report.warnings.length,
     done: report.ledger.done,
     regressed: report.ledger.regressed,
+    drawn: report.warnings.filter((warning) => warning.warning === 'svg-drawn').length,
   }
   if (input.design !== null) return {...report, design: input.design, counts}
   return {...pick(report, COMPACT_FIELDS), counts}

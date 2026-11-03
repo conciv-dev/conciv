@@ -19,6 +19,7 @@ import type {
   Box,
   BoxNode,
   ColorMetric,
+  DesignGradient,
   DesignRuntime,
   Enricher,
   ImageNode,
@@ -38,6 +39,7 @@ import type {
 import {COLOR_METRICS, sampledFills} from './deltas.js'
 import {laidOut} from './layout.js'
 import {
+  boxMask,
   cornerRadius,
   crop,
   decodePng,
@@ -672,8 +674,8 @@ function tooSparse(measured: Measured): boolean {
   return measured.cover < FILLED && !outline
 }
 
-function boxNode(input: {level: Level; raw: Box; fill: Rgb; edge: Border | null}): Found[] {
-  const {level, raw, fill, edge} = input
+function boxNode(input: {level: Level; raw: Box; fill: Rgb; edge: Border | null; gradient: boolean}): Found[] {
+  const {level, raw, fill, edge, gradient} = input
   const {raster, region, background, depth} = level
   const box = depth > 1 ? grow({raster, box: raw, region, fill}) : raw
   const node: BoxNode = {
@@ -684,14 +686,9 @@ function boxNode(input: {level: Level; raw: Box; fill: Rgb; edge: Border | null}
     radius: cornerRadius({raster, box, inside: fill, outside: background}),
   }
   const inner = inset({box, by: CHILD_INSET})
-  const found = children({
-    raster,
-    region: inner,
-    background: fill,
-    depth: depth + 1,
-    text: level.text,
-    marks: level.marks,
-  })
+  const found = gradient
+    ? []
+    : children({raster, region: inner, background: fill, depth: depth + 1, text: level.text, marks: level.marks})
   const empty =
     !found.some((child) => child.kind === 'box') && !level.text.some((text) => overlapping({a: box, b: text}))
   if (empty && iconSized(box)) return [imageNode(box), ...found]
@@ -705,8 +702,16 @@ function classify(input: {level: Level; raw: Box; rectangular: boolean}): Found[
   const measured = measure({level, raw})
   if (tooSparse(measured)) return wide && measured.dominant < DOMINANT ? [imageNode(raw)] : []
   const edge = border({raster: level.raster, box: raw, fill: measured.fill})
-  if (measured.dominant < DOMINANT && edge === null) return [imageNode(raw)]
-  return boxNode({level, raw, fill: measured.fill, edge})
+  const gradient = measured.dominant < DOMINANT && gradientFill({level, raw})
+  if (measured.dominant < DOMINANT && edge === null && !gradient) return [imageNode(raw)]
+  return boxNode({level, raw, fill: measured.fill, edge, gradient})
+}
+
+function gradientFill(input: {level: Level; raw: Box}): boolean {
+  const {level, raw} = input
+  const holes = level.text.filter((box) => overlapping({a: box, b: raw}))
+  const box = inset({box: raw, by: TOLERANCES.interiorInset})
+  return fillShape({raster: level.raster, box, holes, color: COLOR_METRICS.ciede2000}).kind === 'gradient'
 }
 
 function children(level: Level): Found[] {
@@ -984,10 +989,87 @@ const colorEnricher: Enricher = {
     Promise.resolve(
       model.nodes.map((node) => {
         if (node.kind !== 'box' || node.paint !== undefined) return node
-        const {background} = sampledFills({raster, box: node.box, glyphs: [node.box], color: COLOR_METRICS.ciede2000})
+        const color = COLOR_METRICS.ciede2000
+        const {background} = sampledFills({raster, box: node.box, glyphs: [node.box], color})
+        const holes = model.nodes
+          .filter((other) => other.within === node.id)
+          .map((other) => expand({box: other.box, by: TOLERANCES.glyphHalo}))
+        const shape = fillShape({
+          raster,
+          box: inset({box: node.box, by: TOLERANCES.geometryPx + node.radius}),
+          holes,
+          color,
+        })
+        if (shape.kind === 'picture' && holes.length === 0) return imageNode(node.box)
+        if (shape.kind === 'gradient') return {...node, paint: {background, gradient: shape.gradient}}
         return {...node, paint: {background}}
       }),
     ),
+}
+
+type FillShape = {kind: 'solid'} | {kind: 'picture'} | {kind: 'gradient'; gradient: DesignGradient}
+type Axis = DesignGradient['axis']
+
+const SOLID: FillShape = {kind: 'solid'}
+const PICTURE: FillShape = {kind: 'picture'}
+const MIN_LINES = 2
+
+function fillShape(input: {raster: Raster; box: Box; holes: Box[]; color: ColorMetric}): FillShape {
+  const {raster, box, holes, color} = input
+  if (box.w < MIN_LINES || box.h < MIN_LINES) return SOLID
+  const mask = boxMask({boxes: holes, area: box})
+  const rowMeans = lineMeans({raster, area: box, mask, axis: 'vertical'})
+  const columnMeans = lineMeans({raster, area: box, mask, axis: 'horizontal'})
+  const vertical = varies({means: rowMeans, color})
+  const horizontal = varies({means: columnMeans, color})
+  if (!vertical && !horizontal) return SOLID
+  if (vertical && horizontal) return PICTURE
+  const axis: Axis = vertical ? 'vertical' : 'horizontal'
+  const means = vertical ? rowMeans : columnMeans
+  const from = means[0]
+  const to = means.at(-1)
+  if (from === undefined || to === undefined || !smooth({means, color})) return PICTURE
+  return {kind: 'gradient', gradient: {from, to, axis}}
+}
+
+function lineMeans(input: {raster: Raster; area: Box; mask: Uint8Array; axis: Axis}): string[] {
+  const {raster, area, mask, axis} = input
+  const lines = axis === 'vertical' ? area.h : area.w
+  const across = axis === 'vertical' ? area.w : area.h
+  return range(lines).flatMap((line) => {
+    const total = range(across).reduce(
+      (sums, step) => {
+        const x = axis === 'vertical' ? step : line
+        const y = axis === 'vertical' ? line : step
+        if (mask[y * area.w + x] === 1) return sums
+        const index = ((area.y + y) * raster.width + area.x + x) * 4
+        sums.red += raster.data[index] ?? 0
+        sums.green += raster.data[index + 1] ?? 0
+        sums.blue += raster.data[index + 2] ?? 0
+        sums.count += 1
+        return sums
+      },
+      {red: 0, green: 0, blue: 0, count: 0},
+    )
+    if (total.count === 0) return []
+    return [hex([total.red, total.green, total.blue].map((channel) => Math.round(channel / total.count)))]
+  })
+}
+
+function varies(input: {means: string[]; color: ColorMetric}): boolean {
+  const {means, color} = input
+  const first = means[0]
+  const last = means.at(-1)
+  if (first === undefined || last === undefined) return false
+  return color.distance({a: first, b: last}) > TOLERANCES.colorDeltaE
+}
+
+function smooth(input: {means: string[]; color: ColorMetric}): boolean {
+  const {means, color} = input
+  return means.every((mean, index) => {
+    const next = means[index + 1]
+    return next === undefined || color.distance({a: mean, b: next}) <= TOLERANCES.colorDeltaE
+  })
 }
 
 export const ENRICHERS: Enricher[] = [textEnricher, segmentEnricher, rolesEnricher, colorEnricher]

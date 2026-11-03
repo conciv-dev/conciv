@@ -1,7 +1,19 @@
 import {differenceCiede2000, parse} from 'culori'
 import {memoize} from 'es-toolkit'
 import {TOLERANCES} from '../shared/tolerances.js'
-import type {Box, ColorMetric, DeltaKind, Flow, LiveBorder, LiveStyles, Pair, Raster, Side} from '../shared/types.js'
+import type {
+  Box,
+  ColorMetric,
+  Delta,
+  DeltaKind,
+  Flow,
+  Gradient,
+  LiveBorder,
+  LiveStyles,
+  Pair,
+  Raster,
+  Side,
+} from '../shared/types.js'
 import {boxMask, cornerRadius, crop, edgeMap, medianColor, pixelHex, type Rgb} from './raster.js'
 
 const difference = differenceCiede2000()
@@ -68,7 +80,37 @@ function colorKind(input: {kind: 'background' | 'foreground'; tolerance: number}
   }
 }
 
-const background = colorKind({kind: 'background', tolerance: TOLERANCES.declaredColorDeltaE})
+const solidBackground = colorKind({kind: 'background', tolerance: TOLERANCES.declaredColorDeltaE})
+
+const background: DeltaKind = {
+  kind: 'background',
+  measure: (input) => {
+    const {live, target, color} = input
+    const design = target.styles.gradient
+    const shown = live.styles.gradient
+    if (design !== null && design !== undefined) return gradientDeltas({design, live, color})
+    if (shown === null || shown === undefined || live.styles.background !== undefined) {
+      return solidBackground.measure(input)
+    }
+    return solidBackground.measure({...input, live: {...live, styles: {...live.styles, background: shown.from}}})
+  },
+}
+
+function gradientDeltas(input: {design: Gradient; live: Side; color: ColorMetric}): Delta[] {
+  const {design, live, color} = input
+  const target = `gradient ${design.from} to ${design.to}`
+  const shown = live.styles.gradient
+  if (shown === null || shown === undefined) {
+    const solid = live.styles.background
+    return solid === undefined ? [] : [{kind: 'background', live: solid, target}]
+  }
+  const ends = [
+    {a: shown.from, b: design.from},
+    {a: shown.to, b: design.to},
+  ]
+  if (ends.every((end) => color.distance(end) <= TOLERANCES.colorDeltaE)) return []
+  return [{kind: 'background', live: `gradient ${shown.from} to ${shown.to}`, target}]
+}
 const foreground = colorKind({kind: 'foreground', tolerance: TOLERANCES.colorDeltaE})
 
 type Insets = {left: number; right: number; top: number; bottom: number}
@@ -472,12 +514,17 @@ function sideStyles(input: {
   const fills = sampledFills({raster, box, glyphs, color: input.color})
   const color = paintsText && fills.foreground !== null ? {color: fills.foreground} : {}
   if (from === 'target') {
-    const painted =
-      pair.node.kind === 'box' && pair.node.paint !== undefined ? pair.node.paint.background : fills.background
-    return {background: painted, ...color, ...estimatedType(pair)}
+    return {...designPaint({pair, sampled: fills.background}), ...color, ...estimatedType(pair)}
   }
   const {background: declared, color: _declared, ...rest} = pair.live.styles
   return {...rest, ...(isOpaqueHex(declared) ? {background: declared} : {}), ...color}
+}
+
+function designPaint(input: {pair: Pair; sampled: string}): Partial<LiveStyles> {
+  const {node} = input.pair
+  if (node.kind !== 'box' || node.paint === undefined) return {background: input.sampled}
+  const {gradient} = node.paint
+  return gradient === undefined ? {background: node.paint.background} : {background: node.paint.background, gradient}
 }
 
 function estimatedType(pair: Pair): Partial<LiveStyles> {

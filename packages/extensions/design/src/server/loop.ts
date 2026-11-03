@@ -194,8 +194,8 @@ export function judge(input: {
     ...(changed.line === null ? [] : [changed.line]),
     ...(input.painted === null ? [] : [paintedLine(input.painted.count)]),
     ...(flipped === null ? [] : [flippedLine({items: ranker({items: flipped.items}), round: flipped.round})]),
-    ...ordered.slice(0, TOLERANCES.briefSize).map((item) => item.sentence),
     ...warnings.map(warningSentence),
+    ...ordered.slice(0, TOLERANCES.briefSize).map((item) => item.sentence),
   ]
   return {
     stage,
@@ -707,6 +707,13 @@ function located(input: {
 }
 
 function warningSentence(delta: Delta): string {
+  if (delta.warning === 'svg-drawn') {
+    const what = componentLabel({
+      tag: delta.selector ?? 'the element',
+      source: delta.file === undefined ? null : {file: delta.file, line: delta.line ?? 0},
+    })
+    return `${what}: ${delta.live}; replace it with ${delta.target}`
+  }
   const where = delta.file === undefined ? '' : ` at ${delta.file}${delta.line === undefined ? '' : `:${delta.line}`}`
   return `replace the hard-coded sample "${delta.live}"${where} with the expression that renders it`
 }

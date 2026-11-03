@@ -32,7 +32,9 @@ import {
 import {designConfig, PANE_ATTR, propertyAliases, SOURCE_ATTR, TOLERANCES} from './shared/tolerances.js'
 import type {
   Box,
+  Framework,
   Glyph,
+  Gradient,
   LiveBorder,
   LiveComponent,
   LiveStyles,
@@ -76,6 +78,14 @@ const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 const PX_UNIT = 'px'
+const REACT_FIBER = '__reactFiber'
+const VITE_DEV_ID = '[data-vite-dev-id]'
+const DRAWN_SHAPES = 'path, polygon, circle'
+const DATA_URL = 'data:'
+const LINEAR_GRADIENT = 'linear-gradient('
+const RGB_TOKEN = 'rgb'
+const HEX_TOKEN = '#'
+const TOKEN_ENDS = [' ', ',', ')']
 
 const TAKUMI_WASM = 'takumi_paint_wasm_bg.wasm'
 
@@ -189,6 +199,7 @@ async function measureLive(size: Size): Promise<MeasureResult> {
     source: 'dom',
     masks,
     opinion: false,
+    framework: pageFramework(),
   }
 }
 
@@ -208,7 +219,15 @@ async function measureMirror(size: Size): Promise<MeasureResult> {
     masks,
     limits: mirrorLimits(doc),
     opinion: opinion !== null,
+    framework: pageFramework(),
   }
+}
+
+function pageFramework(): Framework | null {
+  const sourced = [...document.querySelectorAll(`[${SOURCE_ATTR}]`)]
+  if (sourced.some((element) => Object.keys(element).some((key) => key.startsWith(REACT_FIBER)))) return 'react'
+  if (sourced.length > 0 && document.querySelector(VITE_DEV_ID) !== null) return 'solid'
+  return null
 }
 
 function takumiWasm(): string | null {
@@ -570,8 +589,16 @@ function componentTree(input: Walk): LiveComponent {
     hints: readHints(el),
     index: siblingIndex(el),
     path: input.path,
+    drawn: drawnPicture(el),
     children: collectUnder(input),
   }
+}
+
+function drawnPicture(el: Element): boolean {
+  const tag = el.tagName.toLowerCase()
+  if (tag === 'svg') return el.querySelector(DRAWN_SHAPES) !== null
+  if (tag === 'img') return (el.getAttribute('src') ?? '').startsWith(DATA_URL)
+  return tag === 'canvas'
 }
 
 function readSource(el: Element): SourceLoc | null {
@@ -709,7 +736,44 @@ function readStyles(input: {style: CSSStyleDeclaration; element: Element; scan: 
     position: style.position,
     sizing: {width: ownSizing({...input, property: 'width'}), height: ownSizing({...input, property: 'height'})},
     border: readBorder(style),
+    gradient: gradientStops(style.backgroundImage),
   }
+}
+
+function gradientStops(image: string): Gradient | null {
+  const start = image.indexOf(LINEAR_GRADIENT)
+  if (start < 0) return null
+  const colors = colorTokens(enclosedBody(image.slice(start + LINEAR_GRADIENT.length)))
+  const from = colors[0]
+  const to = colors.at(-1)
+  if (from === undefined || to === undefined || colors.length < 2) return null
+  return {from: toHex(from), to: toHex(to)}
+}
+
+function enclosedBody(text: string): string {
+  const closing = [...text].reduce<{depth: number; at: number}>(
+    (state, character, index) => {
+      if (state.at >= 0) return state
+      const depth = state.depth + (character === '(' ? 1 : 0) - (character === ')' ? 1 : 0)
+      return {depth, at: depth === 0 ? index : -1}
+    },
+    {depth: 1, at: -1},
+  )
+  return closing.at < 0 ? text : text.slice(0, closing.at)
+}
+
+function colorTokens(text: string): string[] {
+  const starts = [text.indexOf(RGB_TOKEN), text.indexOf(HEX_TOKEN)].filter((at) => at >= 0)
+  if (starts.length === 0) return []
+  const at = Math.min(...starts)
+  const end = text.startsWith(HEX_TOKEN, at) ? hexEnd({text, at}) : text.indexOf(')', at) + 1
+  if (end <= at) return []
+  return [text.slice(at, end), ...colorTokens(text.slice(end))]
+}
+
+function hexEnd(input: {text: string; at: number}): number {
+  const ends = TOKEN_ENDS.map((end) => input.text.indexOf(end, input.at)).filter((at) => at >= 0)
+  return ends.length === 0 ? input.text.length : Math.min(...ends)
 }
 
 function ownSizing(input: {element: Element; scan: Scan; property: string}): LiveStyles['sizing']['width'] {
