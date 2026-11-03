@@ -3,7 +3,7 @@ import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {compact, groupBy, uniq} from 'es-toolkit'
 import type {makeExtRpcClient} from '@conciv/extension'
-import {MARK_KINDS, STAGES, type DiffReport, type Stage} from '../shared/defs.js'
+import {MARK_KINDS, STAGES, type DiffReport, type NodeStatus, type Stage} from '../shared/defs.js'
 import type {Box, Decision, TargetNode, TargetRecord} from '../shared/types.js'
 import type {XrayRouter} from '../server/xray-routes.js'
 import {nodeName, RadioChip, type Row, type RowGroup, type XrayData} from './panel.js'
@@ -210,8 +210,19 @@ export function RowBadges(props: {row: Row; data: XrayData; opinions: boolean}):
     ])
   const marks = () => props.data.decisions.filter((decision) => props.row.nodes.includes(decision.anchor))
   const lost = () => marks().some((decision) => lostPin({decision, data: props.data}))
+  const status = () => {
+    const [node] = props.row.nodes
+    return node === undefined ? null : (props.data.ledger?.nodes[node]?.status ?? null)
+  }
+  const change = () => {
+    const changes = props.data.report?.changes
+    if (changes === undefined) return null
+    return CHANGE_KINDS.find((kind) => changes[kind].some((entry) => props.row.nodes.includes(entry.node))) ?? null
+  }
   return (
     <>
+      <Show when={status()}>{(found) => <span class={`badge ${STATUS_COLOR[found()]}`}>{found()}</span>}</Show>
+      <Show when={change()}>{(found) => <span class="badge border border-base">{CHANGE_LABEL[found()]}</span>}</Show>
       <Show when={parts().length > 0}>
         <span class="text-xs color-meta whitespace-nowrap tabular-nums">{parts().join(' · ')}</span>
       </Show>
@@ -265,6 +276,7 @@ export function RowDecisions(props: {row: Row; data: XrayData; mode: DecisionMod
                     <span class="i-ph-push-pin-duotone" aria-hidden="true" />
                     Pin to an element
                   </button>
+                  <AcceptNode node={node} data={props.data} decider={props.decider} />
                 </Show>
                 <Show when={props.mode === 'marks'}>
                   <For each={NODE_MARKS}>
@@ -289,6 +301,42 @@ export function RowDecisions(props: {row: Row; data: XrayData; mode: DecisionMod
             <DeltaMarks row={props.row} node={first()} decider={props.decider} />
           </Show>
         </div>
+      )}
+    </Show>
+  )
+}
+
+function AcceptNode(props: {node: TargetNode; data: XrayData; decider: Decider}): JSX.Element {
+  const label = () => nodeName(props.node)
+  const accepted = () =>
+    props.data.decisions.find((decision) => decision.kind === 'accept-node' && decision.anchor === props.node.id)
+  return (
+    <Show
+      when={accepted()}
+      fallback={
+        <button
+          type="button"
+          class="btn-action-sm"
+          aria-label={`Accept ${label()} as built`}
+          disabled={props.decider.busy() !== null}
+          onClick={() => props.decider.mark({kind: 'accept-node', node: props.node.id, label: label()})}
+        >
+          <span class={MARK_ICON['accept-node']} aria-hidden="true" />
+          {MARK_ACTION['accept-node']}
+        </button>
+      }
+    >
+      {(decision) => (
+        <button
+          type="button"
+          class="btn-action-sm"
+          aria-label={`Revoke the accepted ${label()}`}
+          disabled={props.decider.busy() !== null}
+          onClick={() => props.decider.revoke({decision: decision(), label: label()})}
+        >
+          <span class={MARK_ICON['accept-node']} aria-hidden="true" />
+          Revoke accept
+        </button>
       )}
     </Show>
   )
@@ -534,6 +582,7 @@ const KIND_LABEL: Record<MarkKind, string> = {
   'image-slot': 'an image slot',
   'accept-delta': 'with an accepted delta',
   tolerance: 'with a raised tolerance',
+  'accept-node': 'accepted as built',
 }
 
 const DECISION_LABEL: Record<Decision['kind'], string> = {
@@ -542,6 +591,7 @@ const DECISION_LABEL: Record<Decision['kind'], string> = {
   'image-slot': 'image slot',
   'accept-delta': 'accepted',
   tolerance: 'tolerance',
+  'accept-node': 'accepted node',
 }
 
 const MARK_ACTION: Record<MarkKind, string> = {
@@ -549,6 +599,7 @@ const MARK_ACTION: Record<MarkKind, string> = {
   'image-slot': 'Image slot',
   'accept-delta': 'Accept',
   tolerance: 'Raise tolerance',
+  'accept-node': 'Accept node',
 }
 
 const MARK_ICON: Record<MarkKind, string> = {
@@ -556,6 +607,25 @@ const MARK_ICON: Record<MarkKind, string> = {
   'image-slot': 'i-ph-image-square-duotone',
   'accept-delta': 'i-ph-check-duotone',
   tolerance: 'i-ph-sliders-horizontal-duotone',
+  'accept-node': 'i-ph-seal-check-duotone',
+}
+
+const CHANGE_KINDS = ['regressed', 'lost', 'moved', 'done', 'paired'] as const
+
+const CHANGE_LABEL: Record<(typeof CHANGE_KINDS)[number], string> = {
+  regressed: 'regressed this run',
+  lost: 'lost this run',
+  moved: 'moved this run',
+  done: 'done this run',
+  paired: 'built this run',
+}
+
+const STATUS_COLOR: Record<NodeStatus, string> = {
+  unbuilt: 'badge-color-orange',
+  paired: 'badge-color-amber',
+  done: 'badge-color-green',
+  regressed: 'badge-color-red',
+  accepted: 'badge-color-green',
 }
 
 const MODE_LABEL: Record<DecisionMode, string> = {off: 'Inspect', pins: 'Pins', marks: 'Marks'}

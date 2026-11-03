@@ -241,7 +241,7 @@ function images(response: ReportResponse): (path: string) => string {
   }
 }
 
-const UNDECIDED = {targetImage: '', nodes: [], decisions: [], pairs: [], twins: {}}
+const UNDECIDED = {targetImage: '', nodes: [], decisions: [], pairs: [], twins: {}, ledger: null}
 
 const DESKTOP_RESPONSE: ReportResponse = {
   ...UNDECIDED,

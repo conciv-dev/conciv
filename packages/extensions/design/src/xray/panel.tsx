@@ -2,7 +2,14 @@ import {For, onMount, Show, type JSX, createSignal} from 'solid-js'
 import {createTimer} from '@solid-primitives/timer'
 import {compact, minBy, uniq} from 'es-toolkit'
 import {RelativeTime, SegmentGroup, TooltipIconButton} from '@conciv/ui-kit-system'
-import {STAGES, type ComponentReport, type DeltaKindName, type DiffReport, type Stage} from '../shared/defs.js'
+import {
+  STAGES,
+  type ComponentReport,
+  type DeltaKindName,
+  type DiffReport,
+  type Ledger,
+  type Stage,
+} from '../shared/defs.js'
 import {
   aboveTolerance,
   componentAboveTolerance,
@@ -63,6 +70,7 @@ export type XrayData = {
   decisions: Decision[]
   pairs: PairRecord[]
   twins: Record<string, TwinPair[]>
+  ledger: Ledger | null
 }
 
 export type ReportResponse = {
@@ -74,6 +82,7 @@ export type ReportResponse = {
   decisions: Decision[]
   pairs: PairRecord[]
   twins: Record<string, TwinPair[]>
+  ledger: Ledger | null
 }
 
 export function sourceLabel(source: SourceLoc | null): string {
@@ -228,6 +237,7 @@ export function assemble(input: {
     decisions: current.decisions,
     pairs: current.pairs,
     twins: current.twins,
+    ledger: current.ledger,
   }
   return data
 }

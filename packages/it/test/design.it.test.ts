@@ -2076,6 +2076,165 @@ describe('live loop', () => {
   }, 240_000)
 })
 
+const LedgerFileSchema = z.object({
+  run: z.string(),
+  nodes: z.record(
+    z.string(),
+    z.object({
+      status: z.string(),
+      since: z.string(),
+      pair: z
+        .object({
+          path: z.string(),
+          fingerprint: z.object({source: z.object({file: z.string(), line: z.number()}).nullable()}),
+        })
+        .nullable(),
+    }),
+  ),
+})
+const LILAC_CLASS = 'g-lilac'
+const CARD_END = '</Card>'
+const CROP_GAP = 4
+const PNG_WIDTH_AT = 16
+const CSS_INKS = ['#c2410c', '#15803d', '#1d4ed8']
+
+type StoredLedger = z.infer<typeof LedgerFileSchema>
+
+async function storedLedger(id: string): Promise<StoredLedger> {
+  const path = fileUnder(stateRoot, `.conciv/design/${id}/ledger.json`)
+  return LedgerFileSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+}
+
+async function storedPairs(input: {id: string; run: string}): Promise<Map<string, string>> {
+  const path = fileUnder(stateRoot, `.conciv/design/${input.id}/pairs-${input.run}.json`)
+  const pairs = StoredPairsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+  return new Map(pairs.map((pair) => [pair.node, pair.path]))
+}
+
+function reportRun(report: DiffReport): string {
+  const name = report.livePath.split('/').at(-1) ?? ''
+  return name.slice('live-'.length, -'.png'.length)
+}
+
+function lilacLines(source: string): {first: number; last: number} {
+  const lines = source.split('\n')
+  const start = lines.findIndex((line) => line.includes(LILAC_CLASS))
+  const end = lines.findIndex((line, index) => index > start && line.includes(CARD_END))
+  return {first: start + 1, last: end + 1}
+}
+
+function lilacNodes(input: {ledger: StoredLedger; source: string; status: string}): string[] {
+  const {first, last} = lilacLines(input.source)
+  return Object.entries(input.ledger.nodes).flatMap(([node, entry]) => {
+    const at = entry.pair?.fingerprint.source
+    if (entry.status !== input.status || at === null || at === undefined) return []
+    return at.file.endsWith('Stripe.tsx') && at.line >= first && at.line <= last ? [node] : []
+  })
+}
+
+function withoutLilac(source: string): string {
+  const {first, last} = lilacLines(source)
+  return source
+    .split('\n')
+    .filter((_, index) => index + 1 < first || index + 1 > last)
+    .join('\n')
+}
+
+function pngWidth(bytes: Uint8Array): number {
+  return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(PNG_WIDTH_AT)
+}
+
+describe('ledger', () => {
+  it('a full run fills the ledger, hiding the lilac card regresses its nodes and restoring it makes them done', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const compact = CompactReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {}}))
+    const status = await call('design_status', {})
+    const ledger = status.ledger ?? {unbuilt: -1, paired: -1, done: -1, regressed: -1, accepted: -1}
+    await annotate(`ledger ${JSON.stringify(status.ledger)} counts ${JSON.stringify(compact.counts)}`)
+    expect(ledger.done + ledger.paired).toBe(compact.counts.paired)
+    expect(ledger.unbuilt).toBe(compact.counts.unbuilt)
+    const first = await storedLedger(id)
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    const card = lilacNodes({ledger: first, source, status: 'done'})
+    expect(card.length).toBeGreaterThan(0)
+    const [cropped] = card
+    const box = (await storedNodes(id)).find((node) => node.id === cropped)?.box
+    if (cropped === undefined || box === undefined) throw new Error('the lilac card has no done node')
+    const response = await fetch(`${compact.xray.replace('/xray/list?', '/xray/node?')}&node=${cropped}`)
+    expect(response.headers.get('content-type')).toBe('image/png')
+    const width = pngWidth(new Uint8Array(await response.arrayBuffer()))
+    expect(width).toBe(2 * (Math.round(box.w) + 2 * TILE_MARGIN) + CROP_GAP)
+    const styles = await readFile(STRIPE_STYLES, 'utf8')
+    try {
+      await rewrite({id, file: STRIPE_STYLES, text: `${styles}\n.${LILAC_CLASS} { display: none; }\n`})
+      const hidden = await call('design_diff', {})
+      const regressed = hidden.changes.regressed.map((change) => change.node)
+      await annotate(
+        `hidden changes ${JSON.stringify(hidden.changes).slice(0, 3000)} brief ${JSON.stringify(hidden.brief.slice(0, 3))}`,
+      )
+      expect(card.filter((node) => !regressed.includes(node))).toEqual([])
+      expect(
+        hidden.changes.regressed.filter((change) => change.sentence === '' || !change.crop.includes('/xray/node?')),
+      ).toEqual([])
+      expect(hidden.brief[0]?.startsWith('since round')).toBe(true)
+      await rewrite({id, file: STRIPE_STYLES, text: styles})
+      const restored = await call('design_diff', {})
+      const done = restored.changes.done.map((change) => change.node)
+      const after = await storedLedger(id)
+      await annotate(
+        `restored changes ${JSON.stringify(restored.changes).slice(0, 3000)} carried ${JSON.stringify(restored.timings.carried)} ledger ${JSON.stringify((await call('design_status', {})).ledger)}`,
+      )
+      expect(card.filter((node) => !done.includes(node))).toEqual([])
+      expect(
+        card.filter((node) => after.nodes[node]?.status !== 'done' || after.nodes[node]?.since !== reportRun(restored)),
+      ).toEqual([])
+    } finally {
+      await writeFile(STRIPE_STYLES, styles)
+    }
+  }, 300_000)
+
+  it('three css edits keep the element of every done node and lose nothing; removing the card loses its elements', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const full = await call('design_diff', {})
+    const greedy = await storedPairs({id, run: reportRun(full)})
+    const styles = await readFile(STRIPE_STYLES, 'utf8')
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      const edits: {report: DiffReport; pairs: Map<string, string>}[] = []
+      for (const ink of CSS_INKS) {
+        await rewrite({id, file: STRIPE_STYLES, text: `${styles}\n.${LILAC_CLASS} .card-head h3 { color: ${ink}; }\n`})
+        const report = await call('design_diff', {})
+        edits.push({report, pairs: await storedPairs({id, run: reportRun(report)})})
+      }
+      const [firstEdit] = edits
+      if (firstEdit === undefined) throw new Error('no css edit ran')
+      const ledger = await storedLedger(id)
+      const done = Object.entries(ledger.nodes).flatMap(([node, entry]) => (entry.status === 'done' ? [node] : []))
+      const moved = done.filter((node) => edits.some((edit) => edit.pairs.get(node) !== firstEdit.pairs.get(node)))
+      const differed = done.filter((node) => greedy.has(node) && greedy.get(node) !== firstEdit.pairs.get(node))
+      await annotate(
+        `done ${done.length} moved ${JSON.stringify(moved)} ledger against greedy ${JSON.stringify(differed)}`,
+      )
+      expect(done.length).toBeGreaterThan(0)
+      expect(moved).toEqual([])
+      expect(edits.flatMap((edit) => edit.report.changes.lost)).toEqual([])
+      await rewrite({id, file: STRIPE_SOURCE, text: withoutLilac(source)})
+      const removed = await call('design_diff', {})
+      await annotate(`removed lost ${removed.changes.lost.length}`)
+      expect(removed.changes.lost.length).toBeGreaterThan(0)
+    } finally {
+      await writeFile(STRIPE_STYLES, styles)
+      await writeFile(STRIPE_SOURCE, source)
+    }
+  }, 300_000)
+})
+
 const HIDDEN_HINT = 'the page tab is hidden; bring it to the foreground and run design_diff again'
 const UNANSWERED_MS = 2000
 

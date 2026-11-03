@@ -20,6 +20,7 @@ import {
   LiveStylesSchema,
   measureDef,
   MeasureResultSchema,
+  NO_CHANGES,
   NO_RUN_MESSAGE,
   NO_TARGET_MESSAGE,
   SourceLocSchema,
@@ -35,7 +36,9 @@ import {
   type CompactReport,
   type ComponentReport,
   type DiffInput,
+  type Changes,
   type DiffReport,
+  type Ledger,
   type StatusReport,
   type WinnerInput,
   type WinnerResult,
@@ -58,6 +61,7 @@ import type {
   Matched,
   MeasureSource,
   Pair,
+  PairRecord,
   PixelComparator,
   Raster,
   TileCache,
@@ -81,6 +85,8 @@ import type {
 } from '../shared/types.js'
 import {edgeStrip, glyphCoreColor, isOpaqueHex, opinionSide, sideFrom} from './deltas.js'
 import {
+  changeLine,
+  changeReport,
   createHistory,
   createRuns,
   deltaSize,
@@ -93,6 +99,8 @@ import {
   type RunJob,
 } from './loop.js'
 import {align, fingerprint, glyphRun, pairTree, pairTwins, type Offset, type Shift} from './pair.js'
+import {ledgerCounts, ledgerPairs, nextLedger} from './ledger.js'
+import {newStamp} from './store.js'
 import {lookups, mapDeclaration, readLiveText, type LiveText} from './provenance.js'
 import {
   boxBlur,
@@ -340,13 +348,14 @@ async function runDiff(request: {
   const nodes = model.nodes.filter((node) => !dropped.has(node.id))
   const pins = pinsFrom(decisions)
   const placements = await twinPlacements({store: design.store, id: record.id})
+  const earlier = await design.store.ledger(record.id)
   clock.skip()
   const paired = design.pairer({
     components: live.components,
     nodes,
     twinVotes: twinVotes(placements),
     pins,
-    carried: previous?.pairs ?? [],
+    carried: carriedPairs({earlier, previous}),
     touched,
     tolerances: TOLERANCES,
     live: live.raster,
@@ -426,6 +435,18 @@ async function runDiff(request: {
   })
   clock.lap('deltas')
   const advances = job.observe && !paired.partial
+  const run = newStamp()
+  const round = advances ? rounds.length + 1 : rounds.length
+  const nodeCrop = (node: string): string => cropUrl({xray: xray.url, node, run})
+  const {changes, changed, counts, save} = ledgerStep({
+    target: record.id,
+    earlier,
+    partial: paired.partial,
+    facts: {run, round, nodes, matched, items, decisions},
+    components: live.components,
+    tree,
+    crop: nodeCrop,
+  })
   const judging: Judging = {
     items,
     score,
@@ -435,11 +456,13 @@ async function runDiff(request: {
     painted,
     color,
     partial: paired.partial,
+    changed,
+    crop: nodeCrop,
   }
   const verdict = judge({
     ...judging,
     priors: advances ? rounds : rounds.slice(0, -1),
-    round: advances ? rounds.length + 1 : rounds.length,
+    round,
   })
   clock.lap('judge')
   const pageWidth = Math.min(live.raster.width, model.raster.width)
@@ -450,8 +473,10 @@ async function runDiff(request: {
   clock.lap('encode')
   const timings = {...clock.timings(), carried: {pairs: paired.carried, tiles: pixels.carried}}
   const hinted = {attributed: live.components.length > 0, absolute: xray.absolute, partial: paired.partial}
+  await save(design.store)
   const report = await design.store.writeRun({
     id: record.id,
+    run,
     images,
     pairs: matched.map((entry) => ({
       node: entry.node.id,
@@ -476,6 +501,8 @@ async function runDiff(request: {
       responsive: await responsiveSection({store: design.store, id: record.id, model}),
       partial: paired.partial,
       paired: matched.length,
+      changes,
+      ledger: counts,
       pinsLost: pins
         .filter((pin) => !matched.some((entry) => entry.node.id === pin.node && entry.component.path === pin.path))
         .map((pin) => pin.decision),
@@ -697,6 +724,52 @@ async function countedRound(input: {
   history.append({id: record.id, round: roundRecord({items, score, capturePath, capture: settled.capture, report})})
   latest.set(record.id, {...settled, observe: true, report})
   return report
+}
+
+function ledgerStep(input: {
+  target: string
+  earlier: Ledger | null
+  partial: boolean
+  facts: Omit<Parameters<typeof nextLedger>[0], 'earlier' | 'components'>
+  components: LiveComponent[]
+  tree: Tree
+  crop: (node: string) => string
+}): {
+  changes: Changes
+  changed: Judging['changed']
+  counts: DiffReport['ledger']
+  save: (store: TargetStore) => Promise<void>
+} {
+  const {earlier, tree} = input
+  if (input.partial) {
+    return {
+      changes: NO_CHANGES,
+      changed: {line: null, regressed: new Set()},
+      counts: ledgerCounts(earlier),
+      save: async () => undefined,
+    }
+  }
+  const next = nextLedger({...input.facts, earlier, components: input.components})
+  const changes = changeReport({...next, tree, crop: input.crop})
+  const line = earlier === null ? null : changeLine({changes, round: earlier.round})
+  return {
+    changes,
+    changed: {line, regressed: new Set(next.changes.regressed)},
+    counts: ledgerCounts(next.ledger),
+    save: (store) => store.writeLedger({id: input.target, ledger: next.ledger}),
+  }
+}
+
+function carriedPairs(input: {earlier: Ledger | null; previous: StoredRun | null}): PairRecord[] {
+  const ledger = ledgerPairs(input.earlier)
+  const held = keyBy(ledger, (record) => record.node)
+  const previous = (input.previous?.pairs ?? []).map((record) => held[record.node] ?? record)
+  return uniqBy([...previous, ...ledger], (record) => record.node)
+}
+
+function cropUrl(input: {xray: string; node: string; run: string}): string {
+  const {xray, node, run} = input
+  return `${xray.replace(XRAY_LIST, XRAY_NODE)}&node=${encodeURIComponent(node)}&run=${encodeURIComponent(run)}`
 }
 
 function runName(report: DiffReport): string {
@@ -1365,6 +1438,8 @@ async function targetStatus(input: {
     targets: [{id: record.id, width: record.width, ...runSummary(report)}],
     done,
     ...loopState({record, report}),
+    ledger: ledgerCounts(await store.ledger(record.id)),
+    ...(report === null ? {} : {changes: report.changes}),
     ...statusNext({done, unanswered: input.unanswered.has(record.id)}),
     ...(reregister ? {reregister} : {}),
   }
@@ -1706,6 +1781,7 @@ const COMPACT_FIELDS = [
   'partial',
   'hint',
   'painted',
+  'changes',
 ] as const satisfies readonly (keyof CompactReport & keyof DiffReport)[]
 const DETACHED_POSITIONS = ['absolute', 'fixed']
 const CONTAINER_FIELDS = ['gap', 'align', 'wrap', 'padding'] as const
@@ -1715,6 +1791,8 @@ const PARTIAL_HINT =
 const MISMATCH_PRECISION = 10_000
 const LIVE_PREFIX = 'live-'
 const PNG_SUFFIX = '.png'
+const XRAY_LIST = '/xray/list?'
+const XRAY_NODE = '/xray/node?'
 const COMPARE_REACH = TOLERANCES.blurRadius + 2
 
 async function currentTarget(input: {design: DesignRuntime; session: string}): Promise<TargetRecord> {
@@ -1886,6 +1964,8 @@ function shaped(input: {report: DiffReport; full: boolean}): CompactReport {
     unbuilt: report.unmatched.filter((entry) => entry.kind === 'unbuilt').length,
     unmatched: report.unmatched.length,
     warnings: report.warnings.length,
+    done: report.ledger.done,
+    regressed: report.ledger.regressed,
   }
   if (input.full) return {...report, counts}
   return {...pick(report, COMPACT_FIELDS), counts}

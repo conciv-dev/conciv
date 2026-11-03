@@ -1,6 +1,15 @@
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {isSessionId, type SessionId} from '@conciv/protocol/chat-types'
-import {STAGES, type ContainerLayout, type DiffInput, type DiffReport, type Stage, type Stop} from '../shared/defs.js'
+import {
+  STAGES,
+  type Changes,
+  type ContainerLayout,
+  type DiffInput,
+  type DiffReport,
+  type Ledger,
+  type Stage,
+  type Stop,
+} from '../shared/defs.js'
 import {keyBy, uniq} from 'es-toolkit'
 import {deltaSentence, kindStage, kindTolerance, TOLERANCES, traced} from '../shared/tolerances.js'
 import type {
@@ -21,6 +30,7 @@ import type {
   Unmatched,
 } from '../shared/types.js'
 import {placement, type Seat, type Tree} from './layout.js'
+import type {LedgerChanges} from './ledger.js'
 import {glyphRun} from './pair.js'
 import {union} from './raster.js'
 
@@ -156,22 +166,24 @@ export function judge(input: {
   painted: DiffReport['painted']
   color: ColorMetric
   partial: boolean
+  changed: {line: string | null; regressed: Set<string>}
+  crop: (node: string) => string
 }): Verdict {
-  const {items, score, capturePath, priors, round, ranker, warnings, color} = input
+  const {items, score, capturePath, priors, round, ranker, warnings, color, changed, crop} = input
   const counted = items.filter((item) => item.stage !== null)
   const demoted = new Set(counted.filter((item) => unchangedLately({item, priors, color})).map((item) => item.key))
   const chosen = counted.filter((item) => !demoted.has(item.key))
   const stage = firstStage(chosen) ?? firstStage(counted)
   const ranked = ranker({items: counted.filter((item) => item.stage === stage)})
-  const ordered = [
-    ...ranked.filter((item) => !demoted.has(item.key)),
-    ...ranked.filter((item) => demoted.has(item.key)),
-  ]
+  const kept = [...ranked.filter((item) => !demoted.has(item.key)), ...ranked.filter((item) => demoted.has(item.key))]
+  const regressed = (item: Item): boolean => item.node !== undefined && changed.regressed.has(item.node)
+  const ordered = [...kept.filter(regressed), ...kept.filter((item) => !regressed(item))]
   const stop = input.partial ? null : stopReason({counted, score, capturePath, priors, round, stage})
   const flipped = flippedBack({counted, priors, color})
   const brief = [
-    ...(input.painted === null ? [] : [paintedLine(input.painted.count)]),
     ...(stop === 'stalled' ? [stalledLine(ranker({items: counted.filter((item) => demoted.has(item.key))}))] : []),
+    ...(changed.line === null ? [] : [changed.line]),
+    ...(input.painted === null ? [] : [paintedLine(input.painted.count)]),
     ...(flipped === null ? [] : [flippedLine({items: ranker({items: flipped.items}), round: flipped.round})]),
     ...ordered.slice(0, TOLERANCES.briefSize).map((item) => item.sentence),
     ...warnings.map(warningSentence),
@@ -183,8 +195,53 @@ export function judge(input: {
     budgetLeft: Math.max(0, TOLERANCES.roundBudget - round),
     stop,
     score,
-    rows: ordered.slice(0, ROW_LIMIT).flatMap((item) => (item.stage === null ? [] : [row({item, stage: item.stage})])),
+    rows: ordered
+      .slice(0, ROW_LIMIT)
+      .flatMap((item) => (item.stage === null ? [] : [row({item, stage: item.stage, crop})])),
   }
+}
+
+export function changeReport(input: {
+  changes: LedgerChanges
+  ledger: Ledger
+  tree: Tree
+  crop: (node: string) => string
+}): Changes {
+  const {changes, ledger, tree, crop} = input
+  const entry = (change: {node: string; says: (subject: string) => string}): Changes['done'][number] => {
+    const found = tree.nodes.find((candidate) => candidate.id === change.node)
+    const subject = found === undefined ? 'the node' : changeSubject({node: found, tree})
+    return {node: change.node, sentence: change.says(subject), crop: crop(change.node)}
+  }
+  const worse =
+    (node: string) =>
+    (subject: string): string => {
+      const known = ledger.nodes[node]
+      const item = known?.pair?.run === ledger.run ? known.item : null
+      return item === null || item === undefined ? `${subject} lost its element` : item.sentence
+    }
+  return {
+    done: changes.done.map((node) => entry({node, says: (subject) => `${subject} matches the design`})),
+    regressed: changes.regressed.map((node) => entry({node, says: worse(node)})),
+    paired: changes.paired.map((node) => entry({node, says: (subject) => `${subject} is built`})),
+    lost: changes.lost.map((node) => entry({node, says: (subject) => `${subject} lost its element`})),
+    moved: changes.moved.map(({node, shift}) =>
+      entry({node, says: (subject) => `${subject} moved by ${shift.dx},${shift.dy} px`}),
+    ),
+  }
+}
+
+export function changeLine(input: {changes: Changes; round: number}): string {
+  const {changes, round} = input
+  const [first] = changes.regressed
+  const parts = [
+    changes.done.length === 0 ? null : `${changes.done.length} done`,
+    first === undefined ? null : `${changes.regressed.length} regressed (${clipped(first.sentence)})`,
+    changes.paired.length === 0 ? null : `${changes.paired.length} paired`,
+    changes.lost.length === 0 ? null : `${changes.lost.length} lost`,
+    changes.moved.length === 0 ? null : `${changes.moved.length} moved`,
+  ].filter((part) => part !== null)
+  return `since round ${round}: ${parts.length === 0 ? 'no node changed' : parts.join(', ')}`
 }
 
 export function roundRecord(input: {
@@ -612,9 +669,20 @@ function stalledLine(unchanged: Item[]): string {
     .join('; ')}`
 }
 
-function row(input: {item: Item; stage: Stage}): DiffReport['rows'][number] {
+function row(input: {item: Item; stage: Stage; crop: (node: string) => string}): DiffReport['rows'][number] {
   const {item, stage} = input
-  return {sentence: item.sentence, stage, ...located({node: item.node, source: item.source})}
+  return {
+    sentence: item.sentence,
+    stage,
+    ...located({node: item.node, source: item.source}),
+    ...(item.node === undefined ? {} : {crop: input.crop(item.node)}),
+  }
+}
+
+function changeSubject(input: {node: TargetNode; tree: Tree}): string {
+  const {node, tree} = input
+  if (named({node, tree})) return label({node, tree})
+  return `${article(node)}${anchorPhrase({box: node.box, tree, word: 'under'})}`
 }
 
 function located(input: {

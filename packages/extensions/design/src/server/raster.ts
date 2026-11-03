@@ -506,3 +506,33 @@ export function maskCount(input: {mask: Uint8Array; width: number; box: Box}): n
     return total + mask.subarray(start, start + box.w).reduce((sum, value) => sum + value, 0)
   }, 0)
 }
+
+export function cutout(input: {raster: Raster; box: Box}): Raster {
+  const {raster, box} = input
+  const data = new Uint8Array(box.w * box.h * 4)
+  range(box.h).forEach((row) => {
+    const y = box.y + row
+    if (y < 0 || y >= raster.height) return
+    const left = Math.max(0, box.x)
+    const right = Math.min(raster.width, box.x + box.w)
+    if (right <= left) return
+    const start = (y * raster.width + left) * 4
+    data.set(raster.data.subarray(start, start + (right - left) * 4), (row * box.w + left - box.x) * 4)
+  })
+  return {width: box.w, height: box.h, data}
+}
+
+export function besides(input: {rasters: Raster[]; gap: number}): Raster {
+  const {rasters, gap} = input
+  const width = rasters.reduce((sum, raster) => sum + raster.width, 0) + gap * Math.max(0, rasters.length - 1)
+  const height = Math.max(0, ...rasters.map((raster) => raster.height))
+  const data = new Uint8Array(width * height * 4)
+  rasters.reduce((left, raster) => {
+    range(raster.height).forEach((row) => {
+      const start = row * raster.width * 4
+      data.set(raster.data.subarray(start, start + raster.width * 4), (row * width + left) * 4)
+    })
+    return left + raster.width + gap
+  }, 0)
+  return {width, height, data}
+}

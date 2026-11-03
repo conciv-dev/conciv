@@ -12,7 +12,7 @@ export const DESIGN_GUIDE =
   'A design target is registered. Call `design_diff` to measure the live page against it, fix the brief, run it again, and stop when `stop` is set. Do not judge a design match from a screenshot. The brief names rows, columns, gaps and sizing rules; build with flow, flex and grid, never from coordinates.'
 
 export const NO_TARGET_MESSAGE = 'no design target is registered; register the design image with design_target'
-export const MARK_KINDS = ['excluded', 'image-slot', 'accept-delta', 'tolerance'] as const
+export const MARK_KINDS = ['excluded', 'image-slot', 'accept-delta', 'tolerance', 'accept-node'] as const
 export const NO_RUN_MESSAGE = 'the design target has no run yet; run design_diff before accepting'
 
 export function designVerb(name: string): string {
@@ -45,6 +45,10 @@ const DELTA_KIND_NAMES = [
 export const STAGES = ['structure', 'content', 'geometry', 'paint'] as const
 
 export type Stage = (typeof STAGES)[number]
+
+export const NODE_STATUSES = ['unbuilt', 'paired', 'done', 'regressed', 'accepted'] as const
+
+export type NodeStatus = (typeof NODE_STATUSES)[number]
 
 export const STOPS = ['done', 'residual-only', 'oscillating', 'stalled', 'budget'] as const
 
@@ -306,12 +310,69 @@ export const TimingsSchema = z
   })
   .describe('whole milliseconds spent in each phase of the run, zero for a phase the run skipped')
 
+const CropSchema = z
+  .string()
+  .describe('url of a PNG with the design crop and the live crop of the node side by side, each grown by tileMargin')
+
 const RowSchema = z.object({
   sentence: z.string(),
   stage: z.enum(STAGES),
   node: z.string().optional().describe('the design node of the item'),
   source: SourceLocSchema.optional().describe('the source location of the live element'),
+  crop: CropSchema.optional(),
 })
+
+const FingerprintSchema = z.object({
+  source: SourceLocSchema.nullable(),
+  tag: z.string(),
+  textHash: z.string(),
+  box: BoxSchema,
+})
+
+const LedgerEntrySchema = z.object({
+  status: z.enum(NODE_STATUSES),
+  since: z.string().describe('the run the status was reached in'),
+  pair: z
+    .object({path: z.string(), fingerprint: FingerprintSchema, confidence: z.number(), run: z.string()})
+    .nullable()
+    .describe('the last known live pairing, kept after the element is gone until a new pair replaces it'),
+  item: z
+    .object({stage: z.enum(STAGES), size: z.number(), sentence: z.string()})
+    .nullable()
+    .describe('the worst current item of the node'),
+})
+
+export const LedgerSchema = z.object({
+  run: z.string().describe('the run that wrote the ledger'),
+  round: z.number().describe('the round of that run'),
+  nodes: z.record(z.string(), LedgerEntrySchema),
+})
+
+export type Ledger = z.infer<typeof LedgerSchema>
+export type LedgerEntry = z.infer<typeof LedgerEntrySchema>
+
+const LedgerCountsSchema = z
+  .object({unbuilt: z.number(), paired: z.number(), done: z.number(), regressed: z.number(), accepted: z.number()})
+  .describe('design nodes per ledger status')
+
+export type LedgerCounts = z.infer<typeof LedgerCountsSchema>
+
+const ChangeSchema = z.object({node: z.string(), sentence: z.string(), crop: CropSchema})
+
+const ChangesSchema = z
+  .object({
+    done: z.array(ChangeSchema).describe('nodes newly clean'),
+    regressed: z.array(ChangeSchema).describe('nodes that were done and are dirty or unpaired again'),
+    paired: z.array(ChangeSchema).describe('nodes paired for the first time'),
+    lost: z.array(ChangeSchema).describe('nodes whose stored element is gone from the page'),
+    moved: z.array(ChangeSchema).describe('nodes whose element is still there with its box elsewhere'),
+  })
+  .describe('what the run changed against the ledger before it')
+
+export type Changes = z.infer<typeof ChangesSchema>
+
+export const NO_CHANGES: Changes = {done: [], regressed: [], paired: [], lost: [], moved: []}
+const NO_COUNTS: LedgerCounts = {unbuilt: 0, paired: 0, done: 0, regressed: 0, accepted: 0}
 
 export const DiffReportSchema = z.object({
   target: z.object({id: z.string(), route: z.string().optional(), width: z.number()}),
@@ -355,6 +416,8 @@ export const DiffReportSchema = z.object({
   pinsLost: z.array(z.string()).default([]).describe('pin decisions whose node or element is gone'),
   timings: TimingsSchema.default(TimingsSchema.parse({})),
   rows: z.array(RowSchema).default([]).describe('the first ten items of the stage, in brief order'),
+  changes: ChangesSchema.default(NO_CHANGES),
+  ledger: LedgerCountsSchema.default(NO_COUNTS),
 })
 
 export type DiffReport = z.infer<typeof DiffReportSchema>
@@ -378,6 +441,7 @@ export const CompactReportSchema = DiffReportSchema.pick({
   partial: true,
   hint: true,
   painted: true,
+  changes: true,
 })
   .extend({
     counts: z
@@ -387,9 +451,11 @@ export const CompactReportSchema = DiffReportSchema.pick({
         unbuilt: z.number(),
         unmatched: z.number(),
         warnings: z.number(),
+        done: z.number(),
+        regressed: z.number(),
       })
       .describe(
-        'how many components the full report lists, how many nodes paired, how many are unbuilt, and how many unmatched entries and warnings the full report holds',
+        'how many components the full report lists, how many nodes paired, how many are unbuilt, how many unmatched entries and warnings the full report holds, and how many nodes the ledger holds done and regressed',
       ),
   })
   .loose()
@@ -415,6 +481,8 @@ const StatusReportSchema = z.object({
   acceptedRun: z.string().optional(),
   next: z.string().optional(),
   reregister: z.boolean().optional().describe('the stored target is unreadable; register the design image again'),
+  ledger: LedgerCountsSchema.optional(),
+  changes: ChangesSchema.optional().describe('what the latest run changed'),
 })
 
 const CaptureResultSchema = z.object({

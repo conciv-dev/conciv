@@ -7,7 +7,9 @@ import {z} from 'zod'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {MARK_KINDS} from '../shared/defs.js'
-import type {Differ, TargetStore} from '../shared/types.js'
+import {TOLERANCES} from '../shared/tolerances.js'
+import type {Box, Differ, Raster, TargetStore} from '../shared/types.js'
+import {besides, cutout, decodePng, downscale, encodePng} from './raster.js'
 import {TARGET_FILE} from './store.js'
 
 const PAGE_FILE = 'index.html'
@@ -16,6 +18,8 @@ const NonEmptySchema = z.string().min(1)
 const TargetSchema = z.object({id: NonEmptySchema})
 const RunSchema = TargetSchema.extend({session: SessionId})
 const WASM_EXTENSION = '.wasm'
+const CROP_GAP = 4
+const NodeQuerySchema = z.object({target: NonEmptySchema, node: NonEmptySchema, run: NonEmptySchema.optional()})
 const WASM_HEADERS = {'content-type': 'application/wasm', 'cache-control': 'public, max-age=31536000, immutable'}
 
 const xrayOs = os.$context<RpcContext>()
@@ -50,6 +54,7 @@ export function makeXrayRouter(input: {
           pairs: latest?.pairs ?? [],
           decisions: await store.decisions(target.id),
           twins: await store.twins(target.id),
+          ledger: await store.ledger(target.id),
           targetImage: store.reportPath(join(designDir, target.id, TARGET_FILE)),
           nodes: await store.model(target.id).then(
             (model) => model.nodes,
@@ -147,6 +152,13 @@ export function makeXrayApp(input: {
       if (!(await known(c.req.query('target')))) return c.text('not found', 404)
       return c.redirect(`xray/list${new URL(c.req.url).search}`)
     })
+    .get('/xray/node', async (c) => {
+      const query = NodeQuerySchema.safeParse(c.req.query())
+      if (!query.success || !(await known(query.data.target))) return c.text('not found', 404)
+      const png = await nodeCrop({store, designDir, ...query.data})
+      if (png === null) return c.text('not found', 404)
+      return new Response(new Uint8Array(png), {headers: {'content-type': 'image/png'}})
+    })
     .get('/xray/list', servePage)
     .get('/xray/capture', servePage)
     .get('/xray/:asset{.+}', (c) => {
@@ -170,3 +182,58 @@ export function makeXrayApp(input: {
     })
 }
 export type XrayRouter = ReturnType<typeof makeXrayRouter>
+
+async function nodeCrop(input: {
+  store: TargetStore
+  designDir: string
+  target: string
+  node: string
+  run?: string | undefined
+}): Promise<Uint8Array | null> {
+  const {store, target, node} = input
+  const model = await store.model(target).catch(() => null)
+  const found = model?.nodes.find((entry) => entry.id === node)
+  if (model === null || found === undefined) return null
+  const design = model.scale === 1 ? model.raster : downscale({raster: model.raster, scale: model.scale})
+  const box = grown(scaled({box: found.box, scale: model.scale}))
+  const designCrop = cutout({raster: design, box})
+  const live = await liveCrop({...input, box})
+  return encodePng(live === null ? designCrop : besides({rasters: [designCrop, live], gap: CROP_GAP}))
+}
+
+async function liveCrop(input: {
+  store: TargetStore
+  designDir: string
+  target: string
+  node: string
+  run?: string | undefined
+  box: Box
+}): Promise<Raster | null> {
+  const {store, designDir, target, node, box} = input
+  const run = input.run ?? (await store.latestRun(target))?.run
+  if (run === undefined) return null
+  const stored = await store.run({id: target, run})
+  const live = stored?.pairs.find((pair) => pair.node === node)?.fingerprint?.box
+  const bytes = await readFile(join(designDir, target, `live-${run}.png`)).catch(() => null)
+  if (live === undefined || bytes === null) return null
+  const margin = TOLERANCES.tileMargin
+  return cutout({
+    raster: decodePng(bytes),
+    box: {...box, x: Math.round(live.x) - margin, y: Math.round(live.y) - margin},
+  })
+}
+
+function scaled(input: {box: Box; scale: number}): Box {
+  const {box, scale} = input
+  return {x: box.x / scale, y: box.y / scale, w: box.w / scale, h: box.h / scale}
+}
+
+function grown(box: Box): Box {
+  const margin = TOLERANCES.tileMargin
+  return {
+    x: Math.round(box.x) - margin,
+    y: Math.round(box.y) - margin,
+    w: Math.round(box.w) + 2 * margin,
+    h: Math.round(box.h) + 2 * margin,
+  }
+}

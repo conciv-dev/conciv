@@ -40,11 +40,12 @@ src/
     provenance.ts      MAPPERS, mapDeclaration, the CSS source map, JSX site reading and live text roles
     raster.ts          pure pixel and box operations
     store.ts           the target store on disk
+    ledger.ts          the node ledger: statuses per run, the changes against the ledger before, the carried pairs
     pair.ts            PAIRERS (the calibrated vote), RANKERS (impact), the pair tree, alignment offsets and pairTwins
     loop.ts            items, stages, score, brief and stop rules, round history, the run queue and the HMR settle trigger
     differ.ts          PIXEL_COMPARATORS, text groups, the diff run, unbuilt, extra and offset entries, and the tool bindings
     xray-routes.ts     HTTP routes for the x-ray: targets, current, stamp, report, pin, unpin, mark, revoke,
-                       accept and capture
+                       accept and capture, and the node crop PNG
   xray/
     entry.tsx          mount
     router.tsx         routes, search schema, data loading, the in-tab pane (memory history)
@@ -234,6 +235,41 @@ changes the time of a run, never its answer.
   counts that run as the round: it is judged against the round history, its `components` are listed again for the
   agent's `limit`, `depth` and `full`, its result file is rewritten with the new `round`, and its `timings` are the
   settled run's. A diff whose capture equals the last round's repeats that round, as above.
+
+## Ledger
+
+- **The ledger.** `ledger.json` sits next to `model.json` and holds one row per design node across runs: `status`,
+  `since` (the run the status was reached in), `pair` (the last known live pairing: `path`, `fingerprint`,
+  `confidence` and the `run` that confirmed it, kept after the element is gone until a new pair replaces it) and
+  `item` (the node's worst current item: `stage`, `size`, `sentence`). Every run that is counted rewrites it after
+  the items are known and before the result file is written; a repeated round, an unanswered page and a `partial` run
+  leave it as it was. A target without the file starts with every node `unbuilt`. Nodes excluded or marked as an image
+  slot keep the row they had.
+- **Statuses.** `done` when the node is paired and no item names it; `paired` when it is paired with at least one item;
+  `unbuilt` while it was never paired; `regressed` when a node that was paired, `done` or `accepted` has an item again
+  or lost its pair, until the first run that measures it clean, which makes it `done`. `accepted` holds while an
+  `accept-node` decision exists for the node, whatever the run measures; the x-ray sets it next to Pin (`Accept node`)
+  and revokes it with the same button. `design_status.ledger` and the full report's `ledger` count the nodes per
+  status, and the compact report's `counts` carries `done` and `regressed`.
+- **Changes.** `changes` compares the ledger before the run with the ledger after it: `done` (newly clean), `regressed`
+  (newly dirty or unpaired), `paired` (paired for the first time), `lost` (the element the node was paired to in the run
+  before has no element left with the same source file and line and text hash) and `moved` (that element is still
+  there, its box outside `tileMargin` of the stored one). Each entry is `{node, sentence, crop}`; accepted nodes are
+  never listed. When a ledger existed before the run, the first brief line is the summary, `since round 2: 12
+  done, 3 regressed ("Daybreak Yoga" lost its element), 5 paired` (second, after the `stalled` line, when the run
+  stalled), and the stage's items of regressed nodes rank first.
+  `design_status.changes` holds the latest run's changes.
+- **Crops.** `GET …/xray/node?target=<id>&node=<node>[&run=<run>]` answers a PNG encoded on request: the design crop
+  and the live crop of the node, side by side with a 4 px gap, each the node's design box grown by `tileMargin` on
+  every side in CSS px, the live one placed at the element the run paired (from `pairs-<run>.json`, the latest run by
+  default). A node the run did not pair gets the design crop alone. Every change and every row with a node carries its
+  `crop` url; `diffImage` stays for the whole page.
+- **Carry order.** On a run after an edit the pairer takes pins first, then the ledger's pair per node, in the order
+  the run before took its pairs, then the pairs of the run before the ledger does not hold, each only when its
+  fingerprint still finds its element, then the greedy loop. The ledger carries only the pairs the run that wrote it
+  confirmed: a dead pair seeded before the greedy loop changes what the loop takes for the other nodes, so a page
+  moved and moved back would not score as it did the first time. A dead fingerprint stays in the ledger for `lost`
+  and its node goes back to the greedy loop. A run with nothing touched since the run before carries nothing.
 
 ## Sources
 

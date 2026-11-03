@@ -7,6 +7,7 @@ import type {
   DeltaKindName,
   DiffInput,
   DiffReport,
+  Ledger,
   NodeLayout,
   Stage,
   StatusReport,
@@ -270,7 +271,7 @@ export type TargetRecord = {
   createdAt: number
   acceptedRun?: string
 }
-type DecisionKind = 'pin' | 'excluded' | 'image-slot' | 'accept-delta' | 'tolerance'
+type DecisionKind = 'pin' | 'excluded' | 'image-slot' | 'accept-delta' | 'tolerance' | 'accept-node'
 export type Decision = {id: string; kind: DecisionKind; anchor: string; value: string | number | null; at: number}
 export type StoredRun = {run: string; report: DiffReport; pairs: PairRecord[]}
 export type TargetStore = {
@@ -291,8 +292,11 @@ export type TargetStore = {
   twins(id: string): Promise<Record<string, TwinPair[]>>
   setTwins(input: {id: string; other: string; twins: TwinPair[]}): Promise<void>
   writeCapture(input: {png: Uint8Array}): Promise<string>
+  ledger(id: string): Promise<Ledger | null>
+  writeLedger(input: {id: string; ledger: Ledger}): Promise<void>
   writeRun(input: {
     id: string
+    run: string
     images: {live: Uint8Array; diff: Uint8Array}
     result: Omit<DiffReport, 'diffImage' | 'livePath'>
     pairs: PairRecord[]

@@ -8,6 +8,7 @@ import {
   BoxSchema,
   ContainerLayoutSchema,
   DiffReportSchema,
+  LedgerSchema,
   NodeLayoutSchema,
   SourceLocSchema,
   type DiffReport,
@@ -30,6 +31,7 @@ export const TARGET_FILE = 'target.png'
 const MODEL_FILE = 'model.json'
 const RECORD_FILE = 'record.json'
 const DECISIONS_FILE = 'decisions.json'
+const LEDGER_FILE = 'ledger.json'
 const TWINS_FILE = 'twins.json'
 const CAPTURES_DIR = 'captures'
 const RUN_PREFIXES = ['live-', 'diff-', 'result-', 'pairs-', 'tiles-']
@@ -90,7 +92,7 @@ const RecordSchema = z.object({
 const DecisionsSchema = z.array(
   z.object({
     id: z.string(),
-    kind: z.enum(['pin', 'excluded', 'image-slot', 'accept-delta', 'tolerance']),
+    kind: z.enum(['pin', 'excluded', 'image-slot', 'accept-delta', 'tolerance', 'accept-node']),
     anchor: z.string(),
     value: z.union([z.string(), z.number(), z.null()]),
     at: z.number(),
@@ -122,7 +124,7 @@ const TwinsSchema = z.record(
   z.array(z.object({node: z.string(), twin: z.string(), confidence: z.number()})),
 )
 
-function stamp(): string {
+export function newStamp(): string {
   return `${Date.now()}-${randomUUID().slice(0, 4)}`
 }
 
@@ -319,16 +321,23 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
     writeCapture: async ({png}) => {
       const captures = join(dir, CAPTURES_DIR)
       await mkdir(captures, {recursive: true})
-      const path = join(captures, `capture-${stamp()}.png`)
+      const path = join(captures, `capture-${newStamp()}.png`)
       await writeFile(path, png)
       await prune({dir: captures, prefix: 'capture-', spared: []})
       return path
     },
-    writeRun: async ({id, images, result, pairs, tiles}) => {
+    ledger: (id) => readJson({path: join(dir, id, LEDGER_FILE), schema: LedgerSchema}),
+    writeLedger: async ({id, ledger}) => {
+      const home = join(dir, id)
+      await mkdir(home, {recursive: true})
+      const pending = join(home, `pending-${LEDGER_FILE}`)
+      await writeFile(pending, JSON.stringify(ledger))
+      await rename(pending, join(home, LEDGER_FILE))
+    },
+    writeRun: async ({id, run: at, images, result, pairs, tiles}) => {
       const started = performance.now()
       const home = join(dir, id)
       await mkdir(home, {recursive: true})
-      const at = stamp()
       const livePath = join(home, `live-${at}.png`)
       const diffPath = join(home, `diff-${at}.png`)
       await writeFile(livePath, images.live)
