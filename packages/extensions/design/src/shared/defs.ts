@@ -447,6 +447,10 @@ export const DiffReportSchema = z.object({
     .default('')
     .describe('the Placeholder component every image and icon slot takes; copy it into the page source'),
   design: z.array(z.string()).optional().describe('the lines of the design outline, with full: true'),
+  truncated: z
+    .object({components: z.number(), unmatched: z.number()})
+    .optional()
+    .describe('how many components and unmatched entries the full report cut to `limit`'),
   section: z
     .object({id: z.string(), line: z.string()})
     .optional()
@@ -598,7 +602,7 @@ export const TargetInputSchema = z.object({
 
 export const DiffInputSchema = z.object({
   depth: z.number().int().min(1).max(6).default(3).describe('how deep to descend into the component tree'),
-  limit: z.number().int().min(1).max(50).default(12).describe('how many components to report'),
+  limit: z.number().int().min(1).max(60).default(12).describe('how many components to report'),
   full: z.boolean().optional().describe('return the full report with every component and delta'),
   section: z
     .string()
