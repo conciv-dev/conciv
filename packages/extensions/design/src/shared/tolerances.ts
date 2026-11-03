@@ -70,6 +70,7 @@ export const designConfig = z.object({
   text: z.enum(['paddle']).default('paddle'),
   segmenter: z.enum(['threshold']).default('threshold'),
   roles: z.enum(['rules']).default('rules'),
+  blind: z.boolean().default(false),
 })
 
 export type DesignConfig = z.output<typeof designConfig>

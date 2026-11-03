@@ -11,6 +11,11 @@ export const DESIGN_TOOL_PREFIX = 'design_'
 export const DESIGN_GUIDE =
   'A design target is registered. Call `design_diff` to measure the live page against it, fix the brief, run it again, and stop when `stop` is set. Do not judge a design match from a screenshot. The brief names rows, columns, gaps and sizing rules; build with flow, flex and grid, never from coordinates. Never draw icons, logos or illustrations: no inline <svg> paths, no data urls, no CSS shapes copied from the image; every image and icon slot takes the Placeholder. Gradients are CSS.'
 
+export const BLIND_GUIDE =
+  "Never open a png or take a screenshot; the tool's numbers are the only view of the page you have."
+
+export const BLIND_FIELDS = ['livePath', 'diffImage', 'capturePath'] as const
+
 export const NO_TARGET_MESSAGE = 'no design target is registered; register the design image with design_target'
 export const MARK_KINDS = ['excluded', 'image-slot', 'accept-delta', 'tolerance', 'accept-node'] as const
 export const NO_RUN_MESSAGE = 'the design target has no run yet; run design_diff before accepting'

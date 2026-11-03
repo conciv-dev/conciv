@@ -8,6 +8,7 @@ import {createHash} from 'node:crypto'
 import {basename, relative} from 'node:path'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {
+  BLIND_FIELDS,
   BoxSchema,
   captureDef,
   clearDef,
@@ -182,8 +183,9 @@ export const SERVER_STEPS = [
   targetDef.server((input, ctx: DesignContext, request) => ctx.differ.register({input, session: request.sessionId})),
   diffDef.server(async (input, ctx: DesignContext, request) => {
     const report = await ctx.differ.run({input, session: request.sessionId})
-    if (input.full !== true) return shaped({report, design: null})
-    return shaped({report, design: await ctx.design.store.design(report.target.id)})
+    const design = input.full === true ? await ctx.design.store.design(report.target.id) : null
+    const compact = shaped({report, design})
+    return ctx.design.blind ? omit(compact, BLIND_FIELDS) : compact
   }),
   statusDef.server((_input, ctx: DesignContext, request) => ctx.differ.status({session: request.sessionId})),
   captureDef.server(captureStep),

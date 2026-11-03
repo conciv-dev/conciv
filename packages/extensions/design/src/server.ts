@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url'
 import {defineExtension, type ServerApi} from '@conciv/extension'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {designConfig, type DesignConfig} from './shared/tolerances.js'
-import {DESIGN_EXTENSION_NAME, DESIGN_GUIDE} from './shared/defs.js'
+import {BLIND_GUIDE, DESIGN_EXTENSION_NAME, DESIGN_GUIDE} from './shared/defs.js'
 import type {CssMap, DesignRuntime} from './shared/types.js'
 import {COLOR_METRICS, DELTA_KINDS} from './server/deltas.js'
 import {createDiffer, PIXEL_COMPARATORS, SERVER_STEPS} from './server/differ.js'
@@ -25,6 +25,7 @@ function pickRuntime(input: {
   const {config} = input
   return {
     cwd: input.server.cwd,
+    blind: config.blind,
     comparators: {
       pixel: PIXEL_COMPARATORS[config.comparator],
       color: COLOR_METRICS[config.color],
@@ -110,7 +111,7 @@ export const design = defineExtension({
   return {
     context: {design: runtime, differ},
     systemPrompt: async ({sessionId}) =>
-      (await store.current({session: sessionId})) === null ? undefined : DESIGN_GUIDE,
+      (await store.current({session: sessionId})) === null ? undefined : designGuide(server.config.blind),
     router: makeXrayRouter({store, differ, designDir, sourceChangedAt: changes.sourceChangedAt}),
     app: makeXrayApp({
       store,
@@ -129,3 +130,7 @@ export const design = defineExtension({
 })
 
 export default design
+
+function designGuide(blind: boolean): string {
+  return blind ? `${DESIGN_GUIDE} ${BLIND_GUIDE}` : DESIGN_GUIDE
+}

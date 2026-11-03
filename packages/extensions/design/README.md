@@ -340,9 +340,11 @@ Each delta names the source that measured it, and each report lists the sources 
 
 `docs/designs/trials/` holds one record per trial: the rounds an agent ran against a design image, with the brief,
 the score and the edit of every round, and where the loop misled it. Run one from `packages/it` with
-`pnpm trial --route '/?variant=<name>' --width <px> --image <png> [--agent]`, then type `diff`, `status`,
+`pnpm trial --route '/?variant=<name>' --width <px> --image <png> [--agent] [--blind]`, then type `diff`, `status`,
 `pin <node> <path>`, `mark <kind> <node> [value]`, `accept`, `screenshot <file>` or `quit`; `--agent` boots the real
-harness (`claude` on PATH, or `CONCIV_HARNESS_BIN`) instead of a stub, and `pnpm trial --render <dir>` writes the
+harness (`claude` on PATH, or `CONCIV_HARNESS_BIN`) instead of a stub, `--blind` sets the design extension's `blind`
+option so the agent's `design_diff` results carry no `livePath`, `diffImage` or `capturePath` and its design guide
+forbids opening a png or taking a screenshot, and `pnpm trial --render <dir>` writes the
 fixture's design images.
 
 ## How text is compared

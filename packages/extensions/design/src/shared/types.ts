@@ -323,6 +323,7 @@ export type TargetStore = {
 }
 export type DesignRuntime = {
   cwd: string
+  blind: boolean
   store: TargetStore
   comparators: Comparators
   pairer: Pairer

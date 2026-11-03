@@ -36,7 +36,15 @@ const TargetSchema = z.object({
 })
 const MarkKindSchema = z.enum(MARK_KINDS)
 
-type Options = {route: string; width: number; image?: string; state?: string; port: number; agent: boolean}
+type Options = {
+  route: string
+  width: number
+  image?: string
+  state?: string
+  port: number
+  agent: boolean
+  blind: boolean
+}
 
 type Trial = {
   rpc: RpcClient
@@ -99,6 +107,7 @@ async function main(): Promise<void> {
       port: {type: 'string', default: '0'},
       render: {type: 'string'},
       agent: {type: 'boolean', default: false},
+      blind: {type: 'boolean', default: false},
     },
   })
   if (values.render !== undefined) return render(resolve(values.render))
@@ -119,7 +128,7 @@ async function serve(input: {options: Options; commands: string[]}): Promise<voi
   const {options} = input
   const image = requiredImage(options.image)
   const dirs = await trialDirs(options.state)
-  const server = await hostServer({...dirs, port: options.port, agent: options.agent})
+  const server = await hostServer({...dirs, port: options.port, agent: options.agent, blind: options.blind})
   const browser = await chromium.launch({args: ['--disable-features=LocalNetworkAccessChecks']})
   try {
     const trial = await open({options, server, browser, devEndpointDir: dirs.devEndpointDir, image})
@@ -158,6 +167,7 @@ async function hostServer(input: {
   devEndpointDir: string
   port: number
   agent: boolean
+  blind: boolean
 }): Promise<ViteDevServer> {
   const server = await createServer({
     root: HOST_ROOT,
@@ -170,7 +180,7 @@ async function hostServer(input: {
         stateRoot: input.stateRoot,
         ...(input.agent ? {} : {harnessBin: 'true', systemPrompt: false}),
         devEndpointDir: input.devEndpointDir,
-        extensions: {design: {}},
+        extensions: {design: {blind: input.blind}},
       }),
     ],
   })
