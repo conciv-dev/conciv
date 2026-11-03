@@ -6,7 +6,7 @@ OpenCode harness, published as `./opencode`. It chats through `opencode` from `@
 
 ## Interface
 
-- `opencode` (`index.ts`): id/binName `'opencode'`, displayName `'OpenCode'`; capabilities resume true, `permissionGate: 'callback'`, transcriptHistory true, compaction false, `systemPrompt: 'flag'`, `mcp: 'http'`, `slashCommands: 'none'`, imageInput false, `init: 'none'`; default model `'opencode/claude-sonnet-4-5'`; models from `opencodeModels`.
+- `opencode` (`index.ts`): id/binName `'opencode'`, displayName `'OpenCode'`; capabilities resume true, `permissionGate: 'callback'`, transcriptHistory true, compaction false, `systemPrompt: 'flag'`, `mcp: 'http'`, `slashCommands: 'none'`, imageInput false, `init: 'none'`; default model `'opencode/claude-sonnet-4-5'`; models from `opencodeModels` (`models.ts`): the live list from `opencode models --verbose` (ids `<providerID>/<id>`, named by the model's `name`, newest `release_date` first, `deprecated` ones left out, `group: 'OpenCode'`, `description` the provider); a name shared by several providers reads `<name> · <providerID>`; a failed or timed-out CLI call (30 s) rejects, so core keeps the last saved list (`withSavedModels`).
 - `opencode.connect.plan(ctx)` (`index.ts`): argv `opencode [--session <id>]`; with `ctx.mcpUrl`, env `OPENCODE_CONFIG_CONTENT` = `{mcp:{conciv:{type:'remote', url, headers:{[CONCIV_SESSION_HEADER]: id}, oauth:false, enabled:true}}}` (`opencodeMcpEnv`).
 - `storagePath(home)` -> `~/.local/share/opencode/opencode.db`, `buildMessages(messageRows, partRows)`, `opencodeHistory` `{messages, observe, list}` (`history.ts`).
 
@@ -21,6 +21,7 @@ OpenCode harness, published as `./opencode`. It chats through `opencode` from `@
 
 - Opens `opencode.db` read-only with `node:sqlite` `DatabaseSync`; `observeTranscript` keeps it open until `close()` (`history.ts`).
 - Sets `OPENCODE_CONFIG_CONTENT` in the TTY connect plan env (`opencodeMcpEnv`).
+- `opencodeModels` (`models.ts`) runs `opencode models --verbose` from PATH.
 
 ## Verification
 

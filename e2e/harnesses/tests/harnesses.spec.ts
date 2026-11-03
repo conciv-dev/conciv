@@ -2,17 +2,20 @@ import {expect, test} from '@playwright/test'
 import {collectFailures, expectWidgetBoots} from '@conciv/e2e-utils/widget'
 import type {HarnessApp} from '@conciv/e2e-utils/ports'
 
-const expected: Record<HarnessApp, {model: string} | null> = {
+const expected: Record<HarnessApp, {model: string; provider?: string} | null> = {
   claude: {model: 'Opus 5.5'},
   codex: {model: 'gpt-5.3-codex'},
   'gemini-cli': {model: 'gemini-3-pro-preview'},
-  opencode: {model: 'opencode/claude-sonnet-4-5'},
+  opencode: {model: 'Claude Sonnet 4.5', provider: 'opencode'},
   pi: null,
 }
 
 const isHarnessName = (name: string): name is HarnessApp => Object.hasOwn(expected, name)
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const modelName = (harness: {model: string; provider?: string}): string =>
+  `${escapeRegex(harness.model)}${harness.provider ? `( · ${escapeRegex(harness.provider)})?` : ''}( \\([^)]+\\))?`
 
 const outcomePattern: Record<HarnessApp, RegExp> = {
   claude: /^Agent process exited with code 1$/m,
@@ -35,10 +38,12 @@ test('full app boots with the configured harness and exposes its real model cata
   const modelPrompt = page.getByRole('button', {name: /^Model: /})
   const composerTextbox = page.getByRole('textbox', {name: 'Message the conciv agent'})
   if (harness) {
-    const prompt = page.getByRole('button', {name: new RegExp(`^Model: ${escapeRegex(harness.model)}(,|$)`)})
+    const prompt = page.getByRole('button', {name: new RegExp(`^Model: ${modelName(harness)}(,|$)`)})
     await expect(prompt).toBeVisible()
     await prompt.click()
-    await expect(page.getByRole('menuitemradio', {name: harness.model, exact: true, checked: true})).toBeVisible()
+    await expect(
+      page.getByRole('menuitemradio', {name: new RegExp(`^${modelName(harness)}$`), checked: true}),
+    ).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(composerTextbox).toBeVisible()
   } else {

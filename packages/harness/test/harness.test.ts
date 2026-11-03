@@ -1497,6 +1497,58 @@ describe('opencode chat config', () => {
   })
 })
 
+describe('opencode models', () => {
+  const savedPath = process.env.PATH
+
+  afterEach(() => {
+    process.env.PATH = savedPath
+  })
+
+  const verbose = (models: {providerID: string; id: string; name: string; release_date?: string; status?: string}[]) =>
+    `\u001b]0;ready\u0007${models.map((model) => `${model.providerID}/${model.id}\n${JSON.stringify(model, null, 2)}`).join('\n')}\n`
+
+  async function fakeOpencode(output: string, exitCode = 0): Promise<void> {
+    const bin = await mkdtemp(join(tmpdir(), 'conciv-fake-opencode-'))
+    await writeFile(join(bin, 'listing.txt'), output)
+    await writeFile(
+      join(bin, 'opencode'),
+      `#!/bin/sh\n[ "$1 $2" = "models --verbose" ] || exit 2\ncat "${join(bin, 'listing.txt')}"\nexit ${exitCode}\n`,
+      {mode: 0o755},
+    )
+    process.env.PATH = `${bin}:${savedPath ?? ''}`
+  }
+
+  it('lists the live models opencode reports, named by model, newest first, deprecated ones left out', async () => {
+    await fakeOpencode(
+      verbose([
+        {providerID: 'openai', id: 'gpt-5.2', name: 'GPT-5.2', release_date: '2026-05-01'},
+        {providerID: 'anthropic', id: 'claude-opus-4-5', name: 'Claude Opus 4.5', release_date: '2026-09-01'},
+        {providerID: 'opencode', id: 'claude-opus-4-5', name: 'Claude Opus 4.5', release_date: '2026-09-01'},
+        {providerID: 'opencode', id: 'big-pickle', name: 'Big Pickle'},
+        {providerID: 'openai', id: 'gpt-4', name: 'GPT-4', release_date: '2023-03-14', status: 'deprecated'},
+      ]),
+    )
+
+    expect(await resolveHarnessModels(opencode)).toEqual([
+      {
+        id: 'anthropic/claude-opus-4-5',
+        name: 'Claude Opus 4.5 · anthropic',
+        description: 'anthropic',
+        group: 'OpenCode',
+      },
+      {id: 'opencode/claude-opus-4-5', name: 'Claude Opus 4.5 · opencode', description: 'opencode', group: 'OpenCode'},
+      {id: 'openai/gpt-5.2', name: 'GPT-5.2', description: 'openai', group: 'OpenCode'},
+      {id: 'opencode/big-pickle', name: 'Big Pickle', description: 'opencode', group: 'OpenCode'},
+    ])
+  })
+
+  it('rejects when the opencode CLI fails, so the saved list stays in use', async () => {
+    await fakeOpencode('', 1)
+
+    await expect(resolveHarnessModels(opencode)).rejects.toThrow()
+  })
+})
+
 describe('opencode connect plan', () => {
   const CONCIV_SESSION = SessionId.parse('conciv_opencode_test')
 
