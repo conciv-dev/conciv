@@ -57,6 +57,7 @@ export const TOLERANCES = {
   iconSide: 24,
   iconTextFloor: 0.8,
   iconSlotSide: 48,
+  sectionGap: 64,
   regionGap: 32,
 } as const
 
