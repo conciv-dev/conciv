@@ -26,6 +26,7 @@ export const TOLERANCES = {
   regularCoverage: 1.07,
   ratioConfidence: 0.5,
   typeHalo: 4,
+  capRatio: 0.82,
   inlineWidthConfidence: 0.5,
   segmentDistance: 10,
   segmentImageShare: 0.3,

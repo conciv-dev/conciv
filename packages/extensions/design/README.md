@@ -310,8 +310,10 @@ changes the time of a run, never its answer.
 
 Registration writes `design.txt` next to `model.json`, and a run that estimates type rewrites it: the design tree as
 an indented outline in document order (layout index, then top, then left), one line per node under a `page WxH` line
-for the root, children indented two spaces under their `within`. A text reads `text "Access borderless" 56/700 data`
-(the folded text, size/weight once the type estimate knows them, the role when it is not `unknown`); a box reads
+for the root, children indented two spaces under their `within`. A text reads `text "Access borderless" size 56/700 data`
+(the folded text, size/weight once the type estimate knows them, the role when it is not `unknown`); before the
+estimate it reads `size ~56`, the ink height over `capRatio` (calibrated on the stripe fixture), the tilde marking a
+size read from the ink alone; a box reads
 `box 1280x72 row gap 29 align center padding 0 48, background #fff, border 1 #e3e8ee, radius 8` (its size in CSS px,
 the layout from the layout pass, its paint); an image slot reads `image 480x320 placeholder`, and one under
 `iconSlotSide` on both sides reads `icon 24x24 placeholder`. The model holds no text colour, so
