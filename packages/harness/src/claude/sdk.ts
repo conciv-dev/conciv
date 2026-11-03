@@ -64,10 +64,6 @@ async function probeCommands(ctx: HarnessCommandsContext): Promise<SlashCommand[
   return init.commands
 }
 
-const DEFAULT_CONTEXT_WINDOW = 200_000
-
-const LONG_CONTEXT_WINDOW = 1_000_000
-
 const CURRENT_GROUP = 'Claude'
 
 const OLDER_GROUP = 'Older versions'
@@ -87,7 +83,6 @@ function toHarnessModel(model: ModelInfo, aliasFamilies: ReadonlySet<string>): H
     name: versioned ? version : model.displayName,
     description: versioned ? summary.join(' · ') : model.description,
     group: superseded ? OLDER_GROUP : CURRENT_GROUP,
-    contextWindow: model.value.endsWith('[1m]') ? LONG_CONTEXT_WINDOW : DEFAULT_CONTEXT_WINDOW,
   }
 }
 

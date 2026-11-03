@@ -5,7 +5,7 @@ import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/pr
 import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {TurnHooks} from '@conciv/ai/server'
 import type {AttachmentDocumentPart} from '@conciv/extension'
-import {resolveHarnessModels, transcriptPathWithin} from '@conciv/harness'
+import {transcriptPathWithin} from '@conciv/harness'
 import {isHarnessSessionId, SessionId, type HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {ApprovalStore, UiChannel} from './approvals.js'
@@ -144,21 +144,6 @@ function titleOf(messages: ModelMessage[]): string {
     .slice(0, TITLE_MAX_CHARS)
 }
 
-async function contextWindowFor(
-  harness: HarnessAdapter,
-  modelId: string | null,
-  log: TurnDeps['log'],
-): Promise<number | undefined> {
-  if (modelId === null) return undefined
-  try {
-    const models = await resolveHarnessModels(harness)
-    return models.find((model) => model.id === modelId)?.contextWindow
-  } catch (error) {
-    log(`[chat] model list unavailable, usage recorded without a context window: ${String(error)}`)
-    return undefined
-  }
-}
-
 async function contextTokensOf(deps: TurnDeps, sessionId: SessionId): Promise<number | undefined> {
   const history = deps.harness.history
   const nativeId = deps.sessions.row(sessionId)?.nativeId ?? null
@@ -250,11 +235,9 @@ export function turnHooks(
       const usage = toTokenUsage(reported)
       if (usage === undefined) return
       const modelId = deps.sessions.row(sessionId)?.model ?? deps.harness.defaultModel ?? null
-      const contextWindow = await contextWindowFor(deps.harness, modelId, deps.log)
       await deps.sessions.recordUsage(sessionId, {
         ...tokenUsageToSnapshot(usage),
         ...(modelId === null ? {} : {modelId}),
-        ...(contextWindow === undefined ? {} : {contextWindow}),
       })
     },
     started: (turn) =>

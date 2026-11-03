@@ -222,6 +222,12 @@ minimumReleaseAgeExclude:
   - 'lucide-solid'
   - 'tsdown'
 patchedDependencies:
+  # buildUsage (dist/esm/stream/translate.js:34-52 in 1.0.0, same on upstream main) forwards only
+  # total_cost_usd from the SDK result, dropping modelUsage[model].contextWindow, so the context meter
+  # had to guess the window (200k where Haiku 5.5 reports 1M). The patch adds the main model's
+  # contextWindow (the modelUsage entry with the most input tokens) to providerUsageDetails.
+  # Drop it once upstream forwards the context window.
+  '@tanstack/ai-claude-code@1.0.0': patches/@tanstack__ai-claude-code@1.0.0.patch
   # createEventAwareBindings (dist/esm/bindings/tool-to-binding.js:73-115 in 1.0.1) emits
   # code_mode:external_call / external_result / external_error with no call id, so parallel child calls
   # cannot be paired into cards and aroundCalls cannot add one. The patch mints one callId per call and

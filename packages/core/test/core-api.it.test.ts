@@ -1444,8 +1444,8 @@ describe('rpc wire', () => {
         await finished(quick, 'quick')
         expect((await chatKit().hydrate(slow)).activeRun).not.toBeNull()
         await slowTurn.done(GUARD)
-        expect((await sessionMeta(slow)).usage).toMatchObject({inputTokens: 11, contextWindow: 200_000})
-        expect((await sessionMeta(quick)).usage).toMatchObject({inputTokens: 22, contextWindow: 200_000})
+        expect((await sessionMeta(slow)).usage).toMatchObject({inputTokens: 11, contextWindow: 1_000_000})
+        expect((await sessionMeta(quick)).usage).toMatchObject({inputTokens: 22, contextWindow: 1_000_000})
       })
     })
 
@@ -2335,7 +2335,12 @@ describe('rpc wire', () => {
   }
 
   function usage(promptTokens: number): TokenUsage {
-    return {promptTokens, completionTokens: 1, totalTokens: promptTokens + 1}
+    return {
+      promptTokens,
+      completionTokens: 1,
+      totalTokens: promptTokens + 1,
+      providerUsageDetails: {contextWindow: 1_000_000},
+    }
   }
 
   function chatKit(): Kit {

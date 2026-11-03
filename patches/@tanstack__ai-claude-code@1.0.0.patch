@@ -1,0 +1,44 @@
+diff --git a/dist/esm/stream/translate.js b/dist/esm/stream/translate.js
+index 21140549d20dfba046925617d35008ee0b1c4abe..b4c5e78f243ac35c33151f21b80dd6af353e0ffd 100644
+--- a/dist/esm/stream/translate.js
++++ b/dist/esm/stream/translate.js
+@@ -31,7 +31,16 @@ function stringifyToolResultContent(content) {
+ 	if (typeof content === "string") return content;
+ 	return content.map((block) => typeof block.text === "string" ? block.text : "").join("");
+ }
+-function buildUsage(usage, totalCostUsd) {
++function mainContextWindow(modelUsage) {
++	let best;
++	for (const entry of Object.values(modelUsage ?? {})) {
++		if (typeof entry?.contextWindow !== "number" || entry.contextWindow <= 0) continue;
++		const input = (entry.inputTokens ?? 0) + (entry.cacheReadInputTokens ?? 0) + (entry.cacheCreationInputTokens ?? 0);
++		if (best === void 0 || input > best.input) best = { input, contextWindow: entry.contextWindow };
++	}
++	return best?.contextWindow;
++}
++function buildUsage(usage, totalCostUsd, modelUsage) {
+ 	if (!usage) return void 0;
+ 	const cacheWrite = usage.cache_creation_input_tokens ?? 0;
+ 	const cacheRead = usage.cache_read_input_tokens ?? 0;
+@@ -47,7 +56,11 @@ function buildUsage(usage, totalCostUsd) {
+ 		...cacheRead ? { cachedTokens: cacheRead } : {}
+ 	};
+ 	if (Object.keys(promptTokensDetails).length > 0) result.promptTokensDetails = promptTokensDetails;
+-	if (totalCostUsd !== void 0) result.providerUsageDetails = { totalCostUsd };
++	const contextWindow = mainContextWindow(modelUsage);
++	if (totalCostUsd !== void 0 || contextWindow !== void 0) result.providerUsageDetails = {
++		...totalCostUsd !== void 0 ? { totalCostUsd } : {},
++		...contextWindow !== void 0 ? { contextWindow } : {}
++	};
+ 	return result;
+ }
+ /**
+@@ -311,7 +324,7 @@ async function* translateSdkStream(sdkMessages, ctx) {
+ 		yield* closePartialReasoning();
+ 		yield* closePartialToolUses();
+ 		yield* synthesizeUnresolvedResults();
+-		const usage = buildUsage(message.usage, message.total_cost_usd);
++		const usage = buildUsage(message.usage, message.total_cost_usd, message.modelUsage);
+ 		if (ctx.expectStructuredOutput === true) {
+ 			const fromResult = isUsefulStructuredObject(message.structured_output) ? message.structured_output : void 0;
+ 			const fromTool = isUsefulStructuredObject(capturedStructuredOutput) ? capturedStructuredOutput : void 0;
