@@ -651,12 +651,17 @@ describe('native page vite boot', () => {
 
       await locked.click()
       await expectLocator(card.getByText('Find the 6-digit code printed in your terminal.')).toBeVisible()
-      const heightBefore = (await card.boundingBox())?.height
+      const wholeHeight = async (): Promise<number> => {
+        const box = await card.boundingBox()
+        if (!box) throw new Error('the login dialog has no layout box')
+        return Math.round(box.height)
+      }
+      const heightBefore = await wholeHeight()
       await typeCode(card, wrongCode())
       await expectLocator(card.getByRole('alert')).toHaveText(
         "That code didn't match. Check your terminal and try again.",
       )
-      expect((await card.boundingBox())?.height).toBe(heightBefore)
+      expect(await wholeHeight()).toBe(heightBefore)
       expect(errorsBeforeLogin).toEqual([])
       const firstDigit = card.getByRole('textbox', {name: 'Digit 1 of 6'})
       await expectLocator(firstDigit).toBeFocused()
