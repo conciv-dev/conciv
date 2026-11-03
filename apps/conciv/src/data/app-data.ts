@@ -22,13 +22,17 @@ const DEVFRAME_GROUPS: ReadonlySet<string> = new Set([
   'chat.uiReply',
 ])
 
-export type AppHub = {connection: () => HubConnection; connected: () => boolean; session: () => string | null}
+export type AppHub = {
+  connection: () => HubConnection | undefined
+  connected: () => boolean
+  session: () => string | null
+}
 
 export type AppData = {
   rpc: RpcClient
   utils: QueryUtils
   invalidateSessions: () => void
-  readHubState: () => () => void
+  readHubState: (connection: HubConnection) => () => void
 }
 
 function unreachable(): Error {
@@ -57,6 +61,7 @@ function hubCallOf(hub: AppHub): HubCall {
   return async (name, input) => {
     if (!hub.connected()) throw new Error(RPC_UNBOUND_MESSAGE)
     const connection = hub.connection()
+    if (!connection) throw unreachable()
     await attemptSettled(connection)
     const client = await connection.ready()
     await client.ensureTrusted()
@@ -79,6 +84,6 @@ export function makeAppData(rpc: RpcClient, hub: AppHub | undefined, queryClient
     rpc: routed,
     utils,
     invalidateSessions: () => void queryClient.invalidateQueries({queryKey: utils.sessions.list.key()}),
-    readHubState: () => (hub ? readSharedState<object>(hub.connection(), 'conciv:sessions', writeSessions) : () => {}),
+    readHubState: (connection) => readSharedState<object>(connection, 'conciv:sessions', writeSessions),
   }
 }

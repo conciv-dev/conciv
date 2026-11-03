@@ -1,36 +1,52 @@
 import {render} from 'solid-js/web'
+import {createStore} from 'solid-js/store'
 import {RouterProvider, createBrowserHistory} from '@tanstack/solid-router'
 import {makeBrowserRpcClient} from '@conciv/contract'
 import pageExtension from '@conciv/extension-page/client'
-import {hubFor, renderLogin, type HubConnection} from './app/devframe-link.js'
+import {hubFor, makeHubLogin} from './app/devframe-link.js'
 import {parseConcivSettings} from './data/settings.js'
 import {createConcivRouter} from './router.js'
 
-type Link = {apiBase: string; hub?: () => HubConnection}
-
-function linked(core: string): Promise<Link> {
-  if (core === '') return Promise.resolve({apiBase: ''})
+function engineLink(core: string) {
+  const [link, setLink] = createStore<{apiBase: string | null}>({apiBase: null})
   const hub = hubFor(core)
-  return new Promise((resolve) => {
-    renderLogin(document.body, hub, core, (apiBase) => resolve({apiBase, hub: () => hub}))
-  })
+  const login = makeHubLogin(
+    hub,
+    core,
+    (trustedApiBase) => {
+      window.__CONCIV_API_BASE__ = trustedApiBase
+      setLink('apiBase', trustedApiBase)
+      return Promise.resolve()
+    },
+    false,
+  )
+  return {link, hub: () => hub, login}
 }
 
-async function start(): Promise<void> {
+function sameOriginLink() {
+  return {link: {apiBase: ''}, hub: undefined, login: undefined}
+}
+
+function linkFor(core: string) {
+  return core === '' ? sameOriginLink() : engineLink(core)
+}
+
+function start(): void {
   const params = new URLSearchParams(window.location.search)
   const settings = parseConcivSettings(params.get('settings') ?? '')
-  const link = await linked(params.get('core') ?? '')
-  const apiBase = link.apiBase
-  window.__CONCIV_API_BASE__ = apiBase
+  const core = params.get('core') ?? ''
+  const {link, hub, login} = linkFor(core)
   const activeSession: {read: () => string | null} = {read: () => null}
   const router = createConcivRouter({
-    rpc: makeBrowserRpcClient(apiBase, {session: () => activeSession.read()}).rpc,
-    hubConnection: link.hub,
+    rpc: makeBrowserRpcClient(() => link.apiBase, {session: () => activeSession.read()}).rpc,
+    hubConnection: hub,
+    login,
     history: createBrowserHistory(),
     environment: {rootNode: document, document},
     settings,
     extensions: [pageExtension],
-    apiBase: () => apiBase,
+    connected: () => link.apiBase !== null,
+    apiBase: () => link.apiBase ?? '',
     bindActiveSession: (read) => {
       activeSession.read = read
     },
@@ -39,4 +55,4 @@ async function start(): Promise<void> {
   if (root) render(() => <RouterProvider router={router} />, root)
 }
 
-start().catch((error: unknown) => console.error('conciv: the standalone app failed to start', error))
+start()
