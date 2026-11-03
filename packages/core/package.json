@@ -82,6 +82,7 @@
     "@devframes/hub": "catalog:",
     "@devframes/plugin-messages": "catalog:",
     "@devframes/plugin-terminals": "catalog:",
+    "@devframes/plugin-terminals--assets": "catalog:",
     "@devframes/service-open": "catalog:",
     "@hono/node-server": "catalog:",
     "@jridgewell/trace-mapping": "0.3.31",

@@ -44,6 +44,7 @@ catalog:
   '@devframes/hub': 1.3.0
   '@devframes/plugin-messages': 1.3.0
   '@devframes/plugin-terminals': 1.3.0
+  '@devframes/plugin-terminals--assets': 1.3.0
   '@devframes/service-open': 1.3.0
 
   '@ark-ui/solid': '^5.39.3'
