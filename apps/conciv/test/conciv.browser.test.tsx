@@ -596,7 +596,7 @@ describe('model menu', () => {
 
   test('the composer takes typing while the model list still loads, and keeps text and focus once it arrives', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    await faults.install({kind: 'gate', path: ['meta', 'harnesses']})
+    await faults.install({kind: 'gate', path: ['meta', 'models']})
     keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
 
     await expect.element(input()).toBeVisible()
@@ -612,7 +612,7 @@ describe('model menu', () => {
 
   test('a model list that failed to load offers a retry inside the menu, which then lists the models', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    const fault = await faults.install({kind: 'fail', path: ['meta', 'harnesses'], status: 500})
+    const fault = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
     keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
 
     await userEvent.click(page.getByRole('button', {name: 'Couldn’t load models'}))
@@ -935,6 +935,7 @@ describe('harness switching', () => {
   })
   const keep = keptPane()
   const shell = createShellHarness(core)
+  const faults = trackedFaults()
 
   afterEach(async () => {
     shell.dispose()
@@ -974,6 +975,34 @@ describe('harness switching', () => {
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
     await expect.element(page.getByRole('menuitem', {name: 'Compress the conversation'})).toBeVisible()
     await expect.element(page.getByRole('menuitem', {name: /^Harness:/})).not.toBeInTheDocument()
+  })
+
+  test('the prompt shows the session’s own model while the other harnesses’ models still load', async () => {
+    await faults.install({kind: 'gate', path: ['meta', 'harnesses']})
+    await mountChat(await createSession(coreRpc(core())))
+
+    await expect.element(prompt('Alpha Model')).toHaveTextContent('alpha model❯')
+    await userEvent.click(prompt('Alpha Model'))
+    await expect.element(model('Alpha Model')).toHaveAttribute('aria-selected', 'true')
+    await userEvent.keyboard('{Escape}')
+
+    await faults.releaseAll()
+
+    await expect.element(prompt('Alpha Model (Alpha)')).toHaveTextContent('alpha model (alpha)❯')
+  })
+
+  test('other harnesses’ models that failed to load keep the session’s own models and offer a retry', async () => {
+    const fault = await faults.install({kind: 'fail', path: ['meta', 'harnesses'], status: 500})
+    await mountChat(await createSession(coreRpc(core())))
+
+    await userEvent.click(prompt('Alpha Model'))
+    await expect.element(model('Alpha Model')).toHaveAttribute('aria-selected', 'true')
+    const retry = page.getByRole('button', {name: 'Couldn’t load the other harnesses: Retry loading models'})
+    await expect.element(retry).toBeVisible()
+    await coreControl.releaseFault(fault)
+    await userEvent.click(retry)
+
+    await expect.element(harnessGroup('Beta').getByRole('option', {name: 'Beta Model (Beta)'})).toBeVisible()
   })
 
   test('a harness with nothing usable says so instead of listing models', async () => {
@@ -1055,6 +1084,17 @@ describe('harness switching', () => {
     await expect.element(page.getByText('Hello from beta')).toBeVisible()
     await expect.element(harnessLabel('Alpha')).toBeVisible()
     await expect.element(harnessLabel('Beta')).toBeVisible()
+  })
+
+  test('in the real panel the composer is ready while every model list still loads', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await faults.install({kind: 'gate', path: ['meta', 'models']})
+    await faults.install({kind: 'gate', path: ['meta', 'harnesses']})
+    shell.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(input()).toBeVisible()
+    await faults.releaseAll()
+    await expect.element(prompt('Alpha Model (Alpha)')).toBeVisible()
   })
 
   test('in the real panel the confirm opens over the open panel and confirming switches', async () => {

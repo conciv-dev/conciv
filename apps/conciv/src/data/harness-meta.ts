@@ -12,7 +12,7 @@ export function useSessionModels(sessionId: Accessor<string>) {
 
 export function useSessionHarness(sessionId: Accessor<string>): Accessor<HarnessMeta | undefined> {
   const models = useSessionModels(sessionId)
-  return createMemo(() => models.data?.harness)
+  return createMemo(() => (models.isSuccess ? models.data.harness : undefined))
 }
 
 export type Harnesses = {
@@ -24,7 +24,7 @@ export type Harnesses = {
 export function useHarnesses(): Harnesses {
   const appData = useAppData()
   const harnesses = useQuery(() => appData.utils.meta.harnesses.queryOptions())
-  const list = () => harnesses.data?.harnesses ?? []
+  const list = () => (harnesses.isSuccess ? harnesses.data.harnesses : [])
   return {
     list,
     switchable: () => list().length > 1,

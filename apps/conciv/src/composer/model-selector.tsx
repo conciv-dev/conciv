@@ -37,7 +37,7 @@ import {
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {useAnnounce, useAppData, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
-import {useRefetchSessionHarness} from '../data/harness-meta.js'
+import {useRefetchSessionHarness, useSessionModels} from '../data/harness-meta.js'
 import {useNotices} from '../shell/notice-context.js'
 import {rpcErrorCode} from '../shell/rpc-error-message.js'
 
@@ -285,6 +285,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
   const Dialog = getHostApi().useDialog()
   const refetchSessionHarness = useRefetchSessionHarness()
   const filter = useFilter({sensitivity: 'base'})
+  const own = useSessionModels(() => props.sessionId)
   const catalog = useQuery(() => appData.utils.meta.harnesses.queryOptions())
   const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
   const [confirming, setConfirming] = createSignal<SwitchTarget | null>(null)
@@ -314,16 +315,21 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
     onError: (error: unknown, target: SwitchTarget) => notices.notify(switchFailure(error, target), {tone: 'warn'}),
   }))
 
-  const entries = () => catalog.data?.harnesses ?? []
+  const ownEntry = createMemo((): HarnessMenuEntry | undefined =>
+    own.data === undefined
+      ? undefined
+      : {...own.data.harness, models: own.data.models, defaultModel: own.data.defaultModel, modelsFailed: false},
+  )
+  const entries = createMemo((): HarnessMenuEntry[] => {
+    const listed = catalog.isSuccess ? catalog.data.harnesses : []
+    const mine = ownEntry()
+    if (mine === undefined) return listed
+    if (!listed.some((entry) => entry.id === mine.id)) return [mine, ...listed]
+    return listed.map((entry) => (entry.id === mine.id ? mine : entry))
+  })
   const named = () => entries().length > 1
   const row = () => (sessions.data ?? []).find((session) => session.id === props.sessionId)
-  const harness = createMemo(() => {
-    const harnessId = row()?.harnessKind ?? catalog.data?.defaultHarness
-    return (
-      entries().find((entry) => entry.id === harnessId) ??
-      entries().find((entry) => entry.id === catalog.data?.defaultHarness)
-    )
-  })
+  const harness = () => entries().find((entry) => entry.id === ownEntry()?.id)
   const models = () => harness()?.models ?? []
   const value = () => row()?.model ?? harness()?.defaultModel ?? null
   const current = createMemo(() => models().find((model) => model.id === value()))
@@ -352,7 +358,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
     const id = value()
     return owner === undefined || id === null ? [] : [rowValue(owner.id, id)]
   }
-  const failed = () => catalog.isError || (harness()?.modelsFailed === true && models().length === 0)
+  const failed = () => own.isError && models().length === 0
   const foreignDisabled = (candidate: MenuRow) =>
     candidate.harness.id !== harness()?.id && (props.running || switchHarness.isPending)
   const collection = createMemo(() =>
@@ -399,7 +405,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
   }
   createEffect(
     on(
-      () => catalog.isError,
+      () => own.isError,
       (isError) => {
         if (isError) announce(MODELS_UNAVAILABLE)
       },
@@ -417,7 +423,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
 
   return (
     <>
-      <Show when={failed() || entries().length > 0} fallback={<PlainPrompt />}>
+      <Show when={failed() || models().length > 0} fallback={<PlainPrompt />}>
         <Combobox.Root
           collection={collection()}
           value={selected()}
@@ -459,7 +465,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
                 <Match when={failed()}>
                   <div class="flex items-center justify-between gap-2 px-2.5 py-1.5" role="status">
                     <span class="text-[0.8125rem] text-chat-text-3">{MODELS_UNAVAILABLE}</span>
-                    <Button variant="outline" size="sm" onClick={() => void catalog.refetch()}>
+                    <Button variant="outline" size="sm" onClick={() => void own.refetch()}>
                       <RotateCw class="size-3.5 block" aria-hidden="true" />
                       {RETRY_LABEL}
                     </Button>
@@ -497,6 +503,17 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
                       </Button>
                     )}
                   </For>
+                  <Show when={catalog.isError}>
+                    <Button
+                      variant="ghost"
+                      size="none"
+                      class={`${LIST_PANEL_ITEM} w-full justify-start`}
+                      onClick={() => void catalog.refetch()}
+                    >
+                      <RotateCw class="size-4 block" aria-hidden="true" />
+                      {`Couldn’t load the other harnesses: ${RETRY_LABEL}`}
+                    </Button>
+                  </Show>
                   <Show when={current()?.efforts}>
                     {(efforts) => <EffortRow efforts={efforts()} value={effort()} onSelect={selectEffort} />}
                   </Show>
