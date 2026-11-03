@@ -20,6 +20,7 @@ export type ChatApprovalScope = 'once' | 'session'
 
 export type ChatSessionHydration = {
   messages: ChatMessage[]
+  messageHarness: Record<string, string>
   lastRun: RunLifecycle | null
   pendingApprovals: readonly ApprovalAsk[]
 }
@@ -57,6 +58,7 @@ export type ChatSession = Omit<Chat, 'stop'> & {
   runInProgress: Accessor<boolean>
   hydrated: Accessor<boolean>
   pendingApprovals: Accessor<ApprovalAsk[]>
+  harnessAt: (index: number) => string | undefined
   decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<void>
 }
 
@@ -124,19 +126,26 @@ export function createChat(options: CreateChatOptions): Chat {
 export function createChatSession(options: CreateChatSessionOptions): ChatSession {
   const [runSource, setRunSource] = createSignal<RunClockSource | null>(null)
   const [hydrated, setHydrated] = createSignal(false)
-  const [asks, setAsks] = createStore<{pending: ApprovalAsk[]}>({pending: []})
+  const [served, setServed] = createStore<{pending: ApprovalAsk[]; harnesses: (string | null)[]}>({
+    pending: [],
+    harnesses: [],
+  })
   const connection = options.connect({
     onLifecycle: (lifecycle) => setRunSource({lifecycle, receivedAt: Date.now()}),
     onHydrated: (hydration) => {
       setRunSource((current) => newerRun(current, hydration))
-      setAsks('pending', reconcile(hydration.pendingApprovals.map(askOf), {key: 'approvalId'}))
+      setServed('pending', reconcile(hydration.pendingApprovals.map(askOf), {key: 'approvalId'}))
+      setServed(
+        'harnesses',
+        reconcile(hydration.messages.map((message) => hydration.messageHarness[message.id] ?? null)),
+      )
       setHydrated(true)
     },
     onRunError: () => {
       void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
     onApprovalAsk: (ask) => {
-      setAsks('pending', (pending) =>
+      setServed('pending', (pending) =>
         pending.some((waiting) => waiting.approvalId === ask.approvalId) ? pending : [...pending, ask],
       )
     },
@@ -201,9 +210,9 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     return stopRequest
   }
   const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
-    const ask = asks.pending.find((waiting) => waiting.approvalId === approvalId)
+    const ask = served.pending.find((waiting) => waiting.approvalId === approvalId)
     const decision = await options.decide(approvalId, approved, scope)
-    setAsks('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
+    setServed('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
     if (!decision.startsTurn || ask === undefined) return
     await chat.sendMessage(decisionText(ask.toolName, approved, scope))
   }
@@ -242,7 +251,8 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     sessionRunning,
     runInProgress,
     hydrated,
-    pendingApprovals: () => asks.pending,
+    pendingApprovals: () => served.pending,
+    harnessAt: (index) => served.harnesses[index] ?? undefined,
     decide,
   }
 }

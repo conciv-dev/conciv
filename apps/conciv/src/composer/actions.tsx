@@ -1,5 +1,5 @@
 import {Show, createSignal, type JSX} from 'solid-js'
-import {useQuery, useMutation} from '@tanstack/solid-query'
+import {useMutation} from '@tanstack/solid-query'
 import {ComposerActions as Action} from '@conciv/ui-kit-chat'
 import Crosshair from 'lucide-solid/icons/crosshair'
 import FoldVertical from 'lucide-solid/icons/fold-vertical'
@@ -7,10 +7,12 @@ import SquarePen from 'lucide-solid/icons/square-pen'
 import {getHostApi} from '@conciv/extension/host'
 import {writeClipboardText} from '@conciv/ui-kit-system'
 import type {Grab} from '@conciv/grab'
-import {useAppData} from '../app/context.js'
+import {useSessionModels} from '../data/harness-meta.js'
+import {rpcErrorCode} from '../shell/rpc-error-message.js'
 import {useNotices} from '../shell/notice-context.js'
 import type {Notify} from '../shell/notices.js'
 import {LaunchMenu} from './launch-menu.js'
+import {SessionHarnessSwitcher} from './model-selector.js'
 import {terminalRpc} from './terminal-rpc.js'
 
 const ACT =
@@ -21,12 +23,6 @@ function busyClass(busy: boolean): string {
 }
 
 type LaunchOutcome = {opened: boolean; command: string | null}
-
-function errorCode(error: unknown): string | null {
-  if (typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string')
-    return error.code
-  return null
-}
 
 async function copyCommand(notify: Notify, command: string): Promise<void> {
   try {
@@ -40,15 +36,15 @@ async function copyCommand(notify: Notify, command: string): Promise<void> {
 export function ComposerActions(props: {
   sessionId: string
   compacting: boolean
+  running: boolean
   onCompact: () => void
   onNewSession: () => void
   onStageGrab: (grab: Grab) => void
 }): JSX.Element {
-  const appData = useAppData()
   const notices = useNotices()
   const grab = getHostApi().useGrab()
   const toast = getHostApi().useToast()
-  const meta = useQuery(() => appData.utils.meta.models.queryOptions())
+  const meta = useSessionModels(() => props.sessionId)
   const harnessName = () => (meta.isSuccess ? meta.data.harness.name : 'the harness')
   const terminal = terminalRpc()
 
@@ -68,7 +64,7 @@ export function ComposerActions(props: {
   }
 
   const launchFailure = (error: unknown): string => {
-    if (errorCode(error) === 'NO_CONNECT') return `${harnessName()} can’t be opened in a terminal.`
+    if (rpcErrorCode(error) === 'NO_CONNECT') return `${harnessName()} can’t be opened in a terminal.`
     return `Couldn’t open ${harnessName()}.`
   }
 
@@ -130,6 +126,7 @@ export function ComposerActions(props: {
           onRetry={() => void meta.refetch()}
         />
       </Show>
+      <SessionHarnessSwitcher sessionId={props.sessionId} running={props.running} />
     </>
   )
 }

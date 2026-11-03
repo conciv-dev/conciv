@@ -1,27 +1,47 @@
-import {createContext, createMemo, useContext, type Accessor} from 'solid-js'
-import {useQuery, type QueryClient} from '@tanstack/solid-query'
+import {createMemo, type Accessor} from 'solid-js'
+import {useQuery} from '@tanstack/solid-query'
 import type {ChatModels} from '@conciv/protocol/chat-types'
-import type {AppData} from './app-data.js'
+import {useAppData, useAppQueryClient} from '../app/context.js'
 
 export type HarnessMeta = ChatModels['harness']
 
-export const HarnessMetaContext = createContext<Accessor<HarnessMeta | undefined>>()
-
-export function createHarnessMeta(
-  data: AppData,
-  connected: () => boolean,
-  queryClient: QueryClient,
-): Accessor<HarnessMeta | undefined> {
-  const models = useQuery(
-    () => ({...data.utils.meta.models.queryOptions(), enabled: connected()}),
-    () => queryClient,
-  )
-  const harness = createMemo(() => models.data?.harness)
-  return harness
+export function useSessionModels(sessionId: Accessor<string>) {
+  const appData = useAppData()
+  return useQuery(() => appData.utils.meta.models.queryOptions({input: {sessionId: sessionId()}}))
 }
 
-export function useHarnessMeta(): Accessor<HarnessMeta | undefined> {
-  const value = useContext(HarnessMetaContext)
-  if (!value) throw new Error('useHarnessMeta called outside the app provider')
-  return value
+export function useSessionHarness(sessionId: Accessor<string>): Accessor<HarnessMeta | undefined> {
+  const models = useSessionModels(sessionId)
+  return createMemo(() => models.data?.harness)
+}
+
+export type Harnesses = {
+  list: Accessor<HarnessMeta[]>
+  switchable: Accessor<boolean>
+  nameOf: (harnessId: string) => string
+}
+
+export function useHarnesses(): Harnesses {
+  const appData = useAppData()
+  const harnesses = useQuery(() => appData.utils.meta.harnesses.queryOptions())
+  const list = () => harnesses.data?.harnesses ?? []
+  return {
+    list,
+    switchable: () => list().length > 1,
+    nameOf: (harnessId) => list().find((harness) => harness.id === harnessId)?.name ?? harnessId,
+  }
+}
+
+export function useRefetchSessionHarness(): (sessionId: string) => Promise<void> {
+  const appData = useAppData()
+  const queryClient = useAppQueryClient()
+  return async (sessionId) => {
+    const input = {input: {sessionId}}
+    const keys = [
+      appData.utils.meta.models.key(input),
+      appData.utils.meta.commands.key(input),
+      appData.utils.sessions.list.key(),
+    ]
+    await Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({queryKey, refetchType: 'all'})))
+  }
 }

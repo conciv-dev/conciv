@@ -1,12 +1,38 @@
-import {createEffect, createMemo, For, Match, on, Show, splitProps, Suspense, Switch, type JSX} from 'solid-js'
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  Match,
+  on,
+  Show,
+  splitProps,
+  Suspense,
+  Switch,
+  type JSX,
+} from 'solid-js'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {groupBy} from 'es-toolkit'
 import {Button, LIST_PANEL_ITEM, Menu, useMenu, type MenuMachine} from '@conciv/ui-kit-system'
+import {getHostApi} from '@conciv/extension/host'
 import RotateCw from 'lucide-solid/icons/rotate-cw'
 import Check from 'lucide-solid/icons/check'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
+import {ComposerActions as Action} from '@conciv/ui-kit-chat'
 import {ReasoningEffortSchema, type HarnessModelInfo, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import {contextUsedTokens} from '@conciv/protocol/usage-types'
 import {useAnnounce, useAppData, useRpc} from '../app/context.js'
+import {usePane} from '../app/pane-context.js'
+import {
+  useHarnesses,
+  useRefetchSessionHarness,
+  useSessionHarness,
+  useSessionModels,
+  type HarnessMeta,
+} from '../data/harness-meta.js'
+import {useNotices} from '../shell/notice-context.js'
+import {rpcErrorCode} from '../shell/rpc-error-message.js'
 
 const MODELS_UNAVAILABLE = 'Couldn’t load models'
 const RETRY_LABEL = 'Retry loading models'
@@ -194,7 +220,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
   const announce = useAnnounce()
-  const meta = useQuery(() => appData.utils.meta.models.queryOptions())
+  const meta = useSessionModels(() => props.sessionId)
   const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
   const setModel = useMutation(() => ({
     mutationFn: (model: string) => rpc.sessions.model({sessionId: props.sessionId, model}),
@@ -290,6 +316,116 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
           </Menu.Content>
         </Menu.Positioner>
       </Menu.RootProvider>
+    </Show>
+  )
+}
+
+const CHARACTERS_PER_TOKEN = 4
+const TOKEN_COUNT = new Intl.NumberFormat(undefined)
+const TOKEN_PLURAL = new Intl.PluralRules(undefined)
+
+function estimatedTokens(messages: readonly ChatMessage[]): number {
+  const characters = messages
+    .flatMap((message) => message.parts)
+    .reduce((total, part) => total + (part.type === 'text' ? part.content.length : 0), 0)
+  return Math.ceil(characters / CHARACTERS_PER_TOKEN)
+}
+
+function tokensLabel(tokens: number): string {
+  return `${TOKEN_COUNT.format(tokens)} ${TOKEN_PLURAL.select(tokens) === 'one' ? 'token' : 'tokens'}`
+}
+
+function switchFailure(error: unknown, target: HarnessMeta): string {
+  const code = rpcErrorCode(error)
+  if (code === 'SESSION_RUNNING') return `Wait for the reply to finish, then switch to ${target.name}.`
+  if (code === 'UNKNOWN_HARNESS') return `${target.name} is no longer available.`
+  if (code === 'NOT_FOUND') return 'This session no longer exists.'
+  return `Couldn’t switch to ${target.name}.`
+}
+
+export function SessionHarnessSwitcher(props: {sessionId: string; running: boolean}): JSX.Element {
+  const appData = useAppData()
+  const rpc = useRpc()
+  const announce = useAnnounce()
+  const notices = useNotices()
+  const pane = usePane()
+  const Dialog = getHostApi().useDialog()
+  const harnesses = useHarnesses()
+  const current = useSessionHarness(() => props.sessionId)
+  const refetchSessionHarness = useRefetchSessionHarness()
+  const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
+  const [confirming, setConfirming] = createSignal<HarnessMeta | null>(null)
+
+  const historyTokens = () => {
+    const usage = (sessions.data ?? []).find((session) => session.id === props.sessionId)?.usage
+    return (usage ? contextUsedTokens(usage) : undefined) ?? estimatedTokens(pane.chat().messages())
+  }
+  const switchHarness = useMutation(() => ({
+    mutationFn: (target: HarnessMeta) => rpc.sessions.switchHarness({sessionId: props.sessionId, harnessId: target.id}),
+    onSuccess: async (_switched: {harnessId: string}, target: HarnessMeta) => {
+      const [, refreshed] = await Promise.allSettled([refetchSessionHarness(props.sessionId), pane.chat().refresh()])
+      announce(`Switched to ${target.name}.`)
+      if (refreshed.status === 'rejected')
+        notices.notify('Couldn’t refresh the conversation. Refresh it to see which harness wrote each reply.', {
+          tone: 'warn',
+        })
+    },
+    onError: (error: unknown, target: HarnessMeta) => notices.notify(switchFailure(error, target), {tone: 'warn'}),
+  }))
+  const pick = (target: HarnessMeta) => {
+    if (target.id === current()?.id) return
+    if (pane.chat().messages().length === 0) {
+      switchHarness.mutate(target)
+      return
+    }
+    setConfirming(target)
+  }
+  const confirm = (target: HarnessMeta) => {
+    setConfirming(null)
+    switchHarness.mutate(target)
+  }
+
+  return (
+    <Show when={harnesses.switchable()}>
+      <Action.Action priority={6} disabled={() => props.running || switchHarness.isPending || current() === undefined}>
+        <For each={harnesses.list()}>
+          {(harness) => (
+            <Action.ActionMenuItem
+              label={harness.id === current()?.id ? `Harness: ${harness.name} (current)` : `Harness: ${harness.name}`}
+              onSelect={() => pick(harness)}
+            >
+              <Show when={harness.id === current()?.id} fallback={<span class="size-4 block" aria-hidden="true" />}>
+                <Check class="size-4 block" aria-hidden="true" />
+              </Show>
+            </Action.ActionMenuItem>
+          )}
+        </For>
+      </Action.Action>
+      <Show when={confirming()}>
+        {(target) => (
+          <Dialog
+            open
+            onOpenChange={(open) => {
+              if (!open) setConfirming(null)
+            }}
+            title="Switch harness?"
+            role="alertdialog"
+            dismissable
+            footer={
+              <div class="flex gap-2 justify-end">
+                <Button variant="ghost" onClick={() => setConfirming(null)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => confirm(target())}>Switch to {target().name}</Button>
+              </div>
+            }
+          >
+            <p class="text-[0.8125rem] text-chat-text m-0">
+              Switching to {target().name} sends this chat’s history (about {tokensLabel(historyTokens())}).
+            </p>
+          </Dialog>
+        )}
+      </Show>
     </Show>
   )
 }

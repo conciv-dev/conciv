@@ -16,6 +16,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `ErrorScreen`, `defaultErrorComponent`, `EmptyStateSlot`, `RefreshButton` (`error-screen.tsx`, `default-error-component.tsx`, `empty-state.tsx`, `refresh-button.tsx`)
 - `PendingPane`, `SessionPillPending`, `SessionTitlePending`, `UsagePending`, `ViewTabsPending`, `ComposerActionsPending` (`pending.tsx`)
 - `classifyRpcError(error, transportMessage, genericMessage)` (`rpc-error-message.ts`)
+- `rpcErrorCode(error)` (`rpc-error-message.ts`): the string `code` of an rpc error, else null
 - `escapeInTerminal(scopeEl)` (`terminal-focus.ts`): true when focus is inside `[data-terminal-screen]`
 
 ## Invariants

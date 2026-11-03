@@ -529,6 +529,15 @@ describe('composer overflow', () => {
     expect(await coreControl.faultPending(gate)).toBe(1)
   })
 
+  test('with a single harness the overflow menu offers no harness switcher', async () => {
+    await mountComposer(WIDE_PX)
+
+    await userEvent.click(trigger())
+
+    await expect.element(compactItem()).toBeVisible()
+    await expect.element(menuitem(/^Harness:/)).not.toBeInTheDocument()
+  })
+
   test('the slash picker ranks an exact name first, then a name prefix, a name match, and a description match', async () => {
     await mountComposer(WIDE_PX)
 
@@ -844,6 +853,126 @@ describe('grab staging', () => {
   })
 })
 
+describe('harness switching', () => {
+  const core = bootedCore('harness-switching', {
+    displayName: 'Alpha',
+    models: [{id: 'a-model', name: 'Alpha Model'}],
+    commands: [{name: 'alpha-command', description: 'only alpha has it'}],
+    alternates: [
+      {
+        id: 'beta',
+        displayName: 'Beta',
+        text: 'Hello from beta',
+        models: [{id: 'b-model', name: 'Beta Model'}],
+        commands: [{name: 'beta-command', description: 'only beta has it'}],
+      },
+    ],
+  })
+  const keep = keptPane()
+
+  afterEach(async () => {
+    await coreControl.releaseTurn()
+  })
+
+  const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const trigger = () => page.getByRole('button', {name: 'More composer actions'})
+  const menuitem = (name: string) => page.getByRole('menuitem', {name, exact: true})
+  const confirmDialog = () => page.getByRole('alertdialog', {name: 'Switch harness?'})
+  const announcements = () => page.getByRole('log', {name: 'Announcements'})
+  const harnessLabel = (name: string) => page.getByText(name, {exact: true})
+
+  async function mountChat(sessionId: string): Promise<void> {
+    keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+    await expect.element(input()).toBeVisible()
+  }
+
+  test('an empty chat switches at once and the models and slash commands follow the new harness', async () => {
+    await mountChat(await createSession(coreRpc(core())))
+
+    await userEvent.click(trigger())
+    await expect.element(menuitem('Model: Alpha Model')).toBeVisible()
+    await userEvent.click(menuitem('Harness: Beta'))
+
+    await expect.element(announcements()).toHaveTextContent('Switched to Beta.')
+    await expect.element(confirmDialog()).not.toBeInTheDocument()
+    await userEvent.click(trigger())
+    await expect.element(menuitem('Harness: Beta (current)')).toBeVisible()
+    await expect.element(menuitem('Model: Beta Model')).toBeVisible()
+    await expect.element(menuitem('Model: Alpha Model')).not.toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(input())
+    await userEvent.keyboard('/')
+    await expect.element(page.getByRole('option', {name: /beta-command/})).toBeVisible()
+    await expect.element(page.getByRole('option', {name: /alpha-command/})).not.toBeInTheDocument()
+  })
+
+  test('a chat with history asks first, cancelling keeps the harness', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await runTurn(core(), sessionId, 'first question')
+    await mountChat(sessionId)
+
+    await userEvent.click(trigger())
+    await userEvent.click(menuitem('Harness: Beta'))
+
+    await expect
+      .element(confirmDialog().getByText(/^Switching to Beta sends this chat’s history \(about \d+ tokens?\)\.$/))
+      .toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'Cancel'}))
+    await expect.element(confirmDialog()).not.toBeInTheDocument()
+    await userEvent.click(trigger())
+    await expect.element(menuitem('Harness: Alpha (current)')).toBeVisible()
+  })
+
+  test('labels appear on replies only once the chat has used a second harness', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await runTurn(core(), sessionId, 'first question')
+    await mountChat(sessionId)
+    await expect.element(page.getByText('Hello from conciv')).toBeVisible()
+    await expect.element(harnessLabel('Alpha')).not.toBeInTheDocument()
+
+    await userEvent.click(trigger())
+    await userEvent.click(menuitem('Harness: Beta'))
+    await userEvent.click(confirmDialog().getByRole('button', {name: 'Switch to Beta'}))
+    await expect.element(announcements()).toHaveTextContent('Switched to Beta.')
+    await userEvent.click(input())
+    await userEvent.keyboard('second question{Enter}')
+
+    await expect.element(page.getByText('Hello from beta')).toBeVisible()
+    await expect.element(harnessLabel('Alpha')).toBeVisible()
+    await expect.element(harnessLabel('Beta')).toBeVisible()
+  })
+
+  test('the switcher is disabled while a run is streaming', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await coreControl.holdTurn()
+    await sendTurn(core(), sessionId, 'keep this session busy')
+    await mountChat(sessionId)
+
+    await userEvent.click(trigger())
+
+    await expect.element(menuitem('Harness: Beta')).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('the session selector names each session’s harness', async () => {
+    const rpc = coreRpc(core())
+    const activeId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: activeId, title: 'an alpha session'})
+    const betaId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: betaId, title: 'a beta session'})
+    await rpc.sessions.switchHarness({sessionId: betaId, harnessId: 'beta'})
+    keep(
+      mountPane({base: core(), sessionId: activeId}, () => (
+        <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+      )),
+    )
+
+    await page.getByRole('button', {name: 'Session: an alpha session'}).click()
+
+    await expect.element(page.getByRole('option', {name: /^an alpha session, .*· Alpha/})).toBeVisible()
+    await expect.element(page.getByRole('option', {name: /^a beta session, .*· Beta/})).toBeVisible()
+  })
+})
+
 describe('launch actions', () => {
   const CONNECT_COMMAND_PATH = ['ext', 'terminal', 'connectCommand']
   const LAUNCH_PATH = ['ext', 'terminal', 'launch']
@@ -878,6 +1007,7 @@ describe('launch actions', () => {
             <ComposerActions
               sessionId={sessionId}
               compacting={false}
+              running={false}
               onCompact={() => {}}
               onNewSession={() => {}}
               onStageGrab={() => {}}
@@ -1459,7 +1589,7 @@ describe('queue strip', () => {
 
   const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
-  const EMPTY_HYDRATION: ChatSessionHydration = {messages: [], lastRun: null, pendingApprovals: []}
+  const EMPTY_HYDRATION: ChatSessionHydration = {messages: [], messageHarness: {}, lastRun: null, pendingApprovals: []}
 
   type SentMessages = Parameters<ChatSessionConnection['send']>[0]
 
