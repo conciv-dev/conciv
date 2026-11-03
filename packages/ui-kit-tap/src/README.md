@@ -6,7 +6,7 @@ TipTap editors for SolidJS: `RichTextField`, a plain-text composer with slash an
 
 ## Interface
 
-- `rich-text-field.tsx:RichTextField` - props `value`, `onValueChange`, `onSubmit`, `onSelectionChange`, `initialSelection`, `placeholder`, `label`, `disabled`, `minRows`, `maxRows`, `onPaste`, `onReady`, `slashTrigger`, `mentionTrigger`, class props.
+- `rich-text-field.tsx:RichTextField` - props `value`, `onValueChange`, `onSubmit`, `onSelectionChange`, `initialSelection`, `onBackspaceAtStart`, `placeholder`, `label`, `disabled`, `minRows`, `maxRows`, `onPaste`, `onReady`, `slashTrigger`, `mentionTrigger`, class props.
 - `rich-text-field.tsx:RichTextFieldHandle` - `focus({end?})`, `clear()`, `insertText(text)`, `appendText(text)`, `select({start, end})`; `RichTextFieldSelection` is `{start, end}`.
 - `mention-field.tsx:MentionField` - props `items(query)`, `onSubmit(segments)`, `onReady(api)`, `onEmptyChange`, `placeholder`, `ariaLabel`, `class`.
 - `mention-field.tsx:MentionFieldApi` / `MentionItem` / `MentionSegment` - exported types.

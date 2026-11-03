@@ -984,7 +984,7 @@ describe('pane composer attachments', () => {
     return {id: name, type: 'document', name, contentType: 'text/plain', data: btoa(name)}
   }
 
-  function mountWithStagedNotes(text: string, initialSelection?: {start: number; end: number}) {
+  function mountWithStagedNotes(text: string, caret?: {start: number; end: number}) {
     const storage = memoryStorage()
     storage.setItem(
       'attachments',
@@ -1006,14 +1006,18 @@ describe('pane composer attachments', () => {
               placeholder="Ask anything…"
               inputLabel="Message"
               attachmentAdapter={createTextAttachmentAdapter()}
-              initialSelection={initialSelection}
               onInputReady={(handle) => inputs.push(handle)}
             />
           </ComposerHandlersProvider>
         </ChatProvider>
       </EngineReachabilityContext.Provider>
     ))
-    return {focus: () => inputs[0]?.focus()}
+    const focus = () => {
+      const handle = inputs[0]
+      if (caret) handle?.select(caret)
+      handle?.focus()
+    }
+    return {focus}
   }
 
   const removeButton = (name: string) => page.getByRole('button', {name: `Remove ${name}`})
