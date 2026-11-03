@@ -425,12 +425,16 @@ function nodeLine(input: {node: StoredNode; scale: number}): string {
   const {node, scale} = input
   if (node.kind === 'image')
     return `${iconSized(node.box) ? 'icon' : 'image'} ${sized({box: node.box, scale})} placeholder`
-  if (node.kind === 'text') return textLine(node)
+  if (node.kind === 'text') return textLine({node, scale})
   return `box ${sized({box: node.box, scale})}${layoutPhrase(node.layout)}${paintPhrase(node)}`
 }
 
-function textLine(node: Extract<StoredNode, {kind: 'text'}>): string {
-  const type = node.typography === undefined ? '' : ` ${Math.round(node.typography.size)}/${node.typography.weight}`
+function textLine(input: {node: Extract<StoredNode, {kind: 'text'}>; scale: number}): string {
+  const {node, scale} = input
+  const type =
+    node.typography === undefined
+      ? ` size ~${Math.round(node.box.h / scale / TOLERANCES.capRatio)}`
+      : ` size ${Math.round(node.typography.size)}/${node.typography.weight}`
   const role = node.role === undefined || node.role === 'unknown' ? '' : ` ${node.role}`
   return `text "${foldedText(node.text)}"${type}${role}`
 }

@@ -2354,6 +2354,56 @@ describe('ledger', () => {
     expect(report.designPath).toBe(designPath)
   }, 240_000)
 
+  it('the outline sizes every text by its ink from registration and the first diff replaces the estimate', async ({
+    annotate,
+  }) => {
+    await goto('empty')
+    const {id, scale} = await freshTarget('stripe-1280')
+    const status = await call('design_status', {})
+    const designPath = fileUnder(stateRoot, status.designPath ?? '')
+    const registered = (await readFile(designPath, 'utf8')).split('\n')
+    const texts = (await storedNodes(id)).filter((node) => node.kind === 'text')
+    await goto('stripe')
+    const declared = await declaredSizes()
+    const table = texts.flatMap((node) => {
+      const size = declaredSize({box: node.box, scale, declared})
+      const line = outlineLine({lines: registered, text: node.text ?? ''})
+      const estimate = line === undefined ? null : outlineSize(line)
+      if (size === undefined) return []
+      return [{text: node.text ?? '', ink: node.box.h / scale, size, ratio: node.box.h / scale / size, estimate}]
+    })
+    const ratios = table.map((row) => row.ratio).toSorted((a, b) => a - b)
+    await annotate(
+      `median ink/declared ${ratios[Math.floor(ratios.length / 2)]} table ${JSON.stringify(table.map((row) => [row.text.slice(0, 32), row.ink, row.size, Number(row.ratio.toFixed(3)), row.estimate?.size]))}`,
+    )
+    const textLines = registered.filter((line) => line.trim().startsWith('text "'))
+    expect(textLines.length).toBe(texts.length)
+    expect(textLines.filter((line) => outlineSize(line)?.estimate !== true)).toEqual([])
+    const sampled = [HERO_TITLE, BODY_LINE].map((start) => table.find((row) => row.text.startsWith(start)))
+    expect(
+      sampled.map(
+        (row) =>
+          row?.estimate !== null &&
+          row?.estimate !== undefined &&
+          Math.abs(row.estimate.size - row.size) <= row.size * ESTIMATE_SHARE,
+      ),
+    ).toEqual([true, true])
+    await call('design_diff', {})
+    const measured = (await readFile(designPath, 'utf8')).split('\n')
+    const typed = (await storedNodes(id)).filter((node) => node.kind === 'text' && node.typography !== undefined)
+    const sizes = measured.flatMap((line) => {
+      const size = line.trim().startsWith('text "') ? outlineSize(line) : null
+      return size === null ? [] : [size]
+    })
+    const samples = [HERO_TITLE, BODY_LINE].map((start) =>
+      outlineSize(measured.find((line) => line.trim().startsWith(`text "${start}`)) ?? ''),
+    )
+    await annotate(`typed ${typed.length} of ${texts.length} samples ${JSON.stringify(samples)}`)
+    expect(sizes).toHaveLength(texts.length)
+    expect(sizes.filter((size) => !size.estimate)).toHaveLength(typed.length)
+    expect(samples.map((size) => size?.estimate)).toEqual([false, false])
+  }, 240_000)
+
   it('three css edits keep the element of every done node and lose nothing; removing the card loses its elements', async ({
     annotate,
   }) => {
@@ -2480,6 +2530,50 @@ const PLACEHOLDER_TAG = '<Placeholder kind="icon" />'
 const DRAWN_SVG =
   '<svg width="20" height="20" viewBox="0 0 20 20"><path d="M2 10 L10 2 L18 10 L10 18 Z" fill="#7a73ff" /></svg>'
 const HERO_TITLE = 'Financial infrastructure'
+const BODY_LINE = 'By messaging, you understand'
+const ESTIMATE_SHARE = 0.15
+
+type Declared = {box: Box; size: number}
+
+function declaredSizes(): Promise<Declared[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll('.stripe *')].map((element) => {
+      const rect = element.getBoundingClientRect()
+      return {
+        box: {x: rect.x + scrollX, y: rect.y + scrollY, w: rect.width, h: rect.height},
+        size: Number.parseFloat(getComputedStyle(element).fontSize),
+      }
+    }),
+  )
+}
+
+function declaredSize(input: {box: Box; scale: number; declared: Declared[]}): number | undefined {
+  const {box, scale} = input
+  const centre = {x: (box.x + box.w / 2) / scale, y: (box.y + box.h / 2) / scale, w: 0, h: 0}
+  return input.declared
+    .filter((element) => contains({outer: element.box, inner: centre}))
+    .toSorted((a, b) => a.box.w * a.box.h - b.box.w * b.box.h)[0]?.size
+}
+
+function outlineLine(input: {lines: string[]; text: string}): string | undefined {
+  const folded = input.text
+    .split(' ')
+    .filter((word) => word !== '')
+    .join(' ')
+  return input.lines.find((line) => line.trim().startsWith(`text "${folded}"`))
+}
+
+function outlineSize(line: string): {size: number; estimate: boolean} | null {
+  const words = line
+    .slice(line.lastIndexOf('"') + 1)
+    .trim()
+    .split(' ')
+  const word = words[words.indexOf('size') + 1]
+  if (!words.includes('size') || word === undefined) return null
+  const estimate = word.startsWith('~')
+  const size = Number((estimate ? word.slice(1) : word).split('/')[0])
+  return Number.isFinite(size) ? {size, estimate} : null
+}
 
 function slotPicture(input: {source: string; slot: Box; picture: string}): string {
   const {source, slot, picture} = input
