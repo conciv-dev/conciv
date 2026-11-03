@@ -286,15 +286,25 @@ const CarriedSchema = z
   .object({pairs: z.number(), tiles: z.number()})
   .describe('pairs and pixel tiles reused from the run before because the edit did not touch them')
 
+const PhaseSchema = z.number().default(0)
+
 const TimingsSchema = z
   .object({
-    measure: z.number(),
-    compare: z.number(),
-    pair: z.number(),
-    total: z.number(),
+    capture: PhaseSchema,
+    decode: PhaseSchema,
+    measure: PhaseSchema,
+    mask: PhaseSchema,
+    regions: PhaseSchema,
+    pair: PhaseSchema,
+    typography: PhaseSchema,
+    deltas: PhaseSchema,
+    judge: PhaseSchema,
+    encode: PhaseSchema,
+    write: PhaseSchema,
+    total: PhaseSchema,
     carried: CarriedSchema.default({pairs: 0, tiles: 0}),
   })
-  .describe('milliseconds spent measuring the page, comparing pixels, pairing, and in the whole run')
+  .describe('whole milliseconds spent in each phase of the run, zero for a phase the run skipped')
 
 const RowSchema = z.object({
   sentence: z.string(),
@@ -343,7 +353,7 @@ export const DiffReportSchema = z.object({
     .describe('pairing hit its time budget before every node was paired; the round was not counted'),
   paired: z.number().default(0).describe('design nodes paired with a live element in this run'),
   pinsLost: z.array(z.string()).default([]).describe('pin decisions whose node or element is gone'),
-  timings: TimingsSchema.default({measure: 0, compare: 0, pair: 0, total: 0, carried: {pairs: 0, tiles: 0}}),
+  timings: TimingsSchema.default(TimingsSchema.parse({})),
   rows: z.array(RowSchema).default([]).describe('the first ten items of the stage, in brief order'),
 })
 

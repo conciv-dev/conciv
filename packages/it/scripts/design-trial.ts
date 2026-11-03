@@ -232,7 +232,10 @@ function diffTable(input: {report: CompactReport; ms: number}): string {
     `  capturePath ${shown(report.capturePath)}  partial ${report.partial}  ms ${input.ms}`
   return [
     head,
-    `timings measure ${timings.measure}  compare ${timings.compare}  pair ${timings.pair}  total ${timings.total}`,
+    `timings ${Object.entries(timings)
+      .filter(([phase]) => phase !== 'carried')
+      .map(([phase, ms]) => `${phase} ${ms}`)
+      .join('  ')}`,
     numbered(report.brief),
     table(report.rows.map(rowCells)),
     `${counts.components} components, ${counts.unmatched} unmatched, ${counts.warnings} warnings`,

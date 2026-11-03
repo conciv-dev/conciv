@@ -109,10 +109,9 @@ export type LiveCapture = {
   opinion: boolean
 }
 
-export type PixelRegion = {box: Box; kind: 'changed' | 'shift'; shift?: {dx: number; dy: number}}
 export type PixelComparator = {
   name: string
-  compare(input: {a: Raster; b: Raster}): {mismatch: number; mask: Uint8Array; regions: PixelRegion[]; score?: number}
+  compare(input: {a: Raster; b: Raster}): {mismatch: number; mask: Uint8Array; score?: number}
 }
 export type ColorMetric = {name: string; distance(input: {a: string; b: string}): number}
 export type TextRun = {box: Box; text: string}
@@ -294,8 +293,7 @@ export type TargetStore = {
   writeCapture(input: {png: Uint8Array}): Promise<string>
   writeRun(input: {
     id: string
-    live: Raster
-    diff: Raster
+    images: {live: Uint8Array; diff: Uint8Array}
     result: Omit<DiffReport, 'diffImage' | 'livePath'>
     pairs: PairRecord[]
     tiles: TileCache

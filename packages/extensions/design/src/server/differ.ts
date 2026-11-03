@@ -58,7 +58,6 @@ import type {
   MeasureSource,
   Pair,
   PixelComparator,
-  PixelRegion,
   Raster,
   TileCache,
   TileRecord,
@@ -66,6 +65,7 @@ import type {
   Role,
   ServerStep,
   Side,
+  StoredRun,
   TargetModel,
   TargetNode,
   TargetRecord,
@@ -201,6 +201,30 @@ export function groupText(input: {
   return {groups: grouped.map(({group}) => group), agreeing: grouped.flatMap(({mask}) => mask)}
 }
 
+function agreeingText(input: {
+  components: LiveComponent[]
+  runs: TextRun[]
+  live: Raster
+  target: Raster
+  color: ColorMetric
+  reuse: Reuse | null
+}): {agreeing: Box[]; masks: Map<string, Box[]>} {
+  const {components, runs, live, target, color, reuse} = input
+  if (runs.length === 0) return {agreeing: [], masks: new Map()}
+  const liveItems = flattened(components).flatMap((owner) =>
+    owner.glyphs.map((glyph): TextItem => ({side: 'live', text: glyph.text, boxes: glyph.boxes, owner})),
+  )
+  const targetItems = runs.map((run): TextItem => ({side: 'target', text: run.text, boxes: [run.box], owner: null}))
+  const masks = connected([...liveItems, ...targetItems]).map((members): [string, Box[]] => {
+    const key = JSON.stringify(members.map((member) => [member.side, member.text, member.boxes]))
+    const kept = reuse?.textMasks.get(key)
+    const region = expand({box: union(members.flatMap((member) => member.boxes)), by: TOLERANCES.tileSide})
+    if (kept !== undefined && reuse !== null && reuse.unchanged(region)) return [key, kept]
+    return [key, toGroup({members, live, target, color})?.mask ?? []]
+  })
+  return {agreeing: masks.flatMap(([, mask]) => mask), masks: new Map(masks)}
+}
+
 const DEFAULT_DIFF: DiffInput = DiffInputSchema.parse({})
 const STRETCHED = 0.85
 const GEOMETRY_KINDS: Delta['kind'][] = [
@@ -219,6 +243,10 @@ type Measured = {pair: Pair; deltas: Delta[]}
 type Reported = {pair: Pair; report: ComponentReport}
 type Judging = Omit<Parameters<typeof judge>[0], 'priors' | 'round'>
 type Settled = {
+  grid: Grid
+  rawTiles: string[]
+  textMasks: Map<string, Box[]>
+  measures: Map<string, Delta[]>
   capture: string
   observe: boolean
   run: string
@@ -238,7 +266,7 @@ async function runDiff(request: {
   latest: Map<string, Settled>
 }): Promise<DiffReport> {
   const {job, touched, design, page, history, latest} = request
-  const started = Date.now()
+  const clock = startClock()
   const record = await design.store.find({id: job.id})
   if (record === null) throw toolError('no-target', {message: NO_TARGET_MESSAGE})
   const xray = design.xrayUrl({id: record.id, session: job.session})
@@ -247,33 +275,39 @@ async function runDiff(request: {
   const decisions = await design.store.decisions(record.id)
   const model = cssModel(await design.store.model(record.id))
   const dropped = droppedNodes({decisions, nodes: model.nodes})
-  const measureStart = Date.now()
-  const reading = await measure({width: record.width, height: record.height, page})
+  clock.skip()
+  const reply = await askMeasure({width: record.width, height: record.height, page})
+  clock.lap('measure')
+  const reading = liveCapture(reply)
+  clock.lap('decode')
   const capture = createHash('sha256').update(reading.raster.data).update(JSON.stringify(decisions)).digest('hex')
   const rounds = history.rounds(record.id)
   const settled = latest.get(record.id)
   if (job.observe && touched === 'all' && settled !== undefined && countable({settled, capture})) {
     return countedRound({settled, job, rounds, design, page, record, history, latest})
   }
-  const repeated = repeatedRound({rounds, capture, observe: job.observe, started, measureStart})
+  const repeated = repeatedRound({rounds, capture, observe: job.observe, clock})
   if (repeated !== null) return repeated
   const previous = touched === 'all' ? null : await design.store.latestRun(record.id)
   const tiles = previous === null ? null : await design.store.tiles({id: record.id, run: previous.run})
-  const compareStart = Date.now()
   const droppedBoxes = model.nodes.filter((node) => dropped.has(node.id)).map((node) => node.box)
   const live = {
     ...reading,
     raster: paintOver({onto: reading.raster, from: model.raster, boxes: [...reading.masks, ...droppedBoxes]}),
   }
+  clock.lap('capture')
   const color = design.comparators.color
   const stamp = {source: live.source, confidence: sourceConfidence(live), width: record.width}
-  const {agreeing} = groupText({
+  const {grid, rawTiles, reuse} = reuseFrom({settled, previous, live: live.raster, target: model.raster})
+  const texts = agreeingText({
     components: live.components,
     runs: targetRuns(model),
     live: live.raster,
     target: model.raster,
     color,
+    reuse,
   })
+  const agreeing = texts.agreeing
   const masked = paintOver({
     onto: live.raster,
     from: model.raster,
@@ -284,12 +318,12 @@ async function runDiff(request: {
     target: model.raster,
     comparator: design.comparators.pixel,
     previous: tiles,
+    clock,
   })
-  const compareEnd = Date.now()
   const nodes = model.nodes.filter((node) => !dropped.has(node.id))
   const pins = pinsFrom(decisions)
   const placements = await twinPlacements({store: design.store, id: record.id})
-  const pairStart = Date.now()
+  clock.skip()
   const paired = design.pairer({
     components: live.components,
     nodes,
@@ -300,9 +334,9 @@ async function runDiff(request: {
     tolerances: TOLERANCES,
     live: live.raster,
     target: model.raster,
-    deadline: pairStart + TOLERANCES.pairBudgetMs,
+    deadline: Date.now() + TOLERANCES.pairBudgetMs,
   })
-  const pairEnd = Date.now()
+  clock.lap('pair')
   const typography = await estimateTypography({
     texts: paired.matched.flatMap((entry) =>
       entry.node.kind === 'text' ? [{node: entry.node, owner: entry.component}] : [],
@@ -313,6 +347,7 @@ async function runDiff(request: {
     page,
     color,
   })
+  clock.lap('typography')
   const matched = paired.matched.map((entry) => withTypography({entry, typography: typography.estimates}))
   const pairs = pairTree({
     matched,
@@ -324,21 +359,22 @@ async function runDiff(request: {
   const alignment = align({pairs, live: live.raster, tolerances: TOLERANCES})
   const judged = await textJudgements({pairs, cwd: design.cwd})
   const page0 = {x: 0, y: 0, w: live.viewport.width, h: live.viewport.height}
+  const measures = cachedMeasures({
+    pairs,
+    reuse,
+    shift: alignment.global,
+    live: live.raster,
+    target: model.raster,
+    page: page0,
+    design,
+  })
   const measured = pairs.map((pair): Measured => ({
     pair,
     deltas: decided({
-      deltas: [
-        ...measureDeltas({
-          pair,
-          pairs,
-          live: live.raster,
-          target: model.raster,
-          page: page0,
-          design,
-          shift: alignment.global,
-        }),
-        ...textDeltas({pair, judged}),
-      ].map((delta) => ({...delta, ...stamp})),
+      deltas: [...(measures.get(pair)?.deltas ?? []), ...textDeltas({pair, judged})].map((delta) => ({
+        ...delta,
+        ...stamp,
+      })),
       pair,
       decisions,
       color,
@@ -362,13 +398,16 @@ async function runDiff(request: {
     color,
     tree,
   })
-  const warnings = warningDeltas({pairs, judged}).map((delta) => ({...delta, ...stamp}))
+  const warnings = (await warningDeltas({pairs, judged, components: live.components, cwd: design.cwd})).map(
+    (delta) => ({...delta, ...stamp}),
+  )
   const painted = paintedPage(live.components)
   const score = scoreTuple({
     items,
     unpairedShare: unpairedShare({unmatched, page: page0}),
     residualShare: residualShare({measured, unmatched, masks: droppedBoxes, page: page0}),
   })
+  clock.lap('deltas')
   const advances = job.observe && !paired.partial
   const judging: Judging = {
     items,
@@ -385,19 +424,18 @@ async function runDiff(request: {
     priors: advances ? rounds : rounds.slice(0, -1),
     round: advances ? rounds.length + 1 : rounds.length,
   })
+  clock.lap('judge')
   const pageWidth = Math.min(live.raster.width, model.raster.width)
-  const timings = {
-    measure: compareStart - measureStart,
-    compare: compareEnd - compareStart,
-    pair: pairEnd - pairStart,
-    total: Date.now() - started,
-    carried: {pairs: paired.carried, tiles: pixels.carried},
+  const images = {
+    live: encodePng(live.raster),
+    diff: encodePng(paintDiff({live: masked, mask: pixels.mask, width: pageWidth})),
   }
+  clock.lap('encode')
+  const timings = {...clock.timings(), carried: {pairs: paired.carried, tiles: pixels.carried}}
   const hinted = {attributed: live.components.length > 0, absolute: xray.absolute, partial: paired.partial}
   const report = await design.store.writeRun({
     id: record.id,
-    live: live.raster,
-    diff: paintDiff({live: masked, mask: pixels.mask, width: pageWidth}),
+    images,
     pairs: matched.map((entry) => ({
       node: entry.node.id,
       path: entry.component.path,
@@ -440,8 +478,127 @@ async function runDiff(request: {
     measured,
     placements,
     hinted: {...hinted, paired: matched.length},
+    grid,
+    rawTiles,
+    textMasks: texts.masks,
+    measures: new Map([...measures.values()].map((entry) => [entry.key, entry.deltas])),
   })
   return report
+}
+
+function cachedMeasures(input: {
+  pairs: Pair[]
+  reuse: Reuse | null
+  shift: Shift
+  live: Raster
+  target: Raster
+  page: Box
+  design: DesignRuntime
+}): Map<Pair, {key: string; deltas: Delta[]}> {
+  const {pairs, reuse, shift, live, target, page, design} = input
+  return new Map(
+    pairs.map((pair): [Pair, {key: string; deltas: Delta[]}] => {
+      const key = measureKey({pair, pairs, shift})
+      const kept = reuse?.measures.get(key)
+      const region = expand({
+        box: union([pair.liveBox, moved({box: pair.liveBox, shift})]),
+        by: TOLERANCES.tileSide,
+      })
+      if (kept !== undefined && reuse !== null && reuse.unchanged(region)) return [pair, {key, deltas: kept}]
+      const deltas = measureDeltas({
+        pair,
+        pairs,
+        live,
+        target,
+        page,
+        design,
+        shift,
+      })
+      return [pair, {key, deltas}]
+    }),
+  )
+}
+
+type Reuse = {textMasks: Map<string, Box[]>; measures: Map<string, Delta[]>; unchanged: (box: Box) => boolean}
+
+function reuseFrom(input: {settled: Settled | undefined; previous: StoredRun | null; live: Raster; target: Raster}): {
+  grid: Grid
+  rawTiles: string[]
+  reuse: Reuse | null
+} {
+  const {settled, previous, live, target} = input
+  const width = Math.min(live.width, target.width)
+  const height = Math.min(live.height, target.height)
+  const grid = tileGrid({width, height, side: TOLERANCES.tileSide})
+  const rawTiles = tileHashes({raster: live, grid, margin: COMPARE_REACH})
+  if (settled === undefined || previous === null || settled.run !== previous.run) return {grid, rawTiles, reuse: null}
+  if (!sameGrid({a: settled.grid, b: grid})) return {grid, rawTiles, reuse: null}
+  const changed = new Set(rawTiles.flatMap((hash, index) => (settled.rawTiles[index] === hash ? [] : [index])))
+  const reuse = {
+    textMasks: settled.textMasks,
+    measures: settled.measures,
+    unchanged: (box: Box) => tilesUnder({grid, box}).every((index) => !changed.has(index)),
+  }
+  return {grid, rawTiles, reuse}
+}
+
+function tilesUnder(input: {grid: Grid; box: Box}): number[] {
+  const {grid, box} = input
+  const left = Math.max(0, Math.floor(box.x / grid.side))
+  const right = Math.min(grid.columns - 1, Math.floor((box.x + box.w) / grid.side))
+  const top = Math.max(0, Math.floor(box.y / grid.side))
+  const bottom = Math.min(grid.rows - 1, Math.floor((box.y + box.h) / grid.side))
+  return range(top, bottom + 1).flatMap((row) => range(left, right + 1).map((column) => row * grid.columns + column))
+}
+
+function measureKey(input: {pair: Pair; pairs: Pair[]; shift: Shift}): string {
+  const {pair, pairs, shift} = input
+  const boxes = (other: Pair | null): Box[] | null => (other === null ? null : [other.liveBox, other.targetBox])
+  return JSON.stringify({
+    node: pair.node,
+    live: omit(pair.live, ['children']),
+    texts: pair.texts.map((node) => node.box),
+    boxes: boxes(pair),
+    parent: boxes(pair.parent),
+    prev: boxes(pair.prev),
+    next: boxes(pair.next),
+    under: pairs.filter((other) => under({pair: other, ancestor: pair})).map(boxes),
+    shift,
+  })
+}
+
+type Phase = keyof Omit<DiffReport['timings'], 'total' | 'carried'>
+type Clock = {lap: (phase: Phase) => void; skip: () => void; timings: () => Omit<DiffReport['timings'], 'carried'>}
+
+function startClock(): Clock {
+  const started = performance.now()
+  const state = {mark: started}
+  const spent = new Map<Phase, number>()
+  const ms = (phase: Phase): number => Math.round(spent.get(phase) ?? 0)
+  return {
+    lap: (phase) => {
+      const now = performance.now()
+      spent.set(phase, (spent.get(phase) ?? 0) + now - state.mark)
+      state.mark = now
+    },
+    skip: () => {
+      state.mark = performance.now()
+    },
+    timings: () => ({
+      capture: ms('capture'),
+      decode: ms('decode'),
+      measure: ms('measure'),
+      mask: ms('mask'),
+      regions: ms('regions'),
+      pair: ms('pair'),
+      typography: ms('typography'),
+      deltas: ms('deltas'),
+      judge: ms('judge'),
+      encode: ms('encode'),
+      write: ms('write'),
+      total: Math.round(performance.now() - started),
+    }),
+  }
 }
 
 function countable(input: {settled: Settled; capture: string}): boolean {
@@ -486,27 +643,10 @@ function runName(report: DiffReport): string {
   return basename(report.livePath).slice(LIVE_PREFIX.length, -PNG_SUFFIX.length)
 }
 
-function repeatedRound(input: {
-  rounds: Round[]
-  capture: string
-  observe: boolean
-  started: number
-  measureStart: number
-}): DiffReport | null {
+function repeatedRound(input: {rounds: Round[]; capture: string; observe: boolean; clock: Clock}): DiffReport | null {
   const previous = input.rounds.at(-1)
   if (!input.observe || previous === undefined || previous.capture !== input.capture) return null
-  const now = Date.now()
-  return {
-    ...previous.report,
-    hint: UNCHANGED_HINT,
-    timings: {
-      measure: now - input.measureStart,
-      compare: 0,
-      pair: 0,
-      total: now - input.started,
-      carried: {pairs: 0, tiles: 0},
-    },
-  }
+  return {...previous.report, hint: UNCHANGED_HINT, timings: {...input.clock.timings(), carried: {pairs: 0, tiles: 0}}}
 }
 
 function cssModel(model: TargetModel): TargetModel {
@@ -561,7 +701,13 @@ function pinsFrom(decisions: Decision[]): {node: string; path: string; decision:
     }))
 }
 
-function comparePages(input: {live: Raster; target: Raster; comparator: PixelComparator; previous: TileCache | null}): {
+function comparePages(input: {
+  live: Raster
+  target: Raster
+  comparator: PixelComparator
+  previous: TileCache | null
+  clock: Clock
+}): {
   mismatch: number
   mask: Uint8Array
   width: number
@@ -569,7 +715,7 @@ function comparePages(input: {live: Raster; target: Raster; comparator: PixelCom
   tiles: TileCache
   carried: number
 } {
-  const {live, target, comparator, previous} = input
+  const {live, target, comparator, previous, clock} = input
   const width = Math.min(live.width, target.width)
   const height = Math.min(live.height, target.height)
   const grid = tileGrid({width, height, side: TOLERANCES.tileSide})
@@ -583,7 +729,17 @@ function comparePages(input: {live: Raster; target: Raster; comparator: PixelCom
     if (box === undefined || tile.hash !== hashes[index] || tile.mask === undefined) return
     unpackMask({packed: tile.mask, mask, width, box})
   })
-  compareTiles({live, target, comparator, mask, width, boxes: changed.flatMap((index) => boxes[index] ?? [])})
+  clusters({grid, changed}).forEach((cluster) =>
+    compareTiles({
+      live,
+      target,
+      comparator,
+      mask,
+      width,
+      clock,
+      boxes: cluster.flatMap((index) => boxes[index] ?? []),
+    }),
+  )
   const tiles = hashes.map((hash, index): TileRecord => {
     const kept = reusable[index]
     if (kept !== undefined && kept.hash === hash) return kept
@@ -596,6 +752,7 @@ function comparePages(input: {live: Raster; target: Raster; comparator: PixelCom
   const total = width * height
   const differing = tiles.reduce((sum, tile, index) => sum + Math.round(tile.mismatch * tileArea(boxes[index])), 0)
   const mismatch = total === 0 ? 0 : differing / total
+  clock.lap('mask')
   return {
     mismatch,
     mask,
@@ -606,11 +763,24 @@ function comparePages(input: {live: Raster; target: Raster; comparator: PixelCom
   }
 }
 
+function clusters(input: {grid: Grid; changed: number[]}): number[][] {
+  const {grid, changed} = input
+  const wanted = new Set(changed)
+  const cells = Uint8Array.from(range(grid.columns * grid.rows), (index) => (wanted.has(index) ? 1 : 0))
+  return findRegions({mask: cells, width: grid.columns, height: grid.rows, minSize: 1}).map((region) =>
+    changed.filter((index) => {
+      const column = index % grid.columns
+      const row = (index - column) / grid.columns
+      return column >= region.x && column < region.x + region.w && row >= region.y && row < region.y + region.h
+    }),
+  )
+}
+
 function tileArea(box: Box | undefined): number {
   return box === undefined ? 0 : box.w * box.h
 }
 
-function sameGrid(input: {a: TileCache; b: Grid}): boolean {
+function sameGrid(input: {a: Pick<Grid, 'side' | 'width' | 'height'>; b: Grid}): boolean {
   const {a, b} = input
   return a.side === b.side && a.width === b.width && a.height === b.height
 }
@@ -622,8 +792,9 @@ function compareTiles(input: {
   mask: Uint8Array
   width: number
   boxes: Box[]
+  clock: Clock
 }): void {
-  const {live, target, comparator, mask, width, boxes} = input
+  const {live, target, comparator, mask, width, boxes, clock} = input
   if (boxes.length === 0) return
   const height = Math.min(live.height, target.height)
   const reach = expand({box: union(boxes), by: TOLERANCES.tileSide})
@@ -633,6 +804,9 @@ function compareTiles(input: {
   const a = boxBlur({raster: crop({raster: live, box: area}).raster, radius: TOLERANCES.blurRadius})
   const b = boxBlur({raster: crop({raster: target, box: area}).raster, radius: TOLERANCES.blurRadius})
   const compared = comparator.compare({a, b})
+  clock.lap('mask')
+  findRegions({mask: compared.mask, width: a.width, height: a.height, minSize: 1})
+  clock.lap('regions')
   boxes.forEach((box) => copyMask({from: compared.mask, fromArea: area, onto: mask, width, box}))
 }
 
@@ -798,12 +972,36 @@ function textDeltas(input: {pair: Pair; judged: Map<Pair, TextJudgement>}): Delt
   return [{kind: 'text', live: found.live, target: found.target}]
 }
 
-function warningDeltas(input: {pairs: Pair[]; judged: Map<Pair, TextJudgement>}): Delta[] {
-  return input.pairs.flatMap((pair) => {
-    const found = input.judged.get(pair)
-    if (found === undefined || found.verdict !== 'sample-data') return []
-    return [sourced({delta: {kind: 'text', live: found.live, target: found.target, warning: 'sample-data'}, pair})]
-  })
+async function warningDeltas(input: {
+  pairs: Pair[]
+  judged: Map<Pair, TextJudgement>
+  components: LiveComponent[]
+  cwd: string
+}): Promise<Delta[]> {
+  const {judged, cwd} = input
+  const parents = new Map(
+    flattened(input.components).flatMap((parent) =>
+      parent.children.map((child): [string, LiveComponent] => [child.path, parent]),
+    ),
+  )
+  const flagged = await Promise.all(
+    input.pairs.map(async (pair): Promise<Delta[]> => {
+      const found = judged.get(pair)
+      if (found === undefined || found.verdict !== 'sample-data') return []
+      const marked = pair.texts.some((node) => node.role === 'placeholder')
+      if (!marked && !(await rendersData({pair, parent: parents.get(pair.live.path), cwd}))) return []
+      return [sourced({delta: {kind: 'text', live: found.live, target: found.target, warning: 'sample-data'}, pair})]
+    }),
+  )
+  return flagged.flat()
+}
+
+async function rendersData(input: {pair: Pair; parent: LiveComponent | undefined; cwd: string}): Promise<boolean> {
+  const {pair, parent, cwd} = input
+  if (parent === undefined) return false
+  const siblings = parent.children.filter((child) => child.path !== pair.live.path && child.text.trim() !== '')
+  const texts = await Promise.all(siblings.map((sibling) => readLiveText({cwd, source: sibling.source})))
+  return texts.some((text) => text !== null && text.role !== 'literal')
 }
 
 function typographyWarnings(input: {
@@ -1140,18 +1338,14 @@ function loopState(input: {record: TargetRecord; report: DiffReport | null}): Pa
   return {...accepted, score: report.score, round: report.round, stop: report.stop}
 }
 
-function blazediffCompare(input: {a: Raster; b: Raster}): {mismatch: number; mask: Uint8Array; regions: PixelRegion[]} {
+function blazediffCompare(input: {a: Raster; b: Raster}): {mismatch: number; mask: Uint8Array} {
   const {a, b} = input
   const output = new Uint8Array(a.data.length)
   const count = diff(a.data, b.data, output, a.width, a.height, DIFF_OPTIONS)
   return pixelResult({output, count, width: a.width, height: a.height})
 }
 
-function pixelmatchCompare(input: {a: Raster; b: Raster}): {
-  mismatch: number
-  mask: Uint8Array
-  regions: PixelRegion[]
-} {
+function pixelmatchCompare(input: {a: Raster; b: Raster}): {mismatch: number; mask: Uint8Array} {
   const {a, b} = input
   const output = new Uint8Array(a.data.length)
   const count = pixelmatch(a.data, b.data, output, a.width, a.height, DIFF_OPTIONS)
@@ -1167,16 +1361,10 @@ const DIFF_OPTIONS = {threshold: 0.1, includeAA: false, diffMask: true} as const
 function pixelResult(input: {output: Uint8Array; count: number; width: number; height: number}): {
   mismatch: number
   mask: Uint8Array
-  regions: PixelRegion[]
 } {
   const {output, count, width, height} = input
   const total = width * height
-  const mask = diffMask({output, width, height})
-  return {
-    mismatch: total === 0 ? 0 : count / total,
-    mask,
-    regions: findRegions({mask, width, height, minSize: 1}).map((box) => ({box, kind: 'changed'})),
-  }
+  return {mismatch: total === 0 ? 0 : count / total, mask: diffMask({output, width, height})}
 }
 
 const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
@@ -1201,20 +1389,25 @@ const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
 
 const MeasureReplySchema = MeasureResultSchema.extend({components: z.array(LiveComponentTreeSchema)})
 
-async function measure(input: {
+type MeasureReply = z.infer<typeof MeasureReplySchema>
+
+async function askMeasure(input: {
   width?: number
   height?: number
   timeout?: number
   page: ServerToolPageAccess
-}): Promise<LiveCapture> {
+}): Promise<MeasureReply> {
   const {width, height, page} = input
-  const reply = MeasureReplySchema.parse(
+  return MeasureReplySchema.parse(
     await page.call(measureDef.name, {
       ...(width === undefined ? {} : {width}),
       ...(height === undefined ? {} : {height}),
       timeout: input.timeout ?? TOLERANCES.measureTimeoutMs,
     }),
   )
+}
+
+function liveCapture(reply: MeasureReply): LiveCapture {
   return {
     raster: decodePng(Buffer.from(reply.image, 'base64')),
     viewport: {width: reply.width, height: reply.height},
@@ -1632,7 +1825,7 @@ function shaped(input: {report: DiffReport; full: boolean}): CompactReport {
 async function captureStep(
   ...[input, ctx, , page]: Parameters<ServerStep<CaptureInput, CaptureResult>>
 ): Promise<CaptureResult> {
-  const live = await measure({height: input.height, timeout: input.timeout, page})
+  const live = liveCapture(await askMeasure({height: input.height, timeout: input.timeout, page}))
   const path = await ctx.design.store.writeCapture({png: encodePng(live.raster)})
   return {path, width: live.raster.width, height: live.raster.height, route: live.route, components: live.components}
 }

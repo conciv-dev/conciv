@@ -52,6 +52,7 @@ export const TOLERANCES = {
   layoutTolerance: 4,
   paintedShare: 0.1,
   paintedCount: 3,
+  ordinalLimit: 9,
 } as const
 
 export type Tolerances = typeof TOLERANCES

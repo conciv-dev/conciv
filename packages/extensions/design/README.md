@@ -88,10 +88,25 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   list was cut to `limit`, `hint` reads `showing 12 of 89 paired components, those with deltas first; full: true
   lists every one`, so a short list is not read as the number of pairs. `full: true` lifts the `limit` cut, so the
   full report lists every reported component.
-- `timings` gives the milliseconds of one run: `measure` (the page call, bounded by `measureTimeoutMs` 60000),
-  `compare` (text groups, painting over and the pixel compare), `pair` (the pairer, bounded by `pairBudgetMs` 20000
-  counted from the moment pairing starts), `total` and `carried: {pairs, tiles}`, the pairs and 64 px tiles the run
-  reused from the run before (see [Live loop](#live-loop)); both are 0 on a run that reused nothing.
+- `timings` gives the whole milliseconds of one run per phase, 0 for a phase the run skipped, and
+  `carried: {pairs, tiles}`, the pairs and 64 px tiles the run reused from the run before (see
+  [Live loop](#live-loop)); both are 0 on a run that reused nothing. The result file holds the same timings.
+
+  | Phase        | What it covers                                                                                   |
+  | ------------ | ------------------------------------------------------------------------------------------------ |
+  | `measure`    | the page call that measures and snapshots the page, bounded by `measureTimeoutMs` 60000          |
+  | `decode`     | decoding the snapshot PNG                                                                        |
+  | `capture`    | the capture hash and painting the page's masks and dropped nodes over the live raster            |
+  | `mask`       | text groups, painting agreeing text over, tile hashes and the pixel compare of the changed tiles |
+  | `regions`    | the changed regions of the compared tiles                                                        |
+  | `pair`       | the pairer, bounded by `pairBudgetMs` 20000 counted from the moment pairing starts               |
+  | `typography` | the type estimate of the paired texts                                                            |
+  | `deltas`     | the pair tree, alignment, text verdicts, deltas, provenance, unmatched entries and the score     |
+  | `judge`      | stage, brief, rows and stop                                                                      |
+  | `encode`     | PNG encoding on the request path                                                                 |
+  | `write`      | the pairs, tiles and result files                                                                |
+  | `total`      | the whole run                                                                                    |
+
 - A run whose pairing hits `pairBudgetMs` is `partial`: it is not added to the round history, keeps the `round` and
   `budgetLeft` of the run before, reports `stop: null`, and its `hint` says pairing was cut short and the numbers are
   not comparable.
@@ -104,6 +119,12 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 - Run 0, the run `design_target` starts, gives the first `stage` and `brief` and is stored for the x-ray, but it is
   never a prior for `stalled` or `oscillating`: the history starts at the first `design_diff`. When `stop` is
   `stalled`, the first brief line names how many items stayed unchanged for two rounds and the first three of them.
+- `oscillating` reads the counted total of the current stage, the stage's entry in `score`, across the rounds. A round
+  is a reversal when its total moved the opposite way from the previous round's move by more than the stage's
+  tolerance (1 item for structure and content, `geometryPx` for geometry, `colorDeltaE` for paint); the stop needs
+  two reversals in a row. A round whose total is the lowest of the run never stops and clears the chain. Items whose
+  value went back to the one of two rounds before are a brief line (`3 items moved back to their round-2 values:
+  ...`, the first three by rank), never a stop on their own.
 - `design_status` reports the session's current target and its last run, and runs nothing. `score` is the tuple
   `[unpairedShare, structure, content, geometry, paint, residualShare]`, compared left to right, lower is better.
   `round` counts the `design_diff` calls since the image was registered or the last run was accepted. `stop` is
@@ -137,6 +158,12 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   (`build a row of 2 cards under ...`) whose size is the sum of theirs; a leaf is `build the text "Payments" (fit) as
   the 2nd item in the row inside ...`. A px number reaches the brief only in a delta on a paired element, and as
   the position of an `extra` or `offset` entry, which point at a live element.
+- **Anchors.** A line never points at a node that has no name of its own (a box with no text inside, an image): a
+  run or node whose previous sibling or parent is unnamed, and a leaf whose parent is unnamed or is the page, is
+  anchored to the nearest design text above it (smaller `y`, overlapping x range, the closest, glyph runs skipped),
+  quoted and cut at 40 characters: `build a row of 3 texts under "financial tools — designed to work…"`. A leaf
+  whose ordinal would be above `ordinalLimit` 9 is placed `near` that text instead (`build a box (fixed) near
+  "Daybreak Yoga"`), and a built unnamed node is `a box` or `an image`.
 - **`painted`.** The measure reads each element's `position`, and `sizing: {width, height}` as `fixed` when the
   element's own rule or inline style sets the property to a px length (the same own-declaration read as
   `design_winner`, never the computed px), else `auto`. When the outermost absolutely or fixed positioned elements
@@ -162,6 +189,14 @@ The vote pairer scores every design node against every compatible live element a
   paired) is refused: kind, style, geometry and pixel alone never pair it. An unpaired glyph is `unbuilt` with
   `stage: null`, outside the score.
 
+## Sample data
+
+A text verdict of `sample-data` (a literal in the source whose design text has the `data` or `placeholder` role)
+becomes a warning only when the paired element sits in a container that renders at least one sibling from an
+expression: provenance reads each sibling's JSX and a sibling whose text has no literal (`expression` or `mixed`)
+counts. A `placeholder` design text (`[Customer Name]`) is a mark on its own and warns without the sibling. A page
+whose copy is all literals gets no `replace the hard-coded sample` line.
+
 ## Live loop
 
 Every save already starts a run: an `hmr-update` from the bundler, `runDebounceMs` 150, the `page_hmr` settle, then a
@@ -174,7 +209,9 @@ changes the time of a run, never its answer.
 - **Pairs.** Each entry of `pairs-<run>.json` carries the live element's `fingerprint`: `source`, `tag`, `textHash`
   (fnv of the folded element text) and `box`. A pair of the run before is carried when its design node is still in
   the model, a live element sits at the same source (or the same path when it has none) with the same tag and text
-  hash and a box within `tileMargin`, and its source file is not touched. Pins are applied first, then the carried
+  hash and a box within `tileMargin`, whatever file the edit touched: the fingerprint is the proof that the element did
+  not change, so on a one-file page an edit that moves nothing else carries everything else. The touched files only
+  order the scan, candidates under them first. Pins are applied first, then the carried
   pairs seed the pairer's state as a greedy take would and the greedy loop pairs the rest. The voters are calibrated
   and the pool medians taken over every node and element, as in a full run: calibrating over what the carry left
   paired 93 nodes on the stripe page where a full run pairs 92, and a carry must not change the answer. An entry without a fingerprint carries nothing.
