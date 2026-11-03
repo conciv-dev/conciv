@@ -1,11 +1,10 @@
-import {createSignal, onCleanup, Show, type JSX} from 'solid-js'
+import {onCleanup, Show, type JSX} from 'solid-js'
 import FileText from 'lucide-solid/icons/file-text'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import X from 'lucide-solid/icons/x'
 import {Tooltip, TooltipIconButtonSlot, ZoomableImage} from '@conciv/ui-kit-system'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
 import {isCompleteAttachment, type AttachmentContentPart} from '../primitives/attachment/attachment-adapter.js'
-import {panelLayer} from '../tools/styled/result-image.js'
 import {FOCUS, FOCUS_INSET} from './classes.js'
 
 const TILE =
@@ -58,12 +57,10 @@ export function AttachmentUI(props: {removable?: boolean; failure?: string}): JS
   const localSrc = localImageSrc(draft)
   const previewSrc = imageSrc(draft) ?? localSrc
   revokeOnCleanup(localSrc)
-  const [tile, setTile] = createSignal<HTMLElement>()
-  const viewerLayer = () => panelLayer(tile()) ?? tile()?.ownerDocument.body
   const label = () => props.failure ?? draft.name
   return (
     <Tooltip.Root positioning={{strategy: 'fixed', placement: 'top', gutter: 6}}>
-      <Attachment.Root ref={setTile} class={TILE}>
+      <Attachment.Root class={TILE}>
         <Show
           when={props.failure ? undefined : previewSrc}
           fallback={
@@ -84,7 +81,6 @@ export function AttachmentUI(props: {removable?: boolean; failure?: string}): JS
                 <ZoomableImage
                   src={src()}
                   alt={draft.name}
-                  portal={viewerLayer()}
                   thumbnail={{...triggerProps(), class: IMAGE_TRIGGER}}
                   imageClass="size-full object-cover"
                 />

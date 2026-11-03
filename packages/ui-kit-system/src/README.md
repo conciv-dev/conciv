@@ -52,7 +52,7 @@ Source of the conciv SolidJS design system. Most files wrap `@ark-ui/solid` prim
 - Web Animations API calls for tooltip pop, swap, glide, arrow and fuse; inline `rotate` writes for lean (`tooltip-motion.ts`, `tooltip-group.tsx`).
 - While a group label is shown: capture-phase `keydown`, `focusout`, `pointerdown`, `scroll` and `resize` on window, `visibilitychange` on document, and `scroll` on the trigger's ShadowRoot; pointer and touch listeners on each grouped trigger (`tooltip-group.tsx`, `tooltip.tsx`).
 - Fixed overlays at z-index 2147483647 (tooltip label, fuse bar, probe span, popover content).
-- `ZoomableImage` may portal its Dialog into `portal`; `VirtualJsonTree` scrolls through `virtualizer.scrollToIndex`.
+- `ZoomableImage` opens its viewer in the shared `Dialog`, which portals itself; `VirtualJsonTree` scrolls through `virtualizer.scrollToIndex`.
 
 ## Verification
 

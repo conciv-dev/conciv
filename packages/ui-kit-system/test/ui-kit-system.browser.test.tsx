@@ -309,6 +309,26 @@ describe('dialog layout', () => {
     await expect.element(page.getByRole('dialog', {name: 'Screen recording replay'})).toBeInViewport({ratio: 1})
   })
 
+  it('portals into a shadow root that belongs to another window, such as the picture-in-picture popup', async () => {
+    const frame = document.createElement('iframe')
+    document.body.appendChild(frame)
+    onTestFinished(() => frame.remove())
+    const owner = frame.contentDocument
+    if (owner === null) throw new Error('the frame has no document')
+    const shadow = mountInShadow(
+      (root) => (
+        <EnvironmentProvider value={() => root}>
+          <Dialog open label="Popped out dialog">
+            <p>inside the popup</p>
+          </Dialog>
+        </EnvironmentProvider>
+      ),
+      owner,
+    )
+
+    await expect.poll(() => shadow.querySelector('[role="dialog"]')?.textContent).toContain('inside the popup')
+  })
+
   it('scrolls a long command sideways inside the dialog instead of widening the layout', async () => {
     mountStyled(() => (
       <Dialog open title="Connect a running session">
