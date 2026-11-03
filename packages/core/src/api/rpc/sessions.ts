@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
-import {eq} from 'drizzle-orm'
+import {and, eq, isNull} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {SessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {resolveHarnessModels} from '@conciv/harness'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
 import {
@@ -56,6 +56,44 @@ export function sessionsRouter(deps: RpcDeps) {
     await ensureRow(db, sessionId, scope.harnessKind, scope.cwd)
     return rowById(db, sessionId)
   }
+  const sameModel = (model: string | null) => (model === null ? isNull(sessions.model) : eq(sessions.model, model))
+  const sameEffort = (effort: ReasoningEffort | null) =>
+    effort === null ? isNull(sessions.effort) : eq(sessions.effort, effort)
+
+  async function switchModel(sessionId: SessionId, model: string): Promise<'switched' | 'missing' | 'unknown'> {
+    const row = await ensuredRow(sessionId)
+    if (!row) return 'missing'
+    const models = await resolveHarnessModels(chat.harness)
+    const found = models.find((candidate) => candidate.id === model && !candidate.disabled)
+    if (!found) return 'unknown'
+    const effort = row.effort !== null && found.efforts?.includes(row.effort) ? row.effort : null
+    const written = await db
+      .update(sessions)
+      .set({model, effort, updatedAt: Date.now()})
+      .where(and(eq(sessions.id, sessionId), sameEffort(row.effort)))
+      .returning({id: sessions.id})
+    return written.length > 0 ? 'switched' : switchModel(sessionId, model)
+  }
+
+  async function switchEffort(
+    sessionId: SessionId,
+    effort: ReasoningEffort | null,
+  ): Promise<'switched' | 'missing' | 'unsupported'> {
+    const row = await ensuredRow(sessionId)
+    if (!row) return 'missing'
+    if (effort !== null) {
+      const models = await resolveHarnessModels(chat.harness)
+      const modelId = row.model ?? chat.harness.defaultModel ?? models[0]?.id
+      const current = models.find((model) => model.id === modelId)
+      if (!current?.efforts?.includes(effort)) return 'unsupported'
+    }
+    const written = await db
+      .update(sessions)
+      .set({effort, updatedAt: Date.now()})
+      .where(and(eq(sessions.id, sessionId), sameModel(row.model)))
+      .returning({id: sessions.id})
+    return written.length > 0 ? 'switched' : switchEffort(sessionId, effort)
+  }
   return {
     list: os.sessions.list.handler(({input}) => rpcSessionList(chat, input?.includeHidden ?? false)),
     create: os.sessions.create.handler(async () => {
@@ -95,31 +133,15 @@ export function sessionsRouter(deps: RpcDeps) {
       return {ok: true as const}
     }),
     model: os.sessions.model.handler(async ({input, errors}) => {
-      const row = await ensuredRow(input.sessionId)
-      if (!row) throw errors.NOT_FOUND()
-      const models = await resolveHarnessModels(chat.harness)
-      const found = models.find((model) => model.id === input.model && !model.disabled)
-      if (!found) throw errors.UNKNOWN_MODEL()
-      const effort = row.effort !== null && found.efforts?.includes(row.effort) ? row.effort : null
-      await db
-        .update(sessions)
-        .set({model: input.model, effort, updatedAt: Date.now()})
-        .where(eq(sessions.id, input.sessionId))
+      const outcome = await switchModel(input.sessionId, input.model)
+      if (outcome === 'missing') throw errors.NOT_FOUND()
+      if (outcome === 'unknown') throw errors.UNKNOWN_MODEL()
       return {model: input.model}
     }),
     effort: os.sessions.effort.handler(async ({input, errors}) => {
-      const row = await ensuredRow(input.sessionId)
-      if (!row) throw errors.NOT_FOUND()
-      if (input.effort !== null) {
-        const models = await resolveHarnessModels(chat.harness)
-        const modelId = row.model ?? chat.harness.defaultModel ?? models[0]?.id
-        const current = models.find((model) => model.id === modelId)
-        if (!current?.efforts?.includes(input.effort)) throw errors.UNSUPPORTED_EFFORT()
-      }
-      await db
-        .update(sessions)
-        .set({effort: input.effort, updatedAt: Date.now()})
-        .where(eq(sessions.id, input.sessionId))
+      const outcome = await switchEffort(input.sessionId, input.effort)
+      if (outcome === 'missing') throw errors.NOT_FOUND()
+      if (outcome === 'unsupported') throw errors.UNSUPPORTED_EFFORT()
       return {effort: input.effort}
     }),
     compact: os.sessions.compact.handler(async ({input}) => {
