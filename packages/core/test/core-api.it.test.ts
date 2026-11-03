@@ -144,11 +144,11 @@ describe('api connect gate', () => {
       })
     })
 
-    it('404s the wrong token and the bare path', async () => {
+    it('refuses a wrong token and serves the open health path bare', async () => {
       const wrong = await fetch(`http://127.0.0.1:${engine.port}/t/nope/health`)
       const bare = await fetch(`http://127.0.0.1:${engine.port}/health`)
-      expect(wrong.status).toBe(404)
-      expect(bare.status).toBe(404)
+      expect(wrong.status).toBe(401)
+      expect(bare.status).toBe(200)
     })
 
     it('serves rpc under the prefix', async () => {
@@ -527,11 +527,11 @@ describe('api mcp loopback host', () => {
 
   type Reply = {status: number; body: string}
 
-  function postMcpOverHttp(port: number, host: string): Promise<Reply> {
+  function postMcpOverHttp(port: number, host: string, prefix = ''): Promise<Reply> {
     const headers = {...MCP_HEADERS, host, 'content-length': String(Buffer.byteLength(INITIALIZE))}
     return new Promise<Reply>((resolve, reject) => {
       const req = httpRequest(
-        {hostname: '127.0.0.1', port, path: '/api/mcp', method: 'POST', setHost: false, headers},
+        {hostname: '127.0.0.1', port, path: `${prefix}/api/mcp`, method: 'POST', setHost: false, headers},
         (res) => {
           const chunks: Buffer[] = []
           res.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -551,7 +551,7 @@ describe('api mcp loopback host', () => {
     }
 
     it('accepts the loopback authority the server is bound to', async () => {
-      const reply = await postMcpOverHttp(port(), `127.0.0.1:${port()}`)
+      const reply = await postMcpOverHttp(port(), `127.0.0.1:${port()}`, new URL(kit().base).pathname)
       expect(reply.status).toBe(200)
       expect(reply.body).toContain('conciv')
     })
@@ -688,7 +688,7 @@ describe('api native page', () => {
   const BUNDLE = 'conciv-widget-native.global.js'
 
   describe('token-scoped native page', () => {
-    it('serves the native page under /t/<token> with a prefix-relative bundle, and 404s unprefixed', async () => {
+    it('serves the native page under /t/<token> with a prefix-relative bundle, and unprefixed as an open page', async () => {
       const root = mkdtempSync(join(tmpdir(), 'conciv-native-token-'))
       const nativeDir = mkdtempSync(join(tmpdir(), 'conciv-native-dist-'))
       const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-native-ep-'))
@@ -721,7 +721,7 @@ describe('api native page', () => {
         expect(script.headers.get('content-type')).toContain('javascript')
 
         const unprefixed = await fetch(`${origin}/native`)
-        expect(unprefixed.status).toBe(404)
+        expect(unprefixed.status).toBe(200)
       } finally {
         await engine.stop()
         rmSync(root, {recursive: true, force: true})
