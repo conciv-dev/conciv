@@ -1,4 +1,4 @@
-import {Show, untrack, type JSX} from 'solid-js'
+import {untrack, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {consumeOtpFromUrl} from 'devframe/client'
 import {browserClient} from '@conciv/extension/devframe-connection'
@@ -209,22 +209,14 @@ export function AuthorizeDialog(props: {login: HubLogin}): JSX.Element {
               })
             }
           />
-          <Show when={notice()}>
-            {(text) => (
-              <Show
-                when={alerting()}
-                fallback={
-                  <p role="status" class="text-sm text-chat-text-2 m-0">
-                    {text()}
-                  </p>
-                }
-              >
-                <p role="alert" class="text-sm text-chat-danger m-0">
-                  {text()}
-                </p>
-              </Show>
-            )}
-          </Show>
+          <div class="grid min-h-[2lh] text-sm">
+            <p role="alert" class="[grid-area:1/1] text-chat-danger m-0">
+              {alerting() ? notice() : ''}
+            </p>
+            <p role="status" class="[grid-area:1/1] text-chat-text-2 m-0">
+              {alerting() ? '' : notice()}
+            </p>
+          </div>
         </div>
       </Dialog>
     </div>

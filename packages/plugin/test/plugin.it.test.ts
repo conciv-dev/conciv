@@ -650,10 +650,13 @@ describe('native page vite boot', () => {
       await expectLocator(locked).toBeVisible()
 
       await locked.click()
+      await expectLocator(card.getByText('Find the 6-digit code printed in your terminal.')).toBeVisible()
+      const heightBefore = (await card.boundingBox())?.height
       await typeCode(card, wrongCode())
       await expectLocator(card.getByRole('alert')).toHaveText(
         "That code didn't match. Check your terminal and try again.",
       )
+      expect((await card.boundingBox())?.height).toBe(heightBefore)
       expect(errorsBeforeLogin).toEqual([])
       const firstDigit = card.getByRole('textbox', {name: 'Digit 1 of 6'})
       await expectLocator(firstDigit).toBeFocused()
