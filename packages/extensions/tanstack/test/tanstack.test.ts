@@ -11,12 +11,13 @@ import {createServer, type ViteDevServer} from 'vite'
 import ts from 'typescript'
 import {z} from 'zod'
 import {test as browserTest} from '@conciv/browser-fixture'
-import {start, type Engine} from '@conciv/core/start'
+import {start, type Engine, type StartOpts} from '@conciv/core/start'
 import {loadServerExtensions} from '@conciv/extension-compiler/extensions'
 import {serveDir, type ServedHost} from '@conciv/extension-testkit'
 import {completeConnectHandshake} from '@conciv/extension-testkit/connect-handshake'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
+import {loginThroughTerminal} from '@conciv/harness-testkit/login'
 import {makeViteBridge} from '@conciv/plugin/vite'
 import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {CONCIV_TANSTACK_CLIENT_LABEL} from '../src/client-sentinel.js'
@@ -29,6 +30,18 @@ import {
   waitForAboutQuery,
   waitForWidget,
 } from './helpers.js'
+
+async function startTrusted(opts: StartOpts): Promise<{engine: Engine; apiBase: string}> {
+  const printed: string[] = []
+  const engine = await start({
+    ...opts,
+    print: (text) => {
+      printed.push(text)
+    },
+  })
+  const origin = `http://127.0.0.1:${engine.port}`
+  return {engine, apiBase: `${origin}/t/${await loginThroughTerminal(origin, () => printed.join('\n'))}`}
+}
 
 describe('boot', () => {
   const get = useTanstackTestApi()
@@ -141,13 +154,12 @@ describe('folder install', () => {
     const extensions = await loadServerExtensions(root, [])
     expect(extensions.map((extension) => extension.name)).toContain('tanstack')
 
-    const engine = await start({
+    const {engine, apiBase} = await startTrusted({
       options: {stateRoot: root, systemPrompt: false},
       root,
       launchEditor: () => {},
       extensions,
     })
-    const apiBase = `http://127.0.0.1:${engine.port}`
     const callTool = makeCallTool(apiBase, await resolveSession(apiBase))
     const routes = await callTool('tanstack_route_manifest', {})
     expect(Array.isArray(routes)).toBe(true)
@@ -630,14 +642,13 @@ describe('server tools', () => {
   }
 
   async function bootEngine(root: string, bridge?: BundlerBridge): Promise<{engine: Engine; callTool: CallTool}> {
-    const engine = await start({
+    const {engine, apiBase} = await startTrusted({
       options: {stateRoot: await makeStateRoot(), systemPrompt: false},
       root,
       bridge,
       launchEditor: () => {},
       extensions: [tanstackExtension],
     })
-    const apiBase = `http://127.0.0.1:${engine.port}`
     const session = await resolveSession(apiBase)
     return {engine, callTool: makeCallTool(apiBase, session)}
   }
@@ -758,14 +769,13 @@ describe('serverfn trace', () => {
   }
 
   async function bootEngine(root: string, bridge?: BundlerBridge): Promise<{engine: Engine; callTool: CallTool}> {
-    const engine = await start({
+    const {engine, apiBase} = await startTrusted({
       options: {stateRoot: await makeStateRoot(), systemPrompt: false},
       root,
       bridge,
       launchEditor: () => {},
       extensions: [tanstackExtension],
     })
-    const apiBase = `http://127.0.0.1:${engine.port}`
     const session = await resolveSession(apiBase)
     return {engine, callTool: makeCallTool(apiBase, session)}
   }

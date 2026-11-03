@@ -1,4 +1,7 @@
+import {readFileSync} from 'node:fs'
 import {expect, type ConsoleMessage, type Page} from '@playwright/test'
+import {loginThroughTerminal} from '@conciv/harness-testkit/login'
+import {e2eServerLog} from './config.js'
 
 export type PageFailures = {
   pageErrors: string[]
@@ -84,4 +87,30 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
     failures.consoleErrors.filter((entry) => !transientOptimizerReload.test(entry)),
     detail,
   ).toEqual([])
+}
+
+const PRINTED_CODE = /#conciv_otp=(\d{6})/g
+
+function printedCodes(logPath: string): string[] {
+  const text = readFileSync(logPath, 'utf8')
+  return [...text.matchAll(PRINTED_CODE)].flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
+}
+
+export async function trustedApiBase(origin: string, logPath: string): Promise<string> {
+  return `${origin}/t/${await loginThroughTerminal(origin, () => readFileSync(logPath, 'utf8'))}`
+}
+
+export async function loginWidget(page: Page, path = '/', serverLog?: string): Promise<void> {
+  await page.goto(path, {waitUntil: 'domcontentloaded', timeout: 60_000})
+  const logPath = serverLog ?? e2eServerLog(Number(new URL(page.url()).port))
+  const seen = printedCodes(logPath).length
+  await page.getByRole('button', {name: 'Authorize conciv'}).click()
+  const dialog = page.getByRole('dialog', {name: 'Authorize conciv'})
+  await dialog.getByRole('button', {name: 'Send a new code'}).click()
+  await expect(dialog.getByRole('status')).toHaveText('A new code was printed in your terminal.')
+  await expect.poll(() => printedCodes(logPath).length).toBeGreaterThan(seen)
+  const code = printedCodes(logPath).at(-1)
+  if (code === undefined) throw new Error(`the dev server printed no login code into ${logPath}`)
+  await dialog.getByRole('textbox', {name: 'Digit 1 of 6'}).pressSequentially(code)
+  await expect(dialog).toBeHidden()
 }

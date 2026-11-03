@@ -1104,6 +1104,9 @@ importers:
 
   e2e/e2e-utils:
     dependencies:
+      '@conciv/harness-testkit':
+        specifier: workspace:*
+        version: link:../../packages/harness-testkit
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
