@@ -153,8 +153,14 @@ export const ChatModelsSchema = z.object({
   defaultModel: z.string().nullable(),
   harness: HarnessMetaSchema,
 })
+export const HarnessMenuEntrySchema = HarnessMetaSchema.extend({
+  models: z.array(HarnessModelSchema),
+  defaultModel: z.string().nullable(),
+  modelsFailed: z.boolean(),
+})
+export type HarnessMenuEntry = z.infer<typeof HarnessMenuEntrySchema>
 export const ChatHarnessesSchema = z.object({
-  harnesses: z.array(HarnessMetaSchema),
+  harnesses: z.array(HarnessMenuEntrySchema),
   defaultHarness: z.string(),
 })
 export type ChatHarnesses = z.infer<typeof ChatHarnessesSchema>

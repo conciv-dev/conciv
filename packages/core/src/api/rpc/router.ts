@@ -10,7 +10,7 @@ import {widgetCaller} from '../../lib/cors.js'
 import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
-import {harnessMetaOf, sessionsRouter} from './sessions.js'
+import {harnessMenuEntryOf, harnessMetaOf, sessionsRouter} from './sessions.js'
 import {makeSessionOs, os, type RpcDeps} from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
@@ -155,8 +155,8 @@ export function makeRpcRouter(deps: RpcDeps) {
           harness: harnessMetaOf(harness),
         }
       }),
-      harnesses: os.meta.harnesses.handler(() => ({
-        harnesses: chat.harnesses.map(harnessMetaOf),
+      harnesses: os.meta.harnesses.handler(async () => ({
+        harnesses: await Promise.all(chat.harnesses.map(harnessMenuEntryOf)),
         defaultHarness: chat.defaultHarness.id,
       })),
       commands: os.meta.commands.handler(({input, context}) =>

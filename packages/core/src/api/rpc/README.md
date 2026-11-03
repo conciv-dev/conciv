@@ -14,7 +14,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - RPC `page.symbolicate`, `page.changes`, `page.clearChanges`, `page.queries` (streaming), `page.reply` (`router.ts`)
 - RPC `server.config`, `.resolve`, `.graph`, `.transform`, `.urls`, `.reload`, `.restart` (`router.ts`): each calls the matching `BUILTIN_SERVER_TOOLS` entry
 - RPC `editor.open`, `editor.openFromFrames` (`router.ts`)
-- RPC `meta.models` and `meta.commands` (per session: the session's harness), `meta.harnesses` (the available set and the default), `meta.tools`, `meta.engine` (`router.ts`)
+- RPC `meta.models` and `meta.commands` (per session: the session's harness), `meta.harnesses` (the available set, each harness with its models and default model, and the default harness), `meta.tools`, `meta.engine` (`router.ts`)
 - `PAGE_ERROR_NAME` (`router.ts`): PageErrorCode to NO_PAGE_CLIENT, PAGE_TIMEOUT, UNKNOWN_TOOL, INVALID_ARGS, HANDLER_ERROR
 - `os`, `makeSessionOs`, `callerScope`, `RpcDeps`, `ChatContext`, `SessionOs`, `CompositeRpcRouter` (`mount.ts`)
 
@@ -28,7 +28,8 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - `sessions.rename` (`sessions.ts`): NOT_FOUND without a row; `sessions.model` / `sessions.effort` create the row first (`ensureRow`, as a turn does), so a session that has not run a turn can switch; `model` throws UNKNOWN_MODEL for a missing or disabled model and resets the session effort to null when the new model does not list it; `sessions.effort` throws UNSUPPORTED_EFFORT unless the session's model (row model, else the harness default, else the first listed) lists the effort, and null always clears it
 - `cleanTitle` (`sessions.ts`): strips control characters, collapses whitespace, truncates to 120 characters
 - `sessions.create` (`sessions.ts`): ids are `conciv_<uuid>` validated with `SessionId.parse`; the row takes the boot (default) harness
-- `sessions.switchHarness` (`sessions.ts`): NOT_FOUND without a row, UNKNOWN_HARNESS outside the available set, a no-op for the current harness, SESSION_RUNNING while a run is active; otherwise one transaction sets the harness, clears the native id and model, and drops the transcript anchor
+- `sessions.switchHarness` (`sessions.ts`): NOT_FOUND without a row, UNKNOWN_HARNESS outside the available set, a no-op for the current harness (an optional `model` is ignored then), SESSION_RUNNING while a run is active, UNKNOWN_MODEL when `model` is not an enabled model of the target harness; otherwise one transaction sets the harness and the given model (else null), clears the native id and effort, and drops the transcript anchor
+- `harnessMenuEntryOf` (`sessions.ts`): a harness whose model list throws is logged and listed with no models, `defaultModel` from the adapter (else null) and `modelsFailed: true`; the others still answer
 - `ChatContext.harnessFor` (`mount.ts`): the session row's harness when it is available, else the default harness
 
 ## Side Effects

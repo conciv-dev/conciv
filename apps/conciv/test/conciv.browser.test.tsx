@@ -594,7 +594,7 @@ describe('model menu', () => {
 
   test('the composer takes typing while the model list still loads, and keeps text and focus once it arrives', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    await faults.install({kind: 'gate', path: ['meta', 'models']})
+    await faults.install({kind: 'gate', path: ['meta', 'harnesses']})
     keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
 
     await expect.element(input()).toBeVisible()
@@ -854,6 +854,14 @@ describe('grab staging', () => {
 })
 
 describe('harness switching', () => {
+  const BETA_MODELS = [
+    {id: 'b-model', name: 'Beta Model'},
+    {id: 'b-two', name: 'Beta Two'},
+    {id: 'b-three', name: 'Beta Three'},
+    {id: 'b-four', name: 'Beta Four'},
+    {id: 'b-five', name: 'Beta Five'},
+    {id: 'b-six', name: 'Beta Six'},
+  ]
   const core = bootedCore('harness-switching', {
     displayName: 'Alpha',
     models: [{id: 'a-model', name: 'Alpha Model'}],
@@ -863,7 +871,7 @@ describe('harness switching', () => {
         id: 'beta',
         displayName: 'Beta',
         text: 'Hello from beta',
-        models: [{id: 'b-model', name: 'Beta Model'}],
+        models: BETA_MODELS,
         commands: [{name: 'beta-command', description: 'only beta has it'}],
       },
     ],
@@ -877,30 +885,52 @@ describe('harness switching', () => {
   })
 
   const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-  const trigger = () => page.getByRole('button', {name: 'More composer actions'})
-  const menuitem = (name: string) => page.getByRole('menuitem', {name, exact: true})
+  const prompt = (name: string) => page.getByRole('button', {name: `Model: ${name}`})
+  const model = (name: string) => page.getByRole('menuitemradio', {name, exact: true})
+  const harnessGroup = (name: string) => page.getByRole('group', {name})
   const confirmDialog = () => page.getByRole('alertdialog', {name: 'Switch harness?'})
   const announcements = () => page.getByRole('log', {name: 'Announcements'})
-  const harnessLabel = (name: string) => page.getByText(name, {exact: true})
+  const harnessLabel = (name: string) =>
+    page.getByRole('log').filter({hasText: 'Hello from conciv'}).getByText(name, {exact: true})
 
   async function mountChat(sessionId: string): Promise<void> {
     keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
     await expect.element(input()).toBeVisible()
   }
 
-  test('an empty chat switches at once and the models and slash commands follow the new harness', async () => {
+  test('the prompt menu lists every harness’s models, each named with its harness, and the overflow has no harness rows', async () => {
     await mountChat(await createSession(coreRpc(core())))
 
-    await userEvent.click(trigger())
-    await expect.element(menuitem('Model: Alpha Model')).toBeVisible()
-    await userEvent.click(menuitem('Harness: Beta'))
+    await expect.element(prompt('Alpha Model (Alpha)')).toHaveTextContent('alpha model (alpha)❯')
+    await userEvent.click(prompt('Alpha Model (Alpha)'))
 
-    await expect.element(announcements()).toHaveTextContent('Switched to Beta.')
+    await expect.element(harnessGroup('Alpha').getByRole('menuitemradio', {name: 'Alpha Model (Alpha)'})).toBeVisible()
+    await expect.element(model('Alpha Model (Alpha)')).toHaveAttribute('aria-checked', 'true')
+    await expect.element(harnessGroup('Beta').getByRole('menuitemradio', {name: 'Beta Model (Beta)'})).toBeVisible()
+    await expect.element(model('Beta Four (Beta)')).toBeVisible()
+    await expect.element(model('Beta Five (Beta)')).not.toBeInTheDocument()
+    await userEvent.hover(page.getByRole('menuitem', {name: 'More models'}))
+    await expect.element(model('Beta Five (Beta)')).toBeVisible()
+    await expect.element(model('Beta Six (Beta)')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await expect.element(page.getByRole('menuitem', {name: 'Compress the conversation'})).toBeVisible()
+    await expect.element(page.getByRole('menuitem', {name: /^Harness:/})).not.toBeInTheDocument()
+  })
+
+  test('picking another harness’s model in an empty chat switches at once to that model, and slash commands follow', async () => {
+    await mountChat(await createSession(coreRpc(core())))
+
+    await userEvent.click(prompt('Alpha Model (Alpha)'))
+    await userEvent.click(model('Beta Three (Beta)'))
+
+    await expect.element(announcements()).toHaveTextContent('Switched to Beta Three (Beta).')
     await expect.element(confirmDialog()).not.toBeInTheDocument()
-    await userEvent.click(trigger())
-    await expect.element(menuitem('Harness: Beta (current)')).toBeVisible()
-    await expect.element(menuitem('Model: Beta Model')).toBeVisible()
-    await expect.element(menuitem('Model: Alpha Model')).not.toBeInTheDocument()
+    await expect.element(prompt('Beta Three (Beta)')).toHaveTextContent('beta three (beta)❯')
+    await userEvent.click(prompt('Beta Three (Beta)'))
+    await expect.element(model('Beta Three (Beta)')).toHaveAttribute('aria-checked', 'true')
+    await expect.element(model('Alpha Model (Alpha)')).toHaveAttribute('aria-checked', 'false')
     await userEvent.keyboard('{Escape}')
     await userEvent.click(input())
     await userEvent.keyboard('/')
@@ -908,21 +938,20 @@ describe('harness switching', () => {
     await expect.element(page.getByRole('option', {name: /alpha-command/})).not.toBeInTheDocument()
   })
 
-  test('a chat with history asks first, cancelling keeps the harness', async () => {
+  test('a chat with history asks first, cancelling keeps the harness and the model', async () => {
     const sessionId = await createSession(coreRpc(core()))
     await runTurn(core(), sessionId, 'first question')
     await mountChat(sessionId)
 
-    await userEvent.click(trigger())
-    await userEvent.click(menuitem('Harness: Beta'))
+    await userEvent.click(prompt('Alpha Model (Alpha)'))
+    await userEvent.click(model('Beta Model (Beta)'))
 
     await expect
       .element(confirmDialog().getByText('Switching to Beta sends this chat’s history (about 8 tokens).'))
       .toBeVisible()
     await userEvent.click(page.getByRole('button', {name: 'Cancel'}))
     await expect.element(confirmDialog()).not.toBeInTheDocument()
-    await userEvent.click(trigger())
-    await expect.element(menuitem('Harness: Alpha (current)')).toBeVisible()
+    await expect.element(prompt('Alpha Model (Alpha)')).toBeVisible()
   })
 
   test('labels appear on replies only once the chat has used a second harness', async () => {
@@ -932,10 +961,11 @@ describe('harness switching', () => {
     await expect.element(page.getByText('Hello from conciv')).toBeVisible()
     await expect.element(harnessLabel('Alpha')).not.toBeInTheDocument()
 
-    await userEvent.click(trigger())
-    await userEvent.click(menuitem('Harness: Beta'))
+    await userEvent.click(prompt('Alpha Model (Alpha)'))
+    await userEvent.click(model('Beta Two (Beta)'))
     await userEvent.click(confirmDialog().getByRole('button', {name: 'Switch to Beta'}))
-    await expect.element(announcements()).toHaveTextContent('Switched to Beta.')
+    await expect.element(announcements()).toHaveTextContent('Switched to Beta Two (Beta).')
+    await expect.element(prompt('Beta Two (Beta)')).toBeVisible()
     await userEvent.click(input())
     await userEvent.keyboard('second question{Enter}')
 
@@ -951,27 +981,27 @@ describe('harness switching', () => {
     const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
     await expect.element(panel.getByText('Hello from conciv'), {timeout: 8000}).toBeVisible()
 
-    await userEvent.click(trigger())
-    await userEvent.click(menuitem('Harness: Beta'))
+    await userEvent.click(prompt('Alpha Model (Alpha)'))
+    await userEvent.click(model('Beta Model (Beta)'))
 
     await expect.element(confirmDialog()).toBeVisible()
     await expect.element(panel.getByText('Hello from conciv')).toBeVisible()
     await userEvent.click(confirmDialog().getByRole('button', {name: 'Switch to Beta'}))
     await expect.element(confirmDialog()).not.toBeInTheDocument()
-    await userEvent.click(trigger())
-    await expect.element(menuitem('Harness: Beta (current)')).toBeVisible()
+    await expect.element(prompt('Beta Model (Beta)')).toBeVisible()
     await expect.element(panel.getByText('Hello from conciv')).toBeVisible()
   }, 30_000)
 
-  test('the switcher is disabled while a run is streaming', async () => {
+  test('another harness’s models are disabled while a run is streaming, the current harness’s are not', async () => {
     const sessionId = await createSession(coreRpc(core()))
     await coreControl.holdTurn()
     await sendTurn(core(), sessionId, 'keep this session busy')
     await mountChat(sessionId)
 
-    await userEvent.click(trigger())
+    await userEvent.click(prompt('Alpha Model (Alpha)'))
 
-    await expect.element(menuitem('Harness: Beta')).toHaveAttribute('aria-disabled', 'true')
+    await expect.element(model('Beta Model (Beta)')).toHaveAttribute('aria-disabled', 'true')
+    await expect.element(model('Alpha Model (Alpha)')).not.toHaveAttribute('aria-disabled', 'true')
   })
 
   test('the session selector names each session’s harness', async () => {
@@ -1028,7 +1058,6 @@ describe('launch actions', () => {
             <ComposerActions
               sessionId={sessionId}
               compacting={false}
-              running={false}
               onCompact={() => {}}
               onNewSession={() => {}}
               onStageGrab={() => {}}

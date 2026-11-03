@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {and, eq, isNull} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
-import {SessionId, type HarnessMeta, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import {SessionId, type HarnessMenuEntry, type HarnessMeta, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
 import {
@@ -55,6 +55,21 @@ export function harnessMetaOf(harness: HarnessAdapter): HarnessMeta {
     name: harness.displayName ?? harness.id,
     canLaunch: Boolean(harness.connect),
     imageInput: harness.capabilities.imageInput,
+  }
+}
+
+export async function harnessMenuEntryOf(harness: HarnessAdapter): Promise<HarnessMenuEntry> {
+  try {
+    const models = await resolveHarnessModels(harness)
+    return {
+      ...harnessMetaOf(harness),
+      models,
+      defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
+      modelsFailed: false,
+    }
+  } catch (error) {
+    logError(`[core] listing the ${harness.id} models failed: ${String(error)}`)
+    return {...harnessMetaOf(harness), models: [], defaultModel: harness.defaultModel ?? null, modelsFailed: true}
   }
 }
 
@@ -162,7 +177,12 @@ export function sessionsRouter(deps: RpcDeps) {
       if (!target) throw errors.UNKNOWN_HARNESS()
       if (row.harnessKind === target.id) return {harnessId: target.id}
       if (await chat.plane.live(input.sessionId)) throw errors.SESSION_RUNNING()
-      switchRowHarness(db, input.sessionId, target.id)
+      const model = input.model ?? null
+      if (model !== null) {
+        const models = await resolveHarnessModels(target)
+        if (!models.some((listed) => listed.id === model && !listed.disabled)) throw errors.UNKNOWN_MODEL()
+      }
+      switchRowHarness(db, input.sessionId, target.id, model)
       return {harnessId: target.id}
     }),
     compact: os.sessions.compact.handler(async ({input}) => {

@@ -233,7 +233,7 @@ const EARLIER_NATIVES_NAMESPACE = 'conciv.session.earlierNatives'
 
 const EarlierNativesSchema = z.array(z.object({harnessKind: z.string(), nativeId: HarnessSessionIdSchema})).catch([])
 
-export function switchRowHarness(db: ConcivDb, id: SessionId, harnessKind: string): void {
+export function switchRowHarness(db: ConcivDb, id: SessionId, harnessKind: string, model: string | null): void {
   db.transaction((tx) => {
     const outgoing = tx
       .select({harnessKind: sessions.harnessKind, nativeId: sessions.harnessSessionId})
@@ -256,7 +256,7 @@ export function switchRowHarness(db: ConcivDb, id: SessionId, harnessKind: strin
         .run()
     }
     tx.update(sessions)
-      .set({harnessKind, harnessSessionId: null, model: null, updatedAt: Date.now()})
+      .set({harnessKind, harnessSessionId: null, model, effort: null, updatedAt: Date.now()})
       .where(eq(sessions.id, id))
       .run()
     tx.delete(chatMetadata)

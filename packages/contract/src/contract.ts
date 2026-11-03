@@ -130,9 +130,10 @@ export const contract = {
       .errors({
         ...notFound,
         UNKNOWN_HARNESS: {message: 'that harness is not available'},
+        UNKNOWN_MODEL: {message: 'the target harness does not offer that model'},
         SESSION_RUNNING: {message: 'the session has a run in progress'},
       })
-      .input(SessionIdInput.extend({harnessId: z.string().min(1)}))
+      .input(SessionIdInput.extend({harnessId: z.string().min(1), model: z.string().min(1).optional()}))
       .output(z.object({harnessId: z.string()})),
   },
   drafts: {

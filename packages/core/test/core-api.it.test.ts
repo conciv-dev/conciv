@@ -517,6 +517,8 @@ describe('api installed harnesses', () => {
     process.env.PATH = bin
     process.env.HOME = home
     const {app, dispose} = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})
+    process.env.PATH = saved.PATH
+    process.env.HOME = saved.HOME
     const served = await serveApp(app.fetch)
     try {
       const {harnesses} = await makeRpcClient(served.base).meta.harnesses()
@@ -620,10 +622,14 @@ describe('api harness switching', () => {
       history: betaTranscripts,
     }),
   )
+  const gamma: FakeHarness = {
+    ...createFakeHarness({id: 'gamma', displayName: 'Gamma'}),
+    models: () => Promise.reject(new Error('the gamma model probe failed')),
+  }
   const made: {app: MadeApp | null} = {app: null}
   const kit = sharedKit(() =>
     createTestkit(alpha, async (env) => {
-      const app = await bootMadeApp(env, {harnesses: [beta]})
+      const app = await bootMadeApp(env, {harnesses: [beta, gamma]})
       made.app = app
       return {fetch: app.app.fetch, dispose: app.dispose}
     }).setup(),
@@ -645,14 +651,64 @@ describe('api harness switching', () => {
     return last
   }
 
-  it('lists every available harness with the boot harness as the default', async () => {
+  it('lists every available harness with its models in one answer, a failed model list marked, the boot harness the default', async () => {
     expect(await kit().rpc.meta.harnesses(undefined)).toEqual({
       harnesses: [
-        {id: 'alpha', name: 'Alpha', canLaunch: false, imageInput: false},
-        {id: 'beta', name: 'Beta', canLaunch: false, imageInput: false},
+        {
+          id: 'alpha',
+          name: 'Alpha',
+          canLaunch: false,
+          imageInput: false,
+          models: [{id: 'a-model', name: 'A'}],
+          defaultModel: 'a-model',
+          modelsFailed: false,
+        },
+        {
+          id: 'beta',
+          name: 'Beta',
+          canLaunch: false,
+          imageInput: false,
+          models: [{id: 'b-model', name: 'B'}],
+          defaultModel: 'b-model',
+          modelsFailed: false,
+        },
+        {
+          id: 'gamma',
+          name: 'Gamma',
+          canLaunch: false,
+          imageInput: false,
+          models: [],
+          defaultModel: null,
+          modelsFailed: true,
+        },
       ],
       defaultHarness: 'alpha',
     })
+  })
+
+  it('a switch that names a model leaves the session on that model and clears the effort, the next turn runs it', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await turn(sessionId, 'first question')
+    db().update(sessions).set({effort: 'high'}).where(eq(sessions.id, sessionId)).run()
+
+    expect(await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta', model: 'b-model'})).toEqual({
+      harnessId: 'beta',
+    })
+
+    expect(row(sessionId)).toMatchObject({harnessKind: 'beta', harnessSessionId: null, model: 'b-model', effort: null})
+    expect(await turn(sessionId, 'second question')).toMatchObject({harness: 'beta', model: 'b-model'})
+  })
+
+  it('rejects a switch naming a model the target harness does not list, and changes nothing', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await turn(sessionId, 'stay on alpha')
+    const before = row(sessionId)
+
+    await expect(
+      kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta', model: 'a-model'}),
+    ).rejects.toMatchObject({code: 'UNKNOWN_MODEL'})
+
+    expect(row(sessionId)).toEqual(before)
   })
 
   it('a switch resets the session, the next turn replays the whole chat, and each reply keeps its harness', async () => {
@@ -1705,7 +1761,7 @@ describe('rpc wire', () => {
 
       it('the chosen effort reaches the turn as reasoning, and a model without effort clears it', async () => {
         const sessionId = await newSession()
-        const {models} = await chatKit().rpc.meta.models(undefined)
+        const {models} = await chatKit().rpc.meta.models({sessionId})
         const plain = models.find((model) => model.efforts === undefined)
         if (plain === undefined) throw new Error('the chat harness lists no model without effort')
         expect(await chatKit().rpc.sessions.effort({sessionId, effort: 'high'})).toEqual({effort: 'high'})

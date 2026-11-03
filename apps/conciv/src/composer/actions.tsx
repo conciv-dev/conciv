@@ -12,7 +12,6 @@ import {rpcErrorCode} from '../shell/rpc-error-message.js'
 import {useNotices} from '../shell/notice-context.js'
 import type {Notify} from '../shell/notices.js'
 import {LaunchMenu} from './launch-menu.js'
-import {SessionHarnessSwitcher} from './model-selector.js'
 import {terminalRpc} from './terminal-rpc.js'
 
 const ACT =
@@ -36,7 +35,6 @@ async function copyCommand(notify: Notify, command: string): Promise<void> {
 export function ComposerActions(props: {
   sessionId: string
   compacting: boolean
-  running: boolean
   onCompact: () => void
   onNewSession: () => void
   onStageGrab: (grab: Grab) => void
@@ -126,7 +124,6 @@ export function ComposerActions(props: {
           onRetry={() => void meta.refetch()}
         />
       </Show>
-      <SessionHarnessSwitcher sessionId={props.sessionId} running={props.running} />
     </>
   )
 }

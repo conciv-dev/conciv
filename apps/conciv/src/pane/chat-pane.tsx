@@ -33,6 +33,7 @@ import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {MarkerRow} from '@conciv/contract'
+import type {ChatSession} from '@conciv/client'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
@@ -116,6 +117,22 @@ function isStoppedTurn(message: ChatMessage | undefined): boolean {
   return message?.role === 'assistant' && StoppedMetadataSchema.safeParse(message.metadata).success
 }
 
+function turnHarnessNames(chat: ChatSession, current: () => string | undefined): (turn: Turn) => string | undefined {
+  const harnesses = useHarnesses()
+  const mixed = createMemo(() => {
+    const harnessId = current()
+    if (harnessId === undefined) return false
+    return chat
+      .messages()
+      .some((message, index) => message.role === 'assistant' && (chat.harnessAt(index) ?? harnessId) !== harnessId)
+  })
+  return (turn) => {
+    if (!mixed() || turn.role !== 'assistant') return undefined
+    const harnessId = chat.harnessAt(turn.start) ?? current()
+    return harnessId === undefined ? undefined : harnesses.nameOf(harnessId)
+  }
+}
+
 export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Element {
   const rpc = useRpc()
   const appData = useAppData()
@@ -126,7 +143,6 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const pane = usePane()
   const sessionId = untrack(() => props.sessionId)
   const harness = useSessionHarness(() => sessionId)
-  const harnesses = useHarnesses()
   const chat = pane.chat()
 
   const isThinking = () => chat.status() === 'submitted'
@@ -286,23 +302,14 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
   const stoppedBefore = (index: number): boolean => isStoppedTurn(chat.messages()[index - 1])
   const lastTurnStopped = () => !narrating() && (chat.stopped() || stoppedBefore(chat.messages().length))
-  const harnessOfTurn = (turn: Turn): string | undefined => chat.harnessAt(turn.start) ?? harness()?.id
-  const mixedHarnesses = createMemo(() => {
-    const current = harness()?.id
-    if (current === undefined) return false
-    return chat
-      .messages()
-      .some((message, index) => message.role === 'assistant' && (chat.harnessAt(index) ?? current) !== current)
-  })
+  const turnHarnessName = turnHarnessNames(chat, () => harness()?.id)
   const renderTurnPrefix = (turn: Turn): JSX.Element => (
     <>
       <Show when={stoppedBefore(turn.start)}>
         <Divider kind="stopped" />
       </Show>
       <For each={dividersInRange(turn.start, turn.end)}>{renderDivider}</For>
-      <Show when={mixedHarnesses() && turn.role === 'assistant' && harnessOfTurn(turn)}>
-        {(harnessId) => <span class={HARNESS_LABEL}>{harnesses.nameOf(harnessId())}</span>}
-      </Show>
+      <Show when={turnHarnessName(turn)}>{(name) => <span class={HARNESS_LABEL}>{name()}</span>}</Show>
     </>
   )
 
@@ -397,13 +404,12 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                             initialSelection={storage().restoredSelection}
                             busy={compacting() ? <CompactSpinner /> : undefined}
                             triggers={commandSources.triggers}
-                            prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} />}
+                            prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} running={narrating()} />}
                           >
                             <Suspense fallback={<ComposerActionsPending />}>
                               <ComposerActions
                                 sessionId={sessionId}
                                 compacting={compacting()}
-                                running={narrating()}
                                 onCompact={() => messaging.compact.mutate()}
                                 onNewSession={() => pane.newSession()}
                                 onStageGrab={stageGrab}
