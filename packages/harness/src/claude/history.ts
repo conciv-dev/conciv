@@ -420,12 +420,13 @@ type FactEntry = {identity: string; handle: JsonlFoldHandle<SessionFacts>}
 
 const factHandles = new Map<string, FactEntry>()
 
-async function fileIdentity(path: string, inode: number): Promise<string> {
+async function fileIdentity(path: string): Promise<string> {
   const file = await open(path, 'r')
   try {
+    const {dev, ino} = await file.stat({bigint: true})
     const head = Buffer.alloc(IDENTITY_BYTES)
     const {bytesRead} = await file.read(head, 0, IDENTITY_BYTES, 0)
-    return `${inode}:${head.toString('utf8', 0, bytesRead)}`
+    return `${dev}:${ino}:${head.toString('utf8', 0, bytesRead)}`
   } finally {
     await file.close()
   }
@@ -449,8 +450,8 @@ function forgetOutside(dir: string, kept: ReadonlySet<string>): void {
   }
 }
 
-async function sessionFacts(path: string, inode: number): Promise<SessionFacts> {
-  const identity = await fileIdentity(path, inode).catch(() => null)
+async function sessionFacts(path: string): Promise<SessionFacts> {
+  const identity = await fileIdentity(path).catch(() => null)
   if (identity === null) return emptyFacts()
   const chunk = await factHandle(path, identity)
     .read()
@@ -471,20 +472,17 @@ export async function listSessions(cwd: string, home: string = homedir()): Promi
     await Promise.all(
       names.map(async (name) => {
         try {
-          const info = await stat(join(dir, name))
-          return {name, mtime: info.mtimeMs, inode: info.ino}
+          return {name, mtime: (await stat(join(dir, name))).mtimeMs}
         } catch {
           return null
         }
       }),
     )
-  ).filter((entry): entry is {name: string; mtime: number; inode: number} => entry !== null)
+  ).filter((entry): entry is {name: string; mtime: number} => entry !== null)
   const top = stamped.toSorted((a, b) => b.mtime - a.mtime).slice(0, MAX_SESSIONS)
   forgetOutside(dir, new Set(top.map((f) => join(dir, f.name))))
   return Promise.all(
-    top.map(async (f) =>
-      metaFromFold(f.name.replace(/\.jsonl$/, ''), await sessionFacts(join(dir, f.name), f.inode), f.mtime),
-    ),
+    top.map(async (f) => metaFromFold(f.name.replace(/\.jsonl$/, ''), await sessionFacts(join(dir, f.name)), f.mtime)),
   )
 }
 
