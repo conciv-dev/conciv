@@ -857,6 +857,7 @@ function readStyles(input: {style: CSSStyleDeclaration; element: Element; scan: 
     lineHeight: Number.isFinite(lineHeight) ? lineHeight : fontSize * NORMAL_LINE_HEIGHT,
     fontWeight: Number(style.fontWeight),
     fontFamily: style.fontFamily,
+    textAlign: style.textAlign,
     radius: Number.parseFloat(style.borderTopLeftRadius) || 0,
     position: style.position,
     sizing: {width: ownSizing({...input, property: 'width'}), height: ownSizing({...input, property: 'height'})},

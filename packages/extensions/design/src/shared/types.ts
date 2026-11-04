@@ -89,6 +89,7 @@ export type LiveStyles = {
   lineHeight: number
   fontWeight: number
   fontFamily: string
+  textAlign: string
   radius: number
   position: string
   sizing: {width: Sizing; height: Sizing}

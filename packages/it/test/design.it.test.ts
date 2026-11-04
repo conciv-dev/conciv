@@ -238,6 +238,7 @@ const NO_STYLES = {
   lineHeight: 0,
   fontWeight: 0,
   fontFamily: '',
+  textAlign: 'start',
   radius: 0,
   position: 'static',
   sizing: {width: 'auto' as const, height: 'auto' as const},
@@ -1987,6 +1988,19 @@ describe('deltas', () => {
     expect(report.unmatched.filter((entry) => entry.kind === 'offset' && entry.node === paired.node)).toEqual([])
   })
 
+  it('a centred text from a design source whose node box is its element box but wider than its ink has no move row', async () => {
+    const aligned = await alignedText({align: 'center', inset: 0})
+    expect(aligned.slack).toBeGreaterThan(INSET_INK)
+    expect(aligned.shifts).toEqual([])
+  })
+
+  it('a left-aligned text from a design source whose ink starts 7 px right of the node left edge has a move row of -7', async () => {
+    const aligned = await alignedText({align: 'left', inset: INSET_INK})
+    expect(aligned.shifts).toHaveLength(1)
+    expect(aligned.shifts[0]?.dx).toBeCloseTo(-INSET_INK, 0)
+    expect(aligned.shifts[0]?.dy).toBeCloseTo(0, 0)
+  })
+
   it('a wrapper 20 px off around a child placed where the design puts it has a move row on the wrapper only, and none once it lands', async () => {
     await goto('target')
     const captured = await call('design_capture', {height: 720})
@@ -2182,6 +2196,78 @@ function boxUnion(boxes: Box[]): Box {
     y,
     w: Math.max(...boxes.map((box) => box.x + box.w)) - x,
     h: Math.max(...boxes.map((box) => box.y + box.h)) - y,
+  }
+}
+
+const INSET_INK = 7
+
+async function alignedText(input: {
+  align: 'center' | 'left'
+  inset: number
+}): Promise<{slack: number; shifts: {dx: number; dy: number}[]}> {
+  const {align, inset} = input
+  await goto('target')
+  const {id} = await freshTarget('u1-1280')
+  await call('design_diff', {})
+  const styles = await readFile(HOST_STYLES, 'utf8')
+  const aligned = `${styles}\n* { text-align: ${align} !important; }\n`
+  try {
+    const runs = (await runFiles({id, prefix: 'result-'})).length
+    await writeFile(HOST_STYLES, aligned)
+    await expect
+      .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
+      .toBeGreaterThan(runs)
+    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
+    const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+    const pairs = StoredPairsSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
+    )
+    const captured = await call('design_capture', {height: 720})
+    const found = pairs
+      .filter((pair) => texts.has(pair.node))
+      .map((pair) => ({pair, element: componentAt({components: captured.components, path: pair.path})}))
+      .find(({element}) => {
+        const glyphs = element?.glyphs.flatMap((glyph) => glyph.boxes) ?? []
+        return element !== undefined && glyphs.length > 0 && element.box.w - boxUnion(glyphs).w > INSET_INK * 2
+      })
+    const pair = found?.pair
+    const element = found?.element
+    if (pair === undefined || element === undefined) throw new Error('u1-1280 pairs no text element wider than its ink')
+    const ink = boxUnion(element.glyphs.flatMap((glyph) => glyph.boxes))
+    const box = {...element.box, x: align === 'left' ? ink.x - inset : element.box.x}
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...model,
+        source: {kind: 'figma', ref: 'u1-1280'},
+        nodes: model.nodes.map((node) =>
+          node.id === pair.node
+            ? {
+                ...node,
+                box,
+                lines: [
+                  {
+                    box: {x: box.x, y: ink.y, w: box.w, h: ink.h},
+                    text: typeof node.text === 'string' ? node.text : '',
+                    confidence: 1,
+                  },
+                ],
+              }
+            : node,
+        ),
+      }),
+    )
+    const report = await call('design_diff', {full: true})
+    return {
+      slack: element.box.w - ink.w,
+      shifts: report.unmatched.flatMap((entry) =>
+        entry.kind === 'offset' && entry.node === pair.node && entry.shift !== undefined ? [entry.shift] : [],
+      ),
+    }
+  } finally {
+    await writeFile(HOST_STYLES, styles)
   }
 }
 

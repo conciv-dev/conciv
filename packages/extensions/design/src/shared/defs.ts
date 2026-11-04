@@ -127,6 +127,7 @@ export const LiveStylesSchema = z.object({
   lineHeight: z.number(),
   fontWeight: z.number(),
   fontFamily: z.string(),
+  textAlign: z.string().describe('the computed text-align'),
   radius: z.number(),
   position: z.string(),
   sizing: z

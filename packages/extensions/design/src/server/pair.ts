@@ -1163,7 +1163,14 @@ function inkToInk(pair: Pair): Shift | null {
   if (glyphs.length === 0 || lines.length === 0) return null
   const live = union(glyphs)
   const design = union(lines)
-  return {dx: design.x - live.x, dy: centre(design).y - centre(live).y}
+  return {dx: horizontal({design, live, alignment: pair.live.styles.textAlign}), dy: centre(design).y - centre(live).y}
+}
+
+function horizontal(input: {design: Box; live: Box; alignment: string}): number {
+  const {design, live, alignment} = input
+  if (alignment === 'center') return centre(design).x - centre(live).x
+  if (alignment === 'right' || alignment === 'end') return design.x + design.w - (live.x + live.w)
+  return design.x - live.x
 }
 
 function relative(input: {a: Shift; b: Shift}): Shift {

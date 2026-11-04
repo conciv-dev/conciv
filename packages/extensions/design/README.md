@@ -261,8 +261,9 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   `model.json`, never re-estimated from the raster: the box from `node.box` (so `width` and `height` deltas in the
   geometry stage, `width is 749 where the design has 577`, and the move row uses the node's own position, except
   that with a design source a text pair's move row compares ink to ink: the union of the live
-  glyph boxes against the union of the node's line boxes, left edge and vertical centre, so a text frame taller
-  than its element is no move; either side without lines falls back to the boxes. With a design source the page
+  glyph boxes against the union of the node's line boxes, on the vertical centre and, by the live `text-align`, on the
+  left edge (`left`, `start`), the horizontal centre (`center`) or the right edge (`right`, `end`), so a text frame
+  taller than its element, or a centred line whose node box is wider than its ink, is no move; either side without lines falls back to the boxes. With a design source the page
   shift is the median top-left displacement of the box pairs whose node is not text, and 0 under 3 such pairs,
   so a substitute font that sets every text's ink a few px off moves no box), the
   radius from `node.radius` (compared with the live `border-top-left-radius`), the background from `node.paint`, the
