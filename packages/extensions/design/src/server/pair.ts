@@ -21,7 +21,7 @@ import type {
   TwinPair,
   TwinVote,
 } from '../shared/types.js'
-import {expand, sameLine, trimToInk, type Rgb} from './raster.js'
+import {expand, sameLine, trimToInk, union, type Rgb} from './raster.js'
 import {fnv} from './target.js'
 
 export const PAIRERS = {vote: votePairer} as const satisfies Record<string, Pairer>
@@ -77,13 +77,24 @@ export function pairTwins(input: {a: TargetModel; b: TargetModel; tolerances: To
 export function pairTree(input: {
   matched: Matched[]
   components: LiveComponent[]
+  exact: boolean
   live: Raster
   source: MeasureSource
   mismatchAt: (box: Box) => number
 }): Pair[] {
-  const {matched, live, source, mismatchAt} = input
+  const {matched, exact, live, source, mismatchAt} = input
   const byPath = Map.groupBy(matched, (entry) => entry.component.path)
-  return grow({components: input.components, parent: null, host: null, depth: 1, byPath, live, source, mismatchAt})
+  return grow({
+    components: input.components,
+    parent: null,
+    host: null,
+    depth: 1,
+    byPath,
+    exact,
+    live,
+    source,
+    mismatchAt,
+  })
 }
 
 export function align(input: {pairs: Pair[]; live: Raster; tolerances: Tolerances}): {
@@ -1036,6 +1047,7 @@ function grow(input: {
   host: Owner | null
   depth: number
   byPath: Map<string, Matched[]>
+  exact: boolean
   live: Raster
   source: MeasureSource
   mismatchAt: (box: Box) => number
@@ -1074,11 +1086,12 @@ function makePair(input: {
   parent: Pair | null
   host: Owner | null
   depth: number
+  exact: boolean
   live: Raster
   source: MeasureSource
   mismatchAt: (box: Box) => number
 }): Pair {
-  const {component, entries, selector, parent, host, depth, live, source, mismatchAt} = input
+  const {component, entries, selector, parent, host, depth, exact, live, source, mismatchAt} = input
   const texts = entries.flatMap((entry) => (entry.node.kind === 'text' ? [entry.node] : []))
   const boxed = entries.find((entry) => entry.node.kind !== 'text')
   const node = (boxed ?? entries[0])?.node ?? {id: component.path, kind: 'image', box: component.box, holds: 0}
@@ -1099,6 +1112,7 @@ function makePair(input: {
     next: null,
   }
   if (boxed !== undefined) return {...pair, targetBox: boxed.node.box}
+  if (exact && texts.length > 0) return {...pair, targetBox: union(texts.map((text) => text.box))}
   const shifts = texts.map((text) => inkShift({pair, node: text, live}))
   const dx = median0(shifts.map((shift) => shift.dx))
   const dy = median0(shifts.map((shift) => shift.dy))

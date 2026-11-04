@@ -239,6 +239,16 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   `layout.direction` (`stack` read as column, `grid` as row). A mismatch is one `axis` delta in the structure stage on
   the container, `axis is column where the design has row`, traced to the container's own `flex-direction` or
   `display`. A leaf never carries one.
+- **The design side of a delta.** For a paired element every delta's design value is read from its node in
+  `model.json`, never re-estimated from the raster: the box from `node.box` (so `width` and `height` deltas in the
+  geometry stage, `width is 749 where the design has 577`, and the move row uses the node's own position), the
+  radius from `node.radius` (compared with the live `border-top-left-radius`), the background from `node.paint`, the
+  border colour from `node.border`, the insets, padding and align from `layout.padding`, the axis from
+  `layout.direction`, and typography as stored. A text paired without a box takes the union of its text nodes' boxes
+  when the model comes from a design source; a model registered from an image keeps the live element's size at
+  the point its ink lands on the design's, since an OCR box is ink, not an element. The raster is read only for a
+  value the node has none for (a text's radius, a border the node does not carry, the text colour). A delta
+  therefore changes between two rounds only when the live element changed.
 
 ## Pairing
 

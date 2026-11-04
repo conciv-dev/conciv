@@ -482,6 +482,8 @@ const PX_KINDS: DeltaKindName[] = [
   'fontSize',
   'lineHeight',
   'radius',
+  'width',
+  'height',
 ]
 
 const COLOR_KINDS: DeltaKindName[] = ['background', 'foreground']

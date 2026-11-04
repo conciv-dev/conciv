@@ -116,7 +116,8 @@ const foreground = colorKind({kind: 'foreground', tolerance: TOLERANCES.colorDel
 type Insets = {left: number; right: number; top: number; bottom: number}
 
 function measureInsets(side: Side): Insets | null {
-  const {box, textBox} = side
+  const {box, textBox, padding} = side
+  if (padding !== null) return padding
   if (textBox === null) return null
   return {
     left: Math.round(textBox.x - box.x),
@@ -233,6 +234,24 @@ const padding: DeltaKind = {
   },
 }
 
+function sizeKind(input: {kind: 'width' | 'height'; key: 'w' | 'h'}): DeltaKind {
+  const {kind, key} = input
+  const read = (side: Side): number => Math.round(side.box[key])
+  return {
+    kind,
+    read,
+    measure: ({live, target}) => {
+      const a = read(live)
+      const b = read(target)
+      if (!insetDiffers({live: a, target: b})) return []
+      return [{kind, live: a, target: b}]
+    },
+  }
+}
+
+const boxWidth = sizeKind({kind: 'width', key: 'w'})
+const boxHeight = sizeKind({kind: 'height', key: 'h'})
+
 const radius: DeltaKind = {
   kind: 'radius',
   measure: ({live, target}) => {
@@ -302,6 +321,8 @@ export const DELTA_KINDS: DeltaKind[] = [
   insetRight,
   insetTop,
   insetBottom,
+  boxWidth,
+  boxHeight,
   gapBefore,
   gapAfter,
   align,
@@ -343,11 +364,9 @@ export function sideFrom(input: {
     flow: directionOn({pair, from}),
     columns: columnCount({pair, from, leaves}),
     textBox: contentBox({children, from}),
-    edge:
-      strip === null
-        ? null
-        : medianColor({raster: crop({raster, box: strip}).raster, exclude: new Uint8Array(strip.w * strip.h)}),
-    radius: paintedRadius({raster, box: window}),
+    edge: edgeOn({pair, from, raster, strip}),
+    radius: radiusOn({pair, from, raster, window}),
+    padding: from === 'target' ? (pair.node.layout?.padding ?? null) : null,
     size: sizeOn({pair, from}),
     styles: sideStyles({pair, from, box, raster, color, glyphs}),
   }
@@ -415,6 +434,20 @@ function stripAt(input: {box: Box; side: LiveBorder['side']; width: number; offs
     case 'right':
       return {x: box.x + box.w - width + offset, y: box.y + inset, w: width, h: box.h - inset * 2}
   }
+}
+
+function edgeOn(input: {pair: Pair; from: From; raster: Raster; strip: Box | null}): string | null {
+  const {pair, from, raster, strip} = input
+  if (strip === null) return null
+  const {node} = pair
+  if (from === 'target' && node.kind === 'box' && node.border !== null) return node.border.color
+  return medianColor({raster: crop({raster, box: strip}).raster, exclude: new Uint8Array(strip.w * strip.h)})
+}
+
+function radiusOn(input: {pair: Pair; from: From; raster: Raster; window: Box}): number | null {
+  const {pair, from, raster, window} = input
+  if (pair.node.kind !== 'box') return paintedRadius({raster, box: window})
+  return from === 'target' ? pair.node.radius : pair.live.styles.radius
 }
 
 function sizeOn(input: {pair: Pair; from: From}): Side['size'] {

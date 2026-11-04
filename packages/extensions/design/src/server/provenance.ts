@@ -219,6 +219,8 @@ const DELTA_PROPERTIES = {
   axis: () => ['flex-direction', 'display'],
   columns: () => ['grid-template-columns'],
   sizing: () => ['width'],
+  width: () => ['width', 'min-width', 'max-width', 'flex-basis'],
+  height: () => ['height', 'min-height'],
   text: () => [],
 } as const satisfies Record<DeltaKindName, Candidates>
 

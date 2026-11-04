@@ -224,6 +224,7 @@ export type Side = {
   textBox: Box | null
   edge: string | null
   radius: number | null
+  padding: ContainerLayout['padding'] | null
   size: NodeLayout['size'] | null
   styles: Partial<LiveStyles>
 }

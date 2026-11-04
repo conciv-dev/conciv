@@ -406,6 +406,7 @@ async function runDiff(request: {
   const pairs = pairTree({
     matched,
     components: live.components,
+    exact: model.source.kind !== 'image',
     live: live.raster,
     source: live.source,
     mismatchAt: (box) => maskShare({...pixels, box: expand({box, by: TOLERANCES.tileMargin})}),
@@ -954,6 +955,7 @@ function cssModel(model: TargetModel): TargetModel {
 function scaledNode(input: {node: TargetNode; by: number}): TargetNode {
   const {node, by} = input
   const box = scaledBox({box: node.box, by})
+  if (node.kind === 'box') return {...node, box, radius: node.radius * by}
   if (node.kind !== 'text') return {...node, box}
   return {...node, box, lines: node.lines.map((line) => ({...line, box: scaledBox({box: line.box, by})}))}
 }

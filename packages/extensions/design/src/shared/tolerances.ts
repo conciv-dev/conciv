@@ -146,6 +146,8 @@ const KIND_STAGES = {
   'gap-after': 'geometry',
   padding: 'geometry',
   align: 'geometry',
+  width: 'geometry',
+  height: 'geometry',
   background: 'paint',
   foreground: 'paint',
   radius: 'paint',

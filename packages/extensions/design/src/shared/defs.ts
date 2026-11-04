@@ -43,6 +43,8 @@ const DELTA_KIND_NAMES = [
   'axis',
   'columns',
   'sizing',
+  'width',
+  'height',
   'text',
 ] as const
 

@@ -1681,6 +1681,62 @@ describe('type estimate', () => {
   })
 })
 
+const EditableModelSchema = z.looseObject({
+  nodes: z.array(
+    z.looseObject({
+      id: z.string(),
+      kind: z.string(),
+      box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
+      radius: z.number().optional(),
+      layout: z
+        .looseObject({
+          padding: z.object({top: z.number(), right: z.number(), bottom: z.number(), left: z.number()}).optional(),
+        })
+        .optional(),
+    }),
+  ),
+})
+
+describe('deltas', () => {
+  it('a paired box is compared with its stored radius, width and padding, and a second diff names them again', async () => {
+    await goto('target')
+    const captured = await call('design_capture', {height: 720})
+    const toolbar = captured.components.find((c) => c.source?.file === 'src/Toolbar.tsx')
+    if (toolbar === undefined) throw new Error('the target page has no toolbar')
+    const {id} = await freshTarget('u1-1280')
+    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const header = model.nodes.find((node) => node.kind === 'box' && near({a: node.box, b: toolbar.box}))
+    const padding = header?.layout?.padding
+    if (header === undefined || padding === undefined) throw new Error('u1-1280 has no laid out toolbar box')
+    const stored = {radius: 3, width: toolbar.box.w - 40, right: 16}
+    const edited = {
+      ...header,
+      radius: stored.radius,
+      box: {...header.box, w: stored.width},
+      layout: {...header.layout, padding: {...padding, right: stored.right}},
+    }
+    await writeFile(
+      path,
+      JSON.stringify({...model, nodes: model.nodes.map((node) => (node.id === header.id ? edited : node))}),
+    )
+    const named = (report: DiffReport) =>
+      report.components
+        .filter((component) => sameSource({a: component.source, b: toolbar.source}))
+        .flatMap((component) => component.deltas)
+        .filter((delta) => ['radius', 'width', 'inset-right'].includes(delta.kind))
+        .map((delta) => ({kind: delta.kind, live: delta.live, target: delta.target}))
+        .toSorted((a, b) => a.kind.localeCompare(b.kind))
+    const expected = [
+      {kind: 'inset-right', live: 0, target: stored.right},
+      {kind: 'radius', live: 8, target: stored.radius},
+      {kind: 'width', live: toolbar.box.w, target: stored.width},
+    ]
+    expect(named(await call('design_diff', {}))).toEqual(expected)
+    expect(named(await call('design_diff', {}))).toEqual(expected)
+  })
+})
+
 async function freshTarget(name: string): Promise<TargetResult> {
   await call('design_clear', {all: true})
   return call('design_target', {image: target(name)})
