@@ -3,6 +3,7 @@ import {parse} from 'culori'
 import {SOURCE_ATTR, TOLERANCES, type Tolerances} from '../shared/tolerances.js'
 import type {
   Box,
+  BoxNode,
   Fingerprint,
   Item,
   LiveComponent,
@@ -64,6 +65,7 @@ export function pairTwins(input: {a: TargetModel; b: TargetModel; tolerances: To
     compatible: ({node, candidate}) => node.kind === candidate.kind,
     gate: oneToOne,
     context: emptyContext({nodeRaster: a.raster, candidateRaster: b.raster, candidates, twinVotes: []}),
+    holders: new Map(),
     pins: [],
     carried: [],
     tolerances,
@@ -167,6 +169,7 @@ type VoteInput = {
   compatible: (input: {node: View; candidate: View}) => boolean
   gate: Gate
   context: Context
+  holders: Map<string, string>
   pins: {node: string; path: string}[]
   carried: Assignment[]
   tolerances: Tolerances
@@ -181,6 +184,7 @@ const HEADING_INK = 0.72 * 20
 const INK_SHARE = 0.72
 const INK_SPREAD = 0.3
 const SHORT_TEXT = 6
+const CONTROL_WORDS = 4
 const GLYPH_RUN_HEIGHT = 14
 const MEDIA_TEXT = 0.4
 const UNDER = 0.6
@@ -226,6 +230,7 @@ function votePairer(input: Parameters<Pairer>[0]): ReturnType<Pairer> {
       candidates,
       twinVotes: input.twinVotes,
     }),
+    holders: textHolders(input.nodes),
     pins: input.pins,
     carried: carriedViews({
       records: input.carried,
@@ -323,6 +328,7 @@ function impactRanker(input: {items: Item[]}): Item[] {
 function nodeViews(nodes: TargetNode[]): View[] {
   const byId = new Map(nodes.map((node) => [node.id, node]))
   const ranks = siblingRanks(nodes)
+  const controls = controlBoxes(nodes)
   const views = new Map<string, View>()
   const view = (node: TargetNode): View => {
     const found = views.get(node.id)
@@ -334,7 +340,7 @@ function nodeViews(nodes: TargetNode[]): View[] {
       box: node.box,
       lines: [node.box],
       text: node.kind === 'text' ? folded(node.text) : '',
-      klass: nodeClass({node, within}),
+      klass: nodeClass({node, within, controls}),
       ink: node.kind === 'text' ? inkHeight(node) : null,
       fill: node.kind === 'box' && node.paint !== undefined ? toRgb(node.paint.background) : null,
       tokens: [],
@@ -367,12 +373,72 @@ function spread(input: {index: number; count: number}): number {
   return input.count <= 1 ? 0 : input.index / (input.count - 1)
 }
 
-function nodeClass(input: {node: TargetNode; within: TargetNode | undefined}): KindClass {
-  const {node, within} = input
+function nodeClass(input: {node: TargetNode; within: TargetNode | undefined; controls: Set<string>}): KindClass {
+  const {node, within, controls} = input
   if (node.kind === 'image') return 'media'
-  if (node.kind === 'box') return controlSized(node.box) ? 'control' : 'container'
-  if (within !== undefined && within.kind === 'box' && controlSized(within.box)) return 'control'
+  if (node.kind === 'box') return controls.has(node.id) ? 'control' : 'container'
+  if (within !== undefined && controls.has(within.id)) return 'control'
   return inkHeight(node) >= HEADING_INK ? 'heading' : 'text'
+}
+
+function controlBoxes(nodes: TargetNode[]): Set<string> {
+  const byId = new Map(nodes.map((node) => [node.id, node]))
+  return new Set(
+    heldNodes(nodes).flatMap(({node, held}) => {
+      const parent = node.within === undefined ? undefined : byId.get(node.within)
+      return controlBox({node, parent, held}) ? [node.id] : []
+    }),
+  )
+}
+
+function textHolders(nodes: TargetNode[]): Map<string, string> {
+  return new Map(
+    heldNodes(nodes).flatMap(({node, held}): [string, string][] => {
+      const [only, ...rest] = held
+      return only === undefined || only.kind !== 'text' || rest.length > 0 ? [] : [[node.id, only.id]]
+    }),
+  )
+}
+
+function heldNodes(nodes: TargetNode[]): {node: BoxNode; held: TargetNode[]}[] {
+  const children = Map.groupBy(nodes, (node) => node.within ?? '')
+  return nodes.flatMap((node) => {
+    if (node.kind !== 'box') return []
+    const drawn = (children.get(node.within ?? '') ?? []).filter(
+      (sibling) => sibling.kind === 'text' && holds({outer: node.box, inner: sibling.box}),
+    )
+    return [{node, held: [...(children.get(node.id) ?? []), ...drawn]}]
+  })
+}
+
+function controlBox(input: {node: BoxNode; parent: TargetNode | undefined; held: TargetNode[]}): boolean {
+  const {node, parent, held} = input
+  if (controlSized(node.box)) return true
+  const [only, ...rest] = held
+  if (only === undefined || only.kind !== 'text' || rest.length > 0) return false
+  const short = shortLine(only)
+  if (node.box.h <= CONTROL_HEIGHT) return short
+  return (short || atTopLeft({box: node.box, text: only.box})) && standsOut({node, parent})
+}
+
+function shortLine(node: TextNode): boolean {
+  return node.lines.length <= 1 && words(node.text).length <= CONTROL_WORDS
+}
+
+function atTopLeft(input: {box: Box; text: Box}): boolean {
+  const {box, text} = input
+  return text.x - box.x <= CONTROL_HEIGHT && text.y - box.y <= CONTROL_HEIGHT
+}
+
+function standsOut(input: {node: BoxNode; parent: TargetNode | undefined}): boolean {
+  const {node, parent} = input
+  if (node.border !== null && node.border.width > 0) return true
+  const fill = node.paint === undefined ? null : toRgb(node.paint.background)
+  if (fill === null) return false
+  const behind = parent?.kind === 'box' && parent.paint !== undefined ? toRgb(parent.paint.background) : null
+  if (behind === null) return true
+  const apart = Math.hypot(...fill.map((channel, index) => channel - (behind[index] ?? channel)))
+  return apart > TOLERANCES.segmentDistance
 }
 
 function controlSized(box: Box): boolean {
@@ -542,14 +608,49 @@ function runVote(input: VoteInput): {matched: Assignment[]; partial: boolean; ca
   )
   const pinned = pinsFirst({input, state})
   const carried = carryFirst({input, state})
-  const lists = new Map(
-    input.nodes
-      .filter((node) => !input.context.assigned.has(node.key))
-      .map((node) => [node.key, scoredList({input, weights, state, node})]),
-  )
   const views = new Map(input.nodes.map((node) => [node.key, node]))
-  const result = greedy({input, weights, state, pools, lists, views, matched: [...pinned, ...carried]})
-  return {...result, carried: carried.length}
+  const open = (held: boolean): Map<string, Scored[]> =>
+    new Map(
+      input.nodes
+        .filter((node) => !input.context.assigned.has(node.key) && input.holders.has(node.key) === held)
+        .map((node) => [node.key, scoredList({input, weights, state, node})]),
+    )
+  const first = greedy({input, weights, state, pools, lists: open(false), views, matched: [...pinned, ...carried]})
+  const followed = followTexts({input, weights, state})
+  const result = greedy({
+    input,
+    weights,
+    state,
+    pools,
+    lists: open(true),
+    views,
+    matched: [...first.matched, ...followed],
+  })
+  return {matched: result.matched, partial: first.partial || result.partial, carried: carried.length}
+}
+
+function followTexts(input: {input: VoteInput; weights: Map<VoterName, number>; state: State}): Assignment[] {
+  const {weights, state} = input
+  const {nodes, holders, context} = input.input
+  return nodes.flatMap((node): Assignment[] => {
+    const text = holders.get(node.key)
+    if (text === undefined || context.assigned.has(node.key)) return []
+    const element = context.assigned.get(text)
+    if (element === undefined) return []
+    const candidate = element.klass === 'control' || element.klass === 'media' ? element : enclosing(element)
+    if (candidate === null || state.boxes.has(candidate.key)) return []
+    const {score} = weighed({input: input.input, weights, node, candidate})
+    take({node, candidate, state, context})
+    return [{node, candidate, score}]
+  })
+}
+
+function enclosing(view: View): View | null {
+  const climb = (from: View | null): View | null => {
+    if (from === null || from.parent === null) return null
+    return holds({outer: from.box, inner: view.box}) ? from : climb(from.parent)
+  }
+  return climb(view.parent)
 }
 
 function carryFirst(input: {input: VoteInput; state: State}): Assignment[] {

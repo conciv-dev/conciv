@@ -1702,6 +1702,8 @@ async function repaint(input: {id: string; styles: string; round: number}): Prom
 
 const STRIPE_REBUILT = ['bb458f09', 'da931653', '2332a289', 'ed1ee3d9']
 const StoredPairsSchema = z.array(z.object({node: z.string(), path: z.string()}))
+const ControlPairsSchema = z.array(z.object({node: z.string(), fingerprint: z.object({tag: z.string()}).optional()}))
+const CONTACT_LABELS = ['Your Email', 'Message', 'Send']
 
 describe('pairing', () => {
   it('stripe against stripe-1280 pairs the rebuilt headings and no single glyph', async ({annotate}) => {
@@ -1720,6 +1722,95 @@ describe('pairing', () => {
     expect(compact.counts.paired).toBeGreaterThanOrEqual(92)
     expect(STRIPE_REBUILT.filter((node) => !paired.has(node))).toEqual([])
     expect(glyphs).toEqual([])
+  })
+
+  it('the fields and the button of a contact form pair with the boxes drawn for them', async ({annotate}) => {
+    await goto('contact')
+    const {id} = await freshTarget('contact-1280')
+    const report = await call('design_diff', {})
+    const controls = await page.locator('.contact-form > *').evaluateAll((elements) =>
+      elements.map((element) => {
+        const rect = element.getBoundingClientRect()
+        return {tag: element.tagName.toLowerCase(), box: {x: rect.x, y: rect.y, w: rect.width, h: rect.height}}
+      }),
+    )
+    const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+    const pairs = ControlPairsSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
+    )
+    const boxes = new Map(
+      (await storedNodes(id)).filter((node) => node.kind === 'box').map((node) => [node.id, node.box]),
+    )
+    await annotate(`controls ${JSON.stringify(controls)} brief ${JSON.stringify(report.brief)}`)
+    expect(controls.map((control) => control.tag)).toEqual(['input', 'textarea', 'button'])
+    expect(
+      controls.filter(
+        (control) =>
+          !pairs.some((pair) => {
+            const box = boxes.get(pair.node)
+            return pair.fingerprint?.tag === control.tag && box !== undefined && near({a: box, b: control.box})
+          }),
+      ),
+    ).toEqual([])
+    expect(
+      report.unmatched.filter((entry) =>
+        controls.some((control) => entry.target !== undefined && near({a: entry.target, b: control.box})),
+      ),
+    ).toEqual([])
+    expect(
+      report.brief.filter(
+        (line) => line.includes('build') && CONTACT_LABELS.some((label) => line.includes(`"${label}"`)),
+      ),
+    ).toEqual([])
+  })
+
+  it('a contact form shifted right still pairs its controls with their boxes and is briefed to move', async ({
+    annotate,
+  }) => {
+    await goto('contact')
+    const {id} = await freshTarget('contact-1280')
+    const controls = await page.locator('.contact-form > *').evaluateAll((elements) =>
+      elements.map((element) => {
+        const rect = element.getBoundingClientRect()
+        return {tag: element.tagName.toLowerCase(), box: {x: rect.x, y: rect.y, w: rect.width, h: rect.height}}
+      }),
+    )
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    try {
+      const runs = (await runFiles({id, prefix: 'result-'})).length
+      await writeFile(HOST_STYLES, `${styles}\n.contact-form { margin-left: 400px; }\n`)
+      await expect
+        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
+        .toBeGreaterThan(runs)
+      const report = await call('design_diff', {})
+      const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+      const pairs = ControlPairsSchema.parse(
+        JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
+      )
+      const boxes = new Map(
+        (await storedNodes(id)).filter((node) => node.kind === 'box').map((node) => [node.id, node.box]),
+      )
+      await annotate(`controls ${JSON.stringify(controls)} brief ${JSON.stringify(report.brief)}`)
+      expect(controls.map((control) => control.tag)).toEqual(['input', 'textarea', 'button'])
+      expect(
+        controls.filter(
+          (control) =>
+            !pairs.some((pair) => {
+              const box = boxes.get(pair.node)
+              return pair.fingerprint?.tag === control.tag && box !== undefined && near({a: box, b: control.box})
+            }),
+        ),
+      ).toEqual([])
+      const about = report.brief.filter(
+        (line) =>
+          controls.some((control) => line.includes(`${control.tag} (`)) ||
+          CONTACT_LABELS.some((label) => line.includes(`"${label}"`)),
+      )
+      expect(about[0]?.startsWith('move ')).toBe(true)
+      expect(about.filter((line) => line.startsWith('build'))).toEqual([])
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
   })
 })
 
