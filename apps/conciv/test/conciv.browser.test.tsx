@@ -776,7 +776,7 @@ describe('launcher drag', () => {
     await page.viewport(1000, 700)
     harness.mountShell('/')
     await expect.element(launcher()).toBeVisible()
-    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: 400, dy: -100, steps: 12}]})
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: 400, deltaY: -100, steps: 12}]})
     await expect.element(edgeTab()).toBeVisible()
     await expect.element(launcher()).not.toBeInTheDocument()
     await expect.element(editor()).not.toBeInTheDocument()
@@ -791,7 +791,7 @@ describe('launcher drag', () => {
   test('a tucked launcher stays tucked after a reload, and Enter on the focused tab restores it', async () => {
     await page.viewport(1000, 700)
     harness.mountShell('/')
-    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -1200, dy: -200, steps: 16}]})
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -1200, deltaY: -200, steps: 16}]})
     await expect.element(edgeTab()).toBeVisible()
     harness.dispose()
     harness.mountShell('/')
@@ -808,47 +808,55 @@ describe('launcher drag', () => {
   test('Escape mid-drag drops the gesture, so a release past the edge leaves the launcher where it was', async () => {
     await page.viewport(1000, 700)
     harness.mountShell('/')
-    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: 400, dy: 0, steps: 12}], escape: true})
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: 400, deltaY: 0, steps: 12}], escape: true})
     await expect.element(launcher()).toBeVisible()
     await expect.element(edgeTab()).not.toBeInTheDocument()
     await capture('escape-cancelled')
-    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: 400, dy: 0, steps: 12}]})
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: 400, deltaY: 0, steps: 12}]})
     await expect.element(edgeTab()).toBeVisible()
   })
 
   test('a release within reach of a corner pins the launcher into it', async () => {
     await page.viewport(1000, 700)
     harness.mountShell('/')
-    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -844, dy: -544, steps: 20}], settleMs: 300})
+    await coreControl.dragButton({
+      name: 'Open conciv chat',
+      moves: [{deltaX: -844, deltaY: -544, steps: 20}],
+      settleMs: 300,
+    })
     await capture('pinned-top-left')
     await launcher().click()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     await capture('pinned-top-left-panel')
     await minimize().click()
     await expect.element(launcher()).toBeVisible()
-    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -90, dy: 0, steps: 6}]})
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -90, deltaY: 0, steps: 6}]})
     await expect.element(edgeTab()).toBeVisible()
   })
 
   test('a release in the open leaves the launcher where it was dropped, under the grab point', async () => {
     await page.viewport(1000, 700)
     harness.mountShell('/')
-    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -454, dy: -304, steps: 20}], settleMs: 300})
+    await coreControl.dragButton({
+      name: 'Open conciv chat',
+      moves: [{deltaX: -454, deltaY: -304, steps: 20}],
+      settleMs: 300,
+    })
     await capture('free-centre')
     await launcher().click()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     await capture('free-centre-panel')
     await minimize().click()
     await expect.element(launcher()).toBeVisible()
-    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -520, dy: 0, steps: 12}]})
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -520, deltaY: 0, steps: 12}]})
     await expect.element(edgeTab()).toBeVisible()
   })
 
   test('a press that moves 4px or less is a click and one that moves 5px is a drag that never toggles the chat', async () => {
     await page.viewport(1000, 700)
     harness.mountShell('/')
-    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -5, dy: 0}], settleMs: 100})
-    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -3, dy: 0}]})
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -5, deltaY: 0}], settleMs: 100})
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -3, deltaY: 0}]})
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
   }, 30_000)
 
@@ -868,7 +876,7 @@ describe('launcher drag', () => {
     harness.mountShell('/')
     await expect.element(launcher()).toBeVisible()
     await capture('keyboard-top-left-reloaded')
-    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -150, dy: 0, steps: 8}]})
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -150, deltaY: 0, steps: 8}]})
     await expect.element(edgeTab()).toBeVisible()
   })
 })

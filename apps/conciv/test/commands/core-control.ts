@@ -24,7 +24,7 @@ export type BootCoreInput = {
 
 export type BootCoreResult = {base: string; wsBase: string; origin: string; bootMs: number}
 
-export type PointerMove = {dx: number; dy: number; steps?: number}
+export type PointerMove = {deltaX: number; deltaY: number; steps?: number}
 
 export type PointerDrag = {name: string; moves: PointerMove[]; escape?: boolean; settleMs?: number}
 
@@ -357,7 +357,7 @@ const dragButton: BrowserCommand<[drag: PointerDrag]> = async (ctx, drag) => {
   await ctx.page.mouse.down()
   await drag.moves.reduce(async (previous: Promise<{x: number; y: number}>, move) => {
     const at = await previous
-    const next = {x: at.x + move.dx, y: at.y + move.dy}
+    const next = {x: at.x + move.deltaX, y: at.y + move.deltaY}
     await ctx.page.mouse.move(next.x, next.y, {steps: move.steps ?? 1})
     return next
   }, Promise.resolve(start))

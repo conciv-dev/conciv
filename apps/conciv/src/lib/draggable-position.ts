@@ -65,8 +65,8 @@ function measure(): Measure {
   }
 }
 
-function square(m: Measure): {width: number; height: number} {
-  return {width: m.size, height: m.size}
+function square(measured: Measure): {width: number; height: number} {
+  return {width: measured.size, height: measured.size}
 }
 
 function isSideEdge(edge: TriggerEdge): boolean {
@@ -83,33 +83,33 @@ function percentsOf(placement: Placement): TriggerCoords {
   return {x: placement.along, y: 100}
 }
 
-function pixelsOf(placement: Placement, m: Measure): TriggerCoords {
-  if (placement.kind === 'corner') return cornerCoords(placement.corner, m.bounds)
+function pixelsOf(placement: Placement, measured: Measure): TriggerCoords {
+  if (placement.kind === 'corner') return cornerCoords(placement.corner, measured.bounds)
   const percents = percentsOf(placement)
   return {
-    x: toPixels(percents.x, m.bounds.minX, m.bounds.maxX),
-    y: toPixels(percents.y, m.bounds.minY, m.bounds.maxY),
+    x: toPixels(percents.x, measured.bounds.minX, measured.bounds.maxX),
+    y: toPixels(percents.y, measured.bounds.minY, measured.bounds.maxY),
   }
 }
 
-function freeAt(at: TriggerCoords, m: Measure): Placement {
+function freeAt(at: TriggerCoords, measured: Measure): Placement {
   return {
     kind: 'free',
-    x: toPercent(at.x, m.bounds.minX, m.bounds.maxX),
-    y: toPercent(at.y, m.bounds.minY, m.bounds.maxY),
+    x: toPercent(at.x, measured.bounds.minX, measured.bounds.maxX),
+    y: toPercent(at.y, measured.bounds.minY, measured.bounds.maxY),
   }
 }
 
-function tabSpan(edge: TriggerEdge, m: Measure): number {
-  return (isSideEdge(edge) ? m.viewport.height : m.viewport.width) - m.tabLength - m.tabPad
+function tabSpan(edge: TriggerEdge, measured: Measure): number {
+  return (isSideEdge(edge) ? measured.viewport.height : measured.viewport.width) - measured.tabLength - measured.tabPad
 }
 
-function tabAlong(edge: TriggerEdge, at: TriggerCoords, m: Measure): number {
-  return clamp(isSideEdge(edge) ? at.y : at.x, m.tabPad, Math.max(m.tabPad, tabSpan(edge, m)))
+function tabAlong(edge: TriggerEdge, at: TriggerCoords, measured: Measure): number {
+  return clamp(isSideEdge(edge) ? at.y : at.x, measured.tabPad, Math.max(measured.tabPad, tabSpan(edge, measured)))
 }
 
-function edgeAt(edge: TriggerEdge, at: TriggerCoords, m: Measure): Placement {
-  return {kind: 'edge', edge, along: toPercent(tabAlong(edge, at, m), m.tabPad, tabSpan(edge, m))}
+function edgeAt(edge: TriggerEdge, at: TriggerCoords, measured: Measure): Placement {
+  return {kind: 'edge', edge, along: toPercent(tabAlong(edge, at, measured), measured.tabPad, tabSpan(edge, measured))}
 }
 
 function clampToBounds(at: TriggerCoords, bounds: Bounds): TriggerCoords {
@@ -186,13 +186,13 @@ function hotCornerFor(press: Press, at: TriggerCoords, delta: TriggerCoords, mag
 }
 
 function dragAt(press: Press, snoozed: TriggerCorner | null, event: PointerEvent): Drag {
-  const m = press.measure
+  const measured = press.measure
   const delta = {x: event.clientX - press.start.x, y: event.clientY - press.start.y}
   const at = {
-    x: clamp(press.origin.x + delta.x, -m.size / 2, m.viewport.width - m.size / 2),
-    y: clamp(press.origin.y + delta.y, -m.size / 2, m.viewport.height - m.size / 2),
+    x: clamp(press.origin.x + delta.x, -measured.size / 2, measured.viewport.width - measured.size / 2),
+    y: clamp(press.origin.y + delta.y, -measured.size / 2, measured.viewport.height - measured.size / 2),
   }
-  const edge = offScreenEdge(at, square(m), m.viewport)
+  const edge = offScreenEdge(at, square(measured), measured.viewport)
   const corner = edge ? null : hotCornerFor(press, at, delta, event.shiftKey)
   const keptSnooze = corner === snoozed ? snoozed : null
   const elapsed = event.timeStamp - press.last.t
@@ -217,13 +217,13 @@ function thrownCorner(drag: Drag, velocity: TriggerCoords, end: TriggerCoords): 
   return cornerAt(end, drag.measure.bounds)
 }
 
-function anchorAt(at: TriggerCoords, m: Measure): LauncherAnchor {
-  const corner = quadrantCorner(at, square(m), m.viewport)
+function anchorAt(at: TriggerCoords, measured: Measure): LauncherAnchor {
+  const corner = quadrantCorner(at, square(measured), measured.viewport)
   const side = corner.endsWith('left') ? 'left' : 'right'
   return {
     corner,
     side,
-    inline: side === 'left' ? `${at.x}px` : `${m.viewport.width - at.x - m.size}px`,
+    inline: side === 'left' ? `${at.x}px` : `${measured.viewport.width - at.x - measured.size}px`,
     top: `${at.y}px`,
   }
 }
@@ -272,15 +272,15 @@ export type DraggablePosition = {
   restore: () => void
 }
 
-export function createDraggablePosition(opts: {initial: TriggerPosition; storageKey: string}): DraggablePosition {
+export function createDraggablePosition(options: {initial: TriggerPosition; storageKey: string}): DraggablePosition {
   const [state, setState] = createStore<{placement: Placement; gesture: Gesture}>({
-    placement: readStorage(opts.storageKey, parsePlacement, presetPlacement(opts.initial)),
+    placement: readStorage(options.storageKey, parsePlacement, presetPlacement(options.initial)),
     gesture: {phase: 'idle'},
   })
   const setGesture = (next: Gesture) => setState('gesture', reconcile(next))
   const commit = (placement: Placement) => {
     setState('placement', reconcile(placement))
-    writeStorage(opts.storageKey, placement, JSON.stringify)
+    writeStorage(options.storageKey, placement, JSON.stringify)
   }
 
   const onHeldStill = () => {
@@ -317,10 +317,10 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
 
   const release = (drag: Drag, timeStamp: number, canThrow: boolean) => {
     hold.cancel()
-    const m = drag.measure
-    const edge = offScreenEdge(drag.at, square(m), m.viewport)
+    const measured = drag.measure
+    const edge = offScreenEdge(drag.at, square(measured), measured.viewport)
     if (edge) {
-      commit(edgeAt(edge, drag.at, m))
+      commit(edgeAt(edge, drag.at, measured))
       setGesture({phase: 'released'})
       return
     }
@@ -328,12 +328,12 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
       settle(drag, [drag.at], {kind: 'corner', corner: drag.hot})
       return
     }
-    const resting = clampToBounds(drag.at, m.bounds)
+    const resting = clampToBounds(drag.at, measured.bounds)
     const velocity = timeStamp - drag.last.t > STALE_RELEASE_MS ? {x: 0, y: 0} : drag.velocity
-    const path = canThrow && !reduceMotion() ? throwPath(resting, velocity, m.bounds) : []
+    const path = canThrow && !reduceMotion() ? throwPath(resting, velocity, measured.bounds) : []
     const end = path.at(-1) ?? resting
     const corner = path.length === 0 ? null : thrownCorner(drag, velocity, end)
-    settle(drag, [drag.at, ...path], corner ? {kind: 'corner', corner} : freeAt(end, m))
+    settle(drag, [drag.at, ...path], corner ? {kind: 'corner', corner} : freeAt(end, measured))
   }
 
   const onPointerDown = (event: PointerEvent) => {
@@ -345,14 +345,14 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
       .filter((animation) => animation.id === SETTLE_ID)
       .forEach((animation) => animation.cancel())
     element.setPointerCapture(event.pointerId)
-    const m = measure()
+    const measured = measure()
     setGesture({
       phase: 'pressing',
       element,
       pointerId: event.pointerId,
       start: {x: event.clientX, y: event.clientY},
-      origin: pixelsOf(state.placement, m),
-      measure: m,
+      origin: pixelsOf(state.placement, measured),
+      measure: measured,
       from: state.placement,
       velocity: {x: 0, y: 0},
       last: {x: event.clientX, y: event.clientY, t: event.timeStamp},
@@ -403,20 +403,24 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
   )
 
   const onKeyDown = (event: KeyboardEvent) => {
-    const dx = arrowStep(event.key, 'ArrowLeft', 'ArrowRight')
-    const dy = arrowStep(event.key, 'ArrowUp', 'ArrowDown')
-    if (dx === 0 && dy === 0) return
+    const deltaX = arrowStep(event.key, 'ArrowLeft', 'ArrowRight')
+    const deltaY = arrowStep(event.key, 'ArrowUp', 'ArrowDown')
+    if (deltaX === 0 && deltaY === 0) return
     event.preventDefault()
-    const m = measure()
-    const current = pixelsOf(state.placement, m)
+    const measured = measure()
+    const current = pixelsOf(state.placement, measured)
     if (event.shiftKey) {
       const fallback =
-        state.placement.kind === 'corner' ? state.placement.corner : quadrantCorner(current, square(m), m.viewport)
-      const corner = directionCorner(dx * 100, dy * 100, fallback)
+        state.placement.kind === 'corner'
+          ? state.placement.corner
+          : quadrantCorner(current, square(measured), measured.viewport)
+      const corner = directionCorner(deltaX * 100, deltaY * 100, fallback)
       if (corner) commit({kind: 'corner', corner})
       return
     }
-    commit(freeAt(clampToBounds({x: current.x + dx * NUDGE, y: current.y + dy * NUDGE}, m.bounds), m))
+    commit(
+      freeAt(clampToBounds({x: current.x + deltaX * NUDGE, y: current.y + deltaY * NUDGE}, measured.bounds), measured),
+    )
   }
 
   const consumeClick = (): boolean => {

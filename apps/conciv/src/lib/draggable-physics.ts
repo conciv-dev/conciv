@@ -54,16 +54,16 @@ function axisIntent(delta: number, other: number, deadzone: number): boolean {
 }
 
 export function directionCorner(
-  dx: number,
-  dy: number,
+  deltaX: number,
+  deltaY: number,
   fallback: TriggerCorner | null,
   deadzone = DIRECTION_DEADZONE,
 ): TriggerCorner | null {
-  if (Math.abs(dx) <= deadzone && Math.abs(dy) <= deadzone) return fallback
+  if (Math.abs(deltaX) <= deadzone && Math.abs(deltaY) <= deadzone) return fallback
   const fallbackTop = fallback?.startsWith('top') ?? false
   const fallbackLeft = fallback?.endsWith('left') ?? false
-  const top = axisIntent(dy, dx, deadzone) ? dy < 0 : fallbackTop
-  const left = axisIntent(dx, dy, deadzone) ? dx < 0 : fallbackLeft
+  const top = axisIntent(deltaY, deltaX, deadzone) ? deltaY < 0 : fallbackTop
+  const left = axisIntent(deltaX, deltaY, deadzone) ? deltaX < 0 : fallbackLeft
   return `${top ? 'top' : 'bottom'}-${left ? 'left' : 'right'}`
 }
 
@@ -83,27 +83,32 @@ export function offScreenEdge({x, y}: TriggerCoords, size: Size, viewport: Size)
   return null
 }
 
-export function stepAxis(pos: number, vel: number, min: number, max: number): {pos: number; vel: number} {
-  const next = pos + vel
-  if (next <= min) return {pos: min, vel: -vel * FRICTION * RESTITUTION}
-  if (next >= max) return {pos: max, vel: -vel * FRICTION * RESTITUTION}
-  return {pos: next, vel: vel * FRICTION}
+export function stepAxis(
+  position: number,
+  velocity: number,
+  min: number,
+  max: number,
+): {position: number; velocity: number} {
+  const next = position + velocity
+  if (next <= min) return {position: min, velocity: -velocity * FRICTION * RESTITUTION}
+  if (next >= max) return {position: max, velocity: -velocity * FRICTION * RESTITUTION}
+  return {position: next, velocity: velocity * FRICTION}
 }
 
 export function throwPath(from: TriggerCoords, velocity: TriggerCoords, bounds: Bounds): TriggerCoords[] {
   const path: TriggerCoords[] = []
-  let x = {pos: from.x, vel: velocity.x}
-  let y = {pos: from.y, vel: velocity.y}
-  while (Math.hypot(x.vel, y.vel) > MIN_SPEED && path.length < THROW_FRAME_CAP) {
-    x = stepAxis(x.pos, x.vel, bounds.minX, bounds.maxX)
-    y = stepAxis(y.pos, y.vel, bounds.minY, bounds.maxY)
-    path.push({x: x.pos, y: y.pos})
+  let x = {position: from.x, velocity: velocity.x}
+  let y = {position: from.y, velocity: velocity.y}
+  while (Math.hypot(x.velocity, y.velocity) > MIN_SPEED && path.length < THROW_FRAME_CAP) {
+    x = stepAxis(x.position, x.velocity, bounds.minX, bounds.maxX)
+    y = stepAxis(y.position, y.velocity, bounds.minY, bounds.maxY)
+    path.push({x: x.position, y: y.position})
   }
   return path
 }
 
-export function toPercent(pos: number, min: number, max: number): number {
-  return max > min ? clamp(((pos - min) / (max - min)) * 100, 0, 100) : 0
+export function toPercent(position: number, min: number, max: number): number {
+  return max > min ? clamp(((position - min) / (max - min)) * 100, 0, 100) : 0
 }
 
 export function toPixels(percent: number, min: number, max: number): number {

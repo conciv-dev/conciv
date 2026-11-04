@@ -330,19 +330,19 @@ describe('launcher drag physics', () => {
     })
 
     it('advances position by velocity while inside the walls', () => {
-      const {pos, vel} = stepAxis(100, 10, 0, 500)
-      expect(pos).toBe(110)
-      expect(vel).toBeCloseTo(9.5)
+      const {position, velocity} = stepAxis(100, 10, 0, 500)
+      expect(position).toBe(110)
+      expect(velocity).toBeCloseTo(9.5)
     })
 
     it('bounces and damps velocity at a wall', () => {
       const hitMax = stepAxis(495, 20, 0, 500)
-      expect(hitMax.pos).toBe(500)
-      expect(hitMax.vel).toBeCloseTo(-9.5)
+      expect(hitMax.position).toBe(500)
+      expect(hitMax.velocity).toBeCloseTo(-9.5)
 
       const hitMin = stepAxis(5, -20, 0, 500)
-      expect(hitMin.pos).toBe(0)
-      expect(hitMin.vel).toBeGreaterThan(0)
+      expect(hitMin.position).toBe(0)
+      expect(hitMin.velocity).toBeGreaterThan(0)
     })
 
     it('a throw decays to a stop inside the walls, bouncing off the one it hits', () => {
