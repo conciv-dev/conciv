@@ -330,7 +330,7 @@ async function runDiff(request: {
   }
   const repeated = repeatedRound({rounds, capture, observe: job.observe, clock})
   if (repeated !== null) return repeated
-  const previous = touched === 'all' ? null : await design.store.latestRun(record.id)
+  const previous = await design.store.latestRun(record.id)
   const tiles = previous === null ? null : await design.store.tiles({id: record.id, run: previous.run})
   const droppedBoxes = model.nodes.filter((node) => dropped.has(node.id)).map((node) => node.box)
   const live = {
