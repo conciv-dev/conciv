@@ -1286,11 +1286,13 @@ function readingBox(input: {a: Box; b: Box}): number {
 
 function slotDeltas(input: {pair: Pair; deltas: Delta[]}): Delta[] {
   const {pair, deltas} = input
-  if (pair.node.kind !== 'image' || pair.live.placeholder === null) return deltas
+  if (pair.node.kind !== 'image') return deltas
+  if (pair.live.placeholder === null) return deltas.filter((delta) => !PICTURE_PAINT.has(delta.kind))
   return deltas.filter((delta) => !SLOT_STAGES.has(kindStage(delta.kind)))
 }
 
 const SLOT_STAGES = new Set<Stage | null>(['paint', 'content'])
+const PICTURE_PAINT = new Set<Delta['kind']>(['background', 'foreground', 'border'])
 
 function textDeltas(input: {pair: Pair; judged: Map<Pair, TextJudgement>}): Delta[] {
   const found = input.judged.get(input.pair)

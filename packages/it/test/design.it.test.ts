@@ -3254,6 +3254,15 @@ const GRADIENT_PAGE = `export function Stripe() {
   )
 }
 `
+const PICTURE_PAGE = `export function Stripe() {
+  return (
+    <main style={{margin: -24, height: 420, position: 'relative', background: '#ffffff'}}>
+      <div style={{position: 'absolute', left: ${PICTURE_BOX.x}, top: ${PICTURE_BOX.y}, width: ${PICTURE_BOX.w}, height: ${PICTURE_BOX.h}, background: '#8a2be2'}} />
+    </main>
+  )
+}
+`
+const PICTURE_PAINT_KINDS: string[] = ['background', 'foreground', 'border']
 const PaintItemsSchema = z.object({
   nodes: z.record(
     z.string(),
@@ -3651,6 +3660,35 @@ describe('icons', () => {
       expect(solid.map((item) => item.size > 1)).toEqual([true])
       expect(report.score[4]).toBeGreaterThan(0)
       expect(report.score[4]).toBeGreaterThanOrEqual(solid[0]?.size ?? Number.POSITIVE_INFINITY)
+    } finally {
+      await writeFile(STRIPE_SOURCE, source)
+      await page.setViewportSize({width: 1280, height: 720})
+    }
+  }, 240_000)
+
+  it('a solid live box over the picture pairs it and has no paint row, since the picture is no colour', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    await page.setViewportSize(GRADIENT_SIZE)
+    await writeGradientDesign()
+    const {id} = await freshTarget(GRADIENT_DESIGN)
+    const picture = (await storedNodes(id)).find((node) => node.kind === 'image' && near({a: node.box, b: PICTURE_BOX}))
+    if (picture === undefined) throw new Error(`${GRADIENT_DESIGN} has no image node at the picture`)
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await rewrite({id, file: STRIPE_SOURCE, text: PICTURE_PAGE})
+      const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
+      const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+      const pairs = StoredPairsSchema.parse(
+        JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
+      )
+      const deltas = report.components
+        .filter((component) => component.nodes?.includes(picture.id) === true)
+        .flatMap((component) => component.deltas)
+      await annotate(`picture ${JSON.stringify(picture.box)} deltas ${JSON.stringify(deltas)}`)
+      expect(pairs.map((pair) => pair.node)).toContain(picture.id)
+      expect(deltas.filter((delta) => PICTURE_PAINT_KINDS.includes(delta.kind))).toEqual([])
     } finally {
       await writeFile(STRIPE_SOURCE, source)
       await page.setViewportSize({width: 1280, height: 720})

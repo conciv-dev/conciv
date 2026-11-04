@@ -410,7 +410,9 @@ source and use <Placeholder kind=…> for every image and icon line`, and the x-
   an icon, logo or illustration. Its root carries `data-conciv-placeholder="<kind>"`, which the measure reports as the
   component's `placeholder` (null elsewhere); pairing counts a placeholder as media, like an `img`, so an image node
   pairs with the placeholder in its slot by box and order. Such a pair keeps its geometry deltas and drops paint and
-  content ones.
+  content ones. Any other pair whose node is an image has no `background` (a solid or gradient fill), `foreground`
+  or `border` row either, since the design side would be the picture's median colour and filling the slot with it
+  is never the fix; its geometry rows stay.
 - **Drawn pictures.** The measure marks a component `drawn` when it is an `<svg>` with a path, polygon or circle
   inside, an `<img>` whose `src` is a `data:` url, or a `<canvas>`. A drawn component that pairs with an image node,
   or whose box lies inside one, raises one `svg-drawn` warning (`svg (src/Landing.tsx:120): drawn svg; replace it
