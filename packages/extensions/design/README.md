@@ -88,7 +88,9 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   with its sentence, stage, design node, source and `crop`), `changes` (see [Ledger](#ledger)), `designPath` and `placeholderPath` (see [Design outline](#design-outline)), `xray`,
   `diffImage`, `livePath`, `capturePath`, `sources`, `partial` and
   `hint`. `design_diff({full: true})` returns the full report with every
-  component and delta; the store, `design_status` and the x-ray always hold the full one. When the components
+  component and delta; the store, `design_status` and the x-ray always hold the full one. `depth` bounds only the
+  components without deltas: a component with a delta is listed at any depth, so every item `score` counts sits in
+  `components`, `unmatched` or `rows` (within `limit`). When the components
   list was cut to `limit`, `hint` reads `showing 12 of 89 paired components, those with deltas first; full: true
   lists up to limit of each and truncated says how many more`, so a short list is not read as the number of pairs. `full: true` cuts `components` and `unmatched`
   to `limit` entries each and reports the entries cut as `truncated: {components, unmatched}`. `design_diff({section})` takes a section id from

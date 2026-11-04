@@ -1613,7 +1613,7 @@ function reportedComponents(input: {
         ...twinDisagreement({pair: entry.pair, placements}),
       },
     }))
-    .filter(({report, pair}) => (report.deltas.length > 0 || report.children === 0) && pair.depth <= input.input.depth)
+    .filter(({report, pair}) => report.deltas.length > 0 || (report.children === 0 && pair.depth <= input.input.depth))
     .toSorted(
       (a, b) =>
         Number(b.report.deltas.length > 0) - Number(a.report.deltas.length > 0) ||
