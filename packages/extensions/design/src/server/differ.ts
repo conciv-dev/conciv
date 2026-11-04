@@ -322,8 +322,9 @@ async function runDiff(request: {
   const route = await otherRoute({record, page})
   if (route !== null) return refused({record, route, xray})
   const decisions = await design.store.decisions(record.id)
-  const model = cssModel(await design.store.model(record.id))
-  const dropped = droppedNodes({decisions, nodes: model.nodes})
+  const loaded = cssModel(await design.store.model(record.id))
+  const dropped = droppedNodes({decisions, nodes: loaded.nodes, page: loaded.root.box})
+  const model = pageModel(loaded)
   clock.skip()
   const reply = await askMeasure({width: record.width, height: record.height, page})
   clock.lap('measure')
@@ -997,14 +998,43 @@ function scaledBox(input: {box: Box; by: number}): Box {
   return {x: box.x * by, y: box.y * by, w: box.w * by, h: box.h * by}
 }
 
-function droppedNodes(input: {decisions: Decision[]; nodes: TargetNode[]}): Set<string> {
-  const anchors = new Set(
-    input.decisions
+function pageModel(model: TargetModel): TargetModel {
+  const page = model.root.box
+  return {...model, nodes: model.nodes.map((node) => pagedNode({node, page}))}
+}
+
+function pagedNode(input: {node: TargetNode; page: Box}): TargetNode {
+  const {node, page} = input
+  const box = intersection({a: node.box, b: page})
+  if (box === null) return node
+  const {layout} = node
+  const padding = layout?.padding
+  if (layout === undefined || padding === undefined) return {...node, box}
+  const clipped = {
+    left: box.x - node.box.x,
+    right: node.box.x + node.box.w - (box.x + box.w),
+    top: box.y - node.box.y,
+    bottom: node.box.y + node.box.h - (box.y + box.h),
+  }
+  const inset = mapValues(padding, (value, edge) => Math.max(0, value - clipped[edge]))
+  return {...node, box, layout: {...layout, padding: inset}}
+}
+
+function droppedNodes(input: {decisions: Decision[]; nodes: TargetNode[]; page: Box}): Set<string> {
+  const {page} = input
+  const anchors = new Set([
+    ...input.decisions
       .filter((entry) => entry.kind === 'excluded' || entry.kind === 'image-slot')
       .map((entry) => entry.anchor),
-  )
+    ...input.nodes.filter((node) => outside({box: node.box, page})).map((node) => node.id),
+  ])
   const parents = new Map(input.nodes.map((node) => [node.id, node.within]))
   return new Set(input.nodes.filter((node) => withinDropped({id: node.id, anchors, parents})).map((node) => node.id))
+}
+
+function outside(input: {box: Box; page: Box}): boolean {
+  const {box, page} = input
+  return box.x >= page.x + page.w || box.x + box.w <= page.x || box.y >= page.y + page.h || box.y + box.h <= page.y
 }
 
 function withinDropped(input: {

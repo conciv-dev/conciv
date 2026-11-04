@@ -273,6 +273,10 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   text node's box is its ink or its fixed text frame, not the box of an element that wraps the same lines, so its
   geometry is the line count and the line boxes the typography and move rows already compare. A delta
   therefore changes between two rounds only when the live element changed.
+- **Design boxes are clamped to the page.** When a diff loads the model, every node's box is cut to the page box
+  (`root.box`) and its stored padding shrinks by what was cut, so a 1446 wide band at x -3 pairs, sizes and insets
+  as 1440 wide at x 0, as the pixel compare already reads it. A node wholly outside the page is dropped with its
+  subtree, like an excluded node. `design.txt` keeps the stored numbers.
 
 ## Pairing
 

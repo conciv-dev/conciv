@@ -1923,9 +1923,10 @@ describe('deltas', () => {
     const {id} = await freshTarget('u1-1280')
     await call('design_diff', {})
     const styles = await readFile(HOST_STYLES, 'utf8')
+    const substituted = `${styles}\n* { font-family: 'Courier New', monospace !important; }\n`
     try {
       const runs = (await runFiles({id, prefix: 'result-'})).length
-      await writeFile(HOST_STYLES, `${styles}\n* { font-family: 'Courier New', monospace !important; }\n`)
+      await writeFile(HOST_STYLES, substituted)
       await expect
         .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
         .toBeGreaterThan(runs)
@@ -1956,6 +1957,7 @@ describe('deltas', () => {
           ),
         }),
       )
+      await repaint({id, styles: substituted, round: 1})
       const report = await call('design_diff', {full: true})
       expect(
         report.unmatched.filter(
@@ -1966,7 +1968,73 @@ describe('deltas', () => {
       await writeFile(HOST_STYLES, styles)
     }
   })
+
+  it('a design box wider than the page on both sides paired to a full-width element is sized and inset as the page', async () => {
+    await goto('target')
+    const {id} = await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    const widened = `${styles}\n.toolbar { margin: 0 -24px; max-width: none; }\n`
+    try {
+      const runs = (await runFiles({id, prefix: 'result-'})).length
+      await writeFile(HOST_STYLES, widened)
+      await expect
+        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
+        .toBeGreaterThan(runs)
+      const width = await page.evaluate(() => document.documentElement.clientWidth)
+      const captured = await call('design_capture', {height: 720})
+      const toolbar = captured.components.find((component) => component.source?.file === 'src/Toolbar.tsx')
+      if (toolbar === undefined) throw new Error('the target page has no toolbar')
+      expect(toolbar.box).toEqual(expect.objectContaining({x: 0, w: width}))
+      const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+      const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+      const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+      const paired = StoredPairsSchema.parse(
+        JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
+      ).find((pair) => pair.path === toolbar.path)
+      const node = model.nodes.find((entry) => entry.id === paired?.node && entry.kind === 'box')
+      if (node === undefined) throw new Error('u1-1280 pairs no box node with the full-width toolbar')
+      const padding = node.layout?.padding
+      const placed = (input: {box: Box; beyond: number}) => {
+        const {box, beyond} = input
+        const layout =
+          padding === undefined
+            ? node.layout
+            : {...node.layout, padding: {...padding, left: padding.left + beyond, right: padding.right + beyond}}
+        return writeFile(
+          path,
+          JSON.stringify({
+            ...model,
+            source: {kind: 'figma', ref: 'u1-1280'},
+            nodes: model.nodes.map((entry) =>
+              entry.id === node.id
+                ? {...entry, box: {...box, x: box.x - beyond, w: box.w + beyond * 2}, layout}
+                : entry,
+            ),
+          }),
+        )
+      }
+      const sized = (report: DiffReport) =>
+        report.components
+          .filter((component) => component.path === toolbar.path)
+          .flatMap((component) => component.deltas)
+          .filter((delta) => delta.kind === 'width' || delta.kind.startsWith('inset-'))
+          .map((delta) => ({kind: delta.kind, live: delta.live, target: delta.target}))
+      await placed({box: toolbar.box, beyond: 0})
+      await repaint({id, styles: widened, round: 1})
+      const exact = sized(await call('design_diff', {full: true}))
+      await placed({box: toolbar.box, beyond: PAST_PAGE})
+      await repaint({id, styles: widened, round: 2})
+      const wider = sized(await call('design_diff', {full: true}))
+      expect(wider.filter((delta) => delta.kind === 'width')).toEqual([])
+      expect(wider).toEqual(exact)
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
+  })
 })
+
+const PAST_PAGE = 6
 
 const TALLER_ELEMENT = 6
 
