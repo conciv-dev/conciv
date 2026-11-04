@@ -1509,6 +1509,8 @@ describe('engine login', () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await expect.element(locked()).toBeVisible()
     await expect.element(dialog()).not.toBeInTheDocument()
+    await locked().hover()
+    await expect.element(page.getByRole('tooltip').filter({hasText: 'Unauthorized'})).toBeVisible()
     await locked().click()
     await expect.element(dialog()).toBeVisible()
     await userEvent.keyboard('{Escape}')

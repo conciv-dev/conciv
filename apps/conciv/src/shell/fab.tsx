@@ -1,5 +1,5 @@
 import {Show, Suspense, type JSX} from 'solid-js'
-import Lock from 'lucide-solid/icons/lock'
+import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import {Tooltip} from '@conciv/ui-kit-system'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import type {DraggablePosition} from '../lib/draggable-position.js'
@@ -19,7 +19,8 @@ const FAB_BASE =
 const FAB_BUSY = 'conciv-fab-busy absolute -inset-[0.1875rem] rounded-chat-pill pointer-events-none'
 const FAB_ATTN = 'border-2 border-chat-accent anim-fab-ring'
 const FAB_LOCK =
-  'absolute -bottom-0.5 -end-0.5 size-5 rounded-chat-pill border border-chat-line bg-chat-panel text-chat-text-2 inline-flex items-center justify-center pointer-events-none'
+  'absolute -bottom-0.5 -end-0.5 size-5 rounded-chat-pill border border-chat-line bg-chat-panel text-chat-warn inline-flex items-center justify-center pointer-events-none'
+const FAB_UNAUTHORIZED = 'inline-flex items-center gap-1 text-chat-warn'
 const FAB_DRAGGING = 'transition-none z-[2147483647] cursor-grabbing'
 
 function fabClass(position: TriggerPosition, dragging: boolean): string {
@@ -71,12 +72,19 @@ export function ShellFab(props: {
         <FabRobot open={props.open} working={props.working} />
         <Show when={props.locked()}>
           <span class={FAB_LOCK} aria-hidden="true">
-            <Lock class="size-3" />
+            <TriangleAlert class="size-3" />
           </span>
         </Show>
       </Tooltip.Trigger>
       <Tooltip.Positioner>
-        <Tooltip.Content>{fabLabel(props.open(), props.locked())}</Tooltip.Content>
+        <Tooltip.Content>
+          <Show when={props.locked()} fallback={fabLabel(props.open(), false)}>
+            <span class={FAB_UNAUTHORIZED}>
+              <TriangleAlert class="size-3.5" aria-hidden="true" />
+              Unauthorized
+            </span>
+          </Show>
+        </Tooltip.Content>
       </Tooltip.Positioner>
     </Tooltip.Root>
   )
