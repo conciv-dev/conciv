@@ -2478,6 +2478,10 @@ async function storedPairs(input: {id: string; run: string}): Promise<Map<string
   return new Map(pairs.map((pair) => [pair.node, pair.path]))
 }
 
+const SHIFTED_KEY = 'xw-hJQ'
+const SHIFTED_OPENING = `<p className="hero-gdp" data-conciv-key="${SHIFTED_KEY}">`
+const SHIFTED_EDIT = `<p className="hero-gdp-before" /><p className="hero-gdp hero-gdp-moved" style={{position: 'relative', top: 40}} data-conciv-key="${SHIFTED_KEY}">`
+const CARD_SECTION = 'className={`card '
 const INSERTED_LINES = 'const insertedFirst = 1\nconst insertedSecond = 2\nconst insertedThird = 3\n'
 const KeyedPairsSchema = z.array(
   z.object({
@@ -2496,6 +2500,24 @@ async function keyedPairs(input: {id: string; run: string}): Promise<Map<string,
   const path = fileUnder(stateRoot, `.conciv/design/${input.id}/pairs-${input.run}.json`)
   const pairs = KeyedPairsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
   return new Map(pairs.map((pair) => [pair.node, pair]))
+}
+
+function lilacCardPairs(input: {pairs: Map<string, KeyedPair>; source: string}): KeyedPair[] {
+  const sectionAt = input.source.split('\n').findIndex((line) => line.includes(CARD_SECTION)) + 1
+  const {first, last} = lilacLines(input.source)
+  const pairs = [...input.pairs.values()]
+  const child = pairs.find((pair) => {
+    const line = pair.fingerprint.source?.line ?? 0
+    return pair.fingerprint.source?.file.endsWith('Stripe.tsx') === true && line >= first && line <= last
+  })
+  const section = pairs.find(
+    (pair) =>
+      pair.fingerprint.source?.file.endsWith('Stripe.tsx') === true &&
+      pair.fingerprint.source.line === sectionAt &&
+      child?.path.startsWith(`${pair.path}/`) === true,
+  )
+  if (section === undefined) throw new Error('the lilac card section has no pair')
+  return pairs.filter((pair) => pair.path === section.path || pair.path.startsWith(`${section.path}/`))
 }
 
 function reportRun(report: DiffReport): string {
@@ -2762,6 +2784,59 @@ describe('ledger', () => {
     }
   }, 300_000)
 
+  it('a class added to a paired element, a new sibling of its tag before it and a 40 px move carry every pair and lose nothing', async ({
+    annotate,
+  }) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const full = await call('design_diff', {})
+    const earlier = await keyedPairs({id, run: reportRun(full)})
+    const sample = [...earlier.values()].find((pair) => pair.fingerprint.key === SHIFTED_KEY)
+    if (sample === undefined) throw new Error('the hero gdp paragraph has no pair')
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await rewrite({id, file: STRIPE_SOURCE, text: source.replace(SHIFTED_OPENING, SHIFTED_EDIT)})
+      const carried = await call('design_diff', {})
+      const after = await keyedPairs({id, run: reportRun(carried)})
+      await annotate(
+        `paired ${full.paired} carried ${JSON.stringify(carried.timings.carried)} lost ${JSON.stringify(carried.changes.lost)} sample ${JSON.stringify(sample)} after ${JSON.stringify(after.get(sample.node))}`,
+      )
+      expect(after.get(sample.node)?.fingerprint.key).toBe(SHIFTED_KEY)
+      expect(carried.timings.carried.pairs).toBe(full.paired)
+      expect(carried.changes.lost).toEqual([])
+    } finally {
+      await writeFile(STRIPE_SOURCE, source)
+    }
+  }, 300_000)
+
+  it('deleting the lilac card loses its elements and leaves every other pair on its element', async ({annotate}) => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const full = await call('design_diff', {})
+    const earlier = await keyedPairs({id, run: reportRun(full)})
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    const deleted = lilacCardPairs({pairs: earlier, source}).map((pair) => pair.node)
+    expect(deleted.length).toBeGreaterThan(0)
+    try {
+      await rewrite({id, file: STRIPE_SOURCE, text: withoutLilac(source)})
+      const removed = await call('design_diff', {})
+      const after = await keyedPairs({id, run: reportRun(removed)})
+      const lost = removed.changes.lost.map((change) => change.node)
+      const surviving = [...earlier.values()].filter((pair) => !deleted.includes(pair.node) && after.has(pair.node))
+      const element = (pair: KeyedPair | undefined): [string | null | undefined, string | undefined] => [
+        pair?.fingerprint.key,
+        pair?.path,
+      ]
+      await annotate(
+        `deleted ${JSON.stringify(deleted)} lost ${JSON.stringify(lost)} surviving ${surviving.length} carried ${JSON.stringify(removed.timings.carried)}`,
+      )
+      expect(deleted.filter((node) => !lost.includes(node))).toEqual([])
+      expect(surviving.map((pair) => element(after.get(pair.node)))).toEqual(surviving.map(element))
+    } finally {
+      await writeFile(STRIPE_SOURCE, source)
+    }
+  }, 300_000)
+
   it('a wholesale rewrite of Cards.tsx with a decision after it keeps every pair whose element is still there and loses nothing', async ({
     annotate,
   }) => {
@@ -2822,12 +2897,13 @@ export function Cards(props: {variant: string | null; column?: boolean}) {
       <article
         key={title}
         className={styles.card}
+        data-conciv-key="54EGTw"
       >
         <div style={{display: 'contents'}}>
-          <h2>
+          <h2 data-conciv-key="_DB2qQ">
             {title}
           </h2>
-          <p>
+          <p data-conciv-key="hJdrHg">
             {title.length * 1000}
           </p>
         </div>
@@ -2839,7 +2915,7 @@ export function Cards(props: {variant: string | null; column?: boolean}) {
   const column = props.column ? styles.column : ''
 
   return (
-    <section className={\`\${styles.cards} \${gap} \${column}\`}>
+    <section className={\`\${styles.cards} \${gap} \${column}\`} data-conciv-key="ytrNww">
       {titles.map(card)}
     </section>
   )
@@ -2871,7 +2947,7 @@ const PAINTED_OVER = ['Guide me']
 const GEOMETRY_PX = 2
 const LATIN_END = 0x24f
 const DAYBREAK = 'Daybreak Yoga'
-const DAYBREAK_TAG = `<b>${DAYBREAK}</b>`
+const DAYBREAK_TAG = `<b data-conciv-key="xwJwFg">${DAYBREAK}</b>`
 const AGENT_ICON_SIDE = 20
 const PUNCTUATION_START = 0x2000
 const PUNCTUATION_END = 0x206f

@@ -304,14 +304,14 @@ and a pair, once made, stays until its element is gone.
   `design_diff`, an x-ray capture, a decision) gets `touched: all`, which only leaves the carry scan unordered: the
   pairs and tiles are carried all the same.
 - **Pairs.** Each entry of `pairs-<run>.json` carries the live element's `fingerprint`: `source`, `key` (the
-  `data-conciv-key` the compiler stamps next to `data-conciv-source`: a hash of the file, the enclosing function, the
-  element name, its static class and its static text, with an ordinal among equal hashes in the file), `owner` (the
+  `data-conciv-key` the compiler writes into the source file, six random base64url characters derived from nothing,
+  once per element that has none; `data-conciv-source` is still computed at transform time and never written), `owner` (the
   component path from the root, `Stripe[0] > Card[2] > h3[0]` from the React fiber chain, null when the framework is
   unknown), `tag`, `textHash` (fnv of the folded element text) and `box`. The source line is an address for reading
-  the site; the key is the element's identity, so an edit that shifts lines changes no key. A pair of the run before is
-  carried when its design node is still in the model and a live element has the same key, or else the same owner path
-  (JSX moved to another file or into an extracted component), with the same text hash and a box within `tileMargin`;
-  copies with one key and one text go to the nearest box. Without a key on either side, a live element must sit at the
+  the site; the key is the element's identity, so no edit to lines, classes, text or position changes it. A pair of
+  the run before is carried when its design node is still in the model and a live element has the same key, nothing
+  else compared; copies of one key (one component rendered several times, a mapped list) go to the same path or else
+  the nearest box. Without a key on either side, a live element must sit at the
   same source (or the same path when it has none) with the same tag and text hash and a box within `tileMargin`,
   whatever file the edit touched: the fingerprint is the proof that the element did
   not change, so on a one-file page an edit that moves nothing else carries everything else. The touched files only
@@ -319,6 +319,10 @@ and a pair, once made, stays until its element is gone.
   pairs seed the pairer's state as a greedy take would and the greedy loop pairs the rest. The voters are calibrated
   and the pool medians taken over every node and element, as in a full run: calibrating over what the carry left
   paired 93 nodes on the stripe page where a full run pairs 92, and a carry must not change the answer. An entry without a fingerprint carries nothing.
+- **Keys.** `data-conciv-key` attributes are written into the source by the compiler and are each element's identity for the diff: leave them in place, keep an element's key on it when you move or wrap it, and never copy one onto a second element. The transform writes a file only when the file on disk still equals the code it
+  received, one write with every new key, so an edit made in between is never lost; the served code carries the keys
+  either way, and an environment whose code differs from the disk takes each element's key from the disk when both
+  hold the same elements. Files outside the project root and under `node_modules` are never written.
 - **Tiles.** The page is cut into tiles of `tileSide` 64 px, and each tile is hashed over the masked live pixels it
   reads (the tile grown by the blur radius plus 2 px for the antialiasing check). `tiles-<run>.json` holds the grid
   and, per tile, its hash, its mismatch share and, when any pixel differs, its mask bits packed in base64; masks are
@@ -351,7 +355,8 @@ and a pair, once made, stays until its element is gone.
   status, and the compact report's `counts` carries `done` and `regressed`.
 - **Changes.** `changes` compares the ledger before the run with the ledger after it: `done` (newly clean), `regressed`
   (newly dirty or unpaired), `paired` (paired for the first time), `lost` (the node has no pair in the run and the
-  element it was paired to in the run before is not found by the fingerprint rule of the carry) and `moved` (the run's
+  element it was paired to in the run before is not found by the fingerprint rule of the carry: with keys on both
+  sides, its key is on no live element) and `moved` (the run's
   pair box, or for an unpaired node the element still found, lies outside `tileMargin` of the stored one). A node
   paired in the run is never `lost`, and a node that stays clean is `done` whichever element it pairs; its stored
   fingerprint, line included, is the run's. Each entry is `{node, sentence, crop}`; accepted nodes are

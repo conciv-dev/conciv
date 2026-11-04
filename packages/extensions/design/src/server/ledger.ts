@@ -2,7 +2,7 @@ import {countBy, maxBy, minBy} from 'es-toolkit'
 import {type Ledger, type LedgerCounts, type LedgerEntry, type NodeStatus} from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
 import type {Decision, Fingerprint, Item, LiveComponent, Matched, PairRecord, TargetNode} from '../shared/types.js'
-import {fingerprint, keyedSame, type Shift} from './pair.js'
+import {fingerprint, type Shift} from './pair.js'
 
 export type LedgerChanges = {
   done: string[]
@@ -159,8 +159,8 @@ function sighted(input: {box: Fingerprint['box']; wanted: Fingerprint}): {shift:
 
 function sameElement(input: {a: Fingerprint; b: Fingerprint; path: string; wantedPath: string}): boolean {
   const {a, b} = input
-  if (keyedSame({a, b, margin: TOLERANCES.tileMargin})) return true
-  return a.key === null && b.key === null && unkeyedSame(input)
+  if (a.key !== null && b.key !== null) return a.key === b.key
+  return unkeyedSame(input)
 }
 
 function unkeyedSame(input: {a: Fingerprint; b: Fingerprint; path: string; wantedPath: string}): boolean {

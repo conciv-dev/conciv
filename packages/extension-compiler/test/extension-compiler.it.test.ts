@@ -13,7 +13,7 @@ import {isExtension} from '../src/extension-guard.js'
 import {dirname, join} from 'node:path'
 import {splitExtension} from '../src/split-extension.js'
 import {compileExtensionSolid} from '../src/compile-extension.js'
-import {mkdtempSync, writeFileSync, mkdirSync, rmSync} from 'node:fs'
+import {mkdtempSync, writeFileSync, mkdirSync, readFileSync, rmSync, statSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {defineExtension} from '@conciv/extension'
 import {addSourceToJsx} from '../src/inject-source.js'
@@ -231,7 +231,7 @@ describe('inject source', () => {
       const code = `export const B = () => <img src="a.png" />\n`
       const out = addSourceToJsx(code, `${ROOT}/src/B.tsx`, ROOT)
       expect(out!.code).toMatch(
-        /<img src="a\.png"\s+data-conciv-source="src\/B\.tsx:1:\d+"\s+data-conciv-key="[0-9a-f.]+"\s*\/>/,
+        /<img src="a\.png"\s+data-conciv-source="src\/B\.tsx:1:\d+"\s+data-conciv-key="[\w-]{6}" \/>/,
       )
     })
 
@@ -291,34 +291,52 @@ describe('inject source', () => {
       expect(sourceValues(client!.code)).toContain('App.tsx:5:7')
     })
 
-    it('stamps a data-conciv-key that a line insertion leaves as it was', () => {
-      const code = [
-        'export function Card() {',
-        '  return (',
-        '    <section className="card">',
-        '      <h3>Pricing</h3>',
-        '    </section>',
-        '  )',
-        '}',
-        '',
-      ].join('\n')
-      const before = addSourceToJsx(code, `${ROOT}/src/Card.tsx`, ROOT)
-      const after = addSourceToJsx(
-        `const unused = 1\nconst other = 2\nconst third = 3\n${code}`,
-        `${ROOT}/src/Card.tsx`,
-        ROOT,
-      )
-      expect(keyValues(before?.code ?? '')).toHaveLength(2)
-      expect(keyValues(after?.code ?? '')).toEqual(keyValues(before?.code ?? ''))
-      expect(sourceValues(after?.code ?? '')).toEqual(['src/Card.tsx:6:5', 'src/Card.tsx:7:7'])
+    it('writes a fresh data-conciv-key into the source file and serves it; the written file serves the same key and writes nothing', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
+      const file = join(dir, 'Card.tsx')
+      const raw = 'export const Card = () => <section className="card"><h3>Pricing</h3></section>\n'
+      writeFileSync(file, raw)
+
+      const first = keyValues(addSourceToJsx(raw, file, dir)?.code ?? '')
+      const written = readFileSync(file, 'utf8')
+      const writtenAt = statSync(file).mtimeMs
+      const second = keyValues(addSourceToJsx(written, file, dir)?.code ?? '')
+
+      expect(first).toHaveLength(2)
+      expect(first.filter((key) => key.length !== 6)).toEqual([])
+      expect(new Set(first).size).toBe(2)
+      expect(keyValues(written)).toEqual(first)
+      expect(sourceValues(written)).toEqual([])
+      expect(second).toEqual(first)
+      expect(readFileSync(file, 'utf8')).toBe(written)
+      expect(statSync(file).mtimeMs).toBe(writtenAt)
     })
 
-    it('keys two sibling divs apart by their static className', () => {
-      const code = `export const F = () => <main><div className="a" /><div className="b" /></main>\n`
-      const [main, a, b] = keyValues(addSourceToJsx(code, `${ROOT}/src/F.tsx`, ROOT)?.code ?? '')
-      expect(main).toBeDefined()
-      expect(a).toBeDefined()
-      expect(a).not.toBe(b)
+    it('keeps a data-conciv-key the source already carries', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
+      const file = join(dir, 'Kept.tsx')
+      const raw = 'export const Kept = () => <div data-conciv-key="kept01" className="a">x</div>\n'
+      writeFileSync(file, raw)
+
+      const out = addSourceToJsx(raw, file, dir)
+
+      expect(keyValues(out?.code ?? '')).toEqual(['kept01'])
+      expect(sourceValues(out?.code ?? '')).toEqual(['Kept.tsx:1:27'])
+      expect(readFileSync(file, 'utf8')).toBe(raw)
+    })
+
+    it('writes nothing when the file on disk changed since the code was read, and still serves keys', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
+      const file = join(dir, 'Moved.tsx')
+      const code = 'export const Moved = () => <main><p>a</p></main>\n'
+      const edited = 'export const Moved = () => <main><p>a</p><p>b</p></main>\n'
+      writeFileSync(file, edited)
+
+      const keys = keyValues(addSourceToJsx(code, file, dir)?.code ?? '')
+
+      expect(readFileSync(file, 'utf8')).toBe(edited)
+      expect(keys).toHaveLength(2)
+      expect(keys.filter((key) => key.length !== 6)).toEqual([])
     })
   })
 })
