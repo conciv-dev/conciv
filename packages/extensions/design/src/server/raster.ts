@@ -521,6 +521,7 @@ export function similarityTiles(input: {
   live: Raster
   target: Raster
   mask: Uint8Array
+  differing: Uint8Array
   width: number
   height: number
 }): ScoredTile[] {
@@ -528,9 +529,10 @@ export function similarityTiles(input: {
   const side = TOLERANCES.similarityTile
   if (width === 0 || height === 0) return []
   const page = {x: 0, y: 0, w: width, h: height}
+  const target = crop({raster: input.target, box: page}).raster
   const map = ssim(
-    imageData(crop({raster: input.live, box: page}).raster),
-    imageData(crop({raster: input.target, box: page}).raster),
+    imageData(seenRaster({live: crop({raster: input.live, box: page}).raster, target, differing: input.differing})),
+    imageData(target),
     {
       ssim: 'bezkrovny',
       windowSize: side,
@@ -552,6 +554,15 @@ export function similarityTiles(input: {
 
 export function meanSimilarity(tiles: ScoredTile[]): number {
   return tiles.length === 0 ? 1 : mean(tiles.map((tile) => tile.similarity))
+}
+
+function seenRaster(input: {live: Raster; target: Raster; differing: Uint8Array}): Raster {
+  const {live, target, differing} = input
+  const data = Uint8Array.from(target.data)
+  differing.forEach((bit, index) => {
+    if (bit === 1) data.set(live.data.subarray(index * 4, index * 4 + 4), index * 4)
+  })
+  return {width: target.width, height: target.height, data}
 }
 
 function imageData(raster: Raster): {data: Uint8ClampedArray; width: number; height: number} {

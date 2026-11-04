@@ -2638,6 +2638,20 @@ describe('loop', () => {
     expect(status.sections?.map((section) => typeof section.similarity)).toEqual(status.sections?.map(() => 'number'))
   })
 
+  it('stripe shifted down by 1 px keeps its similarity within 0.05', async () => {
+    await goto('stripe')
+    const {id} = await freshTarget('stripe-1280')
+    const styles = await readFile(STRIPE_STYLES, 'utf8')
+    const before = await call('design_diff', {})
+    try {
+      await rewrite({id, file: STRIPE_STYLES, text: `${styles}\n#root { margin-top: 1px; }\n`})
+      const shifted = await call('design_diff', {})
+      expect(Math.abs((shifted.similarity ?? 0) - (before.similarity ?? 1))).toBeLessThan(0.05)
+    } finally {
+      await writeFile(STRIPE_STYLES, styles)
+    }
+  }, 120_000)
+
   it('bordered reports a border delta in the paint stage with a short brief at round 1', async () => {
     await goto('bordered')
     await freshTarget('u1-1280')

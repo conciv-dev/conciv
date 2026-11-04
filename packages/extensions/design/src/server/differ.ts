@@ -378,6 +378,7 @@ async function runDiff(request: {
       boxes: [...reading.masks, ...droppedBoxes, ...slots],
       area: {x: 0, y: 0, w: pixels.width, h: pixels.height},
     }),
+    differing: pixels.mask,
     width: pixels.width,
     height: pixels.height,
   })

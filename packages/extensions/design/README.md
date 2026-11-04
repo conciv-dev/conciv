@@ -108,7 +108,7 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   | `decode`     | decoding the snapshot PNG                                                                        |
   | `capture`    | the capture hash and painting the page's masks and dropped nodes over the live raster            |
   | `mask`       | text groups, painting agreeing text over, tile hashes and the pixel compare of the changed tiles |
-  | `similarity` | SSIM of the masked live raster against the target, one value per 64 px tile                      |
+  | `similarity` | SSIM of the masked live raster against the target over the differing pixels, per 64 px tile      |
   | `regions`    | reserved, currently 0                                                                            |
   | `pair`       | the pairer, bounded by `pairBudgetMs` 20000 counted from the moment pairing starts               |
   | `typography` | the type estimate of the paired texts                                                            |
@@ -177,8 +177,9 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   `score[0]` is the unpaired share and jumps when pairs drop, so it is not a progress measure. `mismatch` is the
   share of pixels the compare marks as differing, lower is better. `similarity` (0 to 1, higher is better) is the
   mean SSIM (`ssim.js` bezkrovny) over independent 64 px grayscale tiles of the whole page, target against the
-  masked live raster at the same size; a tile wholly inside an image slot, a page mask or a dropped node is left
-  out. It orders runs and rounds the way the eye does and costs under 1% for glyph antialiasing, so it is the number
+  masked live raster at the same size, with every pixel the compare does not mark as differing taken from the
+  target, so a background a few levels off the target's (`#0d0d0f` on `#000`) costs nothing, as it does to the eye
+  and to `mismatch`; a tile wholly inside an image slot, a page mask or a dropped node is left out. It orders runs and rounds the way the eye does and costs under 1% for glyph antialiasing, so it is the number
   that tracks progress. `design_status` carries the last run's `similarity` and each entry of
   `design_status.sections` its section's, the mean over the tiles centred in the section's box; the full report holds them in `sectionSimilarity`, and the brief's `since
   round N` line ends with `, similarity 0.74 (was 0.72)` when the run before has one.
