@@ -30,6 +30,7 @@ export type FaultSpec =
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
+  | {kind: 'detached-sockets'}
 
 type Fault = {
   pending: () => number
@@ -165,6 +166,8 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
 
 const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => pushOf(ctx).opened()
 
+const pushSocketsLive: BrowserCommand<[]> = (ctx): number => pushOf(ctx).liveSockets()
+
 const printedCode: BrowserCommand<[]> = (ctx): string => {
   const code = [
     ...kitOf(ctx)
@@ -266,6 +269,26 @@ async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> 
   }
 }
 
+async function detachEngineSockets(ctx: BrowserCommandContext): Promise<Injector> {
+  const host = new URL(kitOf(ctx).origin).host
+  const detached = {value: true}
+  await ctx.page.routeWebSocket(
+    (url) => url.host === host,
+    (socket) => {
+      if (!detached.value) socket.connectToServer()
+    },
+  )
+  return {
+    repair: () => {
+      detached.value = false
+    },
+    dispose: () => {
+      detached.value = false
+      return Promise.resolve()
+    },
+  }
+}
+
 const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<string> => {
   const state = stateOf(ctx)
   const {abortRpcCalls, failChatTurns, failRpcCalls, gateRpcCalls} = await testkitOf(ctx)
@@ -273,6 +296,10 @@ const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<str
   const handle = `fault-${state.handles.count}`
   if (spec.kind === 'gate') {
     state.faults.set(handle, await gateRpcCalls(ctx.page, spec.path ? {path: spec.path} : {}))
+    return handle
+  }
+  if (spec.kind === 'detached-sockets') {
+    state.faults.set(handle, trackedFault(handle, spec.kind, await detachEngineSockets(ctx)))
     return handle
   }
   if (spec.kind === 'offline') {
@@ -322,6 +349,7 @@ export const coreCommands = {
   bootCore,
   closeCore,
   pushSocketsOpened,
+  pushSocketsLive,
   printedCode,
   requestCode,
   revokeBrowsers,

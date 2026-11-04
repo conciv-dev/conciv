@@ -2,7 +2,7 @@ import {createMemo, createResource, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {z} from 'zod'
 import {makeEventListener} from '@solid-primitives/event-listener'
-import {RPC_UNAUTHORIZED_EVENT} from '@conciv/contract'
+import {ENGINE_UNAUTHORIZED_EVENT} from '@conciv/contract'
 import {Button, Dialog, PinInput, readStorage, writeStorage} from '@conciv/ui-kit-system'
 
 export type LoginPhase = 'checking' | 'unreachable' | 'locked' | 'exchanging' | 'trusted'
@@ -206,7 +206,7 @@ export function createEngineLogin(options: EngineLoginOptions): EngineLogin {
     settle(await latest.run)
   }
 
-  makeEventListener(window, RPC_UNAUTHORIZED_EVENT, () => {
+  makeEventListener(window, ENGINE_UNAUTHORIZED_EVENT, () => {
     if (phase() === 'trusted') void recheck()
   })
 

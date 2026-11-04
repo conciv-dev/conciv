@@ -47,7 +47,7 @@ function headerSessionId(context: RpcContext): SessionId | null {
 export function callerScope(deps: RpcDeps, context: RpcContext): SessionScope {
   const sessionId = headerSessionId(context)
   if (sessionId === null) {
-    throw new ORPCError('UNAUTHORIZED', {
+    throw new ORPCError('BAD_REQUEST', {
       message: `this procedure acts on behalf of one session and the caller sent no ${CONCIV_SESSION_HEADER} header; resolve a session with sessions.resolve and send it on every call`,
     })
   }

@@ -1658,7 +1658,7 @@ describe('rpc wire', () => {
         await expect((await mcpTool('fixture_ask')).execute({target: 'agent'})).rejects.toThrow(/needs the user/)
         expect(toolRuns.ask).toBe(ran + 1)
         await expect(callerWithout().registry.call({name: 'fixture_read', input: {}})).rejects.toMatchObject({
-          code: 'UNAUTHORIZED',
+          code: 'BAD_REQUEST',
         })
         await expect(
           callerWith('not a session').registry.call({name: 'fixture_read', input: {}}),

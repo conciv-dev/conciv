@@ -3,6 +3,8 @@ import {mkdirSync, watch} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {Hono, type MiddlewareHandler} from 'hono'
+import type {WebSocket, WebSocketServer} from 'ws'
+import {REVOKED_SOCKET_CLOSE_CODE} from '@conciv/contract'
 import {z} from 'zod'
 import {
   TRUSTED_BROWSERS_FILE,
@@ -138,6 +140,7 @@ export type EngineTrust = (token: string) => boolean
 export type TrustedBrowsers = {
   has: (token: string) => boolean
   grant: (requester: BrowserRequester, grantedAt: number) => string
+  guard: (wss: WebSocketServer) => void
   close: () => void
 }
 
@@ -161,12 +164,16 @@ async function readHashes(stateDir: string): Promise<Set<string>> {
 export function watchTrustedBrowsers(stateDir: string): TrustedBrowsers {
   mkdirSync(stateDir, {recursive: true})
   const state = {hashes: loadHashes(stateDir), reloads: Promise.resolve()}
+  const sockets = new Map<WebSocket, string>()
   const reload = (): void => {
     state.reloads = state.reloads
       .then(() => readHashes(stateDir))
       .then(
         (hashes) => {
           state.hashes = hashes
+          for (const [socket, hash] of sockets) {
+            if (!hashes.has(hash)) socket.close(REVOKED_SOCKET_CLOSE_CODE, 'this browser is no longer trusted')
+          }
         },
         (error: unknown) => logError(`[core] the trusted browsers file could not be reloaded: ${String(error)}`),
       )
@@ -181,6 +188,15 @@ export function watchTrustedBrowsers(stateDir: string): TrustedBrowsers {
       const token = grantBrowser(stateDir, requester, grantedAt)
       state.hashes.add(tokenHash(token))
       return token
+    },
+    guard: (wss) => {
+      wss.on('connection', (socket, request) => {
+        const url = new URL(request.url ?? '/', 'http://engine')
+        const {token} = presentedToken(url.pathname, request.headers.authorization ?? null)
+        if (token === undefined || !state.hashes.has(tokenHash(token))) return
+        sockets.set(socket, tokenHash(token))
+        socket.once('close', () => sockets.delete(socket))
+      })
     },
     close: () => watcher.close(),
   }

@@ -1490,6 +1490,7 @@ declare module '@conciv/protocol/config-types' {
 describe('engine login', () => {
   const core = bootedCore('engine-login')
   const harness = createShellHarness(core)
+  const faults = trackedFaults()
   const origin = (): string => new URL(core()).origin
   const storageKey = (): string => `conciv:engine-token:${origin()}`
 
@@ -1559,7 +1560,8 @@ describe('engine login', () => {
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
   }
 
-  test('a browser revoked while the panel is open locks on its next engine call and forgets the token', async () => {
+  test('a revoked browser whose sockets the engine cannot reach locks on its next engine call', async () => {
+    await faults.install({kind: 'detached-sockets'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
     expect(await coreControl.revokeBrowsers()).toBeGreaterThan(0)
@@ -1570,9 +1572,18 @@ describe('engine login', () => {
     expect(localStorage.getItem(storageKey())).toBeNull()
   }, 30_000)
 
+  test('revoking a browser while its panel is open closes its sockets and locks the tab with no further action', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await unlock()
+    await expect.poll(() => coreControl.pushSocketsLive()).toBeGreaterThan(0)
+    await coreControl.revokeBrowsers()
+    await expect.element(locked(), {timeout: 8000}).toBeVisible()
+    await expect.poll(() => coreControl.pushSocketsLive()).toBe(0)
+  }, 30_000)
+
   test('Retry on the unreachable screen checks the login again: untrusted locks, trusted opens the panel', async () => {
     const retryWhileOffline = async (): Promise<void> => {
-      const offline = await coreControl.installFault({kind: 'offline'})
+      const offline = await faults.install({kind: 'offline'})
       harness.mountShell('/', [], {login: {apiBase: origin()}})
       await opener().click()
       const screen = page.getByRole('alert').filter({hasText: /couldn.t reach the engine/})

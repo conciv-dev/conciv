@@ -2,6 +2,7 @@ import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, 
 import {main as cliMain} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {execFileSync, spawnSync} from 'node:child_process'
+import {once} from 'node:events'
 import {createServer} from 'node:net'
 import {chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
@@ -16,6 +17,8 @@ import {engineOrigin} from '../src/engine-origin.js'
 import {runRevoke} from '../src/auth.js'
 import {start as startEngine} from '@conciv/core'
 import {loginThroughTerminal} from '@conciv/harness-testkit'
+import {makeRpcClient} from '@conciv/contract'
+import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {initCommand, runInitCommand} from '../src/init.js'
 import {type Detected, detectFramework, detectProject, type Framework} from '../src/init/detect.js'
@@ -1014,8 +1017,17 @@ describe('cli', () => {
         const token = await loginThroughTerminal(origin, () => printed.join('\n'))
         const call = async () => (await fetch(`${origin}/t/${token}/rpc/meta/engine`, {method: 'POST'})).status
         expect(await call()).not.toBe(401)
+        const {sessionId} = await makeRpcClient(`${origin}/t/${token}`).sessions.create(undefined)
+        const socketWith = (secret: string) =>
+          new WebSocket(`ws://127.0.0.1:${engine.port}/t/${secret}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
+        const [browser, agent] = [socketWith(token), socketWith(engine.agentToken)]
+        await Promise.all([browser, agent].map((socket) => once(socket, 'open')))
+        const closed = once(browser, 'close', {signal: AbortSignal.timeout(3_000)})
         runRevoke({all: true, cwd: project.nested})
         await expect.poll(call, {timeout: 2_000, interval: 20}).toBe(401)
+        const [event] = await closed
+        expect([z.object({code: z.number()}).parse(event).code, agent.readyState]).toEqual([1008, WebSocket.OPEN])
+        agent.close()
       } finally {
         await engine.stop()
       }

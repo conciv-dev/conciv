@@ -51,12 +51,15 @@ function activeConnections(): ActiveConnectionRegistry {
   return globalThis.__concivRpcReachabilityActiveV1
 }
 
-export const RPC_UNAUTHORIZED_EVENT = 'conciv:rpc-unauthorized'
+export const ENGINE_UNAUTHORIZED_EVENT = 'conciv:engine-unauthorized'
+export const REVOKED_SOCKET_CLOSE_CODE = 1008
+
+export function announceEngineUnauthorized(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ENGINE_UNAUTHORIZED_EVENT))
+}
 
 function announceUnauthorized(error: unknown): never {
-  if (error instanceof ORPCError && error.status === 401 && typeof window !== 'undefined') {
-    window.dispatchEvent(new Event(RPC_UNAUTHORIZED_EVENT))
-  }
+  if (error instanceof ORPCError && error.status === 401) announceEngineUnauthorized()
   throw error
 }
 

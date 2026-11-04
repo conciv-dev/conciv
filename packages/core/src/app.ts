@@ -295,6 +295,7 @@ export type MadeApp = {
   fetch: EngineFetch
   agentToken: string
   trustBrowser: TrustedBrowsers['grant']
+  guardSockets: TrustedBrowsers['guard']
   chat: ChatContext
   plane: ChatPlane
   dispose: () => Promise<void>
@@ -575,6 +576,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     fetch,
     agentToken,
     trustBrowser: browsers.grant,
+    guardSockets: browsers.guard,
     chat: chatDeps,
     plane,
     dispose,

@@ -50,6 +50,7 @@ declare module 'vitest/internal/browser' {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
     closeCore: () => Promise<void>
     pushSocketsOpened: () => Promise<number>
+    pushSocketsLive: () => Promise<number>
     printedCode: () => Promise<string>
     requestCode: () => Promise<string>
     revokeBrowsers: () => Promise<number>
