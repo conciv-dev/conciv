@@ -26,7 +26,7 @@ export {
   type TooltipIconButtonProps,
   type TooltipIconButtonSlotProps,
 } from './tooltip-icon-button.js'
-export {Menu, useMenu, type MenuMachine} from './menu.js'
+export {Menu} from './menu.js'
 export {
   LIST_PANEL,
   LIST_PANEL_GROUP_LABEL,
@@ -36,7 +36,8 @@ export {
   LIST_PANEL_MESSAGE,
 } from './list-panel.js'
 export {AnchoredListbox, type AnchoredListboxHandle, type AnchoredListboxRect} from './anchored-listbox.js'
-export {Popover, type PopoverApi} from './popover.js'
+export {Popover, usePopover, type PopoverApi, type PopoverMachine} from './popover.js'
+export {Listbox} from './listbox.js'
 export {Toast, ToastGroup, createToaster, type ToasterInstance} from './toast.js'
 export {Avatar} from './avatar.js'
 export {RelativeTime} from './relative-time.js'
