@@ -245,13 +245,19 @@ function sizeKind(input: {kind: 'width' | 'height'; key: 'w' | 'h'}): DeltaKind 
     kind,
     read,
     measure: ({live, target}) => {
-      if (target.kind === 'text') return []
+      if (target.kind === 'text' && (key === 'h' || !overflowsParent(live))) return []
       const a = read(live)
       const b = read(target)
       if (!insetDiffers({live: a, target: b})) return []
       return [{kind, live: a, target: b}]
     },
   }
+}
+
+function overflowsParent(side: Side): boolean {
+  const {box, parent} = side
+  if (parent === null) return false
+  return parent.x - box.x > TOLERANCES.geometryPx || right(box) - right(parent) > TOLERANCES.geometryPx
 }
 
 const boxWidth = sizeKind({kind: 'width', key: 'w'})

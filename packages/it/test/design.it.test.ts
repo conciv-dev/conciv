@@ -1951,6 +1951,57 @@ describe('deltas', () => {
     ).toEqual([])
   })
 
+  it('a text pair from a design source that overflows its live parent and is 192 px wider than its node has one width row', async () => {
+    await goto('target')
+    const {id} = await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
+    const before = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+    const paired = StoredPairsSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${before}`), 'utf8')),
+    ).find((pair) => texts.has(pair.node))
+    if (paired === undefined) throw new Error('u1-1280 pairs no element with a text node alone')
+    const element = componentAt({
+      components: (await call('design_capture', {height: 720})).components,
+      path: paired.path,
+    })
+    const source = element?.source
+    if (source === undefined || source === null) throw new Error('the text element has no source')
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    const pushed = `${styles}\n[data-conciv-source="${source.file}:${source.line}:${source.column}"] { position: relative; left: ${OVERFLOW_PX}px; }\n`
+    try {
+      const runs = (await runFiles({id, prefix: 'result-'})).length
+      await writeFile(HOST_STYLES, pushed)
+      await expect
+        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
+        .toBeGreaterThan(runs)
+      await writeFile(
+        path,
+        JSON.stringify({
+          ...model,
+          source: {kind: 'figma', ref: 'u1-1280'},
+          nodes: model.nodes.map((node) =>
+            node.id === paired.node
+              ? {...node, box: {...node.box, x: node.box.x + OVERFLOW_PX, w: node.box.w - OVERFLOW_PX}}
+              : node,
+          ),
+        }),
+      )
+      const report = await call('design_diff', {full: true})
+      expect(
+        report.components
+          .filter((component) => component.path === paired.path)
+          .flatMap((component) => component.deltas)
+          .filter((delta) => delta.kind === 'width' || delta.kind === 'height')
+          .map((delta) => delta.kind),
+      ).toEqual(['width'])
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
+  })
+
   it('a text pair from a design source whose node is 6 px shorter than its element but whose ink matches has no move row', async () => {
     await goto('target')
     const {id} = await freshTarget('u1-1280')
@@ -2163,6 +2214,7 @@ describe('deltas', () => {
 })
 
 const PAST_PAGE = 6
+const OVERFLOW_PX = 192
 
 const TALLER_ELEMENT = 6
 

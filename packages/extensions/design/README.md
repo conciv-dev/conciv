@@ -284,7 +284,9 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   value the node has none for (a border the node does not carry, the text colour). Only a box pair has a radius
   row; a text or image node has no radius, so neither side is read. A text pair has no `width` or `height` row: a
   text node's box is its ink or its fixed text frame, not the box of an element that wraps the same lines, so its
-  geometry is the line count and the line boxes the typography and move rows already compare. A delta
+  geometry is the line count and the line boxes the typography and move rows already compare. The one exception
+  is a text element whose live box overflows its live parent's left or right edge by more than `geometryPx`: it
+  gets a `width` row against its node, since the overflow is the element's width, not its lines. A delta
   therefore changes between two rounds only when the live element changed.
 - **The move row.** An `offset` entry's `shift` is the element's own displacement, design minus live (less the
   page shift), never measured against its parent, and its line says where the element lands in page coordinates:
