@@ -297,7 +297,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
-      return transformConcivModule(code, id, opts?.ssr ?? false, {root, deferToTsd})
+      return transformConcivModule(code, id, opts?.ssr ?? false, {root, deferToTsd, persist: true})
     },
     transformIndexHtml: {
       order: 'pre',

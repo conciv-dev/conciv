@@ -324,7 +324,10 @@ and a pair, once made, stays until its element is gone.
 - **Keys.** `data-conciv-key` attributes are written into the source by the compiler and are each element's identity for the diff: leave them in place, keep an element's key on it when you move or wrap it, and never copy one onto a second element. The transform writes a file only when the file on disk still equals the code it
   received, one write with every new key, so an edit made in between is never lost; the served code carries the keys
   either way, and an environment whose code differs from the disk takes each element's key from the disk when both
-  hold the same elements. Files outside the project root and under `node_modules` are never written.
+  hold the same elements. Files outside the project root and under `node_modules` are never written, and only a serving
+  transform writes (the dev server); `vite build` serves a transient random id for an element without a key. The first
+  transform of a new element writes its file once, before the served code is returned; that write is a second
+  `hmr-update`, which `settleQuiet` absorbs into the same run. A formatter may rewrap a stamped line; the key survives.
 - **Tiles.** The page is cut into tiles of `tileSide` 64 px, and each tile is hashed over the masked live pixels it
   reads (the tile grown by the blur radius plus 2 px for the antialiasing check). `tiles-<run>.json` holds the grid
   and, per tile, its hash, its mismatch share and, when any pixel differs, its mask bits packed in base64; masks are

@@ -16,11 +16,13 @@ type Disk = {openings: Node[]; locate: (offset: number) => {line: number; column
 
 type Stamp = {node: Node; index: number; key: string; served: boolean; fresh: boolean}
 
-export function addSourceToJsx(
-  code: string,
-  id: string,
-  root: string,
-): {code: string; map: ReturnType<MagicString['generateMap']>} | null {
+export function addSourceToJsx(input: {
+  code: string
+  id: string
+  root: string
+  persist: boolean
+}): {code: string; map: ReturnType<MagicString['generateMap']>} | null {
+  const {code, id, root} = input
   const file = id.split('?')[0] ?? id
   if (!JSX_EXTENSIONS.some((extension) => file.endsWith(extension))) return null
   if (code.includes('data-tsd-source') || code.includes(SOURCE_ATTR)) return null
@@ -34,7 +36,7 @@ export function addSourceToJsx(
     return [{node, index, key: kept ?? randomBytes(4).toString('base64url'), served: true, fresh: kept === null}]
   })
   if (stamps.length === 0) return null
-  const written = persistKeys({file, root, code, stamps})
+  const written = input.persist ? persistKeys({file, root, code, stamps}) : null
   const disk = written === null ? onDisk : alignedDisk({file, text: written, expected: openings.length})
   const rel = inside({file, root}) ? relative(root, file) : file
   const locate = makeLocator(code)
