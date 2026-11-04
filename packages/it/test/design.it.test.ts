@@ -2532,7 +2532,77 @@ describe('pairing', () => {
     expect(pairs.filter((pair) => pair.node === 'section').map((pair) => pair.path)).toEqual([toolbar.path])
     expect(report.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.node === 'section')).toEqual([])
   })
+
+  it('a card heading pairs with the design text that carries its words, though the design draws it where the number sits, and keeps it after the two swap places', async ({
+    annotate,
+  }) => {
+    await goto('target')
+    const captured = await call('design_capture', {height: 720})
+    const card = everyComponent(captured.components).find(
+      (component) => component.tag === 'article' && component.source?.file === 'src/Cards.tsx',
+    )
+    const heading = card?.children.find((child) => child.tag === 'h2')
+    const number = card?.children.find((child) => child.tag === 'p')
+    if (card === undefined || heading === undefined || number === undefined) {
+      throw new Error('the target page has no card with a heading and a number')
+    }
+    const {id, route} = await freshTarget('u1-1280')
+    const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
+    const text = (input: {id: string; words: string; box: Box}): TargetNode => ({
+      id: input.id,
+      kind: 'text',
+      box: input.box,
+      text: input.words,
+      lines: [{box: input.box, text: input.words, confidence: 1}],
+      confidence: 1,
+      within: WORDS_CARD,
+    })
+    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
+    await store.put({
+      model: {
+        id: WORDS_FIRST,
+        source: {kind: 'figma', ref: WORDS_FIRST},
+        viewport: {width: png.width, height: png.height},
+        raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
+        root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
+        nodes: [
+          {id: WORDS_CARD, kind: 'box', box: card.box, border: null, radius: 0},
+          text({id: WORDS_HEADING, words: headingText(heading), box: number.box}),
+          text({id: WORDS_NUMBER, words: headingText(number), box: heading.box}),
+        ],
+        scale: 1,
+      },
+      session: kit.session,
+      ...(route === undefined ? {} : {route}),
+    })
+    const keys = (pairs: Map<string, KeyedPair>): (string | null | undefined)[] => [
+      pairs.get(WORDS_HEADING)?.fingerprint.key,
+      pairs.get(WORDS_NUMBER)?.fingerprint.key,
+    ]
+    const first = await keyedPairs({id: WORDS_FIRST, run: reportRun(await call('design_diff', {}))})
+    const source = await readFile(CARDS_SOURCE, 'utf8')
+    try {
+      await rewrite({
+        id: WORDS_FIRST,
+        file: CARDS_SOURCE,
+        text: source.replace(`${CARD_HEADING_LINE}\n${CARD_NUMBER_LINE}`, `${CARD_NUMBER_LINE}\n${CARD_HEADING_LINE}`),
+      })
+      const swapped = await keyedPairs({id: WORDS_FIRST, run: reportRun(await call('design_diff', {}))})
+      await annotate(`first ${JSON.stringify(keys(first))} swapped ${JSON.stringify(keys(swapped))}`)
+      expect(keys(first)).toEqual([heading.key, number.key])
+      expect(keys(swapped)).toEqual([heading.key, number.key])
+    } finally {
+      await writeFile(CARDS_SOURCE, source)
+    }
+  }, 300_000)
 })
+
+const WORDS_FIRST = 'words-first'
+const WORDS_CARD = 'words-card'
+const WORDS_HEADING = 'words-heading'
+const WORDS_NUMBER = 'words-number'
+const CARD_HEADING_LINE = '        <h2 data-conciv-key="_DB2qQ">{title}</h2>'
+const CARD_NUMBER_LINE = '        <p data-conciv-key="hJdrHg">{title.length * 1000}</p>'
 
 const PARAGRAPH_ICON = 'paragraph-icon'
 const ICON_ABOVE_TEXT = 175

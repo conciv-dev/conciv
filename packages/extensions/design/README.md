@@ -304,7 +304,12 @@ The vote pairer scores every design node against every compatible live element a
 
 - A text node takes an element only when the centre of the node's box lies inside the element's box grown by
   `tileMargin`. The test runs on every claim once geometry is trusted, and on every claim after the first while it
-  is not, so an OCR line 1 px outside its element, or one straddling two elements, still pairs.
+  is not, so an OCR line 1 px outside its element, or one straddling two elements, still pairs. A text node whose
+  words no other text node has takes an element with the same words wherever its box lies.
+- Words decide a text first. A node's words and an element's words are compared with whitespace folded and case
+  kept. An element whose words equal a text node's words never pairs with another text node while that node is
+  unpaired, whatever the box, the kind or the carry say, so a card's paragraph node never takes the card's heading
+  because the design's paragraph lines are drawn as tall as a heading.
 - The kind voter gives a full vote when a node and an element share a class. An `input`, `textarea`, `select`,
   `button`, or an element with a control role such as `button`, is a control. A design box is a control when it is
   at most 48 x 320 px, when it is at most 48 px tall at any width and holds one short single-line text (its own child
@@ -384,7 +389,10 @@ and a pair, once made, stays until its element is gone or no longer passes the p
   below `pairExactIou` (0.9) while another element, compatible with the node and not yet taken this round, overlaps
   it at or above that: the node votes fresh and takes the exact fit. A dropped node votes fresh that round, so a pair
   made while the page was half built does not outlive the layout it was made on. A text carry has no position check,
-  only the text rule above: a moved text keeps its element so the brief says move rather than build. Pins are
+  only the text rule above and the words: a moved text keeps its element so the brief says move rather than build,
+  but a carried text pair whose node and element share no word is dropped, and so is one whose element's words
+  equal another text node's that is not paired, so a wrong pair made at first sight does not live on. Carried text
+  pairs whose words equal are taken before the others. Pins are
   exempt. The voters are calibrated
   and the pool medians taken over every node and element, as in a full run: calibrating over what the carry left
   paired 93 nodes on the stripe page where a full run pairs 92, and a carry must not change the answer. An entry without a fingerprint carries nothing.

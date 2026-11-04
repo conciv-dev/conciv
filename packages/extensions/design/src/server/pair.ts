@@ -1,4 +1,4 @@
-import {median, minBy, words} from 'es-toolkit'
+import {groupBy, intersection, median, minBy, partition, words} from 'es-toolkit'
 import {parse} from 'culori'
 import {SOURCE_ATTR, TOLERANCES, type Tolerances} from '../shared/tolerances.js'
 import type {
@@ -58,7 +58,7 @@ export function pairTwins(input: {a: TargetModel; b: TargetModel; tolerances: To
     voters: VOTERS.filter((voter) => voter.name !== 'geometry'),
     compatible: ({node, candidate}) => node.kind === candidate.kind,
     gate: oneToOne,
-    context: emptyContext({nodeRaster: a.raster, candidateRaster: b.raster, candidates, twinVotes: []}),
+    context: emptyContext({nodeRaster: a.raster, candidateRaster: b.raster, nodes, candidates, twinVotes: []}),
     holders: new Map(),
     pins: [],
     carried: [],
@@ -139,6 +139,8 @@ type View = {
   box: Box
   lines: Box[]
   text: string
+  words: string
+  alone: boolean
   klass: KindClass
   ink: number | null
   fill: Rgb | null
@@ -161,6 +163,7 @@ type Context = {
   twinVotes: Map<string, TwinVote>
   candidates: View[]
   bestText: Map<string, number>
+  spoken: Record<string, View[]>
 }
 
 type VoterName = 'text' | 'kind' | 'structure' | 'style' | 'geometry' | 'pixel' | 'hints' | 'twins'
@@ -240,6 +243,7 @@ function votePairer(input: Parameters<Pairer>[0]): ReturnType<Pairer> {
     context: emptyContext({
       nodeRaster: input.target,
       candidateRaster: input.live,
+      nodes,
       candidates,
       twinVotes: input.twinVotes,
     }),
@@ -339,6 +343,10 @@ function impactRanker(input: {items: Item[]}): Item[] {
 
 function nodeViews(nodes: TargetNode[]): View[] {
   const byId = new Map(nodes.map((node) => [node.id, node]))
+  const said = groupBy(
+    nodes.flatMap((node) => (node.kind === 'text' ? [spaced(node.text)] : [])),
+    (text) => text,
+  )
   const ranks = siblingRanks(nodes)
   const controls = controlBoxes(nodes)
   const views = new Map<string, View>()
@@ -352,6 +360,8 @@ function nodeViews(nodes: TargetNode[]): View[] {
       box: node.box,
       lines: [node.box],
       text: node.kind === 'text' ? folded(node.text) : '',
+      words: node.kind === 'text' ? spaced(node.text) : '',
+      alone: node.kind === 'text' && (said[spaced(node.text)] ?? []).length === 1,
       klass: nodeClass({node, within, controls}),
       ink: node.kind === 'text' ? inkHeight(node) : null,
       fill: node.kind === 'box' && node.paint !== undefined ? toRgb(node.paint.background) : null,
@@ -465,6 +475,10 @@ function folded(text: string): string {
   return text.toLowerCase().split(' ').filter(Boolean).join(' ').trim()
 }
 
+function spaced(text: string): string {
+  return text.split(' ').filter(Boolean).join(' ')
+}
+
 function toRgb(color: string): Rgb | null {
   const parsed = parse(color)
   if (parsed === undefined || parsed.mode !== 'rgb') return null
@@ -487,6 +501,8 @@ function viewTree(input: {components: LiveComponent[]; parent: View | null}): Bu
       box: component.box,
       lines,
       text: folded(component.glyphs.map((glyph) => glyph.text).join(' ')),
+      words: spaced(component.glyphs.map((glyph) => glyph.text).join(' ')),
+      alone: false,
       klass: elementClass({component, lines}),
       ink: lines.length > 0 ? INK_SHARE * component.styles.fontSize : null,
       fill: opaque(component.styles.background) ? toRgb(component.styles.background) : null,
@@ -544,6 +560,7 @@ function flatten(components: LiveComponent[]): LiveComponent[] {
 function emptyContext(input: {
   nodeRaster: Raster
   candidateRaster: Raster
+  nodes: View[]
   candidates: View[]
   twinVotes: TwinVote[]
 }): Context {
@@ -557,6 +574,10 @@ function emptyContext(input: {
     twinVotes: new Map(input.twinVotes.map((vote) => [vote.node, vote])),
     candidates: input.candidates,
     bestText: new Map(),
+    spoken: groupBy(
+      input.nodes.filter((node) => node.kind === 'text' && node.words !== ''),
+      (node) => node.words,
+    ),
   }
 }
 
@@ -578,7 +599,11 @@ function elementGate(input: {node: View; candidate: View; state: State; toleranc
   }
   const reach = expand({box: candidate.box, by: tolerances.tileMargin})
   const within = holds({outer: reach, inner: {...centre(node.box), w: 0, h: 0}})
-  return within || (!state.trusted.has('geometry') && !state.texts.has(candidate.key))
+  return (
+    within ||
+    (node.alone && node.words === candidate.words) ||
+    (!state.trusted.has('geometry') && !state.texts.has(candidate.key))
+  )
 }
 
 function oneToOne(input: {node: View; candidate: View; state: State}): boolean {
@@ -703,15 +728,35 @@ function enclosing(view: View): View | null {
 function carryFirst(input: {input: VoteInput; state: State}): Assignment[] {
   const {state} = input
   const {carried, context, compatible, gate, tolerances} = input.input
-  return carried.flatMap((entry) => {
+  const [agreeing, rest] = partition(
+    carried,
+    ({node, candidate}) => node.kind === 'text' && saysSame({node, candidate}),
+  )
+  return [...agreeing, ...rest].flatMap((entry) => {
     const {node, candidate} = entry
     if (context.assigned.has(node.key)) return []
     if (!compatible({node, candidate})) return []
+    if (node.kind === 'text' && !saysSame({node, candidate}) && !sharesWord({node, candidate})) return []
+    if (spokenElsewhere({node, candidate, context})) return []
     if (node.kind !== 'text' && !gate({node, candidate, state, tolerances})) return []
     if (node.kind !== 'text' && displaced({input: input.input, state, node, candidate})) return []
     take({node, candidate, state, context})
     return [entry]
   })
+}
+
+function saysSame(input: {node: View; candidate: View}): boolean {
+  return input.node.words === input.candidate.words
+}
+
+function sharesWord(input: {node: View; candidate: View}): boolean {
+  return intersection(input.node.text.split(' '), input.candidate.text.split(' ')).length > 0
+}
+
+function spokenElsewhere(input: {node: View; candidate: View; context: Context}): boolean {
+  const {node, candidate, context} = input
+  if (node.kind !== 'text' || candidate.words === '' || saysSame({node, candidate})) return false
+  return (context.spoken[candidate.words] ?? []).some((other) => other !== node && !context.assigned.has(other.key))
 }
 
 function displaced(input: {input: VoteInput; state: State; node: View; candidate: View}): boolean {
@@ -821,9 +866,10 @@ function greedy(input: {
   const {state, pools, lists, weights, views} = input
   const {context, nodes, tolerances, gate, deadline} = input.input
   if (Date.now() > deadline) return {matched: input.matched, partial: true}
-  const ready = [...lists.entries()].flatMap(([key, list]) => {
+  const ready = [...lists.entries()].flatMap(([key, scored]) => {
     const node = views.get(key)
     if (node === undefined) return []
+    const list = scored.filter((entry) => !spokenElsewhere({node, candidate: entry.candidate, context}))
     const top = list[0]
     if (top === undefined || !passes({node, list, floor: pools.get(key) ?? 0, state, tolerances})) return []
     return [{node, top}]
