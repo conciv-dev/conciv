@@ -582,10 +582,12 @@ describe('model menu', () => {
   const prompt = (name: string) => page.getByRole('button', {name: `Model: ${name}`})
   const model = (name: string) => page.getByRole('option', {name, exact: true})
   const picker = () => page.getByRole('dialog', {name: 'Model'})
-  const search = () => page.getByRole('combobox', {name: 'Search models'})
-  const effort = (name: string) => page.getByRole('radio', {name, exact: true})
+  const models = () => page.getByRole('listbox', {name: 'Model', exact: true})
+  const search = () => page.getByRole('textbox', {name: 'Search models'})
+  const older = () => page.getByRole('button', {name: 'Older versions'})
   const effortGroup = () => page.getByRole('radiogroup', {name: 'Effort'})
-  const pickEffort = (name: string) => userEvent.click(effortGroup().getByText(name, {exact: true}))
+  const effort = (name: string) => effortGroup().getByText(name, {exact: true})
+  const checkedEffort = (name: string) => effortGroup().getByRole('radio', {name, exact: true, checked: true})
   const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
   async function mountModelMenu(): Promise<void> {
@@ -615,10 +617,11 @@ describe('model menu', () => {
     const fault = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
     keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
 
-    await userEvent.click(page.getByRole('button', {name: 'Couldn’t load models'}))
-    await expect.element(picker().getByText('Couldn’t load models')).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'Couldn’t load models', exact: true}))
+    const retry = picker().getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
+    await expect.element(retry).toBeVisible()
     await coreControl.releaseFault(fault)
-    await userEvent.click(page.getByRole('button', {name: 'Retry loading models'}))
+    await userEvent.click(retry)
 
     await expect.element(prompt('Opus 5.5')).toBeVisible()
     await expect.element(model('Opus 5.5')).toHaveAttribute('aria-selected', 'true')
@@ -695,17 +698,18 @@ describe('model menu', () => {
     await expect.element(input()).not.toHaveTextContent()
   })
 
-  test('the prompt names the current model and the overflow menu no longer lists models', async () => {
+  test('the prompt names the current model, the caret sits outside it, and the overflow menu no longer lists models', async () => {
     await mountModelMenu()
 
-    await expect.element(prompt('Opus 5.5')).toHaveTextContent('opus 5.5❯')
+    await expect.element(prompt('Opus 5.5')).toHaveTextContent('opus 5.5')
+    await expect.element(prompt('Opus 5.5')).not.toHaveTextContent('❯')
 
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
     await expect.element(page.getByRole('menuitem', {name: 'Compress the conversation'})).toBeVisible()
     await expect.element(page.getByRole('menuitem', {name: /^Model:/})).not.toBeInTheDocument()
   })
 
-  test('picking a model from the prompt menu switches the session and renames the prompt', async () => {
+  test('picking a model from the prompt menu switches the session, renames the prompt and focuses the composer', async () => {
     await mountModelMenu()
 
     await userEvent.click(prompt('Opus 5.5'))
@@ -713,31 +717,66 @@ describe('model menu', () => {
     await expect.element(model('Opus 5.5')).toHaveAttribute('aria-selected', 'true')
     await userEvent.click(model('Sonnet 5.5'))
 
-    await expect.element(prompt('Sonnet 5.5')).toHaveTextContent('sonnet 5.5❯')
+    await expect.element(prompt('Sonnet 5.5')).toHaveTextContent('sonnet 5.5')
     await expect.element(picker()).not.toBeInTheDocument()
+    await expect.element(input()).toHaveFocus()
 
     await userEvent.click(prompt('Sonnet 5.5'))
     await expect.element(model('Sonnet 5.5')).toHaveAttribute('aria-selected', 'true')
   })
 
-  test('an empty search lists the main models, a query reaches the older versions too, and Enter picks the first match', async () => {
+  test('the arrow keys move from the current model and Enter picks it', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(search()).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+
+    await expect.element(prompt('Sonnet 5.5')).toBeVisible()
+    await expect.element(input()).toHaveFocus()
+  })
+
+  test('an older model is reached by keyboard through the Older versions section', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(search()).toHaveFocus()
+    await userEvent.keyboard('{Tab}')
+    await expect.element(models()).toHaveFocus()
+    await userEvent.keyboard('{Tab}')
+    await expect.element(older()).toHaveFocus()
+    await expect.element(model('Opus 4.7')).not.toBeInTheDocument()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(model('Opus 4.7')).toBeVisible()
+    await expect.element(picker()).toBeVisible()
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
+    await expect.element(models()).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}')
+
+    await expect.element(prompt('Opus 4.7')).toHaveTextContent('opus 4.7')
+    await userEvent.click(prompt('Opus 4.7'))
+    await expect.element(model('Opus 4.7')).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('an empty search keeps the older versions folded, a query reaches them too, and Enter picks the first match', async () => {
     await mountModelMenu()
 
     await userEvent.click(prompt('Opus 5.5'))
     await expect.element(model('Sonnet 5.5')).toBeVisible()
+    await expect.element(older()).toBeVisible()
     await expect.element(model('Opus 4.7')).not.toBeInTheDocument()
-    await expect.element(picker().getByText('2 more models, type to search')).toBeVisible()
 
     await userEvent.keyboard('4.7')
     await expect.element(model('Opus 4.7')).toBeVisible()
     await expect.element(model('Sonnet 5.5')).not.toBeInTheDocument()
+    await expect.element(older()).not.toBeInTheDocument()
     await userEvent.keyboard('{Enter}')
 
-    await expect.element(prompt('Opus 4.7')).toHaveTextContent('opus 4.7❯')
+    await expect.element(prompt('Opus 4.7')).toHaveTextContent('opus 4.7')
     await userEvent.click(prompt('Opus 4.7'))
     await userEvent.keyboard('opus')
     await expect.element(model('Opus 4.7')).toHaveAttribute('aria-selected', 'true')
-    await expect.element(model('Opus 5.5')).not.toHaveAttribute('aria-selected')
+    await expect.element(model('Opus 5.5')).toHaveAttribute('aria-selected', 'false')
   })
 
   test('the search matches a model by its id, ignoring case, and says so when nothing matches', async () => {
@@ -753,7 +792,7 @@ describe('model menu', () => {
     await expect.element(page.getByRole('option')).not.toBeInTheDocument()
   })
 
-  test('Escape clears the search first, then closes the menu and returns focus to the prompt', async () => {
+  test('Escape clears the search first, then closes the menu and returns focus to the composer', async () => {
     await mountModelMenu()
 
     await userEvent.click(prompt('Opus 5.5'))
@@ -767,53 +806,58 @@ describe('model menu', () => {
 
     await userEvent.keyboard('{Escape}')
     await expect.element(picker()).not.toBeInTheDocument()
-    await expect.element(prompt('Opus 5.5')).toHaveFocus()
+    await expect.element(input()).toHaveFocus()
   })
 
-  test('picking an effort keeps the menu open, names it on the prompt, and default clears it', async () => {
+  test('picking an effort keeps the panel open and names it on the prompt', async () => {
     await mountModelMenu()
 
     await userEvent.click(prompt('Opus 5.5'))
     await expect.element(effortGroup()).toBeVisible()
-    await expect.element(effort('default')).toBeChecked()
-    await pickEffort('high')
+    await expect.element(page.getByText('Using the model’s default effort.')).toBeVisible()
+    await userEvent.click(effort('Medium'))
 
-    await expect.element(prompt('Opus 5.5, effort high')).toHaveTextContent('opus 5.5 · high❯')
+    await expect.element(prompt('Opus 5.5, effort Medium')).toHaveTextContent('opus 5.5')
     await expect.element(picker()).toBeVisible()
-    await expect.element(effort('high')).toBeChecked()
-
-    await pickEffort('default')
-    await expect.element(prompt('Opus 5.5')).toHaveTextContent('opus 5.5❯')
-    await expect.element(prompt('Opus 5.5')).not.toHaveTextContent('·')
-    await expect.element(picker()).toBeVisible()
+    await expect.element(checkedEffort('Medium')).toBeInTheDocument()
   })
 
-  test('the effort is reached by Tab from the search field', async () => {
+  test('High+ is its own effort segment', async () => {
     await mountModelMenu()
 
     await userEvent.click(prompt('Opus 5.5'))
-    await expect.element(search()).toHaveFocus()
-    await userEvent.keyboard('{Tab}')
-    await expect.element(effort('default')).toHaveFocus()
-    await userEvent.keyboard('{ArrowRight}')
+    await userEvent.click(effort('High+'))
 
-    await expect.element(prompt('Opus 5.5, effort low')).toHaveTextContent('opus 5.5 · low❯')
-    await expect.element(effort('low')).toBeChecked()
+    await expect.element(prompt('Opus 5.5, effort High+')).toHaveTextContent('opus 5.5')
+    await expect.element(checkedEffort('High+')).toBeInTheDocument()
+    await expect.element(page.getByText('Thinks even longer than High. Slower again, uses more tokens.')).toBeVisible()
+  })
+
+  test('the effort track takes the arrow keys', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await userEvent.click(effort('Medium'))
+    await expect.element(checkedEffort('Medium')).toBeInTheDocument()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(prompt('Opus 5.5, effort High')).toBeVisible()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(prompt('Opus 5.5, effort High+')).toBeVisible()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(prompt('Opus 5.5, effort Max')).toBeVisible()
   })
 
   test('an older model without effort hides the effort row and clears the effort', async () => {
     await mountModelMenu()
 
     await userEvent.click(prompt('Opus 5.5'))
-    await pickEffort('high')
-    await expect.element(prompt('Opus 5.5, effort high')).toHaveTextContent('opus 5.5 · high❯')
+    await userEvent.click(effort('High'))
+    await expect.element(prompt('Opus 5.5, effort High')).toBeVisible()
 
-    await userEvent.click(search())
-    await userEvent.keyboard('haiku')
+    await userEvent.click(older())
     await userEvent.click(model('Haiku 4.5'))
 
-    await expect.element(prompt('Haiku 4.5')).toHaveTextContent('haiku 4.5❯')
-    await expect.element(prompt('Haiku 4.5')).not.toHaveTextContent('·')
+    await expect.element(prompt('Haiku 4.5')).toHaveTextContent('haiku 4.5')
     await userEvent.click(prompt('Haiku 4.5'))
     await expect.element(model('Sonnet 5.5')).toBeVisible()
     await expect.element(effortGroup()).not.toBeInTheDocument()
@@ -945,8 +989,7 @@ describe('harness switching', () => {
   const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const prompt = (name: string) => page.getByRole('button', {name: `Model: ${name}`})
   const model = (name: string) => page.getByRole('option', {name, exact: true})
-  const picker = () => page.getByRole('dialog', {name: 'Model'})
-  const search = () => page.getByRole('combobox', {name: 'Search models'})
+  const search = () => page.getByRole('textbox', {name: 'Search models'})
   const harnessGroup = (name: string) => page.getByRole('group', {name})
   const confirmDialog = () => page.getByRole('alertdialog', {name: 'Switch harness?'})
   const announcements = () => page.getByRole('log', {name: 'Announcements'})
@@ -958,18 +1001,16 @@ describe('harness switching', () => {
     await expect.element(input()).toBeVisible()
   }
 
-  test('the prompt menu lists every harness’s main models, each named with its harness, and the overflow has no harness rows', async () => {
+  test('the prompt menu lists every harness’s models, each named with its harness, and the overflow has no harness rows', async () => {
     await mountChat(await createSession(coreRpc(core())))
 
-    await expect.element(prompt('Alpha Model (Alpha)')).toHaveTextContent('alpha model (alpha)❯')
+    await expect.element(prompt('Alpha Model (Alpha)')).toHaveTextContent('alpha model (alpha)')
     await userEvent.click(prompt('Alpha Model (Alpha)'))
 
     await expect.element(harnessGroup('Alpha').getByRole('option', {name: 'Alpha Model (Alpha)'})).toBeVisible()
     await expect.element(model('Alpha Model (Alpha)')).toHaveAttribute('aria-selected', 'true')
     await expect.element(harnessGroup('Beta').getByRole('option', {name: 'Beta Model (Beta)'})).toBeVisible()
-    await expect.element(model('Beta Four (Beta)')).toBeVisible()
-    await expect.element(model('Beta Five (Beta)')).not.toBeInTheDocument()
-    await expect.element(harnessGroup('Beta').getByText('2 more models, type to search')).toBeVisible()
+    await expect.element(harnessGroup('Beta').getByRole('option', {name: 'Beta Six (Beta)'})).toBeVisible()
     await userEvent.keyboard('{Escape}')
 
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
@@ -981,14 +1022,14 @@ describe('harness switching', () => {
     await faults.install({kind: 'gate', path: ['meta', 'harnesses']})
     await mountChat(await createSession(coreRpc(core())))
 
-    await expect.element(prompt('Alpha Model')).toHaveTextContent('alpha model❯')
+    await expect.element(prompt('Alpha Model')).toHaveTextContent('alpha model')
     await userEvent.click(prompt('Alpha Model'))
     await expect.element(model('Alpha Model')).toHaveAttribute('aria-selected', 'true')
     await userEvent.keyboard('{Escape}')
 
     await faults.releaseAll()
 
-    await expect.element(prompt('Alpha Model (Alpha)')).toHaveTextContent('alpha model (alpha)❯')
+    await expect.element(prompt('Alpha Model (Alpha)')).toHaveTextContent('alpha model (alpha)')
   })
 
   test('other harnesses’ models that failed to load keep the session’s own models and offer a retry', async () => {
@@ -1010,7 +1051,22 @@ describe('harness switching', () => {
 
     await userEvent.click(prompt('Alpha Model (Alpha)'))
 
-    await expect.element(picker().getByText('Gamma has no usable models')).toBeVisible()
+    await expect.element(harnessGroup('Gamma').getByText('Gamma has no usable models')).toBeVisible()
+  })
+
+  test('a session on a harness with no models still shows the prompt, named for the harness, and can switch away', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.switchHarness({sessionId, harnessId: 'gamma'})
+    await mountChat(sessionId)
+
+    await expect.element(prompt('Gamma')).toHaveTextContent('gamma')
+    await userEvent.click(prompt('Gamma'))
+    await expect.element(harnessGroup('Gamma').getByText('Gamma has no usable models')).toBeVisible()
+    await userEvent.click(model('Alpha Model (Alpha)'))
+
+    await expect.element(announcements()).toHaveTextContent('Switched to Alpha Model (Alpha).')
+    await expect.element(prompt('Alpha Model (Alpha)')).toHaveTextContent('alpha model (alpha)')
   })
 
   test('the search reaches every model of every harness by harness name and by model id', async () => {
@@ -1028,7 +1084,7 @@ describe('harness switching', () => {
     await userEvent.keyboard('{Enter}')
 
     await expect.element(announcements()).toHaveTextContent('Switched to Beta Six (Beta).')
-    await expect.element(prompt('Beta Six (Beta)')).toHaveTextContent('beta six (beta)❯')
+    await expect.element(prompt('Beta Six (Beta)')).toHaveTextContent('beta six (beta)')
   })
 
   test('picking another harness’s model in an empty chat switches at once to that model, and slash commands follow', async () => {
@@ -1039,10 +1095,10 @@ describe('harness switching', () => {
 
     await expect.element(announcements()).toHaveTextContent('Switched to Beta Three (Beta).')
     await expect.element(confirmDialog()).not.toBeInTheDocument()
-    await expect.element(prompt('Beta Three (Beta)')).toHaveTextContent('beta three (beta)❯')
+    await expect.element(prompt('Beta Three (Beta)')).toHaveTextContent('beta three (beta)')
     await userEvent.click(prompt('Beta Three (Beta)'))
     await expect.element(model('Beta Three (Beta)')).toHaveAttribute('aria-selected', 'true')
-    await expect.element(model('Alpha Model (Alpha)')).not.toHaveAttribute('aria-selected')
+    await expect.element(model('Alpha Model (Alpha)')).toHaveAttribute('aria-selected', 'false')
     await userEvent.keyboard('{Escape}')
     await userEvent.click(input())
     await userEvent.keyboard('/')
@@ -1064,6 +1120,7 @@ describe('harness switching', () => {
     await userEvent.click(page.getByRole('button', {name: 'Cancel'}))
     await expect.element(confirmDialog()).not.toBeInTheDocument()
     await expect.element(prompt('Alpha Model (Alpha)')).toBeVisible()
+    await expect.element(input()).toHaveFocus()
   })
 
   test('labels appear on replies only once the chat has used a second harness', async () => {

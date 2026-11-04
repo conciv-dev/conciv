@@ -42,7 +42,7 @@ The chat pane for one session: transcript, composer with attachments and element
 - `trigger-sources.ts:useComposerTriggerSources`: `ensureQueryData` for `meta.commands` and `meta.tools`
 - `trigger-sources.ts:useComposerTriggerSources`: a built-in or extension command replaces the harness command of the same name in the `/` list; a built-in beats an extension command of the same name
 - `chat-pane.tsx:ChatPane`: a sent text that is exactly `/<name>` of a widget command runs it and is never sent to the agent
-- `chat-pane.tsx:ChatPane`: owns the model menu open state (`useModelMenu`); `/model` opens it with `setOpen(true)`, which focuses its search field, and closing a menu `/model` opened returns focus to the composer
+- `chat-pane.tsx:ChatPane`: owns the model menu (`useModelMenu`); `/model` opens it with `popover().setOpen(true)`, which focuses its search field, and every close (a pick, Escape, outside click, a settled harness-switch confirm) returns focus to the composer
 - `composer-input-adapter.tsx:ComposerInputAdapter`: `keydown` listener for Escape
 
 ## Verification

@@ -742,17 +742,18 @@ test.describe('model selector', () => {
       await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
       await openPanel(page)
 
-      await page.getByRole('button', {name: 'Couldn’t load models'}).click()
-      const retry = page.getByRole('button', {name: 'Retry loading models'})
+      await page.getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
+      const retry = page.getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
       await expect(retry).toBeVisible({timeout: 30_000})
-      await expect(page.getByText('Couldn’t load models').first()).toBeVisible({timeout: 30_000})
 
       models.repair()
       await retry.click()
-      const prompt = page.getByRole('button', {name: 'Model: Claude Sonnet 4.5'})
-      await expect(prompt).toBeVisible({timeout: 30_000})
-      await expect(page.getByRole('option', {name: 'Claude Sonnet 4.5'})).toHaveAttribute('aria-selected', 'true')
+      await expect(page.getByRole('option', {name: /^Claude Sonnet 4\.5/, selected: true})).toBeVisible({
+        timeout: 30_000,
+      })
+      await expect(page.getByRole('textbox', {name: 'Search models'})).toBeVisible()
       await page.keyboard.press('Escape')
+      await expect(page.getByRole('button', {name: 'Model: Claude Sonnet 4.5'})).toBeVisible({timeout: 30_000})
     })
   })
 })
