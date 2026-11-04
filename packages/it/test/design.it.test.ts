@@ -2297,6 +2297,9 @@ const CONTACT_LABELS = ['Your Email', 'Message', 'Send']
 
 const STACKED_PICTURE = 'stacked-picture'
 const PICTURE_GAP = 24
+const SECTION_FIT = 'section-fit'
+const SAVED_TOOLBAR = '#fde68a'
+const SAVED_TOOLBAR_RGB = 'rgb(253, 230, 138)'
 
 const TreeModelSchema = z.looseObject({
   nodes: z.array(z.looseObject({id: z.string(), within: z.string().optional()})),
@@ -2441,6 +2444,41 @@ describe('pairing', () => {
     await annotate(`moved ${JSON.stringify(moved.filter((pair) => pair.path === paragraph.path))}`)
     expect(covered.filter((pair) => pair.node === PARAGRAPH_ICON && pair.path === paragraph.path)).toEqual([])
     expect(moved.filter((pair) => pair.path === paragraph.path).map((pair) => pair.node)).toEqual([paragraph.node])
+  })
+
+  it('a top-level section whose live box equals its design box pairs with that element, not a wider wrapper around it', async () => {
+    await goto('target')
+    const captured = await call('design_capture', {height: 720})
+    const toolbar = captured.components.find((c) => c.source?.file === 'src/Toolbar.tsx')
+    const [child] = toolbar?.children ?? []
+    if (toolbar === undefined || child === undefined) throw new Error('the target page has no toolbar with a child')
+    const {id, route} = await freshTarget('u1-1280')
+    const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
+    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
+    await store.put({
+      model: {
+        id: SECTION_FIT,
+        source: {kind: 'figma', ref: SECTION_FIT},
+        viewport: {width: png.width, height: png.height},
+        raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
+        root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
+        nodes: [
+          {id: 'section', kind: 'box', box: toolbar.box, border: null, radius: 0},
+          {id: 'inner', kind: 'box', box: child.box, border: null, radius: 0, within: 'section'},
+        ],
+        scale: 1,
+      },
+      session: kit.session,
+      ...(route === undefined ? {} : {route}),
+    })
+    const report = await call('design_diff', {full: true})
+    const latest = (await runFiles({id: SECTION_FIT, prefix: 'pairs-'})).at(-1) ?? ''
+    const pairs = StoredPairsSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${SECTION_FIT}/${latest}`), 'utf8')),
+    )
+    expect(report.target.id).toBe(SECTION_FIT)
+    expect(pairs.filter((pair) => pair.node === 'section').map((pair) => pair.path)).toEqual([toolbar.path])
+    expect(report.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.node === 'section')).toEqual([])
   })
 })
 
@@ -2682,6 +2720,42 @@ describe('loop', () => {
     const first = await call('design_diff', {})
     const second = await call('design_diff', {})
     expect([second.round, second.hint]).toEqual([first.round, 'the page has not changed since the last diff'])
+  })
+
+  it('a diff called once the page shows a save returns a new round that reflects it, even when the save paints nothing', async () => {
+    await goto('target')
+    await freshTarget('u1-1280')
+    const first = await call('design_diff', {})
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    const shown = (input: {property: string; value: string}): Promise<unknown> =>
+      page.waitForFunction(
+        ({property, value}) => {
+          const toolbar = document.querySelector('.toolbar')
+          return toolbar !== null && getComputedStyle(toolbar).getPropertyValue(property) === value
+        },
+        input,
+        {timeout: 10_000},
+      )
+    try {
+      await writeFile(HOST_STYLES, `${styles}\n.toolbar { background-color: ${SAVED_TOOLBAR} !important; }\n`)
+      await shown({property: 'background-color', value: SAVED_TOOLBAR_RGB})
+      const recolored = await call('design_diff', {})
+      await writeFile(
+        HOST_STYLES,
+        `${styles}\n.toolbar { background-color: ${SAVED_TOOLBAR} !important; cursor: pointer; }\n`,
+      )
+      await shown({property: 'cursor', value: 'pointer'})
+      const unpainted = await call('design_diff', {})
+      const again = await call('design_diff', {})
+      expect(recolored.round).toBe(first.round + 1)
+      expect(recolored.components.flatMap((component) => component.deltas)).toContainEqual(
+        expect.objectContaining({kind: 'background', live: SAVED_TOOLBAR}),
+      )
+      expect([unpainted.round, unpainted.hint]).toEqual([recolored.round + 1, undefined])
+      expect([again.round, again.hint]).toEqual([unpainted.round, 'the page has not changed since the last diff'])
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
   })
 
   it('pairs the finished fixture within the run budget and reports no partial run', async () => {

@@ -1,3 +1,4 @@
+import {setTimeout as delay} from 'node:timers/promises'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {isSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import {
@@ -343,14 +344,9 @@ export function watchSettled(input: {
   page: DesignPage
   refresh: (input: {session: SessionId}) => Promise<unknown>
   touch: (input: {file: string}) => void
-}): () => void {
+}): {dispose: () => void; quiet: () => Promise<void>} {
   const {bundler, store, page, refresh, touch} = input
-  const state: {
-    timer: ReturnType<typeof setTimeout> | null
-    since: number
-    files: Set<string>
-    flight: Promise<void>
-  } = {timer: null, since: 0, files: new Set<string>(), flight: Promise.resolve()}
+  const state: {burst: Burst | null; flight: Promise<void>} = {burst: null, flight: Promise.resolve()}
   const settle = async (since: number): Promise<void> => {
     const sessions = new Set((await store.list({})).map((record) => record.session).filter(isSessionId))
     await Promise.all(
@@ -362,25 +358,46 @@ export function watchSettled(input: {
       }),
     )
   }
+  const fire = (burst: Burst): void => {
+    state.burst = null
+    const files = [...burst.files]
+    state.flight = state.flight
+      .then(() => (outsidePage({bundler, files}) ? undefined : settle(burst.since)))
+      .catch(() => undefined)
+      .finally(() => burst.settled.resolve())
+  }
   const unsubscribe = bundler?.subscribe?.((diagnostic) => {
     if (diagnostic.kind !== 'hmr-update') return
     touch({file: diagnostic.file})
-    state.files.add(diagnostic.file)
-    if (state.timer === null) state.since = diagnostic.timestamp - TOLERANCES.runDebounceMs
-    if (state.timer !== null) clearTimeout(state.timer)
-    state.timer = setTimeout(() => {
-      state.timer = null
-      const files = [...state.files]
-      state.files.clear()
-      if (outsidePage({bundler, files})) return
-      const since = state.since
-      state.flight = state.flight.then(() => settle(since)).catch(() => undefined)
-    }, TOLERANCES.settleQuiet)
+    const burst = state.burst ?? {
+      timer: undefined,
+      since: diagnostic.timestamp - TOLERANCES.runDebounceMs,
+      files: new Set<string>(),
+      settled: Promise.withResolvers<void>(),
+    }
+    state.burst = burst
+    burst.files.add(diagnostic.file)
+    clearTimeout(burst.timer)
+    burst.timer = setTimeout(() => fire(burst), TOLERANCES.settleQuiet)
   })
-  return () => {
-    if (state.timer !== null) clearTimeout(state.timer)
-    unsubscribe?.()
+  return {
+    dispose: () => {
+      clearTimeout(state.burst?.timer)
+      unsubscribe?.()
+    },
+    quiet: () =>
+      Promise.race([
+        state.burst?.settled.promise ?? state.flight,
+        delay(TOLERANCES.settleQuiet + SETTLE_WAIT_MS, undefined, {ref: false}),
+      ]),
   }
+}
+
+type Burst = {
+  timer: ReturnType<typeof setTimeout> | undefined
+  since: number
+  files: Set<string>
+  settled: PromiseWithResolvers<void>
 }
 
 function outsidePage(input: {bundler: BundlerBridge | undefined; files: string[]}): boolean {

@@ -109,7 +109,16 @@ export const design = defineExtension({
     touch: differ.touch,
   })
   return {
-    context: {design: runtime, differ},
+    context: {
+      design: runtime,
+      differ: {
+        ...differ,
+        run: async (request) => {
+          await settled.quiet()
+          return differ.run(request)
+        },
+      },
+    },
     systemPrompt: async ({sessionId}) =>
       (await store.current({session: sessionId})) === null ? undefined : designGuide(server.config.blind),
     router: makeXrayRouter({store, differ, designDir, sourceChangedAt: changes.sourceChangedAt}),
@@ -124,7 +133,7 @@ export const design = defineExtension({
       await destroyPaddle()
       css.dispose()
       changes.dispose()
-      settled()
+      settled.dispose()
     },
   }
 })
