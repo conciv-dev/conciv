@@ -336,7 +336,7 @@ async function runDiff(request: {
   if (job.observe && touched === 'all' && settled !== undefined && countable({settled, capture})) {
     return countedRound({settled, job, rounds, design, page, record, history, latest})
   }
-  const repeated = repeatedRound({rounds, capture, observe: job.observe, clock})
+  const repeated = repeatedRound({rounds, capture, observe: job.observe, touched, clock})
   if (repeated !== null) return repeated
   const previous = await design.store.latestRun(record.id)
   const tiles = previous === null ? null : await design.store.tiles({id: record.id, run: previous.run})
@@ -970,9 +970,16 @@ function runName(report: DiffReport): string {
   return basename(report.livePath).slice(LIVE_PREFIX.length, -PNG_SUFFIX.length)
 }
 
-function repeatedRound(input: {rounds: Round[]; capture: string; observe: boolean; clock: Clock}): DiffReport | null {
+function repeatedRound(input: {
+  rounds: Round[]
+  capture: string
+  observe: boolean
+  touched: Touched
+  clock: Clock
+}): DiffReport | null {
   const previous = input.rounds.at(-1)
-  if (!input.observe || previous === undefined || previous.capture !== input.capture) return null
+  if (!input.observe || input.touched !== 'all') return null
+  if (previous === undefined || previous.capture !== input.capture) return null
   return {...previous.report, hint: UNCHANGED_HINT, timings: {...input.clock.timings(), carried: {pairs: 0, tiles: 0}}}
 }
 

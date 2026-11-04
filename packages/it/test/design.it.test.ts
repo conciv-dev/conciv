@@ -2212,6 +2212,8 @@ const CONTACT_LABELS = ['Your Email', 'Message', 'Send']
 const STACKED_PICTURE = 'stacked-picture'
 const PICTURE_GAP = 24
 const SECTION_FIT = 'section-fit'
+const SAVED_TOOLBAR = '#fde68a'
+const SAVED_TOOLBAR_RGB = 'rgb(253, 230, 138)'
 
 const TreeModelSchema = z.looseObject({
   nodes: z.array(z.looseObject({id: z.string(), within: z.string().optional()})),
@@ -2632,6 +2634,42 @@ describe('loop', () => {
     const first = await call('design_diff', {})
     const second = await call('design_diff', {})
     expect([second.round, second.hint]).toEqual([first.round, 'the page has not changed since the last diff'])
+  })
+
+  it('a diff called once the page shows a save returns a new round that reflects it, even when the save paints nothing', async () => {
+    await goto('target')
+    await freshTarget('u1-1280')
+    const first = await call('design_diff', {})
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    const shown = (input: {property: string; value: string}): Promise<unknown> =>
+      page.waitForFunction(
+        ({property, value}) => {
+          const toolbar = document.querySelector('.toolbar')
+          return toolbar !== null && getComputedStyle(toolbar).getPropertyValue(property) === value
+        },
+        input,
+        {timeout: 10_000},
+      )
+    try {
+      await writeFile(HOST_STYLES, `${styles}\n.toolbar { background-color: ${SAVED_TOOLBAR} !important; }\n`)
+      await shown({property: 'background-color', value: SAVED_TOOLBAR_RGB})
+      const recolored = await call('design_diff', {})
+      await writeFile(
+        HOST_STYLES,
+        `${styles}\n.toolbar { background-color: ${SAVED_TOOLBAR} !important; cursor: pointer; }\n`,
+      )
+      await shown({property: 'cursor', value: 'pointer'})
+      const unpainted = await call('design_diff', {})
+      const again = await call('design_diff', {})
+      expect(recolored.round).toBe(first.round + 1)
+      expect(recolored.components.flatMap((component) => component.deltas)).toContainEqual(
+        expect.objectContaining({kind: 'background', live: SAVED_TOOLBAR}),
+      )
+      expect([unpainted.round, unpainted.hint]).toEqual([recolored.round + 1, undefined])
+      expect([again.round, again.hint]).toEqual([unpainted.round, 'the page has not changed since the last diff'])
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
   })
 
   it('pairs the finished fixture within the run budget and reports no partial run', async () => {

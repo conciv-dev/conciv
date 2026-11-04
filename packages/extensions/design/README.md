@@ -394,7 +394,12 @@ and a pair, once made, stays until its element is gone or no longer passes the p
   `observe: false` run whose capture hash (the pixels and the decisions) equals the page now, captures once and
   counts that run as the round: it is judged against the round history, its `components` are listed again for the
   agent's `limit`, `depth` and `full`, its result file is rewritten with the new `round`, and its `timings` are the
-  settled run's. A diff whose capture equals the last round's repeats that round, as above.
+  settled run's. A diff whose capture equals the last round's repeats that round, as above, only when no
+  `hmr-update` came since the run before: a diff after a save is always a new round, even when the save paints
+  nothing (a changed input type, a cursor). An agent `design_diff` first waits for the settle of the latest burst of
+  saves, bounded by `settleQuiet` plus the `page_hmr` wait (5 s), so it counts the settled run instead of reading
+  the page before the save landed and then counting the settle as a second round. A save the bundler has not
+  reported yet when the call arrives (a call within the file watcher's latency) is not waited for.
 
 ## Ledger
 
