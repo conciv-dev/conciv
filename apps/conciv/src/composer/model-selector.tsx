@@ -100,7 +100,12 @@ type MenuRow = {harness: HarnessMenuEntry; model: HarnessModelInfo; value: strin
 type OlderGroup = {key: string; name: string; rows: MenuRow[]}
 type HarnessSection = {harness: HarnessMenuEntry; rows: MenuRow[]; older: OlderGroup[]}
 type SwitchTarget = {harness: HarnessMenuEntry; model: HarnessModelInfo; label: string}
-type MenuState = {query: string; expanded: Record<string, boolean>; confirming: SwitchTarget | null}
+type MenuState = {
+  query: string
+  expanded: Record<string, boolean>
+  confirming: SwitchTarget | null
+  asking: boolean
+}
 
 export type ModelMenu = {
   popover: PopoverMachine
@@ -108,6 +113,7 @@ export type ModelMenu = {
   search: (query: string) => void
   expand: (key: string, open: boolean) => void
   confirm: (target: SwitchTarget) => void
+  ask: () => void
   settle: () => void
 }
 
@@ -367,9 +373,10 @@ function SwitchConfirm(props: {
 }
 
 export function useModelMenu(onClose: () => void): ModelMenu {
-  const [state, setState] = createStore<MenuState>({query: '', expanded: {}, confirming: null})
+  const [state, setState] = createStore<MenuState>({query: '', expanded: {}, confirming: null, asking: false})
   const popover = usePopover({
     positioning: {placement: 'top-start'},
+    restoreFocus: false,
     onEscapeKeyDown: (event) => {
       if (state.query === '') return
       event.preventDefault()
@@ -387,8 +394,9 @@ export function useModelMenu(onClose: () => void): ModelMenu {
     search: (query) => setState('query', query),
     expand: (key, open) => setState('expanded', key, open),
     confirm: (target) => setState('confirming', target),
+    ask: () => setState('asking', state.confirming !== null),
     settle: () => {
-      setState('confirming', null)
+      setState({confirming: null, asking: false})
       onClose()
     },
   }
@@ -517,6 +525,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
   const switchTo = (target: SwitchTarget) => {
     if (pane.chat().messages().length > 0) {
       props.menu.confirm(target)
+      close()
       return
     }
     close()
@@ -551,7 +560,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
   return (
     <>
       <Show when={failed() || harness() !== undefined}>
-        <Popover.RootProvider value={props.menu.popover} lazyMount unmountOnExit>
+        <Popover.RootProvider value={props.menu.popover} lazyMount unmountOnExit onExitComplete={props.menu.ask}>
           <Popover.Trigger
             asChild={(triggerProps) => (
               <Button
@@ -648,7 +657,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
           </Popover.Positioner>
         </Popover.RootProvider>
       </Show>
-      <Show when={props.menu.state.confirming}>
+      <Show when={props.menu.state.asking && props.menu.state.confirming}>
         {(target) => (
           <SwitchConfirm
             target={target()}

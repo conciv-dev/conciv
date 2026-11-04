@@ -1117,6 +1117,7 @@ describe('harness switching', () => {
     await expect
       .element(confirmDialog().getByText('Switching to Beta sends this chat’s history (about 8 tokens).'))
       .toBeVisible()
+    await expect.element(page.getByRole('textbox', {name: 'Search models'})).not.toBeInTheDocument()
     await userEvent.click(page.getByRole('button', {name: 'Cancel'}))
     await expect.element(confirmDialog()).not.toBeInTheDocument()
     await expect.element(prompt('Alpha Model (Alpha)')).toBeVisible()
