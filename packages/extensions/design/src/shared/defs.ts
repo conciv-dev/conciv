@@ -8,7 +8,7 @@ export const DESIGN_EXTENSION_NAME = 'design'
 export const DESIGN_TOOL_PREFIX = 'design_'
 
 export const DESIGN_GUIDE =
-  'A design target is registered. Call `design_diff` to measure the live page against it, fix the brief, run it again, and stop when `stop` is set. Do not judge a design match from a screenshot. The brief names rows, columns, gaps and sizing rules; build with flow, flex and grid, never from coordinates. Never draw icons, logos or illustrations: no inline <svg> paths, no data urls, no CSS shapes copied from the image; every image and icon slot takes the Placeholder. Gradients are CSS.'
+  "A design target is registered. Call `design_diff` to measure the live page against it, fix the brief, run it again, and stop when `stop` is set. Do not judge a design match from a screenshot. The brief names rows, columns, gaps and sizing rules; build with flow, flex and grid, never from coordinates. Never draw icons, logos or illustrations: no inline <svg> paths, no data urls, no CSS shapes copied from the image; every image and icon slot takes the Placeholder. Gradients are CSS. `data-conciv-key` attributes are written into the source by the compiler and are each element's identity for the diff: leave them in place, keep an element's key on it when you move or wrap it, and never copy one onto a second element."
 
 export const BLIND_GUIDE =
   "Never open a png or take a screenshot; the tool's numbers are the only view of the page you have."
@@ -154,7 +154,19 @@ export const OpinionSchema = z
 
 const LiveComponentSchema = z.object({
   source: SourceLocSchema.nullable(),
-  key: z.string().nullable().describe('the data-conciv-key the compiler stamped, null without the stamp'),
+  key: z
+    .string()
+    .nullable()
+    .describe(
+      "the data-conciv-key the compiler wrote into the source, the element's identity for the diff; null without one",
+    ),
+  instance: z
+    .string()
+    .nullable()
+    .default(null)
+    .describe(
+      'the call-site keys and React keys of the fiber chain from the root, which tell copies of one key apart; null when the framework is unknown',
+    ),
   owner: z.string().nullable().describe('the component owner path from the root, null when the framework is unknown'),
   tag: z.string(),
   text: z.string(),
@@ -354,6 +366,7 @@ const RowSchema = z.object({
 export const FingerprintSchema = z.object({
   source: SourceLocSchema.nullable(),
   key: z.string().nullable().default(null),
+  instance: z.string().nullable().default(null),
   owner: z.string().nullable().default(null),
   tag: z.string(),
   textHash: z.string(),

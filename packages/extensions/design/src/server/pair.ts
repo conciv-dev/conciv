@@ -32,18 +32,12 @@ export function fingerprint(component: LiveComponent): Fingerprint {
   return {
     source: component.source,
     key: component.key,
+    instance: component.instance,
     owner: component.owner,
     tag: component.tag,
     textHash: fnv(folded(component.glyphs.map((glyph) => glyph.text).join(' '))),
     box: component.box,
   }
-}
-
-export function keyedSame(input: {a: Fingerprint; b: Fingerprint; margin: number}): boolean {
-  const {a, b} = input
-  if (a.textHash !== b.textHash || !withinMargin(input)) return false
-  if (a.key !== null && a.key === b.key) return true
-  return a.owner !== null && a.owner === b.owner
 }
 
 export function glyphRun(node: TargetNode): boolean {
@@ -312,8 +306,7 @@ function underTouched(input: {touched: Set<string>; view: View; components: Map<
 
 function samePrint(input: {a: Fingerprint; b: Fingerprint; margin: number}): boolean {
   const {a, b} = input
-  if (keyedSame(input)) return true
-  if (a.key !== null || b.key !== null) return false
+  if (a.key !== null && b.key !== null) return a.key === b.key && a.instance === b.instance
   return (
     a.tag === b.tag &&
     a.textHash === b.textHash &&

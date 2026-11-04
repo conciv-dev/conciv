@@ -1827,6 +1827,7 @@ function pixelResult(input: {output: Uint8Array; count: number; width: number; h
 const LiveComponentTreeSchema: z.ZodType<LiveComponent> = z.object({
   source: SourceLocSchema.nullable(),
   key: z.string().nullable(),
+  instance: z.string().nullable().default(null),
   owner: z.string().nullable(),
   tag: z.string(),
   text: z.string(),

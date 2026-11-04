@@ -637,6 +637,7 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
     source: readSource(el),
     key: el.getAttribute(KEY_ATTR),
     owner: ownerPath(el),
+    instance: instancePath(el),
     tag: el.tagName.toLowerCase(),
     text: nodes
       .map((node) => node.textContent ?? '')
@@ -684,6 +685,29 @@ function ownerPath(el: Element): string | null {
   if (fiber !== undefined) return reactOwner({el, fiber: fields(fiber)})
   const devId = el.closest(`[${DEV_ID_ATTR}]`)?.getAttribute(DEV_ID_ATTR) ?? null
   return devId === null ? null : `${devId}[${siblingIndex(el)}]`
+}
+
+function instancePath(el: Element): string | null {
+  const fiber = Object.entries(el).find(([name]) => name.startsWith(FIBER_PREFIX))?.[1]
+  if (fiber === undefined) return null
+  return instanceChain(fields(fiber)).join('/')
+}
+
+function instanceChain(fiber: Record<string, unknown>): string[] {
+  if (Object.keys(fiber).length === 0) return []
+  const reactKey = typeof fiber.key === 'string' ? [fiber.key] : []
+  return [...instanceChain(fields(fiber.return)), ...callSite(fiber), ...reactKey]
+}
+
+function callSite(fiber: Record<string, unknown>): string[] {
+  if (typeof fiber.type !== 'function') return []
+  const key = siteKey(fields(fiber.pendingProps)) ?? siteKey(fields(fiber.memoizedProps))
+  return [key ?? String(fiberIndex(fiber))]
+}
+
+function siteKey(given: Record<string, unknown>): string | null {
+  const key = given[KEY_ATTR]
+  return typeof key === 'string' ? key : null
 }
 
 function reactOwner(input: {el: Element; fiber: Record<string, unknown>}): string {
