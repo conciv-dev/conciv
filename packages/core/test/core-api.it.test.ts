@@ -68,7 +68,7 @@ import {os} from '@orpc/server'
 import {Hono} from 'hono'
 import WebSocket from 'ws'
 import {z} from 'zod'
-import {HealthSchema, makeApp, type MadeApp} from '../src/app.js'
+import {makeApp, type MadeApp} from '../src/app.js'
 import {resolveConfig, type ResolvedConcivConfig} from '../src/config.js'
 import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
@@ -119,36 +119,13 @@ describe('api connect gate', () => {
   })
 
   describe('token-gated core', () => {
-    it('serves health under the token prefix', async () => {
-      const res = await fetch(`http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/health`)
-      expect(res.status).toBe(200)
-      const raw = z.record(z.string(), z.unknown()).parse(await res.json())
-      expect(Object.keys(raw).toSorted()).toEqual(['engine', 'harness', 'ok'])
-      expect(Object.keys(z.record(z.string(), z.unknown()).parse(raw.engine)).toSorted()).toEqual([
-        'bootedAt',
-        'changed',
-        'fingerprint',
-        'stale',
-        'tracked',
-      ])
-      expect(HealthSchema.parse(raw)).toEqual({
-        ok: true,
-        harness: 'fake-gate',
-        engine: {
-          stale: false,
-          changed: [],
-          tracked: expect.arrayContaining(['@conciv/core']),
-          bootedAt: expect.any(Number),
-          fingerprint: expect.any(String),
-        },
-      })
-    })
-
-    it('refuses a wrong token and serves the open health path bare', async () => {
-      const wrong = await fetch(`http://127.0.0.1:${engine.port}/t/nope/health`)
+    it('serves only liveness and the stale flag on health, with or without the token', async () => {
+      const expected = {ok: true, harness: 'fake-gate', engine: {stale: false}}
+      const prefixed = await fetch(`http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/health`)
       const bare = await fetch(`http://127.0.0.1:${engine.port}/health`)
-      expect(wrong.status).toBe(401)
-      expect(bare.status).toBe(200)
+      expect([prefixed.status, bare.status]).toEqual([200, 200])
+      expect([await prefixed.json(), await bare.json()]).toEqual([expected, expected])
+      expect((await fetch(`http://127.0.0.1:${engine.port}/t/nope/health`)).status).toBe(401)
     })
 
     it('serves rpc under the prefix', async () => {
@@ -258,7 +235,7 @@ describe('api engine staleness di', () => {
         return INJECTED
       })
 
-      const health = HealthSchema.parse(await (await fetch(`${served.base}/health`)).json())
+      const health: unknown = await (await fetch(`${served.base}/health`)).json()
       const engine = await makeRpcClient(served.base).meta.engine()
       const mcp = await fetch(`${served.base}/api/mcp`, {
         method: 'POST',
@@ -267,7 +244,7 @@ describe('api engine staleness di', () => {
       })
       const instructions = await mcp.text()
 
-      expect(health.engine).toEqual(INJECTED)
+      expect(health).toEqual({ok: true, harness: expect.any(String), engine: {stale: INJECTED.stale}})
       expect(engine).toEqual(INJECTED)
       expect(instructions).toContain('@conciv/injected-probe')
       expect(calls.count).toBeGreaterThanOrEqual(3)

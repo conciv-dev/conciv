@@ -241,10 +241,10 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
   }
 }
 
-export const HealthSchema = z.object({
+const HealthSchema = z.object({
   ok: z.literal(true),
   harness: z.string(),
-  engine: EngineStalenessSchema,
+  engine: EngineStalenessSchema.pick({stale: true}),
 })
 
 export type CoreVars = CorsVars & {harnessId: string} & McpVars
