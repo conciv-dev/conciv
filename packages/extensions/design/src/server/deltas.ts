@@ -246,7 +246,7 @@ function sizeKind(input: {kind: 'width' | 'height'; key: 'w' | 'h'}): DeltaKind 
     read,
     measure: ({live, target}) => {
       if (target.kind === 'text' && (key === 'h' || !overflowsParent(live))) return []
-      const a = read(live)
+      const a = target.kind === 'text' ? Math.round(extent(live)[key]) : read(live)
       const b = read(target)
       if (!insetDiffers({live: a, target: b})) return []
       return [{kind, live: a, target: b}]
@@ -255,8 +255,9 @@ function sizeKind(input: {kind: 'width' | 'height'; key: 'w' | 'h'}): DeltaKind 
 }
 
 function overflowsParent(side: Side): boolean {
-  const {box, parent} = side
+  const {parent} = side
   if (parent === null) return false
+  const box = extent(side)
   return parent.x - box.x > TOLERANCES.geometryPx || right(box) - right(parent) > TOLERANCES.geometryPx
 }
 
@@ -398,6 +399,7 @@ export function sideFrom(input: {
     flow: directionOn({pair, from, nodes}),
     columns: columnCount({pair, from, nodes}),
     textBox: contentBox({children, from}),
+    ink: inkOn({from, glyphs}),
     lines: lineCount({pair, from}),
     edge: edgeOn({pair, from, raster, strip}),
     radius: radiusOn({pair, from}),
@@ -612,6 +614,17 @@ function union(boxes: Box[]): Box | null {
   const x = Math.min(...boxes.map((box) => box.x))
   const y = Math.min(...boxes.map((box) => box.y))
   return {x, y, w: Math.max(...boxes.map(right)) - x, h: Math.max(...boxes.map(bottom)) - y}
+}
+
+function inkOn(input: {from: From; glyphs: Box[]}): Box | null {
+  const ink = input.from === 'live' ? union(input.glyphs) : null
+  if (ink === null) return null
+  const halo = TOLERANCES.glyphHalo
+  return {x: ink.x + halo, y: ink.y + halo, w: ink.w - halo * 2, h: ink.h - halo * 2}
+}
+
+function extent(side: Side): Box {
+  return side.ink === null ? side.box : (union([side.box, side.ink]) ?? side.box)
 }
 
 function contentBox(input: {children: Pair[]; from: From}): Box | null {

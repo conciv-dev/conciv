@@ -2002,6 +2002,63 @@ describe('deltas', () => {
     }
   })
 
+  it('a nowrap text narrower than its words keeps glyph boxes wider than its element, and against a design source node at its element box has one width row', async () => {
+    await goto('target')
+    const {id} = await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
+    const before = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+    const paired = StoredPairsSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${before}`), 'utf8')),
+    ).find((pair) => texts.has(pair.node))
+    if (paired === undefined) throw new Error('u1-1280 pairs no element with a text node alone')
+    const components = (await call('design_capture', {height: 720})).components
+    const element = componentAt({components, path: paired.path})
+    const holder = parentAt({components, path: paired.path, parent: undefined})
+    const source = element?.source
+    const holderSource = holder?.source
+    if (source === undefined || source === null || holderSource === undefined || holderSource === null)
+      throw new Error('the text element or its parent has no source')
+    const selector = (at: {file: string; line: number; column: number}) =>
+      `[data-conciv-source="${at.file}:${at.line}:${at.column}"]`
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    const narrow = `${styles}\n${selector(holderSource)} { width: ${NOWRAP_PX}px; max-width: none; }\n${selector(source)} { width: ${NOWRAP_PX}px; max-width: none; white-space: nowrap; overflow: visible; }\n`
+    try {
+      const runs = (await runFiles({id, prefix: 'result-'})).length
+      await writeFile(HOST_STYLES, narrow)
+      await expect
+        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
+        .toBeGreaterThan(runs)
+      const squeezed = componentAt({
+        components: (await call('design_capture', {height: 720})).components,
+        path: paired.path,
+      })
+      const glyphs = squeezed?.glyphs.flatMap((glyph) => glyph.boxes) ?? []
+      if (squeezed === undefined || glyphs.length === 0) throw new Error(`no glyphs captured at ${paired.path}`)
+      expect(boxUnion(glyphs).w).toBeGreaterThan(squeezed.box.w + GEOMETRY_PX)
+      await writeFile(
+        path,
+        JSON.stringify({
+          ...model,
+          source: {kind: 'figma', ref: 'u1-1280'},
+          nodes: model.nodes.map((node) => (node.id === paired.node ? {...node, box: squeezed.box} : node)),
+        }),
+      )
+      const report = await call('design_diff', {full: true})
+      expect(
+        report.components
+          .filter((component) => component.path === paired.path)
+          .flatMap((component) => component.deltas)
+          .filter((delta) => delta.kind === 'width' || delta.kind === 'height')
+          .map((delta) => delta.kind),
+      ).toEqual(['width'])
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
+  })
+
   it('a text pair from a design source that wraps to 2 lines where its node has 3 line boxes has one lines row, and none against 2', async () => {
     await goto('target')
     const {id} = await freshTarget('u1-1280')
@@ -2281,6 +2338,7 @@ describe('deltas', () => {
 const PAST_PAGE = 6
 const OVERFLOW_PX = 192
 const TWO_LINE_SHARE = 0.6
+const NOWRAP_PX = 40
 
 const TALLER_ELEMENT = 6
 
@@ -2302,6 +2360,19 @@ function componentAt(input: {components: CapturedComponent[]; path: string}): Ca
   return components.reduce<CapturedComponent | undefined>(
     (found, component) =>
       found ?? (component.path === path ? component : componentAt({components: component.children, path})),
+    undefined,
+  )
+}
+
+function parentAt(input: {
+  components: CapturedComponent[]
+  path: string
+  parent: CapturedComponent | undefined
+}): CapturedComponent | undefined {
+  const {components, path, parent} = input
+  return components.reduce<CapturedComponent | undefined>(
+    (found, component) =>
+      found ?? (component.path === path ? parent : parentAt({components: component.children, path, parent: component})),
     undefined,
   )
 }

@@ -234,6 +234,7 @@ export type Side = {
   flow: Flow | null
   columns: number | null
   textBox: Box | null
+  ink: Box | null
   lines: number | null
   edge: string | null
   radius: number | null

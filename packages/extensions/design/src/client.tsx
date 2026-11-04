@@ -645,7 +645,7 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
       .trim(),
     box,
     textBox: measureTextBox({nodes, size}),
-    glyphs: measureGlyphs({el, view, bounds: box}),
+    glyphs: measureGlyphs({el, view, size}),
     axis: readAxis(el),
     columns: readColumns(style),
     styles: readStyles({style, element: el, scan: input.scan}),
@@ -767,15 +767,33 @@ function measureTextBox(input: {nodes: Text[]; size: Size}): Box | null {
   return clipped({rect: new DOMRect(left, top, right - left, bottom - top), size: input.size})
 }
 
-function measureGlyphs(input: {el: Element; view: PageWindow; bounds: Box}): Glyph[] {
+function measureGlyphs(input: {el: Element; view: PageWindow; size: Size}): Glyph[] {
+  const {view, size} = input
+  const page = {x: 0, y: 0, w: size.width, h: size.height}
   const texts = glyphNodes(input).flatMap((node) => {
     const range = node.ownerDocument.createRange()
     range.selectNodeContents(node)
-    const boxes = [...range.getClientRects()].flatMap((rect) => glyphBox({rect, bounds: input.bounds}) ?? [])
+    const bounds = clipBounds({el: node.parentElement, view, bounds: page})
+    const boxes = [...range.getClientRects()].flatMap((rect) => glyphBox({rect, bounds}) ?? [])
     return boxes.length === 0 ? [] : [{text: node.textContent ?? '', boxes}]
   })
   const placeholders = placeholderFields(input).flatMap((field) => placeholderGlyph({field}))
   return [...texts, ...placeholders]
+}
+
+function clipBounds(input: {el: Element | null; view: PageWindow; bounds: Box}): Box {
+  const {el, view, bounds} = input
+  if (el === null || el === el.ownerDocument.body) return bounds
+  const style = view.getComputedStyle(el)
+  const rect = el.getBoundingClientRect()
+  const horizontal = style.overflowX !== 'visible'
+  const vertical = style.overflowY !== 'visible'
+  const left = horizontal ? Math.max(bounds.x, Math.floor(rect.left)) : bounds.x
+  const top = vertical ? Math.max(bounds.y, Math.floor(rect.top)) : bounds.y
+  const right = horizontal ? Math.min(bounds.x + bounds.w, Math.ceil(rect.right)) : bounds.x + bounds.w
+  const bottom = vertical ? Math.min(bounds.y + bounds.h, Math.ceil(rect.bottom)) : bounds.y + bounds.h
+  const narrowed = {x: left, y: top, w: Math.max(0, right - left), h: Math.max(0, bottom - top)}
+  return clipBounds({el: el.parentElement, view, bounds: narrowed})
 }
 
 function glyphNodes(input: {el: Element; view: PageWindow}): Text[] {

@@ -286,8 +286,9 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   row; a text or image node has no radius, so neither side is read. A text pair has no `width` or `height` row: a
   text node's box is its ink or its fixed text frame, not the box of an element that wraps the same lines, so its
   geometry is the line count and the line boxes the typography and move rows already compare. The one exception
-  is a text element whose live box overflows its live parent's left or right edge by more than `geometryPx`: it
-  gets a `width` row against its node, since the overflow is the element's width, not its lines. A text whose
+  is a text element whose live extent, its box joined with its glyph boxes (less `glyphHalo`), overflows its live
+  parent's left or right edge by more than `geometryPx`: it gets a `width` row against its node, its live value the
+  extent's width, since the overflow is the element's width or its spilled ink, not its lines. A text whose
   live line count differs from its node's gets a `lines` row (stage `geometry`, attributed to the width
   declarations): `p (src/Landing.tsx:112): wraps to 2 lines where the design has 3; the design's text box is 385 px
   wide`. The live count is the number of line bands among its glyph boxes; the design count is the bands among the
@@ -586,7 +587,10 @@ sides agree on it.
    the background, so blended edges and subpixel color fringes do not count. A component paints text, and is compared
    on `foreground`, when it captured glyphs. A component with no ink reports no foreground.
 2. **Live text.** Each captured component carries its glyphs: one entry per text node it paints (stopping at nested
-   components), with one box per line, rounded out to whole pixels and grown by `glyphHalo`. An empty `input` or
+   components), with one box per line, rounded out to whole pixels and grown by `glyphHalo`. A line box keeps the
+   extent the browser reports, past its element's box when the text spills (a `nowrap` line, a hard break in a
+   narrow element); it is clipped only to the page and to each ancestor below `body` whose computed `overflow-x` or
+   `overflow-y` is not `visible`, on that axis, since that ancestor really hides the ink. An empty `input` or
    `textarea` with a placeholder contributes the placeholder as a glyph whose box is the field's padding box.
 3. **Target text.** `design_target` reads the image once with OCR and stores each run as a `text` node under the
    target root, its box trimmed to the ink inside it. The result carries `text: {runs}`, or `text: {runs: 0, error}`
