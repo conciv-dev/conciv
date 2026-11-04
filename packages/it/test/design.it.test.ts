@@ -2002,6 +2002,71 @@ describe('deltas', () => {
     }
   })
 
+  it('a text pair from a design source that wraps to 2 lines where its node has 3 line boxes has one lines row, and none against 2', async () => {
+    await goto('target')
+    const {id} = await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
+    const before = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+    const paired = StoredPairsSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${before}`), 'utf8')),
+    ).find((pair) => texts.has(pair.node))
+    if (paired === undefined) throw new Error('u1-1280 pairs no element with a text node alone')
+    const element = componentAt({
+      components: (await call('design_capture', {height: 720})).components,
+      path: paired.path,
+    })
+    const source = element?.source
+    if (element === undefined || source === undefined || source === null)
+      throw new Error('the text element has no source')
+    const ink = boxUnion(element.glyphs.flatMap((glyph) => glyph.boxes))
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    const wrapped = `${styles}\n[data-conciv-source="${source.file}:${source.line}:${source.column}"] { width: ${Math.ceil(ink.w * TWO_LINE_SHARE)}px; word-break: break-all; }\n`
+    const withLines = (count: number) =>
+      JSON.stringify({
+        ...model,
+        source: {kind: 'figma', ref: 'u1-1280'},
+        nodes: model.nodes.map((node) =>
+          node.id === paired.node
+            ? {
+                ...node,
+                lines: Array.from({length: count}, (_, index) => ({
+                  box: {
+                    x: node.box.x,
+                    y: node.box.y + (node.box.h / count) * index,
+                    w: node.box.w,
+                    h: node.box.h / count,
+                  },
+                  text: typeof node.text === 'string' ? node.text : '',
+                  confidence: 1,
+                })),
+              }
+            : node,
+        ),
+      })
+    const linesRows = (report: DiffReport) =>
+      report.components
+        .filter((component) => component.path === paired.path)
+        .flatMap((component) => component.deltas)
+        .filter((delta) => delta.kind === 'lines')
+        .map((delta) => ({kind: delta.kind, live: delta.live, target: delta.target}))
+    try {
+      const runs = (await runFiles({id, prefix: 'result-'})).length
+      await writeFile(HOST_STYLES, wrapped)
+      await expect
+        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
+        .toBeGreaterThan(runs)
+      await writeFile(path, withLines(3))
+      expect(linesRows(await call('design_diff', {full: true}))).toEqual([{kind: 'lines', live: 2, target: 3}])
+      await writeFile(path, withLines(2))
+      expect(linesRows(await call('design_diff', {full: true}))).toEqual([])
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
+  })
+
   it('a text pair from a design source whose node is 6 px shorter than its element but whose ink matches has no move row', async () => {
     await goto('target')
     const {id} = await freshTarget('u1-1280')
@@ -2215,6 +2280,7 @@ describe('deltas', () => {
 
 const PAST_PAGE = 6
 const OVERFLOW_PX = 192
+const TWO_LINE_SHARE = 0.6
 
 const TALLER_ELEMENT = 6
 

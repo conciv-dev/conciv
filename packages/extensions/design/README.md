@@ -287,8 +287,13 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   text node's box is its ink or its fixed text frame, not the box of an element that wraps the same lines, so its
   geometry is the line count and the line boxes the typography and move rows already compare. The one exception
   is a text element whose live box overflows its live parent's left or right edge by more than `geometryPx`: it
-  gets a `width` row against its node, since the overflow is the element's width, not its lines. A delta
-  therefore changes between two rounds only when the live element changed.
+  gets a `width` row against its node, since the overflow is the element's width, not its lines. A text whose
+  live line count differs from its node's gets a `lines` row (stage `geometry`, attributed to the width
+  declarations): `p (src/Landing.tsx:112): wraps to 2 lines where the design has 3; the design's text box is 385 px
+  wide`. The live count is the number of line bands among its glyph boxes; the design count is the bands among the
+  node's `lines`, or the node height over its line height when it has none. The row is sized like a height delta,
+  the line difference times the design line height. A delta therefore changes between two rounds only when the
+  live element changed.
 - **The move row.** An `offset` entry's `shift` is the element's own displacement, design minus live (less the
   page shift), never measured against its parent, and its line says where the element lands in page coordinates:
   `move the element (src/Landing.tsx:12) to 1001,27 (now at 836,22)`. A child moves with its parent, so while the

@@ -46,6 +46,7 @@ const DELTA_KIND_NAMES = [
   'sizing',
   'width',
   'height',
+  'lines',
   'text',
 ] as const
 
@@ -215,6 +216,7 @@ const DeltaSchema = ProvenanceSchema.partial().extend({
   source: MeasureSourceSchema.optional().describe('dom when read in the tab, mirror when read in the mirror'),
   confidence: z.number().optional(),
   width: z.number().optional().describe('the design width the delta was measured at'),
+  lineHeight: z.number().optional().describe('the design line height a lines delta is sized by'),
   box: BoxSchema.optional().describe('the live box of the element a warning is about'),
   opinion: z
     .object({source: z.literal('takumi'), live: z.union([z.number(), z.string()]), confidence: z.number()})

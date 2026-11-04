@@ -152,6 +152,7 @@ const KIND_STAGES = {
   align: 'geometry',
   width: 'geometry',
   height: 'geometry',
+  lines: 'geometry',
   background: 'paint',
   foreground: 'paint',
   radius: 'paint',
@@ -210,11 +211,14 @@ export function traced(delta: Delta): boolean {
 
 export function deltaSentence(delta: Delta): string {
   if (delta.kind === 'text') return `change the text from ${delta.live} to ${delta.target}${at(delta)}`
-  const change = `${delta.kind} is ${delta.live} where the design has ${delta.target}`
-  if (!traced(delta)) return change
+  return `${delta.kind} is ${delta.live} where the design has ${delta.target}${setVia(delta)}`
+}
+
+export function setVia(delta: Delta): string {
+  if (!traced(delta)) return ''
   const declared = delta.declaration === undefined ? '' : `, declared as \`${delta.declaration}\``
   const suggestion = delta.suggest === undefined ? '' : `; ${delta.suggest}`
-  return `${change}, set via ${delta.via}${at(delta)}${declared}${suggestion}`
+  return `, set via ${delta.via}${at(delta)}${declared}${suggestion}`
 }
 
 function at(delta: Delta): string {

@@ -222,6 +222,7 @@ const DELTA_PROPERTIES = {
   sizing: () => ['width'],
   width: () => ['width', 'min-width', 'max-width', 'flex-basis'],
   height: () => ['height', 'min-height'],
+  lines: () => ['width', 'max-width', 'min-width', 'flex-basis'],
   text: () => [],
 } as const satisfies Record<DeltaKindName, Candidates>
 

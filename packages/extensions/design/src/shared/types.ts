@@ -234,6 +234,7 @@ export type Side = {
   flow: Flow | null
   columns: number | null
   textBox: Box | null
+  lines: number | null
   edge: string | null
   radius: number | null
   padding: ContainerLayout['padding'] | null
@@ -248,6 +249,7 @@ export type Delta = {
   source?: MeasureSource
   confidence?: number
   width?: number
+  lineHeight?: number
   box?: Box
   opinion?: {source: 'takumi'; live: number | string; confidence: number}
   warning?: 'sample-data' | 'typography-skipped' | 'svg-drawn' | 'page-error'

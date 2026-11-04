@@ -12,7 +12,7 @@ import {
   type Stop,
 } from '../shared/defs.js'
 import {keyBy, uniq, zip} from 'es-toolkit'
-import {deltaSentence, iconSized, kindStage, kindTolerance, TOLERANCES, traced} from '../shared/tolerances.js'
+import {deltaSentence, iconSized, kindStage, kindTolerance, setVia, TOLERANCES, traced} from '../shared/tolerances.js'
 import type {
   Box,
   CapturePath,
@@ -335,7 +335,8 @@ export function deltaSize(input: {delta: Delta; color: ColorMetric}): number {
     return capped(color.distance({a: live, b: target}) / TOLERANCES.colorDeltaE)
   }
   if (typeof live !== 'number' || typeof target !== 'number') return SIZE_CAP
-  return capped(Math.abs(live - target) / kindTolerance(delta.kind))
+  const span = delta.kind === 'lines' ? (delta.lineHeight ?? 1) : 1
+  return capped((Math.abs(live - target) * span) / kindTolerance(delta.kind))
 }
 
 export function watchSettled(input: {
@@ -515,6 +516,11 @@ type Run = ContainerLayout['runs'][number]
 function pairSentence(input: {delta: Delta; pair: Pair}): string {
   const {delta, pair} = input
   if (delta.kind === 'fontSize') return deltaSentence({...delta, target: `${delta.target}${linesPhrase(pair)}`})
+  if (delta.kind === 'lines') {
+    const width = Math.round(pair.targetBox.w)
+    const count = delta.live === 1 ? '1 line' : `${delta.live} lines`
+    return `wraps to ${count} where the design has ${delta.target}; the design's text box is ${width} px wide${setVia(delta)}`
+  }
   if (delta.kind !== 'sizing') return deltaSentence(delta)
   const width = Math.round(pair.liveBox.w)
   const declared = traced(delta) && delta.declaration !== undefined ? `, declared as \`${delta.declaration}\`` : ''

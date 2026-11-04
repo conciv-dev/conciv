@@ -263,6 +263,17 @@ function overflowsParent(side: Side): boolean {
 const boxWidth = sizeKind({kind: 'width', key: 'w'})
 const boxHeight = sizeKind({kind: 'height', key: 'h'})
 
+const lines: DeltaKind = {
+  kind: 'lines',
+  measure: ({live, target}) => {
+    if (target.kind !== 'text' || live.lines === null || target.lines === null || live.lines === target.lines) return []
+    const spacing = target.styles.lineHeight ?? live.styles.lineHeight
+    return [
+      {kind: 'lines', live: live.lines, target: target.lines, ...(spacing === undefined ? {} : {lineHeight: spacing})},
+    ]
+  },
+}
+
 const radius: DeltaKind = {
   kind: 'radius',
   measure: ({live, target}) => {
@@ -344,6 +355,7 @@ export const DELTA_KINDS: DeltaKind[] = [
   insetBottom,
   boxWidth,
   boxHeight,
+  lines,
   gapBefore,
   gapAfter,
   align,
@@ -386,6 +398,7 @@ export function sideFrom(input: {
     flow: directionOn({pair, from, nodes}),
     columns: columnCount({pair, from, nodes}),
     textBox: contentBox({children, from}),
+    lines: lineCount({pair, from}),
     edge: edgeOn({pair, from, raster, strip}),
     radius: radiusOn({pair, from}),
     padding: from === 'target' ? (pair.node.layout?.padding ?? null) : null,
@@ -477,6 +490,30 @@ function sizeOn(input: {pair: Pair; from: From}): Side['size'] {
   const {pair, from} = input
   if (from === 'target') return pair.node.layout?.size ?? null
   return pair.live.styles.sizing.width === 'fixed' ? 'fixed' : null
+}
+
+function lineCount(input: {pair: Pair; from: From}): number | null {
+  const {pair, from} = input
+  const {node} = pair
+  if (node.kind !== 'text') return null
+  if (from === 'live') return bandCount(pair.live.glyphs.flatMap((glyph) => glyph.boxes))
+  if (node.lines.length > 0) return bandCount(node.lines.map((line) => line.box))
+  const spacing = node.typography?.lineHeight ?? 0
+  if (spacing <= 0) return null
+  return Math.max(1, Math.round(node.box.h / spacing))
+}
+
+function bandCount(boxes: Box[]): number | null {
+  const bands = boxes
+    .toSorted((a, b) => a.y - b.y)
+    .reduce<{end: number; count: number}>(
+      (state, box) =>
+        box.y + box.h / 2 >= state.end
+          ? {end: bottom(box), count: state.count + 1}
+          : {end: Math.max(state.end, bottom(box)), count: state.count},
+      {end: Number.NEGATIVE_INFINITY, count: 0},
+    )
+  return bands.count === 0 ? null : bands.count
 }
 
 function opinionBox(pair: Pair | null): Box | null {
