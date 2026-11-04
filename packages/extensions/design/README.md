@@ -275,6 +275,11 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   text node's box is its ink or its fixed text frame, not the box of an element that wraps the same lines, so its
   geometry is the line count and the line boxes the typography and move rows already compare. A delta
   therefore changes between two rounds only when the live element changed.
+- **The move row.** An `offset` entry's `shift` is the element's own displacement, design minus live (less the
+  page shift), never measured against its parent, and its line says where the element lands in page coordinates:
+  `move the element (src/Landing.tsx:12) to 1001,27 (now at 836,22)`. A child moves with its parent, so while the
+  parent's own shift is above `geometryPx` the child has no row; once the parent lands, a child still off gets its
+  own. The page entry stays relative: `move the page content by 0,-48 px to where the design places it`.
 - **Design boxes are clamped to the page.** When a diff loads the model, every node's box is cut to the page box
   (`root.box`) and its stored padding shrinks by what was cut, so a 1446 wide band at x -3 pairs, sizes and insets
   as 1440 wide at x 0, as the pixel compare already reads it. A node wholly outside the page is dropped with its

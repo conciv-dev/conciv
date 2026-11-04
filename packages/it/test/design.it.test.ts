@@ -1857,6 +1857,8 @@ async function liveFamily(): Promise<string> {
   return (stack.split(',')[0] ?? '').replaceAll('"', '').replaceAll("'", '').trim()
 }
 
+const MOVED_WRAPPER = 20
+
 const EditableModelSchema = z.looseObject({
   nodes: z.array(
     z.looseObject({
@@ -1983,6 +1985,51 @@ describe('deltas', () => {
     )
     const report = await call('design_diff', {full: true})
     expect(report.unmatched.filter((entry) => entry.kind === 'offset' && entry.node === paired.node)).toEqual([])
+  })
+
+  it('a wrapper 20 px off around a child placed where the design puts it has a move row on the wrapper only, and none once it lands', async () => {
+    await goto('target')
+    const captured = await call('design_capture', {height: 720})
+    const toolbar = captured.components.find((c) => c.source?.file === 'src/Toolbar.tsx')
+    const [child] = toolbar?.children ?? []
+    if (toolbar === undefined || child === undefined) throw new Error('the target page has no toolbar with a child')
+    const {id, route} = await freshTarget('u1-1280')
+    const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
+    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
+    const put = (input: {id: string; wrapper: Box}): Promise<unknown> =>
+      store.put({
+        model: {
+          id: input.id,
+          source: {kind: 'figma', ref: input.id},
+          viewport: {width: png.width, height: png.height},
+          raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
+          root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
+          nodes: [
+            {id: 'wrapper', kind: 'box', box: input.wrapper, border: null, radius: 0},
+            {id: 'child', kind: 'box', box: child.box, border: null, radius: 0, within: 'wrapper'},
+          ],
+          scale: 1,
+        },
+        session: kit.session,
+        ...(route === undefined ? {} : {route}),
+      })
+    const offsets = (report: DiffReport): {node: string | undefined; shift: unknown}[] =>
+      report.unmatched
+        .filter((entry) => entry.kind === 'offset')
+        .map((entry) => ({node: entry.node, shift: entry.shift}))
+    await put({id: 'wrapper-off', wrapper: {...toolbar.box, x: toolbar.box.x + MOVED_WRAPPER}})
+    const off = await call('design_diff', {full: true})
+    expect(off.target.id).toBe('wrapper-off')
+    expect(offsets(off)).toEqual([{node: 'wrapper', shift: {dx: MOVED_WRAPPER, dy: 0}}])
+    const row = off.unmatched.find((entry) => entry.kind === 'offset' && entry.node === 'wrapper')
+    const x = Math.round(toolbar.box.x)
+    const y = Math.round(toolbar.box.y)
+    const sentence = `move the element (${row?.source?.file}:${row?.source?.line}) to ${x + MOVED_WRAPPER},${y} (now at ${x},${y})`
+    expect(off.brief.filter((line) => line.endsWith(sentence))).toHaveLength(1)
+    await put({id: 'wrapper-landed', wrapper: toolbar.box})
+    const landed = await call('design_diff', {full: true})
+    expect(landed.target.id).toBe('wrapper-landed')
+    expect(offsets(landed)).toEqual([])
   })
 
   it('a page whose boxes sit exactly on a design source but whose texts use another family has no offset on any box pair', async () => {

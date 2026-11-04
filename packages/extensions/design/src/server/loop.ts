@@ -521,9 +521,13 @@ function entrySentence(input: {entry: Unmatched; tree: Tree; unbuilt: Unbuilt}):
       return `${componentLabel({tag: 'the element', source: entry.source})} renders${place(entry.live)} where the design shows nothing; remove it or match the design`
     case 'offset': {
       const shift = entry.shift ?? {dx: 0, dy: 0}
-      const what =
-        entry.source === undefined ? 'the page content' : componentLabel({tag: 'the element', source: entry.source})
-      return `move ${what} by ${shift.dx},${shift.dy} px to where the design places it`
+      if (entry.live === undefined) {
+        return `move the page content by ${shift.dx},${shift.dy} px to where the design places it`
+      }
+      const x = Math.round(entry.live.x)
+      const y = Math.round(entry.live.y)
+      const what = componentLabel({tag: 'the element', source: entry.source})
+      return `move ${what} to ${x + shift.dx},${y + shift.dy} (now at ${x},${y})`
     }
   }
 }

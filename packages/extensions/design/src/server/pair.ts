@@ -100,20 +100,13 @@ export function align(input: {pairs: Pair[]; live: Raster; exact: boolean; toler
     ? boxShift(pairs)
     : medianShift(pairs.flatMap((pair) => pair.texts.map((node) => inkShift({pair, node, live}))))
   const moved = (pair: Pair): Shift => relative({a: displacement({pair, exact}), b: global})
-  const own = (pair: Pair): Shift =>
-    pair.parent === null ? moved(pair) : relative({a: moved(pair), b: moved(pair.parent)})
-  const containers = pairs.flatMap((pair): Offset[] => {
-    const shift = sharedShift({pair, pairs, own, tolerances})
-    return shift === null ? [] : [{pair, shift}]
-  })
-  const shared = new Set(containers.map((offset) => offset.pair))
-  const loose = pairs.flatMap((pair): Offset[] => {
-    if (pair.parent !== null && shared.has(pair.parent)) return []
-    const shift = own(pair)
+  const elements = pairs.flatMap((pair): Offset[] => {
+    if (pair.parent !== null && beyond({shift: moved(pair.parent), tolerances})) return []
+    const shift = moved(pair)
     return beyond({shift, tolerances}) ? [{pair, shift}] : []
   })
   const page: Offset[] = beyond({shift: global, tolerances}) ? [{pair: null, shift: global}] : []
-  return {global, offsets: [...page, ...containers, ...loose]}
+  return {global, offsets: [...page, ...elements]}
 }
 
 const PAGE_SHIFT_PAIRS = 3
@@ -1180,19 +1173,4 @@ function relative(input: {a: Shift; b: Shift}): Shift {
 function beyond(input: {shift: Shift; tolerances: Tolerances}): boolean {
   const {shift, tolerances} = input
   return Math.abs(shift.dx) > tolerances.geometryPx || Math.abs(shift.dy) > tolerances.geometryPx
-}
-
-function sharedShift(input: {
-  pair: Pair
-  pairs: Pair[]
-  own: (pair: Pair) => Shift
-  tolerances: Tolerances
-}): Shift | null {
-  const {pair, pairs, own, tolerances} = input
-  const children = pairs.filter((child) => child.parent === pair)
-  if (children.length < 2) return null
-  const shifts = children.map(own)
-  const shift = {dx: median0(shifts.map((entry) => entry.dx)), dy: median0(shifts.map((entry) => entry.dy))}
-  const agree = shifts.every((entry) => !beyond({shift: relative({a: entry, b: shift}), tolerances}))
-  return agree && beyond({shift, tolerances}) ? shift : null
 }
