@@ -176,3 +176,38 @@ button {
 .sections p {
   margin: 0;
 }
+
+.contents-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 200px) 1fr;
+  width: 800px;
+  height: 120px;
+  background: #eeeeee;
+}
+
+.contents-wrapper {
+  display: contents;
+}
+
+.contents-placed {
+  grid-area: 1 / 1 / 2 / -1;
+  justify-self: end;
+  width: 100px;
+  height: 50px;
+  margin-right: 40px;
+  background: #ff0000;
+}
+
+.contents-left {
+  grid-area: 2 / 1 / 3 / 3;
+  height: 30px;
+  margin-left: 100px;
+  background: #0000ff;
+}
+
+.contents-right {
+  grid-area: 3 / 2 / 4 / 4;
+  height: 30px;
+  margin-right: 100px;
+  background: #008000;
+}

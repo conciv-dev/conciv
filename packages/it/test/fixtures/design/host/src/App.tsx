@@ -33,6 +33,7 @@ export function App() {
   if (requested === 'dashboard') return <main className="dashboard" data-conciv-key="dBlROA" />
   if (requested === 'stripe') return <Stripe data-conciv-key="lRWD-g" />
   if (requested === 'sections') return <TwoSections data-conciv-key="GAoSTQ" />
+  if (requested === 'contents') return <ContentsGrid data-conciv-key="x9JTfp" />
   if (requested === 'contact') {
     return (
       <main className="contact" data-conciv-key="JUIGlw">
@@ -119,5 +120,17 @@ function TwoSections() {
         <p className="section-line" data-conciv-key="OYt3aQ">Twelve invoices are due this week</p>
       </article>
     </main>
+  )
+}
+
+function ContentsGrid() {
+  return (
+    <div className="contents-grid" data-conciv-key="uk5mgr">
+      <header className="contents-wrapper" data-conciv-key="F1YZ-4">
+        <nav className="contents-placed" data-conciv-key="GIed4_" />
+      </header>
+      <div className="contents-left" data-conciv-key="gy1ciu" />
+      <div className="contents-right" data-conciv-key="Qm7rTe" />
+    </div>
   )
 }

@@ -381,6 +381,20 @@ it('stays 1x when the device pixel ratio is 2, and captures the live page withou
   await cdp.send('Emulation.clearDeviceMetricsOverride')
 })
 
+it('the live capture paints a grid item placed through a display contents wrapper where the page lays it out', async () => {
+  await goto('contents')
+  await freshTarget('u1-1280')
+  const report = await call('design_diff', {})
+  expect(report.capturePath).toBe('snapdom-live')
+  const png = decodePng(readFileSync(fileUnder(stateRoot, report.livePath)))
+  const box = await page.locator('.contents-placed').boundingBox()
+  if (box === null) throw new Error('the placed grid item has no box')
+  const x = Math.round(box.x + box.width / 2)
+  const y = Math.round(box.y + box.height / 2)
+  const at = (y * png.width + x) * 4
+  expect([...png.data.subarray(at, at + 3)]).toEqual([255, 0, 0])
+})
+
 it('design_target records the live route as a label and the width of the image', async () => {
   expect(await call('design_target', {image: target('u1-1280')})).toMatchObject({route: '/', width: 1280})
 })

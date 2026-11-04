@@ -563,7 +563,10 @@ page and writing its skeleton first is the harness's business.
 
 Each delta names the source that measured it, and each report lists the sources of its run.
 
-- `dom`: the live document in the app tab. Used when the tab width equals the design width.
+- `dom`: the live document in the app tab. Used when the tab width equals the design width. Its pixels are taken
+  with snapdom (`capturePath: snapdom-live`) from the computed styles alone: the page's `<style>` and `<link>`
+  elements stay out of the clone, as in the mirror, so an authored `1fr` track never re-sizes against the widths
+  snapdom froze on its items.
 - `mirror`: a scriptless snapshot of the live document, rebuilt in an off-screen iframe at the design width. Used
   for every box, style and pixel when the tab width differs, so the tab is never resized. Its pixels are taken with
   snapdom (`capturePath: snapdom-mirror`).
