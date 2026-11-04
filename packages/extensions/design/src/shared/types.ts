@@ -214,6 +214,7 @@ export type Item = {
 export type Ranker = (input: {items: Item[]}) => Item[]
 export type Flow = 'row' | 'column'
 export type Side = {
+  kind: TargetNode['kind']
   box: Box
   parent: Box | null
   prev: Box | null

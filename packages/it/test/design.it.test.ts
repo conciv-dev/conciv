@@ -1735,6 +1735,42 @@ describe('deltas', () => {
     expect(named(await call('design_diff', {}))).toEqual(expected)
     expect(named(await call('design_diff', {}))).toEqual(expected)
   })
+
+  it('a text pair from a design source is never sized, even when its node is narrower than the element', async () => {
+    await goto('target')
+    const {id} = await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
+    const before = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+    const paired = StoredPairsSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${before}`), 'utf8')),
+    ).find((pair) => texts.has(pair.node))
+    if (paired === undefined) throw new Error('u1-1280 pairs no element with a text node alone')
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...model,
+        source: {kind: 'figma', ref: 'u1-1280'},
+        nodes: model.nodes.map((node) =>
+          node.id === paired.node ? {...node, box: {...node.box, w: node.box.w - 40}} : node,
+        ),
+      }),
+    )
+    const report = await call('design_diff', {limit: 200, depth: 8})
+    const after = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+    const kept = StoredPairsSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${after}`), 'utf8')),
+    )
+    expect(kept).toContainEqual(paired)
+    expect(
+      report.components
+        .filter((component) => component.path === paired.path)
+        .flatMap((component) => component.deltas)
+        .filter((delta) => delta.kind === 'width' || delta.kind === 'height'),
+    ).toEqual([])
+  })
 })
 
 async function freshTarget(name: string): Promise<TargetResult> {

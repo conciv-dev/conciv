@@ -241,6 +241,7 @@ function sizeKind(input: {kind: 'width' | 'height'; key: 'w' | 'h'}): DeltaKind 
     kind,
     read,
     measure: ({live, target}) => {
+      if (target.kind === 'text') return []
       const a = read(live)
       const b = read(target)
       if (!insetDiffers({live: a, target: b})) return []
@@ -355,6 +356,7 @@ export function sideFrom(input: {
   const {pair, from, children, leaves, page, raster, color, glyphs, strip} = input
   const box = pickBox({pair, from})
   return {
+    kind: pair.node.kind,
     box,
     parent: pair.parent === null ? page : pickBox({pair: pair.parent, from}),
     prev: pair.prev === null ? null : pickBox({pair: pair.prev, from}),
