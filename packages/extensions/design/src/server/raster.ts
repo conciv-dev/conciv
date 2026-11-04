@@ -83,14 +83,18 @@ export function edgeMap(raster: Raster): Uint8Array {
   const {width, height} = raster
   const lum = luminance(raster)
   const edges = new Uint8Array(width * height)
-  const at = (x: number, y: number): number => lum[y * width + x] ?? 0
   for (let y = 1; y < height - 1; y += 1) {
     for (let x = 1; x < width - 1; x += 1) {
-      const gx =
-        at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2 * at(x - 1, y) - at(x - 1, y + 1)
-      const gy =
-        at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2 * at(x, y - 1) - at(x + 1, y - 1)
-      edges[y * width + x] = Math.hypot(gx, gy) > EDGE_THRESHOLD ? 1 : 0
+      const above = (y - 1) * width + x
+      const here = y * width + x
+      const below = (y + 1) * width + x
+      const topLeft = lum[above - 1] ?? 0
+      const topRight = lum[above + 1] ?? 0
+      const bottomLeft = lum[below - 1] ?? 0
+      const bottomRight = lum[below + 1] ?? 0
+      const gx = topRight + 2 * (lum[here + 1] ?? 0) + bottomRight - topLeft - 2 * (lum[here - 1] ?? 0) - bottomLeft
+      const gy = bottomLeft + 2 * (lum[below] ?? 0) + bottomRight - topLeft - 2 * (lum[above] ?? 0) - topRight
+      edges[here] = Math.hypot(gx, gy) > EDGE_THRESHOLD ? 1 : 0
     }
   }
   return edges
@@ -110,23 +114,48 @@ export function hex(channels: number[]): string {
   return `#${channels.map((value) => value.toString(16).padStart(2, '0')).join('')}`
 }
 
-export function pixelHex(input: {raster: Raster; index: number}): string {
-  return hex([0, 1, 2].map((channel) => input.raster.data[input.index * 4 + channel] ?? 0))
-}
-
 export function medianColor(input: {raster: Raster; exclude: Uint8Array}): string {
   const {raster, exclude} = input
-  const histograms = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)]
+  const red = new Uint32Array(256)
+  const green = new Uint32Array(256)
+  const blue = new Uint32Array(256)
   let count = 0
+  const data = raster.data
   for (let i = 0; i < raster.width * raster.height; i += 1) {
     if (exclude[i] === 1) continue
     count += 1
-    histograms.forEach((histogram, c) => {
-      const value = raster.data[i * 4 + c] ?? 0
-      histogram[value] = (histogram[value] ?? 0) + 1
-    })
+    counted({histogram: red, value: data[i * 4] ?? 0})
+    counted({histogram: green, value: data[i * 4 + 1] ?? 0})
+    counted({histogram: blue, value: data[i * 4 + 2] ?? 0})
   }
-  return hex(histograms.map((histogram) => channelMedian(histogram, count)))
+  return hex([red, green, blue].map((histogram) => channelMedian(histogram, count)))
+}
+
+function counted(input: {histogram: Uint32Array; value: number}): void {
+  const {histogram, value} = input
+  histogram[value] = (histogram[value] ?? 0) + 1
+}
+
+export function coreColor(input: {
+  raster: Raster
+  inside: Uint8Array
+  distance: (rgb: number) => number
+  spread: number
+}): string | null {
+  const {raster, inside, distance, spread} = input
+  const data = raster.data
+  const distances = new Float64Array(inside.length)
+  let peak = 0
+  for (let i = 0; i < inside.length; i += 1) {
+    if (inside[i] !== 1) continue
+    const value = distance(((data[i * 4] ?? 0) << 16) | ((data[i * 4 + 1] ?? 0) << 8) | (data[i * 4 + 2] ?? 0))
+    distances[i] = value
+    peak = Math.max(peak, value)
+  }
+  if (peak <= spread) return null
+  const exclude = new Uint8Array(inside.length)
+  for (let i = 0; i < inside.length; i += 1) exclude[i] = (distances[i] ?? 0) >= peak - spread ? 0 : 1
+  return medianColor({raster, exclude})
 }
 
 export type Region = {label: number; size: number; box: Box}
