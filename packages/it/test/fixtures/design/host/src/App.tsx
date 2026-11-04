@@ -32,6 +32,7 @@ export function App() {
   if (requested === 'empty') return null
   if (requested === 'dashboard') return <main className="dashboard" />
   if (requested === 'stripe') return <Stripe />
+  if (requested === 'sections') return <TwoSections />
   if (requested === 'type') {
     return (
       <main className="type">
@@ -91,5 +92,20 @@ function PaintedCards() {
         <p>9000</p>
       </article>
     </section>
+  )
+}
+
+function TwoSections() {
+  return (
+    <main className="sections">
+      <article className="section-first">
+        <h2>Quarterly revenue</h2>
+        <p>Revenue rose in every region</p>
+      </article>
+      <article className="section-second">
+        <h2>Open invoices</h2>
+        <p className="section-line">Twelve invoices are due this week</p>
+      </article>
+    </main>
   )
 }

@@ -238,7 +238,7 @@ function diffTable(input: {report: CompactReport; ms: number}): string {
   const {report} = input
   const {timings, counts} = report
   const head =
-    `round ${report.round}  stage ${shown(report.stage)}  stop ${shown(report.stop)}  budgetLeft ${report.budgetLeft}` +
+    `round ${report.round}  stage ${shown(report.stage)}  stop ${shown(report.stop)}` +
     `  score [${report.score.join(', ')}]  sources ${report.sources.join(',')}` +
     `  capturePath ${shown(report.capturePath)}  partial ${report.partial}  ms ${input.ms}`
   return [

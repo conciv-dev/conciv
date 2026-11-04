@@ -1864,11 +1864,7 @@ describe('loop', () => {
     await freshTarget('u1-1280')
     const first = await call('design_diff', {})
     const second = await call('design_diff', {})
-    expect([second.round, second.budgetLeft, second.hint]).toEqual([
-      first.round,
-      first.budgetLeft,
-      'the page has not changed since the last diff',
-    ])
+    expect([second.round, second.hint]).toEqual([first.round, 'the page has not changed since the last diff'])
   })
 
   it('pairs the finished fixture within the run budget and reports no partial run', async () => {
@@ -2264,7 +2260,7 @@ describe('live loop', () => {
       const report = await call('design_diff', {})
       expect(report.warnings.map((warning) => warning.warning)).toEqual(['page-error'])
       expect(report.brief[0]?.startsWith('the page did not render: ')).toBe(true)
-      expect([report.round, report.budgetLeft]).toEqual([first.round, first.budgetLeft])
+      expect([report.round]).toEqual([first.round])
       expect(await runFiles({id, prefix: 'result-'})).toEqual(results)
     } finally {
       await writeFile(STRIPE_SOURCE, source)
@@ -2930,6 +2926,10 @@ function placeholderRendered(): Promise<boolean> {
 
 const HERO_TEXT = '"Access borderless'
 const UNKNOWN_SECTION = 'no-such-section'
+const FIRST_SECTION_TEXT = 'Quarterly revenue'
+const SECOND_SECTION_TEXT = 'Twelve invoices'
+const ROUND_BUDGET = 8
+const SHIFT_STEP = 24
 
 type Section = NonNullable<StatusReport['sections']>[number]
 type StoredNode = Awaited<ReturnType<typeof storedNodes>>[number]
@@ -2947,6 +2947,12 @@ function sectionHolding(input: {nodes: StoredNode[]; node: string}): string {
   if (found === undefined) return input.node
   if (found.within === undefined || !input.nodes.some((candidate) => candidate.id === found.within)) return found.id
   return sectionHolding({nodes: input.nodes, node: found.within})
+}
+
+function sectionWithText(input: {nodes: StoredNode[]; text: string}): string {
+  const found = input.nodes.find((node) => node.text?.includes(input.text) === true)
+  if (found === undefined) throw new Error(`no design node reads ${input.text}`)
+  return sectionHolding({nodes: input.nodes, node: found.id})
 }
 
 function reportedNodes(report: DiffReport): string[] {
@@ -3048,6 +3054,42 @@ describe('sections', () => {
       expect(elsewhere.changes.regressed).toEqual([])
     } finally {
       await writeFile(STRIPE_STYLES, styles)
+    }
+  }, 300_000)
+
+  it('spends the round budget per section: the finished section used one round, the edited one stops budget, and the page stops only then', async ({
+    annotate,
+  }) => {
+    await goto('sections')
+    const {id} = await freshTarget('sections-1280')
+    const nodes = await storedNodes(id)
+    const first = sectionWithText({nodes, text: FIRST_SECTION_TEXT})
+    const second = sectionWithText({nodes, text: SECOND_SECTION_TEXT})
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    const stops: (string | null)[] = []
+    try {
+      await rewrite({id, file: HOST_STYLES, text: `${styles}\n.section-first h2 { color: ${EDITED_INK}; }\n`})
+      await call('design_diff', {})
+      await rewrite({id, file: HOST_STYLES, text: styles})
+      await call('design_diff', {})
+      for (const step of Array.from({length: ROUND_BUDGET}, (_, index) => index + 1)) {
+        const shifted = `${styles}\n.section-line { position: relative; left: ${step * SHIFT_STEP}px; }\n`
+        await rewrite({id, file: HOST_STYLES, text: shifted})
+        stops.push((await call('design_diff', {})).stop)
+      }
+      const status = await call('design_status', {})
+      const used = Object.fromEntries((status.sections ?? []).map((section) => [section.id, section.roundsUsed]))
+      const scoped = await call('design_diff', {section: second})
+      const finished = await call('design_diff', {section: first})
+      await annotate(`stops ${JSON.stringify(stops)} rounds used ${JSON.stringify(used)}`)
+      expect(first).not.toBe(second)
+      expect(used).toEqual({[first]: 1, [second]: ROUND_BUDGET})
+      expect(stops.slice(0, -1)).not.toContain('budget')
+      expect(stops.at(-1)).toBe('budget')
+      expect([scoped.stop, scoped.page?.stop]).toEqual(['budget', 'budget'])
+      expect(finished.stop).toBe('done')
+    } finally {
+      await writeFile(HOST_STYLES, styles)
     }
   }, 300_000)
 })

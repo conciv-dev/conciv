@@ -119,3 +119,25 @@ button {
 .webfont * {
   font-family: 'Source Sans 3';
 }
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 160px;
+}
+
+.sections article {
+  padding: 24px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.sections h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  line-height: 24px;
+}
+
+.sections p {
+  margin: 0;
+}

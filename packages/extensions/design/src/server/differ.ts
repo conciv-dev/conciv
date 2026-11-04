@@ -33,6 +33,7 @@ import {
   WinnerResultSchema,
   TimingsSchema,
   type CaptureInput,
+  type Changes,
   type CaptureResult,
   type ClearInput,
   type ClearResult,
@@ -42,6 +43,7 @@ import {
   type DiffReport,
   type Ledger,
   type Stage,
+  type Stop,
   type StatusReport,
   type WinnerInput,
   type WinnerResult,
@@ -95,11 +97,14 @@ import {
   createHistory,
   createRuns,
   deltaSize,
+  enclosed,
+  heldBy,
   itemsFrom,
   judge,
   lexicallyWorse,
   roundRecord,
   scoreTuple,
+  sectionBudgets,
   type Round,
   type RunJob,
 } from './loop.js'
@@ -167,7 +172,8 @@ export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore;
       if (section === null) return report
       const settled = settledRuns.get(record.id)
       const ledger = settled?.ledger ?? (await store.ledger(record.id))
-      return sectionReport({report, section, settled, ledger})
+      const changes = history.rounds(record.id).map((round) => round.report.changes)
+      return sectionReport({report, section, settled, ledger, changes})
     },
     refresh: async ({session}) => {
       const record = await store.current({session})
@@ -183,7 +189,7 @@ export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore;
       history.reset(id)
       return record
     },
-    status: ({session}) => targetStatus({store, session, unanswered}),
+    status: ({session}) => targetStatus({store, session, unanswered, history}),
   }
 }
 
@@ -369,6 +375,7 @@ async function runDiff(request: {
   const pins = pinsFrom(decisions)
   const placements = await twinPlacements({store: design.store, id: record.id})
   const earlier = await design.store.ledger(record.id)
+  const sections = await design.store.sections(record.id)
   clock.skip()
   const paired = design.pairer({
     components: live.components,
@@ -484,6 +491,7 @@ async function runDiff(request: {
     color,
     partial: paired.partial,
     changed,
+    sections,
     crop: nodeCrop,
   }
   const verdict = judge({
@@ -849,12 +857,12 @@ function sectionReport(input: {
   section: DesignSection
   settled: Settled | undefined
   ledger: Ledger | null
+  changes: Changes[]
 }): DiffReport {
   const {report, section, settled} = input
   const nodes = new Set(section.nodes)
   const inside = (box: Box | undefined): boolean => box !== undefined && enclosed({inner: box, outer: section.box})
-  const held = (entry: {node?: string | undefined; box?: Box | undefined}): boolean =>
-    entry.node === undefined ? inside(entry.box) : nodes.has(entry.node)
+  const held = (item: {node?: string | undefined; box?: Box | undefined}): boolean => heldBy({item, section, nodes})
   const unmatched = report.unmatched.filter((entry) => held({node: entry.node, box: entry.target ?? entry.live}))
   const changes = mapValues(report.changes, (list) => list.filter((change) => nodes.has(change.node)))
   const scoped: DiffReport = {
@@ -883,11 +891,18 @@ function sectionReport(input: {
     }),
     warnings: settled.judging.warnings.filter((warning) => inside(warning.box)),
     changed: {...settled.judging.changed, changes},
+    sections: [],
     priors: [],
     round: report.round,
   })
   const open = settled.judging.partial || items.some((item) => item.stage !== null)
-  return {...scoped, ...verdict, stop: open ? null : 'done', paired: measured.length}
+  const [budget] = sectionBudgets({sections: [section], items, changes: input.changes})
+  return {...scoped, ...verdict, stop: sectionStop({open, spent: budget?.spent ?? false}), paired: measured.length}
+}
+
+function sectionStop(input: {open: boolean; spent: boolean}): Stop | null {
+  if (!input.open) return 'done'
+  return input.spent ? 'budget' : null
 }
 
 function subtreeCounts(input: {ledger: Ledger | null; nodes: string[]}): DiffReport['ledger'] {
@@ -1433,17 +1448,6 @@ function extraEntries(input: {components: LiveComponent[]; paired: Set<string>; 
   })
 }
 
-function enclosed(input: {inner: Box; outer: Box}): boolean {
-  const {inner, outer} = input
-  const slack = TOLERANCES.geometryPx
-  return (
-    inner.x >= outer.x - slack &&
-    inner.y >= outer.y - slack &&
-    inner.x + inner.w <= outer.x + outer.w + slack &&
-    inner.y + inner.h <= outer.y + outer.h + slack
-  )
-}
-
 function paints(component: LiveComponent): boolean {
   return component.glyphs.length > 0 || isOpaqueHex(component.styles.background) || component.styles.border.width > 0
 }
@@ -1641,6 +1645,7 @@ async function targetStatus(input: {
   store: TargetStore
   session: string
   unanswered: Set<string>
+  history: History
 }): Promise<StatusReport> {
   const {store} = input
   const record = await store.current({session: input.session})
@@ -1652,17 +1657,27 @@ async function targetStatus(input: {
   )
   const done = !reregister && (await finished({store, record, report}))
   const ledger = await store.ledger(record.id)
+  const sections = await store.sections(record.id)
+  const budgets = keyBy(
+    sectionBudgets({
+      sections,
+      items: [],
+      changes: input.history.rounds(record.id).map((round) => round.report.changes),
+    }),
+    (budget) => budget.id,
+  )
   return {
     ...(record.route === undefined ? {} : {route: record.route}),
     targets: [{id: record.id, width: record.width, ...runSummary(report)}],
     done,
     ...loopState({record, report}),
     ledger: ledgerCounts(ledger),
-    sections: (await store.sections(record.id)).map((section) => ({
+    sections: sections.map((section) => ({
       id: section.id,
       kind: section.kind,
       line: section.line,
       ledger: subtreeCounts({ledger, nodes: section.nodes}),
+      roundsUsed: budgets[section.id]?.roundsUsed ?? 0,
     })),
     ...(report === null ? {} : {changes: report.changes}),
     designPath: store.designPath(record.id),
@@ -2019,7 +2034,6 @@ const ORIGIN_HINT = 'the conciv engine origin is unknown, so xray is a path on t
 const COMPACT_FIELDS = [
   'target',
   'round',
-  'budgetLeft',
   'stage',
   'stop',
   'score',
