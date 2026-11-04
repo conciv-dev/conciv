@@ -322,7 +322,7 @@ whose copy is all literals gets no `replace the hard-coded sample` line.
 
 Every save already starts a run: an `hmr-update` from the bundler, the `page_hmr` settle, then a run with
 `observe: false`. A run reuses what did not change since the run before, keyed by content hashes and fingerprints,
-and a pair, once made, stays until its element is gone.
+and a pair, once made, stays until its element is gone or no longer passes the pairing gate.
 
 - **One run per burst.** Settle runs wait for `settleQuiet` 800 ms with no further `hmr-update`, so a burst of saves
   starts one run, and a settle waits for the settle before it to finish. A burst whose files are all unknown to the
@@ -351,7 +351,12 @@ and a pair, once made, stays until its element is gone.
   whatever file the edit touched: the fingerprint is the proof that the element did
   not change, so on a one-file page an edit that moves nothing else carries everything else. The touched files only
   order the scan, candidates under them first. Pins are applied first, then the carried
-  pairs seed the pairer's state as a greedy take would and the greedy loop pairs the rest. The voters are calibrated
+  pairs seed the pairer's state as a greedy take would and the greedy loop pairs the rest. A carried pair must still
+  pass the gate a fresh vote applies, every round: for a box or image node the overlap and the area ratio against its
+  element, for a text node the element's box, widened by `tileMargin`, holding the node's centre (or, while geometry
+  is not trusted, an element no other text holds). One that fails is dropped and its node votes fresh that round, so
+  a pair made while the page was half built does not outlive the layout it was made on. Pins are exempt. The voters
+  are calibrated
   and the pool medians taken over every node and element, as in a full run: calibrating over what the carry left
   paired 93 nodes on the stripe page where a full run pairs 92, and a carry must not change the answer. An entry without a fingerprint carries nothing.
 - **Keys.** `data-conciv-key` attributes are written into the source by the compiler and are each element's identity for the diff: leave them in place, keep an element's key on it when you move or wrap it, and never copy one onto a second element. The transform writes a file only when the file on disk still equals the code it
@@ -413,7 +418,7 @@ and a pair, once made, stays until its element is gone.
   confirmed: a dead pair seeded before the greedy loop changes what the loop takes for the other nodes, so a page
   moved and moved back would not score as it did the first time. A dead fingerprint stays in the ledger for `lost`
   and its node goes back to the greedy loop. The carry does not depend on `touched`: a pair stays while a live
-  element has its fingerprint, so a whole-file rewrite, a section diff or a diff after a settle keeps every pair whose
+  element has its fingerprint and passes the gate, so a whole-file rewrite, a section diff or a diff after a settle keeps every pair whose
   element is still there, `timings.carried.pairs` counts the pairs honored, and `changes.lost` lists only nodes whose
   element disappeared.
 

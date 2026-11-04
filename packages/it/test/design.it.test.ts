@@ -3274,9 +3274,46 @@ describe('ledger', () => {
       await writeFile(CARDS_SOURCE, source)
     }
   }, 300_000)
+
+  it('a box node whose element moves off it pairs the element that now matches it, and the moved one is not lost', async ({
+    annotate,
+  }) => {
+    await goto('target')
+    const {id} = await freshTarget('u1-1280')
+    const first = await call('design_diff', {})
+    const wrapper = [...(await keyedPairs({id, run: reportRun(first)})).values()].find(
+      (pair) => pair.fingerprint.key === TOOLBAR_KEY,
+    )
+    const node = (await storedNodes(id)).find((entry) => entry.id === wrapper?.node && entry.kind === 'box')
+    if (node === undefined) throw new Error('u1-1280 pairs no box node with the toolbar header')
+    const source = await readFile(APP_SOURCE, 'utf8')
+    try {
+      await rewrite({id, file: APP_SOURCE, text: source.replace(TOOLBAR_OPENING, `${TOOLBAR_COPY}${TOOLBAR_OPENING}`)})
+      const second = await call('design_diff', {})
+      const after = await keyedPairs({id, run: reportRun(second)})
+      const headers = (await call('design_capture', {height: 720})).components.filter(
+        (component) => component.key === TOOLBAR_KEY,
+      )
+      const copy = headers.find((header) => near({a: header.box, b: node.box}))
+      const moved = headers.find((header) => header !== copy)
+      await annotate(
+        `node ${JSON.stringify(node.box)} headers ${JSON.stringify(headers.map((header) => [header.path, header.box]))} after ${JSON.stringify(after.get(node.id))} lost ${JSON.stringify(second.changes.lost)}`,
+      )
+      if (copy === undefined || moved === undefined) throw new Error('the page does not render both toolbars')
+      expect(intersects({a: moved.box, b: node.box})).toBe(false)
+      expect(after.get(node.id)?.path).toBe(copy.path)
+      expect(second.changes.lost.map((change) => change.node)).not.toContain(node.id)
+    } finally {
+      await writeFile(APP_SOURCE, source)
+    }
+  }, 300_000)
 })
 
 const KEPT_PAIRS = 3
+const APP_SOURCE = join(HOST_ROOT, 'src', 'App.tsx')
+const TOOLBAR_KEY = 'ngTm1A'
+const TOOLBAR_OPENING = '<Toolbar\n'
+const TOOLBAR_COPY = '<Toolbar variant={variant} label={label} data-conciv-key="Cp7ToA" />\n      '
 const CARDS_SOURCE = join(HOST_ROOT, 'src', 'Cards.tsx')
 const CARDS_REWRITTEN = `import styles from './card.module.css'
 

@@ -676,12 +676,13 @@ function enclosing(view: View): View | null {
 
 function carryFirst(input: {input: VoteInput; state: State}): Assignment[] {
   const {state} = input
-  const {carried, context, compatible} = input.input
+  const {carried, context, compatible, gate, tolerances} = input.input
   return carried.flatMap((entry) => {
-    if (context.assigned.has(entry.node.key)) return []
-    if (!compatible({node: entry.node, candidate: entry.candidate})) return []
-    if (entry.node.kind !== 'text' && state.boxes.has(entry.candidate.key)) return []
-    take({node: entry.node, candidate: entry.candidate, state, context})
+    const {node, candidate} = entry
+    if (context.assigned.has(node.key)) return []
+    if (!compatible({node, candidate})) return []
+    if (!gate({node, candidate, state, tolerances})) return []
+    take({node, candidate, state, context})
     return [entry]
   })
 }
