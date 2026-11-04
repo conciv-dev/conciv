@@ -378,7 +378,7 @@ export function sideFrom(input: {
     next: pair.next === null ? null : pickBox({pair: pair.next, from}),
     axis: pair.live.axis,
     flow: directionOn({pair, from, nodes}),
-    columns: columnCount({pair, from, leaves}),
+    columns: columnCount({pair, from, leaves, nodes}),
     textBox: contentBox({children, from}),
     edge: edgeOn({pair, from, raster, strip}),
     radius: radiusOn({pair, from}),
@@ -521,11 +521,19 @@ function bothAxes(layout: NodeLayout): boolean {
   return layout.direction === 'grid' || layout.wrap === true || (layout.runs ?? []).length > 0
 }
 
-function columnCount(input: {pair: Pair; from: From; leaves: Pair[]}): number | null {
-  const {pair, from, leaves} = input
+function columnCount(input: {pair: Pair; from: From; leaves: Pair[]; nodes: TargetNode[]}): number | null {
+  const {pair, from, leaves, nodes} = input
   if (pair.live.columns === null) return null
   if (from === 'live') return pair.live.columns
-  const spans = leaves.map((leaf) => leaf.node.box).toSorted((a, b) => a.x - b.x)
+  const kept = new Set(laidOutChildren({pair, nodes}).map((node) => node.id))
+  if (kept.size < 2) return null
+  const stacked = new Set(
+    nodes.filter((node) => node.within === pair.node.id && !kept.has(node.id)).map((node) => node.id),
+  )
+  const spans = leaves
+    .filter((leaf) => !heldBy({id: leaf.node.id, held: stacked, nodes}))
+    .map((leaf) => leaf.node.box)
+    .toSorted((a, b) => a.x - b.x)
   const bands = spans.reduce<{end: number; count: number}>(
     (state, box) =>
       box.x >= state.end - FLOW_BAND
@@ -534,6 +542,13 @@ function columnCount(input: {pair: Pair; from: From; leaves: Pair[]}): number | 
     {end: Number.NEGATIVE_INFINITY, count: 0},
   )
   return bands.count === 0 ? null : bands.count
+}
+
+function heldBy(input: {id: string; held: Set<string>; nodes: TargetNode[]}): boolean {
+  const {id, held, nodes} = input
+  if (held.has(id)) return true
+  const within = nodes.find((node) => node.id === id)?.within
+  return within !== undefined && heldBy({id: within, held, nodes})
 }
 
 function union(boxes: Box[]): Box | null {

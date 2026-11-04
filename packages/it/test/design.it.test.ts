@@ -3632,6 +3632,59 @@ const PICTURE_PAGE = `export function Stripe() {
   )
 }
 `
+const DECOR_DESIGN = 'decor-grid-800'
+const DECOR_SIZE = {width: 800, height: 480}
+const DECOR_PANEL = {x: 40, y: 40, w: 704, h: 400}
+const DECOR_PADDING = 20
+const DECOR_CARD = {w: 192, h: 168}
+const DECOR_GAP = 24
+const DECOR_BLOCK = {inset: 16, w: 100, h: 24}
+const DECOR_PICTURE = {x: 660, y: 76, w: 56, h: 56}
+
+function decorCards(): Box[] {
+  return Array.from({length: 6}, (_, index) => ({
+    x: DECOR_PANEL.x + DECOR_PADDING + (index % 3) * (DECOR_CARD.w + DECOR_GAP),
+    y: DECOR_PANEL.y + DECOR_PADDING + Math.floor(index / 3) * (DECOR_CARD.h + DECOR_GAP),
+    ...DECOR_CARD,
+  }))
+}
+
+async function writeDecorDesign(): Promise<void> {
+  const png = new PNG(DECOR_SIZE)
+  png.data.fill(255)
+  paintBox({png, box: DECOR_PANEL, paint: () => [0xee, 0xf2, 0xf7]})
+  decorCards().forEach((card) => {
+    paintBox({png, box: card, paint: () => [0xc7, 0xd2, 0xfe]})
+    paintBox({
+      png,
+      box: {x: card.x + DECOR_BLOCK.inset, y: card.y + DECOR_BLOCK.inset, w: DECOR_BLOCK.w, h: DECOR_BLOCK.h},
+      paint: () => [0x37, 0x30, 0xa3],
+    })
+  })
+  paintBox({
+    png,
+    box: DECOR_PICTURE,
+    paint: (dx, dy) =>
+      (Math.floor(dx / CHECKER) + Math.floor(dy / CHECKER)) % 2 === 0 ? [30, 60, 200] : [240, 160, 40],
+  })
+  await writeFile(target(DECOR_DESIGN), PNG.sync.write(png))
+}
+
+const DECOR_PAGE = `export function Stripe() {
+  return (
+    <main style={{margin: -24, height: ${DECOR_SIZE.height}, position: 'relative', background: '#ffffff'}}>
+      <div style={{position: 'absolute', left: ${DECOR_PANEL.x}, top: ${DECOR_PANEL.y}, width: ${DECOR_PANEL.w}, height: ${DECOR_PANEL.h}, boxSizing: 'border-box', padding: ${DECOR_PADDING}, display: 'grid', gridTemplateColumns: 'repeat(3, ${DECOR_CARD.w}px)', gridAutoRows: ${DECOR_CARD.h}, gap: ${DECOR_GAP}, background: '#eef2f7'}}>
+        {[0, 1, 2, 3, 4, 5].map((card) => (
+          <div key={card} style={{background: '#c7d2fe', paddingTop: ${DECOR_BLOCK.inset}, paddingLeft: ${DECOR_BLOCK.inset}}}>
+            <div style={{width: ${DECOR_BLOCK.w}, height: ${DECOR_BLOCK.h}, background: '#3730a3'}} />
+          </div>
+        ))}
+        <div style={{position: 'absolute', left: ${DECOR_PICTURE.x - DECOR_PANEL.x}, top: ${DECOR_PICTURE.y - DECOR_PANEL.y}, width: ${DECOR_PICTURE.w}, height: ${DECOR_PICTURE.h}, background: '#8a2be2'}} />
+      </div>
+    </main>
+  )
+}
+`
 const PICTURE_PAINT_KINDS: string[] = ['background', 'foreground', 'border']
 const PaintItemsSchema = z.object({
   nodes: z.record(
@@ -4087,6 +4140,36 @@ describe('icons', () => {
       await annotate(`picture ${JSON.stringify(picture.box)} deltas ${JSON.stringify(deltas)}`)
       expect(pairs.map((pair) => pair.node)).toContain(picture.id)
       expect(deltas.filter((delta) => PICTURE_PAINT_KINDS.includes(delta.kind))).toEqual([])
+    } finally {
+      await writeFile(STRIPE_SOURCE, source)
+      await page.setViewportSize({width: 1280, height: 720})
+    }
+  }, 240_000)
+
+  it('a 3 by 2 grid of cards with a picture over its right edge reads 3 columns, not 4', async ({annotate}) => {
+    await goto('stripe')
+    await page.setViewportSize(DECOR_SIZE)
+    await writeDecorDesign()
+    const {id} = await freshTarget(DECOR_DESIGN)
+    const nodes = await storedNodes(id)
+    const panel = nodes.find((node) => node.kind === 'box' && near({a: node.box, b: DECOR_PANEL}))
+    const picture = nodes.find((node) => node.kind === 'image' && near({a: node.box, b: DECOR_PICTURE}))
+    if (panel === undefined || picture === undefined) throw new Error(`${DECOR_DESIGN} has no grid panel or picture`)
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await rewrite({id, file: STRIPE_SOURCE, text: DECOR_PAGE})
+      const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
+      const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+      const pairs = StoredPairsSchema.parse(
+        JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
+      )
+      const columns = report.components
+        .filter((component) => component.nodes?.includes(panel.id) === true)
+        .flatMap((component) => component.deltas.filter((delta) => delta.kind === 'columns'))
+      await annotate(`picture within ${picture.within ?? 'root'} columns ${JSON.stringify(columns)}`)
+      expect(picture.within).toBe(panel.id)
+      expect(pairs.map((pair) => pair.node)).toEqual(expect.arrayContaining([panel.id, picture.id]))
+      expect(columns).toEqual([])
     } finally {
       await writeFile(STRIPE_SOURCE, source)
       await page.setViewportSize({width: 1280, height: 720})
