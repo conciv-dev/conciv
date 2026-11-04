@@ -490,11 +490,27 @@ function directionOn(input: {pair: Pair; from: From; nodes: TargetNode[]}): Flow
   }
   const layout = pair.node.layout
   if (layout?.direction === undefined) return null
-  if (nodes.filter((node) => node.within === pair.node.id).length < 2) return null
+  const children = nodes.filter((node) => node.within === pair.node.id)
+  if (children.length < 2) return null
+  if (laidOutChildren({pair, nodes}).length < children.length) return null
   if (pair.live.columns !== null && bothAxes(layout)) return null
   if (layout.direction === 'stack') return 'column'
   if (layout.direction === 'grid') return 'row'
   return layout.direction
+}
+
+function laidOutChildren(input: {pair: Pair; nodes: TargetNode[]}): TargetNode[] {
+  const children = input.nodes.filter((node) => node.within === input.pair.node.id)
+  return children.filter(
+    (child) => !children.some((other) => other !== child && overlapping({a: child.box, b: other.box})),
+  )
+}
+
+function overlapping(input: {a: Box; b: Box}): boolean {
+  const {a, b} = input
+  const across = Math.min(right(a), right(b)) - Math.max(a.x, b.x)
+  const down = Math.min(bottom(a), bottom(b)) - Math.max(a.y, b.y)
+  return across > TOLERANCES.geometryPx && down > TOLERANCES.geometryPx
 }
 
 function laysOut(component: LiveComponent): boolean {

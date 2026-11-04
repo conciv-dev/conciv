@@ -2084,6 +2084,9 @@ const StoredPairsSchema = z.array(z.object({node: z.string(), path: z.string()})
 const ControlPairsSchema = z.array(z.object({node: z.string(), fingerprint: z.object({tag: z.string()}).optional()}))
 const CONTACT_LABELS = ['Your Email', 'Message', 'Send']
 
+const STACKED_PICTURE = 'stacked-picture'
+const PICTURE_GAP = 24
+
 const TreeModelSchema = z.looseObject({
   nodes: z.array(z.looseObject({id: z.string(), within: z.string().optional()})),
 })
@@ -2327,6 +2330,42 @@ describe('loop', () => {
         .filter((component) => sameSource({a: component.source, b: turned.source}))
         .flatMap((component) => component.deltas.filter((delta) => delta.kind === 'axis')),
     ).toEqual([])
+  })
+
+  it('a design row whose picture overlaps a child has no axis row, and the same picture beside the children keeps it', async () => {
+    await goto('column')
+    const {id} = await freshTarget('u1-1280')
+    const column = await call('design_diff', {limit: 50, depth: 6})
+    const turned = column.components.find((component) => component.deltas.some((delta) => delta.kind === 'axis'))
+    const [holder] = turned?.nodes ?? []
+    if (turned === undefined || holder === undefined) throw new Error('the column page has no axis row')
+    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+    const raw: unknown = JSON.parse(await readFile(path, 'utf8'))
+    const model = EditableModelSchema.parse(raw)
+    const held = new Set(
+      TreeModelSchema.parse(raw)
+        .nodes.filter((node) => node.within === holder)
+        .map((node) => node.id),
+    )
+    const boxes = model.nodes
+      .filter((node) => held.has(node.id))
+      .map((node) => node.box)
+      .toSorted((a, b) => a.x - b.x)
+    const first = boxes.at(0)
+    const last = boxes.at(-1)
+    if (first === undefined || last === undefined) throw new Error('the design row holds no children')
+    const axisWith = async (box: Box): Promise<DiffReport['components'][number]['deltas']> => {
+      const picture = {id: STACKED_PICTURE, kind: 'image', box, within: holder, holds: 0}
+      await writeFile(path, JSON.stringify({...model, nodes: [...model.nodes, picture]}))
+      const report = await call('design_diff', {limit: 50, depth: 6})
+      return report.components
+        .filter((component) => sameSource({a: component.source, b: turned.source}))
+        .flatMap((component) => component.deltas.filter((delta) => delta.kind === 'axis'))
+    }
+    const stacked = await axisWith({x: first.x + first.w / 4, y: first.y + first.h / 4, w: first.w / 2, h: first.h / 2})
+    const beside = await axisWith({x: last.x + last.w + PICTURE_GAP, y: last.y, w: PICTURE_GAP, h: last.h})
+    expect(stacked).toEqual([])
+    expect(beside).toEqual([expect.objectContaining({kind: 'axis', live: 'column', target: 'row'})])
   })
 
   it('grid reports a columns delta', async () => {
