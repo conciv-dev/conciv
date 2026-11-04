@@ -46,6 +46,7 @@ export const TOLERANCES = {
   measureChunk: 200,
   pairBudgetMs: 20_000,
   pairBoxIou: 0.3,
+  pairExactIou: 0.9,
   pairBoxArea: 3,
   pairMargin: 0.08,
   pairDominance: 0.15,

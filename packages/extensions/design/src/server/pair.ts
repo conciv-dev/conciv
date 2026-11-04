@@ -681,10 +681,20 @@ function carryFirst(input: {input: VoteInput; state: State}): Assignment[] {
     const {node, candidate} = entry
     if (context.assigned.has(node.key)) return []
     if (!compatible({node, candidate})) return []
-    if (!gate({node, candidate, state, tolerances})) return []
+    if (node.kind !== 'text' && !gate({node, candidate, state, tolerances})) return []
+    if (node.kind !== 'text' && displaced({input: input.input, state, node, candidate})) return []
     take({node, candidate, state, context})
     return [entry]
   })
+}
+
+function displaced(input: {input: VoteInput; state: State; node: View; candidate: View}): boolean {
+  const {node, candidate, state} = input
+  const exact = input.input.tolerances.pairExactIou
+  if (iou({a: node.box, b: candidate.box}) >= exact) return false
+  return candidatePool({input: input.input, node}).some(
+    (other) => other !== candidate && !state.boxes.has(other.key) && iou({a: node.box, b: other.box}) >= exact,
+  )
 }
 
 function calibrate(input: VoteInput): Map<VoterName, number> {

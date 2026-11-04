@@ -352,11 +352,13 @@ and a pair, once made, stays until its element is gone or no longer passes the p
   not change, so on a one-file page an edit that moves nothing else carries everything else. The touched files only
   order the scan, candidates under them first. Pins are applied first, then the carried
   pairs seed the pairer's state as a greedy take would and the greedy loop pairs the rest. A carried pair must still
-  pass the gate a fresh vote applies, every round: for a box or image node the overlap and the area ratio against its
-  element, for a text node the element's box, widened by `tileMargin`, holding the node's centre (or, while geometry
-  is not trusted, an element no other text holds). One that fails is dropped and its node votes fresh that round, so
-  a pair made while the page was half built does not outlive the layout it was made on. Pins are exempt. The voters
-  are calibrated
+  pass the gate a fresh vote applies, every round, when its node is a box or an image: the overlap and the area ratio
+  against its element. A carried box or image pair is also dropped when its element overlaps the node with an IoU
+  below `pairExactIou` (0.9) while another element, compatible with the node and not yet taken this round, overlaps
+  it at or above that: the node votes fresh and takes the exact fit. A dropped node votes fresh that round, so a pair
+  made while the page was half built does not outlive the layout it was made on. A text carry has no position check,
+  only the text rule above: a moved text keeps its element so the brief says move rather than build. Pins are
+  exempt. The voters are calibrated
   and the pool medians taken over every node and element, as in a full run: calibrating over what the carry left
   paired 93 nodes on the stripe page where a full run pairs 92, and a carry must not change the answer. An entry without a fingerprint carries nothing.
 - **Keys.** `data-conciv-key` attributes are written into the source by the compiler and are each element's identity for the diff: leave them in place, keep an element's key on it when you move or wrap it, and never copy one onto a second element. The transform writes a file only when the file on disk still equals the code it
