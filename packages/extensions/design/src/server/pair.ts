@@ -65,6 +65,7 @@ export function pairTwins(input: {a: TargetModel; b: TargetModel; tolerances: To
     compatible: ({node, candidate}) => node.kind === candidate.kind,
     gate: oneToOne,
     context: emptyContext({nodeRaster: a.raster, candidateRaster: b.raster, candidates, twinVotes: []}),
+    holders: new Map(),
     pins: [],
     carried: [],
     tolerances,
@@ -168,6 +169,7 @@ type VoteInput = {
   compatible: (input: {node: View; candidate: View}) => boolean
   gate: Gate
   context: Context
+  holders: Map<string, string>
   pins: {node: string; path: string}[]
   carried: Assignment[]
   tolerances: Tolerances
@@ -228,6 +230,7 @@ function votePairer(input: Parameters<Pairer>[0]): ReturnType<Pairer> {
       candidates,
       twinVotes: input.twinVotes,
     }),
+    holders: textHolders(input.nodes),
     pins: input.pins,
     carried: carriedViews({
       records: input.carried,
@@ -378,18 +381,32 @@ function nodeClass(input: {node: TargetNode; within: TargetNode | undefined; con
 
 function controlBoxes(nodes: TargetNode[]): Set<string> {
   const byId = new Map(nodes.map((node) => [node.id, node]))
-  const children = Map.groupBy(nodes, (node) => node.within ?? '')
   return new Set(
-    nodes.flatMap((node) => {
-      if (node.kind !== 'box') return []
+    heldNodes(nodes).flatMap(({node, held}) => {
       const parent = node.within === undefined ? undefined : byId.get(node.within)
-      const drawn = (children.get(node.within ?? '') ?? []).filter(
-        (sibling) => sibling.kind === 'text' && holds({outer: node.box, inner: sibling.box}),
-      )
-      const held = [...(children.get(node.id) ?? []), ...drawn]
       return controlBox({node, parent, held}) ? [node.id] : []
     }),
   )
+}
+
+function textHolders(nodes: TargetNode[]): Map<string, string> {
+  return new Map(
+    heldNodes(nodes).flatMap(({node, held}): [string, string][] => {
+      const [only, ...rest] = held
+      return only === undefined || only.kind !== 'text' || rest.length > 0 ? [] : [[node.id, only.id]]
+    }),
+  )
+}
+
+function heldNodes(nodes: TargetNode[]): {node: BoxNode; held: TargetNode[]}[] {
+  const children = Map.groupBy(nodes, (node) => node.within ?? '')
+  return nodes.flatMap((node) => {
+    if (node.kind !== 'box') return []
+    const drawn = (children.get(node.within ?? '') ?? []).filter(
+      (sibling) => sibling.kind === 'text' && holds({outer: node.box, inner: sibling.box}),
+    )
+    return [{node, held: [...(children.get(node.id) ?? []), ...drawn]}]
+  })
 }
 
 function controlBox(input: {node: BoxNode; parent: TargetNode | undefined; held: TargetNode[]}): boolean {
@@ -589,14 +606,49 @@ function runVote(input: VoteInput): {matched: Assignment[]; partial: boolean; ca
   )
   const pinned = pinsFirst({input, state})
   const carried = carryFirst({input, state})
-  const lists = new Map(
-    input.nodes
-      .filter((node) => !input.context.assigned.has(node.key))
-      .map((node) => [node.key, scoredList({input, weights, state, node})]),
-  )
   const views = new Map(input.nodes.map((node) => [node.key, node]))
-  const result = greedy({input, weights, state, pools, lists, views, matched: [...pinned, ...carried]})
-  return {...result, carried: carried.length}
+  const open = (held: boolean): Map<string, Scored[]> =>
+    new Map(
+      input.nodes
+        .filter((node) => !input.context.assigned.has(node.key) && input.holders.has(node.key) === held)
+        .map((node) => [node.key, scoredList({input, weights, state, node})]),
+    )
+  const first = greedy({input, weights, state, pools, lists: open(false), views, matched: [...pinned, ...carried]})
+  const followed = followTexts({input, weights, state})
+  const result = greedy({
+    input,
+    weights,
+    state,
+    pools,
+    lists: open(true),
+    views,
+    matched: [...first.matched, ...followed],
+  })
+  return {matched: result.matched, partial: first.partial || result.partial, carried: carried.length}
+}
+
+function followTexts(input: {input: VoteInput; weights: Map<VoterName, number>; state: State}): Assignment[] {
+  const {weights, state} = input
+  const {nodes, holders, context} = input.input
+  return nodes.flatMap((node): Assignment[] => {
+    const text = holders.get(node.key)
+    if (text === undefined || context.assigned.has(node.key)) return []
+    const element = context.assigned.get(text)
+    if (element === undefined) return []
+    const candidate = element.klass === 'control' || element.klass === 'media' ? element : enclosing(element)
+    if (candidate === null || state.boxes.has(candidate.key)) return []
+    const {score} = weighed({input: input.input, weights, node, candidate})
+    take({node, candidate, state, context})
+    return [{node, candidate, score}]
+  })
+}
+
+function enclosing(view: View): View | null {
+  const climb = (from: View | null): View | null => {
+    if (from === null || from.parent === null) return null
+    return holds({outer: from.box, inner: view.box}) ? from : climb(from.parent)
+  }
+  return climb(view.parent)
 }
 
 function carryFirst(input: {input: VoteInput; state: State}): Assignment[] {

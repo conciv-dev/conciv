@@ -241,6 +241,10 @@ The vote pairer scores every design node against every compatible live element a
   at most 48 x 320 px, when it is at most 48 px tall at any width and holds one short single-line text (its own child
   or a text drawn over it), or when it is taller but holds one text, short or at its top-left padding, and has a
   border or a fill apart from its parent's (a textarea). A text inside a control box is a control too.
+- A box that holds exactly one text follows that text: once the other nodes are paired, and before such boxes vote
+  on their own, it takes the text's element when that element is a control or media, else the nearest ancestor of
+  the element whose box encloses it (never the page root), however far it sits from the design box. Its geometry
+  then reports the offset, so the brief says move rather than build. A pinned or carried pair is kept.
 - A voter's weight is its base times how often it agrees with the base-weight consensus, counted only over design
   nodes whose consensus top score is at least `pairFloor`.
 - A text node whose text voter and structure voter both abstain (a single glyph under 14 px whose parent is not
