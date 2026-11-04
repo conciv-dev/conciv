@@ -159,7 +159,7 @@ function sighted(input: {box: Fingerprint['box']; wanted: Fingerprint}): {shift:
 
 function sameElement(input: {a: Fingerprint; b: Fingerprint; path: string; wantedPath: string}): boolean {
   const {a, b} = input
-  if (a.key !== null && b.key !== null) return a.key === b.key
+  if (a.key !== null && b.key !== null) return a.key === b.key && a.instance === b.instance
   return unkeyedSame(input)
 }
 

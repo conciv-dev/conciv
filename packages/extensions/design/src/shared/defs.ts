@@ -160,6 +160,13 @@ const LiveComponentSchema = z.object({
     .describe(
       "the data-conciv-key the compiler wrote into the source, the element's identity for the diff; null without one",
     ),
+  instance: z
+    .string()
+    .nullable()
+    .default(null)
+    .describe(
+      'the call-site keys and React keys of the fiber chain from the root, which tell copies of one key apart; null when the framework is unknown',
+    ),
   owner: z.string().nullable().describe('the component owner path from the root, null when the framework is unknown'),
   tag: z.string(),
   text: z.string(),
@@ -358,6 +365,7 @@ const RowSchema = z.object({
 export const FingerprintSchema = z.object({
   source: SourceLocSchema.nullable(),
   key: z.string().nullable().default(null),
+  instance: z.string().nullable().default(null),
   owner: z.string().nullable().default(null),
   tag: z.string(),
   textHash: z.string(),

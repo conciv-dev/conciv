@@ -305,13 +305,15 @@ and a pair, once made, stays until its element is gone.
   pairs and tiles are carried all the same.
 - **Pairs.** Each entry of `pairs-<run>.json` carries the live element's `fingerprint`: `source`, `key` (the
   `data-conciv-key` the compiler writes into the source file, six random base64url characters derived from nothing,
-  once per element that has none; `data-conciv-source` is still computed at transform time and never written), `owner` (the
+  once per element that has none; `data-conciv-source` is still computed at transform time and never written), `instance`
+  (the fiber chain from the root: each component's call-site `data-conciv-key`, or its sibling index when the call site
+  has none, and every React `key`, joined with `/`; it tells apart the copies of one key that a component rendered
+  several times or a mapped list makes; null without a React fiber), `owner` (the
   component path from the root, `Stripe[0] > Card[2] > h3[0]` from the React fiber chain, null when the framework is
   unknown), `tag`, `textHash` (fnv of the folded element text) and `box`. The source line is an address for reading
   the site; the key is the element's identity, so no edit to lines, classes, text or position changes it. A pair of
-  the run before is carried when its design node is still in the model and a live element has the same key, nothing
-  else compared; copies of one key (one component rendered several times, a mapped list) go to the same path or else
-  the nearest box. Without a key on either side, a live element must sit at the
+  the run before is carried when its design node is still in the model and a live element has the same key and the same
+  instance, nothing else compared (without a fiber both instances are null and the key alone decides). Without a key on either side, a live element must sit at the
   same source (or the same path when it has none) with the same tag and text hash and a box within `tileMargin`,
   whatever file the edit touched: the fingerprint is the proof that the element did
   not change, so on a one-file page an edit that moves nothing else carries everything else. The touched files only
@@ -356,7 +358,7 @@ and a pair, once made, stays until its element is gone.
 - **Changes.** `changes` compares the ledger before the run with the ledger after it: `done` (newly clean), `regressed`
   (newly dirty or unpaired), `paired` (paired for the first time), `lost` (the node has no pair in the run and the
   element it was paired to in the run before is not found by the fingerprint rule of the carry: with keys on both
-  sides, its key is on no live element) and `moved` (the run's
+  sides, no live element has its key and instance) and `moved` (the run's
   pair box, or for an unpaired node the element still found, lies outside `tileMargin` of the stored one). A node
   paired in the run is never `lost`, and a node that stays clean is `done` whichever element it pairs; its stored
   fingerprint, line included, is the run's. Each entry is `{node, sentence, crop}`; accepted nodes are

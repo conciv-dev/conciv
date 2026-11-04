@@ -259,6 +259,7 @@ function mapFixture(input: {
   const component: LiveComponent = {
     source: {file: input.file, line: input.line, column: input.column},
     key: null,
+    instance: null,
     owner: null,
     tag: 'div',
     text: '',
@@ -1279,6 +1280,7 @@ function glyphComponent(input: {glyphs: {text: string; boxes: Box[]}[]; x?: numb
   return {
     source: {file: 'src/App.tsx', line: 1, column: input.x ?? 1},
     key: null,
+    instance: null,
     owner: null,
     tag: 'span',
     text: '',

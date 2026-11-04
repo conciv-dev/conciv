@@ -32,6 +32,7 @@ export function fingerprint(component: LiveComponent): Fingerprint {
   return {
     source: component.source,
     key: component.key,
+    instance: component.instance,
     owner: component.owner,
     tag: component.tag,
     textHash: fnv(folded(component.glyphs.map((glyph) => glyph.text).join(' '))),
@@ -303,7 +304,7 @@ function underTouched(input: {touched: Set<string>; view: View; components: Map<
 
 function samePrint(input: {a: Fingerprint; b: Fingerprint; margin: number}): boolean {
   const {a, b} = input
-  if (a.key !== null && b.key !== null) return a.key === b.key
+  if (a.key !== null && b.key !== null) return a.key === b.key && a.instance === b.instance
   return (
     a.tag === b.tag &&
     a.textHash === b.textHash &&

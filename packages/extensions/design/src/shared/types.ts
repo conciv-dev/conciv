@@ -91,6 +91,7 @@ type Sizing = 'fixed' | 'auto'
 export type LiveComponent = {
   source: SourceLoc | null
   key: string | null
+  instance: string | null
   owner: string | null
   tag: string
   text: string
@@ -169,6 +170,7 @@ export type TwinPair = {node: string; twin: string; confidence: number}
 export type Fingerprint = {
   source: SourceLoc | null
   key: string | null
+  instance: string | null
   owner: string | null
   tag: string
   textHash: string
