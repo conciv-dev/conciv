@@ -2516,6 +2516,66 @@ const TreeModelSchema = z.looseObject({
   nodes: z.array(z.looseObject({id: z.string(), within: z.string().optional()})),
 })
 
+describe('pixels', () => {
+  it('a paired box whose captured pixels differ in 60% of its box while the measure reads its paint right has one pixels row and no residual-only stop', async () => {
+    const {report} = await repaintedPanel(0.6)
+    const rows = report.components.flatMap((component) => component.deltas).filter((delta) => delta.kind === 'pixels')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.live).toBeGreaterThanOrEqual(0.5)
+    expect(report.stop).not.toBe('residual-only')
+  })
+
+  it('the same box differing in 30% of its box has no pixels row', async () => {
+    const {report, path} = await repaintedPanel(0.3)
+    const panel = report.components.find((component) => component.path === path)
+    expect(panel?.mismatch).toBeGreaterThanOrEqual(0.25)
+    expect(panel?.deltas).toEqual([])
+    expect(
+      report.components.flatMap((component) => component.deltas).filter((delta) => delta.kind === 'pixels'),
+    ).toEqual([])
+  })
+})
+
+const PANEL_BACKGROUND = '#426bf2'
+const PANEL_REPAINT = [242, 161, 66, 255]
+
+async function repaintedPanel(share: number): Promise<{report: DiffReport; path: string}> {
+  await goto('pixels')
+  const captured = await call('design_capture', {height: 720})
+  const panel = everyComponent(captured.components).find(
+    (component) => component.tag === 'div' && component.styles.background === PANEL_BACKGROUND,
+  )
+  if (panel === undefined) throw new Error('the pixels page has no panel')
+  const png = decodePng(await readFile(captured.path))
+  const left = Math.round(panel.box.x)
+  const top = Math.round(panel.box.y)
+  const width = Math.round(panel.box.w)
+  const grown = (width + TILE_MARGIN * 2) * (Math.round(panel.box.h) + TILE_MARGIN * 2)
+  const rows = Math.ceil((share * grown) / width)
+  Array.from(
+    {length: rows * width},
+    (_, index) => ((top + Math.floor(index / width)) * png.width + left + (index % width)) * 4,
+  ).forEach((offset) => png.data.set(PANEL_REPAINT, offset))
+  await call('design_clear', {all: true})
+  const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
+  await store.put({
+    model: {
+      id: `pixels-${share}`,
+      source: {kind: 'figma', ref: `pixels-${share}`},
+      viewport: {width: png.width, height: png.height},
+      raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
+      root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
+      nodes: [
+        {id: 'panel', kind: 'box', box: panel.box, paint: {background: PANEL_BACKGROUND}, border: null, radius: 0},
+      ],
+      scale: 1,
+    },
+    session: kit.session,
+    route: captured.route,
+  })
+  return {report: await call('design_diff', {full: true}), path: panel.path}
+}
+
 describe('pairing', () => {
   it('stripe against stripe-1280 pairs the rebuilt headings and no single glyph', async ({annotate}) => {
     await goto('stripe')

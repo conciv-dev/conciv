@@ -274,6 +274,13 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   A design row of three cards with two pictures on their own line below reads 3, so it closes when the live grid's
   first row holds three. A mismatch is one `columns` delta in the structure stage, `columns is 3 where the design has
   4`; a side with fewer than two kept children has none, so live children stacked on one grid cell give no row.
+- **`pixels`.** A paired element with no other delta whose own `mismatch` (the share of its box, grown by
+  `tileMargin`, that the compare marks as differing) is at least `pixelGate` (0.5) gets one `pixels` delta in the
+  paint stage, `live` the share and `target` 0, sized as the share over `pixelGate`: `a (src/Landing.tsx:11): renders
+  unlike the design in 57% of its box while the measure finds no difference (check the capture crop in the xray, or
+  a style the measure does not read)`. It has no provenance. Being a delta, it takes the element out of the residual
+  share and holds off `residual-only` and `done` until it clears. Text elements are not exempt; the gate keeps glyph
+  edges over a gradient (about a third of the box) out. An image node's pair never has one.
 - **The design side of a delta.** For a paired element every delta's design value is read from its node in
   `model.json`, never re-estimated from the raster: the box from `node.box` (so `width` and `height` deltas in the
   geometry stage, `width is 749 where the design has 577`, and the move row uses the node's own position, except
@@ -654,6 +661,7 @@ All in `src/shared/tolerances.ts`.
 | `inkTrimThreshold` | 40    | per-channel distance from a box's top-left pixel that counts as ink when trimming |
 | `geometryPx`       | 2     | edge distance allowed between a group's trimmed live and target box unions        |
 | `colorDeltaE`      | 3     | ink color agreement and ink mask threshold                                        |
+| `pixelGate`        | 0.5   | own box share differing, with no delta measured, that makes a `pixels` row        |
 | `tileMargin`       | 8     | growth of the trimmed union whose median is the ink background                    |
 | `tileSide`         | 64    | side of the pixel tiles the compare caches across runs                            |
 | `blurRadius`       | 1     | added to `glyphHalo` when painting over agreeing boxes                            |

@@ -211,3 +211,10 @@ button {
   margin-right: 100px;
   background: #008000;
 }
+
+.pixels-panel {
+  width: 400px;
+  height: 200px;
+  margin: 40px;
+  background: #426bf2;
+}

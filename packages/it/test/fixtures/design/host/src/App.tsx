@@ -34,6 +34,13 @@ export function App() {
   if (requested === 'stripe') return <Stripe data-conciv-key="lRWD-g" />
   if (requested === 'sections') return <TwoSections data-conciv-key="GAoSTQ" />
   if (requested === 'contents') return <ContentsGrid data-conciv-key="x9JTfp" />
+  if (requested === 'pixels') {
+    return (
+      <main className="pixels" data-conciv-key="pXmAin">
+        <div className="pixels-panel" data-conciv-key="pXpAnl" />
+      </main>
+    )
+  }
   if (requested === 'contact') {
     return (
       <main className="contact" data-conciv-key="JUIGlw">

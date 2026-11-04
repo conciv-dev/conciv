@@ -8,6 +8,7 @@ export const TOLERANCES = {
   colorDeltaE: 3,
   declaredColorDeltaE: 1,
   tileGate: 0.005,
+  pixelGate: 0.5,
   unmatchedMinimum: 24,
   tileMargin: 8,
   tileSide: 64,
@@ -119,6 +120,8 @@ export function kindTolerance(kind: DeltaKindName): number {
       return WEIGHT_STEP
     case 'columns':
       return 1
+    case 'pixels':
+      return TOLERANCES.pixelGate
     default:
       return TOLERANCES.geometryPx
   }
@@ -157,6 +160,7 @@ const KIND_STAGES = {
   foreground: 'paint',
   radius: 'paint',
   border: 'paint',
+  pixels: 'paint',
   extra: null,
 } as const satisfies Record<ItemKind, Stage | null>
 
@@ -211,8 +215,13 @@ export function traced(delta: Delta): boolean {
 
 export function deltaSentence(delta: Delta): string {
   if (delta.kind === 'text') return `change the text from ${delta.live} to ${delta.target}${at(delta)}`
+  if (delta.kind === 'pixels') {
+    return `renders unlike the design in ${Math.round(Number(delta.live) * PERCENT)}% of its box while the measure finds no difference (check the capture crop in the xray, or a style the measure does not read)`
+  }
   return `${delta.kind} is ${delta.live} where the design has ${delta.target}${setVia(delta)}`
 }
+
+const PERCENT = 100
 
 export function setVia(delta: Delta): string {
   if (!traced(delta)) return ''

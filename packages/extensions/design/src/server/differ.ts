@@ -443,12 +443,13 @@ async function runDiff(request: {
   const measured = pairs.map((pair): Measured => ({
     pair,
     deltas: decided({
-      deltas: slotDeltas({pair, deltas: [...(measures.get(pair)?.deltas ?? []), ...textDeltas({pair, judged})]}).map(
-        (delta) => ({
-          ...delta,
-          ...stamp,
-        }),
-      ),
+      deltas: slotDeltas({
+        pair,
+        deltas: pixelRow({pair, deltas: [...(measures.get(pair)?.deltas ?? []), ...textDeltas({pair, judged})]}),
+      }).map((delta) => ({
+        ...delta,
+        ...stamp,
+      })),
       pair,
       decisions,
       color,
@@ -1374,7 +1375,13 @@ function slotDeltas(input: {pair: Pair; deltas: Delta[]}): Delta[] {
 }
 
 const SLOT_STAGES = new Set<Stage | null>(['paint', 'content'])
-const PICTURE_PAINT = new Set<Delta['kind']>(['background', 'foreground', 'border'])
+const PICTURE_PAINT = new Set<Delta['kind']>(['background', 'foreground', 'border', 'pixels'])
+
+function pixelRow(input: {pair: Pair; deltas: Delta[]}): Delta[] {
+  const {pair, deltas} = input
+  if (deltas.length > 0 || pair.mismatch < TOLERANCES.pixelGate) return deltas
+  return [{kind: 'pixels', live: rounded(pair.mismatch), target: 0}]
+}
 
 function textDeltas(input: {pair: Pair; judged: Map<Pair, TextJudgement>}): Delta[] {
   const found = input.judged.get(input.pair)

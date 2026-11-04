@@ -224,6 +224,7 @@ const DELTA_PROPERTIES = {
   height: () => ['height', 'min-height'],
   lines: () => ['width', 'max-width', 'min-width', 'flex-basis'],
   text: () => [],
+  pixels: () => [],
 } as const satisfies Record<DeltaKindName, Candidates>
 
 const SX_KEYS: Record<string, string[]> = {

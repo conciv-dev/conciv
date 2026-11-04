@@ -48,6 +48,7 @@ const DELTA_KIND_NAMES = [
   'height',
   'lines',
   'text',
+  'pixels',
 ] as const
 
 export const STAGES = ['structure', 'content', 'geometry', 'paint'] as const
