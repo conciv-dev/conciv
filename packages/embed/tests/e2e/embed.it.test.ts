@@ -742,17 +742,18 @@ test.describe('model selector', () => {
       await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
       await openPanel(page)
 
-      const moreActions = page.getByRole('button', {name: 'More composer actions'})
-      await moreActions.click()
-      const retry = page.getByRole('menuitem', {name: /Retry loading models/})
+      await page.getByRole('button', {name: 'Couldn’t load models'}).click()
+      const retry = page.getByRole('button', {name: /Retry loading models/})
       await expect(retry).toBeVisible({timeout: 30_000})
       await expect(page.getByText('Couldn’t load models').first()).toBeVisible({timeout: 30_000})
 
       models.repair()
       await retry.click()
-      await moreActions.click()
-      await expect(page.getByRole('menuitem', {name: /^Model: Claude Sonnet 4\.5/})).toBeVisible({timeout: 30_000})
+      await expect(page.getByRole('option', {name: /^Claude Sonnet 4\.5/, selected: true})).toBeVisible({
+        timeout: 30_000,
+      })
       await page.keyboard.press('Escape')
+      await expect(page.getByRole('button', {name: 'Model: Claude Sonnet 4.5'})).toBeVisible({timeout: 30_000})
     })
   })
 })
