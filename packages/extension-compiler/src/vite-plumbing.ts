@@ -4,11 +4,12 @@ import {addSourceToJsx} from './inject-source.js'
 import {compileExtensionSolid, isExtensionModule} from './compile-extension.js'
 import {splitExtension} from './split-extension.js'
 import {
+  EXTENSIONS_DOCK_RESOLVED_ID,
+  EXTENSIONS_DOCK_ROUTE,
   EXTENSIONS_RESOLVED_ID,
   EXTENSIONS_ROUTE,
   EXTENSIONS_VIRTUAL_ID,
   extensionsModuleSource,
-  type ExtensionsSurface,
 } from './extensions.js'
 
 const SOLID_SINGLETONS = ['solid-js', 'solid-js/web', 'solid-js/store', '@tanstack/solid-router', '@ark-ui/solid']
@@ -54,6 +55,7 @@ export function dropIncludedFromExcludes(
 
 export function resolveExtensionsModule(id: string): string | null {
   const bareId = id.replace(/[?#].*$/, '')
+  if (bareId === EXTENSIONS_DOCK_ROUTE) return EXTENSIONS_DOCK_RESOLVED_ID
   return bareId === EXTENSIONS_VIRTUAL_ID || bareId === EXTENSIONS_ROUTE ? EXTENSIONS_RESOLVED_ID : null
 }
 
@@ -63,11 +65,10 @@ export function loadExtensionsModule(
   apiBase?: string,
   embedEntry?: string,
   dedupeEntry?: string,
-  surface?: ExtensionsSurface,
 ): string | null {
-  return id === EXTENSIONS_RESOLVED_ID
-    ? extensionsModuleSource(clientEntries, apiBase, embedEntry, dedupeEntry, surface)
-    : null
+  if (id === EXTENSIONS_DOCK_RESOLVED_ID)
+    return extensionsModuleSource(clientEntries, apiBase, embedEntry, dedupeEntry, 'dock')
+  return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource(clientEntries, apiBase, embedEntry, dedupeEntry) : null
 }
 
 export function isClientEntry(id: string): boolean {
