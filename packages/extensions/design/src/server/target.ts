@@ -1106,6 +1106,7 @@ export function withoutTwins(nodes: TargetNode[]): TargetNode[] {
 function twins(input: {a: TargetNode; b: TargetNode}): boolean {
   const {a, b} = input
   if (a.kind !== b.kind || a.within !== b.within) return false
+  if (a.kind === 'text' && b.kind === 'text' && a.text.trim() !== b.text.trim()) return false
   const near = (edge: (box: Box) => number): boolean => Math.abs(edge(a.box) - edge(b.box)) <= TOLERANCES.geometryPx
   return [(box: Box) => box.x, (box: Box) => box.y, (box: Box) => box.x + box.w, (box: Box) => box.y + box.h].every(
     near,

@@ -2,7 +2,7 @@ import pixelmatch from 'pixelmatch'
 import {diff} from '@blazediff/core'
 import {z} from 'zod'
 import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
-import {groupBy, keyBy, mapValues, omit, partition, pick, range, uniq, uniqBy} from 'es-toolkit'
+import {groupBy, keyBy, mapValues, maxBy, omit, partition, pick, range, uniq, uniqBy} from 'es-toolkit'
 import {isPageVerbError, toolError, type AnyToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {createHash} from 'node:crypto'
@@ -406,10 +406,10 @@ async function runDiff(request: {
     deadline: Date.now() + TOLERANCES.pairBudgetMs,
   })
   clock.lap('pair')
+  const exact = model.source.kind !== 'image'
+  const sole = soleTexts({matched: paired.matched, exact})
   const typography = await estimateTypography({
-    texts: paired.matched.flatMap((entry) =>
-      entry.node.kind === 'text' ? [{node: entry.node, owner: entry.component}] : [],
-    ),
+    texts: sole.flatMap((entry) => (entry.node.kind === 'text' ? [{node: entry.node, owner: entry.component}] : [])),
     target: model,
     id: record.id,
     store: design.store,
@@ -417,8 +417,7 @@ async function runDiff(request: {
     color,
   })
   clock.lap('typography')
-  const matched = paired.matched.map((entry) => withTypography({entry, typography: typography.estimates}))
-  const exact = model.source.kind !== 'image'
+  const matched = sole.map((entry) => withTypography({entry, typography: typography.estimates}))
   const pairs = pairTree({
     matched,
     components: live.components,
@@ -1212,6 +1211,27 @@ function twinVotes(placements: Placement[]): TwinVote[] {
     placements.toSorted((a, b) => b.confidence - a.confidence),
     (vote) => vote.node,
   ).map(({node, path, confidence}) => ({node, path, confidence}))
+}
+
+function soleTexts(input: {matched: Matched[]; exact: boolean}): Matched[] {
+  if (!input.exact) return input.matched
+  const kept = new Set(
+    Object.values(
+      groupBy(
+        input.matched.filter((entry) => entry.node.kind === 'text'),
+        (entry) => entry.component.path,
+      ),
+    ).flatMap((entries) => {
+      const best = maxBy(entries, (entry) => overlapArea({a: entry.node.box, b: entry.component.box}))
+      return best === undefined ? [] : [best]
+    }),
+  )
+  return input.matched.filter((entry) => entry.node.kind !== 'text' || kept.has(entry))
+}
+
+function overlapArea(input: {a: Box; b: Box}): number {
+  const common = intersection(input)
+  return common === null ? 0 : common.w * common.h
 }
 
 function withTypography(input: {entry: Matched; typography: Record<string, TextNode['typography']>}): Matched {

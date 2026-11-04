@@ -296,6 +296,10 @@ The vote pairer scores every design node against every compatible live element a
   with such an element and an image node only with an element that has none; the rule covers text and image nodes
   only, and a box node pairs any element. It filters the candidates before any vote is scored and applies to the
   carry the same way, so a carried pair it refuses is dropped and its node votes again.
+- With a design source an element pairs one text node. When several pair to one element, the node whose box overlaps
+  the element most is kept and the others are unbuilt, so the content row compares the element's text with that one
+  node and never with a text joined from two cards' headings. A model registered from an image keeps them all: an OCR
+  text node is one row, and a wrapped paragraph is several rows of one element.
 - A box that holds exactly one text follows that text: once the other nodes are paired, and before such boxes vote
   on their own, it takes the text's element when that element is a control or media, else the nearest ancestor of
   the element whose box encloses it (never the page root), however far it sits from the design box. Its geometry
@@ -478,8 +482,8 @@ brief.
 
 A section is a top-level node of the design tree: a node whose `within` is unset or names no node, a child of the
 root. The `regions` enricher, run after `color` and before the layout pass, first folds twins: two siblings of one
-kind whose boxes agree within `geometryPx` on every edge are one node, the first kept and the twin's children moved to
-it, so a design that draws the same panel twice has one node to pair. It then groups the root's text and box children
+kind whose boxes agree within `geometryPx` on every edge (and, for two texts, whose words agree) are one node, the first
+kept and the twin's children moved to it, so a design that draws the same panel twice has one node to pair. It then groups the root's text and box children
 into regions by whitespace: a horizontal band of free space that no child crosses is a cut when it is at least
 `sectionGap` (64 css px) tall at the top level and `regionGap` (32 css px) inside a region, and the children between
 two cuts form a region. A text alone between cuts joins the neighbouring group with the smaller gap to it; a painted box

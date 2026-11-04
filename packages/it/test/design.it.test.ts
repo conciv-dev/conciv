@@ -1649,6 +1649,73 @@ describe('twins', () => {
       'twin-dropped',
     )
   })
+
+  it('two text nodes fold when their words agree, and two with other words at one box stay two', () => {
+    const box = {x: 40, y: 40, w: 120, h: 24}
+    const text = (input: {id: string; words: string}): TargetNode => ({
+      id: input.id,
+      kind: 'text',
+      box,
+      text: input.words,
+      lines: [{box, text: input.words, confidence: 1}],
+      confidence: 1,
+    })
+    expect(withoutTwins([text({id: 'same-a', words: 'Revenue'}), text({id: 'same-b', words: 'Revenue'})])).toEqual([
+      text({id: 'same-a', words: 'Revenue'}),
+    ])
+    expect(
+      withoutTwins([text({id: 'other-a', words: 'Revenue'}), text({id: 'other-b', words: 'Invoices'})]).map(
+        (node) => node.id,
+      ),
+    ).toEqual(['other-a', 'other-b'])
+  })
+
+  it('two identical text nodes at one box paired to one heading from a design source yield no content row', async () => {
+    await goto('target')
+    const captured = await call('design_capture', {height: 720})
+    const heading = everyComponent(captured.components).find(
+      (component) => component.tag === 'h2' && headingText(component) !== '',
+    )
+    if (heading === undefined) throw new Error('the target page has no heading with text')
+    const words = headingText(heading)
+    const {id, route} = await freshTarget('u1-1280')
+    const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
+    const text = (node: string): TargetNode => ({
+      id: node,
+      kind: 'text',
+      box: heading.box,
+      text: words,
+      lines: [{box: heading.box, text: words, confidence: 1}],
+      confidence: 1,
+    })
+    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
+    await store.put({
+      model: {
+        id: 'doubled',
+        source: {kind: 'figma', ref: 'doubled'},
+        viewport: {width: png.width, height: png.height},
+        raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
+        root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
+        nodes: [text('doubled-first'), text('doubled-second')],
+        scale: 1,
+      },
+      session: kit.session,
+      ...(route === undefined ? {} : {route}),
+    })
+    const report = await call('design_diff', {full: true})
+    expect(report.target.id).toBe('doubled')
+    expect(
+      report.components
+        .filter((component) => component.path === heading.path)
+        .flatMap((component) => component.deltas)
+        .filter((delta) => delta.kind === 'text'),
+    ).toEqual([])
+    expect(
+      report.unmatched.filter(
+        (entry) => entry.kind === 'unbuilt' && (entry.node === 'doubled-first' || entry.node === 'doubled-second'),
+      ),
+    ).toHaveLength(1)
+  })
 })
 
 describe('current target', () => {
@@ -2039,6 +2106,17 @@ const PAST_PAGE = 6
 const TALLER_ELEMENT = 6
 
 type CapturedComponent = CaptureResult['components'][number]
+
+function everyComponent(components: CapturedComponent[]): CapturedComponent[] {
+  return components.flatMap((component) => [component, ...everyComponent(component.children)])
+}
+
+function headingText(component: CapturedComponent): string {
+  return component.glyphs
+    .map((glyph) => glyph.text.trim())
+    .filter((text) => text !== '')
+    .join(' ')
+}
 
 function componentAt(input: {components: CapturedComponent[]; path: string}): CapturedComponent | undefined {
   const {components, path} = input
