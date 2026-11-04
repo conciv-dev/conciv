@@ -743,17 +743,17 @@ test.describe('model selector', () => {
       await openPanel(page)
 
       await page.getByRole('button', {name: 'Couldn’t load models'}).click()
-      const retry = page.getByRole('menuitem', {name: /Retry loading models/})
+      const retry = page.getByRole('button', {name: /Retry loading models/})
       await expect(retry).toBeVisible({timeout: 30_000})
       await expect(page.getByText('Couldn’t load models').first()).toBeVisible({timeout: 30_000})
 
       models.repair()
       await retry.click()
-      const prompt = page.getByRole('button', {name: 'Model: Claude Sonnet 4.5'})
-      await expect(prompt).toBeVisible({timeout: 30_000})
-      await prompt.click()
-      await expect(page.getByRole('menuitemradio', {name: 'Claude Sonnet 4.5'})).toHaveAttribute('aria-checked', 'true')
+      await expect(page.getByRole('option', {name: /^Claude Sonnet 4\.5/, selected: true})).toBeVisible({
+        timeout: 30_000,
+      })
       await page.keyboard.press('Escape')
+      await expect(page.getByRole('button', {name: 'Model: Claude Sonnet 4.5'})).toBeVisible({timeout: 30_000})
     })
   })
 })
