@@ -137,6 +137,11 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 - The type estimate asks the page to render its text samples in chunks of `renderChunk` 24, each call bounded by
   `measureTimeoutMs`; a chunk that fails or times out skips the estimate for its samples and adds a
   `typography-skipped` warning whose `live` is the number of samples skipped, and the run is still reported.
+- The estimate runs only for a paired text whose stored typography is missing, or whose first font family (split
+  on commas, quotes stripped, case-insensitive) differs from the first family of the live stack. Typography stored
+  with `confidence` 1 (exact, as from the design source) is never estimated again and never overwritten. The
+  `fontSize` delta compares the live font size with that stored size; for a text of more than one line its sentence
+  names the lines, `fontSize is 76 where the design has 64 (2 lines of 80 px)`.
 - After the current stage's lines the brief carries the top `briefNext` (2) items of the next stage that has items,
   each prefixed with its stage, `geometry next: h1 (src/Landing.tsx:59): ...`, so an item the agent cannot act on
   never hides what comes after it. Stage, score, stop and the stall and oscillation reads count the current stage
@@ -354,7 +359,8 @@ and a pair, once made, stays until its element is gone.
 Registration writes `design.txt` next to `model.json`, and a run that estimates type rewrites it: the design tree as
 an indented outline in document order (layout index, then top, then left), one line per node under a `page WxH` line
 for the root, children indented two spaces under their `within`. A text reads `text "Access borderless" size 56/700 data`
-(the folded text, size/weight once the type estimate knows them, the role when it is not `unknown`); before the
+(the folded text, size/weight once the type estimate knows them, the role when it is not `unknown`, then `(N lines)`
+when the text has more than one line); before the
 estimate it reads `size ~56`, the ink height over `capRatio` (calibrated on the stripe fixture), the tilde marking a
 size read from the ink alone; a box reads
 `box 1280x72 row gap 29 align center padding 0 48, background #fff, border 1 #e3e8ee, radius 8` (its size in CSS px,

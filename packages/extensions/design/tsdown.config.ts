@@ -8,6 +8,7 @@ export default defineConfig({
     'src/server/differ.ts',
     'src/server/target.ts',
     'src/server/deltas.ts',
+    'src/server/store.ts',
   ],
   format: 'esm',
   fixedExtension: false,

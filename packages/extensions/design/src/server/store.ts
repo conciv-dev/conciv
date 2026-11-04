@@ -373,7 +373,9 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
         if (model === null) return
         const nodes = model.nodes.map((node) => {
           const found = typography[node.id]
-          return node.kind === 'text' && found !== undefined ? {...node, typography: found} : node
+          return node.kind === 'text' && found !== undefined && node.typography?.confidence !== 1
+            ? {...node, typography: found}
+            : node
         })
         await writeFile(path, JSON.stringify({...model, nodes}))
         await writeFile(join(dir, id, DESIGN_FILE), designOutline({...model, nodes}).join('\n'))
@@ -469,7 +471,8 @@ function textLine(input: {node: Extract<StoredNode, {kind: 'text'}>; scale: numb
       ? ` size ~${Math.round(node.box.h / scale / TOLERANCES.capRatio)}`
       : ` size ${Math.round(node.typography.size)}/${node.typography.weight}`
   const role = node.role === undefined || node.role === 'unknown' ? '' : ` ${node.role}`
-  return `text "${foldedText(node.text)}"${type}${role}`
+  const lines = node.lines.length > 1 ? ` (${node.lines.length} lines)` : ''
+  return `text "${foldedText(node.text)}"${type}${role}${lines}`
 }
 
 function paintPhrase(node: Extract<StoredNode, {kind: 'box'}>): string {
