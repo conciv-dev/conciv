@@ -325,6 +325,7 @@ export const TimingsSchema = z
     decode: PhaseSchema,
     measure: PhaseSchema,
     mask: PhaseSchema,
+    similarity: PhaseSchema,
     regions: PhaseSchema,
     pair: PhaseSchema,
     typography: PhaseSchema,
@@ -405,9 +406,20 @@ export const NO_CHANGES: Changes = {done: [], regressed: [], paired: [], lost: [
 const NO_COUNTS: LedgerCounts = {unbuilt: 0, paired: 0, done: 0, regressed: 0, accepted: 0}
 const NODE_KINDS = ['text', 'box', 'image'] as const
 
+const SimilaritySchema = z
+  .number()
+  .describe(
+    'mean SSIM over independent 64 px grayscale tiles, tiles wholly inside an image slot left out; 1 is identical',
+  )
+
 export const DiffReportSchema = z.object({
   target: z.object({id: z.string(), route: z.string().optional(), width: z.number()}),
   mismatch: z.number(),
+  similarity: SimilaritySchema.optional(),
+  sectionSimilarity: z
+    .record(z.string(), z.number())
+    .default({})
+    .describe('the similarity of each section, keyed by section id, over the tiles centred in its box'),
   diffImage: z.string(),
   livePath: z.string(),
   xray: z.string(),
@@ -470,7 +482,12 @@ export const DiffReportSchema = z.object({
     .describe('the section the report is scoped to: its id and its outline line'),
   scope: z.literal('section').optional().describe('set when the report lists one section only'),
   page: z
-    .object({stop: z.enum(STOPS).nullable(), stage: z.enum(STAGES).nullable(), score: z.array(z.number())})
+    .object({
+      stop: z.enum(STOPS).nullable(),
+      stage: z.enum(STAGES).nullable(),
+      score: z.array(z.number()),
+      similarity: SimilaritySchema.optional(),
+    })
     .optional()
     .describe('the whole-page stop, stage and score of a section report'),
 })
@@ -484,6 +501,7 @@ export const CompactReportSchema = DiffReportSchema.pick({
   stop: true,
   score: true,
   mismatch: true,
+  similarity: true,
   brief: true,
   timings: true,
   rows: true,
@@ -540,6 +558,7 @@ const StatusReportSchema = z.object({
   ),
   done: z.boolean(),
   score: z.array(z.number()).optional(),
+  similarity: SimilaritySchema.optional(),
   round: z.number().optional(),
   stop: z.enum(STOPS).nullable().optional(),
   acceptedRun: z.string().optional(),
@@ -559,6 +578,7 @@ const StatusReportSchema = z.object({
         roundsUsed: z
           .number()
           .describe('counted rounds whose changes touched a node of the section; at the round budget it stops'),
+        similarity: SimilaritySchema.optional(),
       }),
     )
     .optional()

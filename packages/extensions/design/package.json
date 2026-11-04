@@ -109,6 +109,7 @@
     "ppu-paddle-ocr": "catalog:",
     "rrweb-snapshot": "catalog:",
     "solid-js": "catalog:",
+    "ssim.js": "catalog:",
     "takumi-paint": "catalog:",
     "zod": "catalog:"
   },

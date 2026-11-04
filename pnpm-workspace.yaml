@@ -132,6 +132,7 @@ catalog:
   rrweb-snapshot: 2.2.0
   shiki: '^4.5.0'
   solid-js: '^1.9.17'
+  ssim.js: '^3.5.0'
   storybook: '^10.6.5'
   storybook-solidjs-vite: '^10.7.4'
   tailwindcss: '^4.3.3'

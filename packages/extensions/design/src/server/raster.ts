@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto'
-import {clamp, range} from 'es-toolkit'
+import {clamp, mean, range} from 'es-toolkit'
 import {PNG} from 'pngjs'
+import {ssim} from 'ssim.js'
 import {TOLERANCES} from '../shared/tolerances.js'
 import type {Box, Raster} from '../shared/types.js'
 
@@ -512,6 +513,53 @@ export function maskShare(input: {mask: Uint8Array; width: number; height: numbe
     for (let x = x0; x < x1; x += 1) count += mask[y * width + x] === 1 ? 1 : 0
   }
   return count / ((x1 - x0) * (y1 - y0))
+}
+
+export type ScoredTile = {box: Box; similarity: number}
+
+export function similarityTiles(input: {
+  live: Raster
+  target: Raster
+  mask: Uint8Array
+  width: number
+  height: number
+}): ScoredTile[] {
+  const {mask, width, height} = input
+  const side = TOLERANCES.similarityTile
+  if (width === 0 || height === 0) return []
+  const page = {x: 0, y: 0, w: width, h: height}
+  const map = ssim(
+    imageData(crop({raster: input.live, box: page}).raster),
+    imageData(crop({raster: input.target, box: page}).raster),
+    {
+      ssim: 'bezkrovny',
+      windowSize: side,
+      downsample: false,
+    },
+  ).ssim_map
+  return map.data.flatMap((value, index) => {
+    const column = index % map.width
+    const row = (index - column) / map.width
+    const box = {
+      x: column * side,
+      y: row * side,
+      w: Math.min(side, width - column * side),
+      h: Math.min(side, height - row * side),
+    }
+    return maskShare({mask, width, height, box}) < 1 ? [{box, similarity: value}] : []
+  })
+}
+
+export function meanSimilarity(tiles: ScoredTile[]): number {
+  return tiles.length === 0 ? 1 : mean(tiles.map((tile) => tile.similarity))
+}
+
+function imageData(raster: Raster): {data: Uint8ClampedArray; width: number; height: number} {
+  return {
+    data: new Uint8ClampedArray(raster.data.buffer, raster.data.byteOffset, raster.data.length),
+    width: raster.width,
+    height: raster.height,
+  }
 }
 
 export type Grid = {side: number; columns: number; rows: number; width: number; height: number}
