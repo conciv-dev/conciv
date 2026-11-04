@@ -32,6 +32,18 @@ export function App() {
   if (requested === 'empty') return null
   if (requested === 'dashboard') return <main className="dashboard" />
   if (requested === 'stripe') return <Stripe />
+  if (requested === 'contact') {
+    return (
+      <main className="contact">
+        <h2>Get In Touch</h2>
+        <form className="contact-form">
+          <input className="contact-field" type="email" placeholder="Your Email" />
+          <textarea className="contact-field contact-message" placeholder="Message" />
+          <button type="submit">Send</button>
+        </form>
+      </main>
+    )
+  }
   if (requested === 'type') {
     return (
       <main className="type">

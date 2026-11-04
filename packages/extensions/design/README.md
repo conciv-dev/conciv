@@ -236,6 +236,11 @@ The vote pairer scores every design node against every compatible live element a
 - A text node takes an element only when the centre of the node's box lies inside the element's box grown by
   `tileMargin`. The test runs on every claim once geometry is trusted, and on every claim after the first while it
   is not, so an OCR line 1 px outside its element, or one straddling two elements, still pairs.
+- The kind voter gives a full vote when a node and an element share a class. An `input`, `textarea`, `select`,
+  `button`, or an element with a control role such as `button`, is a control. A design box is a control when it is
+  at most 48 x 320 px, when it is at most 48 px tall at any width and holds one short single-line text (its own child
+  or a text drawn over it), or when it is taller but holds one text, short or at its top-left padding, and has a
+  border or a fill apart from its parent's (a textarea). A text inside a control box is a control too.
 - A voter's weight is its base times how often it agrees with the base-weight consensus, counted only over design
   nodes whose consensus top score is at least `pairFloor`.
 - A text node whose text voter and structure voter both abstain (a single glyph under 14 px whose parent is not
