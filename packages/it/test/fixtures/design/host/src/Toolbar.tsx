@@ -1,17 +1,17 @@
 export function Toolbar(props: ToolbarProps) {
   const style = {...toolbarStyle(props.variant), ...(props.badge ? BADGE : {})}
   return (
-    <header className="Lib-toolbar toolbar pl-8" style={style}>
+    <header className="Lib-toolbar toolbar pl-8" style={style} data-conciv-key="ngTm1A">
       {props.shifted ? (
-        <button type="button">Make</button>
+        <button type="button" data-conciv-key="sPiOKA">Make</button>
       ) : props.spanColor === undefined ? (
-        <button type="button" style={buttonStyle({textNoise: props.textNoise, color: props.labelColor})}>
+        <button type="button" style={buttonStyle({textNoise: props.textNoise, color: props.labelColor})} data-conciv-key="0QMpMg">
           {props.label ?? 'Export'}
         </button>
       ) : (
-        <button type="button" dangerouslySetInnerHTML={{__html: unsourcedLabel(props.spanColor)}} />
+        <button type="button" dangerouslySetInnerHTML={{__html: unsourcedLabel(props.spanColor)}} data-conciv-key="hjfeqg" />
       )}
-      <button type="button" style={buttonStyle({textNoise: props.textNoise})}>
+      <button type="button" style={buttonStyle({textNoise: props.textNoise})} data-conciv-key="qHcCfw">
         Create
       </button>
     </header>

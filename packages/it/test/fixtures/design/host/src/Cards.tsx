@@ -6,13 +6,13 @@ export function Cards(props: {variant: string | null; column?: boolean}) {
   const titles = props.variant === 'target' || props.variant === 'mobile-gap' ? TARGET_TITLES : TITLES
   function card(title: string) {
     return (
-      <article key={title} className={styles.card}>
-        <h2>{title}</h2>
-        <p>{title.length * 1000}</p>
+      <article key={title} className={styles.card} data-conciv-key="54EGTw">
+        <h2 data-conciv-key="_DB2qQ">{title}</h2>
+        <p data-conciv-key="hJdrHg">{title.length * 1000}</p>
       </article>
     )
   }
   const gap = props.variant === 'mobile-gap' ? styles.mobileGap : ''
   const column = props.column ? styles.column : ''
-  return <section className={`${styles.cards} ${gap} ${column}`}>{titles.map(card)}</section>
+  return <section className={`${styles.cards} ${gap} ${column}`} data-conciv-key="ytrNww">{titles.map(card)}</section>
 }

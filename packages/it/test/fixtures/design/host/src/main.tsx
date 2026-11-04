@@ -4,4 +4,4 @@ import '../../../lib/lib.css'
 import './styles.css'
 
 const root = document.getElementById('root')
-if (root) createRoot(root).render(<App />)
+if (root) createRoot(root).render(<App data-conciv-key="H-3yQA" />)
