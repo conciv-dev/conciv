@@ -591,7 +591,9 @@ const StatusReportSchema = z.object({
         ledger: LedgerCountsSchema,
         roundsUsed: z
           .number()
-          .describe('counted rounds whose changes touched a node of the section; at the round budget it stops'),
+          .describe(
+            'counted rounds scoped to the section whose changes touched a node of it; at the round budget it stops',
+          ),
         similarity: SimilaritySchema.optional(),
       }),
     )

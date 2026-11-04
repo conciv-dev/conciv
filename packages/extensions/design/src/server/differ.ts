@@ -33,7 +33,6 @@ import {
   WinnerResultSchema,
   TimingsSchema,
   type CaptureInput,
-  type Changes,
   type CaptureResult,
   type ClearInput,
   type ClearResult,
@@ -174,8 +173,7 @@ export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore;
       if (section === null) return report
       const settled = settledRuns.get(record.id)
       const ledger = settled?.ledger ?? (await store.ledger(record.id))
-      const changes = history.rounds(record.id).map((round) => round.report.changes)
-      return sectionReport({report, section, settled, ledger, changes})
+      return sectionReport({report, section, settled, ledger, rounds: history.rounds(record.id)})
     },
     refresh: async ({session}) => {
       const record = await store.current({session})
@@ -512,7 +510,6 @@ async function runDiff(request: {
     color,
     partial: paired.partial,
     changed,
-    sections,
     crop: nodeCrop,
     similarity: previous?.report.similarity === undefined ? null : {now: similarity, was: previous.report.similarity},
   }
@@ -576,7 +573,10 @@ async function runDiff(request: {
     },
   })
   if (advances) {
-    history.append({id: record.id, round: roundRecord({items, score, capturePath: live.capturePath, capture, report})})
+    history.append({
+      id: record.id,
+      round: roundRecord({items, score, capturePath: live.capturePath, capture, report, section: job.input.section}),
+    })
   }
   latest.set(record.id, {
     capture,
@@ -842,7 +842,10 @@ async function countedRound(input: {
   if (settled.ledger !== null) {
     await design.store.writeLedger({id: record.id, ledger: {...settled.ledger, round: rounds.length + 1}})
   }
-  history.append({id: record.id, round: roundRecord({items, score, capturePath, capture: settled.capture, report})})
+  history.append({
+    id: record.id,
+    round: roundRecord({items, score, capturePath, capture: settled.capture, report, section: job.input.section}),
+  })
   latest.set(record.id, {...settled, observe: true, report})
   return report
 }
@@ -885,7 +888,7 @@ function sectionReport(input: {
   section: DesignSection
   settled: Settled | undefined
   ledger: Ledger | null
-  changes: Changes[]
+  rounds: Round[]
 }): DiffReport {
   const {report, section, settled} = input
   const nodes = new Set(section.nodes)
@@ -925,7 +928,6 @@ function sectionReport(input: {
     }),
     warnings: settled.judging.warnings.filter((warning) => inside(warning.box)),
     changed: {...settled.judging.changed, changes},
-    sections: [],
     priors: [],
     round: report.round,
     similarity: null,
@@ -933,7 +935,7 @@ function sectionReport(input: {
   const unbuilt = measured.length === 0
   const open = unbuilt || settled.judging.partial || items.some((item) => item.stage !== null)
   const brief = unbuilt ? [UNBUILT_SECTION_BRIEF, ...verdict.brief] : verdict.brief
-  const [budget] = sectionBudgets({sections: [section], items, changes: input.changes})
+  const [budget] = sectionBudgets({sections: [section], items, rounds: input.rounds})
   return {
     ...scoped,
     ...verdict,
@@ -1736,7 +1738,7 @@ async function targetStatus(input: {
     sectionBudgets({
       sections,
       items: [],
-      changes: input.history.rounds(record.id).map((round) => round.report.changes),
+      rounds: input.history.rounds(record.id),
     }),
     (budget) => budget.id,
   )

@@ -3673,7 +3673,7 @@ describe('sections', () => {
     }
   }, 300_000)
 
-  it('spends the round budget per section: the finished section used one round, the edited one stops budget, and the page stops only then', async ({
+  it('spends the round budget per section: the finished section used one round, the edited one stops budget, and the page never does', async ({
     annotate,
   }) => {
     await goto('sections')
@@ -3685,13 +3685,13 @@ describe('sections', () => {
     const stops: (string | null)[] = []
     try {
       await rewrite({id, file: HOST_STYLES, text: `${styles}\n.section-first h2 { color: ${EDITED_INK}; }\n`})
-      await call('design_diff', {})
+      await call('design_diff', {section: first})
       await rewrite({id, file: HOST_STYLES, text: styles})
-      await call('design_diff', {})
+      await call('design_diff', {section: first})
       for (const step of Array.from({length: ROUND_BUDGET}, (_, index) => index + 1)) {
         const shifted = `${styles}\n.section-line { position: relative; left: ${step * SHIFT_STEP}px; }\n`
         await rewrite({id, file: HOST_STYLES, text: shifted})
-        stops.push((await call('design_diff', {})).stop)
+        stops.push((await call('design_diff', {section: second})).stop)
       }
       const status = await call('design_status', {})
       const used = Object.fromEntries((status.sections ?? []).map((section) => [section.id, section.roundsUsed]))
@@ -3702,8 +3702,36 @@ describe('sections', () => {
       expect(used).toEqual({[first]: 1, [second]: ROUND_BUDGET})
       expect(stops.slice(0, -1)).not.toContain('budget')
       expect(stops.at(-1)).toBe('budget')
-      expect([scoped.stop, scoped.page?.stop]).toEqual(['budget', 'budget'])
+      expect(scoped.stop).toBe('budget')
+      expect(scoped.page?.stop).not.toBe('budget')
       expect(finished.stop).toBe('done')
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
+  }, 300_000)
+
+  it('a whole-page loop past the round budget with an item still open and the score moving never stops budget', async ({
+    annotate,
+  }) => {
+    await goto('sections')
+    const {id} = await freshTarget('sections-1280')
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    const reports: DiffReport[] = []
+    try {
+      for (const step of Array.from({length: ROUND_BUDGET + 1}, (_, index) => index + 1)) {
+        const shifted = `${styles}\n.section-line { position: relative; left: ${step * SHIFT_STEP}px; }\n`
+        await rewrite({id, file: HOST_STYLES, text: shifted})
+        reports.push(await call('design_diff', {}))
+      }
+      const status = await call('design_status', {})
+      const stops = reports.map((report) => report.stop)
+      const scores = reports.map((report) => report.score.join(' '))
+      await annotate(`stops ${JSON.stringify(stops)} scores ${JSON.stringify(scores)}`)
+      expect(reports.at(-1)?.round).toBe(ROUND_BUDGET + 1)
+      expect(reports.at(-1)?.stage).not.toBeNull()
+      expect(new Set(scores).size).toBe(scores.length)
+      expect(stops).not.toContain('budget')
+      expect((status.sections ?? []).filter((section) => section.roundsUsed > 0)).toEqual([])
     } finally {
       await writeFile(HOST_STYLES, styles)
     }

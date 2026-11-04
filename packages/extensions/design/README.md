@@ -163,9 +163,11 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   value went back to the one of two rounds before are a brief line (`3 items moved back to their round-2 values:
   ...`, the first three by rank), never a stop on their own.
 - `budget` is a stall detector scoped per section, read from the round history. A section's rounds used are the
-  counted rounds whose `changes` (done, regressed, paired, lost or moved) hold a node of its subtree; a round whose
-  changes are all empty counts for no section. A section with open items stops with `budget` when its rounds used
-  reach `roundBudget` (8), and the page stops with `budget` only when every section with open items has. An item
+  counted rounds run with `design_diff({section})` on that section whose `changes` (done, regressed, paired, lost or
+  moved) hold a node of its subtree; a round whose changes are all empty counts for no section. A section with open
+  items stops with `budget` when its rounds used reach `roundBudget` (8). Only a section has a round budget: a
+  whole-page diff never stops with `budget` and its rounds count against no section, it has `stalled` and
+  `oscillating`. An item
   with no node belongs to the section whose box holds it; one no section holds counts for none. The reports carry no
   budget: `design_status.sections` lists each section's `roundsUsed`.
 - `design_status` reports the session's current target and its last run, and runs nothing. `score` is the tuple
@@ -185,7 +187,7 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   `next`, the guide line telling the agent to call `design_diff`; `reregister` is set when the stored target can no
   longer be read. `sections` lists the sections in document order as `{id, kind, line, ledger, roundsUsed}`: the node
   id, its kind, its outline line without the `section` prefix, the ledger counts over its subtree (zeros before the
-  first ledger), and the counted rounds that changed a node of it (see `budget` above).
+  first ledger), and the counted rounds scoped to it that changed a node of it (see `budget` above).
 - `design_capture`, `design_winner` and `design_clear` capture the page, name the CSS declaration that wins a
   property, and remove targets.
 

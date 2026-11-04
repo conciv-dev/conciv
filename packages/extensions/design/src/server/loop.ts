@@ -41,6 +41,7 @@ export type Round = {
   values: Map<string, number | string>
   capture: string
   report: DiffReport
+  section: string | undefined
 }
 
 type Verdict = Pick<DiffReport, 'stage' | 'brief' | 'round' | 'stop' | 'score' | 'rows'>
@@ -180,7 +181,6 @@ export function judge(input: {
   color: ColorMetric
   partial: boolean
   changed: {changes: Changes; since: number | null}
-  sections: DesignSection[]
   crop: (node: string) => string
   similarity: {now: number; was: number} | null
 }): Verdict {
@@ -195,12 +195,7 @@ export function judge(input: {
   const regressed = (item: Item): boolean => item.node !== undefined && dirtied.has(item.node)
   const ordered = [...kept.filter(regressed), ...kept.filter((item) => !regressed(item))]
   const following = nextItems({counted, stage, ranker})
-  const budgets = sectionBudgets({
-    sections: input.sections,
-    items,
-    changes: [...priors.map((prior) => prior.report.changes), changed.changes],
-  })
-  const stop = input.partial ? null : stopReason({counted, score, capturePath, capture, priors, budgets, stage})
+  const stop = input.partial ? null : stopReason({counted, score, capturePath, capture, priors, stage})
   const flipped = flippedBack({counted, priors, color})
   const brief = [
     ...(stop === 'stalled' && stage !== null
@@ -227,10 +222,12 @@ export function judge(input: {
   }
 }
 
-export function sectionBudgets(input: {sections: DesignSection[]; items: Item[]; changes: Changes[]}): SectionBudget[] {
+export function sectionBudgets(input: {sections: DesignSection[]; items: Item[]; rounds: Round[]}): SectionBudget[] {
   return input.sections.map((section) => {
     const nodes = new Set(section.nodes)
-    const roundsUsed = input.changes.filter((changes) => touchesSection({changes, nodes})).length
+    const roundsUsed = input.rounds.filter(
+      (round) => round.section === section.id && touchesSection({changes: round.report.changes, nodes}),
+    ).length
     const open = input.items.some((item) => item.stage !== null && heldBy({item, section, nodes}))
     return {id: section.id, roundsUsed, open, spent: open && roundsUsed >= TOLERANCES.roundBudget}
   })
@@ -260,11 +257,6 @@ export function enclosed(input: {inner: Box; outer: Box}): boolean {
 function touchesSection(input: {changes: Changes; nodes: Set<string>}): boolean {
   const {done, regressed, paired, lost, moved} = input.changes
   return [...done, ...regressed, ...paired, ...lost, ...moved].some((change) => input.nodes.has(change.node))
-}
-
-function budgetSpent(budgets: SectionBudget[]): boolean {
-  const open = budgets.filter((budget) => budget.open)
-  return open.length > 0 && open.every((budget) => budget.spent)
 }
 
 function nextItems(input: {counted: Item[]; stage: Stage | null; ranker: Ranker}): Item[] {
@@ -312,6 +304,7 @@ export function roundRecord(input: {
   capturePath: CapturePath | undefined
   capture: string
   report: DiffReport
+  section: string | undefined
 }): Round {
   return {
     score: input.score,
@@ -319,6 +312,7 @@ export function roundRecord(input: {
     values: new Map(input.items.filter((item) => item.stage !== null).map((item) => [item.key, item.value])),
     capture: input.capture,
     report: input.report,
+    section: input.section,
   }
 }
 
@@ -868,16 +862,14 @@ function stopReason(input: {
   capturePath: CapturePath | undefined
   capture: string
   priors: Round[]
-  budgets: SectionBudget[]
   stage: Stage | null
 }): Stop | null {
-  const {counted, score, capturePath, capture, priors, budgets, stage} = input
+  const {counted, score, capturePath, capture, priors, stage} = input
   if (counted.length === 0) {
     return (score.at(-1) ?? 0) < TOLERANCES.residualAreaGate ? 'done' : 'residual-only'
   }
   if (stage !== null && oscillating({score, priors, stage})) return 'oscillating'
   if (stage !== null && stalled({score, capturePath, capture, priors, stage})) return 'stalled'
-  if (budgetSpent(budgets)) return 'budget'
   return null
 }
 
