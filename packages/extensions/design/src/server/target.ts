@@ -1128,9 +1128,14 @@ function beside(input: {carving: Carving; region: BoxNode; nodes: TargetNode[]; 
   ]
   const groups = bands({members: direct, along: 'x', gap: TOLERANCES.regionGap * input.scale})
   if (groups.length < 2) return carving
+  const known = new Set([...input.nodes, ...carving.regions].map((node) => node.id))
   const wraps = groups
     .filter((group) => group.length > 1)
-    .map((group) => ({group, wrap: regionNode({members: group, parent: region.id})}))
+    .map((group) => {
+      const wrap = regionNode({members: group, parent: region.id})
+      return {group, wrap: {...wrap, id: nodeId({kind: 'box', box: wrap.box, text: region.id})}}
+    })
+    .filter(({wrap}) => !known.has(wrap.id))
   const moved = new Map(wraps.flatMap(({group, wrap}) => group.map((node) => [node.id, wrap.id])))
   return {
     seats: carving.seats.map((seat) => ({id: seat.id, within: moved.get(seat.id) ?? seat.within})),
@@ -1149,16 +1154,19 @@ function grown(input: {carving: Carving; nodes: TargetNode[]}): BoxNode[] {
   const boxes = new Map(input.nodes.map((node) => [node.id, node.box]))
   const members = groupBy(carving.seats, (seat) => seat.within ?? '')
   const nested = groupBy(carving.regions, (region) => region.within ?? '')
-  const span = (region: BoxNode): Box =>
-    union([
+  const span = (visit: {region: BoxNode; seen: Set<string>}): Box => {
+    const {region} = visit
+    const seen = new Set([...visit.seen, region.id])
+    return union([
       region.box,
       ...(members[region.id] ?? []).flatMap((seat) => {
         const box = boxes.get(seat.id)
         return box === undefined ? [] : [box]
       }),
-      ...(nested[region.id] ?? []).map(span),
+      ...(nested[region.id] ?? []).filter((child) => !seen.has(child.id)).map((child) => span({region: child, seen})),
     ])
-  return carving.regions.map((region) => ({...region, box: span(region)}))
+  }
+  return carving.regions.map((region) => ({...region, box: span({region, seen: new Set()})}))
 }
 
 function bandStart(input: {box: Box; along: Along}): number {
