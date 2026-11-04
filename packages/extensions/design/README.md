@@ -267,11 +267,12 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
 - **`columns`.** Measured on a paired element whose live component is a grid (`columns` set), over its first row:
   the laid-out children (live children not `absolute` or `fixed`, a `display: contents` child read through to its
   own; design children overlapping no sibling) whose boxes overlap the topmost child's y range by more than
-  `geometryPx`. The live side counts those children; the design side counts the columns their leaf nodes stand in
-  (leaf boxes merged where their x ranges overlap). A design row of three cards with two pictures on their own line
-  below reads 3, so it closes when the live grid's first row holds three. A mismatch is one `columns` delta in the
-  structure stage, `columns is 3 where the design has 4`; a design node with fewer than two laid-out children has
-  none.
+  `geometryPx`. Both sides count the columns those boxes stand in, boxes merged where their x ranges overlap: the live
+  side folds the first-row children's boxes, the design side their leaf nodes' boxes. Four live children stacked on one
+  grid cell read 1, and a tall card beside two short ones stacked in the next column reads 2. A design row of three
+  cards with two pictures on their own line below reads 3, so it closes when the live grid's first row holds three.
+  A mismatch is one `columns` delta in the structure stage, `columns is 3 where the design has 4`; a design node with
+  fewer than two laid-out children has none.
 - **The design side of a delta.** For a paired element every delta's design value is read from its node in
   `model.json`, never re-estimated from the raster: the box from `node.box` (so `width` and `height` deltas in the
   geometry stage, `width is 749 where the design has 577`, and the move row uses the node's own position, except

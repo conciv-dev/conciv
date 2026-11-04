@@ -4366,6 +4366,80 @@ const ROW_PAGE = `export function Stripe() {
   )
 }
 `
+const BANDS_DESIGNS = {stacked: 'bands-stacked-800', three: 'bands-three-800', two: 'bands-two-800'}
+
+async function writeCardsDesign(input: {name: string; cards: Box[]}): Promise<void> {
+  const png = new PNG(DECOR_SIZE)
+  png.data.fill(255)
+  paintBox({png, box: DECOR_PANEL, paint: () => [0xee, 0xf2, 0xf7]})
+  input.cards.forEach((card) => {
+    paintBox({png, box: card, paint: () => [0xc7, 0xd2, 0xfe]})
+    paintBox({
+      png,
+      box: {x: card.x + DECOR_BLOCK.inset, y: card.y + DECOR_BLOCK.inset, w: DECOR_BLOCK.w, h: DECOR_BLOCK.h},
+      paint: () => [0x37, 0x30, 0xa3],
+    })
+  })
+  await writeFile(target(input.name), PNG.sync.write(png))
+}
+
+function gridPage(input: {columns: string; children: string}): string {
+  return `export function Stripe() {
+  return (
+    <main style={{margin: -24, height: ${DECOR_SIZE.height}, position: 'relative', background: '#ffffff'}}>
+      <div style={{position: 'absolute', left: ${DECOR_PANEL.x}, top: ${DECOR_PANEL.y}, width: ${DECOR_PANEL.w}, height: ${DECOR_PANEL.h}, boxSizing: 'border-box', padding: ${DECOR_PADDING}, display: 'grid', gridTemplateColumns: '${input.columns}', gap: ${DECOR_GAP}, alignItems: 'start', justifyItems: 'start', background: '#eef2f7'}}>
+${input.children}
+      </div>
+    </main>
+  )
+}
+`
+}
+
+function cardChild(area: string): string {
+  return `        <div style={{gridArea: '${area}', width: ${DECOR_CARD.w}, height: ${DECOR_CARD.h}, boxSizing: 'border-box', paddingTop: ${DECOR_BLOCK.inset}, paddingLeft: ${DECOR_BLOCK.inset}, background: '#c7d2fe'}}>
+          <div style={{width: ${DECOR_BLOCK.w}, height: ${DECOR_BLOCK.h}, background: '#3730a3'}} />
+        </div>`
+}
+
+const STACKED_PAGE = gridPage({
+  columns: '1fr',
+  children: [
+    cardChild('1 / 1'),
+    `        <div style={{gridArea: '1 / 1', width: 56, height: 56, marginTop: 60, marginLeft: 100, background: '#8a2be2'}} />`,
+    `        <p style={{gridArea: '1 / 1', margin: '96px 0 0 16px', width: 120, font: '16px/20px sans-serif'}}>Stacked copy</p>`,
+    `        <div style={{gridArea: '1 / 1', width: 80, height: 24, marginTop: 128, marginLeft: 16, background: '#3730a3'}} />`,
+  ].join('\n'),
+})
+const THREE_PAGE = gridPage({
+  columns: `repeat(3, ${DECOR_CARD.w}px)`,
+  children: ['auto', 'auto', 'auto'].map(cardChild).join('\n'),
+})
+
+async function panelColumns(input: {
+  design: string
+  cards: Box[]
+  text: string
+}): Promise<DiffReport['components'][number]['deltas']> {
+  await goto('stripe')
+  await page.setViewportSize(DECOR_SIZE)
+  await writeCardsDesign({name: input.design, cards: input.cards})
+  const {id} = await freshTarget(input.design)
+  const panel = (await storedNodes(id)).find((node) => node.kind === 'box' && near({a: node.box, b: DECOR_PANEL}))
+  if (panel === undefined) throw new Error(`${input.design} has no panel`)
+  const source = await readFile(STRIPE_SOURCE, 'utf8')
+  try {
+    await rewrite({id, file: STRIPE_SOURCE, text: input.text})
+    const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
+    return report.components
+      .filter((component) => component.nodes?.includes(panel.id) === true)
+      .flatMap((component) => component.deltas.filter((delta) => delta.kind === 'columns'))
+  } finally {
+    await writeFile(STRIPE_SOURCE, source)
+    await page.setViewportSize({width: 1280, height: 720})
+  }
+}
+
 const PICTURE_PAINT_KINDS: string[] = ['background', 'foreground', 'border']
 const PaintItemsSchema = z.object({
   nodes: z.record(
@@ -4877,6 +4951,26 @@ describe('icons', () => {
       await writeFile(STRIPE_SOURCE, source)
       await page.setViewportSize({width: 1280, height: 720})
     }
+  }, 240_000)
+
+  it('four live children stacked on one grid cell read one column, so a one-column design has no columns row', async ({
+    annotate,
+  }) => {
+    const column = decorCards().filter((_, index) => index % 3 === 0)
+    const columns = await panelColumns({design: BANDS_DESIGNS.stacked, cards: column, text: STACKED_PAGE})
+    await annotate(`columns ${JSON.stringify(columns)}`)
+    expect(columns).toEqual([])
+  }, 240_000)
+
+  it('three side by side cards read three columns: none against a design of three, one row against two', async ({
+    annotate,
+  }) => {
+    const cards = decorCards()
+    const three = await panelColumns({design: BANDS_DESIGNS.three, cards: cards.slice(0, 3), text: THREE_PAGE})
+    const two = await panelColumns({design: BANDS_DESIGNS.two, cards: cards.slice(0, 2), text: THREE_PAGE})
+    await annotate(`three ${JSON.stringify(three)} two ${JSON.stringify(two)}`)
+    expect(three).toEqual([])
+    expect(two).toEqual([expect.objectContaining({kind: 'columns', live: 3, target: 2})])
   }, 240_000)
 
   it('a square gradient box reads radius 0 on both sides; the solid box rounded 23 is the only radius item', async ({

@@ -569,23 +569,26 @@ function bothAxes(layout: NodeLayout): boolean {
 function columnCount(input: {pair: Pair; from: From; nodes: TargetNode[]}): number | null {
   const {pair, from, nodes} = input
   if (pair.live.columns === null) return null
-  if (from === 'live') {
-    const items = firstRow(flowItems(pair.live)).length
-    return items === 0 ? null : items
-  }
+  if (from === 'live') return countedBands(firstRow(flowItems(pair.live)).map((item) => item.box))
   const kept = laidOutChildren({pair, nodes})
   if (kept.length < 2) return null
-  const spans = firstRow(kept)
-    .flatMap((node) => leavesUnder({node, nodes}))
-    .map((node) => node.box)
-    .toSorted((a, b) => a.x - b.x)
-  const bands = spans.reduce<{end: number; count: number}>(
-    (state, box) =>
-      box.x >= state.end - FLOW_BAND
-        ? {end: box.x + box.w, count: state.count + 1}
-        : {end: Math.max(state.end, box.x + box.w), count: state.count},
-    {end: Number.NEGATIVE_INFINITY, count: 0},
+  return countedBands(
+    firstRow(kept)
+      .flatMap((node) => leavesUnder({node, nodes}))
+      .map((node) => node.box),
   )
+}
+
+function countedBands(boxes: Box[]): number | null {
+  const bands = boxes
+    .toSorted((a, b) => a.x - b.x)
+    .reduce<{end: number; count: number}>(
+      (state, box) =>
+        box.x >= state.end - FLOW_BAND
+          ? {end: box.x + box.w, count: state.count + 1}
+          : {end: Math.max(state.end, box.x + box.w), count: state.count},
+      {end: Number.NEGATIVE_INFINITY, count: 0},
+    )
   return bands.count === 0 ? null : bands.count
 }
 
