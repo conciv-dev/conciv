@@ -3109,6 +3109,29 @@ describe('sections', () => {
       await writeFile(HOST_STYLES, styles)
     }
   }, 300_000)
+
+  it('the hero section holds the picture beside its text inside its box, and its diff on an empty page is not done', async ({
+    annotate,
+  }) => {
+    await goto('empty')
+    const {id} = await freshTarget('stripe-1280')
+    const {hero} = await heroSection()
+    const nodes = await storedNodes(id)
+    const section = nodes.find((node) => node.id === hero.id)
+    const picture = nodes
+      .filter((node) => node.kind === 'image' && sectionHolding({nodes, node: node.id}) === hero.id)
+      .toSorted((a, b) => b.box.w * b.box.h - a.box.w * a.box.h)
+      .at(0)
+    if (section === undefined || picture === undefined) throw new Error('the hero section holds no picture')
+    const report = await call('design_diff', {section: hero.id, full: true, limit: 60})
+    await annotate(
+      `section ${JSON.stringify(section.box)} picture ${JSON.stringify(picture.box)} stop ${report.stop} brief ${JSON.stringify(report.brief.slice(0, 3))}`,
+    )
+    expect(inside({inner: picture.box, outer: section.box})).toBe(true)
+    expect(report.unmatched.some((entry) => entry.node === picture.id)).toBe(true)
+    expect(report.stop).toBeNull()
+    expect(report.brief[0]).toBe('nothing of this section is built yet')
+  }, 300_000)
 })
 
 async function iconCount(): Promise<{icons: number; brief: string[]}> {

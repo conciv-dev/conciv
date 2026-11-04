@@ -408,16 +408,20 @@ two cuts form a region. A text alone between cuts joins the neighbouring group w
 alone between cuts stands as its own section. Inside each region the cut is made again with vertical bands, then
 horizontal once more, to a depth of three; a cut that leaves one group is no cut. Pictures take no part in the cuts:
 afterwards each top-level image joins the region it overlaps most, or the nearest one by edge distance when it overlaps
-none. A region is a box with no paint, its box the union of its text and box members, and its members' `within` set to
-it; a node that already has a `within` keeps it. Its outline line starts with `section <id>` (the node id) before the node line, as in
+none. A region that took a picture is cut once more with vertical bands over its direct members, the picture included,
+and each band of two or more members becomes a region of its own, so a picture beside a form reads as a row of the
+picture and the form. A region is a box with no paint, its box the union of all its members, pictures included, and its
+members' `within` set to it; a node that already has a `within` keeps it. Its outline line starts with `section <id>` (the node id) before the node line, as in
 `section 4f1c2a7e box 1280x72 row gap 29 align center`; a node no region took is its own section, and nested lines
 carry no prefix. A section is a view, not a run: `design_diff({section})` runs the whole page as always (store, round,
-history and ledger are untouched by the scope), then filters the report to the section's subtree, the nodes
-reachable through `within` from the section id. `items`, `rows`, `unmatched`, `changes` and `ledger` keep the subtree's
+history and ledger are untouched by the scope), then filters the report to the section's nodes: those
+reachable through `within` from the section id and every node whose box lies inside the section's box, with
+`geometryPx` slack. `items`, `rows`, `unmatched`, `changes` and `ledger` keep the section's
 nodes; an item, entry or warning with no node is kept when its box lies inside the section's box, and a component when
-it is paired to a subtree node or lies inside that box. `brief`, `stage`, `score` and `rows` are judged again over the
+it is paired to one of those nodes or lies inside that box. `brief`, `stage`, `score` and `rows` are judged again over the
 kept items with no round history, and `stop` is `done` when no kept item is above tolerance and pairing was not cut short, `budget` when the section
-has spent its rounds, else null; `stalled` and
+has spent its rounds, else null. A section with no paired node is never `done`: its `stop` is null, or `budget` once
+it has spent its rounds, and its brief opens with "nothing of this section is built yet"; `stalled` and
 `oscillating` read the rounds, so they stay whole-page, in `page: {stop, stage, score}`. The report echoes `section:
 {id, line}` and `scope: section`. Several agents can each build one section against the same target; splitting the
 page and writing its skeleton first is the harness's business.

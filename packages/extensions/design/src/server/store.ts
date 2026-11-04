@@ -3,7 +3,7 @@ import {existsSync} from 'node:fs'
 import {mkdir, readdir, readFile, rename, rm, writeFile} from 'node:fs/promises'
 import {join, relative} from 'node:path'
 import {toolError} from '@conciv/extension'
-import {groupBy, mapValues} from 'es-toolkit'
+import {groupBy, mapValues, uniq} from 'es-toolkit'
 import {z} from 'zod'
 import {
   BoxSchema,
@@ -28,7 +28,7 @@ import {
   type TargetStore,
   type DesignSection,
 } from '../shared/types.js'
-import {decodePng, encodePng} from './raster.js'
+import {decodePng, encloses, encodePng} from './raster.js'
 
 export const TARGET_FILE = 'target.png'
 const MODEL_FILE = 'model.json'
@@ -434,7 +434,11 @@ function designSections(model: StoredModel): DesignSection[] {
       kind: node.kind,
       line: nodeLine({node, scale}),
       box: mapValues(node.box, (value) => Math.round(value / scale)),
-      nodes: [node.id, ...descendants({children, id: node.id})],
+      nodes: uniq([
+        node.id,
+        ...descendants({children, id: node.id}),
+        ...model.nodes.filter((other) => encloses({outer: node.box, inner: other.box})).map((other) => other.id),
+      ]),
     }))
 }
 

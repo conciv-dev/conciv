@@ -256,6 +256,7 @@ function agreeingText(input: {
 }
 
 const DEFAULT_DIFF: DiffInput = DiffInputSchema.parse({})
+const UNBUILT_SECTION_BRIEF = 'nothing of this section is built yet'
 const STRETCHED = 0.85
 const GEOMETRY_KINDS: Delta['kind'][] = [
   'inset-left',
@@ -895,9 +896,17 @@ function sectionReport(input: {
     priors: [],
     round: report.round,
   })
-  const open = settled.judging.partial || items.some((item) => item.stage !== null)
+  const unbuilt = measured.length === 0
+  const open = unbuilt || settled.judging.partial || items.some((item) => item.stage !== null)
+  const brief = unbuilt ? [UNBUILT_SECTION_BRIEF, ...verdict.brief] : verdict.brief
   const [budget] = sectionBudgets({sections: [section], items, changes: input.changes})
-  return {...scoped, ...verdict, stop: sectionStop({open, spent: budget?.spent ?? false}), paired: measured.length}
+  return {
+    ...scoped,
+    ...verdict,
+    brief,
+    stop: sectionStop({open, spent: budget?.spent ?? false}),
+    paired: measured.length,
+  }
 }
 
 function sectionStop(input: {open: boolean; spent: boolean}): Stop | null {
