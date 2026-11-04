@@ -52,6 +52,7 @@ declare module 'vitest/internal/browser' {
     pushSocketsOpened: () => Promise<number>
     printedCode: () => Promise<string>
     requestCode: () => Promise<string>
+    revokeBrowsers: () => Promise<number>
     outsideReload: (sessionId: string, file: string) => Promise<string>
     setStaleness: (value: EngineStaleness) => Promise<void>
     holdTurn: () => Promise<void>

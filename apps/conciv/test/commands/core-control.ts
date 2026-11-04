@@ -3,6 +3,8 @@ import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import {makeRpcClient, type EngineStaleness} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
@@ -27,6 +29,7 @@ export type FaultSpec =
   | {kind: 'abort'; path?: string[]}
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
+  | {kind: 'offline'}
 
 type Fault = {
   pending: () => number
@@ -178,6 +181,9 @@ const requestCode: BrowserCommand<[]> = async (ctx): Promise<string> => {
   return requestPrintedCode(kit.origin, kit.terminal)
 }
 
+const revokeBrowsers: BrowserCommand<[]> = (ctx): number =>
+  revokeTrustedBrowsers(concivStateDir(kitOf(ctx).stateRoot), 'all').length
+
 const outsideReload: BrowserCommand<[string, string]> = (ctx, sessionId, file): Promise<string> => {
   const rpc = makeRpcClient(kitOf(ctx).base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
   return rpc.server.reload({file}).then(
@@ -247,6 +253,19 @@ function trackedFault(handle: string, kind: FaultSpec['kind'], injector: Injecto
   }
 }
 
+async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> {
+  const origin = kitOf(ctx).origin
+  const offline = {value: true}
+  const matcher = (url: URL): boolean => url.origin === origin
+  await ctx.page.route(matcher, (route) => (offline.value ? route.abort('connectionrefused') : route.continue()))
+  return {
+    repair: () => {
+      offline.value = false
+    },
+    dispose: () => ctx.page.unroute(matcher),
+  }
+}
+
 const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<string> => {
   const state = stateOf(ctx)
   const {abortRpcCalls, failChatTurns, failRpcCalls, gateRpcCalls} = await testkitOf(ctx)
@@ -254,6 +273,10 @@ const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<str
   const handle = `fault-${state.handles.count}`
   if (spec.kind === 'gate') {
     state.faults.set(handle, await gateRpcCalls(ctx.page, spec.path ? {path: spec.path} : {}))
+    return handle
+  }
+  if (spec.kind === 'offline') {
+    state.faults.set(handle, trackedFault(handle, spec.kind, await takeEngineOffline(ctx)))
     return handle
   }
   if (spec.kind === 'chat-refused') {
@@ -301,6 +324,7 @@ export const coreCommands = {
   pushSocketsOpened,
   printedCode,
   requestCode,
+  revokeBrowsers,
   outsideReload,
   setStaleness,
   holdTurn,

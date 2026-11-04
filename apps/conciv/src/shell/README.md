@@ -24,7 +24,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `notices.tsx:createNoticeStore`: a `key` dedupes a notice by toast id
 - `notice-context.tsx:useNotices`: throws outside `NoticeContextProvider`
 - `engine-notice.tsx:EngineStaleNotice`: one standing notice per engine `fingerprint`; cleared when the engine reports not stale
-- `engine-notice.tsx:EngineUnreachableNotice`: shown only while `sustainedOffline()`; Retry calls `resetBrowserRpcConnection` and `router.invalidate()`
+- `engine-notice.tsx:EngineUnreachableNotice`: shown only while `sustainedOffline()`; Retry re-runs the login check, then calls `resetBrowserRpcConnection` and `router.invalidate()`
 - `rpc-error-message.ts:classifyRpcError`: reachability errors map to the transport message, otherwise the error message or the generic one
 - `refresh-button.tsx:RefreshButton`: disabled while a run is in progress or a refresh is running
 - `effects-surface.tsx:decorateHost`: the effects host is `position: fixed`, `z-index: 2147483000`, marked `data-conciv-effects`
@@ -33,7 +33,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 
 - `pip.ts:openPipWindow`: `window.open('', 'conciv-pip', 'width=480,height=620,popup')`, writes the popup document, attaches a shadow root and delegates events to it
 - `engine-notice.tsx:EngineStaleNotice`: polls `meta.engine` with a refetch interval while connected
-- `engine-notice.tsx:EngineUnreachableNotice`: Retry resets the browser rpc connection
+- `engine-notice.tsx:EngineUnreachableNotice`: Retry re-runs the login check and resets the browser rpc connection
 - `effects-surface.tsx:EffectsSurface`: portals a shadow host into `document.body`
 
 ## Verification

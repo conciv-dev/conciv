@@ -10,12 +10,14 @@ const GENERIC_ERROR_MESSAGE = 'Something went wrong. Try again.'
 export function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
   const router = useRouter()
   const apiBase = useRouteContext({strict: false, select: (context) => context.apiBase})
+  const login = useRouteContext({strict: false, select: (context) => context.login})
   const classification = createMemo<RpcErrorClassification>(() =>
     classifyRpcError(props.error, ENGINE_UNREACHABLE_MESSAGE, GENERIC_ERROR_MESSAGE),
   )
-  const retry = (): void => {
+  const retry = async (): Promise<void> => {
+    await login()?.recheck()
     if (classification().transportFailure) resetBrowserRpcConnection(apiBase()?.() ?? '')
-    void router.invalidate()
+    await router.invalidate()
   }
-  return <ErrorScreen message={classification().message} onRetry={retry} />
+  return <ErrorScreen message={classification().message} onRetry={() => void retry()} />
 }

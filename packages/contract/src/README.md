@@ -18,6 +18,7 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 - `browserRpcConnection(apiBase)`, `closeBrowserRpcConnection(apiBase)`, `resetBrowserRpcConnection(apiBase)` (`browser-transport.ts`): get, close or recreate the shared connection for a normalized api base.
 - `dynamicBrowserRpcLink(currentApiBase, session?)` (`browser-transport.ts`): ClientLink that resolves the api base per call and puts `concivSessionId` in the call context.
 - `subscribeRpcReachability(apiBase, listener)` -> unsubscribe (`browser-transport.ts`).
+- `RPC_UNAUTHORIZED_EVENT` (`browser-transport.ts`): dispatched on `window` for every browser rpc call the engine answers with HTTP 401, before the error reaches the caller.
 - `isRetryableRpcFailure(alive, error)` (`browser-transport.ts`): true only when the connection is alive, the error is not an `ORPCError` and not an `AbortError`.
 - `RPC_UNBOUND_MESSAGE` = `'conciv core not connected yet'` (`browser-transport.ts`, re-exported from `client.ts`); types `RpcClientContext`, `SessionAccessor`, `BrowserRpcConnection`, `ReachabilityListener`.
 

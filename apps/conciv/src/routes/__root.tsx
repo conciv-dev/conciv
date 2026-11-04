@@ -205,7 +205,11 @@ function RootChrome(props: {
   const rootSearch = Route.useSearch()
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const shutterOpen = () => rootSearch().open === true
-  const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
+  const locked = () => {
+    const phase = login?.phase()
+    return phase === 'locked' || phase === 'exchanging'
+  }
+  const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen() && !locked()
   const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
 
   const warm = useWarmSession()
@@ -277,10 +281,6 @@ function RootChrome(props: {
   }
   const openPanel = () => whenUnlocked(showPanel)
   const togglePanel = () => (panelOpen() ? closePanel() : openPanel())
-  const locked = () => {
-    const phase = login?.phase()
-    return phase === 'locked' || phase === 'exchanging'
-  }
   const revealDock = (): boolean =>
     settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
 
@@ -392,7 +392,9 @@ function RootChrome(props: {
   return (
     <div class={themeClasses(theme())} ref={(el) => (rootEl = el)} onKeyDown={onKeyDown}>
       <PanelChromeContext.Provider value={{close: closePanel}}>
-        <Outlet />
+        <Show when={!locked()}>
+          <Outlet />
+        </Show>
       </PanelChromeContext.Provider>
       <Show when={launcherVisible()}>
         <ShellFab

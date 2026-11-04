@@ -1,6 +1,6 @@
 import {createEffect, type JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
-import {useRouter, useSearch} from '@tanstack/solid-router'
+import {useRouteContext, useRouter, useSearch} from '@tanstack/solid-router'
 import {engineProbeRefetchInterval, voteEngineProbeSettled} from '@conciv/client'
 import {resetBrowserRpcConnection} from '@conciv/contract'
 import {useApiBase, useAppData, useConnected} from '../app/context.js'
@@ -63,9 +63,11 @@ export function EngineUnreachableNotice(): JSX.Element {
   const notices = useNotices()
   const apiBase = useApiBase()
   const router = useRouter()
-  const retry = (): void => {
+  const login = useRouteContext({strict: false, select: (context) => context.login})
+  const retry = async (): Promise<void> => {
+    await login()?.recheck()
     resetBrowserRpcConnection(apiBase())
-    void router.invalidate()
+    await router.invalidate()
   }
   createEffect(() => {
     if (!reachability.sustainedOffline()) {
@@ -76,7 +78,7 @@ export function EngineUnreachableNotice(): JSX.Element {
       key: ENGINE_UNREACHABLE_KEY,
       tone: 'danger',
       persist: true,
-      action: {label: 'Retry', run: retry},
+      action: {label: 'Retry', run: () => void retry()},
     })
   })
   return null

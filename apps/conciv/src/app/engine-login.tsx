@@ -1,6 +1,8 @@
 import {createMemo, createResource, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {z} from 'zod'
+import {makeEventListener} from '@solid-primitives/event-listener'
+import {RPC_UNAUTHORIZED_EVENT} from '@conciv/contract'
 import {Button, Dialog, PinInput, readStorage, writeStorage} from '@conciv/ui-kit-system'
 
 export type LoginPhase = 'checking' | 'unreachable' | 'locked' | 'exchanging' | 'trusted'
@@ -20,6 +22,7 @@ export type EngineLogin = {
   dialogOpen: () => boolean
   notice: () => LoginNotice
   request: (open: () => void) => void
+  recheck: () => Promise<void>
   close: () => void
   edit: () => void
   submit: (code: string) => Promise<boolean>
@@ -167,12 +170,12 @@ export function createEngineLogin(options: EngineLoginOptions): EngineLogin {
   const ready = latest.run.then(settle)
 
   const phase = createMemo<LoginPhase>(() => {
-    if (outcome.loading) return ui.attempt.kind === 'code' ? 'exchanging' : 'checking'
-    return outcome()?.phase ?? 'checking'
+    if (outcome.loading && ui.attempt.kind === 'code') return 'exchanging'
+    return outcome.latest?.phase ?? 'checking'
   })
 
   const apiBase = createMemo<string | null>(() => {
-    const current = outcome.loading ? undefined : outcome()
+    const current = outcome.latest
     if (current?.phase === 'trusted') return `${engine.root}/t/${current.token}`
     if (current?.phase === 'unreachable')
       return engine.token === undefined ? engine.root : `${engine.root}/t/${engine.token}`
@@ -196,6 +199,17 @@ export function createEngineLogin(options: EngineLoginOptions): EngineLogin {
     return result.phase === 'trusted'
   }
 
+  const recheck = async (): Promise<void> => {
+    if (outcome.loading) return
+    setUi('attempt', {kind: 'resume'})
+    await refetch()
+    settle(await latest.run)
+  }
+
+  makeEventListener(window, RPC_UNAUTHORIZED_EVENT, () => {
+    if (phase() === 'trusted') void recheck()
+  })
+
   return {
     phase,
     apiBase,
@@ -211,6 +225,7 @@ export function createEngineLogin(options: EngineLoginOptions): EngineLogin {
       pending.open = open
       if (current === 'locked' && !ui.dialogOpen) showDialog()
     },
+    recheck,
     close: () => {
       pending.open = null
       setUi('dialogOpen', false)

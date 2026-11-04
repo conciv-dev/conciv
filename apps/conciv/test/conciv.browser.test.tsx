@@ -1553,6 +1553,41 @@ describe('engine login', () => {
     expect(localStorage.getItem(storageKey())).toBeNull()
   })
 
+  const unlock = async (): Promise<void> => {
+    await locked().click()
+    await userEvent.type(firstDigit(), await coreControl.printedCode())
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  }
+
+  test('a browser revoked while the panel is open locks on its next engine call and forgets the token', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await unlock()
+    expect(await coreControl.revokeBrowsers()).toBeGreaterThan(0)
+    await page.getByRole('button', {name: 'Session options'}).click()
+    await page.getByRole('button', {name: 'Refresh the conversation'}).click()
+    await expect.element(locked(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+    expect(localStorage.getItem(storageKey())).toBeNull()
+  }, 30_000)
+
+  test('Retry on the unreachable screen checks the login again: untrusted locks, trusted opens the panel', async () => {
+    const retryWhileOffline = async (): Promise<void> => {
+      const offline = await coreControl.installFault({kind: 'offline'})
+      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      await opener().click()
+      const screen = page.getByRole('alert').filter({hasText: /couldn.t reach the engine/})
+      await expect.element(screen, {timeout: 8000}).toBeVisible()
+      await coreControl.releaseFault(offline)
+      await screen.getByRole('button', {name: 'Retry'}).click()
+    }
+    await retryWhileOffline()
+    await expect.element(locked(), {timeout: 8000}).toBeVisible()
+    await unlock()
+    harness.dispose()
+    await retryWhileOffline()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  }, 30_000)
+
   test('an unreachable engine opens the panel onto the error screen instead of the login', async () => {
     harness.mountShell('/', [], {login: {apiBase: 'http://127.0.0.1:9'}})
     await opener().click()

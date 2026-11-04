@@ -51,6 +51,15 @@ function activeConnections(): ActiveConnectionRegistry {
   return globalThis.__concivRpcReachabilityActiveV1
 }
 
+export const RPC_UNAUTHORIZED_EVENT = 'conciv:rpc-unauthorized'
+
+function announceUnauthorized(error: unknown): never {
+  if (error instanceof ORPCError && error.status === 401 && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(RPC_UNAUTHORIZED_EVENT))
+  }
+  throw error
+}
+
 export function subscribeRpcReachability(apiBase: string, listener: ReachabilityListener): () => void {
   const key = normalizeApiBase(apiBase)
   const listeners = reachabilityListeners()
@@ -158,7 +167,9 @@ export function dynamicBrowserRpcLink(
       if (apiBase === null) throw new Error(RPC_UNBOUND_MESSAGE)
       const sessionId = session?.()
       const context = sessionId ? {...options.context, concivSessionId: sessionId} : options.context
-      return browserRpcConnection(apiBase).link.call(path, input, {...options, context})
+      return browserRpcConnection(apiBase)
+        .link.call(path, input, {...options, context})
+        .catch(announceUnauthorized)
     },
   }
 }
