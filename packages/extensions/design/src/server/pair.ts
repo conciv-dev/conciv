@@ -97,14 +97,16 @@ export function pairTree(input: {
   })
 }
 
-export function align(input: {pairs: Pair[]; live: Raster; tolerances: Tolerances}): {
+export function align(input: {pairs: Pair[]; live: Raster; exact: boolean; tolerances: Tolerances}): {
   global: Shift
   offsets: Offset[]
 } {
-  const {pairs, live, tolerances} = input
-  const shifts = pairs.flatMap((pair) => pair.texts.map((node) => inkShift({pair, node, live})))
+  const {pairs, live, exact, tolerances} = input
+  const shifts = exact
+    ? pairs.flatMap((pair) => inkToInk(pair) ?? [])
+    : pairs.flatMap((pair) => pair.texts.map((node) => inkShift({pair, node, live})))
   const global = {dx: median0(shifts.map((shift) => shift.dx)), dy: median0(shifts.map((shift) => shift.dy))}
-  const moved = (pair: Pair): Shift => relative({a: displacement(pair), b: global})
+  const moved = (pair: Pair): Shift => relative({a: displacement({pair, exact}), b: global})
   const own = (pair: Pair): Shift =>
     pair.parent === null ? moved(pair) : relative({a: moved(pair), b: moved(pair.parent)})
   const containers = pairs.flatMap((pair): Offset[] => {
@@ -1136,8 +1138,19 @@ function median0(values: number[]): number {
   return values.length === 0 ? 0 : median(values)
 }
 
-function displacement(pair: Pair): Shift {
-  return {dx: pair.targetBox.x - pair.liveBox.x, dy: pair.targetBox.y - pair.liveBox.y}
+function displacement(input: {pair: Pair; exact: boolean}): Shift {
+  const {pair, exact} = input
+  const ink = exact && pair.node.kind === 'text' ? inkToInk(pair) : null
+  return ink ?? {dx: pair.targetBox.x - pair.liveBox.x, dy: pair.targetBox.y - pair.liveBox.y}
+}
+
+function inkToInk(pair: Pair): Shift | null {
+  const glyphs = pair.live.glyphs.flatMap((glyph) => glyph.boxes)
+  const lines = pair.texts.flatMap((text) => text.lines.map((line) => line.box))
+  if (glyphs.length === 0 || lines.length === 0) return null
+  const live = union(glyphs)
+  const design = union(lines)
+  return {dx: design.x - live.x, dy: centre(design).y - centre(live).y}
 }
 
 function relative(input: {a: Shift; b: Shift}): Shift {

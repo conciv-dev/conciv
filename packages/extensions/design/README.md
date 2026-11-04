@@ -244,7 +244,10 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   with rows inside) has none either; a grid is neither row nor column, and the `columns` row compares it.
 - **The design side of a delta.** For a paired element every delta's design value is read from its node in
   `model.json`, never re-estimated from the raster: the box from `node.box` (so `width` and `height` deltas in the
-  geometry stage, `width is 749 where the design has 577`, and the move row uses the node's own position), the
+  geometry stage, `width is 749 where the design has 577`, and the move row uses the node's own position, except
+  that with a design source a text pair's move row and the page shift compare ink to ink: the union of the live
+  glyph boxes against the union of the node's line boxes, left edge and vertical centre, so a text frame taller
+  than its element is no move; either side without lines falls back to the boxes), the
   radius from `node.radius` (compared with the live `border-top-left-radius`), the background from `node.paint`, the
   border colour from `node.border`, the insets, padding and align from `layout.padding`, the axis from
   `layout.direction`, and typography as stored. A text paired without a box takes the union of its text nodes' boxes

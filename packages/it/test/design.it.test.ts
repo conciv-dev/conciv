@@ -1827,7 +1827,68 @@ describe('deltas', () => {
         .filter((delta) => delta.kind === 'width' || delta.kind === 'height'),
     ).toEqual([])
   })
+
+  it('a text pair from a design source whose node is 6 px shorter than its element but whose ink matches has no move row', async () => {
+    await goto('target')
+    const {id} = await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
+    const before = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+    const paired = StoredPairsSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${before}`), 'utf8')),
+    ).find((pair) => texts.has(pair.node))
+    if (paired === undefined) throw new Error('u1-1280 pairs no element with a text node alone')
+    const captured = await call('design_capture', {height: 720})
+    const element = componentAt({components: captured.components, path: paired.path})
+    const glyphs = element?.glyphs.flatMap((glyph) => glyph.boxes) ?? []
+    if (element === undefined || glyphs.length === 0) throw new Error(`no glyphs captured at ${paired.path}`)
+    const ink = boxUnion(glyphs)
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...model,
+        source: {kind: 'figma', ref: 'u1-1280'},
+        nodes: model.nodes.map((node) =>
+          node.id === paired.node
+            ? {
+                ...node,
+                box: {...element.box, y: element.box.y + TALLER_ELEMENT, h: element.box.h - TALLER_ELEMENT},
+                lines: [{box: ink, text: typeof node.text === 'string' ? node.text : '', confidence: 1}],
+              }
+            : node,
+        ),
+      }),
+    )
+    const report = await call('design_diff', {full: true})
+    expect(report.unmatched.filter((entry) => entry.kind === 'offset' && entry.node === paired.node)).toEqual([])
+  })
 })
+
+const TALLER_ELEMENT = 6
+
+type CapturedComponent = CaptureResult['components'][number]
+
+function componentAt(input: {components: CapturedComponent[]; path: string}): CapturedComponent | undefined {
+  const {components, path} = input
+  return components.reduce<CapturedComponent | undefined>(
+    (found, component) =>
+      found ?? (component.path === path ? component : componentAt({components: component.children, path})),
+    undefined,
+  )
+}
+
+function boxUnion(boxes: Box[]): Box {
+  const x = Math.min(...boxes.map((box) => box.x))
+  const y = Math.min(...boxes.map((box) => box.y))
+  return {
+    x,
+    y,
+    w: Math.max(...boxes.map((box) => box.x + box.w)) - x,
+    h: Math.max(...boxes.map((box) => box.y + box.h)) - y,
+  }
+}
 
 async function freshTarget(name: string): Promise<TargetResult> {
   await call('design_clear', {all: true})

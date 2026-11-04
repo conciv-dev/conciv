@@ -403,15 +403,16 @@ async function runDiff(request: {
   })
   clock.lap('typography')
   const matched = paired.matched.map((entry) => withTypography({entry, typography: typography.estimates}))
+  const exact = model.source.kind !== 'image'
   const pairs = pairTree({
     matched,
     components: live.components,
-    exact: model.source.kind !== 'image',
+    exact,
     live: live.raster,
     source: live.source,
     mismatchAt: (box) => maskShare({...pixels, box: expand({box, by: TOLERANCES.tileMargin})}),
   })
-  const alignment = align({pairs, live: live.raster, tolerances: TOLERANCES})
+  const alignment = align({pairs, live: live.raster, exact, tolerances: TOLERANCES})
   const judged = await textJudgements({pairs, cwd: design.cwd})
   const page0 = {x: 0, y: 0, w: live.viewport.width, h: live.viewport.height}
   const measures = cachedMeasures({
