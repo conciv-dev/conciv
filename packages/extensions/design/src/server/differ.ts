@@ -1182,7 +1182,6 @@ function measureDeltas(input: {
     raster: live,
     color,
     glyphs: pair.live.glyphs.flatMap((glyph) => glyph.boxes),
-    window: pair.liveBox,
     strip,
   })
   const targetSide = sideFrom({
@@ -1194,7 +1193,6 @@ function measureDeltas(input: {
     raster: target,
     color,
     glyphs: pair.texts.map((node) => node.box),
-    window: moved({box: pair.liveBox, shift}),
     strip: strip === null ? null : edgeStrip({pair, raster: target, color, shift, toward: 'contrast'}),
   })
   const deltas = design.deltaKinds.flatMap((kind) => kind.measure({live: liveSide, target: targetSide, color}))

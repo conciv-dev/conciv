@@ -247,7 +247,8 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   `layout.direction`, and typography as stored. A text paired without a box takes the union of its text nodes' boxes
   when the model comes from a design source; a model registered from an image keeps the live element's size at
   the point its ink lands on the design's, since an OCR box is ink, not an element. The raster is read only for a
-  value the node has none for (a text's radius, a border the node does not carry, the text colour). A delta
+  value the node has none for (a border the node does not carry, the text colour). Only a box pair has a radius
+  row; a text or image node has no radius, so neither side is read. A delta
   therefore changes between two rounds only when the live element changed.
 
 ## Pairing

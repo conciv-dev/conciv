@@ -13,7 +13,7 @@ import type {
   Raster,
   Side,
 } from '../shared/types.js'
-import {boxMask, coreColor, cornerRadius, crop, edgeMap, hex, medianColor, type Rgb} from './raster.js'
+import {boxMask, coreColor, crop, edgeMap, hex, medianColor} from './raster.js'
 
 const difference = differenceCiede2000()
 
@@ -350,10 +350,9 @@ export function sideFrom(input: {
   raster: Raster
   color: ColorMetric
   glyphs: Box[]
-  window: Box
   strip: Box | null
 }): Side {
-  const {pair, from, children, leaves, page, raster, color, glyphs, window, strip} = input
+  const {pair, from, children, leaves, page, raster, color, glyphs, strip} = input
   const box = pickBox({pair, from})
   return {
     box,
@@ -365,7 +364,7 @@ export function sideFrom(input: {
     columns: columnCount({pair, from, leaves}),
     textBox: contentBox({children, from}),
     edge: edgeOn({pair, from, raster, strip}),
-    radius: radiusOn({pair, from, raster, window}),
+    radius: radiusOn({pair, from}),
     padding: from === 'target' ? (pair.node.layout?.padding ?? null) : null,
     size: sizeOn({pair, from}),
     styles: sideStyles({pair, from, box, raster, color, glyphs}),
@@ -444,9 +443,9 @@ function edgeOn(input: {pair: Pair; from: From; raster: Raster; strip: Box | nul
   return medianColor({raster: crop({raster, box: strip}).raster, exclude: new Uint8Array(strip.w * strip.h)})
 }
 
-function radiusOn(input: {pair: Pair; from: From; raster: Raster; window: Box}): number | null {
-  const {pair, from, raster, window} = input
-  if (pair.node.kind !== 'box') return paintedRadius({raster, box: window})
+function radiusOn(input: {pair: Pair; from: From}): number | null {
+  const {pair, from} = input
+  if (pair.node.kind !== 'box') return null
   return from === 'target' ? pair.node.radius : pair.live.styles.radius
 }
 
@@ -501,42 +500,6 @@ function union(boxes: Box[]): Box | null {
 function contentBox(input: {children: Pair[]; from: From}): Box | null {
   const {children, from} = input
   return union(children.map((pair) => pickBox({pair, from})))
-}
-
-function paintedRadius(input: {raster: Raster; box: Box}): number | null {
-  const {raster} = input
-  const box = {
-    x: Math.round(input.box.x),
-    y: Math.round(input.box.y),
-    w: Math.round(input.box.w),
-    h: Math.round(input.box.h),
-  }
-  const ring = {x: box.x - 1, y: box.y - 1, w: box.w + 2, h: box.h + 2}
-  if (box.w < TOLERANCES.interiorInset * 4 || box.h < TOLERANCES.interiorInset * 4) return null
-  if (ring.x < 0 || ring.y < 0 || ring.x + ring.w > raster.width || ring.y + ring.h > raster.height) return null
-  const interior = crop({
-    raster,
-    box: {
-      x: box.x + TOLERANCES.interiorInset,
-      y: box.y + TOLERANCES.interiorInset,
-      w: box.w - TOLERANCES.interiorInset * 2,
-      h: box.h - TOLERANCES.interiorInset * 2,
-    },
-  }).raster
-  const around = crop({raster, box: ring}).raster
-  const inside = toRgb(medianColor({raster: interior, exclude: edgeMap(interior)}))
-  const outside = toRgb(
-    medianColor({
-      raster: around,
-      exclude: boxMask({boxes: [{x: 1, y: 1, w: box.w, h: box.h}], area: {x: 0, y: 0, w: ring.w, h: ring.h}}),
-    }),
-  )
-  return cornerRadius({raster, box, inside, outside})
-}
-
-function toRgb(color: string): Rgb {
-  const value = Number.parseInt(color.slice(1, OPAQUE_HEX_LENGTH), 16)
-  return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff]
 }
 
 function sideStyles(input: {
