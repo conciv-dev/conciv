@@ -1853,6 +1853,10 @@ const StoredPairsSchema = z.array(z.object({node: z.string(), path: z.string()})
 const ControlPairsSchema = z.array(z.object({node: z.string(), fingerprint: z.object({tag: z.string()}).optional()}))
 const CONTACT_LABELS = ['Your Email', 'Message', 'Send']
 
+const TreeModelSchema = z.looseObject({
+  nodes: z.array(z.looseObject({id: z.string(), within: z.string().optional()})),
+})
+
 describe('pairing', () => {
   it('stripe against stripe-1280 pairs the rebuilt headings and no single glyph', async ({annotate}) => {
     await goto('stripe')
@@ -2016,6 +2020,34 @@ describe('loop', () => {
     await goto('target')
     const row = await call('design_diff', {limit: 50, depth: 6})
     expect(row.components.flatMap((component) => component.deltas.filter((delta) => delta.kind === 'axis'))).toEqual([])
+  })
+
+  it('a container whose design node keeps one child has no axis row', async () => {
+    await goto('column')
+    const {id} = await freshTarget('u1-1280')
+    const column = await call('design_diff', {limit: 50, depth: 6})
+    const turned = column.components.find((component) => component.deltas.some((delta) => delta.kind === 'axis'))
+    const [holder] = turned?.nodes ?? []
+    if (turned === undefined || holder === undefined) throw new Error('the column page has no axis row to remove')
+    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+    const model = TreeModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const [, ...dropped] = model.nodes.filter((node) => node.within === holder)
+    const gone = new Set(dropped.map((node) => node.id))
+    const removed = (node: z.infer<typeof TreeModelSchema>['nodes'][number]): boolean =>
+      gone.has(node.id) || model.nodes.some((parent) => parent.id === node.within && removed(parent))
+    expect(dropped.length).toBeGreaterThan(0)
+    await writeFile(path, JSON.stringify({...model, nodes: model.nodes.filter((node) => !removed(node))}))
+    const single = await call('design_diff', {limit: 50, depth: 6})
+    const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+    const pairs = StoredPairsSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
+    )
+    expect(pairs.map((pair) => pair.node)).toContain(holder)
+    expect(
+      single.components
+        .filter((component) => sameSource({a: component.source, b: turned.source}))
+        .flatMap((component) => component.deltas.filter((delta) => delta.kind === 'axis')),
+    ).toEqual([])
   })
 
   it('grid reports a columns delta', async () => {

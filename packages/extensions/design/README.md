@@ -238,7 +238,10 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   direction its children are laid out in (the `axis` they measure, `null` read as column) with its design node's
   `layout.direction` (`stack` read as column, `grid` as row). A mismatch is one `axis` delta in the structure stage on
   the container, `axis is column where the design has row`, traced to the container's own `flex-direction` or
-  `display`. A leaf never carries one.
+  `display`. A leaf never carries one, and neither does a box with fewer than two children that lay out on either
+  side (live children not `absolute` or `fixed`, design nodes `within` it): one child has no axis. A live grid
+  (`columns` set) against a design whose children sit on both axes (a `grid`, a wrapped row, or a column or stack
+  with rows inside) has none either; a grid is neither row nor column, and the `columns` row compares it.
 - **The design side of a delta.** For a paired element every delta's design value is read from its node in
   `model.json`, never re-estimated from the raster: the box from `node.box` (so `width` and `height` deltas in the
   geometry stage, `width is 749 where the design has 577`, and the move row uses the node's own position), the

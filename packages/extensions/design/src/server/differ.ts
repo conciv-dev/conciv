@@ -416,6 +416,7 @@ async function runDiff(request: {
   const page0 = {x: 0, y: 0, w: live.viewport.width, h: live.viewport.height}
   const measures = cachedMeasures({
     pairs,
+    nodes,
     reuse,
     shift: alignment.global,
     live: live.raster,
@@ -663,6 +664,7 @@ async function emptyReport(input: {job: RunJob; design: DesignRuntime}): Promise
 
 function cachedMeasures(input: {
   pairs: Pair[]
+  nodes: TargetNode[]
   reuse: Reuse | null
   shift: Shift
   live: Raster
@@ -670,10 +672,10 @@ function cachedMeasures(input: {
   page: Box
   design: DesignRuntime
 }): Map<Pair, {key: string; deltas: Delta[]}> {
-  const {pairs, reuse, shift, live, target, page, design} = input
+  const {pairs, nodes, reuse, shift, live, target, page, design} = input
   return new Map(
     pairs.map((pair): [Pair, {key: string; deltas: Delta[]}] => {
-      const key = measureKey({pair, pairs, shift})
+      const key = measureKey({pair, pairs, nodes, shift})
       const kept = reuse?.measures.get(key)
       const region = expand({
         box: union([pair.liveBox, moved({box: pair.liveBox, shift})]),
@@ -683,6 +685,7 @@ function cachedMeasures(input: {
       const deltas = measureDeltas({
         pair,
         pairs,
+        nodes,
         live,
         target,
         page,
@@ -726,8 +729,8 @@ function tilesUnder(input: {grid: Grid; box: Box}): number[] {
   return range(top, bottom + 1).flatMap((row) => range(left, right + 1).map((column) => row * grid.columns + column))
 }
 
-function measureKey(input: {pair: Pair; pairs: Pair[]; shift: Shift}): string {
-  const {pair, pairs, shift} = input
+function measureKey(input: {pair: Pair; pairs: Pair[]; nodes: TargetNode[]; shift: Shift}): string {
+  const {pair, pairs, nodes, shift} = input
   const boxes = (other: Pair | null): Box[] | null => (other === null ? null : [other.liveBox, other.targetBox])
   return JSON.stringify({
     node: pair.node,
@@ -738,6 +741,7 @@ function measureKey(input: {pair: Pair; pairs: Pair[]; shift: Shift}): string {
     prev: boxes(pair.prev),
     next: boxes(pair.next),
     under: pairs.filter((other) => under({pair: other, ancestor: pair})).map(boxes),
+    designed: nodes.filter((node) => node.within === pair.node.id).length,
     shift,
   })
 }
@@ -1160,13 +1164,14 @@ function withTypography(input: {entry: Matched; typography: Record<string, TextN
 function measureDeltas(input: {
   pair: Pair
   pairs: Pair[]
+  nodes: TargetNode[]
   live: Raster
   target: Raster
   page: Box
   design: DesignRuntime
   shift: Shift
 }): Delta[] {
-  const {pair, pairs, live, target, page, design, shift} = input
+  const {pair, pairs, nodes, live, target, page, design, shift} = input
   const color = design.comparators.color
   const children = pairs.filter((child) => child.parent === pair)
   const leaves = pairs.filter(
@@ -1183,6 +1188,7 @@ function measureDeltas(input: {
     color,
     glyphs: pair.live.glyphs.flatMap((glyph) => glyph.boxes),
     strip,
+    nodes,
   })
   const targetSide = sideFrom({
     pair,
@@ -1194,6 +1200,7 @@ function measureDeltas(input: {
     color,
     glyphs: pair.texts.map((node) => node.box),
     strip: strip === null ? null : edgeStrip({pair, raster: target, color, shift, toward: 'contrast'}),
+    nodes,
   })
   const deltas = design.deltaKinds.flatMap((kind) => kind.measure({live: liveSide, target: targetSide, color}))
   const opinion = opinionSide({side: liveSide, pair, children})

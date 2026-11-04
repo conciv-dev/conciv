@@ -1,4 +1,5 @@
 import {differenceCiede2000, parse} from 'culori'
+import type {NodeLayout} from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
 import type {
   Box,
@@ -8,10 +9,12 @@ import type {
   Flow,
   Gradient,
   LiveBorder,
+  LiveComponent,
   LiveStyles,
   Pair,
   Raster,
   Side,
+  TargetNode,
 } from '../shared/types.js'
 import {boxMask, coreColor, crop, edgeMap, hex, medianColor} from './raster.js'
 
@@ -352,8 +355,9 @@ export function sideFrom(input: {
   color: ColorMetric
   glyphs: Box[]
   strip: Box | null
+  nodes: TargetNode[]
 }): Side {
-  const {pair, from, children, leaves, page, raster, color, glyphs, strip} = input
+  const {pair, from, children, leaves, page, raster, color, glyphs, strip, nodes} = input
   const box = pickBox({pair, from})
   return {
     kind: pair.node.kind,
@@ -362,7 +366,7 @@ export function sideFrom(input: {
     prev: pair.prev === null ? null : pickBox({pair: pair.prev, from}),
     next: pair.next === null ? null : pickBox({pair: pair.next, from}),
     axis: pair.live.axis,
-    flow: directionOn({pair, from}),
+    flow: directionOn({pair, from, nodes}),
     columns: columnCount({pair, from, leaves}),
     textBox: contentBox({children, from}),
     edge: edgeOn({pair, from, raster, strip}),
@@ -419,6 +423,7 @@ export function edgeStrip(input: {
 const EDGE_OFFSETS = [-1, 0, 1]
 const CORNER_INSET = 2
 const FLOW_BAND = 1
+const OUT_OF_FLOW = ['absolute', 'fixed']
 
 function stripAt(input: {box: Box; side: LiveBorder['side']; width: number; offset: number}): Box | null {
   const {box, side, offset} = input
@@ -465,16 +470,28 @@ function pickBox(input: {pair: Pair; from: From}): Box {
   return input.from === 'live' ? input.pair.liveBox : input.pair.targetBox
 }
 
-function directionOn(input: {pair: Pair; from: From}): Flow | null {
-  const {pair, from} = input
-  const [first] = pair.live.children
-  if (first === undefined) return null
-  if (from === 'live') return first.axis ?? 'column'
-  const direction = pair.node.layout?.direction
-  if (direction === undefined) return null
-  if (direction === 'stack') return 'column'
-  if (direction === 'grid') return 'row'
-  return direction
+function directionOn(input: {pair: Pair; from: From; nodes: TargetNode[]}): Flow | null {
+  const {pair, from, nodes} = input
+  if (from === 'live') {
+    const [first, second] = pair.live.children.filter(laysOut)
+    if (first === undefined || second === undefined) return null
+    return first.axis ?? 'column'
+  }
+  const layout = pair.node.layout
+  if (layout?.direction === undefined) return null
+  if (nodes.filter((node) => node.within === pair.node.id).length < 2) return null
+  if (pair.live.columns !== null && bothAxes(layout)) return null
+  if (layout.direction === 'stack') return 'column'
+  if (layout.direction === 'grid') return 'row'
+  return layout.direction
+}
+
+function laysOut(component: LiveComponent): boolean {
+  return !OUT_OF_FLOW.includes(component.styles.position)
+}
+
+function bothAxes(layout: NodeLayout): boolean {
+  return layout.direction === 'grid' || layout.wrap === true || (layout.runs ?? []).length > 0
 }
 
 function columnCount(input: {pair: Pair; from: From; leaves: Pair[]}): number | null {
