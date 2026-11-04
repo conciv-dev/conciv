@@ -2364,6 +2364,14 @@ function componentAt(input: {components: CapturedComponent[]; path: string}): Ca
   )
 }
 
+function cardGap(captured: CaptureResult): number | null {
+  const [left, right] = everyComponent(captured.components).filter(
+    (component) => component.tag === 'article' && component.source?.file === 'src/Cards.tsx',
+  )
+  if (left === undefined || right === undefined) return null
+  return Math.round(right.box.x - left.box.x - left.box.w)
+}
+
 function parentAt(input: {
   components: CapturedComponent[]
   path: string
@@ -2670,6 +2678,70 @@ describe('pairing', () => {
     expect(report.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.node === 'section')).toEqual([])
   })
 
+  it('two paired cards 24 px apart where the design has 32 have one gap row, gap-before on the second card', async () => {
+    await goto('target')
+    const cards = (await call('design_capture', {height: 720})).components
+    const first = everyComponent(cards).find(
+      (component) => component.tag === 'article' && component.source?.file === 'src/Cards.tsx',
+    )
+    const holder = first === undefined ? undefined : parentAt({components: cards, path: first.path, parent: undefined})
+    const source = holder?.source
+    if (holder === undefined || source === undefined || source === null)
+      throw new Error('the target page has no cards row')
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    const spaced = `${styles}\nsection[data-conciv-source="${source.file}:${source.line}:${source.column}"] { gap: ${LIVE_CARD_GAP}px; }\n`
+    try {
+      await writeFile(HOST_STYLES, spaced)
+      await expect
+        .poll(async () => cardGap(await call('design_capture', {height: 720})), {timeout: 15_000})
+        .toBe(LIVE_CARD_GAP)
+      const captured = await call('design_capture', {height: 720})
+      const row = everyComponent(captured.components).find((component) => component.path === holder.path)
+      const [left, right] = row?.children.filter((child) => child.tag === 'article') ?? []
+      if (row === undefined || left === undefined || right === undefined)
+        throw new Error('the cards row has no two cards')
+      const {id, route} = await freshTarget('u1-1280')
+      const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
+      const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
+      const shift = DESIGN_CARD_GAP - LIVE_CARD_GAP
+      await store.put({
+        model: {
+          id: GAP_CARDS,
+          source: {kind: 'figma', ref: GAP_CARDS},
+          viewport: {width: png.width, height: png.height},
+          raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
+          root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
+          nodes: [
+            {id: 'row', kind: 'box', box: {...row.box, w: row.box.w + shift}, border: null, radius: 0},
+            {id: 'left', kind: 'box', box: left.box, border: null, radius: 0, within: 'row'},
+            {
+              id: 'right',
+              kind: 'box',
+              box: {...right.box, x: right.box.x + shift},
+              border: null,
+              radius: 0,
+              within: 'row',
+            },
+          ],
+          scale: 1,
+        },
+        session: kit.session,
+        ...(route === undefined ? {} : {route}),
+      })
+      const report = await call('design_diff', {full: true})
+      expect(report.target.id).toBe(GAP_CARDS)
+      expect(
+        report.components.flatMap((component) =>
+          component.deltas
+            .filter((delta) => delta.kind === 'gap-before' || delta.kind === 'gap-after')
+            .map((delta) => ({path: component.path, kind: delta.kind, live: delta.live, target: delta.target})),
+        ),
+      ).toEqual([{path: right.path, kind: 'gap-before', live: LIVE_CARD_GAP, target: DESIGN_CARD_GAP}])
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
+  })
+
   it('a card heading pairs with the design text that carries its words, though the design draws it where the number sits, and keeps it after the two swap places', async ({
     annotate,
   }) => {
@@ -2734,6 +2806,9 @@ describe('pairing', () => {
   }, 300_000)
 })
 
+const GAP_CARDS = 'gap-cards'
+const LIVE_CARD_GAP = 24
+const DESIGN_CARD_GAP = 32
 const WORDS_FIRST = 'words-first'
 const WORDS_CARD = 'words-card'
 const WORDS_HEADING = 'words-heading'

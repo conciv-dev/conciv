@@ -260,6 +260,10 @@ The design dictates a layout; a pixel box is metadata on a layout node, never th
   side (live children not `absolute` or `fixed`, design nodes `within` it): one child has no axis. A live grid
   (`columns` set) against a design whose children sit on both axes (a `grid`, a wrapped row, or a column or stack
   with rows inside) has none either; a grid is neither row nor column, and the `columns` row compares it.
+- **`gap-before` and `gap-after`.** The gap between two paired siblings on their parent's axis is one row, on the
+  later sibling: `gap-before is 24 where the design has 32`. A pair's previous and next siblings are always paired
+  siblings, so the same gap read from the earlier side would be a second row for the same fix; `gap-after` is never
+  reported.
 - **`columns`.** Measured on a paired element whose live component is a grid (`columns` set), over its first row:
   the laid-out children (live children not `absolute` or `fixed`, a `display: contents` child read through to its
   own; design children overlapping no sibling) whose boxes overlap the topmost child's y range by more than

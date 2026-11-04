@@ -193,7 +193,7 @@ function gapKind(before: boolean): DeltaKind {
 }
 
 const gapBefore = gapKind(true)
-const gapAfter = gapKind(false)
+const gapAfter: DeltaKind = {...gapKind(false), measure: () => []}
 
 function classifyAlign(side: Side): string | null {
   const insets = measureInsets(side)
