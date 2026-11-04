@@ -96,10 +96,9 @@ export function align(input: {pairs: Pair[]; live: Raster; exact: boolean; toler
   offsets: Offset[]
 } {
   const {pairs, live, exact, tolerances} = input
-  const shifts = exact
-    ? pairs.flatMap((pair) => inkToInk(pair) ?? [])
-    : pairs.flatMap((pair) => pair.texts.map((node) => inkShift({pair, node, live})))
-  const global = {dx: median0(shifts.map((shift) => shift.dx)), dy: median0(shifts.map((shift) => shift.dy))}
+  const global = exact
+    ? boxShift(pairs)
+    : medianShift(pairs.flatMap((pair) => pair.texts.map((node) => inkShift({pair, node, live}))))
   const moved = (pair: Pair): Shift => relative({a: displacement({pair, exact}), b: global})
   const own = (pair: Pair): Shift =>
     pair.parent === null ? moved(pair) : relative({a: moved(pair), b: moved(pair.parent)})
@@ -115,6 +114,20 @@ export function align(input: {pairs: Pair[]; live: Raster; exact: boolean; toler
   })
   const page: Offset[] = beyond({shift: global, tolerances}) ? [{pair: null, shift: global}] : []
   return {global, offsets: [...page, ...containers, ...loose]}
+}
+
+const PAGE_SHIFT_PAIRS = 3
+
+function boxShift(pairs: Pair[]): Shift {
+  const boxed = pairs.filter((pair) => pair.node.kind !== 'text')
+  if (boxed.length < PAGE_SHIFT_PAIRS) return {dx: 0, dy: 0}
+  return medianShift(
+    boxed.map((pair) => ({dx: pair.targetBox.x - pair.liveBox.x, dy: pair.targetBox.y - pair.liveBox.y})),
+  )
+}
+
+function medianShift(shifts: Shift[]): Shift {
+  return {dx: median0(shifts.map((shift) => shift.dx)), dy: median0(shifts.map((shift) => shift.dy))}
 }
 
 function inkShift(input: {pair: Pair; node: TextNode; live: Raster}): Shift {

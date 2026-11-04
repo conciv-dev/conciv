@@ -1917,6 +1917,55 @@ describe('deltas', () => {
     const report = await call('design_diff', {full: true})
     expect(report.unmatched.filter((entry) => entry.kind === 'offset' && entry.node === paired.node)).toEqual([])
   })
+
+  it('a page whose boxes sit exactly on a design source but whose texts use another family has no offset on any box pair', async () => {
+    await goto('target')
+    const {id} = await freshTarget('u1-1280')
+    await call('design_diff', {})
+    const styles = await readFile(HOST_STYLES, 'utf8')
+    try {
+      const runs = (await runFiles({id, prefix: 'result-'})).length
+      await writeFile(HOST_STYLES, `${styles}\n* { font-family: 'Courier New', monospace !important; }\n`)
+      await expect
+        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
+        .toBeGreaterThan(runs)
+      const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+      const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+      const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
+      const pairs = StoredPairsSchema.parse(
+        JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
+      )
+      const captured = await call('design_capture', {height: 720})
+      const placed = new Map(
+        pairs.flatMap((pair): [string, Box][] => {
+          const element = componentAt({components: captured.components, path: pair.path})
+          return element === undefined ? [] : [[pair.node, element.box]]
+        }),
+      )
+      const boxes = new Set(
+        model.nodes.filter((node) => node.kind === 'box' && placed.has(node.id)).map((node) => node.id),
+      )
+      if (boxes.size < 3) throw new Error(`u1-1280 pairs ${boxes.size} box nodes, the page shift needs 3`)
+      await writeFile(
+        path,
+        JSON.stringify({
+          ...model,
+          source: {kind: 'figma', ref: 'u1-1280'},
+          nodes: model.nodes.map((node) =>
+            boxes.has(node.id) ? {...node, box: placed.get(node.id) ?? node.box} : node,
+          ),
+        }),
+      )
+      const report = await call('design_diff', {full: true})
+      expect(
+        report.unmatched.filter(
+          (entry) => entry.kind === 'offset' && (entry.node === undefined || boxes.has(entry.node)),
+        ),
+      ).toEqual([])
+    } finally {
+      await writeFile(HOST_STYLES, styles)
+    }
+  })
 })
 
 const TALLER_ELEMENT = 6
