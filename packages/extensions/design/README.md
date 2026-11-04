@@ -292,6 +292,10 @@ The vote pairer scores every design node against every compatible live element a
   at most 48 x 320 px, when it is at most 48 px tall at any width and holds one short single-line text (its own child
   or a text drawn over it), or when it is taller but holds one text, short or at its top-left padding, and has a
   border or a fill apart from its parent's (a textarea). A text inside a control box is a control too.
+- An element carries its own text when glyphs are measured on it and its text is not empty. A text node pairs only
+  with such an element, an image node only with an element that has none, and a box node with one only when the box
+  is a control. The rule filters the candidates before any vote is scored, and applies to the carry and to a box
+  that follows its text the same way, so a carried pair it refuses is dropped and its node votes again.
 - A box that holds exactly one text follows that text: once the other nodes are paired, and before such boxes vote
   on their own, it takes the text's element when that element is a control or media, else the nearest ancestor of
   the element whose box encloses it (never the page root), however far it sits from the design box. Its geometry

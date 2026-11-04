@@ -2195,7 +2195,43 @@ describe('pairing', () => {
       await writeFile(HOST_STYLES, styles)
     }
   })
+
+  it('a live paragraph whose words match a design text node 175 px below an image node of its own size pairs to the text node, never the image', async ({
+    annotate,
+  }) => {
+    await goto('target')
+    const {id} = await freshTarget('u1-1280')
+    const first = await call('design_diff', {})
+    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
+    const raw: unknown = JSON.parse(await readFile(path, 'utf8'))
+    const model = EditableModelSchema.parse(raw)
+    const tree = TreeModelSchema.parse(raw)
+    const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
+    const paragraph = [...(await taggedPairs({id, run: reportRun(first)})).values()].find(
+      (pair) => texts.has(pair.node) && pair.fingerprint.tag === 'p',
+    )
+    if (paragraph === undefined) throw new Error('u1-1280 pairs no paragraph with a text node')
+    const text = model.nodes.find((node) => node.id === paragraph.node)
+    const within = tree.nodes.find((node) => node.id === paragraph.node)?.within
+    const element = componentAt({
+      components: (await call('design_capture', {height: 720})).components,
+      path: paragraph.path,
+    })
+    if (text === undefined || element === undefined) throw new Error(`no paragraph captured at ${paragraph.path}`)
+    const icon = (y: number) => ({id: PARAGRAPH_ICON, kind: 'image', box: {...element.box, y}, within, holds: 0})
+    await writeFile(path, JSON.stringify({...model, nodes: [...model.nodes, icon(element.box.y)]}))
+    const covered = [...(await taggedPairs({id, run: reportRun(await call('design_diff', {}))})).values()]
+    await writeFile(path, JSON.stringify({...model, nodes: [...model.nodes, icon(text.box.y - ICON_ABOVE_TEXT)]}))
+    const moved = [...(await taggedPairs({id, run: reportRun(await call('design_diff', {}))})).values()]
+    await annotate(`covered ${JSON.stringify(covered.filter((pair) => pair.path === paragraph.path))}`)
+    await annotate(`moved ${JSON.stringify(moved.filter((pair) => pair.path === paragraph.path))}`)
+    expect(covered.filter((pair) => pair.node === PARAGRAPH_ICON && pair.path === paragraph.path)).toEqual([])
+    expect(moved.filter((pair) => pair.path === paragraph.path).map((pair) => pair.node)).toEqual([paragraph.node])
+  })
 })
+
+const PARAGRAPH_ICON = 'paragraph-icon'
+const ICON_ABOVE_TEXT = 175
 
 describe('loop', () => {
   it('stripe is briefed against named anchors, never the box, a high ordinal or a hard-coded sample', async ({

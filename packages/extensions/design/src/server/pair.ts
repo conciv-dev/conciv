@@ -569,8 +569,10 @@ function emptyContext(input: {
 
 function elementCompatible(input: {node: View; candidate: View}): boolean {
   const {node, candidate} = input
-  if (node.kind !== 'text') return true
-  return candidate.lines.length > 0 || candidate.media
+  const own = candidate.lines.length > 0 && candidate.text !== ''
+  if (node.kind === 'text') return own
+  if (node.kind === 'image') return !own
+  return !own || node.klass === 'control'
 }
 
 function elementGate(input: {node: View; candidate: View; state: State; tolerances: Tolerances}): boolean {
@@ -650,14 +652,14 @@ function runVote(input: VoteInput): {matched: Assignment[]; partial: boolean; ca
 
 function followTexts(input: {input: VoteInput; weights: Map<VoterName, number>; state: State}): Assignment[] {
   const {weights, state} = input
-  const {nodes, holders, context} = input.input
+  const {nodes, holders, context, compatible} = input.input
   return nodes.flatMap((node): Assignment[] => {
     const text = holders.get(node.key)
     if (text === undefined || context.assigned.has(node.key)) return []
     const element = context.assigned.get(text)
     if (element === undefined) return []
     const candidate = element.klass === 'control' || element.klass === 'media' ? element : enclosing(element)
-    if (candidate === null || state.boxes.has(candidate.key)) return []
+    if (candidate === null || state.boxes.has(candidate.key) || !compatible({node, candidate})) return []
     const {score} = weighed({input: input.input, weights, node, candidate})
     take({node, candidate, state, context})
     return [{node, candidate, score}]
@@ -674,9 +676,10 @@ function enclosing(view: View): View | null {
 
 function carryFirst(input: {input: VoteInput; state: State}): Assignment[] {
   const {state} = input
-  const {carried, context} = input.input
+  const {carried, context, compatible} = input.input
   return carried.flatMap((entry) => {
     if (context.assigned.has(entry.node.key)) return []
+    if (!compatible({node: entry.node, candidate: entry.candidate})) return []
     if (entry.node.kind !== 'text' && state.boxes.has(entry.candidate.key)) return []
     take({node: entry.node, candidate: entry.candidate, state, context})
     return [entry]
