@@ -182,6 +182,7 @@ export function judge(input: {
   changed: {changes: Changes; since: number | null}
   sections: DesignSection[]
   crop: (node: string) => string
+  similarity: {now: number; was: number} | null
 }): Verdict {
   const {items, score, capturePath, capture, priors, round, ranker, warnings, color, changed, crop} = input
   const counted = items.filter((item) => item.stage !== null)
@@ -205,7 +206,9 @@ export function judge(input: {
     ...(stop === 'stalled' && stage !== null
       ? [stalledLine({stage, score, unchanged: ranker({items: counted.filter((item) => demoted.has(item.key))})})]
       : []),
-    ...(changed.since === null ? [] : [changeLine({changes: changed.changes, round: changed.since})]),
+    ...(changed.since === null
+      ? []
+      : [changeLine({changes: changed.changes, round: changed.since, similarity: input.similarity})]),
     ...(input.painted === null ? [] : [paintedLine(input.painted.count)]),
     ...(flipped === null ? [] : [flippedLine({items: ranker({items: flipped.items}), round: flipped.round})]),
     ...warnings.map(warningSentence),
@@ -422,8 +425,8 @@ const NOUNS = {
   card: ['card', 'cards'],
 } as const
 
-function changeLine(input: {changes: Changes; round: number}): string {
-  const {changes, round} = input
+function changeLine(input: {changes: Changes; round: number; similarity: {now: number; was: number} | null}): string {
+  const {changes, round, similarity} = input
   const [first] = changes.regressed
   const parts = [
     changes.done.length === 0 ? null : `${changes.done.length} done`,
@@ -432,7 +435,9 @@ function changeLine(input: {changes: Changes; round: number}): string {
     changes.lost.length === 0 ? null : `${changes.lost.length} lost`,
     changes.moved.length === 0 ? null : `${changes.moved.length} moved`,
   ].filter((part) => part !== null)
-  return `since round ${round}: ${parts.length === 0 ? 'no node changed' : parts.join(', ')}`
+  const trend =
+    similarity === null ? '' : `, similarity ${similarity.now.toFixed(2)} (was ${similarity.was.toFixed(2)})`
+  return `since round ${round}: ${parts.length === 0 ? 'no node changed' : parts.join(', ')}${trend}`
 }
 
 function applied(reply: unknown): boolean {

@@ -126,11 +126,13 @@ import {
   findRegions,
   maskCount,
   maskShare,
+  meanSimilarity,
   medianColor,
   overlapping,
   packMask,
   paintOver,
   sameLine,
+  similarityTiles,
   tileBox,
   tileGrid,
   tileHashes,
@@ -357,13 +359,11 @@ async function runDiff(request: {
     reuse,
   })
   const agreeing = texts.agreeing
+  const slots = model.nodes.filter((node) => node.kind === 'image').map((node) => node.box)
   const masked = paintOver({
     onto: live.raster,
     from: model.raster,
-    boxes: [
-      ...agreeing.map((box) => expand({box, by: TOLERANCES.glyphHalo + TOLERANCES.blurRadius})),
-      ...model.nodes.filter((node) => node.kind === 'image').map((node) => node.box),
-    ],
+    boxes: [...agreeing.map((box) => expand({box, by: TOLERANCES.glyphHalo + TOLERANCES.blurRadius})), ...slots],
   })
   const pixels = comparePages({
     live: masked,
@@ -372,11 +372,27 @@ async function runDiff(request: {
     previous: tiles,
     clock,
   })
+  const scoredTiles = similarityTiles({
+    live: masked,
+    target: model.raster,
+    mask: boxMask({
+      boxes: [...reading.masks, ...droppedBoxes, ...slots],
+      area: {x: 0, y: 0, w: pixels.width, h: pixels.height},
+    }),
+    width: pixels.width,
+    height: pixels.height,
+  })
+  const similarity = rounded(meanSimilarity(scoredTiles))
+  clock.lap('similarity')
   const nodes = model.nodes.filter((node) => !dropped.has(node.id))
   const pins = pinsFrom(decisions)
   const placements = await twinPlacements({store: design.store, id: record.id})
   const earlier = await design.store.ledger(record.id)
   const sections = await design.store.sections(record.id)
+  const sectionSimilarity = mapValues(
+    keyBy(sections, (section) => section.id),
+    (section) => rounded(meanSimilarity(scoredTiles.filter((tile) => centred({inner: tile.box, outer: section.box})))),
+  )
   clock.skip()
   const paired = design.pairer({
     components: live.components,
@@ -497,6 +513,7 @@ async function runDiff(request: {
     changed,
     sections,
     crop: nodeCrop,
+    similarity: previous?.report.similarity === undefined ? null : {now: similarity, was: previous.report.similarity},
   }
   const verdict = judge({
     ...judging,
@@ -534,6 +551,8 @@ async function runDiff(request: {
       target: {id: record.id, ...(record.route === undefined ? {} : {route: record.route}), width: record.width},
       xray: xray.url,
       mismatch: rounded(pixels.mismatch),
+      similarity,
+      sectionSimilarity,
       components,
       unmatched,
       warnings: [...warnings, ...typographyWarnings({...typography, stamp})],
@@ -773,6 +792,7 @@ function startClock(): Clock {
       decode: ms('decode'),
       measure: ms('measure'),
       mask: ms('mask'),
+      similarity: ms('similarity'),
       regions: ms('regions'),
       pair: ms('pair'),
       typography: ms('typography'),
@@ -873,7 +893,7 @@ function sectionReport(input: {
   const unmatched = report.unmatched.filter((entry) => held({node: entry.node, box: entry.target ?? entry.live}))
   const changes = mapValues(report.changes, (list) => list.filter((change) => nodes.has(change.node)))
   const scoped: DiffReport = {
-    ...report,
+    ...omit(report, ['similarity']),
     components: report.components.filter(
       (component) => (component.nodes ?? []).some((node) => nodes.has(node)) || inside(component.live),
     ),
@@ -883,7 +903,13 @@ function sectionReport(input: {
     ledger: subtreeCounts({ledger: input.ledger, nodes: section.nodes}),
     section: {id: section.id, line: section.line},
     scope: 'section',
-    page: {stop: report.stop, stage: report.stage, score: report.score},
+    page: {
+      stop: report.stop,
+      stage: report.stage,
+      score: report.score,
+      ...(report.similarity === undefined ? {} : {similarity: report.similarity}),
+    },
+    ...withSimilarity(report.sectionSimilarity[section.id]),
   }
   if (settled === undefined) return scoped
   const items = settled.judging.items.filter(held)
@@ -901,6 +927,7 @@ function sectionReport(input: {
     sections: [],
     priors: [],
     round: report.round,
+    similarity: null,
   })
   const unbuilt = measured.length === 0
   const open = unbuilt || settled.judging.partial || items.some((item) => item.stage !== null)
@@ -1697,6 +1724,7 @@ async function targetStatus(input: {
       line: section.line,
       ledger: subtreeCounts({ledger, nodes: section.nodes}),
       roundsUsed: budgets[section.id]?.roundsUsed ?? 0,
+      ...withSimilarity(report?.sectionSimilarity[section.id]),
     })),
     ...(report === null ? {} : {changes: report.changes}),
     designPath: store.designPath(record.id),
@@ -1758,7 +1786,13 @@ function loopState(input: {record: TargetRecord; report: DiffReport | null}): Pa
   const {record, report} = input
   const accepted = record.acceptedRun === undefined ? {} : {acceptedRun: record.acceptedRun}
   if (report === null) return accepted
-  return {...accepted, score: report.score, round: report.round, stop: report.stop}
+  return {
+    ...accepted,
+    score: report.score,
+    round: report.round,
+    stop: report.stop,
+    ...withSimilarity(report.similarity),
+  }
 }
 
 function blazediffCompare(input: {a: Raster; b: Raster}): {mismatch: number; mask: Uint8Array} {
@@ -2057,6 +2091,7 @@ const COMPACT_FIELDS = [
   'stop',
   'score',
   'mismatch',
+  'similarity',
   'brief',
   'timings',
   'rows',
@@ -2126,6 +2161,17 @@ function paintDiff(input: {live: Raster; mask: Uint8Array; width: number}): Rast
     data.set([255, 0, 0, 255], (y * live.width + x) * 4)
   })
   return {width: live.width, height: live.height, data}
+}
+
+function withSimilarity(similarity: number | undefined): {similarity?: number} {
+  return similarity === undefined ? {} : {similarity}
+}
+
+function centred(input: {inner: Box; outer: Box}): boolean {
+  const {inner, outer} = input
+  const x = inner.x + inner.w / 2
+  const y = inner.y + inner.h / 2
+  return x >= outer.x && x < outer.x + outer.w && y >= outer.y && y < outer.y + outer.h
 }
 
 function rounded(mismatch: number): number {

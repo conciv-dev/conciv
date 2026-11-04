@@ -413,6 +413,16 @@ it('an identical page yields no components and no unmatched', async () => {
   expect(report.mismatch).toBeLessThan(0.005)
 })
 
+it('a page diffed against its own capture has similarity 1', async () => {
+  await goto('target')
+  const captured = await call('design_capture', {height: 720})
+  await call('design_clear', {all: true})
+  await call('design_target', {image: (await readFile(captured.path)).toString('base64')})
+  const report = await call('design_diff', {})
+  expect(report.similarity).toBe(1)
+  expect((await call('design_status', {})).similarity).toBe(1)
+})
+
 it('a page without source attributes returns a hint and no components', async () => {
   await goto('/plain.html')
   await call('design_target', {image: target('plain-1280')})
@@ -2044,6 +2054,18 @@ describe('loop', () => {
       report.warnings.filter((warning) => warning.warning === 'sample-data').map((warning) => warning.live),
       'only the counter beside the chips the page maps from an array',
     ).toEqual(['0/500'])
+  })
+
+  it('stripe against stripe-1280 reports a similarity between 0 and 1, on the page and on each section', async () => {
+    await goto('stripe')
+    await freshTarget('stripe-1280')
+    const report = await call('design_diff', {})
+    expect(report.similarity).toBeGreaterThan(0)
+    expect(report.similarity).toBeLessThan(1)
+    const status = await call('design_status', {})
+    expect(status.similarity).toBe(report.similarity)
+    expect(status.sections?.length).toBeGreaterThan(0)
+    expect(status.sections?.map((section) => typeof section.similarity)).toEqual(status.sections?.map(() => 'number'))
   })
 
   it('bordered reports a border delta in the paint stage with a short brief at round 1', async () => {
