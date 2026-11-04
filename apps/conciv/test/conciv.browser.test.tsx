@@ -1499,7 +1499,7 @@ describe('engine login', () => {
     localStorage.removeItem(storageKey())
   })
 
-  const locked = () => page.getByRole('button', {name: 'Authorize conciv'})
+  const locked = () => page.getByRole('button', {name: 'Unauthorized. Authorize conciv'})
   const opener = () => page.getByRole('button', {name: 'Open conciv chat'})
   const dialog = () => page.getByRole('dialog', {name: 'Authorize conciv'})
   const firstDigit = () => page.getByRole('textbox', {name: 'Digit 1 of 6'})
@@ -1510,7 +1510,8 @@ describe('engine login', () => {
     await expect.element(locked()).toBeVisible()
     await expect.element(dialog()).not.toBeInTheDocument()
     await locked().hover()
-    await expect.element(page.getByRole('tooltip').filter({hasText: 'Unauthorized'})).toBeVisible()
+    await expect.element(locked().getByText('Unauthorized')).toBeVisible()
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
     await locked().click()
     await expect.element(dialog()).toBeVisible()
     await userEvent.keyboard('{Escape}')
