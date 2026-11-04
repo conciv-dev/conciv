@@ -27,7 +27,15 @@ export type SourceLoc = {file: string; line: number; column: number}
 
 export type OcrLine = {box: Box; text: string; confidence: number}
 export type Border = {width: number; color: string}
-export type Typography = {size: number; lineHeight: number; weight: number; confidence: number; font: string}
+export type Typography = {
+  size: number
+  lineHeight: number
+  weight: number
+  confidence: number
+  font: string
+  family: string | null
+}
+export type TypographyInput = Omit<Typography, 'family'> & {family?: string | null}
 type NodeBase = {id: string; box: Box; within?: string; layout?: NodeLayout}
 export type TextNode = NodeBase & {
   kind: 'text'
@@ -332,7 +340,7 @@ export type TargetStore = {
     tiles: TileCache
   }): Promise<DiffReport>
   lastResult(id: string): Promise<DiffReport | null>
-  setTypography(input: {id: string; typography: Record<string, Typography>}): Promise<void>
+  setTypography(input: {id: string; typography: Record<string, TypographyInput>}): Promise<void>
   designPath(id: string): string
   placeholderPath(id: string): string
   writePlaceholder(input: {id: string; framework: Framework}): Promise<void>

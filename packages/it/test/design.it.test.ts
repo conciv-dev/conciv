@@ -1747,7 +1747,48 @@ describe('type estimate', () => {
       expect.objectContaining({kind: 'fontSize', target: exact.size}),
     )
   })
+
+  it('a design family the live page does not use is a font row naming both families, and the outline names it', async () => {
+    await goto('type')
+    const {id} = await freshTarget('type-1280')
+    const first = (await storedNodes(id)).find((node) => node.kind === 'text')
+    if (first === undefined) throw new Error('type-1280 has no text node')
+    const live = await liveFamily()
+    const typography = {size: 20, lineHeight: 25, weight: 400, confidence: 1, font: 'Poppins', family: 'Poppins'}
+    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
+    await store.setTypography({id, typography: {[first.id]: typography}})
+    const report = await call('design_diff', {})
+    expect(report.components.flatMap((component) => component.deltas)).toContainEqual(
+      expect.objectContaining({kind: 'font', live, target: 'Poppins'}),
+    )
+    expect(report.design).toContain('fonts: Poppins')
+    const status = await call('design_status', {})
+    expect(status.next ?? '').toContain('Poppins')
+  })
+
+  it('a design family the live page already uses is no font row', async () => {
+    await goto('type')
+    const {id} = await freshTarget('type-1280')
+    const first = (await storedNodes(id)).find((node) => node.kind === 'text')
+    if (first === undefined) throw new Error('type-1280 has no text node')
+    const live = await liveFamily()
+    const typography = {size: 20, lineHeight: 25, weight: 400, confidence: 1, font: live, family: live.toUpperCase()}
+    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
+    await store.setTypography({id, typography: {[first.id]: typography}})
+    const report = await call('design_diff', {})
+    expect(report.components.flatMap((component) => component.deltas).filter((delta) => delta.kind === 'font')).toEqual(
+      [],
+    )
+  })
 })
+
+async function liveFamily(): Promise<string> {
+  const stack = await page.evaluate(() => {
+    const element = document.querySelector('main.type p')
+    return element === null ? '' : getComputedStyle(element).fontFamily
+  })
+  return (stack.split(',')[0] ?? '').replaceAll('"', '').replaceAll("'", '').trim()
+}
 
 const EditableModelSchema = z.looseObject({
   nodes: z.array(

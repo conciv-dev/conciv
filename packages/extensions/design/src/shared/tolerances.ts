@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import type {ComponentReport, DeltaKindName, DiffReport, Stage} from './defs.js'
-import type {Box, Delta, ItemKind} from './types.js'
+import {uniqBy} from 'es-toolkit'
+import type {Box, Delta, ItemKind, Typography} from './types.js'
 
 export const TOLERANCES = {
   geometryPx: 2,
@@ -138,6 +139,7 @@ const KIND_STAGES = {
   fontSize: 'content',
   lineHeight: 'content',
   fontWeight: 'content',
+  font: 'content',
   offset: 'geometry',
   'inset-left': 'geometry',
   'inset-right': 'geometry',
@@ -217,4 +219,20 @@ export function deltaSentence(delta: Delta): string {
 function at(delta: Delta): string {
   if (delta.file === undefined) return ''
   return delta.line === undefined ? ` at ${delta.file}` : ` at ${delta.file}:${delta.line}`
+}
+
+export function leadingFamily(stack: string): string {
+  return (stack.split(',')[0] ?? '').replaceAll('"', '').replaceAll("'", '').trim()
+}
+
+export function sameFamily(input: {a: string; b: string}): boolean {
+  return leadingFamily(input.a).toLowerCase() === leadingFamily(input.b).toLowerCase()
+}
+
+export function designFamilies(nodes: {kind: string; typography?: Pick<Typography, 'family'>}[]): string[] {
+  const families = nodes.flatMap((node) => {
+    const family = node.kind === 'text' ? (node.typography?.family ?? null) : null
+    return family === null ? [] : [leadingFamily(family)]
+  })
+  return uniqBy(families, (family) => family.toLowerCase())
 }

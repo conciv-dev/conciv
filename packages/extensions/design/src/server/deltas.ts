@@ -1,6 +1,6 @@
 import {differenceCiede2000, parse} from 'culori'
 import type {NodeLayout} from '../shared/defs.js'
-import {TOLERANCES} from '../shared/tolerances.js'
+import {leadingFamily, sameFamily, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Box,
   ColorMetric,
@@ -320,6 +320,16 @@ const fontSize = typographyKind({kind: 'fontSize', tolerance: SIZE_TOLERANCE})
 const lineHeight = typographyKind({kind: 'lineHeight', tolerance: SIZE_TOLERANCE})
 const fontWeight = typographyKind({kind: 'fontWeight', tolerance: 0})
 
+const font: DeltaKind = {
+  kind: 'font',
+  measure: ({live, target}) => {
+    const a = live.styles.fontFamily
+    const b = target.styles.fontFamily
+    if (a === undefined || b === undefined || sameFamily({a, b})) return []
+    return [{kind: 'font', live: leadingFamily(a), target: leadingFamily(b)}]
+  },
+}
+
 export const DELTA_KINDS: DeltaKind[] = [
   insetLeft,
   insetRight,
@@ -334,6 +344,7 @@ export const DELTA_KINDS: DeltaKind[] = [
   fontSize,
   lineHeight,
   fontWeight,
+  font,
   background,
   foreground,
   radius,
@@ -551,5 +562,6 @@ function designPaint(input: {pair: Pair; sampled: string}): Partial<LiveStyles> 
 function estimatedType(pair: Pair): Partial<LiveStyles> {
   const typography = pair.texts.find((text) => text.typography !== undefined)?.typography
   if (typography === undefined) return {}
-  return {fontSize: typography.size, lineHeight: typography.lineHeight, fontWeight: typography.weight}
+  const family = typography.family === null ? {} : {fontFamily: typography.family}
+  return {fontSize: typography.size, lineHeight: typography.lineHeight, fontWeight: typography.weight, ...family}
 }

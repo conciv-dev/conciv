@@ -143,6 +143,10 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   with `confidence` 1 (exact, as from the design source) is never estimated again and never overwritten. The
   `fontSize` delta compares the live font size with that stored size; for a text of more than one line its sentence
   names the lines, `fontSize is 76 where the design has 64 (2 lines of 80 px)`.
+- Typography carries `family`, the design font family, or `null` when the source does not name one (the type
+  estimate never does). A `font` row (stage `content`, attributed to `font-family`) fires when the first family of the
+  live element's computed `font-family` differs from it (case-insensitive, quotes stripped): `font is Verdana where the
+  design has Poppins`.
 - After the current stage's lines the brief carries the top `briefNext` (2) items of the next stage that has items,
   each prefixed with its stage, `geometry next: h1 (src/Landing.tsx:59): ...`, so an item the agent cannot act on
   never hides what comes after it. Stage, score, stop and the stall and oscillation reads count the current stage
@@ -407,7 +411,9 @@ Registration writes `design.txt` next to `model.json`, and a run that estimates 
 an indented outline in document order (layout index, then top, then left), one line per node under a `page WxH` line
 for the root, children indented two spaces under their `within`. A text reads `text "Access borderless" size 56/700 data`
 (the folded text, size/weight once the type estimate knows them, the role when it is not `unknown`, then `(N lines)`
-when the text has more than one line); before the
+when the text has more than one line, then the design font family when the typography carries one:
+`text "Beautiful Landing" size 64/700 heading (2 lines) Poppins`); when any text carries a family, a `fonts: Poppins`
+line under the `page` line lists the distinct families once; before the
 estimate it reads `size ~56`, the ink height over `capRatio` (calibrated on the stripe fixture), the tilde marking a
 size read from the ink alone; a box reads
 `box 1280x72 row gap 29 align center padding 0 48, background #fff, border 1 #e3e8ee, radius 8` (its size in CSS px,
@@ -417,7 +423,9 @@ many: `image 787x825 placeholder (holds 12 text lines)`. The model holds no text
 no colour is written. The same model gives the same file. The compact report and `design_status` carry `designPath`,
 `design_diff({full: true})` carries the lines as `design`, `design_status.next` at round 0 reads `read <designPath>
 for the whole design before building; the brief lists what to fix first; copy <placeholderPath> into the page's
-source and use <Placeholder kind=…> for every image and icon line`, and the x-ray shows the outline under the brief.
+source and use <Placeholder kind=…> for every image and icon line`, followed by `; the design sets its text in
+Poppins: load these fonts before building` when the design names families, and the x-ray shows the outline under the
+brief.
 
 - **Placeholders.** An image adapter cannot hand over a picture, so registration writes `placeholder.tsx` next to
   `design.txt`: a `Placeholder` component with props `kind` (`icon`, `logo`, `image` or `avatar`), an optional

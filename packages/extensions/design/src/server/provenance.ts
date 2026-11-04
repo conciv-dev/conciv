@@ -212,6 +212,7 @@ const DELTA_PROPERTIES = {
   fontSize: () => ['font-size'],
   lineHeight: () => ['line-height'],
   fontWeight: () => ['font-weight'],
+  font: () => ['font-family'],
   background: () => ['background-color'],
   foreground: () => ['color'],
   radius: () => ['border-radius'],

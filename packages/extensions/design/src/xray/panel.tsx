@@ -280,6 +280,7 @@ const BADGE_COLOR: Partial<Record<DeltaKindName, BadgeColor>> = {
   fontSize: 'amber',
   lineHeight: 'amber',
   fontWeight: 'amber',
+  font: 'amber',
 }
 
 function baseName(file: string): string {

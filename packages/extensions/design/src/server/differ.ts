@@ -48,7 +48,7 @@ import {
   type WinnerInput,
   type WinnerResult,
 } from '../shared/defs.js'
-import {aboveTolerance, CONFUSABLES, iconSized, kindStage, TOLERANCES} from '../shared/tolerances.js'
+import {aboveTolerance, CONFUSABLES, designFamilies, iconSized, kindStage, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Box,
   ColorMetric,
@@ -1697,10 +1697,8 @@ async function targetStatus(input: {
   const record = await store.current({session: input.session})
   if (record === null) return {targets: [], done: false}
   const report = await store.lastResult(record.id)
-  const reregister = await store.model(record.id).then(
-    () => false,
-    () => true,
-  )
+  const model = await store.model(record.id).catch(() => null)
+  const reregister = model === null
   const done = !reregister && (await finished({store, record, report}))
   const ledger = await store.ledger(record.id)
   const sections = await store.sections(record.id)
@@ -1735,6 +1733,7 @@ async function targetStatus(input: {
       first: (report?.round ?? 0) === 0,
       designPath: store.designPath(record.id),
       placeholderPath: store.placeholderPath(record.id),
+      families: model === null ? [] : designFamilies(model.nodes),
     }),
     ...(reregister ? {reregister} : {}),
   }
@@ -1746,6 +1745,7 @@ function statusNext(input: {
   first: boolean
   designPath: string
   placeholderPath: string
+  families: string[]
 }): {
   next?: string
 } {
@@ -1753,10 +1753,15 @@ function statusNext(input: {
   if (input.done) return {}
   if (input.first) {
     return {
-      next: `read ${input.designPath} for the whole design before building; the brief lists what to fix first; copy ${input.placeholderPath} into the page's source and use <Placeholder kind=…> for every image and icon line`,
+      next: `read ${input.designPath} for the whole design before building; the brief lists what to fix first; copy ${input.placeholderPath} into the page's source and use <Placeholder kind=…> for every image and icon line${fontsPhrase(input.families)}`,
     }
   }
   return {next: DESIGN_GUIDE}
+}
+
+function fontsPhrase(families: string[]): string {
+  if (families.length === 0) return ''
+  return `; the design sets its text in ${families.join(', ')}: load these fonts before building`
 }
 
 function runSummary(report: DiffReport | null): {mismatch: number | null; above: number; lastAt: number | null} {

@@ -14,7 +14,7 @@ import {
   NodeLayoutSchema,
   type DiffReport,
 } from '../shared/defs.js'
-import {iconSized, PLACEHOLDER_ATTR, TOLERANCES} from '../shared/tolerances.js'
+import {designFamilies, iconSized, PLACEHOLDER_ATTR, TOLERANCES} from '../shared/tolerances.js'
 import {
   ROLES,
   type Decision,
@@ -60,7 +60,14 @@ const TextNodeSchema = NodeBaseSchema.extend({
   role: z.enum(ROLES).optional(),
   roleConfidence: z.number().optional(),
   typography: z
-    .object({size: z.number(), lineHeight: z.number(), weight: z.number(), confidence: z.number(), font: z.string()})
+    .object({
+      size: z.number(),
+      lineHeight: z.number(),
+      weight: z.number(),
+      confidence: z.number(),
+      font: z.string(),
+      family: z.string().nullable().default(null),
+    })
     .optional(),
 })
 
@@ -374,7 +381,7 @@ export function createTargetStore(input: {dir: string; cwd: string}): TargetStor
         const nodes = model.nodes.map((node) => {
           const found = typography[node.id]
           return node.kind === 'text' && found !== undefined && node.typography?.confidence !== 1
-            ? {...node, typography: found}
+            ? {...node, typography: {...found, family: found.family ?? null}}
             : node
         })
         await writeFile(path, JSON.stringify({...model, nodes}))
@@ -406,7 +413,9 @@ type StoredNode = StoredModel['nodes'][number]
 function designOutline(model: StoredModel): string[] {
   const {scale} = model
   const root = `page ${sized({box: model.root.box, scale})}${layoutPhrase(model.root.layout)}`
-  return [root, ...outlineLines({nodes: model.nodes, children: topNodes(model), depth: SECTION_DEPTH, scale})]
+  const families = designFamilies(model.nodes)
+  const fonts = families.length === 0 ? [] : [`fonts: ${families.join(', ')}`]
+  return [root, ...fonts, ...outlineLines({nodes: model.nodes, children: topNodes(model), depth: SECTION_DEPTH, scale})]
 }
 
 function topNodes(model: StoredModel): StoredNode[] {
@@ -476,7 +485,8 @@ function textLine(input: {node: Extract<StoredNode, {kind: 'text'}>; scale: numb
       : ` size ${Math.round(node.typography.size)}/${node.typography.weight}`
   const role = node.role === undefined || node.role === 'unknown' ? '' : ` ${node.role}`
   const lines = node.lines.length > 1 ? ` (${node.lines.length} lines)` : ''
-  return `text "${foldedText(node.text)}"${type}${role}${lines}`
+  const family = node.typography?.family ?? null
+  return `text "${foldedText(node.text)}"${type}${role}${lines}${family === null ? '' : ` ${family}`}`
 }
 
 function paintPhrase(node: Extract<StoredNode, {kind: 'box'}>): string {

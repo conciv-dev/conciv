@@ -13,7 +13,7 @@ import {z} from 'zod'
 import {chunk, countBy, groupBy, partition, range, uniqBy, zip} from 'es-toolkit'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {DESIGN_GUIDE, renderDef, RenderResultSchema, type TargetInput, type TargetResult} from '../shared/defs.js'
-import {iconSized, TOLERANCES} from '../shared/tolerances.js'
+import {iconSized, sameFamily, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Border,
   Box,
@@ -1476,11 +1476,7 @@ function needsEstimate(input: {typography: Typography | undefined; live: string}
   const {typography} = input
   if (typography === undefined) return true
   if (typography.confidence === 1) return false
-  return firstFamily(typography.font) !== firstFamily(input.live)
-}
-
-function firstFamily(stack: string): string {
-  return (stack.split(',')[0] ?? '').replaceAll('"', '').replaceAll("'", '').trim().toLowerCase()
+  return !sameFamily({a: typography.font, b: input.live})
 }
 
 function ownInk(input: {area: {raster: Raster; box: Box}; background: Rgb}): Box {
@@ -1581,6 +1577,7 @@ async function estimate(input: {job: TypeJob; page: ServerToolPageAccess}): Prom
       weight: weightBy({ratio, live: fontWeight}),
       confidence: found.confidence,
       font: fontFamily,
+      family: null,
     },
   ]
 }

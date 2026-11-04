@@ -36,6 +36,7 @@ const DELTA_KIND_NAMES = [
   'fontSize',
   'lineHeight',
   'fontWeight',
+  'font',
   'background',
   'foreground',
   'radius',
