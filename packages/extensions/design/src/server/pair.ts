@@ -572,7 +572,7 @@ function elementCompatible(input: {node: View; candidate: View}): boolean {
   const own = candidate.lines.length > 0 && candidate.text !== ''
   if (node.kind === 'text') return own
   if (node.kind === 'image') return !own
-  return !own || node.klass === 'control'
+  return true
 }
 
 function elementGate(input: {node: View; candidate: View; state: State; tolerances: Tolerances}): boolean {
@@ -652,14 +652,14 @@ function runVote(input: VoteInput): {matched: Assignment[]; partial: boolean; ca
 
 function followTexts(input: {input: VoteInput; weights: Map<VoterName, number>; state: State}): Assignment[] {
   const {weights, state} = input
-  const {nodes, holders, context, compatible} = input.input
+  const {nodes, holders, context} = input.input
   return nodes.flatMap((node): Assignment[] => {
     const text = holders.get(node.key)
     if (text === undefined || context.assigned.has(node.key)) return []
     const element = context.assigned.get(text)
     if (element === undefined) return []
     const candidate = element.klass === 'control' || element.klass === 'media' ? element : enclosing(element)
-    if (candidate === null || state.boxes.has(candidate.key) || !compatible({node, candidate})) return []
+    if (candidate === null || state.boxes.has(candidate.key)) return []
     const {score} = weighed({input: input.input, weights, node, candidate})
     take({node, candidate, state, context})
     return [{node, candidate, score}]
