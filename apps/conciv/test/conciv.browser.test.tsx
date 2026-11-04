@@ -1010,7 +1010,9 @@ describe('harness switching', () => {
     await expect.element(harnessGroup('Alpha').getByRole('option', {name: 'Alpha Model (Alpha)'})).toBeVisible()
     await expect.element(model('Alpha Model (Alpha)')).toHaveAttribute('aria-selected', 'true')
     await expect.element(harnessGroup('Beta').getByRole('option', {name: 'Beta Model (Beta)'})).toBeVisible()
-    await expect.element(harnessGroup('Beta').getByRole('option', {name: 'Beta Six (Beta)'})).toBeVisible()
+    await expect.element(model('Beta Four (Beta)')).toBeVisible()
+    await expect.element(model('Beta Five (Beta)')).not.toBeInTheDocument()
+    await expect.element(harnessGroup('Beta').getByText('2 more models, type to search')).toBeVisible()
     await userEvent.keyboard('{Escape}')
 
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))

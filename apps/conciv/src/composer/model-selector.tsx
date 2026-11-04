@@ -57,6 +57,9 @@ const EFFORT_NOTE: Record<ReasoningEffort, string> = {
 }
 const EFFORT_DEFAULT_NOTE = 'Using the model’s default effort.'
 const CHARACTERS_PER_TOKEN = 4
+const MAIN_ROWS = 4
+const MODEL_COUNT = new Intl.NumberFormat(undefined)
+const MODEL_PLURAL = new Intl.PluralRules(undefined)
 const TOKEN_COUNT = new Intl.NumberFormat(undefined)
 const TOKEN_PLURAL = new Intl.PluralRules(undefined)
 
@@ -98,7 +101,7 @@ const EFFORT_NOTE_TEXT = 'text-[0.75rem] leading-4 text-chat-text-2'
 
 type MenuRow = {harness: HarnessMenuEntry; model: HarnessModelInfo; value: string; label: string}
 type OlderGroup = {key: string; name: string; rows: MenuRow[]}
-type HarnessSection = {harness: HarnessMenuEntry; rows: MenuRow[]; older: OlderGroup[]}
+type HarnessSection = {harness: HarnessMenuEntry; rows: MenuRow[]; more: MenuRow[]; older: OlderGroup[]}
 type SwitchTarget = {harness: HarnessMenuEntry; model: HarnessModelInfo; label: string}
 type MenuState = {
   query: string
@@ -125,7 +128,20 @@ function modelLabel(model: HarnessModelInfo, harness: HarnessMenuEntry, named: b
   return named ? `${model.name} (${harness.name})` : model.name
 }
 
-function harnessSection(harness: HarnessMenuEntry, named: boolean): HarnessSection {
+function mainAndMore(
+  models: HarnessModelInfo[],
+  kept: readonly (string | null)[],
+): [HarnessModelInfo[], HarnessModelInfo[]] {
+  if (models.length <= MAIN_ROWS) return [models, []]
+  const newest = models.filter((model) => !kept.includes(model.id)).slice(0, MAIN_ROWS - 1)
+  return partition(models, (model) => kept.includes(model.id) || newest.includes(model))
+}
+
+function moreModelsLabel(count: number): string {
+  return `${MODEL_COUNT.format(count)} more ${MODEL_PLURAL.select(count) === 'one' ? 'model' : 'models'}, type to search`
+}
+
+function harnessSection(harness: HarnessMenuEntry, named: boolean, selectedModel: string | null): HarnessSection {
   const toRows = (models: HarnessModelInfo[]) =>
     models.map((model) => ({
       harness,
@@ -134,16 +150,18 @@ function harnessSection(harness: HarnessMenuEntry, named: boolean): HarnessSecti
       label: modelLabel(model, harness, named),
     }))
   const [first, ...later] = Object.entries(groupBy(harness.models, (model) => model.group ?? ''))
+  const [main, more] = mainAndMore(first?.[1] ?? [], [harness.defaultModel, selectedModel])
   return {
     harness,
-    rows: toRows(first?.[1] ?? []),
+    rows: toRows(main),
+    more: toRows(more),
     older: later.map(([name, models]) => ({key: rowValue(harness.id, name), name, rows: toRows(models)})),
   }
 }
 
 function searchedSection(section: HarnessSection, matches: (row: MenuRow) => boolean): HarnessSection {
-  const rows = [...section.rows, ...section.older.flatMap((group) => group.rows)]
-  return {...section, rows: rows.filter(matches), older: []}
+  const rows = [...section.rows, ...section.more, ...section.older.flatMap((group) => group.rows)]
+  return {...section, rows: rows.filter(matches), more: [], older: []}
 }
 
 function withOwnEntry(listed: HarnessMenuEntry[], mine: HarnessMenuEntry | undefined): HarnessMenuEntry[] {
@@ -279,6 +297,9 @@ function HarnessGroup(props: {
       <For each={local.section.rows}>{(row) => <ModelRow row={row} />}</For>
       <Show when={local.section.harness.models.length === 0}>
         <p class={MESSAGE}>{`${local.section.harness.name} has no usable models`}</p>
+      </Show>
+      <Show when={local.section.more.length > 0}>
+        <p class={MESSAGE}>{moreModelsLabel(local.section.more.length)}</p>
       </Show>
       <For each={local.section.older}>
         {(group) => (
@@ -487,7 +508,9 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
       entries().filter((entry) => !entry.modelsFailed),
       (entry) => entry.id === harness()?.id,
     )
-    return [...mine, ...others].map((entry) => harnessSection(entry, named()))
+    return [...mine, ...others].map((entry) =>
+      harnessSection(entry, named(), entry.id === harness()?.id ? value() : null),
+    )
   })
   const query = () => props.menu.state.query.trim()
   const matches = (candidate: MenuRow) =>
