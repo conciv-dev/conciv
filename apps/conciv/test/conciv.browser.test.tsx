@@ -879,6 +879,39 @@ describe('launcher drag', () => {
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -150, deltaY: 0, steps: 8}]})
     await expect.element(edgeTab()).toBeVisible()
   })
+
+  const LOCKED_NAME = 'Unauthorized. Authorize conciv'
+  const locked = () => page.getByRole('button', {name: LOCKED_NAME})
+  const unauthorized = () => locked().getByText('Unauthorized')
+  const mountLocked = () => harness.mountShell('/', [], {login: {apiBase: new URL(core()).origin}})
+  const leaveLocked = () => coreControl.hoverButton({name: LOCKED_NAME, settleMs: 0, moves: [{deltaX: 0, deltaY: 200}]})
+
+  test('the locked launcher dropped just right of the middle grows its pill to the right and its robot stays put', async () => {
+    await page.viewport(1000, 700)
+    mountLocked()
+    await expect.element(locked()).toBeVisible()
+    await coreControl.dragButton({name: LOCKED_NAME, moves: [{deltaX: -424, deltaY: -304, steps: 20}], settleMs: 300})
+    await leaveLocked()
+    await expect.element(unauthorized()).not.toBeVisible()
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 70, deltaY: 0}]})
+    await expect.element(unauthorized()).toBeVisible()
+    await capture('locked-right-of-middle-open')
+    await leaveLocked()
+    await expect.element(unauthorized()).not.toBeVisible()
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -30, deltaY: 0}]})
+    await expect.element(unauthorized()).not.toBeVisible()
+  })
+
+  test('the locked launcher pinned in the bottom-right corner opens its pill inside the window', async () => {
+    await page.viewport(1000, 700)
+    mountLocked()
+    await expect.element(locked()).toBeVisible()
+    await capture('locked-bottom-right-closed')
+    await locked().hover()
+    await expect.element(unauthorized()).toBeVisible()
+    await expect.element(unauthorized()).toBeInViewport({ratio: 1})
+    await capture('locked-bottom-right-open')
+  })
 })
 
 describe('notices', () => {

@@ -28,6 +28,8 @@ export type PointerMove = {deltaX: number; deltaY: number; steps?: number}
 
 export type PointerDrag = {name: string; moves: PointerMove[]; escape?: boolean; settleMs?: number}
 
+export type PointerHover = {name: string; moves: PointerMove[]; settleMs: number}
+
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
@@ -349,25 +351,43 @@ const awaitFaultPending: BrowserCommand<[string, number]> = async (ctx, handle, 
   }
 }
 
-const dragButton: BrowserCommand<[drag: PointerDrag]> = async (ctx, drag) => {
-  const box = await ctx.iframe.getByRole('button', {name: drag.name, exact: true}).boundingBox()
-  if (!box) throw new Error(`no button named ${drag.name} to drag`)
-  const start = {x: box.x + box.width / 2, y: box.y + box.height / 2}
-  await ctx.page.mouse.move(start.x, start.y)
-  await ctx.page.mouse.down()
-  await drag.moves.reduce(async (previous: Promise<{x: number; y: number}>, move) => {
+const buttonBox = async (ctx: BrowserCommandContext, name: string) => {
+  const box = await ctx.iframe.getByRole('button', {name, exact: true}).boundingBox()
+  if (!box) throw new Error(`no button named ${name} to point at`)
+  return box
+}
+
+const walkPointer = (ctx: BrowserCommandContext, start: {x: number; y: number}, moves: PointerMove[]) =>
+  moves.reduce(async (previous: Promise<{x: number; y: number}>, move) => {
     const at = await previous
     const next = {x: at.x + move.deltaX, y: at.y + move.deltaY}
     await ctx.page.mouse.move(next.x, next.y, {steps: move.steps ?? 1})
     return next
   }, Promise.resolve(start))
+
+const dragButton: BrowserCommand<[drag: PointerDrag]> = async (ctx, drag) => {
+  const box = await buttonBox(ctx, drag.name)
+  const start = {x: box.x + box.width / 2, y: box.y + box.height / 2}
+  await ctx.page.mouse.move(start.x, start.y)
+  await ctx.page.mouse.down()
+  await walkPointer(ctx, start, drag.moves)
   if (drag.escape) await ctx.page.keyboard.press('Escape')
   if (drag.settleMs) await ctx.page.waitForTimeout(drag.settleMs)
   await ctx.page.mouse.up()
 }
 
+const hoverButton: BrowserCommand<[hover: PointerHover]> = async (ctx, hover) => {
+  const box = await buttonBox(ctx, hover.name)
+  const start = {x: box.x + box.height / 2, y: box.y + box.height / 2}
+  await ctx.page.mouse.move(start.x, start.y)
+  await ctx.page.waitForTimeout(hover.settleMs)
+  await walkPointer(ctx, start, hover.moves)
+  await ctx.page.waitForTimeout(hover.settleMs)
+}
+
 export const coreCommands = {
   dragButton,
+  hoverButton,
   bootCore,
   closeCore,
   pushSocketsOpened,

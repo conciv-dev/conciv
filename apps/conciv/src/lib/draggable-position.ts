@@ -143,9 +143,7 @@ function arrowStep(key: string, back: string, forward: string): number {
   return 0
 }
 
-export type LauncherSide = 'left' | 'right'
-
-export type LauncherAnchor = {corner: TriggerCorner; side: LauncherSide; inline: string; top: string}
+export type LauncherAnchor = {corner: TriggerCorner; left: string; right: string; top: string}
 
 export type LauncherEdgeTab = {edge: TriggerEdge; along: string; preview: boolean}
 
@@ -218,29 +216,33 @@ function thrownCorner(drag: Drag, velocity: TriggerCoords, end: TriggerCoords): 
 }
 
 function anchorAt(at: TriggerCoords, measured: Measure): LauncherAnchor {
-  const corner = quadrantCorner(at, square(measured), measured.viewport)
-  const side = corner.endsWith('left') ? 'left' : 'right'
   return {
-    corner,
-    side,
-    inline: side === 'left' ? `${at.x}px` : `${measured.viewport.width - at.x - measured.size}px`,
+    corner: quadrantCorner(at, square(measured), measured.viewport),
+    left: `${at.x}px`,
+    right: `${measured.viewport.width - at.x - measured.size}px`,
     top: `${at.y}px`,
   }
 }
 
 function anchorOf(placement: Placement): LauncherAnchor {
   const percents = percentsOf(placement)
-  const side = percents.x < 50 ? 'left' : 'right'
   return {
-    corner: `${percents.y < 50 ? 'top' : 'bottom'}-${side}`,
-    side,
-    inline: spanCalc(side === 'left' ? percents.x : 100 - percents.x),
+    corner: `${percents.y < 50 ? 'top' : 'bottom'}-${percents.x < 50 ? 'left' : 'right'}`,
+    left: spanCalc(percents.x),
+    right: spanCalc(100 - percents.x),
     top: spanCalc(percents.y),
   }
 }
 
+export function launcherPlacement(anchor: LauncherAnchor, width: number | null): JSX.CSSProperties {
+  if (width === null) return {left: anchor.left, top: anchor.top}
+  return {left: `min(${anchor.left}, calc(100% - ${MARGIN_REM}rem - ${width}px))`, top: anchor.top}
+}
+
 export function panelPlacement(anchor: LauncherAnchor): JSX.CSSProperties {
   const above = anchor.corner.startsWith('bottom')
+  const side = anchor.corner.endsWith('left') ? 'left' : 'right'
+  const inline = side === 'left' ? anchor.left : anchor.right
   const vertical: JSX.CSSProperties = above
     ? {
         bottom: `calc(100% - ${anchor.top} + ${PANEL_GAP_REM}rem)`,
@@ -252,9 +254,9 @@ export function panelPlacement(anchor: LauncherAnchor): JSX.CSSProperties {
       }
   return {
     ...vertical,
-    [anchor.side]: anchor.inline,
-    'max-width': `calc(100% - ${anchor.inline} - ${MARGIN_REM}rem)`,
-    'transform-origin': `${above ? 'bottom' : 'top'} ${anchor.side}`,
+    [side]: inline,
+    'max-width': `calc(100% - ${inline} - ${MARGIN_REM}rem)`,
+    'transform-origin': `${above ? 'bottom' : 'top'} ${side}`,
   }
 }
 

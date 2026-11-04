@@ -50,7 +50,7 @@ function PanelLayout(): JSX.Element {
   const docked = settings.surface === 'dock'
   const sheet = () => phone() || docked
   const anchoredBottom = () => fabAnchor().corner.startsWith('bottom')
-  const anchoredRight = () => fabAnchor().side === 'right'
+  const anchoredRight = () => fabAnchor().corner.endsWith('right')
   const close = () => panelChrome.close()
   const open = () => search().open ?? false
 
