@@ -1,5 +1,5 @@
 import {createEffect, createMemo, For, Match, on, Show, splitProps, Suspense, Switch, type JSX} from 'solid-js'
-import {useQuery, useMutation} from '@tanstack/solid-query'
+import {useMutation, useQuery, useQueryClient} from '@tanstack/solid-query'
 import {groupBy} from 'es-toolkit'
 import {
   Button,
@@ -13,7 +13,6 @@ import {
 } from '@conciv/ui-kit-system'
 import RotateCw from 'lucide-solid/icons/rotate-cw'
 import Check from 'lucide-solid/icons/check'
-import ChevronDown from 'lucide-solid/icons/chevron-down'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
 import {ReasoningEffortSchema, type HarnessModelInfo, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useRpc} from '../app/context.js'
@@ -43,17 +42,15 @@ const EFFORT_NOTE: Record<ReasoningEffort, string> = {
 const EFFORT_DEFAULT_NOTE = 'Using the model’s default effort.'
 
 const PROMPT_FONT = '[font-family:var(--chat-mono)] text-[13px] leading-[1.45]'
-const PROMPT_SLOT = 'flex-none flex items-center min-h-7 select-none'
-const PROMPT =
-  'group inline-flex items-center gap-2 h-8 -ms-1.5 px-2 rounded-chat-surface-sm text-[0.75rem] text-chat-text focus-ring trans-bg hover:bg-chat-fill-strong data-[state=open]:bg-chat-fill-strong'
-const PROMPT_MODEL = 'max-w-[22ch] truncate font-medium'
-const PROMPT_EFFORT = 'inline-flex items-center gap-1.5 text-chat-text-3'
-const PROMPT_CHEVRON =
-  'size-3 block text-chat-text-3 [transition:rotate_200ms_var(--chat-ease-expo)] group-data-[state=open]:rotate-180 motion-reduce:[transition:none]'
+const PROMPT_SLOT = 'flex-none flex items-center gap-1.5 min-h-7 select-none'
+const PROMPT = `inline-flex items-center gap-1 min-h-7 overflow-hidden -ms-1.5 px-1.5 rounded-[var(--chat-radius-sm)] focus-ring trans-bg hover:bg-chat-fill-strong data-[state=open]:bg-chat-fill-strong ${PROMPT_FONT}`
+const PROMPT_MODEL = 'max-w-[22ch] truncate text-chat-text-3 anim-word-in tracking-[-0.04em] [word-spacing:-0.3em]'
 const PROMPT_GLYPH = 'text-chat-accent'
-const BARS = 'flex h-3 items-end gap-[2px]'
-const BAR = 'w-[3px] rounded-[1px] trans-bg'
-const BAR_ON = `${BAR} bg-chat-text`
+const BARS = 'inline-flex items-end gap-[2px] h-[0.75em]'
+const BAR =
+  'w-[2px] rounded-[1px] [transition:background-color_160ms_var(--chat-ease)_var(--bar-delay)] motion-reduce:[transition:none]'
+const BAR_STEP_MS = 45
+const BAR_ON = `${BAR} bg-chat-text-3`
 const BAR_OFF = `${BAR} bg-chat-line-2`
 const CONTENT = 'w-72 p-1'
 const GROUP_TRIGGER =
@@ -72,11 +69,15 @@ const EFFORT_HEAD = 'flex items-baseline justify-between mb-2'
 const EFFORT_TITLE = 'text-[0.75rem] font-medium text-chat-text-hi'
 const EFFORT_HINT_TEXT = 'text-[0.6875rem] text-chat-text-3 [@media(hover:none)]:hidden'
 const EFFORT_TRACK = 'flex w-full'
-const EFFORT_SEGMENT = 'flex-1 min-h-7 py-0 px-1 text-[0.75rem]'
+const EFFORT_SEGMENT = 'flex-1 basis-0 min-w-0 text-[0.75rem]'
 const EFFORT_NOTE_BOX = 'mt-2 h-8'
 const EFFORT_NOTE_TEXT = 'text-[0.75rem] leading-4 text-chat-text-2'
 
 type ModelGroup = {name: string; models: HarnessModelInfo[]}
+
+function promptLabel(model: HarnessModelInfo | undefined, id: string | null): string {
+  return model ? model.name.toLowerCase() : (id ?? '')
+}
 
 function promptAriaLabel(
   model: HarnessModelInfo | undefined,
@@ -110,23 +111,25 @@ function Glyph(): JSX.Element {
   )
 }
 
-function PlainPrompt(): JSX.Element {
-  return (
-    <span class={PROMPT_FONT}>
-      <Glyph />
-    </span>
-  )
-}
-
 function EffortBars(props: {levels: readonly ReasoningEffort[]; value: ReasoningEffort}): JSX.Element {
   const active = () => props.levels.indexOf(props.value)
+  const change = createMemo<{from: number; to: number}>((last) => ({from: last?.to ?? active(), to: active()}))
+  const delay = (index: number) => {
+    const {from, to} = change()
+    if (index > from && index <= to) return (index - from - 1) * BAR_STEP_MS
+    if (index > to && index <= from) return (from - index) * BAR_STEP_MS
+    return 0
+  }
   return (
     <span class={BARS} aria-hidden="true">
       <For each={props.levels}>
         {(_, index) => (
           <span
             class={index() <= active() ? BAR_ON : BAR_OFF}
-            style={{height: `${((index() + 1) / props.levels.length) * 100}%`}}
+            style={{
+              height: `${((index() + 1) / props.levels.length) * 100}%`,
+              '--bar-delay': `${delay(index())}ms`,
+            }}
           />
         )}
       </For>
@@ -265,9 +268,12 @@ type SessionModelPromptProps = {
 export function SessionModelPrompt(props: SessionModelPromptProps): JSX.Element {
   return (
     <div class={PROMPT_SLOT}>
-      <Suspense fallback={<PlainPrompt />}>
+      <Suspense>
         <SessionModelMenu sessionId={props.sessionId} menu={props.menu} />
       </Suspense>
+      <span class={PROMPT_FONT}>
+        <Glyph />
+      </span>
     </div>
   )
 }
@@ -277,16 +283,18 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
   const rpc = useRpc()
   const announce = useAnnounce()
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
+  const queryClient = useQueryClient()
   const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
+  const refetchSessions = () => queryClient.invalidateQueries({queryKey: appData.utils.sessions.list.key()})
   const setModel = useMutation(() => ({
     mutationFn: (model: string) => rpc.sessions.model({sessionId: props.sessionId, model}),
     onError: () => announce(SWITCH_FAILED, true),
-    onSettled: () => appData.invalidateSessions(),
+    onSettled: refetchSessions,
   }))
   const setEffort = useMutation(() => ({
     mutationFn: (effort: ReasoningEffort | null) => rpc.sessions.effort({sessionId: props.sessionId, effort}),
     onError: () => announce(EFFORT_SWITCH_FAILED, true),
-    onSettled: () => appData.invalidateSessions(),
+    onSettled: refetchSessions,
   }))
 
   const models = () => meta.data?.models ?? []
@@ -318,7 +326,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
   )
 
   return (
-    <Show when={failed() || models().length > 0} fallback={<PlainPrompt />}>
+    <Show when={failed() || models().length > 0}>
       <Popover.RootProvider value={props.menu} lazyMount unmountOnExit>
         <Popover.Trigger
           asChild={(triggerProps) => (
@@ -329,17 +337,13 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
               class={PROMPT}
               aria-label={failed() ? MODELS_UNAVAILABLE : promptAriaLabel(current(), value(), effort())}
             >
-              <Show when={!failed()} fallback={<Glyph />}>
-                <span class={PROMPT_MODEL}>{current()?.name ?? value()}</span>
-                <Show when={effort()}>
-                  {(level) => (
-                    <span class={PROMPT_EFFORT}>
-                      <EffortBars levels={effortLevels(current()?.efforts ?? [])} value={level()} />
-                      {EFFORT_NAME[level()]}
-                    </span>
-                  )}
+              <Show when={!failed()} fallback={<RotateCw class="size-3.5 block text-chat-text-3" aria-hidden="true" />}>
+                <Show when={promptLabel(current(), value())} keyed>
+                  {(label) => <span class={PROMPT_MODEL}>{label}</span>}
                 </Show>
-                <ChevronDown class={PROMPT_CHEVRON} aria-hidden="true" />
+                <Show when={effort()}>
+                  {(level) => <EffortBars levels={effortLevels(current()?.efforts ?? [])} value={level()} />}
+                </Show>
               </Show>
             </Button>
           )}

@@ -675,7 +675,7 @@ describe('model menu', () => {
   test('the prompt names the current model and the overflow menu no longer lists models', async () => {
     await mountModelMenu()
 
-    await expect.element(prompt('Opus 5.5')).toHaveTextContent('Opus 5.5')
+    await expect.element(prompt('Opus 5.5')).toHaveTextContent('opus 5.5')
 
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
     await expect.element(page.getByRole('menuitem', {name: 'Compress the conversation'})).toBeVisible()
@@ -689,7 +689,7 @@ describe('model menu', () => {
     await expect.element(model('Opus 5.5')).toHaveAttribute('aria-selected', 'true')
     await userEvent.click(model('Sonnet 5.5'))
 
-    await expect.element(prompt('Sonnet 5.5')).toHaveTextContent('Sonnet 5.5')
+    await expect.element(prompt('Sonnet 5.5')).toHaveTextContent('sonnet 5.5')
     await expect.element(panel()).not.toBeInTheDocument()
     await expect.element(input()).toHaveFocus()
 
@@ -721,7 +721,7 @@ describe('model menu', () => {
     await expect.element(models('Older versions')).toHaveFocus()
     await userEvent.keyboard('{ArrowDown}{Enter}')
 
-    await expect.element(prompt('Opus 4.7')).toHaveTextContent('Opus 4.7')
+    await expect.element(prompt('Opus 4.7')).toHaveTextContent('opus 4.7')
     await userEvent.click(prompt('Opus 4.7'))
     await expect.element(model('Opus 4.7')).toHaveAttribute('aria-selected', 'true')
   })
@@ -734,7 +734,7 @@ describe('model menu', () => {
     await expect.element(page.getByText('Using the model’s default effort.')).toBeVisible()
     await userEvent.click(effort('Medium'))
 
-    await expect.element(prompt('Opus 5.5, effort Medium')).toHaveTextContent('Opus 5.5Medium')
+    await expect.element(prompt('Opus 5.5, effort Medium')).toHaveTextContent('opus 5.5')
     await expect.element(panel()).toBeVisible()
     await expect.element(checkedEffort('Medium')).toBeInTheDocument()
   })
@@ -745,7 +745,7 @@ describe('model menu', () => {
     await userEvent.click(prompt('Opus 5.5'))
     await userEvent.click(effort('High+'))
 
-    await expect.element(prompt('Opus 5.5, effort High+')).toHaveTextContent('Opus 5.5High+')
+    await expect.element(prompt('Opus 5.5, effort High+')).toHaveTextContent('opus 5.5')
     await expect.element(checkedEffort('High+')).toBeInTheDocument()
     await expect.element(page.getByText('Thinks even longer than High. Slower again, uses more tokens.')).toBeVisible()
   })
@@ -774,8 +774,7 @@ describe('model menu', () => {
     await userEvent.click(older())
     await userEvent.click(model('Haiku 4.5'))
 
-    await expect.element(prompt('Haiku 4.5')).toHaveTextContent('Haiku 4.5')
-    await expect.element(prompt('Haiku 4.5')).not.toHaveTextContent('High')
+    await expect.element(prompt('Haiku 4.5')).toHaveTextContent('haiku 4.5')
     await userEvent.click(prompt('Haiku 4.5'))
     await expect.element(model('Sonnet 5.5')).toBeVisible()
     await expect.element(effortGroup()).not.toBeInTheDocument()
