@@ -545,9 +545,12 @@ function directionOn(input: {pair: Pair; from: From; nodes: TargetNode[]}): Flow
 }
 
 function laidOutChildren(input: {pair: Pair; nodes: TargetNode[]}): TargetNode[] {
-  const children = input.nodes.filter((node) => node.within === input.pair.node.id)
-  return children.filter(
-    (child) => !children.some((other) => other !== child && overlapping({a: child.box, b: other.box})),
+  return unoverlapped(input.nodes.filter((node) => node.within === input.pair.node.id))
+}
+
+function unoverlapped<Entry extends {box: Box}>(entries: Entry[]): Entry[] {
+  return entries.filter(
+    (entry) => !entries.some((other) => other !== entry && overlapping({a: entry.box, b: other.box})),
   )
 }
 
@@ -569,7 +572,11 @@ function bothAxes(layout: NodeLayout): boolean {
 function columnCount(input: {pair: Pair; from: From; nodes: TargetNode[]}): number | null {
   const {pair, from, nodes} = input
   if (pair.live.columns === null) return null
-  if (from === 'live') return countedBands(firstRow(flowItems(pair.live)).map((item) => item.box))
+  if (from === 'live') {
+    const row = unoverlapped(firstRow(flowItems(pair.live)))
+    if (row.length < 2) return null
+    return countedBands(row.map((item) => item.box))
+  }
   const kept = laidOutChildren({pair, nodes})
   if (kept.length < 2) return null
   return countedBands(

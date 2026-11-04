@@ -4421,24 +4421,77 @@ async function panelColumns(input: {
   cards: Box[]
   text: string
 }): Promise<DiffReport['components'][number]['deltas']> {
+  await writeCardsDesign({name: input.design, cards: input.cards})
+  const {columns} = await designedPanel({design: input.design, text: input.text})
+  return columns
+}
+
+async function designedPanel(input: {
+  design: string
+  text: string
+}): Promise<{columns: DiffReport['components'][number]['deltas']; children: number}> {
   await goto('stripe')
   await page.setViewportSize(DECOR_SIZE)
-  await writeCardsDesign({name: input.design, cards: input.cards})
   const {id} = await freshTarget(input.design)
-  const panel = (await storedNodes(id)).find((node) => node.kind === 'box' && near({a: node.box, b: DECOR_PANEL}))
+  const nodes = await storedNodes(id)
+  const panel = nodes.find((node) => node.kind === 'box' && near({a: node.box, b: DECOR_PANEL}))
   if (panel === undefined) throw new Error(`${input.design} has no panel`)
   const source = await readFile(STRIPE_SOURCE, 'utf8')
   try {
     await rewrite({id, file: STRIPE_SOURCE, text: input.text})
     const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
-    return report.components
+    const columns = report.components
       .filter((component) => component.nodes?.includes(panel.id) === true)
       .flatMap((component) => component.deltas.filter((delta) => delta.kind === 'columns'))
+    return {columns, children: nodes.filter((node) => node.within === panel.id).length}
   } finally {
     await writeFile(STRIPE_SOURCE, source)
     await page.setViewportSize({width: 1280, height: 720})
   }
 }
+
+const GUIDE_DESIGN = 'guide-overlap-800'
+const GUIDE_PHOTO = {x: 60, y: 60, w: 240, h: 240}
+const GUIDE_DECORATIONS: {box: Box; rgb: Channels}[] = [
+  {box: {x: 272, y: 120, w: 40, h: 40}, rgb: [0x10, 0xb9, 0x81]},
+  {box: {x: 100, y: 280, w: 40, h: 40}, rgb: [0xe1, 0x1d, 0x48]},
+]
+const GUIDE_COPY: {box: Box; rgb: Channels}[] = [
+  {box: {x: 324, y: 60, w: 300, h: 64}, rgb: [0x1e, 0x1b, 0x4b]},
+  {box: {x: 324, y: 148, w: 260, h: 48}, rgb: [0x64, 0x74, 0x8b]},
+  {box: {x: 324, y: 220, w: 120, h: 40}, rgb: [0x63, 0x5b, 0xff]},
+]
+const GUIDE_COPY_ORIGIN = {x: GUIDE_PHOTO.x + GUIDE_PHOTO.w + DECOR_GAP, y: GUIDE_PHOTO.y}
+
+async function writeGuideDesign(): Promise<void> {
+  const png = new PNG(DECOR_SIZE)
+  png.data.fill(255)
+  paintBox({png, box: DECOR_PANEL, paint: () => [0xee, 0xf2, 0xf7]})
+  paintBox({
+    png,
+    box: GUIDE_PHOTO,
+    paint: (dx, dy) =>
+      (Math.floor(dx / CHECKER) + Math.floor(dy / CHECKER)) % 2 === 0 ? [30, 60, 200] : [240, 160, 40],
+  })
+  const solids = [...GUIDE_DECORATIONS, ...GUIDE_COPY]
+  solids.forEach(({box, rgb}) => paintBox({png, box, paint: () => rgb}))
+  await writeFile(target(GUIDE_DESIGN), PNG.sync.write(png))
+}
+
+function guideChild(input: {area: string; box: Box; rgb: Channels; origin: {x: number; y: number}}): string {
+  const {area, box, rgb, origin} = input
+  const color = `#${rgb.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+  return `        <div style={{gridArea: '${area}', width: ${box.w}, height: ${box.h}, marginLeft: ${box.x - origin.x}, marginTop: ${box.y - origin.y}, background: '${color}'}} />`
+}
+
+const GUIDE_PAGE = gridPage({
+  columns: `${GUIDE_PHOTO.w}px 1fr`,
+  children: [
+    guideChild({area: '1 / 1', box: GUIDE_PHOTO, rgb: [0x8a, 0x2b, 0xe2], origin: GUIDE_PHOTO}),
+    ...GUIDE_DECORATIONS.map(({box, rgb}) => guideChild({area: '1 / 1', box, rgb, origin: GUIDE_PHOTO})),
+    ...GUIDE_COPY.map(({box, rgb}) => guideChild({area: '1 / 2', box, rgb, origin: GUIDE_COPY_ORIGIN})),
+  ].join('\n'),
+})
 
 const PICTURE_PAINT_KINDS: string[] = ['background', 'foreground', 'border']
 const PaintItemsSchema = z.object({
@@ -4971,6 +5024,16 @@ describe('icons', () => {
     await annotate(`three ${JSON.stringify(three)} two ${JSON.stringify(two)}`)
     expect(three).toEqual([])
     expect(two).toEqual([expect.objectContaining({kind: 'columns', live: 3, target: 2})])
+  }, 240_000)
+
+  it('a photo overlapped by two decorations beside a copy column reads one column on both sides, so no columns row', async ({
+    annotate,
+  }) => {
+    await writeGuideDesign()
+    const {columns, children} = await designedPanel({design: GUIDE_DESIGN, text: GUIDE_PAGE})
+    await annotate(`children ${children} columns ${JSON.stringify(columns)}`)
+    expect(children).toBe(6)
+    expect(columns).toEqual([])
   }, 240_000)
 
   it('a square gradient box reads radius 0 on both sides; the solid box rounded 23 is the only radius item', async ({
