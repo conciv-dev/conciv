@@ -24,6 +24,10 @@ export type BootCoreInput = {
 
 export type BootCoreResult = {base: string; wsBase: string; origin: string; bootMs: number}
 
+export type PointerMove = {dx: number; dy: number; steps?: number}
+
+export type PointerDrag = {name: string; moves: PointerMove[]; escape?: boolean; settleMs?: number}
+
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
@@ -345,7 +349,25 @@ const awaitFaultPending: BrowserCommand<[string, number]> = async (ctx, handle, 
   }
 }
 
+const dragButton: BrowserCommand<[drag: PointerDrag]> = async (ctx, drag) => {
+  const box = await ctx.iframe.getByRole('button', {name: drag.name, exact: true}).boundingBox()
+  if (!box) throw new Error(`no button named ${drag.name} to drag`)
+  const start = {x: box.x + box.width / 2, y: box.y + box.height / 2}
+  await ctx.page.mouse.move(start.x, start.y)
+  await ctx.page.mouse.down()
+  await drag.moves.reduce(async (previous: Promise<{x: number; y: number}>, move) => {
+    const at = await previous
+    const next = {x: at.x + move.dx, y: at.y + move.dy}
+    await ctx.page.mouse.move(next.x, next.y, {steps: move.steps ?? 1})
+    return next
+  }, Promise.resolve(start))
+  if (drag.escape) await ctx.page.keyboard.press('Escape')
+  if (drag.settleMs) await ctx.page.waitForTimeout(drag.settleMs)
+  await ctx.page.mouse.up()
+}
+
 export const coreCommands = {
+  dragButton,
   bootCore,
   closeCore,
   pushSocketsOpened,

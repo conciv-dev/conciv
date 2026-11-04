@@ -9,7 +9,7 @@ import {
   makeBrowserRpcClient,
 } from '@conciv/contract'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
-import type {BootCoreInput, BootCoreResult, FaultSpec} from './commands/core-control.js'
+import type {BootCoreInput, BootCoreResult, FaultSpec, PointerDrag} from './commands/core-control.js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents} from '@conciv/ai/client'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
@@ -48,6 +48,7 @@ import type {WebStorage} from '@conciv/storage-history'
 declare module 'vitest/internal/browser' {
   interface BrowserCommands {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
+    dragButton: (drag: PointerDrag) => Promise<void>
     closeCore: () => Promise<void>
     pushSocketsOpened: () => Promise<number>
     pushSocketsLive: () => Promise<number>
@@ -184,7 +185,7 @@ function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
     announce: (message) => announce?.(message),
     layers: makeLayerStack(),
     suppressed: () => undefined,
-    fabPosition: () => 'bottom-right',
+    fabAnchor: () => ({corner: 'bottom-right', side: 'right', inline: '1.25rem', top: 'calc(100% - 4.5rem)'}),
     instances: options.instances ?? [],
     connected,
     arrivedFromConnect: () => false,
@@ -328,10 +329,12 @@ type ShellHarness = {
 }
 
 export function createShellHarness(base: () => string): ShellHarness {
-  const mounted: {router: ReturnType<typeof createConcivRouter> | null; disposeLogin: () => void} = {
-    router: null,
-    disposeLogin: () => {},
-  }
+  const mounted: {router: ReturnType<typeof createConcivRouter> | null; disposeLogin: () => void; unmount: () => void} =
+    {
+      router: null,
+      disposeLogin: () => {},
+      unmount: () => {},
+    }
 
   const mountShell = (entry: string, extensions: AnyExtension[] = [], options: ShellMountOptions = {}): void => {
     const login =
@@ -354,12 +357,14 @@ export function createShellHarness(base: () => string): ShellHarness {
       login,
     })
     mounted.router = router
-    render(() => <RouterProvider router={router} />)
+    mounted.unmount = render(() => <RouterProvider router={router} />).unmount
   }
 
   const dispose = (): void => {
     if (mounted.router) disposeConcivRouter(mounted.router)
     mounted.router = null
+    mounted.unmount()
+    mounted.unmount = () => {}
     mounted.disposeLogin()
     closeBrowserRpcConnection(base())
     onlineManager.setOnline(true)

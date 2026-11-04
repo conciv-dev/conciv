@@ -756,6 +756,123 @@ describe('launcher activity', () => {
   }, 30_000)
 })
 
+describe('launcher drag', () => {
+  const core = bootedCore('launcher-drag')
+  const harness = createShellHarness(core)
+  const POSITION_KEY = 'conciv-fab-position'
+
+  afterEach(() => {
+    harness.dispose()
+    localStorage.removeItem(POSITION_KEY)
+  })
+
+  const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
+  const minimize = () => page.getByRole('button', {name: 'Minimize conciv chat'})
+  const edgeTab = () => page.getByRole('button', {name: 'Show conciv launcher'})
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const capture = (name: string) => page.screenshot({path: `__screenshots__/launcher-drag/${name}.png`})
+
+  test('a drag off the right edge tucks the launcher into a tab without opening the chat, and the tab brings it back', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await expect.element(launcher()).toBeVisible()
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: 400, dy: -100, steps: 12}]})
+    await expect.element(edgeTab()).toBeVisible()
+    await expect.element(launcher()).not.toBeInTheDocument()
+    await expect.element(editor()).not.toBeInTheDocument()
+    await capture('tucked-right')
+    await edgeTab().click()
+    await expect.element(launcher()).toBeVisible()
+    await expect.element(edgeTab()).not.toBeInTheDocument()
+    await expect.element(launcher()).toHaveFocus()
+    await capture('restored-right')
+  })
+
+  test('a tucked launcher stays tucked after a reload, and Enter on the focused tab restores it', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -1200, dy: -200, steps: 16}]})
+    await expect.element(edgeTab()).toBeVisible()
+    harness.dispose()
+    harness.mountShell('/')
+    await expect.element(edgeTab()).toBeVisible()
+    await expect.element(launcher()).not.toBeInTheDocument()
+    await userEvent.tab()
+    await expect.element(edgeTab()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(launcher()).toHaveFocus()
+    await expect.element(edgeTab()).not.toBeInTheDocument()
+    await capture('restored-left-keyboard')
+  })
+
+  test('Escape mid-drag drops the gesture, so a release past the edge leaves the launcher where it was', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: 400, dy: 0, steps: 12}], escape: true})
+    await expect.element(launcher()).toBeVisible()
+    await expect.element(edgeTab()).not.toBeInTheDocument()
+    await capture('escape-cancelled')
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: 400, dy: 0, steps: 12}]})
+    await expect.element(edgeTab()).toBeVisible()
+  })
+
+  test('a release within reach of a corner pins the launcher into it', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -844, dy: -544, steps: 20}], settleMs: 300})
+    await capture('pinned-top-left')
+    await launcher().click()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await capture('pinned-top-left-panel')
+    await minimize().click()
+    await expect.element(launcher()).toBeVisible()
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -90, dy: 0, steps: 6}]})
+    await expect.element(edgeTab()).toBeVisible()
+  })
+
+  test('a release in the open leaves the launcher where it was dropped, under the grab point', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -454, dy: -304, steps: 20}], settleMs: 300})
+    await capture('free-centre')
+    await launcher().click()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await capture('free-centre-panel')
+    await minimize().click()
+    await expect.element(launcher()).toBeVisible()
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -520, dy: 0, steps: 12}]})
+    await expect.element(edgeTab()).toBeVisible()
+  })
+
+  test('a press that moves 4px or less is a click and one that moves 5px is a drag that never toggles the chat', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -5, dy: 0}], settleMs: 100})
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -3, dy: 0}]})
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  }, 30_000)
+
+  test('arrows nudge the focused launcher and Shift with an arrow pins it to a corner that a reload keeps', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await expect.element(launcher()).toBeVisible()
+    await userEvent.tab()
+    await expect.element(launcher()).toHaveFocus()
+    await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowUp}')
+    await capture('keyboard-nudged')
+    await userEvent.keyboard('{Shift>}{ArrowUp}{ArrowLeft}{/Shift}')
+    await capture('keyboard-top-left')
+    await expect.element(launcher()).toHaveFocus()
+    await expect.element(editor()).not.toBeInTheDocument()
+    harness.dispose()
+    harness.mountShell('/')
+    await expect.element(launcher()).toBeVisible()
+    await capture('keyboard-top-left-reloaded')
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{dx: -150, dy: 0, steps: 8}]})
+    await expect.element(edgeTab()).toBeVisible()
+  })
+})
+
 describe('notices', () => {
   function mountToaster(): {notify: Notify; showToaster: (visible: boolean) => void} {
     const store = createNoticeStore()

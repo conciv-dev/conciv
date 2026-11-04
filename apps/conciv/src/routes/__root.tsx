@@ -117,7 +117,7 @@ function RootComponent() {
     announce,
     layers,
     suppressed,
-    fabPosition: fab.position,
+    fabAnchor: fab.anchor,
     instances: app.instances,
     connected: app.connected,
     arrivedFromConnect,
@@ -288,7 +288,7 @@ function RootChrome(props: {
     panelOpen()
     connected()
     launcherVisible()
-    props.fab.position()
+    props.fab.anchor()
     let lastKey = ''
     let stableFrames = 0
     let frame = 0
