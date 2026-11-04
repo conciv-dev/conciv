@@ -1261,15 +1261,11 @@ function measureDeltas(input: {
   const {pair, pairs, nodes, live, target, page, design, shift} = input
   const color = design.comparators.color
   const children = pairs.filter((child) => child.parent === pair)
-  const leaves = pairs.filter(
-    (other) => under({pair: other, ancestor: pair}) && !pairs.some((child) => child.parent === other),
-  )
   const strip = edgeStrip({pair, raster: live, color, shift: {dx: 0, dy: 0}, toward: 'declared'})
   const liveSide = sideFrom({
     pair,
     from: 'live',
     children,
-    leaves,
     page,
     raster: live,
     color,
@@ -1281,7 +1277,6 @@ function measureDeltas(input: {
     pair,
     from: 'target',
     children,
-    leaves,
     page,
     raster: target,
     color,

@@ -3970,6 +3970,54 @@ const DECOR_PAGE = `export function Stripe() {
   )
 }
 `
+const ROW_DESIGN = 'decor-row-800'
+const ROW_PICTURES: Box[] = [
+  {x: 200, y: 268, w: 56, h: 56},
+  {x: 420, y: 268, w: 56, h: 56},
+]
+
+async function writeRowDesign(): Promise<void> {
+  const png = new PNG(DECOR_SIZE)
+  png.data.fill(255)
+  paintBox({png, box: DECOR_PANEL, paint: () => [0xee, 0xf2, 0xf7]})
+  decorCards()
+    .slice(0, 3)
+    .forEach((card) => {
+      paintBox({png, box: card, paint: () => [0xc7, 0xd2, 0xfe]})
+      paintBox({
+        png,
+        box: {x: card.x + DECOR_BLOCK.inset, y: card.y + DECOR_BLOCK.inset, w: DECOR_BLOCK.w, h: DECOR_BLOCK.h},
+        paint: () => [0x37, 0x30, 0xa3],
+      })
+    })
+  ROW_PICTURES.forEach((box) =>
+    paintBox({
+      png,
+      box,
+      paint: (dx, dy) =>
+        (Math.floor(dx / CHECKER) + Math.floor(dy / CHECKER)) % 2 === 0 ? [30, 60, 200] : [240, 160, 40],
+    }),
+  )
+  await writeFile(target(ROW_DESIGN), PNG.sync.write(png))
+}
+
+const ROW_PAGE = `export function Stripe() {
+  return (
+    <main style={{margin: -24, height: ${DECOR_SIZE.height}, position: 'relative', background: '#ffffff'}}>
+      <div style={{position: 'absolute', left: ${DECOR_PANEL.x}, top: ${DECOR_PANEL.y}, width: ${DECOR_PANEL.w}, height: ${DECOR_PANEL.h}, boxSizing: 'border-box', padding: ${DECOR_PADDING}, display: 'grid', gridTemplateColumns: 'repeat(4, 150px)', gap: 16, alignItems: 'start', background: '#eef2f7'}}>
+        {[0, 1, 2].map((card) => (
+          <div key={card} style={{height: ${DECOR_CARD.h}, background: '#c7d2fe', paddingTop: ${DECOR_BLOCK.inset}, paddingLeft: ${DECOR_BLOCK.inset}}}>
+            <div style={{width: ${DECOR_BLOCK.w}, height: ${DECOR_BLOCK.h}, background: '#3730a3'}} />
+          </div>
+        ))}
+        {[0, 1].map((picture) => (
+          <div key={picture} style={{width: 56, height: 56, background: '#8a2be2'}} />
+        ))}
+      </div>
+    </main>
+  )
+}
+`
 const PICTURE_PAINT_KINDS: string[] = ['background', 'foreground', 'border']
 const PaintItemsSchema = z.object({
   nodes: z.record(
@@ -4455,6 +4503,28 @@ describe('icons', () => {
       expect(picture.within).toBe(panel.id)
       expect(pairs.map((pair) => pair.node)).toEqual(expect.arrayContaining([panel.id, picture.id]))
       expect(columns).toEqual([])
+    } finally {
+      await writeFile(STRIPE_SOURCE, source)
+      await page.setViewportSize({width: 1280, height: 720})
+    }
+  }, 240_000)
+
+  it('a design row of three cards with two pictures on the line below reads 3 columns', async ({annotate}) => {
+    await goto('stripe')
+    await page.setViewportSize(DECOR_SIZE)
+    await writeRowDesign()
+    const {id} = await freshTarget(ROW_DESIGN)
+    const panel = (await storedNodes(id)).find((node) => node.kind === 'box' && near({a: node.box, b: DECOR_PANEL}))
+    if (panel === undefined) throw new Error(`${ROW_DESIGN} has no panel`)
+    const source = await readFile(STRIPE_SOURCE, 'utf8')
+    try {
+      await rewrite({id, file: STRIPE_SOURCE, text: ROW_PAGE})
+      const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
+      const columns = report.components
+        .filter((component) => component.nodes?.includes(panel.id) === true)
+        .flatMap((component) => component.deltas.filter((delta) => delta.kind === 'columns'))
+      await annotate(`columns ${JSON.stringify(columns)}`)
+      expect(columns).toEqual([expect.objectContaining({kind: 'columns', live: 4, target: 3})])
     } finally {
       await writeFile(STRIPE_SOURCE, source)
       await page.setViewportSize({width: 1280, height: 720})

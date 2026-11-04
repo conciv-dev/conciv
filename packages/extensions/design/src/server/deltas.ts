@@ -1,4 +1,5 @@
 import {differenceCiede2000, parse} from 'culori'
+import {minBy} from 'es-toolkit'
 import type {NodeLayout} from '../shared/defs.js'
 import {leadingFamily, sameFamily, TOLERANCES} from '../shared/tolerances.js'
 import type {
@@ -360,7 +361,6 @@ export function sideFrom(input: {
   pair: Pair
   from: From
   children: Pair[]
-  leaves: Pair[]
   page: Box
   raster: Raster
   color: ColorMetric
@@ -368,7 +368,7 @@ export function sideFrom(input: {
   strip: Box | null
   nodes: TargetNode[]
 }): Side {
-  const {pair, from, children, leaves, page, raster, color, glyphs, strip, nodes} = input
+  const {pair, from, children, page, raster, color, glyphs, strip, nodes} = input
   const box = pickBox({pair, from})
   return {
     kind: pair.node.kind,
@@ -378,7 +378,7 @@ export function sideFrom(input: {
     next: pair.next === null ? null : pickBox({pair: pair.next, from}),
     axis: pair.live.axis,
     flow: directionOn({pair, from, nodes}),
-    columns: columnCount({pair, from, leaves, nodes}),
+    columns: columnCount({pair, from, nodes}),
     textBox: contentBox({children, from}),
     edge: edgeOn({pair, from, raster, strip}),
     radius: radiusOn({pair, from}),
@@ -521,18 +521,18 @@ function bothAxes(layout: NodeLayout): boolean {
   return layout.direction === 'grid' || layout.wrap === true || (layout.runs ?? []).length > 0
 }
 
-function columnCount(input: {pair: Pair; from: From; leaves: Pair[]; nodes: TargetNode[]}): number | null {
-  const {pair, from, leaves, nodes} = input
+function columnCount(input: {pair: Pair; from: From; nodes: TargetNode[]}): number | null {
+  const {pair, from, nodes} = input
   if (pair.live.columns === null) return null
-  if (from === 'live') return pair.live.columns
-  const kept = new Set(laidOutChildren({pair, nodes}).map((node) => node.id))
-  if (kept.size < 2) return null
-  const stacked = new Set(
-    nodes.filter((node) => node.within === pair.node.id && !kept.has(node.id)).map((node) => node.id),
-  )
-  const spans = leaves
-    .filter((leaf) => !heldBy({id: leaf.node.id, held: stacked, nodes}))
-    .map((leaf) => leaf.node.box)
+  if (from === 'live') {
+    const items = firstRow(flowItems(pair.live)).length
+    return items === 0 ? null : items
+  }
+  const kept = laidOutChildren({pair, nodes})
+  if (kept.length < 2) return null
+  const spans = firstRow(kept)
+    .flatMap((node) => leavesUnder({node, nodes}))
+    .map((node) => node.box)
     .toSorted((a, b) => a.x - b.x)
   const bands = spans.reduce<{end: number; count: number}>(
     (state, box) =>
@@ -544,11 +544,24 @@ function columnCount(input: {pair: Pair; from: From; leaves: Pair[]; nodes: Targ
   return bands.count === 0 ? null : bands.count
 }
 
-function heldBy(input: {id: string; held: Set<string>; nodes: TargetNode[]}): boolean {
-  const {id, held, nodes} = input
-  if (held.has(id)) return true
-  const within = nodes.find((node) => node.id === id)?.within
-  return within !== undefined && heldBy({id: within, held, nodes})
+function flowItems(component: LiveComponent): LiveComponent[] {
+  return component.children
+    .filter(laysOut)
+    .flatMap((child) => (child.box.w === 0 && child.box.h === 0 ? flowItems(child) : [child]))
+}
+
+function firstRow<Entry extends {box: Box}>(entries: Entry[]): Entry[] {
+  const top = minBy(entries, (entry) => entry.box.y)
+  if (top === undefined) return []
+  const slack = TOLERANCES.geometryPx
+  return entries.filter(({box}) => box.y < bottom(top.box) - slack && bottom(box) > top.box.y + slack)
+}
+
+function leavesUnder(input: {node: TargetNode; nodes: TargetNode[]}): TargetNode[] {
+  const {node, nodes} = input
+  const children = nodes.filter((child) => child.within === node.id)
+  if (children.length === 0) return [node]
+  return children.flatMap((child) => leavesUnder({node: child, nodes}))
 }
 
 function union(boxes: Box[]): Box | null {
