@@ -404,7 +404,7 @@ reachable through `within` from the section id and every node whose box lies ins
 nodes; an item, entry or warning with no node is kept when its box lies inside the section's box, and a component when
 it is paired to one of those nodes or lies inside that box. `brief`, `stage`, `score` and `rows` are judged again over the
 kept items with no round history, and `stop` is `done` when no kept item is above tolerance and pairing was not cut short, else null. A section with no
-paired node and at least one kept item is never `done`: its `stop` is null and its brief opens with "nothing of this
+paired node is never `done`: its `stop` is null and its brief opens with "nothing of this
 section is built yet"; `stalled` and
 `oscillating` read the rounds, so they stay whole-page, in `page: {stop, stage, score}`. The report echoes `section:
 {id, line}` and `scope: section`. Several agents can each build one section against the same target; splitting the

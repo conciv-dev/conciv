@@ -887,7 +887,7 @@ function sectionReport(input: {
     priors: [],
     round: report.round,
   })
-  const unbuilt = measured.length === 0 && items.length > 0
+  const unbuilt = measured.length === 0
   const open = unbuilt || settled.judging.partial || items.some((item) => item.stage !== null)
   const brief = unbuilt ? [UNBUILT_SECTION_BRIEF, ...verdict.brief] : verdict.brief
   return {...scoped, ...verdict, brief, stop: open ? null : 'done', paired: measured.length}
