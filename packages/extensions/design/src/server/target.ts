@@ -1056,7 +1056,8 @@ const colorEnricher: Enricher = {
 
 const regionsEnricher: Enricher = {
   name: 'regions',
-  run: ({model}) => {
+  run: (input) => {
+    const model = {...input.model, nodes: withoutTwins(input.model.nodes)}
     const [pictures, members] = partition(
       model.nodes.filter((node) => node.within === undefined),
       (node) => node.kind === 'image',
@@ -1085,6 +1086,30 @@ const regionsEnricher: Enricher = {
       ...grown({carving: flanked, nodes: model.nodes}),
     ])
   },
+}
+
+export function withoutTwins(nodes: TargetNode[]): TargetNode[] {
+  const folded = nodes.reduce<{kept: TargetNode[]; into: Record<string, string>}>(
+    (found, node) => {
+      const twin = found.kept.find((other) => twins({a: other, b: node}))
+      if (twin === undefined) return {...found, kept: [...found.kept, node]}
+      return {kept: found.kept, into: {...found.into, [node.id]: twin.id}}
+    },
+    {kept: [], into: {}},
+  )
+  return folded.kept.map((node) => {
+    const parent = node.within === undefined ? undefined : folded.into[node.within]
+    return parent === undefined ? node : {...node, within: parent}
+  })
+}
+
+function twins(input: {a: TargetNode; b: TargetNode}): boolean {
+  const {a, b} = input
+  if (a.kind !== b.kind || a.within !== b.within) return false
+  const near = (edge: (box: Box) => number): boolean => Math.abs(edge(a.box) - edge(b.box)) <= TOLERANCES.geometryPx
+  return [(box: Box) => box.x, (box: Box) => box.y, (box: Box) => box.x + box.w, (box: Box) => box.y + box.h].every(
+    near,
+  )
 }
 
 type Along = 'x' | 'y'

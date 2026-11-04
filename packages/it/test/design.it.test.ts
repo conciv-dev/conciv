@@ -46,9 +46,18 @@ import {
 import {mapDeclaration} from '@conciv/extension-design/provenance'
 import {createTargetStore} from '@conciv/extension-design/store'
 import {glyphCoreColor} from '@conciv/extension-design/colors'
-import {destroyPaddle, paddleReader, trimToInk} from '@conciv/extension-design/paddle'
+import {destroyPaddle, paddleReader, trimToInk, withoutTwins} from '@conciv/extension-design/paddle'
 import {groupText, sameWords} from '@conciv/extension-design/text-groups'
-import type {Box, ColorMetric, LiveComponent, Provenance, Raster, TextRun, Winner} from '@conciv/extension-design/types'
+import type {
+  Box,
+  ColorMetric,
+  LiveComponent,
+  Provenance,
+  Raster,
+  TargetNode,
+  TextRun,
+  Winner,
+} from '@conciv/extension-design/types'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from './fixtures/design/render-targets.js'
 
@@ -1583,6 +1592,53 @@ describe('nodes', () => {
   })
 })
 
+describe('twins', () => {
+  it('two sibling boxes with the same rect register as one node that keeps the twin children', async () => {
+    await goto('target')
+    const captured = await call('design_capture', {height: 720})
+    const toolbar = captured.components.find((c) => c.source?.file === 'src/Toolbar.tsx')
+    if (toolbar === undefined) throw new Error('the target page has no toolbar')
+    const {id, route} = await freshTarget('u1-1280')
+    const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
+    const paint = {background: '#ffffff'}
+    const nodes: TargetNode[] = [
+      {id: 'twin-kept', kind: 'box', box: toolbar.box, border: null, radius: 0, paint},
+      {id: 'twin-dropped', kind: 'box', box: {...toolbar.box, y: toolbar.box.y + 1}, border: null, radius: 0, paint},
+      {
+        id: 'twin-child',
+        kind: 'image',
+        box: {x: toolbar.box.x + 8, y: toolbar.box.y + 8, w: 16, h: 16},
+        within: 'twin-dropped',
+        holds: 0,
+      },
+    ]
+    const folded = withoutTwins(nodes)
+    expect(folded.map((node) => ({id: node.id, within: node.within}))).toEqual([
+      {id: 'twin-kept', within: undefined},
+      {id: 'twin-child', within: 'twin-kept'},
+    ])
+    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
+    await store.put({
+      model: {
+        id: 'twins',
+        source: {kind: 'figma', ref: 'twins'},
+        viewport: {width: png.width, height: png.height},
+        raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
+        root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
+        nodes: folded,
+        scale: 1,
+      },
+      session: kit.session,
+      ...(route === undefined ? {} : {route}),
+    })
+    const report = await call('design_diff', {full: true})
+    expect(report.target.id).toBe('twins')
+    expect(report.unmatched.flatMap((entry) => (entry.node === undefined ? [] : [entry.node]))).not.toContain(
+      'twin-dropped',
+    )
+  })
+})
+
 describe('current target', () => {
   it('design_diff with no argument diffs the newest target of the session', async () => {
     await goto('/')
@@ -1758,7 +1814,7 @@ describe('deltas', () => {
         ),
       }),
     )
-    const report = await call('design_diff', {limit: 200, depth: 8})
+    const report = await call('design_diff', {full: true})
     const after = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
     const kept = StoredPairsSchema.parse(
       JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${after}`), 'utf8')),

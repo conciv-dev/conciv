@@ -423,7 +423,9 @@ source and use <Placeholder kind=…> for every image and icon line`, and the x-
 ## Sections
 
 A section is a top-level node of the design tree: a node whose `within` is unset or names no node, a child of the
-root. The `regions` enricher, run after `color` and before the layout pass, groups the root's text and box children
+root. The `regions` enricher, run after `color` and before the layout pass, first folds twins: two siblings of one
+kind whose boxes agree within `geometryPx` on every edge are one node, the first kept and the twin's children moved to
+it, so a design that draws the same panel twice has one node to pair. It then groups the root's text and box children
 into regions by whitespace: a horizontal band of free space that no child crosses is a cut when it is at least
 `sectionGap` (64 css px) tall at the top level and `regionGap` (32 css px) inside a region, and the children between
 two cuts form a region. A text alone between cuts joins the neighbouring group with the smaller gap to it; a painted box
