@@ -41,25 +41,40 @@ export function crop(input: {raster: Raster; box: Box; margin?: number}): {raste
 function blurPass(input: {raster: Raster; radius: number; horizontal: boolean}): Raster {
   const {raster, radius, horizontal} = input
   const {width, height} = raster
-  const source = raster.data
-  const data = new Uint8Array(source.length)
-  const span = radius * 2 + 1
-  const stride = horizontal ? 4 : width * 4
-  const length = horizontal ? width : height
+  const data = new Uint8Array(raster.data.length)
+  const line = {
+    source: raster.data,
+    data,
+    radius,
+    stride: horizontal ? 4 : width * 4,
+    length: horizontal ? width : height,
+  }
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const along = horizontal ? x : y
-      const base = (y * width + x) * 4 - along * stride
-      for (let channel = 0; channel < 4; channel += 1) {
-        let sum = 0
-        for (let offset = -radius; offset <= radius; offset += 1) {
-          sum += source[base + Math.min(length - 1, Math.max(0, along + offset)) * stride + channel] ?? 0
-        }
-        data[base + along * stride + channel] = Math.round(sum / span)
-      }
+      blurPixel({...line, along, base: (y * width + x) * 4 - along * line.stride})
     }
   }
   return {width, height, data}
+}
+
+function blurPixel(input: {
+  source: Uint8Array
+  data: Uint8Array
+  radius: number
+  stride: number
+  length: number
+  along: number
+  base: number
+}): void {
+  const {source, data, radius, stride, length, along, base} = input
+  for (let channel = 0; channel < 4; channel += 1) {
+    let sum = 0
+    for (let offset = -radius; offset <= radius; offset += 1) {
+      sum += source[base + Math.min(length - 1, Math.max(0, along + offset)) * stride + channel] ?? 0
+    }
+    data[base + along * stride + channel] = Math.round(sum / (radius * 2 + 1))
+  }
 }
 
 export function boxBlur(input: {raster: Raster; radius: number}): Raster {
