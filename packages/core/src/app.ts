@@ -64,7 +64,16 @@ import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
 import {engineStaleness} from './lib/engine-stamp.js'
-import {agentPath, authRoutes, makeCodeStore, makeEngineGate, makeEngineTrust, type GatedFetch} from './engine-login.js'
+import {
+  agentPath,
+  authRoutes,
+  makeCodeStore,
+  makeEngineGate,
+  makeEngineTrust,
+  watchTrustedBrowsers,
+  type GatedFetch,
+  type TrustedBrowsers,
+} from './engine-login.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
@@ -285,6 +294,7 @@ export type MadeApp = {
   app: AppType
   fetch: EngineFetch
   agentToken: string
+  trustBrowser: TrustedBrowsers['grant']
   chat: ChatContext
   plane: ChatPlane
   dispose: () => Promise<void>
@@ -331,7 +341,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const agentToken = opts.agentToken ?? randomUUID()
   const basePath = agentPath(agentToken)
   const stateDir = concivStateDir(opts.cfg.stateRoot)
-  const trusted = makeEngineTrust(agentToken, stateDir)
+  const browsers = watchTrustedBrowsers(stateDir)
+  const trusted = makeEngineTrust(agentToken, browsers)
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   const planeRef: {current: ChatPlane | null} = {current: null}
@@ -530,7 +541,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       auth: authRoutes({
         codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
         trusted,
-        stateDir,
+        browsers,
         now: Date.now,
       }),
       push: {
@@ -548,6 +559,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const dispose = async (): Promise<void> => {
     for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
+    browsers.close()
     db.$client.close()
   }
 
@@ -558,5 +570,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     onTrusted: opts.onTrusted,
   })
 
-  return {app, fetch, agentToken, chat: chatDeps, plane, dispose, extensionContexts, runtime}
+  return {
+    app,
+    fetch,
+    agentToken,
+    trustBrowser: browsers.grant,
+    chat: chatDeps,
+    plane,
+    dispose,
+    extensionContexts,
+    runtime,
+  }
 }

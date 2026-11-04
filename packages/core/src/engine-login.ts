@@ -1,7 +1,18 @@
 import {randomInt, timingSafeEqual} from 'node:crypto'
-import {Hono} from 'hono'
+import {mkdirSync, watch} from 'node:fs'
+import {readFile} from 'node:fs/promises'
+import {join} from 'node:path'
+import {Hono, type MiddlewareHandler} from 'hono'
 import {z} from 'zod'
-import {grantBrowser, isTrustedBrowser, type BrowserRequester} from '@conciv/protocol/engine-trust'
+import {
+  TRUSTED_BROWSERS_FILE,
+  grantBrowser,
+  isMissingFile,
+  parseTrustedBrowsers,
+  readTrustedBrowsers,
+  tokenHash,
+  type BrowserRequester,
+} from '@conciv/protocol/engine-trust'
 import {NATIVE_PAGE_PATH} from './api/native-page.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {logError} from './lib/debug.js'
@@ -124,23 +135,73 @@ export function describeBrowser(userAgent: string): string {
 
 export type EngineTrust = (token: string) => boolean
 
-export function makeEngineTrust(agentToken: string, stateDir: string): EngineTrust {
-  return (token) => {
-    if (sameCode(token, agentToken)) return true
-    try {
-      return isTrustedBrowser(stateDir, token)
-    } catch (error) {
-      logError(`[core] the trusted browsers file could not be read: ${String(error)}`)
-      return false
-    }
+export type TrustedBrowsers = {
+  has: (token: string) => boolean
+  grant: (requester: BrowserRequester, grantedAt: number) => string
+  close: () => void
+}
+
+function loadHashes(stateDir: string): Set<string> {
+  try {
+    return new Set(readTrustedBrowsers(stateDir).map((entry) => entry.hash))
+  } catch (error) {
+    logError(`[core] the trusted browsers file could not be read: ${String(error)}`)
+    return new Set()
   }
 }
 
-function requesterOf(headers: {origin?: string; host?: string; userAgent?: string}): BrowserRequester {
-  return {
-    browser: describeBrowser(headers.userAgent ?? ''),
-    origin: headers.origin ?? `http://${headers.host ?? '127.0.0.1'}`,
+async function readHashes(stateDir: string): Promise<Set<string>> {
+  const raw = await readFile(join(stateDir, TRUSTED_BROWSERS_FILE), 'utf8').catch((error: unknown) => {
+    if (isMissingFile(error)) return null
+    throw error
+  })
+  return new Set(raw === null ? [] : parseTrustedBrowsers(raw).map((entry) => entry.hash))
+}
+
+export function watchTrustedBrowsers(stateDir: string): TrustedBrowsers {
+  mkdirSync(stateDir, {recursive: true})
+  const state = {hashes: loadHashes(stateDir), reloads: Promise.resolve()}
+  const reload = (): void => {
+    state.reloads = state.reloads
+      .then(() => readHashes(stateDir))
+      .then(
+        (hashes) => {
+          state.hashes = hashes
+        },
+        (error: unknown) => logError(`[core] the trusted browsers file could not be reloaded: ${String(error)}`),
+      )
   }
+  const watcher = watch(stateDir, (_event, file) => {
+    if (file === TRUSTED_BROWSERS_FILE) reload()
+  })
+  watcher.on('error', (error) => logError(`[core] watching the trusted browsers file failed: ${String(error)}`))
+  return {
+    has: (token) => state.hashes.has(tokenHash(token)),
+    grant: (requester, grantedAt) => {
+      const token = grantBrowser(stateDir, requester, grantedAt)
+      state.hashes.add(tokenHash(token))
+      return token
+    },
+    close: () => watcher.close(),
+  }
+}
+
+export function makeEngineTrust(agentToken: string, browsers: TrustedBrowsers): EngineTrust {
+  return (token) => sameCode(token, agentToken) || browsers.has(token)
+}
+
+function requesterOf(request: Request): BrowserRequester {
+  return {
+    browser: describeBrowser(request.headers.get('user-agent') ?? ''),
+    origin: request.headers.get('origin') ?? new URL(request.url).origin,
+  }
+}
+
+const JSON_CONTENT = /^application\/json(\s*;|$)/i
+
+const requireJson: MiddlewareHandler = async (c, next) => {
+  if (!JSON_CONTENT.test(c.req.header('content-type') ?? '')) return c.json({message: 'json required'}, 415)
+  await next()
 }
 
 const CheckSchema = z.object({token: z.string().min(1).max(512)})
@@ -151,8 +212,15 @@ async function jsonBody(request: Request): Promise<unknown> {
   return request.json().catch(() => null)
 }
 
-export function authRoutes(deps: {codes: CodeStore; trusted: EngineTrust; stateDir: string; now: () => number}) {
+export function authRoutes(deps: {
+  codes: CodeStore
+  trusted: EngineTrust
+  browsers: TrustedBrowsers
+  now: () => number
+}) {
   return new Hono()
+    .use('/auth/code', requireJson)
+    .use('/auth/exchange', requireJson)
     .post('/auth/check', async (c) => {
       const parsed = CheckSchema.safeParse(await jsonBody(c.req.raw))
       if (!parsed.success) return c.json({message: 'a token is required'}, 400)
@@ -161,11 +229,7 @@ export function authRoutes(deps: {codes: CodeStore; trusted: EngineTrust; stateD
     .post('/auth/code', async (c) => {
       const parsed = CodeRequestSchema.safeParse(await jsonBody(c.req.raw))
       if (!parsed.success) return c.json({message: 'reissue must be a boolean'}, 400)
-      const requester = requesterOf({
-        origin: c.req.header('origin'),
-        host: c.req.header('host'),
-        userAgent: c.req.header('user-agent'),
-      })
+      const requester = requesterOf(c.req.raw)
       return c.json(deps.codes.request(requester, parsed.data.reissue ?? false))
     })
     .post('/auth/exchange', async (c) => {
@@ -173,12 +237,8 @@ export function authRoutes(deps: {codes: CodeStore; trusted: EngineTrust; stateD
       if (!parsed.success) return c.json({reason: 'mismatch'}, 401)
       const outcome = deps.codes.exchange(parsed.data.code)
       if (outcome !== 'trusted') return c.json({reason: outcome}, 401)
-      const requester = requesterOf({
-        origin: c.req.header('origin'),
-        host: c.req.header('host'),
-        userAgent: c.req.header('user-agent'),
-      })
-      return c.json({token: grantBrowser(deps.stateDir, requester, deps.now())})
+      const requester = requesterOf(c.req.raw)
+      return c.json({token: deps.browsers.grant(requester, deps.now())})
     })
 }
 

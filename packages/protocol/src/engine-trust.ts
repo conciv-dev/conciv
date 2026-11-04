@@ -23,11 +23,11 @@ function trustFile(stateDir: string): string {
   return join(stateDir, TRUSTED_BROWSERS_FILE)
 }
 
-function tokenHash(token: string): string {
+export function tokenHash(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
-function isMissingFile(error: unknown): boolean {
+export function isMissingFile(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
 }
 
@@ -40,10 +40,14 @@ function readText(path: string): string | null {
   }
 }
 
+export function parseTrustedBrowsers(raw: string): TrustedBrowser[] {
+  return TrustFileSchema.parse(JSON.parse(raw)).browsers
+}
+
 export function readTrustedBrowsers(stateDir: string): TrustedBrowser[] {
   const raw = readText(trustFile(stateDir))
   if (raw === null) return []
-  return TrustFileSchema.parse(JSON.parse(raw)).browsers
+  return parseTrustedBrowsers(raw)
 }
 
 export function writeTrustedBrowsers(stateDir: string, browsers: readonly TrustedBrowser[]): void {

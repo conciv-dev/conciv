@@ -53,7 +53,6 @@ describe('api mcp instructions', () => {
   describe('mcp server instructions', () => {
     it('says nothing about staleness while the engine matches the code on disk', () => {
       const text = serverInstructions('page', FRESH)
-
       expect(text).not.toMatch(/outdated|restart the dev server/i)
     })
   })
@@ -572,10 +571,8 @@ describe('engine stamp', () => {
         {label: '@conciv/tools', path: tools},
       ])
       expect(probe().stale).toBe(false)
-
       writeFileSync(tools, 'export const b = 2')
       ageForward(tools, 5)
-
       expect(probe().stale).toBe(true)
       expect(probe().changed).toEqual(['@conciv/tools'])
     })
@@ -583,10 +580,8 @@ describe('engine stamp', () => {
     it('stays fresh when a rebuild rewrites identical bytes and only moves the mtime forward', () => {
       const path = tmpFile('core.js', 'export const a = 1')
       const probe = makeStalenessProbe([{label: '@conciv/core', path}])
-
       writeFileSync(path, 'export const a = 1')
       ageForward(path, 5)
-
       expect(probe().stale).toBe(false)
       expect(probe().changed).toEqual([])
     })
@@ -595,11 +590,8 @@ describe('engine stamp', () => {
       const path = tmpFile('core.js', 'export const a = 1')
       const probe = makeStalenessProbe([{label: '@conciv/core', path}])
       const first = probe().fingerprint
-
       expect(probe().fingerprint).toBe(first)
-
       writeFileSync(path, 'export const a = 2')
-
       expect(probe().fingerprint).not.toBe(first)
     })
   })
@@ -681,10 +673,8 @@ describe('page bus inflight teardown', () => {
     const unsubscribe = bus.subscribe(SESSION, (frame) => frames.push(frame))
     const answered = bus.ask(SESSION, {name: 'fixture_click', input: {}})
     await Promise.resolve()
-
     unsubscribe()
     bus.subscribe(SESSION, () => {})
-
     expect(bus.resolve(SESSION, requestIdOf(frames), {ok: true, result: {clicked: 'yes'}})).toBe(true)
     await expect(answered).resolves.toEqual({result: {clicked: 'yes'}})
   }, 10_000)
@@ -864,18 +854,16 @@ describe('system prompt', () => {
 describe('engine login', () => {
   const requester = {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'}
 
-  function freshConnectionCheck(port: number, token: string): Promise<unknown> {
-    return new Promise((resolve, reject) => {
-      const request = httpRequest(
-        {host: '127.0.0.1', port, path: '/auth/check', method: 'POST', agent: false},
-        (res) => {
-          const chunks: Buffer[] = []
-          res.on('data', (chunk: Buffer) => chunks.push(chunk))
-          res.on('end', () => resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))))
-        },
-      )
+  function rawPost(port: number, path: string, headers: Record<string, string>, body = '{"reissue":true}') {
+    const options = {host: '127.0.0.1', port, path, method: 'POST', agent: false}
+    return new Promise<{status: number; text: string}>((resolve, reject) => {
+      const request = httpRequest({...options, headers: {'content-type': 'application/json', ...headers}}, (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (chunk: Buffer) => chunks.push(chunk))
+        res.on('end', () => resolve({status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8')}))
+      })
       request.on('error', reject)
-      request.end(JSON.stringify({token}))
+      request.end(body)
     })
   }
 
@@ -929,7 +917,15 @@ describe('engine login', () => {
       const origin = `http://127.0.0.1:${first.port}`
       const call = (token: string) => fetch(`${origin}/t/${token}/rpc/meta/engine`, {method: 'POST'})
       expect((await call('not-a-token')).status).toBe(401)
+      const post = (path: string, headers: Record<string, string>, body?: string) =>
+        rawPost(first.port, path, headers, body)
+      expect((await post('/auth/code', {origin: 'http://conciv.example'})).status).toBe(403)
+      expect((await post('/auth/code', {'content-type': 'text/plain'})).status).toBe(415)
+      expect((await post('/auth/exchange', {'content-type': 'text/plain'}, '{"code":"000000"}')).status).toBe(415)
+      expect((await post('/auth/code', {origin: 'http://localhost:5173'})).status).toBe(200)
+      expect(printed.at(-1)).toContain('http://localhost:5173/#conciv_otp=')
       await requestPrintedCode(origin, () => printed.join('\n'))
+      expect(printed.at(-1)).toContain(`${origin}/#conciv_otp=`)
       await expect(exchangePrintedCode(origin, '000000')).rejects.toThrow(/HTTP 401/)
       const token = await loginThroughTerminal(origin, () => printed.join('\n'))
       expect((await call(token)).status).not.toBe(401)
@@ -943,7 +939,11 @@ describe('engine login', () => {
           port: first.port,
           token: second.agentToken,
         })
-        expect(await freshConnectionCheck(second.port, token)).toEqual({trusted: true})
+        const check = (host: string) => rawPost(second.port, '/auth/check', {host}, JSON.stringify({token}))
+        expect(JSON.parse((await check(`localhost:${second.port}`)).text)).toEqual({trusted: true})
+        expect((await check(`conciv.example:${second.port}`)).status).toBe(403)
+        const rebound = {host: `conciv.example:${second.port}`}
+        expect((await rawPost(second.port, `/t/${second.agentToken}/rpc/meta/engine`, rebound)).status).toBe(403)
       } finally {
         await second.stop()
       }

@@ -4,7 +4,6 @@ import type {IncomingMessage, ServerResponse} from 'node:http'
 import type {ErrorPayload, Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge, type BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {grantBrowser} from '@conciv/protocol/engine-trust'
 import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
@@ -260,12 +259,13 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
         context.rpc.register({
           name: 'conciv:engine-token',
           type: 'action',
-          handler: () =>
-            grantBrowser(
-              concivStateDir(resolveConfig(options, root).stateRoot),
-              {browser: 'via Vite DevTools', origin: (devServer && devOrigins(devServer)[0]) ?? 'Vite DevTools'},
+          handler: () => {
+            if (!engine || !devServer) throw new Error('the conciv engine has not started yet')
+            return engine.trustBrowser(
+              {browser: 'via Vite DevTools', origin: devOrigins(devServer)[0] ?? 'Vite DevTools'},
               Date.now(),
-            ),
+            )
+          },
         })
       },
     },

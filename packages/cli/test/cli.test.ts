@@ -14,6 +14,8 @@ import {createServer as createHttpServer, type Server} from 'node:http'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {engineOrigin} from '../src/engine-origin.js'
 import {runRevoke} from '../src/auth.js'
+import {start as startEngine} from '@conciv/core'
+import {loginThroughTerminal} from '@conciv/harness-testkit'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {initCommand, runInitCommand} from '../src/init.js'
 import {type Detected, detectFramework, detectProject, type Framework} from '../src/init/detect.js'
@@ -996,6 +998,27 @@ describe('cli', () => {
         data: {revoked: [first], trusted: []},
       })
       expect(isTrustedBrowser(stateDir, kept)).toBe(false)
+    })
+
+    test('auth revoke locks a browser out of the running engine without a restart', async () => {
+      const project = projectWith(null)
+      const printed: string[] = []
+      const engine = await startEngine({
+        options: {harnessBin: 'true', stateRoot: project.root, systemPrompt: false},
+        root: project.root,
+        launchEditor: () => {},
+        print: (text) => printed.push(text),
+      })
+      try {
+        const origin = `http://127.0.0.1:${engine.port}`
+        const token = await loginThroughTerminal(origin, () => printed.join('\n'))
+        const call = async () => (await fetch(`${origin}/t/${token}/rpc/meta/engine`, {method: 'POST'})).status
+        expect(await call()).not.toBe(401)
+        runRevoke({all: true, cwd: project.nested})
+        await expect.poll(call, {timeout: 2_000, interval: 20}).toBe(401)
+      } finally {
+        await engine.stop()
+      }
     })
   })
 

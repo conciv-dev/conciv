@@ -16,6 +16,7 @@ import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/serve
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint, writePrivateFile} from './lib/dev-endpoint.js'
 import {claudeConnectEndpointFile} from '@conciv/harness-init/claude/endpoint'
 import type {SessionId} from '@conciv/protocol/chat-types'
+import type {BrowserRequester} from '@conciv/protocol/engine-trust'
 
 export type PortRequest = {exact: number} | {preferred: number}
 
@@ -42,6 +43,7 @@ export type StartOpts = {
 export type Engine = {
   port: number
   agentToken: string
+  trustBrowser: (requester: BrowserRequester, grantedAt: number) => string
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
   extensionContexts: Record<string, unknown>
@@ -184,7 +186,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     nativeUrl,
   }
-  const {fetch: fetchHandler, dispose, extensionContexts} = await makeApp(appOpts)
+  const {fetch: fetchHandler, dispose, extensionContexts, trustBrowser} = await makeApp(appOpts)
 
   let serving: Served
   try {
@@ -224,6 +226,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     agentToken,
     cfg,
     extensionContexts,
+    trustBrowser,
     stop: async () => {
       clearEndpoint()
       await dispose()
