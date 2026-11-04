@@ -2211,6 +2211,7 @@ const CONTACT_LABELS = ['Your Email', 'Message', 'Send']
 
 const STACKED_PICTURE = 'stacked-picture'
 const PICTURE_GAP = 24
+const SECTION_FIT = 'section-fit'
 
 const TreeModelSchema = z.looseObject({
   nodes: z.array(z.looseObject({id: z.string(), within: z.string().optional()})),
@@ -2355,6 +2356,41 @@ describe('pairing', () => {
     await annotate(`moved ${JSON.stringify(moved.filter((pair) => pair.path === paragraph.path))}`)
     expect(covered.filter((pair) => pair.node === PARAGRAPH_ICON && pair.path === paragraph.path)).toEqual([])
     expect(moved.filter((pair) => pair.path === paragraph.path).map((pair) => pair.node)).toEqual([paragraph.node])
+  })
+
+  it('a top-level section whose live box equals its design box pairs with that element, not a wider wrapper around it', async () => {
+    await goto('target')
+    const captured = await call('design_capture', {height: 720})
+    const toolbar = captured.components.find((c) => c.source?.file === 'src/Toolbar.tsx')
+    const [child] = toolbar?.children ?? []
+    if (toolbar === undefined || child === undefined) throw new Error('the target page has no toolbar with a child')
+    const {id, route} = await freshTarget('u1-1280')
+    const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
+    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
+    await store.put({
+      model: {
+        id: SECTION_FIT,
+        source: {kind: 'figma', ref: SECTION_FIT},
+        viewport: {width: png.width, height: png.height},
+        raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
+        root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
+        nodes: [
+          {id: 'section', kind: 'box', box: toolbar.box, border: null, radius: 0},
+          {id: 'inner', kind: 'box', box: child.box, border: null, radius: 0, within: 'section'},
+        ],
+        scale: 1,
+      },
+      session: kit.session,
+      ...(route === undefined ? {} : {route}),
+    })
+    const report = await call('design_diff', {full: true})
+    const latest = (await runFiles({id: SECTION_FIT, prefix: 'pairs-'})).at(-1) ?? ''
+    const pairs = StoredPairsSchema.parse(
+      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${SECTION_FIT}/${latest}`), 'utf8')),
+    )
+    expect(report.target.id).toBe(SECTION_FIT)
+    expect(pairs.filter((pair) => pair.node === 'section').map((pair) => pair.path)).toEqual([toolbar.path])
+    expect(report.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.node === 'section')).toEqual([])
   })
 })
 

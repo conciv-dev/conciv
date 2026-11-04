@@ -309,6 +309,11 @@ The vote pairer scores every design node against every compatible live element a
   on their own, it takes the text's element when that element is a control or media, else the nearest ancestor of
   the element whose box encloses it (never the page root), however far it sits from the design box. Its geometry
   then reports the offset, so the brief says move rather than build. A pinned or carried pair is kept.
+- A box node whose box lies within `geometryPx` of a live element's on all four edges takes that element right after
+  the pins and before the carry, closest boxes first, so an element goes to the node whose box is nearest it. The
+  vote alone could leave such a node unbuilt: a wider wrapper around the element (a 1440 wide row around a 930 wide
+  section) can score above it on rank while the calibrated geometry weight is low, and a top that does not beat its
+  runner by `pairMargin` pairs neither.
 - A voter's weight is its base times how often it agrees with the base-weight consensus, counted only over design
   nodes whose consensus top score is at least `pairFloor`.
 - A text node whose text voter and structure voter both abstain (a single glyph under 14 px whose parent is not
@@ -423,7 +428,8 @@ and a pair, once made, stays until its element is gone or no longer passes the p
   every side in CSS px, the live one placed at the element the run paired (from `pairs-<run>.json`, the latest run by
   default). A node the run did not pair gets the design crop alone. Every change and every row with a node carries its
   `crop` url; `diffImage` stays for the whole page.
-- **Carry order.** On a run after an edit the pairer takes pins first, then the ledger's pair per node, in the order
+- **Carry order.** On a run after an edit the pairer takes pins first, then the exact box fits (see
+  [Pairing](#pairing)), then the ledger's pair per node, in the order
   the run before took its pairs, then the pairs of the run before the ledger does not hold, each only when its
   fingerprint still finds its element, then the greedy loop. The ledger carries only the pairs the run that wrote it
   confirmed: a dead pair seeded before the greedy loop changes what the loop takes for the other nodes, so a page

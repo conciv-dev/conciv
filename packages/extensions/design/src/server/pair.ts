@@ -621,6 +621,7 @@ function runVote(input: VoteInput): {matched: Assignment[]; partial: boolean; ca
     ]),
   )
   const pinned = pinsFirst({input, state})
+  const fitted = exactFits({input, weights, state})
   const carried = carryFirst({input, state})
   const views = new Map(input.nodes.map((node) => [node.key, node]))
   const open = (held: boolean): Map<string, Scored[]> =>
@@ -629,7 +630,15 @@ function runVote(input: VoteInput): {matched: Assignment[]; partial: boolean; ca
         .filter((node) => !input.context.assigned.has(node.key) && input.holders.has(node.key) === held)
         .map((node) => [node.key, scoredList({input, weights, state, node})]),
     )
-  const first = greedy({input, weights, state, pools, lists: open(false), views, matched: [...pinned, ...carried]})
+  const first = greedy({
+    input,
+    weights,
+    state,
+    pools,
+    lists: open(false),
+    views,
+    matched: [...pinned, ...fitted, ...carried],
+  })
   const followed = followTexts({input, weights, state})
   const result = greedy({
     input,
@@ -641,6 +650,30 @@ function runVote(input: VoteInput): {matched: Assignment[]; partial: boolean; ca
     matched: [...first.matched, ...followed],
   })
   return {matched: result.matched, partial: first.partial || result.partial, carried: carried.length}
+}
+
+function exactFits(input: {input: VoteInput; weights: Map<VoterName, number>; state: State}): Assignment[] {
+  const {weights, state} = input
+  const {nodes, context} = input.input
+  const fits = nodes
+    .filter((node) => node.kind === 'box' && !context.assigned.has(node.key))
+    .flatMap((node) =>
+      candidatePool({input: input.input, node})
+        .filter((candidate) => sameBox({a: node.box, b: candidate.box}))
+        .map((candidate) => ({node, candidate, apart: edgeDistance({a: node.box, b: candidate.box})})),
+    )
+    .toSorted((a, b) => a.apart - b.apart)
+  return fits.flatMap(({node, candidate}): Assignment[] => {
+    if (context.assigned.has(node.key) || state.boxes.has(candidate.key)) return []
+    const {score} = weighed({input: input.input, weights, node, candidate})
+    take({node, candidate, state, context})
+    return [{node, candidate, score}]
+  })
+}
+
+function edgeDistance(input: {a: Box; b: Box}): number {
+  const {a, b} = input
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.x + a.w - b.x - b.w) + Math.abs(a.y + a.h - b.y - b.h)
 }
 
 function followTexts(input: {input: VoteInput; weights: Map<VoterName, number>; state: State}): Assignment[] {
