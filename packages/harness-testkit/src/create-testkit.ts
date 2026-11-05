@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
-import {mkdtempSync, rmSync} from 'node:fs'
+import {mkdtempSync} from 'node:fs'
+import {rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {serveApp} from './serve-app.js'
@@ -172,8 +173,10 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
           for (const abort of aborts) abort.abort()
           const closing = await Promise.allSettled([served.close()])
           const disposing = await Promise.allSettled([app.dispose()])
-          if (ownsStateRoot) rmSync(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
-          const failures = [...closing, ...disposing].flatMap((outcome) =>
+          const removing = await Promise.allSettled(
+            ownsStateRoot ? [rm(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})] : [],
+          )
+          const failures = [...closing, ...disposing, ...removing].flatMap((outcome) =>
             outcome.status === 'rejected' ? [outcome.reason] : [],
           )
           if (failures.length > 0) throw new AggregateError(failures, 'testkit cleanup failed')
