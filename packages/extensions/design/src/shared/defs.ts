@@ -2,7 +2,7 @@ import {z} from 'zod'
 import type {Storage} from 'unstorage'
 import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
 import {defineTool, type ToolBuilder, type ToolErrors} from '@conciv/extension/tool'
-import {PLACEHOLDER_KINDS, ROLES, type Comparators, type Item, type LiveComponent} from './types.js'
+import {PLACEHOLDER_KINDS, ROLES, type Comparators, type Item, type LiveComponent, type Raster} from './types.js'
 
 export const DESIGN_EXTENSION_NAME = 'design'
 
@@ -271,7 +271,7 @@ const DesignNodeKindSchema = z.discriminatedUnion('kind', [
 const DesignNodeBaseSchema = z.object({
   id: z.string().describe('from the source: the Figma node id, or the image hash plus an index'),
   box: BoxSchema.describe('design px'),
-  layout: ContainerLayoutSchema.optional(),
+  layout: NodeLayoutSchema.partial().optional(),
 })
 
 export const DesignNodeSchema = DesignNodeBaseSchema.extend({
@@ -367,8 +367,12 @@ export type Pairer = (input: {
   design: Design
   live: LiveComponent
   decisions: Decision[]
+  previous: Match | null
+  rasters: {live: Raster; target: Raster}
+  twins: {node: string; path: string}[]
   comparators: Comparators
-}) => Promise<Match>
+  budget: number
+}) => Promise<{root: Match; partial: boolean; carried: number}>
 
 export type Ranker = (input: {items: Item[]}) => Item[]
 

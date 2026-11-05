@@ -1,9 +1,18 @@
 import {createHash} from 'node:crypto'
 import {toolError} from '@conciv/extension'
 import {z} from 'zod'
-import {DESIGN_ERRORS, type Attachments, type Design, type DesignNode, type TargetAdapter} from '../../shared/defs.js'
+import {
+  DESIGN_ERRORS,
+  type Attachments,
+  type ContainerLayout,
+  type Design,
+  type DesignNode,
+  type NodeLayout,
+  type TargetAdapter,
+} from '../../shared/defs.js'
 import type {Box, RoleRules} from '../../shared/types.js'
 import {hex} from '../raster.js'
+import {inferLayout} from './layout.js'
 
 export function createFigmaAdapter(input: {token: string | null; roles: RoleRules}): TargetAdapter {
   const {token, roles} = input
@@ -86,6 +95,18 @@ const FigmaNodeSchema = z.looseObject({
   strokeWeight: z.number().optional(),
   cornerRadius: z.number().optional(),
   rectangleCornerRadii: z.array(z.number()).optional(),
+  layoutMode: z.string().optional(),
+  layoutWrap: z.string().optional(),
+  itemSpacing: z.number().optional(),
+  paddingTop: z.number().optional(),
+  paddingRight: z.number().optional(),
+  paddingBottom: z.number().optional(),
+  paddingLeft: z.number().optional(),
+  counterAxisAlignItems: z.string().optional(),
+  layoutPositioning: z.string().optional(),
+  layoutSizingHorizontal: z.string().optional(),
+  layoutSizingVertical: z.string().optional(),
+  layoutGrow: z.number().optional(),
   get children() {
     return z.array(FigmaNodeSchema).optional()
   },
@@ -109,6 +130,22 @@ const FIGMA_API = 'https://api.figma.com/v1'
 const VECTORS = new Set(['VECTOR', 'BOOLEAN_OPERATION', 'LINE', 'STAR', 'POLYGON', 'REGULAR_POLYGON'])
 const GROUPS = new Set(['GROUP', 'FRAME', 'INSTANCE', 'COMPONENT'])
 const REGULAR_WEIGHT = 400
+const FLOWS = new Map<string, ContainerLayout['direction']>([
+  ['HORIZONTAL', 'row'],
+  ['VERTICAL', 'column'],
+  ['GRID', 'grid'],
+])
+const ALIGNS = new Map<string, ContainerLayout['align']>([
+  ['MIN', 'start'],
+  ['CENTER', 'center'],
+  ['MAX', 'end'],
+  ['BASELINE', 'start'],
+])
+const SIZINGS = new Map<string, NodeLayout['size']>([
+  ['FILL', 'fill'],
+  ['HUG', 'fit'],
+  ['FIXED', 'fixed'],
+])
 
 function documentAvailable(input: {attachments: Attachments}): boolean {
   return input.attachments.document !== undefined && input.attachments.image !== undefined
@@ -179,12 +216,14 @@ function designFrom(input: {
     source: {kind: 'figma', ref: `${link.fileKey}/${link.nodeId}`},
     viewport: {width: Math.round(bounds.width), height: Math.round(bounds.height)},
     scale,
-    root: boxNode({
-      node: frame,
-      box: boxIn({bounds, origin}),
-      scale,
-      children: childNodes({node: frame, origin, roles}),
-    }),
+    root: inferLayout(
+      boxNode({
+        node: frame,
+        box: boxIn({bounds, origin}),
+        scale,
+        children: childNodes({node: frame, origin, roles}),
+      }),
+    ),
   }
 }
 
@@ -215,13 +254,36 @@ function designNodes(input: {node: FigmaNode; origin: Origin; roles: RoleRules})
 
 function childNodes(input: {node: FigmaNode; origin: Origin; roles: RoleRules}): DesignNode[] {
   const {origin, roles} = input
-  const children = (input.node.children ?? []).flatMap((child) => designNodes({node: child, origin, roles}))
+  const children = seated({
+    parent: input.node,
+    built: (input.node.children ?? []).flatMap((child) =>
+      designNodes({node: child, origin, roles}).map((node) => ({node, figma: child})),
+    ),
+  })
   const texts = children.flatMap((child) => (child.kind === 'text' ? [child] : []))
   return children.map((child) => {
     if (child.kind !== 'text') return child
     const neighbours = texts.filter((other) => other !== child).map((other) => other.text)
     return {...child, role: roles({text: child.text, neighbours}).role}
   })
+}
+
+function seated(input: {parent: FigmaNode; built: {node: DesignNode; figma: FigmaNode}[]}): DesignNode[] {
+  const {parent, built} = input
+  if (!FLOWS.has(parent.layoutMode ?? '')) return built.map((entry) => entry.node)
+  const flowing = built.filter((entry) => entry.figma.layoutPositioning !== 'ABSOLUTE')
+  return built.map((entry) => {
+    const index = flowing.indexOf(entry)
+    if (index === -1) return entry.node
+    const size = sizing({figma: entry.figma, vertical: parent.layoutMode === 'VERTICAL'})
+    return {...entry.node, layout: {...entry.node.layout, size, index: index + 1}}
+  })
+}
+
+function sizing(input: {figma: FigmaNode; vertical: boolean}): NodeLayout['size'] {
+  const {figma, vertical} = input
+  const mode = vertical ? figma.layoutSizingVertical : figma.layoutSizingHorizontal
+  return SIZINGS.get(mode ?? '') ?? (figma.layoutGrow === 1 ? 'fill' : 'fixed')
 }
 
 function boxIn(input: {bounds: {x: number; y: number; width: number; height: number}; origin: Origin}): Box {
@@ -274,12 +336,35 @@ function boxNode(input: {node: FigmaNode; box: Box; scale: number; children: Des
     box,
     kind: 'box',
     ...(paint === null ? {} : {paint}),
+    ...autoLayout({node, scale}),
     border: color === undefined ? null : {width: (node.strokeWeight ?? 1) * scale, color: colorHex(color)},
     radius:
       node.type === 'ELLIPSE'
         ? Math.min(box.w, box.h) / 2
         : (node.cornerRadius ?? node.rectangleCornerRadii?.[0] ?? 0) * scale,
     children,
+  }
+}
+
+function autoLayout(input: {node: FigmaNode; scale: number}): {layout?: ContainerLayout} {
+  const {node, scale} = input
+  const direction = FLOWS.get(node.layoutMode ?? '')
+  if (direction === undefined) return {}
+  const px = (value: number | undefined): number => Math.round((value ?? 0) * scale)
+  return {
+    layout: {
+      direction,
+      gap: {px: px(node.itemSpacing), uniform: true},
+      align: ALIGNS.get(node.counterAxisAlignItems ?? '') ?? 'start',
+      wrap: node.layoutWrap === 'WRAP',
+      padding: {
+        top: px(node.paddingTop),
+        right: px(node.paddingRight),
+        bottom: px(node.paddingBottom),
+        left: px(node.paddingLeft),
+      },
+      runs: [],
+    },
   }
 }
 

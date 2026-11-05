@@ -40,6 +40,7 @@ import {
   fnv,
 } from '../raster.js'
 import {isFigmaUrl} from './figma.js'
+import {inferLayout} from './layout.js'
 
 export {trimToInk} from '../raster.js'
 
@@ -52,14 +53,14 @@ export function createImageAdapter(input: ImageTools): TargetAdapter {
       const raster = decodePng(image)
       const {nodes, warnings} = await enrich({nodes: [], raster, scale, tools: input})
       const viewport = {width: Math.round(raster.width / scale), height: Math.round(raster.height / scale)}
-      const root: DesignNode = {
+      const root = inferLayout({
         id: 'root',
         box: {x: 0, y: 0, w: raster.width, h: raster.height},
         kind: 'box',
         border: null,
         radius: 0,
         children: nest({nodes}),
-      }
+      })
       return {
         design: {
           id: createHash('sha256').update(image).digest('hex').slice(0, 12),

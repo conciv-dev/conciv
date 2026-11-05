@@ -76,7 +76,7 @@ Every stage boundary is a type in `defs.ts`. A consumer imports the type and rec
 | `PixelComparator`, `ColorMetric`, `TextReader` | `raster.ts`, `sources/image.ts`        | `differ.ts`                            |
 | `Words`                                        | `words.ts`                             | `differ.ts`                            |
 
-Rule for a reviewer: `grep "from './sources/\|from './pair\|from './words\|from './store"` matches only in `server.ts`. Everything else takes what it needs through `DesignRuntime`.
+Rule for a reviewer: `grep -n "PAIRERS\|RANKERS\|createStore\|createImageAdapter\|createFigmaAdapter"` under `src/server/` matches only the file that defines each and `server.ts`. Everything else takes the chosen implementation through `DesignRuntime`.
 
 ## Sources
 
@@ -114,7 +114,7 @@ A new source (Sketch, Penpot, a URL to a live site) is one file in `server/sourc
 | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `TargetModel.nodes[]` plus `within`                                  | `Design.root`                                                                             |
 | `DesignSection[]`, `sections(id)`                                    | `design.root.children`                                                                    |
-| `Tree`, `Seat`, `placement`, `laidOut`, `layout.ts`                  | tree walk with the parent in hand                                                         |
+| `Tree`, `Seat`, `placement`, `layout.ts`                             | tree walk with the parent in hand                                                         |
 | `pairTree`, `Pair.parent/prev/next/depth`                            | `Match.children`; siblings are the parent's array                                         |
 | `PairRecord[]`, `pairs-<run>.json`                                   | walk `run.root`, pick `live`                                                              |
 | `Ledger`, `ledger.json`, `nextLedger`, `ledgerPairs`, `ledgerCounts` | `status` and `since` on `Match`; `nextStatus(previous: Match, now: Match)` on the same id |
@@ -180,7 +180,25 @@ Tests build the store over `memoryDriver()`; no temp directories. The brief text
 
 ## Pairing
 
-A pairer takes `{design: DesignNode, live: LiveComponent, decisions}` and returns `Match`. Structure first is recursion: pair the node, then pair its children against the paired element's subtree. The vote across pairers stays; it votes per node inside the recursion. Fingerprints are computed from `live` when needed, not stored on a separate record.
+```ts
+type Pairer = (input: {
+  design: Design // in CSS px, excluded and off-page nodes already dropped by the run
+  live: LiveComponent
+  previous: Match | null // the last run's tree, for carry-over by fingerprint
+  rasters: {live: Raster; target: Raster}
+  twins: {node: string; path: string}[] // twin decisions resolved by the run to the twin's live path
+  comparators: Comparators
+  budget: number // ms
+}) => Promise<{root: Match; partial: boolean; carried: number}>
+```
+
+Structure first is recursion: pair the node, then pair its children against the paired element's subtree. Every voter from before stays, the pixel voter included (it reads `rasters`), and carry-over by fingerprint from `previous` stays. No feature of the old pairer is dropped; what goes is the flat `Pair` list, the linked siblings, and the tree rebuilt from `within`. Fingerprints are computed from `live` when needed, not stored on a separate record.
+
+Twins across two targets are still found automatically: `linkTwins` in `differ.ts` reads the latest `Run` of each target and pairs nodes whose `live.path` is equal, writing `twin` decisions on both. The pairer only reads them.
+
+Layout inference (`laidOut` at 1a1ed0175, rows, columns, gap, padding from children boxes) is a design property and runs once in the sources: `inferLayout(root: DesignNode): DesignNode` in `server/sources/layout.ts`, called by the image adapter for every container and by the Figma adapter only for containers whose Figma node has no auto-layout. Nothing after the sources infers layout.
+
+`align`, `fingerprint`, `glyphRun`, `targetBox` and `selectors` are pairing geometry the run needs; `differ.ts` imports them from `pair.ts`. The interface rule covers implementations chosen by configuration (`PAIRERS`, `RANKERS`, the adapters, `createStore`), not every function in those files.
 
 ## Tool contracts
 
