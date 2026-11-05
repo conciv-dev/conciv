@@ -47,6 +47,7 @@ const OcrLineSchema = z.object({box: BoxSchema, text: z.string(), confidence: z.
 
 const NodeBaseSchema = z.object({
   id: z.string(),
+  ref: z.string().optional(),
   box: BoxSchema,
   within: z.string().optional(),
   layout: NodeLayoutSchema.optional(),

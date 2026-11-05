@@ -36,7 +36,7 @@ export type Typography = {
   family: string | null
 }
 export type TypographyInput = Omit<Typography, 'family'> & {family?: string | null}
-type NodeBase = {id: string; box: Box; within?: string; layout?: NodeLayout}
+type NodeBase = {id: string; ref?: string; box: Box; within?: string; layout?: NodeLayout}
 export type TextNode = NodeBase & {
   kind: 'text'
   text: string

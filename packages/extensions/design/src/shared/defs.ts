@@ -650,12 +650,34 @@ const ClearResultSchema = z.object({removed: z.number()})
 
 const Width = z.number().int().positive()
 
-export const TargetInputSchema = z.object({
-  image: z.string().meta({format: 'path'}).describe('path of a PNG under the project, or the PNG as base64'),
-  scale: z.number().positive().optional().describe('image pixels per CSS pixel: 2 for a retina export, 1 by default'),
-  route: z.string().optional().describe('a label for the route the image is the design of; defaults to the live route'),
-  name: z.string().optional().describe('a name for the target'),
-})
+export const TargetInputSchema = z
+  .object({
+    image: z
+      .string()
+      .meta({format: 'path'})
+      .optional()
+      .describe('path of a PNG under the project, or the PNG as base64'),
+    figma: z
+      .url()
+      .optional()
+      .describe('link of a Figma frame: https://www.figma.com/design/<fileKey>/<name>?node-id=<id>'),
+    document: z
+      .unknown()
+      .optional()
+      .describe('the frame as the Figma REST nodes document, when the engine has no FIGMA_API_KEY; pass the image too'),
+    scale: z.number().positive().optional().describe('image pixels per CSS pixel: 2 for a retina export, 1 by default'),
+    route: z
+      .string()
+      .optional()
+      .describe('a label for the route the image is the design of; defaults to the live route'),
+    name: z.string().optional().describe('a name for the target'),
+  })
+  .refine((input) => input.document !== undefined || (input.image === undefined) !== (input.figma === undefined), {
+    message: 'pass image or figma, not both',
+  })
+  .refine((input) => input.document === undefined || (input.figma !== undefined && input.image !== undefined), {
+    message: 'document goes with figma and image',
+  })
 
 export const DiffInputSchema = z.object({
   depth: z.number().int().min(1).max(6).default(3).describe('how deep to descend into the component tree'),
@@ -703,6 +725,14 @@ export const DESIGN_ERRORS = {
   'image-unreadable': {message: 'image is neither a PNG file nor PNG base64'},
   'no-target': {message: NO_TARGET_MESSAGE},
   'unknown-section': {message: 'the design has no section with that id'},
+  'figma-link': {
+    message: 'the Figma link must point at a frame: https://www.figma.com/design/<fileKey>/<name>?node-id=<id>',
+  },
+  'figma-source': {
+    message:
+      'no way to read the Figma frame: set FIGMA_API_KEY for the engine, or fetch the frame with your Figma MCP and pass it as document together with its image',
+  },
+  'figma-request': {message: 'Figma did not answer the request'},
 } satisfies ToolErrors
 
 type DesignToolDef<Shape extends z.ZodRawShape, Out extends z.ZodType> = ToolBuilder<
@@ -752,7 +782,7 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
 
 export const targetDef = designTool({
   verb: 'target',
-  summary: 'register a design image as the target; its width and height come from the image',
+  summary: 'register a design image or a Figma frame as the target',
   mutating: true,
   icon: 'edit',
   running: 'Registering the design target',
