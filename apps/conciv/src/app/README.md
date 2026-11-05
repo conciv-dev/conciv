@@ -8,7 +8,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 
 - `AppContext`, `AppContextValue` (`context.ts`): app-wide context
 - `useRpc`, `useSettings`, `useAppData`, `useEnvironment`, `useAppQueryClient`, `useAnnounce`, `useLayers`, `useInstances`, `useConnected`, `useApiBase`, `useLiveSessions`, `usePaneChat`, `useWarmSession` and further accessors (`context.ts`)
-- `makeLiveSessions(deps)`, `LiveSessions`, `PaneActivity` (`live-sessions.ts`): owns one chat client per session (`useChatSession` keyed on session id and connection generation; a `chat-hydration` query re-hydrates it in place when the trust flip invalidates queries); `open(sessionId)` hands a pane that client; `activityIn` returns `unmounted` | `idle` | `running`
+- `makeLiveSessions(deps)`, `LiveSessions`, `PaneActivity` (`live-sessions.ts`): owns one chat client per session (`useChatSession` keyed on session id and connection generation; each chat subscribes to its api base trust and re-hydrates in place when trust flips from untrusted or revoked to trusted); `open(sessionId)` hands a pane that client; `activityIn` returns `unmounted` | `idle` | `running`
 - `PaneContext`, `usePane`, `makePendingAttachmentQueue` (`pane-context.ts`): per-session pane context and a File queue
 - `PaneProvider` (`pane-provider.tsx`): builds the pane context for a `sessionId` (chat, refresh, grab staging, attachments, `newSession`)
 - `PanelChromeContext`, `usePanelChrome` (`panel-chrome.ts`): panel close handle

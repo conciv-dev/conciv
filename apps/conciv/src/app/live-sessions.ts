@@ -1,10 +1,11 @@
 import {createMemo, mapArray, onCleanup, untrack, type Accessor} from 'solid-js'
-import {useQuery, type QueryClient} from '@tanstack/solid-query'
+import type {QueryClient} from '@tanstack/solid-query'
 import {createStore} from 'solid-js/store'
 import {useChatSession, type ChatSession, type ChatTransportPreference} from '@conciv/client'
-import type {RpcClient} from '@conciv/contract'
+import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {AppData} from '../data/app-data.js'
+import {engineLocked} from './engine-login.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
@@ -78,20 +79,12 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
             isRunPhaseTerminal(lifecycle.phase) ? finish(sessionId, lifecycle) : start(sessionId, lifecycle),
         },
       })
-      useQuery(
-        () => ({
-          queryKey: ['chat-hydration', apiBase, sessionId],
-          queryFn: async () => {
-            await session.refresh()
-            return true
-          },
-          initialData: true,
-          staleTime: Number.POSITIVE_INFINITY,
-          retry: false,
-        }),
-        () => deps.queryClient,
-      )
+      const stopTrust = browserRpcConnection(apiBase).trust.subscribe((status, previous) => {
+        if (status === 'trusted' && engineLocked(previous))
+          session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
+      })
       onCleanup(() => {
+        stopTrust()
         if (untrack(session.runInProgress)) deps.appData.invalidateSessions()
       })
       return {
