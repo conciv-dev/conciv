@@ -61,8 +61,10 @@ function makePending<T>(): Pending<T> {
 
 export type PageAnswer = {result: Record<string, unknown>; capture?: PageCaptureBundle}
 
+type PageAsk = Omit<PageQuery, 'requestId'> & {timeout?: number}
+
 export type PageBus = {
-  ask: (sessionId: SessionId, query: Omit<PageQuery, 'requestId'>) => Promise<PageAnswer>
+  ask: (sessionId: SessionId, query: PageAsk) => Promise<PageAnswer>
   connected: (sessionId: SessionId) => boolean
   anySubscriber: () => boolean
   resolve: (sessionId: SessionId, requestId: string, outcome: PageOutcome) => boolean
@@ -105,14 +107,15 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     }
   }
 
-  async function ask(sessionId: SessionId, query: Omit<PageQuery, 'requestId'>): Promise<PageAnswer> {
+  async function ask(sessionId: SessionId, request: PageAsk): Promise<PageAnswer> {
+    const {timeout, ...query} = request
     const page = bySession.get(sessionId)
     if (page === undefined || page.subscribers.size === 0) {
       throw pageFailure('no-widget', `no widget connected to session "${sessionId}"`)
     }
     idState.n += 1
     const requestId = `pq${idState.n}`
-    const declared = query.input['timeout']
+    const declared = timeout ?? query.input['timeout']
     const ms = typeof declared === 'number' ? declared + 1000 : timeoutMs
     for (const emit of page.subscribers) emit({requestId, ...query})
     const outcome = await page.pending

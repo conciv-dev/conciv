@@ -104,6 +104,24 @@ skills:
       - 'conciv-dev/conciv:apps/site/content/docs/usage/approvals.mdx'
       - 'conciv-dev/conciv:AGENTS.md'
 
+  - name: 'Building a page from a design image'
+    slug: 'conciv-design'
+    type: 'core'
+    domain: 'design-matching'
+    path: 'skills/conciv-design/SKILL.md'
+    package: 'packages/skills'
+    packages:
+      - '@conciv/it'
+      - '@conciv/cli'
+    description: 'Registering a design image as the design target and running the conciv design diff loop until it stops.'
+    requires:
+      - 'conciv-setup'
+    sources:
+      - 'conciv-dev/conciv:packages/extensions/design/src/shared/defs.ts'
+      - 'conciv-dev/conciv:packages/extensions/design/src/server/differ.ts'
+      - 'conciv-dev/conciv:packages/extensions/design/src/server/store.ts'
+      - 'conciv-dev/conciv:packages/harness-init/src/agent-guide.ts'
+
 coverage:
   ignored_packages:
     - name: '@conciv/plugin'

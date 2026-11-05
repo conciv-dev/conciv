@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {isPageFailure} from '@conciv/protocol/page-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import {pageVerbError, toolError, type ToolRequest} from '@conciv/extension'
+import {pageVerbError, toolError, type PageAskRequest, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry, type ForwardedPageTool, type ToolRegistry} from '@conciv/extension/registry'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import type {PageAnswer, PageEnv} from './page-bus.js'
@@ -67,6 +67,16 @@ async function runClientTool(
     return data
   } catch (error) {
     throw attributedTo(tool.name, toolFailureFromPage(tool.name, tool.name, error))
+  }
+}
+
+export async function askPage(input: PageAskRequest & {page: PageEnv}): Promise<unknown> {
+  const {page, sessionId, name, input: query, timeout} = input
+  try {
+    const answer = await page.bus.ask(sessionId, {name, input: query, ...(timeout === undefined ? {} : {timeout})})
+    return answer.result
+  } catch (error) {
+    throw attributedTo(name, toolFailureFromPage(name, name, error))
   }
 }
 

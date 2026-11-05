@@ -13,6 +13,8 @@ const SHOTS = [
   {name: 'u1-1280', path: '/?variant=target', ready: 'header.toolbar', width: 1280, height: 720},
   {name: 'u1-390', path: '/?variant=target', ready: 'header.toolbar', width: 390, height: 844},
   {name: 'plain-1280', path: '/plain.html', ready: 'header.plain-header', width: 1280, height: 720},
+  {name: 'roles-1280', path: '/?variant=roles', ready: 'header.toolbar', width: 1280, height: 720},
+  {name: 'hardcoded-1280', path: '/?variant=hardcoded', ready: 'header.toolbar', width: 1280, height: 720},
 ] as const
 
 function upscale2x(source: PNG): PNG {

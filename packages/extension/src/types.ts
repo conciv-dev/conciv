@@ -98,6 +98,10 @@ export type ServerHarness = {
   transcriptMessages?: (token: HarnessSessionId) => Promise<ChatMessage[]>
 }
 
+export type PageAskRequest = {sessionId: SessionId; name: string; input: Record<string, unknown>; timeout?: number}
+
+export type SessionPromptResolver = (context: {cwd: string; sessionId: SessionId}) => Promise<string | undefined>
+
 export type ServerApi<Config> = {
   config: Config
   cwd: string
@@ -108,6 +112,7 @@ export type ServerApi<Config> = {
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   bundler?: BundlerBridge
   nativeUrl: () => string | undefined
+  page: {ask: (request: PageAskRequest) => Promise<unknown>}
 }
 
 export type ServerResult<Context> = {
@@ -115,6 +120,7 @@ export type ServerResult<Context> = {
   router?: AnyRouter
   app?: unknown
   turnEnd?: (sessionId: SessionId) => void | Promise<void>
+  systemPrompt?: SessionPromptResolver
   dispose?: () => void | Promise<void>
 }
 

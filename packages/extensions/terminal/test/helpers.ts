@@ -112,6 +112,7 @@ export async function startTerminalServer(
     harness,
     symbolicate: async () => null,
     nativeUrl: () => undefined,
+    page: {ask: ({name}) => Promise.reject(new Error(`${name}: the terminal test server has no page`))},
   }
   const result = await terminalExtension.__server?.(api)
   if (!(result?.app instanceof Hono)) throw new Error('terminal extension returned no hono app')

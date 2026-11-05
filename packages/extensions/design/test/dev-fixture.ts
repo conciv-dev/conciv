@@ -1,7 +1,7 @@
 import {compact} from 'es-toolkit'
-import type {DiffReport} from '../shared/defs.js'
-import type {Box, TargetRecord} from '../shared/types.js'
-import {assemble, type Delta, type ReportResponse, type XrayData} from './data.js'
+import type {DiffReport} from '../src/shared/defs.js'
+import type {Box, TargetRecord} from '../src/shared/types.js'
+import {assemble, type Delta, type ReportResponse, type XrayData} from '../src/xray/panel.js'
 
 const ROUTE = '/?variant=target'
 const HOME = '.conciv/design'
@@ -10,7 +10,16 @@ const SOURCE_CHANGE_AGE_MS = 4_000
 const RUN_SUFFIX = 'a1b2'
 
 function record(input: {id: string; width: number; name: string}): TargetRecord {
-  return {id: input.id, route: ROUTE, width: input.width, height: 720, name: input.name, scale: 1, createdAt: 0}
+  return {
+    id: input.id,
+    session: 'dev',
+    route: ROUTE,
+    width: input.width,
+    height: 720,
+    name: input.name,
+    scale: 1,
+    createdAt: 0,
+  }
 }
 
 const TARGETS = {
@@ -28,6 +37,7 @@ function report(input: {target: TargetRecord; body: Pick<DiffReport, 'mismatch' 
     diffImage: `${HOME}/${target.id}/diff-${at}.png`,
     livePath: `${HOME}/${target.id}/live-${at}.png`,
     xray: '',
+    warnings: [],
     ...input.body,
   }
   return value
@@ -236,14 +246,15 @@ const DESKTOP_RESPONSE: ReportResponse = {
   target: TARGETS.desktop,
   report: DESKTOP,
   targetImage: '',
+  nodes: [],
   sourceChangedAt: Date.now() - SOURCE_CHANGE_AGE_MS,
 }
 
 const RESPONSES: ReportResponse[] = [
-  {target: TARGETS.narrow, report: NARROW, targetImage: '', sourceChangedAt: null},
+  {target: TARGETS.narrow, report: NARROW, targetImage: '', nodes: [], sourceChangedAt: null},
   DESKTOP_RESPONSE,
-  {target: TARGETS.large, report: LARGE, targetImage: '', sourceChangedAt: null},
-  {target: TARGETS.wide, report: null, targetImage: '', sourceChangedAt: null},
+  {target: TARGETS.large, report: LARGE, targetImage: '', nodes: [], sourceChangedAt: null},
+  {target: TARGETS.wide, report: null, targetImage: '', nodes: [], sourceChangedAt: null},
 ]
 
 export function loadFixture(input: {id: string}): XrayData {

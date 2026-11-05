@@ -1,10 +1,47 @@
-import {For, onCleanup, onMount, Show, type JSX} from 'solid-js'
+import {For, Show, type JSX, onCleanup, onMount} from 'solid-js'
 import {clamp} from 'es-toolkit'
 import {ScrollArea, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
-import type {TargetRecord} from '../shared/types.js'
-import type {Row, XrayImages} from './data.js'
-import {Frame} from './frame.js'
+import type {TargetNode, TargetRecord} from '../shared/types.js'
 import {CheckChip, RadioChip} from './panel.js'
+import type {Row, XrayImages} from './panel.js'
+
+const DOTS = [0, 1, 2]
+
+type FrameProps = {
+  label: string
+  route?: string
+  width: number
+  height: number
+  scale: number
+  ready: boolean
+  failure: string | null
+  children: JSX.Element
+}
+
+function Frame(props: FrameProps): JSX.Element {
+  return (
+    <figure class="m-0 border border-base rounded-lg bg-base flex shrink-0 flex-col overflow-hidden">
+      <figcaption class="px-2.5 border-b border-base bg-base gap-2 grid grid-cols-[1fr_minmax(0,auto)_1fr] h-7 items-center">
+        <span class="flex gap-1.5" aria-hidden="true">
+          <For each={DOTS}>{() => <span class="rounded-full bg-neutral-400 opacity-40 size-2" />}</For>
+        </span>
+        <span class="text-xs color-meta leading-5 px-2.5 rounded-full bg-active truncate tabular-nums">
+          {props.label} · {props.route} · {props.width}
+        </span>
+      </figcaption>
+      <div
+        class={`relative overflow-hidden ${props.ready ? 'bg-base' : 'bg-active'}`}
+        style={{width: `${props.width * props.scale}px`, height: `${props.height * props.scale}px`}}
+      >
+        <Show when={props.failure} fallback={props.children}>
+          {(text) => (
+            <p class="text-sm m-0 p-6 text-center op-fade grid size-full text-pretty place-items-center">{text()}</p>
+          )}
+        </Show>
+      </div>
+    </figure>
+  )
+}
 
 export const MODES = ['live', 'design', 'diff', 'side', 'slider'] as const
 export type Mode = (typeof MODES)[number]
@@ -25,7 +62,7 @@ const MODE_LABEL: Record<Mode, string> = {
   slider: 'Slider',
 }
 
-export type Canvas = {width: number; gap: number; border: number; overflow: boolean}
+type Canvas = {width: number; gap: number; border: number; overflow: boolean}
 
 export type StageView = {
   boxes: boolean
@@ -201,6 +238,53 @@ function Overlay(props: {
   )
 }
 
+const NODE_STYLE: Record<TargetNode['kind'], {stroke: string; label: string}> = {
+  text: {stroke: 'stroke-primary-500', label: 'fill-primary-600'},
+  box: {stroke: 'stroke-amber-500', label: 'fill-amber-700'},
+  image: {stroke: 'stroke-red-500', label: 'fill-red-600'},
+}
+const NODE_LABEL_SIZE = 10
+
+function nodeLabel(node: TargetNode): string {
+  return node.kind === 'text' ? (node.role ?? 'unknown') : node.kind
+}
+
+function NodeLayer(props: {nodes: TargetNode[]; target: TargetRecord}): JSX.Element {
+  return (
+    <svg
+      class="size-full pointer-events-none inset-0 absolute"
+      viewBox={`0 0 ${props.target.width} ${props.target.height}`}
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="Nodes read from the design"
+    >
+      <For each={props.nodes}>
+        {(node) => (
+          <g>
+            <rect
+              class={`fill-none stroke-1 ${NODE_STYLE[node.kind].stroke}`}
+              x={node.box.x}
+              y={node.box.y}
+              width={node.box.w}
+              height={node.box.h}
+              stroke-dasharray={node.kind === 'image' ? DASH : undefined}
+              vector-effect="non-scaling-stroke"
+            />
+            <text
+              class={`font-mono ${NODE_STYLE[node.kind].label}`}
+              x={node.box.x + 1}
+              y={node.kind === 'text' ? node.box.y + node.box.h + NODE_LABEL_SIZE : node.box.y + NODE_LABEL_SIZE}
+              font-size={String(NODE_LABEL_SIZE)}
+            >
+              {nodeLabel(node)}
+            </text>
+          </g>
+        )}
+      </For>
+    </svg>
+  )
+}
+
 type DividerEvent = PointerEvent & {currentTarget: HTMLDivElement}
 
 function Divider(props: {value: number; onChange: (value: number) => void}): JSX.Element {
@@ -268,6 +352,7 @@ function Divider(props: {value: number; onChange: (value: number) => void}): JSX
 type StageProps = {
   mode: Mode
   rows: Row[]
+  nodes: TargetNode[]
   selected: Row | null
   images: XrayImages
   target: TargetRecord
@@ -355,6 +440,7 @@ export function Stage(props: StageProps): JSX.Element {
   const DesignShot = () => (
     <Shot label="Design" src={props.images.target} failure={failed(props.images.target) ? FAILURE.design : null}>
       <Picture src={props.images.target} alt="Design" />
+      <NodeLayer nodes={props.nodes} target={props.target} />
     </Shot>
   )
   const LiveShot = () => (

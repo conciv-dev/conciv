@@ -1,4 +1,14 @@
-export function Table() {
+type Row = {invoice: string; customer: string; amount: string}
+
+const ROWS: Row[] = [
+  {invoice: 'INV-001', customer: 'Acme', amount: '1,200'},
+  {invoice: 'INV-002', customer: 'Globex', amount: '860'},
+]
+const ROLE_ROWS: Row[] = [...ROWS, {invoice: 'INV-003', customer: '[Customer Name]', amount: '$1,200'}]
+
+export function Table(props: {variant: string | null}) {
+  const rows = props.variant === 'roles' ? ROLE_ROWS : ROWS
+  const hardcoded = props.variant === 'hardcoded'
   return (
     <table className="table">
       <thead>
@@ -9,16 +19,13 @@ export function Table() {
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <td>INV-001</td>
-          <td>Acme</td>
-          <td>1,200</td>
-        </tr>
-        <tr>
-          <td>INV-002</td>
-          <td>Globex</td>
-          <td>860</td>
-        </tr>
+        {rows.map((row, index) => (
+          <tr key={row.invoice}>
+            <td>{row.invoice}</td>
+            <td>{row.customer}</td>
+            {hardcoded && index === 0 ? <td>1,200</td> : <td>{row.amount}</td>}
+          </tr>
+        ))}
       </tbody>
     </table>
   )

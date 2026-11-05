@@ -177,12 +177,13 @@ export function createToolRegistry(
   const has = (name: string): boolean => walked().some((entry) => entry.path.join('.') === name)
   const call: ToolRegistry['call'] = (name, input, callCtx) =>
     has(name) ? callTool(router, name, input, callCtx.request) : Promise.reject(new Error(`unknown tool "${name}"`))
+  const listed = (): RegistryWalkEntry[] => walked().filter((entry) => readToolMeta(entry).catalog !== false)
   const viewFor = (connected: () => boolean) => ({
     catalog: {
-      list: () => catalogEntries(walked(), connected()),
-      get: (name: string) => toolSignature(walked(), name, connected()),
+      list: () => catalogEntries(listed(), connected()),
+      get: (name: string) => toolSignature(listed(), name, connected()),
     },
-    sandboxTools: () => sandboxToolList(router, walked(), connected()),
+    sandboxTools: () => sandboxToolList(router, listed(), connected()),
   })
   const self: RegistrySelf = {
     call,
@@ -463,6 +464,7 @@ const RegistryToolMetaSchema = z.object({
   hint: z.string().optional(),
   icon: z.string().optional(),
   label: z.object({running: z.string(), done: z.string()}).optional(),
+  catalog: z.boolean().optional(),
 })
 
 const StrictToolCosmetics = z.object({

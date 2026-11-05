@@ -898,6 +898,26 @@ describe('tool registry', () => {
     expect(failure.message).toBe('original failure text')
   })
 
+  test('a client tool declared outside the catalog stays callable but is never listed', async () => {
+    const registry = createToolRegistry({pageCaller: async () => ({filled: true})})
+    const hidden = defineTool({
+      name: 'page_measure',
+      description: 'measure the page',
+      inputSchema: z.object({}),
+      outputSchema: z.object({filled: z.boolean()}),
+      meta: {summary: 'measure the page', catalog: false},
+    })
+    registry.register(hidden.client(), {owner: 'a test registrant'})
+    registry.register(
+      fillTool().client(() => ({filled: true})),
+      {owner: 'a test registrant'},
+    )
+    expect(registry.catalog.list().map((entry) => entry.name)).toEqual(['page_fill'])
+    expect(registry.sandboxTools().map((tool) => tool.name)).toEqual(['page_fill'])
+    expect(() => registry.catalog.get('page_measure')).toThrow(/unknown tool/)
+    expect(await registry.call('page_measure', {}, {request: TEST_REQUEST})).toEqual({filled: true})
+  })
+
   test('client tool reachability follows the liveness callback on the same registry instance', () => {
     const liveness = {connected: false}
     const registry = createToolRegistry({

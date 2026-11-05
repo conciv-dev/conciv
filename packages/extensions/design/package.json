@@ -45,20 +45,20 @@
       "import": "./dist/shared/defs.js"
     },
     "./provenance": {
-      "types": "./dist/server/provenance/mappers.d.ts",
-      "import": "./dist/server/provenance/mappers.js"
+      "types": "./dist/server/provenance.d.ts",
+      "import": "./dist/server/provenance.js"
     },
     "./text-groups": {
-      "types": "./dist/server/text-groups.d.ts",
-      "import": "./dist/server/text-groups.js"
+      "types": "./dist/server/differ.d.ts",
+      "import": "./dist/server/differ.js"
     },
     "./paddle": {
-      "types": "./dist/server/comparators/paddle.d.ts",
-      "import": "./dist/server/comparators/paddle.js"
+      "types": "./dist/server/target.d.ts",
+      "import": "./dist/server/target.js"
     },
     "./colors": {
-      "types": "./dist/server/deltas/colors.d.ts",
-      "import": "./dist/server/deltas/colors.js"
+      "types": "./dist/server/deltas.d.ts",
+      "import": "./dist/server/deltas.js"
     },
     "./types": {
       "types": "./dist/shared/types.d.ts"

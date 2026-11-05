@@ -21,6 +21,7 @@ export type ToolMeta = {
   hint?: string
   icon?: ToolIconKey
   label?: ToolLabel
+  catalog?: boolean
 }
 
 export type ToolErrorSpec = {message: string; data?: z.ZodType}

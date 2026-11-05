@@ -7,12 +7,17 @@ export const DESIGN_EXTENSION_NAME = 'design'
 
 export const DESIGN_TOOL_PREFIX = 'design_'
 
+export const DESIGN_GUIDE =
+  'A design target is registered. Call `design_diff` to measure the live page against it, fix the brief, run it again, and stop when `stop` is set. Do not judge a design match from a screenshot.'
+
+export const NO_TARGET_MESSAGE = 'no design target is registered; register the design image with design_target'
+
 export function designVerb(name: string): string {
   if (!name.startsWith(DESIGN_TOOL_PREFIX)) throw new Error(`"${name}" is not a design tool`)
   return name.slice(DESIGN_TOOL_PREFIX.length)
 }
 
-export const DELTA_KIND_NAMES = [
+const DELTA_KIND_NAMES = [
   'inset-left',
   'inset-right',
   'inset-top',
@@ -31,7 +36,7 @@ export const DELTA_KIND_NAMES = [
   'text',
 ] as const
 
-export const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
+const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
 
 export type DeltaKindName = z.infer<typeof DeltaKindNameSchema>
 
@@ -50,7 +55,7 @@ export const LiveStylesSchema = z.object({
 
 export const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
 
-export const LiveComponentSchema = z.object({
+const LiveComponentSchema = z.object({
   source: SourceLocSchema.nullable(),
   tag: z.string(),
   text: z.string(),
@@ -65,7 +70,7 @@ export const LiveComponentSchema = z.object({
   children: z.array(z.record(z.string(), z.unknown())).describe('nested components of the same shape'),
 })
 
-export const ProvenanceSchema = z.object({
+const ProvenanceSchema = z.object({
   via: z.enum(['sx', 'style', 'className', 'css', 'emotion', 'styled', 'library', 'source', 'unknown']),
   file: z.string().optional(),
   line: z.number().optional(),
@@ -75,22 +80,26 @@ export const ProvenanceSchema = z.object({
   suggest: z.string().optional(),
 })
 
-export const DeltaSchema = ProvenanceSchema.partial().extend({
+const DeltaSchema = ProvenanceSchema.partial().extend({
   kind: DeltaKindNameSchema,
   side: z.enum(['left', 'right', 'top', 'bottom', 'x', 'y']).optional(),
   live: z.union([z.number(), z.string()]),
   target: z.union([z.number(), z.string()]),
   breakpoint: z.boolean().optional(),
+  warning: z
+    .enum(['sample-data'])
+    .optional()
+    .describe('the live text is a literal equal to sample data in the design; render it from the data instead'),
 })
 
-export const UnmatchedSchema = z.object({
+const UnmatchedSchema = z.object({
   kind: z.enum(['missing', 'extra']),
   target: BoxSchema.optional(),
   live: BoxSchema.optional(),
   source: SourceLocSchema.optional(),
 })
 
-export const WinnerSchema = z.object({
+const WinnerSchema = z.object({
   selector: z.string().nullable(),
   declaration: z.string(),
   value: z.string(),
@@ -108,16 +117,17 @@ export const WinnerSchema = z.object({
   rulePath: z.string(),
 })
 
-export const TargetResultSchema = z.object({
+const TargetResultSchema = z.object({
   id: z.string(),
-  route: z.string(),
+  route: z.string().optional(),
   width: z.number(),
   height: z.number(),
   scale: z.number(),
   text: z.object({runs: z.number(), error: z.string().optional()}).optional(),
+  next: z.string(),
 })
 
-export const ComponentReportSchema = z.object({
+const ComponentReportSchema = z.object({
   source: SourceLocSchema.nullable(),
   tag: z.string(),
   selector: z.string(),
@@ -128,8 +138,12 @@ export const ComponentReportSchema = z.object({
   children: z.number(),
 })
 
+const RouteItemSchema = z
+  .object({live: z.string(), target: z.string()})
+  .describe('the tab shows another route than the design target; nothing was measured')
+
 export const DiffReportSchema = z.object({
-  target: z.object({id: z.string(), route: z.string(), width: z.number()}),
+  target: z.object({id: z.string(), route: z.string().optional(), width: z.number()}),
   mismatch: z.number(),
   diffImage: z.string(),
   livePath: z.string(),
@@ -137,12 +151,18 @@ export const DiffReportSchema = z.object({
   components: z.array(ComponentReportSchema),
   unmatched: z.array(UnmatchedSchema),
   hint: z.string().optional(),
+  route: RouteItemSchema.optional(),
+  warnings: z.array(DeltaSchema).default([]).describe('outside every count; hard-coded sample data to replace'),
+  segmentation: z
+    .enum(['full', 'partial'])
+    .optional()
+    .describe('partial when image regions cover much of the design, so boxes inside them are not read'),
 })
 
 export type DiffReport = z.infer<typeof DiffReportSchema>
 
-export const StatusReportSchema = z.object({
-  route: z.string(),
+const StatusReportSchema = z.object({
+  route: z.string().optional(),
   targets: z.array(
     z.object({
       id: z.string(),
@@ -153,9 +173,11 @@ export const StatusReportSchema = z.object({
     }),
   ),
   done: z.boolean(),
+  next: z.string().optional(),
+  reregister: z.boolean().optional().describe('the stored target is unreadable; register the design image again'),
 })
 
-export const CaptureResultSchema = z.object({
+const CaptureResultSchema = z.object({
   path: z.string(),
   width: z.number(),
   height: z.number(),
@@ -167,28 +189,25 @@ export const ViewportResultSchema = z.object({width: z.number(), height: z.numbe
 
 export const WinnerResultSchema = z.record(z.string(), WinnerSchema.nullable())
 
-export const ClearResultSchema = z.object({removed: z.number()})
+const ClearResultSchema = z.object({removed: z.number()})
 
 const Width = z.number().int().positive()
 
 export const TargetInputSchema = z.object({
   image: z.string().meta({format: 'path'}).describe('path of a PNG under the project, or the PNG as base64'),
-  route: z.string().optional().describe('route the image is the design of; defaults to the live route'),
-  width: Width.optional().describe('viewport width in px; defaults to the live tab width'),
+  scale: z.number().positive().optional().describe('image pixels per CSS pixel: 2 for a retina export, 1 by default'),
+  route: z.string().optional().describe('a label for the route the image is the design of; defaults to the live route'),
   name: z.string().optional().describe('a name for the target'),
 })
 
 export const DiffInputSchema = z.object({
-  target: z.string().optional().describe('target id; defaults to the target of the live route at the width'),
-  width: Width.optional().describe('viewport width in px; defaults to the live tab width'),
   depth: z.number().int().min(1).max(6).default(3).describe('how deep to descend into the component tree'),
   limit: z.number().int().min(1).max(50).default(12).describe('how many components to report'),
 })
 
-export const StatusInputSchema = z.object({route: z.string().optional().describe('route; defaults to the live route')})
+export const StatusInputSchema = z.object({})
 
 export const CaptureInputSchema = z.object({
-  width: Width.optional().describe('viewport width in px; defaults to the live tab width'),
   height: Width.optional().describe('viewport height in px'),
   probe: z.boolean().optional().describe('only report the live viewport size'),
   clear: z.boolean().optional().describe('remove the hidden capture frame'),
@@ -205,20 +224,18 @@ export const WinnerInputSchema = z.object({
 })
 
 export const ClearInputSchema = z.object({
-  target: z.string().optional().describe('target id to remove'),
-  route: z.string().optional().describe('remove every target of this route'),
+  target: z.string().optional().describe('target id to remove; defaults to the current target'),
+  all: z.literal(true).optional().describe('remove every target'),
 })
 
 export const DESIGN_ERRORS = {
   'image-unreadable': {message: 'image is neither a PNG file nor PNG base64'},
-  'width-required': {message: 'pass a width: the live tab width could not be read'},
-  'no-target': {message: 'no design target for this route and width; register one with design_target'},
+  'no-target': {message: NO_TARGET_MESSAGE},
   'frame-blocked': {
     message:
       'the app did not render inside the capture frame (frame-ancestors or X-Frame-Options); capture through cdp or chromium is not available yet',
   },
   'frame-timeout': {message: 'the capture frame did not settle in time'},
-  'route-mismatch': {message: 'the tab shows another route than the design target; navigate the tab there first'},
 } satisfies ToolErrors
 
 type DesignToolDef<Shape extends z.ZodRawShape, Out extends z.ZodType> = ToolBuilder<
@@ -266,21 +283,21 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
 
 export const targetDef = designTool({
   verb: 'target',
-  summary: 'register a design image as the target of a route at a width',
+  summary: 'register a design image as the target; its width and height come from the image',
   mutating: true,
   icon: 'edit',
   running: 'Registering the design target',
   done: 'Registered the design target',
   input: TargetInputSchema,
   output: TargetResultSchema,
-  hint: 'replaces an earlier target of the same route and width; then edit and run design_diff',
+  hint: 'the image becomes the current target of the session; build or edit the page, then run design_diff',
   keywords: ['design', 'mockup', 'image', 'figma', 'png'],
   positional: 'image',
 })
 
 export const diffDef = designTool({
   verb: 'diff',
-  summary: 'compare the live page with its design target and rank the components that differ',
+  summary: 'compare the live page with the current design target and rank the components that differ',
   mutating: false,
   icon: 'read',
   running: 'Comparing with the design',
@@ -293,29 +310,36 @@ export const diffDef = designTool({
 
 export const statusDef = designTool({
   verb: 'status',
-  summary: 'report whether every registered width of a route matches its design',
+  summary: 'report whether the live page matches the current design target',
   mutating: false,
   icon: 'read',
   running: 'Reading the design status',
   done: 'Read the design status',
   input: StatusInputSchema,
   output: StatusReportSchema,
-  hint: 'done is true once every width has a diff with nothing above tolerance',
+  hint: 'done is true once the last diff of the current target has nothing above tolerance',
   keywords: ['design', 'done', 'progress'],
 })
 
-export const captureDef = designTool({
+const CAPTURE_SPEC = {
   verb: 'capture',
-  summary: 'capture the live page at a width as a PNG with its component tree',
+  summary: 'capture the live page at the tab width as a PNG with its component tree',
   mutating: false,
   icon: 'read',
   running: 'Capturing the page',
   done: 'Captured the page',
-  input: CaptureInputSchema,
   output: z.union([CaptureResultSchema, ViewportResultSchema]),
   hint: 'returns the path of the PNG, never the bytes',
   keywords: ['design', 'capture', 'screenshot', 'components'],
+} as const
+
+export const captureDef = designTool({...CAPTURE_SPEC, input: CaptureInputSchema})
+
+const TabCaptureInputSchema = CaptureInputSchema.extend({
+  width: Width.optional().describe('viewport width of the hidden capture frame; defaults to the tab width'),
 })
+
+export const tabCaptureDef = designTool({...CAPTURE_SPEC, input: TabCaptureInputSchema})
 
 export const winnerDef = designTool({
   verb: 'winner',
@@ -339,7 +363,7 @@ export const clearDef = designTool({
   done: 'Cleared design targets',
   input: ClearInputSchema,
   output: ClearResultSchema,
-  hint: 'removes one target by id or every target of a route',
+  hint: 'removes one target by id, the current target, or every target with all',
   keywords: ['design', 'remove', 'reset'],
 })
 
@@ -347,8 +371,8 @@ export const DESIGN_TOOL_DEFS = [targetDef, diffDef, statusDef, captureDef, winn
 
 export type TargetInput = z.output<typeof TargetInputSchema>
 export type DiffInput = z.output<typeof DiffInputSchema>
-export type StatusInput = z.output<typeof StatusInputSchema>
 export type CaptureInput = z.output<typeof CaptureInputSchema>
+export type TabCaptureInput = z.output<typeof TabCaptureInputSchema>
 export type WinnerInput = z.output<typeof WinnerInputSchema>
 export type ClearInput = z.output<typeof ClearInputSchema>
 export type TargetResult = z.infer<typeof TargetResultSchema>
