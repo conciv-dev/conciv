@@ -47,32 +47,16 @@ type ConnectionEntry = BrowserRpcConnection & {state: TrustState}
 
 export type ReachabilityListener = (reachable: boolean) => void
 
-type Registry = Map<string, ConnectionEntry>
-type ReachabilityRegistry = Map<string, Set<ReachabilityListener>>
-type ActiveConnectionRegistry = Map<string, symbol>
+type Registry = Record<string, ConnectionEntry | undefined>
 
 declare global {
   // eslint-disable-next-line no-var
-  var __concivBrowserRpcRegistryV2: Registry | undefined
-  // eslint-disable-next-line no-var
-  var __concivRpcReachabilityListenersV1: ReachabilityRegistry | undefined
-  // eslint-disable-next-line no-var
-  var __concivRpcReachabilityActiveV1: ActiveConnectionRegistry | undefined
+  var __concivBrowserRpcRegistryV3: Registry | undefined
 }
 
 function registry(): Registry {
-  globalThis.__concivBrowserRpcRegistryV2 ??= new Map()
-  return globalThis.__concivBrowserRpcRegistryV2
-}
-
-function reachabilityListeners(): ReachabilityRegistry {
-  globalThis.__concivRpcReachabilityListenersV1 ??= new Map()
-  return globalThis.__concivRpcReachabilityListenersV1
-}
-
-function activeConnections(): ActiveConnectionRegistry {
-  globalThis.__concivRpcReachabilityActiveV1 ??= new Map()
-  return globalThis.__concivRpcReachabilityActiveV1
+  globalThis.__concivBrowserRpcRegistryV3 ??= {}
+  return globalThis.__concivBrowserRpcRegistryV3
 }
 
 function readStoredToken(key: string): string | undefined {
@@ -107,22 +91,17 @@ export function consumeMagicLinkCode(): string | undefined {
   return code
 }
 
-export function subscribeRpcReachability(apiBase: string, listener: ReachabilityListener): () => void {
-  const key = normalizeApiBase(apiBase)
-  const listeners = reachabilityListeners()
-  const forKey = listeners.get(key) ?? new Set()
-  forKey.add(listener)
-  listeners.set(key, forKey)
-  return () => {
-    forKey.delete(listener)
-  }
-}
+const REACHABILITY_EVENT = 'reachability'
 
-function voteReachability(key: string, connectionId: symbol, reachable: boolean): void {
-  if (activeConnections().get(key) !== connectionId) return
-  const forKey = reachabilityListeners().get(key)
-  if (!forKey) return
-  for (const listener of forKey) listener(reachable)
+export function subscribeRpcReachability(apiBase: string, listener: ReachabilityListener): () => void {
+  const {events} = connectionEntry(apiBase).state
+  const handler = (event: Event): void => {
+    if (event instanceof CustomEvent && typeof event.detail === 'boolean') listener(event.detail)
+  }
+  events.addEventListener(REACHABILITY_EVENT, handler)
+  return () => {
+    events.removeEventListener(REACHABILITY_EVENT, handler)
+  }
 }
 
 function normalizeApiBase(apiBase: string): string {
@@ -280,10 +259,10 @@ function makeEngineTrust(key: string, state: TrustState, link: ClientLink<RpcCli
 }
 
 function fetchConnection(key: string, state: TrustState): ConnectionEntry {
-  const connectionId = Symbol('conciv-rpc-connection')
-  activeConnections().set(key, connectionId)
-  const vote = (reachable: boolean): void => voteReachability(key, connectionId, reachable)
   const open = {value: true}
+  const vote = (reachable: boolean): void => {
+    if (open.value) state.events.dispatchEvent(new CustomEvent(REACHABILITY_EVENT, {detail: reachable}))
+  }
   const link = fetchLink(key, state, () => open.value, vote)
   return {
     link,
@@ -298,7 +277,7 @@ function fetchConnection(key: string, state: TrustState): ConnectionEntry {
 function connectionEntry(apiBase: string): ConnectionEntry {
   const key = normalizeApiBase(apiBase)
   const connections = registry()
-  const existing = connections.get(key)
+  const existing = connections[key]
   if (existing) return existing
   const created = fetchConnection(key, {
     key,
@@ -306,7 +285,7 @@ function connectionEntry(apiBase: string): ConnectionEntry {
     token: readStoredToken(key),
     events: new EventTarget(),
   })
-  connections.set(key, created)
+  connections[key] = created
   return created
 }
 
@@ -317,20 +296,19 @@ export function browserRpcConnection(apiBase: string): BrowserRpcConnection {
 export function closeBrowserRpcConnection(apiBase: string): void {
   const key = normalizeApiBase(apiBase)
   const connections = registry()
-  const existing = connections.get(key)
+  const existing = connections[key]
   if (!existing) return
-  connections.delete(key)
-  activeConnections().delete(key)
+  connections[key] = undefined
   existing.close()
 }
 
 export function resetBrowserRpcConnection(apiBase: string): BrowserRpcConnection {
   const key = normalizeApiBase(apiBase)
-  const existing = registry().get(key)
+  const existing = registry()[key]
   closeBrowserRpcConnection(apiBase)
   if (!existing) return browserRpcConnection(apiBase)
   const reset = fetchConnection(key, existing.state)
-  registry().set(key, reset)
+  registry()[key] = reset
   return reset
 }
 
