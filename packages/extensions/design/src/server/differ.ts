@@ -29,6 +29,7 @@ import {
   SourceLocSchema,
   statusDef,
   targetDef,
+  watchDef,
   winnerDef,
   WinnerResultSchema,
   TimingsSchema,
@@ -44,6 +45,8 @@ import {
   type Stage,
   type Stop,
   type StatusReport,
+  type WatchInput,
+  type WatchRow,
   type WinnerInput,
   type WinnerResult,
 } from '../shared/defs.js'
@@ -108,7 +111,7 @@ import {
   type RunJob,
 } from './loop.js'
 import {align, fingerprint, glyphRun, pairTree, pairTwins, type Offset, type Shift} from './pair.js'
-import {ledgerCounts, ledgerPairs, nextLedger} from './ledger.js'
+import {ledgerCounts, ledgerPairs, nextLedger, watchRows} from './ledger.js'
 import {newStamp} from './store.js'
 import {lookups, mapDeclaration, readLiveText, type LiveText} from './provenance.js'
 import {
@@ -190,6 +193,23 @@ export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore;
       return record
     },
     status: ({session}) => targetStatus({store, session, unanswered, history}),
+    watch: async ({input: query, session}) => {
+      const record = await currentTarget({design, session})
+      const settled = settledRuns.get(record.id)
+      const stored = await store.ledger(record.id)
+      const ledger = settled?.ledger ?? stored
+      const live = settled?.ledger !== undefined && settled.ledger !== null && settled.run !== stored?.run
+      const {nodes} = await store.model(record.id)
+      const rows = watchRows({nodes, ledger}).filter((row) => watchMatches({row, query}))
+      return {
+        target: record.id,
+        run: ledger?.run ?? null,
+        live,
+        counts: ledger === null ? {...ledgerCounts(null), unbuilt: nodes.length} : ledgerCounts(ledger),
+        rows: rows.slice(0, query.limit),
+        truncated: Math.max(0, rows.length - query.limit),
+      }
+    },
   }
 }
 
@@ -202,6 +222,7 @@ export const SERVER_STEPS = [
     return ctx.design.blind ? omit(compact, BLIND_FIELDS) : compact
   }),
   statusDef.server((_input, ctx: DesignContext, request) => ctx.differ.status({session: request.sessionId})),
+  watchDef.server((input, ctx: DesignContext, request) => ctx.differ.watch({input, session: request.sessionId})),
   captureDef.server(captureStep),
   winnerDef.server(winnerStep),
   clearDef.server(clearStep),
@@ -2186,6 +2207,14 @@ const PNG_SUFFIX = '.png'
 const XRAY_LIST = '/xray/list?'
 const XRAY_NODE = '/xray/node?'
 const COMPARE_REACH = TOLERANCES.blurRadius + 2
+
+function watchMatches(input: {row: WatchRow; query: WatchInput}): boolean {
+  const {row, query} = input
+  if (query.node !== undefined && row.node !== query.node) return false
+  if (query.ref !== undefined && row.ref !== query.ref) return false
+  if (query.key !== undefined && row.key !== query.key) return false
+  return query.status === undefined || row.status === query.status
+}
 
 async function currentTarget(input: {design: DesignRuntime; session: string}): Promise<TargetRecord> {
   const record = await input.design.store.current({session: input.session})

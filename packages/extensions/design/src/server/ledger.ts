@@ -1,5 +1,5 @@
 import {countBy, maxBy, minBy} from 'es-toolkit'
-import {type Ledger, type LedgerCounts, type LedgerEntry, type NodeStatus} from '../shared/defs.js'
+import {type Ledger, type LedgerCounts, type LedgerEntry, type NodeStatus, type WatchRow} from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
 import type {Decision, Fingerprint, Item, LiveComponent, Matched, PairRecord, TargetNode} from '../shared/types.js'
 import {fingerprint, type Shift} from './pair.js'
@@ -71,6 +71,31 @@ export function ledgerCounts(ledger: Ledger | null): LedgerCounts {
     regressed: counted.regressed ?? 0,
     accepted: counted.accepted ?? 0,
   }
+}
+
+export function watchRows(input: {nodes: TargetNode[]; ledger: Ledger | null}): WatchRow[] {
+  return input.nodes.map((node): WatchRow => {
+    const entry = input.ledger?.nodes[node.id]
+    const base = {
+      node: node.id,
+      ref: node.ref ?? null,
+      kind: node.kind,
+      text: node.kind === 'text' ? node.text : null,
+      box: node.box,
+    }
+    if (entry === undefined) {
+      return {...base, status: 'unbuilt', key: null, source: null, path: null, confidence: null, item: null}
+    }
+    return {
+      ...base,
+      status: entry.status,
+      key: entry.pair?.fingerprint.key ?? null,
+      source: entry.pair?.fingerprint.source ?? null,
+      path: entry.pair?.path ?? null,
+      confidence: entry.pair?.confidence ?? null,
+      item: entry.item?.sentence ?? null,
+    }
+  })
 }
 
 function worstItem(input: {items: Item[]; node: string}): LedgerEntry['item'] {
