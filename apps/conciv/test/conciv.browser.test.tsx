@@ -1204,7 +1204,7 @@ describe('harness switching', () => {
     await userEvent.click(model('Beta Model (Beta)'))
 
     await expect.element(confirmDialog()).toBeVisible()
-    await expect.element(panel.getByText('Hello from conciv')).toBeVisible()
+    await expect.element(page.getByText('Hello from conciv')).toBeVisible()
     await userEvent.click(confirmDialog().getByRole('button', {name: 'Switch to Beta'}))
     await expect.element(confirmDialog()).not.toBeInTheDocument()
     await expect.element(prompt('Beta Model (Beta)')).toBeVisible()
