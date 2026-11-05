@@ -2,7 +2,7 @@ import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import {makeRpcClient, type EngineStaleness} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import type {HarnessCommand, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {PushWireWatch} from '@conciv/extension-testkit/push-wire'
@@ -16,6 +16,7 @@ export type BootCoreInput = {
   terminal?: boolean
   history?: HarnessSessionMeta[]
   commands?: HarnessCommand[]
+  models?: HarnessModel[]
   allowedOrigins?: string[]
 }
 
@@ -114,6 +115,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     displayName: input.displayName,
     history: input.history,
     commands: input.commands,
+    models: input.models,
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
     ...(input.terminal ? {extensions: [createTerminalExtension({openTerminal: openedTerminal})]} : {}),

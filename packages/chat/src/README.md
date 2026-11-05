@@ -25,6 +25,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 - `approvals.ts:createApprovalStore.forRun` - `once` and `denied` grants are cleared when a run reads them; `session` grants persist for the thread.
 - `transcript.ts:createTranscriptImporter.sync` - messages already stored (by id) are skipped, and import resumes after the stored anchor `nativeId`.
 - `turn.ts:turnHooks` - throws `the message is empty` for an empty user message.
+- `turn.ts:turnHooks` - plans the turn with `reasoning` set to the session row's `effort`, or none when it is null (the CLI's default).
 - `code-mode.ts:cappedValue` - a result whose serialization exceeds `RESULT_CAP_CHARS` is replaced by a truncation payload keeping the first 4000 characters.
 
 ## Side Effects

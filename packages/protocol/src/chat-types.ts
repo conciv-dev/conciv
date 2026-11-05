@@ -81,6 +81,9 @@ export const NativeSessionRefSchema = z.object({
 })
 export type NativeSessionRef = z.infer<typeof NativeSessionRefSchema>
 
+export const ReasoningEffortSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max'])
+export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>
+
 export const SessionRecordSchema = z.object({
   id: SessionId,
   harnessSessionId: HarnessSessionId.nullable(),
@@ -88,6 +91,7 @@ export const SessionRecordSchema = z.object({
   origin: z.enum(['chat', 'agent', 'external']),
   title: z.string().nullable(),
   model: z.string().nullable(),
+  effort: ReasoningEffortSchema.nullable().default(null),
   usage: UsageSnapshotSchema.nullable(),
   cwd: z.string(),
   deletedAt: z.number().nullable().default(null),
@@ -135,6 +139,7 @@ export const HarnessModelSchema = z.object({
   description: z.string().optional(),
   group: z.string().optional(),
   disabled: z.boolean().optional(),
+  efforts: z.array(ReasoningEffortSchema).optional(),
 })
 export const ChatModelsSchema = z.object({
   models: z.array(HarnessModelSchema),

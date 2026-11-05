@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {NativeSessionRefSchema, SessionId} from '@conciv/protocol/chat-types'
+import {NativeSessionRefSchema, ReasoningEffortSchema, SessionId} from '@conciv/protocol/chat-types'
 import {UsageSnapshotSchema} from '@conciv/protocol/usage-types'
 
 export {UsageSnapshotSchema}
@@ -14,6 +14,7 @@ export const SessionMetaSchema = z.object({
   origin: z.enum(['conciv', 'external']),
   usage: UsageSnapshotSchema.nullable(),
   model: z.string().nullable(),
+  effort: ReasoningEffortSchema.nullable(),
   hidden: z.boolean(),
   native: NativeSessionRefSchema.nullable(),
 })

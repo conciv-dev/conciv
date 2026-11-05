@@ -33,7 +33,7 @@ import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {MarkerRow} from '@conciv/contract'
-import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments, returnUnsentToDraft} from './pane-attachments.js'
@@ -51,6 +51,7 @@ import {guardedToolCards} from '../extension/extension-boundary.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
+import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage} from './draft-storage.js'
 import {useSessionCaptures} from './session-captures.js'
@@ -226,8 +227,16 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
 
   const compacting = messaging.compacting
 
-  const triggerSources = useComposerTriggerSources(sessionId)
   const focusInput = () => requestAnimationFrame(() => inputHandle()?.focus())
+  const modelMenu = useModelMenu(focusInput)
+  const commandSources = useComposerTriggerSources({
+    sessionId,
+    openModelMenu: () => modelMenu().setOpen(true),
+  })
+  const sendOrRunCommand = async (content: string | SendContent): Promise<void> => {
+    if (typeof content === 'string' && commandSources.runTyped(content)) return
+    await messaging.onSend(content)
+  }
   const insert = (text: string) => {
     inputHandle()?.append(text)
     focusInput()
@@ -288,7 +297,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
         <ToolProvider value={toolCtx}>
           <ComposerHandlersProvider
             value={{
-              onSend: messaging.onSend,
+              onSend: sendOrRunCommand,
               onSendError: messaging.onSendError,
               onCancel: () =>
                 void chat.interruptAndFlush().then((unsent) => returnUnsentToDraft(unsent, {insert, addFile: attach})),
@@ -366,7 +375,8 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                             onSelectionChange={storage().noteSelection}
                             initialSelection={storage().restoredSelection}
                             busy={compacting() ? <CompactSpinner /> : undefined}
-                            triggers={triggerSources}
+                            triggers={commandSources.triggers}
+                            prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} />}
                           >
                             <Suspense fallback={<ComposerActionsPending />}>
                               <ComposerActions
