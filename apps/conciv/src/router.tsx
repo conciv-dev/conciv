@@ -16,7 +16,7 @@ import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
 import {engineLocked, type EngineLogin} from './app/engine-login.js'
 
-export type ConcivEnvironment = {rootNode: Node; document: Document}
+export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}
 
 export type ConcivRouterContext = {
   rpc: RpcClient
