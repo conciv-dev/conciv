@@ -55,6 +55,7 @@ export type ChatSession = Omit<Chat, 'stop'> & {
   runError: Accessor<string | null>
   sessionRunning: Accessor<boolean>
   runInProgress: Accessor<boolean>
+  sending: Accessor<boolean>
   hydrated: Accessor<boolean>
   pendingApprovals: Accessor<ApprovalAsk[]>
   decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<void>
@@ -125,6 +126,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const [runSource, setRunSource] = createSignal<RunClockSource | null>(null)
   const [hydrated, setHydrated] = createSignal(false)
   const [asks, setAsks] = createStore<{pending: ApprovalAsk[]}>({pending: []})
+  const [sends, setSends] = createStore<{inFlight: Promise<void>[]}>({inFlight: []})
   const connection = options.connect({
     onLifecycle: (lifecycle) => setRunSource({lifecycle, receivedAt: Date.now()}),
     onHydrated: (hydration) => {
@@ -167,6 +169,12 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     onError: options.onError,
   })
   onCleanup(() => connection.close())
+  const send = (...message: Parameters<Chat['sendMessage']>): Promise<void> => {
+    const delivery = chat.sendMessage(...message)
+    setSends('inFlight', (inFlight) => [...inFlight, delivery])
+    return delivery.finally(() => setSends('inFlight', (inFlight) => inFlight.filter((entry) => entry !== delivery)))
+  }
+  const sending = createMemo(() => sends.inFlight.length > 0)
   const stopping = createMemo(() => runSource()?.lifecycle.phase === 'stopping')
   const stopped = createMemo(() => runSource()?.lifecycle.phase === 'aborted')
   const runError = createMemo(() => {
@@ -205,7 +213,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     const decision = await options.decide(approvalId, approved, scope)
     setAsks('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
     if (!decision.startsTurn || ask === undefined) return
-    await chat.sendMessage(decisionText(ask.toolName, approved, scope))
+    await send(decisionText(ask.toolName, approved, scope))
   }
   const sendQueuedSequentially = async (
     queued: readonly QueuedMessage[],
@@ -213,7 +221,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   ): Promise<readonly QueuedMessage[]> => {
     for (const [index, item] of queued.entries()) {
       if (latestStop !== stopRequest) return queued.slice(index)
-      await chat.sendMessage(item.content)
+      await send(item.content)
     }
     return []
   }
@@ -223,8 +231,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     await stopRequest
     if (queued.length === 0 || latestStop !== stopRequest) return queued
     const joined = joinedQueueText(queued)
-    const flushed =
-      joined === null ? sendQueuedSequentially(queued, stopRequest) : chat.sendMessage(joined).then(() => [])
+    const flushed = joined === null ? sendQueuedSequentially(queued, stopRequest) : send(joined).then(() => [])
     return flushed.catch((error: unknown) => {
       options.onError?.(asError(error))
       return []
@@ -232,6 +239,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   }
   return {
     ...chat,
+    sendMessage: send,
     stop,
     refresh,
     interruptAndFlush,
@@ -241,6 +249,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     runError,
     sessionRunning,
     runInProgress,
+    sending,
     hydrated,
     pendingApprovals: () => asks.pending,
     decide,

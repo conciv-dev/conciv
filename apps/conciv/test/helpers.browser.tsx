@@ -321,7 +321,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   }
 }
 
-export type ShellMountOptions = {transport?: ChatTransportPreference}
+export type ShellMountOptions = {transport?: ChatTransportPreference; apiBase?: () => string}
 
 type ShellHarness = {
   mountShell: (entry: string, extensions?: AnyExtension[], options?: ShellMountOptions) => void
@@ -334,14 +334,18 @@ export function createShellHarness(base: () => string): ShellHarness {
   const mountShell = (entry: string, extensions: AnyExtension[] = [], options: ShellMountOptions = {}): void => {
     const apiBase = base()
     window.__CONCIV_API_BASE__ = apiBase
+    const activeSession: {read: () => string | null} = {read: () => null}
     const router = createConcivRouter({
-      rpc: makeBrowserRpcClient(apiBase).rpc,
+      rpc: makeBrowserRpcClient(apiBase, {session: () => activeSession.read()}).rpc,
       history: createMemoryHistory({initialEntries: [entry]}),
       environment: {rootNode: document, document},
       settings: parseConcivSettings(options.transport ? JSON.stringify({transport: options.transport}) : ''),
-      apiBase: () => apiBase,
+      apiBase: options.apiBase ?? (() => apiBase),
       connectionGeneration: () => 0,
       extensions,
+      bindActiveSession: (read) => {
+        activeSession.read = read
+      },
     })
     mounted.router = router
     render(() => <RouterProvider router={router} />)

@@ -22,7 +22,8 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `pane-context.ts:usePane`, `panel-chrome.ts:usePanelChrome`, `reachability.ts:useEngineReachability`: throw when used outside their provider
 - `panel-focus.ts:makePanelComposerFocus.release`: clears the handle only if it is still the current one
 - `live-sessions.ts:activityIn`: a null id or no live chat gives `unmounted`; `running` if that session's chat has a run in progress
-- `live-sessions.ts:makeLiveSessions`: a session's chat stays alive while a pane has it open or while its last run lifecycle (from hydration or the stream) is not terminal, so a session left mid-turn keeps its client until the run settles
+- `live-sessions.ts:makeLiveSessions`: a session's chat stays alive while a pane has it open, while its last run lifecycle (from hydration or the stream) is not terminal, or while the chat has a send in flight (`ChatSession.sending`, which covers composer sends, approval replies, queue flushes and the queued follow-ups a send drains), so a session left mid-turn or right after Send keeps its client until its work settles; a queued message that is removed never holds it
+- `live-sessions.ts:hydrated`: a terminal `lastRun` settles the run only when it is the run this registry is watching, so a run that ended while the connection was down still settles once a replacement client hydrates, and older terminal runs are ignored
 - `warm-session.ts:createWarmSession`: the warm id latches once set; queries run only while `connected()`
 - `pane-provider.tsx:PaneProvider`: `newSession` calls `props.onNewSession` if given, otherwise creates a session over rpc and navigates to it
 
@@ -31,7 +32,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `pane-provider.tsx:openNewSession`: `rpc.sessions.create`, invalidates the sessions cache, navigates to `/panel/$sessionId`
 - `pane-provider.tsx:PaneProvider`: grab staging calls `rpc.page.symbolicate`
 - `warm-session.ts:createWarmSession`: queries `sessions.list` and `sessions.resolve`
-- `live-sessions.ts:makeLiveSessions`: opens chat sessions through `useChatSession` (`@conciv/client`) against `apiBase`; a terminal run lifecycle invalidates `sessions.list`, `markers.list` and `captures.list` and, for `completed`, announces the reply, whichever tab or session is showing
+- `live-sessions.ts:makeLiveSessions`: opens chat sessions through `useChatSession` (`@conciv/client`) against `apiBase`; a terminal run lifecycle (streamed, or hydrated for the watched run) invalidates `sessions.list`, `markers.list` and `captures.list` and, for `completed`, announces the reply, whichever tab or session is showing
 
 ## Verification
 
