@@ -32,7 +32,7 @@ export type AppContextValue = {
   connectMode: boolean
   disconnect?: () => void
   grabProvider?: GrabProvider
-  connection: Accessor<Connection>
+  connectionGeneration: () => number
   apiBase: () => string
   notifyInteractive: () => void
   theme: Accessor<HostTheme>
@@ -118,10 +118,8 @@ export function useGrabProvider(): GrabProvider | undefined {
   return useAppScope('useGrabProvider', (app) => app.grabProvider)
 }
 
-export type Connection = {generation: number; connected: boolean}
-
-export function useConnection(): Accessor<Connection> {
-  return useAppScope('useConnection', (app) => app.connection)
+export function useConnectionGeneration(): () => number {
+  return useAppScope('useConnectionGeneration', (app) => app.connectionGeneration)
 }
 
 export function useApiBase(): () => string {

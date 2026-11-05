@@ -12,7 +12,7 @@ import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
 import {HostApiProvider} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
-import {Show, createEffect, createMemo, createSignal, on, onCleanup, onMount} from 'solid-js'
+import {Show, createEffect, createMemo, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {
   CONNECTION_CHANGED_EVENT,
@@ -101,12 +101,10 @@ function RootComponent() {
     null,
   )
   app.bindActiveSession?.(() => activeSession())
-  const connected = createMemo(() => app.connected())
-  const connection = createMemo(() => ({generation: app.connectionGeneration(), connected: connected()}))
   const liveSessions = makeLiveSessions({
     rpc: app.rpc,
     apiBase: app.apiBase,
-    connection,
+    generation: app.connectionGeneration,
     transport: () => app.settings.transport,
     appData: app.data,
     queryClient: app.queryClient,
@@ -135,7 +133,7 @@ function RootComponent() {
     connectMode: app.connectMode,
     disconnect: app.disconnect,
     grabProvider: app.grabProvider,
-    connection,
+    connectionGeneration: app.connectionGeneration,
     apiBase: app.apiBase,
     notifyInteractive: app.notifyInteractive,
     theme,
@@ -152,17 +150,6 @@ function RootComponent() {
     const isConnected = app.connected()
     window.dispatchEvent(new CustomEvent(CONNECTION_CHANGED_EVENT, {detail: {connected: isConnected}}))
   })
-
-  const router = useRouter()
-  createEffect(
-    on(
-      app.connected,
-      (isConnected, wasConnected) => {
-        if (isConnected && wasConnected === false) void router.invalidate()
-      },
-      {defer: true},
-    ),
-  )
 
   const reachability = makeEngineReachability()
 

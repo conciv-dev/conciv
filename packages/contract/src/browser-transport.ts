@@ -20,7 +20,9 @@ export const REVOKED_SOCKET_CLOSE_CODE = 1008
 
 export type TrustStatus = 'checking' | 'trusted' | 'untrusted' | 'revoked' | 'unreachable'
 
-export type TrustListener = (status: TrustStatus) => void
+export type TrustListener = (status: TrustStatus, previous: TrustStatus) => void
+
+const TRUST_STATUSES: readonly TrustStatus[] = ['checking', 'trusted', 'untrusted', 'revoked', 'unreachable']
 
 export type EngineTokenSource = () => Promise<string>
 
@@ -142,8 +144,9 @@ const TRUST_STATUS_EVENT = 'status'
 
 function setStatus(state: TrustState, status: TrustStatus): void {
   if (state.status === status) return
+  const previous = state.status
   state.status = status
-  state.events.dispatchEvent(new Event(TRUST_STATUS_EVENT))
+  state.events.dispatchEvent(new CustomEvent(TRUST_STATUS_EVENT, {detail: previous}))
 }
 
 function distrust(state: TrustState, refused: string | undefined): void {
@@ -227,7 +230,11 @@ function makeEngineTrust(key: string, state: TrustState, link: ClientLink<RpcCli
     }
   }
   const subscribe = (listener: TrustListener): (() => void) => {
-    const handler = (): void => listener(state.status)
+    const handler = (event: Event): void => {
+      const previous =
+        event instanceof CustomEvent ? TRUST_STATUSES.find((status) => status === event.detail) : undefined
+      listener(state.status, previous ?? state.status)
+    }
     state.events.addEventListener(TRUST_STATUS_EVENT, handler)
     return () => {
       state.events.removeEventListener(TRUST_STATUS_EVENT, handler)

@@ -1,11 +1,10 @@
 import {createMemo, mapArray, onCleanup, untrack, type Accessor} from 'solid-js'
-import type {QueryClient} from '@tanstack/solid-query'
+import {useQuery, type QueryClient} from '@tanstack/solid-query'
 import {createStore} from 'solid-js/store'
 import {useChatSession, type ChatSession, type ChatTransportPreference} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {AppData} from '../data/app-data.js'
-import type {Connection} from './context.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
@@ -17,7 +16,7 @@ export type LiveSessions = {
 export type LiveSessionsDeps = {
   rpc: RpcClient
   apiBase: Accessor<string>
-  connection: Accessor<Connection>
+  generation: Accessor<number>
   transport: Accessor<ChatTransportPreference | undefined>
   appData: AppData
   queryClient: QueryClient
@@ -64,10 +63,11 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
 
   const liveChat = (sessionId: string): LiveChat => {
     const chat = createMemo((): ChatSession => {
-      deps.connection()
+      deps.generation()
+      const apiBase = deps.apiBase()
       const session = useChatSession({
         rpc: deps.rpc,
-        apiBase: deps.apiBase(),
+        apiBase,
         sessionId,
         connection: {
           transport: deps.transport(),
@@ -78,6 +78,19 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
             isRunPhaseTerminal(lifecycle.phase) ? finish(sessionId, lifecycle) : start(sessionId, lifecycle),
         },
       })
+      useQuery(
+        () => ({
+          queryKey: ['chat-hydration', apiBase, sessionId],
+          queryFn: async () => {
+            await session.refresh()
+            return true
+          },
+          initialData: true,
+          staleTime: Number.POSITIVE_INFINITY,
+          retry: false,
+        }),
+        () => deps.queryClient,
+      )
       onCleanup(() => {
         if (untrack(session.runInProgress)) deps.appData.invalidateSessions()
       })

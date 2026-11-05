@@ -2,7 +2,7 @@ import {createRouter} from '@tanstack/solid-router'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient} from '@tanstack/solid-query'
 import {createEffect, createRoot, onCleanup, type JSX} from 'solid-js'
-import type {RpcClient} from '@conciv/contract'
+import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import type {AnyExtension} from '@conciv/extension'
 import {setupEngineReachability} from '@conciv/client'
@@ -14,7 +14,7 @@ import {createInstances} from './extension/create-instances.js'
 import highlight from './extensions/highlight.js'
 import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
-import type {EngineLogin} from './app/engine-login.js'
+import {engineLocked, type EngineLogin} from './app/engine-login.js'
 
 export type ConcivEnvironment = {rootNode: Node; document: Document}
 
@@ -77,18 +77,29 @@ function makeGuardedDisposer(instances: ExtensionInstance[], extra: () => void):
   }
 }
 
-function wireEngineReachability(apiBase: () => string): {dispose: () => void} {
+function watchEngine(apiBase: string, rerunRefused: () => void): () => void {
+  const stopReachability = setupEngineReachability(apiBase)
+  const stopTrust = browserRpcConnection(apiBase).trust.subscribe((status, previous) => {
+    if (status === 'trusted' && engineLocked(previous)) rerunRefused()
+  })
+  return () => {
+    stopReachability()
+    stopTrust()
+  }
+}
+
+function wireEngine(apiBase: () => string, rerunRefused: () => void): {dispose: () => void} {
   return createRoot((dispose) => {
     let wiredApiBase = apiBase()
-    let cleanupReachability = setupEngineReachability(wiredApiBase)
+    let stopWatching = watchEngine(wiredApiBase, rerunRefused)
     createEffect(() => {
       const nextApiBase = apiBase()
       if (nextApiBase === wiredApiBase) return
-      cleanupReachability()
+      stopWatching()
       wiredApiBase = nextApiBase
-      cleanupReachability = setupEngineReachability(nextApiBase)
+      stopWatching = watchEngine(nextApiBase, rerunRefused)
     })
-    onCleanup(() => cleanupReachability())
+    onCleanup(() => stopWatching())
     return {dispose}
   })
 }
@@ -100,13 +111,16 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const instances = createInstances(extensions)
   const apiBase = config.apiBase ?? (() => '')
   const connected = config.connected ?? (() => true)
-  const reachability = wireEngineReachability(apiBase)
-  const disposeInstances = makeGuardedDisposer(instances, reachability.dispose)
+  const engine = wireEngine(apiBase, () => {
+    void router.invalidate()
+    void queryClient.invalidateQueries()
+  })
+  const disposeInstances = makeGuardedDisposer(instances, engine.dispose)
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
     onCleanup(disposeInstances)
     return <>{props.children}</>
   }
-  return createRouter({
+  const router = createRouter({
     routeTree,
     history: config.history,
     scrollRestoration: () => false,
@@ -136,6 +150,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       login: config.login,
     },
   })
+  return router
 }
 
 export function disposeConcivRouter(router: ReturnType<typeof createConcivRouter>): void {

@@ -2,7 +2,7 @@ import {createFileRoute, redirect, useBlocker, useRouter} from '@tanstack/solid-
 import {Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
-import {useAppData, useConnection, useInstances, useRpc} from '../app/context.js'
+import {useAppData, useConnectionGeneration, useInstances, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {ExtensionBoundary} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
@@ -25,13 +25,13 @@ function PanelView(): JSX.Element {
   const instances = useInstances()
   const pane = usePane()
   const router = useRouter()
-  const connection = useConnection()
+  const generation = useConnectionGeneration()
 
   const views = createMemo(() => collectViews(instances))
   const view = () => views().find((candidate) => candidate.id === params().view)
   const mountKey = () => {
     const active = view()
-    return active ? {view: active, connection: connection()} : undefined
+    return active ? {view: active, generation: generation()} : undefined
   }
 
   useBlocker({
