@@ -1,17 +1,24 @@
 import type {ServerApi, ToolRequest} from '@conciv/extension'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import type {DesignConfig, Tolerances} from './tolerances.js'
+import type {DesignConfig} from './tolerances.js'
 import type {
   ContainerLayout,
   DeltaKindName,
+  Design,
+  DesignNode,
   DiffInput,
   DiffReport,
-  Ledger,
   NodeLayout,
+  OcrLine,
+  Pairer,
+  Ranker,
   Stage,
   StatusReport,
+  Store,
+  TargetAdapter,
   TargetInput,
+  TargetRecord,
   TargetResult,
   WatchInput,
   WatchReport,
@@ -27,58 +34,12 @@ export type Box = {x: number; y: number; w: number; h: number}
 export type Raster = {width: number; height: number; data: Uint8Array}
 export type SourceLoc = {file: string; line: number; column: number}
 
-export type OcrLine = {box: Box; text: string; confidence: number}
-export type Border = {width: number; color: string}
-export type Typography = {
-  size: number
-  lineHeight: number
-  weight: number
-  confidence: number
-  font: string
-  family: string | null
-}
-export type TypographyInput = Omit<Typography, 'family'> & {family?: string | null}
-type NodeBase = {id: string; ref?: string; box: Box; within?: string; layout?: NodeLayout}
-export type TextNode = NodeBase & {
-  kind: 'text'
-  text: string
-  lines: OcrLine[]
-  confidence: number
-  role?: Role
-  roleConfidence?: number
-  typography?: Typography
-}
 export type Gradient = {from: string; to: string}
-export type DesignGradient = Gradient & {axis: 'vertical' | 'horizontal'}
-export type BoxNode = NodeBase & {
-  kind: 'box'
-  paint?: {background: string; gradient?: DesignGradient}
-  border: Border | null
-  radius: number
-}
-export type ImageNode = NodeBase & {kind: 'image'; holds: number}
-export type TargetNode = TextNode | BoxNode | ImageNode
-type TargetRoot = {id: string; box: Box; layout?: ContainerLayout}
-export type DesignSection = {id: string; kind: TargetNode['kind']; line: string; box: Box; nodes: string[]}
-export type TargetModel = {
-  id: string
-  source: {kind: string; ref: string}
-  viewport: {width: number; height: number}
-  raster: Raster
-  root: TargetRoot
-  nodes: TargetNode[]
-  scale: number
-}
-export type TargetAdapter = {
-  kind: string
-  accepts(input: {ref: string; cwd: string}): boolean
-  load(input: {ref: string; scale: number; cwd: string; document?: unknown; image?: string}): Promise<TargetModel>
-}
 export type Enricher = {
   name: string
-  run(input: {model: TargetModel; raster: Raster; runtime: DesignRuntime}): Promise<TargetNode[]>
+  run(input: {design: Design; raster: Raster; runtime: DesignRuntime}): Promise<DesignNode[]>
 }
-export type Segmenter = {name: string; segment(input: {raster: Raster; nodes: TargetNode[]}): Promise<TargetNode[]>}
+export type Segmenter = {name: string; segment(input: {raster: Raster; nodes: DesignNode[]}): Promise<DesignNode[]>}
 export type RoleRules = (input: {text: string; neighbours: string[]}) => {role: Role; confidence: number}
 
 export type Glyph = {text: string; boxes: Box[]}
@@ -159,25 +120,6 @@ export type Comparators = {
   color: ColorMetric
   text: TextReader
 }
-export type Pair = {
-  live: LiveComponent
-  node: TargetNode
-  texts: TextNode[]
-  source: MeasureSource
-  confidence: number
-  selector: string
-  liveBox: Box
-  targetBox: Box
-  mismatch: number
-  depth: number
-  parent: Pair | null
-  host: {selector: string; live: LiveComponent} | null
-  prev: Pair | null
-  next: Pair | null
-}
-export type Matched = {node: TargetNode; component: LiveComponent; confidence: number}
-export type TwinVote = {node: string; path: string; confidence: number}
-export type TwinPair = {node: string; twin: string; confidence: number}
 export type Fingerprint = {
   source: SourceLoc | null
   key: string | null
@@ -187,7 +129,6 @@ export type Fingerprint = {
   textHash: string
   box: Box
 }
-export type PairRecord = {node: string; path: string; confidence: number; fingerprint?: Fingerprint}
 export type Touched = Set<string> | 'all'
 export type TileRecord = {hash: string; mismatch: number; mask?: string}
 export type TileCache = {
@@ -198,18 +139,6 @@ export type TileCache = {
   height: number
   tiles: TileRecord[]
 }
-export type Pairer = (input: {
-  components: LiveComponent[]
-  nodes: TargetNode[]
-  twinVotes: TwinVote[]
-  pins: {node: string; path: string}[]
-  carried: PairRecord[]
-  touched: Touched
-  tolerances: Tolerances
-  live: Raster
-  target: Raster
-  deadline: number
-}) => {matched: Matched[]; partial: boolean; carried: number}
 export type ItemKind = DeltaKindName | 'unbuilt' | 'extra' | 'offset'
 export type Item = {
   key: string
@@ -224,10 +153,9 @@ export type Item = {
   node?: string
   source?: SourceLoc
 }
-export type Ranker = (input: {items: Item[]}) => Item[]
 export type Flow = 'row' | 'column'
 export type Side = {
-  kind: TargetNode['kind']
+  kind: DesignNode['kind']
   box: Box
   parent: Box | null
   prev: Box | null
@@ -303,61 +231,10 @@ export type ProvenanceMapper = {
   }): Promise<Provenance>
 }
 
-export type TargetRecord = {
-  id: string
-  session: string
-  route?: string
-  width: number
-  height: number
-  name?: string
-  scale: number
-  createdAt: number
-  acceptedRun?: string
-}
-type DecisionKind = 'pin' | 'excluded' | 'image-slot' | 'accept-delta' | 'tolerance' | 'accept-node'
-export type Decision = {id: string; kind: DecisionKind; anchor: string; value: string | number | null; at: number}
-export type StoredRun = {run: string; report: DiffReport; pairs: PairRecord[]}
-export type TargetStore = {
-  put(input: {model: TargetModel; session: string; route?: string; name?: string}): Promise<TargetRecord>
-  find(input: {id: string}): Promise<TargetRecord | null>
-  current(input: {session: string}): Promise<TargetRecord | null>
-  list(input: {route?: string}): Promise<TargetRecord[]>
-  remove(input: {id?: string; all?: boolean}): Promise<number>
-  model(id: string): Promise<TargetModel>
-  decisions(id: string): Promise<Decision[]>
-  decide(input: {id: string; kind: DecisionKind; anchor: string; value: Decision['value']}): Promise<Decision>
-  revoke(input: {id: string; decision: string}): Promise<boolean>
-  accept(input: {id: string; run: string}): Promise<TargetRecord>
-  latestRun(id: string): Promise<StoredRun | null>
-  run(input: {id: string; run: string}): Promise<StoredRun | null>
-  tiles(input: {id: string; run: string}): Promise<TileCache | null>
-  amend(input: {id: string; run: string; report: DiffReport}): Promise<void>
-  twins(id: string): Promise<Record<string, TwinPair[]>>
-  setTwins(input: {id: string; other: string; twins: TwinPair[]}): Promise<void>
-  writeCapture(input: {png: Uint8Array}): Promise<string>
-  ledger(id: string): Promise<Ledger | null>
-  writeLedger(input: {id: string; ledger: Ledger}): Promise<void>
-  writeRun(input: {
-    id: string
-    run: string
-    images: {live: Uint8Array; diff: Uint8Array}
-    result: Omit<DiffReport, 'diffImage' | 'livePath'>
-    pairs: PairRecord[]
-    tiles: TileCache
-  }): Promise<DiffReport>
-  lastResult(id: string): Promise<DiffReport | null>
-  setTypography(input: {id: string; typography: Record<string, TypographyInput>}): Promise<void>
-  designPath(id: string): string
-  placeholderPath(id: string): string
-  writePlaceholder(input: {id: string; framework: Framework}): Promise<void>
-  design(id: string): Promise<string[]>
-  sections(id: string): Promise<DesignSection[]>
-  reportPath(path: string): string
-}
 export type DesignRuntime = {
   cwd: string
   blind: boolean
-  store: TargetStore
+  store: Store
   comparators: Comparators
   pairer: Pairer
   ranker: Ranker

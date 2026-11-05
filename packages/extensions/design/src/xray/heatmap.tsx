@@ -1,13 +1,12 @@
 import {createMemo, For, Match, Show, Switch, type JSX} from 'solid-js'
 import {minBy} from 'es-toolkit'
 import {Collapsible} from '@conciv/ui-kit-system'
-import {STAGES, type DiffReport, type Stage} from '../shared/defs.js'
+import {STAGES, type DesignNode, type DiffReport, type Stage} from '../shared/defs.js'
 import {kindStage} from '../shared/tolerances.js'
-import type {TargetNode} from '../shared/types.js'
 import {nodeName, type ReportResponse, type XrayData} from './panel.js'
 
 type Cell = {kind: 'absent'} | {kind: 'match'} | {kind: 'item'; stage: Stage; confidence: number}
-type HeatRow = {node: TargetNode; cells: Cell[]}
+type HeatRow = {node: DesignNode; cells: Cell[]}
 
 export function HeatMap(props: {data: XrayData}): JSX.Element {
   const rows = createMemo(() => heatRows(props.data))
@@ -92,8 +91,9 @@ function heatRows(data: XrayData): HeatRow[] {
 
 function twinIn(input: {data: XrayData; column: ReportResponse; node: string}): string | null {
   if (input.column.target.id === input.data.target.id) return input.node
-  const twin = input.data.twins[input.column.target.id]?.find((entry) => entry.node === input.node)
-  return twin?.twin ?? null
+  const twins = input.data.decisions.filter((decision) => decision.kind === 'twin' && decision.anchor === input.node)
+  const twin = twins.find((decision) => input.column.nodes.some((node) => node.id === decision.value))
+  return typeof twin?.value === 'string' ? twin.value : null
 }
 
 function cellAt(input: {column: ReportResponse; node: string | null}): Cell {

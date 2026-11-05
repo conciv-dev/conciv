@@ -3,8 +3,18 @@ import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {compact, groupBy, uniq} from 'es-toolkit'
 import type {makeExtRpcClient} from '@conciv/extension'
-import {MARK_KINDS, STAGES, type DiffReport, type NodeStatus, type Stage} from '../shared/defs.js'
-import type {Box, Decision, TargetNode, TargetRecord} from '../shared/types.js'
+import {
+  MARK_KINDS,
+  STAGES,
+  type Decision,
+  type DesignNode,
+  type DiffReport,
+  type NodeStatus,
+  type Stage,
+  type TargetRecord,
+} from '../shared/defs.js'
+import {find, walk} from '../shared/tree.js'
+import type {Box} from '../shared/types.js'
 import type {XrayRouter} from '../server.js'
 import {nodeName, RadioChip, type Row, type RowGroup, type XrayData} from './panel.js'
 
@@ -28,7 +38,7 @@ type DeciderState = {action: string | null; failure: string | null}
 export type Decider = {
   busy: () => string | null
   failure: () => string | null
-  pin: (input: {node: TargetNode; origin?: HTMLElement}) => void
+  pin: (input: {node: DesignNode; origin?: HTMLElement}) => void
   revoke: (input: {decision: Decision; label: string}) => void
   mark: (input: {kind: MarkKind; node: string; value?: number | string; label: string}) => void
   accept: () => void
@@ -65,7 +75,7 @@ export function createDecider(input: {
         },
       )
   }
-  const pin = ({node, origin}: {node: TargetNode; origin?: HTMLElement}): void => {
+  const pin = ({node, origin}: {node: DesignNode; origin?: HTMLElement}): void => {
     if (tab === null || state.action !== null) return
     const label = nodeName(node)
     input.announce(`Pick the element to pin ${label} to`)
@@ -219,7 +229,9 @@ export function RowBadges(props: {row: Row; data: XrayData; opinions: boolean}):
   const lost = () => marks().some((decision) => lostPin({decision, data: props.data}))
   const status = () => {
     const [node] = props.row.nodes
-    return node === undefined ? null : (props.data.ledger?.nodes[node]?.status ?? null)
+    const run = props.data.run
+    if (node === undefined || run === null) return null
+    return find({root: run.root, id: node, idOf: (match) => match.node.id})?.status ?? null
   }
   const change = () => {
     const changes = props.data.report?.changes
@@ -313,7 +325,7 @@ export function RowDecisions(props: {row: Row; data: XrayData; mode: DecisionMod
   )
 }
 
-function AcceptNode(props: {node: TargetNode; data: XrayData; decider: Decider}): JSX.Element {
+function AcceptNode(props: {node: DesignNode; data: XrayData; decider: Decider}): JSX.Element {
   const label = () => nodeName(props.node)
   const accepted = () =>
     props.data.decisions.find((decision) => decision.kind === 'accept-node' && decision.anchor === props.node.id)
@@ -349,7 +361,7 @@ function AcceptNode(props: {node: TargetNode; data: XrayData; decider: Decider})
   )
 }
 
-function DeltaMarks(props: {row: Row; node: TargetNode; decider: Decider}): JSX.Element {
+function DeltaMarks(props: {row: Row; node: DesignNode; decider: Decider}): JSX.Element {
   const [tolerance, setTolerance] = createSignal(TOLERANCE_START)
   const kinds = () => uniq(props.row.deltas.map((delta) => delta.kind))
   const busy = () => props.decider.busy() !== null
@@ -400,7 +412,7 @@ function DeltaMarks(props: {row: Row; node: TargetNode; decider: Decider}): JSX.
 }
 
 export function NodePicks(props: {data: XrayData; decider: Decider}): JSX.Element {
-  const paired = () => new Set(props.data.pairs.map((pair) => pair.node))
+  const paired = () => new Set(pairedNodes(props.data))
   return (
     <div class="inset-0 absolute">
       <For each={props.data.nodes}>
@@ -599,6 +611,7 @@ const DECISION_LABEL: Record<Decision['kind'], string> = {
   'accept-delta': 'accepted',
   tolerance: 'tolerance',
   'accept-node': 'accepted node',
+  twin: 'twin',
 }
 
 const MARK_ACTION: Record<MarkKind, string> = {
@@ -651,3 +664,8 @@ const SCORE_PARTS: {label: string; format: (value: number) => string}[] = [
   {label: 'paint', format: (value) => AMOUNT.format(value)},
   {label: 'residual', format: (value) => SHARE.format(value)},
 ]
+
+function pairedNodes(data: XrayData): string[] {
+  if (data.run === null) return []
+  return [...walk({root: data.run.root})].filter(({node}) => node.live !== null).map(({node}) => node.node.id)
+}

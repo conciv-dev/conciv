@@ -34,9 +34,9 @@ import {createStore, type SetStoreFunction} from 'solid-js/store'
 import {createTimer} from '@solid-primitives/timer'
 import {Dialog, EnvironmentProvider, readStorage, TooltipIconButton, writeStorage} from '@conciv/ui-kit-system'
 import {isEqual, uniq} from 'es-toolkit'
-import {DESIGN_EXTENSION_NAME} from '../shared/defs.js'
+import {DESIGN_EXTENSION_NAME, type TargetRecord} from '../shared/defs.js'
 import {PANE_ATTR} from '../shared/tolerances.js'
-import type {SourceLoc, TargetRecord} from '../shared/types.js'
+import type {SourceLoc} from '../shared/types.js'
 import type {XrayRouter} from '../server.js'
 import {
   createDecider,

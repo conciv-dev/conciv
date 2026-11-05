@@ -1,6 +1,6 @@
 import {compact} from 'es-toolkit'
-import {DiffReportSchema, type DiffReport} from '../src/shared/defs.js'
-import type {Box, TargetRecord} from '../src/shared/types.js'
+import {DiffReportSchema, type DiffReport, type TargetRecord} from '../src/shared/defs.js'
+import type {Box} from '../src/shared/types.js'
 import {assemble, type Delta, type ReportResponse, type XrayData} from '../src/xray/panel.js'
 
 const ROUTE = '/?variant=target'
@@ -241,7 +241,7 @@ function images(response: ReportResponse): (path: string) => string {
   }
 }
 
-const UNDECIDED = {targetImage: '', nodes: [], decisions: [], pairs: [], twins: {}, ledger: null, design: []}
+const UNDECIDED = {targetImage: '', nodes: [], decisions: [], run: null, design: []}
 
 const DESKTOP_RESPONSE: ReportResponse = {
   ...UNDECIDED,

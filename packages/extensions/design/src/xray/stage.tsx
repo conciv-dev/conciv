@@ -1,7 +1,7 @@
 import {For, Show, type JSX, onCleanup, onMount} from 'solid-js'
 import {clamp} from 'es-toolkit'
 import {ScrollArea, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
-import type {TargetNode, TargetRecord} from '../shared/types.js'
+import type {DesignNode, TargetRecord} from '../shared/defs.js'
 import {CheckChip, RadioChip} from './panel.js'
 import type {Row, XrayImages} from './panel.js'
 
@@ -238,18 +238,18 @@ function Overlay(props: {
   )
 }
 
-const NODE_STYLE: Record<TargetNode['kind'], {stroke: string; label: string}> = {
+const NODE_STYLE: Record<DesignNode['kind'], {stroke: string; label: string}> = {
   text: {stroke: 'stroke-primary-500', label: 'fill-primary-600'},
   box: {stroke: 'stroke-amber-500', label: 'fill-amber-700'},
   image: {stroke: 'stroke-red-500', label: 'fill-red-600'},
 }
 const NODE_LABEL_SIZE = 10
 
-function nodeLabel(node: TargetNode): string {
+function nodeLabel(node: DesignNode): string {
   return node.kind === 'text' ? (node.role ?? 'unknown') : node.kind
 }
 
-function NodeLayer(props: {nodes: TargetNode[]; target: TargetRecord}): JSX.Element {
+function NodeLayer(props: {nodes: DesignNode[]; target: TargetRecord}): JSX.Element {
   return (
     <svg
       class="size-full pointer-events-none inset-0 absolute"
@@ -352,7 +352,7 @@ function Divider(props: {value: number; onChange: (value: number) => void}): JSX
 type StageProps = {
   mode: Mode
   rows: Row[]
-  nodes: TargetNode[]
+  nodes: DesignNode[]
   selected: Row | null
   images: XrayImages
   target: TargetRecord

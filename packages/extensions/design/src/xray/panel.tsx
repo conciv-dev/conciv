@@ -6,9 +6,12 @@ import {
   STAGES,
   type ComponentReport,
   type DeltaKindName,
+  type Decision,
+  type DesignNode,
   type DiffReport,
-  type Ledger,
+  type Run,
   type Stage,
+  type TargetRecord,
 } from '../shared/defs.js'
 import {
   aboveTolerance,
@@ -19,16 +22,7 @@ import {
   SOURCE_ATTR,
   traced,
 } from '../shared/tolerances.js'
-import type {
-  Box,
-  Decision,
-  MeasureSource,
-  PairRecord,
-  SourceLoc,
-  TargetNode,
-  TargetRecord,
-  TwinPair,
-} from '../shared/types.js'
+import type {Box, MeasureSource, SourceLoc} from '../shared/types.js'
 
 export type Delta = ComponentReport['deltas'][number]
 
@@ -61,16 +55,14 @@ export type XrayImages = {target: string; live: string | null; diff: string | nu
 export type XrayData = {
   target: TargetRecord
   report: DiffReport | null
-  nodes: TargetNode[]
+  nodes: DesignNode[]
   images: XrayImages
   widths: WidthTab[]
   columns: ReportResponse[]
   ranAt: number | null
   sourceChangedAt: number | null
   decisions: Decision[]
-  pairs: PairRecord[]
-  twins: Record<string, TwinPair[]>
-  ledger: Ledger | null
+  run: Run | null
   design: string[]
 }
 
@@ -78,12 +70,10 @@ export type ReportResponse = {
   target: TargetRecord
   report: DiffReport | null
   targetImage: string
-  nodes: TargetNode[]
+  nodes: DesignNode[]
   sourceChangedAt: number | null
   decisions: Decision[]
-  pairs: PairRecord[]
-  twins: Record<string, TwinPair[]>
-  ledger: Ledger | null
+  run: Run | null
   design: string[]
 }
 
@@ -92,7 +82,7 @@ export function sourceLabel(source: SourceLoc | null): string {
   return `${source.file}:${source.line}`
 }
 
-export function nodeName(node: TargetNode): string {
+export function nodeName(node: DesignNode): string {
   if (node.kind === 'text') return `text "${node.text}"`
   return placedName({name: node.kind, box: node.box})
 }
@@ -237,9 +227,7 @@ export function assemble(input: {
     ranAt: runTime(current.report),
     sourceChangedAt: current.sourceChangedAt,
     decisions: current.decisions,
-    pairs: current.pairs,
-    twins: current.twins,
-    ledger: current.ledger,
+    run: current.run,
     design: current.design,
   }
   return data

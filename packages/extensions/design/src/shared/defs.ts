@@ -1,7 +1,8 @@
 import {z} from 'zod'
+import type {Storage} from 'unstorage'
 import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
 import {defineTool, type ToolBuilder, type ToolErrors} from '@conciv/extension/tool'
-import {PLACEHOLDER_KINDS, type LiveComponent} from './types.js'
+import {PLACEHOLDER_KINDS, ROLES, type Comparators, type Item, type LiveComponent} from './types.js'
 
 export const DESIGN_EXTENSION_NAME = 'design'
 
@@ -93,7 +94,7 @@ const AlignSchema = z.enum(['start', 'center', 'end', 'stretch'])
 
 const PaddingSchema = z.object({top: z.number(), right: z.number(), bottom: z.number(), left: z.number()})
 
-const RunSchema = z
+const RowRunSchema = z
   .object({
     direction: z.literal('row'),
     children: z.array(z.string()),
@@ -109,7 +110,7 @@ export const ContainerLayoutSchema = z.object({
   align: AlignSchema.describe('on the cross axis'),
   wrap: z.boolean(),
   padding: PaddingSchema.describe('the inset from the box to the union of its children'),
-  runs: z.array(RunSchema),
+  runs: z.array(RowRunSchema),
 })
 
 export const NodeLayoutSchema = ContainerLayoutSchema.partial().extend({
@@ -209,7 +210,7 @@ const ProvenanceSchema = z.object({
   suggest: z.string().optional(),
 })
 
-const DeltaSchema = ProvenanceSchema.partial().extend({
+export const DeltaSchema = ProvenanceSchema.partial().extend({
   kind: DeltaKindNameSchema,
   side: z.enum(['left', 'right', 'top', 'bottom', 'x', 'y']).optional(),
   live: z.union([z.number(), z.string()]),
@@ -230,6 +231,175 @@ const DeltaSchema = ProvenanceSchema.partial().extend({
       'sample-data: the live text is a literal equal to sample data in the design; render it from the data instead. typography-skipped: live is the number of text samples the page did not render, so their type was not estimated. svg-drawn: a picture the page draws where the design has an image or icon slot; replace it with the Placeholder. page-error: live is the error the dev server shows instead of the page; the run counted nothing',
     ),
 })
+
+const OcrLineSchema = z.object({box: BoxSchema, text: z.string(), confidence: z.number()})
+
+const TypographySchema = z.object({
+  size: z.number(),
+  lineHeight: z.number(),
+  weight: z.number(),
+  confidence: z.number(),
+  font: z.string(),
+  family: z.string().nullable().default(null),
+})
+
+const BorderSchema = z.object({width: z.number(), color: z.string()})
+
+const PaintSchema = z.object({
+  background: z.string(),
+  gradient: z.object({from: z.string(), to: z.string(), axis: z.enum(['vertical', 'horizontal'])}).optional(),
+})
+
+const DesignNodeKindSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('text'),
+    text: z.string(),
+    lines: z.array(OcrLineSchema),
+    confidence: z.number(),
+    role: z.enum(ROLES).optional(),
+    typography: TypographySchema.optional(),
+  }),
+  z.object({
+    kind: z.literal('box'),
+    paint: PaintSchema.optional(),
+    border: BorderSchema.nullable(),
+    radius: z.number(),
+  }),
+  z.object({kind: z.literal('image'), holds: z.number()}),
+])
+
+export const DesignNodeSchema = z
+  .object({
+    id: z.string().describe('from the source: the Figma node id, or the image hash plus an index'),
+    box: BoxSchema.describe('design px'),
+    layout: ContainerLayoutSchema.optional(),
+    get children() {
+      return z.array(DesignNodeSchema)
+    },
+  })
+  .and(DesignNodeKindSchema)
+
+export const DesignSchema = z.object({
+  id: z.string(),
+  source: z.object({kind: z.enum(['image', 'figma']), ref: z.string()}),
+  viewport: z.object({width: z.number(), height: z.number()}),
+  scale: z.number(),
+  root: DesignNodeSchema,
+})
+
+export const MatchSchema = z.object({
+  node: DesignNodeSchema,
+  live: LiveComponentSchema.nullable().describe('null when the node is unbuilt'),
+  confidence: z.number(),
+  source: MeasureSourceSchema,
+  deltas: z.array(DeltaSchema).describe('empty when the node is clean'),
+  status: z.enum(NODE_STATUSES),
+  since: z.string().describe('the run that reached the status'),
+  get children(): z.ZodArray<typeof MatchSchema> {
+    return z.array(MatchSchema)
+  },
+})
+
+export const RunSchema = z.object({
+  id: z.string(),
+  round: z.number(),
+  design: z.string().describe('the id of the design the run measured'),
+  root: MatchSchema,
+  extras: z.array(LiveComponentSchema).describe('live elements no design node claimed'),
+  score: z.array(z.number()),
+  stop: z.enum(STOPS).nullable(),
+  images: z.object({live: z.string(), diff: z.string()}),
+})
+
+export const AttachmentsSchema = z.object({
+  document: z.unknown().optional(),
+  image: z.instanceof(Uint8Array).optional(),
+})
+
+export const DECISION_KINDS = [
+  'pin',
+  'excluded',
+  'image-slot',
+  'accept-delta',
+  'tolerance',
+  'accept-node',
+  'twin',
+] as const
+
+export const DecisionSchema = z.object({
+  id: z.string(),
+  kind: z.enum(DECISION_KINDS),
+  anchor: z.string(),
+  value: z.union([z.string(), z.number(), z.null()]),
+  at: z.number(),
+})
+
+export const TargetRecordSchema = z.object({
+  id: z.string(),
+  session: z.string().default(''),
+  route: z.string().optional(),
+  width: z.number(),
+  height: z.number(),
+  name: z.string().optional(),
+  scale: z.number(),
+  createdAt: z.number(),
+  acceptedRun: z.string().optional(),
+})
+
+export type OcrLine = z.infer<typeof OcrLineSchema>
+export type Typography = z.infer<typeof TypographySchema>
+export type TypographyInput = z.input<typeof TypographySchema>
+export type Border = z.infer<typeof BorderSchema>
+export type Paint = z.infer<typeof PaintSchema>
+export type DesignGradient = NonNullable<Paint['gradient']>
+export type DesignNode = z.infer<typeof DesignNodeSchema>
+export type Design = z.infer<typeof DesignSchema>
+export type Match = z.infer<typeof MatchSchema>
+export type Run = z.infer<typeof RunSchema>
+export type Attachments = z.infer<typeof AttachmentsSchema>
+export type Decision = z.infer<typeof DecisionSchema>
+export type DecisionKind = Decision['kind']
+export type TargetRecord = z.infer<typeof TargetRecordSchema>
+
+export type Pairer = (input: {
+  design: Design
+  live: LiveComponent
+  decisions: Decision[]
+  comparators: Comparators
+}) => Promise<Match>
+
+export type Ranker = (input: {items: Item[]}) => Item[]
+
+export type TargetAdapter = {
+  kind: string
+  accepts(input: {ref: string; project: Storage}): boolean
+  load(input: {ref: string; scale: number; project: Storage; attachments: Attachments}): Promise<Design>
+}
+
+export type Store = {
+  put(input: {design: Design; session: string; route?: string; name?: string}): Promise<TargetRecord>
+  design(id: string): Promise<Design>
+  record(id: string): Promise<TargetRecord | null>
+  current(session: string): Promise<TargetRecord | null>
+  list(route?: string): Promise<TargetRecord[]>
+  remove(input: {id?: string; all?: boolean}): Promise<number>
+  runs(id: string): Promise<string[]>
+  run(input: {id: string; run: string}): Promise<Run | null>
+  writeRun(input: {run: Run; live: Uint8Array; diff: Uint8Array}): Promise<void>
+  decisions(id: string): Promise<Decision[]>
+  decide(input: {id: string; kind: DecisionKind; anchor: string; value: Decision['value']}): Promise<Decision>
+  revoke(input: {id: string; decision: string}): Promise<boolean>
+  accept(input: {id: string; run: string}): Promise<TargetRecord>
+  writeCapture(png: Uint8Array): Promise<string>
+}
+
+export type Words = {
+  outline(design: Design): string[]
+  itemSentence(input: {match: Match; delta: Match['deltas'][number]; parent: Match | null}): string
+  changeSentence(input: {changes: Changes; round: number; similarity: {now: number; was: number} | null}): string
+  stalledLine(input: {stage: Stage; score: number[]; unchanged: Item[]}): string
+  flippedLine(input: {items: Item[]; round: number}): string
+}
 
 const UnmatchedSchema = z.object({
   kind: z

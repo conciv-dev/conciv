@@ -111,6 +111,7 @@
     "solid-js": "catalog:",
     "ssim.js": "catalog:",
     "takumi-paint": "catalog:",
+    "unstorage": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

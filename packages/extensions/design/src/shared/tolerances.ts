@@ -1,7 +1,7 @@
 import {z} from 'zod'
-import type {ComponentReport, DeltaKindName, DiffReport, Stage} from './defs.js'
+import type {ComponentReport, DeltaKindName, DiffReport, Stage, Typography} from './defs.js'
 import {uniqBy} from 'es-toolkit'
-import type {Box, Delta, ItemKind, Typography} from './types.js'
+import type {Box, Delta, ItemKind} from './types.js'
 
 export const TOLERANCES = {
   geometryPx: 2,
