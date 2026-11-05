@@ -35,7 +35,7 @@ export type EngineTrust = {
   ensureTrusted: (timeoutMs?: number) => Promise<boolean>
 }
 
-type TrustState = {key: string; status: TrustStatus; token: string | undefined; listeners: Set<TrustListener>}
+type TrustState = {key: string; status: TrustStatus; token: string | undefined; events: EventTarget}
 
 export type BrowserRpcConnection = {
   link: ClientLink<RpcClientContext>
@@ -156,10 +156,12 @@ function retryPlugin(alive: () => boolean, vote: ReachabilityListener): ClientRe
   })
 }
 
+const TRUST_STATUS_EVENT = 'status'
+
 function setStatus(state: TrustState, status: TrustStatus): void {
   if (state.status === status) return
   state.status = status
-  for (const listener of state.listeners) listener(status)
+  state.events.dispatchEvent(new Event(TRUST_STATUS_EVENT))
 }
 
 function distrust(state: TrustState, refused: string | undefined): void {
@@ -238,9 +240,10 @@ function makeEngineTrust(key: string, state: TrustState, link: ClientLink<RpcCli
     }
   }
   const subscribe = (listener: TrustListener): (() => void) => {
-    state.listeners.add(listener)
+    const handler = (): void => listener(state.status)
+    state.events.addEventListener(TRUST_STATUS_EVENT, handler)
     return () => {
-      state.listeners.delete(listener)
+      state.events.removeEventListener(TRUST_STATUS_EVENT, handler)
     }
   }
   return {
@@ -297,7 +300,12 @@ function connectionEntry(apiBase: string): ConnectionEntry {
   const connections = registry()
   const existing = connections.get(key)
   if (existing) return existing
-  const created = fetchConnection(key, {key, status: 'checking', token: readStoredToken(key), listeners: new Set()})
+  const created = fetchConnection(key, {
+    key,
+    status: 'checking',
+    token: readStoredToken(key),
+    events: new EventTarget(),
+  })
   connections.set(key, created)
   return created
 }
